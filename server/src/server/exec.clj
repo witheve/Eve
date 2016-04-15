@@ -295,34 +295,51 @@
               ix
               (inc ix))))))))
 
-;; (defn sort-facts [d terms build c]
-;;   (let [ordinals (atom {})
-;;         prevs (atom {})]
-;;     (fn [r]
-;;       (let [out-slot (second terms)
-;;             op (rget r op-register)
-;;             value-slot (nth terms 2)
-;;             grouping-slots (nth terms 3)
-;;             grouping (if (> (count grouping-slots) 0)
-;;                        (map #(rget r %1) grouping-slots)
-;;                        (list 'default))]
-
-;;         (if (or (= op 'flush) (= op 'close))
-;;             (c r)
-;;           (do
-;;             (condp = (rget r op-register)
-;;               'insert (swap! totals update-in grouping (fnil + 0) (rget r value-slot))
-;;               'remove (swap! totals update-in grouping (fnil - 0) (rget r value-slot))
-;;               ())
-
-;;             (rset r out-slot (get-in @totals grouping))
-;;             (c r)
-
-;;             (when-not (nil? (get-in @prevs grouping nil))
-;;               (rset r op-register 'remove) ;; @FIXME: This needs to copied to be safe asynchronously
-;;               (rset r out-slot (get-in @prevs grouping))
-;;               (c r))
-;;             (swap! prevs assoc-in grouping (get-in @totals grouping))))))))
+(defn sort-facts [d terms build c]
+  (let [ordinals (atom {})
+        prevs (atom {})]
+    (fn [r]
+      (let [out-slot (second terms)
+            op (rget r op-register)
+            sorting-slots (nth terms 2)
+            grouping-slots (nth terms 3)
+            grouping (if-not (zero? (count grouping-slots))
+                       (map #(rget r %1) grouping-slots)
+                       (list 'default))]
+        (if (or (= op 'flush) (= op 'close))
+          (c r)
+          (swap!
+           ordinals update-in grouping
+           (fn [cur]
+             (println "RESORTING" cur "ON" sorting-slots "AROUND" r)
+             (condp = op
+               'insert (let [ix (get-sorted-ix cur sorting-slots r)
+                             [prefix suffix] (split-at ix cur)
+                             cur (concat prefix r suffix)]
+                         (rset r out-slot ix)
+                         (c r)
+                         (doseq [ix (range (inc ix) (count cur))]
+                           (let [r (get cur ix)]
+                             (rset r op-register 'remove)
+                             (c r)
+                             (rset r op-register 'insert)
+                             (rset r out-slot ix)
+                             (c r)))
+                         cur)
+               'remove (let [ix (.indexOf cur r)
+                             ;; @FIXME: indexOf won't work because object-arrays, and also because the r references are probably getting changed anyway.
+                             [prefix suffix] (split-at ix cur)
+                             cur (concat prefix (rest suffix))]
+                         (rset r out-slot ix)
+                         (c r)
+                         (doseq [ix (range ix (count cur))]
+                           (let [r (get cur ix)]
+                             (rset r op-register 'remove)
+                             (C r)
+                             (rset r op-register 'insert)
+                             (rset r out-slot ix)
+                             (c r)))
+                         cur)))))))))
 
 (defn delta-c [d terms build c]
   (let [[_ & proj] terms
