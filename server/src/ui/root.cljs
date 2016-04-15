@@ -56,49 +56,9 @@
 ;; local state
 ;;---------------------------------------------------------
 
-(defonce state-store (atom {}))
-
-(defn args-to-key [args]
-  (string/join "-" (for [arg args]
-                     (if (keyword? arg)
-                       (name arg)
-                       arg))))
-
-(defmulti state identity)
-
-(defmethod state :cells [& args]
-  (or (@state-store (args-to-key args))
-      (array)))
-
-(defmethod state :selections [& args]
-  (or (@state-store (args-to-key args))
-      (array {:x 0 :y 0 :width 1 :height 1})))
-
-(defmethod state :grid [_ id]
-  (or (@state-store (args-to-key [:grid id]))
-      id))
-
-(defmethod state :name [_ name]
-  (get (@state-store :name) (.toLowerCase name)))
-
-(defmethod state :name-matches [_ partial-name]
-  (seq (filter (fn [[k v]]
-                 (> (.indexOf k partial-name) -1))
-               (@state-store :name))))
-
-(defmethod state :default [& args]
-  (@state-store (args-to-key args)))
-
-(defmulti set-state! identity)
-(defmethod set-state! :default [& args]
-  (swap! state-store assoc (args-to-key (butlast args)) (last args)))
-
-(defmethod set-state! :grid [_ id value]
-  (swap! state-store assoc (args-to-key [:grid id]) value)
-  (swap! state-store update-in [:name] assoc (.toLowerCase value) id))
-
-(def facts-by-id (js-obj))
-(def facts-by-tag (js-obj))
+(defonce facts-by-id (js-obj))
+(defonce facts-by-tag (js-obj))
+(defonce entity-name-pairs (atom []))
 
 (defn get-fact-by-id [id]
   (aget facts-by-id id))
@@ -143,8 +103,9 @@
 (defn add-eavs! [eavs]
   (doseq [[e a v] eavs
           :let [obj (or (aget facts-by-id e) {:id e})]]
-    (println "ADDING" e a v)
     (aset facts-by-id e (update-in obj [a] property-updater v))
+    (when (= :name a)
+      (swap! entity-name-pairs conj [e v]))
     (when (= :tag a)
       (doseq [tag (if (set? v)
                     v
@@ -157,6 +118,8 @@
   (doseq [[e a v] eavs
           :let [obj (or (aget facts-by-id e) {:id e})]]
     (aset facts-by-id e (update-in obj [a] property-remover v))
+    (when (= :name a)
+      (swap! entity-name-pairs disj [e v]))
     (when (= :tag a)
       (doseq [tag (if (set? v)
                     v
@@ -197,19 +160,45 @@
                                (disj cur id)))))
   context)
 
-; (transaction context
-;              (-> context
-;                  (insert-facts! {:id 'root :tag "cell" :height 1 :width 1 :x 1 :y 1 :type :property})
-;                  (insert-facts! {:tag "cell" :height 2 :width 2 :x 4 :y 5 :type :property :buddy 'root})
-;                  (remove-facts! {:id (:id (first (entities {:tag "cell"}))) :width 1 :height 1})
-;                  (remove-entity! (:id (first (entities {:tag "cell"})))))
-;              (println (entities {:tag "cell"})))
+(defn update-state! [context grid-id key new-value]
+  (let [grid-user-state (entity {:tag "grid-user-state" :grid-id grid-id})]
+    (when grid-user-state
+      (remove-facts! context {:id (:id grid-user-state) key (key grid-user-state)}))
+    (when new-value
+      (if-not grid-user-state
+        (insert-facts! context {:tag "grid-user-state" :grid-id grid-id key new-value})
+        (insert-facts! context {:id (:id grid-user-state) key new-value})))))
 
-; (entities :tag "cell" :grid "yo")
-; (entities :tag "cell" :grid grid-id)
-; (fact-btu :tick 1234)
-; (insert-fact! :id 1 :tag "cell" :name "foo")
-; (remove-fact! :id 3)
+(defn get-state [grid-id key & [otherwise]]
+  (or (key (entity {:tag "grid-user-state" :grid-id grid-id}))
+      otherwise))
+
+(defn clear-intermediates! [context grid-id]
+  (let [intermediate-keys [:intermediate-property :intermediate-value :focus :autocomplete-selection]
+        grid-user-state (entity {:tag "grid-user-state" :grid-id grid-id})]
+    (when grid-user-state
+      (remove-facts! context (select-keys grid-user-state (concat [:id] intermediate-keys))))))
+
+(defn update-entity! [context entity-id update-map]
+  (let [with-id (assoc update-map :id entity-id)
+        keys-to-update (keys with-id)
+        current-values (select-keys (entity {:id entity-id}) keys-to-update)]
+    (remove-facts! context current-values)
+    (insert-facts! context with-id)))
+
+(defn matching-names [partial-name]
+  ;; TODO: how do we get the names?
+  (let [all-names @entity-name-pairs]
+    (seq (filter (fn [[entity name]]
+                   (> (.indexOf name partial-name) -1))
+                 all-names))))
+
+(defn for-display [value]
+  ;; check if this is an id that has a name
+  (if-let [name (and value (:name (entity {:id value})))]
+    name
+    ;; otherwise just return the value
+    value))
 
 ;;---------------------------------------------------------
 ;; Styles
@@ -275,17 +264,14 @@
   (let [{:keys [cell id]} (.-info elem)
         key-code (.-keyCode event)
         {:keys [grid-id]} cell
-        intermediates (state :active-cell-intermediates id)
-        intermediates (if-not (:autocomplete-selection intermediates)
-                        (assoc intermediates :autocomplete-selection 0)
-                        intermediates)]
+        autocomplete-selection (get-state grid-id :autocomplete-selection 0)]
     (when (= key-code (KEYS :up))
-      (transaction
-        (set-state! :active-cell-intermediates id (update-in intermediates [:autocomplete-selection] dec))
+      (transaction context
+        (update-state! context grid-id :autocomplete-selection (dec autocomplete-selection))
         (.preventDefault event)))
     (when (= key-code (KEYS :down))
-      (transaction
-        (set-state! :active-cell-intermediates id (update-in intermediates [:autocomplete-selection] inc))
+      (transaction context
+        (update-state! context grid-id :autocomplete-selection (inc autocomplete-selection))
         (.preventDefault event)))))
 
 
@@ -299,11 +285,12 @@
 
 (defmulti get-autocompleter-options identity)
 
+
 (defmethod get-autocompleter-options :value [_ value]
   (concat (when (and value (not= value ""))
-            (if-let [matches (state :name-matches value)]
+            (if-let [matches (matching-names value)]
               (for [[k v] matches]
-                {:text k :adornment "link" :action :link :value v})
+                {:text v :adornment "link" :action :link :value k})
               [{:text value :adornment "create" :action :create :value value}]))
           (match-autocomplete-options [{:text "Table" :adornment "insert" :action :insert :value :table}
                                        {:text "Image" :adornment "insert" :action :insert :value :image}
@@ -372,23 +359,6 @@
     (if (:active-cell grid-user-state)
       (entity {:id (:active-cell grid-user-state)}))))
 
-(defn update-active-cell! [context grid-id new-value]
-  (let [grid-user-state (entity {:tag "grid-user-state" :grid-id grid-id})]
-    (when grid-user-state
-      (remove-facts! context {:id (:id grid-user-state) :active-cell (:active-cell grid-user-state)}))
-    (when new-value
-      (if-not grid-user-state
-        (insert-facts! context {:tag "grid-user-state" :grid-id grid-id :active-cell new-value})
-        (insert-facts! context {:id (:id grid-user-state) :active-cell new-value})))))
-
-(defn update-extending-selection! [context grid-id new-value]
-  (let [grid-user-state (entity {:tag "grid-user-state" :grid-id grid-id})]
-    (when grid-user-state
-      (remove-facts! context {:id (:id grid-user-state) :extending-selection (:extending-selection grid-user-state)}))
-    (when new-value
-      (if-not grid-user-state
-        (insert-facts! context {:tag "grid-user-state" :grid-id grid-id :extending-selection new-value})
-        (insert-facts! context {:id (:id grid-user-state) :extending-selection new-value})))))
 
 ;;---------------------------------------------------------
 ;; Cell types
@@ -397,19 +367,19 @@
 (defn property-keys [event elem]
   (let [{:keys [cell id]} (.-info elem)
         key-code (.-keyCode event)
-        {:keys [grid-id]} cell
-        intermediates (state :active-cell-intermediates id)]
+        {:keys [grid-id]} cell]
     (when (= key-code (KEYS :enter))
       (-> event (.-currentTarget) (.-parentNode)
           (.. (querySelector ".value") (focus))))
-      (let [selected (get-selected-autocomplete-option :property (:property intermediates) (:autocomplete-selection intermediates 0))]
-        (when (not= (:text selected) (:property intermediates))
-          (transaction
-            (set-state! :active-cell-intermediates id (assoc intermediates :property (:text selected))))))
+      (let [intermediate-property (get-state grid-id :intermediate-property)
+            selected (get-selected-autocomplete-option :property intermediate-property (get-state grid-id :autocomplete-selection 0))]
+        (when (not= (:text selected) intermediate-property)
+          (transaction context
+            (update-state! context id :intermediate-property (:text selected)))))
     (when (= key-code (KEYS :escape))
-      (transaction
-        (set-state! :active-cell-intermediates id nil)
-        (set-state! :active-cell grid-id nil)))))
+      (transaction context
+                   (clear-intermediates! context grid-id)
+                   (update-state! context grid-id :active-cell nil)))))
 
 (defn value-keys [event elem]
   (let [{:keys [cell id]} (.-info elem)
@@ -422,84 +392,74 @@
         (-> event (.-currentTarget) (.-parentNode)
             (.. (querySelector ".property") (focus)))
         ;; otherwise we submit this cell and move down
-        (let [intermediates (state :active-cell-intermediates id)
-              selected (get-selected-autocomplete-option :value (or (:value intermediates) (state :grid (:value cell))) (:autocomplete-selection intermediates 0))
+        (let [selected (get-selected-autocomplete-option :value (or (get-state grid-id :intermediate-value) (for-display (:value cell))) (get-state grid-id :autocomplete-selection 0))
               {:keys [action]} selected]
-          (println selected)
           (transaction context
             (cond
               (= action :insert) (do
-                                   (set-state! :cells grid-id (afor [cell (state :cells grid-id)]
-                                                                    (if (= id (:id cell))
-                                                                      (merge cell {:property (or (:property intermediates) (:property cell))
-                                                                                   :type (:value selected)})
-                                                                      cell)))
-                                   (set-state! :active-cell-intermediates id (assoc intermediates :value nil)))
+                                   (update-entity! context (:id cell) {:property (get-state grid-id :intermediate-property (:property cell))
+                                                                       :value (:value selected)})
+                                   (clear-intermediates! context grid-id))
               (or (= action :create)
                   (= action :link)) (let [value-id (if (= action :link)
                                                      (:value selected)
-                                                     (js/uuid))]
+                                                     'make-an-id)]
                                       (when (= action :create)
-                                        (set-state! :grid value-id (:text selected))
+                                        (insert-facts! context {:id value-id :name (:text selected)})
                                         ;; TODO: add a new grid
                                         )
-                                      (set-state! :cells grid-id (afor [cell (state :cells grid-id)]
-                                                                       (if (= id (:id cell))
-                                                                         (merge cell {:property (or (:property intermediates) (:property cell))
-                                                                                      :value value-id})
-                                                                         cell)))
-                                      (set-state! :active-cell-intermediates id nil)
-                                      (update-active-cell! context grid-id nil)
+                                      (update-entity! context (:id cell) {:property (get-state grid-id :intermediate-property (:property cell))
+                                                                          :value value-id})
+                                      (clear-intermediates! context grid-id)
+                                      (update-state! context grid-id :active-cell nil)
                                       (move-selection! context grid-id :down)))))))
     (when (= key-code (KEYS :escape))
-      (transaction
-        (set-state! :active-cell-intermediates id nil)
-        (set-state! :active-cell grid-id nil))))
+      (transaction context
+                   (clear-intermediates! context grid-id)
+                   (update-state! context grid-id :active-cell nil))))
   (autocomplete-selection-keys event elem))
 
 (defn store-intermediate [event elem]
   (let [{:keys [cell field id]} (.-info elem)
-        current-intermediate (or (state :active-cell-intermediates id) {})
+        grid-id (:grid-id cell)
         value (-> (.-currentTarget event) (.-value))]
-    (transaction
-      (set-state! :active-cell-intermediates id (assoc current-intermediate field value :autocomplete-selection 0)))))
+    (transaction context
+      (update-state! context grid-id :autocomplete-selection 0)
+      (update-state! context grid-id (keyword (str "intermediate-" (name field))) value))))
 
 (defn track-focus [event elem]
-  (let [{:keys [cell field id]} (.-info elem)
-        current-intermediate (or (state :active-cell-intermediates id) {})]
-    (transaction
-      (set-state! :active-cell-intermediates id (assoc current-intermediate :focus field)))))
+  (let [{:keys [cell field id]} (.-info elem)]
+    (transaction context
+                 (update-state! context (:grid-id cell) :focus field))))
 
 (defn draw-property [cell active?]
-  (let [intermediates (state :active-cell-intermediates (:id cell))]
-    (if active?
-      (input :style (style :color "#777"
-                           :font-size "10pt"
-                           :line-height "10pt"
-                           :margin "6px 0 0 8px")
-             :postRender (if-not (:property cell)
-                           focus-once
-                           js/undefined)
-             :c "property"
-             :focus track-focus
-             :input store-intermediate
-             :keydown property-keys
-             :info {:cell cell :field :property :id (:id cell)}
-             :placeholder "property"
-             :value (or (:property intermediates) (:property cell)))
-      (text :style (style :color "#777"
-                          :font-size "10pt"
-                          :margin "8px 0 0 8px")
-            :text (:property cell "property")))))
+  (if active?
+    (input :style (style :color "#777"
+                         :font-size "10pt"
+                         :line-height "10pt"
+                         :margin "6px 0 0 8px")
+           :postRender (if-not (:property cell)
+                         focus-once
+                         js/undefined)
+           :c "property"
+           :focus track-focus
+           :input store-intermediate
+           :keydown property-keys
+           :info {:cell cell :field :property :id (:id cell)}
+           :placeholder "property"
+           :value (or (get-state (:grid-id cell) :intermediate-property) (:property cell)))
+    (text :style (style :color "#777"
+                        :font-size "10pt"
+                        :margin "8px 0 0 8px")
+          :text (:property cell "property"))))
 
 (defmulti draw-cell :type)
 
 (defmethod draw-cell :property [cell active?]
-  (let [intermediates (state :active-cell-intermediates (:id cell))
-        current-focus (or (:focus intermediates)
-                          (if-not (:property cell)
-                            :property
-                            :value))
+  (let [grid-id (:grid-id cell)
+        current-focus (get-state grid-id :focus (if-not (:property cell)
+                                                  :property
+                                                  :value))
         property-element (draw-property cell active?)]
     (box :children
          (if active?
@@ -516,24 +476,22 @@
                          :c "value"
                          :info {:cell cell :field :value :id (:id cell)}
                          :placeholder "value"
-                         :value (or (:value intermediates) (state :grid (:value cell))))
+                         :value (or  (get-state grid-id :intermediate-value) (for-display (:value cell))))
                   (if (= :property current-focus)
-                    (autocompleter :property (or (:property intermediates) (:property cell) "") (:autocomplete-selection intermediates 0))
-                    (autocompleter :value (or (:value intermediates) (state :grid (:value cell)) "") (:autocomplete-selection intermediates 0))))
+                    (autocompleter :property (or (get-state grid-id :intermediate-property) (:property cell) "")  (get-state grid-id :autocomplete-selection 0))
+                    (autocompleter :value (or (get-state grid-id :intermediate-value) (for-display (:value cell)) "") (get-state grid-id :autocomplete-selection 0))))
            (array property-element
                   (button :style (style :font-size "12pt"
                                         :margin "1px 0 0 8px")
                           :click (fn [event elem] (println "CLICKED!"))
-                          :children (array (text :text (state :grid (:value cell ""))))))))))
+                          :children (array (text :text (for-display (:value cell))))))))))
 
 (defmethod draw-cell :default [cell active?]
-  (let [intermediates (state :active-cell-intermediates (:id cell))
-        current-focus (or (:focus intermediates)
-                          (if-not (:property cell)
-                            :property
-                            :value))
-        property-element (draw-property cell active?)
-        type (name (:type cell))]
+  (let [grid-id (:grid-id cell)
+        current-focus (get-state grid-id :focus (if-not (:property cell)
+                                                  :property
+                                                  :value))
+        property-element (draw-property cell active?)]
     (box :children
          (if active?
            (array property-element
@@ -549,10 +507,10 @@
                          :c "value"
                          :info {:cell cell :field :value :id (:id cell)}
                          :placeholder "value"
-                         :value (or (:value intermediates) type))
+                         :value (or  (get-state grid-id :intermediate-value) (for-display (:value cell))))
                   (if (= :property current-focus)
-                    (autocompleter :property (or (:property intermediates) (:property cell) "") (:autocomplete-selection intermediates 0))
-                    (autocompleter :value (or (:value intermediates) (:value cell) "") (:autocomplete-selection intermediates 0))))
+                    (autocompleter :property (or (get-state grid-id :intermediate-property) (:property cell) "")  (get-state grid-id :autocomplete-selection 0))
+                    (autocompleter :value (or (get-state grid-id :intermediate-value) (for-display (:value cell)) "") (get-state grid-id :autocomplete-selection 0))))
            (array property-element
                   (text :style (style :font-size "12pt"
                                       :margin "3px 0 0 8px")
@@ -670,8 +628,9 @@
                            (doseq [selection (get-selections id)]
                              (remove-facts! context selection))
                            (insert-facts! context final-selection)))
-                 (update-extending-selection! context id true)
-                 (update-active-cell! context id nil))))
+                 (update-state! context id :extending-selection true)
+                 (clear-intermediates! context id)
+                 (update-state! context id :active-cell nil))))
 
 (declare stop-selecting)
 
@@ -707,7 +666,7 @@
                        (remove-facts! context selection))
                      (insert-facts! context maybe)
                      (when-not (global-mouse-down)
-                       (update-extending-selection! context id false)
+                       (update-state! context id :extending-selection false)
                        (stop-selecting event elem)))))))
 
 (defn normalize-cell-size [{:keys [x y width height] :as cell}]
@@ -743,9 +702,9 @@
                        (remove-facts! context selection))
                      (doseq [new-selection final]
                        (insert-facts! context new-selection))
-                     (update-extending-selection! context id false))))
+                     (update-state! context id :extending-selection false))))
     (transaction context
-                 (update-extending-selection! context id false))))
+                 (update-state! context id :extending-selection false))))
 
 (defn remove-overlap [cells updated-cells axis-and-direction-map]
   (let [changed (.slice updated-cells)
@@ -830,19 +789,10 @@
                   (-> (select-keys maybe-selected-cell [:x :y :width :height])
                       (assoc :cell-id (:id maybe-selected-cell)))
                   resized-pos)]
-      (when offset (if grid-user-state
-                     (do
-                       (remove-facts! context {:id (:id grid-user-state)
-                                               :x-offset x-offset
-                                               :y-offset y-offset})
-                       (insert-facts! context {:id (:id grid-user-state)
-                                               :x-offset (:x offset)
-                                               :y-offset (:y offset)}))
-                     (insert-facts! context {:tag "grid-user-state"
-                                             :grid-id grid-id
-                                             :x-offset (:x offset)
-                                             :y-offset (:y offset)})))
-      (update-extending-selection! context grid-id false)
+      (when offset
+        (update-state! context grid-id :x-offset (:x offset))
+        (update-state! context grid-id :y-offset (:y offset)))
+      (update-state! context grid-id :extending-selection false)
       ;; remove all the previous selections
       (doseq [selection selections]
         (remove-facts! context selection))
@@ -861,9 +811,9 @@
                        :right (update-in current-selection [:width] non-zero-inc)
                        :down (update-in current-selection [:height] non-zero-inc))]
     ;; there's no offset if we're extending
-    ;; TODO: set the offset
-    (set-state! :offset grid-id {:x 0 :y 0})
-    (update-extending-selection! context grid-id true)
+    (update-state! context grid-id :x-offset 0)
+    (update-state! context grid-id :y-offset 0)
+    (update-state! context grid-id :extending-selection true)
     (doseq [selection selections]
       (remove-facts! context selection))
     (insert-facts! context (select-keys updated-pos [:tag :x :y :width :height :grid-id]))))
@@ -881,11 +831,11 @@
                    (dotimes [ix (count selections)]
                      (let [selection (aget selections ix)]
                        (remove-facts! context selection)))
-                   (update-active-cell! context grid-id (:id new-cell))
+                   (update-state! context grid-id :active-cell (:id new-cell))
                    (insert-facts! context {:tag "selection" :grid-id grid-id :cell-id (:id new-cell)})))
     (transaction context
                  (let [prev-active (entity {:tag "active" :grid-id grid-id})]
-                   (update-active-cell! context grid-id (:cell-id cell))))))
+                   (update-state! context grid-id :active-cell (:cell-id cell))))))
 
 (defn grid-keys [event elem]
   (when (= (.-currentTarget event) (.-target event))
@@ -928,22 +878,22 @@
       ;; if you don't have an already existing cell selected, then we need
       ;; to create a new cell with a property name starting with whatever
       ;; you've typed at this point
-      (if-not (:id current-selection)
+      (if-not (:cell-id current-selection)
         (transaction context
           (let [new-cell (add-cell! context id current-selection)
                 new-cell-id (:id new-cell)]
             (doseq [selection selections]
               (remove-facts! context selection))
-            (set-state! :selections id (array new-cell))
-            (set-state! :active-cell id new-cell-id)
-            (set-state! :active-cell-intermediates new-cell-id {:property current-value})))
+            (insert-facts! context {:tag "selection" :grid-id id :cell-id new-cell-id})
+            (update-state! context id :active-cell (:id new-cell))
+            (update-state! context id :intermediate-property current-value)))
         ;; otherwise if you are on an already existing cell, we need to
         ;; activate that cell, and set its value to what you've typed so far
         ;; TODO: what happens in the case where you don't have a normal property
         ;; cell? What does it mean to type on top of a chart, for example?
-        (transaction
-          (set-state! :active-cell id (:id current-selection))
-          (set-state! :active-cell-intermediates (:id current-selection) {:value current-value})))
+        (transaction context
+                     (update-state! context id :active-cell (:cell-id current-selection))
+                     (update-state! context id :intermediate-value current-value)))
       (set! (.-value (.-currentTarget event)) ""))))
 
 (defn grid-keys-up [event elem]
@@ -954,7 +904,7 @@
                (:extending-selection grid-user-state))
       (transaction context
         (stop-selecting event elem)
-        (update-extending-selection! context id false)))))
+        (update-state! context id :extending-selection false)))))
 
 (defn start-resize [event elem]
   (.stopPropagation event))
@@ -980,7 +930,6 @@
         children (array canvas)
         {:keys [cells cell-size-x cell-size-y selections]} info
         active-cell (get-active-cell (:id info))]
-    (println "ACTIVE CELL" active-cell)
     (dotimes [cell-ix (count cells)]
       (let [{:keys [x y width height color id] :as cell} (aget cells cell-ix)
             is-active? (= (:id active-cell) (:id cell))]
