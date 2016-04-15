@@ -287,6 +287,11 @@ function submitReplCard(replCard: ReplCard) {
   }*/
 }
 
+function addColumn() {
+  let nCard = newReplCard(0,++repl.deck.columns);
+  repl.deck.cards.push(nCard);
+}
+  
 function addCardToColumn(col: number) {
   let row = repl.deck.cards.filter((r) => r.col === col).length;
   let nCard = newReplCard(row, col);
@@ -314,6 +319,22 @@ function closeModals() {
 // ------------------
 // Event handlers
 // ------------------
+
+// Register some global event handlers on the window
+window.onkeydown = function(event) {
+  console.log(event);
+  // Catch ctrl + r
+  if (event.keyCode === 82 && event.ctrlKey === true) {
+    addColumn();
+  // Catch ctrl + n
+  } else if (event.keyCode === 78 && event.ctrlKey === true) {
+    addCardToColumn(repl.deck.focused.col);
+  } else {
+    return;
+  }
+  event.preventDefault();
+  rerender();
+}
 
 function queryInputKeydown(event, elem) {
   let thisReplCard: ReplCard = elemToReplCard(elem);
@@ -359,13 +380,6 @@ function queryInputKeydown(event, elem) {
       rightReplCard = getReplCard(rowsInNextCol, thisReplCard.col + 1);
       focusCard(rightReplCard);
     }
-  // Catch ctrl + +
-  } else if (event.keyCode === 187 && event.ctrlKey === true) {
-    addCardToColumn(thisReplCard.col);
-  // Catch ctrl + r
-  } else if (event.keyCode === 82 && event.ctrlKey === true) {
-    let nCard = newReplCard(0,++repl.deck.columns);
-    repl.deck.cards.push(nCard);
   // Catch ctrl + delete to remove a card
   } else if (event.keyCode === 46 && event.ctrlKey === true) {
     //deleteReplCard(thisReplCard);
@@ -473,9 +487,9 @@ function loadCardsClick(event, elem) {
   event.stopPropagation();
   rerender();
 }*/
+
 function addColumnClick(event, elem) {
-  let nCard = newReplCard(0,++repl.deck.columns);
-  repl.deck.cards.push(nCard);
+  addColumn();
   rerender();
 }
 
@@ -615,7 +629,7 @@ let defaultCard = newReplCard();
 let replCards: Deck = {
   columns: 0,
   cards: [defaultCard],
-  focused: defaultCard,
+  focused: undefined,
 }  
 
 // Instantiate a repl instance
@@ -630,7 +644,6 @@ let repl: Repl = {
     timeout: 0,
   },
 };
-focusCard(defaultCard);
 connectToServer();
 app.renderRoots["repl"] = root;
 
