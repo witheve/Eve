@@ -1,134 +1,153 @@
 (ns server.jsclient
   (:require
+   [clojure.stacktrace :refer [print-stack-trace]]
    [org.httpkit.server :as httpserver]
+   [ring.middleware.file :refer [wrap-file]]
+   [ring.middleware.content-type :refer [wrap-content-type]]
+   [clojure.data.json :as json]
    [server.db :as db]
    [server.edb :as edb]
    [server.repl :as repl]
    [server.exec :as exec]
    [server.compiler :as compiler]
-   [clojure.string :as string])) 
+   [server.smil :as smil]
+   [clojure.string :as string]
+   [clojure.pprint :refer [pprint]]))
 
-(defn sexp-to-json [term]
-  (cond
-    (= term ()) "[]"
-    (or (seq? term) (vector? term))
-    (str "["
-         (reduce
-          (fn [a b] (str a ", " b))
-          (map sexp-to-json term))
-         "]")
-    ;; ok, this is sad, we're going to collapse symbols and strings   
-    (or (string? term) (symbol? term))
-    (str "\"" term "\"")
-    :else (str term)))
+(def clients (atom {}))
 
+(def DEBUG true)
+(def bag (atom 10))
 
-(defn browser-webby-loop [db channel]
-  (let [ndb (edb/create-edb)
-        
-        wrap-handler (fn [remote] (fn [op tup] ()))
-                          
-        compile (fn [program result-oid]
-                  (concat (list (list 'open 'return-channel result-oid [])) program))
-                        
+(defn quotify [x] (str "\"" (string/replace (string/replace x "\n" "\\n") "\"" "\\\"") "\""))
+(defn format-json [x]
+  (condp #(%1 %2) x
+    string? (quotify x)
+    keyword? (quotify x) ;;@NOTE: should this coerce to string?
+    symbol? (quotify x)
+    map? (str "{" (reduce-kv (fn [b k v] (str b (if (> (count b) 0) ", ") (format-json k) ":" (format-json v))) "" x) "}")
+    coll? (str "[" (string/join "," (map format-json x)) "]")
+    nil? "null"
+    x))
 
-        execute (fn [program handler]
-                  ;; unify this with the repl and allow for incremental recompilation
-                  ;; while maintaining the terminal projection
-                  (let [result
-                        (fn [c p]
-                          (fn [op t]
-                            (httpserver/send! channel
-                                   (sexp-to-json ['send handler op t]))))
-                        p (compile program handler)]
-                    (swap! ndb assoc handler result)
-                    ;; xxx- probably dont want to send the immutatable dereference
-                    ;; of db here
-                    ((exec/open [] @ndb p 0) 'insert [])))]
+(defn timestamp []
+  (.format (java.text.SimpleDateFormat. "hh:mm:ss") (java.util.Date.)))
 
-    
-        
-    ;; make sure if we load things they are inserted into the parent scope
-    ;; but read from this shadowing scope(?)
-    ;; 
-    ;; this seems a little bad..the stack on errors after this seems
-    ;; to grow by one frame of org.httpkit.server.LinkingRunnable.run(RingHandler.java:122)
-    ;; for every reception. i'm using this interface wrong or its pretty seriously
-    ;; damaged
+(defn send-result [channel id fields results]
+  (let [client (get @clients channel)
+        message {"type" "result"
+                 "id" id
+                 "fields" fields
+                 "values" results}]
+    (httpserver/send! channel (format-json message))
+    (when DEBUG
+      (println "<- result" id "to" (:id client) "@" (timestamp))
+      (pprint message))))
 
+(defn send-error [channel id error]
+  (let [client (get @clients channel)
+        data (ex-data error)
+        data (if (:expr data)
+               (assoc data :expr (with-out-str (smil/print-smil (:expr data))))
+               data)
+        message {"type" "error"
+                 "id" id
+                 "cause" (.getMessage error)
+                 "stack" (with-out-str (print-stack-trace error))
+                 "data" data}]
+    (httpserver/send! channel (format-json message))
+    (when DEBUG
+      (println "<- error" id "to" (:id client) "@" (timestamp))
+      (pprint message))))
 
-    (httpserver/on-receive channel
-                (fn [data]
-                  ;; create relation and create specialization?
-                  (let [input (read-string data)
-                        c (first input)]
+(defn start-query [db query id channel]
+  (let [fields (or (second query) [])
+        results (atom ())
+        [form fields]  (repl/form-from-smil query)
+        prog (compiler/compile-dsl db @bag form)
+        handler (fn [tuple]
+                  (condp = (exec/rget tuple exec/op-register)
+                    'insert (swap! results conj (vec tuple))
+                    'flush (do (send-result channel id fields @results)
+                               (reset! results '()))
+                    'error (send-error channel id (ex-info "Failure to WEASL" {:data (str tuple)}))))
+        e (exec/open db prog handler false)]
+    (e 'insert)
+    (e 'flush)))
 
-                    (cond
-                      ;; why is this a string?
-                          (= c "diesel") (let [program (read-string (nth input 3))
-                                               handler (wrap-handler (nth input 2))
-                                               p (compiler/compile-dsl db program)]
-                                           (execute program handler))
+(defn handle-connection [db channel]
+  ;; this seems a little bad..the stack on errors after this seems
+  ;; to grow by one frame of org.httpkit.server.LinkingRunnable.run(RingHandler.java:122)
+  ;; for every reception. i'm using this interface wrong or its pretty seriously
+  ;; damaged
+  (swap! clients assoc channel {:id (gensym "client") :queries []})
+  (println "-> connect from" (:id (get @clients channel)) "@" (timestamp))
+  (httpserver/on-receive
+   channel
+   (fn [data]
+     ;; create relation and create specialization?
+     (let [client (get @clients channel)
+           input (json/read-str data)
+           id (input "id")
+           t (input "type")]
+       (println "->" t id "from" (:id client) "@" (timestamp))
+       (try
+         (condp = t
+           "query"
+           (let [query (input "query")
+                 expanded (when query (smil/unpack db (smil/read query)))]
+             (println "  Raw:")
+             (println "   " (string/join "\n    " (string/split query #"\n")))
+             (println "  Expanded:")
+             (smil/print-smil expanded :indent 4)
+             (condp = (first expanded)
+               'query (start-query db expanded id channel)
+               'define! (do
+                          (repl/define db expanded)
+                          (send-result channel id [] []))
+               (throw (ex-info (str "Invalid query wrapper " (first expanded)) {:expr expanded}))))
+           (throw (ex-info (str "Invalid protocol message type " t) {:message input})))
+         (catch clojure.lang.ExceptionInfo error
+           (send-error channel id error))
+         ))))
 
-                          (= c "weasel") (let [program (read-string (nth input 3))
-                                               handler (nth input 2)]
-                                           (execute program handler))
+  (httpserver/on-close
+   channel
+   (fn [status]
+     (println "-> close from" (:id (get @clients channel)) "@" (timestamp))
+     ;; @TODO: cleanup any running computations?
+     (swap! clients dissoc channel))))
 
-                          ;; turn back on bridging of execution
-                          ;;(= c "send") (let [[op tuple] (rest input)]
-                          ;;               ((@input-handler-map oid) op tuple))
-                          
-                          
-                          :else
-                          (println "websocket wth" c (type c))))))))
-
-
+(defn serve-static [request channel]
+  (let [base-path (str (.getCanonicalPath (java.io.File. ".")) "/../")]
+    (println "Serving" (:uri request))
+    (httpserver/send! channel
+                      ((-> (fn [req] ; Horrible, horrible rewrite hack
+                             (if (= "repl" (second (string/split (request :uri) #"/")))
+                               {:status 200 :headers {"Content-Type" "text/html"} :body (slurp (str base-path "/repl.html"))}
+                               {:status 404}))
+                           (wrap-file base-path)
+                           (wrap-content-type))
+                       request))))
 
 (defn async-handler [db content]
-  (fn [ring-request]
-    (httpserver/with-channel ring-request channel    ; get the channel
-      (if (httpserver/websocket? channel) 
-        (browser-webby-loop db channel)
-        (if (= (ring-request :uri) "/favicon.ico") (httpserver/send! channel {:status 404})
-            (let [terms (string/split (ring-request :uri) #"/")
-                  head ["<!DOCTYPE html>"
-                        "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">"
-                        "<html style=\"width:100%;height:100%;\">"
-                        "<body onload =\"start()\" style=\"width:100%;height:100%;\">"
-                        "<script>"
-                        ""]
-                  program (str (terms 1) ".e")
-                  programname (str "var program = \"" program "\"\n")
-                  userid (str "var userid = \"" (gensym) "\"\n")
-                  tail ["</script>"
-                        "</body>"
-                        "</html>"]]
-
-              (httpserver/send! channel {:status 200
-                              :headers {"Content-Type" "text/html"
-                                        "Expires" "0"
-                                        "Cache-Control" "no-cache, private, pre-check=0, post-check=0, max-age=0"
-                                        "Pragma" "no-cache"
-                                        }
-                              :body    (apply str
-                                              (string/join "\n" head)
-                                              programname
-                                              userid
-                                              content
-                                              (string/join "\n" tail))})))))))
+  (fn [request]
+        (httpserver/with-channel request channel    ; get the channel
+          (if (httpserver/websocket? channel)
+            (handle-connection db channel)
+            (serve-static request channel)))))
 
 
 (import '[java.io PushbackReader])
 (require '[clojure.java.io :as io])
 
-(defn serve [db]
-  ;; its really more convenient to allow this to be reloaded
-  (let [content
-        (apply str (map (fn [p] (slurp (clojure.java.io/file (.getPath (clojure.java.io/resource p)))))
-                        '("translate.js"
-                          "db.js"
-                          "edb.js"
-                          "svg.js"
-                          "websocket.js")))]
-    (try (httpserver/run-server (async-handler db content) {:port 8080})
-         (catch Exception e (println (str "caught exception: " e (.getMessage e)))))))
+(def server (atom nil))
+
+(defn serve [db port]
+  (println (str "Serving on localhost:" port "/repl"))
+  (when-not (nil? @server)
+    (@server :timeout 0))
+  (try
+    (reset! server
+            (httpserver/run-server (async-handler db "<http><body>foo</body><http>") {:port port}))
+    (catch Exception e (println (str "caught exception: " e (.getMessage e))))))

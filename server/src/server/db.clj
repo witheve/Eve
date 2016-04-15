@@ -3,44 +3,54 @@
             [server.exec :as exec]))
 
 
-;; need to put some thought into what this timestamp is
-;; should probably (?) be at least monotonic, and likely
-;; include some form of node identity
-(defn now[] (System/currentTimeMillis))
-
 ;; in the nwo this should open the insert endpoint and then close it
-(defn insert [db e a v b u]
-  ((db 0 (fn [o t] ())) 'insert (list a e v b (now) u)))
-
+(defn insert [d e a v b u]
+  (d 'insert edb/insert-oid (object-array [e a v b]) (fn [op t] ())))
 
 (def uber-log (atom ()))
 
-;; maybe in the db?
-(def oidcounter (atom 100))
-(defn genoid [] (swap! oidcounter (fn [x] (+ x 1))))
-;; permanent allocations
-(def insert-oid 9)
 (def name-oid 10)
 (def implication-oid 11)
-(def contains-oid 66)
+(def contains-oid 12)
 
 (defn insert-implication [db relname parameters program user bag]
-  (insert db relname
-          implication-oid (list parameters program) user bag))
+  (insert db
+          (name relname)
+          implication-oid
+          (vector (map name parameters) program)
+          user
+          bag))
 
-(defn for-each-implication [db sig handler]
-  ;; only really for insert, right?
-  (let [terminus (fn [op tupl] (handler (first (nth tupl 2)) (second (nth tupl 2))))
-        prog (list
-              (list 'allocate [0] 3) 
-              (list 'bind [1] [] 
-                    (list (list 'equal [3] [1 1] sig)
-                          '(filter [3])
-                          (list 'send terminus [1])))
-              ;; should have a way to ignore the dest assignment
-              (list 'open [3] 0 [1]))
-        
-        e (exec/open db prog [])]
-    (e 'insert [])))
+;; i would like to use backtick here, but clojure is really screwing
+;; up my symbols
+(defn weasl-implications-for [id bag]
+  (list (list
+         'bind 'main
+         (list (list 'scan edb/full-scan-oid [4] [])
+               (list '= [5] [4 1] implication-oid)
+               '(filter [5])
+               (list '= [5] [4 0] id)
+               '(filter [5])
+               (list 'tuple [5] exec/op-register [4 2])
+               (list 'send 'out [5])))))
+
+(defn tuple-to-implication [tuple]
+  (exec/rget tuple [1]))
+
+;; plumb bag in here
+(defn for-each-implication [d id handler]
+  (exec/single d (weasl-implications-for id 0)
+               (fn [tuple]
+                 (when (= (exec/rget tuple exec/op-register) 'insert)
+                   (apply handler (tuple-to-implication tuple))))))
 
 
+;; @FIXME: This relies on exec/open flushing synchronously to determine if the implication currently exists
+;; plumb bag in here
+(defn implication-of [d id]
+  (let [impl (atom nil)]
+    (exec/single d (weasl-implications-for id 0)
+                 (fn [tuple]
+                   (when (= (exec/rget tuple exec/op-register) 'insert)
+                     (reset! impl (tuple-to-implication tuple)))))
+    @impl))

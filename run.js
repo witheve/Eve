@@ -13,7 +13,11 @@ var spawn = require("child_process").spawn;
 var state = {};
 
 var pkgs = {
-  root: {entries: ["src/root.ts"], adds: ["typings/tsd.d.ts"]},
+  wiki: {entries: ["src/wiki.ts"], adds: ["typings/tsd.d.ts"]},
+  repl: {entries: ["src/repl.ts"], adds: ["typings/tsd.d.ts"]},
+  editor: {entries: ["src/editor.ts"], adds: ["typings/tsd.d.ts"]},
+  nlqpTest: {entries: ["test/NLQPTest.ts"], adds: ["typings/tsd.d.ts"]},
+  runtimeTest: {entries: ["test/runtimeTest.ts"], adds: ["typings/tsd.d.ts"]},
 };
 var pkgList = Object.keys(pkgs);
 
@@ -320,7 +324,6 @@ if(program.server) {
     render();
   });
 }
-
 
 if(program.bundles) build(program.bundles);
 

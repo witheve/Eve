@@ -1,6 +1,7 @@
 (ns ui.root
   (:refer-clojure :exclude [find remove when])
   (:require [clojure.string :as string]
+            [clojure.walk :as walk]
             [clojure.set :as set])
   (:require-macros [ui.macros :refer [elem afor log box text button input transaction extract for-fact when]]))
 
@@ -31,6 +32,79 @@
   (if (= number 1)
     -1
     (dec number)))
+
+
+;;---------------------------------------------------------
+;; Websocket
+;;---------------------------------------------------------
+
+(def websocket-address "ws://localhost:8081")
+(defonce websocket (atom nil))
+(defonce id-to-query (atom {}))
+
+(declare send-query)
+
+(defn websocket-init []
+  (let [socket (new js/WebSocket websocket-address)]
+    (set! (.-onopen socket) (fn [event]
+
+                              (send-query 1 "(query [] (insert-fact! \"apple\" :color \"red\"))")
+                              (println "connected to server!")))
+    (set! (.-onerror socket) (fn [event]
+                               (println "the socket errored :(")))
+    (set! (.-onclose socket) (fn [event]
+                               (println "the socket closed :( :( :(")))
+    (set! (.-onmessage socket) (fn [event]
+                                 (println "received data!")
+                                 (println (.-data event))))
+    (reset! websocket socket)))
+
+(defn send-websocket [message]
+  (let [json-message (.stringify js/JSON (clj->js message))]
+    (.send @websocket json-message)))
+
+(defn send-query [id query]
+  (send-websocket {:id id :type "query" :query query}))
+
+(defn send-close [id]
+  (send-websocket {:id id :type "close"}))
+
+(defn replace-and-send-query [id query]
+  (let [current (@id-to-query id)
+        new-id (js/uuid)]
+    (when current
+      (send-close id)
+      ;; remove the values that were in the table
+      )
+    (send-query new-id query)
+    (swap! id-to-query assoc id new-id)))
+
+  ; ws.onmessage = function(message) {
+  ;   let parsed = JSON.parse(message.data);
+  ;   // Update the result of the correct repl card
+  ;   let targetCard = replCards.filter((r) => r.id === parsed.id).shift();
+  ;   if (targetCard !== undefined) {
+  ;     if (parsed.type === "result") {
+  ;       targetCard.state = CardState.GOOD;
+  ;       targetCard.result = {
+  ;         fields: parsed.fields,
+  ;         values: parsed.values,
+  ;       }
+  ;       saveReplCard(targetCard);
+  ;     } else if (parsed.type === "error") {
+  ;       targetCard.state = CardState.ERROR;
+  ;       targetCard.result = parsed.cause;
+  ;       saveReplCard(targetCard);
+  ;     } else if (parsed.type === "close") {
+  ;       let removeIx = replCards.map((r) => r.id).indexOf(parsed.id);
+  ;       if (removeIx >= 0) {
+  ;         replCards[removeIx].state = CardState.CLOSED;
+  ;       }
+  ;       rerender(true);
+  ;     }
+  ;   }
+  ;   rerender()
+  ; };
 
 ;;---------------------------------------------------------
 ;; Runtime wrapper
@@ -384,6 +458,13 @@
                    (clear-intermediates! context grid-id)
                    (update-state! context grid-id :active-cell nil)))))
 
+(defn query-string [obj]
+  (pr-str (walk/prewalk (fn [cur]
+                          (if-not (symbol? cur)
+                            cur
+                            (symbol (name cur))))
+                        obj)))
+
 (defn value-keys [event elem]
   (let [{:keys [cell id]} (.-info elem)
         key-code (.-keyCode event)
@@ -406,13 +487,18 @@
               (or (= action :create)
                   (= action :link)) (let [value-id (if (= action :link)
                                                      (:value selected)
-                                                     'make-an-id)]
+                                                     'make-an-id)
+                                          query-id (js/uuid)
+                                          property (get-state grid-id :intermediate-property (:property cell))]
                                       (when (= action :create)
                                         (insert-facts! context {:id value-id :name (:text selected)})
-                                        ;; TODO: add a new grid
                                         )
-                                      (update-entity! context (:id cell) {:property (get-state grid-id :intermediate-property (:property cell))
+                                      (update-entity! context (:id cell) {:property property
                                                                           :value value-id})
+                                      (send-query query-id
+                                                  (query-string `(query []
+                                                                        (insert-fact! ~grid-id ~(keyword property) ~(:text selected)))))
+                                      (send-close query-id)
                                       (clear-intermediates! context grid-id)
                                       (update-state! context grid-id :active-cell nil)
                                       (move-selection! context grid-id :down)))))))
@@ -537,6 +623,7 @@
                    (let [value (get-state grid-id :intermediate-value (:value cell))]
                      (update-entity! context (:id cell) {:property (get-state grid-id :intermediate-property (:property cell))
                                                          :value value})
+                     (replace-and-send-query (:id cell) value)
                      (clear-intermediates! context grid-id)
                      (update-state! context grid-id :active-cell nil)
                      (move-selection! context grid-id :down)))
@@ -1134,7 +1221,8 @@
   (when (not @renderer)
     (reset! renderer (new js/Renderer))
     (.appendChild (.-body js/document) (.-content @renderer))
-    (global-dom-init))
+    (global-dom-init)
+    (websocket-init))
   (render))
 
 (init)
