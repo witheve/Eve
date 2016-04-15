@@ -249,7 +249,7 @@
         [input output] (partition-2 (fn [x] (is-bound? env x)) proj)
         tail-name (str name "-cont")
         done (generate-send env m name input)]
-    
+
     (make-bind env inner-env name
                (apply build
                       (map-indexed
@@ -260,7 +260,7 @@
                                                                 (fn [] (generate-send-cont env m cenv tail-name output)))) m))]
                           body)
                        arms)))
-    
+
     (doseq [name output]
       (allocate-register env name))
     (make-continuation env tail-name (build (term env 'join m (count arms)) (down)))
@@ -300,7 +300,7 @@
     (db/for-each-implication (get @env 'db) relname
                              (fn [parameters body]
                                (swap! arms conj (army parameters body (count @arms)))))
-    
+
     (if (= (count @arms) 0)
       (compile-error (str "primitive " relname " not supported") {'relname relname}))
 
@@ -336,7 +336,7 @@
      (down))))
 
 (defn compile-equal [env terms down]
- 
+
   (let [argmap (apply hash-map (rest terms))
         simple [(argmap :a) (argmap :b)]
         a (is-bound? env (argmap :a))
