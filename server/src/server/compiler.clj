@@ -339,14 +339,14 @@
   (let [grouping (get @env 'input [])
         m (meta (first terms))
         argmap (apply hash-map (rest terms))]
-    (when-not (lookup env (:pairs argmap))
+    (when-not (lookup env (:sorting argmap))
       (compile-error (str "unhandled bound signature in" terms) {:env env :terms terms}))
     (when-not (lookup env (:return argmap))
       (allocate-register env (:return argmap)))
     (build
      (term env (first terms) m
            (:return argmap)
-           (map (fn [[var dir]] [(lookup env var) (lookup env dir)]) (:pairs argmap))
+           (map (fn [[var dir]] [(lookup env var) (lookup env dir)]) (partition 2 (:sorting argmap)))
            (map #(lookup env %1) grouping))
      (down))))
 
