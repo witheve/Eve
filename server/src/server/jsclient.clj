@@ -76,6 +76,7 @@
                                (reset! results '()))
                     'error (send-error channel id (ex-info "Failure to WEASL" {:data (str tuple)}))))
         e (exec/open db prog handler false)]
+    (swap! clients assoc-in [channel :queries id] e)
     (e 'insert)
     (e 'flush)))
 
@@ -84,7 +85,7 @@
   ;; to grow by one frame of org.httpkit.server.LinkingRunnable.run(RingHandler.java:122)
   ;; for every reception. i'm using this interface wrong or its pretty seriously
   ;; damaged
-  (swap! clients assoc channel {:id (gensym "client") :queries []})
+  (swap! clients assoc channel {:id (gensym "client") :queries {}})
   (println "-> connect from" (:id (get @clients channel)) "@" (timestamp))
   (httpserver/on-receive
    channel
@@ -110,6 +111,13 @@
                           (repl/define db expanded)
                           (send-result channel id [] []))
                (throw (ex-info (str "Invalid query wrapper " (first expanded)) {:expr expanded}))))
+           "close"
+           (let [e (get-in @clients [channel :queries id])]
+             (if-not e
+               (send-error channel id (ex-info (str "Invalid query id " id) {:id id}))
+               (do
+                 (e 'close)
+                 (swap! clients update-in [channel :queries] dissoc id))))
            (throw (ex-info (str "Invalid protocol message type " t) {:message input})))
          (catch clojure.lang.ExceptionInfo error
            (send-error channel id error))
