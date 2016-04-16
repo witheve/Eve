@@ -33,6 +33,25 @@
     -1
     (dec number)))
 
+;;---------------------------------------------------------
+;; Runtime wrapper
+;;---------------------------------------------------------
+
+(defonce eve (.indexer js/Runtime))
+
+(defn find-one [table & [info]]
+  (.findOne eve (name table) (clj->js info)))
+
+(defn find [table & [info]]
+  (.find eve (name table) (clj->js info)))
+
+(defn add [diff table fact]
+  (.add diff (name table) (clj->js fact))
+  diff)
+
+(defn remove [diff table fact]
+  (.remove diff (name table) (clj->js fact))
+  diff)
 
 ;;---------------------------------------------------------
 ;; Websocket
@@ -43,6 +62,17 @@
 (defonce id-to-query (atom {}))
 
 (declare send-query)
+(declare render)
+
+(defn results-to-objects [fields results]
+  (if-not results
+    (array)
+    (let [len (count fields)]
+      (afor [result results]
+            (let [obj (js-obj)]
+              (dotimes [ix len]
+                (aset obj (aget fields ix) (aget result ix)))
+              obj)))))
 
 (defn websocket-init []
   (let [socket (new js/WebSocket websocket-address)]
@@ -55,8 +85,23 @@
     (set! (.-onclose socket) (fn [event]
                                (println "the socket closed :( :( :(")))
     (set! (.-onmessage socket) (fn [event]
-                                 (println "received data!")
-                                 (println (.-data event))))
+                                 (let [data (.parse js/JSON (.-data event))]
+                                   (condp = (.-type data)
+                                     "result" (let [fields (.-fields data)
+                                                    adds (results-to-objects fields (.-insert data))
+                                                    removes (results-to-objects fields (.-remove data))
+                                                    diff (.diff eve)]
+                                                (.addMany diff (.-id data) adds)
+                                                (.removeFacts diff (.-id data) removes)
+                                                (.applyDiff eve diff)
+                                                (println "ADDS" adds)
+                                                (println "REMOVES" removes)
+                                                )
+                                     "error" (.error js/console "uh oh")
+                                     )
+                                   (render)
+                                   (println "received data!")
+                                   (println (.-data event)))))
     (reset! websocket socket)))
 
 (defn send-websocket [message]
@@ -78,53 +123,6 @@
       )
     (send-query new-id query)
     (swap! id-to-query assoc id new-id)))
-
-  ; ws.onmessage = function(message) {
-  ;   let parsed = JSON.parse(message.data);
-  ;   // Update the result of the correct repl card
-  ;   let targetCard = replCards.filter((r) => r.id === parsed.id).shift();
-  ;   if (targetCard !== undefined) {
-  ;     if (parsed.type === "result") {
-  ;       targetCard.state = CardState.GOOD;
-  ;       targetCard.result = {
-  ;         fields: parsed.fields,
-  ;         values: parsed.values,
-  ;       }
-  ;       saveReplCard(targetCard);
-  ;     } else if (parsed.type === "error") {
-  ;       targetCard.state = CardState.ERROR;
-  ;       targetCard.result = parsed.cause;
-  ;       saveReplCard(targetCard);
-  ;     } else if (parsed.type === "close") {
-  ;       let removeIx = replCards.map((r) => r.id).indexOf(parsed.id);
-  ;       if (removeIx >= 0) {
-  ;         replCards[removeIx].state = CardState.CLOSED;
-  ;       }
-  ;       rerender(true);
-  ;     }
-  ;   }
-  ;   rerender()
-  ; };
-
-;;---------------------------------------------------------
-;; Runtime wrapper
-;;---------------------------------------------------------
-
-(defonce eve (.indexer js/Runtime))
-
-(defn find-one [table & [info]]
-  (.findOne eve (name table) (clj->js info)))
-
-(defn find [table & [info]]
-  (.find eve (name table) (clj->js info)))
-
-(defn add [diff table fact]
-  (.add diff (name table) (clj->js fact))
-  diff)
-
-(defn remove [diff table fact]
-  (.remove diff (name table) (clj->js fact))
-  diff)
 
 ;;---------------------------------------------------------
 ;; local state
@@ -692,6 +690,27 @@
                         :info {:cell cell :field :value :id (:id cell) :focused? (and active? (= current-focus :value))}
                         :placeholder "value"
                         :value (or  (get-state grid-id :intermediate-value) (for-display (:value cell))))
+                  (when (@id-to-query (:id cell))
+                    (when-let [results (find (@id-to-query (:id cell)))]
+                      (let [fields (if (seq results)
+                                     (.keys js/Object (aget results 0))
+                                     (array))
+                            fields (.filter fields #(not= %1 "__id"))
+                            rows (afor [row results]
+                                       (box :style (style :flex-direction "row"
+                                                          :padding "5px 10px")
+                                            :children (afor [field fields]
+                                                            (box :style (style :width 100)
+                                                                 :children (array (text :text (aget row field)))))))]
+                        (box :style (style :flex "1 0 auto")
+                             :children (array (box :style (style :background "#333"
+                                                                 :padding "5px 10px"
+                                                                 :margin-bottom "5px"
+                                                                 :flex-direction "row")
+                                                   :children (afor [field fields]
+                                                                   (box :style (style :width 100)
+                                                                        :children (array (text :text field)))))
+                                              (box :children rows))))))
                   (when (and active? (= :property current-focus))
                     (autocompleter :property (or (get-state grid-id :intermediate-property) (:property cell) "")  (get-state grid-id :autocomplete-selection 0))))
   )))
