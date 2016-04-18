@@ -495,7 +495,7 @@
                                                                           :value value-id})
                                       (send-query query-id
                                                   (query-string `(query []
-                                                                        (insert-fact! ~grid-id ~(keyword property) ~(:text selected)))))
+                                                                        (insert-fact! ~grid-id ~(keyword property) ~(aget context value-id)))))
                                       (send-close query-id)
                                       (clear-intermediates! context grid-id)
                                       (update-state! context grid-id :active-cell nil)
@@ -1039,6 +1039,7 @@
 (defn grid-keys [event elem]
   (when (= (.-currentTarget event) (.-target event))
     (let [{:keys [id cells]} (.-info elem)
+          grid-id id
           selections (entities {:tag "selection"
                                 :grid-id id})
           current-selection (last selections)
@@ -1055,6 +1056,11 @@
                             (transaction context
                               (doseq [selection (get-selections id)]
                                 (when (:cell-id selection)
+                                  (send-query (:cell-id selection)
+                                              (query-string `(query []
+                                                                    (fact-btu ~grid-id ~(:property selection) ~(:value selection) :tick tick)
+                                                                    (remove-by-t! tick))))
+                                  (send-close (:cell-id selection))
                                   (remove-facts! context (entity {:id (:cell-id selection)})))
                                 (remove-facts! context selection)
                                 (insert-facts! context (select-keys current-selection [:tag :grid-id :x :y :width :height]))))
