@@ -434,9 +434,12 @@
            ;; maybe replace with zero register? maybe just shortcut this last guy?
            env terms (fn []
                        (let [bound (vals (get @env 'bound {}))
-                             regs (map #(lookup env %1) bound)]
-                         (list
-                          (with-meta (apply list 'tuple exec/temp-register exec/op-register regs) m)
-                          (with-meta (list 'send 'out exec/temp-register) m)))))]
+                             regs (map #(lookup env %1) bound)
+                             epilogue (list
+                                       (with-meta (apply list 'tuple exec/temp-register exec/op-register regs) m)
+                                       (with-meta (list 'send 'out exec/temp-register) m))]
+                         (if-not (zero? (count proj))
+                           (concat (apply term env 'delta-c m proj) epilogue)
+                           epilogue))))]
     (make-continuation env 'main p)
     (vals (get @env 'blocks))))

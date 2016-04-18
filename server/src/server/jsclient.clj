@@ -15,6 +15,7 @@
    [clojure.pprint :refer [pprint]]))
 
 (def clients (atom {}))
+(def server (atom nil))
 
 (def DEBUG true)
 (def bag (atom 10))
@@ -35,10 +36,12 @@
 
 (defn send-result [channel id fields results]
   (let [client (get @clients channel)
+        {inserts 'insert removes 'remove} (group-by #(get %1 0) results)
         message {"type" "result"
                  "id" id
                  "fields" fields
-                 "values" results}]
+                 "insert" (map rest inserts)
+                 "remove" (map rest removes)}]
     (httpserver/send! channel (format-json message))
     (when DEBUG
       (println "<- result" id "to" (:id client) "@" (timestamp))
@@ -62,16 +65,20 @@
 
 (defn start-query [db query id channel]
   (let [fields (or (second query) [])
+        store-width (inc (count fields))
         results (atom ())
         [form fields]  (repl/form-from-smil query)
         prog (compiler/compile-dsl db @bag form)
         handler (fn [tuple]
                   (condp = (exec/rget tuple exec/op-register)
-                    'insert (swap! results conj (vec tuple))
+                    'insert (swap! results conj (vec (take store-width tuple)))
+                    'remove (swap! results conj (vec (take store-width tuple)))
                     'flush (do (send-result channel id fields @results)
                                (reset! results '()))
+                    'close (println "@FIXME: Send close message")
                     'error (send-error channel id (ex-info "Failure to WEASL" {:data (str tuple)}))))
-        e (exec/open db prog handler)]
+        e (exec/open db prog handler false)]
+    (swap! clients assoc-in [channel :queries id] e)
     (e 'insert)
     (e 'flush)))
 
@@ -80,7 +87,7 @@
   ;; to grow by one frame of org.httpkit.server.LinkingRunnable.run(RingHandler.java:122)
   ;; for every reception. i'm using this interface wrong or its pretty seriously
   ;; damaged
-  (swap! clients assoc channel {:id (gensym "client") :queries []})
+  (swap! clients assoc channel {:id (gensym "client") :queries {}})
   (println "-> connect from" (:id (get @clients channel)) "@" (timestamp))
   (httpserver/on-receive
    channel
@@ -106,6 +113,13 @@
                           (repl/define db expanded)
                           (send-result channel id [] []))
                (throw (ex-info (str "Invalid query wrapper " (first expanded)) {:expr expanded}))))
+           "close"
+           (let [e (get-in @clients [channel :queries id])]
+             (if-not e
+               (send-error channel id (ex-info (str "Invalid query id " id) {:id id}))
+               (do
+                 (e 'close)
+                 (swap! clients update-in [channel :queries] dissoc id))))
            (throw (ex-info (str "Invalid protocol message type " t) {:message input})))
          (catch clojure.lang.ExceptionInfo error
            (send-error channel id error))
@@ -131,7 +145,6 @@
                    (assoc response :body (slurp (:body response)))
                    response)]
     (println "Serving" (:uri request))
-    (println response)
     (httpserver/send! channel response)))
 
 (defn async-handler [db content]
@@ -144,8 +157,6 @@
 
 (import '[java.io PushbackReader])
 (require '[clojure.java.io :as io])
-
-(def server (atom nil))
 
 (defn serve [db port]
   (println (str "Serving on localhost:" port "/repl"))
