@@ -72,8 +72,10 @@
         handler (fn [tuple]
                   (condp = (exec/rget tuple exec/op-register)
                     'insert (swap! results conj (vec (take store-width tuple)))
+                    'remove (swap! results conj (vec (take store-width tuple)))
                     'flush (do (send-result channel id fields @results)
                                (reset! results '()))
+                    'close (println "@FIXME: Send close message")
                     'error (send-error channel id (ex-info "Failure to WEASL" {:data (str tuple)}))))
         e (exec/open db prog handler false)]
     (swap! clients assoc-in [channel :queries id] e)
