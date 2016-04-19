@@ -314,7 +314,7 @@
               (swap! (record up e) conj t)
               (let [nb (if b b (base e))
                     new (if nb (walk nb) nb)]
-                (cond (and (not old) new) (do (rset r out in)
+                (cond (and (not old) new) (do (rset r out (rget r in))
                                               (c r))
                       (and old (not new)) (do (rset r out (@assertions b))
                                               (rset r op-register 'remove)
