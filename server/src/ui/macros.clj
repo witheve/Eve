@@ -46,6 +46,7 @@
   (if (symbol? diff)
     `(let [~diff (cljs.core/js-obj)]
        ~@body
+       (ui.root/commit-transaction ~diff)
        (ui.root/render))
     `(do
        ~@(concat [diff] body)

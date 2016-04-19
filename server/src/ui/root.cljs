@@ -33,6 +33,13 @@
     -1
     (dec number)))
 
+(defn query-string [obj]
+  (pr-str (walk/prewalk (fn [cur]
+                          (if-not (symbol? cur)
+                            cur
+                            (symbol (name cur))))
+                        obj)))
+
 ;;---------------------------------------------------------
 ;; Runtime wrapper
 ;;---------------------------------------------------------
@@ -74,11 +81,17 @@
                 (aset obj (aget fields ix) (aget result ix)))
               obj)))))
 
+(declare locally-add-eavs!)
+(declare locally-remove-eavs!)
+
 (defn websocket-init []
   (let [socket (new js/WebSocket websocket-address)]
     (set! (.-onopen socket) (fn [event]
 
                               (send-query 1 "(query [] (insert-fact! \"apple\" :color \"red\"))")
+                              (send-query "all facts"
+                                          (query-string `(query [e a v]
+                                                                (fact-btu e a v))))
                               (println "connected to server!")))
     (set! (.-onerror socket) (fn [event]
                                (println "the socket errored :(")))
@@ -87,16 +100,23 @@
     (set! (.-onmessage socket) (fn [event]
                                  (let [data (.parse js/JSON (.-data event))]
                                    (condp = (.-type data)
-                                     "result" (let [fields (.-fields data)
-                                                    adds (results-to-objects fields (.-insert data))
-                                                    removes (results-to-objects fields (.-remove data))
-                                                    diff (.diff eve)]
-                                                (.addMany diff (.-id data) adds)
-                                                (.removeFacts diff (.-id data) removes)
-                                                (.applyDiff eve diff)
-                                                (println "ADDS" adds)
-                                                (println "REMOVES" removes)
-                                                )
+                                     "result" (if (= (.-id data) "all facts")
+                                                (let [inserts (.-insert data)
+                                                      removes (.-remove data)
+                                                      context (js-obj)]
+                                                  (println "GOT MESSAGE AT " (.now (.-performance js/window)))
+                                                  (locally-add-eavs! context inserts)
+                                                  (locally-remove-eavs! context removes))
+                                                (when (seq (.-fields data))
+                                                  (let [fields (.-fields data)
+                                                      adds (results-to-objects fields (.-insert data))
+                                                      removes (results-to-objects fields (.-remove data))
+                                                      diff (.diff eve)]
+                                                  (.addMany diff (.-id data) adds)
+                                                  (.removeFacts diff (.-id data) removes)
+                                                  (.applyDiff eve diff)
+                                                  (println "ADDS" adds)
+                                                  (println "REMOVES" removes))))
                                      "error" (.error js/console "uh oh")
                                      )
                                    (render)
@@ -172,9 +192,36 @@
     (= cur v) nil
     :else cur))
 
-(defn add-eavs! [eavs]
+(defn remote-add-eavs! [context eavs]
+  (let [inserts-string (reduce (fn [cur [e a v]]
+                                 (if (nil? v)
+                                   cur
+                                   (str cur " " (query-string `(insert-fact! ~e ~a ~v)))))
+                               ""
+                               eavs)]
+    (when-not (aget context "__inserts")
+      (aset context "__inserts" (array)))
+    (.push (aget context "__inserts") inserts-string)))
+
+(defn remote-remove-eavs! [context eavs]
+  (when (seq eavs)
+    (let [removes (mapcat (fn [[e a v]]
+                            (when-not (nil? v)
+                              (let [sym (gensym 'tick)]
+                                `[(fact-btu ~e ~(name a) ~v :tick ~sym)
+                                  (remove-by-t! ~sym)])))
+                        eavs)
+          removes-subquery (query-string `(query [] ~@removes))]
+      (when-not (aget context "__removes")
+        (aset context "__removes" (array)))
+      (.push (aget context "__removes") removes-subquery))))
+
+(defn locally-add-eavs! [context eavs]
   (doseq [[e a v] eavs
-          :let [obj (or (aget facts-by-id e) {:id e})]]
+          :let [obj (or (aget facts-by-id e) {:id e})
+                a (if-not (keyword? a)
+                    (keyword a)
+                    a)]]
     (aset facts-by-id e (update-in obj [a] property-updater v))
     (when (= :name a)
       (swap! entity-name-pairs conj [e v]))
@@ -186,9 +233,13 @@
                                  (conj cur e)
                                  #{e}))))))
 
-(defn remove-eavs! [eavs]
+;; TODO: this will leak objects that no longer have any properties
+(defn locally-remove-eavs! [context eavs]
   (doseq [[e a v] eavs
-          :let [obj (or (aget facts-by-id e) {:id e})]]
+          :let [obj (or (aget facts-by-id e) {:id e})
+                a (if-not (keyword? a)
+                    (keyword a)
+                    a)]]
     (aset facts-by-id e (update-in obj [a] property-remover v))
     (when (= :name a)
       (swap! entity-name-pairs disj [e v]))
@@ -199,8 +250,34 @@
         (aset facts-by-tag tag (if-let [cur (aget facts-by-tag tag)]
                                  (disj cur e)))))))
 
+(defn add-eavs! [context eavs]
+  (remote-add-eavs! context eavs)
+  ; (locally-add-eavs! context eavs)
+  )
+
+(defn remove-eavs! [context eavs]
+  (remote-remove-eavs! context eavs)
+  ; (locally-remove-eavs! context eavs)
+  )
+
+
 (defn make-transaction-context []
   (js-obj))
+
+(defn commit-transaction [context]
+  (let [inserts (aget context "__inserts")
+        removes (aget context "__removes")
+        final-query (str "(query [] \n"
+                         inserts
+                         "\n"
+                         removes
+                         ")")
+        query-id (js/uuid)]
+    (when (or (seq inserts) (seq removes))
+      (println "******* TIME TO COMMIT! ********" (.now (.-performance js/window)))
+      (println final-query)
+      (send-query query-id final-query)
+      (send-close query-id))))
 
 (defn insert-facts! [context info]
   (let [id (if (symbol? (:id info))
@@ -208,17 +285,17 @@
                                                     (aset context (name (:id info)) new-id)
                                                     new-id))
              (or (:id info) (js/uuid)))]
-    (add-eavs! (for [[k v] (dissoc info :id)
-                     :let [v (if (symbol? v)
-                               (aget context (name v))
-                               v)]]
-                 [id k v])))
+    (add-eavs! context (for [[k v] (dissoc info :id)
+                             :let [v (if (symbol? v)
+                                       (aget context (name v))
+                                       v)]]
+                         [id k v])))
   context)
 
 (defn remove-facts! [context info]
   (let [id (or (:id info) (throw (js/Error "remove-facts requires an id to remove from")))]
-    (remove-eavs! (for [[k v] (dissoc info :id)]
-                    [id k v])))
+    (remove-eavs! context (for [[k v] (dissoc info :id)]
+                            [id k v])))
   context)
 
 (defn remove-entity! [context id]
@@ -234,12 +311,13 @@
 
 (defn update-state! [context grid-id key new-value]
   (let [grid-user-state (entity {:tag "grid-user-state" :grid-id grid-id})]
-    (when grid-user-state
-      (remove-facts! context {:id (:id grid-user-state) key (key grid-user-state)}))
-    (when new-value
-      (if-not grid-user-state
-        (insert-facts! context {:tag "grid-user-state" :grid-id grid-id key new-value})
-        (insert-facts! context {:id (:id grid-user-state) key new-value})))))
+    (when-not (= (key grid-user-state) new-value)
+      (when grid-user-state
+        (remove-facts! context {:id (:id grid-user-state) key (key grid-user-state)}))
+      (when-not (nil? new-value)
+        (if-not grid-user-state
+          (insert-facts! context {:tag "grid-user-state" :grid-id grid-id key new-value})
+          (insert-facts! context {:id (:id grid-user-state) key new-value}))))))
 
 (defn get-state [grid-id key & [otherwise]]
   (or (key (entity {:tag "grid-user-state" :grid-id grid-id}))
@@ -254,9 +332,17 @@
 (defn update-entity! [context entity-id update-map]
   (let [with-id (assoc update-map :id entity-id)
         keys-to-update (keys with-id)
-        current-values (select-keys (entity {:id entity-id}) keys-to-update)]
+        current-entity (entity {:id entity-id})
+        ;; we want to filter out any keys that would add and remove the same value
+        ;; since that's a no-op and also it can lead to writer loops
+        valid-keys-to-update (filter (fn [cur-key]
+                                       (not= (cur-key current-entity) (cur-key update-map)))
+                                     keys-to-update)
+        current-values (select-keys current-entity valid-keys-to-update)]
+    (println "******** UPDATING: ")
+    (println current-values (select-keys with-id valid-keys-to-update))
     (remove-facts! context current-values)
-    (insert-facts! context with-id)))
+    (insert-facts! context (select-keys with-id valid-keys-to-update))))
 
 (defn matching-names [partial-name]
   ;; TODO: how do we get the names?
@@ -456,13 +542,6 @@
                    (clear-intermediates! context grid-id)
                    (update-state! context grid-id :active-cell nil)))))
 
-(defn query-string [obj]
-  (pr-str (walk/prewalk (fn [cur]
-                          (if-not (symbol? cur)
-                            cur
-                            (symbol (name cur))))
-                        obj)))
-
 (defn value-keys [event elem]
   (let [{:keys [cell id]} (.-info elem)
         key-code (.-keyCode event)
@@ -493,10 +572,10 @@
                                         )
                                       (update-entity! context (:id cell) {:property property
                                                                           :value value-id})
-                                      (send-query query-id
-                                                  (query-string `(query []
-                                                                        (insert-fact! ~grid-id ~(keyword property) ~(aget context value-id)))))
-                                      (send-close query-id)
+                                      ; (send-query query-id
+                                      ;             (query-string `(query []
+                                      ;                                   (insert-fact! ~grid-id ~(keyword property) ~(aget context value-id)))))
+                                      ; (send-close query-id)
                                       (clear-intermediates! context grid-id)
                                       (update-state! context grid-id :active-cell nil)
                                       (move-selection! context grid-id :down)))))))
@@ -674,7 +753,7 @@
            (array property-element
                   (elem :style (style :font-size "12pt"
                                       :color "#CCC"
-                                      :flex "1 0 auto"
+                                      :flex "1 0"
                                       :background "none"
                                       :border "none"
                                       :margin "0px 0 0 8px")
@@ -698,19 +777,24 @@
                             fields (.filter fields #(not= %1 "__id"))
                             rows (afor [row results]
                                        (box :style (style :flex-direction "row"
+                                                          :flex "none"
                                                           :padding "5px 10px")
                                             :children (afor [field fields]
-                                                            (box :style (style :width 100)
+                                                            (box :style (style :width 100
+                                                                               :flex "none")
                                                                  :children (array (text :text (aget row field)))))))]
-                        (box :style (style :flex "1 0 auto")
+                        (box :style (style :flex "1 0")
                              :children (array (box :style (style :background "#333"
+                                                                 :flex "none"
                                                                  :padding "5px 10px"
                                                                  :margin-bottom "5px"
                                                                  :flex-direction "row")
                                                    :children (afor [field fields]
-                                                                   (box :style (style :width 100)
+                                                                   (box :style (style :width 100
+                                                                                      :flex "none")
                                                                         :children (array (text :text field)))))
-                                              (box :children rows))))))
+                                              (box :style (style :overflow "auto")
+                                                   :children rows))))))
                   (when (and active? (= :property current-focus))
                     (autocompleter :property (or (get-state grid-id :intermediate-property) (:property cell) "")  (get-state grid-id :autocomplete-selection 0))))
   )))
@@ -1056,11 +1140,11 @@
                             (transaction context
                               (doseq [selection (get-selections id)]
                                 (when (:cell-id selection)
-                                  (send-query (:cell-id selection)
-                                              (query-string `(query []
-                                                                    (fact-btu ~grid-id ~(:property selection) ~(:value selection) :tick tick)
-                                                                    (remove-by-t! tick))))
-                                  (send-close (:cell-id selection))
+                                  ; (send-query (:cell-id selection)
+                                  ;             (query-string `(query []
+                                  ;                                   (fact-btu ~grid-id ~(:property selection) ~(:value selection) :tick tick)
+                                  ;                                   (remove-by-t! tick))))
+                                  ; (send-close (:cell-id selection))
                                   (remove-facts! context (entity {:id (:cell-id selection)})))
                                 (remove-facts! context selection)
                                 (insert-facts! context (select-keys current-selection [:tag :grid-id :x :y :width :height]))))
@@ -1197,10 +1281,10 @@
           :info info
           :tabindex -1
           :focus transfer-focus-to-keyhandler
-          :mousedown set-selection
+          ; :mousedown set-selection
           :dblclick maybe-activate-cell
-          :mousemove mousemove-extend-selection
-          :mouseup stop-selecting
+          ; :mousemove mousemove-extend-selection
+          ; :mouseup stop-selecting
           :style (style :position "relative"))))
 
 ;;---------------------------------------------------------
