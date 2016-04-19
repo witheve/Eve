@@ -55,6 +55,7 @@
 ;; these register indirections could be resolved at build time? yeah, kinda
 ;; no longer support the implicit zero register
 
+
 (defn rget [r ref]
   (cond (not (vector? ref))
         (if (= ref '*)
@@ -62,9 +63,11 @@
           ref)
         ;; special case of constant vector, empty
         (= (count ref) 0) ref
-        (= (count ref) 1) (aget r (ref 0))
+        (= (count ref) 1)
+        (aget ^objects r (get ref 0))
         :else
-        (rget (aget r (ref 0)) (subvec ref 1))))
+        (rget (aget ^objects r (get ref 0))
+              (subvec ref 1))))
 
 (defn rset [r ref v]
   (let [c (count ref)]
@@ -73,9 +76,9 @@
       (= c 1) (if (> (ref 0) (count r))
                 (do (println "exec error" (ref 0) "is greater than" (count r))
                     (throw c))
-                (aset r (ref 0) v))
+                (aset ^objects r (ref 0) v))
       :else
-      (rset (aget r (ref 0)) (subvec ref 1) v))))
+      (rset (aget ^objects r (get ref 0)) (subvec ref 1) v))))
 
 
 ;; simplies - cardinality preserving, no flush
@@ -140,7 +143,7 @@
             ;; since this is often a file, we currently force this to be at least the base max frame size
             tout (object-array (max (count a) basic-register-frame))]
         (doseq [x (range (count a))]
-          (aset tout x (rget r (nth a x))))
+          (aset ^objects tout x (rget r (nth a x))))
         (rset r (second terms) tout)))
     (c r)))
 
