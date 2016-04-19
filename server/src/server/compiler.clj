@@ -216,7 +216,7 @@
     (make-continuation env tail-name (down))
     (make-bind env inner-env name body)
     (apply build
-           (when (not= (count input) 0) (apply term env 'delta-c m input))
+           (when-not (zero? (count input)) (apply term env 'delta-c m input))
            (list (generate-send env m name input)))))
 
 (defn compile-union [env terms down]
@@ -244,23 +244,28 @@
 (defn compile-choose [env terms down]
   (let [[_ proj & arms] terms
         m (meta (first terms))
+        name (gensym 'choose)
+        inner-env (env-from env proj)
         [input output] (partition-2 (fn [x] (is-bound? env x)) proj)
-        name (get-signature (gensym "choose") input output)
         tail-name (str name "-cont")
-        body (apply build
-                    (map-indexed
-                     #(let [inner-env (env-from env proj)
-                            arm-name (str name "-arm" %1)
-                            m (meta (first terms))
-                            _ (swap! inner-env assoc 'name arm-name)
-                            body (rest (rest %2))
-                            body (list (with-meta (list 'not (compile-conjunction inner-env body
-                                                                                  (fn [] (generate-send-cont env m inner-env tail-name output)))) m))]
-                        (bind-outward env inner-env)
-                        body)
-                     arms))]
-    (make-continuation env tail-name (down))
-    body))
+        done (generate-send env m name input)]
+
+    (make-bind env inner-env name
+               (apply build
+                      (map-indexed
+                       #(let [m (meta (first terms))
+                              cenv (atom @inner-env)
+                              body (list (with-meta (list 'not (compile-conjunction
+                                                                cenv (rest (rest %2))
+                                                                (fn [] (generate-send-cont env m cenv tail-name output)))) m))]
+                          body)
+                       arms)))
+
+    (doseq [name output]
+      (allocate-register env name))
+    (make-continuation env tail-name (build (term env 'join m (count arms)) (down)))
+    done))
+
 
 
 (defn compile-implication [env terms down]
@@ -295,7 +300,7 @@
     (db/for-each-implication (get @env 'db) relname
                              (fn [parameters body]
                                (swap! arms conj (army parameters body (count @arms)))))
-    
+
     (if (= (count @arms) 0)
       (compile-error (str "primitive " relname " not supported") {'relname relname}))
 
@@ -331,7 +336,7 @@
      (down))))
 
 (defn compile-equal [env terms down]
- 
+
   (let [argmap (apply hash-map (rest terms))
         simple [(argmap :a) (argmap :b)]
         a (is-bound? env (argmap :a))
@@ -414,9 +419,12 @@
            ;; maybe replace with zero register? maybe just shortcut this last guy?
            env terms (fn []
                        (let [bound (vals (get @env 'bound {}))
-                             regs (map #(lookup env %1) bound)]
-                         (list
-                          (with-meta (apply list 'tuple exec/temp-register exec/op-register regs) m)
-                          (with-meta (list 'send 'out exec/temp-register) m)))))]
+                             regs (map #(lookup env %1) bound)
+                             epilogue (list
+                                       (with-meta (apply list 'tuple exec/temp-register exec/op-register regs) m)
+                                       (with-meta (list 'send 'out exec/temp-register) m))]
+                         (if-not (zero? (count proj))
+                           (concat (apply term env 'delta-c m proj) epilogue)
+                           epilogue))))]
     (make-continuation env 'main p)
     (vals (get @env 'blocks))))

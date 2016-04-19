@@ -49,7 +49,8 @@ shut down a query
 {
   "type": "result",
   "fields": ["x", "y"] ,
-  "values": [[  ], [  ] ... [ ]],
+  "insert": [[0, 1], [2, 3] ... [4, 5]],
+  "remove": [[6, 7]]
   "id": "id" 
 }
 ```

@@ -32,8 +32,8 @@
 (defn as-query [expr]
   (if (and (seq? expr) (= (first expr) 'query))
     expr
-    ('query
-     ('= 'return expr))))
+    (list 'query
+     (list '= 'return expr))))
 
 (defn assert-queries [body]
   (doseq [expr body]
@@ -271,12 +271,10 @@
 
                      ;; Macros
                      remove-by-t! (expand db (list (with-meta 'insert-fact-btu! (meta op)) (:tick args) REMOVE_FACT nil))
-                     if (let [then (as-query (:then args))
-                              then ('query (:cond args) (rest then))
-                              else (as-query (:else args))]
-                          ((with-meta 'choose (meta op)) ['return]
-                           (expand db then)
-                           (expand db else)))
+                     if (let [[head body] (split-at 2 (expand db (as-query (:then args))))
+                              then (concat head (expand db (:cond args)) body)
+                              else (expand db (as-query (:else args)))]
+                          (seq (conj ['choose ['return]] then else)))
 
                      ;; Native forms
                      insert-fact-btu! (cons op (splat-map (expand-values db args)))
