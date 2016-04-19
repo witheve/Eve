@@ -497,18 +497,22 @@ function queryInputChange(event, elem) {
   //submitReplCard(thisReplCard);
 }
 
-function queryResultDoubleClick(event, elem) {
-  let card = elemToReplCard(elem);
-  card.display = card.display === CardDisplay.BOTH ? CardDisplay.RESULT : CardDisplay.BOTH;
-  event.preventDefault(); 
-  rerender();
+function queryResultClick(event, elem) {
+  if (event.button === 1) {
+    let card = elemToReplCard(elem);
+    card.display = card.display === CardDisplay.BOTH ? CardDisplay.RESULT : CardDisplay.BOTH;
+    event.preventDefault(); 
+    rerender();
+  }
 }
 
-function queryInputDoubleClick(event, elem) {
-  let card = elemToReplCard(elem);
-  card.display = card.display === CardDisplay.BOTH ? CardDisplay.QUERY : CardDisplay.BOTH;
-  event.preventDefault(); 
-  rerender();
+function queryInputClick(event, elem) {
+  if (event.button === 1) {
+    let card = elemToReplCard(elem);
+    card.display = card.display === CardDisplay.BOTH ? CardDisplay.QUERY : CardDisplay.BOTH;
+    event.preventDefault(); 
+    rerender();  
+  }
 }
 
 /*
@@ -537,7 +541,7 @@ function generateReplCardElement(replCard: ReplCard) {
     focus: queryInputFocus,
     //postRender: focusQueryBox,
     change: queryInputChange,
-    dblclick: queryInputDoubleClick,
+    mouseup: queryInputClick,
     matchBrackets: true,
     lineNumbers: false,
   };
@@ -581,7 +585,7 @@ function generateReplCardElement(replCard: ReplCard) {
     row: replCard.row,
     col: replCard.col,
     children: [result],
-    dblclick: queryResultDoubleClick,
+    mouseup: queryResultClick,
   };
   replClass += replCard.focused ? " focused" : "";
   
