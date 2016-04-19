@@ -191,6 +191,7 @@ function connectToServer() {
 
   ws.onmessage = function(message) {
     let parsed = JSON.parse(message.data);
+    console.log(parsed);
     // Update the result of the correct repl card
     let targetCard = repl.deck.cards.filter((r) => r.id === parsed.id).shift();
     if (targetCard !== undefined) {
@@ -315,7 +316,7 @@ function blurCard(replCard: ReplCard) {
 }
 
 function focusCard(replCard: ReplCard) {
-  if (repl.deck.focused.id !== replCard.id) {
+  if (replCard !== undefined && repl.deck.focused.id !== replCard.id) {
    blurCard(repl.deck.focused);    
   }
   
