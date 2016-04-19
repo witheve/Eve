@@ -26,6 +26,9 @@
     string? (quotify x)
     keyword? (quotify x) ;;@NOTE: should this coerce to string?
     symbol? (quotify x)
+    number? (if (integer? x)
+              x
+              (double x)) ;; @FIXME: This needs to be bigdec
     map? (str "{" (reduce-kv (fn [b k v] (str b (if (> (count b) 0) ", ") (format-json k) ":" (format-json v))) "" x) "}")
     coll? (str "[" (string/join "," (map format-json x)) "]")
     nil? "null"
