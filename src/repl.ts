@@ -334,7 +334,7 @@ function focusCard(replCard: ReplCard) {
       setTimeout(function() {
         cm = getCodeMirrorInstance(replCard);
         cm.focus();
-      }, 100);  
+      }, 1);  
     }
   }
 }
