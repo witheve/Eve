@@ -317,26 +317,27 @@ function blurCard(replCard: ReplCard) {
 }
 
 function focusCard(replCard: ReplCard) {
-  if (replCard !== undefined && repl.deck.focused.id !== replCard.id) {
-   blurCard(repl.deck.focused);    
-  }
-  
   if (replCard !== undefined) {
+    if (repl.deck.focused.id !== replCard.id) {
+      blurCard(repl.deck.focused);    
+    }
     repl.deck.cards.forEach((r) => r.focused = false);
     replCard.focused = true;
     repl.deck.focused = replCard;
+    // @HACK The timeout allows the CM instance time to render
+    // otherwise, I couldn't focus it, because it didn't exist
+    // when the call was made
     let cm = getCodeMirrorInstance(replCard);
     if (cm !== undefined) {
-      cm.focus();
+      cm.focus()
+    } else {
+      setTimeout(function() {
+        cm = getCodeMirrorInstance(replCard);
+        cm.focus();
+      }, 100);  
     }
   }
 }
-/*
-function closeModals() {
-  repl.blob = undefined;
-  repl.delete = false;
-  repl.load = false;
-}*/
 
 // ------------------
 // Event handlers
@@ -543,7 +544,6 @@ function generateReplCardElement(replCard: ReplCard) {
     keydown: queryInputKeydown, 
     blur: queryInputBlur, 
     focus: queryInputFocus,
-    //postRender: focusQueryBox,
     change: queryInputChange,
     mouseup: queryInputClick,
     matchBrackets: true,
