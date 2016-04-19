@@ -286,13 +286,14 @@ function submitReplCard(replCard: ReplCard) {
       replCard.result = "Message queued.";
     }
   }
-  // Create a new card if we submitted the last one in replCards
-  /*if (replCard.ix === repl.deck.cards.length - 1) {
-    let nReplCard = newReplCard();
-    repl.deck.cards.forEach((r) => r.focused = false);
-    nReplCard.focused = true;
+  // Create a new card if we submitted the last one in the col
+  let cardsInCol = repl.deck.cards.filter((r) => r.col === replCard.col);
+  if (cardsInCol.filter((r) => r.state === CardState.NONE).length === 0) {
+    let nReplCard = newReplCard(cardsInCol.length, replCard.col);
+    focusCard(nReplCard);
     repl.deck.cards.push(nReplCard);
-  }*/
+    rerender();
+  }
 }
 
 function addColumn() {
