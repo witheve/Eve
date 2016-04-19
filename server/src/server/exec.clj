@@ -257,9 +257,9 @@
   (eval `(fn [~'a ~'b]
      ~(reduce (fn [memo [ix dir]]
                 (let [[before after] (if (= dir "ascending") ['< '>] ['> '<])]
-                  `(if (~before (get ~'a ~ix) (get ~'b ~ix))
+                  `(if (~before (rget ~'a ~ix) (rget ~'b ~ix))
                      -1
-                     (if (~after (get ~'a ~ix) (get ~'b ~ix))
+                     (if (~after (rget ~'a ~ix) (rget ~'b ~ix))
                        1
                        ~memo))))
               0
@@ -271,9 +271,10 @@
     (let [compare (make-comparator sorting)]
       (loop [bounds (quot (count coll) 2)
              ix bounds]
-        (let [other (get coll ix)
+        (let [other (nth coll ix)
               delta (compare value other)
               half (quot bounds 2)]
+        (println (print-registers value))
           (if-not (zero? bounds)
             (if (> delta 0)
               (recur half
@@ -282,9 +283,27 @@
                 (recur half
                        (max (- ix bounds) 0))
                 (inc ix)))
-            (if (< (compare value (get coll ix)) 0)
+            (if (< (compare value other) 0)
               ix
               (inc ix))))))))
+
+(defn register= [a b]
+  (if-not (= (count a) (count b))
+    false
+    (let [slots (range initial-register (- (count a) initial-register))]
+      (every?
+       (fn [ix]
+         (let [a-slot (rget a [ix])
+               b-slot (rget b [ix])]
+           (if (= object-array-type (type a-slot))
+             (= (seq a-slot) (seq b-slot)) ;; @FIXME: Performance can bite me.
+             (= a-slot b-slot))))
+       slots))))
+
+(defn index-of-register [coll needle]
+  (some #(when (register= needle (nth coll %1))
+           %1)
+        (range (count coll))))
 
 (defn dosort [d terms build c]
   (let [ordinals (atom {})
@@ -297,43 +316,44 @@
             grouping (if-not (zero? (count grouping-slots))
                        (map #(rget r %1) grouping-slots)
                        (list 'default))]
-        (println)
         (if (or (= op 'flush) (= op 'close))
           (c r)
           (swap!
            ordinals update-in grouping
            (fn [cur]
-             (println)
-             (println)
-             (println "SORTING" cur "ON" sorting-slots "AROUND" r)
-             (condp = op
-               'insert (let [ix (get-sorted-ix cur sorting-slots r)
-                             [prefix suffix] (split-at ix cur)
-                             cur (concat prefix [r] suffix)]
-                         (rset r out-slot ix)
-                         (c r)
-                         (doseq [ix (range (inc ix) (count cur))]
-                           (let [r (get cur ix)]
-                             (rset r op-register 'remove)
+             ;; @FIXME: This check probably doesn't work with the overflow buffer
+             (let [slots (range initial-register (- (count r) initial-register))
+                   existing-ix (index-of-register cur r)]
+               (condp = op
+                 'insert (if-not existing-ix
+                           (let [insert-ix (get-sorted-ix cur sorting-slots r)
+                                 [prefix suffix] (split-at insert-ix cur)]
+                             (rset r out-slot insert-ix)
                              (c r)
-                             (rset r op-register 'insert)
+                             (doseq [ix (range (count suffix))]
+                               (let [r (nth suffix ix)]
+                                 (rset r op-register 'remove)
+                                 (c r)
+                                 (rset r op-register 'insert)
+                                 (rset r out-slot (+ ix insert-ix 1))
+                                 (c r)))
+                             (concat prefix [(aclone r)] suffix))
+                           cur)
+                 'remove (if existing-ix
+                           (let [ix existing-ix
+                                 [prefix suffix] (split-at ix cur)
+                                 suffix (rest suffix)]
                              (rset r out-slot ix)
-                             (c r)))
-                         cur)
-               'remove (let [ix (.indexOf cur r)
-                             ;; @FIXME: indexOf won't work because object-arrays, and also because the r references are probably getting changed anyway.
-                             [prefix suffix] (split-at ix cur)
-                             cur (concat prefix (rest suffix))]
-                         (rset r out-slot ix)
-                         (c r)
-                         (doseq [ix (range ix (count cur))]
-                           (let [r (get cur ix)]
-                             (rset r op-register 'remove)
                              (c r)
-                             (rset r op-register 'insert)
-                             (rset r out-slot ix)
-                             (c r)))
-                         cur)))))))))
+                             (doseq [ix (range (count suffix))]
+                               (let [r (nth suffix ix)]
+                                 (rset r op-register 'remove)
+                                 (c r)
+                                 (rset r op-register 'insert)
+                                 (rset r out-slot (+ ix existing-ix))
+                                 (c r)))
+                             (concat prefix suffix))
+                           cur))))))))))
 
 (defn delta-c [d terms build c]
   (let [[_ & proj] terms
