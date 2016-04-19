@@ -4,11 +4,13 @@
             [server.avl :as avl]
             [clojure.pprint :refer [pprint cl-format]]))
 
+(set! *warn-on-reflection* true)
 (def basic-register-frame 10)
 (def op-register [0])
-(def taxi-register [1])
-(def temp-register [2])
-(def initial-register 3)
+(def qid-register [1])
+(def taxi-register [2])
+(def temp-register [3])
+(def initial-register 4)
 
 (def object-array-type (class (object-array 1)))
 
@@ -62,9 +64,11 @@
           ref)
         ;; special case of constant vector, empty
         (= (count ref) 0) ref
-        (= (count ref) 1) (aget r (ref 0))
+        (= (count ref) 1)
+        (aget ^objects r (get ref 0))
         :else
-        (rget (aget r (ref 0)) (subvec ref 1))))
+        (rget (aget ^objects r (get ref 0))
+              (subvec ref 1))))
 
 (defn rset [r ref v]
   (let [c (count ref)]
@@ -73,9 +77,9 @@
       (= c 1) (if (> (ref 0) (count r))
                 (do (println "exec error" (ref 0) "is greater than" (count r))
                     (throw c))
-                (aset r (ref 0) v))
+                (aset ^objects r (ref 0) v))
       :else
-      (rset (aget r (ref 0)) (subvec ref 1) v))))
+      (rset (aget ^objects r (get ref 0)) (subvec ref 1) v))))
 
 
 ;; simplies - cardinality preserving, no flush
@@ -83,7 +87,7 @@
 
 ;; flushes just roll on by
 (defn simple [f]
-  (fn [db terms build c]
+  (fn [d terms build c]
     (fn [r]
       (when (or (= (rget r op-register) 'insert)
                 (= (rget r op-register) 'remove))
@@ -140,7 +144,7 @@
             ;; since this is often a file, we currently force this to be at least the base max frame size
             tout (object-array (max (count a) basic-register-frame))]
         (doseq [x (range (count a))]
-          (aset tout x (rget r (nth a x))))
+          (aset ^objects tout x (rget r (nth a x))))
         (rset r (second terms) tout)))
     (c r)))
 
@@ -301,28 +305,28 @@
                      (not (some walk @k)))))]
 
     (fn [r]
-      (if (= (rget r op-register) 'insert)
-        (let [[e a v b t u] (rget r in)]
-          
-          (if (= a edb/remove-oid)
-            (let [b (base e)
-                  old (if b (walk b) b)]
-              (swap! (record down t) conj e)
-              (swap! (record up e) conj t)
-              (let [nb (if b b (base e))
-                    new (if nb (walk nb) nb)]
-                (cond (and (not old) new) (do (rset r out in)
-                                              (c r))
-                      (and old (not new)) (do (rset r out (@assertions b))
-                                              (rset r op-register 'remove)
-                                              (c r)))))
-            
-            (do
-              (swap! assertions assoc t (rget r in))
-              (when (walk t)
-                (rset r out (rget r in))
-                (c r)))))
-        (c r)))))
+       (if (= (rget r op-register) 'insert)
+         (let [[e a v b t u] (rget r in)]
+           
+           (if (= a edb/remove-oid)
+             (let [b (base e)
+                   old (if b (walk b) b)]
+               (swap! (record down t) conj e)
+               (swap! (record up e) conj t)
+               (let [nb (if b b (base e))
+                     new (if nb (walk nb) nb)]
+                 (cond (and (not old) new) (do (rset r out in)
+                                               (c r))
+                       (and old (not new)) (do (rset r out (@assertions b))
+                                               (rset r op-register 'remove)
+                                               (c r)))))
+             
+             (do
+               (swap! assertions assoc t (rget r in))
+               (when (walk t)
+                 (rset r out (rget r in))
+                 (c r)))))
+         (c r)))))
 
 
 
@@ -360,9 +364,10 @@
   (let [[scan oid dest key] terms
         opened (atom ())
         scan (fn [r]
-               (let [handle (d 'insert oid (rget r key)
-                               (fn [t op]
+               (let [handle (d 'insert oid (rget r key) (rget r qid-register)
+                               (fn [t op qid]
                                  (rset r op-register op)
+                                 (rset r qid-register qid)
                                  (when (= op 'insert)
                                    (rset r dest t))
                                  (c r)))]
@@ -377,7 +382,7 @@
                  (doseq [i @opened] (i))
                  (c r))
         'flush (do (when (= oid edb/insert-oid)
-                     (d 'flush oid [] (fn [k op] (c r))))
+                     (d 'flush oid (rget r key) (rget r qid-register) (fn [k op] (c r))))
                    (c r))))))
 
       
@@ -436,26 +441,26 @@
 
 
 ;; fuse notrace and trace versions
-(defn open [d program callback trace-p]
+(defn open [d program callback trace-function]
   (let [reg (object-array basic-register-frame)
         blocks (atom {})
+        id (gensym "query")
         built (atom {})
-        tf (if trace-p
-             (fn [n m x] (fn [r] (println "trace" n m) (println (print-registers r)) (x r)))
-             (fn [n m x] x))
         _ (doseq [i program]
             (swap! blocks assoc (second i) (nth i 2)))
-        e (build 'main blocks built d (@blocks 'main) tf
+        e (build 'main blocks built d (@blocks 'main) trace-function
                  callback)]
 
     (fn [op]
       (rset reg op-register op)
+      (rset reg qid-register id)
       (e reg))))
 
 
 (defn single [d prog out]
   (let [e (open d prog (fn [r]
-                         (when (= (rget r op-register) 'insert) (out r))) false)]
+                         (when (= (rget r op-register) 'insert) (out r)))
+                (fn [n m x] x))]
     (e 'insert)
     (e 'flush)
     (e 'close)))

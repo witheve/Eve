@@ -77,7 +77,7 @@
                                (reset! results '()))
                     'close (println "@FIXME: Send close message")
                     'error (send-error channel id (ex-info "Failure to WEASL" {:data (str tuple)}))))
-        e (exec/open db prog handler false)]
+        e (exec/open db prog handler (fn [n m x] x))]
     (swap! clients assoc-in [channel :queries id] e)
     (e 'insert)
     (e 'flush)))
