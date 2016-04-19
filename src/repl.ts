@@ -191,14 +191,16 @@ function connectToServer() {
 
   ws.onmessage = function(message) {
     let parsed = JSON.parse(message.data);
+    console.log(parsed);
     // Update the result of the correct repl card
     let targetCard = repl.deck.cards.filter((r) => r.id === parsed.id).shift();
+    console.log(targetCard);
     if (targetCard !== undefined) {
       if (parsed.type === "result") {
         targetCard.state = CardState.GOOD;
         targetCard.result = {
           fields: parsed.fields,
-          values: parsed.values,
+          values: parsed.insert,
         }
         //saveReplCard(targetCard);
       } else if (parsed.type === "error") {
@@ -303,6 +305,7 @@ function addCardToColumn(col: number) {
   let row = repl.deck.cards.filter((r) => r.col === col).length;
   let nCard = newReplCard(row, col);
   repl.deck.cards.push(nCard);
+  focusCard(nCard);
 }
 
 function blurCard(replCard: ReplCard) {
