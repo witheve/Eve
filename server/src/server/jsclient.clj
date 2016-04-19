@@ -26,6 +26,9 @@
     string? (quotify x)
     keyword? (quotify x) ;;@NOTE: should this coerce to string?
     symbol? (quotify x)
+    number? (if (integer? x)
+              x
+              (double x)) ;; @FIXME: This needs to be bigdec
     map? (str "{" (reduce-kv (fn [b k v] (str b (if (> (count b) 0) ", ") (format-json k) ":" (format-json v))) "" x) "}")
     coll? (str "[" (string/join "," (map format-json x)) "]")
     nil? "null"
@@ -78,6 +81,9 @@
                     'close (println "@FIXME: Send close message")
                     'error (send-error channel id (ex-info "Failure to WEASL" {:data (str tuple)}))))
         e (exec/open db prog handler false)]
+    (doseq [line (string/split (with-out-str (pprint prog)) #"\n")]
+      (println "   " line))
+
     (swap! clients assoc-in [channel :queries id] e)
     (e 'insert)
     (e 'flush)))
@@ -105,8 +111,10 @@
                  expanded (when query (smil/unpack db (smil/read query)))]
              (println "  Raw:")
              (println "   " (string/join "\n    " (string/split query #"\n")))
-             (println "  Expanded:")
-             (smil/print-smil expanded :indent 4)
+             (println "  SMIL:")
+             (smil/print-smil expanded :indent 2)
+             (println "  WEASL:")
+
              (condp = (first expanded)
                'query (start-query db expanded id channel)
                'define! (do
