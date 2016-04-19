@@ -409,6 +409,8 @@ function queryInputKeydown(event, elem) {
 }
 
 function queryInputBlur(event, elem) {
+  let cm = getCodeMirrorInstance(elemToReplCard(elem));
+  cm.getDoc().setCursor({ch: 0, line: 0});
   //repl.deck.cards.map((r) => r.focused = false);
   //rerender();
 }
