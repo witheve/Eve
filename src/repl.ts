@@ -191,10 +191,8 @@ function connectToServer() {
 
   ws.onmessage = function(message) {
     let parsed = JSON.parse(message.data);
-    console.log(parsed);
     // Update the result of the correct repl card
     let targetCard = repl.deck.cards.filter((r) => r.id === parsed.id).shift();
-    console.log(targetCard);
     if (targetCard !== undefined) {
       if (parsed.type === "result") {
         targetCard.state = CardState.GOOD;
