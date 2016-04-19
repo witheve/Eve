@@ -14,8 +14,8 @@
    [clojure.string :as string]
    [clojure.pprint :refer [pprint]]))
 
-;;(def clients (atom {}))
-;;(def server (atom nil))
+(def clients (atom {}))
+(def server (atom nil))
 
 (def DEBUG true)
 (def bag (atom 10))
