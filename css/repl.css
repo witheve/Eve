@@ -48,7 +48,7 @@ html, body {
 }
 
 .query-input {
-  width: 300px;
+  min-width: 300px;
   padding: 10px;
   background-color: rgb(50,50,50);
 }
