@@ -13,7 +13,8 @@ html, body {
 /* Basic Structure */
 
 .status-bar {
-  width: 125px;
+  min-width: 125px;
+  max-width: 125px;
   display: flex;
   flex-direction: column;
   align-items: center;
