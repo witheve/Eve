@@ -20,9 +20,8 @@
        (do
          (ref-set current-count 0)
          (ref-set current-milli k))
-       (do
-         (alter current-count + 1))))
-   (bit-or (bit-shift-left @current-milli 20) @current-count)))
+       (alter current-count + 1))
+     (bit-or (bit-shift-left @current-milli 20) @current-count))))
 
 ;; xxx - reconcile with smil
 (def remove-oid 5)
@@ -45,25 +44,26 @@
 
 ;; there is a consistency problem with tuples and listeners
 (defn create-edb [user]
-  (let [tuples (atom '())
+  (let [tuples (atom [])
         by-attribute ()
         a (object-array [1])
         
         listeners (atom #{})
         index-map  {insert-oid
                     (fn [key c op id]
-                      (let [t (now)
-                            tuple (object-array (vector (aget key 0)
-                                                        (aget key 1)
-                                                        (aget key 2)
-                                                        (aget key 3)
-                                                        t
-                                                        user))]
-                        (swap! tuples conj tuple)
-                        (doseq [i @listeners] ((i 0) tuple op id))
-                        ;; just t?
-                        (c tuple op id)
-                        (fn [] ())))
+                      (when (= op 'insert) 
+                        (let [t (now)
+                              tuple (object-array (vector (aget key 0)
+                                                          (aget key 1)
+                                                          (aget key 2)
+                                                          (aget key 3)
+                                                          t
+                                                          user))]
+                          (swap! tuples conj tuple)
+                          (doseq [i @listeners] ((i 0) tuple op id))
+                          (c tuple op id)
+                          (fn [] ()))))
+
 
                     full-scan-oid
                     (fn [key c op id]

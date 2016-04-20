@@ -181,7 +181,7 @@
              (term env 'delta-e m target-reg-name exec/temp-register)
              (list (body)))
       (apply build
-             (term env 'scan m specoid exec/temp-register [])
+             (term env 'scan m specoid target-reg-name [])
              (list (body))))))
 
 (defn make-continuation
@@ -390,7 +390,7 @@
                   'fact-btu (fn [e terms down]
                               (generate-scan e terms down true))
                   'full-fact-btu (fn [e terms down]
-                                   (generate-scan e terms down true))
+                                   (generate-scan e terms down false))
                   'range compile-simple-primitive
                   '= compile-equal
                   'not compile-not

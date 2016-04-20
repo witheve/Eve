@@ -57,6 +57,7 @@
 ;; these register indirections could be resolved at build time? yeah, kinda
 ;; no longer support the implicit zero register
 
+
 (defn rget [r ref]
   (cond (not (vector? ref))
         (if (= ref '*)
@@ -305,30 +306,28 @@
                      (not (some walk @k)))))]
 
     (fn [r]
-       (if (= (rget r op-register) 'insert)
-         (let [[e a v b t u] (rget r in)]
-           
-           (if (= a edb/remove-oid)
-             (let [b (base e)
-                   old (if b (walk b) b)]
-               (swap! (record down t) conj e)
-               (swap! (record up e) conj t)
-               (let [nb (if b b (base e))
-                     new (if nb (walk nb) nb)]
-                 (cond (and (not old) new) (do (rset r out in)
-                                               (c r))
-                       (and old (not new)) (do (rset r out (@assertions b))
-                                               (rset r op-register 'remove)
-                                               (c r)))))
-             
-             (do
-               (swap! assertions assoc t (rget r in))
-               (when (walk t)
-                 (rset r out (rget r in))
-                 (c r)))))
-         (c r)))))
-
-
+      (if (= (rget r op-register) 'insert)
+        (let [[e a v b t u] (rget r in)]
+          
+          (if (= a edb/remove-oid)
+            (let [b (base e)
+                  old (if b (walk b) b)]
+              (swap! (record down t) conj e)
+              (swap! (record up e) conj t)
+              (let [nb (if b b (base e))
+                    new (if nb (walk nb) nb)]
+                (cond (and (not old) new) (do (rset r out (rget r in))
+                                              (c r))
+                      (and old (not new)) (do (rset r out (@assertions b))
+                                              (rset r op-register 'remove)
+                                              (c r)))))
+            
+            (do
+              (swap! assertions assoc t (rget r in))
+              (when (walk t)
+                (rset r out (rget r in))
+                (c r)))))
+        (c r)))))
 
 (defn delta-s [d terms build c]
   (let [state (ref {})
