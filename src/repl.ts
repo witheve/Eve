@@ -197,16 +197,16 @@ function connectToServer() {
     let targetCard = repl.deck.cards.filter((r) => r.id === parsed.id).shift();
     if (targetCard !== undefined) {
       if (parsed.type === "result") {
-        targetCard.state = CardState.GOOD;
         if (parsed.fields.length > 0) {
           let result: any = targetCard.result;
           let values: Array<Array<any>> = result.values;
           targetCard.result = {
             fields: parsed.fields,
-            values: result.values === undefined ?  parsed.insert : values.concat(parsed.insert),
+            values: result.values === undefined || targetCard.state === CardState.PENDING ?  parsed.insert : values.concat(parsed.insert),
           }
           targetCard.display = CardDisplay.BOTH; 
         }
+        targetCard.state = CardState.GOOD;
         //saveReplCard(targetCard);
       } else if (parsed.type === "error") {
         targetCard.state = CardState.ERROR;
