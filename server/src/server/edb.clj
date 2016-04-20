@@ -20,8 +20,7 @@
        (do
          (ref-set current-count 0)
          (ref-set current-milli k))
-       (do
-         (alter current-count + 1)))
+       (alter current-count + 1))
      (bit-or (bit-shift-left @current-milli 20) @current-count))))
 
 ;; xxx - reconcile with smil
@@ -47,9 +46,11 @@
 (defn create-edb [user]
   (let [tuples (atom [])
         by-attribute ()
+        a (object-array [1])
+        
         listeners (atom #{})
         index-map  {insert-oid
-                    (fn [key c op]
+                    (fn [key c op id]
                       (when (= op 'insert) 
                         (let [t (now)
                               tuple (object-array (vector (aget key 0)
@@ -59,26 +60,27 @@
                                                           t
                                                           user))]
                           (swap! tuples conj tuple)
-                          (doseq [i @listeners] (i tuple op))
-                          (c tuple op)
+                          (doseq [i @listeners] ((i 0) tuple op id))
+                          (c tuple op id)
                           (fn [] ()))))
 
+
                     full-scan-oid
-                    (fn [key c op]
+                    (fn [key c op id]
                       (if (= op 'insert)
                         (do
-                          (swap! listeners conj c)
-                          (doseq [i @tuples] (c i op))
-                          (fn [] (swap! listeners disj c)))
+                          (swap! listeners conj [c id])
+                          (doseq [i @tuples] (c i op id))
+                          (fn [] (swap! listeners disj [c id])))
                         (fn [] ())))}]
 
 
-
-    (fn [op index key c]
+    (fn [op index key id c]
       ;; should be if i've said anything that he cared about?
       ;; should in general not issue a flush if nothing has
       ;; changed across a projection also..i think we decided that
-      (if (= op 'flush)
-        (doseq [i @listeners] (i [] op))
-        ((index-map index) key c op)))))
+      (if (and (= index insert-oid) (= op 'flush))
+        (doseq [i @listeners] (when (not (= id (i 1)))
+                                ((i 0) [] op id)))
+        ((index-map index) key c op id)))))
 
