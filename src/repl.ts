@@ -197,9 +197,12 @@ function connectToServer() {
     if (targetCard !== undefined) {
       if (parsed.type === "result") {
         targetCard.state = CardState.GOOD;
-        targetCard.result = {
-          fields: parsed.fields,
-          values: parsed.insert,
+        if (parsed.fields.length > 0) {
+          targetCard.result = {
+            fields: parsed.fields,
+            values: parsed.insert,
+          }
+          targetCard.display = CardDisplay.BOTH; 
         }
         //saveReplCard(targetCard);
       } else if (parsed.type === "error") {
@@ -254,7 +257,7 @@ function newReplCard(row?: number, col? :number): ReplCard {
     focused: false,
     query: "",
     result: undefined,
-    display: CardDisplay.BOTH,
+    display: CardDisplay.QUERY,
   }
   return replCard;
 }
@@ -333,7 +336,7 @@ function focusCard(replCard: ReplCard) {
       setTimeout(function() {
         cm = getCodeMirrorInstance(replCard);
         cm.focus();
-      }, 1);  
+      }, 10);  
     }
   }
 }
@@ -390,7 +393,6 @@ window.onkeydown = function(event) {
 
 function queryInputKeydown(event, elem) {
   let thisReplCard: ReplCard = elemToReplCard(elem);
-  console.log(event);
   // Submit the query with ctrl + enter
   if ((event.keyCode === 13 || event.keyCode === 83) && event.ctrlKey === true) {
     submitReplCard(thisReplCard);
