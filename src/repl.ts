@@ -287,11 +287,9 @@ function submitReplCard(replCard: ReplCard) {
     }
   }
   // Create a new card if we submitted the last one in the col
-  let cardsInCol = repl.deck.cards.filter((r) => r.col === replCard.col);
-  if (cardsInCol.filter((r) => r.state === CardState.NONE).length === 0) {
-    let nReplCard = newReplCard(cardsInCol.length, replCard.col);
-    focusCard(nReplCard);
-    repl.deck.cards.push(nReplCard);
+  let cardsInCol = repl.deck.cards.filter((r) => r.col === replCard.col && r.state === CardState.NONE);
+  if (cardsInCol.length === 0) {
+    addCardToColumn(repl.deck.focused.col);
     rerender();
   }
 }
@@ -301,11 +299,12 @@ function addColumn() {
   repl.deck.cards.push(nCard);
 }
   
-function addCardToColumn(col: number) {
+function addCardToColumn(col: number): ReplCard {
   let row = repl.deck.cards.filter((r) => r.col === col).length;
   let nCard = newReplCard(row, col);
   repl.deck.cards.push(nCard);
   focusCard(nCard);
+  return nCard;
 }
 
 function blurCard(replCard: ReplCard) {
