@@ -199,14 +199,12 @@ function connectToServer() {
     if (targetCard !== undefined) {
       if (parsed.type === "result") {
         if (parsed.fields.length > 0) {         
-          console.log(targetCard.result);
-          console.log(parsed.insert);
-          
           let values: Array<Array<any>>;
           // If the card is pending, it was submitted manually, 
           // so we replace the values with the inserts
           if (targetCard.state === CardState.PENDING) {
             values = parsed.insert;
+            targetCard.display = CardDisplay.BOTH;
           // If the card is Good, that means it already has results
           // and the current message is updating them
           } else if (targetCard.state === CardState.GOOD) {
@@ -219,7 +217,6 @@ function connectToServer() {
             fields: parsed.fields,
             values: values,
           }
-          targetCard.display = CardDisplay.BOTH; 
         }
         targetCard.state = CardState.GOOD;
         //saveReplCard(targetCard);
@@ -357,7 +354,7 @@ function focusCard(replCard: ReplCard) {
       setTimeout(function() {
         cm = getCodeMirrorInstance(replCard);
         cm.focus();
-      }, 10);  
+      }, 50);  
     }
   }
 }
