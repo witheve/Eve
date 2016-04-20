@@ -37,6 +37,11 @@ html, body {
   background-color: rgb(30,30,30);
   overflow-y: auto;
 }
+.card-column::-webkit-scrollbar { width: 10px; height: 10px; } 
+.card-column::-webkit-scrollbar-track { box-shadow: inset 0 0 6px rgba(0,0,0,0); } 
+.card-column::-webkit-scrollbar-thumb { background-color: rgb(80,80,80); outline: 1px solid slategrey; } 
+.card-column::-webkit-scrollbar-corner { background-color: transparent;} 
+
 
 .repl-card {
   display: flex;
