@@ -71,6 +71,7 @@ interface Deck {
 }
 
 interface Repl {
+  init: boolean,
   decks: Array<Deck>,
   deck: Deck,
   server: ServerConnection,
@@ -168,6 +169,15 @@ function connectToServer() {
   let wsAddress = "ws://localhost:8081";
   let ws: WebSocket = new WebSocket(wsAddress, []);
   repl.server.ws = ws;
+  
+  if (repl.init === false) {
+    let entitiesQuery: QueryMessage = {
+      type: "query",
+      id: uuid(),
+      query: "(query [e] (fact-btu e))",
+    };
+  }
+  
 
   ws.onopen = function(e: Event) {    
     repl.server.state = ConnectionState.CONNECTED;
@@ -694,6 +704,7 @@ let replCards: Deck = {
 
 // Instantiate a repl instance
 let repl: Repl = {
+  init: false,
   decks: [replCards],
   deck: replCards,
   server: {
