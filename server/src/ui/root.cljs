@@ -208,13 +208,14 @@
     (let [removes (mapcat (fn [[e a v]]
                             (when-not (nil? v)
                               (let [sym (gensym 'tick)]
-                                `[(fact-btu ~e ~(name a) ~v :tick ~sym)
-                                  (remove-by-t! ~sym)])))
+                                (query-string `(query [](fact-btu ~e ~(name a) ~v :tick ~sym)
+                                        (remove-by-t! ~sym))))))
                         eavs)
-          removes-subquery (query-string `(query [] ~@removes))]
-      (when-not (aget context "__removes")
-        (aset context "__removes" (array)))
-      (.push (aget context "__removes") removes-subquery))))
+          removes-subquery (reduce str "" removes)]
+      (when (seq removes)
+        (when-not (aget context "__removes")
+          (aset context "__removes" (array)))
+        (.push (aget context "__removes") removes-subquery)))))
 
 (defn locally-add-eavs! [context eavs]
   (doseq [[e a v] eavs
