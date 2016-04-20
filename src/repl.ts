@@ -390,6 +390,7 @@ window.onkeydown = function(event) {
 
 function queryInputKeydown(event, elem) {
   let thisReplCard: ReplCard = elemToReplCard(elem);
+  console.log(event);
   // Submit the query with ctrl + enter
   if ((event.keyCode === 13 || event.keyCode === 83) && event.ctrlKey === true) {
     submitReplCard(thisReplCard);
@@ -402,6 +403,12 @@ function queryInputKeydown(event, elem) {
   // Catch ctrl + end
   } else if (event.keyCode === 35 && event.ctrlKey === true) {
     //focusCard(replCards[replCards.length - 1]);
+  // Catch ctrl + q
+  } else if (event.keyCode === 81 && event.ctrlKey === true) {
+    thisReplCard.query = "(query [] \n\t\n)";
+    let cm = getCodeMirrorInstance(thisReplCard);
+    // @HACK Wait for CM to render
+    setTimeout(function () {cm.getDoc().setCursor({line: 1, ch: 1});},10);
   } else {
     return;
   }
@@ -411,7 +418,7 @@ function queryInputKeydown(event, elem) {
 
 function queryInputBlur(event, elem) {
   let cm = getCodeMirrorInstance(elemToReplCard(elem));
-  cm.getDoc().setCursor({ch: 0, line: 0});
+  cm.getDoc().setCursor({line: 0, ch: 0});
   //repl.deck.cards.map((r) => r.focused = false);
   //rerender();
 }
