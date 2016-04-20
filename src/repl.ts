@@ -190,6 +190,7 @@ function connectToServer() {
   }
 
   ws.onmessage = function(message) {
+    console.log("message")
     let parsed = JSON.parse(message.data);
     console.log(parsed);
     // Update the result of the correct repl card
@@ -198,9 +199,11 @@ function connectToServer() {
       if (parsed.type === "result") {
         targetCard.state = CardState.GOOD;
         if (parsed.fields.length > 0) {
+          let result: any = targetCard.result;
+          let values: Array<Array<any>> = result.values;
           targetCard.result = {
             fields: parsed.fields,
-            values: parsed.insert,
+            values: result.values === undefined ?  parsed.insert : values.concat(parsed.insert),
           }
           targetCard.display = CardDisplay.BOTH; 
         }
@@ -570,16 +573,20 @@ function generateReplCardElement(replCard: ReplCard) {
       resultcss += " pending";
     }
     let cardresult: any = replCard.result;
-    let tableHeader = {c: "header", children: cardresult.fields.map((f: string) => {
-      return {c: "cell", text: f};
-    })};
-    let tableBody = cardresult.values.map((r: Array<any>) => {
-      return {c: "row", children: r.map((c: any) => {
-        return {c: "cell", text: `${c}`};
+    if (cardresult.fields !== undefined) {
+      let tableHeader = {c: "header", children: cardresult.fields.map((f: string) => {
+        return {c: "cell", text: f};
       })};
-    });
-    let tableRows = [tableHeader].concat(tableBody);
-    result = {c: "table", children: tableRows};
+      let tableBody = cardresult.values.map((r: Array<any>) => {
+        return {c: "row", children: r.map((c: any) => {
+          return {c: "cell", text: `${c}`};
+        })};
+      });
+      let tableRows = [tableHeader].concat(tableBody);
+      result = {c: "table", children: tableRows};  
+    } else {
+      result = {};
+    }     
   } else if (replCard.state === CardState.ERROR) {
     resultcss += " bad";
     result = {text: replCard.result};
