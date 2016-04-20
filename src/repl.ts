@@ -51,7 +51,8 @@ interface ReplCard {
   result: {
     fields: Array<string>,
     values: Array<Array<any>>,
-  } | string;
+  }
+  message: string,
   display: CardDisplay,
 }
 
@@ -190,19 +191,33 @@ function connectToServer() {
   }
 
   ws.onmessage = function(message) {
-    console.log("message")
+    //console.log("message")
     let parsed = JSON.parse(message.data);
-    console.log(parsed);
+    //console.log(parsed);
     // Update the result of the correct repl card
     let targetCard = repl.deck.cards.filter((r) => r.id === parsed.id).shift();
     if (targetCard !== undefined) {
       if (parsed.type === "result") {
-        if (parsed.fields.length > 0) {
-          let result: any = targetCard.result;
-          let values: Array<Array<any>> = result.values;
+        if (parsed.fields.length > 0) {         
+          console.log(targetCard.result);
+          console.log(parsed.insert);
+          
+          let values: Array<Array<any>>;
+          // If the card is pending, it was submitted manually, 
+          // so we replace the values with the inserts
+          if (targetCard.state === CardState.PENDING) {
+            values = parsed.insert;
+          // If the card is Good, that means it already has results
+          // and the current message is updating them
+          } else if (targetCard.state === CardState.GOOD) {
+            // Apply inserts
+            values = targetCard.result.values.concat(parsed.insert);
+            // Apply removes
+            //@ TODO
+          }
           targetCard.result = {
             fields: parsed.fields,
-            values: result.values === undefined || targetCard.state === CardState.PENDING ?  parsed.insert : values.concat(parsed.insert),
+            values: values,
           }
           targetCard.display = CardDisplay.BOTH; 
         }
@@ -210,7 +225,8 @@ function connectToServer() {
         //saveReplCard(targetCard);
       } else if (parsed.type === "error") {
         targetCard.state = CardState.ERROR;
-        targetCard.result = parsed.cause;
+        targetCard.message = parsed.cause;
+        targetCard.result = undefined;
         //saveReplCard(targetCard);
       } else if (parsed.type === "close") {
         let removeIx = repl.deck.cards.map((r) => r.id).indexOf(parsed.id);
@@ -260,6 +276,7 @@ function newReplCard(row?: number, col? :number): ReplCard {
     focused: false,
     query: "",
     result: undefined,
+    message: "",
     display: CardDisplay.QUERY,
   }
   return replCard;
@@ -283,13 +300,14 @@ function submitReplCard(replCard: ReplCard) {
     type: "query",
     query: replCard.query.replace(/\s+/g,' '),
   }
-  replCard.state = CardState.PENDING;    
+  replCard.state = CardState.PENDING;
+  replCard.result = undefined;    
   let sent = sendMessage(query);
   if (replCard.result === undefined) {
     if (sent) {
-      replCard.result = "Waiting for response...";
+      replCard.message = "Waiting for response...";
     } else {
-      replCard.result = "Message queued.";
+      replCard.message = "Message queued.";
     }
   }
   // Create a new card if we submitted the last one in the col
@@ -572,12 +590,11 @@ function generateReplCardElement(replCard: ReplCard) {
     } else if (replCard.state === CardState.PENDING) {
       resultcss += " pending";
     }
-    let cardresult: any = replCard.result;
-    if (cardresult.fields !== undefined) {
-      let tableHeader = {c: "header", children: cardresult.fields.map((f: string) => {
+    if (replCard.result !== undefined) {
+      let tableHeader = {c: "header", children: replCard.result.fields.map((f: string) => {
         return {c: "cell", text: f};
       })};
-      let tableBody = cardresult.values.map((r: Array<any>) => {
+      let tableBody = replCard.result.values.map((r: Array<any>) => {
         return {c: "row", children: r.map((c: any) => {
           return {c: "cell", text: `${c}`};
         })};
@@ -589,10 +606,10 @@ function generateReplCardElement(replCard: ReplCard) {
     }     
   } else if (replCard.state === CardState.ERROR) {
     resultcss += " bad";
-    result = {text: replCard.result};
+    result = {text: replCard.message};
   } else if (replCard.state === CardState.PENDING) {
     resultcss += " pending";
-    result = {text: replCard.result};
+    result = {text: replCard.message};
   } else if (replCard.state === CardState.CLOSED) {
     resultcss += " closed";
     replClass += " no-height";
