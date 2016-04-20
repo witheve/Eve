@@ -4,11 +4,13 @@
             [server.avl :as avl]
             [clojure.pprint :refer [pprint cl-format]]))
 
+(set! *warn-on-reflection* true)
 (def basic-register-frame 10)
 (def op-register [0])
-(def taxi-register [1])
-(def temp-register [2])
-(def initial-register 3)
+(def qid-register [1])
+(def taxi-register [2])
+(def temp-register [3])
+(def initial-register 4)
 
 (def object-array-type (class (object-array 1)))
 
@@ -86,7 +88,7 @@
 
 ;; flushes just roll on by
 (defn simple [f]
-  (fn [db terms build c]
+  (fn [d terms build c]
     (fn [r]
       (when (or (= (rget r op-register) 'insert)
                 (= (rget r op-register) 'remove))
@@ -327,8 +329,6 @@
                 (c r)))))
         (c r)))))
 
-
-
 (defn delta-s [d terms build c]
   (let [state (ref {})
         handler (fn [r]
@@ -363,9 +363,10 @@
   (let [[scan oid dest key] terms
         opened (atom ())
         scan (fn [r]
-               (let [handle (d 'insert oid (rget r key)
-                               (fn [t op]
+               (let [handle (d 'insert oid (rget r key) (rget r qid-register)
+                               (fn [t op qid]
                                  (rset r op-register op)
+                                 (rset r qid-register qid)
                                  (when (= op 'insert)
                                    (rset r dest t))
                                  (c r)))]
@@ -380,7 +381,7 @@
                  (doseq [i @opened] (i))
                  (c r))
         'flush (do (when (= oid edb/insert-oid)
-                     (d 'flush oid [] (fn [k op] (c r))))
+                     (d 'flush oid (rget r key) (rget r qid-register) (fn [k op] (c r))))
                    (c r))))))
 
       
@@ -439,26 +440,26 @@
 
 
 ;; fuse notrace and trace versions
-(defn open [d program callback trace-p]
+(defn open [d program callback trace-function]
   (let [reg (object-array basic-register-frame)
         blocks (atom {})
+        id (gensym "query")
         built (atom {})
-        tf (if trace-p
-             (fn [n m x] (fn [r] (println "trace" n m) (println (print-registers r)) (x r)))
-             (fn [n m x] x))
         _ (doseq [i program]
             (swap! blocks assoc (second i) (nth i 2)))
-        e (build 'main blocks built d (@blocks 'main) tf
+        e (build 'main blocks built d (@blocks 'main) trace-function
                  callback)]
 
     (fn [op]
       (rset reg op-register op)
+      (rset reg qid-register id)
       (e reg))))
 
 
 (defn single [d prog out]
   (let [e (open d prog (fn [r]
-                         (when (= (rget r op-register) 'insert) (out r))) false)]
+                         (when (= (rget r op-register) 'insert) (out r)))
+                (fn [n m x] x))]
     (e 'insert)
     (e 'flush)
     (e 'close)))

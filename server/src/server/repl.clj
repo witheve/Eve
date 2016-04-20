@@ -22,29 +22,50 @@
      (pprint prog)))
 
 
-(defn print-result [keys channel]
+(defn print-result [keys channel tick]
   (fn [tuple]
     (condp = (exec/rget tuple exec/op-register)
                 'insert (println "INSERT" channel (exec/print-registers tuple))
                 'remove (println "REMOVE" channel (exec/print-registers tuple))
                 'flush  (println "FLUSH " channel (exec/print-registers tuple))
-                'close  (println "CLOSE " channel (exec/print-registers tuple))
+                'close  (println "CLOSE " channel (exec/print-registers tuple) (float (/ (- (System/nanoTime) tick) 1000000000)))
                 'error  (println "ERROR " channel (exec/print-registers tuple)))))
 
 (defn diesel [d expression trace-on]
   (let [[form keys] (form-from-smil (smil/unpack d expression))
         prog (compiler/compile-dsl d @bag form)
-        ec (exec/open d prog (print-result keys "") trace-on)]
+        start (System/nanoTime)
+        ec (exec/open d prog (print-result keys "" start)
+                      (if trace-on
+                        (fn [n m x] (fn [r] (println "trace" n m) (println (exec/print-registers r)) (x r)))
+                        (fn [n m x] x)))]
+
     (when trace-on (pprint prog))
     (ec 'insert)
     (ec 'flush)
     (ec 'close)))
 
 (defn open [d expression trace-on]
+  (println "open" expression)
   (let [[form keys] (form-from-smil (smil/unpack d (nth expression 2)))
         prog (compiler/compile-dsl d @bag form)
-        res (print-result keys (second expression))
-        ec (exec/open d prog res trace-on)]
+        start (System/nanoTime)
+        res (print-result keys (second expression) start)
+        tf (if trace-on
+             (fn [n m x] (fn [r] (println "trace" n m) (println (exec/print-registers r)) (x r)))
+             (fn [n m x] x))
+        ec (exec/open d prog res tf)]
+    (when trace-on (pprint prog))
+    (ec 'insert)
+    (ec 'flush)))
+
+(defn timeo [d expression trace-on]
+  (println "open" expression)
+  (let [[form keys] (form-from-smil (smil/unpack d (nth expression 1)))
+        prog (compiler/compile-dsl d @bag form)
+        start (System/nanoTime)
+        res (print-result keys (second expression) start)
+        ec (exec/open d prog res (fn [n m x] (println "here" (meta m)) x))]
     (when trace-on (pprint prog))
     (ec 'insert)
     (ec 'flush)))
@@ -67,6 +88,7 @@
      (let [function ({'define! define
                       'show show
                       'trace trace
+                      'time timeo
                       'open open
                       'load read-all
                       } (first term))]
