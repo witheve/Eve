@@ -6,3 +6,7 @@ bin/
 .vscode/
 *.evedb
 server/target
+ecis/target
+*~
+#*#
+
