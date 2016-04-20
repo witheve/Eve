@@ -127,7 +127,7 @@ li {
 /* CodeMirror style overrides */
 
 .CodeMirror {
-  height: 200px;
+  height: 100px;
   color: rgb(200,200,200);
   background-color: rgba(0,0,0,0);
   cursor: text;
