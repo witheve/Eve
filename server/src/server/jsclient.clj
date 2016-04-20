@@ -43,8 +43,8 @@
         message {"type" "result"
                  "id" id
                  "fields" fields
-                 "insert" (map rest inserts)
-                 "remove" (map rest removes)}]
+                 "insert" (map #(drop 2 %1) inserts)
+                 "remove" (map #(drop 2 %1) removes)}]
     (httpserver/send! channel (format-json message))
     (when DEBUG
       (println "<- result" id "to" (:id client) "@" (timestamp))
@@ -68,7 +68,7 @@
 
 (defn start-query [db query id channel]
   (let [fields (or (second query) [])
-        store-width (inc (count fields))
+        store-width (+ (count fields) 2) 
         results (atom ())
         [form fields]  (repl/form-from-smil query)
         prog (compiler/compile-dsl db @bag form)
