@@ -20,7 +20,13 @@
 (def DEBUG true)
 (def bag (atom 10))
 
-(defn quotify [x] (str "\"" (string/replace (string/replace x "\n" "\\n") "\"" "\\\"") "\""))
+(defn quotify [x] (str "\""
+                       (-> x
+                           (string/replace "\r\n" "\\n")
+                           (string/replace "\n" "\\n")
+                           (string/replace  "\"" "\\\""))
+                       "\""))
+
 (defn format-json [x]
   (condp #(%1 %2) x
     string? (quotify x)
