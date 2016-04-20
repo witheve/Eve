@@ -62,10 +62,11 @@
 (defn timeo [d expression trace-on]
   (println "open" expression)
   (let [[form keys] (form-from-smil (smil/unpack d (nth expression 1)))
+        counts []
         prog (compiler/compile-dsl d @bag form)
         start (System/nanoTime)
         res (print-result keys (second expression) start)
-        ec (exec/open d prog res (fn [n m x] (println "here" (meta m)) x))]
+        ec (exec/open d prog res (fn [n m x] (println "here" m) x))]
     (when trace-on (pprint prog))
     (ec 'insert)
     (ec 'flush)))
