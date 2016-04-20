@@ -10,6 +10,8 @@
 (declare render)
 (declare move-selection!)
 
+(def USE-SERVER? false)
+
 ;;---------------------------------------------------------
 ;; Utils
 ;;---------------------------------------------------------
@@ -252,15 +254,14 @@
                                  (disj cur e)))))))
 
 (defn add-eavs! [context eavs]
-  (remote-add-eavs! context eavs)
-  ; (locally-add-eavs! context eavs)
-  )
+  (if USE-SERVER?
+    (remote-add-eavs! context eavs)
+    (locally-add-eavs! context eavs)))
 
 (defn remove-eavs! [context eavs]
-  (remote-remove-eavs! context eavs)
-  ; (locally-remove-eavs! context eavs)
-  )
-
+  (if USE-SERVER?
+    (remote-remove-eavs! context eavs)
+    (locally-remove-eavs! context eavs)))
 
 (defn make-transaction-context []
   (js-obj))
@@ -317,7 +318,7 @@
         (remove-facts! context {:id (:id grid-user-state) key (key grid-user-state)}))
       (when-not (nil? new-value)
         (if-not grid-user-state
-          (insert-facts! context {:tag "grid-user-state" :grid-id grid-id key new-value})
+          (insert-facts! context {:id 'new-user-state :tag "grid-user-state" :grid-id grid-id key new-value})
           (insert-facts! context {:id (:id grid-user-state) key new-value}))))))
 
 (defn get-state [grid-id key & [otherwise]]
@@ -454,6 +455,7 @@
               [{:text value :adornment "create" :action :create :value value}]))
           (match-autocomplete-options [{:text "Table" :adornment "insert" :action :insert :value :table}
                                        {:text "Code" :adornment "insert" :action :insert :value :code}
+                                       {:text "Formula grid" :adornment "insert" :action :insert :value :formula-grid}
                                        {:text "Image" :adornment "insert" :action :insert :value :image}
                                        {:text "Text" :adornment "insert" :action :insert :value :text}
                                        {:text "Chart" :adornment "insert" :action :insert :value :chart}
@@ -649,6 +651,7 @@
                     (autocompleter :value (or (get-state grid-id :intermediate-value) (for-display (:value cell)) "") (get-state grid-id :autocomplete-selection 0))))
            (array property-element
                   (button :style (style :font-size "12pt"
+                                        :align-self "flex-start"
                                         :margin "1px 0 0 8px")
                           :click (fn [event elem] (println "CLICKED!"))
                           :children (array (text :text (for-display (:value cell))))))))))
@@ -682,6 +685,60 @@
                   (text :style (style :font-size "12pt"
                                       :margin "3px 0 0 8px")
                         :text (name type)))))))
+
+;;---------------------------------------------------------
+;; Formula grid cell
+;;---------------------------------------------------------
+
+(declare grid)
+
+(defmethod draw-cell :formula-grid [cell active?]
+  (let [grid-id (:grid-id cell)
+        current-focus (get-state grid-id :focus (if-not (:property cell)
+                                                  :property
+                                                  :value))
+        property-element (draw-property cell active?)]
+    (box :style (style :flex "1")
+         :children
+           (array property-element
+                  (grid {:grid-width (+ 1 (* 120 (dec (:width cell))))
+                         :grid-height (* 30 (dec (:height cell)))
+                         :selections (get-selections "sub")
+                         :cells (entities {:tag "cell"
+                                           :grid-id "sub"})
+                         :default-cell-type :formula-token
+                         :cell-size-y 30
+                         :cell-size-x 120
+                         :id "sub"})
+                  (when (@id-to-query (:id cell))
+                    (when-let [results (find (@id-to-query (:id cell)))]
+                      (let [fields (if (seq results)
+                                     (.keys js/Object (aget results 0))
+                                     (array))
+                            fields (.filter fields #(not= %1 "__id"))
+                            rows (afor [row results]
+                                       (box :style (style :flex-direction "row"
+                                                          :flex "none"
+                                                          :padding "5px 10px")
+                                            :children (afor [field fields]
+                                                            (box :style (style :width 100
+                                                                               :flex "none")
+                                                                 :children (array (text :text (aget row field)))))))]
+                        (box :style (style :flex "1 0")
+                             :children (array (box :style (style :background "#333"
+                                                                 :flex "none"
+                                                                 :padding "5px 10px"
+                                                                 :margin-bottom "5px"
+                                                                 :flex-direction "row")
+                                                   :children (afor [field fields]
+                                                                   (box :style (style :width 100
+                                                                                      :flex "none")
+                                                                        :children (array (text :text field)))))
+                                              (box :style (style :overflow "auto")
+                                                   :children rows))))))
+                  (when (and active? (= :property current-focus))
+                    (autocompleter :property (or (get-state grid-id :intermediate-property) (:property cell) "")  (get-state grid-id :autocomplete-selection 0))))
+  )))
 
 ;;---------------------------------------------------------
 ;; Code cell
@@ -817,7 +874,7 @@
     (set! (.-width node) (* ratio width))
     (set! (.-height node) (* ratio height))
     (set! (.-lineWidth ctx) 1)
-    (set! (.-strokeStyle ctx) "#333")
+    (set! (.-strokeStyle ctx) "#444")
     (dotimes [vertical (/ height size-y)]
       (.beginPath ctx)
       (.moveTo ctx 0 (* adjusted-size-y vertical))
@@ -1282,10 +1339,10 @@
           :info info
           :tabindex -1
           :focus transfer-focus-to-keyhandler
-          ; :mousedown set-selection
+          :mousedown set-selection
           :dblclick maybe-activate-cell
-          ; :mousemove mousemove-extend-selection
-          ; :mouseup stop-selecting
+          :mousemove mousemove-extend-selection
+          :mouseup stop-selecting
           :style (style :position "relative"))))
 
 ;;---------------------------------------------------------
@@ -1304,6 +1361,7 @@
                                :selections (get-selections "main")
                                :cells (entities {:tag "cell"
                                                :grid-id "main"})
+                               :default-cell-type :property
                                :cell-size-y 50
                                :cell-size-x 120
                                :id "main"}))))
