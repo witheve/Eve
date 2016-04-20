@@ -158,6 +158,10 @@ li {
   flex-grow: 1;
 }
 
+.error {
+  background-color: rgb(66,35,35);
+}
+
 /* Misc */
 
 #perfstats { display: none; }

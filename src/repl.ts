@@ -192,8 +192,9 @@ function connectToServer() {
 
   ws.onmessage = function(message) {
     //console.log("message")
+    //console.log(message.data);
     let parsed = JSON.parse(message.data);
-    //console.log(parsed);
+    console.log(parsed);
     // Update the result of the correct repl card
     let targetCard = repl.deck.cards.filter((r) => r.id === parsed.id).shift();
     if (targetCard !== undefined) {
@@ -223,6 +224,7 @@ function connectToServer() {
       } else if (parsed.type === "error") {
         targetCard.state = CardState.ERROR;
         targetCard.message = parsed.cause;
+        targetCard.display = CardDisplay.BOTH;
         targetCard.result = undefined;
         //saveReplCard(targetCard);
       } else if (parsed.type === "close") {
@@ -602,7 +604,7 @@ function generateReplCardElement(replCard: ReplCard) {
       result = {};
     }     
   } else if (replCard.state === CardState.ERROR) {
-    resultcss += " bad";
+    queryInput.c += " error";
     result = {text: replCard.message};
   } else if (replCard.state === CardState.PENDING) {
     resultcss += " pending";
