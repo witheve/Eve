@@ -8,6 +8,8 @@
 
 (query
   (insert-fact! "josh" :tag "employee" :salary 10 :department "engineering")
+  (insert-fact! "josh" :tag "employee" :salary 10 :department "engineering")
+  (insert-fact! "josh" :tag "employee" :salary 10 :department "engineering")
   (insert-fact! "eric" :tag "employee" :salary 11 :department "magic")
   (insert-fact! "corey" :tag "employee" :salary 10 :department "engineering")
   (insert-fact! "chris" :tag "employee" :salary 7 :department "engineering")
