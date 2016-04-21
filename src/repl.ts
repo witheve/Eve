@@ -77,7 +77,10 @@ interface Deck {
 
 interface Repl {
   init: boolean,
-  system: Array<Query>,
+  system: {
+    entities: Query,  
+    tags: Query,
+  },
   decks: Array<Deck>,
   deck: Deck,
   server: ServerConnection,
@@ -180,7 +183,8 @@ function connectToServer() {
     repl.server.state = ConnectionState.CONNECTED;
     // Initialize the repl state
     if (repl.init === false) {
-      repl.system.map(sendQuery);
+      objectToArray(repl.system).map(sendQuery);
+      repl.init = true;
     }
     // In the case of a reconnect, reset the timeout
     // and send queued messages
@@ -207,7 +211,7 @@ function connectToServer() {
     //console.log("message")
     //console.log(message.data);
     let parsed = JSON.parse(message.data);
-    console.log(parsed);
+    //console.log(parsed);
     // Update the result of the correct repl card
     let targetCard = repl.deck.cards.filter((r) => r.id === parsed.id).shift();
     if (targetCard !== undefined) {
@@ -250,7 +254,7 @@ function connectToServer() {
     // If the query ID was not matched to a repl card, then it should 
     // matche a system query
     } else {
-      let targetSystemQuery: Query = repl.system.filter((q) => q.id === parsed.id).shift();
+      let targetSystemQuery: Query = objectToArray(repl.system).filter((q) => q.id === parsed.id).shift();
       if (targetSystemQuery !== undefined) {
         if (targetSystemQuery.result === undefined) {
           targetSystemQuery.result = {
@@ -646,20 +650,7 @@ function generateReplCardElement(replCard: ReplCard) {
     } else if (replCard.state === CardState.PENDING) {
       resultcss += " pending";
     }
-    if (replCard.query.result !== undefined) {
-      let tableHeader = {c: "header", children: replCard.query.result.fields.map((f: string) => {
-        return {c: "cell", text: f};
-      })};
-      let tableBody = replCard.query.result.values.map((r: Array<any>) => {
-        return {c: "row", children: r.map((c: any) => {
-          return {c: "cell", text: `${c}`};
-        })};
-      });
-      let tableRows = [tableHeader].concat(tableBody);
-      result = {c: "table", children: tableRows};  
-    } else {
-      result = {};
-    }     
+    result = replCard.query !== undefined ? generateResultsTable(replCard.query) : {};
   } else if (replCard.state === CardState.ERROR) {
     queryInput.c += " error";
     result = {text: replCard.query.message};
@@ -691,6 +682,19 @@ function generateReplCardElement(replCard: ReplCard) {
     children: [codeMirrorElement(queryInput), queryResult],
   };   
   return replCardElement;
+}
+
+function generateResultsTable(query: Query) {
+  let tableHeader = {c: "header", children: query.result.fields.map((f: string) => {
+    return {c: "cell", text: f};
+  })};
+  let tableBody = query.result.values.map((r: Array<any>) => {
+    return {c: "row", children: r.map((c: any) => {
+      return {c: "cell", text: `${c}`};
+    })};
+  });
+  let tableRows = [tableHeader].concat(tableBody);
+  return {c: "table", children: tableRows};  
 }
 
 function generateCardRootElements() {
@@ -728,7 +732,7 @@ function generateStatusBarElement() {
   let addColumn = {c: "button", text: "Add Column", click: addColumnClick};
   let addCard = {c: "button", text: "Add Card", click: addCardClick};
   let buttonList = formListElement([deleteButton, addColumn, addCard]);
-  let entities: Array<any> = repl.system[0].result !== undefined ? repl.system[0].result.values.map((e) => { return {text: e[0] }; }) : []; 
+  let entities: Array<any> = repl.system.entities.result !== undefined ? repl.system.entities.result.values.map((e) => { return {text: e[0] }; }) : []; 
   let entitiesList = formListElement(entities);
   // Build the status bar    
   let statusBar = {
@@ -754,9 +758,10 @@ let replCards: Deck = {
 // Instantiate a repl instance
 let repl: Repl = {
   init: false,
-  system: [
-    newQuery("(query [e] (fact-btu e))"), // get all entities in the system
-  ],
+  system: {
+    entities: newQuery(`(query [entities] (fact-btu entities))`), // get all entities in the database
+    tags: newQuery(`(query [tags], (fact-btu e "tag" tags))`),    // get all tags in the database
+  },
   decks: [replCards],
   deck: replCards,
   server: {
@@ -786,6 +791,10 @@ function root() {
 function formListElement(list: Array<any>) {
   let li = list.map((e) => {return {t: "li", children: [e]};});
   return {t: "ul", children: li};  
+}
+
+function objectToArray(obj: Object): Array<any> {
+  return Object.keys(obj).map(key => obj[key]);
 }
 
 function getCodeMirrorInstance(replCard: ReplCard): CodeMirror.Editor {
