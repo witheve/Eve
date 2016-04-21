@@ -526,11 +526,14 @@
 ;; Navigation
 ;;---------------------------------------------------------
 
-(defn navigate! [event elem]
+(defn navigate! [context navigate-grid-id]
+  (when-not (= navigate-grid-id (get-state "main" :active-grid "main"))
+    (update-state! context "main" :active-grid navigate-grid-id)))
+
+(defn navigate-event! [event elem]
   (let [{:keys [navigate-grid-id]} (.-info elem)]
-    (when-not (= navigate-grid-id (get-state "main" :active-grid "main"))
-      (transaction context
-                   (update-state! context "main" :active-grid navigate-grid-id)))))
+    (transaction context
+                 (navigate! context navigate-grid-id))))
 
 ;;---------------------------------------------------------
 ;; Cell types
@@ -663,7 +666,7 @@
                                         :align-self "flex-start"
                                         :margin "1px 0 0 8px")
                           :info {:navigate-grid-id (:value cell)}
-                          :click navigate!
+                          :click navigate-event!
                           :children (array (text :text (for-display (:value cell))))))))))
 
 (defmethod draw-cell :default [cell active?]
@@ -1226,11 +1229,11 @@
   (when (= (.-currentTarget event) (.-target event))
     (let [{:keys [id cells default-cell-type] :as grid-info} (.-info elem)
           grid-id id
-          selections (entities {:tag "selection"
-                                :grid-id id})
+          selections (get-selections id)
           current-selection (last selections)
           key-code (.-keyCode event)
           shift? (.-shiftKey event)
+          modified? (or (.-metaKey event) (.-ctrlKey event))
           direction (directions key-code)]
       (condp = key-code
         (:escape KEYS) (when (:parent grid-info)
@@ -1239,7 +1242,14 @@
                                       (update-state! context (:parent grid-info) :active-cell nil)))
         ;; when pressing enter, we either need to create a new cell or if we have a currently
         ;; selected cell we need to activate it
-        (:enter KEYS) (activate-cell! id current-selection grid-info)
+        (:enter KEYS) (if modified?
+                        ;; try navigating
+                        (do (println current-selection)
+                        (when (and (:value current-selection)
+                                   (entity {:id (:value current-selection)}))
+                          (transaction context
+                                       (navigate! context (:value current-selection)))))
+                        (activate-cell! id current-selection grid-info))
         ;; pressing backspace should nuke any selected cells
         (:backspace KEYS) (let [selected-ids (into #{} (for [selection (get-selections id)]
                                                          (:cell-id selection)))]
