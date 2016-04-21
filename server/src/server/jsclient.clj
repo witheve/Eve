@@ -73,10 +73,10 @@
       (pprint message))))
 
 (defn start-query [db query id channel]
-  (let [fields (or (second query) [])
-        store-width (+ (count fields) 2) 
-        results (atom ())
+  (let [results (atom ())
         [form fields]  (repl/form-from-smil query)
+        fields (or fields [])
+        store-width (+ (count fields) 2)
         prog (compiler/compile-dsl db @bag form)
         handler (fn [tuple]
                   (condp = (exec/rget tuple exec/op-register)
