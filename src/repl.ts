@@ -358,7 +358,7 @@ function submitReplCard(replCard: ReplCard) {
   let query: QueryMessage = {
     id: replCard.id,
     type: "query",
-    query: replCard.query.query.replace(/\s+/g,' '),
+    query: replCard.query.query,
   }
   replCard.state = CardState.PENDING;
   replCard.query.result = undefined;    
