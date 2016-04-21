@@ -20,7 +20,13 @@
 (def DEBUG true)
 (def bag (atom 10))
 
-(defn quotify [x] (str "\"" (string/replace (string/replace x "\n" "\\n") "\"" "\\\"") "\""))
+(defn quotify [x] (str "\""
+                       (-> x
+                           (string/replace "\r\n" "\\n")
+                           (string/replace "\n" "\\n")
+                           (string/replace  "\"" "\\\""))
+                       "\""))
+
 (defn format-json [x]
   (condp #(%1 %2) x
     string? (quotify x)
@@ -43,8 +49,8 @@
         message {"type" "result"
                  "id" id
                  "fields" fields
-                 "insert" (map rest inserts)
-                 "remove" (map rest removes)}]
+                 "insert" (map #(drop 2 %1) inserts)
+                 "remove" (map #(drop 2 %1) removes)}]
     (httpserver/send! channel (format-json message))
     (when DEBUG
       (println "<- result" id "to" (:id client) "@" (timestamp))
@@ -68,7 +74,7 @@
 
 (defn start-query [db query id channel]
   (let [fields (or (second query) [])
-        store-width (inc (count fields))
+        store-width (+ (count fields) 2) 
         results (atom ())
         [form fields]  (repl/form-from-smil query)
         prog (compiler/compile-dsl db @bag form)
@@ -80,7 +86,10 @@
                                (reset! results '()))
                     'close (println "@FIXME: Send close message")
                     'error (send-error channel id (ex-info "Failure to WEASL" {:data (str tuple)}))))
-        e (exec/open db prog handler false)]
+        e (exec/open db prog handler (fn [n m x] x))]
+    (doseq [line (string/split (with-out-str (pprint prog)) #"\n")]
+      (println "   " line))
+
     (swap! clients assoc-in [channel :queries id] e)
     (e 'insert)
     (e 'flush)))
@@ -108,8 +117,10 @@
                  expanded (when query (smil/unpack db (smil/read query)))]
              (println "  Raw:")
              (println "   " (string/join "\n    " (string/split query #"\n")))
-             (println "  Expanded:")
-             (smil/print-smil expanded :indent 4)
+             (println "  SMIL:")
+             (smil/print-smil expanded :indent 2)
+             (println "  WEASL:")
+
              (condp = (first expanded)
                'query (start-query db expanded id channel)
                'define! (do

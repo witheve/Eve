@@ -1,0 +1,28 @@
+(open foo (query [e a v] (fact-btu e a v)))
+
+(query []
+ (insert-fact! "797bcba0-65b1-4cc9-bb90-d0e9197ea62e" :tag "grid-user-state")
+ (insert-fact! "797bcba0-65b1-4cc9-bb90-d0e9197ea62e" :grid-id "main")
+ (insert-fact! "797bcba0-65b1-4cc9-bb90-d0e9197ea62e" :x-offset 0)
+ (insert-fact! "30392660-1e69-4bca-a030-37f9d25043a0" :tag "grid-user-state")
+ (insert-fact! "30392660-1e69-4bca-a030-37f9d25043a0" :grid-id "main")
+ (insert-fact! "30392660-1e69-4bca-a030-37f9d25043a0" :y-offset 0)
+ (insert-fact! "e7a89e8f-55d8-4088-9c53-e8aff2cde1b8" :tag "grid-user-state")
+ (insert-fact! "e7a89e8f-55d8-4088-9c53-e8aff2cde1b8" :grid-id "main")
+ (insert-fact! "e7a89e8f-55d8-4088-9c53-e8aff2cde1b8" :extending-selection false)
+ (insert-fact! "5d0dd215-f1f3-4198-86fa-003e057df3f4" :x 1)
+ (insert-fact! "5d0dd215-f1f3-4198-86fa-003e057df3f4" :y 0)
+ (insert-fact! "5d0dd215-f1f3-4198-86fa-003e057df3f4" :width 1)
+ (insert-fact! "5d0dd215-f1f3-4198-86fa-003e057df3f4" :height 1)
+ (insert-fact! "5d0dd215-f1f3-4198-86fa-003e057df3f4" :grid-id "main")
+ (insert-fact! "5d0dd215-f1f3-4198-86fa-003e057df3f4" :tag "selection")
+
+  (query [] (fact-btu "fake-selection" "x" 0 :tick tick1)
+   (remove-by-t! tick1)                
+   (fact-btu "fake-selection" "y" 0 :tick tick2)
+   (remove-by-t! tick2)
+   (fact-btu "fake-selection" "width" 1 :tick tick3)
+   (remove-by-t! tick3)
+   (fact-btu "fake-selection" "height" 1 :tick tick4)
+   (remove-by-t! tick4)))
+

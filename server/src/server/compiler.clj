@@ -125,7 +125,7 @@
   (when (some nil? (map #(lookup env %1) arguments))
     (compile-error "Cannot send unbound/nil argument" {:env @env :target target :arguments arguments :bound (get @env 'bound nil)}))
   (concat
-   (apply term env 'tuple m exec/temp-register exec/op-register '* nil (map #(lookup env %1) arguments))
+   (apply term env 'tuple m exec/temp-register exec/op-register exec/qid-register '* nil (map #(lookup env %1) arguments))
    [(with-meta (list 'send target exec/temp-register) m)]))
 
 (defn generate-send-cont
@@ -137,7 +137,7 @@
     (when (some nil? input)
       (compile-error "Cannot send unbound/nil argument" {:env @env :target target :arguments arguments :bound (get @env 'bound nil)}))
     (concat
-     (apply term env 'tuple m exec/temp-register exec/op-register [(exec/taxi-register 0) (exec/taxi-register 0)] nil scope)
+     (apply term env 'tuple m exec/temp-register exec/op-register exec/qid-register [(exec/taxi-register 0) (exec/taxi-register 0)] nil scope)
      [(with-meta (list 'send target exec/temp-register) m)])))
 
 (defn generate-binary-filter [env terms down]
@@ -181,7 +181,7 @@
              (term env 'delta-e m target-reg-name exec/temp-register)
              (list (body)))
       (apply build
-             (term env 'scan m specoid exec/temp-register [])
+             (term env 'scan m specoid target-reg-name [])
              (list (body))))))
 
 (defn make-continuation
@@ -215,9 +215,7 @@
     (bind-outward env inner-env)
     (make-continuation env tail-name (down))
     (make-bind env inner-env name body)
-    (apply build
-           (when-not (zero? (count input)) (apply term env 'delta-c m input))
-           (list (generate-send env m name input)))))
+    (generate-send env m name input)))
 
 (defn compile-union [env terms down]
   (let [[_ proj & arms] terms
@@ -332,6 +330,7 @@
     (when-not (lookup env (:return argmap))
       (allocate-register env (:return argmap)))
     (build
+     (apply term env 'delta-c m (vals (get @env 'bound {})))
      (term env (first terms) m (:return argmap) (:a argmap) (map #(lookup env %1) grouping))
      (down))))
 
@@ -405,7 +404,7 @@
                   'fact-btu (fn [e terms down]
                               (generate-scan e terms down true))
                   'full-fact-btu (fn [e terms down]
-                                   (generate-scan e terms down true))
+                                   (generate-scan e terms down false))
                   'range compile-simple-primitive
                   '= compile-equal
                   'not compile-not
@@ -425,7 +424,7 @@
 
 (defn compile-dsl [d bag terms]
   (when-not (= (first terms) 'query)
-    (compile-error "Top level form must be query"))
+    (compile-error "Top level form must be query" {'place (meta terms)}))
   (let [proj (second terms)
         m (meta (first terms))
         env (new-env d proj) ;; @FIXME: with projection of top level query
@@ -436,7 +435,7 @@
                        (let [bound (vals (get @env 'bound {}))
                              regs (map #(lookup env %1) bound)
                              epilogue (list
-                                       (with-meta (apply list 'tuple exec/temp-register exec/op-register regs) m)
+                                       (with-meta (apply list 'tuple exec/temp-register exec/op-register exec/qid-register regs) m)
                                        (with-meta (list 'send 'out exec/temp-register) m))]
                          (if-not (zero? (count proj))
                            (concat (apply term env 'delta-c m proj) epilogue)

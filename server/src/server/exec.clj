@@ -1,14 +1,14 @@
 (ns server.exec
   (:require [server.edb :as edb]
-            [clojure.test :as test]
-            ;[server.avl :as avl]
             [clojure.pprint :refer [pprint cl-format]]))
 
+(set! *warn-on-reflection* true)
 (def basic-register-frame 10)
 (def op-register [0])
-(def taxi-register [1])
-(def temp-register [2])
-(def initial-register 3)
+(def qid-register [1])
+(def taxi-register [2])
+(def temp-register [3])
+(def initial-register 4)
 
 (def object-array-type (class (object-array 1)))
 
@@ -17,8 +17,9 @@
 (declare build)
 
 (defn print-registers*
-  ([r] (print-registers* r #{} 1))
-  ([r visited indent]
+  ([r] (print-registers* r 2 1 #{}))
+  ([r max-indent] (print-registers* r max-indent 1 #{}))
+  ([r max-indent indent visited]
      (reduce (fn [memo x]
                (let [padding (apply str (repeat indent "  "))
                      append-memo (fn [slot]
@@ -39,21 +40,22 @@
                   (nil? x) (append-memo ".")
                   (= x ()) (append-memo "()")
                   (visited x) (append-memo "*")
-                  (= object-array-type (type x)) (if (< indent 2)
+                  (= object-array-type (type x)) (if (< indent max-indent)
                                                    (nest-memo
-                                                    (let [nested (print-registers* x (conj visited x) (inc indent))]
+                                                    (let [nested (print-registers* x max-indent (inc indent) (conj visited x))]
                                                       (apply str (:register nested) (:nests nested))))
                                                    (append-memo "<snip>"))
                   ;;:else (nest-memo (str x)))))
                   :else (append-memo (str x)))))
              {:slot 0 :nests "" :register ""} r)))
 
-(defn print-registers [r]
-  (let [nested (print-registers* r)]
+(defn print-registers [r & [max-indent]]
+  (let [nested (print-registers* r (or max-indent 2))]
     (str (:register nested) (:nests nested))))
 
 ;; these register indirections could be resolved at build time? yeah, kinda
 ;; no longer support the implicit zero register
+
 
 (defn rget [r ref]
   (cond (not (vector? ref))
@@ -62,9 +64,11 @@
           ref)
         ;; special case of constant vector, empty
         (= (count ref) 0) ref
-        (= (count ref) 1) (aget r (ref 0))
+        (= (count ref) 1)
+        (aget ^objects r (get ref 0))
         :else
-        (rget (aget r (ref 0)) (subvec ref 1))))
+        (rget (aget ^objects r (get ref 0))
+              (subvec ref 1))))
 
 (defn rset [r ref v]
   (let [c (count ref)]
@@ -73,9 +77,9 @@
       (= c 1) (if (> (ref 0) (count r))
                 (do (println "exec error" (ref 0) "is greater than" (count r))
                     (throw c))
-                (aset r (ref 0) v))
+                (aset ^objects r (ref 0) v))
       :else
-      (rset (aget r (ref 0)) (subvec ref 1) v))))
+      (rset (aget ^objects r (get ref 0)) (subvec ref 1) v))))
 
 
 ;; simplies - cardinality preserving, no flush
@@ -83,7 +87,7 @@
 
 ;; flushes just roll on by
 (defn simple [f]
-  (fn [db terms build c]
+  (fn [d terms build c]
     (fn [r]
       (when (or (= (rget r op-register) 'insert)
                 (= (rget r op-register) 'remove))
@@ -140,7 +144,7 @@
             ;; since this is often a file, we currently force this to be at least the base max frame size
             tout (object-array (max (count a) basic-register-frame))]
         (doseq [x (range (count a))]
-          (aset tout x (rget r (nth a x))))
+          (aset ^objects tout x (rget r (nth a x))))
         (rset r (second terms) tout)))
     (c r)))
 
@@ -360,19 +364,36 @@
         proj (if proj proj [])
         assertions (atom {})]
     (fn [r]
-      (let [fact (reduce #(assoc %1 %2 (rget r %2)) {} proj)
-            prev (get @assertions fact 0)]
+      (let [fact (when (#{'insert 'remove} (rget r op-register))
+                   (doall (map #(let [v (rget r %1)]
+                                  (if (= object-array-type (type v))
+                                    nil ;; @FIXME: Is it safe to always ignore tuples for projection equality here?
+                                    v))
+                               proj)))
+            doreduce (defn doreduce [coll fn]
+                       (doall (reduce-kv fn {} coll)))
+            insert-fact (fn insert-fact [assertion]
+                          {:r (aclone ^objects r) :cnt (inc (get assertion :cnt 0)) :prev (:prev assertion)})
+            remove-fact (fn remove-fact [assertion]
+                          ;; @NOTE: Should this error on remove before insert?
+                          {:r (aclone ^objects r) :cnt (dec (get assertion :cnt 0)) :prev (:prev assertion)})]
+
         (condp = (rget r op-register)
-          'insert (swap! assertions update-in [fact] (fnil inc 0))
-          'remove (swap! assertions update-in [fact] dec)
-          'flush (c r)
-          'close (c r))
-        (let [cur (get @assertions fact 0)]
-          (cond
-            (and (> cur 0) (= prev 0)) (c r)
-            (and (= cur 0) (> prev 0)) (do
-                                         (rset r op-register 'remove)
-                                         (c r))))))))
+          'insert (swap! assertions update-in [fact] insert-fact)
+          'remove (swap! assertions update-in [fact] remove-fact)
+          'flush (swap! assertions doreduce (fn update-each [memo fact assertion]
+                                         (let [r (:r assertion)
+                                               cnt (:cnt assertion)
+                                               prev (or (:prev assertion) 0)]
+                                           (when (and (> prev 0) (zero? cnt))
+                                             (rset r op-register 'remove)
+                                             (c r))
+                                           (when (and (zero? prev) (> cnt 0))
+                                             (rset r op-register 'insert)
+                                             (c r))
+
+                                           (assoc memo fact {:r r :cnt cnt :prev cnt}))))
+          'close (c r))))))
 
 ;; down is towards the base facts, up is along the removal chain
 ;; use stm..figure out a way to throw down..i guess since r
@@ -407,7 +428,7 @@
               (swap! (record up e) conj t)
               (let [nb (if b b (base e))
                     new (if nb (walk nb) nb)]
-                (cond (and (not old) new) (do (rset r out in)
+                (cond (and (not old) new) (do (rset r out (rget r in))
                                               (c r))
                       (and old (not new)) (do (rset r out (@assertions b))
                                               (rset r op-register 'remove)
@@ -419,8 +440,6 @@
                 (rset r out (rget r in))
                 (c r)))))
         (c r)))))
-
-
 
 (defn delta-s [d terms build c]
   (let [state (ref {})
@@ -452,16 +471,23 @@
       (c r))))
 
 
+;; this needs to send an error message down the pipe
+(defn exec-error [reg comment]
+  (throw (ex-info comment {:registers reg :type "exec"})))
+
+
 (defn doscan [d terms build c]
   (let [[scan oid dest key] terms
         opened (atom ())
         scan (fn [r]
-               (let [handle (d 'insert oid (rget r key)
-                               (fn [t op]
-                                 (rset r op-register op)
+               (let [dr (object-array (vec r))
+                     handle (d 'insert oid (rget r key) (rget r qid-register)
+                               (fn [t op qid]
+                                 (rset dr op-register op)
+                                 (rset dr qid-register qid)
                                  (when (= op 'insert)
-                                   (rset r dest t))
-                                 (c r)))]
+                                   (rset dr dest t))
+                                 (c dr)))]
                  (swap! opened conj handle)))]
 
 
@@ -473,7 +499,7 @@
                  (doseq [i @opened] (i))
                  (c r))
         'flush (do (when (= oid edb/insert-oid)
-                     (d 'flush oid [] (fn [k op] (c r))))
+                     (d 'flush oid (rget r key) (rget r qid-register) (fn [k op] (c r))))
                    (c r))))))
 
 
@@ -506,9 +532,6 @@
                   'join      dojoin
                   })
 
-;; this needs to send an error message down the pipe
-(defn exec-error [reg comment]
-  (throw (ex-info comment {:registers reg :type "exec"})))
 
 (defn build [name names built d t wrap final]
   (if (= name 'out) final
@@ -532,26 +555,26 @@
 
 
 ;; fuse notrace and trace versions
-(defn open [d program callback trace-p]
+(defn open [d program callback trace-function]
   (let [reg (object-array basic-register-frame)
         blocks (atom {})
+        id (gensym "query")
         built (atom {})
-        tf (if trace-p
-             (fn [n m x] (fn [r] (println "trace" n m) (println (print-registers r)) (x r)))
-             (fn [n m x] x))
         _ (doseq [i program]
             (swap! blocks assoc (second i) (nth i 2)))
-        e (build 'main blocks built d (@blocks 'main) tf
+        e (build 'main blocks built d (@blocks 'main) trace-function
                  callback)]
 
     (fn [op]
       (rset reg op-register op)
+      (rset reg qid-register id)
       (e reg))))
 
 
 (defn single [d prog out]
   (let [e (open d prog (fn [r]
-                         (when (= (rget r op-register) 'insert) (out r))) false)]
+                         (when (= (rget r op-register) 'insert) (out r)))
+                (fn [n m x] x))]
     (e 'insert)
     (e 'flush)
     (e 'close)))
