@@ -702,6 +702,7 @@
          :children
            (array property-element
                   (box :style (style :margin-top "10px"
+                                     :flex "1"
                                      :align-items "center")
                        :children (array (grid {:grid-width (+ 1 (* 110 (:width cell)))
                                                :grid-height (inc (* 30 (.floor js/Math (/ (* (dec (:height cell)) 50) 30))))
@@ -1309,7 +1310,9 @@
                      :postRender draw-grid
                      :style (style :width (:grid-width info)
                                    :height (:grid-height info)))
-        children (array canvas)
+        children (if (:inactive info)
+                   (array)
+                   (array canvas))
         {:keys [cells cell-size-x cell-size-y selections]} info
         active-cell (get-active-cell (:id info))]
     (dotimes [cell-ix (count cells)]
@@ -1381,7 +1384,9 @@
           :dblclick maybe-activate-cell
           :mousemove mousemove-extend-selection
           :mouseup stop-selecting
-          :style (style :position "relative"))))
+          :style (style :position "relative"
+                        :width (:grid-width info)
+                        :height (:grid-height info)))))
 
 ;;---------------------------------------------------------
 ;; Root
