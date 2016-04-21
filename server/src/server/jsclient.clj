@@ -149,9 +149,11 @@
 (defn serve-static [request channel]
   (let [base-path (str (.getCanonicalPath (java.io.File. ".")) "/../")
         response ((-> (fn [req] ; Horrible, horrible rewrite hack
-                        (if (= "repl" (second (string/split (request :uri) #"/")))
-                          {:status 200 :headers {"Content-Type" "text/html"} :body (slurp (str base-path "/repl.html"))}
-                          {:status 404}))
+                        (let [first-segment (second (string/split (request :uri) #"/"))]
+                          (condp = first-segment
+                            "repl" {:status 200 :headers {"Content-Type" "text/html"} :body (slurp (str base-path "/repl.html"))}
+                            "grid" {:status 200 :headers {"Content-Type" "text/html"} :body (slurp (str base-path "/index.html"))}
+                           {:status 404})))
                       (wrap-file base-path)
                       (wrap-content-type))
                   request)
