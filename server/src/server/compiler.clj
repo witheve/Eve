@@ -215,9 +215,7 @@
     (bind-outward env inner-env)
     (make-continuation env tail-name (down))
     (make-bind env inner-env name body)
-    (apply build
-           (when-not (zero? (count input)) (apply term env 'delta-c m input))
-           (list (generate-send env m name input)))))
+    (generate-send env m name input)))
 
 (defn compile-union [env terms down]
   (let [[_ proj & arms] terms
@@ -332,7 +330,24 @@
     (when-not (lookup env (:return argmap))
       (allocate-register env (:return argmap)))
     (build
+     (apply term env 'delta-c m (vals (get @env 'bound {})))
      (term env (first terms) m (:return argmap) (:a argmap) (map #(lookup env %1) grouping))
+     (down))))
+
+(defn compile-sort [env terms down]
+  (let [grouping (get @env 'input [])
+        m (meta (first terms))
+        argmap (apply hash-map (rest terms))]
+    (when-not (lookup env (:sorting argmap))
+      (compile-error (str "unhandled bound signature in" terms) {:env env :terms terms}))
+    (when-not (lookup env (:return argmap))
+      (allocate-register env (:return argmap)))
+    (build
+     (apply term env 'delta-c m (vals (get @env 'bound {})))
+     (term env (first terms) m
+           (:return argmap)
+           (map (fn [[var dir]] [(lookup env var) (lookup env dir)]) (partition 2 (:sorting argmap)))
+           (map #(lookup env %1) grouping))
      (down))))
 
 (defn compile-equal [env terms down]
@@ -382,7 +397,7 @@
                   '- compile-simple-primitive
                   '< generate-binary-filter
                   '> generate-binary-filter
-                  'sort compile-simple-primitive ;; ascending and descending
+                  'sort compile-sort
                   'sum compile-sum
 
                   'str compile-simple-primitive
