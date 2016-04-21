@@ -1,48 +1,64 @@
 (ns server.log
   (:require [server.serialize :as serialize]
             [server.edb :as edb]
-            [server.db :as db]))
+            [server.db :as db]
+            [clojure.java.io :as io]
+            [clojure.string :as string])
+  (:import [java.io File]
+           [java.lang Long]))
 
-(require '[clojure.java.io :as io])
-(import java.io.File)
 
-(def store-pathname (atom "."))
+(defn filename-from-bag [p bag-id]
+  (str p "/"
+       (format "%x" (:time bag-id)) "-"
+       (format "%x" (:batch bag-id)) "-"
+       (format "%x" (:machine bag-id))))
 
-(defn set-pathname [p]
-  (swap! store-pathname (fn [x] p)))
+(defn bags [p]
+  (let [d (File. p)]
+    (println "wtf" (map str (.listFiles d)))
+    (map (fn [f]
+           (let [terms (string/split (.getName f) #"-")]
+             (println "filo" terms)
+             (apply db/wrapoid (map (fn [x] (Long/parseLong x 16)) terms))))
+         (.listFiles d))))
 
-(defn log-files []
-  (let [d (File. store-pathname)]
-    (doseq [f (.listFiles d)]
-      ; parse the filename into a vt
-      (println "filo" (.getName f)))))
 
 ;; slurp up the whole thing...we should only be doing this
 ;; on startup, which means that no one should be writing this thing
-(defn read-log [f]
-  (let [filename (str store-pathname f)
-        f (File. filename)
-        target (byte-array  (.length f))
+(defn scan [p bag-id]
+  (let [f (File. (filename-from-bag p bag-id))
+        len (.length f)
+        target (byte-array  len)
         ;; seems odd that this operates on the filename
         s (java.io.FileInputStream. f)]
+
     (.read s target)
     (.close s)
     ;; there are two ways this can go, internal import or just bulk export
     ;; also decode expects an object, not a concatenation of objects, which
     ;; is what we want in this case
-    (serialize/decode target 0 (.length f))))
+    (serialize/decode-five-tuples target 0 len
+                                  (fn [x] (println "i wanna be inserted" x)))))
 
-(defn delete-log [f]
-  (let [filename (str store-pathname f)]
-    (io/delete-file filename)))
+(defn delete [p bag-id]
+    (io/delete-file (filename-from-bag p bag-id)))
 
-;; just a global log right now, lets not think about relation oid
-(defn open-log []
-  (let [p (str @store-pathname "log" (edb/now))]
-    ;; we should create this on the first write, so that the
-    ;; log timestamp indicates the beginning of the record, and
-    ;; not some arbitrary point before that
-    (with-open [w (clojure.java.io/output-stream (str p "/planet"))]
-      ;; keep track of the written length and rotate the log
-      (fn [x] (.write w (serialize/encode x))))))
+(defn open [db path bag-id]
+  ;; we should create this on the first write, so that the
+  ;; log timestamp indicates the beginning of the record, and
+  ;; not some arbitrary point before that
+  (let [f (clojure.java.io/file (filename-from-bag path bag-id))]
+    (when (not (.exists f)) (.createNewFile f))
+    (let [w (clojure.java.io/output-stream f :append true)]
+      ;; shouldn't have to create a view?
+      (edb/add-listener (edb/create-view db bag-id 0)
+                        (gensym "log")
+                        (fn [op x k]
+                          (when (= op 'insert)
+                            (let [enc (serialize/encode-five-tuples [x])]
+                              (println "enc" (seq enc) (filename-from-bag path bag-id) w)
+                              (.write w enc)
+                              (.flush w))))))))
+
 

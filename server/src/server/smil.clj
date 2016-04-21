@@ -6,8 +6,6 @@
             [clojure.tools.reader :as reader]
             [clojure.tools.reader.reader-types :as reader-types]))
 
-(def REMOVE_FACT 5)
-
 (defn read [str]
   (reader/read (reader-types/indexing-push-back-reader str)))
 
@@ -21,7 +19,7 @@
 (defn splat-map [m]
   (reduce-kv conj [] m))
 
-;; Flatten vecs (multi-returns) in the given body
+;; flatten vecs (multi-returns) in the given body
 (defn congeal-body [body]
   (vec (reduce #(if (vector? %2)
              (into %1 %2)
@@ -37,9 +35,9 @@
 
 (defn assert-queries [body]
   (doseq [expr body]
-    ;; @NOTE: Should this allow unions/chooses as well?
+    ;; @note: should this allow unions/chooses as well?
     (when (or (not (seq? expr)) (not (= (first expr) 'query)))
-    (throw (syntax-error "All union/choose members must be queries" expr))))
+    (throw (syntax-error "all union/choose members must be queries" expr))))
   body)
 
 (defn validate-sort [sexpr args]
@@ -55,13 +53,13 @@
 ;; :optional - arguments which may not be specified
 ;; :validate - optional function to validate the argument map
 (def schemas {
-              ;; Special forms
+              ;; special forms
               'insert-fact! nil
               'fact nil
-              'define! nil ; Special due to multiple aliases
-              'query nil ; Special due to optional parameterization
+              'define! nil ; special due to multiple aliases
+              'query nil ; special due to optional parameterization
 
-              ;; Macros
+              ;; macros
               'remove-by-t! {:args [:tick]}
               'if {:args [:cond :then :else]}
 
@@ -75,7 +73,7 @@
               'full-fact-btu {:args [:entity :attribute :value :bag] :kwargs [:tick] :optional #{:entity :attribute :value :bag :tick}}
               'context {:kwargs [:bag :tick] :rest :body :optional #{:bag :tick :body}}})
 
-;; These are only needed for testing -- they'll be provided dynamically by the db at runtime
+;; these are only needed for testing -- they'll be provided dynamically by the db at runtime
 (def primitives {'= {:args [:a :b]}
 
                  '+ {:args [:a :b] :kwargs [:return] :optional #{:return}}
@@ -103,38 +101,38 @@
          {:args (vec (map keyword (first implication)))})))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Parse sexprs into argument hashmaps
+;; parse sexprs into argument hashmaps
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn parse-schema [schema sexpr]
-  ;; 1. If a keyword has been shifted into :kw
-  ;;    A. If the value is also keyword, :kw is an implicit var binding
-  ;;    B. Else :kw is mapped manually to the value
-  ;; 2. If the value is a keyword, shift it into :kw and stop accepting positionals
-  ;; 3. If we haven't exhausted our positionals, shift a positional to map to the value
-  ;; 4. If the form accepts a rest parameter, shift the value onto the rest list
+  ;; 1. if a keyword has been shifted into :kw
+  ;;    a. if the value is also keyword, :kw is an implicit var binding
+  ;;    b. else :kw is mapped manually to the value
+  ;; 2. if the value is a keyword, shift it into :kw and stop accepting positionals
+  ;; 3. if we haven't exhausted our positionals, shift a positional to map to the value
+  ;; 4. if the form accepts a rest parameter, shift the value onto the rest list
   (let [body (rest sexpr)
         state (reduce
                #(merge-state %1
                              (if (:kw %1)
                                (if (keyword? %2)
-                                 ;; Implicit variable; sub in a symbol of the same name, set the next :kw
+                                 ;; implicit variable; sub in a symbol of the same name, set the next :kw
                                  {:kw %2 :args {(:kw %1) (symbol (name (:kw %1)))}}
-                                 ;; Normal KV pair; use the :kw
+                                 ;; normal kv pair; use the :kw
                                  {:kw nil :args {(:kw %1) %2}})
                                (if (keyword? %2)
-                                 ;; Manual keyword, set the next :kw and cease being positional
+                                 ;; manual keyword, set the next :kw and cease being positional
                                  {:position 0 :kw %2}
                                  (if-let [kw (get (:args schema) (- (count (:args schema)) (:position %1)) nil)]
-                                   ;; Positional value; use kw from (:args schema) and decrement (position
+                                   ;; positional value; use kw from (:args schema) and decrement (position
                                    {:position (dec (:position %1)) :args {kw %2}}
                                    (if (:rest schema)
-                                     ;; If a rest argument is specified, dump excess args into it
+                                     ;; if a rest argument is specified, dump excess args into it
                                      (if (keyword? %2)
-                                       (throw (syntax-error "Keyword arguments must come before rest arguments" sexpr))
+                                       (throw (syntax-error "keyword arguments must come before rest arguments" sexpr))
                                        {:args {(:rest schema) [%2]}})
-                                     ;; Too many arguments without names, bail
+                                     ;; too many arguments without names, bail
                                      (throw (syntax-error
-                                             (str "Too many positional arguments without a rest argument. Expected " (count (:args schema)))
+                                             (str "too many positional arguments without a rest argument. expected " (count (:args schema)))
                                              sexpr)))))))
                {:args {} :kw nil :position (count (:args schema))} body)
         state (merge-state state (if (:kw state)
@@ -143,37 +141,37 @@
     (:args state)))
 
 (defn parse-define [sexpr]
-  ;; 1. If we've started parsing the body, everything else gets pushed into the body
-  ;; 2. If there's an existing symbol in :sym (alias)
-  ;;    A. If the value is a vec, shift the pair into the :header
-  ;;    B. Throw (Aliases must be followed by their exported variables)
-  ;; 3. If the value is a symbol, shift it into :sym
-  ;; 4. Shift the value into the body
+  ;; 1. if we've started parsing the body, everything else gets pushed into the body
+  ;; 2. if there's an existing symbol in :sym (alias)
+  ;;    a. if the value is a vec, shift the pair into the :header
+  ;;    b. throw (aliases must be followed by their exported variables)
+  ;; 3. if the value is a symbol, shift it into :sym
+  ;; 4. shift the value into the body
   (let [{header :header body :body}
         (reduce
          #(merge-state
            %1
-           ;; If we've already entered the body, no more headers can follow
+           ;; if we've already entered the body, no more headers can follow
            (if (> (count (:body %1)) 0)
              {:body [%2]}
-             ;; If we've already snatched an alias, it must be followed by a vec of vars
+             ;; if we've already snatched an alias, it must be followed by a vec of vars
              (if (:sym %1)
                (if (vector? %2)
                  {:sym nil :header [(:sym %1) %2]}
                  (throw (syntax-error
-                         (str "Implication alias " (:sym %1) " must be followed by a vec of exported variables")
+                         (str "implication alias " (:sym %1) " must be followed by a vec of exported variables")
                          sexpr)))
-               ;; If our state is clear we can begin a new header (symbol) or enter the body (anything else)
+               ;; if our state is clear we can begin a new header (symbol) or enter the body (anything else)
                (if (symbol? %2)
                  {:sym %2}
-                 ;; If no headers are defined before we try to enter the body, that's a paddlin'
+                 ;; if no headers are defined before we try to enter the body, that's a paddlin'
                  (if (> (count (:header %1)) 0)
                    {:body [%2]}
-                   (throw (syntax-error "Implications must specify at least one alias" sexpr)))))))
+                   (throw (syntax-error "implications must specify at least one alias" sexpr)))))))
          {:header [] :body [] :sym nil} (rest sexpr))]
     (if (> (count header) 0)
       {:header header :body body}
-      (throw (syntax-error "Implications must specify at least one alias" sexpr)))))
+      (throw (syntax-error "implications must specify at least one alias" sexpr)))))
 
 (defn parse-query [sexpr]
   (let [body (rest sexpr)
@@ -183,26 +181,26 @@
     {:params params :body body}))
 
 (defn parse-fact [sexpr]
-  ;; 1. Shift the first expr into :entity
-  ;; 2. If there's an existing value in :attr (attribute)
-  ;;    A. If the value is also keyword, :attr is an implicit var binding
-  ;;    B. Else shift :attr and the value into an [:entity :attr value] triple in :facts
-  ;; 3. Shift the value into :attr
+  ;; 1. shift the first expr into :entity
+  ;; 2. if there's an existing value in :attr (attribute)
+  ;;    a. if the value is also keyword, :attr is an implicit var binding
+  ;;    b. else shift :attr and the value into an [:entity :attr value] triple in :facts
+  ;; 3. shift the value into :attr
   (let [body (rest sexpr)
         state (reduce
                #(merge-state
                  %1
                  (if (:attr %1)
                    (if (keyword? %2)
-                     ;; Implicit variable; sub in a symbol of the same name, set the next :attr
+                     ;; implicit variable; sub in a symbol of the same name, set the next :attr
                      {:attr %2 :facts [[(:entity %1) (name (:attr %1)) (symbol (name (:attr %1)))]]}
-                     ;; Normal KV pair; use the :attr
+                     ;; normal kv pair; use the :attr
                      {:attr nil :facts [[(:entity %1) (name (:attr %1)) %2]]})
-                   ;; Shift the next value into  :attr
+                   ;; shift the next value into  :attr
                    (if (keyword? %2)
                      {:attr %2}
                      (throw (syntax-error
-                             (str "Invalid attribute '" %2 "'. Attributes must be keyword literals. Use fact-btu for free attributes")
+                             (str "invalid attribute '" %2 "'. attributes must be keyword literals. use fact-btu for free attributes")
                              sexpr)))))
                {:entity (first body) :facts [] :attr nil}
                (rest body))
@@ -227,7 +225,7 @@
          (= op 'query) (parse-query sexpr)
          (= op 'fact) (parse-fact sexpr)
          (= op 'insert-fact!) (parse-fact sexpr)
-         :else (throw (syntax-error (str "Unknown operator " op) sexpr)))
+         :else (throw (syntax-error (str "unknown operator " op) sexpr)))
        {:expr sexpr :schema schema}))))
 
 (defn validate-args [args]
@@ -240,7 +238,7 @@
         required (if optional? (into [] (filter #(not (optional? %1)) params)) params)]
     (when schema
       (or (when param? (some #(when-not (param? %1)
-                                (syntax-error (str "Invalid keyword argument " %1 " for " (first expr)) expr))
+                                (syntax-error (str "invalid keyword argument " %1 " for " (first expr)) expr))
                              (keys args)))
           (some #(when-not (supplied? %1)
                    (syntax-error (str "Missing required argument " %1 " for " (first expr)) expr))
@@ -253,7 +251,7 @@
     args))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Expand a SMIL sexpr recursively until it's ready for WEASL compilation
+;; expand a smil sexpr recursively until it's ready for weasl compilation
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (declare expand)
 (defn expand-each [db args]
@@ -271,7 +269,7 @@
           body (rest sexpr)
           args (assert-valid (parse-args db sexpr))
           expanded (case op
-                     ;; Special forms
+                     ;; special forms
                      query (concat [op (:params args)] (expand-each db (:body args)))
                      define! (with-meta (concat [op] (:header args) (expand-each db (:body args)))
                                args)
@@ -280,20 +278,20 @@
                      sort (cons op (splat-map args))
 
                      ;; Macros
-                     remove-by-t! (expand db (list (with-meta 'insert-fact-btu! (meta op)) (:tick args) REMOVE_FACT nil))
+                     remove-by-t! (expand db (list (with-meta 'insert-fact-btu! (meta op)) (:tick args) db/remove-fact nil))
                      if (let [[head body] (split-at 2 (expand db (as-query (:then args))))
                               then (concat head (expand db (:cond args)) body)
                               else (expand db (as-query (:else args)))]
                           (seq (conj ['choose ['return]] then else)))
 
-                     ;; Native forms
+                     ;; native forms
                      insert-fact-btu! (cons op (splat-map (expand-values db args)))
                      union (concat [op] [(:params args)] (assert-queries (expand-each db (:members args))))
                      choose (concat [op] [(:params args)] (assert-queries (expand-each db (:members args))))
                      not (cons op (expand-each db (:body args)))
                      context (cons op (splat-map (expand-values db args)))
 
-                     ;; Default
+                     ;; default
                      (cons op (splat-map (expand-values db args))))]
       (with-meta expanded (merge (meta expr) (meta expanded))))
     (sequential? expr) (expand-each db expr)
@@ -306,7 +304,7 @@
       false)))
 
 (defn get-args
-  "Retrieves a hash-map of args from an already parsed form, ignoring special forms + forms w/ rest params."
+  "retrieves a hash-map of args from an already parsed form, ignoring special forms + forms w/ rest params."
   [sexpr]
   (when (seq? sexpr)
     (when-not (:rest (or (get-schema (first sexpr)) {:rest true}))

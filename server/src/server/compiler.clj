@@ -160,7 +160,7 @@
         pmap (zipmap signature (range (count signature)))
         pmap (select-keys pmap used)
         [bound free] (partition-2 (fn [x] (is-bound? env (amap x))) used)
-        [specoid index-inputs index-outputs] [edb/full-scan-oid () signature]
+        [index-inputs index-outputs] [() signature]
         filter-terms (set/intersection (set index-outputs) (set bound))
         target-reg-name (gensym 'target)
         target-reg (allocate-register env target-reg-name)
@@ -177,11 +177,11 @@
     (if collapse
       (apply build
              ;; needs to take a projection set for the indices
-             (term env 'scan m specoid exec/temp-register [])
+             (term env 'scan m exec/temp-register [])
              (term env 'delta-e m target-reg-name exec/temp-register)
              (list (body)))
       (apply build
-             (term env 'scan m specoid target-reg-name [])
+             (term env 'scan m target-reg-name [])
              (list (body))))))
 
 (defn make-continuation
@@ -380,14 +380,14 @@
         t (if-let [b (bindings :value)] b nil)
         ;; namespace collision with bag, used to have a dedicated register..figure it out
         b (if-let [b (bindings :bag)] b (get-in @env ['bound 'bag]))
-        out (if-let [b (bindings :tick)] (let [r (allocate-register env (gensym 'insert-output))]
-                                           (bind-names env {b [r 4]})
-                                           [r]) [])]
+        ;; throw ordering error if tick is bound
+        out (if-let [b (bindings :tick)]  [(allocate-register env b)] [])]
+
 
     (let [z (down)]
       (apply build
-             (term env 'tuple m exec/temp-register e a v b)
-             (term env 'scan m edb/insert-oid out exec/temp-register)
+             (term env 'tuple m exec/temp-register e a v)
+             (term env 'insert m out exec/temp-register)
              (list z)))))
 
 (defn compile-expression [env terms down]
@@ -423,13 +423,12 @@
       (compile-expression env (first terms)
                           (fn [] (compile-conjunction env (rest terms) down)))))
 
-(defn compile-dsl [d bag terms]
+(defn compile-dsl [d terms]
   (when-not (= (first terms) 'query)
     (compile-error "Top level form must be query" {'place (meta terms)}))
   (let [proj (second terms)
         m (meta (first terms))
         env (new-env d proj) ;; @FIXME: with projection of top level query
-        _ (swap! env assoc 'bag bag)
         p (compile-expression
            ;; maybe replace with zero register? maybe just shortcut this last guy?
            env terms (fn []

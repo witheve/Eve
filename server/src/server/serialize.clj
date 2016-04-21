@@ -1,174 +1,217 @@
-(ns server.serialize)
+(ns server.serialize
+  (:require [clojure.pprint :refer [pprint]]))
 
-;; for some reason i thought this was supposed to be in the ns declaration, whatever man
-(import '[java.nio ByteBuffer])
+(import java.lang.System)
+(import java.util.Arrays)
 
-;; a nanosecond of unix time (2106 overflow) takes 60 bits...so we can probably
-;; multiplex that
-;; looks like this is ..big endian(?)
-;; tags (64 bits)
-;; 
 
-;; immediate formats
-;; ------------------
-;; 1 small-int  // packed formats
-;; 2 nanotime
-;; 3 oid
-;;
-;; collective formats - these numbers dont match the codepoints
-;; -----------------
-;; 4 vector (length) // unpacked formats
-;; 5 utf8-string (length)
-;; 6 bigint
-;; 7 eavtb
+(defmacro singletonian [] (let [k (gensym 'singleton)] `(do (defrecord ~k [~'a]) ~(symbol (str "->" k)))))
 
-;; units - fix - both their position in the id space and maybe a more generalized
-;; form for dictionaries and atoms
-;; 16r0fffffffffffffffe
-;; 16r0fffffffffffffffd
+;; these are funky singletons
+(def version1 (singletonian))
+(def five-tuple (singletonian))
+(def negative-infinity (singletonian))
+(def positive-infinity (singletonian))
 
+(declare object-length)
+(declare encode-object)
+(declare decode-object)
+
+(defn string-length [x] (+ 1 (count (.getBytes x))))
+;; xxx - only 64k string
+(defn encode-string [dest offset x]
+  (let [b (.getBytes x)
+        len (count b)]
+  (aset ^bytes dest offset (unchecked-byte (bit-or 2r10010000 len)))
+  (System/arraycopy b 0 dest (+ offset 1) len)
+  (println "after string" (apply str (map char (java.util.Arrays/copyOfRange dest (+ offset 1) (+ offset len)))))
+  (+ offset len 1)))
 
   
-(defn isa-sequence [x]
-  (or (= (type x) clojure.lang.PersistentList)
-      (= (type x) clojure.lang.PersistentVector)
-      (= (type x) clojure.lang.PersistentList$EmptyList)))
-      
+(defn decode-string [source offset length]
+  ;; could pass this read along
+  (let [slen (bit-and (aget source offset) 0x0000000f)
+        target (+ slen offset)]
+    (println "zaggy" slen target)
+    (if (> target length) [nil target]
+        ["" target])))
 
 
-;; doesn't quite match up with the above
-(def true-tag 16r0fffffffffffffffe)
-(def false-tag 16r0fffffffffffffffd)
-(def int-tag (bit-shift-left 2r0100 60))
-(def oid-tag (bit-shift-left 2r1100 60))
-(def nanotime-tag (bit-shift-left 2r1000 60))
-(def vector-tag (bit-shift-left 2r0001 60))
-(def string-tag (bit-shift-left 2r0010 60))
-(def bigint-tag (bit-shift-left 2r0011 60))
+(defn symbol-length [x] (string-length (name x)))
+(defn encode-symbol [dest offset x] (encode-string dest offset (name x)))
 
-;; this is gonna eat multiple objects?
-(defn decode [callback]
-  ;; this machine accepts chunks of bytes (as byte arrays) and
-  ;; pukes out completed objects to the callback as they are assembled
-  ;; some of these parsers are byte-machines, and some operate on
-  ;; larger hunks (except not right now)
-  (letfn [(word [complete]
-            (let [b (ByteBuffer/allocate 8)
-                  self (fn self [y]
-                         (.put b (byte y))
-                         (if (= (.position b) 8)
-                           (do
-                             (.flip b)
-                             (complete (.getLong b)))
-                           self))]
-              self))
+(defn vector-length [x]
+  (+ 1 (reduce + (map object-length x))))
+
+(defn encode-vector [dest offset x]
+  (let [len (count x)]
+    (aset dest offset (unchecked-byte (bit-or 2r10100000 len)))
+    (reduce (fn [o x] (encode-object dest o x)) (+ offset 1) x)))
+
+(defn decode-vector [source offset length]
+  (let [len (bit-and (aget source offset) 0x0000000f)]
+    (reduce
+     (fn [[in o] slot]
+       (println "devec" in o slot)
+       (if in (let [[k o] (decode-object source o length)]
+               (if (not k) [k o] [(conj in k) o]))
+           [in o]))
+     [[] (+ offset 1)] (range len))))
+
+
+;; enforce range sizes
+(defn encode-long [dest offset x]
+  (aset dest offset (unchecked-byte 2r11100000))
+  ;; recommended pattern
+  ;; is to wrap it in one of several kinds of byte buffers and extract it
+  ;; how can this be so obscene...there is a suggestion about Unsafe.writeLong...
+  (aset dest (+ offset 1) (byte 0))
+  (aset dest (+ offset 2) (byte 0))
+  (aset dest (+ offset 3) (byte 0))
+  (aset dest (+ offset 4) (unchecked-byte (bit-shift-right x 56)))
+  (aset dest (+ offset 5) (unchecked-byte (bit-shift-right x 48)))
+  (aset dest (+ offset 6) (unchecked-byte (bit-shift-right x 40)))
+  (aset dest (+ offset 7) (unchecked-byte (bit-shift-right x 32)))
+  (aset dest (+ offset 8) (unchecked-byte (bit-shift-right x 24)))
+  (aset dest (+ offset 9) (unchecked-byte (bit-shift-right x 16)))
+  (aset dest (+ offset 10) (unchecked-byte (bit-shift-right x 8)))
+  (aset dest (+ offset 11) (unchecked-byte x))
+  (+ offset 12))
+
+;; ok, bigdec right now is 6 bits of scale and 11 bytes of unscaled...not sure if
+;; serious?
+(defn encode-bigdec [dest offset x]
+  (let [base (.toByteArray (.unscaledValue x))
+        target (+ offset 1)
+        source (min (count base) 11)]
+    ;(System/arraycopy dest (+ offset 1) base (min (count base) 11))
+    (aset dest offset (bit-or 2r10000000) (.scale x))
+    (+ offset 12)))
+
+(defn decode-bigdec [source offset length]
+  (let [final (+ 12 offset)]
+    (if (> final length) [nil final]
+        (let [scale (bit-and (aget source offset) 2r00111111)
+              b (new java.math.BigInteger (java.util.Arrays/copyOfRange source
+                                                                        (+ offset 1)
+                                                                        (+ offset 12)))]
+          [(new java.math.BigDecimal b) final]))))
+
+
+(defn encode-boolean [dest offset x]
+  (aset dest offset (if x 2r11111001 2r11111000))
+  (+ offset 1))
+
+
+(defn encode-uuid [dest offset x]
+  )
+
+(defn decode-uuid [source offset length]
+  )
+
+
+(defn decode-five-tuple [source offset length]
+  (let [result (object-array 5)]
+    (reduce
+     (fn [[r o] slot]
+       (println "deinternal" r o slot)
+       (if r (let [[k o] (decode-object source o length)]
+               (aset result slot k)
+               [k o])
+           r))
+     [true (+ offset 1)] (range 5))))
+
+;; fix this constant diffusion
+(def encodes
+  {
+   java.lang.String               [string-length encode-string]
+   clojure.lang.Symbol            [symbol-length encode-symbol]
+   clojure.lang.Keyword           [symbol-length encode-symbol] ;; name strips off the colon
+   clojure.lang.LazySeq           [vector-length encode-vector]
+   clojure.lang.PersistentVector$ChunkedSeq [vector-length encode-vector] ;; wth
+   clojure.lang.PersistentVector  [vector-length encode-vector]
+   java.lang.Boolean              [1 encode-boolean]
+   server.db.uuid                 [12 encode-uuid]
+   ;   server.db.station              [8 encode-station]
+   java.lang.Long                 [12 encode-long]
+   java.math.BigDecimal           [12 encode-bigdec]
+   })
+
+
+;; need to glue together the use of these constants with the encode path for consistencirifficty
+;; if we can burn two bits at the top we get alot more codepoint space
+(def decodes
+  [["0xxxxxxx"  decode-uuid]
+   ["111xxxxx"  decode-bigdec]
+   ["1010xxxx"  decode-vector]
+   ["1001xxxx"  decode-string]
+   ["10001010"  decode-five-tuple]
+   ["10001011"  version1]
+   ["10001001"  true]
+   ["10001000"  false]])
+
+
+
+(defn bit-seq [x]
+  (map #(if (bit-test x %1) 1 0) (range 7 -1 -1)))
+
+(def decode-object
+  (let [insert (fn insert [where k v]
+               (if (or (empty? k) (= (first k) \x))
+                 (if (fn? v) (list v 'buffer 'o 'len) v)
+                 (condp = (first k)
+                   \0 [(insert (if-let [r (where 0)] r [nil nil]) (rest k) v)
+                       (where 1)]
+                   \1 [(where 0)
+                       (insert (if-let [r (where 1)] r [nil nil]) (rest k) v)])))
+      tree (reduce (fn [b i] (insert b (i 0) (i 1))) [nil nil] decodes)
+      emit (fn emit [x level]
+             (condp = (type x)
+               clojure.lang.PersistentVector `(if (bit-test ~'b ~level) ~(emit (x 1) (- level 1)) ~(emit (x 0) (- level 1)))
+               x))]
+    (eval (list 'fn '[buffer o len]
+                (list 'if '(= o len) [nil 0]
+                      (list 'let '[b (aget buffer o)]
+                            (list 'println "decodeotron" 'o (list bit-seq 'b))
+                            (emit tree 7)))))))
+
+
+;; really for the log case, keeps running until we're out of objects in the buffer
+(defn decode-five-tuples [bytes offset length handler]
+    (loop [o offset]
+      (let [[r b] (decode-object bytes o length)]
+        (when (not (nil? r))
+          (handler r)
+          (recur b)))))
+
+(defn object-length [x]
+  (let [e (encodes (type x))]
+    (cond
+      (not e) (throw (IllegalArgumentException. (str "unknown type in serialize encoder" (type x))))
+      ;; assholes
+      (= (type (e 0)) java.lang.Long) (e 0)
+      :else
+      ((e 0) x))))
+
+
+(defn encode-object [b offset x]
+  (println "enc" offset (type x))
+  (let [e (encodes (type x))
+        r ((e 1) b offset x)]
+    ;; this returns the length, its probably more straightforward if it returns
+    ;; the offset after the operation
+    r))
     
-          (read-vector [complete len]
-            (let [result (atom ())
-                  self (fn self []
-                         (if (= (count @result) len) (complete @result)
-                             (top (fn [x]
-                                    ;; this kinda sucks too
-                                    (swap! result (fn [head] (concat head (list x))))
-                                    (self)))))]
-              (self)))
-
-          (read-bytes [complete len]
-            (let [result (byte-array len)
-                  index (atom 0)
-                  self (fn self [b]
-                         ;; not really threadsafe, this is all getting pretty silly
-                         (aset-byte result @index b)
-                         (if (= (swap! index + 1) len)
-                           (complete result)
-                           self))]
-                  
-              (if (= len 0)
-                (complete result)
-                self)))
-          
-          (top [finish]
-            (fn [x]
-              (let [ts (bit-shift-right x 6)
-                    tr (bit-and x 2r00111111)
-                    ls (bit-shift-right x 4)
-                    lr (bit-and x 2r00001111)]
-                (cond
-                  ;; nanotime
-                  (= ts 2r10) ((word (fn [x] (finish x) top)) tr)
-                  
-                  ;; oid
-                  (= ts 2r11) ((word (fn [x] (finish x) top)) tr)
-                  
-                  ;; int
-                  (= ts 2r01) ((word finish) lr)
-                  
-                  ;; vector
-                  (= ls 2r0001) ((word (fn [len] (read-vector finish len))) lr)
-                  
-                  ;; string
-                  (= ls 2r0010) ((word (fn [len]
-                                         (read-bytes (fn [x] (finish (new String x)))
-                                                      len)))
-                                 lr)
-                  ;; string
-                  ;; (println ( new String (.getData orig-packet) "UTF-8"))
-                  (= ls 2r0010) top
-                  (= x true-tag) true
-                  (= x false-tag) false
-                  ;; bigint
-                  :else
-                  (println "deserialization error" ts ls)))))]
-
-    ;; the reduce with the CAS is probably the least effective way of
-    ;; shoving bytes into the parsers..but..
-    (let [handler (atom (top callback))]
-      ;; apparently this is the only way to extract bytes in
-      ;; some contexts without making more than one copy...seew
-      (fn [bytes offset length]
-        (dotimes [i length]
-          (swap! handler (fn [h] (h (aget bytes (+ i offset))))))))))
-
-
-(defn encode [x]
-  ;; finish maps a length to buffer
-  (let [zorn (fn zorn [offset x finish]
-               (let [singleton (fn [x] (let [b (finish (+ offset 8))] (.putLong b offset x) b))]
-                 (if (= x nil) (byte-array offset)
-                     (let [b (cond
-                               (and (= (type x) java.lang.Long)
-                                    ;; where does 8 come from
-                                    (< x (bit-shift-left 1 60))) (singleton (bit-or x int-tag))
-                               
-                               (= (type x) java.lang.String) (let [body (.getBytes x)
-                                                                   len (count body)
-                                                                   b (finish (+ offset len 8))]
-                                                               (.putLong b offset (bit-or string-tag len))
-                                                               ;; there is no overload for byte set
-                                                               (dotimes [i len]
-                                                                 (.put b (+ offset 8 i) (aget body i)))
-                                                               b)
-                               
-                               (= x false) (singleton false-tag)
-                               (= x true) (singleton true-tag)
-                               
-                               (isa-sequence x) (let [each (fn each [z c]
-                                                             (if (empty? z) (finish c)
-                                                                 (zorn c (first z) (fn [c] (each (rest z) c)))))
-                                                      b (each x (+ offset 8))]
-                                                  (.putLong b offset (bit-or vector-tag (count x)))
-                                                  b)
-                               
-                               :else
-                               (println "serialization typecase error" (type x)))]
-                           b))))
-        b (zorn 0 x (fn [len]
-                      (ByteBuffer/allocate len)))
-        ba (byte-array (.limit b))]
-    ;; wow, thats fantastic, we do all this work and take all those closure and then...we get to copy it out
-    ;; again...thats kind of shite
-    (.get b ba)
-    ba))
+  
+(defn encode-five-tuples [tuples]
+  (let [len (reduce + (map #(+ 1 (reduce + (map object-length %1))) tuples))
+        b (byte-array len)
+        encode-tuple (fn [offset x]
+                       ;; xxx - consistency
+                       (aset b offset (unchecked-byte 2r10001010))
+                       (reduce (fn [o x] (encode-object b o x)) (+ offset 1) x))]
+    (reduce (fn [o x] (encode-tuple o x)) 0 tuples)
+    b))
 
 
 ;; s.flush()
