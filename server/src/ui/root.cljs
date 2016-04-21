@@ -697,7 +697,9 @@
         current-focus (get-state grid-id :focus (if-not (:property cell)
                                                   :property
                                                   :value))
-        property-element (draw-property cell active?)]
+        property-element (draw-property cell active?)
+        ; @FIXME: this needs to be a real id, but I'm not sure how we get it.
+        sub-grid-id (str (:id cell) "-grid")]
     (box :style (style :flex "1")
          :children
            (array property-element
@@ -706,15 +708,15 @@
                                      :align-items "center")
                        :children (array (grid {:grid-width (+ 1 (* 110 (:width cell)))
                                                :grid-height (inc (* 30 (.floor js/Math (/ (* (dec (:height cell)) 50) 30))))
-                                               :selections (get-selections "sub")
+                                               :selections (get-selections sub-grid-id)
                                                :cells (entities {:tag "cell"
-                                                                 :grid-id "sub"})
+                                                                 :grid-id sub-grid-id})
                                                :parent grid-id
                                                :default-cell-type :formula-token
                                                :cell-size-y 30
                                                :cell-size-x 110
                                                :inactive (not active?)
-                                               :id "sub"})))
+                                               :id sub-grid-id})))
                   (when (@id-to-query (:id cell))
                     (when-let [results (find (@id-to-query (:id cell)))]
                       (let [fields (if (seq results)
