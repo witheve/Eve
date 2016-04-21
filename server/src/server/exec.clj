@@ -60,7 +60,7 @@
 (defn rget [r ref]
   (cond (not (vector? ref))
         (if (= ref '*)
-          r
+          (aclone ^objects r)
           ref)
         ;; special case of constant vector, empty
         (= (count ref) 0) ref
@@ -278,7 +278,6 @@
         (let [other (nth coll ix)
               delta (compare value other)
               half (quot bounds 2)]
-        (println (print-registers value))
           (if-not (zero? bounds)
             (if (> delta 0)
               (recur half
@@ -341,7 +340,7 @@
                                  (rset r op-register 'insert)
                                  (rset r out-slot (+ ix insert-ix 1))
                                  (c r)))
-                             (concat prefix [(aclone r)] suffix))
+                             (concat prefix [(aclone ^objects r)] suffix))
                            cur)
                  'remove (if existing-ix
                            (let [ix existing-ix
@@ -377,22 +376,22 @@
             remove-fact (fn remove-fact [assertion]
                           ;; @NOTE: Should this error on remove before insert?
                           {:r (aclone ^objects r) :cnt (dec (get assertion :cnt 0)) :prev (:prev assertion)})]
-
         (condp = (rget r op-register)
           'insert (swap! assertions update-in [fact] insert-fact)
           'remove (swap! assertions update-in [fact] remove-fact)
-          'flush (swap! assertions doreduce (fn update-each [memo fact assertion]
-                                         (let [r (:r assertion)
-                                               cnt (:cnt assertion)
-                                               prev (or (:prev assertion) 0)]
-                                           (when (and (> prev 0) (zero? cnt))
-                                             (rset r op-register 'remove)
-                                             (c r))
-                                           (when (and (zero? prev) (> cnt 0))
-                                             (rset r op-register 'insert)
-                                             (c r))
+          'flush (do (swap! assertions doreduce (fn update-each [memo fact assertion]
+                                                  (let [r (:r assertion)
+                                                        cnt (:cnt assertion)
+                                                        prev (or (:prev assertion) 0)]
+                                                    (when (and (> prev 0) (zero? cnt))
+                                                      (rset r op-register 'remove)
+                                                      (c r))
+                                                    (when (and (zero? prev) (> cnt 0))
+                                                      (rset r op-register 'insert)
+                                                      (c r))
 
-                                           (assoc memo fact {:r r :cnt cnt :prev cnt}))))
+                                                    (assoc memo fact {:r r :cnt cnt :prev cnt}))))
+                     (c r))
           'close (c r))))))
 
 ;; down is towards the base facts, up is along the removal chain
