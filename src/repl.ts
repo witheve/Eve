@@ -77,7 +77,10 @@ interface Deck {
 
 interface Repl {
   init: boolean,
-  system: Array<Query>,
+  system: {
+    entities: Query,  
+    tags: Query,
+  },
   decks: Array<Deck>,
   deck: Deck,
   server: ServerConnection,
@@ -180,7 +183,7 @@ function connectToServer() {
     repl.server.state = ConnectionState.CONNECTED;
     // Initialize the repl state
     if (repl.init === false) {
-      repl.system.map(sendQuery);
+      objectToArray(repl.system).map(sendQuery);
       repl.init = true;
     }
     // In the case of a reconnect, reset the timeout
@@ -251,7 +254,7 @@ function connectToServer() {
     // If the query ID was not matched to a repl card, then it should 
     // matche a system query
     } else {
-      let targetSystemQuery: Query = repl.system.filter((q) => q.id === parsed.id).shift();
+      let targetSystemQuery: Query = objectToArray(repl.system).filter((q) => q.id === parsed.id).shift();
       if (targetSystemQuery !== undefined) {
         if (targetSystemQuery.result === undefined) {
           targetSystemQuery.result = {
@@ -729,7 +732,7 @@ function generateStatusBarElement() {
   let addColumn = {c: "button", text: "Add Column", click: addColumnClick};
   let addCard = {c: "button", text: "Add Card", click: addCardClick};
   let buttonList = formListElement([deleteButton, addColumn, addCard]);
-  let entities: Array<any> = repl.system[0].result !== undefined ? repl.system[0].result.values.map((e) => { return {text: e[0] }; }) : []; 
+  let entities: Array<any> = repl.system.entities.result !== undefined ? repl.system.entities.result.values.map((e) => { return {text: e[0] }; }) : []; 
   let entitiesList = formListElement(entities);
   // Build the status bar    
   let statusBar = {
@@ -755,9 +758,10 @@ let replCards: Deck = {
 // Instantiate a repl instance
 let repl: Repl = {
   init: false,
-  system: [
-    newQuery("(query [e] (fact-btu e))"), // get all entities in the system
-  ],
+  system: {
+    entities: newQuery(`(query [entities] (fact-btu entities))`), // get all entities in the database
+    tags: newQuery(`(query [tags], (fact-btu e "tag" tags))`),    // get all tags in the database
+  },
   decks: [replCards],
   deck: replCards,
   server: {
@@ -787,6 +791,10 @@ function root() {
 function formListElement(list: Array<any>) {
   let li = list.map((e) => {return {t: "li", children: [e]};});
   return {t: "ul", children: li};  
+}
+
+function objectToArray(obj: Object): Array<any> {
+  return Object.keys(obj).map(key => obj[key]);
 }
 
 function getCodeMirrorInstance(replCard: ReplCard): CodeMirror.Editor {
