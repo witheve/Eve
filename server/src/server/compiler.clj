@@ -374,16 +374,14 @@
 (defn compile-insert [env terms down]
   (let [bindings (apply hash-map (rest terms))
         m (meta (first terms))
-        e (if-let [b (bindings :entity)] b nil)
-        a (if-let [b (bindings :attribute)] b nil)
-        v (if-let [b (bindings :value)] b nil)
-        t (if-let [b (bindings :value)] b nil)
+        e (if-let [b (:entity bindings)] b nil)
+        a (when-not (nil? (:attribute bindings)) (:attribute bindings))
+        v (when-not (nil? (:value bindings)) (:value bindings))
         ;; namespace collision with bag, used to have a dedicated register..figure it out
-        b (if-let [b (bindings :bag)] b (get-in @env ['bound 'bag]))
-        ;; throw ordering error if tick is bound
-        out (if-let [b (bindings :tick)]  [(allocate-register env b)] [])]
-
-
+        b (if-let [b (:bag bindings)] b (get-in @env ['bound 'bag]))
+        out (if-let [b (:tick bindings)] (let [r (allocate-register env (gensym 'insert-output))]
+                                           (bind-names env {b [r 4]})
+                                           [r]) [])]
     (let [z (down)]
       (apply build
              (term env 'tuple m exec/temp-register e a v)

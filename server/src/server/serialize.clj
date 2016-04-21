@@ -186,6 +186,7 @@
 
 (defn object-length [x]
   (let [e (encodes (type x))]
+    (println "here" x type x)
     (cond
       (not e) (throw (IllegalArgumentException. (str "unknown type in serialize encoder" (type x))))
       ;; assholes
