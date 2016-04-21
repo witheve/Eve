@@ -24,7 +24,6 @@
         len (count b)]
   (aset ^bytes dest offset (unchecked-byte (bit-or 2r10010000 len)))
   (System/arraycopy b 0 dest (+ offset 1) len)
-  (println "after string" (apply str (map char (java.util.Arrays/copyOfRange dest (+ offset 1) (+ offset len)))))
   (+ offset len 1)))
 
   
@@ -32,7 +31,6 @@
   ;; could pass this read along
   (let [slen (bit-and (aget source offset) 0x0000000f)
         target (+ slen offset)]
-    (println "zaggy" slen target)
     (if (> target length) [nil target]
         ["" target])))
 
@@ -52,7 +50,6 @@
   (let [len (bit-and (aget source offset) 0x0000000f)]
     (reduce
      (fn [[in o] slot]
-       (println "devec" in o slot)
        (if in (let [[k o] (decode-object source o length)]
                (if (not k) [k o] [(conj in k) o]))
            [in o]))
@@ -99,7 +96,7 @@
 
 
 (defn encode-boolean [dest offset x]
-  (aset dest offset (if x 2r11111001 2r11111000))
+  (aset dest offset (unchecked-byte (if x 2r11111001 2r11111000)))
   (+ offset 1))
 
 
@@ -114,7 +111,6 @@
   (let [result (object-array 5)]
     (reduce
      (fn [[r o] slot]
-       (println "deinternal" r o slot)
        (if r (let [[k o] (decode-object source o length)]
                (aset result slot k)
                [k o])
@@ -172,7 +168,6 @@
     (eval (list 'fn '[buffer o len]
                 (list 'if '(= o len) [nil 0]
                       (list 'let '[b (aget buffer o)]
-                            (list 'println "decodeotron" 'o (list bit-seq 'b))
                             (emit tree 7)))))))
 
 
@@ -186,7 +181,6 @@
 
 (defn object-length [x]
   (let [e (encodes (type x))]
-    (println "here" x type x)
     (cond
       (not e) (throw (IllegalArgumentException. (str "unknown type in serialize encoder" (type x))))
       ;; assholes
@@ -196,7 +190,6 @@
 
 
 (defn encode-object [b offset x]
-  (println "enc" offset (type x))
   (let [e (encodes (type x))
         r ((e 1) b offset x)]
     ;; this returns the length, its probably more straightforward if it returns
