@@ -77,6 +77,7 @@ interface Deck {
 
 interface Repl {
   init: boolean,
+  system: Array<Query>,
   decks: Array<Deck>,
   deck: Deck,
   server: ServerConnection,
@@ -174,34 +175,32 @@ function connectToServer() {
   let wsAddress = "ws://localhost:8081";
   let ws: WebSocket = new WebSocket(wsAddress, []);
   repl.server.ws = ws;
-  
-  if (repl.init === false) {
-    let entitiesQuery: QueryMessage = {
-      type: "query",
-      id: uuid(),
-      query: "(query [e] (fact-btu e))",
-    };
-  }
-  
+    
   ws.onopen = function(e: Event) {    
     repl.server.state = ConnectionState.CONNECTED;
-    repl.server.timeout = 0;
+    // Initialize the repl state
+    if (repl.init === false) {
+      repl.system.map(sendQuery);
+    }
+    // In the case of a reconnect, reset the timeout
+    // and send queued messages
+    repl.server.timeout = 0;    
     while(repl.server.queue.length > 0) {
       let message = repl.server.queue.shift();
       sendMessage(message);
     }
-    rerender()
+    rerender();
   }
 
   ws.onerror = function(error) {
     repl.server.state = ConnectionState.DISCONNECTED;
-    rerender()
+    rerender();
   }
 
   ws.onclose = function(error) {  
     repl.server.state = ConnectionState.DISCONNECTED;
     reconnect();
-    rerender()
+    rerender();
   }
 
   ws.onmessage = function(message) {
@@ -231,7 +230,7 @@ function connectToServer() {
           targetCard.query.result = {
             fields: parsed.fields,
             values: values,
-          }
+          };
         }
         targetCard.state = CardState.GOOD;
         //saveReplCard(targetCard);
@@ -247,10 +246,26 @@ function connectToServer() {
           replCards[removeIx].state = CardState.CLOSED;
         }
         rerender(true);
-        
+      }
+    // If the query ID was not matched to a repl card, then it should 
+    // matche a system query
+    } else {
+      let targetSystemQuery: Query = repl.system.filter((q) => q.id === parsed.id).shift();
+      if (targetSystemQuery !== undefined) {
+        if (targetSystemQuery.result === undefined) {
+          targetSystemQuery.result = {
+            fields: parsed.fields,
+            values: parsed.insert,
+          };
+        } else {
+          // Apply inserts
+          targetSystemQuery.result.values = targetSystemQuery.result.values.concat(parsed.insert);
+          // Apply removes
+          //@ TODO
+        }
       }
     }
-    rerender()
+    rerender();
   };
 }
 
@@ -277,6 +292,29 @@ function sendMessage(message): boolean {
 }
 
 // ------------------
+// Query functions
+// ------------------
+
+function newQuery(queryString: string): Query {
+  let query: Query = {
+    id: uuid(),
+    query: queryString,
+    result: undefined,
+    message: "",
+  };
+  return query;
+}
+
+function sendQuery(query: Query): boolean {
+  let queryMessage: QueryMessage = {
+    type: "query",
+    id: query.id,
+    query: query.query,
+  };
+  return sendMessage(queryMessage);
+}
+
+// ------------------
 // Card functions
 // ------------------
 
@@ -298,6 +336,7 @@ function newReplCard(row?: number, col? :number): ReplCard {
   }
   return replCard;
 }
+
 /*
 function deleteReplCard(replCard: ReplCard) {
   if (replCard.state !== CardState.NONE) {
@@ -689,11 +728,13 @@ function generateStatusBarElement() {
   let addColumn = {c: "button", text: "Add Column", click: addColumnClick};
   let addCard = {c: "button", text: "Add Card", click: addCardClick};
   let buttonList = formListElement([deleteButton, addColumn, addCard]);
+  let entities: Array<any> = repl.system[0].result !== undefined ? repl.system[0].result.values.map((e) => { return {text: e[0] }; }) : []; 
+  let entitiesList = formListElement(entities);
   // Build the status bar    
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
-    children: [eveLogo, buttonList, statusIndicator], //, refresh, trash, save, load, dimmer],
+    children: [eveLogo, buttonList, statusIndicator, entitiesList],
   }
   return statusBar;
 }
@@ -713,6 +754,9 @@ let replCards: Deck = {
 // Instantiate a repl instance
 let repl: Repl = {
   init: false,
+  system: [
+    newQuery("(query [e] (fact-btu e))"), // get all entities in the system
+  ],
   decks: [replCards],
   deck: replCards,
   server: {
