@@ -211,7 +211,7 @@ function connectToServer() {
     //console.log("message")
     //console.log(message.data);
     let parsed = JSON.parse(message.data);
-    //console.log(parsed);
+    console.log(parsed);
     // Update the result of the correct repl card
     let targetCard = repl.deck.cards.filter((r) => r.id === parsed.id).shift();
     if (targetCard !== undefined) {
@@ -650,7 +650,7 @@ function generateReplCardElement(replCard: ReplCard) {
     } else if (replCard.state === CardState.PENDING) {
       resultcss += " pending";
     }
-    result = replCard.query !== undefined ? generateResultsTable(replCard.query) : {};
+    result = replCard.query.result !== undefined ? generateResultsTable(replCard.query) : {};
   } else if (replCard.state === CardState.ERROR) {
     queryInput.c += " error";
     result = {text: replCard.query.message};
@@ -685,16 +685,18 @@ function generateReplCardElement(replCard: ReplCard) {
 }
 
 function generateResultsTable(query: Query) {
-  let tableHeader = {c: "header", children: query.result.fields.map((f: string) => {
-    return {c: "cell", text: f};
-  })};
-  let tableBody = query.result.values.map((r: Array<any>) => {
-    return {c: "row", children: r.map((c: any) => {
-      return {c: "cell", text: `${c}`};
+  if (query.result.fields.length > 0) {
+    let tableHeader = {c: "header", children: query.result.fields.map((f: string) => {
+      return {c: "cell", text: f};
     })};
-  });
-  let tableRows = [tableHeader].concat(tableBody);
-  return {c: "table", children: tableRows};  
+    let tableBody = query.result.values.map((r: Array<any>) => {
+      return {c: "row", children: r.map((c: any) => {
+        return {c: "cell", text: `${c}`};
+      })};
+    });
+    let tableRows = [tableHeader].concat(tableBody);
+    return {c: "table", children: tableRows};
+  }  
 }
 
 function generateCardRootElements() {
