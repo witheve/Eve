@@ -522,6 +522,15 @@
     (if (:active-cell grid-user-state)
       (entity {:id (:active-cell grid-user-state)}))))
 
+;;---------------------------------------------------------
+;; Navigation
+;;---------------------------------------------------------
+
+(defn navigate! [event elem]
+  (let [{:keys [navigate-grid-id]} (.-info elem)]
+    (when-not (= navigate-grid-id (get-state "main" :active-grid "main"))
+      (transaction context
+                   (update-state! context "main" :active-grid navigate-grid-id)))))
 
 ;;---------------------------------------------------------
 ;; Cell types
@@ -653,7 +662,8 @@
                   (button :style (style :font-size "12pt"
                                         :align-self "flex-start"
                                         :margin "1px 0 0 8px")
-                          :click (fn [event elem] (println "CLICKED!"))
+                          :info {:navigate-grid-id (:value cell)}
+                          :click navigate!
                           :children (array (text :text (for-display (:value cell))))))))))
 
 (defmethod draw-cell :default [cell active?]
@@ -1395,21 +1405,24 @@
 ;;---------------------------------------------------------
 
 (defn root []
-  (box :style (style :width "100vw"
-                     :height "100vh"
-                     :align-items "center"
-                     :justify-content "center"
-                     :color "#ccc"
-                     :font-family "Lato")
-       :children (array (grid {:grid-width (.-innerWidth js/window)
-                               :grid-height (.-innerHeight js/window)
-                               :selections (get-selections "main")
-                               :cells (entities {:tag "cell"
-                                               :grid-id "main"})
-                               :default-cell-type :property
-                               :cell-size-y 50
-                               :cell-size-x 120
-                               :id "main"}))))
+  ;; @FIXME: this is a little weird to say that the state for determining the active grid
+  ;; resides on the default grid. It should really probably be global.
+  (let [active-grid-id (get-state "main" :active-grid "main")]
+    (box :style (style :width "100vw"
+                       :height "100vh"
+                       :align-items "center"
+                       :justify-content "center"
+                       :color "#ccc"
+                       :font-family "Lato")
+         :children (array (grid {:grid-width (.-innerWidth js/window)
+                                 :grid-height (.-innerHeight js/window)
+                                 :selections (get-selections active-grid-id)
+                                 :cells (entities {:tag "cell"
+                                                   :grid-id active-grid-id})
+                                 :default-cell-type :property
+                                 :cell-size-y 50
+                                 :cell-size-x 120
+                                 :id active-grid-id})))))
 
 ;;---------------------------------------------------------
 ;; Rendering
