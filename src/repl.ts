@@ -1,7 +1,7 @@
 import app = require("./app");
 import {autoFocus} from "./utils";
 import * as CodeMirror from "codemirror";
-import {codeMirrorElement} from "./ui";
+import {Element, Handler, RenderHandler, Renderer} from "./microReact";
 
 let WebSocket = require('ws');
 let uuid = require("uuid");
@@ -80,6 +80,7 @@ interface Repl {
   system: {
     entities: Query,  
     tags: Query,
+    queries: Query,
   },
   decks: Array<Deck>,
   deck: Deck,
@@ -358,7 +359,7 @@ function submitReplCard(replCard: ReplCard) {
   let query: QueryMessage = {
     id: replCard.id,
     type: "query",
-    query: replCard.query.query.replace(/\s+/g,' '),
+    query: replCard.query.query,
   }
   replCard.state = CardState.PENDING;
   replCard.query.result = undefined;    
@@ -735,7 +736,7 @@ function generateStatusBarElement() {
   let addCard = {c: "button", text: "Add Card", click: addCardClick};
   let buttonList = formListElement([deleteButton, addColumn, addCard]);
   let entities: Array<any> = repl.system.entities.result !== undefined ? repl.system.entities.result.values.map((e) => { return {text: e[0] }; }) : []; 
-  let entitiesList = formListElement(entities);
+  let entitiesList = {c: "entities", children: [formListElement(entities)]};
   // Build the status bar    
   let statusBar = {
     id: "status-bar",
@@ -763,6 +764,9 @@ let repl: Repl = {
   system: {
     entities: newQuery(`(query [entities] (fact-btu entities))`), // get all entities in the database
     tags: newQuery(`(query [tags], (fact-btu e "tag" tags))`),    // get all tags in the database
+    queries: newQuery(`(query [id row col display query]
+                         (fact id :tag "repl-card" :row row :col col :display display :query query))` // Get all the open queries
+    ),
   },
   decks: [replCards],
   deck: replCards,
@@ -851,4 +855,69 @@ function rerender(removeCards?: boolean) {
     }, 250);
   }*/
   app.dispatch("rerender", {}).commit();
+}
+
+// Codemirror!
+interface CMNode extends HTMLElement { cm: any }
+interface CMEvent extends Event {
+  editor: CodeMirror.Editor
+  value: string
+}
+export function codeMirrorElement(elem: CMElement): CMElement {
+  elem.postRender = codeMirrorPostRender(elem.postRender);
+  elem["cmChange"] = elem.change;
+  elem["cmBlur"] = elem.blur;
+  elem["cmFocus"] = elem.focus;
+  elem.change = undefined;
+  elem.blur = undefined;
+  elem.focus = undefined;
+  return elem;
+}
+interface CMElement extends Element {
+  autoFocus?: boolean
+  lineNumbers?: boolean,
+  lineWrapping?: boolean,
+  mode?: string,
+  shortcuts?: {[shortcut:string]: Handler<any>}
+};
+let _codeMirrorPostRenderMemo = {};
+function handleCMEvent(handler:Handler<Event>, elem:CMElement):(cm:CodeMirror.Editor) => void {
+  return (cm:CodeMirror.Editor) => {
+    let evt = <CMEvent><any>(new CustomEvent("CMEvent"));
+    evt.editor = cm;
+    evt.value = cm.getDoc().getValue();
+    handler(evt, elem);
+  }
+}
+function codeMirrorPostRender(postRender?: RenderHandler): RenderHandler {
+  let key = postRender ? postRender.toString() : "";
+  if(_codeMirrorPostRenderMemo[key]) return _codeMirrorPostRenderMemo[key];
+  return _codeMirrorPostRenderMemo[key] = (node:CMNode, elem:CMElement) => {
+    let cm = node.cm;
+    if(!cm) {
+      let extraKeys = {};
+      if(elem.shortcuts) {
+        for(let shortcut in elem.shortcuts)
+          extraKeys[shortcut] = handleCMEvent(elem.shortcuts[shortcut], elem);
+      }
+      cm = node.cm = CodeMirror(node, {
+        lineWrapping: elem.lineWrapping !== false ? true : false,
+        lineNumbers: elem.lineNumbers,
+        mode: elem.mode || "text",
+        extraKeys
+      });
+      if(elem["cmChange"]) cm.on("change", handleCMEvent(elem["cmChange"], elem));
+      if(elem["cmBlur"]) cm.on("blur", handleCMEvent(elem["cmBlur"], elem));
+      if(elem["cmFocus"]) cm.on("focus", handleCMEvent(elem["cmFocus"], elem));
+      if(elem.autoFocus) cm.focus();
+    }
+
+    if(cm.getDoc().getValue() !== elem.value) {
+      cm.setValue(elem.value || "");
+      if(elem["cursorPosition"] === "end") {
+        cm.setCursor(100000);
+      }
+    }
+    if(postRender) postRender(node, elem);
+  }
 }
