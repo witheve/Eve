@@ -701,15 +701,19 @@
     (box :style (style :flex "1")
          :children
            (array property-element
-                  (grid {:grid-width (+ 1 (* 120 (dec (:width cell))))
-                         :grid-height (* 30 (dec (:height cell)))
-                         :selections (get-selections "sub")
-                         :cells (entities {:tag "cell"
-                                           :grid-id "sub"})
-                         :default-cell-type :formula-token
-                         :cell-size-y 30
-                         :cell-size-x 120
-                         :id "sub"})
+                  (box :style (style :margin-top "10px"
+                                     :align-items "center")
+                       :children (array (grid {:grid-width (+ 1 (* 110 (:width cell)))
+                                               :grid-height (inc (* 30 (.floor js/Math (/ (* (dec (:height cell)) 50) 30))))
+                                               :selections (get-selections "sub")
+                                               :cells (entities {:tag "cell"
+                                                                 :grid-id "sub"})
+                                               :parent grid-id
+                                               :default-cell-type :formula-token
+                                               :cell-size-y 30
+                                               :cell-size-x 110
+                                               :inactive (not active?)
+                                               :id "sub"})))
                   (when (@id-to-query (:id cell))
                     (when-let [results (find (@id-to-query (:id cell)))]
                       (let [fields (if (seq results)
@@ -737,8 +741,35 @@
                                               (box :style (style :overflow "auto")
                                                    :children rows))))))
                   (when (and active? (= :property current-focus))
-                    (autocompleter :property (or (get-state grid-id :intermediate-property) (:property cell) "")  (get-state grid-id :autocomplete-selection 0))))
-  )))
+                    (autocompleter :property
+                                   (or (get-state grid-id :intermediate-property) (:property cell) "")
+                                   (get-state grid-id :autocomplete-selection 0)))))))
+
+
+(defmethod draw-cell :formula-token [cell active?]
+  (let [grid-id (:grid-id cell)]
+    (box :style (style :flex 1
+                       :justify-content "center")
+      :children
+         (if active?
+           (array
+                  (input :style (style :font-size "12pt"
+                                       :color "#CCC"
+                                       :margin-top -1 ;@FIXME why is this necessary to active/inactive to line up?
+                                       :padding-left 8)
+                         :postRender focus-once
+                         :focus track-focus
+                         :input store-intermediate
+                         :keydown value-keys
+                         :c "value"
+                         :info {:cell cell :field :value :id (:id cell)}
+                         :placeholder "value"
+                         :value (or  (get-state grid-id :intermediate-value) (for-display (:value cell))))
+             (autocompleter :value (or (get-state grid-id :intermediate-value) (for-display (:value cell)) "") (get-state grid-id :autocomplete-selection 0)))
+           (array
+                  (text :style (style :font-size "12pt"
+                                      :padding-left 8)
+                        :text (for-display (:value cell))))))))
 
 ;;---------------------------------------------------------
 ;; Code cell
@@ -934,7 +965,7 @@
 
 (defn add-cell! [context grid-id cell]
   (log "ADDING A CELL")
-  (let [with-id (assoc cell :tag "cell" :id 'new-guy :grid-id grid-id :type :property)]
+  (let [with-id (assoc cell :tag "cell" :id 'new-guy :grid-id grid-id)]
     (insert-facts! context with-id)
     with-id))
 
@@ -1164,10 +1195,10 @@
                  (KEYS :right) :right
                  (KEYS :down) :down})
 
-(defn activate-cell! [grid-id cell]
+(defn activate-cell! [grid-id cell grid-info]
   (if-not (:cell-id cell)
     (transaction context
-                 (let [new-cell (add-cell! context grid-id cell)
+                 (let [new-cell (add-cell! context grid-id (assoc cell :type (:default-cell-type grid-info :property)))
                        selections (get-selections grid-id)]
                    (dotimes [ix (count selections)]
                      (let [selection (aget selections ix)]
@@ -1180,7 +1211,7 @@
 
 (defn grid-keys [event elem]
   (when (= (.-currentTarget event) (.-target event))
-    (let [{:keys [id cells]} (.-info elem)
+    (let [{:keys [id cells default-cell-type] :as grid-info} (.-info elem)
           grid-id id
           selections (entities {:tag "selection"
                                 :grid-id id})
@@ -1189,9 +1220,13 @@
           shift? (.-shiftKey event)
           direction (directions key-code)]
       (condp = key-code
+        (:escape KEYS) (when (:parent grid-info)
+                         (println "GOT PARENT escape")
+                         (transaction context
+                                      (update-state! context (:parent grid-info) :active-cell nil)))
         ;; when pressing enter, we either need to create a new cell or if we have a currently
         ;; selected cell we need to activate it
-        (:enter KEYS) (activate-cell! id current-selection)
+        (:enter KEYS) (activate-cell! id current-selection grid-info)
         ;; pressing backspace should nuke any selected cells
         (:backspace KEYS) (let [selected-ids (into #{} (for [selection (get-selections id)]
                                                          (:cell-id selection)))]
@@ -1218,7 +1253,7 @@
 
 (defn grid-input [event elem]
   (when (= (.-currentTarget event) (.-target event))
-    (let [{:keys [id cells]} (.-info elem)
+    (let [{:keys [id cells default-cell-type]} (.-info elem)
           selections (get-selections id)
           current-selection (last selections)
           current-value (-> event (.-currentTarget) (.-value))]
@@ -1227,7 +1262,7 @@
       ;; you've typed at this point
       (if-not (:cell-id current-selection)
         (transaction context
-          (let [new-cell (add-cell! context id current-selection)
+          (let [new-cell (add-cell! context id (assoc current-selection :type default-cell-type))
                 new-cell-id (:id new-cell)]
             (doseq [selection selections]
               (remove-facts! context selection))
@@ -1258,14 +1293,14 @@
 
 (defn transfer-focus-to-keyhandler [event elem]
   (-> (.-currentTarget event)
-      (.querySelector ".keyhandler")
+      (.querySelector (str ".keys-" (:id (.-info elem))))
       (.focus)))
 
 (defn maybe-activate-cell [event elem]
-  (let [{:keys [id]} (.-info elem)
+  (let [{:keys [id] :as grid-info} (.-info elem)
         selected (last (entities {:tag "selection"
                                   :grid-id id}))]
-    (activate-cell! id selected)))
+    (activate-cell! id selected grid-info)))
 
 (defn grid [info]
   (let [canvas (elem :t "canvas"
@@ -1289,38 +1324,41 @@
                                            :border "1px solid #666"
                                            :background (or color "#000"))
                              :children (array (draw-cell cell is-active?))))))
-    (dotimes [selection-ix (count selections)]
-      (let [selection (aget selections selection-ix)
-            selection (if (:cell-id selection)
-                        (entity {:id (:cell-id selection)})
-                        selection)
-            color "#fff"
-            ;; we have to normalize selections since while they're being expanded
-            ;; they can have negative widths and heights
-            {:keys [x y width height]} (normalize-cell-size selection)]
-        (.push children (box :style (style :width (- (* cell-size-x width) 2)
-                                           :height (- (* cell-size-y height) 2)
-                                           :position "absolute"
-                                           :top (* y cell-size-y)
-                                           :left (* x cell-size-x)
-                                           :pointer-events "none"
-                                           :background "rgba(255,255,255,0.12)"
-                                           :border (str "1px solid " (or color "#aaffaa")))
-                             ;; add a resize handle to the selection
-                             :children (array (elem :mousedown start-resize
-                                                    ;; mouseup and mousemove can't be handled here since it's
-                                                    ;; fairly unlikely that your mouse will be exactly over the
-                                                    ;; resize handle as you're resizing. These are handled globally
-                                                    ;; on the window
-                                                    :style (style :width 10
-                                                                  :height 10
-                                                                  :position "absolute"
-                                                                  :bottom -5
-                                                                  :right -5
-                                                                  :background "none")))))))
-    (.push children (input :c "keyhandler"
-                           :key active-cell
-                           :postRender (if-not active-cell
+    (when-not (:inactive info)
+      (dotimes [selection-ix (count selections)]
+        (let [selection (aget selections selection-ix)
+              selection (if (:cell-id selection)
+                          (entity {:id (:cell-id selection)})
+                          selection)
+              color "#fff"
+              ;; we have to normalize selections since while they're being expanded
+              ;; they can have negative widths and heights
+              {:keys [x y width height]} (normalize-cell-size selection)]
+          (.push children (box :style (style :width (- (* cell-size-x width) 2)
+                                             :height (- (* cell-size-y height) 2)
+                                             :position "absolute"
+                                             :top (* y cell-size-y)
+                                             :left (* x cell-size-x)
+                                             :pointer-events "none"
+                                             :background "rgba(255,255,255,0.12)"
+                                             :border (str "1px solid " (or color "#aaffaa")))
+                               ;; add a resize handle to the selection
+                               :children (array (elem :mousedown start-resize
+                                                      ;; mouseup and mousemove can't be handled here since it's
+                                                      ;; fairly unlikely that your mouse will be exactly over the
+                                                      ;; resize handle as you're resizing. These are handled globally
+                                                      ;; on the window
+                                                      :style (style :width 10
+                                                                    :height 10
+                                                                    :position "absolute"
+                                                                    :bottom -5
+                                                                    :right -5
+                                                                    :background "none"))))))))
+    (.push children (input :c (str "keyhandler keys-" (:id info))
+                           :key (and (not active-cell)
+                                     (not (:inactive info)))
+                           :postRender (if (and (not active-cell)
+                                                (not (:inactive info)))
                                          auto-focus
                                          js/undefined)
                            :keydown grid-keys
