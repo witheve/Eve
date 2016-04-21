@@ -215,9 +215,7 @@
     (bind-outward env inner-env)
     (make-continuation env tail-name (down))
     (make-bind env inner-env name body)
-    (apply build
-           (when-not (zero? (count input)) (apply term env 'delta-c m input))
-           (list (generate-send env m name input)))))
+    (generate-send env m name input)))
 
 (defn compile-union [env terms down]
   (let [[_ proj & arms] terms
@@ -332,6 +330,7 @@
     (when-not (lookup env (:return argmap))
       (allocate-register env (:return argmap)))
     (build
+     (apply term env 'delta-c m (vals (get @env 'bound {})))
      (term env (first terms) m (:return argmap) (:a argmap) (map #(lookup env %1) grouping))
      (down))))
 
