@@ -380,7 +380,7 @@
         ;; namespace collision with bag, used to have a dedicated register..figure it out
         b (if-let [b (:bag bindings)] b (get-in @env ['bound 'bag]))
         out (if-let [b (:tick bindings)] (let [r (allocate-register env (gensym 'insert-output))]
-                                           (bind-names env {b [r 4]})
+                                           (bind-names env {b [r]})
                                            [r]) [])]
     (let [z (down)]
       (apply build
