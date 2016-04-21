@@ -343,6 +343,7 @@
     (when-not (lookup env (:return argmap))
       (allocate-register env (:return argmap)))
     (build
+     (apply term env 'delta-c m (vals (get @env 'bound {})))
      (term env (first terms) m
            (:return argmap)
            (map (fn [[var dir]] [(lookup env var) (lookup env dir)]) (partition 2 (:sorting argmap)))
