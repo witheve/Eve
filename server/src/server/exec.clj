@@ -359,17 +359,23 @@
       (c r))))
 
 
+;; this needs to send an error message down the pipe
+(defn exec-error [reg comment]
+  (throw (ex-info comment {:registers reg :type "exec"})))
+
+
 (defn doscan [d terms build c]
   (let [[scan oid dest key] terms
         opened (atom ())
         scan (fn [r]
-               (let [handle (d 'insert oid (rget r key) (rget r qid-register)
+               (let [dr (object-array (vec r))
+                     handle (d 'insert oid (rget r key) (rget r qid-register)
                                (fn [t op qid]
-                                 (rset r op-register op)
-                                 (rset r qid-register qid)
+                                 (rset dr op-register op)
+                                 (rset dr qid-register qid)
                                  (when (= op 'insert)
-                                   (rset r dest t))
-                                 (c r)))]
+                                   (rset dr dest t))
+                                 (c dr)))]
                  (swap! opened conj handle)))]
                  
 
@@ -414,9 +420,6 @@
                   'join      dojoin
                   })
 
-;; this needs to send an error message down the pipe
-(defn exec-error [reg comment]
-  (throw (ex-info comment {:registers reg :type "exec"})))
 
 (defn build [name names built d t wrap final]
   (if (= name 'out) final

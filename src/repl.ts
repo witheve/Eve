@@ -41,18 +41,23 @@ export interface CloseMessage {
   id: string,
 }
 
-interface ReplCard {
+interface Query {
   id: string,
-  row: number,
-  col: number,
-  state: CardState,
-  focused: boolean,
   query: string,
   result: {
     fields: Array<string>,
     values: Array<Array<any>>,
   }
   message: string,
+}
+
+interface ReplCard {
+  id: string,
+  row: number,
+  col: number,
+  state: CardState,
+  focused: boolean,
+  query: Query,
   display: CardDisplay,
 }
 
@@ -71,6 +76,8 @@ interface Deck {
 }
 
 interface Repl {
+  init: boolean,
+  system: Array<Query>,
   decks: Array<Deck>,
   deck: Deck,
   server: ServerConnection,
@@ -168,26 +175,32 @@ function connectToServer() {
   let wsAddress = "ws://localhost:8081";
   let ws: WebSocket = new WebSocket(wsAddress, []);
   repl.server.ws = ws;
-
+    
   ws.onopen = function(e: Event) {    
     repl.server.state = ConnectionState.CONNECTED;
-    repl.server.timeout = 0;
+    // Initialize the repl state
+    if (repl.init === false) {
+      repl.system.map(sendQuery);
+    }
+    // In the case of a reconnect, reset the timeout
+    // and send queued messages
+    repl.server.timeout = 0;    
     while(repl.server.queue.length > 0) {
       let message = repl.server.queue.shift();
       sendMessage(message);
     }
-    rerender()
+    rerender();
   }
 
   ws.onerror = function(error) {
     repl.server.state = ConnectionState.DISCONNECTED;
-    rerender()
+    rerender();
   }
 
   ws.onclose = function(error) {  
     repl.server.state = ConnectionState.DISCONNECTED;
     reconnect();
-    rerender()
+    rerender();
   }
 
   ws.onmessage = function(message) {
@@ -210,22 +223,22 @@ function connectToServer() {
           // and the current message is updating them
           } else if (targetCard.state === CardState.GOOD) {
             // Apply inserts
-            values = targetCard.result.values.concat(parsed.insert);
+            values = targetCard.query.result.values.concat(parsed.insert);
             // Apply removes
             //@ TODO
           }
-          targetCard.result = {
+          targetCard.query.result = {
             fields: parsed.fields,
             values: values,
-          }
+          };
         }
         targetCard.state = CardState.GOOD;
         //saveReplCard(targetCard);
       } else if (parsed.type === "error") {
         targetCard.state = CardState.ERROR;
-        targetCard.message = parsed.cause;
+        targetCard.query.message = parsed.cause;
         targetCard.display = CardDisplay.BOTH;
-        targetCard.result = undefined;
+        targetCard.query.result = undefined;
         //saveReplCard(targetCard);
       } else if (parsed.type === "close") {
         let removeIx = repl.deck.cards.map((r) => r.id).indexOf(parsed.id);
@@ -233,10 +246,26 @@ function connectToServer() {
           replCards[removeIx].state = CardState.CLOSED;
         }
         rerender(true);
-        
+      }
+    // If the query ID was not matched to a repl card, then it should 
+    // matche a system query
+    } else {
+      let targetSystemQuery: Query = repl.system.filter((q) => q.id === parsed.id).shift();
+      if (targetSystemQuery !== undefined) {
+        if (targetSystemQuery.result === undefined) {
+          targetSystemQuery.result = {
+            fields: parsed.fields,
+            values: parsed.insert,
+          };
+        } else {
+          // Apply inserts
+          targetSystemQuery.result.values = targetSystemQuery.result.values.concat(parsed.insert);
+          // Apply removes
+          //@ TODO
+        }
       }
     }
-    rerender()
+    rerender();
   };
 }
 
@@ -263,23 +292,51 @@ function sendMessage(message): boolean {
 }
 
 // ------------------
+// Query functions
+// ------------------
+
+function newQuery(queryString: string): Query {
+  let query: Query = {
+    id: uuid(),
+    query: queryString,
+    result: undefined,
+    message: "",
+  };
+  return query;
+}
+
+function sendQuery(query: Query): boolean {
+  let queryMessage: QueryMessage = {
+    type: "query",
+    id: query.id,
+    query: query.query,
+  };
+  return sendMessage(queryMessage);
+}
+
+// ------------------
 // Card functions
 // ------------------
 
 function newReplCard(row?: number, col? :number): ReplCard {
+  let id = uuid();
   let replCard: ReplCard = {
-    id: uuid(),
+    id: id,
     row: row === undefined ? 0 : row,
     col: col === undefined ? 0 : col,
     state: CardState.NONE,
     focused: false,
-    query: "",
-    result: undefined,
-    message: "",
+    query: {
+      id: id,
+      query: "",
+      result: undefined,
+      message: "",
+    },
     display: CardDisplay.QUERY,
   }
   return replCard;
 }
+
 /*
 function deleteReplCard(replCard: ReplCard) {
   if (replCard.state !== CardState.NONE) {
@@ -297,16 +354,16 @@ function submitReplCard(replCard: ReplCard) {
   let query: QueryMessage = {
     id: replCard.id,
     type: "query",
-    query: replCard.query.replace(/\s+/g,' '),
+    query: replCard.query.query.replace(/\s+/g,' '),
   }
   replCard.state = CardState.PENDING;
-  replCard.result = undefined;    
+  replCard.query.result = undefined;    
   let sent = sendMessage(query);
-  if (replCard.result === undefined) {
+  if (replCard.query.result === undefined) {
     if (sent) {
-      replCard.message = "Waiting for response...";
+      replCard.query.message = "Waiting for response...";
     } else {
-      replCard.message = "Message queued.";
+      replCard.query.message = "Message queued.";
     }
   }
   // Create a new card if we submitted the last one in the col
@@ -427,7 +484,7 @@ function queryInputKeydown(event, elem) {
     //focusCard(replCards[replCards.length - 1]);
   // Catch ctrl + q
   } else if (event.keyCode === 81 && event.ctrlKey === true) {
-    thisReplCard.query = "(query [] \n\t\n)";
+    thisReplCard.query.query = "(query [] \n\t\n)";
     let cm = getCodeMirrorInstance(thisReplCard);
     // @HACK Wait for CM to render
     setTimeout(function () {cm.getDoc().setCursor({line: 1, ch: 1});},10);
@@ -526,7 +583,7 @@ function addCardClick(event, elem) {
 function queryInputChange(event, elem) {
   let card = elemToReplCard(elem);
   let cm = getCodeMirrorInstance(card);
-  card.query = cm.getValue();
+  card.query.query = cm.getValue();
   //submitReplCard(thisReplCard);
 }
 
@@ -565,7 +622,7 @@ function generateReplCardElement(replCard: ReplCard) {
     key: `${replCard.id}${replCard.focused}`, 
     focused: replCard.focused,
     c: `query-input ${replCard.display === CardDisplay.RESULT ? "hidden" : ""} ${replCard.display === CardDisplay.QUERY ? "stretch" : ""}`,
-    value: replCard.query,
+    value: replCard.query.query,
     //contentEditable: true,
     //spellcheck: false,
     //text: replCard.query,
@@ -583,17 +640,17 @@ function generateReplCardElement(replCard: ReplCard) {
   let result = undefined;
   let replClass = "repl-card";
   // Format card based on state
-  if (replCard.state === CardState.GOOD || (replCard.state === CardState.PENDING && typeof replCard.result === 'object')) {
+  if (replCard.state === CardState.GOOD || (replCard.state === CardState.PENDING && typeof replCard.query.result === 'object')) {
     if (replCard.state === CardState.GOOD) {
       resultcss += " good";      
     } else if (replCard.state === CardState.PENDING) {
       resultcss += " pending";
     }
-    if (replCard.result !== undefined) {
-      let tableHeader = {c: "header", children: replCard.result.fields.map((f: string) => {
+    if (replCard.query.result !== undefined) {
+      let tableHeader = {c: "header", children: replCard.query.result.fields.map((f: string) => {
         return {c: "cell", text: f};
       })};
-      let tableBody = replCard.result.values.map((r: Array<any>) => {
+      let tableBody = replCard.query.result.values.map((r: Array<any>) => {
         return {c: "row", children: r.map((c: any) => {
           return {c: "cell", text: `${c}`};
         })};
@@ -605,10 +662,10 @@ function generateReplCardElement(replCard: ReplCard) {
     }     
   } else if (replCard.state === CardState.ERROR) {
     queryInput.c += " error";
-    result = {text: replCard.message};
+    result = {text: replCard.query.message};
   } else if (replCard.state === CardState.PENDING) {
     resultcss += " pending";
-    result = {text: replCard.message};
+    result = {text: replCard.query.message};
   } else if (replCard.state === CardState.CLOSED) {
     resultcss += " closed";
     replClass += " no-height";
@@ -671,11 +728,13 @@ function generateStatusBarElement() {
   let addColumn = {c: "button", text: "Add Column", click: addColumnClick};
   let addCard = {c: "button", text: "Add Card", click: addCardClick};
   let buttonList = formListElement([deleteButton, addColumn, addCard]);
+  let entities: Array<any> = repl.system[0].result !== undefined ? repl.system[0].result.values.map((e) => { return {text: e[0] }; }) : []; 
+  let entitiesList = formListElement(entities);
   // Build the status bar    
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
-    children: [eveLogo, buttonList, statusIndicator], //, refresh, trash, save, load, dimmer],
+    children: [eveLogo, buttonList, statusIndicator, entitiesList],
   }
   return statusBar;
 }
@@ -694,6 +753,10 @@ let replCards: Deck = {
 
 // Instantiate a repl instance
 let repl: Repl = {
+  init: false,
+  system: [
+    newQuery("(query [e] (fact-btu e))"), // get all entities in the system
+  ],
   decks: [replCards],
   deck: replCards,
   server: {
