@@ -650,20 +650,7 @@ function generateReplCardElement(replCard: ReplCard) {
     } else if (replCard.state === CardState.PENDING) {
       resultcss += " pending";
     }
-    if (replCard.query.result !== undefined) {
-      let tableHeader = {c: "header", children: replCard.query.result.fields.map((f: string) => {
-        return {c: "cell", text: f};
-      })};
-      let tableBody = replCard.query.result.values.map((r: Array<any>) => {
-        return {c: "row", children: r.map((c: any) => {
-          return {c: "cell", text: `${c}`};
-        })};
-      });
-      let tableRows = [tableHeader].concat(tableBody);
-      result = {c: "table", children: tableRows};  
-    } else {
-      result = {};
-    }     
+    result = replCard.query !== undefined ? generateResultsTable(replCard.query) : {};
   } else if (replCard.state === CardState.ERROR) {
     queryInput.c += " error";
     result = {text: replCard.query.message};
@@ -695,6 +682,19 @@ function generateReplCardElement(replCard: ReplCard) {
     children: [codeMirrorElement(queryInput), queryResult],
   };   
   return replCardElement;
+}
+
+function generateResultsTable(query: Query) {
+  let tableHeader = {c: "header", children: query.result.fields.map((f: string) => {
+    return {c: "cell", text: f};
+  })};
+  let tableBody = query.result.values.map((r: Array<any>) => {
+    return {c: "row", children: r.map((c: any) => {
+      return {c: "cell", text: `${c}`};
+    })};
+  });
+  let tableRows = [tableHeader].concat(tableBody);
+  return {c: "table", children: tableRows};  
 }
 
 function generateCardRootElements() {
