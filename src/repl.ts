@@ -181,6 +181,7 @@ function connectToServer() {
     // Initialize the repl state
     if (repl.init === false) {
       repl.system.map(sendQuery);
+      repl.init = true;
     }
     // In the case of a reconnect, reset the timeout
     // and send queued messages
@@ -207,7 +208,7 @@ function connectToServer() {
     //console.log("message")
     //console.log(message.data);
     let parsed = JSON.parse(message.data);
-    console.log(parsed);
+    //console.log(parsed);
     // Update the result of the correct repl card
     let targetCard = repl.deck.cards.filter((r) => r.id === parsed.id).shift();
     if (targetCard !== undefined) {
