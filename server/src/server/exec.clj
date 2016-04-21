@@ -1,7 +1,5 @@
 (ns server.exec
   (:require [server.edb :as edb]
-            [clojure.test :as test]
-            [server.avl :as avl]
             [clojure.pprint :refer [pprint cl-format]]))
 
 (set! *warn-on-reflection* true)
@@ -19,8 +17,9 @@
 (declare build)
 
 (defn print-registers*
-  ([r] (print-registers* r #{} 1))
-  ([r visited indent]
+  ([r] (print-registers* r 2 1 #{}))
+  ([r max-indent] (print-registers* r max-indent 1 #{}))
+  ([r max-indent indent visited]
      (reduce (fn [memo x]
                (let [padding (apply str (repeat indent "  "))
                      append-memo (fn [slot]
@@ -41,17 +40,17 @@
                   (nil? x) (append-memo ".")
                   (= x ()) (append-memo "()")
                   (visited x) (append-memo "*")
-                  (= object-array-type (type x)) (if (< indent 2)
+                  (= object-array-type (type x)) (if (< indent max-indent)
                                                    (nest-memo
-                                                    (let [nested (print-registers* x (conj visited x) (inc indent))]
+                                                    (let [nested (print-registers* x max-indent (inc indent) (conj visited x))]
                                                       (apply str (:register nested) (:nests nested))))
                                                    (append-memo "<snip>"))
                   ;;:else (nest-memo (str x)))))
                   :else (append-memo (str x)))))
              {:slot 0 :nests "" :register ""} r)))
 
-(defn print-registers [r]
-  (let [nested (print-registers* r)]
+(defn print-registers [r & [max-indent]]
+  (let [nested (print-registers* r (or max-indent 2))]
     (str (:register nested) (:nests nested))))
 
 ;; these register indirections could be resolved at build time? yeah, kinda
@@ -61,7 +60,7 @@
 (defn rget [r ref]
   (cond (not (vector? ref))
         (if (= ref '*)
-          r
+          (aclone ^objects r)
           ref)
         ;; special case of constant vector, empty
         (= (count ref) 0) ref
@@ -106,7 +105,7 @@
                                                     (if x
                                                       [(x 0) (+ (x 1) 1)]
                                                       [tuple 1])))
-           
+
            'remove (swap! state update-in [tuple] (fn [x] (if (= (x 1) 1) nil
                                                               [(x 0) (- (x 1) 1)])))
            ())
@@ -114,8 +113,8 @@
 
      (fn [c2 op]
        (doseq [i @state] (c2 (object-array (cons op (i 0))))))]))
-     
-       
+
+
 (defn donot [d terms build c]
   (let [count (atom 0)
         on (atom false)
@@ -123,7 +122,7 @@
         tail  (fn [r]
                 (condp = (rget r op-register)
                   'insert (swap! count inc)
-                  'remove  (swap! count dec) 
+                  'remove  (swap! count dec)
                   'flush (do
                            (when (and (= @count 0) (not @on))
                              (@zig c 'insert)
@@ -228,13 +227,6 @@
         (c r)))))
 
 
-(defn dosort [d terms build c]
-  (fn [r]
-    (let [state (avl/sorted-map)]
-      (condp = (rget r op-register)
-        'insert (conj state terms)
-        'remove (disj state terms)))))
-
 (defn sum [d terms build c]
   (let [totals (atom {})
         prevs (atom {})]
@@ -248,7 +240,7 @@
                        (list 'default))]
 
         (if (or (= op 'flush) (= op 'close))
-            (c r)
+          (c r)
           (do
             (condp = (rget r op-register)
               'insert (swap! totals update-in grouping (fnil + 0) (rget r value-slot))
@@ -264,24 +256,143 @@
               (c r))
             (swap! prevs assoc-in grouping (get-in @totals grouping))))))))
 
+;; I'm a bad, bad man
+(defn make-comparator [sorting]
+  (eval `(fn [~'a ~'b]
+     ~(reduce (fn [memo [ix dir]]
+                (let [[before after] (if (= dir "ascending") ['< '>] ['> '<])]
+                  `(if (~before (rget ~'a ~ix) (rget ~'b ~ix))
+                     -1
+                     (if (~after (rget ~'a ~ix) (rget ~'b ~ix))
+                       1
+                       ~memo))))
+              0
+              (reverse sorting)))))
+
+(defn get-sorted-ix [coll sorting value]
+  (if (or (nil? coll) (empty? coll))
+    0
+    (let [compare (make-comparator sorting)]
+      (loop [bounds (quot (count coll) 2)
+             ix bounds]
+        (let [other (nth coll ix)
+              delta (compare value other)
+              half (quot bounds 2)]
+          (if-not (zero? bounds)
+            (if (> delta 0)
+              (recur half
+                     (min (+ ix bounds) (dec (count coll))))
+              (if (< delta 0)
+                (recur half
+                       (max (- ix bounds) 0))
+                (inc ix)))
+            (if (< (compare value other) 0)
+              ix
+              (inc ix))))))))
+
+(defn register= [a b]
+  (if-not (= (count a) (count b))
+    false
+    (let [slots (range initial-register (- (count a) initial-register))]
+      (every?
+       (fn [ix]
+         (let [a-slot (rget a [ix])
+               b-slot (rget b [ix])]
+           (if (= object-array-type (type a-slot))
+             (= (seq a-slot) (seq b-slot)) ;; @FIXME: Performance can bite me.
+             (= a-slot b-slot))))
+       slots))))
+
+(defn index-of-register [coll needle]
+  (some #(when (register= needle (nth coll %1))
+           %1)
+        (range (count coll))))
+
+(defn dosort [d terms build c]
+  (let [ordinals (atom {})
+        prevs (atom {})]
+    (fn [r]
+      (let [out-slot (second terms)
+            op (rget r op-register)
+            sorting-slots (nth terms 2)
+            grouping-slots (nth terms 3)
+            grouping (if-not (zero? (count grouping-slots))
+                       (map #(rget r %1) grouping-slots)
+                       (list 'default))]
+        (if (or (= op 'flush) (= op 'close))
+          (c r)
+          (swap!
+           ordinals update-in grouping
+           (fn [cur]
+             ;; @FIXME: This check probably doesn't work with the overflow buffer
+             (let [slots (range initial-register (- (count r) initial-register))
+                   existing-ix (index-of-register cur r)]
+               (condp = op
+                 'insert (if-not existing-ix
+                           (let [insert-ix (get-sorted-ix cur sorting-slots r)
+                                 [prefix suffix] (split-at insert-ix cur)]
+                             (rset r out-slot insert-ix)
+                             (c r)
+                             (doseq [ix (range (count suffix))]
+                               (let [r (nth suffix ix)]
+                                 (rset r op-register 'remove)
+                                 (c r)
+                                 (rset r op-register 'insert)
+                                 (rset r out-slot (+ ix insert-ix 1))
+                                 (c r)))
+                             (concat prefix [(aclone ^objects r)] suffix))
+                           cur)
+                 'remove (if existing-ix
+                           (let [ix existing-ix
+                                 [prefix suffix] (split-at ix cur)
+                                 suffix (rest suffix)]
+                             (rset r out-slot ix)
+                             (c r)
+                             (doseq [ix (range (count suffix))]
+                               (let [r (nth suffix ix)]
+                                 (rset r op-register 'remove)
+                                 (c r)
+                                 (rset r op-register 'insert)
+                                 (rset r out-slot (+ ix existing-ix))
+                                 (c r)))
+                             (concat prefix suffix))
+                           cur))))))))))
+
 (defn delta-c [d terms build c]
   (let [[_ & proj] terms
         proj (if proj proj [])
         assertions (atom {})]
     (fn [r]
-      (let [fact (reduce #(assoc %1 %2 (rget r %2)) {} proj)
-            prev (get @assertions fact 0)]
+      (let [fact (when (#{'insert 'remove} (rget r op-register))
+                   (doall (map #(let [v (rget r %1)]
+                                  (if (= object-array-type (type v))
+                                    nil ;; @FIXME: Is it safe to always ignore tuples for projection equality here?
+                                    v))
+                               proj)))
+            doreduce (defn doreduce [coll fn]
+                       (doall (reduce-kv fn {} coll)))
+            insert-fact (fn insert-fact [assertion]
+                          {:r (aclone ^objects r) :cnt (inc (get assertion :cnt 0)) :prev (:prev assertion)})
+            remove-fact (fn remove-fact [assertion]
+                          ;; @NOTE: Should this error on remove before insert?
+                          {:r (aclone ^objects r) :cnt (dec (get assertion :cnt 0)) :prev (:prev assertion)})]
         (condp = (rget r op-register)
-          'insert (swap! assertions update-in [fact] (fnil inc 0))
-          'remove (swap! assertions update-in [fact] dec)
-          'flush (c r)
-          'close (c r))
-        (let [cur (get @assertions fact 0)]
-          (cond
-            (and (> cur 0) (= prev 0)) (c r)
-            (and (= cur 0) (> prev 0)) (do
-                                         (rset r op-register 'remove)
-                                         (c r))))))))
+          'insert (swap! assertions update-in [fact] insert-fact)
+          'remove (swap! assertions update-in [fact] remove-fact)
+          'flush (do (swap! assertions doreduce (fn update-each [memo fact assertion]
+                                                  (let [r (:r assertion)
+                                                        cnt (:cnt assertion)
+                                                        prev (or (:prev assertion) 0)]
+                                                    (when (and (> prev 0) (zero? cnt))
+                                                      (rset r op-register 'remove)
+                                                      (c r))
+                                                    (when (and (zero? prev) (> cnt 0))
+                                                      (rset r op-register 'insert)
+                                                      (c r))
+
+                                                    (assoc memo fact {:r r :cnt cnt :prev cnt}))))
+                     (c r))
+          'close (c r))))))
 
 ;; down is towards the base facts, up is along the removal chain
 ;; use stm..figure out a way to throw down..i guess since r
@@ -308,7 +419,7 @@
     (fn [r]
       (if (= (rget r op-register) 'insert)
         (let [[e a v b t u] (rget r in)]
-          
+
           (if (= a edb/remove-oid)
             (let [b (base e)
                   old (if b (walk b) b)]
@@ -321,7 +432,7 @@
                       (and old (not new)) (do (rset r out (@assertions b))
                                               (rset r op-register 'remove)
                                               (c r)))))
-            
+
             (do
               (swap! assertions assoc t (rget r in))
               (when (walk t)
@@ -377,7 +488,7 @@
                                    (rset dr dest t))
                                  (c dr)))]
                  (swap! opened conj handle)))]
-                 
+
 
     (fn [r]
       (condp = (rget r op-register)
@@ -390,7 +501,7 @@
                      (d 'flush oid (rget r key) (rget r qid-register) (fn [k op] (c r))))
                    (c r))))))
 
-      
+
 
 (def command-map {'move      (simple move)
                   '+         (ternary-numeric +)
