@@ -142,7 +142,7 @@
                                                     (println "ADDS" adds)
                                                     (println "REMOVES" removes))))
                                      "error" (.error js/console "uh oh")
-                                     "query-info" (log data)
+                                     "query-info" (do)
                                      )
                                    (when @changed?
                                      (println "GOT CHANGED")
@@ -547,7 +547,9 @@
     (if ents
       (.map ents (fn [cur]
                    (if (:cell-id cur)
-                     (merge (entity {:id (:cell-id cur)}) cur)
+                     (if-let [cell (entity {:id (:cell-id cur)})]
+                       (merge cell cur)
+                       cur)
                      cur)))
       (array {:id "fake-selection" :x 0 :y 0 :width 1 :height 1}))))
 
