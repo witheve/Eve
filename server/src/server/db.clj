@@ -14,8 +14,7 @@
 (defn genoid []
   (uuid. (edb/now) 0 @machine-id))
 
-(defn wrapoid [time batch machine]
-  (uuid. time 0 @machine-id))
+(defn wrapoid [time batch machine] (uuid. time 0 machine))
 
 (def uber-log (atom ()))
 

@@ -40,7 +40,6 @@
   (install-bag edb bag-id))
 
 (defn create-view [edb bag-id user]
-  (println "create view" bag-id user)
   [(install-bag edb bag-id) user])
 
 (defn tuples [view] ((view 0) 0))

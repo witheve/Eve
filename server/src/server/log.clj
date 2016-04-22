@@ -16,10 +16,8 @@
 
 (defn bags [p]
   (let [d (File. p)]
-    (println "wtf" (map str (.listFiles d)))
     (map (fn [f]
            (let [terms (string/split (.getName f) #"-")]
-             (println "filo" terms)
              (apply db/wrapoid (map (fn [x] (Long/parseLong x 16)) terms))))
          (.listFiles d))))
 
@@ -57,7 +55,6 @@
                         (fn [op x k]
                           (when (= op 'insert)
                             (let [enc (serialize/encode-five-tuples [x])]
-                              (println "enc" (seq enc) (filename-from-bag path bag-id) w)
                               (.write w enc)
                               (.flush w))))))))
 

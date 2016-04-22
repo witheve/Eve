@@ -70,7 +70,7 @@
     (ec 'flush)))
 
 
-(defn trace [d expression]
+(defn trace [d expression trace-on]
   (diesel d (second expression) true))
 
 ;; xxx - this is now...in the language..not really?

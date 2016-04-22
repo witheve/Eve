@@ -1,9 +1,9 @@
 (ns server.serialize
+  (:require [server.db :as db])
   (:require [clojure.pprint :refer [pprint]]))
 
 (import java.lang.System)
 (import java.util.Arrays)
-
 
 (defmacro singletonian [] (let [k (gensym 'singleton)] `(do (defrecord ~k [~'a]) ~(symbol (str "->" k)))))
 
@@ -30,9 +30,10 @@
 (defn decode-string [source offset length]
   ;; could pass this read along
   (let [slen (bit-and (aget source offset) 0x0000000f)
-        target (+ slen offset)]
+        target (+ slen offset 1)]
     (if (> target length) [nil target]
-        ["" target])))
+        [(new String (java.util.Arrays/copyOfRange source (+ offset 1) target))
+         target])))
 
 
 (defn symbol-length [x] (string-length (name x)))
@@ -56,6 +57,19 @@
      [[] (+ offset 1)] (range len))))
 
 
+
+
+(defn write-long [dest offset x]
+  (aset dest (+ offset 0) (unchecked-byte (bit-shift-right x 56)))
+  (aset dest (+ offset 1) (unchecked-byte (bit-shift-right x 48)))
+  (aset dest (+ offset 2) (unchecked-byte (bit-shift-right x 40)))
+  (aset dest (+ offset 3) (unchecked-byte (bit-shift-right x 32)))
+  (aset dest (+ offset 4) (unchecked-byte (bit-shift-right x 24)))
+  (aset dest (+ offset 5) (unchecked-byte (bit-shift-right x 16)))
+  (aset dest (+ offset 6) (unchecked-byte (bit-shift-right x 8)))
+  (aset dest (+ offset 8) (unchecked-byte x))
+  (+ offset 8))
+
 ;; enforce range sizes
 (defn encode-long [dest offset x]
   (aset dest offset (unchecked-byte 2r11100000))
@@ -65,15 +79,7 @@
   (aset dest (+ offset 1) (byte 0))
   (aset dest (+ offset 2) (byte 0))
   (aset dest (+ offset 3) (byte 0))
-  (aset dest (+ offset 4) (unchecked-byte (bit-shift-right x 56)))
-  (aset dest (+ offset 5) (unchecked-byte (bit-shift-right x 48)))
-  (aset dest (+ offset 6) (unchecked-byte (bit-shift-right x 40)))
-  (aset dest (+ offset 7) (unchecked-byte (bit-shift-right x 32)))
-  (aset dest (+ offset 8) (unchecked-byte (bit-shift-right x 24)))
-  (aset dest (+ offset 9) (unchecked-byte (bit-shift-right x 16)))
-  (aset dest (+ offset 10) (unchecked-byte (bit-shift-right x 8)))
-  (aset dest (+ offset 11) (unchecked-byte x))
-  (+ offset 12))
+  (write-long dest (+ offset 4) x))
 
 ;; ok, bigdec right now is 6 bits of scale and 11 bytes of unscaled...not sure if
 ;; serious?
@@ -88,10 +94,10 @@
 (defn decode-bigdec [source offset length]
   (let [final (+ 12 offset)]
     (if (> final length) [nil final]
-        (let [scale (bit-and (aget source offset) 2r00111111)
+        (let [scale (bit-and (aget source offset) 2r00011111)
               b (new java.math.BigInteger (java.util.Arrays/copyOfRange source
                                                                         (+ offset 1)
-                                                                        (+ offset 12)))]
+                                                                        (+ offset 11)))]
           [(new java.math.BigDecimal b) final]))))
 
 
@@ -99,12 +105,25 @@
   (aset dest offset (unchecked-byte (if x 2r11111001 2r11111000)))
   (+ offset 1))
 
+(defn write-short [dest offset x]
+  (aset dest offset (unchecked-byte (bit-shift-right x 8)))
+  (aset dest (+ offset 1) (unchecked-byte x))
+  (+ offset 2))
 
+  
 (defn encode-uuid [dest offset x]
-  )
+  (let [t (.time x)
+        b (.batch x)
+        m (.machine x)]
+    ;; make sure top bit is zero
+    (write-short dest (write-short dest (write-long dest offset t) b) m)))
+
 
 (defn decode-uuid [source offset length]
-  )
+  (let [t 0
+        batch 0
+        machine 0]
+  [(db/wrapoid t batch machine) (+ offset 12)]))
 
 
 (defn decode-five-tuple [source offset length]
@@ -128,7 +147,7 @@
    clojure.lang.PersistentVector  [vector-length encode-vector]
    java.lang.Boolean              [1 encode-boolean]
    server.db.uuid                 [12 encode-uuid]
-   ;   server.db.station              [8 encode-station]
+   ;   server.db.station          [8 encode-station]
    java.lang.Long                 [12 encode-long]
    java.math.BigDecimal           [12 encode-bigdec]
    })
@@ -201,7 +220,7 @@
   (let [len (reduce + (map #(+ 1 (reduce + (map object-length %1))) tuples))
         b (byte-array len)
         encode-tuple (fn [offset x]
-                       ;; xxx - consistency
+                       ;; xxx - consistency with the decode map above
                        (aset b offset (unchecked-byte 2r10001010))
                        (reduce (fn [o x] (encode-object b o x)) (+ offset 1) x))]
     (reduce (fn [o x] (encode-tuple o x)) 0 tuples)
