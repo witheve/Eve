@@ -492,7 +492,7 @@
               [{:text value :adornment "create" :action :create :value value}]))
           (match-autocomplete-options [{:text "Table" :adornment "insert" :action :insert :value "table"}
                                        {:text "Code" :adornment "insert" :action :insert :value "code"}
-                                       {:text "Formula grid" :adornment "insert" :action :insert :value "formula-grid"}
+                                       {:text "Formula grid" :adornment "insert" :action :insert :value "formula-grid" :generate-grid {:type "formula"}}
                                        {:text "Image" :adornment "insert" :action :insert :value "image"}
                                        {:text "Text" :adornment "insert" :action :insert :value "text"}
                                        {:text "Chart" :adornment "insert" :action :insert :value "chart"}
@@ -622,9 +622,14 @@
                           (= key-code (KEYS :tab)) :right)]
           (transaction context
             (cond
-              (= action :insert) (do
-                                   (update-entity! context (:id cell) {:property (get-state grid-id :intermediate-property (:property cell))
-                                                                       :type (:value selected)})
+              (= action :insert) (let [generate-grid (:generate-grid selected)
+                                       cell-update {:property (get-state grid-id :intermediate-property (:property cell))
+                                                    :type (:value selected)}]
+                                   (when generate-grid
+                                     (insert-facts! context (assoc generate-grid :id 'generate-grid-id)))
+                                   (update-entity! context (:id cell) (if generate-grid
+                                                                        (assoc cell-update :value 'generate-grid-id)
+                                                                        cell-update))
                                    (clear-intermediates! context grid-id))
               (or (= action :create)
                   (= action :link)) (let [value-id (if (= action :link)
@@ -776,7 +781,7 @@
                                                   :value))
         property-element (draw-property cell active?)
         ; @FIXME: this needs to be a real id, but I'm not sure how we get it.
-        sub-grid-id (str (:id cell) "-grid")]
+        sub-grid-id (:value cell)]
     (box :style (style :flex "1")
          :children
            (array property-element
@@ -828,7 +833,6 @@
 
 (defmethod draw-cell "formula-token" [cell active?]
   (let [grid-id (:grid-id cell)]
-    (println "CELL INFO" cell)
     (box :style (style :flex 1
                        :justify-content "center")
       :children
@@ -1312,11 +1316,10 @@
         ;; selected cell we need to activate it
         (:enter KEYS) (if modified?
                         ;; try navigating
-                        (do (println current-selection)
                         (when (and (:value current-selection)
                                    (entity {:id (:value current-selection)}))
                           (transaction context
-                                       (navigate! context (:value current-selection)))))
+                                       (navigate! context (:value current-selection))))
                         (activate-cell! id current-selection grid-info))
         ;; pressing backspace should nuke any selected cells
         (:backspace KEYS) (let [selected-ids (into #{} (for [selection (get-selections id)]
@@ -1324,8 +1327,9 @@
                             (transaction context
                               (doseq [selection (get-selections id)]
                                 (when (:cell-id selection)
-                                  (remove-facts! context {:id grid-id
-                                                          (keyword (:property selection)) (:value selection)})
+                                  (when (and (:property selection) (not (nil? (:value selection))))
+                                    (remove-facts! context {:id grid-id
+                                                            (keyword (:property selection)) (:value selection)}))
                                   (remove-facts! context (entity {:id (:cell-id selection)})))
                                 (remove-facts! context selection)
                                 (insert-facts! context (select-keys current-selection [:tag :grid-id :x :y :width :height]))))
@@ -1342,28 +1346,53 @@
 (defn grid-input [event elem]
   (when (= (.-currentTarget event) (.-target event))
     (let [{:keys [id cells default-cell-type]} (.-info elem)
+          grid-id id
           selections (get-selections id)
           current-selection (last selections)
+          type (or (:type current-selection) default-cell-type)
           current-value (-> event (.-currentTarget) (.-value))]
-      ;; if you don't have an already existing cell selected, then we need
-      ;; to create a new cell with a property name starting with whatever
-      ;; you've typed at this point
-      (if-not (:cell-id current-selection)
+      (condp = type
+        ;; if you don't have an already existing cell selected, then we need
+        ;; to create a new cell with a property name starting with whatever
+        ;; you've typed at this point
+        "property" (if-not (:cell-id current-selection)
+                     (transaction context
+                                  (let [new-cell (add-cell! context id (assoc current-selection :type default-cell-type))
+                                        new-cell-id (:id new-cell)]
+                                    (doseq [selection selections]
+                                      (remove-facts! context selection))
+                                    (insert-facts! context {:tag "selection" :grid-id grid-id :cell-id new-cell-id})
+                                    (update-state! context grid-id :active-cell (:id new-cell))
+                                    (update-state! context grid-id :intermediate-property current-value)))
+                     ;; otherwise if you are on an already existing cell, we need to
+                     ;; activate that cell, and set its value to what you've typed so far
+                     (transaction context
+                                  (update-state! context grid-id :active-cell (:cell-id current-selection))
+                                  (update-state! context grid-id :intermediate-value current-value)))
+        ;; in the case that you try to type on a formula-grid cell,
+        ;; just activate the cell for now
+        "formula-grid" (transaction context
+                                    (update-state! context grid-id :active-cell (:cell-id current-selection)))
+        ;; with formula tokens, the only thing you have is a value, so just starting setting
+        ;; that and activate the cell
+        "formula-token" (if-not (:cell-id current-selection)
+                          (transaction context
+                                       (let [new-cell (add-cell! context id (assoc current-selection :type default-cell-type))
+                                             new-cell-id (:id new-cell)]
+                                         (doseq [selection selections]
+                                           (remove-facts! context selection))
+                                         (insert-facts! context {:tag "selection" :grid-id grid-id :cell-id new-cell-id})
+                                         (update-state! context grid-id :active-cell (:id new-cell))
+                                         (update-state! context grid-id :intermediate-value current-value)))
+                          ;; otherwise if you are on an already existing cell, we need to
+                          ;; activate that cell, and set its value to what you've typed so far
+                          (transaction context
+                                       (update-state! context grid-id :active-cell (:cell-id current-selection))
+                                       (update-state! context grid-id :intermediate-value current-value)))
+        ;; otherwise... just activate the cell?
         (transaction context
-          (let [new-cell (add-cell! context id (assoc current-selection :type default-cell-type))
-                new-cell-id (:id new-cell)]
-            (doseq [selection selections]
-              (remove-facts! context selection))
-            (insert-facts! context {:tag "selection" :grid-id id :cell-id new-cell-id})
-            (update-state! context id :active-cell (:id new-cell))
-            (update-state! context id :intermediate-property current-value)))
-        ;; otherwise if you are on an already existing cell, we need to
-        ;; activate that cell, and set its value to what you've typed so far
-        ;; TODO: what happens in the case where you don't have a normal property
-        ;; cell? What does it mean to type on top of a chart, for example?
-        (transaction context
-                     (update-state! context id :active-cell (:cell-id current-selection))
-                     (update-state! context id :intermediate-value current-value)))
+                     (update-state! context id :active-cell (:cell-id current-selection)))
+        )
       (set! (.-value (.-currentTarget event)) ""))))
 
 (defn grid-keys-up [event elem]
