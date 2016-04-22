@@ -613,9 +613,9 @@
                                         )
                                       (update-entity! context (:id cell) {:property property
                                                                           :value value-id})
-                                      (when (not= (aget context value-id) (:value cell))
+                                      (when (not= value-id (:value cell))
                                         (insert-facts! context {:id grid-id
-                                                                (keyword property) (aget context value-id)})
+                                                                (keyword property) value-id})
                                         (when (:property cell)
                                           (remove-facts! context {:id grid-id
                                                                   (:property cell) (:value cell)})))
