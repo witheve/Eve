@@ -675,6 +675,11 @@ function queryInputClick(event, elem) {
   }
 }
 
+function resultSwitchClick(event, elem) {
+  let card = elemToReplCard(elem);
+  card.resultDisplay = elem.data;
+}
+
 /*
 function rootClick(event, elem) {
   closeModals();
@@ -722,14 +727,12 @@ function generateResultElement(card: ReplCard) {
   let resultcss = `query-result ${card.display === CardDisplay.QUERY ? "hidden" : ""}`;
   let result = undefined;
   let replClass = "repl-card";
-  
   // Build the results switches
-  let tableSwitch   = {c: `button ${card.resultDisplay === ResultsDisplay.TABLE   ? "" : "disabled "}ion-grid`, text: " Table"};
-  let graphSwitch   = {c: `button ${card.resultDisplay === ResultsDisplay.GRAPH   ? "" : "disabled "}ion-stats-bars`, text: " Graph"};
-  let messageSwitch = {c: `button ${card.resultDisplay === ResultsDisplay.MESSAGE ? "" : "disabled "}ion-quote`, text: " Message"};
-  let infoSwitch    = {c: `button ${card.resultDisplay === ResultsDisplay.INFO    ? "" : "disabled "}ion-help`, text: " Info"};
+  let tableSwitch   = {c: `button ${card.resultDisplay === ResultsDisplay.TABLE   ? "" : "disabled "}ion-grid`, text: " Table", data: ResultsDisplay.TABLE, row: card.row, col: card.col, click: resultSwitchClick };
+  let graphSwitch   = {c: `button ${card.resultDisplay === ResultsDisplay.GRAPH   ? "" : "disabled "}ion-stats-bars`, data: ResultsDisplay.GRAPH, row: card.row, col: card.col, text: " Graph"};
+  let messageSwitch = {c: `button ${card.resultDisplay === ResultsDisplay.MESSAGE ? "" : "disabled "}ion-quote`, data: ResultsDisplay.MESSAGE, row: card.row, col: card.col, text: " Message"};
+  let infoSwitch    = {c: `button ${card.resultDisplay === ResultsDisplay.INFO    ? "" : "disabled "}ion-help`, data: ResultsDisplay.INFO, row: card.row, col: card.col, text: " Info", click: resultSwitchClick};
   let switches = [];
-  
   // Format card based on state
   if (card.state === CardState.GOOD) {
     resultcss += " good";      
@@ -757,7 +760,6 @@ function generateResultElement(card: ReplCard) {
   } else if (card.resultDisplay === ResultsDisplay.TABLE) {
     result = generateResultsTable(card.query);  
   }
-
   // Add the info switch if there is info to be had
   if (card.query.info !== undefined) {
     switches.push(infoSwitch); 
