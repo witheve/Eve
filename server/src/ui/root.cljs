@@ -9,8 +9,11 @@
 
 (declare render)
 (declare move-selection!)
+(declare add-cell!)
 
-(def USE-SERVER? false)
+(def USE-SERVER? true)
+(def LOCAL-ONLY-TAGS #{"selection" "grid-user-state"})
+
 
 ;;---------------------------------------------------------
 ;; Utils
@@ -18,6 +21,7 @@
 
 (def KEYS {:enter 13
            :shift 16
+           :tab 9
            :escape 27
            :backspace 8
            :left 37
@@ -66,11 +70,12 @@
 ;; Websocket
 ;;---------------------------------------------------------
 
-(def websocket-address "ws://localhost:8081")
+(def websocket-address (str "ws://" (-> js/window
+                                        (.-location)
+                                        (.-host))))
 (defonce websocket (atom nil))
 (defonce id-to-query (atom {}))
 
-(declare send-query)
 (declare render)
 
 (defn results-to-objects [fields results]
@@ -86,46 +91,6 @@
 (declare locally-add-eavs!)
 (declare locally-remove-eavs!)
 
-(defn websocket-init []
-  (let [socket (new js/WebSocket websocket-address)]
-    (set! (.-onopen socket) (fn [event]
-
-                              (send-query 1 "(query [] (insert-fact! \"apple\" :color \"red\"))")
-                              (send-query "all facts"
-                                          (query-string `(query [e a v]
-                                                                (fact-btu e a v))))
-                              (println "connected to server!")))
-    (set! (.-onerror socket) (fn [event]
-                               (println "the socket errored :(")))
-    (set! (.-onclose socket) (fn [event]
-                               (println "the socket closed :( :( :(")))
-    (set! (.-onmessage socket) (fn [event]
-                                 (let [data (.parse js/JSON (.-data event))]
-                                   (condp = (.-type data)
-                                     "result" (if (= (.-id data) "all facts")
-                                                (let [inserts (.-insert data)
-                                                      removes (.-remove data)
-                                                      context (js-obj)]
-                                                  (println "GOT MESSAGE AT " (.now (.-performance js/window)))
-                                                  (locally-add-eavs! context inserts)
-                                                  (locally-remove-eavs! context removes))
-                                                (when (seq (.-fields data))
-                                                  (let [fields (.-fields data)
-                                                      adds (results-to-objects fields (.-insert data))
-                                                      removes (results-to-objects fields (.-remove data))
-                                                      diff (.diff eve)]
-                                                  (.addMany diff (.-id data) adds)
-                                                  (.removeFacts diff (.-id data) removes)
-                                                  (.applyDiff eve diff)
-                                                  (println "ADDS" adds)
-                                                  (println "REMOVES" removes))))
-                                     "error" (.error js/console "uh oh")
-                                     )
-                                   (render)
-                                   (println "received data!")
-                                   (println (.-data event)))))
-    (reset! websocket socket)))
-
 (defn send-websocket [message]
   (let [json-message (.stringify js/JSON (clj->js message))]
     (.send @websocket json-message)))
@@ -136,11 +101,71 @@
 (defn send-close [id]
   (send-websocket {:id id :type "close"}))
 
+(defn websocket-init []
+  (let [socket (new js/WebSocket websocket-address)]
+    (set! (.-onopen socket) (fn [event]
+                              (send-query "all facts"
+                                          (query-string `(query [e a v]
+                                                                (fact-btu e a v))))
+                              (println "connected to server!")))
+    (set! (.-onerror socket) (fn [event]
+                               (println "the socket errored :(")))
+    (set! (.-onclose socket) (fn [event]
+                               (println "the socket closed :( :( :(")))
+    (set! (.-onmessage socket) (fn [event]
+                                 (let [data (.parse js/JSON (.-data event))
+                                       changed? (atom false)]
+                                   (condp = (.-type data)
+                                     "result" (if (= (.-id data) "all facts")
+                                                (let [inserts (.-insert data)
+                                                      removes (.-remove data)
+                                                      context (js-obj)]
+                                                  (println "GOT MESSAGE AT " (.now (.-performance js/window)))
+                                                  (when (seq removes)
+                                                    (reset! changed? true)
+                                                    (log removes)
+                                                    (locally-remove-eavs! context removes))
+                                                  (when (seq inserts)
+                                                    (reset! changed? true)
+                                                    (locally-add-eavs! context inserts)))
+                                                (when (seq (.-fields data))
+                                                  (let [fields (.-fields data)
+                                                        adds (results-to-objects fields (.-insert data))
+                                                        removes (results-to-objects fields (.-remove data))
+                                                        diff (.diff eve)]
+                                                    (when (seq adds)
+                                                      (reset! changed? true)
+                                                      (.addMany diff (.-id data) adds))
+                                                    (when (seq removes)
+                                                      (reset! changed? true)
+                                                      (.removeFacts diff (.-id data) removes))
+                                                    (when @changed?
+                                                      (.applyDiff eve diff))
+                                                    (println "ADDS" adds)
+                                                    (println "REMOVES" removes))))
+                                     "error" (.error js/console "uh oh")
+                                     "query-info" (do)
+                                     )
+                                   (when @changed?
+                                     (println "GOT CHANGED")
+                                     (render))
+                                   (println (.-data event)))))
+    ;; set a handler for when we navigate away so that we can make sure all
+    ;; queries for this client are closed.
+    (set! (.-onbeforeunload js/window)
+          (fn []
+            (send-close "all facts")
+            (for [[k query-id] @id-to-query]
+              (send-close query-id))
+            nil))
+    (reset! websocket socket)))
+
+
 (defn replace-and-send-query [id query]
   (let [current (@id-to-query id)
         new-id (js/uuid)]
     (when current
-      (send-close id)
+      (send-close current)
       ;; remove the values that were in the table
       )
     (send-query new-id query)
@@ -153,6 +178,8 @@
 (defonce facts-by-id (js-obj))
 (defonce facts-by-tag (js-obj))
 (defonce entity-name-pairs (atom []))
+
+(defonce local-ids (atom #{}))
 
 (defn get-fact-by-id [id]
   (aget facts-by-id id))
@@ -253,13 +280,13 @@
         (aset facts-by-tag tag (if-let [cur (aget facts-by-tag tag)]
                                  (disj cur e)))))))
 
-(defn add-eavs! [context eavs]
-  (if USE-SERVER?
+(defn add-eavs! [context eavs force-local]
+  (if (and USE-SERVER? (not force-local))
     (remote-add-eavs! context eavs)
     (locally-add-eavs! context eavs)))
 
-(defn remove-eavs! [context eavs]
-  (if USE-SERVER?
+(defn remove-eavs! [context eavs force-local]
+  (if (and USE-SERVER? (not force-local))
     (remote-remove-eavs! context eavs)
     (locally-remove-eavs! context eavs)))
 
@@ -287,17 +314,25 @@
                                                     (aset context (name (:id info)) new-id)
                                                     new-id))
              (or (:id info) (js/uuid)))]
-    (add-eavs! context (for [[k v] (dissoc info :id)
-                             :let [v (if (symbol? v)
-                                       (aget context (name v))
-                                       v)]]
-                         [id k v])))
+    (when (or (LOCAL-ONLY-TAGS (:tag info))
+              (if (coll? (:tag info))
+                (first (filter LOCAL-ONLY-TAGS (:tag info)))))
+      (swap! local-ids conj id))
+    (add-eavs! context
+               (for [[k v] (dissoc info :id)
+                     :let [v (if (symbol? v)
+                               (aget context (name v))
+                               v)]]
+                 [id k v])
+               (@local-ids id)))
   context)
 
 (defn remove-facts! [context info]
   (let [id (or (:id info) (throw (js/Error "remove-facts requires an id to remove from")))]
-    (remove-eavs! context (for [[k v] (dissoc info :id)]
-                            [id k v])))
+    (remove-eavs! context
+                  (for [[k v] (dissoc info :id)]
+                    [id k v])
+                  (@local-ids id)))
   context)
 
 (defn remove-entity! [context id]
@@ -338,12 +373,14 @@
         ;; we want to filter out any keys that would add and remove the same value
         ;; since that's a no-op and also it can lead to writer loops
         valid-keys-to-update (filter (fn [cur-key]
-                                       (not= (cur-key current-entity) (cur-key update-map)))
+                                       (or (= cur-key :id)
+                                           (not= (get current-entity cur-key) (get update-map cur-key))))
                                      keys-to-update)
         current-values (select-keys current-entity valid-keys-to-update)]
-    (println "******** UPDATING: ")
+    (println "******** UPDATING: " entity-id)
     (println current-values (select-keys with-id valid-keys-to-update))
-    (remove-facts! context current-values)
+    (when (seq current-values)
+      (remove-facts! context current-values))
     (insert-facts! context (select-keys with-id valid-keys-to-update))))
 
 (defn matching-names [partial-name]
@@ -453,14 +490,14 @@
                 (for [[k v] matches]
                   {:text v :adornment "link" :action :link :value k}))
               [{:text value :adornment "create" :action :create :value value}]))
-          (match-autocomplete-options [{:text "Table" :adornment "insert" :action :insert :value :table}
-                                       {:text "Code" :adornment "insert" :action :insert :value :code}
-                                       {:text "Formula grid" :adornment "insert" :action :insert :value :formula-grid}
-                                       {:text "Image" :adornment "insert" :action :insert :value :image}
-                                       {:text "Text" :adornment "insert" :action :insert :value :text}
-                                       {:text "Chart" :adornment "insert" :action :insert :value :chart}
-                                       {:text "Drawing" :adornment "insert" :action :insert :value :drawing}
-                                       {:text "UI" :adornment "insert" :action :insert :value :ui}]
+          (match-autocomplete-options [{:text "Table" :adornment "insert" :action :insert :value "table"}
+                                       {:text "Code" :adornment "insert" :action :insert :value "code"}
+                                       {:text "Formula grid" :adornment "insert" :action :insert :value "formula-grid" :generate-grid {:type "formula"}}
+                                       {:text "Image" :adornment "insert" :action :insert :value "image"}
+                                       {:text "Text" :adornment "insert" :action :insert :value "text"}
+                                       {:text "Chart" :adornment "insert" :action :insert :value "chart"}
+                                       {:text "Drawing" :adornment "insert" :action :insert :value "drawing"}
+                                       {:text "UI" :adornment "insert" :action :insert :value "ui"}]
                                       value)))
 
 (defmethod get-autocompleter-options :property [_ value]
@@ -512,7 +549,9 @@
     (if ents
       (.map ents (fn [cur]
                    (if (:cell-id cur)
-                     (merge (entity {:id (:cell-id cur)}) cur)
+                     (if-let [cell (entity {:id (:cell-id cur)})]
+                       (merge cell cur)
+                       cur)
                      cur)))
       (array {:id "fake-selection" :x 0 :y 0 :width 1 :height 1}))))
 
@@ -560,21 +599,37 @@
 (defn value-keys [event elem]
   (let [{:keys [cell id]} (.-info elem)
         key-code (.-keyCode event)
-        {:keys [grid-id]} cell]
-    (when (= key-code (KEYS :enter))
-      (if (.-shiftKey event)
-        ;;  In Excel, shift-enter is just like enter but in the upward direction, so if shift
-        ;;  is pressed then we move back up to the property field.
-        (-> event (.-currentTarget) (.-parentNode)
-            (.. (querySelector ".property") (focus)))
+        {:keys [grid-id]} cell
+        shift? (.-shiftKey event)
+        action (cond
+                 (and shift? (= key-code (KEYS :enter))) :focus-property
+                 (= key-code (KEYS :enter)) :submit
+                 (= key-code (KEYS :tab)) :submit
+                 (= key-code (KEYS :escape)) :escape
+                 )]
+    (when (= action :focus-property)
+      ;;  In Excel, shift-enter is just like enter but in the upward direction, so if shift
+      ;;  is pressed then we move back up to the property field.
+      (-> event (.-currentTarget) (.-parentNode)
+          (.. (querySelector ".property") (focus))))
+    (when (= action :submit)
         ;; otherwise we submit this cell and move down
         (let [selected (get-selected-autocomplete-option :value (or (get-state grid-id :intermediate-value) (for-display (:value cell))) (get-state grid-id :autocomplete-selection 0))
-              {:keys [action]} selected]
+              {:keys [action]} selected
+              direction (cond
+                          (and shift? (= key-code (KEYS :tab))) :left
+                          (= key-code (KEYS :enter)) :down
+                          (= key-code (KEYS :tab)) :right)]
           (transaction context
             (cond
-              (= action :insert) (do
-                                   (update-entity! context (:id cell) {:property (get-state grid-id :intermediate-property (:property cell))
-                                                                       :type (:value selected)})
+              (= action :insert) (let [generate-grid (:generate-grid selected)
+                                       cell-update {:property (get-state grid-id :intermediate-property (:property cell))
+                                                    :type (:value selected)}]
+                                   (when generate-grid
+                                     (insert-facts! context (assoc generate-grid :id 'generate-grid-id)))
+                                   (update-entity! context (:id cell) (if generate-grid
+                                                                        (assoc cell-update :value 'generate-grid-id)
+                                                                        cell-update))
                                    (clear-intermediates! context grid-id))
               (or (= action :create)
                   (= action :link)) (let [value-id (if (= action :link)
@@ -584,17 +639,31 @@
                                           property (get-state grid-id :intermediate-property (:property cell))]
                                       (when (= action :create)
                                         (insert-facts! context {:id value-id :name (:text selected)})
-                                        )
-                                      (update-entity! context (:id cell) {:property property
-                                                                          :value value-id})
-                                      ; (send-query query-id
-                                      ;             (query-string `(query []
-                                      ;                                   (insert-fact! ~grid-id ~(keyword property) ~(aget context value-id)))))
-                                      ; (send-close query-id)
+                                        ;; Add an initial cell that contains the name we gave this grid
+                                        (add-cell! context value-id {:x 0 :y 0 :width 1 :height 1 :type "property" :property "name" :value (:text selected)}))
+                                      ;; if we have a property then we need to both update the cell
+                                      ;; and set a property on the grid
+                                      (when property
+                                        (update-entity! context (:id cell) {:property property
+                                                                            :value value-id})
+                                        (when (not= value-id (:value cell))
+                                          (insert-facts! context {:id grid-id
+                                                                  (keyword property) value-id})
+                                          ;; if we had previously set a value on the grid then we need
+                                          ;; to remove it. We can check for this by the cell having a property
+                                          ;; and value already on it.
+                                          (when (and (:property cell) (not (nil? (:value cell))))
+                                            (remove-facts! context {:id grid-id
+                                                                    (:property cell) (:value cell)}))))
+                                      ;; if there isn't a property that's being set, then the only thing we're
+                                      ;; doing here is setting the value of this cell and not setting an attribute
+                                      ;; on the grid.
+                                      (when-not property
+                                        (update-entity! context (:id cell) {:value value-id}))
                                       (clear-intermediates! context grid-id)
                                       (update-state! context grid-id :active-cell nil)
-                                      (move-selection! context grid-id :down)))))))
-    (when (= key-code (KEYS :escape))
+                                      (move-selection! context grid-id direction))))))
+    (when (= action :escape)
       (transaction context
                    (clear-intermediates! context grid-id)
                    (update-state! context grid-id :active-cell nil))))
@@ -636,7 +705,7 @@
 
 (defmulti draw-cell :type)
 
-(defmethod draw-cell :property [cell active?]
+(defmethod draw-cell "property" [cell active?]
   (let [grid-id (:grid-id cell)
         current-focus (get-state grid-id :focus (if-not (:property cell)
                                                   :property
@@ -697,7 +766,7 @@
            (array property-element
                   (text :style (style :font-size "12pt"
                                       :margin "3px 0 0 8px")
-                        :text (name type)))))))
+                        :text (:type cell)))))))
 
 ;;---------------------------------------------------------
 ;; Formula grid cell
@@ -705,14 +774,14 @@
 
 (declare grid)
 
-(defmethod draw-cell :formula-grid [cell active?]
+(defmethod draw-cell "formula-grid" [cell active?]
   (let [grid-id (:grid-id cell)
         current-focus (get-state grid-id :focus (if-not (:property cell)
                                                   :property
                                                   :value))
         property-element (draw-property cell active?)
         ; @FIXME: this needs to be a real id, but I'm not sure how we get it.
-        sub-grid-id (str (:id cell) "-grid")]
+        sub-grid-id (:value cell)]
     (box :style (style :flex "1")
          :children
            (array property-element
@@ -725,7 +794,7 @@
                                                :cells (entities {:tag "cell"
                                                                  :grid-id sub-grid-id})
                                                :parent grid-id
-                                               :default-cell-type :formula-token
+                                               :default-cell-type "formula-token"
                                                :cell-size-y 30
                                                :cell-size-x 110
                                                :inactive (not active?)
@@ -762,7 +831,7 @@
                                    (get-state grid-id :autocomplete-selection 0)))))))
 
 
-(defmethod draw-cell :formula-token [cell active?]
+(defmethod draw-cell "formula-token" [cell active?]
   (let [grid-id (:grid-id cell)]
     (box :style (style :flex 1
                        :justify-content "center")
@@ -809,8 +878,7 @@
                      (clear-intermediates! context grid-id)
                      (update-state! context grid-id :active-cell nil)
                      (move-selection! context grid-id :down)))
-      (log (.querySelector js/document (str "." grid-id " .keyhandler")))
-      (.focus (.querySelector js/document (str "." grid-id " .keyhandler"))))
+      (.focus (.querySelector js/document (str ".keys-" grid-id))))
     (when (= key :escape)
       (transaction context
                    (clear-intermediates! context grid-id)
@@ -847,7 +915,7 @@
         (.focus editor))
       )))
 
-(defmethod draw-cell :code [cell active?]
+(defmethod draw-cell "code" [cell active?]
   (let [grid-id (:grid-id cell)
         current-focus (get-state grid-id :focus (if-not (:property cell)
                                                   :property
@@ -1214,7 +1282,7 @@
 (defn activate-cell! [grid-id cell grid-info]
   (if-not (:cell-id cell)
     (transaction context
-                 (let [new-cell (add-cell! context grid-id (assoc cell :type (:default-cell-type grid-info :property)))
+                 (let [new-cell (add-cell! context grid-id (assoc cell :type (:default-cell-type grid-info "property")))
                        selections (get-selections grid-id)]
                    (dotimes [ix (count selections)]
                      (let [selection (aget selections ix)]
@@ -1236,19 +1304,22 @@
           modified? (or (.-metaKey event) (.-ctrlKey event))
           direction (directions key-code)]
       (condp = key-code
+        (:tab KEYS) (transaction context
+                                 (if shift?
+                                   (move-selection! context id :left)
+                                   (move-selection! context id :right))
+                                 (.preventDefault event))
         (:escape KEYS) (when (:parent grid-info)
-                         (println "GOT PARENT escape")
                          (transaction context
                                       (update-state! context (:parent grid-info) :active-cell nil)))
         ;; when pressing enter, we either need to create a new cell or if we have a currently
         ;; selected cell we need to activate it
         (:enter KEYS) (if modified?
                         ;; try navigating
-                        (do (println current-selection)
                         (when (and (:value current-selection)
                                    (entity {:id (:value current-selection)}))
                           (transaction context
-                                       (navigate! context (:value current-selection)))))
+                                       (navigate! context (:value current-selection))))
                         (activate-cell! id current-selection grid-info))
         ;; pressing backspace should nuke any selected cells
         (:backspace KEYS) (let [selected-ids (into #{} (for [selection (get-selections id)]
@@ -1256,11 +1327,9 @@
                             (transaction context
                               (doseq [selection (get-selections id)]
                                 (when (:cell-id selection)
-                                  ; (send-query (:cell-id selection)
-                                  ;             (query-string `(query []
-                                  ;                                   (fact-btu ~grid-id ~(:property selection) ~(:value selection) :tick tick)
-                                  ;                                   (remove-by-t! tick))))
-                                  ; (send-close (:cell-id selection))
+                                  (when (and (:property selection) (not (nil? (:value selection))))
+                                    (remove-facts! context {:id grid-id
+                                                            (keyword (:property selection)) (:value selection)}))
                                   (remove-facts! context (entity {:id (:cell-id selection)})))
                                 (remove-facts! context selection)
                                 (insert-facts! context (select-keys current-selection [:tag :grid-id :x :y :width :height]))))
@@ -1277,28 +1346,53 @@
 (defn grid-input [event elem]
   (when (= (.-currentTarget event) (.-target event))
     (let [{:keys [id cells default-cell-type]} (.-info elem)
+          grid-id id
           selections (get-selections id)
           current-selection (last selections)
+          type (or (:type current-selection) default-cell-type)
           current-value (-> event (.-currentTarget) (.-value))]
-      ;; if you don't have an already existing cell selected, then we need
-      ;; to create a new cell with a property name starting with whatever
-      ;; you've typed at this point
-      (if-not (:cell-id current-selection)
+      (condp = type
+        ;; if you don't have an already existing cell selected, then we need
+        ;; to create a new cell with a property name starting with whatever
+        ;; you've typed at this point
+        "property" (if-not (:cell-id current-selection)
+                     (transaction context
+                                  (let [new-cell (add-cell! context id (assoc current-selection :type default-cell-type))
+                                        new-cell-id (:id new-cell)]
+                                    (doseq [selection selections]
+                                      (remove-facts! context selection))
+                                    (insert-facts! context {:tag "selection" :grid-id grid-id :cell-id new-cell-id})
+                                    (update-state! context grid-id :active-cell (:id new-cell))
+                                    (update-state! context grid-id :intermediate-property current-value)))
+                     ;; otherwise if you are on an already existing cell, we need to
+                     ;; activate that cell, and set its value to what you've typed so far
+                     (transaction context
+                                  (update-state! context grid-id :active-cell (:cell-id current-selection))
+                                  (update-state! context grid-id :intermediate-value current-value)))
+        ;; in the case that you try to type on a formula-grid cell,
+        ;; just activate the cell for now
+        "formula-grid" (transaction context
+                                    (update-state! context grid-id :active-cell (:cell-id current-selection)))
+        ;; with formula tokens, the only thing you have is a value, so just starting setting
+        ;; that and activate the cell
+        "formula-token" (if-not (:cell-id current-selection)
+                          (transaction context
+                                       (let [new-cell (add-cell! context id (assoc current-selection :type default-cell-type))
+                                             new-cell-id (:id new-cell)]
+                                         (doseq [selection selections]
+                                           (remove-facts! context selection))
+                                         (insert-facts! context {:tag "selection" :grid-id grid-id :cell-id new-cell-id})
+                                         (update-state! context grid-id :active-cell (:id new-cell))
+                                         (update-state! context grid-id :intermediate-value current-value)))
+                          ;; otherwise if you are on an already existing cell, we need to
+                          ;; activate that cell, and set its value to what you've typed so far
+                          (transaction context
+                                       (update-state! context grid-id :active-cell (:cell-id current-selection))
+                                       (update-state! context grid-id :intermediate-value current-value)))
+        ;; otherwise... just activate the cell?
         (transaction context
-          (let [new-cell (add-cell! context id (assoc current-selection :type default-cell-type))
-                new-cell-id (:id new-cell)]
-            (doseq [selection selections]
-              (remove-facts! context selection))
-            (insert-facts! context {:tag "selection" :grid-id id :cell-id new-cell-id})
-            (update-state! context id :active-cell (:id new-cell))
-            (update-state! context id :intermediate-property current-value)))
-        ;; otherwise if you are on an already existing cell, we need to
-        ;; activate that cell, and set its value to what you've typed so far
-        ;; TODO: what happens in the case where you don't have a normal property
-        ;; cell? What does it mean to type on top of a chart, for example?
-        (transaction context
-                     (update-state! context id :active-cell (:cell-id current-selection))
-                     (update-state! context id :intermediate-value current-value)))
+                     (update-state! context id :active-cell (:cell-id current-selection)))
+        )
       (set! (.-value (.-currentTarget event)) ""))))
 
 (defn grid-keys-up [event elem]
@@ -1429,7 +1523,7 @@
                                  :selections (get-selections active-grid-id)
                                  :cells (entities {:tag "cell"
                                                    :grid-id active-grid-id})
-                                 :default-cell-type :property
+                                 :default-cell-type "property"
                                  :cell-size-y 50
                                  :cell-size-x 120
                                  :id active-grid-id})))))
@@ -1446,6 +1540,7 @@
     (js/requestAnimationFrame
       (fn []
         (let [ui (root)]
+          (println "RENDER")
           (.render @renderer #js [ui])
           (set! (.-queued @renderer) false))))))
 
