@@ -100,7 +100,8 @@
      (if schema
        schema
        (when implication
-         {:args (vec (map keyword (first implication)))})))))
+         (let [args (map keyword (first implication))]
+           {:args (vec args) :optional (set args)}))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Parse sexprs into argument hashmaps
