@@ -732,8 +732,12 @@ function generateResultElement(card: ReplCard) {
   // Format card based on state
   if (card.state === CardState.GOOD) {
     resultcss += " good";      
-    result = card.query.result !== undefined ? generateResultsTable(card.query) : {};
-    switches.push(tableSwitch);
+    if (card.query.result !== undefined) {
+      result = generateResultsTable(card.query);
+      switches.push(tableSwitch);
+    } else {
+      result = {};
+    }
   } else if (card.state === CardState.ERROR) {
     resultcss += " error";
     result = {text: card.query.message};    
