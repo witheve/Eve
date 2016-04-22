@@ -68,7 +68,9 @@
 ;; Websocket
 ;;---------------------------------------------------------
 
-(def websocket-address "ws://192.168.1.77:8081")
+(def websocket-address (str "ws://" (-> js/window
+                                        (.-location)
+                                        (.-host))))
 (defonce websocket (atom nil))
 (defonce id-to-query (atom {}))
 
