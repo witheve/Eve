@@ -362,10 +362,11 @@
         ;; we want to filter out any keys that would add and remove the same value
         ;; since that's a no-op and also it can lead to writer loops
         valid-keys-to-update (filter (fn [cur-key]
-                                       (not= (get current-entity cur-key) (get update-map cur-key)))
+                                       (or (= cur-key :id)
+                                           (not= (get current-entity cur-key) (get update-map cur-key))))
                                      keys-to-update)
         current-values (select-keys current-entity valid-keys-to-update)]
-    (println "******** UPDATING: ")
+    (println "******** UPDATING: " entity-id)
     (println current-values (select-keys with-id valid-keys-to-update))
     (when (seq current-values)
       (remove-facts! context current-values))
@@ -612,7 +613,12 @@
                                         )
                                       (update-entity! context (:id cell) {:property property
                                                                           :value value-id})
-                                      (update-entity! context grid-id {(keyword property) (aget context value-id)})
+                                      (when (not= (aget context value-id) (:value cell))
+                                        (insert-facts! context {:id grid-id
+                                                                (keyword property) (aget context value-id)})
+                                        (when (:property cell)
+                                          (remove-facts! context {:id grid-id
+                                                                  (:property cell) (:value cell)})))
                                       (clear-intermediates! context grid-id)
                                       (update-state! context grid-id :active-cell nil)
                                       (move-selection! context grid-id :down)))))))
@@ -1279,8 +1285,7 @@
                                 (when (:cell-id selection)
                                   (remove-facts! context {:id grid-id
                                                           (keyword (:property selection)) (:value selection)})
-                                  (remove-facts! context (entity {:id (:cell-id selection)}))
-                                  )
+                                  (remove-facts! context (entity {:id (:cell-id selection)})))
                                 (remove-facts! context selection)
                                 (insert-facts! context (select-keys current-selection [:tag :grid-id :x :y :width :height]))))
                             (.preventDefault event))
