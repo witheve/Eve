@@ -26,6 +26,17 @@ html, body {
   display: flex;
 }
 
+.results-switch {
+  display: flex;
+  flex-direction: row;
+  float: right;
+  clear: both;
+}
+
+.results-switch > .button {
+  margin-left: 10px;
+}
+
 .card-root {
   display: flex;
   flex-grow: 1;
@@ -105,15 +116,10 @@ li {
   min-width: 5px;
   text-align: center;
   opacity: 1;
-  transition: opacity .5s;
-}
-.button {
   border: 1px solid rgb(91,89,164);
-  transition: all 1s;
 }
 .button .disabled {
-  background-color: gray;
-  border-color: #333;
+  border: 1px solid rgb(255,255,255);
 }
 
 /* The Status Indicator */

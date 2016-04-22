@@ -30,6 +30,13 @@ enum CardDisplay {
   BOTH,  
 }
 
+enum ResultsDisplay {
+  TABLE,
+  GRAPH,
+  INFO,
+  MESSAGE,
+}
+
 export interface QueryMessage {
   type: string,
   query: string,
@@ -67,6 +74,7 @@ interface ReplCard {
   focused: boolean,
   query: Query,
   display: CardDisplay,
+  resultDisplay: ResultsDisplay,
 }
 
 interface ServerConnection {
@@ -384,6 +392,7 @@ function newReplCard(row?: number, col? :number): ReplCard {
       info: undefined,
     },
     display: CardDisplay.QUERY,
+    resultDisplay: ResultsDisplay.TABLE,
   }
   return replCard;
 }
@@ -712,31 +721,48 @@ function generateResultElement(card: ReplCard) {
   let resultcss = `query-result ${card.display === CardDisplay.QUERY ? "hidden" : ""}`;
   let result = undefined;
   let replClass = "repl-card";
+  
+  // Build the results switches
+  let tableSwitch   = {c: `button ${card.resultDisplay === ResultsDisplay.TABLE   ? "" : "disabled "}ion-grid`, text: " Table"};
+  let graphSwitch   = {c: `button ${card.resultDisplay === ResultsDisplay.GRAPH   ? "" : "disabled "}ion-stats-bars`, text: " Graph"};
+  let messageSwitch = {c: `button ${card.resultDisplay === ResultsDisplay.MESSAGE ? "" : "disabled "}ion-quote`, text: " Message"};
+  let infoSwitch    = {c: `button ${card.resultDisplay === ResultsDisplay.INFO    ? "" : "disabled "}ion-help`, text: " Info"};
+  let switches = [];
+  
   // Format card based on state
-  if (card.state === CardState.GOOD || (card.state === CardState.PENDING && typeof card.query.result === 'object')) {
-    if (card.state === CardState.GOOD) {
-      resultcss += " good";      
-    } else if (card.state === CardState.PENDING) {
-      resultcss += " pending";
-    }
+  if (card.state === CardState.GOOD) {
+    resultcss += " good";      
     result = card.query.result !== undefined ? generateResultsTable(card.query) : {};
+    switches.push(tableSwitch);
   } else if (card.state === CardState.ERROR) {
     resultcss += " error";
-    result = {text: card.query.message};
+    result = {text: card.query.message};    
+    switches.push(messageSwitch);
   } else if (card.state === CardState.PENDING) {
     resultcss += " pending";
     result = {text: card.query.message};
+    switches.push(messageSwitch);
   } else if (card.state === CardState.CLOSED) {
     resultcss += " closed";
     replClass += " no-height";
     result = {text: `Query closed.`};
+    switches.push(messageSwitch);
   }
+  // Add the info switch if there is info to be had
+  if (card.query.info !== undefined) {
+    switches.push(infoSwitch); 
+  }
+  // Build the results switch container
+  let resultViewSwitch = {
+    c: "results-switch",
+    children: switches,
+  };
   
   let queryResult = {
     c: resultcss, 
     row: card.row,
     col: card.col,
-    children: [result],
+    children: [resultViewSwitch, result],
     mouseup: queryResultClick,
   };  
   
