@@ -12,6 +12,7 @@ button, input, textarea { background:none; border:none; margin:0; padding:0; out
 .cm-s-default .cm-string { color: #999; }
 .cm-s-default .cm-number { color: #999; }
 .cm-s-default .cm-atom { color: #999; }
+.cm-s-default .cm-builtin { color: #99f; }
 
 ::-webkit-input-placeholder {
    color: #777;
