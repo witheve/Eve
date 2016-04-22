@@ -240,6 +240,7 @@ function connectToServer() {
           if (targetCard.state === CardState.PENDING) {
             values = parsed.insert;
             targetCard.display = CardDisplay.BOTH;
+            targetCard.resultDisplay = ResultsDisplay.TABLE;
           // If the card is Good, that means it already has results
           // and the current message is updating them
           } else if (targetCard.state === CardState.GOOD) {
@@ -392,7 +393,7 @@ function newReplCard(row?: number, col? :number): ReplCard {
       info: undefined,
     },
     display: CardDisplay.QUERY,
-    resultDisplay: ResultsDisplay.TABLE,
+    resultDisplay: ResultsDisplay.MESSAGE,
   }
   return replCard;
 }
@@ -733,25 +734,30 @@ function generateResultElement(card: ReplCard) {
   if (card.state === CardState.GOOD) {
     resultcss += " good";      
     if (card.query.result !== undefined) {
-      result = generateResultsTable(card.query);
       switches.push(tableSwitch);
-    } else {
-      result = {};
     }
   } else if (card.state === CardState.ERROR) {
     resultcss += " error";
-    result = {text: card.query.message};    
     switches.push(messageSwitch);
   } else if (card.state === CardState.PENDING) {
     resultcss += " pending";
-    result = {text: card.query.message};
     switches.push(messageSwitch);
   } else if (card.state === CardState.CLOSED) {
-    resultcss += " closed";
-    replClass += " no-height";
-    result = {text: `Query closed.`};
+    resultcss += " closed";    
     switches.push(messageSwitch);
   }
+  // Pick the results to display
+  if (card.resultDisplay === ResultsDisplay.GRAPH) {
+    // @TODO
+    result = {};
+  } else if (card.resultDisplay === ResultsDisplay.INFO) {
+    result = {text: card.query.info.smil};    
+  } else if (card.resultDisplay === ResultsDisplay.MESSAGE) {
+    result = {text: card.query.message};  
+  } else if (card.resultDisplay === ResultsDisplay.TABLE) {
+    result = generateResultsTable(card.query);  
+  }
+
   // Add the info switch if there is info to be had
   if (card.query.info !== undefined) {
     switches.push(infoSwitch); 
