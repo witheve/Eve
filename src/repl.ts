@@ -587,9 +587,9 @@ function queryInputFocus(event, elem) {
 function replCardClick(event, elem) {
   let clickedCard = elemToReplCard(elem);
   if (clickedCard !== undefined) {
-    focusCard(clickedCard);  
+    focusCard(clickedCard);
+    rerender();  
   }
-  rerender();
 }
 /*
 function deleteAllCards(event, elem) {
@@ -678,6 +678,8 @@ function queryInputClick(event, elem) {
 function resultSwitchClick(event, elem) {
   let card = elemToReplCard(elem);
   card.resultDisplay = elem.data;
+  event.preventDefault();
+  rerender();
 }
 
 /*
@@ -716,7 +718,7 @@ function generateReplCardElement(replCard: ReplCard) {
     col: replCard.col,
     c: `repl-card ${replCard.focused ? " focused" : ""}`,
     click: replCardClick,
-    mousedown: function(event) {event.preventDefault();},
+    //mousedown: function(event) {event.preventDefault();},
     children: [codeMirrorElement(queryInput), generateResultElement(replCard)],
   };   
   return replCardElement;
@@ -754,7 +756,15 @@ function generateResultElement(card: ReplCard) {
     // @TODO
     result = {};
   } else if (card.resultDisplay === ResultsDisplay.INFO) {
-    result = {text: card.query.info.smil};    
+    result = {c: "debug", children: [
+      {t: "h1", text: "Raw"},
+      {c: "code", text: card.query.info.raw},
+      {t: "h1", text: "SMIL :)"},
+      {c: "code", text: card.query.info.smil},
+      {t: "h1", text: "WEASL"},
+      {c: "code", text: card.query.info.weasl},
+    ]};
+              
   } else if (card.resultDisplay === ResultsDisplay.MESSAGE) {
     result = {text: card.query.message};  
   } else if (card.resultDisplay === ResultsDisplay.TABLE) {

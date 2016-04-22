@@ -6,8 +6,14 @@ html, body {
   font-family: sans-serif;
 }
 
+h1 {
+  margin-bottom: 15px;
+  margin-top: 15px;
+}
+
 .logo { 
-  margin: 20px;
+  margin-top: 10px;
+  margin-bottom: 10px;
 }
 
 /* Basic Structure */
@@ -30,7 +36,7 @@ html, body {
   display: flex;
   flex-direction: row;
   float: right;
-  clear: both;
+  clear: none;
 }
 
 .results-switch > .button {
@@ -162,6 +168,17 @@ li {
 }
 
 /* Switches */
+
+.code {
+  background-color: rgb(50,50,50);
+  padding: 10px;
+  padding-top: 15px;
+  padding-bottom: 15px;
+  display: block;
+  unicode-bidi: embed;
+  font-family: monospace;
+  white-space: pre; 
+}
 
 .hidden {
   display: none;
