@@ -74,7 +74,6 @@
 (defonce websocket (atom nil))
 (defonce id-to-query (atom {}))
 
-(declare send-query)
 (declare render)
 
 (defn results-to-objects [fields results]
@@ -90,11 +89,19 @@
 (declare locally-add-eavs!)
 (declare locally-remove-eavs!)
 
+(defn send-websocket [message]
+  (let [json-message (.stringify js/JSON (clj->js message))]
+    (.send @websocket json-message)))
+
+(defn send-query [id query]
+  (send-websocket {:id id :type "query" :query query}))
+
+(defn send-close [id]
+  (send-websocket {:id id :type "close"}))
+
 (defn websocket-init []
   (let [socket (new js/WebSocket websocket-address)]
     (set! (.-onopen socket) (fn [event]
-
-                              (send-query 1 "(query [] (insert-fact! \"apple\" :color \"red\"))")
                               (send-query "all facts"
                                           (query-string `(query [e a v]
                                                                 (fact-btu e a v))))
@@ -140,23 +147,22 @@
                                      (println "GOT CHANGED")
                                      (render))
                                    (println (.-data event)))))
+    ;; set a handler for when we navigate away so that we can make sure all
+    ;; queries for this client are closed.
+    (set! (.-onbeforeunload js/window)
+          (fn []
+            (send-close "all facts")
+            (for [[k query-id] @id-to-query]
+              (send-close query-id))
+            nil))
     (reset! websocket socket)))
 
-(defn send-websocket [message]
-  (let [json-message (.stringify js/JSON (clj->js message))]
-    (.send @websocket json-message)))
-
-(defn send-query [id query]
-  (send-websocket {:id id :type "query" :query query}))
-
-(defn send-close [id]
-  (send-websocket {:id id :type "close"}))
 
 (defn replace-and-send-query [id query]
   (let [current (@id-to-query id)
         new-id (js/uuid)]
     (when current
-      (send-close id)
+      (send-close current)
       ;; remove the values that were in the table
       )
     (send-query new-id query)

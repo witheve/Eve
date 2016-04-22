@@ -160,7 +160,6 @@
         response (if (and (:body response) (= (type (:body response)) java.io.File))
                    (assoc response :body (slurp (:body response)))
                    response)]
-    (println "Serving" (:uri request))
     (httpserver/send! channel response)))
 
 (defn async-handler [db content]
