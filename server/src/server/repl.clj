@@ -8,8 +8,6 @@
             [clojure.pprint :refer [pprint]]
             [server.exec :as exec]))
 
-(def bag (atom 98))
-(def user (atom 99))
 
 (defn repl-error [& thingy]
   (throw thingy))
@@ -18,7 +16,7 @@
 
 (defn show [d expression]
   (let [[form keys] (form-from-smil (smil/unpack d (second expression)))
-        prog (compiler/compile-dsl d @bag form)]
+        prog (compiler/compile-dsl d form)]
      (pprint prog)))
 
 
@@ -37,7 +35,7 @@
             (println "--- SMIL ---")
             (pprint form)
             (println " --- Program / Trace ---"))
-        prog (compiler/compile-dsl d @bag form)
+        prog (compiler/compile-dsl d form)
         start (System/nanoTime)
         ec (exec/open d prog (print-result keys "" start)
                       (if trace-on
@@ -52,7 +50,7 @@
 (defn open [d expression trace-on]
   (println "open" expression)
   (let [[form keys] (form-from-smil (smil/unpack d (nth expression 2)))
-        prog (compiler/compile-dsl d @bag form)
+        prog (compiler/compile-dsl d form)
         start (System/nanoTime)
         res (print-result keys (second expression) start)
         tf (if trace-on
@@ -67,7 +65,7 @@
   (println "open" expression)
   (let [[form keys] (form-from-smil (smil/unpack d (nth expression 1)))
         counts []
-        prog (compiler/compile-dsl d @bag form)
+        prog (compiler/compile-dsl d form)
         start (System/nanoTime)
         res (print-result keys (second expression) start)
         ec (exec/open d prog res (fn [n m x] (println "here" m) x))]
@@ -82,7 +80,11 @@
 ;; xxx - this is now...in the language..not really?
 (defn define [d expression trace-on]
   (let [z (smil/unpack d expression)]
-    (db/insert-implication d (second z) (nth z 2) (rest (rest (rest z))) @user @bag)))
+    (db/insert-implication d (second z) (nth z 2) (rest (rest (rest z))))))
+
+
+(defn create-bag [d expression trace-on]
+  (println "i wish i could help you"))
 
 
 (declare read-all)
@@ -93,6 +95,7 @@
      (let [function ({'define! define
                       'show show
                       'trace trace
+                      'create-bag create-bag
                       'time timeo
                       'open open
                       'load read-all
