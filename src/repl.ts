@@ -251,35 +251,43 @@ function connectToServer() {
           replCards[removeIx].state = CardState.CLOSED;
         }
         rerender(true);
+      } else if (parsed.type === "query-info") {
+        console.log(parsed);
+      } else {
+        return;
       }
     // If the query ID was not matched to a repl card, then it should 
     // matche a system query
     } else {
       let targetSystemQuery: Query = objectToArray(repl.system).filter((q) => q.id === parsed.id).shift();
       if (targetSystemQuery !== undefined) {
-        if (targetSystemQuery.result === undefined) {
-          targetSystemQuery.result = {
-            fields: parsed.fields,
-            values: parsed.insert,
-          };
+        if (parsed.type === "result") {
+          if (targetSystemQuery.result === undefined) {
+            targetSystemQuery.result = {
+              fields: parsed.fields,
+              values: parsed.insert,
+            };
+          } else {
+            // Apply inserts
+            targetSystemQuery.result.values = targetSystemQuery.result.values.concat(parsed.insert);
+            // Apply removes
+            // @TODO
+          }
+          // Update the repl based on these new system queries
+          // @TODO This will one day soon be replaced by a storing repl state in the DB
+          if (parsed.id === repl.system.queries.id && parsed.insert !== undefined) {
+            parsed.insert.forEach((n) => {
+              /*let replCard = getCard(n[1], n[2]);
+              if (replCard === undefined) {
+                replCard = newReplCard(n[1], n[2]);
+                repl.deck.cards.push(replCard);
+              }
+              replCard.query.query = n[4];
+              submitReplCard(replCard);*/
+            });
+          }  
         } else {
-          // Apply inserts
-          targetSystemQuery.result.values = targetSystemQuery.result.values.concat(parsed.insert);
-          // Apply removes
-          // @TODO
-        }
-        // Update the repl based on these new system queries
-        // @TODO This will one day soon be replaced by a storing repl state in the DB
-        if (parsed.id === repl.system.queries.id) {
-          parsed.insert.forEach((n) => {
-            /*let replCard = getCard(n[1], n[2]);
-            if (replCard === undefined) {
-              replCard = newReplCard(n[1], n[2]);
-              repl.deck.cards.push(replCard);
-            }
-            replCard.query.query = n[4];
-            submitReplCard(replCard);*/
-          });
+          return;
         }
       }
     }
@@ -393,7 +401,8 @@ function submitReplCard(card: ReplCard) {
                                               :col ${card.col} 
                                               :query "${card.query.query.replace(/\"/g,'\\"')}"
                                               :display ${card.display}))`;
-  sendAnonymousQuery(rcQuery, card);
+  //console.log(rcQuery);
+  //sendAnonymousQuery(rcQuery, card);
   if (card.query.result === undefined) {
     if (sent) {
       card.query.message = "Waiting for response...";
