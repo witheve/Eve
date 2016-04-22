@@ -536,7 +536,7 @@
                   'sum       sum
                   'sort      dosort
                   'not       donot
-                  
+
                   'insert    doinsert
                   'scan      doscan
                   'send      dosend
