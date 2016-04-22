@@ -9,6 +9,7 @@
 
 (declare render)
 (declare move-selection!)
+(declare add-cell!)
 
 (def USE-SERVER? true)
 (def LOCAL-ONLY-TAGS #{"selection" "grid-user-state"})
@@ -20,6 +21,7 @@
 
 (def KEYS {:enter 13
            :shift 16
+           :tab 9
            :escape 27
            :backspace 8
            :left 37
@@ -597,16 +599,27 @@
 (defn value-keys [event elem]
   (let [{:keys [cell id]} (.-info elem)
         key-code (.-keyCode event)
-        {:keys [grid-id]} cell]
-    (when (= key-code (KEYS :enter))
-      (if (.-shiftKey event)
-        ;;  In Excel, shift-enter is just like enter but in the upward direction, so if shift
-        ;;  is pressed then we move back up to the property field.
-        (-> event (.-currentTarget) (.-parentNode)
-            (.. (querySelector ".property") (focus)))
+        {:keys [grid-id]} cell
+        shift? (.-shiftKey event)
+        action (cond
+                 (and shift? (= key-code (KEYS :enter))) :focus-property
+                 (= key-code (KEYS :enter)) :submit
+                 (= key-code (KEYS :tab)) :submit
+                 (= key-code (KEYS :escape)) :escape
+                 )]
+    (when (= action :focus-property)
+      ;;  In Excel, shift-enter is just like enter but in the upward direction, so if shift
+      ;;  is pressed then we move back up to the property field.
+      (-> event (.-currentTarget) (.-parentNode)
+          (.. (querySelector ".property") (focus))))
+    (when (= action :submit)
         ;; otherwise we submit this cell and move down
         (let [selected (get-selected-autocomplete-option :value (or (get-state grid-id :intermediate-value) (for-display (:value cell))) (get-state grid-id :autocomplete-selection 0))
-              {:keys [action]} selected]
+              {:keys [action]} selected
+              direction (cond
+                          (and shift? (= key-code (KEYS :tab))) :left
+                          (= key-code (KEYS :enter)) :down
+                          (= key-code (KEYS :tab)) :right)]
           (transaction context
             (cond
               (= action :insert) (do
@@ -621,19 +634,31 @@
                                           property (get-state grid-id :intermediate-property (:property cell))]
                                       (when (= action :create)
                                         (insert-facts! context {:id value-id :name (:text selected)})
-                                        )
-                                      (update-entity! context (:id cell) {:property property
-                                                                          :value value-id})
-                                      (when (not= value-id (:value cell))
-                                        (insert-facts! context {:id grid-id
-                                                                (keyword property) value-id})
-                                        (when (:property cell)
-                                          (remove-facts! context {:id grid-id
-                                                                  (:property cell) (:value cell)})))
+                                        ;; Add an initial cell that contains the name we gave this grid
+                                        (add-cell! context value-id {:x 0 :y 0 :width 1 :height 1 :type "property" :property "name" :value (:text selected)}))
+                                      ;; if we have a property then we need to both update the cell
+                                      ;; and set a property on the grid
+                                      (when property
+                                        (update-entity! context (:id cell) {:property property
+                                                                            :value value-id})
+                                        (when (not= value-id (:value cell))
+                                          (insert-facts! context {:id grid-id
+                                                                  (keyword property) value-id})
+                                          ;; if we had previously set a value on the grid then we need
+                                          ;; to remove it. We can check for this by the cell having a property
+                                          ;; and value already on it.
+                                          (when (and (:property cell) (not (nil? (:value cell))))
+                                            (remove-facts! context {:id grid-id
+                                                                    (:property cell) (:value cell)}))))
+                                      ;; if there isn't a property that's being set, then the only thing we're
+                                      ;; doing here is setting the value of this cell and not setting an attribute
+                                      ;; on the grid.
+                                      (when-not property
+                                        (update-entity! context (:id cell) {:value value-id}))
                                       (clear-intermediates! context grid-id)
                                       (update-state! context grid-id :active-cell nil)
-                                      (move-selection! context grid-id :down)))))))
-    (when (= key-code (KEYS :escape))
+                                      (move-selection! context grid-id direction))))))
+    (when (= action :escape)
       (transaction context
                    (clear-intermediates! context grid-id)
                    (update-state! context grid-id :active-cell nil))))
@@ -803,6 +828,7 @@
 
 (defmethod draw-cell "formula-token" [cell active?]
   (let [grid-id (:grid-id cell)]
+    (println "CELL INFO" cell)
     (box :style (style :flex 1
                        :justify-content "center")
       :children
@@ -1274,8 +1300,12 @@
           modified? (or (.-metaKey event) (.-ctrlKey event))
           direction (directions key-code)]
       (condp = key-code
+        (:tab KEYS) (transaction context
+                                 (if shift?
+                                   (move-selection! context id :left)
+                                   (move-selection! context id :right))
+                                 (.preventDefault event))
         (:escape KEYS) (when (:parent grid-info)
-                         (println "GOT PARENT escape")
                          (transaction context
                                       (update-state! context (:parent grid-info) :active-cell nil)))
         ;; when pressing enter, we either need to create a new cell or if we have a currently
