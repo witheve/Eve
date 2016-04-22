@@ -694,25 +694,39 @@ function generateReplCardElement(replCard: ReplCard) {
     matchBrackets: true,
     lineNumbers: false,
   };
-  // Set the css according to the card state
-  let resultcss = `query-result ${replCard.display === CardDisplay.QUERY ? "hidden" : ""}`;
+  
+  let replCardElement = {
+    id: replCard.id,
+    row: replCard.row,
+    col: replCard.col,
+    c: `repl-card ${replCard.focused ? " focused" : ""}`,
+    click: replCardClick,
+    mousedown: function(event) {event.preventDefault();},
+    children: [codeMirrorElement(queryInput), generateResultElement(replCard)],
+  };   
+  return replCardElement;
+}
+
+function generateResultElement(card: ReplCard) {
+// Set the css according to the card state
+  let resultcss = `query-result ${card.display === CardDisplay.QUERY ? "hidden" : ""}`;
   let result = undefined;
   let replClass = "repl-card";
   // Format card based on state
-  if (replCard.state === CardState.GOOD || (replCard.state === CardState.PENDING && typeof replCard.query.result === 'object')) {
-    if (replCard.state === CardState.GOOD) {
+  if (card.state === CardState.GOOD || (card.state === CardState.PENDING && typeof card.query.result === 'object')) {
+    if (card.state === CardState.GOOD) {
       resultcss += " good";      
-    } else if (replCard.state === CardState.PENDING) {
+    } else if (card.state === CardState.PENDING) {
       resultcss += " pending";
     }
-    result = replCard.query.result !== undefined ? generateResultsTable(replCard.query) : {};
-  } else if (replCard.state === CardState.ERROR) {
-    queryInput.c += " error";
-    result = {text: replCard.query.message};
-  } else if (replCard.state === CardState.PENDING) {
+    result = card.query.result !== undefined ? generateResultsTable(card.query) : {};
+  } else if (card.state === CardState.ERROR) {
+    resultcss += " error";
+    result = {text: card.query.message};
+  } else if (card.state === CardState.PENDING) {
     resultcss += " pending";
-    result = {text: replCard.query.message};
-  } else if (replCard.state === CardState.CLOSED) {
+    result = {text: card.query.message};
+  } else if (card.state === CardState.CLOSED) {
     resultcss += " closed";
     replClass += " no-height";
     result = {text: `Query closed.`};
@@ -720,23 +734,13 @@ function generateReplCardElement(replCard: ReplCard) {
   
   let queryResult = {
     c: resultcss, 
-    row: replCard.row,
-    col: replCard.col,
+    row: card.row,
+    col: card.col,
     children: [result],
     mouseup: queryResultClick,
-  };
-  replClass += replCard.focused ? " focused" : "";
+  };  
   
-  let replCardElement = {
-    id: replCard.id,
-    row: replCard.row,
-    col: replCard.col,
-    c: replClass,
-    click: replCardClick,
-    mousedown: function(event) {event.preventDefault();},
-    children: [codeMirrorElement(queryInput), queryResult],
-  };   
-  return replCardElement;
+  return queryResult;
 }
 
 function generateResultsTable(query: Query) {
@@ -854,23 +858,12 @@ function formListElement(list: Array<any>) {
 }
 
 function resultToObject(result): Object {
-  
+  // @TODO
   return {};
 }
 
 function objectToArray(obj: Object): Array<any> {
   return Object.keys(obj).map(key => obj[key]);
-}
-
-function getCodeMirrorInstance(replCard: ReplCard): CodeMirror.Editor {
-  let targets = document.querySelectorAll(".query-input");
-  for (let i = 0; i < targets.length; i++) {
-    let target = targets[i];
-    if (target.parentElement["_id"] === replCard.id) {
-      return target["cm"];     
-    }
-  }  
-  return undefined;
 }
 
 function elemToReplCard(elem): ReplCard {
@@ -918,11 +911,25 @@ function rerender(removeCards?: boolean) {
 }
 
 // Codemirror!
+
+function getCodeMirrorInstance(replCard: ReplCard): CodeMirror.Editor {
+  let targets = document.querySelectorAll(".query-input");
+  for (let i = 0; i < targets.length; i++) {
+    let target = targets[i];
+    if (target.parentElement["_id"] === replCard.id) {
+      return target["cm"];     
+    }
+  }  
+  return undefined;
+}
+
 interface CMNode extends HTMLElement { cm: any }
+
 interface CMEvent extends Event {
   editor: CodeMirror.Editor
   value: string
 }
+
 export function codeMirrorElement(elem: CMElement): CMElement {
   elem.postRender = codeMirrorPostRender(elem.postRender);
   elem["cmChange"] = elem.change;
@@ -933,6 +940,7 @@ export function codeMirrorElement(elem: CMElement): CMElement {
   elem.focus = undefined;
   return elem;
 }
+
 interface CMElement extends Element {
   autoFocus?: boolean
   lineNumbers?: boolean,
@@ -940,7 +948,9 @@ interface CMElement extends Element {
   mode?: string,
   shortcuts?: {[shortcut:string]: Handler<any>}
 };
+
 let _codeMirrorPostRenderMemo = {};
+
 function handleCMEvent(handler:Handler<Event>, elem:CMElement):(cm:CodeMirror.Editor) => void {
   return (cm:CodeMirror.Editor) => {
     let evt = <CMEvent><any>(new CustomEvent("CMEvent"));
@@ -949,6 +959,7 @@ function handleCMEvent(handler:Handler<Event>, elem:CMElement):(cm:CodeMirror.Ed
     handler(evt, elem);
   }
 }
+
 function codeMirrorPostRender(postRender?: RenderHandler): RenderHandler {
   let key = postRender ? postRender.toString() : "";
   if(_codeMirrorPostRenderMemo[key]) return _codeMirrorPostRenderMemo[key];
