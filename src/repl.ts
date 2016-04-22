@@ -212,7 +212,7 @@ function connectToServer() {
     //console.log("message")
     //console.log(message.data);
     let parsed = JSON.parse(message.data);
-    console.log(parsed);
+    //console.log(parsed);
     // Update the result of the correct repl card
     let targetCard = repl.deck.cards.filter((r) => r.id === parsed.id).shift();
     if (targetCard !== undefined) {
@@ -268,6 +268,9 @@ function connectToServer() {
           // Apply removes
           //@ TODO
         }
+        console.log(message.data)
+        console.log(JSON.parse(message.data));
+        console.log(targetSystemQuery);
       }
     }
     rerender();
@@ -319,6 +322,15 @@ function sendQuery(query: Query): boolean {
   return sendMessage(queryMessage);
 }
 
+function sendAnonymousQuery(query: string): boolean {
+  let queryMessage: QueryMessage = {
+    type: "query",
+    id: uuid(),
+    query: query.replace(/\s+/g,' '),
+  };
+  return sendMessage(queryMessage);  
+}
+
 // ------------------
 // Card functions
 // ------------------
@@ -355,25 +367,29 @@ function deleteReplCard(replCard: ReplCard) {
   }
 }*/
 
-function submitReplCard(replCard: ReplCard) {
-  let query: QueryMessage = {
-    id: replCard.id,
-    type: "query",
-    query: replCard.query.query,
-  }
-  replCard.state = CardState.PENDING;
-  replCard.query.result = undefined;    
-  let sent = sendMessage(query);
-  if (replCard.query.result === undefined) {
+function submitReplCard(card: ReplCard) {
+  let query = card.query;
+  card.state = CardState.PENDING;
+  card.query.result = undefined;
+  card.query.message = ""; 
+  let sent = sendQuery(card.query);
+  let rcQuery = `(query []
+                   (insert-fact! "${card.id}" :tag "repl-card"
+                                              :row ${card.row} 
+                                              :col ${card.col} 
+                                              :query "${card.query.query.replace(/\"/g,'\\"')}"
+                                              :display ${card.display}))`;
+  sendAnonymousQuery(rcQuery);
+  if (card.query.result === undefined) {
     if (sent) {
-      replCard.query.message = "Waiting for response...";
+      card.query.message = "Waiting for response...";
     } else {
-      replCard.query.message = "Message queued.";
+      card.query.message = "Message queued.";
     }
   }
   // Create a new card if we submitted the last one in the col
-  let cardsInCol = repl.deck.cards.filter((r) => r.col === replCard.col && r.state === CardState.NONE);
-  if (cardsInCol.length === 0) {
+  let emptyCardsInCol = repl.deck.cards.filter((r) => r.col === card.col && r.state === CardState.NONE);
+  if (emptyCardsInCol.length === 0) {
     addCardToColumn(repl.deck.focused.col);
     rerender();
   }
@@ -475,7 +491,7 @@ window.onkeydown = function(event) {
 
 function queryInputKeydown(event, elem) {
   let thisReplCard: ReplCard = elemToReplCard(elem);
-  // Submit the query with ctrl + enter
+  // Submit the query with ctrl + enter or ctrl + s
   if ((event.keyCode === 13 || event.keyCode === 83) && event.ctrlKey === true) {
     submitReplCard(thisReplCard);
   // Catch ctrl + delete to remove a card
