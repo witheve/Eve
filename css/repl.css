@@ -42,7 +42,6 @@ html, body {
 .card-column::-webkit-scrollbar-thumb { background-color: rgb(80,80,80); outline: 1px solid slategrey; } 
 .card-column::-webkit-scrollbar-corner { background-color: transparent;} 
 
-
 .repl-card {
   display: flex;
   margin-bottom: 10px;

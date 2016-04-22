@@ -210,8 +210,8 @@ function connectToServer() {
 
   ws.onmessage = function(message) {
     //console.log("message")
-    //console.log(message.data);
-    let parsed = JSON.parse(message.data);
+    //console.log(message.data);    
+    let parsed = JSON.parse(message.data.replace(/\n/g,'\\\\n').replace(/\r/g,'\\\\r').replace(/\t/g,'\\\\t'));
     //console.log(parsed);
     // Update the result of the correct repl card
     let targetCard = repl.deck.cards.filter((r) => r.id === parsed.id).shift();
@@ -272,13 +272,13 @@ function connectToServer() {
         // @TODO This will one day soon be replaced by a storing repl state in the DB
         if (parsed.id === repl.system.queries.id) {
           parsed.insert.forEach((n) => {
-            let replCard = getCard(n[1], n[2]);
+            /*let replCard = getCard(n[1], n[2]);
             if (replCard === undefined) {
               replCard = newReplCard(n[1], n[2]);
               repl.deck.cards.push(replCard);
             }
             replCard.query.query = n[4];
-            submitReplCard(replCard);
+            submitReplCard(replCard);*/
           });
         }
       }
