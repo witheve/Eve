@@ -33,6 +33,10 @@
 
 (defn diesel [d expression trace-on]
   (let [[form keys] (form-from-smil (smil/unpack d expression))
+        _ (when trace-on
+            (println "--- SMIL ---")
+            (pprint form)
+            (println " --- Program / Trace ---"))
         prog (compiler/compile-dsl d @bag form)
         start (System/nanoTime)
         ec (exec/open d prog (print-result keys "" start)
@@ -72,7 +76,7 @@
     (ec 'flush)))
 
 
-(defn trace [d expression]
+(defn trace [d expression trace-on]
   (diesel d (second expression) true))
 
 ;; xxx - this is now...in the language..not really?
