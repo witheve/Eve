@@ -48,7 +48,15 @@ interface Query {
     fields: Array<string>,
     values: Array<Array<any>>,
   }
+  info: QueryInfo,
   message: string,
+}
+
+interface QueryInfo {
+  id: string,
+  raw: string,
+  smil: string,
+  weasl: string,
 }
 
 interface ReplCard {
@@ -252,7 +260,13 @@ function connectToServer() {
         }
         rerender(true);
       } else if (parsed.type === "query-info") {
-        console.log(parsed);
+        let info: QueryInfo = {
+          id: parsed.id,
+          raw: parsed.raw,
+          smil: parsed.smil,
+          weasl: parsed.weasl,
+        };
+        targetCard.query.info = info;
       } else {
         return;
       }
@@ -327,6 +341,7 @@ function newQuery(queryString: string): Query {
     query: queryString,
     result: undefined,
     message: "",
+    info: undefined,
   };
   return query;
 }
@@ -366,6 +381,7 @@ function newReplCard(row?: number, col? :number): ReplCard {
       query: "",
       result: undefined,
       message: "",
+      info: undefined,
     },
     display: CardDisplay.QUERY,
   }
