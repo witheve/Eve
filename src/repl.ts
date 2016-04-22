@@ -101,6 +101,7 @@ interface Repl {
   },
   decks: Array<Deck>,
   deck: Deck,
+  promisedQueries: Array<Query>,
   server: ServerConnection,
 }
 
@@ -424,8 +425,8 @@ function getCard(row: number, col: number): ReplCard {
 function submitReplCard(card: ReplCard) {
   let query = card.query;
   card.state = CardState.PENDING;
-  card.query.result = undefined;
-  card.query.message = ""; 
+  //card.query.result = undefined;
+  //card.query.message = ""; 
   let sent = sendQuery(card.query);
   let rcQuery = `(query []
                    (insert-fact! "${card.id}" :tag "repl-card"
@@ -847,13 +848,20 @@ function generateStatusBarElement() {
   let addColumn = {c: "button", text: "Add Column", click: addColumnClick};
   let addCard = {c: "button", text: "Add Card", click: addCardClick};
   let buttonList = formListElement([deleteButton, addColumn, addCard]);
-  let entities: Array<any> = repl.system.entities.result !== undefined ? repl.system.entities.result.values.map((e) => { return {text: e[0] }; }) : []; 
-  let entitiesList = {c: "entities", children: [formListElement(entities)]};
+  
+  // Build the entities Table
+  let entities: Array<any> = repl.system.entities.result !== undefined ? repl.system.entities.result.values.map((e) => {
+    let entityID = e[0];    
+    return {c: "entity-link", text: entityID, click: function() {console.log(entityID)} };
+  }) : []; 
+  let entitiesElement = {c: "entities", children: [formListElement(entities)]};
+  let entitiesTable = {c: "entities-table", children: [{t: "h2", text: "Entities"}, entitiesElement]};
+  
   // Build the status bar    
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
-    children: [eveLogo, buttonList, statusIndicator, entitiesList],
+    children: [eveLogo, buttonList, statusIndicator, entitiesTable],
   }
   return statusBar;
 }
@@ -882,6 +890,7 @@ let repl: Repl = {
   },
   decks: [replCards],
   deck: replCards,
+  promisedQueries: [],
   server: {
     queue: [],
     state: ConnectionState.CONNECTING,
