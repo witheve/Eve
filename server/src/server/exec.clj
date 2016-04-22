@@ -2,7 +2,7 @@
   (:require [server.edb :as edb]
             [clojure.pprint :refer [pprint cl-format]]))
 
-(def basic-register-frame 10)
+(def basic-register-frame 20)
 (def op-register [0])
 (def qid-register [1])
 (def taxi-register [2])
@@ -536,7 +536,7 @@
                   'sum       sum
                   'sort      dosort
                   'not       donot
-                  
+
                   'insert    doinsert
                   'scan      doscan
                   'send      dosend
