@@ -142,6 +142,7 @@
                                                     (println "ADDS" adds)
                                                     (println "REMOVES" removes))))
                                      "error" (.error js/console "uh oh")
+                                     "query-info" (log data)
                                      )
                                    (when @changed?
                                      (println "GOT CHANGED")

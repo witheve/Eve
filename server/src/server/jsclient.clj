@@ -72,6 +72,18 @@
       (println "<- error" id "to" (:id client) "@" (timestamp))
       (pprint message))))
 
+(defn send-query-info [channel id raw smil weasl]
+  (let [client (get @clients channel)
+        message {"type" "query-info"
+                 "id" id
+                 "raw" raw
+                 "smil" smil
+                 "weasl" weasl}]
+    (httpserver/send! channel (format-json message))
+    (when DEBUG
+      (println "<- query-info" id "to" (:id client) "@" (timestamp))
+      (pprint message))))
+
 (defn start-query [db query id channel]
   (let [results (atom ())
         [form fields]  (repl/form-from-smil query)
@@ -92,7 +104,8 @@
 
     (swap! clients assoc-in [channel :queries id] e)
     (e 'insert)
-    (e 'flush)))
+    (e 'flush)
+    prog))
 
 (defn handle-connection [db channel]
   ;; this seems a little bad..the stack on errors after this seems
@@ -114,19 +127,21 @@
          (condp = t
            "query"
            (let [query (input "query")
-                 expanded (when query (smil/unpack db (smil/read query)))]
+                 expanded (when query (smil/unpack db (smil/read query)))
+                 raw (string/join "\n    " (string/split query #"\n"))
+                 smil (with-out-str (smil/print-smil expanded :indent 2))]
              (println "  Raw:")
-             (println "   " (string/join "\n    " (string/split query #"\n")))
+             (println "   " raw)
              (println "  SMIL:")
-             (smil/print-smil expanded :indent 2)
+             (println smil)
              (println "  WEASL:")
-
-             (condp = (first expanded)
-               'query (start-query db expanded id channel)
-               'define! (do
-                          (repl/define db expanded)
-                          (send-result channel id [] []))
-               (throw (ex-info (str "Invalid query wrapper " (first expanded)) {:expr expanded}))))
+             (let [prog (condp = (first expanded)
+                          'query (start-query db expanded id channel)
+                          'define! (do
+                                     (repl/define db expanded)
+                                     (send-result channel id [] []))
+                          (throw (ex-info (str "Invalid query wrapper " (first expanded)) {:expr expanded})))]
+               (send-query-info channel id raw smil (with-out-str (pprint prog)))))
            "close"
            (let [e (get-in @clients [channel :queries id])]
              (if-not e
