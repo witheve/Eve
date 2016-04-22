@@ -35,6 +35,7 @@ enum ResultsDisplay {
   GRAPH,
   INFO,
   MESSAGE,
+  NONE,
 }
 
 export interface QueryMessage {
@@ -253,6 +254,8 @@ function connectToServer() {
             fields: parsed.fields,
             values: values,
           };
+        } else {
+          targetCard.resultDisplay = ResultsDisplay.NONE;
         }
         targetCard.state = CardState.GOOD;
         //saveReplCard(targetCard);
@@ -276,6 +279,9 @@ function connectToServer() {
           weasl: parsed.weasl,
         };
         targetCard.query.info = info;
+        if (targetCard.resultDisplay === ResultsDisplay.NONE) {
+          targetCard.resultDisplay = ResultsDisplay.INFO;
+        }
       } else {
         return;
       }
