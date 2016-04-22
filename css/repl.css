@@ -13,12 +13,12 @@ html, body {
 /* Basic Structure */
 
 .status-bar {
-  min-width: 125px;
-  max-width: 125px;
+  width: 125px;
   display: flex;
   flex-direction: column;
   align-items: center;
   background-color: rgb(37,37,37);
+  padding: 10px;
 }
 
 .repl {
@@ -41,7 +41,6 @@ html, body {
 .card-column::-webkit-scrollbar-track { box-shadow: inset 0 0 6px rgba(0,0,0,0); } 
 .card-column::-webkit-scrollbar-thumb { background-color: rgb(80,80,80); outline: 1px solid slategrey; } 
 .card-column::-webkit-scrollbar-corner { background-color: transparent;} 
-
 
 .repl-card {
   display: flex;
@@ -84,6 +83,15 @@ html, body {
 
 li {
   margin-bottom: 10px;
+  border-bottom: 1px solid rgb(40,40,40);
+  padding: 2px;
+}
+
+.entities {
+  background-color: rgb(60,60,60);
+  padding: 10px;
+  font-size: 12px;
+  width: 80%;
 }
 
 /* Button styles */ 
@@ -100,8 +108,7 @@ li {
   transition: opacity .5s;
 }
 .button {
-  background-color: rgb(91,89,164);
-  border: 1px solid rgb(74,64,136);
+  border: 1px solid rgb(91,89,164);
   transition: all 1s;
 }
 .button .disabled {
