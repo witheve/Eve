@@ -266,7 +266,19 @@ function connectToServer() {
           // Apply inserts
           targetSystemQuery.result.values = targetSystemQuery.result.values.concat(parsed.insert);
           // Apply removes
-          //@ TODO
+          // @TODO
+        }
+        // Update the repl based on these new system queries
+        // @TODO This will one day soon be replaced by a storing repl state in the DB
+        if (parsed.id === repl.system.queries.id) {
+          parsed.insert.forEach((n) => {
+            let replCard = getCard(n[1], n[2]);
+            if (replCard === undefined) {
+              replCard = newReplCard(n[1], n[2]);
+              repl.deck.cards.push(replCard);
+            }
+            replCard.query.query = n[4];
+          });
         }
       }
     }
@@ -323,7 +335,7 @@ function sendAnonymousQuery(query: string): boolean {
   let queryMessage: QueryMessage = {
     type: "query",
     id: uuid(),
-    query: query.replace(/\s+/g,' '),
+    query: query,
   };
   return sendMessage(queryMessage);  
 }
@@ -363,6 +375,10 @@ function deleteReplCard(replCard: ReplCard) {
     replCard.result = "Deleting card...";
   }
 }*/
+
+function getCard(row: number, col: number): ReplCard {
+  return repl.deck.cards.filter((r) => r.row === row && r.col === col).shift();
+}
 
 function submitReplCard(card: ReplCard) {
   let query = card.query;
@@ -652,7 +668,6 @@ function generateReplCardElement(replCard: ReplCard) {
     matchBrackets: true,
     lineNumbers: false,
   };
-  
   // Set the css according to the card state
   let resultcss = `query-result ${replCard.display === CardDisplay.QUERY ? "hidden" : ""}`;
   let result = undefined;
@@ -812,6 +827,11 @@ function formListElement(list: Array<any>) {
   return {t: "ul", children: li};  
 }
 
+function resultToObject(result): Object {
+  
+  return {};
+}
+
 function objectToArray(obj: Object): Array<any> {
   return Object.keys(obj).map(key => obj[key]);
 }
@@ -867,6 +887,7 @@ function rerender(removeCards?: boolean) {
       rerender(false);
     }, 250);
   }*/
+  //console.log(repl);
   app.dispatch("rerender", {}).commit();
 }
 
