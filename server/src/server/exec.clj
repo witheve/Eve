@@ -2,7 +2,6 @@
   (:require [server.edb :as edb]
             [clojure.pprint :refer [pprint cl-format]]))
 
-(set! *warn-on-reflection* true)
 (def basic-register-frame 10)
 (def op-register [0])
 (def qid-register [1])
@@ -419,7 +418,6 @@
     (fn [r]
       (if (= (rget r op-register) 'insert)
         (let [[e a v b t u] (rget r in)]
-
           (if (= a edb/remove-oid)
             (let [b (base e)
                   old (if b (walk b) b)]
@@ -470,23 +468,38 @@
       (c r))))
 
 
+
+(defn doinsert [d terms build c]
+  (let [[_ dest tup] terms]
+    (fn [r]
+      (condp = (rget r op-register)
+        'insert (edb/insert d (rget r tup) (rget r qid-register) (fn [t]
+                                                                   (rset r dest t)
+                                                                   (c r)))
+        'remove (c r) ;; wait until we have commit frames to remove from
+        'close (c r)
+        'flush (do (edb/flush-bag d (rget r qid-register))
+                   (c r))))))
+
 ;; this needs to send an error message down the pipe
 (defn exec-error [reg comment]
   (throw (ex-info comment {:registers reg :type "exec"})))
 
 
 (defn doscan [d terms build c]
-  (let [[scan oid dest key] terms
+  (let [[scan dest key] terms
         opened (atom ())
         scan (fn [r]
                (let [dr (object-array (vec r))
-                     handle (d 'insert oid (rget r key) (rget r qid-register)
-                               (fn [t op qid]
-                                 (rset dr op-register op)
-                                 (rset dr qid-register qid)
-                                 (when (= op 'insert)
-                                   (rset dr dest t))
-                                 (c dr)))]
+                     ;; handle needs to be moved to the top level
+                     handle (edb/full-scan d
+                                           (rget r qid-register)
+                                           (fn [op t qid]
+                                             (rset dr op-register op)
+                                             (rset dr qid-register qid)
+                                             (when (= op 'insert)
+                                               (rset dr dest t))
+                                             (c dr)))]
                  (swap! opened conj handle)))]
 
 
@@ -497,9 +510,7 @@
         'close (do
                  (doseq [i @opened] (i))
                  (c r))
-        'flush (do (when (= oid edb/insert-oid)
-                     (d 'flush oid (rget r key) (rget r qid-register) (fn [k op] (c r))))
-                   (c r))))))
+        'flush (c r)))))
 
 
 
@@ -525,7 +536,8 @@
                   'sum       sum
                   'sort      dosort
                   'not       donot
-
+                  
+                  'insert    doinsert
                   'scan      doscan
                   'send      dosend
                   'join      dojoin

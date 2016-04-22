@@ -6,16 +6,19 @@
    [server.log :as log]
    [server.smil :as smil]
    [server.repl :as repl]
+   [clojure.java.io :as io]
    [server.jsclient :as jsclient]))
 
-(def db (atom nil))
+(def edb (atom nil))
 (def trace (atom false))
 (def service (atom true))
+(def user (atom (db/wrapoid 100 0 0)))
+(def bag (atom (db/wrapoid 101 0 0)))
 
 (defn -main [& args]
   ;; load existing database..change the way the user is bound here, should go through
   ;; a shim. should also not be exposed to weasl
-  (when (nil? @db) (reset! db (edb/create-edb @repl/user)))
+  (when (nil? @edb) (reset! edb (edb/create-edb)))
   (let [interactive (atom true)
         port (atom 8081)
 
@@ -27,23 +30,35 @@
          "-t" (fn [] (reset! trace true))
          }
 
+        ;; take user and bag for interactive
         parameter-map
-        {"-s" log/set-pathname
+        {"-s" (fn [x]
+                (io/make-parents x)
+                (let [f (clojure.java.io/file x)
+                      existing (log/bags x)]
+                  (.mkdir f)
+                  ;; maka bag
+                  (doseq [i existing]
+                    (println "ibag" i)
+                    (log/scan x i))
+                  ;; read existing logs, we really want to log all the bags, but hey
+                  (log/open @edb x @bag)))
+         
          "-p" (fn [x] (reset! port (Integer. x)))
          
          "-f" (fn [x]
                 (reset! interactive false)
                 (reset! service false)
-                (try (repl/read-all @db (list 'load x) @trace)
+                (try (repl/read-all (edb/create-view @edb @bag @user) (list 'load x) @trace)
                      (catch Exception e
                        (println "error" e))))
-                
-         "-e" (fn [x] (try (repl/eeval @db (smil/read x) @trace)
+         
+         "-e" (fn [x] (try (repl/eeval (edb/create-view @edb @bag @user) (smil/read x) @trace)
                            (catch Exception e
                              (println "error" e))))
          }
-
-
+        
+        
         arglist (fn arglist [args]
                   (if (empty? args) ()
                       (if-let [f (flag-map (first args))]
@@ -55,5 +70,6 @@
                               (arglist (rest (rest args))))
                           (println "invalid argument" (first args))))))]
     (arglist args)
-    (when @service (jsclient/serve @db @port))
-    (when @interactive (repl/rloop @db))))
+    ;; move down
+    (when @service (jsclient/serve (edb/create-view @edb @bag @user) @port))
+    (when @interactive (repl/rloop (edb/create-view @edb @bag @user)))))
