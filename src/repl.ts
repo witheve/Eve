@@ -268,9 +268,6 @@ function connectToServer() {
           // Apply removes
           //@ TODO
         }
-        console.log(message.data)
-        console.log(JSON.parse(message.data));
-        console.log(targetSystemQuery);
       }
     }
     rerender();
