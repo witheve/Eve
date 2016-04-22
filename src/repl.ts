@@ -278,6 +278,7 @@ function connectToServer() {
               repl.deck.cards.push(replCard);
             }
             replCard.query.query = n[4];
+            submitReplCard(replCard);
           });
         }
       }
@@ -331,10 +332,10 @@ function sendQuery(query: Query): boolean {
   return sendMessage(queryMessage);
 }
 
-function sendAnonymousQuery(query: string): boolean {
+function sendAnonymousQuery(query: string, foo): boolean {
   let queryMessage: QueryMessage = {
     type: "query",
-    id: uuid(),
+    id: `query-${foo.row}-${foo.col}`,
     query: query,
   };
   return sendMessage(queryMessage);  
@@ -392,7 +393,7 @@ function submitReplCard(card: ReplCard) {
                                               :col ${card.col} 
                                               :query "${card.query.query.replace(/\"/g,'\\"')}"
                                               :display ${card.display}))`;
-  sendAnonymousQuery(rcQuery);
+  sendAnonymousQuery(rcQuery, card);
   if (card.query.result === undefined) {
     if (sent) {
       card.query.message = "Waiting for response...";
@@ -741,7 +742,7 @@ function generateCardRootElements() {
       id: `card-column-${i}`,
       c: "card-column",
       ix: i,
-      children: repl.deck.cards.filter((r) => r.col === i).map(generateReplCardElement),
+      children: repl.deck.cards.filter((r) => r.col === i).sort((a,b) => a.row - b.row).map(generateReplCardElement),
     };
     cardRoot.children.push(column);
   }
