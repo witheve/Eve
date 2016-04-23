@@ -10,8 +10,10 @@
 (declare render)
 (declare move-selection!)
 (declare add-cell!)
+(declare formula-grid->query)
 
 (def USE-SERVER? true)
+(def BE-STUPIDLY-OPTIMISTIC? true)
 (def LOCAL-ONLY-TAGS #{"selection" "grid-user-state"})
 
 
@@ -211,7 +213,7 @@
 (defn property-updater [cur v]
   (cond
     (set? cur) (conj cur v)
-    cur #{cur v}
+    (and cur (not= cur v)) #{cur v}
     :else v))
 
 (defn property-remover [cur v]
@@ -282,12 +284,18 @@
 
 (defn add-eavs! [context eavs force-local]
   (if (and USE-SERVER? (not force-local))
-    (remote-add-eavs! context eavs)
+    (do
+      (when BE-STUPIDLY-OPTIMISTIC?
+        (locally-add-eavs! context eavs))
+      (remote-add-eavs! context eavs))
     (locally-add-eavs! context eavs)))
 
 (defn remove-eavs! [context eavs force-local]
   (if (and USE-SERVER? (not force-local))
-    (remote-remove-eavs! context eavs)
+    (do
+      (when BE-STUPIDLY-OPTIMISTIC?
+        (locally-remove-eavs! context eavs))
+      (remote-remove-eavs! context eavs))
     (locally-remove-eavs! context eavs)))
 
 (defn make-transaction-context []
@@ -492,7 +500,7 @@
               [{:text value :adornment "create" :action :create :value value}]))
           (match-autocomplete-options [{:text "Table" :adornment "insert" :action :insert :value "table"}
                                        {:text "Code" :adornment "insert" :action :insert :value "code"}
-                                       {:text "Formula grid" :adornment "insert" :action :insert :value "formula-grid" :generate-grid {:type "formula"}}
+                                       {:text "Formula grid" :adornment "insert" :action :insert :value "formula-grid" :generate-grid {:tag "formula"}}
                                        {:text "Image" :adornment "insert" :action :insert :value "image"}
                                        {:text "Text" :adornment "insert" :action :insert :value "text"}
                                        {:text "Chart" :adornment "insert" :action :insert :value "chart"}
@@ -660,6 +668,9 @@
                                       ;; on the grid.
                                       (when-not property
                                         (update-entity! context (:id cell) {:value value-id}))
+                                      ;; @TODO: this probably shouldn't be here
+                                      (when (= (:type cell) "formula-token")
+                                        (replace-and-send-query grid-id (formula-grid->query grid-id)))
                                       (clear-intermediates! context grid-id)
                                       (update-state! context grid-id :active-cell nil)
                                       (move-selection! context grid-id direction))))))
@@ -855,6 +866,61 @@
                   (text :style (style :font-size "12pt"
                                       :padding-left 8)
                         :text (for-display (:value cell))))))))
+
+(defn walk-graph [graph node parent-symbol query info]
+  (println node parent-symbol query)
+  (if (= :root node)
+    (reduce (fn [query child]
+              (let [child-sym (gensym child)
+                    updated (conj query `(fact-btu ~child-sym "tag" ~((:name-to-value @info) child)))]
+                (swap! info update-in [:vars] conj child-sym)
+                (reduce (fn [query sub-child]
+                          (walk-graph graph sub-child child-sym query info))
+                        updated
+                        (graph child))))
+            query
+            (:root graph))
+    ;; otherwise...
+    (let [node-sym (gensym node)
+          query (conj query `(fact-btu ~parent-symbol ~node ~node-sym))]
+      (swap! info update-in [:vars] conj node-sym)
+      (reduce (fn [query child]
+                (walk-graph graph child node-sym query info))
+              query
+              (graph node)))))
+
+(defn formula-grid->query [id]
+  (let [cells (entities {:tag "cell" :grid-id id})
+        sorted (sort-by (juxt :y :x) cells)
+        cols (atom {})
+        info (atom {:vars [] :name-to-value {}})
+        edges (for [cell sorted
+                    :let [{:keys [value x]} cell
+                          child-name (when value
+                                       (or (:name (entity {:id value})) value))
+                          ;; your parent is whatever is the first thing to the left and up
+                          ;; if there isn't anything there, then you must be a root
+                          parent (or (@cols (dec x))
+                                     :root)
+                          _ (swap! info update-in [:name-to-value] assoc child-name value)
+                          _ (swap! cols assoc x value)]]
+                [parent value])
+        ;; to the edges into {parent [child, child2, ...]}
+        graph (reduce (fn [graph edge]
+                        (let [[parent child] edge
+                              parent (or (:name (entity {:id parent})) parent)
+                              child (or (:name (entity {:id child})) child)
+                              cur (graph parent)
+                              neue (if cur
+                                     (conj cur child)
+                                     [child])]
+                          (assoc graph parent neue)))
+                      {}
+                      edges)
+        clauses (walk-graph graph :root nil [] info)]
+    (query-string `(query ~(vec (:vars @info))
+                          ~@clauses))
+    ))
 
 ;;---------------------------------------------------------
 ;; Code cell
