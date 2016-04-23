@@ -306,6 +306,23 @@
     ;; @FIXME: Dependent on synchronous evaluation: expects for-each-implication to have completed
     (apply build (map #(generate-send env m %1 (map call-map input)) @arms))))
 
+(defn compile-primitive [params]
+  (fn [env terms down]
+    (let [argmap (apply hash-map (rest terms))
+          m (meta (first terms))
+          simple (into [(argmap :return)] (map argmap params))
+          ins (map #(get-in @env ['bound %1] nil) simple)]
+      (apply add-dependencies env (rest (rest terms)))
+      (if-not (some nil? (rest ins))
+        ;; handle the [b*] case by blowing out a temp
+        (do
+          (allocate-register env (first simple))
+          (build
+           (apply term env (first terms) m simple)
+           (down)))
+        (compile-error (str "unhandled bound signature in" terms) {:env env :terms terms})))))
+
+
 (defn compile-simple-primitive [env terms down]
   (let [argmap (apply hash-map (rest terms))
         m (meta (first terms))
@@ -393,6 +410,7 @@
                   '* compile-simple-primitive
                   '/ compile-simple-primitive
                   '- compile-simple-primitive
+                  'hash compile-simple-primitive
                   '< generate-binary-filter
                   '> generate-binary-filter
                   'sort compile-sort
