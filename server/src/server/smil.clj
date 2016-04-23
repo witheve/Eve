@@ -89,6 +89,9 @@
                  '< {:args [:a :b] :kwargs [:return] :optional #{:return}}
                  '<= {:args [:a :b] :kwargs [:return] :optional #{:return}}
 
+                 'concat {:rest :args}
+                 'hash {:args [:a]}
+
                  'sum {:args [:a] :kwargs [:return] :optional #{:return}}})
 
 (defn get-schema
