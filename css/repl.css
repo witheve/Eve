@@ -88,6 +88,17 @@ h2 {
   flex-grow: 1;
 }
 
+/* Modal Styles */
+
+.modal {
+  background-color: rgba(0,0,0,.7);
+  border: 1px solid rgb(91,89,164);
+  padding: 10px;
+  position: absolute;
+  width: 100px;
+  height: 100px;
+}
+
 /* Table Styles */
 
 .table { display: table; }
