@@ -188,11 +188,12 @@
 (import '[java.io PushbackReader])
 (require '[clojure.java.io :as io])
 
-(defn serve [db port]
-  (println (str "Serving on localhost:" port "/repl"))
-  (when-not (nil? @server)
-    (@server :timeout 0))
-  (try
-    (reset! server
-            (httpserver/run-server (async-handler db "<http><body>foo</body><http>") {:port port}))
-    (catch Exception e (println (str "caught exception: " e (.getMessage e))))))
+(defn serve [edb user bag port]
+  (let [db (edb/create-view edb user bag)]
+    (println (str "Serving on localhost:" port "/repl"))
+    (when-not (nil? @server)
+      (@server :timeout 0))
+    (try
+      (reset! server
+              (httpserver/run-server (async-handler db "<http><body>foo</body><http>") {:port port}))
+      (catch Exception e (println (str "caught exception: " e (.getMessage e)))))))
