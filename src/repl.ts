@@ -265,6 +265,8 @@ function connectToServer() {
         targetCard.state = CardState.ERROR;
         targetCard.query.message = parsed.cause;
         targetCard.display = CardDisplay.BOTH;
+        targetCard.resultDisplay = ResultsDisplay.MESSAGE;
+        targetCard.query.info = undefined;
         targetCard.query.result = undefined;
         //saveReplCard(targetCard);
       } else if (parsed.type === "close") {
