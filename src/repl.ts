@@ -52,12 +52,14 @@ export interface CloseMessage {
 interface Query {
   id: string,
   query: string,
-  result: {
-    fields: Array<string>,
-    values: Array<Array<any>>,
-  }
+  result: QueryResult,
   info: QueryInfo,
   message: string,
+}
+
+interface QueryResult {
+  fields: Array<string>,
+  values: Array<Array<any>>
 }
 
 interface QueryInfo {
@@ -693,8 +695,15 @@ function resultSwitchClick(event, elem) {
 }
 
 function entityListClick(event, elem) {
-  let Q = newQuery(`(query [attribute value] (fact-btu "${elem.text}" attribute value))`)
-  repl.modal = {c: "modal", left: 110, top: event.pageY - 50, text: `${elem.text}`};
+  // Filter out results for only the current entity 
+  let result: QueryResult = {
+    fields: ["Attribute", "Value"],
+    values: repl.system.entities.result.values.filter((e) => e[0] === elem.text).map((e) => [e[1], e[2]]),
+  };
+  // Generate the table
+  let table = generateResultTable(result);
+  repl.modal = {c: "modal", left: 110, top: event.pageY - 50, children: [table]};
+  // Prevent click event from propagating to another layer
   event.stopImmediatePropagation();
   rerender();
 }
@@ -784,7 +793,7 @@ function generateResultElement(card: ReplCard) {
   } else if (card.resultDisplay === ResultsDisplay.MESSAGE) {
     result = {text: card.query.message};  
   } else if (card.resultDisplay === ResultsDisplay.TABLE) {
-    result = generateResultsTable(card.query);  
+    result = generateResultTable(card.query.result);  
   }
   // Add the info switch if there is info to be had
   if (card.query.info !== undefined) {
@@ -807,12 +816,12 @@ function generateResultElement(card: ReplCard) {
   return queryResult;
 }
 
-function generateResultsTable(query: Query) {
-  if (query.result.fields.length > 0) {
-    let tableHeader = {c: "header", children: query.result.fields.map((f: string) => {
+function generateResultTable(result: QueryResult) {
+  if (result.fields.length > 0) {
+    let tableHeader = {c: "header", children: result.fields.map((f: string) => {
       return {c: "cell", text: f};
     })};
-    let tableBody = query.result.values.map((r: Array<any>) => {
+    let tableBody = result.values.map((r: Array<any>) => {
       return {c: "row", children: r.map((c: any) => {
         return {c: "cell", text: `${c}`};
       })};
@@ -859,10 +868,9 @@ function generateStatusBarElement() {
   let buttonList = formListElement([deleteButton, addColumn, addCard]);
   
   // Build the entities Table
-  let entities: Array<any> = repl.system.entities.result !== undefined ? repl.system.entities.result.values.map((e) => {
-    let entityID = e[0];    
-    return {c: "entity-link", text: entityID, click: entityListClick };
-  }) : []; 
+  let entities: Array<any> = repl.system.entities.result !== undefined ? unique(repl.system.entities.result.values.map((e) => e[0])).map((e) => {
+    return {c: "entity-link", text: e, click: entityListClick };
+  }) : [];
   let entitiesElement = {c: "entities", children: [formListElement(entities)]};
   let entitiesTable = {c: "entities-table", children: [{t: "h2", text: "Entities"}, entitiesElement]};
   
@@ -891,7 +899,7 @@ let replCards: Deck = {
 let repl: Repl = {
   init: false,
   system: {
-    entities: newQuery(`(query [entities] (fact-btu entities))`), // get all entities in the database
+    entities: newQuery(`(query [entities attributes values] (fact-btu entities attributes values))`), // get all entities in the database
     tags: newQuery(`(query [tags], (fact-btu e "tag" tags))`),    // get all tags in the database
     queries: newQuery(`(query [id row col display query]
                          (fact id :tag "repl-card" :row row :col col :display display :query query))` // Get all the open queries
@@ -925,6 +933,11 @@ function root() {
 // -----------------
 // Utility Functions
 // -----------------
+
+function unique(array: Array<any>): Array<any> {
+  array = array.filter((e,i) => array.indexOf(e) === i);
+  return array;
+}
 
 function formListElement(list: Array<any>) {
   let li = list.map((e) => {return {t: "li", children: [e]};});

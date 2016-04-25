@@ -93,10 +93,8 @@ h2 {
 .modal {
   background-color: rgba(0,0,0,.7);
   border: 1px solid rgb(91,89,164);
-  padding: 10px;
+  padding: 20px;
   position: absolute;
-  width: 100px;
-  height: 100px;
 }
 
 /* Table Styles */
