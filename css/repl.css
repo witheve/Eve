@@ -50,12 +50,13 @@ h2 {
 }
 
 .card-root {
+  padding: 10 0 10 10;
   display: flex;
   flex-grow: 1;
 }
 
 .card-column {
-  padding: 10px;
+  padding: 0 10 0 0px;
   flex-grow: 1;
   background-color: rgb(30,30,30);
   overflow-y: auto;
