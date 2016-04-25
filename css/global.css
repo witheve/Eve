@@ -1,0 +1,38 @@
+body { background: #000; }
+div { display:flex; outline:none; flex-direction:column; }
+
+button, input, textarea { background:none; border:none; margin:0; padding:0; outline:none; font-family:inherit; color: inherit; text-align:left; line-height:inherity; font-size:inherit; }
+
+.CodeMirror { flex:1; height:auto; }
+.CodeMirror-scroll { height:auto; }
+
+.CodeMirror-cursor { border-color: #ccc; }
+
+.cm-s-default { background:none; color: #ccc; }
+.cm-s-default .cm-string { color: #999; }
+.cm-s-default .cm-number { color: #999; }
+.cm-s-default .cm-atom { color: #999; }
+.cm-s-default .cm-builtin { color: #99f; }
+
+::-webkit-input-placeholder {
+   color: #777;
+}
+:-moz-placeholder { /* Firefox 18- */
+   color: #777;
+}
+::-moz-placeholder {  /* Firefox 19+ */
+   color: #777;
+}
+:-ms-input-placeholder {
+   color: #777;
+}
+
+.noselect {
+  -webkit-touch-callout: none; /* iOS Safari */
+  -webkit-user-select: none;   /* Chrome/Safari/Opera */
+  -khtml-user-select: none;    /* Konqueror */
+  -moz-user-select: none;      /* Firefox */
+  -ms-user-select: none;       /* IE/Edge */
+  user-select: none;           /* non-prefixed version, currently
+                                  not supported by any browser */
+}

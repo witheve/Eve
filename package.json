@@ -27,7 +27,7 @@
   },
   "scripts": {
     "test": "./test.sh",
-    "dev": "node run.js -w -s",
+    "dev": "node run.js -w",
     "repl": "node bin/src/repl.js"
   },
   "repository": {

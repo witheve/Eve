@@ -1,18 +1,17 @@
 (ns server.edb)
 
-
-;; need to put some thought into what this timestamp is
-;; should probably (?) be at least monotonic, and likely
-;; include some form of node identity (and insert batch
-;; bits)
-;; this doesn't belong here - depending on the consistency
-;; story
+;; xxx - this time and uuid stuff is here just because cyclic dependency, not
+;; because it really belongs here
 
 (def current-milli (ref 0))
 (def current-count (ref 0))
 
-;; this is a long with milli and a count...we need to stuff intra-batch
-;; bits in here also
+;; should be a uuid
+(def remove-fact 5)
+
+;; bag metadata - contains
+;; user metadata
+  
 (defn now[]
   (dosync 
    (let [k (System/currentTimeMillis)]
@@ -23,64 +22,61 @@
        (alter current-count + 1))
      (bit-or (bit-shift-left @current-milli 20) @current-count))))
 
-;; xxx - reconcile with smil
+
+;; xxx - reconcile with smil - not used here
 (def remove-oid 5)
-
-(def insert-oid 20)
-(def full-scan-oid 21)
-(def attribute-scan-oid 22)
+;; this bag contains that bad at time t
   
-(def index-map
-  ;e a v
-  {[true  false false] full-scan-oid
-   [false true  false] full-scan-oid
-   [false false true] full-scan-oid
-   [true  true  false] full-scan-oid
-   [false true  true] full-scan-oid
-   [true  false true] full-scan-oid
-   [true  true  true] full-scan-oid
-  })
+(defn create-edb [] (atom {}))
 
+(defn install-bag [edb bag-id]
+  (dosync
+   (if-let [x (@edb bag-id)] x
+     (let [f [(atom '()) (atom #{})]]      
+       (swap! edb assoc bag-id f)
+       f))))
 
-;; there is a consistency problem with tuples and listeners
-(defn create-edb [user]
-  (let [tuples (atom [])
-        by-attribute ()
-        a (object-array [1])
-        
-        listeners (atom #{})
-        index-map  {insert-oid
-                    (fn [key c op id]
-                      (when (= op 'insert) 
-                        (let [t (now)
-                              tuple (object-array (vector (aget key 0)
-                                                          (aget key 1)
-                                                          (aget key 2)
-                                                          (aget key 3)
-                                                          t
-                                                          user))]
-                          (swap! tuples conj tuple)
-                          (doseq [i @listeners] ((i 0) tuple op id))
-                          (c tuple op id)
-                          (fn [] ()))))
+(defn create-bag [edb bag-id references]
+  (install-bag edb bag-id))
 
+(defn create-view [edb bag-id user]
+  [(install-bag edb bag-id) user])
 
-                    full-scan-oid
-                    (fn [key c op id]
-                      (if (= op 'insert)
-                        (do
-                          (swap! listeners conj [c id])
-                          (doseq [i @tuples] (c i op id))
-                          (fn [] (swap! listeners disj [c id])))
-                        (fn [] ())))}]
+(defn tuples [view] ((view 0) 0))
+(defn listeners [view] ((view 0) 1))
+(defn user [view] (view 1))
 
+(defn add-listener [view id c]
+  (swap! (listeners view) conj [c id])
+  (fn [] (swap! (listeners view) disj [c id])))
 
-    (fn [op index key id c]
-      ;; should be if i've said anything that he cared about?
-      ;; should in general not issue a flush if nothing has
-      ;; changed across a projection also..i think we decided that
-      (if (and (= index insert-oid) (= op 'flush))
-        (doseq [i @listeners] (when (not (= id (i 1)))
-                                ((i 0) [] op id)))
-        ((index-map index) key c op id)))))
+(defn insert [view eav id c]
+  (let [t (now)
+        tuple (object-array (vector (aget eav 0)
+                                    (aget eav 1)
+                                    (aget eav 2)
+                                    t
+                                    (user view)))]
+    (println "insert" (map str tuple))
+    (swap! (tuples view) conj tuple)
+    (doseq [i @(listeners view)]
+      ((i 0) 'insert tuple (i 1)))
+    (c t)))
 
+(defn flush-bag [view id]
+  (doseq [i @(listeners view)]
+    (when (not (= id (i 1)))
+          ((i 0) 'flush [] (i 1)))))
+
+(defn full-scan [view id c]
+  (doseq [i @(tuples view)]
+    (c 'insert (object-array [(aget i 0)
+                              (aget i 1)
+                              (aget i 2)
+                              0
+                              (aget i 3)
+                              (aget i 4)])
+       id))
+  (add-listener view id c))
+
+(defn open-new-view [view bag-id] )

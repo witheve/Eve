@@ -1,7 +1,7 @@
 import app = require("./app");
 import {autoFocus} from "./utils";
 import * as CodeMirror from "codemirror";
-import {codeMirrorElement} from "./ui";
+import {Element, Handler, RenderHandler, Renderer} from "./microReact";
 
 let WebSocket = require('ws');
 let uuid = require("uuid");
@@ -30,6 +30,14 @@ enum CardDisplay {
   BOTH,  
 }
 
+enum ResultsDisplay {
+  TABLE,
+  GRAPH,
+  INFO,
+  MESSAGE,
+  NONE,
+}
+
 export interface QueryMessage {
   type: string,
   query: string,
@@ -48,7 +56,15 @@ interface Query {
     fields: Array<string>,
     values: Array<Array<any>>,
   }
+  info: QueryInfo,
   message: string,
+}
+
+interface QueryInfo {
+  id: string,
+  raw: string,
+  smil: string,
+  weasl: string,
 }
 
 interface ReplCard {
@@ -59,6 +75,7 @@ interface ReplCard {
   focused: boolean,
   query: Query,
   display: CardDisplay,
+  resultDisplay: ResultsDisplay,
 }
 
 interface ServerConnection {
@@ -80,9 +97,12 @@ interface Repl {
   system: {
     entities: Query,  
     tags: Query,
+    queries: Query,
   },
   decks: Array<Deck>,
   deck: Deck,
+  promisedQueries: Array<Query>,
+  modal: any,
   server: ServerConnection,
 }
 
@@ -209,8 +229,8 @@ function connectToServer() {
 
   ws.onmessage = function(message) {
     //console.log("message")
-    //console.log(message.data);
-    let parsed = JSON.parse(message.data);
+    //console.log(message.data);    
+    let parsed = JSON.parse(message.data.replace(/\n/g,'\\\\n').replace(/\r/g,'\\\\r').replace(/\t/g,'\\\\t'));
     //console.log(parsed);
     // Update the result of the correct repl card
     let targetCard = repl.deck.cards.filter((r) => r.id === parsed.id).shift();
@@ -223,6 +243,7 @@ function connectToServer() {
           if (targetCard.state === CardState.PENDING) {
             values = parsed.insert;
             targetCard.display = CardDisplay.BOTH;
+            targetCard.resultDisplay = ResultsDisplay.TABLE;
           // If the card is Good, that means it already has results
           // and the current message is updating them
           } else if (targetCard.state === CardState.GOOD) {
@@ -235,6 +256,8 @@ function connectToServer() {
             fields: parsed.fields,
             values: values,
           };
+        } else {
+          targetCard.resultDisplay = ResultsDisplay.NONE;
         }
         targetCard.state = CardState.GOOD;
         //saveReplCard(targetCard);
@@ -250,22 +273,52 @@ function connectToServer() {
           replCards[removeIx].state = CardState.CLOSED;
         }
         rerender(true);
+      } else if (parsed.type === "query-info") {
+        let info: QueryInfo = {
+          id: parsed.id,
+          raw: parsed.raw,
+          smil: parsed.smil,
+          weasl: parsed.weasl,
+        };
+        targetCard.query.info = info;
+        if (targetCard.resultDisplay === ResultsDisplay.NONE) {
+          targetCard.resultDisplay = ResultsDisplay.INFO;
+        }
+      } else {
+        return;
       }
     // If the query ID was not matched to a repl card, then it should 
     // matche a system query
     } else {
       let targetSystemQuery: Query = objectToArray(repl.system).filter((q) => q.id === parsed.id).shift();
       if (targetSystemQuery !== undefined) {
-        if (targetSystemQuery.result === undefined) {
-          targetSystemQuery.result = {
-            fields: parsed.fields,
-            values: parsed.insert,
-          };
+        if (parsed.type === "result") {
+          if (targetSystemQuery.result === undefined) {
+            targetSystemQuery.result = {
+              fields: parsed.fields,
+              values: parsed.insert,
+            };
+          } else {
+            // Apply inserts
+            targetSystemQuery.result.values = targetSystemQuery.result.values.concat(parsed.insert);
+            // Apply removes
+            // @TODO
+          }
+          // Update the repl based on these new system queries
+          // @TODO This will one day soon be replaced by a storing repl state in the DB
+          if (parsed.id === repl.system.queries.id && parsed.insert !== undefined) {
+            parsed.insert.forEach((n) => {
+              /*let replCard = getCard(n[1], n[2]);
+              if (replCard === undefined) {
+                replCard = newReplCard(n[1], n[2]);
+                repl.deck.cards.push(replCard);
+              }
+              replCard.query.query = n[4];
+              submitReplCard(replCard);*/
+            });
+          }  
         } else {
-          // Apply inserts
-          targetSystemQuery.result.values = targetSystemQuery.result.values.concat(parsed.insert);
-          // Apply removes
-          //@ TODO
+          return;
         }
       }
     }
@@ -305,6 +358,7 @@ function newQuery(queryString: string): Query {
     query: queryString,
     result: undefined,
     message: "",
+    info: undefined,
   };
   return query;
 }
@@ -316,6 +370,15 @@ function sendQuery(query: Query): boolean {
     query: query.query,
   };
   return sendMessage(queryMessage);
+}
+
+function sendAnonymousQuery(query: string, foo): boolean {
+  let queryMessage: QueryMessage = {
+    type: "query",
+    id: `query-${foo.row}-${foo.col}`,
+    query: query,
+  };
+  return sendMessage(queryMessage);  
 }
 
 // ------------------
@@ -335,8 +398,10 @@ function newReplCard(row?: number, col? :number): ReplCard {
       query: "",
       result: undefined,
       message: "",
+      info: undefined,
     },
     display: CardDisplay.QUERY,
+    resultDisplay: ResultsDisplay.MESSAGE,
   }
   return replCard;
 }
@@ -354,25 +419,34 @@ function deleteReplCard(replCard: ReplCard) {
   }
 }*/
 
-function submitReplCard(replCard: ReplCard) {
-  let query: QueryMessage = {
-    id: replCard.id,
-    type: "query",
-    query: replCard.query.query.replace(/\s+/g,' '),
-  }
-  replCard.state = CardState.PENDING;
-  replCard.query.result = undefined;    
-  let sent = sendMessage(query);
-  if (replCard.query.result === undefined) {
+function getCard(row: number, col: number): ReplCard {
+  return repl.deck.cards.filter((r) => r.row === row && r.col === col).shift();
+}
+
+function submitReplCard(card: ReplCard) {
+  let query = card.query;
+  card.state = CardState.PENDING;
+  //card.query.result = undefined;
+  //card.query.message = ""; 
+  let sent = sendQuery(card.query);
+  let rcQuery = `(query []
+                   (insert-fact! "${card.id}" :tag "repl-card"
+                                              :row ${card.row} 
+                                              :col ${card.col} 
+                                              :query "${card.query.query.replace(/\"/g,'\\"')}"
+                                              :display ${card.display}))`;
+  //console.log(rcQuery);
+  //sendAnonymousQuery(rcQuery, card);
+  if (card.query.result === undefined) {
     if (sent) {
-      replCard.query.message = "Waiting for response...";
+      card.query.message = "Waiting for response...";
     } else {
-      replCard.query.message = "Message queued.";
+      card.query.message = "Message queued.";
     }
   }
   // Create a new card if we submitted the last one in the col
-  let cardsInCol = repl.deck.cards.filter((r) => r.col === replCard.col && r.state === CardState.NONE);
-  if (cardsInCol.length === 0) {
+  let emptyCardsInCol = repl.deck.cards.filter((r) => r.col === card.col && r.state === CardState.NONE);
+  if (emptyCardsInCol.length === 0) {
     addCardToColumn(repl.deck.focused.col);
     rerender();
   }
@@ -474,7 +548,7 @@ window.onkeydown = function(event) {
 
 function queryInputKeydown(event, elem) {
   let thisReplCard: ReplCard = elemToReplCard(elem);
-  // Submit the query with ctrl + enter
+  // Submit the query with ctrl + enter or ctrl + s
   if ((event.keyCode === 13 || event.keyCode === 83) && event.ctrlKey === true) {
     submitReplCard(thisReplCard);
   // Catch ctrl + delete to remove a card
@@ -520,8 +594,8 @@ function queryInputFocus(event, elem) {
 
 function replCardClick(event, elem) {
   let clickedCard = elemToReplCard(elem);
-  if (clickedCard !== undefined) {
-    focusCard(clickedCard);  
+  if (clickedCard !== undefined) {  
+    focusCard(clickedCard);
   }
   rerender();
 }
@@ -609,6 +683,20 @@ function queryInputClick(event, elem) {
   }
 }
 
+function resultSwitchClick(event, elem) {
+  let card = elemToReplCard(elem);
+  card.resultDisplay = elem.data;
+  event.preventDefault();
+  rerender();
+}
+
+function entityListClick(event, elem) {
+  let Q = newQuery(`(query [attribute value] (fact-btu "${elem.text}" attribute value))`)
+  repl.modal = {c: "modal", left: event.pageX + 10, top: event.pageY, text: `${elem.text}`};
+  event.preventDefault();
+  rerender();
+}
+
 /*
 function rootClick(event, elem) {
   closeModals();
@@ -639,62 +727,98 @@ function generateReplCardElement(replCard: ReplCard) {
     lineNumbers: false,
   };
   
-  // Set the css according to the card state
-  let resultcss = `query-result ${replCard.display === CardDisplay.QUERY ? "hidden" : ""}`;
-  let result = undefined;
-  let replClass = "repl-card";
-  // Format card based on state
-  if (replCard.state === CardState.GOOD || (replCard.state === CardState.PENDING && typeof replCard.query.result === 'object')) {
-    if (replCard.state === CardState.GOOD) {
-      resultcss += " good";      
-    } else if (replCard.state === CardState.PENDING) {
-      resultcss += " pending";
-    }
-    result = replCard.query !== undefined ? generateResultsTable(replCard.query) : {};
-  } else if (replCard.state === CardState.ERROR) {
-    queryInput.c += " error";
-    result = {text: replCard.query.message};
-  } else if (replCard.state === CardState.PENDING) {
-    resultcss += " pending";
-    result = {text: replCard.query.message};
-  } else if (replCard.state === CardState.CLOSED) {
-    resultcss += " closed";
-    replClass += " no-height";
-    result = {text: `Query closed.`};
-  }
-  
-  let queryResult = {
-    c: resultcss, 
-    row: replCard.row,
-    col: replCard.col,
-    children: [result],
-    mouseup: queryResultClick,
-  };
-  replClass += replCard.focused ? " focused" : "";
-  
   let replCardElement = {
     id: replCard.id,
     row: replCard.row,
     col: replCard.col,
-    c: replClass,
+    c: `repl-card ${replCard.focused ? " focused" : ""}`,
     click: replCardClick,
-    mousedown: function(event) {event.preventDefault();},
-    children: [codeMirrorElement(queryInput), queryResult],
+    //mousedown: function(event) {event.preventDefault();},
+    children: [codeMirrorElement(queryInput), generateResultElement(replCard)],
   };   
   return replCardElement;
 }
 
+function generateResultElement(card: ReplCard) {
+// Set the css according to the card state
+  let resultcss = `query-result ${card.display === CardDisplay.QUERY ? "hidden" : ""}`;
+  let result = undefined;
+  let replClass = "repl-card";
+  // Build the results switches
+  let tableSwitch   = {c: `button ${card.resultDisplay === ResultsDisplay.TABLE   ? "" : "disabled "}ion-grid`, text: " Table", data: ResultsDisplay.TABLE, row: card.row, col: card.col, click: resultSwitchClick };
+  let graphSwitch   = {c: `button ${card.resultDisplay === ResultsDisplay.GRAPH   ? "" : "disabled "}ion-stats-bars`, data: ResultsDisplay.GRAPH, row: card.row, col: card.col, text: " Graph"};
+  let messageSwitch = {c: `button ${card.resultDisplay === ResultsDisplay.MESSAGE ? "" : "disabled "}ion-quote`, data: ResultsDisplay.MESSAGE, row: card.row, col: card.col, text: " Message"};
+  let infoSwitch    = {c: `button ${card.resultDisplay === ResultsDisplay.INFO    ? "" : "disabled "}ion-help`, data: ResultsDisplay.INFO, row: card.row, col: card.col, text: " Info", click: resultSwitchClick};
+  let switches = [];
+  // Format card based on state
+  if (card.state === CardState.GOOD) {
+    resultcss += " good";      
+    if (card.query.result !== undefined) {
+      switches.push(tableSwitch);
+    }
+  } else if (card.state === CardState.ERROR) {
+    resultcss += " error";
+    switches.push(messageSwitch);
+  } else if (card.state === CardState.PENDING) {
+    resultcss += " pending";
+    switches.push(messageSwitch);
+  } else if (card.state === CardState.CLOSED) {
+    resultcss += " closed";    
+    switches.push(messageSwitch);
+  }
+  // Pick the results to display
+  if (card.resultDisplay === ResultsDisplay.GRAPH) {
+    // @TODO
+    result = {};
+  } else if (card.resultDisplay === ResultsDisplay.INFO) {
+    result = {c: "debug", children: [
+      {t: "h1", text: "Raw"},
+      {c: "code", text: card.query.info.raw},
+      {t: "h1", text: "SMIL :)"},
+      {c: "code", text: card.query.info.smil},
+      {t: "h1", text: "WEASL"},
+      {c: "code", text: card.query.info.weasl},
+    ]};
+              
+  } else if (card.resultDisplay === ResultsDisplay.MESSAGE) {
+    result = {text: card.query.message};  
+  } else if (card.resultDisplay === ResultsDisplay.TABLE) {
+    result = generateResultsTable(card.query);  
+  }
+  // Add the info switch if there is info to be had
+  if (card.query.info !== undefined) {
+    switches.push(infoSwitch); 
+  }
+  // Build the results switch container
+  let resultViewSwitch = {
+    c: "results-switch",
+    children: switches,
+  };
+  
+  let queryResult = {
+    c: resultcss, 
+    row: card.row,
+    col: card.col,
+    children: [resultViewSwitch, result],
+    mouseup: queryResultClick,
+  };  
+  
+  return queryResult;
+}
+
 function generateResultsTable(query: Query) {
-  let tableHeader = {c: "header", children: query.result.fields.map((f: string) => {
-    return {c: "cell", text: f};
-  })};
-  let tableBody = query.result.values.map((r: Array<any>) => {
-    return {c: "row", children: r.map((c: any) => {
-      return {c: "cell", text: `${c}`};
+  if (query.result.fields.length > 0) {
+    let tableHeader = {c: "header", children: query.result.fields.map((f: string) => {
+      return {c: "cell", text: f};
     })};
-  });
-  let tableRows = [tableHeader].concat(tableBody);
-  return {c: "table", children: tableRows};  
+    let tableBody = query.result.values.map((r: Array<any>) => {
+      return {c: "row", children: r.map((c: any) => {
+        return {c: "cell", text: `${c}`};
+      })};
+    });
+    let tableRows = [tableHeader].concat(tableBody);
+    return {c: "table", children: tableRows};
+  }  
 }
 
 function generateCardRootElements() {
@@ -710,7 +834,7 @@ function generateCardRootElements() {
       id: `card-column-${i}`,
       c: "card-column",
       ix: i,
-      children: repl.deck.cards.filter((r) => r.col === i).map(generateReplCardElement),
+      children: repl.deck.cards.filter((r) => r.col === i).sort((a,b) => a.row - b.row).map(generateReplCardElement),
     };
     cardRoot.children.push(column);
   }
@@ -732,13 +856,20 @@ function generateStatusBarElement() {
   let addColumn = {c: "button", text: "Add Column", click: addColumnClick};
   let addCard = {c: "button", text: "Add Card", click: addCardClick};
   let buttonList = formListElement([deleteButton, addColumn, addCard]);
-  let entities: Array<any> = repl.system.entities.result !== undefined ? repl.system.entities.result.values.map((e) => { return {text: e[0] }; }) : []; 
-  let entitiesList = formListElement(entities);
+  
+  // Build the entities Table
+  let entities: Array<any> = repl.system.entities.result !== undefined ? repl.system.entities.result.values.map((e) => {
+    let entityID = e[0];    
+    return {c: "entity-link", text: entityID, click: entityListClick };
+  }) : []; 
+  let entitiesElement = {c: "entities", children: [formListElement(entities)]};
+  let entitiesTable = {c: "entities-table", children: [{t: "h2", text: "Entities"}, entitiesElement]};
+  
   // Build the status bar    
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
-    children: [eveLogo, buttonList, statusIndicator, entitiesList],
+    children: [eveLogo, buttonList, statusIndicator, entitiesTable],
   }
   return statusBar;
 }
@@ -761,9 +892,14 @@ let repl: Repl = {
   system: {
     entities: newQuery(`(query [entities] (fact-btu entities))`), // get all entities in the database
     tags: newQuery(`(query [tags], (fact-btu e "tag" tags))`),    // get all tags in the database
+    queries: newQuery(`(query [id row col display query]
+                         (fact id :tag "repl-card" :row row :col col :display display :query query))` // Get all the open queries
+    ),
   },
   decks: [replCards],
   deck: replCards,
+  promisedQueries: [],
+  modal: undefined,
   server: {
     queue: [],
     state: ConnectionState.CONNECTING,
@@ -779,7 +915,8 @@ function root() {
   let root = {
     id: "repl",
     c: "repl",
-    children: [generateStatusBarElement(), generateCardRootElements()],
+    //click: function() {console.log("fasfdsa")},
+    children: [generateStatusBarElement(), generateCardRootElements(), repl.modal !== undefined ? repl.modal : {}],
   };  
   return root;
 }
@@ -793,19 +930,13 @@ function formListElement(list: Array<any>) {
   return {t: "ul", children: li};  
 }
 
-function objectToArray(obj: Object): Array<any> {
-  return Object.keys(obj).map(key => obj[key]);
+function resultToObject(result): Object {
+  // @TODO
+  return {};
 }
 
-function getCodeMirrorInstance(replCard: ReplCard): CodeMirror.Editor {
-  let targets = document.querySelectorAll(".query-input");
-  for (let i = 0; i < targets.length; i++) {
-    let target = targets[i];
-    if (target.parentElement["_id"] === replCard.id) {
-      return target["cm"];     
-    }
-  }  
-  return undefined;
+function objectToArray(obj: Object): Array<any> {
+  return Object.keys(obj).map(key => obj[key]);
 }
 
 function elemToReplCard(elem): ReplCard {
@@ -848,5 +979,89 @@ function rerender(removeCards?: boolean) {
       rerender(false);
     }, 250);
   }*/
+  //console.log(repl);
   app.dispatch("rerender", {}).commit();
+}
+
+// Codemirror!
+
+function getCodeMirrorInstance(replCard: ReplCard): CodeMirror.Editor {
+  let targets = document.querySelectorAll(".query-input");
+  for (let i = 0; i < targets.length; i++) {
+    let target = targets[i];
+    if (target.parentElement["_id"] === replCard.id) {
+      return target["cm"];     
+    }
+  }  
+  return undefined;
+}
+
+interface CMNode extends HTMLElement { cm: any }
+
+interface CMEvent extends Event {
+  editor: CodeMirror.Editor
+  value: string
+}
+
+export function codeMirrorElement(elem: CMElement): CMElement {
+  elem.postRender = codeMirrorPostRender(elem.postRender);
+  elem["cmChange"] = elem.change;
+  elem["cmBlur"] = elem.blur;
+  elem["cmFocus"] = elem.focus;
+  elem.change = undefined;
+  elem.blur = undefined;
+  elem.focus = undefined;
+  return elem;
+}
+
+interface CMElement extends Element {
+  autoFocus?: boolean
+  lineNumbers?: boolean,
+  lineWrapping?: boolean,
+  mode?: string,
+  shortcuts?: {[shortcut:string]: Handler<any>}
+};
+
+let _codeMirrorPostRenderMemo = {};
+
+function handleCMEvent(handler:Handler<Event>, elem:CMElement):(cm:CodeMirror.Editor) => void {
+  return (cm:CodeMirror.Editor) => {
+    let evt = <CMEvent><any>(new CustomEvent("CMEvent"));
+    evt.editor = cm;
+    evt.value = cm.getDoc().getValue();
+    handler(evt, elem);
+  }
+}
+
+function codeMirrorPostRender(postRender?: RenderHandler): RenderHandler {
+  let key = postRender ? postRender.toString() : "";
+  if(_codeMirrorPostRenderMemo[key]) return _codeMirrorPostRenderMemo[key];
+  return _codeMirrorPostRenderMemo[key] = (node:CMNode, elem:CMElement) => {
+    let cm = node.cm;
+    if(!cm) {
+      let extraKeys = {};
+      if(elem.shortcuts) {
+        for(let shortcut in elem.shortcuts)
+          extraKeys[shortcut] = handleCMEvent(elem.shortcuts[shortcut], elem);
+      }
+      cm = node.cm = CodeMirror(node, {
+        lineWrapping: elem.lineWrapping !== false ? true : false,
+        lineNumbers: elem.lineNumbers,
+        mode: elem.mode || "text",
+        extraKeys
+      });
+      if(elem["cmChange"]) cm.on("change", handleCMEvent(elem["cmChange"], elem));
+      if(elem["cmBlur"]) cm.on("blur", handleCMEvent(elem["cmBlur"], elem));
+      if(elem["cmFocus"]) cm.on("focus", handleCMEvent(elem["cmFocus"], elem));
+      if(elem.autoFocus) cm.focus();
+    }
+
+    if(cm.getDoc().getValue() !== elem.value) {
+      cm.setValue(elem.value || "");
+      if(elem["cursorPosition"] === "end") {
+        cm.setCursor(100000);
+      }
+    }
+    if(postRender) postRender(node, elem);
+  }
 }
