@@ -57,6 +57,7 @@
                                     (aget eav 2)
                                     t
                                     (user view)))]
+    (println "insert" (map str tuple))
     (swap! (tuples view) conj tuple)
     (doseq [i @(listeners view)]
       ((i 0) 'insert tuple (i 1)))
@@ -69,7 +70,13 @@
 
 (defn full-scan [view id c]
   (doseq [i @(tuples view)]
-    (c 'insert i id))
+    (c 'insert (object-array [(aget i 0)
+                              (aget i 1)
+                              (aget i 2)
+                              0
+                              (aget i 3)
+                              (aget i 4)])
+       id))
   (add-listener view id c))
 
 (defn open-new-view [view bag-id] )
