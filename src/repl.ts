@@ -695,15 +695,14 @@ function resultSwitchClick(event, elem) {
 function entityListClick(event, elem) {
   let Q = newQuery(`(query [attribute value] (fact-btu "${elem.text}" attribute value))`)
   repl.modal = {c: "modal", left: 110, top: event.pageY - 50, text: `${elem.text}`};
-  event.preventDefault();
+  event.stopImmediatePropagation();
   rerender();
 }
 
-/*
 function rootClick(event, elem) {
-  closeModals();
+  repl.modal = undefined;
   rerender();
-}*/
+}
 
 // ------------------
 // Element generation
@@ -917,7 +916,7 @@ function root() {
   let root = {
     id: "repl",
     c: "repl",
-    click: function() {console.log("fasfdsa")},
+    click: rootClick,
     children: [generateStatusBarElement(), generateCardRootElements(), repl.modal !== undefined ? repl.modal : {}],
   };  
   return root;
