@@ -709,6 +709,7 @@ function entityListClick(event, elem) {
 }
 
 function rootClick(event, elem) {
+  // Causes the open modal to close
   repl.modal = undefined;
   rerender();
 }
@@ -823,7 +824,7 @@ function generateResultTable(result: QueryResult) {
     })};
     let tableBody = result.values.map((r: Array<any>) => {
       return {c: "row", children: r.map((c: any) => {
-        return {c: "cell", text: `${c}`};
+        return {c: "cell", text: `${`${c}`.replace(/\\t/g,'  ')}`};
       })};
     });
     let tableRows = [tableHeader].concat(tableBody);
