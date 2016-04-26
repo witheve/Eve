@@ -232,7 +232,7 @@ function connectToServer() {
   ws.onmessage = function(message) {
     //console.log("message")
     //console.log(message.data);    
-    let parsed = JSON.parse(message.data.replace(/\n/g,'\\\\n').replace(/\r/g,'\\\\r').replace(/\t/g,'  '));
+    let parsed = JSON.parse(message.data.replace(/\n/g,'\\\\n').replace(/\r/g,'\\\\r').replace(/\t/g,'  ').replace(/\\\\"/g,'\\"'));
     //console.log(parsed);
     // Update the result of the correct repl card
     let targetCard = repl.deck.cards.filter((r) => r.id === parsed.id).shift();
@@ -272,10 +272,10 @@ function connectToServer() {
         targetCard.query.result = undefined;
         //saveReplCard(targetCard);
       } else if (parsed.type === "close") {
-        let removeIx = repl.deck.cards.map((r) => r.id).indexOf(parsed.id);
+        /*let removeIx = repl.deck.cards.map((r) => r.id).indexOf(parsed.id);
         if (removeIx >= 0) {
           replCards[removeIx].state = CardState.CLOSED;
-        }
+        }*/
         rerender(true);
       } else if (parsed.type === "query-info") {
         let info: QueryInfo = {
@@ -388,10 +388,10 @@ function sendClose(query: Query): boolean {
   return sendMessage(closeMessage);
 }
 
-function sendAnonymousQuery(query: string, foo): boolean {
+function sendAnonymousQuery(query: string): boolean {
   let queryMessage: QueryMessage = {
     type: "query",
-    id: `query-${foo.row}-${foo.col}`,
+    id: uuid(),
     query: query,
   };
   return sendMessage(queryMessage);
@@ -444,19 +444,33 @@ function submitReplCard(card: ReplCard) {
   card.state = CardState.PENDING;
   //card.query.result = undefined;
   //card.query.message = ""; 
-  let sent = sendQuery(card.query);
-  // If the query does not exist on the server, send it
-  if (repl.system.queries.result.values.map((e) => e[0]).indexOf(query.id) < 0) {
-    let rcQuery = `(query []
-                    (insert-fact! "${card.id}" :tag "repl-card"
-                                                :row ${card.row} 
-                                                :col ${card.col} 
-                                                :query "${card.query.query.replace(/\"/g,'\\"')}"
-                                                :display ${card.display}))`;
-    sendAnonymousQuery(rcQuery, card);  
-  } else {
-    // @TODO Finish the case where the query exists in the system. Will involve a remove and add.
+  
+  // If it does exist, remove the previous facts and inser the new ones
+  if (repl.system.queries.result !== undefined && repl.system.queries.result.values.map((e) => e[0]).indexOf(query.id) >= 0) {
+    // Delete a row from the repl-card table
+    let delQuery = `(query []
+                      (fact-btu "${card.id}" :tick t)
+                      (remove-by-t! t))`;
+    sendAnonymousQuery(delQuery);
+    // Give the query a new ID
+    let oldID = card.id;
+    let newID = uuid();
+    card.id = newID;
+    card.query.id = newID;
+    // Close the old query
+    sendMessage({type: "close", id: oldID});    
   }
+  
+  // Insert a row in the repl-card table
+  let rcQuery = `(query []
+                   (insert-fact! "${card.id}" :tag "repl-card"
+                                              :row ${card.row} 
+                                              :col ${card.col} 
+                                              :query "${card.query.query.replace(/"/g,'\\"')}"
+                                              :display ${card.display}))`;
+  sendAnonymousQuery(rcQuery);
+  // Send the actual query
+  let sent = sendQuery(card.query);
   if (card.query.result === undefined) {
     if (sent) {
       card.query.message = "Waiting for response...";
@@ -566,6 +580,11 @@ window.onkeydown = function(event) {
   rerender();
 }
 
+window.onbeforeunload = function(event) {
+  // Close all open queries before we close the window
+  repl.deck.cards.filter((c) => c.state === CardState.GOOD).map((c) => sendClose(c.query));
+}
+
 function queryInputKeydown(event, elem) {
   let thisReplCard: ReplCard = elemToReplCard(elem);
   // Submit the query with ctrl + enter or ctrl + s
@@ -673,6 +692,7 @@ function deleteCardClick(event, elem) {
   // find the index in the deck
   // remove the card from the deck
   // send a remove to the server
+  
   sendClose(card.query);
   rerender();
 }
