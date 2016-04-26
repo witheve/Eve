@@ -445,6 +445,7 @@ function submitReplCard(card: ReplCard) {
   //card.query.result = undefined;
   //card.query.message = ""; 
   let sent = sendQuery(card.query);
+  // If the query does not exist on the server, send it
   if (repl.system.queries.result.values.map((e) => e[0]).indexOf(query.id) < 0) {
     let rcQuery = `(query []
                     (insert-fact! "${card.id}" :tag "repl-card"
@@ -453,6 +454,8 @@ function submitReplCard(card: ReplCard) {
                                                 :query "${card.query.query.replace(/\"/g,'\\"')}"
                                                 :display ${card.display}))`;
     sendAnonymousQuery(rcQuery, card);  
+  } else {
+    // @TODO Finish the case where the query exists in the system. Will involve a remove and add.
   }
   if (card.query.result === undefined) {
     if (sent) {
@@ -665,6 +668,15 @@ function loadCardsClick(event, elem) {
   rerender();
 }*/
 
+function deleteCardClick(event, elem) {
+  let card = repl.deck.focused;
+  // find the index in the deck
+  // remove the card from the deck
+  // send a remove to the server
+  sendClose(card.query);
+  rerender();
+}
+
 function addColumnClick(event, elem) {
   addColumn();
   rerender();
@@ -876,7 +888,7 @@ function generateStatusBarElement() {
   // Build the proper elements of the status bar
   let statusIndicator = {c: `indicator ${indicator} left`};
   let eveLogo = {t: "img", c: "logo", src: "../images/logo_only.png", width: 39, height: 45};
-  let deleteButton = {c: "button", text: "Delete Cards"};
+  let deleteButton = {c: "button", text: "Delete Card", click: deleteCardClick};
   let addColumn = {c: "button", text: "Add Column", click: addColumnClick};
   let addCard = {c: "button", text: "Add Card", click: addCardClick};
   let buttonList = formListElement([deleteButton, addColumn, addCard]);
