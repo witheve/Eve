@@ -5,6 +5,8 @@
                  [ring/ring-core "1.4.0"]
                  [clj-time "0.11.0"]
                  [clj-json "0.5.3"]
+                 [clj-jgit "0.8.9"]
+                 [stylefruits/gniazdo "1.0.0"]
                  [org.clojure/data.codec "0.1.0"]
                  [org.clojure/data.json "0.2.6"]]
   :plugins [[speclj "3.3.2"]]
