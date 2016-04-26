@@ -6,7 +6,10 @@
    [clj-jgit.porcelain :as porcelain]  
    [clj-json.core :as json]
    [gniazdo.core :as ws])
-  (:import [java.io File]))
+  (:import [java.io File BufferedWriter OutputStreamWriter BufferedReader InputStreamReader]
+           [org.apache.log4j.BasicConfigurator])
+  (:import (org.apache.log4j Level Logger PropertyConfigurator)))
+
 
 (defn quotify [x] (str "\"" (string/replace (string/replace x "\n" "\\n") "\"" "\\\"") "\""))
 
@@ -32,9 +35,12 @@
   (let [handlers (atom {})
         input #(prn 'received %)
         target (str "ws://" station)
-        _ (println "target" target)
-        sock (ws/connect target :on-receive input)]
-    [sock handlers]))
+        ;; just bury any errors
+        sock (try (ws/connect target :on-receive input)
+                  (catch Exception e nil))]
+    (println "socko" sock)
+    (if sock [sock handlers] sock)))
+    
 
 
 (defn eve-query [s q handler]
@@ -64,13 +70,17 @@
                         (fn []))))
 
 (defn subprocess [path]
-  (let [cmd ["/usr/local/bin/lein" "run"]
-       proc (.exec (Runtime/getRuntime) 
-                   ^"[Ljava.lang.String;" (into-array cmd)
-                   nil ;; (into-array String [])
-                   (File. path))]
+  (let [cmd ["/usr/local/bin/lein" "run" "-p" "8083"]
+        proc (.exec (Runtime/getRuntime) 
+                    ^"[Ljava.lang.String;" (into-array cmd)
+                    nil ;; (into-array String [])
+                    (File. path))
+        out (new BufferedReader (new InputStreamReader (.getInputStream proc)))]
+        
     (println "i think i started a process")
-    (future (.waitFor proc))))
+    (.start (Thread. (fn [] (println (.readLine out)))))
+                       
+    [(new BufferedWriter (new OutputStreamWriter (.getOutputStream proc))) (future (.waitFor proc))]))
 
 
 (import java.io.Reader)
@@ -80,13 +90,32 @@
 ;; probably also should take a sha
 (defn checkout-repository [url branch]
   (let [pathname (apply str "/tmp/" (repeatedly 20 #(rand-nth charset)))]
-       (porcelain/git-clone "https://github.com/witheve/Eve.git" pathname branch)
+       (porcelain/git-clone url pathname branch)
        pathname))
 
  
+(defn run-test [branch]
+  (let [path
+        (checkout-repository "https://github.com/witheve/Eve.git" "git")
+        s (atom nil)
+        start "(load \"examples/harness.e\")\n"
+        p (subprocess (str path "/server"))]
+    (Thread/sleep 3000)
+    (reset! s (connect-to-eve "localhost:8083" 0 0))
+    (when (not @s)
+      (Thread/sleep 3000)
+      (reset! s (connect-to-eve "localhost:8083" 0 0)))
+    (println "foo" start)
+    (when @s
+      (eve-query @s "(query [test success] (fact _ :tag \"test-run\" :result success :test))" (fn [])))
+    (.write (p 0) start)
+    (.flush (p 0))))
+
+    
+;; the websocket input guy   
 (defn input-handler [request]
-      (println request)
-      (println (json/parsed-seq (clojure.java.io/reader (:body request) :encoding "UTF-8"))))
+  (let [parsed (json/parsed-seq (clojure.java.io/reader (:body request) :encoding "UTF-8"))]
+    (println (parsed "pull_request"))))
 
 
 ;; webhook input
@@ -97,9 +126,11 @@
     (catch Exception e (println (str "caught exception: " e (.getMessage e))))))
 
 (defn -main [& args] 
-  (println "args" args)
-  (let [k (connect-to-eve "127.0.0.1:8081" 0 0)]
-    (eve-insert k "joeoy" :loves "salley"))
+  (org.apache.log4j.BasicConfigurator/configure) 
+  (.setLevel (Logger/getRootLogger) Level/OFF)
+  (run-test "git")
+;;  (let [k (connect-to-eve "127.0.0.1:8081" 0 0)]
+;;    (eve-insert k "joeoy" :loves "salley"))
 
   (when (> (count args) 0) 
     (subprocess (first args)))
