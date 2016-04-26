@@ -380,6 +380,14 @@ function sendQuery(query: Query): boolean {
   return sendMessage(queryMessage);
 }
 
+function sendClose(query: Query): boolean {
+  let closeMessage: CloseMessage = {
+    type: "close",
+    id: query.id,
+  }
+  return sendMessage(closeMessage);
+}
+
 function sendAnonymousQuery(query: string, foo): boolean {
   let queryMessage: QueryMessage = {
     type: "query",
