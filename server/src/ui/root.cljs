@@ -11,6 +11,8 @@
 (declare move-selection!)
 (declare add-cell!)
 (declare formula-grid->query)
+(declare active-grid-id)
+(declare get-grid-id-from-window)
 
 (def USE-SERVER? true)
 (def BE-STUPIDLY-OPTIMISTIC? true)
@@ -451,7 +453,12 @@
                        (let [target-node-name (.-nodeName (.-target event))
                              ignore-names #{"INPUT", "TEXTAREA"}]
                          (when-not (ignore-names target-node-name)
-                           (prevent-default event))))))
+                           (prevent-default event)))))
+  (.addEventListener js/window "popstate"
+                     (fn [event]
+                       (println "HERE!" (get-grid-id-from-window))
+                       (reset! active-grid-id (get-grid-id-from-window))
+                       (render))))
 
 (defn focus-once [node elem]
   (when-not (.-focused node)
@@ -603,29 +610,26 @@
 ;; Navigation
 ;;---------------------------------------------------------
 
-(defonce navigation-stack (atom {:pos 0
-                                 :stack ["main"]}))
+(defn get-grid-id-from-window []
+  (let [[_ _ grid-id] (-> js/window
+                        (.-location)
+                        (.-pathname)
+                        (.split "/"))]
+    (or grid-id "main")))
+
+(defonce active-grid-id (atom (get-grid-id-from-window)))
 
 (defn move-navigate-stack! [context dir]
-  (let [{:keys [pos stack]} @navigation-stack
-        adjuster (if (= dir :back)
-                   dec
-                   inc)
-        updated-pos (adjuster pos)
-        next-grid-id (get stack updated-pos)]
-    (when next-grid-id
-      (swap! navigation-stack assoc :pos updated-pos)
-      (update-state! context "main" :active-grid next-grid-id))))
+  (let [history (.-history js/window)]
+    (if (= dir :back)
+      (.back history)
+      (.forward history))))
 
 (defn navigate! [context navigate-grid-id]
-  (when-not (= navigate-grid-id (get-state "main" :active-grid "main"))
-    (swap! navigation-stack (fn [cur]
-                              (-> cur
-                                  (update-in [:pos] inc)
-                                  (assoc :stack (conj
-                                                  (subvec (:stack cur) 0 (inc (:pos cur)))
-                                                  navigate-grid-id)))))
-    (update-state! context "main" :active-grid navigate-grid-id)))
+  (when-not (= navigate-grid-id @active-grid-id)
+    (let [history (.-history js/window)]
+      (.pushState history nil nil (str "/grid/" navigate-grid-id))
+      (reset! active-grid-id navigate-grid-id))))
 
 (defn navigate-event! [event elem]
   (let [{:keys [navigate-grid-id]} (.-info elem)]
@@ -1662,7 +1666,7 @@
 (defn root []
   ;; @FIXME: this is a little weird to say that the state for determining the active grid
   ;; resides on the default grid. It should really probably be global.
-  (let [active-grid-id (get-state "main" :active-grid "main")]
+  (let [active-grid-id @active-grid-id]
     (box :style (style :width "100vw"
                        :height "100vh"
                        :align-items "center"
