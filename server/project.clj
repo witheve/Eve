@@ -18,7 +18,7 @@
                         :source-paths ["src"]
                         :figwheel true
                         :compiler {:main "ui.root"
-                                   :asset-path "bin"
+                                   :asset-path "/bin"
                                    :output-dir "../bin"
                                    :output-to "../bin/root.bundle.js"}}
                        {:id "devcards"
