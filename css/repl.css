@@ -132,6 +132,7 @@ li {
   font-size: 12px;
   width: 80%;
   min-height: 100px;
+  overflow-x: hidden;
 }
 
 .entity-link {
