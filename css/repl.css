@@ -41,8 +41,9 @@ h2 {
 .results-switch {
   display: flex;
   flex-direction: row;
+  justify-content: flex-end;
+  margin-bottom: 10px;
   float: right;
-  clear: none;
 }
 
 .results-switch > .button {
@@ -70,6 +71,7 @@ h2 {
   display: flex;
   margin-bottom: 10px;
   border: 1px solid rgba(0,0,0,0);
+  z-index: 99;
 }
 
 .focused {
@@ -84,7 +86,6 @@ h2 {
 
 .query-result {
   background-color: rgb(40,40,40);
-  min-height: 200px;
   padding: 10px;
   flex-grow: 1;
 }
@@ -92,10 +93,11 @@ h2 {
 /* Modal Styles */
 
 .modal {
-  background-color: rgba(0,0,0,.7);
+  background-color: rgba(30,30,30,1);
   border: 1px solid rgb(91,89,164);
   padding: 20px;
   position: absolute;
+  z-index: 100;
 }
 
 /* Table Styles */
@@ -108,7 +110,7 @@ h2 {
 
 .row { display: table-row; }
 
-.cell { display: table-cell; padding: 5px; min-width: 25px; }
+.cell { display: table-cell; padding: 5px; min-width: 25px; white-space: pre; }
 .header .cell { padding: 7px;}
 .cell { border-top: 1px solid rgb(208,208,208); border-right: 1px solid rgb(208,208,208); }
 
@@ -121,7 +123,7 @@ li {
 }
 
 .entities-table {
-  width: 80%;
+  width: 85%;
 }
 
 .entities {
@@ -129,6 +131,7 @@ li {
   padding: 10px;
   font-size: 12px;
   width: 80%;
+  min-height: 100px;
 }
 
 .entity-link {
