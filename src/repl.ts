@@ -388,13 +388,19 @@ function sendClose(query: Query): boolean {
   return sendMessage(closeMessage);
 }
 
-function sendAnonymousQuery(query: string): boolean {
+function sendAnonymousQuery(query: string) {
+  let anonID = uuid();
   let queryMessage: QueryMessage = {
     type: "query",
-    id: uuid(),
+    id: anonID,
     query: query,
   };
-  return sendMessage(queryMessage);
+  let closeMessage: CloseMessage = {
+    type: "close",
+    id: anonID,
+  }
+  sendMessage(queryMessage);
+  sendMessage(closeMessage);
 }
 
 // ------------------
@@ -441,24 +447,16 @@ function getCard(row: number, col: number): ReplCard {
 
 function submitReplCard(card: ReplCard) {
   let query = card.query;
-  card.state = CardState.PENDING;
-  //card.query.result = undefined;
-  //card.query.message = ""; 
-  
-  // If it does exist, remove the previous facts and inser the new ones
-  if (repl.system.queries.result !== undefined && repl.system.queries.result.values.map((e) => e[0]).indexOf(query.id) >= 0) {
+ 
+  // If it does exist, remove the previous repl-card row and close the old query
+  if (card.state !== CardState.NONE) {
     // Delete a row from the repl-card table
     let delQuery = `(query []
                       (fact-btu "${card.id}" :tick t)
                       (remove-by-t! t))`;
     sendAnonymousQuery(delQuery);
-    // Give the query a new ID
-    let oldID = card.id;
-    let newID = uuid();
-    card.id = newID;
-    card.query.id = newID;
     // Close the old query
-    sendMessage({type: "close", id: oldID});    
+    sendClose(card.query);
   }
   
   // Insert a row in the repl-card table
@@ -471,6 +469,7 @@ function submitReplCard(card: ReplCard) {
   sendAnonymousQuery(rcQuery);
   // Send the actual query
   let sent = sendQuery(card.query);
+  card.state = CardState.PENDING;
   if (card.query.result === undefined) {
     if (sent) {
       card.query.message = "Waiting for response...";
@@ -583,9 +582,12 @@ window.onkeydown = function(event) {
 window.onbeforeunload = function(event) {
   // Close all open queries before we close the window
   repl.deck.cards.filter((c) => c.state === CardState.GOOD).map((c) => sendClose(c.query));
+  // Close all system queries
+  objectToArray(repl.system).map(sendClose);
 }
 
 function queryInputKeydown(event, elem) {
+  console.log(event)
   let thisReplCard: ReplCard = elemToReplCard(elem);
   // Submit the query with ctrl + enter or ctrl + s
   if ((event.keyCode === 13 || event.keyCode === 83) && event.ctrlKey === true) {
@@ -599,6 +601,9 @@ function queryInputKeydown(event, elem) {
   // Catch ctrl + end
   } else if (event.keyCode === 35 && event.ctrlKey === true) {
     //focusCard(replCards[replCards.length - 1]);
+  // Catch ctrl + b
+  } else if (event.keyCode === 66 && event.ctrlKey === true) {
+    thisReplCard.query.query = "(query [e a v]\n\t(fact-btu e a v))";
   // Catch ctrl + q
   } else if (event.keyCode === 81 && event.ctrlKey === true) {
     thisReplCard.query.query = "(query [] \n\t\n)";
