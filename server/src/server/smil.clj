@@ -89,7 +89,7 @@
                  '< {:args [:a :b] :kwargs [:return] :optional #{:return}}
                  '<= {:args [:a :b] :kwargs [:return] :optional #{:return}}
 
-                 'concat {:rest :args}
+                 'str {:rest :args}
                  'hash {:args [:a]}
 
                  'sum {:args [:a] :kwargs [:return] :optional #{:return}}})
@@ -296,6 +296,7 @@
                      choose (concat [op] [(:params args)] (assert-queries (expand-each db (:members args))))
                      not (cons op (expand-each db (:body args)))
                      context (cons op (splat-map (expand-values db args)))
+                     str (cons op (list :a (expand-each db (:args args))))
 
                      ;; Default
                      (cons op (splat-map (expand-values db args))))]

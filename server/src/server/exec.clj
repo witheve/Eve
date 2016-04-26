@@ -147,6 +147,16 @@
         (rset r (second terms) tout)))
     (c r)))
 
+(defn variadic-string [f]
+  (simple (fn [r terms]
+            (rset r (second terms)
+                  (apply f (map #(rget r %1) (nth terms 2)))))))
+
+(defn unary-string [f]
+  (simple (fn [r terms]
+            (rset r (second terms)
+                  (f (rget r (nth terms 2)))))))
+
 ;; these two are both the same, but at some point we may do some messing about
 ;; with numeric values (i.e. exact/inexact)
 (defn ternary-numeric [f]
@@ -165,12 +175,6 @@
 (defn move [r terms]
   (let [source (rget r (nth terms 2))]
     (rset r (second terms) source)))
-
-
-(defn dostr [r terms]
-  (let [inputs (map (fn [x] (rget r x))
-                    (rest (rest terms)))]
-     (rset r (second terms) (apply str inputs))))
 
 (defn doequal [r terms]
   (let [[eq dest s1 s2] terms
@@ -523,8 +527,10 @@
                   '<         (ternary-numeric-boolean <)
                   '>=        (ternary-numeric-boolean >=)
                   '<=        (ternary-numeric-boolean <=)
-                  'str       (simple dostr)
                   'not=      (simple do-not-equal)
+
+                  'hash (unary-string hash)
+                  'str (variadic-string str)
 
                   'filter    dofilter
                   'range     dorange

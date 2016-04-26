@@ -311,8 +311,9 @@
     (let [argmap (apply hash-map (rest terms))
           m (meta (first terms))
           simple (into [(argmap :return)] (map argmap params))
-          ins (map #(get-in @env ['bound %1] nil) simple)]
+          ins (map #(lookup env %1) simple)]
       (apply add-dependencies env (rest (rest terms)))
+      (println "COMPILE PRIMITIVE" params "||" simple "||" ins)
       (if-not (some nil? (rest ins))
         ;; handle the [b*] case by blowing out a temp
         (do
@@ -322,21 +323,23 @@
            (down)))
         (compile-error (str "unhandled bound signature in" terms) {:env env :terms terms})))))
 
+(defn compile-variadic-primitive [env terms down]
+    (let [argmap (apply hash-map (rest terms))
+          m (meta (first terms))
+          ins (into [(lookup @env (:return argmap))] (map #(lookup @env %1) (:a argmap)))]
+      ;; @FIXME: What should this guy feed to add-dependencies?
+      ;;(apply add-dependencies env (rest (rest terms)))
+      (if-not (some nil? (second ins))
+        ;; handle the [b*] case by blowing out a temp
+        (do
+          (allocate-register env (:return argmap))
+          (build
+           (with-meta (apply list (first terms) ins) m)
+           (down)))
+        (compile-error (str "unhandled bound signature in" terms) {:env env :terms terms}))))
 
-(defn compile-simple-primitive [env terms down]
-  (let [argmap (apply hash-map (rest terms))
-        m (meta (first terms))
-        simple [(argmap :return) (argmap :a) (argmap :b)]
-        ins (map #(get-in @env ['bound %1] nil) simple)]
-    (apply add-dependencies env (rest (rest terms)))
-    (if (some not (rest ins))
-      ;; handle the [b*] case by blowing out a temp
-      (do
-        (allocate-register env (first simple))
-        (build
-         (apply term env (first terms) m simple)
-         (down)))
-      (compile-error (str "unhandled bound signature in" terms) {:env env :terms terms}))))
+(def compile-unary-primitive (compile-primitive [:a]))
+(def compile-binary-primitive (compile-primitive [:a :b]))
 
 (defn compile-sum [env terms down]
   (let [grouping (get @env 'input [])
@@ -406,23 +409,23 @@
              (list z)))))
 
 (defn compile-expression [env terms down]
-  (let [commands {'+ compile-simple-primitive
-                  '* compile-simple-primitive
-                  '/ compile-simple-primitive
-                  '- compile-simple-primitive
-                  'hash compile-simple-primitive
+  (let [commands {'+ compile-binary-primitive
+                  '* compile-binary-primitive
+                  '/ compile-binary-primitive
+                  '- compile-binary-primitive
+                  'hash compile-unary-primitive
+                  'str compile-unary-primitive
                   '< generate-binary-filter
                   '> generate-binary-filter
                   'sort compile-sort
                   'sum compile-sum
 
-                  'str compile-simple-primitive
                   'insert-fact-btu! compile-insert
                   'fact-btu (fn [e terms down]
                               (generate-scan e terms down true))
                   'full-fact-btu (fn [e terms down]
                                    (generate-scan e terms down false))
-                  'range compile-simple-primitive
+                  'range compile-binary-primitive
                   '= compile-equal
                   'not compile-not
                   'not= generate-binary-filter
