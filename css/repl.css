@@ -6,24 +6,47 @@ html, body {
   font-family: sans-serif;
 }
 
+h1 {
+  margin-bottom: 15px;
+  margin-top: 15px;
+}
+
+h2 {
+  font-size: 14px;
+  margin-bottom: 10px;
+  margin-top: 10px;
+}
+
 .logo { 
-  margin: 20px;
+  margin-top: 10px;
+  margin-bottom: 10px;
 }
 
 /* Basic Structure */
 
 .status-bar {
-  min-width: 125px;
-  max-width: 125px;
+  width: 125px;
   display: flex;
   flex-direction: column;
   align-items: center;
   background-color: rgb(37,37,37);
+  padding: 10px;
 }
 
 .repl {
   height: 100%;
   display: flex;
+}
+
+.results-switch {
+  display: flex;
+  flex-direction: row;
+  float: right;
+  clear: none;
+}
+
+.results-switch > .button {
+  margin-left: 10px;
 }
 
 .card-root {
@@ -37,6 +60,10 @@ html, body {
   background-color: rgb(30,30,30);
   overflow-y: auto;
 }
+.card-column::-webkit-scrollbar { width: 10px; height: 10px; } 
+.card-column::-webkit-scrollbar-track { box-shadow: inset 0 0 6px rgba(0,0,0,0); } 
+.card-column::-webkit-scrollbar-thumb { background-color: rgb(80,80,80); outline: 1px solid slategrey; } 
+.card-column::-webkit-scrollbar-corner { background-color: transparent;} 
 
 .repl-card {
   display: flex;
@@ -61,6 +88,17 @@ html, body {
   flex-grow: 1;
 }
 
+/* Modal Styles */
+
+.modal {
+  background-color: rgba(0,0,0,.7);
+  border: 1px solid rgb(91,89,164);
+  padding: 10px;
+  position: absolute;
+  width: 100px;
+  height: 100px;
+}
+
 /* Table Styles */
 
 .table { display: table; }
@@ -79,6 +117,23 @@ html, body {
 
 li {
   margin-bottom: 10px;
+  border-bottom: 1px solid rgb(40,40,40);
+  padding: 2px;
+}
+
+.entities-table {
+  width: 80%;
+}
+
+.entities {
+  background-color: rgb(60,60,60);
+  padding: 10px;
+  font-size: 12px;
+  width: 80%;
+}
+
+.entity-link {
+  cursor: pointer,
 }
 
 /* Button styles */ 
@@ -92,16 +147,10 @@ li {
   min-width: 5px;
   text-align: center;
   opacity: 1;
-  transition: opacity .5s;
-}
-.button {
-  background-color: rgb(91,89,164);
-  border: 1px solid rgb(74,64,136);
-  transition: all 1s;
+  border: 1px solid rgb(91,89,164);
 }
 .button .disabled {
-  background-color: gray;
-  border-color: #333;
+  border: 1px solid rgb(255,255,255);
 }
 
 /* The Status Indicator */
@@ -145,12 +194,27 @@ li {
 
 /* Switches */
 
+.code {
+  background-color: rgb(50,50,50);
+  padding: 10px;
+  padding-top: 15px;
+  padding-bottom: 15px;
+  display: block;
+  unicode-bidi: embed;
+  font-family: monospace;
+  white-space: pre; 
+}
+
 .hidden {
   display: none;
 }
 
 .stretch {
   flex-grow: 1;
+}
+
+.error {
+  background-color: rgb(66,35,35);
 }
 
 /* Misc */
