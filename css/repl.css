@@ -11,6 +11,12 @@ h1 {
   margin-top: 15px;
 }
 
+h2 {
+  font-size: 14px;
+  margin-bottom: 10px;
+  margin-top: 10px;
+}
+
 .logo { 
   margin-top: 10px;
   margin-bottom: 10px;
@@ -82,6 +88,17 @@ h1 {
   flex-grow: 1;
 }
 
+/* Modal Styles */
+
+.modal {
+  background-color: rgba(0,0,0,.7);
+  border: 1px solid rgb(91,89,164);
+  padding: 10px;
+  position: absolute;
+  width: 100px;
+  height: 100px;
+}
+
 /* Table Styles */
 
 .table { display: table; }
@@ -104,11 +121,19 @@ li {
   padding: 2px;
 }
 
+.entities-table {
+  width: 80%;
+}
+
 .entities {
   background-color: rgb(60,60,60);
   padding: 10px;
   font-size: 12px;
   width: 80%;
+}
+
+.entity-link {
+  cursor: pointer,
 }
 
 /* Button styles */ 

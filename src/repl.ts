@@ -35,6 +35,7 @@ enum ResultsDisplay {
   GRAPH,
   INFO,
   MESSAGE,
+  NONE,
 }
 
 export interface QueryMessage {
@@ -100,6 +101,8 @@ interface Repl {
   },
   decks: Array<Deck>,
   deck: Deck,
+  promisedQueries: Array<Query>,
+  modal: any,
   server: ServerConnection,
 }
 
@@ -253,6 +256,8 @@ function connectToServer() {
             fields: parsed.fields,
             values: values,
           };
+        } else {
+          targetCard.resultDisplay = ResultsDisplay.NONE;
         }
         targetCard.state = CardState.GOOD;
         //saveReplCard(targetCard);
@@ -276,6 +281,9 @@ function connectToServer() {
           weasl: parsed.weasl,
         };
         targetCard.query.info = info;
+        if (targetCard.resultDisplay === ResultsDisplay.NONE) {
+          targetCard.resultDisplay = ResultsDisplay.INFO;
+        }
       } else {
         return;
       }
@@ -418,8 +426,8 @@ function getCard(row: number, col: number): ReplCard {
 function submitReplCard(card: ReplCard) {
   let query = card.query;
   card.state = CardState.PENDING;
-  card.query.result = undefined;
-  card.query.message = ""; 
+  //card.query.result = undefined;
+  //card.query.message = ""; 
   let sent = sendQuery(card.query);
   let rcQuery = `(query []
                    (insert-fact! "${card.id}" :tag "repl-card"
@@ -586,10 +594,10 @@ function queryInputFocus(event, elem) {
 
 function replCardClick(event, elem) {
   let clickedCard = elemToReplCard(elem);
-  if (clickedCard !== undefined) {
+  if (clickedCard !== undefined) {  
     focusCard(clickedCard);
-    rerender();  
   }
+  rerender();
 }
 /*
 function deleteAllCards(event, elem) {
@@ -678,6 +686,13 @@ function queryInputClick(event, elem) {
 function resultSwitchClick(event, elem) {
   let card = elemToReplCard(elem);
   card.resultDisplay = elem.data;
+  event.preventDefault();
+  rerender();
+}
+
+function entityListClick(event, elem) {
+  let Q = newQuery(`(query [attribute value] (fact-btu "${elem.text}" attribute value))`)
+  repl.modal = {c: "modal", left: event.pageX + 10, top: event.pageY, text: `${elem.text}`};
   event.preventDefault();
   rerender();
 }
@@ -841,13 +856,20 @@ function generateStatusBarElement() {
   let addColumn = {c: "button", text: "Add Column", click: addColumnClick};
   let addCard = {c: "button", text: "Add Card", click: addCardClick};
   let buttonList = formListElement([deleteButton, addColumn, addCard]);
-  let entities: Array<any> = repl.system.entities.result !== undefined ? repl.system.entities.result.values.map((e) => { return {text: e[0] }; }) : []; 
-  let entitiesList = {c: "entities", children: [formListElement(entities)]};
+  
+  // Build the entities Table
+  let entities: Array<any> = repl.system.entities.result !== undefined ? repl.system.entities.result.values.map((e) => {
+    let entityID = e[0];    
+    return {c: "entity-link", text: entityID, click: entityListClick };
+  }) : []; 
+  let entitiesElement = {c: "entities", children: [formListElement(entities)]};
+  let entitiesTable = {c: "entities-table", children: [{t: "h2", text: "Entities"}, entitiesElement]};
+  
   // Build the status bar    
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
-    children: [eveLogo, buttonList, statusIndicator, entitiesList],
+    children: [eveLogo, buttonList, statusIndicator, entitiesTable],
   }
   return statusBar;
 }
@@ -876,6 +898,8 @@ let repl: Repl = {
   },
   decks: [replCards],
   deck: replCards,
+  promisedQueries: [],
+  modal: undefined,
   server: {
     queue: [],
     state: ConnectionState.CONNECTING,
@@ -891,7 +915,8 @@ function root() {
   let root = {
     id: "repl",
     c: "repl",
-    children: [generateStatusBarElement(), generateCardRootElements()],
+    //click: function() {console.log("fasfdsa")},
+    children: [generateStatusBarElement(), generateCardRootElements(), repl.modal !== undefined ? repl.modal : {}],
   };  
   return root;
 }
