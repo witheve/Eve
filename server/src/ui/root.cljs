@@ -535,6 +535,10 @@
   (when (and value (not= value ""))
     [{:text value :action :set-property :value value}]))
 
+(defmethod get-autocompleter-options :formula-token [_ value info]
+  (when (and value (not= value ""))
+    [{:text value :action :value :value value}]))
+
 (defn autocompleter-item [{:keys [type adornment selected] :as info}]
   (box :style (style :padding "7px 10px 7px 8px"
                      :background (if selected
@@ -551,8 +555,11 @@
                            :text (:text info))
                      )))
 
-(defn autocompleter [type value selected]
-  (let [options (get-autocompleter-options type value)]
+(defn autocompleter
+  ([type value selected]
+   (autocompleter type value selected nil))
+  ([type value selected info]
+  (let [options (get-autocompleter-options type value info)]
     (when options
       (let [with-selected (update-in (vec options) [(mod selected (count options))] assoc :selected true)
             items (to-array (map autocompleter-item with-selected))]
@@ -563,7 +570,7 @@
                            :z-index 10
                            :min-width "100%"
                            :border "1px solid #555")
-             :children items)))))
+             :children items))))))
 
 (defn get-selected-autocomplete-option [type value selected]
   (when-let [options (get-autocompleter-options type value)]
@@ -913,7 +920,11 @@
                          :info {:cell cell :field :value :id (:id cell)}
                          :placeholder "value"
                          :value (or  (get-state grid-id :intermediate-value) (for-display (:value cell))))
-             (autocompleter :value (or (get-state grid-id :intermediate-value) (for-display (:value cell)) "") (get-state grid-id :autocomplete-selection 0)))
+             (autocompleter :formula-token
+                            (or (get-state grid-id :intermediate-value)
+                                (for-display (:value cell))
+                                "")
+                            (get-state grid-id :autocomplete-selection 0)))
            (array
                   (text :style (style :font-size "12pt"
                                       :padding-left 8)
