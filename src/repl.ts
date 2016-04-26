@@ -317,8 +317,12 @@ function connectToServer() {
                 replCard = newReplCard(n[1], n[2]);
                 repl.deck.cards.push(replCard);
               }
+              replCard.id = n[0];
+              replCard.query.id = replCard.id;
               replCard.query.query = n[4];
-              submitReplCard(replCard);
+              if (replCard.state === CardState.NONE) {
+                submitReplCard(replCard);  
+              }              
             });
           }  
         } else {
@@ -382,7 +386,7 @@ function sendAnonymousQuery(query: string, foo): boolean {
     id: `query-${foo.row}-${foo.col}`,
     query: query,
   };
-  return sendMessage(queryMessage);  
+  return sendMessage(queryMessage);
 }
 
 // ------------------
@@ -433,14 +437,15 @@ function submitReplCard(card: ReplCard) {
   //card.query.result = undefined;
   //card.query.message = ""; 
   let sent = sendQuery(card.query);
-  let rcQuery = `(query []
-                   (insert-fact! "${card.id}" :tag "repl-card"
-                                              :row ${card.row} 
-                                              :col ${card.col} 
-                                              :query "${card.query.query.replace(/\"/g,'\\"')}"
-                                              :display ${card.display}))`;
-  //console.log(rcQuery);
-  //sendAnonymousQuery(rcQuery, card);
+  if (repl.system.queries.result.values.map((e) => e[0]).indexOf(query.id) < 0) {
+    let rcQuery = `(query []
+                    (insert-fact! "${card.id}" :tag "repl-card"
+                                                :row ${card.row} 
+                                                :col ${card.col} 
+                                                :query "${card.query.query.replace(/\"/g,'\\"')}"
+                                                :display ${card.display}))`;
+    sendAnonymousQuery(rcQuery, card);  
+  }
   if (card.query.result === undefined) {
     if (sent) {
       card.query.message = "Waiting for response...";
