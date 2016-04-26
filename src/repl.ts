@@ -252,7 +252,8 @@ function connectToServer() {
             // Apply inserts
             values = targetCard.query.result.values.concat(parsed.insert);
             // Apply removes
-            //@ TODO
+            console.log("Remove these:");
+            console.log(parsed.remove);
           }
           targetCard.query.result = {
             fields: parsed.fields,
@@ -306,7 +307,8 @@ function connectToServer() {
             // Apply inserts
             targetSystemQuery.result.values = targetSystemQuery.result.values.concat(parsed.insert);
             // Apply removes
-            // @TODO
+            console.log("Remove these:");
+            console.log(parsed.remove);
           }
           // Update the repl based on these new system queries
           // @TODO This will one day soon be replaced by a storing repl state in the DB
@@ -587,7 +589,6 @@ window.onbeforeunload = function(event) {
 }
 
 function queryInputKeydown(event, elem) {
-  console.log(event)
   let thisReplCard: ReplCard = elemToReplCard(elem);
   // Submit the query with ctrl + enter or ctrl + s
   if ((event.keyCode === 13 || event.keyCode === 83) && event.ctrlKey === true) {
@@ -758,6 +759,20 @@ function entityListClick(event, elem) {
   rerender();
 }
 
+function tagsListClick(event, elem) {
+  // Filter out results for only the current entity 
+  let result: QueryResult = {
+    fields: ["Members"],
+    values: repl.system.tags.result.values.filter((e) => e[0] === elem.text).map((e) => [e[1]]),
+  };
+  // Generate the table
+  let table = generateResultTable(result);
+  repl.modal = {c: "modal", left: 110, top: event.pageY - 50, children: [table]};
+  // Prevent click event from propagating to another layer
+  event.stopImmediatePropagation();
+  rerender();
+}
+
 function rootClick(event, elem) {
   // Causes the open modal to close
   repl.modal = undefined;
@@ -918,18 +933,25 @@ function generateStatusBarElement() {
   let addCard = {c: "button", text: "Add Card", click: addCardClick};
   let buttonList = formListElement([deleteButton, addColumn, addCard]);
   
-  // Build the entities Table
+  // Build the entities table
   let entities: Array<any> = repl.system.entities.result !== undefined ? unique(repl.system.entities.result.values.map((e) => e[0])).map((e) => {
-    return {c: "entity-link", text: e, click: entityListClick };
+    return {c: "info-link", text: e, click: entityListClick };
   }) : [];
-  let entitiesElement = {c: "entities", children: [formListElement(entities)]};
-  let entitiesTable = {c: "entities-table", children: [{t: "h2", text: "Entities"}, entitiesElement]};
+  let entitiesElement = {c: "info", children: [formListElement(entities)]};
+  let entitiesTable = {c: "info-table", children: [{t: "h2", text: "Entities"}, entitiesElement]};
+  
+  // Build the tags table
+  let tags: Array<any> = repl.system.tags.result !== undefined ? unique(repl.system.tags.result.values.map((e) => e[0])).map((e) => {
+    return {c: "info-link", text: e, click: tagsListClick };
+  }) : [];
+  let tagsElement = {c: "info", children: [formListElement(tags)]};
+  let tagsTable = {c: "info-table", children: [{t: "h2", text: "Tags"}, tagsElement]};
   
   // Build the status bar    
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
-    children: [eveLogo, buttonList, statusIndicator, entitiesTable],
+    children: [eveLogo, buttonList, statusIndicator, entitiesTable, tagsTable],
   }
   return statusBar;
 }
@@ -951,7 +973,7 @@ let repl: Repl = {
   init: false,
   system: {
     entities: newQuery(`(query [entities attributes values] (fact-btu entities attributes values))`), // get all entities in the database
-    tags: newQuery(`(query [tags], (fact-btu e "tag" tags))`),    // get all tags in the database
+    tags: newQuery(`(query [tag entity], (fact entity :tag tag))`),    // get all tags in the database
     queries: newQuery(`(query [id row col display query]
                          (fact id :tag "repl-card" :row row :col col :display display :query query))` // Get all the open queries
     ),

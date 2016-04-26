@@ -26,6 +26,7 @@ h2 {
 
 .status-bar {
   width: 125px;
+  min-width: 125px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -122,11 +123,11 @@ li {
   padding: 2px;
 }
 
-.entities-table {
+.info-table {
   width: 85%;
 }
 
-.entities {
+.info {
   background-color: rgb(60,60,60);
   padding: 10px;
   font-size: 12px;
@@ -135,7 +136,7 @@ li {
   overflow-x: hidden;
 }
 
-.entity-link {
+.info-link {
   cursor: pointer;
 }
 
