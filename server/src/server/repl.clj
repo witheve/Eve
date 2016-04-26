@@ -74,6 +74,9 @@
     (ec 'flush)))
 
 
+(defn doexit [d expression trace-on]
+  (System/exit 0))
+
 (defn trace [d expression trace-on]
   (diesel d (second expression) true))
 
@@ -97,6 +100,7 @@
                       'trace trace
                       'create-bag create-bag
                       'time timeo
+                      'exit doexit
                       'open open
                       'load read-all
                       } (first term))]
@@ -140,8 +144,7 @@
                   ;; we're-a-gonna assume that this was a graceful close
                   (catch Exception e
                     (java.lang.System/exit 0)))]
-      (when-not (= input 'exit)
-        (recur
-         (try (eeval d input)
-              (catch Exception e
-                (println "error" e))))))))
+      (recur
+       (try (eeval d input)
+            (catch Exception e
+              (println "error" e)))))))

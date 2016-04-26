@@ -6,10 +6,18 @@
    [clj-jgit.porcelain :as porcelain]  
    [clj-json.core :as json]
    [gniazdo.core :as ws])
-  (:import [java.io File BufferedWriter OutputStreamWriter BufferedReader InputStreamReader]
-           [org.apache.log4j.BasicConfigurator])
-  (:import (org.apache.log4j Level Logger PropertyConfigurator)))
+  (:import [java.io File BufferedWriter OutputStreamWriter BufferedReader InputStreamReader Reader]
+           [org.apache.log4j BasicConfigurator Level Logger PropertyConfigurator]))
 
+
+
+(defn delete-recursively [fname]
+  (let [func (fn [func f]
+               (when (.isDirectory f)
+                 (doseq [f2 (.listFiles f)]
+                   (func func f2)))
+               (clojure.java.io/delete-file f))]
+    (func func (clojure.java.io/file fname))))
 
 (defn quotify [x] (str "\"" (string/replace (string/replace x "\n" "\\n") "\"" "\\\"") "\""))
 
@@ -26,19 +34,21 @@
     nil? "null"
     x))
 
-;;     (with-open [stdout (.getInputStream proc)
-;;                stderr (.getErrorStream proc)]
-;;      (let [out (future (io/copy stdout *out*))
-;;            err (future (io/copy stderr *out*))
 
 (defn connect-to-eve [station user bag]
   (let [handlers (atom {})
-        input #(prn 'received %)
+        input #(let [j (json/parse-string %)
+                     h (@handlers (symbol (j "id")))]
+                 (when (and h (= (j "type") "result"))
+                            (let [f (j "fields")
+                                  ins (j "insert")
+                                  rem (j "remove")]
+                              (when (> (count ins) 0)
+                                (h ins)))))
         target (str "ws://" station)
         ;; just bury any errors
         sock (try (ws/connect target :on-receive input)
                   (catch Exception e nil))]
-    (println "socko" sock)
     (if sock [sock handlers] sock)))
     
 
@@ -48,7 +58,6 @@
         q (format-json {"type" "query"
                         "query"  q
                         "id" tag})]
-    (println "query" q)
     (ws/send-msg (s 0) q)
     (swap! (s 1) assoc tag handler)
     [s tag]))
@@ -77,13 +86,10 @@
                     (File. path))
         out (new BufferedReader (new InputStreamReader (.getInputStream proc)))]
         
-    (println "i think i started a process")
     (.start (Thread. (fn [] (println (.readLine out)))))
                        
     [(new BufferedWriter (new OutputStreamWriter (.getOutputStream proc))) (future (.waitFor proc))]))
 
-
-(import java.io.Reader)
 
 (def charset (map char (concat (range 48 58) (range 66 92) (range 97 123))))
 
@@ -95,22 +101,25 @@
 
  
 (defn run-test [branch]
-  (let [path
-        (checkout-repository "https://github.com/witheve/Eve.git" "git")
+  (let [path (checkout-repository "https://github.com/witheve/Eve.git" branch)
         s (atom nil)
         start "(load \"examples/harness.e\")\n"
         p (subprocess (str path "/server"))]
-    (Thread/sleep 3000)
+    (Thread/sleep 6000)
     (reset! s (connect-to-eve "localhost:8083" 0 0))
     (when (not @s)
       (Thread/sleep 3000)
       (reset! s (connect-to-eve "localhost:8083" 0 0)))
-    (println "foo" start)
     (when @s
-      (eve-query @s "(query [test success] (fact _ :tag \"test-run\" :result success :test))" (fn [])))
+      (eve-query @s "(query [test success] (fact _ :tag \"test-run\" :result success :test))" 
+                 (fn [x] (println "result" x))))
     (.write (p 0) start)
-    (.flush (p 0))))
-
+    (.flush (p 0))
+    (.write (p 0) "(exit)\n")
+    (.flush (p 0))
+    (delete-recursively path)
+    (println "exit" @(p 1))))
+    
     
 ;; the websocket input guy   
 (defn input-handler [request]
