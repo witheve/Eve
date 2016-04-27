@@ -11,7 +11,8 @@
   (doall (apply concat a)))
 
 (defn compile-error [message data]
-  (throw (ex-info message (assoc data :type "compile"))))
+  (let [d2 (dissoc (:env data) 'db)]
+    (throw (ex-info message (assoc d2 :type "compile")))))
 
 (defn get-signature
   "Gets a readable identifier for the given adornment of a relation"
