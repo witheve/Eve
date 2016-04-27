@@ -252,8 +252,7 @@ function connectToServer() {
             // Apply inserts
             values = targetCard.query.result.values.concat(parsed.insert);
             // Apply removes
-            console.log("Remove these:");
-            console.log(parsed.remove);
+            // @TODO
           }
           targetCard.query.result = {
             fields: parsed.fields,
@@ -307,11 +306,28 @@ function connectToServer() {
             // Apply inserts
             targetSystemQuery.result.values = targetSystemQuery.result.values.concat(parsed.insert);
             // Apply removes
-            console.log("Remove these:");
-            console.log(parsed.remove);
+            if (parsed.remove.length > 0 ) {
+              // Remove each row from the results
+              console.log("Remove These:");
+              console.log(parsed.remove);
+              let values = [];
+              parsed.remove.forEach((row) => {
+                let ix;
+                for (let i = 0; i < targetSystemQuery.result.values.length; i++) {
+                  let value = targetSystemQuery.result.values[i];
+                  if (arraysEqual(row,value)) {
+                    ix = i;
+                    break;
+                  }  
+                }
+                // If we found the row, remove it from the values
+                if (ix !== undefined) {
+                  targetSystemQuery.result.values.splice(ix,1);
+                }
+              });
+            }
           }
           // Update the repl based on these new system queries
-          // @TODO This will one day soon be replaced by a storing repl state in the DB
           if (parsed.id === repl.system.queries.id && parsed.insert !== undefined) {
             parsed.insert.forEach((n) => {
               let replCard = getCard(n[1], n[2]);
@@ -952,7 +968,7 @@ function generateStatusBarElement() {
     id: "status-bar",
     c: "status-bar",
     children: [eveLogo, buttonList, statusIndicator, entitiesTable, tagsTable],
-  }
+  };
   return statusBar;
 }
 
@@ -1006,6 +1022,16 @@ function root() {
 // -----------------
 // Utility Functions
 // -----------------
+
+function arraysEqual(a, b) {
+  if (a === b) return true;
+  if (a == null || b == null) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; ++i) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
 
 function unique(array: Array<any>): Array<any> {
   array = array.filter((e,i) => array.indexOf(e) === i);
