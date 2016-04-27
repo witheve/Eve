@@ -207,6 +207,11 @@ function connectToServer() {
     // Initialize the repl state
     if (repl.init === false) {
       objectToArray(repl.system).map(sendQuery);
+      let addUsers = `(query []
+                        (insert-fact! "${uuid()}" :tag "repl-user" :tag "system" :username "corey" :password "foo")
+                        (insert-fact! "${uuid()}" :tag "repl-user" :tag "system" :username "eric" :password "foo")
+                        (insert-fact! "${uuid()}" :tag "repl-user" :tag "system" :username "chris" :password "foo"))`
+      sendAnonymousQuery(addUsers);
       repl.init = true;
     }
     // In the case of a reconnect, reset the timeout
@@ -1057,7 +1062,6 @@ function root() {
     let login = {c: "login", children: [eveLogo, username, password, submit]}
     replChildren = [login];
   }
-  
   let root = {
     id: "repl",
     c: "repl",
