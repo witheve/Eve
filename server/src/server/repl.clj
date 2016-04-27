@@ -87,9 +87,11 @@
   (let [[_ name & deps] expression
         id (db/genoid)
         _  (edb/install-bag e id)
-        d  (edb/create-view e id @user)
+        d  (edb/create-view e id user)
         insert (fn [a v]
-                 (edb/insert d (object-array [id a v]) (fn [])))]
+                 (edb/insert d (object-array [id a v])
+                             (gensym "create-bag")
+                             (fn [t])))]
     (insert db/name-oid name)
     (doseq [i deps] (insert db/contains-oid i))))
 
@@ -126,11 +128,11 @@
                       (catch Exception e (println "badness 10000" e)))]
         (if (and form (not (empty? form)))
           (do
-            (eeval (edb/create-view e user bag) form trace-on)
+            (eeval e user bag form trace-on)
             (recur)))))))
 
 
-(defn rloop [e user bag]
+(defn rloop [e user bag trace-on]
   (trampoline (fn self [] 
                 (doto *out*
                   (.write "eve> ")
@@ -144,7 +146,7 @@
                               (catch Exception e
                                 (java.lang.System/exit 0)))]
                   (when-not (= input 'exit)
-                    (try (eeval e user bag input)
+                    (try (eeval e bag user input trace-on)
                          (catch Exception e
                            (println "error" e)))
                     self)))))
