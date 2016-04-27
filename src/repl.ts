@@ -530,6 +530,8 @@ function deleteCard(card: ReplCard) {
   let ix = repl.deck.cards.map((c) => c.id).indexOf(card.id);
   // remove the card from the deck
   repl.deck.cards.splice(ix,1);
+  // Renumber the cards
+  repl.deck.cards.filter((r) => r.col === card.col).forEach((c,i) => c.row = i);
   // send a remove to the server
   sendClose(card.query);
 }
