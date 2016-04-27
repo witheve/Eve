@@ -10,7 +10,8 @@
            [org.apache.log4j BasicConfigurator Level Logger PropertyConfigurator]))
 
 
-
+(def server "localhost:8081")
+ 
 (defn delete-recursively [fname]
   (let [func (fn [func f]
                (when (.isDirectory f)
@@ -70,13 +71,13 @@
     (ws/send-msg ((q 0) 0) m)))
 
   
-(defn eve-insert [s e a v]
-  (eve-close (eve-query s (str "(query [] (insert-fact! " 
-                               e " " 
-                               a " " 
-                               v "))")
-                        ;; fix signature
-                        (fn []))))
+(defn eve-insert [s eavs]
+  (let [q (str (map #(str "(insert-fact! " 
+                          (nth %1 0) " " 
+                          (nth %1 1) " " 
+                          (nth %1 2) ")")) eavs)]
+    (eve-close (eve-query s q (fn [x] ())))))
+
 
 (defn subprocess [path]
   (let [cmd ["/usr/local/bin/lein" "run" "-p" "8083"]
@@ -99,8 +100,8 @@
        pathname))
 
  
-(defn run-test [branch]
-  (let [path (checkout-repository "https://github.com/witheve/Eve.git" branch)
+(defn run-test [url branch facts]
+  (let [path (checkout-repository url branch)
         s (atom nil)
         start "(load \"examples/harness.e\")\n"
         p (subprocess (str path "/server"))]
@@ -109,9 +110,22 @@
     (when (not @s)
       (Thread/sleep 3000)
       (reset! s (connect-to-eve "localhost:8083" 0 0)))
+
     (when @s
       (eve-query @s "(query [test success] (fact _ :tag \"test-run\" :result success :test))" 
-                 (fn [x] (println "result" x))))
+                 (fn [x]
+                   (let [database (connect-to-eve server 0 0)
+                         results (atom {})
+                         out (atom {})]
+                     (doseq [i x]
+                       (swap! results assoc-in [(keyword (first i)) :result] (second i))
+                       (swap! results assoc-in [(keyword (first i)) :name] (first i)))
+                     (println @results)
+                     (doseq [i (keys @results)] 
+                       (let [k (gensym "tester")]
+                         (swap! out assoc k (@results i))))
+                     (println @out)))))
+
     (.write (p 0) start)
     (.flush (p 0))
     (.write (p 0) "(exit)\n")
@@ -122,9 +136,15 @@
     
 ;; the websocket input guy   
 (defn input-handler [request]
-  (let [parsed (json/parsed-seq (clojure.java.io/reader (:body request) :encoding "UTF-8"))]
-    (println (parsed "pull_request"))))
-
+  (let [parsed (json/parsed-seq (clojure.java.io/reader (:body request) :encoding "UTF-8"))
+        action (first parsed)
+        repo ((action "repository") "git_url")
+        branch (((action "pull_request") "head") "ref")
+        state ((action "pull_request") "state")]
+    (when (= state "open")
+      (println "run test" repo branch)
+      (run-test repo branch {}))
+    {:body "thanks"}))
 
 ;; webhook input
 (defn serve [port]
@@ -136,7 +156,7 @@
 (defn -main [& args] 
   (org.apache.log4j.BasicConfigurator/configure) 
   (.setLevel (Logger/getRootLogger) Level/OFF)
-  (run-test "git")
+
 ;;  (let [k (connect-to-eve "127.0.0.1:8081" 0 0)]
 ;;    (eve-insert k "joeoy" :loves "salley"))
 
