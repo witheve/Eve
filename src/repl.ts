@@ -465,6 +465,7 @@ function submitReplCard(card: ReplCard) {
   // Insert a row in the repl-card table
   let rcQuery = `(query []
                    (insert-fact! "${card.id}" :tag "repl-card"
+                                              :tag "system"
                                               :row ${card.row} 
                                               :col ${card.col} 
                                               :query "${card.query.query.replace(/"/g,'\\"')}"
@@ -696,10 +697,16 @@ function loadCardsClick(event, elem) {
 
 function deleteCardClick(event, elem) {
   let card = repl.deck.focused;
+  // Delete a row from the repl-card table
+  let delQuery = `(query []
+                    (fact-btu "${card.id}" :tick t)
+                    (remove-by-t! t))`;
+  sendAnonymousQuery(delQuery);
   // find the index in the deck
+  let ix = repl.deck.cards.map((c) => c.id).indexOf(card.id);
   // remove the card from the deck
+  repl.deck.cards.splice(ix,1);
   // send a remove to the server
-  
   sendClose(card.query);
   rerender();
 }
