@@ -510,6 +510,20 @@ function blurCard(replCard: ReplCard) {
   }
 }
 
+function deleteCard(card: ReplCard) {
+  // Delete a row from the repl-card table
+  let delQuery = `(query []
+                    (fact-btu "${card.id}" :tick t)
+                    (remove-by-t! t))`;
+  sendAnonymousQuery(delQuery);
+  // find the index in the deck
+  let ix = repl.deck.cards.map((c) => c.id).indexOf(card.id);
+  // remove the card from the deck
+  repl.deck.cards.splice(ix,1);
+  // send a remove to the server
+  sendClose(card.query);
+}
+
 function focusCard(replCard: ReplCard) {
   if (replCard !== undefined) {
     if (repl.deck.focused.id !== replCard.id) {
@@ -597,7 +611,7 @@ function queryInputKeydown(event, elem) {
     submitReplCard(thisReplCard);
   // Catch ctrl + delete to remove a card
   } else if (event.keyCode === 46 && event.ctrlKey === true) {
-    //deleteReplCard(thisReplCard);
+    deleteCard(thisReplCard);
   // Catch ctrl + home  
   } else if (event.keyCode === 36 && event.ctrlKey === true) {
     //focusCard(replCards[0]);
@@ -697,17 +711,7 @@ function loadCardsClick(event, elem) {
 
 function deleteCardClick(event, elem) {
   let card = repl.deck.focused;
-  // Delete a row from the repl-card table
-  let delQuery = `(query []
-                    (fact-btu "${card.id}" :tick t)
-                    (remove-by-t! t))`;
-  sendAnonymousQuery(delQuery);
-  // find the index in the deck
-  let ix = repl.deck.cards.map((c) => c.id).indexOf(card.id);
-  // remove the card from the deck
-  repl.deck.cards.splice(ix,1);
-  // send a remove to the server
-  sendClose(card.query);
+  deleteCard(card);
   rerender();
 }
 
