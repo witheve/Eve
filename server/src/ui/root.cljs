@@ -543,6 +543,8 @@
   (let [{:keys [current-cell nodes]} info
         {:keys [parent name value]} (nodes current-cell)
         parent-info (nodes parent)
+        cleaned-value (if (and typed-value (not= typed-value ""))
+                        typed-value)
         options (cond
                   ;; if we're a root, we're looking for tags, implications, references
                   ;; and functions
@@ -550,22 +552,29 @@
                   ;; @TODO: get tags from a query instead of assuming I have them locally
                   (= :root parent) (let [tags (afor [tag (.keys js/Object facts-by-tag)]
                                                     {:text (for-display tag) :adornment "tag" :action :assoc :value tag :to-assoc {:token-type "tag"}})]
-                                     (concat tags)
-                                     )
+                                     (concat tags
+                                             (when cleaned-value
+                                               [{:text cleaned-value :adornment "tag" :action :assoc :value 'generated-id :to-assoc {:token-type "tag"} :generate-grid {}}])
+                                     ))
                   ;; if we have a parent and it's not a function, we should scope ourselves
                   ;; to attributes on the parent, related tags, functions, and named entities
-                  (and parent-info (not= (:type parent-info) "function")) (let []
+                  (and parent-info (not= (:type parent-info) "function")) (let [attrs []]
+                                                                            (concat attrs
+                                                                                    (when cleaned-value
+                                                                                      [{:text cleaned-value :adornment "attribute" :action :assoc :value cleaned-value :to-assoc {:token-type "attribute"}}])
+                                     )
                                                                             )
                   ;; if our parent *is* a function, then we need to look for references and
                   ;; values
+                  ;; @TODO: functions
                   (and parent-info (= (:type parent-info) "function")) ()
                   ;; @TODO: special forms - choose, not, union
                   ;; @TODO: aggregate modifiers (grouping, uniques)
                   )
-        final (if (and typed-value (not= typed-value ""))
+        final (if cleaned-value
                 (match-autocomplete-options options typed-value)
                 options)]
-    (println "INFO! " info options)
+    (println "INFO! " parent)
     final
     ))
 
@@ -603,8 +612,8 @@
                            :border "1px solid #555")
              :children items))))))
 
-(defn get-selected-autocomplete-option [type value selected]
-  (when-let [options (get-autocompleter-options type value)]
+(defn get-selected-autocomplete-option [type value selected info]
+  (when-let [options (get-autocompleter-options type value info)]
     (when (seq options)
       (nth options (mod selected (count options))))))
 
@@ -673,7 +682,7 @@
           (.. (querySelector ".value") (focus)))
       (.preventDefault event))
       (let [intermediate-property (get-state grid-id :intermediate-property)
-            selected (get-selected-autocomplete-option :property intermediate-property (get-state grid-id :autocomplete-selection 0))]
+            selected (get-selected-autocomplete-option :property intermediate-property (get-state grid-id :autocomplete-selection 0) nil)]
         (when (not= (:text selected) intermediate-property)
           (transaction context
             (update-state! context id :intermediate-property (:text selected)))))
@@ -683,7 +692,7 @@
                    (update-state! context grid-id :active-cell nil)))))
 
 (defn value-keys [event elem]
-  (let [{:keys [cell id]} (.-info elem)
+  (let [{:keys [cell id autocompleter autocompleter-info]} (.-info elem)
         key-code (.-keyCode event)
         {:keys [grid-id]} cell
         shift? (.-shiftKey event)
@@ -700,7 +709,11 @@
           (.. (querySelector ".property") (focus))))
     (when (= action :submit)
         ;; otherwise we submit this cell and move down
-        (let [selected (get-selected-autocomplete-option :value (or (get-state grid-id :intermediate-value) (for-display (:value cell))) (get-state grid-id :autocomplete-selection 0))
+        (let [selected (get-selected-autocomplete-option (or autocompleter :value)
+                                                         (or (get-state grid-id :intermediate-value)
+                                                             (for-display (:value cell)))
+                                                         (get-state grid-id :autocomplete-selection 0)
+                                                         autocompleter-info)
               {:keys [action]} selected
               direction (cond
                           (and shift? (= key-code (KEYS :tab))) :left
@@ -718,10 +731,21 @@
                                                                         cell-update))
                                    (clear-intermediates! context grid-id))
 
-              (= action :assoc) (let [cell-update (merge {:value (:value selected)}
+              (= action :assoc) (let [generate-grid (:generate-grid selected)
+                                      cell-update (merge {:value (:value selected)}
                                                          (:to-assoc selected))]
+                                  (println "QUERY:cell-update:" (:id cell) cell-update)
+                                   (when generate-grid
+                                     (insert-facts! context (assoc generate-grid :id 'generate-grid-id)))
+                                  ;; @TODO: this probably shouldn't be here
                                   (update-entity! context (:id cell) cell-update)
-                                  (clear-intermediates! context grid-id))
+                                  (when (= (:type cell) "formula-token")
+                                    ;; @FIXME: this assumes synchronous update, which may not be true at some
+                                    ;; point and will lead to sadness
+                                    (replace-and-send-query grid-id (formula-grid->query grid-id)))
+                                  (clear-intermediates! context grid-id)
+                                  (update-state! context grid-id :active-cell nil)
+                                  (move-selection! context grid-id direction))
               (or (= action :create)
                   (= action :link)
                   (= action :value)) (let [value-id (if (= action :create)
@@ -941,20 +965,24 @@
                        :justify-content "center")
       :children
          (if active?
-           (array
-             (input :style (style :font-size "12pt"
-                                  :color "#CCC"
-                                  :margin-top -1 ;@FIXME why is this necessary to active/inactive to line up?
-                                  :padding-left 8)
-                    :postRender focus-once
-                    :focus track-focus
-                    :input store-intermediate
-                    :keydown value-keys
-                    :c "value"
-                    :info {:cell cell :field :value :id (:id cell)}
-                    :placeholder "value"
-                    :value (or  (get-state grid-id :intermediate-value) (for-display (:value cell))))
-             (let [info (assoc (formula-grid-info grid-id) :current-cell (:id cell))]
+           (let [info (assoc (formula-grid-info grid-id) :current-cell (:id cell))]
+             (array
+               (input :style (style :font-size "12pt"
+                                    :color "#CCC"
+                                    :margin-top -1 ;@FIXME why is this necessary to active/inactive to line up?
+                                    :padding-left 8)
+                      :postRender focus-once
+                      :focus track-focus
+                      :input store-intermediate
+                      :keydown value-keys
+                      :c "value"
+                      :info {:cell cell
+                             :field :value
+                             :autocompleter :formula-token
+                             :autocompleter-info info
+                             :id (:id cell)}
+                      :placeholder "value"
+                      :value (or  (get-state grid-id :intermediate-value) (for-display (:value cell))))
                (autocompleter :formula-token
                               (or (get-state grid-id :intermediate-value)
                                   (for-display (:value cell))
@@ -986,30 +1014,34 @@
               (recur (inc ix))))))))))
 
 (defn walk-graph [graph node parent-symbol query info]
-  (if (= :root node)
-    (reduce (fn [query child]
-              (let [child-sym (get-projected-name child nil info)
-                    child-info ((:nodes @info) child)
-                    updated (conj query `(fact-btu ~child-sym "tag" ~(:value child-info)))]
-                (swap! info update-in [:vars] conj child-sym)
-                (reduce (fn [query sub-child]
-                          (walk-graph graph sub-child child-sym query info))
-                        updated
-                        (graph child))))
-            query
-            (:root graph))
-    ;; otherwise...
-    (let [node-sym (get-projected-name node parent-symbol info)
-          query (conj query `(fact-btu ~parent-symbol
-                                       ~(-> (:nodes @info)
-                                            (get node)
-                                            (:name))
-                                       ~node-sym))]
-      (swap! info update-in [:vars] conj node-sym)
-      (reduce (fn [query child]
-                (walk-graph graph child node-sym query info))
-              query
-              (graph node)))))
+  (let [node-info (-> (:nodes @info)
+                      (get node))]
+    (cond
+      (= :root node) (reduce (fn [query child]
+                               (walk-graph graph child nil query info))
+                             query
+                             (:root graph))
+      (= (:token-type node-info) "attribute") (let [node-sym (get-projected-name node parent-symbol info)
+                                                    query (conj query `(fact-btu ~parent-symbol
+                                                                                 ~(-> (:nodes @info)
+                                                                                      (get node)
+                                                                                      (:name))
+                                                                                 ~node-sym))]
+                                                (swap! info update-in [:vars] conj node-sym)
+                                                (reduce (fn [query child]
+                                                          (walk-graph graph child node-sym query info))
+                                                        query
+                                                        (graph node)))
+
+      (= (:token-type node-info) "tag") (let [node-sym (or parent-symbol (get-projected-name node parent-symbol info))
+                                              query (conj query `(fact-btu ~node-sym "tag" ~(:value node-info)))]
+                                          (if-not parent-symbol
+                                            (swap! info update-in [:vars] conj node-sym))
+                                          (reduce (fn [query child]
+                                                    (walk-graph graph child node-sym query info))
+                                                  query
+                                                  (graph node)))
+      )))
 
 (defn formula-grid-info [id]
   (let [cells (entities {:tag "cell" :grid-id id})
@@ -1017,7 +1049,7 @@
         cols (atom {})
         nodes (atom {})
         edges (for [cell sorted
-                    :let [{:keys [value x id]} cell
+                    :let [{:keys [value x id token-type width]} cell
                           child-name (when value
                                        (or (:name (entity {:id value})) value))
                           ;; your parent is whatever is the first thing to the left and up
@@ -1026,8 +1058,11 @@
                                      :root)
                           _ (swap! nodes assoc id {:name child-name
                                                    :value value
+                                                   :token-type token-type
                                                    :parent parent})
-                          _ (swap! cols assoc x value)]]
+                          ;; set this cell as the parent for all the columns taken up by this cell
+                          _ (dotimes [width-modifier width]
+                              (swap! cols assoc (+ width-modifier x) id))]]
                 [parent id])
         ;; to the edges into {parent [child, child2, ...]}
         graph (reduce (fn [graph edge]
@@ -1045,9 +1080,12 @@
 (defn formula-grid->query [id]
   (let [{:keys [graph nodes]} (formula-grid-info id)
         state (atom {:vars [] :nodes nodes})
-        clauses (walk-graph graph :root nil [] state)]
-    (query-string `(query ~(vec (:vars @state))
-                          ~@clauses))))
+        clauses (walk-graph graph :root nil [] state)
+        query (query-string `(query ~(vec (:vars @state))
+                          ~@clauses))]
+    (println "QUERY:\n" query)
+    query
+    ))
 
 ;;---------------------------------------------------------
 ;; Code cell
