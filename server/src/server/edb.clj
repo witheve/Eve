@@ -69,7 +69,6 @@
                                     (user view)))
         r (fulltuple-from-local tuple)]
     
-    (println "insert" (map str tuple))
     (swap! (tuples view) conj tuple)
     (doseq [i @(listeners view)]
       ((i 0) 'insert r (i 1)))
