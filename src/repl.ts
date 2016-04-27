@@ -205,6 +205,7 @@ function connectToServer() {
     repl.server.state = ConnectionState.CONNECTED;
     // Initialize the repl state
     if (repl.init === false) {
+      console.log("Initializing");
       objectToArray(repl.system).map(sendQuery);
       repl.init = true;
     }
@@ -220,11 +221,20 @@ function connectToServer() {
 
   ws.onerror = function(error) {
     repl.server.state = ConnectionState.DISCONNECTED;
+    repl.init = false;
+    objectToArray(repl.system).map((q: Query) => q.result.values = []);
     rerender();
   }
 
   ws.onclose = function(error) {  
     repl.server.state = ConnectionState.DISCONNECTED;
+    repl.init = false;
+    objectToArray(repl.system).map((q: Query) => q.result.values = []);
+    /*repl.deck.cards.map((c) => {
+      c.state = CardState.PENDING
+      c.query.result = undefined;
+      c.display = CardDisplay.QUERY;
+    });*/
     reconnect();
     rerender();
   }
