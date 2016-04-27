@@ -539,10 +539,35 @@
   (when (and value (not= value ""))
     [{:text value :action :set-property :value value}]))
 
-(defmethod get-autocompleter-options :formula-token [_ value info]
-  (when (and value (not= value ""))
-    (println "INFO!" info)
-    [{:text value :action :value :value value}]))
+(defmethod get-autocompleter-options :formula-token [_ typed-value info]
+  (let [{:keys [current-cell nodes]} info
+        {:keys [parent name value]} (nodes current-cell)
+        parent-info (nodes parent)
+        options (cond
+                  ;; if we're a root, we're looking for tags, implications, references
+                  ;; and functions
+                  ;; @TODO: implications, functions, and references
+                  ;; @TODO: get tags from a query instead of assuming I have them locally
+                  (= :root parent) (let [tags (afor [tag (.keys js/Object facts-by-tag)]
+                                                    {:text (for-display tag) :adornment "tag" :action :assoc :value tag :to-assoc {:token-type "tag"}})]
+                                     (concat tags)
+                                     )
+                  ;; if we have a parent and it's not a function, we should scope ourselves
+                  ;; to attributes on the parent, related tags, functions, and named entities
+                  (and parent-info (not= (:type parent-info) "function")) (let []
+                                                                            )
+                  ;; if our parent *is* a function, then we need to look for references and
+                  ;; values
+                  (and parent-info (= (:type parent-info) "function")) ()
+                  ;; @TODO: special forms - choose, not, union
+                  ;; @TODO: aggregate modifiers (grouping, uniques)
+                  )
+        final (if (and typed-value (not= typed-value ""))
+                (match-autocomplete-options options typed-value)
+                options)]
+    (println "INFO! " info options)
+    final
+    ))
 
 (defn autocompleter-item [{:keys [type adornment selected] :as info}]
   (box :style (style :padding "7px 10px 7px 8px"
@@ -566,7 +591,8 @@
   ([type value selected info]
   (let [options (get-autocompleter-options type value info)]
     (when options
-      (let [with-selected (update-in (vec options) [(mod selected (count options))] assoc :selected true)
+      (let [with-selected (when (seq options)
+                            (update-in (vec options) [(mod selected (count options))] assoc :selected true))
             items (to-array (map autocompleter-item with-selected))]
         (box :style (style :position "absolute"
                            :background "#000"
@@ -691,6 +717,11 @@
                                                                         (assoc cell-update :value 'generate-grid-id)
                                                                         cell-update))
                                    (clear-intermediates! context grid-id))
+
+              (= action :assoc) (let [cell-update (merge {:value (:value selected)}
+                                                         (:to-assoc selected))]
+                                  (update-entity! context (:id cell) cell-update)
+                                  (clear-intermediates! context grid-id))
               (or (= action :create)
                   (= action :link)
                   (= action :value)) (let [value-id (if (= action :create)
@@ -923,7 +954,7 @@
                     :info {:cell cell :field :value :id (:id cell)}
                     :placeholder "value"
                     :value (or  (get-state grid-id :intermediate-value) (for-display (:value cell))))
-             (let [info (formula-grid-info grid-id)]
+             (let [info (assoc (formula-grid-info grid-id) :current-cell (:id cell))]
                (autocompleter :formula-token
                               (or (get-state grid-id :intermediate-value)
                                   (for-display (:value cell))
@@ -958,7 +989,8 @@
   (if (= :root node)
     (reduce (fn [query child]
               (let [child-sym (get-projected-name child nil info)
-                    updated (conj query `(fact-btu ~child-sym "tag" ~child))]
+                    child-info ((:nodes @info) child)
+                    updated (conj query `(fact-btu ~child-sym "tag" ~(:value child-info)))]
                 (swap! info update-in [:vars] conj child-sym)
                 (reduce (fn [query sub-child]
                           (walk-graph graph sub-child child-sym query info))
@@ -985,17 +1017,18 @@
         cols (atom {})
         nodes (atom {})
         edges (for [cell sorted
-                    :let [{:keys [value x]} cell
+                    :let [{:keys [value x id]} cell
                           child-name (when value
                                        (or (:name (entity {:id value})) value))
                           ;; your parent is whatever is the first thing to the left and up
                           ;; if there isn't anything there, then you must be a root
                           parent (or (@cols (dec x))
                                      :root)
-                          _ (swap! nodes assoc value {:name child-name
-                                                      :parent parent})
+                          _ (swap! nodes assoc id {:name child-name
+                                                   :value value
+                                                   :parent parent})
                           _ (swap! cols assoc x value)]]
-                [parent value])
+                [parent id])
         ;; to the edges into {parent [child, child2, ...]}
         graph (reduce (fn [graph edge]
                         (let [[parent child] edge
