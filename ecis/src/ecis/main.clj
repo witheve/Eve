@@ -93,10 +93,9 @@
 
 (def charset (map char (concat (range 48 58) (range 66 92) (range 97 123))))
 
-;; probably also should take a sha
 (defn checkout-repository [url branch]
   (let [pathname (apply str "/tmp/" (repeatedly 20 #(rand-nth charset)))]
-       (porcelain/git-clone url pathname branch)
+       (porcelain/git-clone-full url pathname "origin" branch)
        pathname))
 
  
@@ -117,8 +116,8 @@
     (.flush (p 0))
     (.write (p 0) "(exit)\n")
     (.flush (p 0))
-    (delete-recursively path)
-    (println "exit" @(p 1))))
+    (println "test lein exit" @(p 1))
+    (delete-recursively path)))
     
     
 ;; the websocket input guy   

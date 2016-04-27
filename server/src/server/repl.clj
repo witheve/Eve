@@ -144,7 +144,6 @@
                   ;; we're-a-gonna assume that this was a graceful close
                   (catch Exception e
                     (java.lang.System/exit 0)))]
-      (println "inputton" input)
       (recur
        (try (eeval d input)
             (catch Exception e
