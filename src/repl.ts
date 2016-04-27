@@ -251,25 +251,25 @@ function connectToServer() {
         if (parsed.fields.length > 0) {         
           let values: Array<Array<any>>;
           // If the card is pending, it was submitted manually, 
-          // so we replace the values with the inserts
+          // so we replace the values with the inserts          
           if (targetCard.state === CardState.PENDING) {
             values = parsed.insert;
             targetCard.display = CardDisplay.BOTH;
             targetCard.resultDisplay = ResultsDisplay.TABLE;
+            targetCard.query.result = {
+              fields: parsed.fields,
+              values: values,
+            };
           // If the card is Good, that means it already has results
           // and the current message is updating them
           } else if (targetCard.state === CardState.GOOD) {
             // Apply inserts
-            values = targetCard.query.result.values.concat(parsed.insert);
+            targetCard.query.result.values = targetCard.query.result.values.concat(parsed.insert);
             // Apply removes
             parsed.remove.forEach((row) => {
               removeRow(row,targetCard.query.result.values);
             });
           }
-          targetCard.query.result = {
-            fields: parsed.fields,
-            values: values,
-          };
         } else {
           targetCard.resultDisplay = ResultsDisplay.NONE;
         }
