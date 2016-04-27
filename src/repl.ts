@@ -252,7 +252,9 @@ function connectToServer() {
             // Apply inserts
             values = targetCard.query.result.values.concat(parsed.insert);
             // Apply removes
-            // @TODO
+            parsed.remove.forEach((row) => {
+              removeRow(row,targetCard.query.result.values);
+            });
           }
           targetCard.query.result = {
             fields: parsed.fields,
@@ -306,26 +308,9 @@ function connectToServer() {
             // Apply inserts
             targetSystemQuery.result.values = targetSystemQuery.result.values.concat(parsed.insert);
             // Apply removes
-            if (parsed.remove.length > 0 ) {
-              // Remove each row from the results
-              console.log("Remove These:");
-              console.log(parsed.remove);
-              let values = [];
-              parsed.remove.forEach((row) => {
-                let ix;
-                for (let i = 0; i < targetSystemQuery.result.values.length; i++) {
-                  let value = targetSystemQuery.result.values[i];
-                  if (arraysEqual(row,value)) {
-                    ix = i;
-                    break;
-                  }  
-                }
-                // If we found the row, remove it from the values
-                if (ix !== undefined) {
-                  targetSystemQuery.result.values.splice(ix,1);
-                }
-              });
-            }
+            parsed.remove.forEach((row) => {
+              removeRow(row,targetSystemQuery.result.values);
+            });
           }
           // Update the repl based on these new system queries
           if (parsed.id === repl.system.queries.id && parsed.insert !== undefined) {
@@ -1022,6 +1007,21 @@ function root() {
 // -----------------
 // Utility Functions
 // -----------------
+
+function removeRow(row: Array<any>, array: Array<Array<any>>) {
+  let ix;
+  for (let i = 0; i < array.length; i++) {
+    let value = array[i];
+    if (arraysEqual(row,value)) {
+      ix = i;
+      break;
+    }  
+  }
+  // If we found the row, remove it from the values
+  if (ix !== undefined) {
+    array.splice(ix,1);
+  }
+}
 
 function arraysEqual(a, b) {
   if (a === b) return true;
