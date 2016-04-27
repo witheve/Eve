@@ -96,6 +96,7 @@ interface Deck {
 
 interface Repl {
   init: boolean,
+  user: any,
   system: {
     entities: Query,  
     tags: Query,
@@ -205,7 +206,6 @@ function connectToServer() {
     repl.server.state = ConnectionState.CONNECTED;
     // Initialize the repl state
     if (repl.init === false) {
-      console.log("Initializing");
       objectToArray(repl.system).map(sendQuery);
       repl.init = true;
     }
@@ -672,6 +672,32 @@ function replCardClick(event, elem) {
   }
   rerender();
 }
+
+function inputKeydown(event, elem) {
+  // Capture enter
+  if (event.keyCode === 13) {
+    let inputs: any = document.querySelectorAll(".login input");
+    let username = inputs[0].value;
+    let password = inputs[1].value;
+    login(username, password); 
+  } else {
+    return;
+  }
+  event.preventDefault();
+}
+
+function loginSubmitClick(event, elem) {
+  let inputs: any = document.querySelectorAll(".login input");
+  let username = inputs[0].value;
+  let password = inputs[1].value;
+  login(username, password);
+}
+
+function login(username,password) {
+  console.log(username);
+  console.log(password);
+}
+
 /*
 function deleteAllCards(event, elem) {
   replCards.forEach(deleteReplCard);
@@ -995,6 +1021,7 @@ let replCards: Deck = {
 // Instantiate a repl instance
 let repl: Repl = {
   init: false,
+  user: undefined,
   system: {
     entities: newQuery(`(query [entities attributes values] (fact-btu entities attributes values))`), // get all entities in the database
     tags: newQuery(`(query [tag entity], (fact entity :tag tag))`),    // get all tags in the database
@@ -1018,11 +1045,24 @@ connectToServer();
 app.renderRoots["repl"] = root;
 
 function root() {
+  
+  let replChildren;
+  if (repl.user !== undefined) {
+    replChildren = [generateStatusBarElement(), generateCardRootElements(), repl.modal !== undefined ? repl.modal : {}];
+  } else {
+    let eveLogo = {t: "img", c: "logo", src: "http://witheve.com/logo.png", width: 643/5, height: 1011/5};
+    let username = {t: "input", id: "repl-username-input", placeholder: "Username", keydown: inputKeydown};
+    let password = {t: "input", id: "repl-password-input", type: "password", placeholder: "Password", keydown: inputKeydown};
+    let submit = {c: "button", text: "Submit", click: loginSubmitClick};
+    let login = {c: "login", children: [eveLogo, username, password, submit]}
+    replChildren = [login];
+  }
+  
   let root = {
     id: "repl",
     c: "repl",
     click: rootClick,
-    children: [generateStatusBarElement(), generateCardRootElements(), repl.modal !== undefined ? repl.modal : {}],
+    children: replChildren,
   };  
   return root;
 }

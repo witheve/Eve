@@ -101,6 +101,38 @@ h2 {
   z-index: 100;
 }
 
+/* Login */
+
+.login {
+  margin: auto;
+  margin-top: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.login * {
+  margin-bottom: 25px;
+}
+
+.login input {
+  color: rgb(200,200,200);
+  background-color: rgba(0,0,0,0);
+  border: 1px solid rgb(200,200,200);
+  padding: 10px;
+  border-radius: 4px;
+}
+
+
+.login .button {
+  padding: 10px;
+  width: 100px;
+}
+
+.login .logo {
+  margin-bottom: 50px;
+}
+
 /* Table Styles */
 
 .table { display: table; }
