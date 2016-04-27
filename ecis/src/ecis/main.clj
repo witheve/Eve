@@ -67,7 +67,6 @@
 (defn eve-close [q]
   (let [m (format-json {"type" "close"
                              "id" (q 1)})]
-    (println "closerino" m)
     (ws/send-msg ((q 0) 0) m)))
 
   
@@ -100,6 +99,21 @@
        pathname))
 
  
+(defn tree-to-facts [m] 
+  (let [facts (atom ())
+        descend (fn descend [id m] 
+                  (doseq [k (keys m)]
+                    (let [v (m k)
+                          f (fn [x] (swap! facts conj (list id (keyword k) x)))]
+                      (if (= (type v) clojure.lang.PersistentArrayMap )
+                        (let [sub (gensym "subflatto")]
+                          (descend sub v)
+                          (f sub))
+                        (f v)))))]
+    (descend (gensym "flatto") m)
+    @facts))
+
+
 (defn run-test [url branch facts]
   (let [path (checkout-repository url branch)
         s (atom nil)
@@ -122,9 +136,13 @@
                        (swap! results assoc-in [(keyword (first i)) :name] (first i)))
                      (println @results)
                      (doseq [i (keys @results)] 
-                       (let [k (gensym "tester")]
-                         (swap! out assoc k (@results i))))
-                     (println @out)))))
+                       (swap! out assoc :result (@results i)))
+                     (swap! out merge facts)
+                     (swap! out assoc :tag "test")
+                     (let [fax (tree-to-facts @out)]
+                       (println fax)
+                       (eve-insert database fax)
+                       (eve-close database))))))
 
     (.write (p 0) start)
     (.flush (p 0))
@@ -139,11 +157,13 @@
   (let [parsed (json/parsed-seq (clojure.java.io/reader (:body request) :encoding "UTF-8"))
         action (first parsed)
         repo ((action "repository") "git_url")
-        branch (((action "pull_request") "head") "ref")
-        state ((action "pull_request") "state")]
+        pr (action "pull_request") 
+        branch ((pr "head") "ref")
+        state (pr "state")]
     (when (= state "open")
       (println "run test" repo branch)
-      (run-test repo branch {}))
+      (let [user ((pr "user") "login")]
+        (run-test repo branch {:user user})))
     {:body "thanks"}))
 
 ;; webhook input
