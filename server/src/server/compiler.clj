@@ -160,7 +160,7 @@
         pmap (zipmap signature (range (count signature)))
         pmap (select-keys pmap used)
         [bound free] (partition-2 (fn [x] (is-bound? env (amap x))) used)
-        [specoid index-inputs index-outputs] [edb/full-scan-oid () signature]
+        [index-inputs index-outputs] [() signature]
         filter-terms (set/intersection (set index-outputs) (set bound))
         target-reg-name (gensym 'target)
         target-reg (allocate-register env target-reg-name)
@@ -177,11 +177,11 @@
     (if collapse
       (apply build
              ;; needs to take a projection set for the indices
-             (term env 'scan m specoid exec/temp-register [])
+             (term env 'scan m exec/temp-register [])
              (term env 'delta-e m target-reg-name exec/temp-register)
              (list (body)))
       (apply build
-             (term env 'scan m specoid target-reg-name [])
+             (term env 'scan m target-reg-name [])
              (list (body))))))
 
 (defn make-continuation
@@ -215,9 +215,7 @@
     (bind-outward env inner-env)
     (make-continuation env tail-name (down))
     (make-bind env inner-env name body)
-    (apply build
-           (when-not (zero? (count input)) (apply term env 'delta-c m input))
-           (list (generate-send env m name input)))))
+    (generate-send env m name input)))
 
 (defn compile-union [env terms down]
   (let [[_ proj & arms] terms
@@ -308,20 +306,40 @@
     ;; @FIXME: Dependent on synchronous evaluation: expects for-each-implication to have completed
     (apply build (map #(generate-send env m %1 (map call-map input)) @arms))))
 
-(defn compile-simple-primitive [env terms down]
-  (let [argmap (apply hash-map (rest terms))
-        m (meta (first terms))
-        simple [(argmap :return) (argmap :a) (argmap :b)]
-        ins (map #(get-in @env ['bound %1] nil) simple)]
-    (apply add-dependencies env (rest (rest terms)))
-    (if (some not (rest ins))
-      ;; handle the [b*] case by blowing out a temp
-      (do
-        (allocate-register env (first simple))
-        (build
-         (apply term env (first terms) m simple)
-         (down)))
-      (compile-error (str "unhandled bound signature in" terms) {:env env :terms terms}))))
+(defn compile-primitive [params]
+  (fn [env terms down]
+    (let [argmap (apply hash-map (rest terms))
+          m (meta (first terms))
+          simple (into [(argmap :return)] (map argmap params))
+          ins (map #(lookup env %1) simple)]
+      (apply add-dependencies env (rest (rest terms)))
+      (println "COMPILE PRIMITIVE" params "||" simple "||" ins)
+      (if-not (some nil? (rest ins))
+        ;; handle the [b*] case by blowing out a temp
+        (do
+          (allocate-register env (first simple))
+          (build
+           (apply term env (first terms) m simple)
+           (down)))
+        (compile-error (str "unhandled bound signature in" terms) {:env env :terms terms})))))
+
+(defn compile-variadic-primitive [env terms down]
+    (let [argmap (apply hash-map (rest terms))
+          m (meta (first terms))
+          ins (into [(lookup @env (:return argmap))] (map #(lookup @env %1) (:a argmap)))]
+      ;; @FIXME: What should this guy feed to add-dependencies?
+      ;;(apply add-dependencies env (rest (rest terms)))
+      (if-not (some nil? (second ins))
+        ;; handle the [b*] case by blowing out a temp
+        (do
+          (allocate-register env (:return argmap))
+          (build
+           (with-meta (apply list (first terms) ins) m)
+           (down)))
+        (compile-error (str "unhandled bound signature in" terms) {:env env :terms terms}))))
+
+(def compile-unary-primitive (compile-primitive [:a]))
+(def compile-binary-primitive (compile-primitive [:a :b]))
 
 (defn compile-sum [env terms down]
   (let [grouping (get @env 'input [])
@@ -332,7 +350,24 @@
     (when-not (lookup env (:return argmap))
       (allocate-register env (:return argmap)))
     (build
+     (apply term env 'delta-c m (vals (get @env 'bound {})))
      (term env (first terms) m (:return argmap) (:a argmap) (map #(lookup env %1) grouping))
+     (down))))
+
+(defn compile-sort [env terms down]
+  (let [grouping (get @env 'input [])
+        m (meta (first terms))
+        argmap (apply hash-map (rest terms))]
+    (when-not (lookup env (:sorting argmap))
+      (compile-error (str "unhandled bound signature in" terms) {:env env :terms terms}))
+    (when-not (lookup env (:return argmap))
+      (allocate-register env (:return argmap)))
+    (build
+     (apply term env 'delta-c m (vals (get @env 'bound {})))
+     (term env (first terms) m
+           (:return argmap)
+           (map (fn [[var dir]] [(lookup env var) (lookup env dir)]) (partition 2 (:sorting argmap)))
+           (map #(lookup env %1) grouping))
      (down))))
 
 (defn compile-equal [env terms down]
@@ -359,39 +394,38 @@
 (defn compile-insert [env terms down]
   (let [bindings (apply hash-map (rest terms))
         m (meta (first terms))
-        e (if-let [b (bindings :entity)] b nil)
-        a (if-let [b (bindings :attribute)] b nil)
-        v (if-let [b (bindings :value)] b nil)
-        t (if-let [b (bindings :value)] b nil)
+        e (if-let [b (:entity bindings)] b nil)
+        a (when-not (nil? (:attribute bindings)) (:attribute bindings))
+        v (when-not (nil? (:value bindings)) (:value bindings))
         ;; namespace collision with bag, used to have a dedicated register..figure it out
-        b (if-let [b (bindings :bag)] b (get-in @env ['bound 'bag]))
-        out (if-let [b (bindings :tick)] (let [r (allocate-register env (gensym 'insert-output))]
-                                           (bind-names env {b [r 4]})
+        b (if-let [b (:bag bindings)] b (get-in @env ['bound 'bag]))
+        out (if-let [b (:tick bindings)] (let [r (allocate-register env (gensym 'insert-output))]
+                                           (bind-names env {b [r]})
                                            [r]) [])]
-
     (let [z (down)]
       (apply build
-             (term env 'tuple m exec/temp-register e a v b)
-             (term env 'scan m edb/insert-oid out exec/temp-register)
+             (term env 'tuple m exec/temp-register e a v)
+             (term env 'insert m out exec/temp-register)
              (list z)))))
 
 (defn compile-expression [env terms down]
-  (let [commands {'+ compile-simple-primitive
-                  '* compile-simple-primitive
-                  '/ compile-simple-primitive
-                  '- compile-simple-primitive
+  (let [commands {'+ compile-binary-primitive
+                  '* compile-binary-primitive
+                  '/ compile-binary-primitive
+                  '- compile-binary-primitive
+                  'hash compile-unary-primitive
+                  'str compile-unary-primitive
                   '< generate-binary-filter
                   '> generate-binary-filter
-                  'sort compile-simple-primitive ;; ascending and descending
+                  'sort compile-sort
                   'sum compile-sum
 
-                  'str compile-simple-primitive
                   'insert-fact-btu! compile-insert
                   'fact-btu (fn [e terms down]
                               (generate-scan e terms down true))
                   'full-fact-btu (fn [e terms down]
                                    (generate-scan e terms down false))
-                  'range compile-simple-primitive
+                  'range compile-binary-primitive
                   '= compile-equal
                   'not compile-not
                   'not= generate-binary-filter
@@ -408,13 +442,12 @@
       (compile-expression env (first terms)
                           (fn [] (compile-conjunction env (rest terms) down)))))
 
-(defn compile-dsl [d bag terms]
+(defn compile-dsl [d terms]
   (when-not (= (first terms) 'query)
     (compile-error "Top level form must be query" {'place (meta terms)}))
   (let [proj (second terms)
         m (meta (first terms))
         env (new-env d proj) ;; @FIXME: with projection of top level query
-        _ (swap! env assoc 'bag bag)
         p (compile-expression
            ;; maybe replace with zero register? maybe just shortcut this last guy?
            env terms (fn []

@@ -42,10 +42,18 @@
     (throw (syntax-error "All union/choose members must be queries" expr))))
   body)
 
+(defn validate-sort [sexpr args]
+  (doseq [[var dir] (partition 2 {:sorting args})]
+    (when-not (symbol? var)
+      (syntax-error "First argument of each pair must be a variable" sexpr {:var var :dir dir}))
+    (when-not (or (symbol? dir) (= "ascending" dir) (= "descending" dir))
+      (syntax-error "Second argument of each pair must be a direction" sexpr {:var var :dir dir}))))
+
 ;; :args - positional arguments
 ;; :kwargs - keyword arguments
 ;; :rest - remaining arguments
 ;; :optional - arguments which may not be specified
+;; :validate - optional function to validate the argument map
 (def schemas {
               ;; Special forms
               'insert-fact! nil
@@ -59,7 +67,7 @@
 
               ;; native forms
               'insert-fact-btu! {:args [:entity :attribute :value :bag] :kwargs [:tick] :optional #{:bag :tick}} ; bag can be inferred in SMIR
-
+              'sort {:rest :sorting :optional #{:return} :validate validate-sort}
               'union {:args [:params] :rest :members}
               'choose {:args [:params] :rest :members}
               'not {:rest :body}
@@ -81,6 +89,9 @@
                  '< {:args [:a :b] :kwargs [:return] :optional #{:return}}
                  '<= {:args [:a :b] :kwargs [:return] :optional #{:return}}
 
+                 'str {:rest :args}
+                 'hash {:args [:a]}
+
                  'sum {:args [:a] :kwargs [:return] :optional #{:return}}})
 
 (defn get-schema
@@ -92,7 +103,8 @@
      (if schema
        schema
        (when implication
-         {:args (vec (map keyword (first implication)))})))))
+         (let [args (map keyword (first implication))]
+           {:args (vec args) :optional (set args)}))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Parse sexprs into argument hashmaps
@@ -236,7 +248,8 @@
                              (keys args)))
           (some #(when-not (supplied? %1)
                    (syntax-error (str "Missing required argument " %1 " for " (first expr)) expr))
-                required)))))
+                required)
+          (when (:validate schema) ((:validate schema) expr args))))))
 
 (defn assert-valid [args]
   (if-let [err (validate-args args)]
@@ -268,6 +281,7 @@
                                args)
                      fact (expand-each db (map #(cons (with-meta 'fact-btu (meta op)) %1) (:facts args)))
                      insert-fact! (expand-each db (map #(cons (with-meta 'insert-fact-btu! (meta op)) %1) (:facts args)))
+                     sort (cons op (splat-map args))
 
                      ;; Macros
                      remove-by-t! (expand db (list (with-meta 'insert-fact-btu! (meta op)) (:tick args) REMOVE_FACT nil))
@@ -282,6 +296,7 @@
                      choose (concat [op] [(:params args)] (assert-queries (expand-each db (:members args))))
                      not (cons op (expand-each db (:body args)))
                      context (cons op (splat-map (expand-values db args)))
+                     str (cons op (list :a (expand-each db (:args args))))
 
                      ;; Default
                      (cons op (splat-map (expand-values db args))))]
@@ -290,7 +305,7 @@
     :else expr))
 
 (defn returnable? [sexpr]
-  (let [schema (get primitives (first sexpr))]
+  (let [schema (get-schema (first sexpr))]
     (if-not (nil? schema)
       (boolean (:return (:optional schema)))
       false)))

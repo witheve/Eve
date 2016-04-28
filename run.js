@@ -236,7 +236,7 @@ function root(program, uiState) {
 
   var statusLines = {
     all: statusLine("all", 0, status, true),
-    server: statusLine("server", 1, status)
+    // server: statusLine("server", 1, status)
   };
   for(var programIx = 0; programIx < program.bundles.length; programIx++) {
     var programName = program.bundles[programIx];
