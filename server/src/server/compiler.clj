@@ -125,7 +125,6 @@
     {'body (list p)}))
 
 (defn build [& a]
-  (println "build" a)
   (reduce (fn [b x] {'body (concat (b 'body) (x 'body))}) {'body ()} a))
 
 (defn generate-send
@@ -197,7 +196,7 @@
 (defn make-continuation
   "Creates a new block that resumes execution in the scope of the given env from a child env"
   [env name body]
-  (swap! env #(merge-with merge-state %1 {'blocks {name (body-term 'bind name body)}})))
+  (swap! env #(merge-with merge-state %1 {'blocks {name (list 'bind name (body 'body))}})))
 
 (defn make-bind
   "Creates a new block that executes in the scope of inner-env"
