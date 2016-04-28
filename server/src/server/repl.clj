@@ -8,6 +8,7 @@
             [clojure.pprint :refer [pprint]]
             [server.exec :as exec]))
 
+(declare eeval)
 
 (defn repl-error [& thingy]
   (throw thingy))
@@ -29,7 +30,7 @@
                 'close  (println "CLOSE " channel (exec/print-registers tuple) (float (/ (- (System/nanoTime) tick) 1000000000)))
                 'error  (println "ERROR " channel (exec/print-registers tuple)))))
 
-(defn diesel [d expression trace-on]
+(defn execco [d expression trace-on channel]
   (let [[form keys] (form-from-smil (smil/unpack d expression))
         _ (when trace-on
             (println "--- SMIL ---")
@@ -37,7 +38,7 @@
             (println " --- Program / Trace ---"))
         prog (compiler/compile-dsl d form)
         start (System/nanoTime)
-        ec (exec/open d prog (print-result keys "" start)
+        ec (exec/open d prog (print-result keys channel start)
                       (if trace-on
                         (fn [n m x] (fn [r] (println "trace" n m) (println (exec/print-registers r)) (x r)))
                         (fn [n m x] x)))]
@@ -45,21 +46,14 @@
     (when trace-on (pprint prog))
     (ec 'insert)
     (ec 'flush)
-    (ec 'close)))
+    ec))
+
+(defn diesel [d expression trace-on]
+    ((execco d expression trace-on "") 'close))
 
 (defn open [d expression trace-on]
-  (println "open" expression)
-  (let [[form keys] (form-from-smil (smil/unpack d (nth expression 2)))
-        prog (compiler/compile-dsl d form)
-        start (System/nanoTime)
-        res (print-result keys (second expression) start)
-        tf (if trace-on
-             (fn [n m x] (fn [r] (println "trace" n m) (println (exec/print-registers r)) (x r)))
-             (fn [n m x] x))
-        ec (exec/open d prog res tf)]
-    (when trace-on (pprint prog))
-    (ec 'insert)
-    (ec 'flush)))
+  (execco d (nth expression 2) trace-on  (second expression)))
+
 
 (defn timeo [d expression trace-on]
   (println "open" expression)
@@ -75,12 +69,25 @@
 
 
 (defn trace [d expression trace-on]
-  (diesel d (second expression) true))
+  (eeval d (second expression) true))
 
 ;; xxx - this is now...in the language..not really?
 (defn define [d expression trace-on]
   (let [z (smil/unpack d expression)]
     (db/insert-implication d (second z) (nth z 2) (rest (rest (rest z))))))
+
+
+(defn dodot [d expression trace-on]
+  (let [[form keys] (form-from-smil (smil/unpack d (second expression)))
+        program (compiler/compile-dsl d form)]
+    (println (str  "digraph query {\n"
+                   (apply str
+                          (map (fn [x]
+                                 (let [block (nth x 1)]
+                                   (apply str (map #(if (= (first %1) 'send)
+                                                      (str "\"" block "\" -> \"" (second %1) "\"\n") "") (nth x 2)))))
+                               program))
+                   "}\n"))))
 
 
 (defn create-bag [d expression trace-on]
@@ -97,6 +104,7 @@
                       'trace trace
                       'create-bag create-bag
                       'time timeo
+                      'dot dodot
                       'open open
                       'load read-all
                       } (first term))]
@@ -127,7 +135,7 @@
             (recur)))))))
 
 
-(defn rloop [d]
+(defn rloop [d trace-on]
   (loop [d d]
     (doto *out*
       (.write "eve> ")
@@ -142,6 +150,6 @@
                     (java.lang.System/exit 0)))]
       (when-not (= input 'exit)
         (recur
-         (try (eeval d input)
+         (try (eeval d input trace-on)
               (catch Exception e
                 (println "error" e))))))))

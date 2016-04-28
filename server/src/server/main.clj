@@ -72,4 +72,4 @@
     (arglist args)
     ;; move down
     (when @service (jsclient/serve (edb/create-view @edb @bag @user) @port))
-    (when @interactive (repl/rloop (edb/create-view @edb @bag @user)))))
+    (when @interactive (repl/rloop (edb/create-view @edb @bag @user) @trace))))

@@ -52,8 +52,8 @@
   (let [nested (print-registers* r (or max-indent 2))]
     (str (:register nested) (:nests nested))))
 
-;; these register indirections could be resolved at build time? yeah, kinda
-;; no longer support the implicit zero register
+
+(defn shallow-copy [r] (aclone ^objects r))
 
 
 (defn rget [r ref]
@@ -95,45 +95,38 @@
 
 
 
-(defn delta-t [c]
-  (let [state (atom {})]
-    [(fn [r]
-       (let [tuple (subvec (vec r) 1)]
-         (condp = (rget r op-register)
-           'insert (swap! state update-in [tuple] (fn [x]
-                                                    (if x
-                                                      [(x 0) (+ (x 1) 1)]
-                                                      [tuple 1])))
-
-           'remove (swap! state update-in [tuple] (fn [x] (if (= (x 1) 1) nil
-                                                              [(x 0) (- (x 1) 1)])))
-           ())
-         (c r)))
-
-     (fn [c2 op]
-       (doseq [i @state] (c2 (object-array (cons op (i 0))))))]))
-
-
 (defn donot [d terms build c]
-  (let [count (atom 0)
-        on (atom false)
-        zig (atom false)
+  (let [[_ projection body] terms
+        evaluations (atom {})
+
+        head (atom ())
+    
+        get-count (fn [r] (let [k (map #(rget r %1) projection)]
+                            (if-let [count (@evaluations k)] count
+                                    (let [n (atom 0)]
+                                      (do  (swap! evaluations assoc k n)
+                                           (@head r)
+                                           ;; this is kinda sad...both in the representation
+                                           ;; of the flush and the assumption that it will
+                                           ;; complete synchronously
+                                           (@head (object-array ['flush nil nil nil nil nil nil]))
+                                           n)))))
+    
+        ;; could cache the projection - meh
         tail  (fn [r]
-                (condp = (rget r op-register)
-                  'insert (swap! count inc)
-                  'remove  (swap! count dec)
-                  'flush (do
-                           (when (and (= @count 0) (not @on))
-                             (@zig c 'insert)
-                             (swap! on not))
-                           (when (and (> @count 0) @on)
-                             (@zig c 'remove)
-                             (swap! on not))
-                           (c r))
-                  'close (c r)))
-        delta (delta-t (build (second terms) tail))]
-    (reset! zig (delta 1))
-    (delta 0)))
+                (let [count (get-count r)]
+                  (condp = (rget r op-register)
+                    'insert (swap! count inc)
+                    'remove  (swap! count dec)
+                    nil)))]
+
+    (reset! head (build body tail))
+    (fn [r]
+      (condp = (rget r op-register)
+        'insert (if (= @(get-count r) 0) (c r))
+        'remove (if (= @(get-count r) 0) (c r))
+        (c r)))))
+                                           
 
 
 (defn tuple [d terms build c]
@@ -203,9 +196,12 @@
 
 (defn dofilter [d terms build c]
   (fn [r]
-    ;; pass flush
-    (when (rget r (second terms))
-      (c r))))
+    (let [op (rget r op-register)]
+      (if (or (= op 'insert) (= op 'remove))
+        (when (rget r (second terms))
+          (c r))
+        (c r)))))
+
 
 ;; this is just a counting version of
 ;; join, that may be insufficient if
