@@ -213,18 +213,16 @@ function connectToServer() {
     if (repl.init === false) {
       objectToArray(repl.system).map(sendQuery);
       let addUsers = `(query []
-                        (insert-fact! "9f546210-20aa-460f-ab7b-55800bec82f0" :tag "repl-user" :tag "system" :name "Corey" :username "corey" :password "foo")
-                        (insert-fact! "3037e028-3395-4d8c-a0a7-0e92368c9ec3" :tag "repl-user" :tag "system" :name "Eric" :username "eric" :password "foo")
-                        (insert-fact! "62741d3b-b94a-4417-9794-1e6f86e262b6" :tag "repl-user" :tag "system" :name "Josh" :username "josh" :password "foo")
-                        (insert-fact! "d4a6dc56-4b13-41d5-be48-c656541cfac1" :tag "repl-user" :tag "system" :name "Chris" :username "chris" :password "foo"))`
+                        (insert-fact! "9f546210-20aa-460f-ab7b-55800bec82f0" :tag "repl-user" :tag "system" :name "Corey" :username "corey" :password "corey")
+                        (insert-fact! "3037e028-3395-4d8c-a0a7-0e92368c9ec3" :tag "repl-user" :tag "system" :name "Eric" :username "eric" :password "eric")
+                        (insert-fact! "62741d3b-b94a-4417-9794-1e6f86e262b6" :tag "repl-user" :tag "system" :name "Josh" :username "josh" :password "josh")
+                        (insert-fact! "d4a6dc56-4b13-41d5-be48-c656541cfac1" :tag "repl-user" :tag "system" :name "Chris" :username "chris" :password "chris"))`
       sendAnonymousQuery(addUsers);
       // Retrieve the object from storage
       let userID = localStorage.getItem('repl-user');
-      console.log(userID);
       if (userID !== null) {
         repl.user = {id: userID};  
       }    
-      repl.init = true;
     }
     // In the case of a reconnect, reset the timeout
     // and send queued messages
@@ -366,6 +364,10 @@ function connectToServer() {
           if (ix >= 0) {
             repl.user = {id: dbUsers[ix][0], name: dbUsers[ix][1], username: dbUsers[ix][2] };            
           }
+        }
+        // Mark the repl as initialized if all the system queries have been populated
+        if (repl.init === false && objectToArray(repl.system).every((q: Query) => q.result !== undefined)) {
+          repl.init = true;
         }
       }
     }
@@ -1083,15 +1085,20 @@ app.renderRoots["repl"] = root;
 function root() {
   
   let replChildren;
-  if (repl.user !== undefined && repl.user.name !== undefined) {
+  // If the system is ready and there is a user, load the repl 
+  if (repl.init === true && repl.user !== undefined && repl.user.name !== undefined) {
     replChildren = [generateStatusBarElement(), generateCardRootElements(), repl.modal !== undefined ? repl.modal : {}];
-  } else {
+  // If the system is ready but there is no user
+  } else if (repl.init === true && repl.user === undefined) {
     let eveLogo = {t: "img", c: "logo", src: "http://witheve.com/logo.png", width: 643/5, height: 1011/5};
     let username = {t: "input", id: "repl-username-input", placeholder: "Username", keydown: inputKeydown};
     let password = {t: "input", id: "repl-password-input", type: "password", placeholder: "Password", keydown: inputKeydown};
     let submit = {c: "button", text: "Submit", click: loginSubmitClick};
     let login = {c: "login", children: [eveLogo, username, password, submit]}
     replChildren = [login];
+  // If the system is not ready, display a loading page
+  } else {
+    replChildren = [{text: "loading database..."}];
   }
 
   let root = {
