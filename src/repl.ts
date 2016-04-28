@@ -582,7 +582,7 @@ function focusCard(replCard: ReplCard) {
       setTimeout(function() {
         cm = getCodeMirrorInstance(replCard);
         cm.focus();
-      }, 50);  
+      }, 100);  
     }
   }
 }
@@ -1066,7 +1066,8 @@ let repl: Repl = {
     tags: newQuery(`(query [tag entity], (fact entity :tag tag))`),                                     // get all tags
     queries: newQuery(`(query [id row col display query]
                          (fact id :tag "repl-card" :row row :col col :display display :query query))`), // get all the queries
-    users: newQuery(`(query [id name username password] (fact id :tag "repl-user" :name name :username username :password password))`),
+    users: newQuery(`(query [id name username password] 
+                       (fact id :tag "repl-user" :name name :username username :password password))`),  // get all users
   },
   decks: [replCards],
   deck: replCards,
@@ -1170,36 +1171,7 @@ function getReplCard(row: number, col: number): ReplCard {
   return repl.deck.cards.filter((r) => r.row === row && r.col === col).pop();
 }
 
-function rerender(removeCards?: boolean) {
-  /*
-  if (removeCards === undefined) {
-    removeCards = false;
-  }
-  // Batch delete closed cards on rerender
-  if (removeCards === true) {
-    let closedCards = replCards.filter((r) => r.state === CardState.CLOSED);
-    if (repl.timer !== undefined) {
-      clearTimeout(repl.timer);
-    }
-    let focusedCard = replCards.filter((r) => r.focused).shift();
-    let focusIx = 0;
-    if (focusedCard !== undefined) {
-      focusIx = focusedCard.ix;
-    }
-    focusedCard = replCards[focusIx + 1 > replCards.length - 1 ? replCards.length - 1 : focusIx + 1];
-    focusCard(focusedCard);
-    repl.timer = setTimeout(() => {
-      for (let card of closedCards) {
-        deleteStoredReplCard(card);
-        replCards.splice(replCards.map((r) => r.id).indexOf(card.id),1);
-      }
-      if (closedCards !== undefined) {
-        replCards.forEach((r,i) => r.ix = i);    
-      }
-      rerender(false);
-    }, 250);
-  }*/
-  //console.log(repl);
+function rerender() {
   app.dispatch("rerender", {}).commit();
 }
 
