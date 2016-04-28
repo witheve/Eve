@@ -93,27 +93,11 @@ h2 {
 
 /* Modal Styles */
 
-/*.modal {
-  background-color: rgba(30,30,30,1);
-  border: 1px solid rgb(91,89,164);
-  padding: 20px;
-  position: absolute;
-  z-index: 100;
-}
-
-.arrow-left {
-	width: 0; 
-	height: 0; 
-	border-top: 10px solid transparent;
-	border-bottom: 10px solid transparent; 
-	border-right:10px solid blue; 
-}*/
-
-
 .modal {
 	position: absolute;
 	background-color: rgba(30,30,30,1);
 	border: 1px solid rgb(91,89,164);
+  border-radius: 4px;
   z-index: 100;
   padding: 20px;
   transform: translateY(-50%);
