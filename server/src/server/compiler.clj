@@ -197,7 +197,7 @@
 (defn make-continuation
   "Creates a new block that resumes execution in the scope of the given env from a child env"
   [env name body]
-  (swap! env #(merge-with merge-state %1 {'blocks {name (list 'bind name (body 'body))}})))
+  (swap! env #(merge-with merge-state %1 {'blocks {name (body-term 'bind name body)}})))
 
 (defn make-bind
   "Creates a new block that executes in the scope of inner-env"
@@ -420,10 +420,10 @@
         out (if-let [b (:tick bindings)] (let [r (allocate-register env (gensym 'insert-output))]
                                            (bind-names env {b [r]})
                                            [r]) [])]
-    (apply build
-           (term env m 'tuple exec/temp-register e a v)
-           (term env m 'insert out exec/temp-register)
-           (list (down)))))
+    (build
+     (term env m 'tuple exec/temp-register e a v)
+     (term env m 'insert out exec/temp-register)
+     (down))))
 
 (defn compile-expression [env terms down]
   (let [commands {'+ compile-binary-primitive
