@@ -7,6 +7,6 @@ bin/
 *.evedb
 server/target
 *~
+*/.lein-repl-history
 server/out
-.lein-repl-history
 
