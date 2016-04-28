@@ -834,7 +834,7 @@ function resultSwitchClick(event, elem) {
 }
 
 function entityListClick(event, elem) {
-  console.log(event);
+  //console.log(event);
   // Filter out results for only the current entity 
   let result: QueryResult = {
     fields: ["Attribute", "Value"],

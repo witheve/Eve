@@ -116,6 +116,7 @@ h2 {
 	border: 1px solid rgb(91,89,164);
   z-index: 100;
   padding: 20px;
+  transform: translateY(-50%);
 }
 
 .modal:after, .modal:before {
