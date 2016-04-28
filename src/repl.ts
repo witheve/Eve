@@ -701,8 +701,17 @@ function loginSubmitClick(event, elem) {
 }
 
 function login(username,password) {
-  console.log(username);
-  console.log(password);
+  let users = repl.system.users.result.values;
+  for (let user of users) {
+    if (username === user[2] && password === user[3]) {
+      repl.user = {id: user[0], name: user[1], username: user[2]};
+      
+      break;
+    }  
+  }
+  if (repl.user !== undefined) {
+    rerender();    
+  }
 }
 
 /*
