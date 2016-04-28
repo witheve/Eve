@@ -125,9 +125,9 @@
   (apply add-dependencies env arguments)
   (when (some nil? (map #(lookup env %1) arguments))
     (compile-error "Cannot send unbound/nil argument" {:env @env :target target :arguments arguments :bound (get @env 'bound nil)}))
-  (concat
+  (build
    (apply term env 'tuple m exec/temp-register exec/op-register exec/qid-register '* nil (map #(lookup env %1) arguments))
-   [(with-meta (list 'send target exec/temp-register) m)]))
+   (term env 'send m target exec/temp-register)))
 
 (defn generate-send-cont
   "Generates a continuation send which pops and restores the scope of the parent environment"
@@ -139,15 +139,15 @@
       (compile-error "Cannot send unbound/nil argument" {:env @env :target target :arguments arguments :bound (get @env 'bound nil)}))
     (concat
      (apply term env 'tuple m exec/temp-register exec/op-register exec/qid-register [(exec/taxi-register 0) (exec/taxi-register 0)] nil scope)
-     [(with-meta (list 'send target exec/temp-register) m)])))
+     (term env 'send m target exec/temp-register))))
 
 (defn generate-binary-filter [env terms down]
   (let [argmap (apply hash-map (rest terms))
         m (meta terms)]
     (apply add-dependencies env (vals argmap))
-    (let [r  (build
-              (term env (first terms) m exec/temp-register (argmap :a) ( argmap :b))
-              (term env 'filter m exec/temp-register)
+    (let [r (build
+             (term env (first terms) m exec/temp-register (argmap :a) ( argmap :b))
+             (term env 'filter m exec/temp-register)
              (down))]
       r)))
 
@@ -333,7 +333,7 @@
         (do
           (allocate-register env (:return argmap))
           (build
-           (with-meta (apply list (first terms) ins) m)
+           (apply term env (first terms) m ins)
            (down)))
         (compile-error (str "unhandled bound signature in" terms) {:env env :terms terms}))))
 
@@ -384,17 +384,22 @@
           :else
           (compile-error "reordering necessary, not implemented" {:env env :terms terms}))))
 
+;; ok, i need to determine the union of all the terms in the subsequent projections..oh, thats ok
 (defn compile-not [env terms down]
   (let [child-env (atom {'name (gensym "not")
                          'db (get @env 'db)
                          'dependencies #{}
                          'bound (get @env 'bound)})
         inner-body (compile-conjunction child-env (rest terms) (fn [] ()))
+        ;; bound before the rest of the expression
         projection (set/intersection (get @child-env 'dependencies) (set (keys (get @env 'bound))))
-        mp (map (get @env 'bound) projection)]
+        mp (map (get @env 'bound) projection)
+        ;; force the projection at the end of the expresssion
+        d (down)]
     (build
+     ;; we really want an argument which specifies the output projection
      (list (with-meta (list 'not mp inner-body) (meta (first terms))))
-     (down))))
+     d)))
 
 (defn compile-insert [env terms down]
   (let [bindings (apply hash-map (rest terms))
@@ -407,11 +412,10 @@
         out (if-let [b (:tick bindings)] (let [r (allocate-register env (gensym 'insert-output))]
                                            (bind-names env {b [r]})
                                            [r]) [])]
-    (let [z (down)]
-      (apply build
-             (term env 'tuple m exec/temp-register e a v)
-             (term env 'insert m out exec/temp-register)
-             (list z)))))
+    (apply build
+           (term env 'tuple m exec/temp-register e a v)
+           (term env 'insert m out exec/temp-register)
+           (list (down)))))
 
 (defn compile-expression [env terms down]
   (let [commands {'+ compile-binary-primitive
@@ -458,9 +462,9 @@
            env terms (fn []
                        (let [bound (vals (get @env 'bound {}))
                              regs (map #(lookup env %1) bound)
-                             epilogue (list
-                                       (with-meta (apply list 'tuple exec/temp-register exec/op-register exec/qid-register regs) m)
-                                       (with-meta (list 'send 'out exec/temp-register) m))]
+                             epilogue (build
+                                       (apply term env 'tuple m 'tuple exec/temp-register exec/op-register exec/qid-register regs)
+                                       (term env 'send m exec/temp-register))]
                          (if-not (zero? (count proj))
                            (concat (apply term env 'delta-c m proj) epilogue)
                            epilogue))))]

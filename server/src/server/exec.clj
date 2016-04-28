@@ -15,6 +15,7 @@
 
 (declare build)
 
+
 (defn print-registers*
   ([r] (print-registers* r 2 1 #{}))
   ([r max-indent] (print-registers* r max-indent 1 #{}))
@@ -80,7 +81,11 @@
       :else
       (rset (aget ^objects r (get ref 0)) (subvec ref 1) v))))
 
-
+(defn process? [r]
+  (let [op (rget op-register)]
+    (or (= op 'insert) (= op 'remove))))
+        
+            
 ;; simplies - cardinality preserving, no flush
 
 
@@ -94,39 +99,44 @@
       (c r))))
 
 
-
 (defn donot [d terms build c]
-  (let [[_ projection body] terms
+  (let [[_ output-projection inner-projection body] terms
         evaluations (atom {})
+        negation-cluase (atom ())
+        get-projected (fn [r] (let [k (map #(rget r %1) inner-projection)]
+                                (if-let [state (@evaluations k)] state
+                                        (let [n [(atom 0) (atom #{})]]
+                                          (do (swap! evaluations assoc k n)
+                                              (@negation-clause r)
+                                              ;; this is kinda sad...both in the representation
+                                              ;; of the flush and the assumption that it will
+                                              ;; complete synchronously
+                                              (@negation-clause (object-array ['flush nil nil nil nil nil nil]))
+                                          n)))))
 
-        head (atom ())
-    
-        get-count (fn [r] (let [k (map #(rget r %1) projection)]
-                            (if-let [count (@evaluations k)] count
-                                    (let [n (atom 0)]
-                                      (do  (swap! evaluations assoc k n)
-                                           (@head r)
-                                           ;; this is kinda sad...both in the representation
-                                           ;; of the flush and the assumption that it will
-                                           ;; complete synchronously
-                                           (@head (object-array ['flush nil nil nil nil nil nil]))
-                                           n)))))
-    
-        ;; could cache the projection - meh
-        tail  (fn [r]
-                (let [count (get-count r)]
-                  (condp = (rget r op-register)
-                    'insert (swap! count inc)
-                    'remove  (swap! count dec)
-                    nil)))]
+        ;; txn
+        tail (fn [r]
+               (let [[count terms] (get-count r)]
+                 (condp = (rget r op-register)
+                   'insert (do
+                             (swap! count inc)
+                             (when (= @count 1) (issue c 'remove terms)))
+                   'remove (do
+                             (swap! count dec)
+                             (when (= @count 0) (issue c 'insert terms)))
+                   nil)))
+        
+        _ (reset! negation-clause (build body tail))]
 
-    (reset! head (build body tail))
+    ;; i think* terms in the inner projection can be ignored in the outer projection
+    ;; confirm
     (fn [r]
-      (condp = (rget r op-register)
-        'insert (if (= @(get-count r) 0) (c r))
-        'remove (if (= @(get-count r) 0) (c r))
+      (if (process? r)
+        (let [[count input-set] (get-projected r)]
+          (when (= @count 0) (c r))
+          (swap! @input-set conj (map #(rget r %1) outer-projection)))
         (c r)))))
-                                           
+
 
 
 (defn tuple [d terms build c]
