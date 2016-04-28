@@ -237,14 +237,14 @@ function connectToServer() {
   ws.onerror = function(error) {
     repl.server.state = ConnectionState.DISCONNECTED;
     repl.init = false;
-    objectToArray(repl.system).map((q: Query) => q.result.values = []);
+    objectToArray(repl.system).map((q: Query) => q.result = undefined);
     rerender();
   }
 
   ws.onclose = function(error) {  
     repl.server.state = ConnectionState.DISCONNECTED;
     repl.init = false;
-    objectToArray(repl.system).map((q: Query) => q.result.values = []);
+    objectToArray(repl.system).map((q: Query) => q.result = undefined);
     /*repl.deck.cards.map((c) => {
       c.state = CardState.PENDING
       c.query.result = undefined;
