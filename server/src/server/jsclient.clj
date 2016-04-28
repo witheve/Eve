@@ -14,11 +14,11 @@
    [clojure.string :as string]
    [clojure.pprint :refer [pprint]]))
 
-(def clients (atom {}))
-(def server (atom nil))
+(defonce clients (atom {}))
+(defonce server (atom nil))
 
 (def DEBUG true)
-(def bag (atom 10))
+(defonce bag (atom 10))
 
 (defn quotify [x] (str "\""
                        (-> x
@@ -147,6 +147,7 @@
              (if-not e
                (send-error channel id (ex-info (str "Invalid query id " id) {:id id}))
                (do
+
                  (e 'close)
                  (swap! clients update-in [channel :queries] dissoc id))))
            (throw (ex-info (str "Invalid protocol message type " t) {:message input})))
@@ -168,6 +169,7 @@
                           (condp = first-segment
                             "repl" {:status 200 :headers {"Content-Type" "text/html"} :body (slurp (str base-path "/repl.html"))}
                             "grid" {:status 200 :headers {"Content-Type" "text/html"} :body (slurp (str base-path "/index.html"))}
+                            "renderer" {:status 200 :headers {"Content-Type" "text/html"} :body (slurp (str base-path "/renderer.html"))}
                            {:status 404})))
                       (wrap-file base-path)
                       (wrap-content-type))

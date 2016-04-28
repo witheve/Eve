@@ -31,5 +31,13 @@
                                    :output-dir  "../bin/devcards"
                                    :output-to "../bin/devcards.bundle.js"
                                    :source-map-timestamp true }}
+                       {:id "renderer-test"
+                        :source-paths ["src"]
+                        :figwheel { :renderer-test true } ;; <- note this
+                        :compiler { :main "ui.renderer-test"
+                                   :asset-path "bin/renderer-test"
+                                   :output-dir  "../bin/renderer-test"
+                                   :output-to "../bin/renderer-test.bundle.js"
+                                   :source-map-timestamp true }}
                        ]}
   :main server.main)
