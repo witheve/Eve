@@ -83,6 +83,19 @@
     (db/insert-implication d (second z) (nth z 2) (rest (rest (rest z))))))
 
 
+(defn dodot [d expression trace-on]
+  (let [[form keys] (form-from-smil (smil/unpack d (second expression)))
+        program (compiler/compile-dsl d form)]
+    (println (str  "digraph query {\n"
+                   (apply str
+                          (map (fn [x]
+                                 (let [block (nth x 1)]
+                                   (apply str (map #(if (= (first %1) 'send)
+                                                      (str "\"" block "\" -> \"" (second %1) "\"\n") "") (nth x 2)))))
+                               program))
+                   "}\n"))))
+
+
 (defn create-bag [d expression trace-on]
   (println "i wish i could help you"))
 
@@ -97,6 +110,7 @@
                       'trace trace
                       'create-bag create-bag
                       'time timeo
+                      'dot dodot
                       'open open
                       'load read-all
                       } (first term))]
