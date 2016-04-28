@@ -96,7 +96,11 @@ interface Deck {
 
 interface Repl {
   init: boolean,
-  user: any,
+  user: {
+    id: string,
+    name?: string,
+    username?: string,
+  },
   system: {
     entities: Query,  
     tags: Query,
@@ -214,6 +218,12 @@ function connectToServer() {
                         (insert-fact! "62741d3b-b94a-4417-9794-1e6f86e262b6" :tag "repl-user" :tag "system" :name "Josh" :username "josh" :password "foo")
                         (insert-fact! "d4a6dc56-4b13-41d5-be48-c656541cfac1" :tag "repl-user" :tag "system" :name "Chris" :username "chris" :password "foo"))`
       sendAnonymousQuery(addUsers);
+      // Retrieve the object from storage
+      let userID = localStorage.getItem('repl-user');
+      console.log(userID);
+      if (userID !== null) {
+        repl.user = {id: userID};  
+      }    
       repl.init = true;
     }
     // In the case of a reconnect, reset the timeout
@@ -347,6 +357,15 @@ function connectToServer() {
           }  
         } else {
           return;
+        }
+        // If we have an update to the user query, match it against the stored ID to validate
+        if (targetSystemQuery.id === repl.system.users.id && repl.user !== undefined && repl.user.name === undefined) {
+          // Check if the stored user is in the database
+          let dbUsers = repl.system.users.result.values;
+          let ix = dbUsers.map((u) => u[0]).indexOf(repl.user.id)
+          if (ix >= 0) {
+            repl.user = {id: dbUsers[ix][0], name: dbUsers[ix][1], username: dbUsers[ix][2] };            
+          }
         }
       }
     }
@@ -705,7 +724,8 @@ function login(username,password) {
   for (let user of users) {
     if (username === user[2] && password === user[3]) {
       repl.user = {id: user[0], name: user[1], username: user[2]};
-      
+      // Put the user into local storage
+      localStorage.setItem('repl-user', user[0]);
       break;
     }  
   }
@@ -1063,7 +1083,7 @@ app.renderRoots["repl"] = root;
 function root() {
   
   let replChildren;
-  if (repl.user !== undefined) {
+  if (repl.user !== undefined && repl.user.name !== undefined) {
     replChildren = [generateStatusBarElement(), generateCardRootElements(), repl.modal !== undefined ? repl.modal : {}];
   } else {
     let eveLogo = {t: "img", c: "logo", src: "http://witheve.com/logo.png", width: 643/5, height: 1011/5};
