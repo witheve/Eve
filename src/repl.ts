@@ -104,7 +104,7 @@ interface Repl {
   system: {
     entities: Query,  
     tags: Query,
-    queries: Query,
+    queries?: Query,
     users: Query,
   },
   decks: Array<Deck>,
@@ -338,7 +338,7 @@ function connectToServer() {
             });
           }
           // Update the repl based on these new system queries
-          if (parsed.id === repl.system.queries.id && parsed.insert !== undefined) {
+          if (repl.system.queries !== undefined && parsed.id === repl.system.queries.id && parsed.insert !== undefined) {
             parsed.insert.forEach((n) => {
               let replCard = getCard(n[1], n[2]);
               if (replCard === undefined) {
@@ -362,7 +362,8 @@ function connectToServer() {
           let dbUsers = repl.system.users.result.values;
           let ix = dbUsers.map((u) => u[0]).indexOf(repl.user.id)
           if (ix >= 0) {
-            repl.user = {id: dbUsers[ix][0], name: dbUsers[ix][1], username: dbUsers[ix][2] };            
+            // We found a user!
+            repl.user = {id: dbUsers[ix][0], name: dbUsers[ix][1], username: dbUsers[ix][2] };          
           }
         }
         // Mark the repl as initialized if all the system queries have been populated
@@ -497,7 +498,9 @@ function submitReplCard(card: ReplCard) {
                       (remove-by-t! t))`;
     sendAnonymousQuery(delQuery);
     // Close the old query
-    sendClose(card.query);
+    if (card.state === CardState.GOOD) {
+      sendClose(card.query);  
+    }
   }
   
   // Insert a row in the repl-card table
@@ -505,7 +508,8 @@ function submitReplCard(card: ReplCard) {
                    (insert-fact! "${card.id}" :tag "repl-card"
                                               :tag "system"
                                               :row ${card.row} 
-                                              :col ${card.col} 
+                                              :col ${card.col}
+                                              :user ${repl.user.id}
                                               :query "${card.query.query.replace(/"/g,'\\"')}"
                                               :display ${card.display}))`;
   sendAnonymousQuery(rcQuery);
@@ -842,7 +846,7 @@ function entityListClick(event, elem) {
   };
   // Generate the table
   let table = generateResultTable(result);
-  repl.modal = {c: "modal", left: 110, top: event.srcElement.offsetTop, children: [table]};
+  repl.modal = {c: "modal", left: 110, top: event.target.offsetTop, children: [table]};
   // Prevent click event from propagating to another layer
   event.stopImmediatePropagation();
   rerender();
@@ -856,7 +860,7 @@ function tagsListClick(event, elem) {
   };
   // Generate the table
   let table = generateResultTable(result);
-  repl.modal = {c: "modal", left: 110, top: event.srcElement.offsetTop, children: [table]};
+  repl.modal = {c: "modal", left: 110, top: event.target.offsetTop, children: [table]};
   // Prevent click event from propagating to another layer
   event.stopImmediatePropagation();
   rerender();
@@ -1055,7 +1059,7 @@ let replCards: Deck = {
   cards: [defaultCard],
   focused: defaultCard,
 }  
-
+console.log(uuid());
 // Instantiate a repl instance
 let repl: Repl = {
   init: false,
@@ -1063,10 +1067,14 @@ let repl: Repl = {
   system: {
     entities: newQuery(`(query [entities attributes values] (fact-btu entities attributes values))`),   // get all entities
     tags: newQuery(`(query [tag entity], (fact entity :tag tag))`),                                     // get all tags
-    queries: newQuery(`(query [id row col display query]
-                         (fact id :tag "repl-card" :row row :col col :display display :query query))`), // get all the queries
     users: newQuery(`(query [id name username password] 
                        (fact id :tag "repl-user" :name name :username username :password password))`),  // get all users
+    queries: newQuery(`(query [id row col display query]
+                         (fact id :tag "repl-card" 
+                                  :row row 
+                                  :col col
+                                  :display display 
+                                  :query query))`),
   },
   decks: [replCards],
   deck: replCards,
