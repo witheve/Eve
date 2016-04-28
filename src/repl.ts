@@ -363,7 +363,15 @@ function connectToServer() {
           let ix = dbUsers.map((u) => u[0]).indexOf(repl.user.id)
           if (ix >= 0) {
             // We found a user!
-            repl.user = {id: dbUsers[ix][0], name: dbUsers[ix][1], username: dbUsers[ix][2] };          
+            repl.user = {id: dbUsers[ix][0], name: dbUsers[ix][1], username: dbUsers[ix][2] };
+            repl.system.queries = newQuery(`(query [id row col display query]
+                                              (fact id :tag "repl-card"
+                                                       :user "${repl.user.id}" 
+                                                       :row row 
+                                                       :col col
+                                                       :display display 
+                                                       :query query))`);
+            sendQuery(repl.system.queries);              
           }
         }
         // Mark the repl as initialized if all the system queries have been populated
@@ -1069,12 +1077,6 @@ let repl: Repl = {
     tags: newQuery(`(query [tag entity], (fact entity :tag tag))`),                                     // get all tags
     users: newQuery(`(query [id name username password] 
                        (fact id :tag "repl-user" :name name :username username :password password))`),  // get all users
-    queries: newQuery(`(query [id row col display query]
-                         (fact id :tag "repl-card" 
-                                  :row row 
-                                  :col col
-                                  :display display 
-                                  :query query))`),
   },
   decks: [replCards],
   deck: replCards,
