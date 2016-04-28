@@ -196,9 +196,12 @@
 
 (defn dofilter [d terms build c]
   (fn [r]
-    ;; pass flush
-    (when (rget r (second terms))
-      (c r))))
+    (let [op (rget r op-register)]
+      (if (or (= op 'insert) (= op 'remove))
+        (when (rget r (second terms))
+          (c r))
+        (c r)))))
+
 
 ;; this is just a counting version of
 ;; join, that may be insufficient if
