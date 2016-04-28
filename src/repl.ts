@@ -834,6 +834,7 @@ function resultSwitchClick(event, elem) {
 }
 
 function entityListClick(event, elem) {
+  console.log(event);
   // Filter out results for only the current entity 
   let result: QueryResult = {
     fields: ["Attribute", "Value"],
@@ -841,7 +842,7 @@ function entityListClick(event, elem) {
   };
   // Generate the table
   let table = generateResultTable(result);
-  repl.modal = {c: "modal", left: 110, top: event.pageY - 50, children: [table]};
+  repl.modal = {c: "modal", left: 110, top: event.srcElement.offsetTop, children: [table]};
   // Prevent click event from propagating to another layer
   event.stopImmediatePropagation();
   rerender();
@@ -855,7 +856,7 @@ function tagsListClick(event, elem) {
   };
   // Generate the table
   let table = generateResultTable(result);
-  repl.modal = {c: "modal", left: 110, top: event.pageY - 50, children: [table]};
+  repl.modal = {c: "modal", left: 110, top: event.srcElement.offsetTop, children: [table]};
   // Prevent click event from propagating to another layer
   event.stopImmediatePropagation();
   rerender();
@@ -1085,12 +1086,12 @@ app.renderRoots["repl"] = root;
 function root() {
   
   let replChildren;
+  let eveLogo = {t: "img", c: "logo", src: "http://witheve.com/logo.png", width: 643/5, height: 1011/5};
   // If the system is ready and there is a user, load the repl 
   if (repl.init === true && repl.user !== undefined && repl.user.name !== undefined) {
     replChildren = [generateStatusBarElement(), generateCardRootElements(), repl.modal !== undefined ? repl.modal : {}];
   // If the system is ready but there is no user
   } else if (repl.init === true && repl.user === undefined) {
-    let eveLogo = {t: "img", c: "logo", src: "http://witheve.com/logo.png", width: 643/5, height: 1011/5};
     let username = {t: "input", id: "repl-username-input", placeholder: "Username", keydown: inputKeydown};
     let password = {t: "input", id: "repl-password-input", type: "password", placeholder: "Password", keydown: inputKeydown};
     let submit = {c: "button", text: "Submit", click: loginSubmitClick};
@@ -1098,7 +1099,7 @@ function root() {
     replChildren = [login];
   // If the system is not ready, display a loading page
   } else {
-    replChildren = [{text: "loading database..."}];
+    replChildren = [{c: "login", children: [eveLogo, {text: "Loading Eve Database..."}]}];
   }
 
   let root = {
