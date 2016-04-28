@@ -303,7 +303,7 @@ function connectToServer() {
         if (removeIx >= 0) {
           replCards[removeIx].state = CardState.CLOSED;
         }*/
-        rerender(true);
+        rerender();
       } else if (parsed.type === "query-info") {
         let info: QueryInfo = {
           id: parsed.id,
@@ -1015,7 +1015,6 @@ function generateStatusBarElement() {
   }
   
   // Build the proper elements of the status bar
-  let statusIndicator = {c: `indicator ${indicator} left`};
   let eveLogo = {t: "img", c: "logo", src: "../images/logo_only.png", width: 39, height: 45};
   let deleteButton = {c: "button", text: "Delete Card", click: deleteCardClick};
   let addColumn = {c: "button", text: "Add Column", click: addColumnClick};
@@ -1040,7 +1039,7 @@ function generateStatusBarElement() {
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
-    children: [eveLogo, buttonList, statusIndicator, entitiesTable, tagsTable],
+    children: [eveLogo, buttonList, entitiesTable, tagsTable],
   };
   return statusBar;
 }
