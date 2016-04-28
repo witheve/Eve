@@ -101,6 +101,7 @@ interface Repl {
     entities: Query,  
     tags: Query,
     queries: Query,
+    users: Query,
   },
   decks: Array<Deck>,
   deck: Deck,
@@ -208,9 +209,10 @@ function connectToServer() {
     if (repl.init === false) {
       objectToArray(repl.system).map(sendQuery);
       let addUsers = `(query []
-                        (insert-fact! "${uuid()}" :tag "repl-user" :tag "system" :username "corey" :password "foo")
-                        (insert-fact! "${uuid()}" :tag "repl-user" :tag "system" :username "eric" :password "foo")
-                        (insert-fact! "${uuid()}" :tag "repl-user" :tag "system" :username "chris" :password "foo"))`
+                        (insert-fact! "9f546210-20aa-460f-ab7b-55800bec82f0" :tag "repl-user" :tag "system" :name "Corey" :username "corey" :password "foo")
+                        (insert-fact! "3037e028-3395-4d8c-a0a7-0e92368c9ec3" :tag "repl-user" :tag "system" :name "Eric" :username "eric" :password "foo")
+                        (insert-fact! "62741d3b-b94a-4417-9794-1e6f86e262b6" :tag "repl-user" :tag "system" :name "Josh" :username "josh" :password "foo")
+                        (insert-fact! "d4a6dc56-4b13-41d5-be48-c656541cfac1" :tag "repl-user" :tag "system" :name "Chris" :username "chris" :password "foo"))`
       sendAnonymousQuery(addUsers);
       repl.init = true;
     }
@@ -1028,11 +1030,11 @@ let repl: Repl = {
   init: false,
   user: undefined,
   system: {
-    entities: newQuery(`(query [entities attributes values] (fact-btu entities attributes values))`), // get all entities in the database
-    tags: newQuery(`(query [tag entity], (fact entity :tag tag))`),    // get all tags in the database
+    entities: newQuery(`(query [entities attributes values] (fact-btu entities attributes values))`),   // get all entities
+    tags: newQuery(`(query [tag entity], (fact entity :tag tag))`),                                     // get all tags
     queries: newQuery(`(query [id row col display query]
-                         (fact id :tag "repl-card" :row row :col col :display display :query query))` // Get all the open queries
-    ),
+                         (fact id :tag "repl-card" :row row :col col :display display :query query))`), // get all the queries
+    users: newQuery(`(query [id name username password] (fact id :tag "repl-user" :name name :username username :password password))`),
   },
   decks: [replCards],
   deck: replCards,
@@ -1062,6 +1064,7 @@ function root() {
     let login = {c: "login", children: [eveLogo, username, password, submit]}
     replChildren = [login];
   }
+
   let root = {
     id: "repl",
     c: "repl",
