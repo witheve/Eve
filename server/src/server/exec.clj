@@ -15,7 +15,6 @@
 
 (declare build)
 
-
 (defn print-registers*
   ([r] (print-registers* r 2 1 #{}))
   ([r max-indent] (print-registers* r max-indent 1 #{}))
@@ -81,62 +80,65 @@
       :else
       (rset (aget ^objects r (get ref 0)) (subvec ref 1) v))))
 
-(defn process? [r]
-  (let [op (rget op-register)]
-    (or (= op 'insert) (= op 'remove))))
-        
-            
-;; simplies - cardinality preserving, no flush
 
+(defn process? [r]
+  (let [op (rget r op-register)]
+    (or (= op 'insert) (= op 'remove))))
+
+;; simplies - cardinality preserving, no flush
 
 ;; flushes just roll on by
 (defn simple [f]
   (fn [d terms build c]
     (fn [r]
-      (when (or (= (rget r op-register) 'insert)
-                (= (rget r op-register) 'remove))
-        (f r terms))
+      (when (process? r) (f r terms))
       (c r))))
 
 
 (defn donot [d terms build c]
   (let [[_ output-projection inner-projection body] terms
         evaluations (atom {})
-        negation-cluase (atom ())
-        get-projected (fn [r] (let [k (map #(rget r %1) inner-projection)]
-                                (if-let [state (@evaluations k)] state
-                                        (let [n [(atom 0) (atom #{})]]
-                                          (do (swap! evaluations assoc k n)
-                                              (@negation-clause r)
-                                              ;; this is kinda sad...both in the representation
-                                              ;; of the flush and the assumption that it will
-                                              ;; complete synchronously
-                                              (@negation-clause (object-array ['flush nil nil nil nil nil nil]))
-                                          n)))))
+        negation-clause (atom ())
+        issue (fn [op terms]
+                
+                (c))
+                
+        get-projected (fn [r]
+                        (when (process? r)
+                          (let [k (map #(rget r %1) inner-projection)]
+                            (if-let [state (@evaluations k)] state
+                                    (let [n [(atom 0) (atom {})]]
+                                      (do (swap! evaluations assoc k n)
+                                          (@negation-clause r)
+                                          (@negation-clause (object-array ['flush nil nil nil nil nil nil]))
+                                          n))))))
 
         ;; txn
         tail (fn [r]
-               (let [[count terms] (get-count r)]
+               (let [[count terms] (get-projected r)]
                  (condp = (rget r op-register)
                    'insert (do
                              (swap! count inc)
-                             (when (= @count 1) (issue c 'remove terms)))
+                             (when (= @count 1) (issue 'remove terms)))
                    'remove (do
                              (swap! count dec)
-                             (when (= @count 0) (issue c 'insert terms)))
+                             (when (= @count 0) (issue 'insert terms)))
                    nil)))
         
         _ (reset! negation-clause (build body tail))]
 
     ;; i think* terms in the inner projection can be ignored in the outer projection
     ;; confirm
+
     (fn [r]
       (if (process? r)
         (let [[count input-set] (get-projected r)]
-          (when (= @count 0) (c r))
-          (swap! @input-set conj (map #(rget r %1) outer-projection)))
+          ;; incremental remove from the set as well, bucko..this is a delta-c
+          ;; isn't it
+          ;; (def k (update-in k ['a 'c] (fnil inc 0)))
+          (swap! @input-set conj (map #(rget r %1) output-projection))
+          (when (= @count 0) (c r)))
         (c r)))))
-
 
 
 (defn tuple [d terms build c]
@@ -206,11 +208,10 @@
 
 (defn dofilter [d terms build c]
   (fn [r]
-    (let [op (rget r op-register)]
-      (if (or (= op 'insert) (= op 'remove))
-        (when (rget r (second terms))
-          (c r))
-        (c r)))))
+    (if (process? r)
+      (when (rget r (second terms))
+        (c r))
+      (c r))))
 
 
 ;; this is just a counting version of
@@ -372,7 +373,7 @@
         proj (if proj proj [])
         assertions (atom {})]
     (fn [r]
-      (let [fact (when (#{'insert 'remove} (rget r op-register))
+      (let [fact (when (process? r)
                    (doall (map #(let [v (rget r %1)]
                                   (if (= object-array-type (type v))
                                     nil ;; @FIXME: Is it safe to always ignore tuples for projection equality here?
@@ -557,17 +558,18 @@
 
 
 (defn build [name names built d t wrap final]
-  (if (= name 'out) final
+  (if (= name "out") final
       (let [doterms (fn doterms [t down]
                       (if (empty? t) down
-                          (let [m (meta (first t))
-                                z (if (= (first (first t)) 'send)
-                                    (let [target (second (first t))]
+                          (let [ft (first t)
+                                m (meta ft)
+                                z (if (= (first ft) 'send)
+                                    (let [target (second ft)]
                                       (list 'send
                                             (if-let [c (@built target)] c
                                                     (build target names built d (@names target) wrap final))
-                                            (third (first t))))
-                                    (first t))
+                                            (third ft)))
+                                    ft)
                                 k (first z)]
                             (if-let [p (command-map (first z))]
                               (wrap (first t) m (p d z doterms (doterms (rest t) down)))
