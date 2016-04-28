@@ -81,6 +81,10 @@
       (rset (aget ^objects r (get ref 0)) (subvec ref 1) v))))
 
 
+(defn process? [r]
+  (let [op (rget r op-register)]
+    (or (= op 'insert) (= op 'remove))))
+
 ;; simplies - cardinality preserving, no flush
 
 
@@ -88,9 +92,7 @@
 (defn simple [f]
   (fn [d terms build c]
     (fn [r]
-      (when (or (= (rget r op-register) 'insert)
-                (= (rget r op-register) 'remove))
-        (f r terms))
+      (when (process? r) (f r terms))
       (c r))))
 
 
@@ -101,16 +103,18 @@
 
         head (atom ())
     
-        get-count (fn [r] (let [k (map #(rget r %1) projection)]
-                            (if-let [count (@evaluations k)] count
-                                    (let [n (atom 0)]
-                                      (do  (swap! evaluations assoc k n)
-                                           (@head r)
-                                           ;; this is kinda sad...both in the representation
-                                           ;; of the flush and the assumption that it will
-                                           ;; complete synchronously
-                                           (@head (object-array ['flush nil nil nil nil nil nil]))
-                                           n)))))
+        get-count (fn [r]
+                    (when (process? r)
+                      (let [k (map #(rget r %1) projection)]
+                        (if-let [count (@evaluations k)] count
+                                (let [n (atom 0)]
+                                  (do  (swap! evaluations assoc k n)
+                                       (@head r)
+                                       ;; this is kinda sad...both in the representation
+                                       ;; of the flush and the assumption that it will
+                                       ;; complete synchronously
+                                       (@head (object-array ['flush nil nil nil nil nil nil]))
+                                       n))))))
     
         ;; could cache the projection - meh
         tail  (fn [r]
@@ -196,11 +200,10 @@
 
 (defn dofilter [d terms build c]
   (fn [r]
-    (let [op (rget r op-register)]
-      (if (or (= op 'insert) (= op 'remove))
-        (when (rget r (second terms))
-          (c r))
-        (c r)))))
+    (if (process? r)
+      (when (rget r (second terms))
+        (c r))
+      (c r))))
 
 
 ;; this is just a counting version of
@@ -362,7 +365,7 @@
         proj (if proj proj [])
         assertions (atom {})]
     (fn [r]
-      (let [fact (when (#{'insert 'remove} (rget r op-register))
+      (let [fact (when (process? r)
                    (doall (map #(let [v (rget r %1)]
                                   (if (= object-array-type (type v))
                                     nil ;; @FIXME: Is it safe to always ignore tuples for projection equality here?
