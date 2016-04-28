@@ -509,7 +509,7 @@ function submitReplCard(card: ReplCard) {
                                               :tag "system"
                                               :row ${card.row} 
                                               :col ${card.col}
-                                              :user ${repl.user.id}
+                                              :user "${repl.user.id}"
                                               :query "${card.query.query.replace(/"/g,'\\"')}"
                                               :display ${card.display}))`;
   sendAnonymousQuery(rcQuery);
