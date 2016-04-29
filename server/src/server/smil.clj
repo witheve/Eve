@@ -186,31 +186,6 @@
                         [nil body])]
     {:params params :body body}))
 
-(defn parse-ui [sexpr]
-  (as-> {:id (nth sexpr 1) :query [] :ui []} args
-        (reduce
-         (fn [args expr]
-           (if (= 'ui (first expr))
-             (update-in args [:ui] conj expr)
-             (update-in args [:query] conj expr)))
-         args
-         (drop 2 sexpr))
-
-        (assoc args :elem-ids
-               (reduce
-                (fn [memo ui-group]
-                  (let [group-id (gensym (:id args))
-                        projection (second ui-group)]
-                    (reduce-kv #(assoc %1 %3 {:id (symbol (str group-id "_" %2))
-                                              :projection projection}) memo (vec (drop 2 ui-group)))))
-                {}
-                (:ui args)))
-
-        (update-in args [:query] concat
-                   (map (fn [[elem {:keys [id projection]}]]
-                          (let [row-id (interpose "__" (cons (name id) projection))]
-                            `(~'= ~id (~'str ~@row-id)))) (:elem-ids args)))))
-
 (defn parse-fact [sexpr]
   ;; 1. Shift the first expr into :entity
   ;; 2. If there's an existing value in :attr (attribute)
@@ -242,6 +217,67 @@
                                    {:facts [[(:entity state)]]}
                                    nil))]
     state))
+
+(defn parse-ui [sexpr]
+  (as-> {:id (nth sexpr 1) :projection (nth sexpr 2) :query [] :ui []} args
+    ;; Split exprs into :ui (ui ...) and :query <everything else>
+    (reduce
+     (fn [args expr]
+       (if (= 'ui (first expr))
+         (update-in args [:ui] conj expr)
+         (update-in args [:query] conj expr)))
+     args
+     (drop 3 sexpr))
+
+    ;; Build a map of variables to uniquely identify elems based on the projection of their ui containers
+    (assoc args :elem-ids
+           (reduce
+            (fn [memo ui-group]
+              (let [group-id (gensym (:id args))
+                    projection (second ui-group)]
+                (reduce-kv #(assoc %1 %3 {:id (symbol (str group-id "_" %2))
+                                          :projection projection}) memo (vec (drop 2 ui-group)))))
+            {}
+            (:ui args)))
+
+    ;; Pull attributes out of elements
+    (assoc args :attributes
+           (reduce
+            (fn [memo ui-group]
+              (assoc memo ui-group
+                     (apply concat
+                            (map (fn [elem]
+                                   (let [id (:id (get (:elem-ids args) elem))]
+                                     (map (fn [a] [id (name (first a)) (second a)]) (parse-schema {} elem))))
+                                 (drop 2 ui-group)))))
+            {} (:ui args)))
+
+    ;; Add generated element id mappings
+    (assoc-in args [:generated]
+              (reduce-kv (fn [memo _ {:keys [id projection]}]
+                           (let [row-id (interpose "__" (cons (name id) projection))]
+                             (assoc memo id `(~'str ~@row-id))))
+                         {}
+                         (:elem-ids args)))
+
+    ;; Add element id aliases to generated
+    (update-in args [:generated] merge
+               (reduce (fn [memo [elem attr val]]
+                         (assoc memo val elem))
+                       {}
+                       (filter #(= (second %1) "id")
+                               (apply concat (vals (:attributes args))))))
+
+
+    ;; Reflect generated variables into the projection
+    (update-in args [:projection] concat (keys (:generated args)))
+
+    ;; Reflect generated variables into the query
+    (update-in args [:query] concat
+               (map (fn [[var val]]
+                        `(~'= ~var ~val)) (:generated args)))
+
+    ))
 
 (defn parse-args
   ([sexpr] (parse-args [nil sexpr]))
@@ -284,7 +320,6 @@
 
 (defn make-ui-unpacker [args]
   (fn [ui]
-    (println "@TODO: Implement me!")
     (let [elem-ids (:elem-ids args)
           projection (nth ui 1)
           elems (drop 2 ui)
@@ -292,7 +327,7 @@
           attributes (reduce (fn [memo elem]
                                (concat memo
                                        (map #(cons (get (:elem-ids args) elem) %1)
-                                            (parse-schema {:args [:tag]} elem))))
+                                            (assoc (parse-schema {} elem) :tag (name (first elem))))))
                              []
                              elems)]
       (list 'define! 'ui ['e 'a 'v]
@@ -334,7 +369,7 @@
                      define-ui (let []
                                  ;; @FIXME: We need to get the full projection here somehow
                                  ;; @FIXME: We need to patch in an id for each ui element here (move id generation from make-ui-unpacker to here or parse-ui
-                                 (into [(apply list 'define! (:id args) []
+                                 (into [(apply list 'define! (:id args) (vec (:projection args))
                                                (expand-each db (:query args)))]
                                        (map (make-ui-unpacker args) (:ui args))))
 
