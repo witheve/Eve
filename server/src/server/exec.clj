@@ -129,7 +129,10 @@
       (condp = (rget r op-register)
         'insert (if (= @(get-count r) 0) (c r))
         'remove (if (= @(get-count r) 0) (c r))
-        (c r)))))
+        (do
+          (@head r)
+          ;; assuming synchronous?
+          (c r))))))
                                            
 
 

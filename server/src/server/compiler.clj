@@ -254,10 +254,12 @@
                       (map-indexed
                        #(let [m (meta (first terms))
                               cenv (atom @inner-env)
-                              body (list (with-meta (list 'not (compile-conjunction
-                                                                cenv (rest (rest %2))
-                                                                (fn [] (generate-send-cont env m cenv tail-name output)))) m))]
-                          body)
+                              inner (compile-conjunction
+                                     cenv (rest (rest %2))
+                                     (fn [] (generate-send-cont env m cenv tail-name output)))
+                              projection (set/intersection (get @cenv 'dependencies) (set (keys (get @env 'bound))))
+                              mp (map (get @env 'bound) projection)]
+                          (list (with-meta (list 'not mp inner) m)))
                        arms)))
 
     (doseq [name output]
