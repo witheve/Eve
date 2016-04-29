@@ -389,7 +389,10 @@ function connectToServer() {
         // Decode a chat message and put it in the system
         } else if (targetSystemQuery.id === repl.system.messages.id) {
           let newMessages = parsed.insert.map((m) => {return {id: m[0], user: m[1], message: m[2], time: m[3]}; });
-          repl.chat.messages = repl.chat.messages.concat(newMessages);          
+          repl.chat.messages = repl.chat.messages.concat(newMessages);
+          if (repl.chat.visible === false) {
+            repl.chat.unread += newMessages.length;
+          }          
         }
         // Mark the repl as initialized if all the system queries have been populated
         if (repl.init === false && objectToArray(repl.system).every((q: Query) => q.result !== undefined)) {
@@ -843,7 +846,12 @@ function addCardClick(event, elem) {
 }
 
 function toggleChatClick(event, elem) {
-  repl.chat.visible = repl.chat.visible ? false : true;
+  if (repl.chat.visible) {
+    repl.chat.visible = false;
+  } else {
+    repl.chat.unread = 0;
+    repl.chat.visible = true;
+  }
 }
 
 function chatInputKeydown(event, elem) {
@@ -1068,11 +1076,12 @@ function generateStatusBarElement() {
   }
   
   // Build the proper elements of the status bar
-  let eveLogo = {t: "img", c: "logo", src: "../images/logo_only.png", width: 39, height: 45};
+  let eveLogo = {t: "img", c: "logo", src: "http://witheve.com/logo.png", width: 643/15, height: 1011/15};
   let deleteButton = {c: "button", text: "Delete Card", click: deleteCardClick};
   let addColumn = {c: "button", text: "Add Column", click: addColumnClick};
   let addCard = {c: "button", text: "Add Card", click: addCardClick};
-  let toggleChat = {c: "button", text: "Chat", click: toggleChatClick};
+  let unread = repl.chat.unread > 0 ? {c: "unread", text: `${repl.chat.unread}`} : {};
+  let toggleChat = {c: "button", children: [{c: "inline", text: "Chat"}, unread], click: toggleChatClick};
   let buttonList = formListElement([deleteButton, addColumn, addCard, toggleChat]);
   
   // Build the entities table
