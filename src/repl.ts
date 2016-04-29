@@ -102,12 +102,13 @@ interface Repl {
     username?: string,
   },
   showChat: boolean,
+  messages: Array<any>
   system: {
     entities: Query,  
     tags: Query,
     queries?: Query,
     users: Query,
-    chat: Query,
+    messages: Query,
   },
   decks: Array<Deck>,
   deck: Deck,
@@ -375,6 +376,10 @@ function connectToServer() {
                                                        :query query))`);
             sendQuery(repl.system.queries);              
           }
+        // Decode a chat message and put it in the system
+        } else if (targetSystemQuery.id === repl.system.messages.id) {
+          let newMessages = parsed.insert.map((m) => {return {id: m[0], user: m[1], message: m[2], time: m[3]}; });
+          repl.messages = repl.messages.concat(newMessages);          
         }
         // Mark the repl as initialized if all the system queries have been populated
         if (repl.init === false && objectToArray(repl.system).every((q: Query) => q.result !== undefined)) {
@@ -1086,8 +1091,7 @@ function generateStatusBarElement() {
 function generateChatElement() {
   let chat = {};
   if (repl.showChat) {
-    let messages = repl.system.chat.result.values.map((m) => {return {id: m[0], user: m[1], message: m[2], time: m[3]}; });
-    let messageElements = messages.map((m) => {
+    let messageElements = repl.messages.map((m) => {
       let userIx = repl.system.users.result.values.map((u) => u[0]).indexOf(m.user);
       let userName = repl.system.users.result.values[userIx][1];
       let d = new Date(0);
@@ -1132,10 +1136,11 @@ let repl: Repl = {
     tags: newQuery(`(query [tag entity], (fact entity :tag tag))`),                                     // get all tags
     users: newQuery(`(query [id name username password] 
                        (fact id :tag "repl-user" :name name :username username :password password))`),  // get all users
-    chat: newQuery(`(query [id user message time]
-                      (fact id :tag "repl-chat" :message message :user user :timestamp time))`),        // get the chat history
+    messages: newQuery(`(query [id user message time]
+                          (fact id :tag "repl-chat" :message message :user user :timestamp time))`),    // get the chat history
   },
   showChat: false,
+  messages: [],
   decks: [replCards],
   deck: replCards,
   promisedQueries: [],
@@ -1165,6 +1170,7 @@ function root() {
     let submit = {c: "button", text: "Submit", click: loginSubmitClick};
     let login = {c: "login", children: [eveLogo, username, password, submit]}
     replChildren = [login];
+  // If the system is disconnected, show a reconnect page
   } else if (repl.server.state === ConnectionState.DISCONNECTED) {
     replChildren = [{c: "login", children: [eveLogo, 
                                             {text: "Disconnected from Eve server."},
