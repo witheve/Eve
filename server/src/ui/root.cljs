@@ -17,8 +17,8 @@
 (def USE-SERVER? true)
 (def BE-STUPIDLY-OPTIMISTIC? true)
 (def LOCAL-ONLY-TAGS #{"selection" "grid-user-state"})
-(def FILTERS #{"=" ">" "<" "≠"})
-(def INFIX #{"=" ">" "<" "≠" "*" "/" "+" "-"})
+(def FILTERS #{"=" ">" "<" "not="})
+(def INFIX #{"=" ">" "<" "not=" "*" "/" "+" "-"})
 
 ;;---------------------------------------------------------
 ;; Utils
@@ -558,7 +558,7 @@
 
 (defn get-functions []
   ["="
-   "≠"
+   "not="
    ">"
    "<"
    "+"
@@ -567,10 +567,15 @@
    "*"
    "sum"])
 
+(def modifiers [{:text "without" :adornment "modifier" :action :assoc :value "without" :to-assoc {:token-type "not"}}
+                {:text "select" :adornment "modifier" :action :assoc :value "select" :to-assoc {:token-type "select"}}
+                ])
+
 (defmethod get-autocompleter-options :formula-token [_ typed-value info]
   (let [{:keys [current-cell nodes vars]} info
         {:keys [parent name value]} (nodes current-cell)
         parent-info (nodes parent)
+        parent-type (:token-type parent-info)
         cleaned-value (if (and typed-value (not= typed-value ""))
                         typed-value)
         options (cond
@@ -578,7 +583,8 @@
                   ;; and functions
                   ;; @TODO: implications, functions, and references
                   ;; @TODO: get tags from a query instead of assuming I have them locally
-                  (= :root parent) (let [tags (afor [tag (get-tags)]
+                  (or (#{"not" "or" "and"} parent-type)
+                      (= :root parent)) (let [tags (afor [tag (get-tags)]
                                                     {:text (for-display tag) :adornment "tag" :action :assoc :value tag :to-assoc {:token-type "tag"}})
                                          fns (for [func (get-functions)]
                                                {:text func :adornment "function" :action :assoc :value func :to-assoc {:token-type "function"}})
@@ -587,10 +593,13 @@
                                      (concat tags
                                              refs
                                              fns
-                                             [{:text "without" :adornment "modifier" :action :assoc :value "without" :to-assoc {:token-type "not"}}]
+                                             modifiers
                                              (when cleaned-value
                                                [{:text cleaned-value :adornment "tag" :action :assoc :value 'generate-grid-id :to-assoc {:token-type "tag"} :generate-grid {:name cleaned-value}}])
                                      ))
+                  ;; In the case of a select, there are only two options: "and" and "or"
+                  (and parent-info (= parent-type "select")) [{:text "or" :adornment "modifier" :action :assoc :value "or" :to-assoc {:token-type "or"}}
+                                                              {:text "and" :adornment "modifier" :action :assoc :value "and" :to-assoc {:token-type "and"}}]
                   ;; if we have a parent and it's not a function, we should scope ourselves
                   ;; to attributes on the parent, related tags, functions, and named entities
                   (and parent-info (not= (:token-type parent-info) "function")) (let [attribute-names (get-attributes (:value parent-info))
@@ -600,7 +609,7 @@
                                                                                       {:text func :adornment "function" :action :assoc :value func :to-assoc {:token-type "function"}})]
                                                                             (concat attrs
                                                                                     fns
-                                                                                    [{:text "without" :adornment "modifier" :action :assoc :value "without" :to-assoc {:token-type "not"}}]
+                                                                                    modifiers
                                                                                     (when (and cleaned-value (not (attribute-names cleaned-value)))
                                                                                       [{:text cleaned-value :adornment "attribute" :action :assoc :value cleaned-value :to-assoc {:token-type "attribute"}}])))
                   ;; if our parent *is* a function, then we need to look for references and
@@ -614,7 +623,6 @@
                                                                                  refs
                                                                                  (when cleaned-value
                                                                                    [{:text cleaned-value :adornment (cljs.core/name (:type parsed)) :action :assoc :value (:value parsed) :to-assoc {:token-type "value"}}])))
-                  ;; @TODO: special forms - choose, not, union
                   ;; @TODO: aggregate modifiers (grouping, uniques)
                   )
         final (if cleaned-value
@@ -1146,7 +1154,6 @@
                                      :value value
                                      :token-type token-type
                                      :parent parent}
-                          _ (println "CELL INFO: " id cell-info)
                           _ (when is-var?
                               (swap! vars conj (:variable cell-info)))
                           _ (swap! nodes assoc id cell-info)
@@ -1790,7 +1797,8 @@
                                              :top (* y cell-size-y)
                                              :left (* x cell-size-x)
                                              :pointer-events "none"
-                                             :background "rgba(255,255,255,0.12)"
+                                             :background (if (not active-cell)
+                                                           "rgba(255,255,255,0.12)")
                                              :border (str "1px solid " (or color "#aaffaa")))
                                ;; add a resize handle to the selection
                                :children (array (elem :mousedown start-resize
