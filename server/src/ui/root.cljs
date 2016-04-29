@@ -20,6 +20,9 @@
 (def FILTERS #{"=" ">" "<" "not="})
 (def INFIX #{"=" ">" "<" "not=" "*" "/" "+" "-"})
 
+(def GRID-SIZE {:width 120 :height 50})
+(def FORMULA-GRID-SIZE {:width 30 :height 30})
+
 ;;---------------------------------------------------------
 ;; Utils
 ;;---------------------------------------------------------
@@ -125,7 +128,6 @@
                                                 (let [inserts (.-insert data)
                                                       removes (.-remove data)
                                                       context (js-obj)]
-                                                  (println "GOT MESSAGE AT " (.now (.-performance js/window)))
                                                   (when (seq removes)
                                                     (reset! changed? true)
                                                     (log removes)
@@ -145,16 +147,12 @@
                                                       (reset! changed? true)
                                                       (.removeFacts diff (.-id data) removes))
                                                     (when @changed?
-                                                      (.applyDiff eve diff))
-                                                    (println "ADDS" adds)
-                                                    (println "REMOVES" removes))))
+                                                      (.applyDiff eve diff)))))
                                      "error" (.error js/console "uh oh")
                                      "query-info" (do)
                                      )
                                    (when @changed?
-                                     (println "GOT CHANGED")
-                                     (render))
-                                   (println (.-data event)))))
+                                     (render)))))
     ;; set a handler for when we navigate away so that we can make sure all
     ;; queries for this client are closed.
     (set! (.-onbeforeunload js/window)
@@ -316,8 +314,6 @@
                          ")")
         query-id (js/uuid)]
     (when (or (seq inserts) (seq removes))
-      (println "******* TIME TO COMMIT! ********" (.now (.-performance js/window)))
-      (println final-query)
       (send-query query-id final-query)
       (send-close query-id))))
 
@@ -374,7 +370,7 @@
       otherwise))
 
 (defn clear-intermediates! [context grid-id]
-  (let [intermediate-keys [:intermediate-property :intermediate-value :focus :autocomplete-selection]
+  (let [intermediate-keys [:intermediate-property :intermediate-value :focus :autocomplete-selection :intermediate-width]
         grid-user-state (entity {:tag "grid-user-state" :grid-id grid-id})]
     (when grid-user-state
       (remove-facts! context (select-keys grid-user-state (concat [:id] intermediate-keys))))))
@@ -390,8 +386,6 @@
                                            (not= (get current-entity cur-key) (get update-map cur-key))))
                                      keys-to-update)
         current-values (select-keys current-entity valid-keys-to-update)]
-    (println "******** UPDATING: " entity-id)
-    (println current-values (select-keys with-id valid-keys-to-update))
     (when (seq current-values)
       (remove-facts! context current-values))
     (insert-facts! context (select-keys with-id valid-keys-to-update))))
@@ -435,6 +429,7 @@
 ;;---------------------------------------------------------
 
 (defonce global-dom-state (atom {}))
+(defonce measure-span (.createElement js/document "span"))
 
 (defn prevent-default [event]
   (.preventDefault event))
@@ -443,6 +438,9 @@
   (@global-dom-state :mouse-down))
 
 (defn global-dom-init []
+  (set! (.-className measure-span) "measure-span")
+  (-> (.-body js/document)
+      (.appendChild measure-span))
   (.addEventListener js/window "mousedown"
                      (fn [event]
                        (swap! global-dom-state assoc :mouse-down true)))
@@ -467,6 +465,30 @@
 
 (defn auto-focus [node elem]
   (.focus node))
+
+(defn measure-size [node min-width]
+  (let [computed-font-size (-> (.getComputedStyle js/window node nil)
+                               (aget "font-size"))]
+    (-> (.-style measure-span)
+        (.-fontSize)
+        (set! computed-font-size))
+    (set! (.-textContent measure-span) (.-value node))
+    (let [measure-width (-> (.getBoundingClientRect measure-span)
+                            (.-width))
+          new-width (->> (.max js/Math min-width measure-width)
+                         (.ceil js/Math))]
+      new-width)))
+
+(defn auto-size-input [node elem]
+  (let [padding 40
+        min-width 30
+        new-width (measure-size node min-width)
+        new-width-str (str (+ padding new-width) "px")]
+    (set! (-> node .-style .-width) new-width-str)))
+
+(defn auto-size-and-focus-once [node elem]
+  (focus-once node elem)
+  (auto-size-input node elem))
 
 ;;---------------------------------------------------------
 ;; Input parsing
@@ -628,7 +650,6 @@
         final (if cleaned-value
                 (match-autocomplete-options options typed-value)
                 options)]
-    (println "INFO! " parent-info)
     final
     ))
 
@@ -680,11 +701,16 @@
                        :grid-id grid-id})]
     (if ents
       (.map ents (fn [cur]
-                   (if (:cell-id cur)
-                     (if-let [cell (entity {:id (:cell-id cur)})]
-                       (merge cell cur)
-                       cur)
-                     cur)))
+                   (let [cell-id (:cell-id cur)]
+                     (if cell-id
+                       (if-let [cell (entity {:id cell-id})]
+                         (let [merged (merge cell cur)
+                               active? (= (get-state grid-id :active-cell) cell-id)]
+                           (if active?
+                             (assoc merged :width (or (get-state grid-id :intermediate-width) (:width merged)))
+                             merged))
+                         cur)
+                       cur))))
       (array {:id "fake-selection" :x 0 :y 0 :width 1 :height 1}))))
 
 (defn get-active-cell [grid-id]
@@ -774,70 +800,71 @@
                           (= key-code (KEYS :enter)) :down
                           (= key-code (KEYS :tab)) :right)]
           (transaction context
-            (cond
-              (= action :insert) (let [generate-grid (:generate-grid selected)
-                                       cell-update {:property (get-state grid-id :intermediate-property (:property cell))
-                                                    :type (:value selected)}]
-                                   (when generate-grid
-                                     (insert-facts! context (assoc generate-grid :id 'generate-grid-id)))
-                                   (update-entity! context (:id cell) (if generate-grid
-                                                                        (assoc cell-update :value 'generate-grid-id)
-                                                                        cell-update))
-                                   (clear-intermediates! context grid-id))
+                       (when-let [new-width (get-state grid-id :intermediate-width)]
+                         (update-entity! context (:id cell) {:width new-width}))
+                       (cond
+                         (= action :insert) (let [generate-grid (:generate-grid selected)
+                                                  cell-update {:property (get-state grid-id :intermediate-property (:property cell))
+                                                               :type (:value selected)}]
+                                              (when generate-grid
+                                                (insert-facts! context (assoc generate-grid :id 'generate-grid-id)))
+                                              (update-entity! context (:id cell) (if generate-grid
+                                                                                   (assoc cell-update :value 'generate-grid-id)
+                                                                                   cell-update))
+                                              (clear-intermediates! context grid-id))
 
-              (= action :assoc) (let [generate-grid (:generate-grid selected)
-                                      cell-update (merge {:value (:value selected)}
-                                                         (:to-assoc selected))]
-                                  (println "QUERY:cell-update:" (:id cell) cell-update generate-grid)
-                                   (when generate-grid
-                                     (insert-facts! context (assoc generate-grid :id 'generate-grid-id)))
-                                  ;; @TODO: this probably shouldn't be here
-                                  (update-entity! context (:id cell) cell-update)
-                                  (when (= (:type cell) "formula-token")
-                                    ;; @FIXME: this assumes synchronous update, which may not be true at some
-                                    ;; point and will lead to sadness
-                                    (replace-and-send-query grid-id (formula-grid->query grid-id)))
-                                  (clear-intermediates! context grid-id)
-                                  (update-state! context grid-id :active-cell nil)
-                                  (move-selection! context grid-id direction))
-              (or (= action :create)
-                  (= action :link)
-                  (= action :value)) (let [value-id (if (= action :create)
-                                                      'make-an-id
-                                                      (:value selected))
-                                           query-id (js/uuid)
-                                           property (get-state grid-id :intermediate-property (:property cell))]
-                                       (when (= action :create)
-                                         (insert-facts! context {:id value-id :name (:text selected)})
-                                         ;; Add an initial cell that contains the name we gave this grid
-                                         (add-cell! context value-id {:x 0 :y 0 :width 1 :height 1 :type "property" :property "name" :value (:text selected)}))
-                                       ;; if we have a property then we need to both update the cell
-                                       ;; and set a property on the grid
-                                       (when property
-                                         (update-entity! context (:id cell) {:property property
-                                                                             :value value-id})
-                                         (when (not= value-id (:value cell))
-                                           (insert-facts! context {:id grid-id
-                                                                   (keyword property) value-id})
-                                           ;; if we had previously set a value on the grid then we need
-                                           ;; to remove it. We can check for this by the cell having a property
-                                           ;; and value already on it.
-                                           (when (and (:property cell) (not (nil? (:value cell))))
-                                             (remove-facts! context {:id grid-id
-                                                                     (:property cell) (:value cell)}))))
-                                       ;; if there isn't a property that's being set, then the only thing we're
-                                       ;; doing here is setting the value of this cell and not setting an attribute
-                                       ;; on the grid.
-                                       (when-not property
-                                         (update-entity! context (:id cell) {:value value-id}))
-                                       ;; @TODO: this probably shouldn't be here
-                                       (when (= (:type cell) "formula-token")
-                                         ;; @FIXME: this assumes synchronous update, which may not be true at some
-                                         ;; point and will lead to sadness
-                                         (replace-and-send-query grid-id (formula-grid->query grid-id)))
-                                       (clear-intermediates! context grid-id)
-                                       (update-state! context grid-id :active-cell nil)
-                                       (move-selection! context grid-id direction))))))
+                         (= action :assoc) (let [generate-grid (:generate-grid selected)
+                                                 cell-update (merge {:value (:value selected)}
+                                                                    (:to-assoc selected))]
+                                             (when generate-grid
+                                               (insert-facts! context (assoc generate-grid :id 'generate-grid-id)))
+                                             ;; @TODO: this probably shouldn't be here
+                                             (update-entity! context (:id cell) cell-update)
+                                             (when (= (:type cell) "formula-token")
+                                               ;; @FIXME: this assumes synchronous update, which may not be true at some
+                                               ;; point and will lead to sadness
+                                               (replace-and-send-query grid-id (formula-grid->query grid-id)))
+                                             (clear-intermediates! context grid-id)
+                                             (update-state! context grid-id :active-cell nil)
+                                             (move-selection! context grid-id direction))
+                         (or (= action :create)
+                             (= action :link)
+                             (= action :value)) (let [value-id (if (= action :create)
+                                                                 'make-an-id
+                                                                 (:value selected))
+                                                      query-id (js/uuid)
+                                                      property (get-state grid-id :intermediate-property (:property cell))]
+                                                  (when (= action :create)
+                                                    (insert-facts! context {:id value-id :name (:text selected)})
+                                                    ;; Add an initial cell that contains the name we gave this grid
+                                                    (add-cell! context value-id {:x 0 :y 0 :width 1 :height 1 :type "property" :property "name" :value (:text selected)}))
+                                                  ;; if we have a property then we need to both update the cell
+                                                  ;; and set a property on the grid
+                                                  (when property
+                                                    (update-entity! context (:id cell) {:property property
+                                                                                        :value value-id})
+                                                    (when (not= value-id (:value cell))
+                                                      (insert-facts! context {:id grid-id
+                                                                              (keyword property) value-id})
+                                                      ;; if we had previously set a value on the grid then we need
+                                                      ;; to remove it. We can check for this by the cell having a property
+                                                      ;; and value already on it.
+                                                      (when (and (:property cell) (not (nil? (:value cell))))
+                                                        (remove-facts! context {:id grid-id
+                                                                                (:property cell) (:value cell)}))))
+                                                  ;; if there isn't a property that's being set, then the only thing we're
+                                                  ;; doing here is setting the value of this cell and not setting an attribute
+                                                  ;; on the grid.
+                                                  (when-not property
+                                                    (update-entity! context (:id cell) {:value value-id}))
+                                                  ;; @TODO: this probably shouldn't be here
+                                                  (when (= (:type cell) "formula-token")
+                                                    ;; @FIXME: this assumes synchronous update, which may not be true at some
+                                                    ;; point and will lead to sadness
+                                                    (replace-and-send-query grid-id (formula-grid->query grid-id)))
+                                                  (clear-intermediates! context grid-id)
+                                                  (update-state! context grid-id :active-cell nil)
+                                                  (move-selection! context grid-id direction))))))
     (when (= action :escape)
       (transaction context
                    (clear-intermediates! context grid-id)
@@ -850,10 +877,19 @@
         value (or (.-value event) (-> (.-currentTarget event) (.-value)))
         value (if parser
                 (:value (parser value))
-                value)]
+                value)
+        grid-width (if (= "formula-token" (:type cell))
+                     (:width FORMULA-GRID-SIZE)
+                     (:width GRID-SIZE))
+        width (+ 15 (measure-size (.-currentTarget event) (- 15 grid-width)))
+        new-cell-width (.max js/Math
+                             (.ceil js/Math (/ width grid-width))
+                             (:width cell)
+                             1)]
     (transaction context
-      (update-state! context grid-id :autocomplete-selection 0)
-      (update-state! context grid-id (keyword (str "intermediate-" (name field))) value))))
+                 (update-state! context grid-id :intermediate-width new-cell-width)
+                 (update-state! context grid-id :autocomplete-selection 0)
+                 (update-state! context grid-id (keyword (str "intermediate-" (name field))) value))))
 
 (defn track-focus [event elem]
   (let [{:keys [cell field id]} (.-info elem)]
@@ -896,8 +932,8 @@
                                        :color "#CCC"
                                        :margin "0px 0 0 8px")
                          :postRender (if (:property cell)
-                                       focus-once
-                                       js/undefined)
+                                       auto-size-and-focus-once
+                                       auto-size-input)
                          :focus track-focus
                          :input store-intermediate
                          :keydown value-keys
@@ -929,8 +965,8 @@
                                        :color "#CCC"
                                        :margin "0px 0 0 8px")
                          :postRender (if (:property cell)
-                                       focus-once
-                                       js/undefined)
+                                       auto-size-and-focus-once
+                                       auto-size-input)
                          :focus track-focus
                          :input store-intermediate
                          :keydown value-keys
@@ -959,7 +995,9 @@
                                                   :value))
         property-element (draw-property cell active?)
         ; @FIXME: this needs to be a real id, but I'm not sure how we get it.
-        sub-grid-id (:value cell)]
+        sub-grid-id (:value cell)
+        grid-width (:width FORMULA-GRID-SIZE)
+        grid-height (:height FORMULA-GRID-SIZE)]
     (box :style (style :flex "1")
          :children
            (array property-element
@@ -968,14 +1006,14 @@
                                      :overflow "auto"
                                      :align-items "center")
                        :children (array (grid {:grid-width (+ 1 (* 110 (:width cell)))
-                                               :grid-height (inc (* 30 (.floor js/Math (/ (* (dec (:height cell)) 50) 30))))
+                                               :grid-height (inc (* grid-height (.floor js/Math (/ (* (dec (:height cell)) 50) grid-height))))
                                                :selections (get-selections sub-grid-id)
                                                :cells (entities {:tag "cell"
                                                                  :grid-id sub-grid-id})
                                                :parent grid-id
                                                :default-cell-type "formula-token"
-                                               :cell-size-y 30
-                                               :cell-size-x 30
+                                               :cell-size-y grid-width
+                                               :cell-size-x grid-height
                                                :inactive (not active?)
                                                :id sub-grid-id})))
                   (let [results-id (@id-to-query sub-grid-id)
@@ -1026,7 +1064,7 @@
                                   :color "#CCC"
                                   :margin-top -1 ;@FIXME why is this necessary to active/inactive to line up?
                                   :padding-left 8)
-                    :postRender focus-once
+                    :postRender auto-size-and-focus-once
                     :focus track-focus
                     :input store-intermediate
                     :keydown value-keys
@@ -1071,7 +1109,8 @@
   (let [node-info (nodes node)]
     (cond
       (or (= :root node)
-          (= (:token-type node-info) "reference")) (let [parent-sym (if (= :root node)
+          (= (:token-type node-info) "reference")
+          (= (:token-type node-info) "variable")) (let [parent-sym (if (= :root node)
                                                                       nil
                                                                       (:variable node-info))]
                                                      (reduce (fn [query child]
@@ -1114,7 +1153,7 @@
                                                         'union)]
                                              (if-not (seq children)
                                                query
-                                               (conj query `(~type ~@children))))
+                                               (conj query `(~type ~(:vars node-info) ~@children))))
       (or (= (:token-type node-info) "or")
           (= (:token-type node-info) "and")) (let [children (reduce (fn [query child]
                                                                  (walk-graph nodes child nil query))
@@ -1132,10 +1171,10 @@
                                                        param (condp = (:token-type child-info)
                                                                "value" (:value child-info)
                                                                "reference" (:variable child-info)
+                                                               "variable" (:variable child-info)
                                                                false)
                                                        func-name (:value node-info)
                                                        func-symbol (symbol func-name)]
-                                                   (println "QUERY:func" node-info)
                                                    (if-not param
                                                      query
                                                      (if (INFIX func-name)
@@ -1150,7 +1189,7 @@
 (defn formula-grid-info [id]
   (let [cells (entities {:tag "cell" :grid-id id})
         sorted (sort-by (juxt :y :x) cells)
-        edges (reduce (fn [{:keys [nodes vars cols] :as info} cell]
+        edges (reduce (fn [{:keys [nodes cols] :as info} cell]
                         (let [{:keys [value x id token-type width]} cell
                               child-name (when value
                                            (or (:name (entity {:id value})) value))
@@ -1160,24 +1199,47 @@
                                          :root)
                               parent-info (nodes parent)
                               negated? (or (= "not" token-type) (:negated parent-info))
+                              query-context (cond
+                                              (= token-type "select") id
+                                              (= parent :root) :root
+                                              :else (:query-context parent-info))
+                              query-context-info (nodes query-context)
+                              query-context-vars-set (:vars-set query-context-info #{})
+                              {:keys [vars vars-set] :as root} (nodes :root)
                               [is-var? variable] (cond
                                                    (or (= "tag" token-type)
                                                        (= "attribute" token-type)) [(not negated?) (get-projected-name child-name (-> nodes :parent :variable) vars)]
                                                    (and (= "function" token-type)
                                                         (not (FILTERS value))) [(not negated?) (get-projected-name "result" nil vars)]
                                                    (= "variable" token-type) [true (symbol value)]
-                                                   (= "reference" token-type) [false (symbol value)]
+                                                   (= "reference" token-type) [true (symbol value)]
                                                    :else [false nil])
-                              cell-info {:name child-name
+                              cell-info {:id id
+                                         :name child-name
                                          :variable variable
                                          :negated negated?
                                          :value value
                                          :token-type token-type
+                                         :query-context query-context
                                          :parent parent
                                          :children []}
-                              vars (if is-var?
-                                     (conj vars (:variable cell-info))
-                                     vars)
+                              cell-info (if (= query-context id)
+                                          (assoc cell-info :vars [] :vars-set #{})
+                                          cell-info)
+                              nodes (if (and is-var? (not (query-context-vars-set variable)))
+                                      (if (not= query-context :root)
+                                        (-> nodes
+                                            (update-in [query-context :vars-set] conj variable)
+                                            (update-in [query-context :vars] conj variable)
+                                            (assoc :root (if (not (vars-set variable))
+                                                           (-> root
+                                                               (update-in [:vars-set] conj variable)
+                                                               (update-in [:vars] conj variable))
+                                                           root)))
+                                        (-> nodes
+                                            (update-in [query-context :vars-set] conj variable)
+                                            (update-in [query-context :vars] conj variable)))
+                                     nodes)
                               nodes (assoc nodes id cell-info)
                               nodes (update-in nodes [parent :children] conj id)
                               ;; set this cell as the parent for all the columns taken up by this cell
@@ -1188,20 +1250,22 @@
                           {:nodes nodes
                            :vars vars
                            :cols cols}))
-                      {:nodes {:root {:children []}}
-                       :cols {}
-                       :vars []}
+                      {:nodes {:root {:children []
+                                      :vars []
+                                      :vars-set #{}}}
+                       :cols {}}
                       sorted)]
     edges))
 
 (defn formula-grid->query [id]
-  (let [{:keys [nodes vars]} (formula-grid-info id)
+  (let [{:keys [nodes]} (formula-grid-info id)
         clauses (walk-graph nodes :root nil [])
-        query (query-string `(query ~(vec vars)
+        query (query-string `(query ~(-> (nodes :root)
+                                         (:vars)
+                                         vec)
                           ~@clauses))]
     (println "QUERY:\n" query)
     query
-    ""
     ))
 
 ;;---------------------------------------------------------
@@ -1791,7 +1855,10 @@
         active-cell (get-active-cell (:id info))]
     (dotimes [cell-ix (count cells)]
       (let [{:keys [x y width height color id] :as cell} (aget cells cell-ix)
-            is-active? (= (:id active-cell) (:id cell))]
+            is-active? (= (:id active-cell) (:id cell))
+            width (if-not is-active?
+                    width
+                    (get-state (:id info) :intermediate-width width))]
         (.push children (box :id id
                              :style (style :width (- (* cell-size-x (or width 1)) 2)
                                            :height (- (* cell-size-y (or height 1)) 2)
@@ -1804,9 +1871,6 @@
     (when-not (:inactive info)
       (dotimes [selection-ix (count selections)]
         (let [selection (aget selections selection-ix)
-              selection (if (:cell-id selection)
-                          (entity {:id (:cell-id selection)})
-                          selection)
               color "#fff"
               ;; we have to normalize selections since while they're being expanded
               ;; they can have negative widths and heights
@@ -1883,8 +1947,8 @@
                                  :cells (entities {:tag "cell"
                                                    :grid-id active-grid-id})
                                  :default-cell-type "property"
-                                 :cell-size-y 50
-                                 :cell-size-x 120
+                                 :cell-size-y (:height GRID-SIZE)
+                                 :cell-size-x (:width GRID-SIZE)
                                  :id active-grid-id})))))
 
 ;;---------------------------------------------------------
