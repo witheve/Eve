@@ -186,6 +186,15 @@
                         [nil body])]
     {:params params :body body}))
 
+(defn parse-ui [sexpr]
+  (reduce
+   (fn [args expr]
+     (if (= 'ui (first expr))
+       (update-in args [:ui] conj expr)
+       (update-in args [:query] conj expr)))
+   {:id (nth sexpr 1) :query [] :ui []}
+   (drop 2 sexpr)))
+
 (defn parse-fact [sexpr]
   ;; 1. Shift the first expr into :entity
   ;; 2. If there's an existing value in :attr (attribute)
@@ -231,6 +240,7 @@
          (= op 'query) (parse-query sexpr)
          (= op 'fact) (parse-fact sexpr)
          (= op 'insert-fact!) (parse-fact sexpr)
+         (= op 'define-ui) (parse-ui sexpr)
          :else (throw (syntax-error (str "Unknown operator " op) sexpr)))
        {:expr sexpr :schema schema}))))
 
@@ -255,6 +265,24 @@
   (if-let [err (validate-args args)]
     (throw err)
     args))
+
+(defn make-ui-unpacker [args]
+  (fn [ui]
+    (println "@TODO: Implement me!")
+    (let [projection (nth ui 1)
+          elems (drop 2 ui)
+          group-id (gensym (:id args))
+          attributes (reduce-kv #(assoc %1 (str group-id "_" %2) (parse-schema {} %3)) elems)] ;; @FIXME: Decompose elements into attributes
+      (list 'define! 'ui ['e 'a 'v]
+            (apply list (:id args) projection)
+            (apply list 'union ['e 'a 'v]
+                   (map (fn [[elem attribute value]]
+                          `(~'query
+                            (~'= e ~elem)
+                            (~'= a ~attribute)
+                            (~'= v ~value))) attributes)))
+      )
+  ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Expand a SMIL sexpr recursively until it's ready for WEASL compilation
@@ -282,6 +310,13 @@
                      fact (expand-each db (map #(cons (with-meta 'fact-btu (meta op)) %1) (:facts args)))
                      insert-fact! (expand-each db (map #(cons (with-meta 'insert-fact-btu! (meta op)) %1) (:facts args)))
                      sort (cons op (splat-map args))
+                     define-ui (let []
+                                 ;; @FIXME: We need to get the full projection here somehow
+                                 ;; @FIXME: We need to patch in an id for each ui element here
+                                 ;; @FIXME: We need to implement make-ui-unpacker
+                                 (into [(apply list 'define (:id args) []
+                                               (expand-each db (:query args)))]
+                                       (map (make-ui-unpacker args) (:ui args))))
 
                      ;; Macros
                      remove-by-t! (expand db (list (with-meta 'insert-fact-btu! (meta op)) (:tick args) REMOVE_FACT nil))
