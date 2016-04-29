@@ -1067,7 +1067,7 @@ let replCards: Deck = {
   cards: [defaultCard],
   focused: defaultCard,
 }  
-console.log(uuid());
+
 // Instantiate a repl instance
 let repl: Repl = {
   init: false,
@@ -1107,6 +1107,10 @@ function root() {
     let submit = {c: "button", text: "Submit", click: loginSubmitClick};
     let login = {c: "login", children: [eveLogo, username, password, submit]}
     replChildren = [login];
+  } else if (repl.server.state === ConnectionState.DISCONNECTED) {
+    replChildren = [{c: "login", children: [eveLogo, 
+                                            {text: "Disconnected from Eve server."},
+                                            {c: "button", text: "Reconnect", click: connectToServer}]}];
   // If the system is not ready, display a loading page
   } else {
     replChildren = [{c: "login", children: [eveLogo, {text: "Loading Eve Database..."}]}];
