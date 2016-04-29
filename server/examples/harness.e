@@ -1,40 +1,26 @@
 (define! run-test [test]
   (fact expected :tag "expected" :test)
-  (fact result :tag "result" :test)
+  (fact run :tag "result" :test)
   (fact-btu expected attr val)
-  (fact-btu result attr val)
+  (fact-btu run attr val)
   (= actual (sum 1))
   (query [test desired]
     (fact expected :tag "expected" :test)
     (fact-btu expected attr val)
     (= desired (sum 1)))
 
-  (union [test actual desired]
-    (query
-      (= actual desired)
-      (insert-fact! (str test "-run")
-                    :tag "test-run"
-                    :test
-                    :result true))
-    (query
-      (not= actual desired)
-      (insert-fact! (str test "-run")
-                    :tag "test-run"
-                    :test
-                    :result false))))
 
-  ; (choose [actual expected result]
-  ;   (query
-  ;     (= actual expected)
-  ;     (= result true))
-  ;   (query
-  ;     (= result false)))
-  ; (= actual expected)
-  ; (= result true)
-  ; (insert-fact! (str test "-run")
-  ;               :tag "test-run"
-  ;               :test
-  ;               :result))
+   (choose [actual desired result]
+     (query
+       (= actual desired)
+       (= result true))
+     (query
+       (= result false)))
+
+   (insert-fact! (str test "-run")
+                 :tag "test-run"
+                 :test
+                 :result))
 
 
 (query
