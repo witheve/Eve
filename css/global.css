@@ -3,6 +3,8 @@ div { display:flex; outline:none; flex-direction:column; }
 
 button, input, textarea { background:none; border:none; margin:0; padding:0; outline:none; font-family:inherit; color: inherit; text-align:left; line-height:inherity; font-size:inherit; }
 
+.measure-span { font-family: "Lato"; visibility:hidden; pointer-events: none; position:absolute; top:0; left:0; z-index: -1;}
+
 .CodeMirror { flex:1; height:auto; }
 .CodeMirror-scroll { height:auto; }
 
