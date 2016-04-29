@@ -113,7 +113,7 @@
                                        ;; this is kinda sad...both in the representation
                                        ;; of the flush and the assumption that it will
                                        ;; complete synchronously
-                                       (@head (object-array ['flush nil nil nil nil nil nil]))
+                                       (@head (object-array ['flush (rget r [1]) nil nil nil nil nil]))
                                        n))))))
     
         ;; could cache the projection - meh
