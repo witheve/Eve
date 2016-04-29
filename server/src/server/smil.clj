@@ -272,17 +272,20 @@
     (let [projection (nth ui 1)
           elems (drop 2 ui)
           group-id (gensym (:id args))
-          attributes (reduce-kv #(assoc %1 (str group-id "_" %2) (parse-schema {} %3)) elems)] ;; @FIXME: Decompose elements into attributes
+          attributes (reduce-kv (fn [memo k v]
+                                  (concat memo
+                                          (map #(cons (str group-id "_" k) %1)
+                                               (parse-schema {:args [:tag]} v))))
+                                []
+                                (vec elems))]
       (list 'define! 'ui ['e 'a 'v]
             (apply list (:id args) projection)
             (apply list 'union ['e 'a 'v]
                    (map (fn [[elem attribute value]]
                           `(~'query
-                            (~'= e ~elem)
-                            (~'= a ~attribute)
-                            (~'= v ~value))) attributes)))
-      )
-  ))
+                            (~'= ~'e ~elem)
+                            (~'= ~'a ~(name attribute))
+                            (~'= ~'v ~value))) attributes))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Expand a SMIL sexpr recursively until it's ready for WEASL compilation
@@ -312,8 +315,7 @@
                      sort (cons op (splat-map args))
                      define-ui (let []
                                  ;; @FIXME: We need to get the full projection here somehow
-                                 ;; @FIXME: We need to patch in an id for each ui element here
-                                 ;; @FIXME: We need to implement make-ui-unpacker
+                                 ;; @FIXME: We need to patch in an id for each ui element here (move id generation from make-ui-unpacker to here or parse-ui
                                  (into [(apply list 'define (:id args) []
                                                (expand-each db (:query args)))]
                                        (map (make-ui-unpacker args) (:ui args))))
