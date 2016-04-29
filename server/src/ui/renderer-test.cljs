@@ -5,15 +5,20 @@
 (enable-console-print!)
 
 (def container (.getElementById js/document "render-target"))
-(println "CONT" container)
-(def renderer (renderer/make-renderer container))
+(defonce renderer (renderer/make-renderer container))
 
 (defn foo []
   (renderer/render renderer {:inserts ['("foo" "tag" "div")
-                                       '("foo" "textContent" "CATS")
+                                       '("foo" "class" "header")
+                                       '("foo" "text" "RATS")
+                                       '("foo" "parent" "root")
                                        '("bar" "ix" 1)
+                                       '("bar" "parent" "quux")
                                        '("baz" "parent" "bar")
-                                       '("baz" "textContent" "NOT THE BEES")]
+                                       '("baz" "text" "NOT THE BEES")
+                                       '("quux" "tag" "div")
+                                       '("quux" "ix" 1)
+                                       '("quux" "parent" "root")]
                              :removes []})
   nil)
 
