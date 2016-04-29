@@ -34,6 +34,10 @@ h2 {
   padding: 10px;
 }
 
+.status-bar .logo {
+  margin-bottom: 20px;
+}
+
 .repl {
   height: 100%;
   display: flex;
@@ -187,6 +191,19 @@ h2 {
   line-height: 16px;
 }
 
+.unread {
+  font-size: 12px;
+  width: 12px;
+  height: 12px;
+  border-radius: 20px;
+  transform: translateY(-3px);
+  padding: 3px;
+  color: white;
+  border: 1px solid rgb(65, 161, 221); 
+  margin-left: 15px;
+  float: right;
+}
+
 /* Login */
 
 .login {
@@ -305,6 +322,10 @@ li {
   unicode-bidi: embed;
   font-family: monospace;
   white-space: pre; 
+}
+
+.inline {
+  display: inline;
 }
 
 .hidden {
