@@ -42,7 +42,7 @@
                (list '= [5] [4 0] (name id))
                '(filter [5])
                (list 'tuple [5] exec/op-register [4 2])
-               (list 'send 'out [5])))))
+               (list 'send "out" [5])))))
 
 (defn tuple-to-implication [tuple]
   (exec/rget tuple [1]))
