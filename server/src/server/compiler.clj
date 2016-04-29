@@ -118,11 +118,10 @@
             (if (or (nil? m) (list? m)) {} m))]
     {'body (list p)}))
 
-;; last element is a block
-(defn body-term [env m op & terms]
+(defn body-term [env m op terms sub-body]
   (let [p (with-meta (conj (map (fn [x] (lookup env x)) terms) op)
             (if (or (nil? m) (list? m)) {} m))]
-    {'body (list p)}))
+    {'body (list (concat p (list (sub-body 'body))))}))
 
 (defn build [& a]
   (reduce (fn [b x] {'body (concat (b 'body) (x 'body))}) {'body ()} a))
@@ -153,11 +152,10 @@
   (let [argmap (apply hash-map (rest terms))
         m (meta terms)]
     (apply add-dependencies env (vals argmap))
-    (let [r (build
-             (term env m (first terms) exec/temp-register (argmap :a) ( argmap :b))
-             (term env m 'filter exec/temp-register)
-             (down))]
-      r)))
+    (build
+     (term env m (first terms) exec/temp-register (argmap :a) ( argmap :b))
+     (term env m 'filter exec/temp-register)
+     (down))))
 
 ;; figure out how to handle the quintuple
 ;; need to do index selection here - resolve attribute name
@@ -262,9 +260,9 @@
                       (map-indexed
                        #(let [m (meta (first terms))
                               cenv (atom @inner-env)
-                              body (body-term env m 'not (compile-conjunction
-                                                          cenv (rest (rest %2))
-                                                          (fn [] (generate-send-cont env m cenv tail-name output))))]
+                              body (body-term env m 'not () (compile-conjunction
+                                                             cenv (rest (rest %2))
+                                                             (fn [] (generate-send-cont env m cenv tail-name output))))]
                           body)
                        arms)))
 
@@ -398,14 +396,16 @@
                          'db (get @env 'db)
                          'dependencies #{}
                          'bound (get @env 'bound)})
-        inner-body (compile-conjunction child-env (rest terms) (fn [] ()))
+        m (meta (first terms))
+        inner-body (compile-conjunction child-env (rest terms) (fn [] {'body ()}))
         ;; bound before the rest of the expression
         projection (set/intersection (get @child-env 'dependencies) (set (keys (get @env 'bound))))
         mp (map (get @env 'bound) projection)
         ;; force the projection at the end of the expresssion
         d (down)]
+    (println "compile not" d)
     (build
-     (body-term env 'not projection mp inner-body) 
+     (body-term env m 'not [projection mp] inner-body) 
      d)))
 
 (defn compile-insert [env terms down]

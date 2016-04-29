@@ -99,9 +99,7 @@
   (let [[_ output-projection inner-projection body] terms
         evaluations (atom {})
         negation-clause (atom ())
-        issue (fn [op terms]
-                
-                (c))
+        issue (fn [op terms] (c))
                 
         get-projected (fn [r]
                         (when (process? r)
