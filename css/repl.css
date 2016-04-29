@@ -127,6 +127,66 @@ h2 {
 	margin-top: -16px;
 }
 
+/* Chat */
+
+.chat-bar {
+  width: 200px;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: rgb(33,33,33);
+  padding: 10px;
+}
+
+.chat-input {
+  color: rgb(200,200,200);
+  background-color: rgb(50,50,50);
+  border: 0px;
+  padding:10px;
+  width: 200px;
+}
+
+.conversation {
+  overflow-y: auto;
+  background-color: rgb(50,50,50);
+  width: 180px;
+  padding:10px;
+  margin-bottom: 10px;
+  flex-grow: 1;
+}
+.conversation::-webkit-scrollbar { width: 5px; height: 10px; } 
+.conversation::-webkit-scrollbar-track { box-shadow: inset 0 0 6px rgba(0,0,0,0); } 
+.conversation::-webkit-scrollbar-thumb { background-color: rgb(80,80,80); outline: 1px solid slategrey; } 
+.conversation::-webkit-scrollbar-corner { background-color: transparent;} 
+
+.chat-message-box {
+  margin-bottom: 15px;
+}
+
+.chat-user {
+  font-size: 13px;
+  font-weight: bold;
+  display: inline;
+  margin-right: 10px;
+}
+
+.chat-user .me {
+  color: rgb(65, 161, 221);
+}
+
+.chat-time {
+  font-size: 10px;
+  color: rgb(150,150,150);
+  display: inline;
+}
+
+.chat-message {
+  margin-top: 5px;
+  font-size: 13px;
+  line-height: 16px;
+}
+
 /* Login */
 
 .login {

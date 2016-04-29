@@ -101,11 +101,13 @@ interface Repl {
     name?: string,
     username?: string,
   },
+  showChat: boolean,
   system: {
     entities: Query,  
     tags: Query,
     queries?: Query,
     users: Query,
+    chat: Query,
   },
   decks: Array<Deck>,
   deck: Deck,
@@ -599,6 +601,18 @@ function focusCard(replCard: ReplCard) {
   }
 }
 
+function submitChatMessage(message: string) {
+  let d = new Date();
+  let t = d.getTime();
+  let messageInsert = `(query []
+                         (insert-fact! "${uuid()}" :tag "system"
+                                                   :tag "repl-chat"
+                                                   :message "${message}"
+                                                   :user "${repl.user.id}"
+                                                   :timestamp "${t}"))`;
+  sendAnonymousQuery(messageInsert);
+}
+
 // ------------------
 // Event handlers
 // ------------------
@@ -811,6 +825,18 @@ function addColumnClick(event, elem) {
 function addCardClick(event, elem) {
   addCardToColumn(repl.deck.focused.col);
   rerender();
+}
+
+function toggleChatClick(event, elem) {
+  repl.showChat = repl.showChat ? false : true;
+}
+
+function chatInputKeydown(event, elem) {
+  if (event.keyCode === 13) {
+    let message = event.target.value;
+    submitChatMessage(message);  
+    event.target.value = "";
+  }  
 }
 
 function queryInputChange(event, elem) {
@@ -1031,7 +1057,8 @@ function generateStatusBarElement() {
   let deleteButton = {c: "button", text: "Delete Card", click: deleteCardClick};
   let addColumn = {c: "button", text: "Add Column", click: addColumnClick};
   let addCard = {c: "button", text: "Add Card", click: addCardClick};
-  let buttonList = formListElement([deleteButton, addColumn, addCard]);
+  let toggleChat = {c: "button", text: "Chat", click: toggleChatClick};
+  let buttonList = formListElement([deleteButton, addColumn, addCard, toggleChat]);
   
   // Build the entities table
   let entities: Array<any> = repl.system.entities.result !== undefined ? unique(repl.system.entities.result.values.map((e) => e[0])).map((e) => {
@@ -1056,6 +1083,34 @@ function generateStatusBarElement() {
   return statusBar;
 }
 
+function generateChatElement() {
+  let chat = {};
+  if (repl.showChat) {
+    let messages = repl.system.chat.result.values.map((m) => {return {id: m[0], user: m[1], message: m[2], time: m[3]}; });
+    let messageElements = messages.map((m) => {
+      let userIx = repl.system.users.result.values.map((u) => u[0]).indexOf(m.user);
+      let userName = repl.system.users.result.values[userIx][1];
+      let d = new Date(0);
+      d.setUTCMilliseconds(m.time);
+      
+      let hrs = d.getHours() > 12 ? d.getHours() - 12 : d.getHours();
+      let mins = d.getMinutes() < 10 ? `0${d.getMinutes()}` : d.getMinutes();
+      let ampm = d.getHours() < 12 ? "AM" : "PM";
+      let time = `${hrs}:${mins} ${ampm}`
+      return {c: "chat-message-box", children: [
+               {c: `chat-user ${m.user === repl.user.id ? "me" : ""}`, text: `${userName}`},
+               {c: "chat-time", text: `${time}`},
+               {c: "chat-message", text: `${m.message}`},
+             ]};  
+    });
+    let conversation = {c: "conversation", children: messageElements}; 
+    let submitChat = {c: "button", text: "Submit"};
+    let chatInput = {t: "input", c: "chat-input", keydown: chatInputKeydown};
+    chat = {c: "chat-bar", children: [conversation, chatInput]};
+  }
+  return chat;
+}
+
 // -----------------
 // Entry point
 // -----------------
@@ -1077,7 +1132,10 @@ let repl: Repl = {
     tags: newQuery(`(query [tag entity], (fact entity :tag tag))`),                                     // get all tags
     users: newQuery(`(query [id name username password] 
                        (fact id :tag "repl-user" :name name :username username :password password))`),  // get all users
+    chat: newQuery(`(query [id user message time]
+                      (fact id :tag "repl-chat" :message message :user user :timestamp time))`),        // get the chat history
   },
+  showChat: false,
   decks: [replCards],
   deck: replCards,
   promisedQueries: [],
@@ -1099,7 +1157,7 @@ function root() {
   let eveLogo = {t: "img", c: "logo", src: "http://witheve.com/logo.png", width: 643/5, height: 1011/5};
   // If the system is ready and there is a user, load the repl 
   if (repl.init === true && repl.user !== undefined && repl.user.name !== undefined) {
-    replChildren = [generateStatusBarElement(), generateCardRootElements(), repl.modal !== undefined ? repl.modal : {}];
+    replChildren = [generateStatusBarElement(), generateChatElement(), generateCardRootElements(), repl.modal !== undefined ? repl.modal : {}];
   // If the system is ready but there is no user
   } else if (repl.init === true && repl.user === undefined) {
     let username = {t: "input", id: "repl-username-input", placeholder: "Username", keydown: inputKeydown};
@@ -1115,7 +1173,7 @@ function root() {
   } else {
     replChildren = [{c: "login", children: [eveLogo, {text: "Loading Eve Database..."}]}];
   }
-
+  //replChildren = [generateStatusBarElement(), generateChatElement(), generateCardRootElements(), repl.modal !== undefined ? repl.modal : {}];
   let root = {
     id: "repl",
     c: "repl",
