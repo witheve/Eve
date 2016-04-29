@@ -41,7 +41,7 @@
                '(filter [5])
                (list '= [5] [4 0] (name id))
                '(filter [5])
-               (list 'tuple [5] exec/op-register [4 2])
+               (list 'tuple [5] 0 [4 2])   ;; 0 here is an old reference to the op register
                (list 'send "out" [5])))))
 
 (defn tuple-to-implication [tuple]
@@ -50,8 +50,8 @@
 (defn for-each-implication [d id handler]
   (exec/single d 
                (weasl-implications-for id)
-               (fn [tuple]
-                 (when (= (exec/rget tuple exec/op-register) 'insert)
+               (fn [op tuple]
+                 (when (= op 'insert)
                    (apply handler (tuple-to-implication tuple))))))
 
 
@@ -61,7 +61,7 @@
 (defn implication-of [d id]
   (let [impl (atom nil)]
     (exec/single d (weasl-implications-for id)
-                 (fn [tuple]
-                   (when (= (exec/rget tuple exec/op-register) 'insert)
+                 (fn [op tuple]
+                   (when (= op 'insert)
                      (reset! impl (tuple-to-implication tuple)))))
     @impl))

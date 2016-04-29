@@ -133,7 +133,7 @@
   (when (some nil? (map #(lookup env %1) arguments))
     (compile-error "Cannot send unbound/nil argument" {:env @env :target target :arguments arguments :bound (get @env 'bound nil)}))
   (build
-   (apply term env m 'tuple exec/temp-register exec/op-register exec/qid-register '* nil (map #(lookup env %1) arguments))
+   (apply term env m 'tuple exec/temp-register exec/bogus-op-register exec/qid-register '* nil (map #(lookup env %1) arguments))
    (term env m 'send target exec/temp-register)))
 
 (defn generate-send-cont
@@ -145,7 +145,7 @@
     (when (some nil? input)
       (compile-error "Cannot send unbound/nil argument" {:env @env :target target :arguments arguments :bound (get @env 'bound nil)}))
     (build
-     (apply term env m 'tuple exec/temp-register exec/op-register exec/qid-register [(exec/taxi-register 0) (exec/taxi-register 0)] nil scope)
+     (apply term env m 'tuple exec/temp-register exec/bogus-op-register exec/qid-register [(exec/taxi-register 0) (exec/taxi-register 0)] nil scope)
      (term env m 'send target exec/temp-register))))
 
 (defn generate-binary-filter [env terms down]
@@ -470,7 +470,7 @@
                        (let [bound (vals (get @env 'bound {}))
                              regs (map #(lookup env %1) bound)
                              epilogue (build
-                                       (apply term env m 'tuple exec/temp-register exec/op-register exec/qid-register regs)
+                                       (apply term env m 'tuple exec/temp-register exec/bogus-op-register exec/qid-register regs)
                                        (term env m 'send "out" exec/temp-register))]
                          (if-not (zero? (count proj))
                            (build (apply term env m 'delta-c proj) epilogue)

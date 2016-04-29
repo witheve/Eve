@@ -90,8 +90,8 @@
         fields (or fields [])
         store-width (+ (count fields) 2)
         prog (compiler/compile-dsl db form)
-        handler (fn [tuple]
-                  (condp = (exec/rget tuple exec/op-register)
+        handler (fn [op tuple]
+                  (condp = op
                     'insert (swap! results conj (vec (take store-width tuple)))
                     'remove (swap! results conj (vec (take store-width tuple)))
                     'flush (do (send-result channel id fields @results)

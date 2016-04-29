@@ -1,4 +1,4 @@
-(query [people age]
+(open foo (query [people age]
                     (fact people :age)
                     (> age 20)))
 

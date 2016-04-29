@@ -22,13 +22,13 @@
 
 
 (defn print-result [keys channel tick]
-  (fn [tuple]
-    (condp = (exec/rget tuple exec/op-register)
-                'insert (println "INSERT" channel (exec/print-registers tuple))
-                'remove (println "REMOVE" channel (exec/print-registers tuple))
-                'flush  (println "FLUSH " channel (exec/print-registers tuple))
-                'close  (println "CLOSE " channel (exec/print-registers tuple) (float (/ (- (System/nanoTime) tick) 1000000000)))
-                'error  (println "ERROR " channel (exec/print-registers tuple)))))
+  (fn [op tuple]
+    (condp = op
+             'insert (println "INSERT" channel (exec/print-registers tuple))
+             'remove (println "REMOVE" channel (exec/print-registers tuple))
+             'flush  (println "FLUSH " channel (exec/print-registers tuple))
+             'close  (println "CLOSE " channel (exec/print-registers tuple) (float (/ (- (System/nanoTime) tick) 1000000000)))
+             'error  (println "ERROR " channel (exec/print-registers tuple)))))
 
 (defn execco [d expression trace-on channel]
   (let [[form keys] (form-from-smil (smil/unpack d expression))
@@ -39,9 +39,7 @@
         prog (compiler/compile-dsl d form)
         start (System/nanoTime)
         ec (exec/open d prog (print-result keys channel start)
-                      (if trace-on
-                        (fn [n m x] (fn [r] (println "trace" n m) (println (exec/print-registers r)) (x r)))
-                        (fn [n m x] x)))]
+                      (if trace-on exec/console-trace exec/no-trace))]
 
     (when trace-on (pprint prog))
     (ec 'insert)
