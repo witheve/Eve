@@ -128,13 +128,15 @@
 
 (defn decode-five-tuple [source offset length]
   (let [result (object-array 5)]
-    (reduce
-     (fn [[r o] slot]
-       (if r (let [[k o] (decode-object source o length)]
-               (aset result slot k)
-               [k o])
-           r))
-     [true (+ offset 1)] (range 5))))
+    [result
+     ((reduce
+       (fn [[r o] slot]
+         (if r (let [[k o] (decode-object source o length)]
+                 (aset result slot k)
+                 [k o])
+             r))
+       [true (+ offset 1)] (range 5)) 1)]))
+
 
 ;; fix this constant diffusion
 (def encodes

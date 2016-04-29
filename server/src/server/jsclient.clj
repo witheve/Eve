@@ -138,7 +138,7 @@
              (let [prog (condp = (first expanded)
                           'query (start-query db expanded id channel)
                           'define! (do
-                                     (repl/define db expanded)
+                                     (repl/define db expanded false)
                                      (send-result channel id [] []))
                           (throw (ex-info (str "Invalid query wrapper " (first expanded)) {:expr expanded})))]
                (send-query-info channel id raw smil (with-out-str (pprint prog)))))

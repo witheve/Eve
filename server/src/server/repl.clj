@@ -8,6 +8,7 @@
             [clojure.pprint :refer [pprint]]
             [server.exec :as exec]))
 
+(declare eeval)
 
 (defn repl-error [& thingy]
   (throw thingy))
@@ -29,7 +30,7 @@
                 'close  (println "CLOSE " channel (exec/print-registers tuple) (float (/ (- (System/nanoTime) tick) 1000000000)))
                 'error  (println "ERROR " channel (exec/print-registers tuple)))))
 
-(defn diesel [d expression trace-on]
+(defn execco [d expression trace-on channel]
   (let [[form keys] (form-from-smil (smil/unpack d expression))
         _ (when trace-on
             (println "--- SMIL ---")
@@ -37,7 +38,7 @@
             (println " --- Program / Trace ---"))
         prog (compiler/compile-dsl d form)
         start (System/nanoTime)
-        ec (exec/open d prog (print-result keys "" start)
+        ec (exec/open d prog (print-result keys channel start)
                       (if trace-on
                         (fn [n m x] (fn [r] (println "trace" n m) (println (exec/print-registers r)) (x r)))
                         (fn [n m x] x)))]
@@ -45,21 +46,14 @@
     (when trace-on (pprint prog))
     (ec 'insert)
     (ec 'flush)
-    (ec 'close)))
+    ec))
+
+(defn diesel [d expression trace-on]
+    ((execco d expression trace-on "") 'close))
 
 (defn open [d expression trace-on]
-  (println "open" expression)
-  (let [[form keys] (form-from-smil (smil/unpack d (nth expression 2)))
-        prog (compiler/compile-dsl d form)
-        start (System/nanoTime)
-        res (print-result keys (second expression) start)
-        tf (if trace-on
-             (fn [n m x] (fn [r] (println "trace" n m) (println (exec/print-registers r)) (x r)))
-             (fn [n m x] x))
-        ec (exec/open d prog res tf)]
-    (when trace-on (pprint prog))
-    (ec 'insert)
-    (ec 'flush)))
+  (execco d (nth expression 2) trace-on  (second expression)))
+
 
 (defn timeo [d expression trace-on]
   (println "open" expression)
@@ -74,13 +68,28 @@
     (ec 'flush)))
 
 
+(defn doexit [d expression trace-on]
+  (System/exit 0))
+
 (defn trace [d expression trace-on]
-  (diesel d (second expression) true))
+  (eeval d (second expression) true))
 
 ;; xxx - this is now...in the language..not really?
 (defn define [d expression trace-on]
   (let [z (smil/unpack d expression)]
     (db/insert-implication d (second z) (nth z 2) (rest (rest (rest z))))))
+
+(defn dodot [d expression trace-on]
+  (let [[form keys] (form-from-smil (smil/unpack d (second expression)))
+        program (compiler/compile-dsl d form)]
+    (println (str  "digraph query {\n"
+                   (apply str
+                          (map (fn [x]
+                                 (let [block (nth x 1)]
+                                   (apply str (map #(if (= (first %1) 'send)
+                                                      (str "\"" block "\" -> \"" (second %1) "\"\n") "") (nth x 2)))))
+                               program))
+                   "}\n"))))
 
 
 (defn create-bag [e user bag expression trace-on]
@@ -95,20 +104,30 @@
     (insert db/name-oid name)
     (doseq [i deps] (insert db/contains-oid i))))
 
+
+(defn create-bag [d expression trace-on]
+  (println "i wish i could help you"))
+
+
 (declare read-all)
 
-(defn eeval [e bag user term trace-on]
-  (let [function ({'define! define
-                   'show show
-                   'trace trace
-                   'create-bag create-bag
-                   'time timeo
-                   'open open
-                   'load read-all
+(defn eeval
+  ;; bag and user defaults for jjosh..maybe a context or a view? maybe return a view like before?
+  ([d user bag term] (eeval d term false))
+  ([d user bag term trace-on]
+     (let [function ({'define! define
+                      'show show
+                      'trace trace
+                      'create-bag create-bag
+                      'time timeo
+                      'exit doexit
+                      'dot dodot
+                      'open open
+                      'load read-all
                       } (first term))]
-    (if (nil? function)
-      (diesel e bag user term trace-on)
-      (function e bag user term trace-on))))
+       (if (nil? function)
+         (diesel d bag user term trace-on)
+         (function d bag user term trace-on)))))
 
 (import '[java.io PushbackReader])
 (require '[clojure.java.io :as io])
@@ -132,7 +151,7 @@
             (recur)))))))
 
 
-(defn rloop [e user bag trace-on]
+(defn rloop [d user bag trace-on]
   (trampoline (fn self [] 
                 (doto *out*
                   (.write "eve> ")
@@ -141,12 +160,12 @@
                 
                 ;; it would be nice if a newline on its own got us a new prompt
                 (let [input (try
-                              (read)
-                              ;; we're-a-gonna assume that this was a graceful close
-                              (catch Exception e
-                                (java.lang.System/exit 0)))]
-                  (when-not (= input 'exit)
-                    (try (eeval e bag user input trace-on)
-                         (catch Exception e
-                           (println "error" e)))
-                    self)))))
+                             (read)
+                             ;; we're-a-gonna assume that this was a graceful close
+                             (catch Exception e
+                               (java.lang.System/exit 0)))]
+                  (try (eeval d user bag input)
+                       (catch Exception e
+                         (println "error" e))))
+                self)))
+

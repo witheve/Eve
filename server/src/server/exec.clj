@@ -2,7 +2,7 @@
   (:require [server.edb :as edb]
             [clojure.pprint :refer [pprint cl-format]]))
 
-(def basic-register-frame 10)
+(def basic-register-frame 30)
 (def op-register [0])
 (def qid-register [1])
 (def taxi-register [2])
@@ -52,8 +52,8 @@
   (let [nested (print-registers* r (or max-indent 2))]
     (str (:register nested) (:nests nested))))
 
-;; these register indirections could be resolved at build time? yeah, kinda
-;; no longer support the implicit zero register
+
+(defn shallow-copy [r] (aclone ^objects r))
 
 
 (defn rget [r ref]
@@ -81,6 +81,10 @@
       (rset (aget ^objects r (get ref 0)) (subvec ref 1) v))))
 
 
+(defn process? [r]
+  (let [op (rget r op-register)]
+    (or (= op 'insert) (= op 'remove))))
+
 ;; simplies - cardinality preserving, no flush
 
 
@@ -88,52 +92,48 @@
 (defn simple [f]
   (fn [d terms build c]
     (fn [r]
-      (when (or (= (rget r op-register) 'insert)
-                (= (rget r op-register) 'remove))
-        (f r terms))
+      (when (process? r) (f r terms))
       (c r))))
 
 
 
-(defn delta-t [c]
-  (let [state (atom {})]
-    [(fn [r]
-       (let [tuple (subvec (vec r) 1)]
-         (condp = (rget r op-register)
-           'insert (swap! state update-in [tuple] (fn [x]
-                                                    (if x
-                                                      [(x 0) (+ (x 1) 1)]
-                                                      [tuple 1])))
-
-           'remove (swap! state update-in [tuple] (fn [x] (if (= (x 1) 1) nil
-                                                              [(x 0) (- (x 1) 1)])))
-           ())
-         (c r)))
-
-     (fn [c2 op]
-       (doseq [i @state] (c2 (object-array (cons op (i 0))))))]))
-
-
 (defn donot [d terms build c]
-  (let [count (atom 0)
-        on (atom false)
-        zig (atom false)
+  (let [[_ projection body] terms
+        evaluations (atom {})
+
+        head (atom ())
+    
+        get-count (fn [r]
+                    (when (process? r)
+                      (let [k (map #(rget r %1) projection)]
+                        (if-let [count (@evaluations k)] count
+                                (let [n (atom 0)]
+                                  (do  (swap! evaluations assoc k n)
+                                       (@head r)
+                                       ;; this is kinda sad...both in the representation
+                                       ;; of the flush and the assumption that it will
+                                       ;; complete synchronously
+                                       (@head (object-array ['flush (rget r [1]) nil nil nil nil nil]))
+                                       n))))))
+    
+        ;; could cache the projection - meh
         tail  (fn [r]
-                (condp = (rget r op-register)
-                  'insert (swap! count inc)
-                  'remove  (swap! count dec)
-                  'flush (do
-                           (when (and (= @count 0) (not @on))
-                             (@zig c 'insert)
-                             (swap! on not))
-                           (when (and (> @count 0) @on)
-                             (@zig c 'remove)
-                             (swap! on not))
-                           (c r))
-                  'close (c r)))
-        delta (delta-t (build (second terms) tail))]
-    (reset! zig (delta 1))
-    (delta 0)))
+                (let [count (get-count r)]
+                  (condp = (rget r op-register)
+                    'insert (swap! count inc)
+                    'remove  (swap! count dec)
+                    nil)))]
+
+    (reset! head (build body tail))
+    (fn [r]
+      (condp = (rget r op-register)
+        'insert (if (= @(get-count r) 0) (c r))
+        'remove (if (= @(get-count r) 0) (c r))
+        (do
+          (@head r)
+          ;; assuming synchronous?
+          (c r))))))
+                                           
 
 
 (defn tuple [d terms build c]
@@ -146,6 +146,16 @@
           (aset ^objects tout x (rget r (nth a x))))
         (rset r (second terms) tout)))
     (c r)))
+
+(defn variadic-string [f]
+  (simple (fn [r terms]
+            (rset r (second terms)
+                  (apply f (map #(rget r %1) (nth terms 2)))))))
+
+(defn unary-string [f]
+  (simple (fn [r terms]
+            (rset r (second terms)
+                  (f (rget r (nth terms 2)))))))
 
 ;; these two are both the same, but at some point we may do some messing about
 ;; with numeric values (i.e. exact/inexact)
@@ -165,12 +175,6 @@
 (defn move [r terms]
   (let [source (rget r (nth terms 2))]
     (rset r (second terms) source)))
-
-
-(defn dostr [r terms]
-  (let [inputs (map (fn [x] (rget r x))
-                    (rest (rest terms)))]
-     (rset r (second terms) (apply str inputs))))
 
 (defn doequal [r terms]
   (let [[eq dest s1 s2] terms
@@ -199,9 +203,11 @@
 
 (defn dofilter [d terms build c]
   (fn [r]
-    ;; pass flush
-    (when (rget r (second terms))
+    (if (process? r)
+      (when (rget r (second terms))
+        (c r))
       (c r))))
+
 
 ;; this is just a counting version of
 ;; join, that may be insufficient if
@@ -362,7 +368,7 @@
         proj (if proj proj [])
         assertions (atom {})]
     (fn [r]
-      (let [fact (when (#{'insert 'remove} (rget r op-register))
+      (let [fact (when (process? r)
                    (doall (map #(let [v (rget r %1)]
                                   (if (= object-array-type (type v))
                                     nil ;; @FIXME: Is it safe to always ignore tuples for projection equality here?
@@ -523,8 +529,10 @@
                   '<         (ternary-numeric-boolean <)
                   '>=        (ternary-numeric-boolean >=)
                   '<=        (ternary-numeric-boolean <=)
-                  'str       (simple dostr)
                   'not=      (simple do-not-equal)
+
+                  'hash (unary-string hash)
+                  'str (variadic-string str)
 
                   'filter    dofilter
                   'range     dorange

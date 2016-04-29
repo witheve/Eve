@@ -1,7 +1,7 @@
 Eve is a variant of [Datalog](https://en.wikipedia.org/wiki/Datalog), based heavily on [Dedalus](http://www.eecs.berkeley.edu/Pubs/TechRpts/2009/EECS-2009-173.html) and [Functional-Relational Programming](http://shaffner.us/cs/papers/tarpit.pdf). It is a general-purpose, data-centric, interactive language. Picture a relational spreadsheet with I/O.
 
 ```clojure
-(define foo [name return]
+(define! foo [name return]
         bar [age]
   (fact person :tag "person"
                :age
@@ -9,7 +9,7 @@ Eve is a variant of [Datalog](https://en.wikipedia.org/wiki/Datalog), based heav
   (= return 3)
   (= x (+ 20 age))
 
-(define eav [entity attribute value]
+(define! eav [entity attribute value]
   (fact department :tag "department")
   (query
     (fact employee :tag "employee"
@@ -19,7 +19,7 @@ Eve is a variant of [Datalog](https://en.wikipedia.org/wiki/Datalog), based heav
   (= entity department)
   (= attribute "total cost"))
 
-(define hops [from to hops]
+(define! hops [from to hops]
   (choose [from to hops]
       (query
         (fact link :tag "link"
@@ -35,12 +35,12 @@ Eve is a variant of [Datalog](https://en.wikipedia.org/wiki/Datalog), based heav
                    :to)
         (= hops 2))))
 
-(define awesomeness [value return]
+(define! awesomeness [value return]
   (= return (if (> value 5)
               (* value 10)
               (/ value 10))))
 
-(define count-of-employees-and-spouses [return]
+(define! count-of-employees-and-spouses [return]
  (union [person]
   (query
    (fact person :tag "employee"))
