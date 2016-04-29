@@ -94,6 +94,17 @@ interface Deck {
   cards: Array<ReplCard>,
 }
 
+interface Chat {
+  visible: boolean,
+  unread: number,
+  messages: Array<{
+    id: string,
+    user: string,
+    message: string,
+    time: number,
+  }>,
+}
+
 interface Repl {
   init: boolean,
   user: {
@@ -101,8 +112,7 @@ interface Repl {
     name?: string,
     username?: string,
   },
-  showChat: boolean,
-  messages: Array<any>
+  chat: Chat,
   system: {
     entities: Query,  
     tags: Query,
@@ -379,7 +389,7 @@ function connectToServer() {
         // Decode a chat message and put it in the system
         } else if (targetSystemQuery.id === repl.system.messages.id) {
           let newMessages = parsed.insert.map((m) => {return {id: m[0], user: m[1], message: m[2], time: m[3]}; });
-          repl.messages = repl.messages.concat(newMessages);          
+          repl.chat.messages = repl.chat.messages.concat(newMessages);          
         }
         // Mark the repl as initialized if all the system queries have been populated
         if (repl.init === false && objectToArray(repl.system).every((q: Query) => q.result !== undefined)) {
@@ -833,7 +843,7 @@ function addCardClick(event, elem) {
 }
 
 function toggleChatClick(event, elem) {
-  repl.showChat = repl.showChat ? false : true;
+  repl.chat.visible = repl.chat.visible ? false : true;
 }
 
 function chatInputKeydown(event, elem) {
@@ -1090,8 +1100,8 @@ function generateStatusBarElement() {
 
 function generateChatElement() {
   let chat = {};
-  if (repl.showChat) {
-    let messageElements = repl.messages.map((m) => {
+  if (repl.chat.visible) {
+    let messageElements = repl.chat.messages.map((m) => {
       let userIx = repl.system.users.result.values.map((u) => u[0]).indexOf(m.user);
       let userName = repl.system.users.result.values[userIx][1];
       let d = new Date(0);
@@ -1139,8 +1149,11 @@ let repl: Repl = {
     messages: newQuery(`(query [id user message time]
                           (fact id :tag "repl-chat" :message message :user user :timestamp time))`),    // get the chat history
   },
-  showChat: false,
-  messages: [],
+  chat: {
+    visible: false,
+    unread: 0,
+    messages: [],
+  },
   decks: [replCards],
   deck: replCards,
   promisedQueries: [],
