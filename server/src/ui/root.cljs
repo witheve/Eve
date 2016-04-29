@@ -17,8 +17,8 @@
 (def USE-SERVER? true)
 (def BE-STUPIDLY-OPTIMISTIC? true)
 (def LOCAL-ONLY-TAGS #{"selection" "grid-user-state"})
-(def FILTERS #{"=" ">" "<" "≠"})
-(def INFIX #{"=" ">" "<" "≠" "*" "/" "+" "-"})
+(def FILTERS #{"=" ">" "<" "not="})
+(def INFIX #{"=" ">" "<" "not=" "*" "/" "+" "-"})
 
 ;;---------------------------------------------------------
 ;; Utils
@@ -558,7 +558,7 @@
 
 (defn get-functions []
   ["="
-   "≠"
+   "not="
    ">"
    "<"
    "+"
@@ -567,10 +567,15 @@
    "*"
    "sum"])
 
+(def modifiers [{:text "without" :adornment "modifier" :action :assoc :value "without" :to-assoc {:token-type "not"}}
+                {:text "select" :adornment "modifier" :action :assoc :value "select" :to-assoc {:token-type "select"}}
+                ])
+
 (defmethod get-autocompleter-options :formula-token [_ typed-value info]
   (let [{:keys [current-cell nodes vars]} info
         {:keys [parent name value]} (nodes current-cell)
         parent-info (nodes parent)
+        parent-type (:token-type parent-info)
         cleaned-value (if (and typed-value (not= typed-value ""))
                         typed-value)
         options (cond
@@ -578,7 +583,8 @@
                   ;; and functions
                   ;; @TODO: implications, functions, and references
                   ;; @TODO: get tags from a query instead of assuming I have them locally
-                  (= :root parent) (let [tags (afor [tag (get-tags)]
+                  (or (#{"not" "or" "and"} parent-type)
+                      (= :root parent)) (let [tags (afor [tag (get-tags)]
                                                     {:text (for-display tag) :adornment "tag" :action :assoc :value tag :to-assoc {:token-type "tag"}})
                                          fns (for [func (get-functions)]
                                                {:text func :adornment "function" :action :assoc :value func :to-assoc {:token-type "function"}})
@@ -587,10 +593,13 @@
                                      (concat tags
                                              refs
                                              fns
-                                             [{:text "without" :adornment "modifier" :action :assoc :value "without" :to-assoc {:token-type "not"}}]
+                                             modifiers
                                              (when cleaned-value
-                                               [{:text cleaned-value :adornment "tag" :action :assoc :value 'generate-grid-id :to-assoc {:token-type "tag"} :generate-grid {:name cleaned-value}}])
+                                               [{:text cleaned-value :adornment "variable" :action :assoc :value cleaned-value :to-assoc {:token-type "variable"}}])
                                      ))
+                  ;; In the case of a select, there are only two options: "and" and "or"
+                  (and parent-info (= parent-type "select")) [{:text "or" :adornment "modifier" :action :assoc :value "or" :to-assoc {:token-type "or"}}
+                                                              {:text "and" :adornment "modifier" :action :assoc :value "and" :to-assoc {:token-type "and"}}]
                   ;; if we have a parent and it's not a function, we should scope ourselves
                   ;; to attributes on the parent, related tags, functions, and named entities
                   (and parent-info (not= (:token-type parent-info) "function")) (let [attribute-names (get-attributes (:value parent-info))
@@ -600,7 +609,7 @@
                                                                                       {:text func :adornment "function" :action :assoc :value func :to-assoc {:token-type "function"}})]
                                                                             (concat attrs
                                                                                     fns
-                                                                                    [{:text "without" :adornment "modifier" :action :assoc :value "without" :to-assoc {:token-type "not"}}]
+                                                                                    modifiers
                                                                                     (when (and cleaned-value (not (attribute-names cleaned-value)))
                                                                                       [{:text cleaned-value :adornment "attribute" :action :assoc :value cleaned-value :to-assoc {:token-type "attribute"}}])))
                   ;; if our parent *is* a function, then we need to look for references and
@@ -614,7 +623,6 @@
                                                                                  refs
                                                                                  (when cleaned-value
                                                                                    [{:text cleaned-value :adornment (cljs.core/name (:type parsed)) :action :assoc :value (:value parsed) :to-assoc {:token-type "value"}}])))
-                  ;; @TODO: special forms - choose, not, union
                   ;; @TODO: aggregate modifiers (grouping, uniques)
                   )
         final (if cleaned-value
@@ -1059,7 +1067,7 @@
               with-parent-and-ix
               (recur (inc ix))))))))))
 
-(defn walk-graph [graph node parent-symbol query nodes]
+(defn walk-graph [nodes node parent-symbol query]
   (let [node-info (nodes node)]
     (cond
       (or (= :root node)
@@ -1067,35 +1075,57 @@
                                                                       nil
                                                                       (:variable node-info))]
                                                      (reduce (fn [query child]
-                                                               (walk-graph graph child parent-sym query nodes))
+                                                               (walk-graph nodes child parent-sym query))
                                                              query
-                                                             (graph node)))
+                                                             (:children node-info)))
       (= (:token-type node-info) "attribute") (let [node-sym (:variable node-info)
                                                     query (conj query `(fact-btu ~parent-symbol
                                                                                  ~(-> (nodes node)
                                                                                       (:name))
                                                                                  ~node-sym))]
                                                 (reduce (fn [query child]
-                                                          (walk-graph graph child node-sym query nodes))
+                                                          (walk-graph nodes child node-sym query))
                                                         query
-                                                        (graph node)))
+                                                        (:children node-info)))
 
       (= (:token-type node-info) "tag") (let [node-sym (or parent-symbol (:variable node-info))
                                               query (conj query `(fact-btu ~node-sym "tag" ~(:value node-info)))]
                                           (reduce (fn [query child]
-                                                    (walk-graph graph child node-sym query nodes))
+                                                    (walk-graph nodes child node-sym query))
                                                   query
-                                                  (graph node)))
+                                                  (:children node-info)))
       (= (:token-type node-info) "not") (let [children (reduce (fn [query child]
-                                                                 (walk-graph graph child parent-symbol query nodes))
+                                                                 (walk-graph nodes child parent-symbol query))
                                                                '[]
-                                                               (graph node))]
+                                                               (:children node-info))]
                                           (if-not (seq children)
                                             query
                                             (conj query `(not ~@children))))
+      (= (:token-type node-info) "select") (let [child-nodes (:children node-info)
+                                                 children (reduce (fn [query child]
+                                                                    (walk-graph nodes child parent-symbol query))
+                                                                  '[]
+                                                                  child-nodes)
+                                                 type (if (-> (first child-nodes)
+                                                              (nodes)
+                                                              (:token-type)
+                                                              (= "or"))
+                                                        'choose
+                                                        'union)]
+                                             (if-not (seq children)
+                                               query
+                                               (conj query `(~type ~@children))))
+      (or (= (:token-type node-info) "or")
+          (= (:token-type node-info) "and")) (let [children (reduce (fn [query child]
+                                                                 (walk-graph nodes child nil query))
+                                                               '[]
+                                                               (:children node-info))]
+                                          (if-not (seq children)
+                                            query
+                                            (conj query `(query ~@children))))
       ;; @TODO: handle non-infix functions
       (= (:token-type node-info) "function") (let [node-sym (:variable node-info)
-                                                   [child] (graph node)]
+                                                   [child] (:children node-info)]
                                                (if-not child
                                                  query
                                                  (let [child-info (nodes child)
@@ -1120,61 +1150,58 @@
 (defn formula-grid-info [id]
   (let [cells (entities {:tag "cell" :grid-id id})
         sorted (sort-by (juxt :y :x) cells)
-        cols (atom {})
-        nodes (atom {})
-        vars (atom [])
-        edges (for [cell sorted
-                    :let [{:keys [value x id token-type width]} cell
-                          child-name (when value
-                                       (or (:name (entity {:id value})) value))
-                          ;; your parent is whatever is the first thing to the left and up
-                          ;; if there isn't anything there, then you must be a root
-                          parent (or (@cols (dec x))
-                                     :root)
-                          parent-info (@nodes parent)
-                          negated? (or (= "not" token-type) (:negated parent-info))
-                          [is-var? variable] (cond
-                                               (or (= "tag" token-type)
-                                                   (= "attribute" token-type)) [(not negated?) (get-projected-name child-name (-> @nodes :parent :variable) @vars)]
-                                               (and (= "function" token-type)
-                                                    (not (FILTERS value))) [(not negated?) (get-projected-name "result" nil @vars)]
-                                               (= "reference" token-type) [false (symbol value)]
-                                               :else [false nil])
-                          cell-info {:name child-name
-                                     :variable variable
-                                     :negated negated?
-                                     :value value
-                                     :token-type token-type
-                                     :parent parent}
-                          _ (println "CELL INFO: " id cell-info)
-                          _ (when is-var?
-                              (swap! vars conj (:variable cell-info)))
-                          _ (swap! nodes assoc id cell-info)
-                          ;; set this cell as the parent for all the columns taken up by this cell
-                          _ (dotimes [width-modifier width]
-                              (swap! cols assoc (+ width-modifier x) id))]]
-                [parent id])
-        ;; to the edges into {parent [child, child2, ...]}
-        graph (reduce (fn [graph edge]
-                        (let [[parent child] edge
-                              cur (graph parent)
-                              neue (if cur
-                                     (conj cur child)
-                                     [child])]
-                          (assoc graph parent neue)))
-                      {}
-                      edges)]
-    {:graph graph
-     :nodes @nodes
-     :vars @vars}))
+        edges (reduce (fn [{:keys [nodes vars cols] :as info} cell]
+                        (let [{:keys [value x id token-type width]} cell
+                              child-name (when value
+                                           (or (:name (entity {:id value})) value))
+                              ;; your parent is whatever is the first thing to the left and up
+                              ;; if there isn't anything there, then you must be a root
+                              parent (or (cols (dec x))
+                                         :root)
+                              parent-info (nodes parent)
+                              negated? (or (= "not" token-type) (:negated parent-info))
+                              [is-var? variable] (cond
+                                                   (or (= "tag" token-type)
+                                                       (= "attribute" token-type)) [(not negated?) (get-projected-name child-name (-> nodes :parent :variable) vars)]
+                                                   (and (= "function" token-type)
+                                                        (not (FILTERS value))) [(not negated?) (get-projected-name "result" nil vars)]
+                                                   (= "variable" token-type) [true (symbol value)]
+                                                   (= "reference" token-type) [false (symbol value)]
+                                                   :else [false nil])
+                              cell-info {:name child-name
+                                         :variable variable
+                                         :negated negated?
+                                         :value value
+                                         :token-type token-type
+                                         :parent parent
+                                         :children []}
+                              vars (if is-var?
+                                     (conj vars (:variable cell-info))
+                                     vars)
+                              nodes (assoc nodes id cell-info)
+                              nodes (update-in nodes [parent :children] conj id)
+                              ;; set this cell as the parent for all the columns taken up by this cell
+                              cols (reduce (fn [cols width-modifier]
+                                             (assoc cols (+ width-modifier x) id))
+                                           cols
+                                           (range width))]
+                          {:nodes nodes
+                           :vars vars
+                           :cols cols}))
+                      {:nodes {:root {:children []}}
+                       :cols {}
+                       :vars []}
+                      sorted)]
+    edges))
 
 (defn formula-grid->query [id]
-  (let [{:keys [graph nodes vars]} (formula-grid-info id)
-        clauses (walk-graph graph :root nil [] nodes)
+  (let [{:keys [nodes vars]} (formula-grid-info id)
+        clauses (walk-graph nodes :root nil [])
         query (query-string `(query ~(vec vars)
                           ~@clauses))]
     (println "QUERY:\n" query)
     query
+    ""
     ))
 
 ;;---------------------------------------------------------
@@ -1790,7 +1817,8 @@
                                              :top (* y cell-size-y)
                                              :left (* x cell-size-x)
                                              :pointer-events "none"
-                                             :background "rgba(255,255,255,0.12)"
+                                             :background (if (not active-cell)
+                                                           "rgba(255,255,255,0.12)")
                                              :border (str "1px solid " (or color "#aaffaa")))
                                ;; add a resize handle to the selection
                                :children (array (elem :mousedown start-resize
