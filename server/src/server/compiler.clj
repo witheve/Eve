@@ -32,18 +32,17 @@
   "Resolves variables to registers and returns constants in the emit stage"
   [env name]
   (if (or (symbol? name) (keyword? name))
-    (or
-     (get-in @env ['bound name] nil)
-     (when (= '* name) '*))
+    (if (= name '*) '*
+        (get-in @env ['bound name] nil))
     name))
 
 (defn is-bound? [env name]
   "Returns true if name is bound in the current env"
   (if (or (symbol? name) (keyword? name))
-    (if (or (get-in @env ['bound name] nil) (= name '*))
+    (if (or (not (nil? (get-in @env ['bound name] nil))) (= name '*))
       true
       false)
-    name))
+    true))
 
 (def dep 'dependencies)
 (defn add-dependencies [env & names]
@@ -123,7 +122,7 @@
   "Generates a send which saves the current register so it can be restored via continuation"
   [env m target arguments]
   (apply add-dependencies env arguments)
-  (when (some nil? (map #(lookup env %1) arguments))
+  (when (some not (map #(is-bound? env %1) arguments))
     (compile-error "Cannot send unbound/nil argument" {:env @env :target target :arguments arguments :bound (get @env 'bound nil)}))
   (concat
    (apply term env 'tuple m exec/temp-register exec/op-register exec/qid-register '* nil (map #(lookup env %1) arguments))
@@ -135,7 +134,7 @@
   (let [taxi-slots (map (fn [i] [(exec/taxi-register 0) i]) (drop exec/initial-register (range (get @env 'register exec/initial-register))))
         input (map #(lookup inner-env %1) arguments)
         scope (concat taxi-slots input)]
-    (when (some nil? input)
+    (when (some not (map #(is-bound? inner-env %) arguments))
       (compile-error "Cannot send unbound/nil argument" {:env @env :target target :arguments arguments :bound (get @env 'bound nil)}))
     (concat
      (apply term env 'tuple m exec/temp-register exec/op-register exec/qid-register [(exec/taxi-register 0) (exec/taxi-register 0)] nil scope)
@@ -258,7 +257,7 @@
                                      cenv (rest (rest %2))
                                      (fn [] (generate-send-cont env m cenv tail-name output)))
                               projection (set/intersection (get @cenv 'dependencies) (set (keys (get @env 'bound))))
-                              mp (map (get @env 'bound) projection)]
+                              mp (map (get @inner-env 'bound) projection)]
                           (list (with-meta (list 'not mp inner) m)))
                        arms)))
 
