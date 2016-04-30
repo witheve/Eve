@@ -264,12 +264,18 @@ li {
 
 .info {
   background-color: rgb(60,60,60);
+  max-height: 300px;
+  overflow-y: auto;
   padding: 10px;
   font-size: 12px;
   width: 80%;
   min-height: 100px;
   overflow-x: hidden;
 }
+.info::-webkit-scrollbar { width: 5px; height: 10px; } 
+.info::-webkit-scrollbar-track { box-shadow: inset 0 0 6px rgba(0,0,0,0); } 
+.info::-webkit-scrollbar-thumb { background-color: rgb(80,80,80); outline: 1px solid slategrey; } 
+.info::-webkit-scrollbar-corner { background-color: transparent;} 
 
 .info-link {
   cursor: pointer;
