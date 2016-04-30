@@ -36,6 +36,7 @@
     x))
 
 
+;; shutdown handler
 (defn connect-to-eve [station user bag]
   (let [handlers (atom {})
         input #(let [j (json/parse-string %)
@@ -142,11 +143,11 @@
                      (let [fax (tree-to-facts @out)]
                        (println fax)
                        (eve-insert database fax)
-                       (eve-close database))))))
+                       (eve-close database))
+                     (.write (p 0) "(exit)\n")
+                     (.flush (p 0))))))
 
     (.write (p 0) start)
-    (.flush (p 0))
-    (.write (p 0) "(exit)\n")
     (.flush (p 0))
     (println "test lein exit" @(p 1))
     (delete-recursively path)))
