@@ -49,11 +49,11 @@
          "-f" (fn [x]
                 (reset! interactive false)
                 (reset! service false)
-                (try (repl/read-all (edb/create-view @edb @bag @user) (list 'load x) @trace)
+                (try (repl/read-all @edb @bag @user (list 'load x) @trace)
                      (catch Exception e
                        (println "error" e))))
          
-         "-e" (fn [x] (try (repl/eeval (edb/create-view @edb @bag @user) (smil/read x) @trace)
+         "-e" (fn [x] (try (repl/eeval @edb @bag @user (smil/read x) @trace)
                            (catch Exception e
                              (println "error" e))))
          }
@@ -71,5 +71,6 @@
                           (println "invalid argument" (first args))))))]
     (arglist args)
     ;; move down
-    (when @service (jsclient/serve (edb/create-view @edb @bag @user) @port))
-    (when @interactive (repl/rloop (edb/create-view @edb @bag @user) @trace))))
+    (when @service (jsclient/serve @edb port))
+    (when @interactive (repl/rloop (create-view @edb @bag @user) @trace))))
+

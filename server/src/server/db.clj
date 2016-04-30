@@ -16,12 +16,14 @@
 
 (defn wrapoid [time batch machine] (uuid. time 0 machine))
 
-(def uber-log (atom ()))
+(def default-bag (wrapoid 100 0 0))
+(def default-user(wrapoid 200 0 0))
 
 (def remove-fact 5)
 (def name-oid 10)
 (def implication-oid 11)
 (def contains-oid 12)
+(def owns-oid 13)
 
 (defn insert-implication [db relname parameters program]
   (edb/insert db (object-array [(name relname)

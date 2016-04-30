@@ -79,7 +79,6 @@
   (let [z (smil/unpack d expression)]
     (db/insert-implication d (second z) (nth z 2) (rest (rest (rest z))))))
 
-
 (defn dodot [d expression trace-on]
   (let [[form keys] (form-from-smil (smil/unpack d (second expression)))
         program (compiler/compile-dsl d form)]
@@ -93,6 +92,24 @@
                    "}\n"))))
 
 
+(defn create-bag [v expression trace-on]
+  (let [[_ name & deps] expression
+        e (edb/base-edb-of v)
+        user (edb/user-of v)
+        id (db/genoid)
+        _  (edb/install-bag e id)
+        d  (edb/create-view e id user)
+        insert (fn [a v]
+                 (edb/insert d (object-array [id a v])
+                             (gensym "create-bag")
+                             (fn [t])))]
+    ;; xxx - this is cool, we kinda want to make sure no one can shadow these
+    ;; facts later...maybe a privledged attribute space
+    (insert db/owns u) 
+    (insert db/name-oid name)
+    (doseq [i deps] (insert db/contains-oid i))))
+
+
 (defn create-bag [d expression trace-on]
   (println "i wish i could help you"))
 
@@ -100,8 +117,9 @@
 (declare read-all)
 
 (defn eeval
-  ([d term] (eeval d term false))
-  ([d term trace-on]
+  ;; bag and user defaults for jjosh..maybe a context or a view? maybe return a view like before?
+  ([v term] (eeval v term false))
+  ([v bag term trace-on]
      (let [function ({'define! define
                       'show show
                       'trace trace
@@ -113,14 +131,13 @@
                       'load read-all
                       } (first term))]
        (if (nil? function)
-         (diesel d term trace-on)
-         (function d term trace-on))
-       d)))
+         (diesel v term trace-on)
+         (function v term trace-on)))))
 
 (import '[java.io PushbackReader])
 (require '[clojure.java.io :as io])
 
-(defn read-all [d expression trace-on]
+(defn read-all [v expression trace-on]
   ;; trap file not found
   ;; need to implement load path here!
 
@@ -135,25 +152,25 @@
                       (catch Exception e (println "badness 10000" e)))]
         (if (and form (not (empty? form)))
           (do
-            (eeval d form trace-on)
+            (eeval v form trace-on)
             (recur)))))))
 
 
-(defn rloop [d trace-on]
-  (loop [d d]
-    (doto *out*
-      (.write "eve> ")
-      (.flush))
-    ;; need to handle read errors, in particular eof
-
-    ;; it would be nice if a newline on its own got us a new prompt
-    (let [input (try
-                  (read)
-                  ;; we're-a-gonna assume that this was a graceful close
-                  (catch Exception e
-                    (java.lang.System/exit 0)))]
-      (recur
-       (try (eeval d input)
-            (catch Exception e
-              (println "error" e)))))))
+(defn rloop [v bag trace-on]
+  (trampoline (fn self [] 
+                (doto *out*
+                  (.write "eve> ")
+                  (.flush))
+                ;; need to handle read errors, in particular eof
+                
+                ;; it would be nice if a newline on its own got us a new prompt
+                (let [input (try
+                             (read)
+                             ;; we're-a-gonna assume that this was a graceful close
+                             (catch Exception e
+                               (java.lang.System/exit 0)))]
+                  (try (eeval d input trace-on)
+                       (catch Exception e
+                         (println "error" e))))
+                self)))
 

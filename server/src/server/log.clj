@@ -43,9 +43,6 @@
     (io/delete-file (filename-from-bag p bag-id)))
 
 (defn open [db path bag-id]
-  ;; we should create this on the first write, so that the
-  ;; log timestamp indicates the beginning of the record, and
-  ;; not some arbitrary point before that
   (let [f (clojure.java.io/file (filename-from-bag path bag-id))]
     (when (not (.exists f)) (.createNewFile f))
     (let [w (clojure.java.io/output-stream f :append true)]
