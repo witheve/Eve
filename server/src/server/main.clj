@@ -71,6 +71,6 @@
                           (println "invalid argument" (first args))))))]
     (arglist args)
     ;; move down
-    (when @service (jsclient/serve @edb @bag @user @port))
-    (when @interactive (repl/rloop @edb @bag @user @trace))))
+    (when @service (jsclient/serve @edb port))
+    (when @interactive (repl/rloop (create-view @edb @bag @user) @trace))))
 

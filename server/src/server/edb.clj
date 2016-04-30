@@ -39,8 +39,13 @@
 (defn create-bag [edb bag-id references]
   (install-bag edb bag-id))
 
+;; we stack the primary object so we can extract it again deep
+;; inside the call stack (i.e. for context)
+(defn base-edb-of [v] (second v))
+(defn user-of [v] (nth v 2))
+
 (defn create-view [edb bag-id user]
-  [(install-bag edb bag-id) user])
+  [(install-bag edb bag-id) edb user])
 
 (defn tuples [view] ((view 0) 0))
 (defn listeners [view] ((view 0) 1))

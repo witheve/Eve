@@ -92,8 +92,10 @@
                    "}\n"))))
 
 
-(defn create-bag [e user bag expression trace-on]
+(defn create-bag [v expression trace-on]
   (let [[_ name & deps] expression
+        e (edb/base-edb-of v)
+        user (edb/user-of v)
         id (db/genoid)
         _  (edb/install-bag e id)
         d  (edb/create-view e id user)
@@ -101,6 +103,9 @@
                  (edb/insert d (object-array [id a v])
                              (gensym "create-bag")
                              (fn [t])))]
+    ;; xxx - this is cool, we kinda want to make sure no one can shadow these
+    ;; facts later...maybe a privledged attribute space
+    (insert db/owns u) 
     (insert db/name-oid name)
     (doseq [i deps] (insert db/contains-oid i))))
 
@@ -113,8 +118,8 @@
 
 (defn eeval
   ;; bag and user defaults for jjosh..maybe a context or a view? maybe return a view like before?
-  ([d user bag term] (eeval d term false))
-  ([d user bag term trace-on]
+  ([v term] (eeval v term false))
+  ([v bag term trace-on]
      (let [function ({'define! define
                       'show show
                       'trace trace
@@ -126,13 +131,13 @@
                       'load read-all
                       } (first term))]
        (if (nil? function)
-         (diesel d bag user term trace-on)
-         (function d bag user term trace-on)))))
+         (diesel v term trace-on)
+         (function v term trace-on)))))
 
 (import '[java.io PushbackReader])
 (require '[clojure.java.io :as io])
 
-(defn read-all [e user bag expression trace-on]
+(defn read-all [v expression trace-on]
   ;; trap file not found
   ;; need to implement load path here!
 
@@ -147,11 +152,11 @@
                       (catch Exception e (println "badness 10000" e)))]
         (if (and form (not (empty? form)))
           (do
-            (eeval e user bag form trace-on)
+            (eeval v form trace-on)
             (recur)))))))
 
 
-(defn rloop [d user bag trace-on]
+(defn rloop [v bag trace-on]
   (trampoline (fn self [] 
                 (doto *out*
                   (.write "eve> ")
@@ -164,7 +169,7 @@
                              ;; we're-a-gonna assume that this was a graceful close
                              (catch Exception e
                                (java.lang.System/exit 0)))]
-                  (try (eeval d user bag input)
+                  (try (eeval d input trace-on)
                        (catch Exception e
                          (println "error" e))))
                 self)))
