@@ -751,6 +751,8 @@ function inputKeydown(event, elem) {
     let inputs: any = document.querySelectorAll(".login input");
     let username = inputs[0].value;
     let password = inputs[1].value;
+    inputs[0].value = "";
+    inputs[1].value = "";
     login(username, password); 
   } else {
     return;
@@ -895,7 +897,6 @@ function resultSwitchClick(event, elem) {
 }
 
 function entityListClick(event, elem) {
-  //console.log(event);
   // Filter out results for only the current entity 
   let result: QueryResult = {
     fields: ["Attribute", "Value"],
@@ -903,7 +904,7 @@ function entityListClick(event, elem) {
   };
   // Generate the table
   let table = generateResultTable(result);
-  repl.modal = {c: "modal", left: 110, top: event.target.offsetTop, children: [table]};
+  repl.modal = {c: "modal", left: 110, top: event.y, children: [table]};
   // Prevent click event from propagating to another layer
   event.stopImmediatePropagation();
   rerender();
