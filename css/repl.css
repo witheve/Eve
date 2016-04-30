@@ -151,6 +151,10 @@ h2 {
   width: 200px;
 }
 
+textarea:focus, input:focus{
+  outline: none;
+}
+
 .conversation {
   overflow-y: auto;
   background-color: rgb(50,50,50);
