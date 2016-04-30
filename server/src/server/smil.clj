@@ -218,66 +218,51 @@
                                    nil))]
     state))
 
-(defn parse-ui [sexpr]
-  (as-> {:id (nth sexpr 1) :projection (nth sexpr 2) :query [] :ui []} args
+(defn ui-id-alias? [[elem attr value]]
+  (and (= attr "id") (symbol? value)))
+
+(defn parse-ui [sexpr root-id]
+  (as-> {:group-id (gensym root-id) :grouping (second sexpr) :elems (vec (drop 2 sexpr))} args
+    (assoc-in args [:ids]
+              (reduce-kv #(assoc %1 %3 (symbol (str (:group-id args) "_" %2))) {} (:elems args)))
+
+    (assoc-in args [:attributes]
+              (map (fn [elem]
+                     (let [id (get (:ids args) elem)]
+                       [id "tag" (name (first elem))]))
+                   (:elems args)))
+
+    (update-in args [:attributes] concat
+              (apply concat
+                     (map
+                      (fn [elem]
+                        (let [id (get (:ids args) elem)]
+                          (map (fn [attr]
+                                 [id (name (first attr)) (second attr)])
+                               (parse-schema {} elem))))
+                      (:elems args))))
+
+    (assoc-in args [:aliases]
+              (reduce
+               (fn [memo [elem attr val]]
+                 (assoc memo val elem))
+               {}
+               (filter ui-id-alias? (:attributes args))))
+
+    (update-in args [:attributes] #(filter (complement ui-id-alias?) %1))
+
+    (assoc-in args [:join] (concat (:grouping args) (vals (:ids args)) (keys (:aliases args))))))
+
+(defn parse-define-ui [sexpr]
+  (as-> {:id (nth sexpr 1) :projection [] :query [] :ui []} args
     ;; Split exprs into :ui (ui ...) and :query <everything else>
     (reduce
      (fn [args expr]
        (if (= 'ui (first expr))
-         (update-in args [:ui] conj expr)
+         (update-in args [:ui] conj (parse-ui expr (:id args)))
          (update-in args [:query] conj expr)))
      args
-     (drop 3 sexpr))
-
-    ;; Build a map of variables to uniquely identify elems based on the projection of their ui containers
-    (assoc args :elem-ids
-           (reduce
-            (fn [memo ui-group]
-              (let [group-id (gensym (:id args))
-                    projection (second ui-group)]
-                (reduce-kv #(assoc %1 %3 {:id (symbol (str group-id "_" %2))
-                                          :projection projection}) memo (vec (drop 2 ui-group)))))
-            {}
-            (:ui args)))
-
-    ;; Pull attributes out of elements
-    (assoc args :attributes
-           (reduce
-            (fn [memo ui-group]
-              (assoc memo ui-group
-                     (apply concat
-                            (map (fn [elem]
-                                   (let [id (:id (get (:elem-ids args) elem))]
-                                     (map (fn [a] [id (name (first a)) (second a)]) (parse-schema {} elem))))
-                                 (drop 2 ui-group)))))
-            {} (:ui args)))
-
-    ;; Add generated element id mappings
-    (assoc-in args [:generated]
-              (reduce-kv (fn [memo _ {:keys [id projection]}]
-                           (let [row-id (interpose "__" (cons (name id) projection))]
-                             (assoc memo id `(~'str ~@row-id))))
-                         {}
-                         (:elem-ids args)))
-
-    ;; Add element id aliases to generated
-    (update-in args [:generated] merge
-               (reduce (fn [memo [elem attr val]]
-                         (assoc memo val elem))
-                       {}
-                       (filter #(= (second %1) "id")
-                               (apply concat (vals (:attributes args))))))
-
-
-    ;; Reflect generated variables into the projection
-    (update-in args [:projection] concat (keys (:generated args)))
-
-    ;; Reflect generated variables into the query
-    (update-in args [:query] concat
-               (map (fn [[var val]]
-                        `(~'= ~var ~val)) (:generated args)))
-
-    ))
+     (drop 2 sexpr))))
 
 (defn parse-args
   ([sexpr] (parse-args [nil sexpr]))
@@ -292,7 +277,7 @@
          (= op 'query) (parse-query sexpr)
          (= op 'fact) (parse-fact sexpr)
          (= op 'insert-fact!) (parse-fact sexpr)
-         (= op 'define-ui) (parse-ui sexpr)
+         (= op 'define-ui) (parse-define-ui sexpr)
          :else (throw (syntax-error (str "Unknown operator " op) sexpr)))
        {:expr sexpr :schema schema}))))
 
@@ -318,28 +303,6 @@
     (throw err)
     args))
 
-(defn make-ui-unpacker [args]
-  (fn [ui]
-    (let [elem-ids (:elem-ids args)
-          projection (nth ui 1)
-          elems (drop 2 ui)
-          ids (map #(:id (get elem-ids %1)) elems)
-          attributes (reduce (fn [memo elem]
-                               (concat memo
-                                       (map #(cons (get (:elem-ids args) elem) %1)
-                                            (assoc (parse-schema {} elem) :tag (name (first elem))))))
-                             []
-                             elems)]
-      (list 'define! 'ui ['e 'a 'v]
-            (apply list (:id args) (concat projection ids))
-            (apply list 'union ['e 'a 'v]
-                   (map (fn [[elem attribute value]]
-                          `(~'query
-                            (~'= ~'e ~(:id elem))
-                            ;; @FIXME: if attribute = id sub in (= v (:id elem)) somehow
-                            (~'= ~'a ~(name attribute))
-                            (~'= ~'v ~value))) attributes))))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Expand a SMIL sexpr recursively until it's ready for WEASL compilation
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -351,6 +314,50 @@
   (reduce-kv (fn [memo k v]
                (assoc memo k (if (vector? v) (expand-each db v) (expand db v)))) {} args))
 
+(defn generate-ui [db args]
+  (let [projection (distinct (apply concat (map :join (:ui args))))
+        generated (reduce
+                   (fn [memo ui-group]
+                     (reduce (fn [memo id]
+                               (let [grouping (:grouping ui-group)
+                                     row-id (interpose "__" (cons (name id) grouping))]
+                                 (assoc memo id `(~'str ~@row-id))))
+                             memo
+                             (vals (:ids ui-group))))
+                   {}
+                   (:ui args))
+        generated (reduce
+                   (fn [memo ui-group]
+                     (reduce
+                      (fn [memo [var val]]
+                        (assoc memo var val))
+                      memo
+                      (:aliases ui-group)))
+                   generated
+                   (:ui args))
+        query (concat (:query args)
+                      (map
+                       (fn [[var val]]
+                         `(~'= ~var ~val))
+                       generated))]
+
+    (into [`(~'define! ~(:id args) [~@projection]
+             ~@(expand-each db query))]
+          (map
+           (fn [ui-group]
+             `(~'define! ~'ui [~'e ~'a ~'v]
+               (~(:id args) ~@(map keyword (:join ui-group)))
+               (~'union [~'e ~'a ~'v]
+               ~@(map (fn [[elem attribute value]]
+                        `(~'query
+                          (~'= ~'e ~elem)
+                          (~'= ~'a ~attribute)
+                          (~'= ~'v ~value)))
+                      (:attributes ui-group)))))
+           (:ui args))
+          )))
+
+;; @FIXME: Returning multiple forms from a single expand doesn't bloody work.
 (defn expand [db expr]
   (cond
     (seq? expr)
@@ -366,12 +373,7 @@
                      fact (expand-each db (map #(cons (with-meta 'fact-btu (meta op)) %1) (:facts args)))
                      insert-fact! (expand-each db (map #(cons (with-meta 'insert-fact-btu! (meta op)) %1) (:facts args)))
                      sort (cons op (splat-map args))
-                     define-ui (let []
-                                 ;; @FIXME: We need to get the full projection here somehow
-                                 ;; @FIXME: We need to patch in an id for each ui element here (move id generation from make-ui-unpacker to here or parse-ui
-                                 (into [(apply list 'define! (:id args) (vec (:projection args))
-                                               (expand-each db (:query args)))]
-                                       (map (make-ui-unpacker args) (:ui args))))
+                     define-ui (generate-ui db args)
 
                      ;; Macros
                      remove-by-t! (expand db (list (with-meta 'insert-fact-btu! (meta op)) (:tick args) REMOVE_FACT nil))
