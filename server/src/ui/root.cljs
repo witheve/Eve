@@ -20,7 +20,7 @@
 (def FILTERS #{"=" ">" "<" "not="})
 (def INFIX #{"=" ">" "<" "not=" "*" "/" "+" "-"})
 
-(def GRID-SIZE {:width 120 :height 50})
+(def GRID-SIZE {:width 120 :height 60})
 (def FORMULA-GRID-SIZE {:width 30 :height 30})
 
 ;;---------------------------------------------------------
@@ -181,7 +181,7 @@
 (defonce facts-by-id (js-obj))
 (defonce facts-by-tag (js-obj))
 (defonce attributes-index (js-obj))
-(defonce entity-name-pairs (atom []))
+(defonce entity-name-pairs (atom #{}))
 
 (defonce local-ids (atom #{}))
 
@@ -220,7 +220,7 @@
 
 (defn property-remover [cur v]
   (cond
-    (and (set? cur) (>= (count cur) 2)) (disj cur v)
+    (and (set? cur) (> (count cur) 2)) (disj cur v)
     (set? cur) (first (disj cur v))
     (= cur v) nil
     :else cur))
@@ -255,8 +255,11 @@
           :let [obj (or (aget facts-by-id e) {:id e})
                 a (if-not (keyword? a)
                     (keyword a)
-                    a)]]
-    (aset facts-by-id e (update-in obj [a] property-updater v))
+                    a)
+                updated (update-in obj [a] property-updater v)]]
+    (if (set? (updated a))
+      (println "ADDED A SET FOR: " updated))
+    (aset facts-by-id e updated)
     (aset attributes-index (name a) true)
     (when (= :name a)
       (swap! entity-name-pairs conj [e v]))
@@ -274,8 +277,11 @@
           :let [obj (or (aget facts-by-id e) {:id e})
                 a (if-not (keyword? a)
                     (keyword a)
-                    a)]]
-    (aset facts-by-id e (update-in obj [a] property-remover v))
+                    a)
+                updated (update-in obj [a] property-remover v)]]
+    (if (set? (updated a))
+      (println "removed A SET FOR: " updated))
+    (aset facts-by-id e updated)
     (when (= :name a)
       (swap! entity-name-pairs disj [e v]))
     (when (= :tag a)
@@ -418,11 +424,24 @@
             start
             pairs)))
 
-(def shared-style (style :color "white"))
+(def colors {:grid-background "rgb(34,35,39)"
+             :grid-lines "rgb(57,60,78)"
 
-(def colors {:background-border "#ddd"})
+             :cell-background "rgb(34,35,39)"
+             :cell-border ""
 
-(def background-border (style :border (str "1px solid " (:background-border colors))))
+             :subcell-background  "#363944"
+             :subcell-border nil
+
+             :selection-border "#acf"
+             :selection-background "rgba(133, 146, 255, 0.17)"
+
+             :results-background "#363944"
+
+             :text "hsla(247,10%,80%,1)"
+             :property-text "#6F729F"
+
+             :autocomplete-adornment-color "#777"})
 
 ;;---------------------------------------------------------
 ;; Global dom stuff
@@ -466,23 +485,26 @@
 (defn auto-focus [node elem]
   (.focus node))
 
-(defn measure-size [node min-width]
+(defn set-font-properties [node]
   (let [computed-font-size (-> (.getComputedStyle js/window node nil)
                                (aget "font-size"))]
     (-> (.-style measure-span)
         (.-fontSize)
-        (set! computed-font-size))
-    (set! (.-textContent measure-span) (.-value node))
-    (let [measure-width (-> (.getBoundingClientRect measure-span)
-                            (.-width))
-          new-width (->> (.max js/Math min-width measure-width)
-                         (.ceil js/Math))]
-      new-width)))
+        (set! computed-font-size))))
+
+(defn measure-size [value min-width]
+  (set! (.-textContent measure-span) value)
+  (let [measure-width (-> (.getBoundingClientRect measure-span)
+                          (.-width))
+        new-width (->> (max min-width measure-width)
+                       (.ceil js/Math))]
+    new-width))
 
 (defn auto-size-input [node elem]
   (let [padding 40
         min-width 30
-        new-width (measure-size node min-width)
+        _ (set-font-properties node)
+        new-width (measure-size (.-value node) min-width)
         new-width-str (str (+ padding new-width) "px")]
     (set! (-> node .-style .-width) new-width-str)))
 
@@ -591,7 +613,10 @@
 
 (def modifiers [{:text "without" :adornment "modifier" :action :assoc :value "without" :to-assoc {:token-type "not"}}
                 {:text "select" :adornment "modifier" :action :assoc :value "select" :to-assoc {:token-type "select"}}
+                {:text "draw" :adornment "modifier" :action :assoc :value "draw" :to-assoc {:token-type "draw"}}
                 ])
+
+(def ui-elems [{:text "div" :adornment "html" :action :assoc :value "div" :to-assoc {:token-type "html"}}])
 
 (defmethod get-autocompleter-options :formula-token [_ typed-value info]
   (let [{:keys [current-cell nodes vars]} info
@@ -622,6 +647,37 @@
                   ;; In the case of a select, there are only two options: "and" and "or"
                   (and parent-info (= parent-type "select")) [{:text "or" :adornment "modifier" :action :assoc :value "or" :to-assoc {:token-type "or"}}
                                                               {:text "and" :adornment "modifier" :action :assoc :value "and" :to-assoc {:token-type "and"}}]
+                  ;; if our parent *is* a function, then we need to look for references and
+                  ;; values
+                  ;; @TODO: functions
+                  (and parent-info (= (:token-type parent-info) "function")) (let [parsed (when cleaned-value
+                                                                                            (parse-input cleaned-value))
+                                                                                   refs (for [var vars]
+                                                                                          {:text (cljs.core/name var) :adornment "reference" :action :assoc :value (cljs.core/name var) :to-assoc {:token-type "reference"}})]
+                                                                               (concat
+                                                                                 refs
+                                                                                 (when cleaned-value
+                                                                                   [{:text cleaned-value :adornment (cljs.core/name (:type parsed)) :action :assoc :value (:value parsed) :to-assoc {:token-type "value"}}])))
+                  (and parent-info (= (:token-type parent-info) "draw")) (let []
+                                                                           (concat
+                                                                             ui-elems
+                                                                             [{:text "repeat for" :adornment "modifier" :action :assoc :value "repeat for" :to-assoc {:token-type "repeat for"}}
+                                                                            ]))
+                  (and parent-info (= (:token-type parent-info) "repeat for")) (for [var vars]
+                                                                                 {:text (cljs.core/name var) :adornment "reference" :action :assoc :value (cljs.core/name var) :to-assoc {:token-type "reference"}})
+                  (and parent-info (= (:token-type parent-info) "html")) (let []
+                                                                           (concat
+                                                                             [{:text "text" :adornment "html" :action :assoc :value "text" :to-assoc {:token-type "html attribute"}}
+                                                                              {:text "style" :adornment "html" :action :assoc :value "style" :to-assoc {:token-type "html attribute"}}]
+                                                                             ui-elems))
+                  (and parent-info (= (:token-type parent-info) "html attribute")) (let [parsed (when cleaned-value
+                                                                                                  (parse-input cleaned-value))
+                                                                                         refs (for [var vars]
+                                                                                                {:text (cljs.core/name var) :adornment "reference" :action :assoc :value (cljs.core/name var) :to-assoc {:token-type "reference"}})]
+                                                                                     (concat
+                                                                                       refs
+                                                                                       (when cleaned-value
+                                                                                         [{:text cleaned-value :adornment (cljs.core/name (:type parsed)) :action :assoc :value (:value parsed) :to-assoc {:token-type "value"}}])))
                   ;; if we have a parent and it's not a function, we should scope ourselves
                   ;; to attributes on the parent, related tags, functions, and named entities
                   (and parent-info (not= (:token-type parent-info) "function")) (let [attribute-names (get-attributes (:value parent-info))
@@ -634,22 +690,12 @@
                                                                                     modifiers
                                                                                     (when (and cleaned-value (not (attribute-names cleaned-value)))
                                                                                       [{:text cleaned-value :adornment "attribute" :action :assoc :value cleaned-value :to-assoc {:token-type "attribute"}}])))
-                  ;; if our parent *is* a function, then we need to look for references and
-                  ;; values
-                  ;; @TODO: functions
-                  (and parent-info (= (:token-type parent-info) "function")) (let [parsed (when cleaned-value
-                                                                                            (parse-input cleaned-value))
-                                                                                   refs (for [var vars]
-                                                                                          {:text (cljs.core/name var) :adornment "reference" :action :assoc :value (cljs.core/name var) :to-assoc {:token-type "reference"}})]
-                                                                               (concat
-                                                                                 refs
-                                                                                 (when cleaned-value
-                                                                                   [{:text cleaned-value :adornment (cljs.core/name (:type parsed)) :action :assoc :value (:value parsed) :to-assoc {:token-type "value"}}])))
                   ;; @TODO: aggregate modifiers (grouping, uniques)
                   )
         final (if cleaned-value
                 (match-autocomplete-options options typed-value)
                 options)]
+    (println "PARENT INFO: " parent-info)
     final
     ))
 
@@ -662,10 +708,10 @@
                      :flex-direction "row")
     :children (array
                      (when adornment
-                       (text :style (style :color "#777"
+                       (text :style (style :color (:autocomplete-adornment-color colors)
                                            :margin-right "5px")
                              :text adornment))
-                     (text :style (style :color (or (:color info) "#ccc"))
+                     (text :style (style :color (or (:color info) (:text colors)))
                            :text (:text info))
                      )))
 
@@ -753,6 +799,16 @@
 ;; Cell types
 ;;---------------------------------------------------------
 
+(defn cell-value->cell-size [cell value]
+  (let [grid-width (if (= "formula-token" (:type cell))
+                     (:width FORMULA-GRID-SIZE)
+                     (:width GRID-SIZE))
+        width (+ 15 (measure-size value (- 15 grid-width)))
+        new-cell-width (max (.ceil js/Math (/ width grid-width))
+                            (:width cell)
+                            1)]
+    new-cell-width))
+
 (defn property-keys [event elem]
   (let [{:keys [cell id]} (.-info elem)
         key-code (.-keyCode event)
@@ -798,10 +854,11 @@
               direction (cond
                           (and shift? (= key-code (KEYS :tab))) :left
                           (= key-code (KEYS :enter)) :down
-                          (= key-code (KEYS :tab)) :right)]
+                          (= key-code (KEYS :tab)) :right)
+              new-width (max (get-state grid-id :intermediate-width 1)
+                             (cell-value->cell-size cell (:text selected)))]
           (transaction context
-                       (when-let [new-width (get-state grid-id :intermediate-width)]
-                         (update-entity! context (:id cell) {:width new-width}))
+                       (update-entity! context (:id cell) {:width new-width})
                        (cond
                          (= action :insert) (let [generate-grid (:generate-grid selected)
                                                   cell-update {:property (get-state grid-id :intermediate-property (:property cell))
@@ -878,14 +935,11 @@
         value (if parser
                 (:value (parser value))
                 value)
-        grid-width (if (= "formula-token" (:type cell))
-                     (:width FORMULA-GRID-SIZE)
-                     (:width GRID-SIZE))
-        width (+ 15 (measure-size (.-currentTarget event) (- 15 grid-width)))
-        new-cell-width (.max js/Math
-                             (.ceil js/Math (/ width grid-width))
-                             (:width cell)
-                             1)]
+        node (.-currentTarget event)
+        _ (set-font-properties node)
+        new-cell-width (cell-value->cell-size cell (.-value node))]
+    (if (js/isNaN new-cell-width)
+      (throw (js/Error. "WIDTH ENDED UP NAN...")))
     (transaction context
                  (update-state! context grid-id :intermediate-width new-cell-width)
                  (update-state! context grid-id :autocomplete-selection 0)
@@ -896,12 +950,13 @@
     (transaction context
                  (update-state! context (:grid-id cell) :focus field))))
 
-(defn draw-property [cell active?]
+(defn draw-property [cell active? & [extra-style]]
   (if active?
-    (input :style (style :color "#777"
+    (input :style (style extra-style
+                         :color (:property-text colors)
                          :font-size "10pt"
                          :line-height "10pt"
-                         :margin "6px 0 0 8px")
+                         :margin "0px 0 0 8px")
            :postRender (if-not (:property cell)
                          focus-once
                          js/undefined)
@@ -912,9 +967,10 @@
            :info {:cell cell :field :property :id (:id cell)}
            :placeholder "property"
            :value (or (get-state (:grid-id cell) :intermediate-property) (:property cell)))
-    (text :style (style :color "#777"
+    (text :style (style extra-style
+                        :color (:property-text colors)
                         :font-size "10pt"
-                        :margin "8px 0 0 8px")
+                        :margin "0px 0 0 8px")
           :text (:property cell "property"))))
 
 (defmulti draw-cell :type)
@@ -925,12 +981,14 @@
                                                   :property
                                                   :value))
         property-element (draw-property cell active?)]
-    (box :children
+    (box :style (style :justify-content "center"
+                       :flex "1")
+         :children
          (if active?
            (array property-element
                   (input :style (style :font-size "12pt"
-                                       :color "#CCC"
-                                       :margin "0px 0 0 8px")
+                                       :color (:text colors)
+                                       :margin "2px 0 0 8px")
                          :postRender (if (:property cell)
                                        auto-size-and-focus-once
                                        auto-size-input)
@@ -947,7 +1005,7 @@
            (array property-element
                   (button :style (style :font-size "12pt"
                                         :align-self "flex-start"
-                                        :margin "1px 0 0 8px")
+                                        :margin "2px 0 0 8px")
                           :info {:navigate-grid-id (:value cell)}
                           :click navigate-event!
                           :children (array (text :text (for-display (:value cell))))))))))
@@ -962,7 +1020,7 @@
          (if active?
            (array property-element
                   (input :style (style :font-size "12pt"
-                                       :color "#CCC"
+                                       :color (:text colors)
                                        :margin "0px 0 0 8px")
                          :postRender (if (:property cell)
                                        auto-size-and-focus-once
@@ -987,29 +1045,35 @@
 ;;---------------------------------------------------------
 
 (declare grid)
+(declare max-cell-xy)
 
 (defmethod draw-cell "formula-grid" [cell active?]
   (let [grid-id (:grid-id cell)
+        sub-grid-id (:value cell)
+        grid-width (:width FORMULA-GRID-SIZE)
+        grid-height (:height FORMULA-GRID-SIZE)
         current-focus (get-state grid-id :focus (if-not (:property cell)
                                                   :property
                                                   :value))
-        property-element (draw-property cell active?)
-        ; @FIXME: this needs to be a real id, but I'm not sure how we get it.
-        sub-grid-id (:value cell)
-        grid-width (:width FORMULA-GRID-SIZE)
-        grid-height (:height FORMULA-GRID-SIZE)]
+        property-element (draw-property cell active? (style :align-items "center"
+                                                            :display "flex"
+                                                            :flex "none"
+                                                            :height (dec grid-height)))
+        cells (entities {:tag "cell"
+                         :grid-id sub-grid-id})
+        max-cell-size (max-cell-xy cells)]
+    ;; @FIXME: REMOVE THIS
+    (formula-grid->query sub-grid-id)
     (box :style (style :flex "1")
          :children
            (array property-element
-                  (box :style (style :margin-top "10px"
-                                     :flex "1"
-                                     :overflow "auto"
+                  (box :style (style :flex "none"
+                                     :overflow "visible"
                                      :align-items "center")
-                       :children (array (grid {:grid-width (+ 1 (* 110 (:width cell)))
-                                               :grid-height (inc (* grid-height (.floor js/Math (/ (* (dec (:height cell)) 50) grid-height))))
+                       :children (array (grid {:grid-width (+ 1 (* grid-width (:width cell) (/ (:width GRID-SIZE) grid-width)))
+                                               :grid-height (+ 1 (* grid-height (- (:height cell) 0.5) (/ (:height GRID-SIZE) grid-height)))
                                                :selections (get-selections sub-grid-id)
-                                               :cells (entities {:tag "cell"
-                                                                 :grid-id sub-grid-id})
+                                               :cells cells
                                                :parent grid-id
                                                :default-cell-type "formula-token"
                                                :cell-size-y grid-width
@@ -1032,8 +1096,8 @@
                                                         (box :style (style :width 100
                                                                            :flex "none")
                                                              :children (array (text :text (for-display (aget row field))))))))]
-                    (box :style (style :flex "1 0")
-                         :children (array (box :style (style :background "#333"
+                    (box :style (style :flex "1")
+                         :children (array (box :style (style :background (:results-background colors)
                                                              :flex "none"
                                                              :padding "5px 10px"
                                                              :margin-bottom "5px"
@@ -1061,7 +1125,7 @@
          (if active?
            (array
              (input :style (style :font-size "12pt"
-                                  :color "#CCC"
+                                  :color (:text colors)
                                   :margin-top -1 ;@FIXME why is this necessary to active/inactive to line up?
                                   :padding-left 8)
                     :postRender auto-size-and-focus-once
@@ -1107,6 +1171,7 @@
 
 (defn walk-graph [nodes node parent-symbol query]
   (let [node-info (nodes node)]
+    (println "WALK" node node-info)
     (cond
       (or (= :root node)
           (= (:token-type node-info) "reference")
@@ -1157,7 +1222,7 @@
       (or (= (:token-type node-info) "or")
           (= (:token-type node-info) "and")) (let [children (reduce (fn [query child]
                                                                  (walk-graph nodes child nil query))
-                                                               '[]
+                                                               []
                                                                (:children node-info))]
                                           (if-not (seq children)
                                             query
@@ -1182,6 +1247,46 @@
                                                          (conj query `(~func-symbol ~parent-symbol ~param))
                                                          (conj query `(= ~node-sym (~func-symbol ~parent-symbol ~param))))
                                                        (conj query `(= ~node-sym (~func-symbol ~param))))))))
+      (= (:token-type node-info) "draw") (let [[repeat-for] (filter #(= (:token-type (nodes %)) "repeat for") (:children node-info))
+                                               ui-projection (vec (map #(-> % (nodes) (:variable)) (:children (nodes repeat-for))))
+                                               children (reduce (fn [query child]
+                                                                  (if (not= (:token-type child) "repeat for")
+                                                                    (walk-graph nodes child nil query)
+                                                                    query))
+                                                                '[]
+                                                                (:children node-info))]
+                                           (println (:children node-info) children ui-projection)
+                                           (if-not (seq children)
+                                             query
+                                             (conj query `(ui ~ui-projection ~@children))))
+      (= (:token-type node-info) "repeat for") query
+      (= (:token-type node-info) "html") (let [{:keys [attributes child-elems]} (reduce (fn [info child]
+                                                                                          (cond
+                                                                                            (= (:token-type child) "html attribute") (let [value-node (-> (:children child)
+                                                                                                                                                          (first)
+                                                                                                                                                          (nodes))
+                                                                                                                                           value (if (= (:token-type value-node) "reference")
+                                                                                                                                                   (:variable value-node)
+                                                                                                                                                   (:value value-node))]
+                                                                                                                                       (update-in info [:attributes] conj (keyword (:value child)) value))
+                                                                                            (= (:token-type child) "html") (assoc info :child-elems (-> (:child-elems info)
+                                                                                                                                                        (concat (walk-graph nodes (:id child) nil []))))
+                                                                                            :else info))
+                                                                                        {:child-elems []
+                                                                                         :attributes [(symbol (:value node-info))]}
+                                                                                        (map nodes (:children node-info)))
+                                               parent-node (nodes (:parent node-info))
+                                               attributes (if (= (:token-type parent-node) "html")
+                                                            (conj attributes :parent (symbol (str "node" (:id parent-node))))
+                                                            attributes)
+                                               attributes (if (seq child-elems)
+                                                            (conj attributes :id (symbol (str "node" (:id node-info))))
+                                                            attributes)
+                                               with-me (conj query (seq attributes))]
+                                           (if (seq child-elems)
+                                             (concat with-me child-elems)
+                                             with-me))
+
       ;; otherwise, just return the query exactly as it is now
       :else query
       )))
@@ -1266,6 +1371,7 @@
                           ~@clauses))]
     (println "QUERY:\n" query)
     query
+    ""
     ))
 
 ;;---------------------------------------------------------
@@ -1337,7 +1443,7 @@
          :children
            (array property-element
                   (elem :style (style :font-size "12pt"
-                                      :color "#CCC"
+                                      :color (:text colors)
                                       :flex "1 0"
                                       :background "none"
                                       :border "none"
@@ -1388,6 +1494,13 @@
 ;; Grid
 ;;---------------------------------------------------------
 
+(defn max-cell-xy [cells]
+  (reduce (fn [cur cell]
+            {:x (.max js/Math (:x cur) (+ (:width cell) (:x cell)))
+             :y (.max js/Math (:y cur) (+ (:height cell) (:y cell)))})
+          {:x 0 :y 0}
+          cells))
+
 (defn draw-grid [node elem]
   (let [ctx (.getContext node "2d")
         ratio (.-devicePixelRatio js/window)
@@ -1401,7 +1514,7 @@
     (set! (.-width node) (* ratio width))
     (set! (.-height node) (* ratio height))
     (set! (.-lineWidth ctx) 1)
-    (set! (.-strokeStyle ctx) "#444")
+    (set! (.-strokeStyle ctx) (:grid-lines colors))
     (dotimes [vertical (/ height size-y)]
       (.beginPath ctx)
       (.moveTo ctx 0 (* adjusted-size-y vertical))
@@ -1460,12 +1573,12 @@
       result)))
 
 (defn add-cell! [context grid-id cell]
-  (log "ADDING A CELL")
   (let [with-id (assoc cell :tag "cell" :id 'new-guy :grid-id grid-id)]
     (insert-facts! context with-id)
     with-id))
 
 (defn set-selection [event elem]
+  (when-not (.-defaultPrevented event)
   (let [{:keys [x y]} (target-relative-coords event)
         {:keys [cell-size-x cell-size-y id cells]} (.-info elem)
         range? (.-shiftKey event)
@@ -1498,7 +1611,9 @@
                            (insert-facts! context final-selection)))
                  (update-state! context id :extending-selection true)
                  (clear-intermediates! context id)
-                 (update-state! context id :active-cell nil))))
+                 (update-state! context id :active-cell nil)
+                 (prevent-default event)
+                 ))))
 
 (declare stop-selecting)
 
@@ -1621,7 +1736,24 @@
                     (recur ix)))))))))
     final))
 
-(defn move-selection! [context grid-id direction]
+(defn clip-position [grid-info pos]
+  (let [{:keys [x y]} pos
+        {:keys [grid-width grid-height cell-size-x cell-size-y]} grid-info
+        max-x (dec (.ceil js/Math (/ (dec grid-width) cell-size-x)))
+        max-y (dec (.ceil js/Math (/ (dec grid-height) cell-size-y)))
+        clipped-x (-> x (max 0) (min max-x))
+        clipped-y (-> y (max 0) (min max-y))
+        clipped-dir (cond
+                      (< clipped-x x) :right
+                      (> clipped-x x) :left
+                      (< clipped-y y) :bottom
+                      (> clipped-y y) :top
+                      :else nil)]
+    {:clipped-pos (assoc pos :x clipped-x :y clipped-y)
+     :clipped-dir clipped-dir
+     :clipped? (boolean clipped-dir)}))
+
+(defn move-selection! [context grid-id direction & [grid-info]]
   (let [cells (entities {:tag "cell"
                          :grid-id grid-id})
         selections (get-selections grid-id)
@@ -1648,6 +1780,10 @@
                        :y (:y updated-pos)
                        :width 1
                        :height 1}
+          clipped (if grid-info
+                    (clip-position grid-info resized-pos)
+                    {})
+          resized-pos (or (:clipped-pos clipped) resized-pos)
           maybe-selected-cell (get-intersecting-cell resized-pos cells)
           offset (if maybe-selected-cell
                    {:x (- (:x resized-pos) (:x maybe-selected-cell))
@@ -1718,8 +1854,8 @@
       (condp = key-code
         (:tab KEYS) (transaction context
                                  (if shift?
-                                   (move-selection! context id :left)
-                                   (move-selection! context id :right))
+                                   (move-selection! context id :left grid-info)
+                                   (move-selection! context id :right grid-info))
                                  (.preventDefault event))
         (:escape KEYS) (when (:parent grid-info)
                          (transaction context
@@ -1764,7 +1900,7 @@
               shift? (extend-selection! context id direction)
               (and (= direction :left) modified?) (move-navigate-stack! context :back)
               (and (= direction :right) modified?) (move-navigate-stack! context :forward)
-              :else (move-selection! context id direction)))
+              :else (move-selection! context id direction grid-info)))
           (.preventDefault event))))))
 
 (defn grid-input [event elem]
@@ -1858,32 +1994,39 @@
             is-active? (= (:id active-cell) (:id cell))
             width (if-not is-active?
                     width
-                    (get-state (:id info) :intermediate-width width))]
+                    (get-state (:id info) :intermediate-width width))
+            color (if (:parent info)
+                    (:subcell-background colors))
+            border-color (if (:parent info)
+                           (:subcell-border colors))]
         (.push children (box :id id
                              :style (style :width (- (* cell-size-x (or width 1)) 2)
                                            :height (- (* cell-size-y (or height 1)) 2)
                                            :position "absolute"
-                                           :top (+ 0 (* y cell-size-y))
-                                           :left (+ 0 (* x cell-size-x))
-                                           :border "1px solid #666"
-                                           :background (or color "#000"))
+                                           :top (+ 1 (* y cell-size-y))
+                                           :left (+ 1 (* x cell-size-x))
+                                           :border (if border-color
+                                                     (str "1px solid " border-color)
+                                                     "none")
+                                           :background (or color (:cell-background colors)))
                              :children (array (draw-cell cell is-active?))))))
-    (when-not (:inactive info)
+    (when (and (not (:inactive info))
+               (or (not active-cell)
+                   (= (:type active-cell) "property")))
       (dotimes [selection-ix (count selections)]
         (let [selection (aget selections selection-ix)
-              color "#fff"
               ;; we have to normalize selections since while they're being expanded
               ;; they can have negative widths and heights
               {:keys [x y width height]} (normalize-cell-size selection)]
-          (.push children (box :style (style :width (- (* cell-size-x width) 2)
-                                             :height (- (* cell-size-y height) 2)
+          (.push children (box :style (style :width (- (* cell-size-x width) 0)
+                                             :height (- (* cell-size-y height) 0)
                                              :position "absolute"
                                              :top (* y cell-size-y)
                                              :left (* x cell-size-x)
                                              :pointer-events "none"
                                              :background (if (not active-cell)
-                                                           "rgba(255,255,255,0.12)")
-                                             :border (str "1px solid " (or color "#aaffaa")))
+                                                           (:selection-background colors))
+                                             :border (str "1px solid " (:selection-border colors)))
                                ;; add a resize handle to the selection
                                :children (array (elem :mousedown start-resize
                                                       ;; mouseup and mousemove can't be handled here since it's
@@ -1925,7 +2068,10 @@
           :mouseup stop-selecting
           :style (style :position "relative"
                         :width (:grid-width info)
-                        :height (:grid-height info)))))
+                        :height (:grid-height info)
+                        :pointer-events (if-not (:inactive info)
+                                          "auto"
+                                          "none")))))
 
 ;;---------------------------------------------------------
 ;; Root
@@ -1939,7 +2085,7 @@
                        :height "100vh"
                        :align-items "center"
                        :justify-content "center"
-                       :color "#ccc"
+                       :color (:text colors)
                        :font-family "Lato")
          :children (array (grid {:grid-width (.-innerWidth js/window)
                                  :grid-height (.-innerHeight js/window)
