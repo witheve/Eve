@@ -30,22 +30,26 @@
                 'error  (println "ERROR " channel (exec/print-registers tuple)))))
 
 (defn diesel [d expression trace-on]
-  (let [[form keys] (form-from-smil (smil/unpack d expression))
+  (let [[forms keys] (form-from-smil (smil/unpack d expression))
+        forms (if-not (vector? forms) [forms] forms)
         _ (when trace-on
             (println "--- SMIL ---")
-            (pprint form)
+            (pprint forms)
             (println " --- Program / Trace ---"))
-        prog (compiler/compile-dsl d form)
+
+        progs (map #(if (= (first %1) 'define!)
+                      (define d %1 trace-on)
+                      (compiler/compile-dsl d %1)) forms)
         start (System/nanoTime)
-        ec (exec/open d prog (print-result keys "" start)
+        ecs (doall (map #(exec/open d %1 (print-result keys "" start)
                       (if trace-on
                         (fn [n m x] (fn [r] (println "trace" n m) (println (exec/print-registers r)) (x r)))
-                        (fn [n m x] x)))]
-
-    (when trace-on (pprint prog))
-    (ec 'insert)
-    (ec 'flush)
-    (ec 'close)))
+                        (fn [n m x] x))) progs))]
+    (when trace-on (pprint progs))
+    (doseq [ec ecs]
+      (ec 'insert)
+      (ec 'flush)
+      (ec 'close))))
 
 (defn open [d expression trace-on]
   (println "open" expression)
@@ -92,8 +96,7 @@
 (defn eeval
   ([d term] (eeval d term false))
   ([d term trace-on]
-     (let [function ({'define! define
-                      'show show
+     (let [function ({'show show
                       'trace trace
                       'create-bag create-bag
                       'time timeo
