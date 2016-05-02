@@ -225,12 +225,6 @@ function connectToServer() {
     // Initialize the repl state
     if (repl.init === false) {
       objectToArray(repl.system).map(sendQuery);
-      let addUsers = `(query []
-                        (insert-fact! "9f546210-20aa-460f-ab7b-55800bec82f0" :tag "repl-user" :tag "system" :name "Corey" :username "corey" :password "corey")
-                        (insert-fact! "3037e028-3395-4d8c-a0a7-0e92368c9ec3" :tag "repl-user" :tag "system" :name "Eric" :username "eric" :password "eric")
-                        (insert-fact! "62741d3b-b94a-4417-9794-1e6f86e262b6" :tag "repl-user" :tag "system" :name "Josh" :username "josh" :password "josh")
-                        (insert-fact! "d4a6dc56-4b13-41d5-be48-c656541cfac1" :tag "repl-user" :tag "system" :name "Chris" :username "chris" :password "chris"))`
-      sendAnonymousQuery(addUsers);
       // Retrieve the object from storage
       let userID = localStorage.getItem('repl-user');
       if (userID !== null) {
@@ -396,7 +390,16 @@ function connectToServer() {
         }
         // Mark the repl as initialized if all the system queries have been populated
         if (repl.init === false && objectToArray(repl.system).every((q: Query) => q.result !== undefined)) {
-          repl.init = true;
+          if (repl.system.users.result.values.length === 0) {
+            let addUsers = `(query []
+                              (insert-fact! "9f546210-20aa-460f-ab7b-55800bec82f0" :tag "repl-user" :tag "system" :name "Corey" :username "corey" :password "corey")
+                              (insert-fact! "3037e028-3395-4d8c-a0a7-0e92368c9ec3" :tag "repl-user" :tag "system" :name "Eric" :username "eric" :password "eric")
+                              (insert-fact! "62741d3b-b94a-4417-9794-1e6f86e262b6" :tag "repl-user" :tag "system" :name "Josh" :username "josh" :password "josh")
+                              (insert-fact! "d4a6dc56-4b13-41d5-be48-c656541cfac1" :tag "repl-user" :tag "system" :name "Chris" :username "chris" :password "chris"))`
+            sendAnonymousQuery(addUsers);
+          } else {
+            repl.init = true;
+          }
         }
       }
     }
