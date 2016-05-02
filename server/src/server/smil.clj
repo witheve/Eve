@@ -89,7 +89,7 @@
                  '< {:args [:a :b] :kwargs [:return] :optional #{:return}}
                  '<= {:args [:a :b] :kwargs [:return] :optional #{:return}}
 
-                 'str {:rest :args}
+                 'str {:rest :a}
                  'hash {:args [:a]}
 
                  'sum {:args [:a] :kwargs [:return] :optional #{:return}}})
@@ -315,7 +315,7 @@
                (assoc memo k (if (vector? v) (expand-each db v) (expand db v)))) {} args))
 
 (defn generate-ui [db args]
-  (let [projection (distinct (apply concat (map :join (:ui args))))
+  (let [projection (vec (distinct (apply concat (map :join (:ui args)))))
         generated (reduce
                    (fn [memo ui-group]
                      (reduce (fn [memo id]
@@ -340,12 +340,11 @@
                        (fn [[var val]]
                          `(~'= ~var ~val))
                        generated))]
-
-    (into [`(~'define! ~(:id args) [~@projection]
+    (vec (concat [`(~'define! ~(:id args) ~projection
              ~@(expand-each db query))]
           (map
            (fn [ui-group]
-             `(~'define! ~'ui [~'e ~'a ~'v]
+             `(~'define! ~'ui ~['e 'a 'v]
                (~(:id args) ~@(map keyword (:join ui-group)))
                (~'union [~'e ~'a ~'v]
                ~@(map (fn [[elem attribute value]]
@@ -355,8 +354,7 @@
                           (~'= ~'v ~value)))
                       (:attributes ui-group)))))
            (:ui args))
-          )))
-
+          ))))
 ;; @FIXME: Returning multiple forms from a single expand doesn't bloody work.
 (defn expand [db expr]
   (cond
@@ -373,7 +371,7 @@
                      fact (expand-each db (map #(cons (with-meta 'fact-btu (meta op)) %1) (:facts args)))
                      insert-fact! (expand-each db (map #(cons (with-meta 'insert-fact-btu! (meta op)) %1) (:facts args)))
                      sort (cons op (splat-map args))
-                     define-ui (generate-ui db args)
+                     define-ui (expand-each db (generate-ui db args))
 
                      ;; Macros
                      remove-by-t! (expand db (list (with-meta 'insert-fact-btu! (meta op)) (:tick args) REMOVE_FACT nil))
@@ -388,7 +386,7 @@
                      choose (concat [op] [(:params args)] (assert-queries (expand-each db (:members args))))
                      not (cons op (expand-each db (:body args)))
                      context (cons op (splat-map (expand-values db args)))
-                     str (cons op (list :a (expand-each db (:args args))))
+                     str (cons op (list :a (expand-each db (:a args))))
 
                      ;; Default
                      (cons op (splat-map (expand-values db args))))]
@@ -412,6 +410,12 @@
 (defn unpack-inline [sexpr]
   (let [argmap (when (seq? sexpr) (get-args sexpr))]
     (cond
+      (vector? sexpr)
+      (let [unpacked (reduce #(merge-with merge-state %1 (unpack-inline %2))
+                             {:inline [] :query []}
+                             sexpr)]
+            {:inline [(:inline unpacked)] :query (:query unpacked)})
+
       (not (seq? sexpr))
       {:inline [sexpr]}
 
