@@ -39,3 +39,11 @@ button, input, textarea { background:none; border:none; margin:0; padding:0; out
   user-select: none;           /* non-prefixed version, currently
                                   not supported by any browser */
 }
+.noselect input, .noselect textarea {
+  -webkit-touch-callout: auto; /* iOS Safari */
+  -webkit-user-select: auto;   /* Chrome/Safari/Opera */
+  -khtml-user-select: auto;    /* Konqueror */
+  -moz-user-select: auto;      /* Firefox */
+  -ms-user-select: auto;       /* IE/Edge */
+  user-select: auto;           /* non-prefixed version, currently
+}
