@@ -116,39 +116,42 @@
 
 
 (defn run-test [url branch facts]
+  (print "start test" url branch facts)
   (let [path (checkout-repository url branch)
         s (atom nil)
         start "(load \"examples/harness.e\")\n"
-        p (subprocess (str path "/server"))]
+        p (subprocess (str path "/server"))
+        ;; check status here?
+        database (connect-to-eve server 0 0)
+        completion (fn [x]
+                     (let [results (atom {})
+                           out   (atom {})]
+                       (doseq [i x]
+                         (swap! results assoc-in [(keyword (first i)) :result] (second i))
+                         (swap! results assoc-in [(keyword (first i)) :name] (first i)))
+                       (doseq [i (keys @results)] 
+                         (swap! out assoc :result (@results i)))
+                       (swap! out merge facts)
+                       (eve-insert database tree-to-facts @out)
+                       ;; assuming there is only one flush
+                       (.write (p 0) "(exit)\n")
+                       (.flush (p 0))))]       
+
+
     (Thread/sleep 6000)
     (reset! s (connect-to-eve "localhost:8083" 0 0))
     (when (not @s)
       (Thread/sleep 3000)
       (reset! s (connect-to-eve "localhost:8083" 0 0)))
-
-    (when @s
-      (eve-query @s "(query [test success] (fact _ :tag \"test-run\" :result success :test))" 
-                 (fn [x]
-                   (let [database (connect-to-eve server 0 0)
-                         results (atom {})
-                         out (atom {})]
-                     (doseq [i x]
-                       (swap! results assoc-in [(keyword (first i)) :result] (second i))
-                       (swap! results assoc-in [(keyword (first i)) :name] (first i)))
-                     (println @results)
-                     (doseq [i (keys @results)] 
-                       (swap! out assoc :result (@results i)))
-                     (swap! out merge facts)
-                     (swap! out assoc :tag "test")
-                     (let [fax (tree-to-facts @out)]
-                       (println fax)
-                       (eve-insert database fax)
-                       (eve-close database))
-                     (.write (p 0) "(exit)\n")
-                     (.flush (p 0))))))
-
-    (.write (p 0) start)
-    (.flush (p 0))
+    
+    (if @s
+      (do 
+        (eve-query @s "(query [test success] (fact _ :tag \"test-run\" :result success :test))"
+                   completion)
+        (.write (p 0) start)     
+        (.flush (p 0)))
+      (eve-insert database tree-to-facts (tree-to-facts (assoc out :status 'failure))))
+    (eve-close database)
     (println "test lein exit" @(p 1))
     (delete-recursively path)))
     
@@ -156,15 +159,18 @@
 ;; the websocket input guy   
 (defn input-handler [request]
   (let [parsed (json/parsed-seq (clojure.java.io/reader (:body request) :encoding "UTF-8"))
-        action (first parsed)
-        repo ((action "repository") "git_url")
-        pr (action "pull_request") 
-        branch ((pr "head") "ref")
-        state (pr "state")]
-    (when (= state "open")
-      (println "run test" repo branch)
-      (let [user ((pr "user") "login")]
-        (run-test repo branch {:user user})))
+        a (first parsed)]
+    (when (= (get-in a '[pull-request state]) "open")
+      (println "run test" )
+      (let [user ]
+        ;; [pull-request mergable] false
+        (run-test (get-in a '[repository "git-url]"])
+                  (get-in a '[pull-request head ref])
+                  {:user (get-in a '[pull-request user login])
+                               :tag "test"
+                               :number (get-in a '[number])
+                               :sha (get-in a '[pull-request head sha])
+                               })))
     {:body "thanks"}))
 
 ;; webhook input
