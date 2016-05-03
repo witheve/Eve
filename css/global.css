@@ -1,7 +1,10 @@
-body { background: #000; }
+* { box-sizing: border-box; }
+body { background: rgb(34,35,39); }
 div { display:flex; outline:none; flex-direction:column; }
 
 button, input, textarea { background:none; border:none; margin:0; padding:0; outline:none; font-family:inherit; color: inherit; text-align:left; line-height:inherity; font-size:inherit; }
+
+.measure-span { font-family: "Lato"; visibility:hidden; pointer-events: none; position:absolute; top:0; left:0; z-index: -1; white-space: nowrap; }
 
 .CodeMirror { flex:1; height:auto; }
 .CodeMirror-scroll { height:auto; }
@@ -35,4 +38,12 @@ button, input, textarea { background:none; border:none; margin:0; padding:0; out
   -ms-user-select: none;       /* IE/Edge */
   user-select: none;           /* non-prefixed version, currently
                                   not supported by any browser */
+}
+.noselect input, .noselect textarea {
+  -webkit-touch-callout: auto; /* iOS Safari */
+  -webkit-user-select: auto;   /* Chrome/Safari/Opera */
+  -khtml-user-select: auto;    /* Konqueror */
+  -moz-user-select: auto;      /* Firefox */
+  -ms-user-select: auto;       /* IE/Edge */
+  user-select: auto;           /* non-prefixed version, currently
 }

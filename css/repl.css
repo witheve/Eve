@@ -26,11 +26,16 @@ h2 {
 
 .status-bar {
   width: 125px;
+  min-width: 125px;
   display: flex;
   flex-direction: column;
   align-items: center;
   background-color: rgb(37,37,37);
   padding: 10px;
+}
+
+.status-bar .logo {
+  margin-bottom: 20px;
 }
 
 .repl {
@@ -41,8 +46,9 @@ h2 {
 .results-switch {
   display: flex;
   flex-direction: row;
+  justify-content: flex-end;
+  margin-bottom: 10px;
   float: right;
-  clear: none;
 }
 
 .results-switch > .button {
@@ -50,17 +56,18 @@ h2 {
 }
 
 .card-root {
+  padding: 10 0 10 10;
   display: flex;
   flex-grow: 1;
 }
 
 .card-column {
-  padding: 10px;
+  padding: 0 10 0 0px;
   flex-grow: 1;
   background-color: rgb(30,30,30);
   overflow-y: auto;
 }
-.card-column::-webkit-scrollbar { width: 10px; height: 10px; } 
+.card-column::-webkit-scrollbar { width: 5px; height: 5px; }
 .card-column::-webkit-scrollbar-track { box-shadow: inset 0 0 6px rgba(0,0,0,0); } 
 .card-column::-webkit-scrollbar-thumb { background-color: rgb(80,80,80); outline: 1px solid slategrey; } 
 .card-column::-webkit-scrollbar-corner { background-color: transparent;} 
@@ -69,6 +76,7 @@ h2 {
   display: flex;
   margin-bottom: 10px;
   border: 1px solid rgba(0,0,0,0);
+  z-index: 99;
 }
 
 .focused {
@@ -83,7 +91,6 @@ h2 {
 
 .query-result {
   background-color: rgb(40,40,40);
-  min-height: 200px;
   padding: 10px;
   flex-grow: 1;
 }
@@ -91,12 +98,146 @@ h2 {
 /* Modal Styles */
 
 .modal {
-  background-color: rgba(0,0,0,.7);
-  border: 1px solid rgb(91,89,164);
+	position: absolute;
+	background-color: rgba(30,30,30,1);
+	border: 1px solid rgb(91,89,164);
+  border-radius: 4px;
+  z-index: 100;
+  padding: 20px;
+  transform: translateY(-50%);
+}
+
+.modal:after, .modal:before {
+	right: 100%;
+	top: 50%;
+	border: solid transparent;
+	content: " ";
+	height: 0;
+	width: 0;
+	position: absolute;
+	pointer-events: none;
+}
+
+.modal:after {
+	border-color: rgba(0, 0, 0, 0);
+	border-right-color: rgba(30,30,30,1);
+	border-width: 15px;
+	margin-top: -15px;
+}
+.modal:before {
+	border-color: rgba(194, 225, 245, 0);
+	border-right-color: rgb(91,89,164);;
+	border-width: 16px;
+	margin-top: -16px;
+}
+
+/* Chat */
+
+.chat-bar {
+  width: 200px;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: rgb(33,33,33);
   padding: 10px;
-  position: absolute;
+}
+
+.chat-input {
+  color: rgb(200,200,200);
+  background-color: rgb(50,50,50);
+  border: 0px;
+  padding:10px;
+  width: 200px;
+}
+
+textarea:focus, input:focus{
+  outline: none;
+}
+
+.conversation {
+  overflow-y: auto;
+  background-color: rgb(50,50,50);
+  width: 180px;
+  padding:10px;
+  margin-bottom: 10px;
+  flex-grow: 1;
+}
+.conversation::-webkit-scrollbar { width: 5px; height: 10px; } 
+.conversation::-webkit-scrollbar-track { box-shadow: inset 0 0 6px rgba(0,0,0,0); } 
+.conversation::-webkit-scrollbar-thumb { background-color: rgb(80,80,80); outline: 1px solid slategrey; } 
+.conversation::-webkit-scrollbar-corner { background-color: transparent;} 
+
+.chat-message-box {
+  margin-bottom: 15px;
+}
+
+.chat-user {
+  font-size: 13px;
+  font-weight: bold;
+  display: inline;
+  margin-right: 10px;
+}
+
+.chat-user .me {
+  color: rgb(65, 161, 221);
+}
+
+.chat-time {
+  font-size: 10px;
+  color: rgb(150,150,150);
+  display: inline;
+}
+
+.chat-message {
+  margin-top: 5px;
+  font-size: 13px;
+  line-height: 16px;
+}
+
+.unread {
+  font-size: 12px;
+  width: 12px;
+  height: 12px;
+  border-radius: 20px;
+  transform: translateY(-3px);
+  padding: 3px;
+  color: white;
+  border: 1px solid rgb(65, 161, 221); 
+  margin-left: 15px;
+  float: right;
+}
+
+/* Login */
+
+.login {
+  margin: auto;
+  margin-top: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.login * {
+  margin-bottom: 25px;
+}
+
+.login input {
+  color: rgb(200,200,200);
+  background-color: rgba(0,0,0,0);
+  border: 1px solid rgb(200,200,200);
+  padding: 10px;
+  border-radius: 4px;
+}
+
+
+.login .button {
+  padding: 10px;
   width: 100px;
-  height: 100px;
+}
+
+.login .logo {
+  margin-bottom: 50px;
 }
 
 /* Table Styles */
@@ -109,7 +250,7 @@ h2 {
 
 .row { display: table-row; }
 
-.cell { display: table-cell; padding: 5px; min-width: 25px; }
+.cell { display: table-cell; padding: 5px; min-width: 25px; white-space: pre; }
 .header .cell { padding: 7px;}
 .cell { border-top: 1px solid rgb(208,208,208); border-right: 1px solid rgb(208,208,208); }
 
@@ -121,19 +262,27 @@ li {
   padding: 2px;
 }
 
-.entities-table {
-  width: 80%;
+.info-table {
+  width: 85%;
 }
 
-.entities {
+.info {
   background-color: rgb(60,60,60);
+  max-height: 300px;
+  overflow-y: auto;
   padding: 10px;
   font-size: 12px;
   width: 80%;
+  min-height: 100px;
+  overflow-x: hidden;
 }
+.info::-webkit-scrollbar { width: 5px; height: 10px; } 
+.info::-webkit-scrollbar-track { box-shadow: inset 0 0 6px rgba(0,0,0,0); } 
+.info::-webkit-scrollbar-thumb { background-color: rgb(80,80,80); outline: 1px solid slategrey; } 
+.info::-webkit-scrollbar-corner { background-color: transparent;} 
 
-.entity-link {
-  cursor: pointer,
+.info-link {
+  cursor: pointer;
 }
 
 /* Button styles */ 
@@ -152,26 +301,6 @@ li {
 .button .disabled {
   border: 1px solid rgb(255,255,255);
 }
-
-/* The Status Indicator */
-
-.indicator {
-  width: 7px;
-  height: 7px; 
-  border-radius: 15px;
-  border: 2px;
-  border-style: solid;
-  background-color: black;
-  border-color: black;
-  transition: background-color 1s, border-color 1s;
-  position: absolute;
-  left: 0px;
-  bottom: 0px;
-  margin: 10px;
-}
-.connected { background-color: lightgreen; border-color: green; }
-.connecting { background-color: yellow; border-color: darkgoldenrod; }
-.disconnected { background-color: red; border-color: darkred; }
 
 /* CodeMirror style overrides */
 
@@ -203,6 +332,10 @@ li {
   unicode-bidi: embed;
   font-family: monospace;
   white-space: pre; 
+}
+
+.inline {
+  display: inline;
 }
 
 .hidden {

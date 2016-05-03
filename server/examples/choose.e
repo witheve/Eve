@@ -1,7 +1,5 @@
-
-
 (query [x]
-       (= salary 10)
+       (= salary 2)
        (choose [x salary]
                (query (> salary 8)
                       (= x "greedy"))

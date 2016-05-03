@@ -52,12 +52,14 @@ export interface CloseMessage {
 interface Query {
   id: string,
   query: string,
-  result: {
-    fields: Array<string>,
-    values: Array<Array<any>>,
-  }
+  result: QueryResult,
   info: QueryInfo,
   message: string,
+}
+
+interface QueryResult {
+  fields: Array<string>,
+  values: Array<Array<any>>
 }
 
 interface QueryInfo {
@@ -92,12 +94,31 @@ interface Deck {
   cards: Array<ReplCard>,
 }
 
+interface Chat {
+  visible: boolean,
+  unread: number,
+  messages: Array<{
+    id: string,
+    user: string,
+    message: string,
+    time: number,
+  }>,
+}
+
 interface Repl {
   init: boolean,
+  user: {
+    id: string,
+    name?: string,
+    username?: string,
+  },
+  chat: Chat,
   system: {
     entities: Query,  
     tags: Query,
-    queries: Query,
+    queries?: Query,
+    users: Query,
+    messages: Query,
   },
   decks: Array<Deck>,
   deck: Deck,
@@ -204,7 +225,11 @@ function connectToServer() {
     // Initialize the repl state
     if (repl.init === false) {
       objectToArray(repl.system).map(sendQuery);
-      repl.init = true;
+      // Retrieve the object from storage
+      let userID = localStorage.getItem('repl-user');
+      if (userID !== null) {
+        repl.user = {id: userID};  
+      }    
     }
     // In the case of a reconnect, reset the timeout
     // and send queued messages
@@ -218,11 +243,20 @@ function connectToServer() {
 
   ws.onerror = function(error) {
     repl.server.state = ConnectionState.DISCONNECTED;
+    repl.init = false;
+    objectToArray(repl.system).map((q: Query) => q.result = undefined);
     rerender();
   }
 
   ws.onclose = function(error) {  
     repl.server.state = ConnectionState.DISCONNECTED;
+    repl.init = false;
+    objectToArray(repl.system).map((q: Query) => q.result = undefined);
+    /*repl.deck.cards.map((c) => {
+      c.state = CardState.PENDING
+      c.query.result = undefined;
+      c.display = CardDisplay.QUERY;
+    });*/
     reconnect();
     rerender();
   }
@@ -230,7 +264,7 @@ function connectToServer() {
   ws.onmessage = function(message) {
     //console.log("message")
     //console.log(message.data);    
-    let parsed = JSON.parse(message.data.replace(/\n/g,'\\\\n').replace(/\r/g,'\\\\r').replace(/\t/g,'\\\\t'));
+    let parsed = JSON.parse(message.data.replace(/\n/g,'\\\\n').replace(/\r/g,'\\\\r').replace(/\t/g,'  ').replace(/\\\\"/g,'\\"'));
     //console.log(parsed);
     // Update the result of the correct repl card
     let targetCard = repl.deck.cards.filter((r) => r.id === parsed.id).shift();
@@ -239,23 +273,25 @@ function connectToServer() {
         if (parsed.fields.length > 0) {         
           let values: Array<Array<any>>;
           // If the card is pending, it was submitted manually, 
-          // so we replace the values with the inserts
+          // so we replace the values with the inserts          
           if (targetCard.state === CardState.PENDING) {
             values = parsed.insert;
             targetCard.display = CardDisplay.BOTH;
             targetCard.resultDisplay = ResultsDisplay.TABLE;
+            targetCard.query.result = {
+              fields: parsed.fields,
+              values: values,
+            };
           // If the card is Good, that means it already has results
           // and the current message is updating them
           } else if (targetCard.state === CardState.GOOD) {
             // Apply inserts
-            values = targetCard.query.result.values.concat(parsed.insert);
+            targetCard.query.result.values = targetCard.query.result.values.concat(parsed.insert);
             // Apply removes
-            //@ TODO
+            parsed.remove.forEach((row) => {
+              removeRow(row,targetCard.query.result.values);
+            });
           }
-          targetCard.query.result = {
-            fields: parsed.fields,
-            values: values,
-          };
         } else {
           targetCard.resultDisplay = ResultsDisplay.NONE;
         }
@@ -265,14 +301,16 @@ function connectToServer() {
         targetCard.state = CardState.ERROR;
         targetCard.query.message = parsed.cause;
         targetCard.display = CardDisplay.BOTH;
+        targetCard.resultDisplay = ResultsDisplay.MESSAGE;
+        targetCard.query.info = undefined;
         targetCard.query.result = undefined;
         //saveReplCard(targetCard);
       } else if (parsed.type === "close") {
-        let removeIx = repl.deck.cards.map((r) => r.id).indexOf(parsed.id);
+        /*let removeIx = repl.deck.cards.map((r) => r.id).indexOf(parsed.id);
         if (removeIx >= 0) {
           replCards[removeIx].state = CardState.CLOSED;
-        }
-        rerender(true);
+        }*/
+        rerender();
       } else if (parsed.type === "query-info") {
         let info: QueryInfo = {
           id: parsed.id,
@@ -288,7 +326,7 @@ function connectToServer() {
         return;
       }
     // If the query ID was not matched to a repl card, then it should 
-    // matche a system query
+    // match a system query
     } else {
       let targetSystemQuery: Query = objectToArray(repl.system).filter((q) => q.id === parsed.id).shift();
       if (targetSystemQuery !== undefined) {
@@ -302,23 +340,67 @@ function connectToServer() {
             // Apply inserts
             targetSystemQuery.result.values = targetSystemQuery.result.values.concat(parsed.insert);
             // Apply removes
-            // @TODO
+            parsed.remove.forEach((row) => {
+              removeRow(row,targetSystemQuery.result.values);
+            });
           }
           // Update the repl based on these new system queries
-          // @TODO This will one day soon be replaced by a storing repl state in the DB
-          if (parsed.id === repl.system.queries.id && parsed.insert !== undefined) {
+          if (repl.system.queries !== undefined && parsed.id === repl.system.queries.id && parsed.insert !== undefined) {
             parsed.insert.forEach((n) => {
-              /*let replCard = getCard(n[1], n[2]);
+              let replCard = getCard(n[1], n[2]);
               if (replCard === undefined) {
                 replCard = newReplCard(n[1], n[2]);
                 repl.deck.cards.push(replCard);
               }
+              replCard.id = n[0];
+              replCard.query.id = replCard.id;
               replCard.query.query = n[4];
-              submitReplCard(replCard);*/
+              if (replCard.state === CardState.NONE) {
+                submitReplCard(replCard);  
+              }              
             });
           }  
         } else {
           return;
+        }
+        // If we have an update to the user query, match it against the stored ID to validate
+        if (targetSystemQuery.id === repl.system.users.id && repl.user !== undefined && repl.user.name === undefined) {
+          // Check if the stored user is in the database
+          let dbUsers = repl.system.users.result.values;
+          let ix = dbUsers.map((u) => u[0]).indexOf(repl.user.id)
+          if (ix >= 0) {
+            // We found a user!
+            repl.user = {id: dbUsers[ix][0], name: dbUsers[ix][1], username: dbUsers[ix][2] };
+            repl.system.queries = newQuery(`(query [id row col display query]
+                                              (fact id :tag "repl-card"
+                                                       :tag "system"
+                                                       :user "${repl.user.id}" 
+                                                       :row row 
+                                                       :col col
+                                                       :display display 
+                                                       :query query))`);
+            sendQuery(repl.system.queries);              
+          }
+        // Decode a chat message and put it in the system
+        } else if (targetSystemQuery.id === repl.system.messages.id) {
+          let newMessages = parsed.insert.map((m) => {return {id: m[0], user: m[1], message: m[2], time: m[3]}; });
+          repl.chat.messages = repl.chat.messages.concat(newMessages);
+          if (repl.chat.visible === false) {
+            repl.chat.unread += newMessages.length;
+          }          
+        }
+        // Mark the repl as initialized if all the system queries have been populated
+        if (repl.init === false && objectToArray(repl.system).every((q: Query) => q.result !== undefined)) {
+          if (repl.system.users.result.values.length === 0) {
+            let addUsers = `(query []
+                              (insert-fact! "9f546210-20aa-460f-ab7b-55800bec82f0" :tag "repl-user" :tag "system" :name "Corey" :username "corey" :password "corey")
+                              (insert-fact! "3037e028-3395-4d8c-a0a7-0e92368c9ec3" :tag "repl-user" :tag "system" :name "Eric" :username "eric" :password "eric")
+                              (insert-fact! "62741d3b-b94a-4417-9794-1e6f86e262b6" :tag "repl-user" :tag "system" :name "Josh" :username "josh" :password "josh")
+                              (insert-fact! "d4a6dc56-4b13-41d5-be48-c656541cfac1" :tag "repl-user" :tag "system" :name "Chris" :username "chris" :password "chris"))`
+            sendAnonymousQuery(addUsers);
+          } else {
+            repl.init = true;
+          }
         }
       }
     }
@@ -372,13 +454,27 @@ function sendQuery(query: Query): boolean {
   return sendMessage(queryMessage);
 }
 
-function sendAnonymousQuery(query: string, foo): boolean {
+function sendClose(query: Query): boolean {
+  let closeMessage: CloseMessage = {
+    type: "close",
+    id: query.id,
+  }
+  return sendMessage(closeMessage);
+}
+
+function sendAnonymousQuery(query: string) {
+  let anonID = uuid();
   let queryMessage: QueryMessage = {
     type: "query",
-    id: `query-${foo.row}-${foo.col}`,
+    id: anonID,
     query: query,
   };
-  return sendMessage(queryMessage);  
+  let closeMessage: CloseMessage = {
+    type: "close",
+    id: anonID,
+  }
+  sendMessage(queryMessage);
+  sendMessage(closeMessage);
 }
 
 // ------------------
@@ -425,18 +521,33 @@ function getCard(row: number, col: number): ReplCard {
 
 function submitReplCard(card: ReplCard) {
   let query = card.query;
-  card.state = CardState.PENDING;
-  //card.query.result = undefined;
-  //card.query.message = ""; 
-  let sent = sendQuery(card.query);
+ 
+  // If it does exist, remove the previous repl-card row and close the old query
+  if (card.state !== CardState.NONE) {
+    // Delete a row from the repl-card table
+    let delQuery = `(query []
+                      (fact-btu "${card.id}" :tick t)
+                      (remove-by-t! t))`;
+    sendAnonymousQuery(delQuery);
+    // Close the old query
+    if (card.state === CardState.GOOD) {
+      sendClose(card.query);  
+    }
+  }
+  
+  // Insert a row in the repl-card table
   let rcQuery = `(query []
                    (insert-fact! "${card.id}" :tag "repl-card"
+                                              :tag "system"
                                               :row ${card.row} 
-                                              :col ${card.col} 
-                                              :query "${card.query.query.replace(/\"/g,'\\"')}"
+                                              :col ${card.col}
+                                              :user "${repl.user.id}"
+                                              :query "${card.query.query.replace(/"/g,'\\"')}"
                                               :display ${card.display}))`;
-  //console.log(rcQuery);
-  //sendAnonymousQuery(rcQuery, card);
+  sendAnonymousQuery(rcQuery);
+  // Send the actual query
+  let sent = sendQuery(card.query);
+  card.state = CardState.PENDING;
   if (card.query.result === undefined) {
     if (sent) {
       card.query.message = "Waiting for response...";
@@ -473,6 +584,22 @@ function blurCard(replCard: ReplCard) {
   }
 }
 
+function deleteCard(card: ReplCard) {
+  // Delete a row from the repl-card table
+  let delQuery = `(query []
+                    (fact-btu "${card.id}" :tick t)
+                    (remove-by-t! t))`;
+  sendAnonymousQuery(delQuery);
+  // find the index in the deck
+  let ix = repl.deck.cards.map((c) => c.id).indexOf(card.id);
+  // remove the card from the deck
+  repl.deck.cards.splice(ix,1);
+  // Renumber the cards
+  repl.deck.cards.filter((r) => r.col === card.col).forEach((c,i) => c.row = i);
+  // send a remove to the server
+  sendClose(card.query);
+}
+
 function focusCard(replCard: ReplCard) {
   if (replCard !== undefined) {
     if (repl.deck.focused.id !== replCard.id) {
@@ -491,9 +618,21 @@ function focusCard(replCard: ReplCard) {
       setTimeout(function() {
         cm = getCodeMirrorInstance(replCard);
         cm.focus();
-      }, 50);  
+      }, 100);  
     }
   }
+}
+
+function submitChatMessage(message: string) {
+  let d = new Date();
+  let t = d.getTime();
+  let messageInsert = `(query []
+                         (insert-fact! "${uuid()}" :tag "system"
+                                                   :tag "repl-chat"
+                                                   :message "${message}"
+                                                   :user "${repl.user.id}"
+                                                   :timestamp "${t}"))`;
+  sendAnonymousQuery(messageInsert);
 }
 
 // ------------------
@@ -546,6 +685,13 @@ window.onkeydown = function(event) {
   rerender();
 }
 
+window.onbeforeunload = function(event) {
+  // Close all open queries before we close the window
+  repl.deck.cards.filter((c) => c.state === CardState.GOOD).map((c) => sendClose(c.query));
+  // Close all system queries
+  objectToArray(repl.system).map(sendClose);
+}
+
 function queryInputKeydown(event, elem) {
   let thisReplCard: ReplCard = elemToReplCard(elem);
   // Submit the query with ctrl + enter or ctrl + s
@@ -553,13 +699,16 @@ function queryInputKeydown(event, elem) {
     submitReplCard(thisReplCard);
   // Catch ctrl + delete to remove a card
   } else if (event.keyCode === 46 && event.ctrlKey === true) {
-    //deleteReplCard(thisReplCard);
+    deleteCard(thisReplCard);
   // Catch ctrl + home  
   } else if (event.keyCode === 36 && event.ctrlKey === true) {
     //focusCard(replCards[0]);
   // Catch ctrl + end
   } else if (event.keyCode === 35 && event.ctrlKey === true) {
     //focusCard(replCards[replCards.length - 1]);
+  // Catch ctrl + b
+  } else if (event.keyCode === 66 && event.ctrlKey === true) {
+    thisReplCard.query.query = "(query [e a v]\n\t(fact-btu e a v))";
   // Catch ctrl + q
   } else if (event.keyCode === 81 && event.ctrlKey === true) {
     thisReplCard.query.query = "(query [] \n\t\n)";
@@ -599,6 +748,44 @@ function replCardClick(event, elem) {
   }
   rerender();
 }
+
+function inputKeydown(event, elem) {
+  // Capture enter
+  if (event.keyCode === 13) {
+    let inputs: any = document.querySelectorAll(".login input");
+    let username = inputs[0].value;
+    let password = inputs[1].value;
+    inputs[0].value = "";
+    inputs[1].value = "";
+    login(username, password); 
+  } else {
+    return;
+  }
+  event.preventDefault();
+}
+
+function loginSubmitClick(event, elem) {
+  let inputs: any = document.querySelectorAll(".login input");
+  let username = inputs[0].value;
+  let password = inputs[1].value;
+  login(username, password);
+}
+
+function login(username,password) {
+  let users = repl.system.users.result.values;
+  for (let user of users) {
+    if (username === user[2] && password === user[3]) {
+      repl.user = {id: user[0], name: user[1], username: user[2]};
+      // Put the user into local storage
+      localStorage.setItem('repl-user', user[0]);
+      break;
+    }  
+  }
+  if (repl.user !== undefined) {
+    rerender();    
+  }
+}
+
 /*
 function deleteAllCards(event, elem) {
   replCards.forEach(deleteReplCard);
@@ -648,6 +835,12 @@ function loadCardsClick(event, elem) {
   rerender();
 }*/
 
+function deleteCardClick(event, elem) {
+  let card = repl.deck.focused;
+  deleteCard(card);
+  rerender();
+}
+
 function addColumnClick(event, elem) {
   addColumn();
   rerender();
@@ -656,6 +849,23 @@ function addColumnClick(event, elem) {
 function addCardClick(event, elem) {
   addCardToColumn(repl.deck.focused.col);
   rerender();
+}
+
+function toggleChatClick(event, elem) {
+  if (repl.chat.visible) {
+    repl.chat.visible = false;
+  } else {
+    repl.chat.unread = 0;
+    repl.chat.visible = true;
+  }
+}
+
+function chatInputKeydown(event, elem) {
+  if (event.keyCode === 13) {
+    let message = event.target.value;
+    submitChatMessage(message);  
+    event.target.value = "";
+  }  
 }
 
 function queryInputChange(event, elem) {
@@ -691,17 +901,38 @@ function resultSwitchClick(event, elem) {
 }
 
 function entityListClick(event, elem) {
-  let Q = newQuery(`(query [attribute value] (fact-btu "${elem.text}" attribute value))`)
-  repl.modal = {c: "modal", left: event.pageX + 10, top: event.pageY, text: `${elem.text}`};
-  event.preventDefault();
+  // Filter out results for only the current entity 
+  let result: QueryResult = {
+    fields: ["Attribute", "Value"],
+    values: repl.system.entities.result.values.filter((e) => e[0] === elem.text).map((e) => [e[1], e[2]]),
+  };
+  // Generate the table
+  let table = generateResultTable(result);
+  repl.modal = {c: "modal", left: 110, top: event.y, children: [table]};
+  // Prevent click event from propagating to another layer
+  event.stopImmediatePropagation();
   rerender();
 }
 
-/*
-function rootClick(event, elem) {
-  closeModals();
+function tagsListClick(event, elem) {
+  // Filter out results for only the current entity 
+  let result: QueryResult = {
+    fields: ["Members"],
+    values: repl.system.tags.result.values.filter((e) => e[0] === elem.text).map((e) => [e[1]]),
+  };
+  // Generate the table
+  let table = generateResultTable(result);
+  repl.modal = {c: "modal", left: 110, top: event.target.offsetTop, children: [table]};
+  // Prevent click event from propagating to another layer
+  event.stopImmediatePropagation();
   rerender();
-}*/
+}
+
+function rootClick(event, elem) {
+  // Causes the open modal to close
+  repl.modal = undefined;
+  rerender();
+}
 
 // ------------------
 // Element generation
@@ -783,7 +1014,7 @@ function generateResultElement(card: ReplCard) {
   } else if (card.resultDisplay === ResultsDisplay.MESSAGE) {
     result = {text: card.query.message};  
   } else if (card.resultDisplay === ResultsDisplay.TABLE) {
-    result = generateResultsTable(card.query);  
+    result = generateResultTable(card.query.result);  
   }
   // Add the info switch if there is info to be had
   if (card.query.info !== undefined) {
@@ -806,14 +1037,14 @@ function generateResultElement(card: ReplCard) {
   return queryResult;
 }
 
-function generateResultsTable(query: Query) {
-  if (query.result.fields.length > 0) {
-    let tableHeader = {c: "header", children: query.result.fields.map((f: string) => {
+function generateResultTable(result: QueryResult) {
+  if (result.fields.length > 0) {
+    let tableHeader = {c: "header", children: result.fields.map((f: string) => {
       return {c: "cell", text: f};
     })};
-    let tableBody = query.result.values.map((r: Array<any>) => {
+    let tableBody = result.values.map((r: Array<any>) => {
       return {c: "row", children: r.map((c: any) => {
-        return {c: "cell", text: `${c}`};
+        return {c: "cell", text: `${`${c}`.replace(/\\t/g,'  ')}`};
       })};
     });
     let tableRows = [tableHeader].concat(tableBody);
@@ -850,28 +1081,62 @@ function generateStatusBarElement() {
   }
   
   // Build the proper elements of the status bar
-  let statusIndicator = {c: `indicator ${indicator} left`};
-  let eveLogo = {t: "img", c: "logo", src: "../images/logo_only.png", width: 39, height: 45};
-  let deleteButton = {c: "button", text: "Delete Cards"};
+  let eveLogo = {t: "img", c: "logo", src: "http://witheve.com/logo.png", width: 643/15, height: 1011/15};
+  let deleteButton = {c: "button", text: "Delete Card", click: deleteCardClick};
   let addColumn = {c: "button", text: "Add Column", click: addColumnClick};
   let addCard = {c: "button", text: "Add Card", click: addCardClick};
-  let buttonList = formListElement([deleteButton, addColumn, addCard]);
+  let unread = repl.chat.unread > 0 ? {c: "unread", text: `${repl.chat.unread}`} : {};
+  let toggleChat = {c: "button", children: [{c: "inline", text: "Chat"}, unread], click: toggleChatClick};
+  let buttonList = formListElement([deleteButton, addColumn, addCard, toggleChat]);
   
-  // Build the entities Table
-  let entities: Array<any> = repl.system.entities.result !== undefined ? repl.system.entities.result.values.map((e) => {
-    let entityID = e[0];    
-    return {c: "entity-link", text: entityID, click: entityListClick };
-  }) : []; 
-  let entitiesElement = {c: "entities", children: [formListElement(entities)]};
-  let entitiesTable = {c: "entities-table", children: [{t: "h2", text: "Entities"}, entitiesElement]};
+  // Build the entities table
+  let entities: Array<any> = repl.system.entities.result !== undefined ? unique(repl.system.entities.result.values.map((e) => e[0])).map((e) => {
+    return {c: "info-link", text: e, click: entityListClick };
+  }) : [];
+  let entitiesElement = {c: "info", children: [formListElement(entities)]};
+  let entitiesTable = {c: "info-table", children: [{t: "h2", text: "Entities"}, entitiesElement]};
+  
+  // Build the tags table
+  let tags: Array<any> = repl.system.tags.result !== undefined ? unique(repl.system.tags.result.values.map((e) => e[0])).map((e) => {
+    return {c: "info-link", text: e, click: tagsListClick };
+  }) : [];
+  let tagsElement = {c: "info", children: [formListElement(tags)]};
+  let tagsTable = {c: "info-table", children: [{t: "h2", text: "Tags"}, tagsElement]};
   
   // Build the status bar    
   let statusBar = {
     id: "status-bar",
     c: "status-bar",
-    children: [eveLogo, buttonList, statusIndicator, entitiesTable],
-  }
+    children: [eveLogo, buttonList, entitiesTable, tagsTable],
+  };
   return statusBar;
+}
+
+function generateChatElement() {
+  let chat = {};
+  if (repl.chat.visible) {
+    let messageElements = repl.chat.messages.map((m) => {
+      let userIx = repl.system.users.result.values.map((u) => u[0]).indexOf(m.user);
+      let userName = repl.system.users.result.values[userIx][1];
+      let d = new Date(0);
+      d.setUTCMilliseconds(m.time);
+      
+      let hrs = d.getHours() > 12 ? d.getHours() - 12 : d.getHours();
+      let mins = d.getMinutes() < 10 ? `0${d.getMinutes()}` : d.getMinutes();
+      let ampm = d.getHours() < 12 ? "AM" : "PM";
+      let time = `${hrs}:${mins} ${ampm}`
+      return {c: "chat-message-box", children: [
+               {c: `chat-user ${m.user === repl.user.id ? "me" : ""}`, text: `${userName}`},
+               {c: "chat-time", text: `${time}`},
+               {c: "chat-message", text: `${m.message}`},
+             ]};  
+    });
+    let conversation = {c: "conversation", children: messageElements}; 
+    let submitChat = {c: "button", text: "Submit"};
+    let chatInput = {t: "input", c: "chat-input", keydown: chatInputKeydown};
+    chat = {c: "chat-bar", children: [conversation, chatInput]};
+  }
+  return chat;
 }
 
 // -----------------
@@ -889,12 +1154,31 @@ let replCards: Deck = {
 // Instantiate a repl instance
 let repl: Repl = {
   init: false,
+  user: undefined,
   system: {
-    entities: newQuery(`(query [entities] (fact-btu entities))`), // get all entities in the database
-    tags: newQuery(`(query [tags], (fact-btu e "tag" tags))`),    // get all tags in the database
-    queries: newQuery(`(query [id row col display query]
-                         (fact id :tag "repl-card" :row row :col col :display display :query query))` // Get all the open queries
-    ),
+    entities: newQuery(`(query [entities attributes values]
+                          (fact-btu entities attributes values)
+                            (not
+                              (fact entities :tag "system")))`),  // get all entities that are not system entities
+    tags: newQuery(`(query [tag entity], 
+                      (fact entity :tag tag)
+                        (not
+                          (fact entity :tag "system")))`),        // get all tags that are not system tags
+    users: newQuery(`(query [id name username password] 
+                       (fact id :tag "repl-user" 
+                                :name name 
+                                :username username 
+                                :password password))`),           // get all users
+    messages: newQuery(`(query [id user message time]
+                          (fact id :tag "repl-chat" 
+                                   :message message 
+                                   :user user 
+                                   :timestamp time))`),           // get the chat history
+  },
+  chat: {
+    visible: false,
+    unread: 0,
+    messages: [],
   },
   decks: [replCards],
   deck: replCards,
@@ -912,11 +1196,34 @@ connectToServer();
 app.renderRoots["repl"] = root;
 
 function root() {
+  
+  let replChildren;
+  let eveLogo = {t: "img", c: "logo", src: "http://witheve.com/logo.png", width: 643/5, height: 1011/5};
+  // If the system is ready and there is a user, load the repl 
+  if (repl.init === true && repl.user !== undefined && repl.user.name !== undefined) {
+    replChildren = [generateStatusBarElement(), generateChatElement(), generateCardRootElements(), repl.modal !== undefined ? repl.modal : {}];
+  // If the system is ready but there is no user, show a login page
+  } else if (repl.init === true && repl.user === undefined) {
+    let username = {t: "input", id: "repl-username-input", placeholder: "Username", keydown: inputKeydown};
+    let password = {t: "input", id: "repl-password-input", type: "password", placeholder: "Password", keydown: inputKeydown};
+    let submit = {c: "button", text: "Submit", click: loginSubmitClick};
+    let login = {c: "login", children: [eveLogo, username, password, submit]}
+    replChildren = [login];
+  // If the system is disconnected, show a reconnect page
+  } else if (repl.server.state === ConnectionState.DISCONNECTED) {
+    replChildren = [{c: "login", children: [eveLogo, 
+                                            {text: "Disconnected from Eve server."},
+                                            {c: "button", text: "Reconnect", click: connectToServer}]}];
+  // If the system is not ready, display a loading page
+  } else {
+    replChildren = [{c: "login", children: [eveLogo, {text: "Loading Eve Database..."}]}];
+  }
+  //replChildren = [generateStatusBarElement(), generateChatElement(), generateCardRootElements(), repl.modal !== undefined ? repl.modal : {}];
   let root = {
     id: "repl",
     c: "repl",
-    //click: function() {console.log("fasfdsa")},
-    children: [generateStatusBarElement(), generateCardRootElements(), repl.modal !== undefined ? repl.modal : {}],
+    click: rootClick,
+    children: replChildren,
   };  
   return root;
 }
@@ -924,6 +1231,36 @@ function root() {
 // -----------------
 // Utility Functions
 // -----------------
+
+function removeRow(row: Array<any>, array: Array<Array<any>>) {
+  let ix;
+  for (let i = 0; i < array.length; i++) {
+    let value = array[i];
+    if (arraysEqual(row,value)) {
+      ix = i;
+      break;
+    }  
+  }
+  // If we found the row, remove it from the values
+  if (ix !== undefined) {
+    array.splice(ix,1);
+  }
+}
+
+function arraysEqual(a, b) {
+  if (a === b) return true;
+  if (a == null || b == null) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; ++i) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+function unique(array: Array<any>): Array<any> {
+  array = array.filter((e,i) => array.indexOf(e) === i);
+  return array;
+}
 
 function formListElement(list: Array<any>) {
   let li = list.map((e) => {return {t: "li", children: [e]};});
@@ -950,36 +1287,7 @@ function getReplCard(row: number, col: number): ReplCard {
   return repl.deck.cards.filter((r) => r.row === row && r.col === col).pop();
 }
 
-function rerender(removeCards?: boolean) {
-  /*
-  if (removeCards === undefined) {
-    removeCards = false;
-  }
-  // Batch delete closed cards on rerender
-  if (removeCards === true) {
-    let closedCards = replCards.filter((r) => r.state === CardState.CLOSED);
-    if (repl.timer !== undefined) {
-      clearTimeout(repl.timer);
-    }
-    let focusedCard = replCards.filter((r) => r.focused).shift();
-    let focusIx = 0;
-    if (focusedCard !== undefined) {
-      focusIx = focusedCard.ix;
-    }
-    focusedCard = replCards[focusIx + 1 > replCards.length - 1 ? replCards.length - 1 : focusIx + 1];
-    focusCard(focusedCard);
-    repl.timer = setTimeout(() => {
-      for (let card of closedCards) {
-        deleteStoredReplCard(card);
-        replCards.splice(replCards.map((r) => r.id).indexOf(card.id),1);
-      }
-      if (closedCards !== undefined) {
-        replCards.forEach((r,i) => r.ix = i);    
-      }
-      rerender(false);
-    }, 250);
-  }*/
-  //console.log(repl);
+function rerender() {
   app.dispatch("rerender", {}).commit();
 }
 

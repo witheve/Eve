@@ -11,7 +11,8 @@
   (doall (apply concat a)))
 
 (defn compile-error [message data]
-  (throw (ex-info message (assoc data :type "compile"))))
+  (let [d2 (dissoc (:env data) 'db)]
+    (throw (ex-info message (assoc d2 :type "compile")))))
 
 (defn get-signature
   "Gets a readable identifier for the given adornment of a relation"
@@ -31,22 +32,21 @@
   "Resolves variables to registers and returns constants in the emit stage"
   [env name]
   (if (or (symbol? name) (keyword? name))
-    (or
-     (get-in @env ['bound name] nil)
-     (when (= '* name) '*))
+    (if (= name '*) '*
+        (get-in @env ['bound name] nil))
     name))
 
 (defn is-bound? [env name]
   "Returns true if name is bound in the current env"
   (if (or (symbol? name) (keyword? name))
-    (if (or (get-in @env ['bound name] nil) (= name '*))
+    (if (or (not (nil? (get-in @env ['bound name] nil))) (= name '*))
       true
       false)
-    name))
+    true))
 
+(def dep 'dependencies)
 (defn add-dependencies [env & names]
-  (swap! env
-         #(merge-with merge-state %1 {'dependencies (set (filter symbol? names))})))
+  (swap! env assoc dep (set/union (@env 'dependencies) (set (filter symbol? names)))))
 
 (defn bind-names
   "Merges a map of [name register] pairs into the 'bound map of env"
@@ -122,7 +122,7 @@
   "Generates a send which saves the current register so it can be restored via continuation"
   [env m target arguments]
   (apply add-dependencies env arguments)
-  (when (some nil? (map #(lookup env %1) arguments))
+  (when (some not (map #(is-bound? env %1) arguments))
     (compile-error "Cannot send unbound/nil argument" {:env @env :target target :arguments arguments :bound (get @env 'bound nil)}))
   (concat
    (apply term env 'tuple m exec/temp-register exec/op-register exec/qid-register '* nil (map #(lookup env %1) arguments))
@@ -134,7 +134,7 @@
   (let [taxi-slots (map (fn [i] [(exec/taxi-register 0) i]) (drop exec/initial-register (range (get @env 'register exec/initial-register))))
         input (map #(lookup inner-env %1) arguments)
         scope (concat taxi-slots input)]
-    (when (some nil? input)
+    (when (some not (map #(is-bound? inner-env %) arguments))
       (compile-error "Cannot send unbound/nil argument" {:env @env :target target :arguments arguments :bound (get @env 'bound nil)}))
     (concat
      (apply term env 'tuple m exec/temp-register exec/op-register exec/qid-register [(exec/taxi-register 0) (exec/taxi-register 0)] nil scope)
@@ -143,10 +143,10 @@
 (defn generate-binary-filter [env terms down]
   (let [argmap (apply hash-map (rest terms))
         m (meta terms)]
-    (apply add-dependencies env terms)
+    (apply add-dependencies env (vals argmap))
     (let [r  (build
-             (term env (first terms) m exec/temp-register (argmap :a) ( argmap :b))
-             (term env 'filter m exec/temp-register)
+              (term env (first terms) m exec/temp-register (argmap :a) ( argmap :b))
+              (term env 'filter m exec/temp-register)
              (down))]
       r)))
 
@@ -253,10 +253,12 @@
                       (map-indexed
                        #(let [m (meta (first terms))
                               cenv (atom @inner-env)
-                              body (list (with-meta (list 'not (compile-conjunction
-                                                                cenv (rest (rest %2))
-                                                                (fn [] (generate-send-cont env m cenv tail-name output)))) m))]
-                          body)
+                              inner (compile-conjunction
+                                     cenv (rest (rest %2))
+                                     (fn [] (generate-send-cont env m cenv tail-name output)))
+                              projection (set/intersection (get @cenv 'dependencies) (set (keys (get @env 'bound))))
+                              mp (map (get @inner-env 'bound) projection)]
+                          (list (with-meta (list 'not mp inner) m)))
                        arms)))
 
     (doseq [name output]
@@ -312,8 +314,7 @@
           m (meta (first terms))
           simple (into [(argmap :return)] (map argmap params))
           ins (map #(lookup env %1) simple)]
-      (apply add-dependencies env (rest (rest terms)))
-      (println "COMPILE PRIMITIVE" params "||" simple "||" ins)
+      (apply add-dependencies env (vals argmap))
       (if-not (some nil? (rest ins))
         ;; handle the [b*] case by blowing out a temp
         (do
@@ -327,8 +328,7 @@
     (let [argmap (apply hash-map (rest terms))
           m (meta (first terms))
           ins (into [(lookup @env (:return argmap))] (map #(lookup @env %1) (:a argmap)))]
-      ;; @FIXME: What should this guy feed to add-dependencies?
-      ;;(apply add-dependencies env (rest (rest terms)))
+      (apply add-dependencies env (rest (rest terms)))
       (if-not (some nil? (second ins))
         ;; handle the [b*] case by blowing out a temp
         (do
@@ -371,24 +371,30 @@
      (down))))
 
 (defn compile-equal [env terms down]
-
   (let [argmap (apply hash-map (rest terms))
         simple [(argmap :a) (argmap :b)]
         a (is-bound? env (argmap :a))
         b (is-bound? env (argmap :b))
         rebind (fn [s d]
-                 (bind-names env {d s})
+                 (add-dependencies env s)
+                 (bind-names env {d (lookup env s)})
                  (down))]
     (cond (and a b) (generate-binary-filter env terms down)
-          a (rebind a (argmap :b))
-          b (rebind b (argmap :a))
+          a (rebind (argmap :a) (argmap :b))
+          b (rebind (argmap :b) (argmap :a))
           :else
           (compile-error "reordering necessary, not implemented" {:env env :terms terms}))))
 
 (defn compile-not [env terms down]
-  (let [child-env (env-from env [])]
+  (let [child-env (atom {'name (gensym "not")
+                         'db (get @env 'db)
+                         'dependencies #{}
+                         'bound (get @env 'bound)})
+        inner-body (compile-conjunction child-env (rest terms) (fn [] ()))
+        projection (set/intersection (get @child-env 'dependencies) (set (keys (get @env 'bound))))
+        mp (map (get @env 'bound) projection)]
     (build
-     (list (with-meta (list 'not (compile-conjunction child-env (rest terms) (fn [] ()))) (meta (first terms))))
+     (list (with-meta (list 'not mp inner-body) (meta (first terms))))
      (down))))
 
 (defn compile-insert [env terms down]
