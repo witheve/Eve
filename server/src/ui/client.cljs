@@ -183,6 +183,9 @@
 (defn get-results [id]
   (.find eve id))
 
+(defn get-last-diff [id]
+  (.-lastDiff (.table eve id)))
+
 (defn get-fact-by-id [id]
   (aget facts-by-id id))
 

@@ -8,12 +8,15 @@
 (defonce renderer (renderer/make-renderer container))
 
 (defn foo []
-  (let [ui-facts (client/get-results "ui")
-        inserts (map (fn [fact] [(aget fact "e") (aget fact "a") (aget fact "v")]) ui-facts)]
-    (println "OHAI" inserts)
+  (let [positionalize (fn [fact] [(aget fact "e") (aget fact "a") (aget fact "v")])
+        last-diff (client/get-last-diff "ui")
+        inserts (map positionalize (aget last-diff "adds"))
+        removes (map positionalize (aget last-diff "removes"))]
+    (println "LAST DIFF ADDS:" inserts)
+    (println "LAST DIFF REMOVES:" removes)
     ;; @TODO: get removes by  remembering previous facts.
     (renderer/render renderer {:inserts inserts
-                               :removes []})
+                               :removes removes})
     nil))
 
 (client/add-renderer "test-renderer" foo)
