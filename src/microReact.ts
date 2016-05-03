@@ -110,6 +110,9 @@ export interface Element {
   change?:Handler<Event>
   keyup?:Handler<KeyboardEvent>
   keydown?:Handler<KeyboardEvent>
+  cut?:Handler<KeyboardEvent>
+  copy?:Handler<KeyboardEvent>
+  paste?:Handler<KeyboardEvent>
 
   postRender?:RenderHandler
 
@@ -408,6 +411,9 @@ export class Renderer {
       if(cur.change !== prev.change) div.onchange = cur.change !== undefined ? this.handleEvent : undefined;
       if(cur.keyup !== prev.keyup) div.onkeyup = cur.keyup !== undefined ? this.handleEvent : undefined;
       if(cur.keydown !== prev.keydown) div.onkeydown = cur.keydown !== undefined ? this.handleEvent : undefined;
+      if(cur.cut !== prev.cut) div.oncut = cur.cut !== undefined ? this.handleEvent : undefined;
+      if(cur.copy !== prev.copy) div.oncopy = cur.copy !== undefined ? this.handleEvent : undefined;
+      if(cur.paste !== prev.paste) div.onpaste = cur.paste !== undefined ? this.handleEvent : undefined;
 
       if(type === "added" || type === "replaced" || type === "moved") {
         var parentEl = elementCache[cur.parent];
