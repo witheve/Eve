@@ -184,7 +184,7 @@
   (.find eve id))
 
 (defn get-last-diff [id]
-  (.-lastDiff (.table eve id)))
+  (or (.-lastDiff (.table eve id)) #js {"adds" #js [] "removes" #js []}))
 
 (defn get-fact-by-id [id]
   (aget facts-by-id id))
