@@ -346,7 +346,7 @@
            (fn [ui-group]
              `(~'define! ~'ui ~['e 'a 'v]
                (~(:id args) ~@(map keyword (:join ui-group)))
-               (~'union [~'e ~'a ~'v]
+               (~'union ~(into ['e 'a 'v] projection)
                ~@(map (fn [[elem attribute value]]
                         `(~'query
                           (~'= ~'e ~elem)

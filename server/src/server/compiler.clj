@@ -220,13 +220,12 @@
 (defn compile-union [env terms down]
   (let [[_ proj & arms] terms
         m (meta (first terms))
-        [_ output] (partition-2 (fn [x] (is-bound? env x)) proj)
-        input (keys (get @env 'bound))
+        [input output] (partition-2 (fn [x] (is-bound? env x)) proj)
         name (get-signature (gensym "union") input output)
         tail-name (str name "-cont")
         body (apply build
                     (map-indexed
-                     #(let [inner-env (env-from env (concat input output))
+                     #(let [inner-env (env-from env proj)
                             arm-name (str name "-arm" %1)
                             m (meta (first terms))
                             _ (swap! inner-env assoc 'name arm-name)
