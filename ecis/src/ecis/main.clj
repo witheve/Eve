@@ -166,7 +166,7 @@
 
 (defn run-single-test [child directory name facts]
   (let [completion (fn [x] (swap! facts assoc name x))
-        body (slurp (str directory "/" name))
+        body (slurp (str directory "/server/tests" name))
         _ (eve-synchronous-query child body)
         r (eve-synchronous-query child (check-query test))]
     (println "test results" name r)))
@@ -189,8 +189,9 @@
       (reset! s (connect-to-eve "localhost:8083" 0 0 (fn [] (println "child failure")))))
     
     (if @s
-      (let [d (clojure.java.io/file (str path "/tests"))]
+      (let [d (clojure.java.io/file (str path "/server/tests"))]
         (doseq [i (file-seq d)]
+          (println "test" i)
           (run-single-test @s path i results)))
       (swap! assoc results :status "failure"))
 
