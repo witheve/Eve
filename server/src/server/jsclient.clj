@@ -99,7 +99,7 @@
                     'remove (swap! results conj (vec (take store-width tuple)))
                     'flush (when (or (= @flush-count 0) (> (count @results) 0))
                              (reset! flush-count 1)
-                             (send-resuolt channel id fields @results)            
+                             (send-result channel id fields @results)            
                              (reset! results '()))
                     'close (println "@FIXME: Send close message")
                     'error (send-error channel id (ex-info "Failure to WEASL" {:data (str tuple)}))))
