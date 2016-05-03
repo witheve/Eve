@@ -94,9 +94,9 @@
                     nil ;; (into-array String [])
                     (File. path))
         out (new BufferedReader (new InputStreamReader (.getInputStream proc)))]
-        
-    (.start (Thread. (fn [] (trampoline (fn self [] (println (.readLine out)) self)))))
-                       
+    
+    (.start (Thread. (fn [] (trampoline (fn self [] (let [x (.readLine out)] (when x (println x) self)))))))
+    
     [(new BufferedWriter (new OutputStreamWriter (.getOutputStream proc))) (future (.waitFor proc))]))
 
 
@@ -133,6 +133,7 @@
         database (atom ())
         results (atom 0)
         cleanup (fn []
+                  (println "cleanin up...seems like a loop here")
                   ;; may have to catch errors on a dead child
                   (.write (p 0) "(exit)\n")
                   (.flush (p 0))
@@ -160,7 +161,7 @@
                          ;; assuming there is only one flush
                          (cleanup))))]
 
-    (reset! database (connect-to-eve "localhost:8083" 0 0 (fn [] ())))
+    (reset! database (connect-to-eve "localhost:8081" 0 0 (fn [] ())))
 
     (Thread/sleep 6000)
     (reset! s (connect-to-eve "localhost:8083" 0 0 cleanup))
