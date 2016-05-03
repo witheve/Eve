@@ -183,7 +183,7 @@
         a (first parsed)
         _ (pprint a)
         pr (a "pull_request")]
-    (when (= (get-in pr ["state"]) "open")
+    (when (and pr (= (get-in pr ["state"]) "open"))
       ;; [pull-request mergable] false
       (run-test (get-in a ["repository" "git_url"])
                 (get-in pr ["head" "ref"])
