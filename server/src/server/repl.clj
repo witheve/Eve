@@ -29,7 +29,7 @@
                 'flush  (println "FLUSH " channel (exec/print-registers tuple))
                 'close  (println "CLOSE " channel (exec/print-registers tuple) (float (/ (- (System/nanoTime) tick) 1000000000)))
                 'error  (println "ERROR " channel (exec/print-registers tuple)))))
-
+;;n 
 (defn execco [d expression trace-on channel]
   (let [[form keys] (form-from-smil (smil/unpack d expression))
         _ (when trace-on
@@ -38,7 +38,6 @@
             (println " --- Program / Trace ---"))
         prog (compiler/compile-dsl d form)
         start (System/nanoTime)
-        _ (pprint prog)
         ec (exec/open d prog (print-result keys channel start)
                       (if trace-on
                         (fn [n m x] (fn [r] (println "trace" n m) (println (exec/print-registers r)) (x r)))
@@ -57,7 +56,6 @@
 
 
 (defn timeo [d expression trace-on]
-  (println "open" expression)
   (let [[form keys] (form-from-smil (smil/unpack d (nth expression 1)))
         counts []
         prog (compiler/compile-dsl d form)
