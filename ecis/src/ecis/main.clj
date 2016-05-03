@@ -5,6 +5,7 @@
    [org.httpkit.server :as httpserver]
    [clj-jgit.porcelain :as porcelain]  
    [clj-json.core :as json]
+   [clojure.pprint :refer [pprint]]
    [gniazdo.core :as ws])
   (:import [java.io File BufferedWriter OutputStreamWriter BufferedReader InputStreamReader Reader]
            [org.apache.log4j BasicConfigurator Level Logger PropertyConfigurator]))
@@ -180,6 +181,7 @@
 (defn input-handler [request]
   (let [parsed (json/parsed-seq (clojure.java.io/reader (:body request) :encoding "UTF-8"))
         a (first parsed)
+        _ (pprint a)
         pr (a "pull_request")]
     (when (= (get-in pr ["state"]) "open")
       ;; [pull-request mergable] false
