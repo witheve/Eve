@@ -169,7 +169,9 @@
   (let [completion (fn [x] (swap! facts assoc name x))
         body (slurp (str directory "/server/tests/" name))
         forms (read-string (str \( body "\n" \)))
-        _ (doseq [i forms] (eve-synchronous-query child i))
+        _ (doseq [i forms] 
+            (println "formi" i)
+            (eve-synchronous-query child i))
         r (eve-synchronous-query child (check-query test))] 
     (println "test results" name r)))
 
