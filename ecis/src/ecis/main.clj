@@ -134,9 +134,10 @@
         results (atom 0)
         cleanup (fn []
                   (println "cleanin up...seems like a loop here")
-                  ;; may have to catch errors on a dead child
-                  (.write (p 0) "(exit)\n")
-                  (.flush (p 0))
+                  (try 
+                   (.write (p 0) "(exit)\n")
+                   (.flush (p 0))
+                   (catch Exception e nil))
                   (disconnect-from-eve @database)
                   (println "test lein exit" @(p 1))
                   (delete-recursively path))
