@@ -8,19 +8,28 @@
 (defonce renderer (renderer/make-renderer container))
 
 (defn foo []
-  (renderer/render renderer {:inserts ['("foo" "tag" "div")
-                                       '("foo" "class" "header")
-                                       '("foo" "text" "RATS")
-                                       '("foo" "parent" "root")
-                                       '("bar" "ix" 1)
-                                       '("bar" "parent" "quux")
-                                       '("baz" "parent" "bar")
-                                       '("baz" "text" "NOT THE BEES")
-                                       '("quux" "tag" "div")
-                                       '("quux" "ix" 1)
-                                       '("quux" "parent" "root")]
-                             :removes []})
-  nil)
+  (let [ui-facts (client/get-results "ui")
+        inserts (map (fn [fact] [(aget fact "e") (aget fact "a") (aget fact "v")]) ui-facts)]
+    (println "OHAI" inserts)
+    ;; @TODO: get removes by  remembering previous facts.
+    (renderer/render renderer {:inserts inserts
+                               :removes []})
+    nil))
 
 (client/add-renderer "test-renderer" foo)
 (client/init)
+
+(client/on-open
+ (fn []
+   ;; (client/send-query "people-tiles"
+   ;;                    (client/query-string `(define-ui people-tiles
+   ;;                                            (fact person :tag "person" :name :role)
+   ;;                                            (ui [name role]
+   ;;                                                (div :id container :class "people-tile")
+   ;;                                                (h3 :parent container :text name)
+   ;;                                                (div :parent container :text role)))))
+
+
+   (client/send-query "ui"
+                      (client/query-string `(query [e a v]
+                                                   (ui :e :a :v))))))
