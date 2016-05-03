@@ -888,6 +888,13 @@ function queryInputClick(event, elem) {
   if (event.button === 1) {
     let card = elemToReplCard(elem);
     card.display = card.display === CardDisplay.BOTH ? CardDisplay.QUERY : CardDisplay.BOTH;
+    // If we can't see the query results, close the query
+    if (card.display === CardDisplay.QUERY) {
+      sendClose(card.query);
+    // If we can see the query results, open the query
+    } else {
+      // @TODO
+    }
     event.preventDefault(); 
     rerender();  
   }
