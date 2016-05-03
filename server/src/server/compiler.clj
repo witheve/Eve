@@ -317,7 +317,6 @@
                   (lookup env %1))
                simple)]
       (apply add-dependencies env (rest (rest terms)))
-      (println "COMPILE PRIMITIVE" params "||" simple "||" ins)
       (if-not (some nil? (rest ins))
         ;; handle the [b*] case by blowing out a temp
         (do
