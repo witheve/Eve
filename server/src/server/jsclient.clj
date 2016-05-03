@@ -95,7 +95,6 @@
         store-width (+ (count fields) 2)
         prog (compiler/compile-dsl db form)
         handler (fn [tuple]
-                (println "not a guy" (map str tuple) (count @results))
                 (condp = (exec/rget tuple exec/op-register)
                          'insert (swap! results conj (vec (take store-width tuple)))
                          'remove (swap! results conj (vec (take store-width tuple)))
