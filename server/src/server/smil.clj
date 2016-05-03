@@ -60,6 +60,7 @@
               'fact nil
               'define! nil ; Special due to multiple aliases
               'query nil ; Special due to optional parameterization
+              'define-ui nil
 
               ;; Macros
               'remove-by-t! {:args [:tick]}
@@ -68,12 +69,12 @@
               ;; native forms
               'insert-fact-btu! {:args [:entity :attribute :value :bag] :kwargs [:tick] :optional #{:bag :tick}} ; bag can be inferred in SMIR
               'sort {:rest :sorting :optional #{:return} :validate validate-sort}
-              'union {:args [:params] :rest :members}
-              'choose {:args [:params] :rest :members}
-              'not {:rest :body}
+              'union {:args [:params] :rest :members :body true}
+              'choose {:args [:params] :rest :members :body true}
+              'not {:rest :body :body true}
               'fact-btu {:args [:entity :attribute :value :bag] :kwargs [:tick] :optional #{:entity :attribute :value :bag :tick}}
               'full-fact-btu {:args [:entity :attribute :value :bag] :kwargs [:tick] :optional #{:entity :attribute :value :bag :tick}}
-              'context {:kwargs [:bag :tick] :rest :body :optional #{:bag :tick :body}}})
+              'context {:kwargs [:bag :tick] :rest :body :optional #{:bag :tick :body} :body true}})
 
 ;; These are only needed for testing -- they'll be provided dynamically by the db at runtime
 (def primitives {'= {:args [:a :b]}
@@ -89,7 +90,7 @@
                  '< {:args [:a :b] :kwargs [:return] :optional #{:return}}
                  '<= {:args [:a :b] :kwargs [:return] :optional #{:return}}
 
-                 'str {:rest :args}
+                 'str {:rest :a :kwargs [:return] :optional #{:return}}
                  'hash {:args [:a]}
 
                  'sum {:args [:a] :kwargs [:return] :optional #{:return}}})
@@ -97,14 +98,13 @@
 (defn get-schema
   ([op] (or (get schemas op nil) (get primitives op nil)))
   ([db op]
-   (let [schema (get-schema op)
-         implication (when-not schema
-                       (when db (db/implication-of db (name op))))]
-     (if schema
-       schema
-       (when implication
-         (let [args (map keyword (first implication))]
-           {:args (vec args) :optional (set args)}))))))
+   (if (or (contains? schemas op) (contains? primitives op))
+     (get-schema op)
+     (or
+      (when-let [implication (and db (db/implication-of db (name op)))]
+        (let [args (map keyword (first implication))]
+          {:args (vec args) :optional (set args)}))
+      {})))) ;; @FIXME: Hack to allow unknown implications to be used if pre-expanded for multi-form expansions.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Parse sexprs into argument hashmaps
@@ -218,8 +218,54 @@
                                    nil))]
     state))
 
+(defn ui-id-alias? [[elem attr value]]
+  (and (= attr "id") (symbol? value)))
+
+(defn parse-ui [sexpr root-id]
+  (as-> {:group-id (gensym root-id) :grouping (second sexpr) :elems (vec (drop 2 sexpr))} args
+    (assoc-in args [:ids]
+              (reduce-kv #(assoc %1 %3 (symbol (str (:group-id args) "_" %2))) {} (:elems args)))
+
+    (assoc-in args [:attributes]
+              (map (fn [elem]
+                     (let [id (get (:ids args) elem)]
+                       [id "tag" (name (first elem))]))
+                   (:elems args)))
+
+    (update-in args [:attributes] concat
+              (apply concat
+                     (map
+                      (fn [elem]
+                        (let [id (get (:ids args) elem)]
+                          (map (fn [attr]
+                                 [id (name (first attr)) (second attr)])
+                               (parse-schema {} elem))))
+                      (:elems args))))
+
+    (assoc-in args [:aliases]
+              (reduce
+               (fn [memo [elem attr val]]
+                 (assoc memo val elem))
+               {}
+               (filter ui-id-alias? (:attributes args))))
+
+    (update-in args [:attributes] #(filter (complement ui-id-alias?) %1))
+
+    (assoc-in args [:join] (concat (:grouping args) (vals (:ids args)) (keys (:aliases args))))))
+
+(defn parse-define-ui [sexpr]
+  (as-> {:id (nth sexpr 1) :projection [] :query [] :ui []} args
+    ;; Split exprs into :ui (ui ...) and :query <everything else>
+    (reduce
+     (fn [args expr]
+       (if (= 'ui (first expr))
+         (update-in args [:ui] conj (parse-ui expr (:id args)))
+         (update-in args [:query] conj expr)))
+     args
+     (drop 2 sexpr))))
+
 (defn parse-args
-  ([sexpr] (parse-args [nil sexpr]))
+  ([sexpr] (parse-args nil sexpr))
   ([db sexpr]
    (let [op (first sexpr)
          body (rest sexpr)
@@ -231,6 +277,7 @@
          (= op 'query) (parse-query sexpr)
          (= op 'fact) (parse-fact sexpr)
          (= op 'insert-fact!) (parse-fact sexpr)
+         (= op 'define-ui) (parse-define-ui sexpr)
          :else (throw (syntax-error (str "Unknown operator " op) sexpr)))
        {:expr sexpr :schema schema}))))
 
@@ -242,9 +289,9 @@
         params (if (:rest schema) (conj params (:rest schema)) params)
         param? (set params)
         required (if optional? (into [] (filter #(not (optional? %1)) params)) params)]
-    (when schema
+    (when (and schema (not= schema {}))
       (or (when param? (some #(when-not (param? %1)
-                                (syntax-error (str "Invalid keyword argument " %1 " for " (first expr)) expr))
+                                (syntax-error (str "Invalid keyword argument " %1 " for " (first expr)) (merge expr {:schema schema})))
                              (keys args)))
           (some #(when-not (supplied? %1)
                    (syntax-error (str "Missing required argument " %1 " for " (first expr)) expr))
@@ -267,6 +314,48 @@
   (reduce-kv (fn [memo k v]
                (assoc memo k (if (vector? v) (expand-each db v) (expand db v)))) {} args))
 
+(defn generate-ui [db args]
+  (let [projection (vec (distinct (apply concat (map :join (:ui args)))))
+        generated (reduce
+                   (fn [memo ui-group]
+                     (reduce (fn [memo id]
+                               (let [grouping (:grouping ui-group)
+                                     row-id (interpose "__" (cons (name id) grouping))]
+                                 (assoc memo id `(~'str ~@row-id))))
+                             memo
+                             (vals (:ids ui-group))))
+                   {}
+                   (:ui args))
+        generated (reduce
+                   (fn [memo ui-group]
+                     (reduce
+                      (fn [memo [var val]]
+                        (assoc memo var val))
+                      memo
+                      (:aliases ui-group)))
+                   generated
+                   (:ui args))
+        query (concat (:query args)
+                      (map
+                       (fn [[var val]]
+                         `(~'= ~var ~val))
+                       generated))]
+    (vec (concat [`(~'define! ~(:id args) ~projection
+             ~@(expand-each db query))]
+          (map
+           (fn [ui-group]
+             `(~'define! ~'ui ~['e 'a 'v]
+               (~(:id args) ~@(map keyword (:join ui-group)))
+               (~'union ~(into ['e 'a 'v] projection)
+               ~@(map (fn [[elem attribute value]]
+                        `(~'query
+                          (~'= ~'e ~elem)
+                          (~'= ~'a ~attribute)
+                          (~'= ~'v ~value)))
+                      (:attributes ui-group)))))
+           (:ui args))
+          ))))
+;; @FIXME: Returning multiple forms from a single expand doesn't bloody work.
 (defn expand [db expr]
   (cond
     (seq? expr)
@@ -282,6 +371,7 @@
                      fact (expand-each db (map #(cons (with-meta 'fact-btu (meta op)) %1) (:facts args)))
                      insert-fact! (expand-each db (map #(cons (with-meta 'insert-fact-btu! (meta op)) %1) (:facts args)))
                      sort (cons op (splat-map args))
+                     define-ui (expand-each db (generate-ui db args))
 
                      ;; Macros
                      remove-by-t! (expand db (list (with-meta 'insert-fact-btu! (meta op)) (:tick args) REMOVE_FACT nil))
@@ -296,7 +386,6 @@
                      choose (concat [op] [(:params args)] (assert-queries (expand-each db (:members args))))
                      not (cons op (expand-each db (:body args)))
                      context (cons op (splat-map (expand-values db args)))
-                     str (cons op (list :a (expand-each db (:args args))))
 
                      ;; Default
                      (cons op (splat-map (expand-values db args))))]
@@ -313,13 +402,19 @@
 (defn get-args
   "Retrieves a hash-map of args from an already parsed form, ignoring special forms + forms w/ rest params."
   [sexpr]
-  (when (seq? sexpr)
-    (when-not (:rest (or (get-schema (first sexpr)) {:rest true}))
+  (when-let [schema (and (seq? sexpr) (get-schema (first sexpr)))]
+    (when-not (:body schema)
       (apply hash-map (rest sexpr)))))
 
 (defn unpack-inline [sexpr]
-  (let [argmap (when (seq? sexpr) (get-args sexpr))]
+  (let [argmap (when (seq? sexpr) (pr-str sexpr) (get-args sexpr))]
     (cond
+      (vector? sexpr)
+      (let [unpacked (reduce #(merge-with merge-state %1 (unpack-inline %2))
+                             {:inline [] :query []}
+                             sexpr)]
+        {:inline [(:inline unpacked)] :query (:query unpacked)})
+
       (not (seq? sexpr))
       {:inline [sexpr]}
 

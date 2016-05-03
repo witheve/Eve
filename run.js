@@ -13,6 +13,7 @@ var spawn = require("child_process").spawn;
 var state = {};
 
 var pkgs = {
+  runtime: {entries: ["src/runtime.ts"], adds: ["typings/tsd.d.ts"]},
   wiki: {entries: ["src/wiki.ts"], adds: ["typings/tsd.d.ts"]},
   repl: {entries: ["src/repl.ts"], adds: ["typings/tsd.d.ts"]},
   editor: {entries: ["src/editor.ts"], adds: ["typings/tsd.d.ts"]},
@@ -35,27 +36,27 @@ function makeBundler(name, opts) {
   state[name] = {errors: []};
   var bundler = browserify(opts)
       .on("reset", function() {
-	state[name] = {errors: []};
-	render();
+        state[name] = {errors: []};
+        render();
       });
   bundler.run = function bundle() {
     state[name].startTime = Date.now();
     bundler.bundle()
       .on("error", function(err) {
-	state[name].errors.push(err);
-	tagLog(name, err.message);
-	render();
+        state[name].errors.push(err);
+        tagLog(name, err.message);
+        render();
       })
       .pipe(fs.createWriteStream("bin/" + name + ".bundle.js"))
       .on("error", function(err) {
-	state[name].errors.push(err);
-	tagLog(name, err.message);
+        state[name].errors.push(err);
+        tagLog(name, err.message);
         render();
       })
       .on("close", function() {
-	state[name].completed = true;
-	state[name].endTime = Date.now();
-	render();
+        state[name].completed = true;
+        state[name].endTime = Date.now();
+        render();
       });
   };
   if(opts.verbose) {
@@ -217,7 +218,7 @@ function root(program, uiState) {
     });
 
     if(stateless) return line;
-    
+
     var light = blessed.box({
       parent: line,
       left: -2,

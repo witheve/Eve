@@ -30,30 +30,37 @@
                 'close  (println "CLOSE " channel (exec/print-registers tuple) (float (/ (- (System/nanoTime) tick) 1000000000)))
                 'error  (println "ERROR " channel (exec/print-registers tuple)))))
 
+(declare define)
 (defn execco [d expression trace-on channel]
-  (let [[form keys] (form-from-smil (smil/unpack d expression))
+  (let [[forms keys] (form-from-smil (smil/unpack d expression))
+        forms (if-not (vector? forms) [forms] forms)
         _ (when trace-on
             (println "--- SMIL ---")
-            (pprint form)
+            (pprint forms)
             (println " --- Program / Trace ---"))
-        prog (compiler/compile-dsl d form)
-        start (System/nanoTime)
-        ec (exec/open d prog (print-result keys channel start)
-                      (if trace-on
-                        (fn [n m x] (fn [r] (println "trace" n m) (println (exec/print-registers r)) (x r)))
-                        (fn [n m x] x)))]
 
-    (when trace-on (pprint prog))
-    (ec 'insert)
-    (ec 'flush)
-    ec))
+        progs (map #(if (= (first %1) 'define!)
+                      (define d %1 trace-on)
+                      (compiler/compile-dsl d %1)) forms)
+        start (System/nanoTime)
+        ecs (doall (map #(exec/open d %1 (print-result keys channel start)
+                                    (if trace-on
+                                      (fn [n m x] (fn [r] (println "trace" n m) (println (exec/print-registers r)) (x r)))
+                                      (fn [n m x] x))) progs))]
+
+    (when trace-on (pprint progs))
+    (doseq [ec ecs]
+      (ec 'insert)
+      (ec 'flush)
+      ec)))
 
 (defn diesel [d expression trace-on]
-    ((execco d expression trace-on "") 'close))
+  (doseq [ec (execco d expression trace-on "")]
+    (ec 'close)
+    ec))
 
 (defn open [d expression trace-on]
-  (execco d (nth expression 2) trace-on  (second expression)))
-
+  (execco d (nth expression 2) trace-on (second expression)))
 
 (defn timeo [d expression trace-on]
   (let [[form keys] (form-from-smil (smil/unpack d (nth expression 1)))
@@ -101,8 +108,7 @@
 (defn eeval
   ([d term] (eeval d term false))
   ([d term trace-on]
-     (let [function ({'define! define
-                      'show show
+     (let [function ({'show show
                       'trace trace
                       'create-bag create-bag
                       'time timeo
@@ -155,4 +161,3 @@
        (try (eeval d input)
             (catch Exception e
               (println "error" e)))))))
-

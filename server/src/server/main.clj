@@ -9,11 +9,11 @@
    [clojure.java.io :as io]
    [server.jsclient :as jsclient]))
 
-(def edb (atom nil))
-(def trace (atom false))
-(def service (atom true))
-(def user (atom (db/wrapoid 100 0 0)))
-(def bag (atom (db/wrapoid 101 0 0)))
+(defonce edb (atom nil))
+(defonce trace (atom false))
+(defonce service (atom true))
+(defonce user (atom (db/wrapoid 100 0 0)))
+(defonce bag (atom (db/wrapoid 101 0 0)))
 
 (defn -main [& args]
   ;; load existing database..change the way the user is bound here, should go through
@@ -43,22 +43,22 @@
                     (log/scan x i))
                   ;; read existing logs, we really want to log all the bags, but hey
                   (log/open @edb x @bag)))
-         
+
          "-p" (fn [x] (reset! port (Integer. x)))
-         
+
          "-f" (fn [x]
                 (reset! interactive false)
                 (reset! service false)
                 (try (repl/read-all (edb/create-view @edb @bag @user) (list 'load x) @trace)
                      (catch Exception e
                        (println "error" e))))
-         
+
          "-e" (fn [x] (try (repl/eeval (edb/create-view @edb @bag @user) (smil/read x) @trace)
                            (catch Exception e
                              (println "error" e))))
          }
-        
-        
+
+
         arglist (fn arglist [args]
                   (if (empty? args) ()
                       (if-let [f (flag-map (first args))]
@@ -73,3 +73,8 @@
     ;; move down
     (when @service (jsclient/serve (edb/create-view @edb @bag @user) @port))
     (when @interactive (repl/rloop (edb/create-view @edb @bag @user) @trace))))
+
+(defn reset-db []
+  (reset! edb nil)
+  (-main "-d")
+  (edb/create-view @edb @bag @user))
