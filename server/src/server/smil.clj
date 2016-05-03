@@ -60,6 +60,7 @@
               'fact nil
               'define! nil ; Special due to multiple aliases
               'query nil ; Special due to optional parameterization
+              'define-ui nil
 
               ;; Macros
               'remove-by-t! {:args [:tick]}
@@ -68,12 +69,12 @@
               ;; native forms
               'insert-fact-btu! {:args [:entity :attribute :value :bag] :kwargs [:tick] :optional #{:bag :tick}} ; bag can be inferred in SMIR
               'sort {:rest :sorting :optional #{:return} :validate validate-sort}
-              'union {:args [:params] :rest :members}
-              'choose {:args [:params] :rest :members}
-              'not {:rest :body}
+              'union {:args [:params] :rest :members :body true}
+              'choose {:args [:params] :rest :members :body true}
+              'not {:rest :body :body true}
               'fact-btu {:args [:entity :attribute :value :bag] :kwargs [:tick] :optional #{:entity :attribute :value :bag :tick}}
               'full-fact-btu {:args [:entity :attribute :value :bag] :kwargs [:tick] :optional #{:entity :attribute :value :bag :tick}}
-              'context {:kwargs [:bag :tick] :rest :body :optional #{:bag :tick :body}}})
+              'context {:kwargs [:bag :tick] :rest :body :optional #{:bag :tick :body} :body true}})
 
 ;; These are only needed for testing -- they'll be provided dynamically by the db at runtime
 (def primitives {'= {:args [:a :b]}
@@ -89,7 +90,7 @@
                  '< {:args [:a :b] :kwargs [:return] :optional #{:return}}
                  '<= {:args [:a :b] :kwargs [:return] :optional #{:return}}
 
-                 'str {:rest :a}
+                 'str {:rest :a :kwargs [:return] :optional #{:return}}
                  'hash {:args [:a]}
 
                  'sum {:args [:a] :kwargs [:return] :optional #{:return}}})
@@ -97,14 +98,13 @@
 (defn get-schema
   ([op] (or (get schemas op nil) (get primitives op nil)))
   ([db op]
-   (let [schema (get-schema op)
-         implication (when-not schema
-                       (when db (db/implication-of db (name op))))]
-     (if schema
-       schema
-       (when implication
-         (let [args (map keyword (first implication))]
-           {:args (vec args) :optional (set args)}))))))
+   (if (or (contains? schemas op) (contains? primitives op))
+     (get-schema op)
+     (or
+      (when-let [implication (and db (db/implication-of db (name op)))]
+        (let [args (map keyword (first implication))]
+          {:args (vec args) :optional (set args)}))
+      {})))) ;; @FIXME: Hack to allow unknown implications to be used if pre-expanded for multi-form expansions.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Parse sexprs into argument hashmaps
@@ -265,7 +265,7 @@
      (drop 2 sexpr))))
 
 (defn parse-args
-  ([sexpr] (parse-args [nil sexpr]))
+  ([sexpr] (parse-args nil sexpr))
   ([db sexpr]
    (let [op (first sexpr)
          body (rest sexpr)
@@ -289,9 +289,9 @@
         params (if (:rest schema) (conj params (:rest schema)) params)
         param? (set params)
         required (if optional? (into [] (filter #(not (optional? %1)) params)) params)]
-    (when schema
+    (when (and schema (not= schema {}))
       (or (when param? (some #(when-not (param? %1)
-                                (syntax-error (str "Invalid keyword argument " %1 " for " (first expr)) expr))
+                                (syntax-error (str "Invalid keyword argument " %1 " for " (first expr)) (merge expr {:schema schema})))
                              (keys args)))
           (some #(when-not (supplied? %1)
                    (syntax-error (str "Missing required argument " %1 " for " (first expr)) expr))
@@ -386,7 +386,6 @@
                      choose (concat [op] [(:params args)] (assert-queries (expand-each db (:members args))))
                      not (cons op (expand-each db (:body args)))
                      context (cons op (splat-map (expand-values db args)))
-                     str (cons op (list :a (expand-each db (:a args))))
 
                      ;; Default
                      (cons op (splat-map (expand-values db args))))]
@@ -403,18 +402,18 @@
 (defn get-args
   "Retrieves a hash-map of args from an already parsed form, ignoring special forms + forms w/ rest params."
   [sexpr]
-  (when (seq? sexpr)
-    (when-not (:rest (or (get-schema (first sexpr)) {:rest true}))
+  (when-let [schema (and (seq? sexpr) (get-schema (first sexpr)))]
+    (when-not (:body schema)
       (apply hash-map (rest sexpr)))))
 
 (defn unpack-inline [sexpr]
-  (let [argmap (when (seq? sexpr) (get-args sexpr))]
+  (let [argmap (when (seq? sexpr) (pr-str sexpr) (get-args sexpr))]
     (cond
       (vector? sexpr)
       (let [unpacked (reduce #(merge-with merge-state %1 (unpack-inline %2))
                              {:inline [] :query []}
                              sexpr)]
-            {:inline [(:inline unpacked)] :query (:query unpacked)})
+        {:inline [(:inline unpacked)] :query (:query unpacked)})
 
       (not (seq? sexpr))
       {:inline [sexpr]}
