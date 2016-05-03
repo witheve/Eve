@@ -269,7 +269,7 @@
 (defn compile-implication [env terms down]
   (let [relname (name (first terms))
         m (meta (first terms))
-        call-map (apply hash-map (rest terms))
+        call-map (apply hash-map (map #(if (keyword? %1) (symbol (name %1)) %1) (rest terms)))
         env-map (set/map-invert call-map)
         proj (keys call-map)
         arms (atom ())
@@ -383,7 +383,7 @@
           a (rebind a (argmap :b))
           b (rebind b (argmap :a))
           :else
-          (compile-error "reordering necessary, not implemented" {:env env :terms terms}))))
+          (compile-error "reordering necessary, not implemented" {:env @env :terms terms}))))
 
 (defn compile-not [env terms down]
   (let [child-env (env-from env [])]
