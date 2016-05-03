@@ -46,8 +46,7 @@
                      h (@handlers (symbol (j "id")))]
                  (println "input" (j "type"))
                  (condp = (j "type")
-                          "result" (do (h (j "insert")) true)
-                          "query-info" (do (h ()) true)
+                          "result" (h (j "insert"))
                           true))
        
         target (str "ws://" station)
