@@ -73,3 +73,8 @@
     ;; move down
     (when @service (jsclient/serve (edb/create-view @edb @bag @user) @port))
     (when @interactive (repl/rloop (edb/create-view @edb @bag @user) @trace))))
+
+(defn reset-db []
+  (reset! edb nil)
+  (-main "-d")
+  (edb/create-view @edb @bag @user))

@@ -60,6 +60,10 @@
 (defn add-renderer [name renderer]
   (swap! renderers assoc name renderer))
 
+(defonce open-queue (atom []))
+(defn on-open [func]
+  (swap! open-queue conj func))
+
 (defn render []
   (when (not (.-queued @renderer))
     (set! (.-queued @renderer) true)
@@ -98,6 +102,10 @@
                               (send-query "all facts"
                                           (query-string `(query [e a v]
                                                                 (fact-btu e a v))))
+                              (doseq [func @open-queue]
+                                (println "hello" func)
+                                (func))
+                              (reset! open-queue [])
                               (println "connected to server!")))
     (set! (.-onerror socket) (fn [event]
                                (println "the socket errored :(")))
@@ -171,6 +179,12 @@
 (defonce entity-name-pairs (atom []))
 
 (defonce local-ids (atom #{}))
+
+(defn get-results [id]
+  (.find eve id))
+
+(defn get-last-diff [id]
+  (or (.-lastDiff (.table eve id)) #js {"adds" #js [] "removes" #js []}))
 
 (defn get-fact-by-id [id]
   (aget facts-by-id id))
