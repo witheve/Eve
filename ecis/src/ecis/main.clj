@@ -40,7 +40,9 @@
 ;; shutdown handler
 (defn connect-to-eve [station user bag shutdown]
   (let [handlers (atom {})
-        input #(let [j (json/parse-string %)
+        input #(let [
+                     _ (println "incoming!" %)
+                     j (json/parse-string %)
                      h (@handlers (symbol (j "id")))]
                  (println "input" (j "type"))
                  (condp = (j "type")
