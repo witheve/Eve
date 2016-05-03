@@ -51,6 +51,8 @@
                  "fields" fields
                  "insert" (map #(drop 2 %1) inserts)
                  "remove" (map #(drop 2 %1) removes)}]
+    (pprint "result" message)
+    
     (httpserver/send! channel (format-json message))
     (when DEBUG
       (println "<- result" id "to" (:id client) "@" (timestamp))
