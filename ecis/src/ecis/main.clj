@@ -147,7 +147,7 @@
                   (delete-recursively path))
         
         completion (fn [x]
-                     (println "completion" x)
+                     (println "completion" x @results)
                      (if (= (swap! results inc) 1) 
                        (do 
                          (println "sending start" start)
