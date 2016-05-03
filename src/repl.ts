@@ -49,6 +49,14 @@ export interface CloseMessage {
   id: string,
 }
 
+export interface ResultMessage {
+  type: string,
+  id: string,
+  fields: Array<string>,
+  insert: Array<Array<any>>,
+  remove: Array<Array<any>>,
+}
+
 interface Query {
   id: string,
   query: string,
@@ -266,36 +274,20 @@ function connectToServer() {
     //console.log(message.data);    
     let parsed = JSON.parse(message.data.replace(/\n/g,'\\\\n').replace(/\r/g,'\\\\r').replace(/\t/g,'  ').replace(/\\\\"/g,'\\"'));
     // Skip any empty results
-    if (parsed.type === "result" && (parsed.insert.length === 0 && parsed.remove.length === 0)) {
-      return;
-    }
     console.log(parsed);
     // Update the result of the correct repl card
     let targetCard = repl.deck.cards.filter((r) => r.id === parsed.id).shift();
     if (targetCard !== undefined) {
       if (parsed.type === "result") {
-        if (parsed.fields.length > 0) {         
-          let values: Array<Array<any>>;
+        let resultMsg: ResultMessage = parsed;
+        if (resultMsg.fields.length > 0) {         
           // If the card is pending, it was submitted manually, 
           // so we replace the values with the inserts          
           if (targetCard.state === CardState.PENDING) {
-            values = parsed.insert;
             targetCard.display = CardDisplay.BOTH;
             targetCard.resultDisplay = ResultsDisplay.TABLE;
-            targetCard.query.result = {
-              fields: parsed.fields,
-              values: values,
-            };
-          // If the card is Good, that means it already has results
-          // and the current message is updating them
-          } else if (targetCard.state === CardState.GOOD) {
-            // Apply inserts
-            targetCard.query.result.values = targetCard.query.result.values.concat(parsed.insert);
-            // Apply removes
-            parsed.remove.forEach((row) => {
-              removeRow(row,targetCard.query.result.values);
-            });
           }
+          updateQueryResult(targetCard.query, resultMsg);
         } else {
           targetCard.resultDisplay = ResultsDisplay.NONE;
         }
@@ -335,19 +327,8 @@ function connectToServer() {
       let targetSystemQuery: Query = objectToArray(repl.system).filter((q) => q.id === parsed.id).shift();
       if (targetSystemQuery !== undefined) {
         if (parsed.type === "result") {
-          if (targetSystemQuery.result === undefined) {
-            targetSystemQuery.result = {
-              fields: parsed.fields,
-              values: parsed.insert,
-            };
-          } else {
-            // Apply inserts
-            targetSystemQuery.result.values = targetSystemQuery.result.values.concat(parsed.insert);
-            // Apply removes
-            parsed.remove.forEach((row) => {
-              removeRow(row,targetSystemQuery.result.values);
-            });
-          }
+          let resultMsg: ResultMessage = parsed;
+          updateQueryResult(targetSystemQuery, resultMsg);
           // Update the repl based on these new system queries
           if (repl.system.queries !== undefined && parsed.id === repl.system.queries.id && parsed.insert !== undefined) {
             parsed.insert.forEach((n) => {
@@ -360,7 +341,7 @@ function connectToServer() {
               replCard.query.id = replCard.id;
               replCard.query.query = n[4];
               if (replCard.state === CardState.NONE) {
-                submitReplCard(replCard);  
+                submitCard(replCard);  
               }              
             });
           }  
@@ -481,9 +462,9 @@ function sendAnonymousQuery(query: string) {
   sendMessage(closeMessage);
 }
 
-// ------------------
-// Card functions
-// ------------------
+// ---------------------
+// Card/Query functions
+// ---------------------
 
 function newReplCard(row?: number, col? :number): ReplCard {
   let id = uuid();
@@ -523,7 +504,7 @@ function getCard(row: number, col: number): ReplCard {
   return repl.deck.cards.filter((r) => r.row === row && r.col === col).shift();
 }
 
-function submitReplCard(card: ReplCard) {
+function submitCard(card: ReplCard) {
   let query = card.query;
  
   // If it does exist, remove the previous repl-card row and close the old query
@@ -564,6 +545,22 @@ function submitReplCard(card: ReplCard) {
   if (emptyCardsInCol.length === 0) {
     addCardToColumn(repl.deck.focused.col);
     rerender();
+  }
+}
+
+function updateQueryResult(query: Query, message: ResultMessage) {
+  if (query.result === undefined) {
+    query.result = {
+      fields: message.fields,
+      values: message.insert,
+    };
+  } else {
+    // Apply inserts
+    query.result.values = query.result.values.concat(message.insert);
+    // Apply removes
+    message.remove.forEach((row) => {
+      removeRow(row,query.result.values);
+    });  
   }
 }
 
@@ -702,7 +699,7 @@ function queryInputKeydown(event, elem) {
   let thisReplCard: ReplCard = elemToReplCard(elem);
   // Submit the query with ctrl + enter or ctrl + s
   if ((event.keyCode === 13 || event.keyCode === 83) && event.ctrlKey === true) {
-    submitReplCard(thisReplCard);
+    submitCard(thisReplCard);
   // Catch ctrl + delete to remove a card
   } else if (event.keyCode === 46 && event.ctrlKey === true) {
     deleteCard(thisReplCard);
