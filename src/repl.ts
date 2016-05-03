@@ -326,7 +326,7 @@ function connectToServer() {
         return;
       }
     // If the query ID was not matched to a repl card, then it should 
-    // matche a system query
+    // match a system query
     } else {
       let targetSystemQuery: Query = objectToArray(repl.system).filter((q) => q.id === parsed.id).shift();
       if (targetSystemQuery !== undefined) {
@@ -373,6 +373,7 @@ function connectToServer() {
             repl.user = {id: dbUsers[ix][0], name: dbUsers[ix][1], username: dbUsers[ix][2] };
             repl.system.queries = newQuery(`(query [id row col display query]
                                               (fact id :tag "repl-card"
+                                                       :tag "system"
                                                        :user "${repl.user.id}" 
                                                        :row row 
                                                        :col col
@@ -1155,12 +1156,24 @@ let repl: Repl = {
   init: false,
   user: undefined,
   system: {
-    entities: newQuery(`(query [entities attributes values] (fact-btu entities attributes values))`),   // get all entities
-    tags: newQuery(`(query [tag entity], (fact entity :tag tag))`),                                     // get all tags
+    entities: newQuery(`(query [entities attributes values]
+                          (fact-btu entities attributes values)
+                            (not
+                              (fact entities :tag "system")))`),  // get all entities that are not system entities
+    tags: newQuery(`(query [tag entity], 
+                      (fact entity :tag tag)
+                        (not
+                          (fact entity :tag "system")))`),        // get all tags that are not system tags
     users: newQuery(`(query [id name username password] 
-                       (fact id :tag "repl-user" :name name :username username :password password))`),  // get all users
+                       (fact id :tag "repl-user" 
+                                :name name 
+                                :username username 
+                                :password password))`),           // get all users
     messages: newQuery(`(query [id user message time]
-                          (fact id :tag "repl-chat" :message message :user user :timestamp time))`),    // get the chat history
+                          (fact id :tag "repl-chat" 
+                                   :message message 
+                                   :user user 
+                                   :timestamp time))`),           // get the chat history
   },
   chat: {
     visible: false,
@@ -1189,7 +1202,7 @@ function root() {
   // If the system is ready and there is a user, load the repl 
   if (repl.init === true && repl.user !== undefined && repl.user.name !== undefined) {
     replChildren = [generateStatusBarElement(), generateChatElement(), generateCardRootElements(), repl.modal !== undefined ? repl.modal : {}];
-  // If the system is ready but there is no user
+  // If the system is ready but there is no user, show a login page
   } else if (repl.init === true && repl.user === undefined) {
     let username = {t: "input", id: "repl-username-input", placeholder: "Username", keydown: inputKeydown};
     let password = {t: "input", id: "repl-password-input", type: "password", placeholder: "Password", keydown: inputKeydown};
