@@ -37,22 +37,27 @@
 
 
 ;; shutdown handler
-(defn connect-to-eve [station user bag]
+(defn connect-to-eve [station user bag shutdown]
   (let [handlers (atom {})
         input #(let [j (json/parse-string %)
                      h (@handlers (symbol (j "id")))]
-                 (when (and h (= (j "type") "result"))
-                            (let [f (j "fields")
-                                  ins (j "insert")
-                                  rem (j "remove")]
-                              (when (> (count ins) 0)
-                                (h ins)))))
+                 (println "input" (j "type"))
+                 (condp = (j "type")
+                          "result" (h (j "insert"))
+                          "query-info" (h ())
+                          ()))
+       
         target (str "ws://" station)
         ;; just bury any errors
-        sock (try (ws/connect target :on-receive input)
+        sock (try (ws/connect target :on-receive input :on-close (fn [x s]
+                                                                   (println "ws close" s)
+                                                                   shutdown))
                   (catch Exception e nil))]
     (if sock [sock handlers] sock)))
     
+
+(defn disconnect-from-eve [d]
+    (ws/close (d 0)))
 
 
 (defn eve-query [s q handler]
@@ -72,10 +77,12 @@
 
   
 (defn eve-insert [s eavs]
-  (let [q (str (map #(str "(insert-fact! " 
+  (let [q (str "(query" (map #(str "(insert-fact! " 
                           (nth %1 0) " " 
                           (nth %1 1) " " 
-                          (nth %1 2) ")")) eavs)]
+                          (nth %1 2) ")") eavs)
+               ")")]
+    (println "sending" q)
     (eve-close (eve-query s q (fn [x] ())))))
 
 
@@ -87,7 +94,7 @@
                     (File. path))
         out (new BufferedReader (new InputStreamReader (.getInputStream proc)))]
         
-    (.start (Thread. (fn [] (println (.readLine out)))))
+    (.start (Thread. (fn [] (trampoline (fn self [] (println (.readLine out)) self)))))
                        
     [(new BufferedWriter (new OutputStreamWriter (.getOutputStream proc))) (future (.waitFor proc))]))
 
@@ -116,61 +123,73 @@
 
 
 (defn run-test [url branch facts]
-  (print "start test" url branch facts)
+  (println "start test" url branch facts)
   (let [path (checkout-repository url branch)
         s (atom nil)
         start "(load \"examples/harness.e\")\n"
         p (subprocess (str path "/server"))
         ;; check status here?
-        database (connect-to-eve server 0 0)
+        database (atom ())
+        results (atom 0)
+        cleanup (fn []
+                  ;; may have to catch errors on a dead child
+                  (.write (p 0) "(exit)\n")
+                  (.flush (p 0))
+                  (disconnect-from-eve @database)
+                  (println "test lein exit" @(p 1))
+                  (delete-recursively path))
+        
         completion (fn [x]
-                     (let [results (atom {})
-                           out   (atom {})]
-                       (doseq [i x]
-                         (swap! results assoc-in [(keyword (first i)) :result] (second i))
-                         (swap! results assoc-in [(keyword (first i)) :name] (first i)))
-                       (doseq [i (keys @results)] 
-                         (swap! out assoc :result (@results i)))
-                       (swap! out merge facts)
-                       (eve-insert database tree-to-facts @out)
-                       ;; assuming there is only one flush
-                       (.write (p 0) "(exit)\n")
-                       (.flush (p 0))))]       
+                     (println "completion" x)
+                     (if (= (swap! results inc) 1) 
+                       (do 
+                         (println "sending start" start)
+                         (.write (p 0) start)     
+                         (.flush (p 0)))
+                       
+                       (let [results (atom {})
+                             out   (atom {})]
+                         (doseq [i x]
+                           (swap! results assoc-in [(keyword (first i)) :result] (second i))
+                           (swap! results assoc-in [(keyword (first i)) :name] (first i)))
+                         (doseq [i (keys @results)] 
+                           (swap! out assoc :result (@results i)))
+                         (swap! out merge facts)
+                         (eve-insert @database tree-to-facts @out)
+                         ;; assuming there is only one flush
+                         (cleanup))))]
 
+    (reset! database (connect-to-eve "localhost:8083" 0 0 (fn [] ())))
 
     (Thread/sleep 6000)
-    (reset! s (connect-to-eve "localhost:8083" 0 0))
+    (reset! s (connect-to-eve "localhost:8083" 0 0 cleanup))
     (when (not @s)
       (Thread/sleep 3000)
-      (reset! s (connect-to-eve "localhost:8083" 0 0)))
+      (reset! s (connect-to-eve "localhost:8083" 0 0 cleanup)))
     
     (if @s
       (do 
+        (println "sending query")
         (eve-query @s "(query [test success] (fact _ :tag \"test-run\" :result success :test))"
-                   completion)
-        (.write (p 0) start)     
-        (.flush (p 0)))
-      (eve-insert database tree-to-facts (tree-to-facts (assoc out :status 'failure))))
-    (eve-close database)
-    (println "test lein exit" @(p 1))
-    (delete-recursively path)))
+                   completion))
+      (cleanup))))
+
     
     
 ;; the websocket input guy   
 (defn input-handler [request]
   (let [parsed (json/parsed-seq (clojure.java.io/reader (:body request) :encoding "UTF-8"))
-        a (first parsed)]
-    (when (= (get-in a '[pull-request state]) "open")
-      (println "run test" )
-      (let [user ]
-        ;; [pull-request mergable] false
-        (run-test (get-in a '[repository "git-url]"])
-                  (get-in a '[pull-request head ref])
-                  {:user (get-in a '[pull-request user login])
-                               :tag "test"
-                               :number (get-in a '[number])
-                               :sha (get-in a '[pull-request head sha])
-                               })))
+        a (first parsed)
+        pr (a "pull_request")]
+    (when (= (get-in pr ["state"]) "open")
+      ;; [pull-request mergable] false
+      (run-test (get-in a ["repository" "git_url"])
+                (get-in pr ["head" "ref"])
+                {:user (get-in pr ["user" "login"])
+                 :tag "test"
+                 :number (get-in a ["number"])
+                 :sha (get-in pr ["head" "sha"])
+                 }))
     {:body "thanks"}))
 
 ;; webhook input
