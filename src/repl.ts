@@ -621,7 +621,9 @@ function focusCard(replCard: ReplCard) {
     } else {
       setTimeout(function() {
         cm = getCodeMirrorInstance(replCard);
-        cm.focus();
+        if (cm !== undefined) {
+          cm.focus();           
+        }
       }, 100);  
     }
   }
