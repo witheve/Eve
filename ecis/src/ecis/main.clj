@@ -88,7 +88,7 @@
 
 
 (defn subprocess [path]
-  (let [cmd ["/usr/local/bin/lein" "run" "-p" "8083"]
+  (let [cmd ["/usr/local/bin/lein" "run" "-t" "-p" "8083"]
         proc (.exec (Runtime/getRuntime) 
                     ^"[Ljava.lang.String;" (into-array cmd)
                     nil ;; (into-array String [])
