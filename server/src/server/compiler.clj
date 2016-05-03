@@ -311,7 +311,11 @@
     (let [argmap (apply hash-map (rest terms))
           m (meta (first terms))
           simple (into [(argmap :return)] (map argmap params))
-          ins (map #(lookup env %1) simple)]
+          ins (map
+               #(if (sequential? %1)
+                  (vec (map (fn [x] (lookup env x)) %1))
+                  (lookup env %1))
+               simple)]
       (apply add-dependencies env (rest (rest terms)))
       (println "COMPILE PRIMITIVE" params "||" simple "||" ins)
       (if-not (some nil? (rest ins))
@@ -319,7 +323,7 @@
         (do
           (allocate-register env (first simple))
           (build
-           (apply term env (first terms) m simple)
+           (list (apply list (first terms) (lookup env (first simple)) (rest ins)))
            (down)))
         (compile-error (str "unhandled bound signature in" terms) {:env env :terms terms})))))
 
