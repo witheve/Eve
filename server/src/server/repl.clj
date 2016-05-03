@@ -38,6 +38,7 @@
             (println " --- Program / Trace ---"))
         prog (compiler/compile-dsl d form)
         start (System/nanoTime)
+        _ (pprint prog)
         ec (exec/open d prog (print-result keys channel start)
                       (if trace-on
                         (fn [n m x] (fn [r] (println "trace" n m) (println (exec/print-registers r)) (x r)))
