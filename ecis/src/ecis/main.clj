@@ -191,8 +191,8 @@
     (if @s
       (let [d (clojure.java.io/file (str path "/server/tests"))]
         (doseq [i (file-seq d)]
-          (println "test" i)
-          (run-single-test @s path i results)))
+          (println "test" (last (string/split "/" i)))
+          (run-single-test @s path (last (string/split "/" i)) results)))
       (swap! assoc results :status "failure"))
 
     ;; try to do this more directly
