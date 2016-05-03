@@ -181,7 +181,7 @@
         results (atom facts)]
 
     (Thread/sleep 6000)
-
+    
     (reset! s (connect-to-eve "localhost:8083" 0 0 (fn [] (println "child failure"))))
 
     (when (not @s)
@@ -193,7 +193,7 @@
         (doseq [i (file-seq d)]
           (let [leaf  (last (string/split "/" (str i)))]
           (println "test" leaf)
-          (run-single-test @s path leaf results)))
+          (run-single-test @s path leaf results))))
       (swap! assoc results :status "failure"))
 
     ;; try to do this more directly
