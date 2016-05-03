@@ -273,8 +273,6 @@ function connectToServer() {
     //console.log("message")
     //console.log(message.data);    
     let parsed = JSON.parse(message.data.replace(/\n/g,'\\\\n').replace(/\r/g,'\\\\r').replace(/\t/g,'  ').replace(/\\\\"/g,'\\"'));
-    // Skip any empty results
-    console.log(parsed);
     // Update the result of the correct repl card
     let targetCard = repl.deck.cards.filter((r) => r.id === parsed.id).shift();
     if (targetCard !== undefined) {
@@ -286,6 +284,7 @@ function connectToServer() {
           if (targetCard.state === CardState.PENDING) {
             targetCard.display = CardDisplay.BOTH;
             targetCard.resultDisplay = ResultsDisplay.TABLE;
+            targetCard.query.result = undefined;
           }
           updateQueryResult(targetCard.query, resultMsg);
         } else {
@@ -560,7 +559,7 @@ function updateQueryResult(query: Query, message: ResultMessage) {
     // Apply removes
     message.remove.forEach((row) => {
       removeRow(row,query.result.values);
-    });  
+    });
   }
 }
 
