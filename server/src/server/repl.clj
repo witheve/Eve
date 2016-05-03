@@ -29,7 +29,7 @@
                 'flush  (println "FLUSH " channel (exec/print-registers tuple))
                 'close  (println "CLOSE " channel (exec/print-registers tuple) (float (/ (- (System/nanoTime) tick) 1000000000)))
                 'error  (println "ERROR " channel (exec/print-registers tuple)))))
-;;n 
+
 (defn execco [d expression trace-on channel]
   (let [[form keys] (form-from-smil (smil/unpack d expression))
         _ (when trace-on
