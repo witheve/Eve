@@ -102,7 +102,7 @@
                                   (reset! flush-count 1)
                                   (send-result channel id fields @results)            
                                   (reset! results '()))
-                         'close (println "@FIXME: Send close message")
+                         'close (httpserver/send! channel (format-json {"type" "close" "id" id}))
                          'error (send-error channel id (ex-info "Failure to WEASL" {:data (str tuple)}))))
         e (exec/open db prog handler (fn [n m x] x))]
     (doseq [line (string/split (with-out-str (pprint prog)) #"\n")]
@@ -136,6 +136,7 @@
                  expanded (when query (smil/unpack db (smil/read query)))
                  raw (string/join "\n    " (string/split query #"\n"))
                  smil (with-out-str (smil/print-smil expanded :indent 2))]
+             (swap! clients update-in [channel :queries] assoc id)
              (println "  Raw:")
              (println "   " raw)
              (println "  SMIL:")
