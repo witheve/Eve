@@ -220,12 +220,13 @@
 (defn compile-union [env terms down]
   (let [[_ proj & arms] terms
         m (meta (first terms))
-        [input output] (partition-2 (fn [x] (is-bound? env x)) proj)
+        [_ output] (partition-2 (fn [x] (is-bound? env x)) proj)
+        input (keys (get @env 'bound))
         name (get-signature (gensym "union") input output)
         tail-name (str name "-cont")
         body (apply build
                     (map-indexed
-                     #(let [inner-env (env-from env proj)
+                     #(let [inner-env (env-from env (concat input output))
                             arm-name (str name "-arm" %1)
                             m (meta (first terms))
                             _ (swap! inner-env assoc 'name arm-name)
@@ -371,19 +372,19 @@
      (down))))
 
 (defn compile-equal [env terms down]
-
   (let [argmap (apply hash-map (rest terms))
         simple [(argmap :a) (argmap :b)]
         a (is-bound? env (argmap :a))
         b (is-bound? env (argmap :b))
         rebind (fn [s d]
-                 (bind-names env {d s})
+                 (bind-names env {d (lookup env s)})
                  (down))]
-    (cond (and a b) (generate-binary-filter env terms down)
-          a (rebind a (argmap :b))
-          b (rebind b (argmap :a))
-          :else
-          (compile-error "reordering necessary, not implemented" {:env @env :terms terms}))))
+    (cond
+      (and a b) (generate-binary-filter env terms down)
+      a (rebind (argmap :a) (argmap :b))
+      b (rebind (argmap :b) (argmap :a))
+      :else
+      (compile-error "reordering necessary, not implemented" {:env @env :terms terms}))))
 
 (defn compile-not [env terms down]
   (let [child-env (env-from env [])]
