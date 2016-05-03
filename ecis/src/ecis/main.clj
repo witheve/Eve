@@ -55,7 +55,7 @@
         sock (try (ws/connect target :on-receive input :on-close (fn [x s]
                                                                    (println "ws close" s)
                                                                    shutdown))
-                  (catch Exception e nil))]
+                  (catch Exception e (println "websocket exception" e)))]
     (if sock [sock handlers] sock)))
     
 
