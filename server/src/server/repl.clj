@@ -29,6 +29,7 @@
                 'close  (println "CLOSE " channel (exec/print-registers tuple) (float (/ (- (System/nanoTime) tick) 1000000000)))
                 'error  (println "ERROR " channel (exec/print-registers tuple)))))
 
+(declare define)
 (defn diesel [d expression trace-on]
   (let [[forms keys] (form-from-smil (smil/unpack d expression))
         forms (if-not (vector? forms) [forms] forms)
