@@ -44,6 +44,7 @@
   (.format (java.text.SimpleDateFormat. "hh:mm:ss") (java.util.Date.)))
 
 (defn send-result [channel id fields results]
+  (println "send result")
   (let [client (get @clients channel)
         {inserts 'insert removes 'remove} (group-by #(get %1 0) results)
         message {"type" "result"
@@ -94,7 +95,7 @@
         store-width (+ (count fields) 2)
         prog (compiler/compile-dsl db form)
         handler (fn [tuple]
-                (println "not a guy" (map str tuple))
+                (println "not a guy" (map str tuple) (count results))
                 (condp = (exec/rget tuple exec/op-register)
                          'insert (swap! results conj (vec (take store-width tuple)))
                          'remove (swap! results conj (vec (take store-width tuple)))
