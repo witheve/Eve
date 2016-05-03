@@ -192,7 +192,7 @@
       (let [d (clojure.java.io/file (str path "/server/tests"))]
         (doseq [i (file-seq d)]
           (let [leaf  (last (string/split "/" (str i)))]
-          (println "test" lef ))
+          (println "test" leaf)
           (run-single-test @s path leaf results)))
       (swap! assoc results :status "failure"))
 
