@@ -191,7 +191,7 @@
     (if @s
       (let [d (clojure.java.io/file (str path "/tests"))]
         (doseq [i (file-seq d)]
-          (run-single-test i)))
+          (run-single-test @s path i results)))
       (swap! assoc results :status "failure"))
 
     (try 
