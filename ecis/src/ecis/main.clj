@@ -95,9 +95,11 @@
                     ^"[Ljava.lang.String;" (into-array cmd)
                     nil ;; (into-array String [])
                     (File. path))
-        out (new BufferedReader (new InputStreamReader (.getInputStream proc)))]
-    
+        out (new BufferedReader (new InputStreamReader (.getInputStream proc)))
+        err (new BufferedReader (new InputStreamReader (.getErrorStream proc)))]
+
     (.start (Thread. (fn [] (trampoline (fn self [] (let [x (.readLine out)] (when x (println x) self)))))))
+    (.start (Thread. (fn [] (trampoline (fn self [] (let [x (.readLine err)] (when x (println x) self)))))))
     
     [(new BufferedWriter (new OutputStreamWriter (.getOutputStream proc))) (future (.waitFor proc))]))
 
