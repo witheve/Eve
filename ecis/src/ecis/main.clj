@@ -122,7 +122,7 @@
         results (atom ())
         h (fn [x] (if x (swap! results assoc x)
                       (deliver p true)))]
-    (eve-query s q h)
+    (eve-close (eve-query s q h))
     @p
     results))
 
