@@ -46,9 +46,9 @@
                      h (@handlers (symbol (j "id")))]
                  (println "input" (j "type"))
                  (condp = (j "type")
-                          "result" (h (j "insert"))
-                          "query-info" (h ())
-                          ()))
+                          "result" (do (h (j "insert")) true)
+                          "query-info" (do (h ()) true)
+                          true))
        
         target (str "ws://" station)
         ;; just bury any errors
