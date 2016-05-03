@@ -52,7 +52,7 @@
                  "fields" fields
                  "insert" (map #(drop 2 %1) inserts)
                  "remove" (map #(drop 2 %1) removes)}]
-    (pprint "result" message)
+    (println "result" message)
     
     (httpserver/send! channel (format-json message))
     (when DEBUG
