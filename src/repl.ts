@@ -265,7 +265,11 @@ function connectToServer() {
     //console.log("message")
     //console.log(message.data);    
     let parsed = JSON.parse(message.data.replace(/\n/g,'\\\\n').replace(/\r/g,'\\\\r').replace(/\t/g,'  ').replace(/\\\\"/g,'\\"'));
-    //console.log(parsed);
+    // Skip any empty results
+    if (parsed.type === "result" && (parsed.insert.length === 0 && parsed.remove.length === 0)) {
+      return;
+    }
+    console.log(parsed);
     // Update the result of the correct repl card
     let targetCard = repl.deck.cards.filter((r) => r.id === parsed.id).shift();
     if (targetCard !== undefined) {
