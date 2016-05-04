@@ -321,6 +321,14 @@ li {
 
 }
 
+.CodeMirror-cursor { border-color: #ccc; }
+
+.cm-s-default { background:none; color: #ccc; }
+.cm-s-default .cm-string { color: #acf; }
+.cm-s-default .cm-number { color: #acf; }
+.cm-s-default .cm-atom { color: #afc; }
+.cm-s-default .cm-builtin { color: #999; }
+
 /* Switches */
 
 .code {

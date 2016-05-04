@@ -1,7 +1,9 @@
 import app = require("./app");
 import {autoFocus} from "./utils";
-import * as CodeMirror from "codemirror";
+// import * as CodeMirror from "codemirror";
 import {Element, Handler, RenderHandler, Renderer} from "./microReact";
+
+declare var CodeMirror;
 
 let WebSocket = require('ws');
 let uuid = require("uuid");
@@ -660,18 +662,19 @@ function submitChatMessage(message: string) {
 // Register some global event handlers on the window
 window.onkeydown = function(event) {
   let thisReplCard = repl.deck.focused;
+  let modified = event.ctrlKey || event.metaKey;
   // Catch ctrl + arrow up or page up
-  if (event.keyCode === 38 && event.ctrlKey === true || event.keyCode === 33) {
+  if (event.keyCode === 38 && modified || event.keyCode === 33) {
     // Set the focus to the previous repl card
     let previousReplCard = getReplCard(thisReplCard.row - 1, thisReplCard.col);
     focusCard(previousReplCard);
   // Catch ctrl + arrow down or page down
-  } else if (event.keyCode === 40 && event.ctrlKey === true || event.keyCode === 34) {
+  } else if (event.keyCode === 40 && modified || event.keyCode === 34) {
     // Set the focus to the next repl card
     let nextReplCard = getReplCard(thisReplCard.row + 1, thisReplCard.col);
     focusCard(nextReplCard);
   // Catch ctrl + arrow left
-  } else if (event.keyCode === 37 && event.ctrlKey === true) {
+  } else if (event.keyCode === 37 && modified) {
     let leftReplCard = getReplCard(thisReplCard.row, thisReplCard.col - 1);
     if (leftReplCard !== undefined) {
       focusCard(leftReplCard); 
@@ -681,7 +684,7 @@ window.onkeydown = function(event) {
       focusCard(leftReplCard);
     }    
   // Catch ctrl + arrow right
-  } else if (event.keyCode === 39 && event.ctrlKey === true) {
+  } else if (event.keyCode === 39 && modified) {
     let rightReplCard = getReplCard(thisReplCard.row, thisReplCard.col + 1);
     if (rightReplCard !== undefined) {
       focusCard(rightReplCard); 
@@ -691,10 +694,10 @@ window.onkeydown = function(event) {
       focusCard(rightReplCard);
     }
   // Catch ctrl + r
-  } else if (event.keyCode === 82 && event.ctrlKey === true) {
+  } else if (event.keyCode === 82 && event.ctrlKey) {
     addColumn();
   // Catch ctrl + e
-  } else if (event.keyCode === 69 && event.ctrlKey === true) {
+  } else if (event.keyCode === 69 && modified) {
     addCardToColumn(repl.deck.focused.col);
   } else {
     return;
@@ -712,23 +715,24 @@ window.onbeforeunload = function(event) {
 
 function queryInputKeydown(event, elem) {
   let thisReplCard: ReplCard = elemToReplCard(elem);
+  let modified = event.ctrlKey || event.metaKey;
   // Submit the query with ctrl + enter or ctrl + s
-  if ((event.keyCode === 13 || event.keyCode === 83) && event.ctrlKey === true) {
+  if ((event.keyCode === 13 || event.keyCode === 83) && modified) {
     submitCard(thisReplCard);
   // Catch ctrl + delete to remove a card
-  } else if (event.keyCode === 46 && event.ctrlKey === true) {
+  } else if (event.keyCode === 46 && modified) {
     deleteCard(thisReplCard);
   // Catch ctrl + home  
-  } else if (event.keyCode === 36 && event.ctrlKey === true) {
+  } else if (event.keyCode === 36 && modified) {
     //focusCard(replCards[0]);
   // Catch ctrl + end
-  } else if (event.keyCode === 35 && event.ctrlKey === true) {
+  } else if (event.keyCode === 35 && modified) {
     //focusCard(replCards[replCards.length - 1]);
   // Catch ctrl + b
-  } else if (event.keyCode === 66 && event.ctrlKey === true) {
+  } else if (event.keyCode === 66 && modified) {
     thisReplCard.query.query = "(query [e a v]\n\t(fact-btu e a v))";
   // Catch ctrl + q
-  } else if (event.keyCode === 81 && event.ctrlKey === true) {
+  } else if (event.keyCode === 81 && modified) {
     thisReplCard.query.query = "(query [] \n\t\n)";
     let cm = getCodeMirrorInstance(thisReplCard);
     // @HACK Wait for CM to render
@@ -1394,7 +1398,9 @@ function codeMirrorPostRender(postRender?: RenderHandler): RenderHandler {
       cm = node.cm = CodeMirror(node, {
         lineWrapping: elem.lineWrapping !== false ? true : false,
         lineNumbers: elem.lineNumbers,
-        mode: elem.mode || "text",
+        mode: elem.mode || "clojure",
+        matchBrackets: true,
+        autoCloseBrackets: true,
         extraKeys
       });
       if(elem["cmChange"]) cm.on("change", handleCMEvent(elem["cmChange"], elem));
