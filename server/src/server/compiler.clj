@@ -123,7 +123,7 @@
   [env m target arguments]
   (apply add-dependencies env arguments)
   (when (some not (map #(is-bound? env %1) arguments))
-    (compile-error "Cannot send unbound/nil argument" {:env @env :target target :arguments arguments :bound (get @env 'bound nil)}))
+    (compile-error "Cannot send unbound/nil argument" {:m m :env @env :target target :arguments arguments :bound (get @env 'bound nil)}))
   (concat
    (apply term env 'tuple m exec/temp-register exec/op-register exec/qid-register '* nil (map #(lookup env %1) arguments))
    [(with-meta (list 'send target exec/temp-register) m)]))
