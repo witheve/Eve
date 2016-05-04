@@ -14,11 +14,11 @@
    [clojure.string :as string]
    [clojure.pprint :refer [pprint]]))
 
-(def clients (atom {}))
-(def server (atom nil))
+(defonce clients (atom {}))
+(defonce server (atom nil))
 
 (def DEBUG true)
-(def bag (atom 10))
+(defonce bag (atom 10))
 
 (defn quotify [x] (str "\""
                        (-> x
@@ -79,40 +79,34 @@
   (let [client (get @clients channel)
         message {"type" "query-info"
                  "id" id
-                 "raw" raw
-                 "smil" smil
-                 "weasl" weasl}]
+                 "raw" (with-out-str (pprint raw))
+                 "smil" (with-out-str (smil/print-smil smil))
+                 "weasl" (with-out-str (pprint weasl))}]
     (httpserver/send! channel (format-json message))
     (when DEBUG
       (println "<- query-info" id "to" (:id client) "@" (timestamp))
       (pprint message))))
 
-(defn start-query [db query id channel]
-  (let [results (atom ())
-        [form fields]  (repl/form-from-smil query)
-        fields (or fields [])
-        flush-count (atom 0)
-        store-width (+ (count fields) 2)
-        prog (compiler/compile-dsl db form)
-        handler (fn [tuple]
-                  (println "query input" (map str tuple))
-                  (condp = (exec/rget tuple exec/op-register)
-                           'insert (swap! results conj (vec (take store-width tuple)))
-                           'remove (swap! results conj (vec (take store-width tuple)))
-                           'flush (when (or (= @flush-count 0) (> (count @results) 0))
-                                    (reset! flush-count 1)
-                                    (send-result channel id fields @results)            
-                                    (reset! results '()))
-                           'close (httpserver/send! channel (format-json {"type" "close" "id" id}))
-                           'error (send-error channel id (ex-info "Failure to WEASL" {:data (str tuple)}))))
-        e (exec/open db prog handler (fn [n m x] x))]
-    (doseq [line (string/split (with-out-str (pprint prog)) #"\n")]
-      (println "   " line))
 
-    (swap! clients assoc-in [channel :queries id] e)
-    (e 'insert)
-    (e 'flush)
-    [prog e]))
+(defn query-callback [id channel]
+  (fn [_ form op & [results]]
+    (let [fields (smil/get-fields form)]
+      (condp = op
+        'flush (send-result channel id fields results)
+        'close (httpserver/send! channel (format-json {"type" "close" "id" id}))
+        'error (send-error channel id results)
+        ))))
+
+(defn start-query [db query id channel]
+  (let [handler (query-callback id channel)
+        exe (repl/exec* db query (repl/buffered-result-handler id handler) #{:expanded :compiled})
+        m (meta exe)]
+    (swap! clients assoc-in [channel :queries id] exe)
+    ;; @FIXME: Since this is on the meta now, this can be requested instead of always pushing it
+    (send-query-info channel id (:raw m) (:smil m) (:weasl m))
+    (when (:define-only m)
+      (send-result channel id [] []))
+    exe))
 
 (defn handle-connection [db channel]
   ;; this seems a little bad..the stack on errors after this seems
@@ -134,37 +128,19 @@
          (condp = t
            "query"
            (let [query (input "query")
-                 expanded (when query (smil/unpack db (smil/read query)))
-                 raw (string/join "\n    " (string/split query #"\n"))
-                 smil (with-out-str (smil/print-smil expanded :indent 2))]
-             (println "  Raw:")
-             (println "   " raw)
-             (println "  SMIL:")
-             (println smil)
-             (println "  WEASL:")
-             (let [prog (condp = (first expanded)
-                          'query (let [[prog e] (start-query db expanded id channel)]
-                                   (swap! clients assoc-in [channel :queries id] e)
-                                   (println "start query" @clients)
-                                   prog)
-                          'define! (do
-                                     (repl/define db expanded false)
-                                     ;; so close can work - hackotron
-                                     (swap! clients assoc-in [channel :queries id] 
-                                            (fn [x] (httpserver/send! channel (format-json {"type" "close" "id" id}))))
-                                     (send-result channel id [] []))
-                          (throw (ex-info (str "Invalid query wrapper " (first expanded)) {:expr expanded})))]
-               (send-query-info channel id raw smil (with-out-str (pprint prog)))))
+                 sexpr (when query (smil/read query))]
+             (println "--- Raw ---")
+             (println query)
+             (start-query db sexpr id channel))
            "close"
-           (let [e (get-in @clients [channel :queries id])]
-             (if-not e
+           (let [exe (get-in @clients [channel :queries id])]
+             (if-not exe
                (send-error channel id (ex-info (str "Invalid query id " id) {:id id}))
-               (do
-                 (e 'close)
-                 (swap! clients update-in [channel :queries] dissoc id)
-                 (println "closo" @clients))))
+               (do (exe 'close)
+                   (swap! clients update-in [channel :queries] dissoc id))))
            (throw (ex-info (str "Invalid protocol message type " t) {:message input})))
-         (catch clojure.lang.ExceptionInfo error
+         (catch Exception error
+           (print error)
            (send-error channel id error))
          ))))
 
@@ -182,6 +158,7 @@
                           (condp = first-segment
                             "repl" {:status 200 :headers {"Content-Type" "text/html"} :body (slurp (str base-path "/repl.html"))}
                             "grid" {:status 200 :headers {"Content-Type" "text/html"} :body (slurp (str base-path "/index.html"))}
+                            "renderer" {:status 200 :headers {"Content-Type" "text/html"} :body (slurp (str base-path "/renderer.html"))}
                            {:status 404})))
                       (wrap-file base-path)
                       (wrap-content-type))
@@ -197,10 +174,6 @@
           (if (httpserver/websocket? channel)
             (handle-connection db channel)
             (serve-static request channel)))))
-
-
-(import '[java.io PushbackReader])
-(require '[clojure.java.io :as io])
 
 (defn serve [db port]
   (println (str "Serving on localhost:" port "/repl"))

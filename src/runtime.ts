@@ -391,7 +391,8 @@ export class Indexer {
         delete hashToIx[hash];
       }
     }
-    return {adds:realAdds, removes:realRemoves};
+    table.lastDiff = {adds:realAdds, removes:realRemoves};
+    return table.lastDiff;
   }
 
   collector(keys) {
@@ -664,20 +665,20 @@ export class Indexer {
   applyDiffIncremental(diff:Diff) {
     if(diff.length === 0) return;
     // console.log("DIFF SIZE: ", diff.length, diff);
-		let {triggers, realDiffs} = this.execDiff(diff);
-		let round = 0;
+                let {triggers, realDiffs} = this.execDiff(diff);
+                let round = 0;
     let changes = realDiffs;
-		while(triggers) {
-		  // console.group(`ROUND ${round}`);
+                while(triggers) {
+                  // console.group(`ROUND ${round}`);
       // console.log("CHANGES: ", changes);
-		  let results = this.execTriggersIncremental(triggers, changes);
+                  let results = this.execTriggersIncremental(triggers, changes);
       // console.groupEnd();
       if(!results) break
       triggers = results.triggers;
       changes = results.changes
-		  round++;
-		}
-	}
+                  round++;
+                }
+        }
 
   execTriggerIncremental(trigger, changes):any {
     let table = this.table(trigger.name);
@@ -1488,7 +1489,7 @@ export class Query {
       return code;
     }
     return recurse(joins, 1);
-	}
+        }
   compileIncrementalRowFinderCode() {
       let code = "var others = [];\n";
       let reversed = this.joins.slice().reverse();
@@ -1498,25 +1499,25 @@ export class Query {
           // we don't want to do this for the root
           if (ix === reversed.length - 1) break;
           checks.push(`
-			if(changes["${join.table}"] && changes["${join.table}"].adds) {
+                        if(changes["${join.table}"] && changes["${join.table}"].adds) {
                 var curChanges${join.ix} = changes["${join.table}"].adds;
                 for(var changeIx${join.ix} = 0, changeLen${join.ix} = curChanges${join.ix}.length; changeIx${join.ix} < changeLen${join.ix}; changeIx${join.ix}++) {
                     var row${join.ix} = curChanges${join.ix}[changeIx${join.ix}];
-					${this.reverseJoin(reversed.slice(ix))}
-				}
-			}`);
+                                        ${this.reverseJoin(reversed.slice(ix))}
+                                }
+                        }`);
           ix++;
       }
       code += checks.join(" else");
       var last = reversed[ix];
       code += `
-			if(changes["${last.table}"] && changes["${last.table}"].adds) {
+                        if(changes["${last.table}"] && changes["${last.table}"].adds) {
                 var curChanges = changes["${last.table}"].adds;
-				for(var changeIx = 0, changeLen = curChanges.length; changeIx < changeLen; changeIx++) {
-					others.push(curChanges[changeIx]);
-				}
-			}
-			return others;`;
+                                for(var changeIx = 0, changeLen = curChanges.length; changeIx < changeLen; changeIx++) {
+                                        others.push(curChanges[changeIx]);
+                                }
+                        }
+                        return others;`;
       return code;
   }
   incrementalRemove(changes) {
@@ -2203,4 +2204,4 @@ export function clearAllQueries(eve) {
   eve.applyDiff(finalDiff);
 }
 
-if(ENV === "browser") window["runtime"] = exports;
+if(ENV === "browser") window["Runtime"] = exports;

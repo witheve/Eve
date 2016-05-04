@@ -10,7 +10,9 @@
                  [org.clojure/tools.reader "1.0.0-alpha3"]]
   :target-path "target/%s"
   :test-paths ["spec"]
-  :profiles {:dev {:dependencies [[speclj "3.3.2"]]}}
+  :profiles {:dev {:dependencies [[speclj "3.3.2"]
+                                  [com.cemerick/piggieback "0.2.1"]
+                                  [figwheel-sidecar "0.5.2"]]}}
   :plugins [[lein-figwheel "0.5.0-1"]
             [speclj "3.3.2"]]
   :clean-targets [:target-path "out"]
@@ -28,6 +30,14 @@
                                    :asset-path "bin/devcards"
                                    :output-dir  "../bin/devcards"
                                    :output-to "../bin/devcards.bundle.js"
+                                   :source-map-timestamp true }}
+                       {:id "renderer-test"
+                        :source-paths ["src"]
+                        :figwheel { :renderer-test true } ;; <- note this
+                        :compiler { :main "ui.renderer-test"
+                                   :asset-path "bin/renderer-test"
+                                   :output-dir  "../bin/renderer-test"
+                                   :output-to "../bin/renderer-test.bundle.js"
                                    :source-map-timestamp true }}
                        ]}
   :main server.main)

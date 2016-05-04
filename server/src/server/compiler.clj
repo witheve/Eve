@@ -271,7 +271,7 @@
 (defn compile-implication [env terms down]
   (let [relname (name (first terms))
         m (meta (first terms))
-        call-map (apply hash-map (rest terms))
+        call-map (apply hash-map (map #(if (keyword? %1) (symbol (name %1)) %1) (rest terms)))
         env-map (set/map-invert call-map)
         proj (keys call-map)
         arms (atom ())
@@ -313,14 +313,18 @@
     (let [argmap (apply hash-map (rest terms))
           m (meta (first terms))
           simple (into [(argmap :return)] (map argmap params))
-          ins (map #(lookup env %1) simple)]
+          ins (map
+               #(if (sequential? %1)
+                  (vec (map (fn [x] (lookup env x)) %1))
+                  (lookup env %1))
+               simple)]
       (apply add-dependencies env (vals argmap))
       (if-not (some nil? (rest ins))
         ;; handle the [b*] case by blowing out a temp
         (do
           (allocate-register env (first simple))
           (build
-           (apply term env (first terms) m simple)
+           (list (apply list (first terms) (lookup env (first simple)) (rest ins)))
            (down)))
         (compile-error (str "unhandled bound signature in" terms) {:env env :terms terms})))))
 
@@ -379,11 +383,12 @@
                  (add-dependencies env s)
                  (bind-names env {d (lookup env s)})
                  (down))]
-    (cond (and a b) (generate-binary-filter env terms down)
-          a (rebind (argmap :a) (argmap :b))
-          b (rebind (argmap :b) (argmap :a))
-          :else
-          (compile-error "reordering necessary, not implemented" {:env env :terms terms}))))
+    (cond
+      (and a b) (generate-binary-filter env terms down)
+      a (rebind (argmap :a) (argmap :b))
+      b (rebind (argmap :b) (argmap :a))
+      :else
+      (compile-error "reordering necessary, not implemented" {:env @env :terms terms}))))
 
 (defn compile-not [env terms down]
   (let [child-env (atom {'name (gensym "not")
