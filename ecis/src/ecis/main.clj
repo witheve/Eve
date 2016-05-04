@@ -27,11 +27,10 @@
                    (fact-btu expected attr val)
                    (fact-btu run attr val)
                    (= actual (sum 1))
-                   (query [test desired]
+                   (query [desired]
                           (fact expected :tag "expected" :test ~test)
                           (fact-btu expected attr val)
                           (= desired (sum 1)))
-                   
                    (choose [actual desired result]
                            (query
                             (= actual desired)
@@ -170,7 +169,7 @@
 
 (defn run-single-test [child directory name facts]
   (let [completion (fn [x] (swap! facts assoc name x))
-        body (slurp (str directory "/server/tests/" name))
+        body (slurp (str directory "/server/tests/" name ".e"))
         forms (read-string (str \( body "\n" \)))
         _ (doseq [i forms] 
             (println "formi" (str i))
@@ -198,7 +197,8 @@
     (if @s
       (let [d (clojure.java.io/file (str path "/server/tests"))]
         (doseq [i (file-seq d)]
-          (let [leaf  (last (string/split (str i) #"/"))]
+          (let [leaf (last (string/split (str i) #"/"))
+                leaf (first string/split (str i) #".")]
             ;; aw, comon, what the hell
             (when (not= leaf "tests")
               (println "test" leaf)
