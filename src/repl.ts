@@ -84,6 +84,10 @@ interface ReplCard {
   state: CardState,
   focused: boolean,
   query: Query,
+  history: Array<{
+    insert: Array<Array<any>>,
+    remove: Array<Array<any>>,
+  }>,
   display: CardDisplay,
   resultDisplay: ResultsDisplay,
 }
@@ -352,7 +356,7 @@ function connectToServer() {
           // Check if the stored user is in the database
           let dbUsers = repl.system.users.result.values;
           let ix = dbUsers.map((u) => u[0]).indexOf(repl.user.id)
-          if (ix >= 0) {
+          if (ix >= 0 && repl.system.queries === undefined) {
             // We found a user!
             repl.user = {id: dbUsers[ix][0], name: dbUsers[ix][1], username: dbUsers[ix][2] };
             repl.system.queries = newQuery(`(query [id row col display query]
@@ -480,6 +484,7 @@ function newReplCard(row?: number, col? :number): ReplCard {
       message: "",
       info: undefined,
     },
+    history: [],
     display: CardDisplay.QUERY,
     resultDisplay: ResultsDisplay.MESSAGE,
   }
