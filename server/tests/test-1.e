@@ -20,6 +20,6 @@
 (query
   (= test "test-1")
   (fact data :tag "data" :test :a)
-  (= out (add-2 a))
+  (= value (add-2 a))
   (= id (str test " a: " a " value: " value))
   (insert-fact! id :tag "result" :test :a :value))
