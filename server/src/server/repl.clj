@@ -1,5 +1,7 @@
 (ns server.repl
-  (:require [server.db :as db]
+  (:import [java.io PushbackReader])
+  (:require [clojure.java.io :as io]
+            [server.db :as db]
             [server.edb :as edb]
             [server.log :as log]
             [server.smil :as smil]
@@ -8,122 +10,149 @@
             [clojure.pprint :refer [pprint]]
             [server.exec :as exec]))
 
-(declare eeval)
+(defn time-elapsed [start]
+  (float (/ (- (System/nanoTime) start) 1000000000)))
 
-(defn repl-error [& thingy]
-  (throw thingy))
+(defn print-diff-callback [channel form op & [results]]
+  (condp = op
+    'flush (let [{inserts 'insert removes 'remove} (group-by #(get %1 0) results)]
+             (println "--- FLUSH" channel "---")
+             (println (smil/get-fields form))
+             (println "INSERT:")
+             (doseq [insert inserts]
+               (println (clojure.string/join " " (drop 2 insert))))
+             (println "REMOVE:")
+             (doseq [remove removes]
+               (println (clojure.string/join " " (drop 2 remove)))))
+    'close (println "--- FLUSH" channel "---")
+    'error (do (println "--- ERROR" channel "---")
+               (println results))))
 
-(defn form-from-smil [z] [z (second z)])
+(defn print-result-handler [channel]
+  (let [tick (System/nanoTime)]
+    (fn [form]
+      (fn [tuple]
+        (condp = (exec/rget tuple exec/op-register)
+          'insert (println "INSERT" channel (exec/print-registers tuple))
+          'remove (println "REMOVE" channel (exec/print-registers tuple))
+          'flush  (println "FLUSH " channel (exec/print-registers tuple))
+          'close  (do
+                    (println (exec/print-registers tuple))
+                    (println (str "--- CLOSE [" (time-elapsed tick) "ms]") channel "---"))
+          'error  (println "ERROR " channel (exec/print-registers tuple)))))))
 
-(defn show [d expression]
-  (let [[form keys] (form-from-smil (smil/unpack d (second expression)))
-        prog (compiler/compile-dsl d form)]
-     (pprint prog)))
+(defn buffered-result-handler [channel callback]
+  (fn [form]
+    (let [results (atom ())
+          fields (smil/get-fields form)
+          store-width (+ (count fields) 2)] ;; [op qid & results]
+      (fn [tuple]
+        (condp = (exec/rget tuple exec/op-register)
+          'insert (swap! results conj (vec (take store-width tuple)))
+          'remove (swap! results conj (vec (take store-width tuple)))
+          'flush (do (callback channel form 'flush @results)
+                     (reset! results '()))
+          'close (callback channel form 'close)
+          'error (callback channel form 'error (ex-info "Failure to WEASL" {:data (str tuple)})))))))
 
+(defn define [db form trace-on]
+  (db/insert-implication db
+                         (second form)
+                         (nth form 2)
+                         (drop 3 form))
+  nil)
 
-(defn print-result [keys channel tick]
-  (fn [tuple]
-    (condp = (exec/rget tuple exec/op-register)
-                'insert (println "INSERT" channel (exec/print-registers tuple))
-                'remove (println "REMOVE" channel (exec/print-registers tuple))
-                'flush  (println "FLUSH " channel (exec/print-registers tuple))
-                'close  (println "CLOSE " channel (exec/print-registers tuple) (float (/ (- (System/nanoTime) tick) 1000000000)))
-                'error  (println "ERROR " channel (exec/print-registers tuple)))))
+(defn compile-forms [db forms trace]
+  (reduce (fn [progs form]
+            (assoc progs form
+                   (if (= (first form) 'define!)
+                     (define db form (:compiling trace))
+                     (compiler/compile-dsl db form))))
+          {} forms))
 
-(declare define)
-(defn execco [d expression trace-on channel]
-  (let [[forms keys] (form-from-smil (smil/unpack d expression))
-        forms (if-not (vector? forms) [forms] forms)
-        _ (when trace-on
-            (println "--- SMIL ---")
-            (pprint forms)
-            (println " --- Program / Trace ---"))
+(defn as-executable
+  ([db progs handler] (as-executable progs handler false))
+  ([db progs handler tracer]
+   (let [tracer (if (and tracer (not (fn? tracer)))
+                  (fn [n m x] (fn [r] (println "trace" n m) (println (exec/print-registers r)) (x r)))
+                  (or tracer (fn [n m x] x)))
+         ;runnables (filter identity (vals progs))
+         runnables (select-keys progs (for [[k v] progs :when v] k))
+         exes (doall (map #(exec/open db (second %1) (handler (first %1)) tracer) runnables))]
+     (fn [& args]
+       (doseq [exe exes]
+         (apply exe args))))))
 
-        progs (map #(if (= (first %1) 'define!)
-                      (define d %1 trace-on)
-                      (compiler/compile-dsl d %1)) forms)
-        start (System/nanoTime)
-        ecs (doall (map #(exec/open d %1 (print-result keys channel start)
-                                    (if trace-on
-                                      (fn [n m x] (fn [r] (println "trace" n m) (println (exec/print-registers r)) (x r)))
-                                      (fn [n m x] x))) progs))]
+(defn exec*
+  ([db expression handler] (exec* db expression handler false))
+  ([db expression handler trace]
+   (let [trace (if (= trace true)
+                 #{:expanded :compiled :executing}
+                 (or trace #{}))
+         start (System/nanoTime)
+         forms (smil/unpack db expression)]
+     (when (:expanded trace)
+       (println (str "--- SMIL (:expanded) [" (time-elapsed start) "ms] ---"))
+       (smil/print-smil forms))
 
-    (when trace-on (pprint progs))
-    (doseq [ec ecs]
-      (ec 'insert)
-      (ec 'flush)
-      ec)))
+     (let [start (System/nanoTime)
+           progs (compile-forms db forms trace)]
+       (when (:compiled trace)
+         (println (str "--- WEASL (:compiled) [" (time-elapsed start) "ms] ---"))
+         (pprint (vals progs)))
 
-(defn diesel [d expression trace-on]
-  (doseq [ec (execco d expression trace-on "")]
-    (ec 'close)
-    ec))
+       (let [exe (as-executable db progs handler (:executing trace))]
+         (when (:executing trace)
+           (println "--- TRACE (:executing) ---"))
+         (exe 'insert)
+         (exe 'flush)
+         (with-meta exe {:raw expression
+                         :smil (vec forms)
+                         :weasl (vec (vals progs))
+                         :define-only (not= (count progs) (count (filter identity (vals progs))))}))))))
 
-(defn open [d expression trace-on]
-  (execco d (nth expression 2) trace-on (second expression)))
+(defn exec-once [db expression trace]
+  (let [exe (exec* db expression (print-result-handler (gensym "eval")) trace)]
+    (exe 'close)
+    exe))
 
-(defn timeo [d expression trace-on]
-  (let [[form keys] (form-from-smil (smil/unpack d (nth expression 1)))
-        counts []
-        prog (compiler/compile-dsl d form)
-        start (System/nanoTime)
-        res (print-result keys (second expression) start)
-        ec (exec/open d prog res (fn [n m x] (println "here" m) x))]
-    (when trace-on (pprint prog))
-    (ec 'insert)
-    (ec 'flush)))
+(defn exec-open [db expression trace]
+  (exec* db (nth expression 2) (print-result-handler (second expression)) trace))
 
+(defn exec-buffered [db expression trace]
+  (let [exe (exec* db (nth expression 2) (buffered-result-handler (second expression) print-diff-callback) trace)]
+    (exe 'close)
+    exe))
+
+(defn exec-open-buffered [db expression trace]
+  (exec* db (nth expression 2) (buffered-result-handler (second expression) print-diff-callback) trace))
 
 (defn doexit [d expression trace-on]
   (System/exit 0))
 
-(defn trace [d expression trace-on]
-  (eeval d (second expression) true))
-
-;; xxx - this is now...in the language..not really?
-(defn define [d expression trace-on]
-  (let [z (smil/unpack d expression)]
-    (db/insert-implication d (second z) (nth z 2) (rest (rest (rest z))))))
-
-
 (defn dodot [d expression trace-on]
-  (let [[form keys] (form-from-smil (smil/unpack d (second expression)))
-        program (compiler/compile-dsl d form)]
-    (println (str  "digraph query {\n"
-                   (apply str
-                          (map (fn [x]
-                                 (let [block (nth x 1)]
-                                   (apply str (map #(if (= (first %1) 'send)
-                                                      (str "\"" block "\" -> \"" (second %1) "\"\n") "") (nth x 2)))))
-                               program))
-                   "}\n"))))
+  (let [forms (smil/unpack d (second expression))
+        progs (compile-forms forms trace-on)]
+    ;; @FIXME: THIS IS PROBABLY NOT THE RIGHT WAY TO DO THIS
+    (doseq [program (vals progs)]
+      (println (str  "digraph query {\n"
+                     (apply str
+                            (map (fn [x]
+                                   (let [block (nth x 1)]
+                                     (apply str (map #(if (= (first %1) 'send)
+                                                        (str "\"" block "\" -> \"" (second %1) "\"\n") "") (nth x 2)))))
+                                 program))
+                     "}\n")))))
 
 
 (defn create-bag [d expression trace-on]
   (println "i wish i could help you"))
 
-
-(declare read-all)
-
-(defn eeval
-  ([d term] (eeval d term false))
-  ([d term trace-on]
-     (let [function ({'show show
-                      'trace trace
-                      'create-bag create-bag
-                      'time timeo
-                      'exit doexit
-                      'dot dodot
-                      'open open
-                      'load read-all
-                      } (first term))]
-       (if (nil? function)
-         (diesel d term trace-on)
-         (function d term trace-on))
-       d)))
-
-(import '[java.io PushbackReader])
-(require '[clojure.java.io :as io])
+(declare eeval)
+(defn trace [db expression trace-on]
+  (if (or (set? (second expression)) (vector? second expression))
+    (eeval db (nth expression 2) (set (second expression)))
+    (eeval db (second expression) true)))
 
 (defn read-all [d expression trace-on]
   ;; trap file not found
@@ -143,6 +172,22 @@
             (eeval d form trace-on)
             (recur)))))))
 
+(defn eeval
+  ([d term] (eeval d term false))
+  ([d term trace-on]
+     (let [function ({'trace trace
+                      'create-bag create-bag
+                      'exit doexit
+                      'dot dodot
+                      'open exec-open
+                      'buffer exec-buffered
+                      'open-buffer exec-open-buffered
+                      'load read-all
+                      } (first term))]
+       (if (nil? function)
+         (exec-once d term trace-on)
+         (function d term trace-on))
+       d)))
 
 (defn rloop [d trace-on]
   (loop [d d]

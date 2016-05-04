@@ -49,6 +49,10 @@
     (when-not (or (symbol? dir) (= "ascending" dir) (= "descending" dir))
       (syntax-error "Second argument of each pair must be a direction" sexpr {:var var :dir dir}))))
 
+(defn get-fields [sexpr]
+  (when (and (seq? sexpr) (#{'query 'union 'choose} (first sexpr)))
+    (vec (second sexpr))))
+
 ;; :args - positional arguments
 ;; :kwargs - keyword arguments
 ;; :rest - remaining arguments
@@ -481,7 +485,8 @@
         {:inline [(with-meta (seq (:inline state)) (meta sexpr))] :query (:query state)}))))
 
 (defn unpack [db sexpr]
-  (first (:inline (unpack-inline (expand db sexpr)))))
+  (let [unpacked (first (:inline (unpack-inline (expand db sexpr))))]
+    (if (vector? unpacked) unpacked [unpacked])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; SMIL formatting and debugging utilities
@@ -501,7 +506,14 @@
                args))))
 
 (defn print-smil [sexpr & {:keys [indent] :or {indent 0}}]
-   (cond
+  (cond
+    (vector? sexpr)
+    (do
+      (print "[")
+      (doseq [expr sexpr]
+        (print-smil expr))
+      (print "]\n"))
+
      (not (seq? sexpr))
      (if (sequential? sexpr)
        (map #(print-smil %1 :indent indent) sexpr)
