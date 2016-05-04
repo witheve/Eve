@@ -113,6 +113,7 @@
     (e 'flush)
     prog))
 
+
 (defn handle-connection [db channel]
   ;; this seems a little bad..the stack on errors after this seems
   ;; to grow by one frame of org.httpkit.server.LinkingRunnable.run(RingHandler.java:122)
