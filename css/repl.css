@@ -84,6 +84,7 @@ h2 {
 }
 
 .query-input {
+  display:flex;
   min-width: 300px;
   padding: 10px;
   background-color: rgb(50,50,50);
@@ -257,7 +258,7 @@ textarea:focus, input:focus{
   padding: 5px; 
   min-width: 25px; 
   white-space: pre; 
-  max-width: 300px;
+  max-width: 350px;
   overflow-x: auto; 
 }
 .cell { border-top: 1px solid #555; border-right: 1px solid #555; }
@@ -317,7 +318,7 @@ li {
 /* CodeMirror style overrides */
 
 .CodeMirror {
-  height: 100px;
+  flex:1;
   color: rgb(200,200,200);
   background-color: rgba(0,0,0,0);
   cursor: text;
