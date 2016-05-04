@@ -183,7 +183,7 @@
     (swap! facts conj (list key :tag "testresult"))
     (swap! facts conj (list key :run root))
     (doseq [i (apply concat r)] 
-      (swap! facts conj (key :result i)))))
+      (swap! facts conj (list key :result i)))))
 
 
 (defn run-test [url branch facts root]
