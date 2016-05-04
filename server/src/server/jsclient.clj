@@ -15,6 +15,7 @@
    [clojure.pprint :refer [pprint]]))
 
 (defonce clients (atom {}))
+(defonce last-empty? (atom {})) ;; @FIXME: TEMPORARY, should be inlined into client or done differently
 (defonce server (atom nil))
 
 (def DEBUG true)
@@ -46,18 +47,21 @@
 (defn send-result [channel id fields results]
   (println "send result")
   (let [client (get @clients channel)
+        send-if-empty? (not (get-in @last-empty? [channel id] false))
+        empty? (zero? (count results))
         {inserts 'insert removes 'remove} (group-by #(get %1 0) results)
         message {"type" "result"
                  "id" id
                  "fields" fields
                  "insert" (map #(drop 2 %1) inserts)
                  "remove" (map #(drop 2 %1) removes)}]
-    (println "result" message)
-    
-    (httpserver/send! channel (format-json message))
-    (when DEBUG
-      (println "<- result" id "to" (:id client) "@" (timestamp))
-      (pprint message))))
+
+    (when (or (not empty?) send-if-empty?)
+      (httpserver/send! channel (format-json message))
+      (swap! last-empty? assoc-in [channel id] empty?)
+      (when DEBUG
+        (println "<- result" id "to" (:id client) "@" (timestamp))
+        (pprint message)))))
 
 (defn send-error [channel id error]
   (let [client (get @clients channel)
