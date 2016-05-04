@@ -86,10 +86,14 @@
 
 (defn start-query [db query id channel]
   (let [results (atom ())
-        [form fields]  (repl/form-from-smil query)
+        [forms fields]  (repl/form-from-smil query)
+        forms (if-not (vector? forms) [forms] forms)
         fields (or fields [])
         store-width (+ (count fields) 2)
-        prog (compiler/compile-dsl db form)
+        progs (map #(if (= (first %1) 'define!)
+                      (repl/define db %1 false)
+                      (compiler/compile-dsl db %1)) forms)
+        ;; @FIXME: handler almost certainly needs to be parameterized for each form, but in this case the multi-forms can't return, so...
         handler (fn [tuple]
                   (condp = (exec/rget tuple exec/op-register)
                     'insert (swap! results conj (vec (take store-width tuple)))
@@ -98,14 +102,15 @@
                                (reset! results '()))
                     'close (println "@FIXME: Send close message")
                     'error (send-error channel id (ex-info "Failure to WEASL" {:data (str tuple)}))))
-        e (exec/open db prog handler (fn [n m x] x))]
-    (doseq [line (string/split (with-out-str (pprint prog)) #"\n")]
+        ecs (doall (map #(exec/open db %1 handler (fn [n m x] x)) progs))]
+    (doseq [line (string/split (with-out-str (pprint progs)) #"\n")]
       (println "   " line))
 
-    (swap! clients assoc-in [channel :queries id] e)
-    (e 'insert)
-    (e 'flush)
-    prog))
+    (swap! clients assoc-in [channel :queries id] ecs)
+    (doseq [ec ecs]
+      (ec 'insert)
+      (ec 'flush))
+    progs))
 
 (defn handle-connection [db channel]
   ;; this seems a little bad..the stack on errors after this seems
@@ -135,20 +140,22 @@
              (println "  SMIL:")
              (println smil)
              (println "  WEASL:")
-             (let [prog (condp = (first expanded)
-                          'query (start-query db expanded id channel)
-                          'define! (do
-                                     (repl/define db expanded false)
-                                     (send-result channel id [] []))
-                          (throw (ex-info (str "Invalid query wrapper " (first expanded)) {:expr expanded})))]
-               (send-query-info channel id raw smil (with-out-str (pprint prog)))))
+             (let [progs (start-query db expanded id channel)]
+               (send-query-info channel id raw smil (with-out-str (pprint progs)))))
+             ;; (let [prog (condp = (first expanded)
+             ;;              'query (start-query db expanded id channel)
+             ;;              'define! (do
+             ;;                         (repl/define db expanded false)
+             ;;                         (send-result channel id [] []))
+             ;;              (throw (ex-info (str "Invalid query wrapper " (first expanded)) {:expr expanded})))]
+             ;;   (send-query-info channel id raw smil (with-out-str (pprint prog)))))
            "close"
-           (let [e (get-in @clients [channel :queries id])]
-             (if-not e
+           (let [ecs (get-in @clients [channel :queries id])]
+             (if-not ecs
                (send-error channel id (ex-info (str "Invalid query id " id) {:id id}))
                (do
-
-                 (e 'close)
+                 (doseq [ec ecs]
+                   (ec 'close))
                  (swap! clients update-in [channel :queries] dissoc id))))
            (throw (ex-info (str "Invalid protocol message type " t) {:message input})))
          (catch clojure.lang.ExceptionInfo error
