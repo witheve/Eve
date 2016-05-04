@@ -35,6 +35,7 @@ enum ResultsDisplay {
   GRAPH,
   INFO,
   MESSAGE,
+  HISTORY,
   NONE,
 }
 
@@ -47,6 +48,14 @@ export interface QueryMessage {
 export interface CloseMessage {
   type: string,
   id: string,
+}
+
+export interface ResultMessage {
+  type: string,
+  id: string,
+  fields: Array<string>,
+  insert: Array<Array<any>>,
+  remove: Array<Array<any>>,
 }
 
 interface Query {
@@ -76,6 +85,7 @@ interface ReplCard {
   state: CardState,
   focused: boolean,
   query: Query,
+  history: Array<ResultMessage>,
   display: CardDisplay,
   resultDisplay: ResultsDisplay,
 }
@@ -265,33 +275,23 @@ function connectToServer() {
     //console.log("message")
     //console.log(message.data);    
     let parsed = JSON.parse(message.data.replace(/\n/g,'\\\\n').replace(/\r/g,'\\\\r').replace(/\t/g,'  ').replace(/\\\\"/g,'\\"'));
-    //console.log(parsed);
     // Update the result of the correct repl card
     let targetCard = repl.deck.cards.filter((r) => r.id === parsed.id).shift();
     if (targetCard !== undefined) {
       if (parsed.type === "result") {
-        if (parsed.fields.length > 0) {         
-          let values: Array<Array<any>>;
+        let resultMsg: ResultMessage = parsed;
+        if (resultMsg.fields.length > 0) {         
           // If the card is pending, it was submitted manually, 
           // so we replace the values with the inserts          
           if (targetCard.state === CardState.PENDING) {
-            values = parsed.insert;
             targetCard.display = CardDisplay.BOTH;
             targetCard.resultDisplay = ResultsDisplay.TABLE;
-            targetCard.query.result = {
-              fields: parsed.fields,
-              values: values,
-            };
-          // If the card is Good, that means it already has results
-          // and the current message is updating them
-          } else if (targetCard.state === CardState.GOOD) {
-            // Apply inserts
-            targetCard.query.result.values = targetCard.query.result.values.concat(parsed.insert);
-            // Apply removes
-            parsed.remove.forEach((row) => {
-              removeRow(row,targetCard.query.result.values);
-            });
+            targetCard.query.result = undefined;
           }
+          if (resultMsg.insert.length > 0 || resultMsg.insert.length > 0) {
+            targetCard.history.push(resultMsg);
+          }
+          updateQueryResult(targetCard.query, resultMsg);
         } else {
           targetCard.resultDisplay = ResultsDisplay.NONE;
         }
@@ -331,19 +331,8 @@ function connectToServer() {
       let targetSystemQuery: Query = objectToArray(repl.system).filter((q) => q.id === parsed.id).shift();
       if (targetSystemQuery !== undefined) {
         if (parsed.type === "result") {
-          if (targetSystemQuery.result === undefined) {
-            targetSystemQuery.result = {
-              fields: parsed.fields,
-              values: parsed.insert,
-            };
-          } else {
-            // Apply inserts
-            targetSystemQuery.result.values = targetSystemQuery.result.values.concat(parsed.insert);
-            // Apply removes
-            parsed.remove.forEach((row) => {
-              removeRow(row,targetSystemQuery.result.values);
-            });
-          }
+          let resultMsg: ResultMessage = parsed;
+          updateQueryResult(targetSystemQuery, resultMsg);
           // Update the repl based on these new system queries
           if (repl.system.queries !== undefined && parsed.id === repl.system.queries.id && parsed.insert !== undefined) {
             parsed.insert.forEach((n) => {
@@ -356,7 +345,7 @@ function connectToServer() {
               replCard.query.id = replCard.id;
               replCard.query.query = n[4];
               if (replCard.state === CardState.NONE) {
-                submitReplCard(replCard);  
+                submitCard(replCard);  
               }              
             });
           }  
@@ -368,7 +357,7 @@ function connectToServer() {
           // Check if the stored user is in the database
           let dbUsers = repl.system.users.result.values;
           let ix = dbUsers.map((u) => u[0]).indexOf(repl.user.id)
-          if (ix >= 0) {
+          if (ix >= 0 && repl.system.queries === undefined) {
             // We found a user!
             repl.user = {id: dbUsers[ix][0], name: dbUsers[ix][1], username: dbUsers[ix][2] };
             repl.system.queries = newQuery(`(query [id row col display query]
@@ -477,9 +466,9 @@ function sendAnonymousQuery(query: string) {
   sendMessage(closeMessage);
 }
 
-// ------------------
-// Card functions
-// ------------------
+// ---------------------
+// Card/Query functions
+// ---------------------
 
 function newReplCard(row?: number, col? :number): ReplCard {
   let id = uuid();
@@ -496,6 +485,7 @@ function newReplCard(row?: number, col? :number): ReplCard {
       message: "",
       info: undefined,
     },
+    history: [],
     display: CardDisplay.QUERY,
     resultDisplay: ResultsDisplay.MESSAGE,
   }
@@ -519,7 +509,7 @@ function getCard(row: number, col: number): ReplCard {
   return repl.deck.cards.filter((r) => r.row === row && r.col === col).shift();
 }
 
-function submitReplCard(card: ReplCard) {
+function submitCard(card: ReplCard) {
   let query = card.query;
  
   // If it does exist, remove the previous repl-card row and close the old query
@@ -560,6 +550,22 @@ function submitReplCard(card: ReplCard) {
   if (emptyCardsInCol.length === 0) {
     addCardToColumn(repl.deck.focused.col);
     rerender();
+  }
+}
+
+function updateQueryResult(query: Query, message: ResultMessage) {
+  if (query.result === undefined) {
+    query.result = {
+      fields: message.fields,
+      values: message.insert,
+    };
+  } else {
+    // Apply inserts
+    query.result.values = query.result.values.concat(message.insert);
+    // Apply removes
+    message.remove.forEach((row) => {
+      removeRow(row,query.result.values);
+    });
   }
 }
 
@@ -617,7 +623,9 @@ function focusCard(replCard: ReplCard) {
     } else {
       setTimeout(function() {
         cm = getCodeMirrorInstance(replCard);
-        cm.focus();
+        if (cm !== undefined) {
+          cm.focus();           
+        }
       }, 100);  
     }
   }
@@ -696,7 +704,7 @@ function queryInputKeydown(event, elem) {
   let thisReplCard: ReplCard = elemToReplCard(elem);
   // Submit the query with ctrl + enter or ctrl + s
   if ((event.keyCode === 13 || event.keyCode === 83) && event.ctrlKey === true) {
-    submitReplCard(thisReplCard);
+    submitCard(thisReplCard);
   // Catch ctrl + delete to remove a card
   } else if (event.keyCode === 46 && event.ctrlKey === true) {
     deleteCard(thisReplCard);
@@ -888,6 +896,13 @@ function queryInputClick(event, elem) {
   if (event.button === 1) {
     let card = elemToReplCard(elem);
     card.display = card.display === CardDisplay.BOTH ? CardDisplay.QUERY : CardDisplay.BOTH;
+    // If we can't see the query results, close the query
+    if (card.display === CardDisplay.QUERY) {
+      sendClose(card.query);
+    // If we can see the query results, open the query
+    } else {
+      // @TODO
+    }
     event.preventDefault(); 
     rerender();  
   }
@@ -979,6 +994,7 @@ function generateResultElement(card: ReplCard) {
   let tableSwitch   = {c: `button ${card.resultDisplay === ResultsDisplay.TABLE   ? "" : "disabled "}ion-grid`, text: " Table", data: ResultsDisplay.TABLE, row: card.row, col: card.col, click: resultSwitchClick };
   let graphSwitch   = {c: `button ${card.resultDisplay === ResultsDisplay.GRAPH   ? "" : "disabled "}ion-stats-bars`, data: ResultsDisplay.GRAPH, row: card.row, col: card.col, text: " Graph"};
   let messageSwitch = {c: `button ${card.resultDisplay === ResultsDisplay.MESSAGE ? "" : "disabled "}ion-quote`, data: ResultsDisplay.MESSAGE, row: card.row, col: card.col, text: " Message"};
+  let historySwitch = {c: `button ${card.resultDisplay === ResultsDisplay.HISTORY ? "" : "disabled "}ion-quote`, data: ResultsDisplay.HISTORY, row: card.row, col: card.col, text: " History", click: resultSwitchClick};
   let infoSwitch    = {c: `button ${card.resultDisplay === ResultsDisplay.INFO    ? "" : "disabled "}ion-help`, data: ResultsDisplay.INFO, row: card.row, col: card.col, text: " Info", click: resultSwitchClick};
   let switches = [];
   // Format card based on state
@@ -986,6 +1002,9 @@ function generateResultElement(card: ReplCard) {
     resultcss += " good";      
     if (card.query.result !== undefined) {
       switches.push(tableSwitch);
+    }
+    if (card.history.length > 0) {
+      switches.push(historySwitch);
     }
   } else if (card.state === CardState.ERROR) {
     resultcss += " error";
@@ -1015,6 +1034,13 @@ function generateResultElement(card: ReplCard) {
     result = {text: card.query.message};  
   } else if (card.resultDisplay === ResultsDisplay.TABLE) {
     result = generateResultTable(card.query.result);  
+  } else if (card.resultDisplay === ResultsDisplay.HISTORY) {
+    let tables = card.history.map((h) => {
+      let insertTable = h.insert.length > 0 ? generateResultTable({fields: h.fields, values: h.insert}) : {};
+      let removeTable = h.remove.length > 0 ? generateResultTable({fields: h.fields, values: h.remove}) : {};
+      return {c: "", children: [{t: "h2", text: "Insert"}, insertTable, {t: "h2", text: "Remove"}, removeTable]};
+    });
+    result = {c: "", children: tables};
   }
   // Add the info switch if there is info to be had
   if (card.query.info !== undefined) {
@@ -1164,7 +1190,7 @@ let repl: Repl = {
                       (fact entity :tag tag)
                         (not
                           (fact entity :tag "system")))`),        // get all tags that are not system tags
-    users: newQuery(`(query [id name username password] 
+    users: newQuery(`(query [id name username password]
                        (fact id :tag "repl-user" 
                                 :name name 
                                 :username username 
