@@ -2,6 +2,7 @@
   (:require [server.edb :as edb]
             [clojure.pprint :refer [pprint cl-format]]))
 
+
 (def basic-register-frame 30)
 (def op-register [0])
 (def qid-register [1])
