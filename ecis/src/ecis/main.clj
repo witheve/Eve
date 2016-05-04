@@ -3,6 +3,7 @@
    [clojure.java.io :as io]
    [clojure.string :as string]
    [org.httpkit.server :as httpserver]
+   [clojure.stacktrace :refer [print-stack-trace]]
    [clj-jgit.porcelain :as porcelain]  
    [clojure.walk :as walk]
    [clj-json.core :as json]
@@ -68,15 +69,16 @@
 ;; shutdown handler
 (defn connect-to-eve [station user bag shutdown]
   (let [handlers (atom {})
-        input #(let [
-                     _ (println "incoming!" %)
-                     j (json/parse-string %)
-                     h (@handlers (symbol (j "id")))]
-                 (println "input" (j "type"))
-                 (condp = (j "type")
-                          "result" (h (j "insert"))
-                          "close" (h nil)
-                          true))
+        input (fn [x] 
+                (try (let [_ (println "incoming!" x)
+                           j (json/parse-string x)
+                           h (@handlers (symbol (j "id")))]
+                       (println "input" (j "type"))
+                       (condp = (j "type")
+                                "result" (h (j "insert"))
+                                "close" (h nil)
+                                true))
+                   (catch Exception e (print-stack-trace e))))
        
         target (str "ws://" station)
         ;; just bury any errors
