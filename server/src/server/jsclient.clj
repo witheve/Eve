@@ -106,7 +106,7 @@
     (send-query-info channel id (:raw m) (:smil m) (:weasl m))
     (if (:define-only m)
       (send-result channel id [] []))
-      (fn [x] (httpserver/send! channel (format-json {\"type\" \"close\" \"id\" id})))
+      (fn [x] (httpserver/send! channel (format-json {"type" "close" "id" id})))
     exe))
 
 (defn handle-connection [db channel]
