@@ -261,7 +261,7 @@ textarea:focus, input:focus{
   overflow-x: auto; 
 }
 .cell { border-top: 1px solid rgb(208,208,208); border-right: 1px solid rgb(208,208,208); }
-.cell::-webkit-scrollbar { width: 5px; height: 10px; } 
+.cell::-webkit-scrollbar { width: 5px; height: 5px; } 
 .cell::-webkit-scrollbar-track { box-shadow: inset 0 0 6px rgba(0,0,0,0); } 
 .cell::-webkit-scrollbar-thumb { background-color: rgb(80,80,80); outline: 1px solid slategrey; } 
 .cell::-webkit-scrollbar-corner { background-color: transparent;} 
