@@ -1,5 +1,3 @@
-
-;; todo - automate the generation of golden facts
 (query
   (insert-fact! "test-2"
                 :tag "test")
