@@ -3,7 +3,7 @@ html, body {
   color: rgb(200,200,200);
   background-color: rgb(30,30,30);
   overflow: hidden;
-  font-family: sans-serif;
+  font-family: "Arial", sans-serif;
 }
 
 h1 {
@@ -91,7 +91,7 @@ h2 {
 
 .query-result {
   background-color: rgb(40,40,40);
-  padding: 10px;
+  padding: 10px 20px;
   flex-grow: 1;
 }
 
@@ -243,16 +243,16 @@ textarea:focus, input:focus{
 /* Table Styles */
 
 .table { display: table; }
-.table { border-left: 1px solid rgb(208,208,208); border-bottom: 1px solid rgb(208,208,208); }
+.table { border-left: 1px solid #444; border-bottom: 1px solid #444; border-radius:2px; }
 
-.header { display: table-row; font-weight: bold; text-align: center; letter-spacing: 2px; }
-.header { background-color: #333; }
+.header { display: table-row; }
+.header { background-color: #444; }
 
 .row { display: table-row; }
 
 .cell { display: table-cell; padding: 5px; min-width: 25px; white-space: pre; }
 .header .cell { padding: 7px;}
-.cell { border-top: 1px solid rgb(208,208,208); border-right: 1px solid rgb(208,208,208); }
+.cell { border-top: 1px solid #555; border-right: 1px solid #555; }
 
 /* List Styles */
 
@@ -309,6 +309,8 @@ li {
   color: rgb(200,200,200);
   background-color: rgba(0,0,0,0);
   cursor: text;
+  font-family: "Inconsolata", "Consolas", "Courier New", monospace;
+  font-size:11pt;
 }
 
 .CodeMirror-cursor {

@@ -1049,9 +1049,16 @@ function generateResultElement(card: ReplCard) {
     result = generateResultTable(card.query.result);  
   } else if (card.resultDisplay === ResultsDisplay.HISTORY) {
     let tables = card.history.map((h) => {
-      let insertTable = h.insert.length > 0 ? generateResultTable({fields: h.fields, values: h.insert}) : {};
-      let removeTable = h.remove.length > 0 ? generateResultTable({fields: h.fields, values: h.remove}) : {};
-      return {c: "", children: [{t: "h2", text: "Insert"}, insertTable, {t: "h2", text: "Remove"}, removeTable]};
+      let insertTable = h.insert.length > 0 ? generateResultTable({fields: h.fields, values: h.insert}) : false;
+      let removeTable = h.remove.length > 0 ? generateResultTable({fields: h.fields, values: h.remove}) : false;
+      let historyChildren = [];
+      if(insertTable) {
+        historyChildren.push({t: "h2", text: "Insert"}, insertTable);
+      }
+      if(removeTable) {
+        historyChildren.push({t: "h2", text: "Remove"}, removeTable);
+      }
+      return {c: "", children: historyChildren};
     });
     result = {c: "", children: tables};
   }
