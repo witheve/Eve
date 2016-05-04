@@ -136,14 +136,15 @@
                  expanded (when query (smil/unpack db (smil/read query)))
                  raw (string/join "\n    " (string/split query #"\n"))
                  smil (with-out-str (smil/print-smil expanded :indent 2))]
-             (swap! clients update-in [channel :queries] assoc id)
              (println "  Raw:")
              (println "   " raw)
              (println "  SMIL:")
              (println smil)
              (println "  WEASL:")
              (let [prog (condp = (first expanded)
-                          'query (start-query db expanded id channel)
+                          'query (let [[prog e] (start-query db expanded id channel)]
+                                   (swap! clients assoc-in [channel :queries id] e)
+                                   (prog))
                           'define! (do
                                      (repl/define db expanded false)
                                      (send-result channel id [] []))
