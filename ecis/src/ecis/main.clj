@@ -179,7 +179,7 @@
             (eve-synchronous-query child (str i)))
         r (eve-synchronous-query child (check-query name))]
     (println "test results" name (apply concat r))
-    (swap! facts conj (list key :name name))
+    (swap! facts conj (list key :test name))
     (swap! facts conj (list key :tag "testresult"))
     (swap! facts conj (list key :run root))
     (doseq [i (apply concat r)] 
