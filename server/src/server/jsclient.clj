@@ -114,7 +114,6 @@
     (e 'flush)
     [prog e]))
 
-
 (defn handle-connection [db channel]
   ;; this seems a little bad..the stack on errors after this seems
   ;; to grow by one frame of org.httpkit.server.LinkingRunnable.run(RingHandler.java:122)
@@ -150,6 +149,8 @@
                                    prog)
                           'define! (do
                                      (repl/define db expanded false)
+                                     ;; so close can work
+                                     (swap! clients assoc-in [channel :queries id] (fn [x] ()))
                                      (send-result channel id [] []))
                           (throw (ex-info (str "Invalid query wrapper " (first expanded)) {:expr expanded})))]
                (send-query-info channel id raw smil (with-out-str (pprint prog)))))
