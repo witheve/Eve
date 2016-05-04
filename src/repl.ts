@@ -225,7 +225,8 @@ function loadCards(event:Event, elem) {
 // ------------------
 
 function connectToServer() {
-  let wsAddress = "ws://localhost:8081";
+  let host = location.host || "localhost:8081";
+  let wsAddress = `ws://${host}`;
   let ws: WebSocket = new WebSocket(wsAddress, []);
   repl.server.ws = ws;
     
@@ -393,7 +394,8 @@ function connectToServer() {
             sendAnonymousQuery(addUsers);
           } else {
             repl.init = true;
-            repl.deck.cards.map(submitCard);
+            // @NOTE temporary: submit all the repl cards for evaluation
+            repl.deck.cards.filter((c) => c.state !== CardState.NONE).map(submitCard);
           }
         }
       }
