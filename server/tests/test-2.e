@@ -1,3 +1,4 @@
+
 (query
   (insert-fact! "test-2"
                 :tag "test")
