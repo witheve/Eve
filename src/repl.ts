@@ -144,11 +144,11 @@ interface Repl {
 // Storage functions
 // ------------------
 
-function saveReplCard(card: ReplCard) {
+function saveCard(card: ReplCard) {
   localStorage.setItem("everepl-" + card.id, JSON.stringify(card));  
 }
 
-function loadReplCards(): Array<ReplCard> {
+function loadCards(): Array<ReplCard> {
   let storedCards: Array<ReplCard> = [];
   for (let item in localStorage) {
     if (item.substr(0,7) === "everepl") {
@@ -163,10 +163,9 @@ function loadReplCards(): Array<ReplCard> {
   return storedCards;
 }
 
-/*
-function deleteStoredReplCard(replCard: ReplCard) {
-  localStorage.removeItem("everepl-" + replCard.id);
-}*/
+function deleteStoredCard(card: ReplCard) {
+  localStorage.removeItem("everepl-" + card.id);
+}
 
 /*
 function saveCards() {
@@ -550,7 +549,7 @@ function submitCard(card: ReplCard) {
                                               :query "${card.query.query.replace(/"/g,'\\"')}"
                                               :display ${card.display}))`;
   sendAnonymousQuery(rcQuery);*/
-  saveReplCard(card);
+  saveCard(card);
   
   // Send the actual query
   let sent = sendQuery(card.query);
@@ -618,6 +617,8 @@ function deleteCard(card: ReplCard) {
   let ix = repl.deck.cards.map((c) => c.id).indexOf(card.id);
   // remove the card from the deck
   repl.deck.cards.splice(ix,1);
+  // Remove the card from local storage
+  deleteStoredCard(card);
   // Renumber the cards
   repl.deck.cards.filter((r) => r.col === card.col && r.row > card.row).forEach((c,i) => c.row = i + card.row);
   // send a remove to the server
@@ -1197,7 +1198,7 @@ function generateChatElement() {
 
 // Create an initial repl card
 //let defaultCard = newReplCard();
-let storedCards = loadReplCards();
+let storedCards = loadCards();
 if (storedCards.length === 0) {
   storedCards.push(newReplCard());
 }
