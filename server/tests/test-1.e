@@ -13,12 +13,12 @@
                 :test "test-1"
                 :a 1))
 
-(define! add-2 [a return]
-  (= return (+ a 2)))
+(define! add-3 [a return]
+  (= return (+ a 3)))
 
 (query
   (= test "test-1")
   (fact data :tag "data" :test :a)
-  (= value (add-2 a))
+  (= value (add-3 a))
   (= id (str test " a: " a " value: " value))
   (insert-fact! id :tag "result" :test :a :value))
