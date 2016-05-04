@@ -94,6 +94,7 @@
 
 
 (defn eve-query [s q handler]
+  (println "evo quero" q)
   (let [tag (gensym "q")
         q (format-json {"type" "query"
                         "query"  q
