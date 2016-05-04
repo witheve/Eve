@@ -55,6 +55,7 @@ export interface CloseMessage {
 export interface ResultMessage {
   type: string,
   id: string,
+  timestamp?: number,
   fields: Array<string>,
   insert: Array<Array<any>>,
   remove: Array<Array<any>>,
@@ -70,7 +71,7 @@ interface Query {
 
 interface QueryResult {
   fields: Array<string>,
-  values: Array<Array<any>>
+  values: Array<Array<any>>,
 }
 
 interface QueryInfo {
@@ -283,6 +284,7 @@ function connectToServer() {
     if (targetCard !== undefined) {
       if (parsed.type === "result") {
         let resultMsg: ResultMessage = parsed;
+        resultMsg.timestamp = new Date().getTime();
         if (resultMsg.fields.length > 0) {         
           // If the card is pending, it was submitted manually, 
           // so we replace the values with the inserts          
@@ -397,7 +399,8 @@ function connectToServer() {
           } else {
             repl.init = true;
             // @NOTE temporary: submit all the repl cards for evaluation
-            repl.deck.cards.filter((c) => c.state !== CardState.NONE).map(submitCard);
+            console.log(repl.deck.cards);
+            repl.deck.cards.filter((c) => c.query !== undefined && c.query.query !== "").map(submitCard);
           }
         }
       }
@@ -1052,6 +1055,9 @@ function generateResultElement(card: ReplCard) {
       let insertTable = h.insert.length > 0 ? generateResultTable({fields: h.fields, values: h.insert}) : false;
       let removeTable = h.remove.length > 0 ? generateResultTable({fields: h.fields, values: h.remove}) : false;
       let historyChildren = [];
+      if(insertTable || removeTable) {
+        historyChildren.push({t: "h1", text: `Received: ${formatDate(h.timestamp)} ${formatTime(h.timestamp)}`});
+      }
       if(insertTable) {
         historyChildren.push({t: "h2", text: "Insert"}, insertTable);
       }
@@ -1164,16 +1170,9 @@ function generateChatElement() {
     let messageElements = repl.chat.messages.map((m) => {
       let userIx = repl.system.users.result.values.map((u) => u[0]).indexOf(m.user);
       let userName = repl.system.users.result.values[userIx][1];
-      let d = new Date(0);
-      d.setUTCMilliseconds(m.time);
-      
-      let hrs = d.getHours() > 12 ? d.getHours() - 12 : d.getHours();
-      let mins = d.getMinutes() < 10 ? `0${d.getMinutes()}` : d.getMinutes();
-      let ampm = d.getHours() < 12 ? "AM" : "PM";
-      let time = `${hrs}:${mins} ${ampm}`
       return {c: "chat-message-box", children: [
                {c: `chat-user ${m.user === repl.user.id ? "me" : ""}`, text: `${userName}`},
-               {c: "chat-time", text: `${time}`},
+               {c: "chat-time", text: `${formatTime(m.time)}`},
                {c: "chat-message", text: `${m.message}`},
              ]};  
     });
@@ -1281,6 +1280,26 @@ function root() {
 // -----------------
 // Utility Functions
 // -----------------
+
+function formatTime(timestamp: number): string {
+  let d = new Date(0);
+  d.setUTCMilliseconds(timestamp);
+  let hrs = d.getHours() > 12 ? d.getHours() - 12 : d.getHours();
+  let mins = d.getMinutes() < 10 ? `0${d.getMinutes()}` : d.getMinutes();
+  let ampm = d.getHours() < 12 ? "AM" : "PM";
+  let timeString = `${hrs}:${mins} ${ampm}`
+  return timeString;
+}
+
+function formatDate(timestamp: number): string {
+  let d = new Date(0);
+  d.setUTCMilliseconds(timestamp);
+  let day = d.getDate();
+  let month = d.getMonth();
+  let year = d.getFullYear();
+  let date = `${month}/${day}/${year}`;
+  return date;
+}
 
 function removeRow(row: Array<any>, array: Array<Array<any>>) {
   let ix;
