@@ -144,11 +144,11 @@ interface Repl {
 // Storage functions
 // ------------------
 
-function saveReplCard(card: ReplCard) {
+function saveCard(card: ReplCard) {
   localStorage.setItem("everepl-" + card.id, JSON.stringify(card));  
 }
 
-function loadReplCards(): Array<ReplCard> {
+function loadCards(): Array<ReplCard> {
   let storedCards: Array<ReplCard> = [];
   for (let item in localStorage) {
     if (item.substr(0,7) === "everepl") {
@@ -163,10 +163,9 @@ function loadReplCards(): Array<ReplCard> {
   return storedCards;
 }
 
-/*
-function deleteStoredReplCard(replCard: ReplCard) {
-  localStorage.removeItem("everepl-" + replCard.id);
-}*/
+function deleteStoredCard(card: ReplCard) {
+  localStorage.removeItem("everepl-" + card.id);
+}
 
 /*
 function saveCards() {
@@ -301,6 +300,9 @@ function connectToServer() {
           targetCard.resultDisplay = ResultsDisplay.NONE;
         }
         targetCard.state = CardState.GOOD;
+        if (targetCard.resultDisplay === ResultsDisplay.MESSAGE) {
+          targetCard.resultDisplay = ResultsDisplay.TABLE;          
+        }
         //saveReplCard(targetCard);
       } else if (parsed.type === "error") {
         targetCard.state = CardState.ERROR;
@@ -547,7 +549,7 @@ function submitCard(card: ReplCard) {
                                               :query "${card.query.query.replace(/"/g,'\\"')}"
                                               :display ${card.display}))`;
   sendAnonymousQuery(rcQuery);*/
-  saveReplCard(card);
+  saveCard(card);
   
   // Send the actual query
   let sent = sendQuery(card.query);
@@ -611,6 +613,7 @@ function blurCard(replCard: ReplCard) {
 }
 
 function deleteCard(card: ReplCard) {
+  //console.log(card);
   // Delete a row from the repl-card table
   let delQuery = `(query []
                     (fact-btu "${card.id}" :tick t)
@@ -620,8 +623,10 @@ function deleteCard(card: ReplCard) {
   let ix = repl.deck.cards.map((c) => c.id).indexOf(card.id);
   // remove the card from the deck
   repl.deck.cards.splice(ix,1);
+  // Remove the card from local storage
+  deleteStoredCard(card);
   // Renumber the cards
-  repl.deck.cards.filter((r) => r.col === card.col).forEach((c,i) => c.row = i);
+  repl.deck.cards.filter((r) => r.col === card.col && r.row > card.row).forEach((c,i) => c.row = i + card.row);
   // send a remove to the server
   sendClose(card.query);
 }
@@ -629,7 +634,7 @@ function deleteCard(card: ReplCard) {
 function focusCard(replCard: ReplCard) {
   if (replCard !== undefined) {
     if (repl.deck.focused.id !== replCard.id) {
-      blurCard(repl.deck.focused);    
+      //blurCard(repl.deck.focused);    
     }
     repl.deck.cards.forEach((r) => r.focused = false);
     replCard.focused = true;
@@ -642,12 +647,12 @@ function focusCard(replCard: ReplCard) {
     if (cm !== undefined) {
       cm.focus()
     } else {
-      /*setTimeout(function() {
+      setTimeout(function() {
         cm = getCodeMirrorInstance(replCard);
         if (cm !== undefined) {
           cm.focus();           
         }
-      }, 100);*/  
+      }, 100);  
     }
   }
 }
@@ -755,10 +760,9 @@ function queryInputKeydown(event, elem) {
 }
 
 function queryInputBlur(event, elem) {
-  let cm = getCodeMirrorInstance(elemToReplCard(elem));
+  /*let cm = getCodeMirrorInstance(elemToReplCard(elem));
   cm.getDoc().setCursor({line: 0, ch: 0});
-  //repl.deck.cards.map((r) => r.focused = false);
-  //rerender();
+  rerender();*/
 }
 
 function queryInputFocus(event, elem) {
@@ -901,9 +905,9 @@ function chatInputKeydown(event, elem) {
 }
 
 function queryInputChange(event, elem) {
-  let card = elemToReplCard(elem);
-  let cm = getCodeMirrorInstance(card);
-  card.query.query = cm.getValue();
+  //let card = elemToReplCard(elem);
+  //let cm = getCodeMirrorInstance(card);
+  //card.query.query = cm.getValue();
 }
 
 function queryResultClick(event, elem) {
@@ -988,9 +992,9 @@ function generateReplCardElement(replCard: ReplCard) {
     //spellcheck: false,
     //text: replCard.query,
     keydown: queryInputKeydown, 
-    blur: queryInputBlur, 
-    focus: queryInputFocus,
-    change: queryInputChange,
+    //blur: queryInputBlur, 
+    //focus: queryInputFocus,
+    //change: queryInputChange,
     mouseup: queryInputClick,
     matchBrackets: true,
     lineNumbers: false,
@@ -1200,7 +1204,7 @@ function generateChatElement() {
 
 // Create an initial repl card
 //let defaultCard = newReplCard();
-let storedCards = loadReplCards();
+let storedCards = loadCards();
 if (storedCards.length === 0) {
   storedCards.push(newReplCard());
 }
@@ -1374,15 +1378,12 @@ function rerender() {
 
 function getCodeMirrorInstance(replCard: ReplCard): CodeMirror.Editor {
   let targets = document.querySelectorAll(".query-input");
-  //console.log(`Target ID: ${replCard.id}`);
   for (let i = 0; i < targets.length; i++) {
     let target = targets[i];
-    //console.log(`Candidate ID: ${target.parentElement["_id"]}`);
     if (target.parentElement["_id"] === replCard.id) {
-      //console.log(target);
       return target["cm"];     
     }
-  }  
+  } 
   return undefined;
 }
 
