@@ -76,7 +76,7 @@
     
     (swap! (tuples view) conj tuple)
     (doseq [i @(listeners view)]
-      ((i 0) 'insert r (i 1)))
+      (i 'insert r))
     (c t)))
 
 (defn flush-bag [view id]
