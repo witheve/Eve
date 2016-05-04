@@ -551,6 +551,12 @@ function submitCard(card: ReplCard) {
   
   // Send the actual query
   let sent = sendQuery(card.query);
+  let queryText = card.query.query;
+  if(queryText.indexOf("insert-fact!") > 0
+     || queryText.indexOf("remove-by-t!") > 0
+     || queryText.indexOf("remove-fact!") > 0) {
+    sendClose(card.query);
+  }
   card.state = CardState.PENDING;
   if (card.query.result === undefined) {
     if (sent) {
