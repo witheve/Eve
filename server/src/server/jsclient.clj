@@ -104,8 +104,9 @@
     (swap! clients assoc-in [channel :queries id] exe)
     ;; @FIXME: Since this is on the meta now, this can be requested instead of always pushing it
     (send-query-info channel id (:raw m) (:smil m) (:weasl m))
-    (when (:define-only m)
+    (if (:define-only m)
       (send-result channel id [] []))
+      (fn [x] (httpserver/send! channel (format-json {\"type\" \"close\" \"id\" id})))
     exe))
 
 (defn handle-connection [db channel]
