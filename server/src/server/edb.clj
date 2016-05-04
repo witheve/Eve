@@ -61,6 +61,7 @@
                  (aget i 4)]))
 
 (defn insert [view eav id c]
+  (println "insert" (map str eav))
   (let [t (now)
         tuple (object-array (vector (aget eav 0)
                                     (aget eav 1)

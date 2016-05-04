@@ -11,7 +11,7 @@
   (doall (apply concat a)))
 
 (defn compile-error [message data]
-  (let [d2 (dissoc (:env data) 'db)]
+  (let [d2 (if (contains? data :env) (update-in data [:env] dissoc 'db) data)]
     (throw (ex-info message (assoc d2 :type "compile")))))
 
 (defn get-signature
@@ -123,7 +123,7 @@
   [env m target arguments]
   (apply add-dependencies env arguments)
   (when (some not (map #(is-bound? env %1) arguments))
-    (compile-error "Cannot send unbound/nil argument" {:env @env :target target :arguments arguments :bound (get @env 'bound nil)}))
+    (compile-error "Cannot send unbound/nil argument" {:m m :env @env :target target :arguments arguments :bound (get @env 'bound nil)}))
   (concat
    (apply term env 'tuple m exec/temp-register exec/op-register exec/qid-register '* nil (map #(lookup env %1) arguments))
    [(with-meta (list 'send target exec/temp-register) m)]))
@@ -135,7 +135,7 @@
         input (map #(lookup inner-env %1) arguments)
         scope (concat taxi-slots input)]
     (when (some not (map #(is-bound? inner-env %) arguments))
-      (compile-error "Cannot send unbound/nil argument" {:env @env :target target :arguments arguments :bound (get @env 'bound nil)}))
+      (compile-error "Cannot send unbound/nil argument" {:m m :env @env :target target :arguments arguments :bound (get @env 'bound nil)}))
     (concat
      (apply term env 'tuple m exec/temp-register exec/op-register exec/qid-register [(exec/taxi-register 0) (exec/taxi-register 0)] nil scope)
      [(with-meta (list 'send target exec/temp-register) m)])))

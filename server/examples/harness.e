@@ -16,8 +16,8 @@
        (= result true))
      (query
        (= result false)))
-
-   (insert-fact! (str test "-run")
+   (= z (str test "-run"))
+   (insert-fact! z
                  :tag "test-run"
                  :test
                  :result))

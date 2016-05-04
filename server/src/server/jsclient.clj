@@ -45,6 +45,7 @@
   (.format (java.text.SimpleDateFormat. "hh:mm:ss") (java.util.Date.)))
 
 (defn send-result [channel id fields results]
+  (println "send result")
   (let [client (get @clients channel)
         send-if-empty? (not (get-in @last-empty? [channel id] false))
         empty? (zero? (count results))
@@ -54,6 +55,7 @@
                  "fields" fields
                  "insert" (map #(drop 2 %1) inserts)
                  "remove" (map #(drop 2 %1) removes)}]
+
     (when (or (not empty?) send-if-empty?)
       (httpserver/send! channel (format-json message))
       (swap! last-empty? assoc-in [channel id] empty?)
@@ -88,6 +90,7 @@
     (when DEBUG
       (println "<- query-info" id "to" (:id client) "@" (timestamp))
       (pprint message))))
+
 
 (defn query-callback [id channel]
   (fn [_ form op & [results]]
