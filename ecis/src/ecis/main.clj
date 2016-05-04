@@ -3,11 +3,39 @@
    [clojure.java.io :as io]
    [clojure.string :as string]
    [org.httpkit.server :as httpserver]
+   [clojure.stacktrace :refer [print-stack-trace]]
    [clj-jgit.porcelain :as porcelain]  
+   [clojure.walk :as walk]
    [clj-json.core :as json]
+   [clojure.pprint :refer [pprint]]
    [gniazdo.core :as ws])
   (:import [java.io File BufferedWriter OutputStreamWriter BufferedReader InputStreamReader Reader]
            [org.apache.log4j BasicConfigurator Level Logger PropertyConfigurator]))
+
+(defn query-string [obj]
+  (pr-str (walk/prewalk (fn [cur]
+                          (if-not (symbol? cur)
+                            cur
+                            (symbol (name cur))))
+                        obj)))
+
+(defn check-query [test] 
+  (query-string `(query [result]
+                   (fact expected :tag "expected" :test ~test)
+                   (fact run :tag "result" :test ~test)
+                   (fact-btu expected attr val)
+                   (fact-btu run attr val)
+                   (= actual (sum 1))
+                   (query [desired]
+                          (fact expected :tag "expected" :test ~test)
+                          (fact-btu expected attr val)
+                          (= desired (sum 1)))
+                   (choose [actual desired result]
+                           (query
+                            (= actual desired)
+                            (= result true))
+                           (query
+                            (= result false))))))
 
 
 (def server "localhost:8081")
@@ -37,22 +65,28 @@
 
 
 ;; shutdown handler
-(defn connect-to-eve [station user bag]
+(defn connect-to-eve [station user bag shutdown]
   (let [handlers (atom {})
-        input #(let [j (json/parse-string %)
-                     h (@handlers (symbol (j "id")))]
-                 (when (and h (= (j "type") "result"))
-                            (let [f (j "fields")
-                                  ins (j "insert")
-                                  rem (j "remove")]
-                              (when (> (count ins) 0)
-                                (h ins)))))
+        input (fn [x] 
+                (try (let [j (json/parse-string x)
+                           h (@handlers (symbol (j "id")))]
+                       (condp = (j "type")
+                                "result" (h (j "insert"))
+                                "close" (h nil)
+                                true))
+                   (catch Exception e (print-stack-trace e))))
+       
         target (str "ws://" station)
         ;; just bury any errors
-        sock (try (ws/connect target :on-receive input)
-                  (catch Exception e nil))]
+        sock (try (ws/connect target :on-receive input :on-close (fn [x s]
+                                                                   (println "ws close" s)
+                                                                   shutdown))
+                  (catch Exception e (println "websocket exception" e)))]
     (if sock [sock handlers] sock)))
     
+
+(defn disconnect-from-eve [d]
+    (ws/close (d 0)))
 
 
 (defn eve-query [s q handler]
@@ -72,23 +106,44 @@
 
   
 (defn eve-insert [s eavs]
-  (let [q (str (map #(str "(insert-fact! " 
-                          (nth %1 0) " " 
-                          (nth %1 1) " " 
-                          (nth %1 2) ")")) eavs)]
+  (println "insert" eavs)
+  (let [q (str (apply str "(query "
+                      (seq (map 
+                            (fn [t]
+                              (let [k
+                                    (str "(insert-fact! " 
+                                         "\"" (nth t 0) "\" " 
+                                         (nth t 1) " " 
+                                         "\""(nth t 2) "\")\n")]
+                                (println k)
+                                k))
+                            eavs))) ")")]
+    (println "sending insert" q)
     (eve-close (eve-query s q (fn [x] ())))))
 
 
+(defn eve-synchronous-query [s q]
+  ;; collapse removes
+  (let [p (promise)
+        results (atom ())
+        h (fn [x] (if x (swap! results concat x)
+                      (deliver p true)))]
+    (eve-close (eve-query s q h))
+    @p
+    @results))
+
 (defn subprocess [path]
-  (let [cmd ["/usr/local/bin/lein" "run" "-p" "8083"]
+  (let [cmd ["/usr/local/bin/lein" "run" "-t" "-p" "8083"]
         proc (.exec (Runtime/getRuntime) 
                     ^"[Ljava.lang.String;" (into-array cmd)
                     nil ;; (into-array String [])
                     (File. path))
-        out (new BufferedReader (new InputStreamReader (.getInputStream proc)))]
-        
-    (.start (Thread. (fn [] (println (.readLine out)))))
-                       
+        out (new BufferedReader (new InputStreamReader (.getInputStream proc)))
+        err (new BufferedReader (new InputStreamReader (.getErrorStream proc)))]
+
+    (.start (Thread. (fn [] (trampoline (fn self [] (let [x (.readLine out)] (when x (println x) self)))))))
+    (.start (Thread. (fn [] (trampoline (fn self [] (let [x (.readLine err)] (when x (println x) self)))))))
+    
     [(new BufferedWriter (new OutputStreamWriter (.getOutputStream proc))) (future (.waitFor proc))]))
 
 
@@ -115,59 +170,69 @@
     @facts))
 
 
+(defn run-single-test [child directory name facts]
+  (let [completion (fn [x] (swap! facts assoc name x))
+        body (slurp (str directory "/server/tests/" name ".e"))
+        forms (read-string (str \( body "\n" \)))
+        _ (doseq [i forms] 
+            (eve-synchronous-query child (str i)))
+        r (eve-synchronous-query child (check-query name))]
+    (println "test results" name (apply concat r))
+    (doseq [i (apply concat r)] (swap! facts assoc-in [name 'result] i))))
+
+
 (defn run-test [url branch facts]
+  (println "start test" url branch facts)
   (let [path (checkout-repository url branch)
         s (atom nil)
-        start "(load \"examples/harness.e\")\n"
-        p (subprocess (str path "/server"))]
+        p (subprocess (str path "/server"))
+        database (connect-to-eve "localhost:8081" 0 0 (fn [] ()))
+        results (atom facts)]
+
     (Thread/sleep 6000)
-    (reset! s (connect-to-eve "localhost:8083" 0 0))
+    
+    (reset! s (connect-to-eve "localhost:8083" 0 0 (fn [] (println "child failure"))))
+
     (when (not @s)
       (Thread/sleep 3000)
-      (reset! s (connect-to-eve "localhost:8083" 0 0)))
+      (reset! s (connect-to-eve "localhost:8083" 0 0 (fn [] (println "child failure")))))
+    
+    (if @s
+      (let [d (clojure.java.io/file (str path "/server/tests"))]
+        (doseq [i (file-seq d)]
+          (let [l0 (last (string/split (str i) #"/"))
+                leaf (first (string/split l0 #"\."))]
+                
+            ;; aw, comon, what the hell
+            (when (not= l0 "tests")
+              (run-single-test @s path leaf results)))))
+      (swap! assoc results :status "failure"))
 
-    (when @s
-      (eve-query @s "(query [test success] (fact _ :tag \"test-run\" :result success :test))" 
-                 (fn [x]
-                   (let [database (connect-to-eve server 0 0)
-                         results (atom {})
-                         out (atom {})]
-                     (doseq [i x]
-                       (swap! results assoc-in [(keyword (first i)) :result] (second i))
-                       (swap! results assoc-in [(keyword (first i)) :name] (first i)))
-                     (println @results)
-                     (doseq [i (keys @results)] 
-                       (swap! out assoc :result (@results i)))
-                     (swap! out merge facts)
-                     (swap! out assoc :tag "test")
-                     (let [fax (tree-to-facts @out)]
-                       (println fax)
-                       (eve-insert database fax)
-                       (eve-close database))
-                     (.write (p 0) "(exit)\n")
-                     (.flush (p 0))))))
-
-    (.write (p 0) start)
-    (.flush (p 0))
+    (try 
+     (.write (p 0) "(exit)\n")
+     (.flush (p 0))
+     (catch Exception e nil))
+    (eve-insert database (tree-to-facts @results))
+    (disconnect-from-eve database)
     (println "test lein exit" @(p 1))
     (delete-recursively path)))
-    
-    
-;; the websocket input guy   
+
+
 (defn input-handler [request]
   (let [parsed (json/parsed-seq (clojure.java.io/reader (:body request) :encoding "UTF-8"))
-        action (first parsed)
-        repo ((action "repository") "git_url")
-        pr (action "pull_request") 
-        branch ((pr "head") "ref")
-        state (pr "state")]
-    (when (= state "open")
-      (println "run test" repo branch)
-      (let [user ((pr "user") "login")]
-        (run-test repo branch {:user user})))
+        a (first parsed)
+        pr (a "pull_request")]
+    (when (and pr (= (get-in pr ["state"]) "open"))
+      ;; [pull-request mergable] false
+      (run-test (get-in a ["repository" "git_url"])
+                (get-in pr ["head" "ref"])
+                {:user (get-in pr ["user" "login"])
+                 :tag "test"
+                 :number (get-in a ["number"])
+                 :sha (get-in pr ["head" "sha"])
+                 }))
     {:body "thanks"}))
 
-;; webhook input
 (defn serve [port]
   (println (str "Serving on localhost:" port "/repl"))
   (try
