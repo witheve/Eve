@@ -18,7 +18,7 @@
 (defonce last-empty? (atom {})) ;; @FIXME: TEMPORARY, should be inlined into client or done differently
 (defonce server (atom nil))
 
-(def DEBUG true)
+(def DEBUG false)
 (defonce bag (atom 10))
 
 (defn quotify [x] (str "\""
@@ -100,7 +100,7 @@
 
 (defn start-query [db query id channel]
   (let [handler (query-callback id channel)
-        exe (repl/exec* db query (repl/buffered-result-handler id handler) #{:expanded :compiled})
+        exe (repl/exec* db query (repl/buffered-result-handler id handler) (when DEBUG #{:expanded :compiled}))
         m (meta exe)]
     ;; @FIXME: Since this is on the meta now, this can be requested instead of always pushing it
     (send-query-info channel id (:raw m) (:smil m) (:weasl m))
