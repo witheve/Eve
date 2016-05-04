@@ -107,10 +107,15 @@
   
 (defn eve-insert [s eavs]
   (println "insert" eavs)
-  (let [q (str (apply str "(query" (doall (map #(str "(insert-fact! " 
-                                          (nth %1 0) " " 
-                                          (nth %1 1) " " 
-                                          (nth %1 2) ")") eavs)) ")"))]
+  (let [q (str (apply str "(query "
+                      (doall (map 
+                              (fn [t]
+                                (println "wth" t)
+                                (str "(insert-fact! " 
+                                     "\"" (nth t 0) "\" " 
+                                      (nth t 1) " " 
+                                     "\""(nth t 2) "\")"\n))
+                              eavs)) ")"))]
     (println "sending insert" q)
     (eve-close (eve-query s q (fn [x] ())))))
 
