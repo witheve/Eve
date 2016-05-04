@@ -175,7 +175,7 @@
         _ (doseq [i forms] 
             (println "formi" (str i))
             (eve-synchronous-query child (str i)))
-        r (eve-synchronous-query child (check-query test))] 
+        r (eve-synchronous-query child (check-query name))]
     (println "test results" name r)))
 
 
