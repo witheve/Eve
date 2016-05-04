@@ -122,7 +122,7 @@
                       (deliver p true)))]
     (eve-close (eve-query s q h))
     @p
-    results))
+    @results))
 
 
 (defn subprocess [path]
