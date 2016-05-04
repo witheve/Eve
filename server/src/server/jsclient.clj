@@ -111,7 +111,7 @@
     (swap! clients assoc-in [channel :queries id] e)
     (e 'insert)
     (e 'flush)
-    prog))
+    [prog e]))
 
 
 (defn handle-connection [db channel]
@@ -145,6 +145,7 @@
              (let [prog (condp = (first expanded)
                           'query (let [[prog e] (start-query db expanded id channel)]
                                    (swap! clients assoc-in [channel :queries id] e)
+                                   (println "start query" @clients)
                                    prog)
                           'define! (do
                                      (repl/define db expanded false)
@@ -157,7 +158,8 @@
                (send-error channel id (ex-info (str "Invalid query id " id) {:id id}))
                (do
                  (e 'close)
-                 (swap! clients update-in [channel :queries id] (fn [x] nil)))))
+                 (swap! clients update-in [channel :queries id] (fn [x] nil))
+                 (println "closo" @clients))))
            (throw (ex-info (str "Invalid protocol message type " t) {:message input})))
          (catch clojure.lang.ExceptionInfo error
            (send-error channel id error))
