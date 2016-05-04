@@ -209,8 +209,7 @@
     (println "test lein exit" @(p 1))
     (delete-recursively path)))
 
-    
-;; the websocket input guy   
+
 (defn input-handler [request]
   (let [parsed (json/parsed-seq (clojure.java.io/reader (:body request) :encoding "UTF-8"))
         a (first parsed)
@@ -226,7 +225,6 @@
                  }))
     {:body "thanks"}))
 
-;; webhook input
 (defn serve [port]
   (println (str "Serving on localhost:" port "/repl"))
   (try
