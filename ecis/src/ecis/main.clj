@@ -204,8 +204,8 @@
      (.write (p 0) "(exit)\n")
      (.flush (p 0))
      (catch Exception e nil))
-    (eve-insert @database (tree-to-facts @results))
-    (disconnect-from-eve @database)
+    (eve-insert database (tree-to-facts @results))
+    (disconnect-from-eve database)
     (println "test lein exit" @(p 1))
     (delete-recursively path)))
 
