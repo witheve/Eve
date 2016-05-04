@@ -1,7 +1,9 @@
 import app = require("./app");
 import {autoFocus} from "./utils";
-import * as CodeMirror from "codemirror";
+// import * as CodeMirror from "codemirror";
 import {Element, Handler, RenderHandler, Renderer} from "./microReact";
+
+declare var CodeMirror;
 
 let WebSocket = require('ws');
 let uuid = require("uuid");
@@ -53,6 +55,7 @@ export interface CloseMessage {
 export interface ResultMessage {
   type: string,
   id: string,
+  timestamp?: number,
   fields: Array<string>,
   insert: Array<Array<any>>,
   remove: Array<Array<any>>,
@@ -68,7 +71,7 @@ interface Query {
 
 interface QueryResult {
   fields: Array<string>,
-  values: Array<Array<any>>
+  values: Array<Array<any>>,
 }
 
 interface QueryInfo {
@@ -126,7 +129,7 @@ interface Repl {
   system: {
     entities: Query,  
     tags: Query,
-    queries?: Query,
+    //queries?: Query,
     users: Query,
     messages: Query,
   },
@@ -141,25 +144,24 @@ interface Repl {
 // Storage functions
 // ------------------
 
-/*function saveReplCard(replCard: ReplCard) {
-  localStorage.setItem("everepl-" + replCard.id, JSON.stringify(replCard));  
-}*/
+function saveReplCard(card: ReplCard) {
+  localStorage.setItem("everepl-" + card.id, JSON.stringify(card));  
+}
 
-/*function loadReplCards(): Array<ReplCard> {
-  let storedReplCards: Array<ReplCard> = [];
+function loadReplCards(): Array<ReplCard> {
+  let storedCards: Array<ReplCard> = [];
   for (let item in localStorage) {
     if (item.substr(0,7) === "everepl") {
       let storedReplCard = JSON.parse(localStorage[item]);
-      storedReplCards.push(storedReplCard);
+      storedCards.push(storedReplCard);
     }
   }
-  if (storedReplCards.length > 0) {
-    storedReplCards.map((r) => r.focused = false);
-    storedReplCards = storedReplCards.sort((a,b) => a.ix - b.ix);
-    storedReplCards.forEach((r,i) => r.ix = i);
+  // Reset card properties
+  if (storedCards.length > 0) {
+    storedCards.map((r) => r.focused = false);
   }
-  return storedReplCards;
-}*/
+  return storedCards;
+}
 
 /*
 function deleteStoredReplCard(replCard: ReplCard) {
@@ -226,7 +228,8 @@ function loadCards(event:Event, elem) {
 // ------------------
 
 function connectToServer() {
-  let wsAddress = "ws://localhost:8081";
+  let host = location.host || "localhost:8081";
+  let wsAddress = `ws://${host}`;
   let ws: WebSocket = new WebSocket(wsAddress, []);
   repl.server.ws = ws;
     
@@ -241,6 +244,7 @@ function connectToServer() {
         repl.user = {id: userID};  
       }    
     }
+    
     // In the case of a reconnect, reset the timeout
     // and send queued messages
     repl.server.timeout = 0;    
@@ -280,6 +284,7 @@ function connectToServer() {
     if (targetCard !== undefined) {
       if (parsed.type === "result") {
         let resultMsg: ResultMessage = parsed;
+        resultMsg.timestamp = new Date().getTime();
         if (resultMsg.fields.length > 0) {         
           // If the card is pending, it was submitted manually, 
           // so we replace the values with the inserts          
@@ -334,6 +339,7 @@ function connectToServer() {
           let resultMsg: ResultMessage = parsed;
           updateQueryResult(targetSystemQuery, resultMsg);
           // Update the repl based on these new system queries
+          /* @NOTE Disabled for now
           if (repl.system.queries !== undefined && parsed.id === repl.system.queries.id && parsed.insert !== undefined) {
             parsed.insert.forEach((n) => {
               let replCard = getCard(n[1], n[2]);
@@ -348,7 +354,7 @@ function connectToServer() {
                 submitCard(replCard);  
               }              
             });
-          }  
+          }*/  
         } else {
           return;
         }
@@ -357,18 +363,21 @@ function connectToServer() {
           // Check if the stored user is in the database
           let dbUsers = repl.system.users.result.values;
           let ix = dbUsers.map((u) => u[0]).indexOf(repl.user.id)
-          if (ix >= 0 && repl.system.queries === undefined) {
-            // We found a user!
+          if (ix >= 0) {
             repl.user = {id: dbUsers[ix][0], name: dbUsers[ix][1], username: dbUsers[ix][2] };
-            repl.system.queries = newQuery(`(query [id row col display query]
-                                              (fact id :tag "repl-card"
-                                                       :tag "system"
-                                                       :user "${repl.user.id}" 
-                                                       :row row 
-                                                       :col col
-                                                       :display display 
-                                                       :query query))`);
-            sendQuery(repl.system.queries);              
+            // We found a user! Ask for all the queries by that user
+            /* @NOTE Disabled for now
+            if (repl.system.queries === undefined) {
+              repl.system.queries = newQuery(`(query [id row col display query]
+                                                (fact id :tag "repl-card"
+                                                        :tag "system"
+                                                        :user "${repl.user.id}" 
+                                                        :row row 
+                                                        :col col
+                                                        :display display 
+                                                        :query query))`);
+              sendQuery(repl.system.queries);             
+            }*/
           }
         // Decode a chat message and put it in the system
         } else if (targetSystemQuery.id === repl.system.messages.id) {
@@ -389,6 +398,9 @@ function connectToServer() {
             sendAnonymousQuery(addUsers);
           } else {
             repl.init = true;
+            // @NOTE temporary: submit all the repl cards for evaluation
+            console.log(repl.deck.cards);
+            repl.deck.cards.filter((c) => c.query !== undefined && c.query.query !== "").map(submitCard);
           }
         }
       }
@@ -526,6 +538,7 @@ function submitCard(card: ReplCard) {
   }
   
   // Insert a row in the repl-card table
+  /* @NOTE Disable for now
   let rcQuery = `(query []
                    (insert-fact! "${card.id}" :tag "repl-card"
                                               :tag "system"
@@ -534,7 +547,9 @@ function submitCard(card: ReplCard) {
                                               :user "${repl.user.id}"
                                               :query "${card.query.query.replace(/"/g,'\\"')}"
                                               :display ${card.display}))`;
-  sendAnonymousQuery(rcQuery);
+  sendAnonymousQuery(rcQuery);*/
+  saveReplCard(card);
+  
   // Send the actual query
   let sent = sendQuery(card.query);
   card.state = CardState.PENDING;
@@ -650,18 +665,19 @@ function submitChatMessage(message: string) {
 // Register some global event handlers on the window
 window.onkeydown = function(event) {
   let thisReplCard = repl.deck.focused;
+  let modified = event.ctrlKey || event.metaKey;
   // Catch ctrl + arrow up or page up
-  if (event.keyCode === 38 && event.ctrlKey === true || event.keyCode === 33) {
+  if (event.keyCode === 38 && modified || event.keyCode === 33) {
     // Set the focus to the previous repl card
     let previousReplCard = getReplCard(thisReplCard.row - 1, thisReplCard.col);
     focusCard(previousReplCard);
   // Catch ctrl + arrow down or page down
-  } else if (event.keyCode === 40 && event.ctrlKey === true || event.keyCode === 34) {
+  } else if (event.keyCode === 40 && modified || event.keyCode === 34) {
     // Set the focus to the next repl card
     let nextReplCard = getReplCard(thisReplCard.row + 1, thisReplCard.col);
     focusCard(nextReplCard);
   // Catch ctrl + arrow left
-  } else if (event.keyCode === 37 && event.ctrlKey === true) {
+  } else if (event.keyCode === 37 && modified) {
     let leftReplCard = getReplCard(thisReplCard.row, thisReplCard.col - 1);
     if (leftReplCard !== undefined) {
       focusCard(leftReplCard); 
@@ -671,7 +687,7 @@ window.onkeydown = function(event) {
       focusCard(leftReplCard);
     }    
   // Catch ctrl + arrow right
-  } else if (event.keyCode === 39 && event.ctrlKey === true) {
+  } else if (event.keyCode === 39 && modified) {
     let rightReplCard = getReplCard(thisReplCard.row, thisReplCard.col + 1);
     if (rightReplCard !== undefined) {
       focusCard(rightReplCard); 
@@ -681,10 +697,10 @@ window.onkeydown = function(event) {
       focusCard(rightReplCard);
     }
   // Catch ctrl + r
-  } else if (event.keyCode === 82 && event.ctrlKey === true) {
+  } else if (event.keyCode === 82 && event.ctrlKey) {
     addColumn();
   // Catch ctrl + e
-  } else if (event.keyCode === 69 && event.ctrlKey === true) {
+  } else if (event.keyCode === 69 && modified) {
     addCardToColumn(repl.deck.focused.col);
   } else {
     return;
@@ -702,23 +718,24 @@ window.onbeforeunload = function(event) {
 
 function queryInputKeydown(event, elem) {
   let thisReplCard: ReplCard = elemToReplCard(elem);
+  let modified = event.ctrlKey || event.metaKey;
   // Submit the query with ctrl + enter or ctrl + s
-  if ((event.keyCode === 13 || event.keyCode === 83) && event.ctrlKey === true) {
+  if ((event.keyCode === 13 || event.keyCode === 83) && modified) {
     submitCard(thisReplCard);
   // Catch ctrl + delete to remove a card
-  } else if (event.keyCode === 46 && event.ctrlKey === true) {
+  } else if (event.keyCode === 46 && modified) {
     deleteCard(thisReplCard);
   // Catch ctrl + home  
-  } else if (event.keyCode === 36 && event.ctrlKey === true) {
+  } else if (event.keyCode === 36 && modified) {
     //focusCard(replCards[0]);
   // Catch ctrl + end
-  } else if (event.keyCode === 35 && event.ctrlKey === true) {
+  } else if (event.keyCode === 35 && modified) {
     //focusCard(replCards[replCards.length - 1]);
   // Catch ctrl + b
-  } else if (event.keyCode === 66 && event.ctrlKey === true) {
+  } else if (event.keyCode === 66 && modified) {
     thisReplCard.query.query = "(query [e a v]\n\t(fact-btu e a v))";
   // Catch ctrl + q
-  } else if (event.keyCode === 81 && event.ctrlKey === true) {
+  } else if (event.keyCode === 81 && modified) {
     thisReplCard.query.query = "(query [] \n\t\n)";
     let cm = getCodeMirrorInstance(thisReplCard);
     // @HACK Wait for CM to render
@@ -880,7 +897,6 @@ function queryInputChange(event, elem) {
   let card = elemToReplCard(elem);
   let cm = getCodeMirrorInstance(card);
   card.query.query = cm.getValue();
-  //submitReplCard(thisReplCard);
 }
 
 function queryResultClick(event, elem) {
@@ -1038,7 +1054,13 @@ function generateResultElement(card: ReplCard) {
     let tables = card.history.map((h) => {
       let insertTable = h.insert.length > 0 ? generateResultTable({fields: h.fields, values: h.insert}) : {};
       let removeTable = h.remove.length > 0 ? generateResultTable({fields: h.fields, values: h.remove}) : {};
-      return {c: "", children: [{t: "h2", text: "Insert"}, insertTable, {t: "h2", text: "Remove"}, removeTable]};
+      return {c: "", children: [
+        {t: "h1", text: `Received: ${formatDate(h.timestamp)} ${formatTime(h.timestamp)}`},
+        {t: "h2", text: "Insert:"}, 
+        insertTable, 
+        {t: "h2", text: "Remove:"}, 
+        removeTable]
+      };
     });
     result = {c: "", children: tables};
   }
@@ -1144,16 +1166,9 @@ function generateChatElement() {
     let messageElements = repl.chat.messages.map((m) => {
       let userIx = repl.system.users.result.values.map((u) => u[0]).indexOf(m.user);
       let userName = repl.system.users.result.values[userIx][1];
-      let d = new Date(0);
-      d.setUTCMilliseconds(m.time);
-      
-      let hrs = d.getHours() > 12 ? d.getHours() - 12 : d.getHours();
-      let mins = d.getMinutes() < 10 ? `0${d.getMinutes()}` : d.getMinutes();
-      let ampm = d.getHours() < 12 ? "AM" : "PM";
-      let time = `${hrs}:${mins} ${ampm}`
       return {c: "chat-message-box", children: [
                {c: `chat-user ${m.user === repl.user.id ? "me" : ""}`, text: `${userName}`},
-               {c: "chat-time", text: `${time}`},
+               {c: "chat-time", text: `${formatTime(m.time)}`},
                {c: "chat-message", text: `${m.message}`},
              ]};  
     });
@@ -1170,11 +1185,15 @@ function generateChatElement() {
 // -----------------
 
 // Create an initial repl card
-let defaultCard = newReplCard();
+//let defaultCard = newReplCard();
+let storedCards = loadReplCards();
+if (storedCards.length === 0) {
+  storedCards.push(newReplCard());
+}
 let replCards: Deck = {
-  columns: 0,
-  cards: [defaultCard],
-  focused: defaultCard,
+  columns: storedCards.map((c) => c.col).sort().pop(),
+  cards: storedCards,
+  focused: storedCards[0],
 }  
 
 // Instantiate a repl instance
@@ -1257,6 +1276,26 @@ function root() {
 // -----------------
 // Utility Functions
 // -----------------
+
+function formatTime(timestamp: number): string {
+  let d = new Date(0);
+  d.setUTCMilliseconds(timestamp);
+  let hrs = d.getHours() > 12 ? d.getHours() - 12 : d.getHours();
+  let mins = d.getMinutes() < 10 ? `0${d.getMinutes()}` : d.getMinutes();
+  let ampm = d.getHours() < 12 ? "AM" : "PM";
+  let timeString = `${hrs}:${mins} ${ampm}`
+  return timeString;
+}
+
+function formatDate(timestamp: number): string {
+  let d = new Date(0);
+  d.setUTCMilliseconds(timestamp);
+  let day = d.getDate();
+  let month = d.getMonth();
+  let year = d.getFullYear();
+  let date = `${month}/${day}/${year}`;
+  return date;
+}
 
 function removeRow(row: Array<any>, array: Array<Array<any>>) {
   let ix;
@@ -1381,7 +1420,9 @@ function codeMirrorPostRender(postRender?: RenderHandler): RenderHandler {
       cm = node.cm = CodeMirror(node, {
         lineWrapping: elem.lineWrapping !== false ? true : false,
         lineNumbers: elem.lineNumbers,
-        mode: elem.mode || "text",
+        mode: elem.mode || "clojure",
+        matchBrackets: true,
+        autoCloseBrackets: true,
         extraKeys
       });
       if(elem["cmChange"]) cm.on("change", handleCMEvent(elem["cmChange"], elem));

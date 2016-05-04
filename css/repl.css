@@ -250,9 +250,21 @@ textarea:focus, input:focus{
 
 .row { display: table-row; }
 
-.cell { display: table-cell; padding: 5px; min-width: 25px; white-space: pre; }
+
 .header .cell { padding: 7px;}
+.cell { 
+  display: table-cell; 
+  padding: 5px; 
+  min-width: 25px; 
+  white-space: pre; 
+  max-width: 300px;
+  overflow-x: auto; 
+}
 .cell { border-top: 1px solid rgb(208,208,208); border-right: 1px solid rgb(208,208,208); }
+.cell::-webkit-scrollbar { width: 5px; height: 5px; } 
+.cell::-webkit-scrollbar-track { box-shadow: inset 0 0 6px rgba(0,0,0,0); } 
+.cell::-webkit-scrollbar-thumb { background-color: rgb(80,80,80); outline: 1px solid slategrey; } 
+.cell::-webkit-scrollbar-corner { background-color: transparent;} 
 
 /* List Styles */
 
@@ -320,6 +332,14 @@ li {
 .CodeMirror-selected {
 
 }
+
+.CodeMirror-cursor { border-color: #ccc; }
+
+.cm-s-default { background:none; color: #ccc; }
+.cm-s-default .cm-string { color: #acf; }
+.cm-s-default .cm-number { color: #acf; }
+.cm-s-default .cm-atom { color: #afc; }
+.cm-s-default .cm-builtin { color: #999; }
 
 /* Switches */
 
