@@ -144,7 +144,7 @@
              (let [prog (condp = (first expanded)
                           'query (let [[prog e] (start-query db expanded id channel)]
                                    (swap! clients assoc-in [channel :queries id] e)
-                                   (prog))
+                                   prog)
                           'define! (do
                                      (repl/define db expanded false)
                                      (send-result channel id [] []))
