@@ -204,7 +204,6 @@
               (run-single-test @s path leaf results)))))
       (swap! assoc results :status "failure"))
 
-    ;; try to do this more directly
     (try 
      (.write (p 0) "(exit)\n")
      (.flush (p 0))
