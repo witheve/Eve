@@ -197,7 +197,7 @@
       (let [d (clojure.java.io/file (str path "/server/tests"))]
         (doseq [i (file-seq d)]
           (let [leaf (last (string/split (str i) #"/"))
-                leaf (first (string/split (str i) #"."))]
+                leaf (first (string/split leaf #"."))]
             ;; aw, comon, what the hell
             (when (not= leaf "tests")
               (println "test" leaf)
