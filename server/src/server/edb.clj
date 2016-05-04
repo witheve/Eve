@@ -32,7 +32,7 @@
 (defn install-bag [edb bag-id]
   (dosync
    (if-let [x (@edb bag-id)] x
-     (let [f [(atom '()) (atom #{})]]      
+     (let [f [(atom '()) (atom #{}) (atom #{})]]     
        (swap! edb assoc bag-id f)
        f))))
 
@@ -44,11 +44,16 @@
 
 (defn tuples [view] ((view 0) 0))
 (defn listeners [view] ((view 0) 1))
+(defn flush-listeners [view] ((view 0) 2))
 (defn user [view] (view 1))
 
-(defn add-listener [view id c]
-  (swap! (listeners view) conj [c id])
-  (fn [] (swap! (listeners view) disj [c id])))
+(defn add-listener [view c]
+  (swap! (listeners view) conj c)
+  (fn [] (swap! (listeners view) disj c)))
+
+(defn add-flush-listener [view id c]
+  (swap! (flush-listeners view) conj [c id])
+  (fn [] (swap! (flush-listeners view) disj [c id])))
 
 ;; xxx - yuge performance suck
 
@@ -60,7 +65,7 @@
                  (aget i 3)
                  (aget i 4)]))
 
-(defn insert [view eav id c]
+(defn insert [view eav c]
   (let [t (now)
         tuple (object-array (vector (aget eav 0)
                                     (aget eav 1)
@@ -75,14 +80,13 @@
     (c t)))
 
 (defn flush-bag [view id]
-  (doseq [i @(listeners view)]
+  (doseq [i @(flush-listeners view)]
     (when (not (= id (i 1)))
           ((i 0) 'flush [] (i 1)))))
 
-(defn full-scan [view id c]
+(defn full-scan [view c]
   (doseq [i @(tuples view)]
-    (c 'insert (fulltuple-from-local i)
-       id))
-  (add-listener view id c))
+    (c 'insert (fulltuple-from-local i)))
+  (add-listener view c))
 
 (defn open-new-view [view bag-id] )

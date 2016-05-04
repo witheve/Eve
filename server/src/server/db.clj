@@ -27,7 +27,6 @@
   (edb/insert db (object-array [(name relname)
                                 implication-oid 
                                 (vector (map name parameters) program)])
-              (gensym "insert-implication")
               (fn [t] ())))
 
 
