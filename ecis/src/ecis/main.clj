@@ -201,7 +201,7 @@
                 
             (println "z" l0 leaf)
             ;; aw, comon, what the hell
-            (when (not= leaf "tests")
+            (when (not= l0 "tests")
               (println "test" leaf)
               (run-single-test @s path leaf results)))))
       (swap! assoc results :status "failure"))
