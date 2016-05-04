@@ -85,10 +85,7 @@ interface ReplCard {
   state: CardState,
   focused: boolean,
   query: Query,
-  history: Array<{
-    insert: Array<Array<any>>,
-    remove: Array<Array<any>>,
-  }>,
+  history: Array<ResultMessage>,
   display: CardDisplay,
   resultDisplay: ResultsDisplay,
 }
@@ -291,6 +288,7 @@ function connectToServer() {
             targetCard.resultDisplay = ResultsDisplay.TABLE;
             targetCard.query.result = undefined;
           }
+          targetCard.history.push(resultMsg);
           updateQueryResult(targetCard.query, resultMsg);
         } else {
           targetCard.resultDisplay = ResultsDisplay.NONE;
@@ -994,7 +992,7 @@ function generateResultElement(card: ReplCard) {
   let tableSwitch   = {c: `button ${card.resultDisplay === ResultsDisplay.TABLE   ? "" : "disabled "}ion-grid`, text: " Table", data: ResultsDisplay.TABLE, row: card.row, col: card.col, click: resultSwitchClick };
   let graphSwitch   = {c: `button ${card.resultDisplay === ResultsDisplay.GRAPH   ? "" : "disabled "}ion-stats-bars`, data: ResultsDisplay.GRAPH, row: card.row, col: card.col, text: " Graph"};
   let messageSwitch = {c: `button ${card.resultDisplay === ResultsDisplay.MESSAGE ? "" : "disabled "}ion-quote`, data: ResultsDisplay.MESSAGE, row: card.row, col: card.col, text: " Message"};
-  let historySwitch = {c: `button ${card.resultDisplay === ResultsDisplay.HISTORY ? "" : "disabled "}ion-quote`, data: ResultsDisplay.HISTORY, row: card.row, col: card.col, text: " History"};
+  let historySwitch = {c: `button ${card.resultDisplay === ResultsDisplay.HISTORY ? "" : "disabled "}ion-quote`, data: ResultsDisplay.HISTORY, row: card.row, col: card.col, text: " History", click: resultSwitchClick};
   let infoSwitch    = {c: `button ${card.resultDisplay === ResultsDisplay.INFO    ? "" : "disabled "}ion-help`, data: ResultsDisplay.INFO, row: card.row, col: card.col, text: " Info", click: resultSwitchClick};
   let switches = [];
   // Format card based on state
