@@ -399,7 +399,6 @@ function connectToServer() {
           } else {
             repl.init = true;
             // @NOTE temporary: submit all the repl cards for evaluation
-            console.log(repl.deck.cards);
             repl.deck.cards.filter((c) => c.query !== undefined && c.query.query !== "").map(submitCard);
           }
         }
@@ -633,15 +632,16 @@ function focusCard(replCard: ReplCard) {
     // otherwise, I couldn't focus it, because it didn't exist
     // when the call was made
     let cm = getCodeMirrorInstance(replCard);
+    console.log(cm);
     if (cm !== undefined) {
       cm.focus()
     } else {
-      setTimeout(function() {
+      /*setTimeout(function() {
         cm = getCodeMirrorInstance(replCard);
         if (cm !== undefined) {
           cm.focus();           
         }
-      }, 100);  
+      }, 100);*/  
     }
   }
 }
@@ -675,6 +675,7 @@ window.onkeydown = function(event) {
   } else if (event.keyCode === 40 && modified || event.keyCode === 34) {
     // Set the focus to the next repl card
     let nextReplCard = getReplCard(thisReplCard.row + 1, thisReplCard.col);
+    //console.log(nextReplCard.query);
     focusCard(nextReplCard);
   // Catch ctrl + arrow left
   } else if (event.keyCode === 37 && modified) {
@@ -914,7 +915,7 @@ function queryInputClick(event, elem) {
     card.display = card.display === CardDisplay.BOTH ? CardDisplay.QUERY : CardDisplay.BOTH;
     // If we can't see the query results, close the query
     if (card.display === CardDisplay.QUERY) {
-      sendClose(card.query);
+      //sendClose(card.query);
     // If we can see the query results, open the query
     } else {
       // @TODO
@@ -1364,9 +1365,12 @@ function rerender() {
 
 function getCodeMirrorInstance(replCard: ReplCard): CodeMirror.Editor {
   let targets = document.querySelectorAll(".query-input");
+  //console.log(`Target ID: ${replCard.id}`);
   for (let i = 0; i < targets.length; i++) {
     let target = targets[i];
+    //console.log(`Candidate ID: ${target.parentElement["_id"]}`);
     if (target.parentElement["_id"] === replCard.id) {
+      //console.log(target);
       return target["cm"];     
     }
   }  
