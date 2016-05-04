@@ -107,11 +107,10 @@
   
 (defn eve-insert [s eavs]
   (println "insert" eavs)
-  (let [q (str "(query" (doall (map #(str "(insert-fact! " 
+  (let [q (str (apply str "(query" (doall (map #(str "(insert-fact! " 
                                           (nth %1 0) " " 
                                           (nth %1 1) " " 
-                                          (nth %1 2) ")") eavs))
-               ")")]
+                                          (nth %1 2) ")") eavs)) ")"))]
     (println "sending insert" q)
     (eve-close (eve-query s q (fn [x] ())))))
 
@@ -171,8 +170,8 @@
         _ (doseq [i forms] 
             (eve-synchronous-query child (str i)))
         r (eve-synchronous-query child (check-query name))]
-    (println "test results" name r)
-    (doseq [i r] (swap! facts assoc-in [name 'result] i))))
+    (println "test results" name (apply concat r))
+    (doseq [i (apply concat r)] (swap! facts assoc-in [name 'result] i))))
 
 
 (defn run-test [url branch facts]
