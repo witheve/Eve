@@ -122,7 +122,7 @@
 (defn eve-synchronous-query [s q]
   (let [p (promise)
         results (atom ())
-        h (fn [x] (if x (swap! results assoc x)
+        h (fn [x] (if x (swap! results conj x)
                       (deliver p true)))]
     (eve-close (eve-query s q h))
     @p
