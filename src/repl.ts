@@ -905,9 +905,9 @@ function chatInputKeydown(event, elem) {
 }
 
 function queryInputChange(event, elem) {
-  //let card = elemToReplCard(elem);
-  //let cm = getCodeMirrorInstance(card);
-  //card.query.query = cm.getValue();
+  let card = elemToReplCard(elem);
+  let cm = getCodeMirrorInstance(card);
+  card.query.query = cm.getValue();
 }
 
 function queryResultClick(event, elem) {
@@ -994,7 +994,7 @@ function generateReplCardElement(replCard: ReplCard) {
     keydown: queryInputKeydown, 
     //blur: queryInputBlur, 
     //focus: queryInputFocus,
-    //change: queryInputChange,
+    change: queryInputChange,
     mouseup: queryInputClick,
     matchBrackets: true,
     lineNumbers: false,
