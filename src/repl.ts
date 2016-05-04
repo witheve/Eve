@@ -293,7 +293,7 @@ function connectToServer() {
             targetCard.resultDisplay = ResultsDisplay.TABLE;
             targetCard.query.result = undefined;
           }
-          if (resultMsg.insert.length > 0 || resultMsg.insert.length > 0) {
+          if (resultMsg.insert.length > 0 || resultMsg.remove.length > 0) {
             targetCard.history.push(resultMsg);
           }
           updateQueryResult(targetCard.query, resultMsg);
@@ -563,12 +563,12 @@ function submitCard(card: ReplCard) {
   let emptyCardsInCol = repl.deck.cards.filter((r) => r.col === card.col && r.state === CardState.NONE);
   if (emptyCardsInCol.length === 0) {
     addCardToColumn(repl.deck.focused.col);
-    rerender();
   }
+  rerender();
 }
 
 function updateQueryResult(query: Query, message: ResultMessage) {
-  if (query.result === undefined) {
+  if (query.result === undefined || query.result.fields.length !== message.fields.length) {
     query.result = {
       fields: message.fields,
       values: message.insert,
@@ -632,7 +632,7 @@ function focusCard(replCard: ReplCard) {
     // otherwise, I couldn't focus it, because it didn't exist
     // when the call was made
     let cm = getCodeMirrorInstance(replCard);
-    console.log(cm);
+    //console.log(cm);
     if (cm !== undefined) {
       cm.focus()
     } else {
@@ -1090,7 +1090,10 @@ function generateResultElement(card: ReplCard) {
   return queryResult;
 }
 
-function generateResultTable(result: QueryResult) {
+function generateResultTable(result: QueryResult): any {
+  if (result === undefined) {
+    return {};
+  }
   if (result.fields.length > 0) {
     let tableHeader = {c: "header", children: result.fields.map((f: string) => {
       return {c: "cell", text: f};
