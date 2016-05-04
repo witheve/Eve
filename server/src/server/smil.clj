@@ -322,22 +322,20 @@
   (let [projection (vec (distinct (apply concat (map :join (:ui args)))))
         generated (reduce
                    (fn [memo ui-group]
-                     (reduce (fn [memo id]
-                               (let [grouping (:grouping ui-group)
-                                     row-id (interpose "__" (cons (name id) grouping))]
-                                 (assoc memo id `(~'str ~@row-id))))
-                             memo
-                             (vals (:ids ui-group))))
+                     (as-> memo memo
+                       (reduce (fn [memo id]
+                                 (let [grouping (:grouping ui-group)
+                                       row-id (interpose "__" (cons (name id) grouping))]
+                                   (assoc memo id `(~'str ~@row-id))))
+                               memo
+                               (vals (:ids ui-group)))
+
+                       (reduce
+                        (fn [memo [var val]]
+                          (assoc memo var val))
+                        memo
+                        (:aliases ui-group))))
                    {}
-                   (:ui args))
-        generated (reduce
-                   (fn [memo ui-group]
-                     (reduce
-                      (fn [memo [var val]]
-                        (assoc memo var val))
-                      memo
-                      (:aliases ui-group)))
-                   generated
                    (:ui args))
         query (concat (:query args)
                       (map
@@ -350,7 +348,7 @@
            (fn [ui-group]
              `(~'define! ~'ui ~['e 'a 'v]
                (~(:id args) ~@(map keyword (:join ui-group)))
-               (~'union ~(into ['e 'a 'v] projection)
+               (~'union ~(into ['e 'a 'v] (:join ui-group))
                ~@(map (fn [[elem attribute value]]
                         `(~'query
                           (~'= ~'e ~elem)
