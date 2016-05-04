@@ -126,7 +126,7 @@ interface Repl {
   system: {
     entities: Query,  
     tags: Query,
-    queries?: Query,
+    //queries?: Query,
     users: Query,
     messages: Query,
   },
@@ -141,25 +141,24 @@ interface Repl {
 // Storage functions
 // ------------------
 
-/*function saveReplCard(replCard: ReplCard) {
-  localStorage.setItem("everepl-" + replCard.id, JSON.stringify(replCard));  
-}*/
+function saveReplCard(card: ReplCard) {
+  localStorage.setItem("everepl-" + card.id, JSON.stringify(card));  
+}
 
-/*function loadReplCards(): Array<ReplCard> {
-  let storedReplCards: Array<ReplCard> = [];
+function loadReplCards(): Array<ReplCard> {
+  let storedCards: Array<ReplCard> = [];
   for (let item in localStorage) {
     if (item.substr(0,7) === "everepl") {
       let storedReplCard = JSON.parse(localStorage[item]);
-      storedReplCards.push(storedReplCard);
+      storedCards.push(storedReplCard);
     }
   }
-  if (storedReplCards.length > 0) {
-    storedReplCards.map((r) => r.focused = false);
-    storedReplCards = storedReplCards.sort((a,b) => a.ix - b.ix);
-    storedReplCards.forEach((r,i) => r.ix = i);
+  // Reset card properties
+  if (storedCards.length > 0) {
+    storedCards.map((r) => r.focused = false);
   }
-  return storedReplCards;
-}*/
+  return storedCards;
+}
 
 /*
 function deleteStoredReplCard(replCard: ReplCard) {
@@ -241,6 +240,7 @@ function connectToServer() {
         repl.user = {id: userID};  
       }    
     }
+    
     // In the case of a reconnect, reset the timeout
     // and send queued messages
     repl.server.timeout = 0;    
@@ -334,6 +334,7 @@ function connectToServer() {
           let resultMsg: ResultMessage = parsed;
           updateQueryResult(targetSystemQuery, resultMsg);
           // Update the repl based on these new system queries
+          /* @NOTE Disabled for now
           if (repl.system.queries !== undefined && parsed.id === repl.system.queries.id && parsed.insert !== undefined) {
             parsed.insert.forEach((n) => {
               let replCard = getCard(n[1], n[2]);
@@ -348,7 +349,7 @@ function connectToServer() {
                 submitCard(replCard);  
               }              
             });
-          }  
+          }*/  
         } else {
           return;
         }
@@ -357,18 +358,21 @@ function connectToServer() {
           // Check if the stored user is in the database
           let dbUsers = repl.system.users.result.values;
           let ix = dbUsers.map((u) => u[0]).indexOf(repl.user.id)
-          if (ix >= 0 && repl.system.queries === undefined) {
-            // We found a user!
+          if (ix >= 0) {
             repl.user = {id: dbUsers[ix][0], name: dbUsers[ix][1], username: dbUsers[ix][2] };
-            repl.system.queries = newQuery(`(query [id row col display query]
-                                              (fact id :tag "repl-card"
-                                                       :tag "system"
-                                                       :user "${repl.user.id}" 
-                                                       :row row 
-                                                       :col col
-                                                       :display display 
-                                                       :query query))`);
-            sendQuery(repl.system.queries);              
+            // We found a user! Ask for all the queries by that user
+            /* @NOTE Disabled for now
+            if (repl.system.queries === undefined) {
+              repl.system.queries = newQuery(`(query [id row col display query]
+                                                (fact id :tag "repl-card"
+                                                        :tag "system"
+                                                        :user "${repl.user.id}" 
+                                                        :row row 
+                                                        :col col
+                                                        :display display 
+                                                        :query query))`);
+              sendQuery(repl.system.queries);             
+            }*/
           }
         // Decode a chat message and put it in the system
         } else if (targetSystemQuery.id === repl.system.messages.id) {
@@ -389,6 +393,7 @@ function connectToServer() {
             sendAnonymousQuery(addUsers);
           } else {
             repl.init = true;
+            repl.deck.cards.map(submitCard);
           }
         }
       }
@@ -526,6 +531,7 @@ function submitCard(card: ReplCard) {
   }
   
   // Insert a row in the repl-card table
+  /* @NOTE Disable for now
   let rcQuery = `(query []
                    (insert-fact! "${card.id}" :tag "repl-card"
                                               :tag "system"
@@ -534,7 +540,9 @@ function submitCard(card: ReplCard) {
                                               :user "${repl.user.id}"
                                               :query "${card.query.query.replace(/"/g,'\\"')}"
                                               :display ${card.display}))`;
-  sendAnonymousQuery(rcQuery);
+  sendAnonymousQuery(rcQuery);*/
+  saveReplCard(card);
+  
   // Send the actual query
   let sent = sendQuery(card.query);
   card.state = CardState.PENDING;
@@ -880,7 +888,6 @@ function queryInputChange(event, elem) {
   let card = elemToReplCard(elem);
   let cm = getCodeMirrorInstance(card);
   card.query.query = cm.getValue();
-  //submitReplCard(thisReplCard);
 }
 
 function queryResultClick(event, elem) {
@@ -1170,11 +1177,15 @@ function generateChatElement() {
 // -----------------
 
 // Create an initial repl card
-let defaultCard = newReplCard();
+//let defaultCard = newReplCard();
+let storedCards = loadReplCards();
+if (storedCards.length === 0) {
+  storedCards.push(newReplCard());
+}
 let replCards: Deck = {
-  columns: 0,
-  cards: [defaultCard],
-  focused: defaultCard,
+  columns: storedCards.map((c) => c.col).sort().pop(),
+  cards: storedCards,
+  focused: storedCards[0],
 }  
 
 // Instantiate a repl instance
