@@ -172,7 +172,7 @@
             (eve-synchronous-query child (str i)))
         r (eve-synchronous-query child (check-query name))]
     (println "test results" name r)
-    (dolist [r i] (swap! directory assoc-in [name result] i))))
+    (doseq [i r] (swap! directory assoc-in [name 'result] i))))
 
 
 (defn run-test [url branch facts]
