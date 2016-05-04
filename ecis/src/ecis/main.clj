@@ -68,6 +68,7 @@
 (defn connect-to-eve [station user bag shutdown]
   (let [handlers (atom {})
         input (fn [x] 
+                (println "inputty" x)
                 (try (let [j (json/parse-string x)
                            h (@handlers (symbol (j "id")))]
                        (condp = (j "type")
@@ -116,9 +117,10 @@
 
 
 (defn eve-synchronous-query [s q]
+  ;; collapse removes
   (let [p (promise)
         results (atom ())
-        h (fn [x] (if x (swap! results conj x)
+        h (fn [x] (if x (swap! results concat x)
                       (deliver p true)))]
     (eve-close (eve-query s q h))
     @p
