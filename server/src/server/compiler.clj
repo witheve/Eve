@@ -289,9 +289,6 @@
                                                                          tail-name
                                                                          (map (comp symbol name) output))]
                                                                   k)))]
-                 (doseq [name (map call-map (get @inner-env 'output []))]
-                   (when-not (is-bound? env name)
-                     (allocate-register env name)))
                  (make-bind env inner-env arm-name body)
                  arm-name))]
 
@@ -304,9 +301,13 @@
     (if (= (count @arms) 0)
       (compile-error (str "primitive " relname " not supported") {'relname relname}))
 
+    (doseq [name output]
+        (allocate-register env (call-map name)))
+
     (make-continuation env tail-name (down))
     ;; @FIXME: Dependent on synchronous evaluation: expects for-each-implication to have completed
-    (apply build (map #(generate-send env m %1 (map call-map input)) @arms))))
+    (let [sends (apply build (map #(generate-send env m %1 (map call-map input)) @arms))]
+    sends)))
 
 (defn compile-primitive [params]
   (fn [env terms down]

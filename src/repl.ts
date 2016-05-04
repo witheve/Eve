@@ -293,7 +293,7 @@ function connectToServer() {
             targetCard.resultDisplay = ResultsDisplay.TABLE;
             targetCard.query.result = undefined;
           }
-          if (resultMsg.insert.length > 0 || resultMsg.insert.length > 0) {
+          if (resultMsg.insert.length > 0 || resultMsg.remove.length > 0) {
             targetCard.history.push(resultMsg);
           }
           updateQueryResult(targetCard.query, resultMsg);
@@ -399,7 +399,6 @@ function connectToServer() {
           } else {
             repl.init = true;
             // @NOTE temporary: submit all the repl cards for evaluation
-            console.log(repl.deck.cards);
             repl.deck.cards.filter((c) => c.query !== undefined && c.query.query !== "").map(submitCard);
           }
         }
@@ -564,12 +563,12 @@ function submitCard(card: ReplCard) {
   let emptyCardsInCol = repl.deck.cards.filter((r) => r.col === card.col && r.state === CardState.NONE);
   if (emptyCardsInCol.length === 0) {
     addCardToColumn(repl.deck.focused.col);
-    rerender();
   }
+  rerender();
 }
 
 function updateQueryResult(query: Query, message: ResultMessage) {
-  if (query.result === undefined) {
+  if (query.result === undefined || query.result.fields.length !== message.fields.length) {
     query.result = {
       fields: message.fields,
       values: message.insert,
@@ -633,15 +632,16 @@ function focusCard(replCard: ReplCard) {
     // otherwise, I couldn't focus it, because it didn't exist
     // when the call was made
     let cm = getCodeMirrorInstance(replCard);
+    //console.log(cm);
     if (cm !== undefined) {
       cm.focus()
     } else {
-      setTimeout(function() {
+      /*setTimeout(function() {
         cm = getCodeMirrorInstance(replCard);
         if (cm !== undefined) {
           cm.focus();           
         }
-      }, 100);  
+      }, 100);*/  
     }
   }
 }
@@ -675,6 +675,7 @@ window.onkeydown = function(event) {
   } else if (event.keyCode === 40 && modified || event.keyCode === 34) {
     // Set the focus to the next repl card
     let nextReplCard = getReplCard(thisReplCard.row + 1, thisReplCard.col);
+    //console.log(nextReplCard.query);
     focusCard(nextReplCard);
   // Catch ctrl + arrow left
   } else if (event.keyCode === 37 && modified) {
@@ -914,7 +915,7 @@ function queryInputClick(event, elem) {
     card.display = card.display === CardDisplay.BOTH ? CardDisplay.QUERY : CardDisplay.BOTH;
     // If we can't see the query results, close the query
     if (card.display === CardDisplay.QUERY) {
-      sendClose(card.query);
+      //sendClose(card.query);
     // If we can see the query results, open the query
     } else {
       // @TODO
@@ -1052,15 +1053,19 @@ function generateResultElement(card: ReplCard) {
     result = generateResultTable(card.query.result);  
   } else if (card.resultDisplay === ResultsDisplay.HISTORY) {
     let tables = card.history.map((h) => {
-      let insertTable = h.insert.length > 0 ? generateResultTable({fields: h.fields, values: h.insert}) : {};
-      let removeTable = h.remove.length > 0 ? generateResultTable({fields: h.fields, values: h.remove}) : {};
-      return {c: "", children: [
-        {t: "h1", text: `Received: ${formatDate(h.timestamp)} ${formatTime(h.timestamp)}`},
-        {t: "h2", text: "Insert:"}, 
-        insertTable, 
-        {t: "h2", text: "Remove:"}, 
-        removeTable]
-      };
+      let insertTable = h.insert.length > 0 ? generateResultTable({fields: h.fields, values: h.insert}) : false;
+      let removeTable = h.remove.length > 0 ? generateResultTable({fields: h.fields, values: h.remove}) : false;
+      let historyChildren = [];
+      if(insertTable || removeTable) {
+        historyChildren.push({t: "h1", text: `Received: ${formatDate(h.timestamp)} ${formatTime(h.timestamp)}`});
+      }
+      if(insertTable) {
+        historyChildren.push({t: "h2", text: "Insert"}, insertTable);
+      }
+      if(removeTable) {
+        historyChildren.push({t: "h2", text: "Remove"}, removeTable);
+      }
+      return {c: "", children: historyChildren};
     });
     result = {c: "", children: tables};
   }
@@ -1085,7 +1090,10 @@ function generateResultElement(card: ReplCard) {
   return queryResult;
 }
 
-function generateResultTable(result: QueryResult) {
+function generateResultTable(result: QueryResult): any {
+  if (result === undefined) {
+    return {};
+  }
   if (result.fields.length > 0) {
     let tableHeader = {c: "header", children: result.fields.map((f: string) => {
       return {c: "cell", text: f};
@@ -1360,9 +1368,12 @@ function rerender() {
 
 function getCodeMirrorInstance(replCard: ReplCard): CodeMirror.Editor {
   let targets = document.querySelectorAll(".query-input");
+  //console.log(`Target ID: ${replCard.id}`);
   for (let i = 0; i < targets.length; i++) {
     let target = targets[i];
+    //console.log(`Candidate ID: ${target.parentElement["_id"]}`);
     if (target.parentElement["_id"] === replCard.id) {
+      //console.log(target);
       return target["cm"];     
     }
   }  
