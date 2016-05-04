@@ -68,10 +68,8 @@
 (defn connect-to-eve [station user bag shutdown]
   (let [handlers (atom {})
         input (fn [x] 
-                (try (let [_ (println "incoming!" x)
-                           j (json/parse-string x)
+                (try (let [j (json/parse-string x)
                            h (@handlers (symbol (j "id")))]
-                       (println "input" (j "type"))
                        (condp = (j "type")
                                 "result" (h (j "insert"))
                                 "close" (h nil)
@@ -92,7 +90,6 @@
 
 
 (defn eve-query [s q handler]
-  (println "evo quero" q)
   (let [tag (gensym "q")
         q (format-json {"type" "query"
                         "query"  q
@@ -114,7 +111,7 @@
                           (nth %1 1) " " 
                           (nth %1 2) ")") eavs)
                ")")]
-    (println "sending" q)
+    (println "sending insert" q)
     (eve-close (eve-query s q (fn [x] ())))))
 
 
@@ -171,7 +168,6 @@
         body (slurp (str directory "/server/tests/" name ".e"))
         forms (read-string (str \( body "\n" \)))
         _ (doseq [i forms] 
-            (println "formi" (str i))
             (eve-synchronous-query child (str i)))
         r (eve-synchronous-query child (check-query name))]
     (println "test results" name r)))
@@ -199,10 +195,8 @@
           (let [l0 (last (string/split (str i) #"/"))
                 leaf (first (string/split l0 #"\."))]
                 
-            (println "z" l0 leaf)
             ;; aw, comon, what the hell
             (when (not= l0 "tests")
-              (println "test" leaf)
               (run-single-test @s path leaf results)))))
       (swap! assoc results :status "failure"))
 
@@ -220,7 +214,6 @@
 (defn input-handler [request]
   (let [parsed (json/parsed-seq (clojure.java.io/reader (:body request) :encoding "UTF-8"))
         a (first parsed)
-        _ (pprint a)
         pr (a "pull_request")]
     (when (and pr (= (get-in pr ["state"]) "open"))
       ;; [pull-request mergable] false
