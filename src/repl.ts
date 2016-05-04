@@ -288,7 +288,9 @@ function connectToServer() {
             targetCard.resultDisplay = ResultsDisplay.TABLE;
             targetCard.query.result = undefined;
           }
-          targetCard.history.push(resultMsg);
+          if (resultMsg.insert.length > 0 || resultMsg.insert.length > 0) {
+            targetCard.history.push(resultMsg);
+          }
           updateQueryResult(targetCard.query, resultMsg);
         } else {
           targetCard.resultDisplay = ResultsDisplay.NONE;
@@ -1032,6 +1034,13 @@ function generateResultElement(card: ReplCard) {
     result = {text: card.query.message};  
   } else if (card.resultDisplay === ResultsDisplay.TABLE) {
     result = generateResultTable(card.query.result);  
+  } else if (card.resultDisplay === ResultsDisplay.HISTORY) {
+    let tables = card.history.map((h) => {
+      let insertTable = h.insert.length > 0 ? generateResultTable({fields: h.fields, values: h.insert}) : {};
+      let removeTable = h.remove.length > 0 ? generateResultTable({fields: h.fields, values: h.remove}) : {};
+      return {c: "", children: [{t: "h2", text: "Insert"}, insertTable, {t: "h2", text: "Remove"}, removeTable]};
+    });
+    result = {c: "", children: tables};
   }
   // Add the info switch if there is info to be had
   if (card.query.info !== undefined) {
@@ -1181,7 +1190,7 @@ let repl: Repl = {
                       (fact entity :tag tag)
                         (not
                           (fact entity :tag "system")))`),        // get all tags that are not system tags
-    users: newQuery(`(query [id name username password] 
+    users: newQuery(`(query [id name username password]
                        (fact id :tag "repl-user" 
                                 :name name 
                                 :username username 
