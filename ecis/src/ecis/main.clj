@@ -162,26 +162,31 @@
                     (let [v (m k)
                           f (fn [x] (swap! facts conj (list id (keyword k) x)))]
                       (if (= (type v) clojure.lang.PersistentArrayMap )
-                        (let [sub (gensym "subflatto")]
+                        (let [sub (gensym "unittest")]
                           (descend sub v)
                           (f sub))
                         (f v)))))]
-    (descend (gensym "flatto") m)
+    (descend (gensym "run") m)
     @facts))
 
 
-(defn run-single-test [child directory name facts]
+(defn run-single-test [child directory name facts root]
   (let [completion (fn [x] (swap! facts assoc name x))
         body (slurp (str directory "/server/tests/" name ".e"))
         forms (read-string (str \( body "\n" \)))
+        key (gensym "test")
         _ (doseq [i forms] 
             (eve-synchronous-query child (str i)))
         r (eve-synchronous-query child (check-query name))]
     (println "test results" name (apply concat r))
-    (doseq [i (apply concat r)] (swap! facts assoc-in [name 'result] i))))
+    (swap! facts conj (list key :name name))
+    (swap! facts conj (list key :tag "testresult"))
+    (swap! facts conj (list key :run root))
+    (doseq [i (apply concat r)] 
+      (swap! facts conj (key :result i)))
 
 
-(defn run-test [url branch facts]
+(defn run-test [url branch facts root]
   (println "start test" url branch facts)
   (let [path (checkout-repository url branch)
         s (atom nil)
@@ -205,14 +210,14 @@
                 
             ;; aw, comon, what the hell
             (when (not= l0 "tests")
-              (run-single-test @s path leaf results)))))
+              (run-single-test @s path leaf results root)))))
       (swap! assoc results :status "failure"))
 
     (try 
      (.write (p 0) "(exit)\n")
      (.flush (p 0))
      (catch Exception e nil))
-    (eve-insert database (tree-to-facts @results))
+    (eve-insert database @results)
     (disconnect-from-eve database)
     (println "test lein exit" @(p 1))
     (delete-recursively path)))
@@ -221,16 +226,17 @@
 (defn input-handler [request]
   (let [parsed (json/parsed-seq (clojure.java.io/reader (:body request) :encoding "UTF-8"))
         a (first parsed)
+        key (gensym "run")
         pr (a "pull_request")]
     (when (and pr (= (get-in pr ["state"]) "open"))
       ;; [pull-request mergable] false
       (run-test (get-in a ["repository" "git_url"])
                 (get-in pr ["head" "ref"])
-                {:user (get-in pr ["user" "login"])
-                 :tag "test"
-                 :number (get-in a ["number"])
-                 :sha (get-in pr ["head" "sha"])
-                 }))
+                (list (list key :user (get-in pr ["user" "login"]))
+                      (list key :tag "testrun")
+                      (list key :number (get-in a ["number"]))
+                      (list key :sha (get-in pr ["head" "sha"])))
+                key))
     {:body "thanks"}))
 
 (defn serve [port]
