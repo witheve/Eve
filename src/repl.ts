@@ -35,6 +35,7 @@ enum ResultsDisplay {
   GRAPH,
   INFO,
   MESSAGE,
+  HISTORY,
   NONE,
 }
 
@@ -993,6 +994,7 @@ function generateResultElement(card: ReplCard) {
   let tableSwitch   = {c: `button ${card.resultDisplay === ResultsDisplay.TABLE   ? "" : "disabled "}ion-grid`, text: " Table", data: ResultsDisplay.TABLE, row: card.row, col: card.col, click: resultSwitchClick };
   let graphSwitch   = {c: `button ${card.resultDisplay === ResultsDisplay.GRAPH   ? "" : "disabled "}ion-stats-bars`, data: ResultsDisplay.GRAPH, row: card.row, col: card.col, text: " Graph"};
   let messageSwitch = {c: `button ${card.resultDisplay === ResultsDisplay.MESSAGE ? "" : "disabled "}ion-quote`, data: ResultsDisplay.MESSAGE, row: card.row, col: card.col, text: " Message"};
+  let historySwitch = {c: `button ${card.resultDisplay === ResultsDisplay.HISTORY ? "" : "disabled "}ion-quote`, data: ResultsDisplay.HISTORY, row: card.row, col: card.col, text: " History"};
   let infoSwitch    = {c: `button ${card.resultDisplay === ResultsDisplay.INFO    ? "" : "disabled "}ion-help`, data: ResultsDisplay.INFO, row: card.row, col: card.col, text: " Info", click: resultSwitchClick};
   let switches = [];
   // Format card based on state
@@ -1000,6 +1002,9 @@ function generateResultElement(card: ReplCard) {
     resultcss += " good";      
     if (card.query.result !== undefined) {
       switches.push(tableSwitch);
+    }
+    if (card.history.length > 0) {
+      switches.push(historySwitch);
     }
   } else if (card.state === CardState.ERROR) {
     resultcss += " error";
