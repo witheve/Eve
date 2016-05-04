@@ -12,7 +12,6 @@
   (:import [java.io File BufferedWriter OutputStreamWriter BufferedReader InputStreamReader Reader]
            [org.apache.log4j BasicConfigurator Level Logger PropertyConfigurator]))
 
-
 (defn query-string [obj]
   (pr-str (walk/prewalk (fn [cur]
                           (if-not (symbol? cur)
