@@ -149,8 +149,9 @@
                                    prog)
                           'define! (do
                                      (repl/define db expanded false)
-                                     ;; so close can work
-                                     (swap! clients assoc-in [channel :queries id] (fn [x] ()))
+                                     ;; so close can work - hackotron
+                                     (swap! clients assoc-in [channel :queries id] 
+                                            (fn [x] (httpserver/send! channel (format-json {"type" "close" "id" id}))))
                                      (send-result channel id [] []))
                           (throw (ex-info (str "Invalid query wrapper " (first expanded)) {:expr expanded})))]
                (send-query-info channel id raw smil (with-out-str (pprint prog)))))
