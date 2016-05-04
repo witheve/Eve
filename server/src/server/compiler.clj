@@ -122,8 +122,8 @@
   "Generates a send which saves the current register so it can be restored via continuation"
   [env m target arguments]
   (apply add-dependencies env arguments)
-  (when (some not (map #(is-bound? env %1) arguments))
-    (compile-error "Cannot send unbound/nil argument" {:env @env :target target :arguments arguments :bound (get @env 'bound nil)}))
+  (when-let [arg (some identity (map #(if (is-bound? env %1) nil %1) arguments))]
+    (compile-error (str "Cannot send unbound/nil argument " arg) {:env @env :target target :arguments arguments :bound (get @env 'bound nil)}))
   (concat
    (apply term env 'tuple m exec/temp-register exec/op-register exec/qid-register '* nil (map #(lookup env %1) arguments))
    [(with-meta (list 'send target exec/temp-register) m)]))
@@ -134,8 +134,8 @@
   (let [taxi-slots (map (fn [i] [(exec/taxi-register 0) i]) (drop exec/initial-register (range (get @env 'register exec/initial-register))))
         input (map #(lookup inner-env %1) arguments)
         scope (concat taxi-slots input)]
-    (when (some not (map #(is-bound? inner-env %) arguments))
-      (compile-error "Cannot send unbound/nil argument" {:env @env :target target :arguments arguments :bound (get @env 'bound nil)}))
+    (when-let [arg (some identity (map #(if (is-bound? inner-env %1) nil %1) arguments))]
+    (compile-error (str "Cannot send unbound/nil argument " arg) {:env @env :target target :arguments arguments :bound (get @inner-env 'bound nil)}))
     (concat
      (apply term env 'tuple m exec/temp-register exec/op-register exec/qid-register [(exec/taxi-register 0) (exec/taxi-register 0)] nil scope)
      [(with-meta (list 'send target exec/temp-register) m)])))
