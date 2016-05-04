@@ -114,7 +114,7 @@
                                     (str "(insert-fact! " 
                                          "\"" (nth t 0) "\" " 
                                          (nth t 1) " " 
-                                         "\""(nth t 2) "\")"\n)]
+                                         "\""(nth t 2) "\")\n")]
                                 (println k)
                                 k))
                             eavs))) ")")]
