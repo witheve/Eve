@@ -11,7 +11,7 @@
   (doall (apply concat a)))
 
 (defn compile-error [message data]
-  (let [d2 (dissoc (:env data) 'db)]
+  (let [d2 (if (contains? data :env) (update-in data [:env] dissoc 'db) data)]
     (throw (ex-info message (assoc d2 :type "compile")))))
 
 (defn get-signature

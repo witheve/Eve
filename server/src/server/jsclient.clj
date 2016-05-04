@@ -161,7 +161,7 @@
                (send-error channel id (ex-info (str "Invalid query id " id) {:id id}))
                (do
                  (e 'close)
-                 (swap! clients update-in [channel :queries id] (fn [x] nil))
+                 (swap! clients update-in [channel :queries] dissoc id)
                  (println "closo" @clients))))
            (throw (ex-info (str "Invalid protocol message type " t) {:message input})))
          (catch clojure.lang.ExceptionInfo error
