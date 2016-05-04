@@ -246,8 +246,8 @@ textarea:focus, input:focus{
 .table { display: table; }
 .table { border-left: 1px solid #444; border-bottom: 1px solid #444; border-radius:2px; }
 
-.header { display: table-row; }
-.header { background-color: #444; }
+.header { display: table-row; background-color: #444; }
+.header .cell:last-child { border-radius:0 2px 0 0; }
 
 .row { display: table-row; }
 
