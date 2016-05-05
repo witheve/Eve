@@ -270,20 +270,22 @@ textarea:focus, input:focus{
 /* List Styles */
 
 li {
-  margin-bottom: 10px;
-  border-bottom: 1px solid rgb(40,40,40);
-  padding: 2px;
+  margin-bottom: 0px;
+  padding: 8px 10px;
 }
+.info li { cursor: pointer; }
+.info li + li { border-top:1px solid #222; }
+.info li:hover { background:#444; }
 
 .info-table {
   width: 85%;
 }
 
 .info {
-  background-color: rgb(60,60,60);
+  background-color: #333;
   max-height: 300px;
   overflow-y: auto;
-  padding: 10px;
+  padding: 0px 0px;
   font-size: 12px;
   width: 80%;
   min-height: 100px;
@@ -332,8 +334,10 @@ li {
   background-color: rgb(200,200,200);
 }
 
-.CodeMirror-selected {
 
+
+.CodeMirror-selected {
+  background:#505050 !important;
 }
 
 .CodeMirror-cursor { border-color: #ccc; }
@@ -343,6 +347,7 @@ li {
 .cm-s-default .cm-number { color: #acf; }
 .cm-s-default .cm-atom { color: #afc; }
 .cm-s-default .cm-builtin { color: #999; }
+.cm-s-default .cm-keyword { color: #999; }
 
 /* Switches */
 
