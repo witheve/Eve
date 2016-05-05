@@ -1,0 +1,78 @@
+* {
+    box-model: border-box;
+}
+div, span, h3 {
+    display: flex;
+}
+.spacer {
+    flex: 1;
+}
+
+body {
+    width: 100vw;
+    flex-direction: column;
+    flex-align: center;
+    margin-top: 20px;
+
+    background: rgb(245, 245, 245);
+    font-family: "Lato";
+}
+
+.test-run {
+    display: inline-block;
+    max-width: 960px;
+    margin: auto;
+    padding: 10px 20px;
+
+    background: white;
+    border-radius: 5px;
+    box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1);
+}
+
+.test-run a {
+    text-decoration: none;
+}
+
+.test-run h3 {
+    flex-direction: flex-row;
+    margin-bottom: 5px;
+
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    font-size: 1.4rem;
+}
+
+.test-run .run-info > * + * {
+    margin-left: 0.3em;
+}
+
+.test-run .run-info {
+}
+
+.test-run .description {
+    margin: 15px 0;
+    /*margin-bottom: 5px;
+    margin-left: 20px;
+    padding: 10px;
+    padding-left: 15px;
+
+    border-left: 5px solid #ccc;*/
+}
+
+.test-run .test {
+    padding: 5px;
+
+    border-radius: 2px;
+    border: 1px solid #ccc;
+    border-left: 5px solid #ccc;
+}
+.test-run .test.true {
+    border-left-color: rgb(66, 200, 138);
+}
+
+.test-run .test.false {
+    border-left-color: rgb(237, 92, 92);
+}
+
+.test-run .test + .test {
+    margin-top: 5px;
+}
