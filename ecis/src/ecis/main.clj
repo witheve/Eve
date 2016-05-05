@@ -20,23 +20,19 @@
                         obj)))
 
 (defn check-query [test] 
-  (query-string `(query [result]
-                   (fact expected :tag "expected" :test ~test)
-                   (fact run :tag "result" :test ~test)
-                   (fact-btu expected attr val)
-                   (fact-btu run attr val)
+  (query-string `
+   (query [result]
+          (choose [result]
+                  (query 
+                   (fact expected :tag "expected" :test ~test :value val)
+                   (fact run :tag "result" :test ~test :value val)
                    (= actual (sum 1))
                    (query [desired]
-                          (fact expected :tag "expected" :test ~test)
-                          (fact-btu expected attr val)
+                          (fact expected :tag "expected" :test ~test :value)
                           (= desired (sum 1)))
-                   (choose [actual desired result]
-                           (query
-                            (= actual desired)
-                            (= result true))
-                           (query
-                            (= result false))))))
-
+                   (= actual desired)
+                   (= result true))
+                  (query (= result false))))))
 
 (def server "localhost:8081")
  
