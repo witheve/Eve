@@ -968,7 +968,7 @@ function tagsListClick(event, elem) {
   };
   // Generate the table
   let table = generateResultTable(result);
-  repl.modal = {c: "modal", left: 110, top: event.y, children: [table]};
+  repl.modal = {c: "modal", left: 110, top: event.y, children: [{c: "height-constrained", children: [table]}]};
   // Prevent click event from propagating to another layer
   event.stopImmediatePropagation();
   rerender();

@@ -105,6 +105,8 @@ h2 {
   border-radius: 4px;
   z-index: 100;
   padding: 20px;
+  /*max-height: 500px;
+  overflow-y: auto;*/
   transform: translateY(-50%);
 }
 
@@ -131,6 +133,12 @@ h2 {
 	border-width: 16px;
 	margin-top: -16px;
 }
+/*
+.modal::-webkit-scrollbar { width: 5px; height: 5px; }
+.modal::-webkit-scrollbar-track { box-shadow: inset 0 0 6px rgba(0,0,0,0); } 
+.modal::-webkit-scrollbar-thumb { background-color: rgb(80,80,80); outline: 1px solid slategrey; } 
+.modal::-webkit-scrollbar-corner { background-color: transparent;}
+*/
 
 /* Chat */
 
@@ -365,6 +373,14 @@ li {
 .inline {
   display: inline;
 }
+
+.height-constrained {
+  max-height: 500px; overflow-y: auto; overflow-x: hidden;
+}
+.height-constrained::-webkit-scrollbar { width: 5px; height: 5px; } 
+.height-constrained::-webkit-scrollbar-track { box-shadow: inset 0 0 6px rgba(0,0,0,0); } 
+.height-constrained::-webkit-scrollbar-thumb { background-color: rgb(80,80,80); outline: 1px solid slategrey; } 
+.height-constrained::-webkit-scrollbar-corner { background-color: transparent;} 
 
 .hidden {
   display: none;
