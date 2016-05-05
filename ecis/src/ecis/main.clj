@@ -73,6 +73,7 @@
                        (condp = (j "type")
                                 "result" (h (j "insert"))
                                 "close" (h nil)
+                                "error" (do (println "error out") (h '(error)) (h nil))
                                 true))
                    (catch Exception e (print-stack-trace e))))
        
@@ -106,17 +107,13 @@
 
   
 (defn eve-insert [s eavs]
-  (println "insert" eavs)
   (let [q (str (apply str "(query "
                       (seq (map 
                             (fn [t]
-                              (let [k
-                                    (str "(insert-fact! " 
-                                         "\"" (nth t 0) "\" " 
-                                         (nth t 1) " " 
-                                         "\""(nth t 2) "\")\n")]
-                                (println k)
-                                k))
+                              (str "(insert-fact! " 
+                                   "\"" (nth t 0) "\" " 
+                                   (nth t 1) " " 
+                                   "\""(nth t 2) "\")\n"))
                             eavs))) ")")]
     (println "sending insert" q)
     (eve-close (eve-query s q (fn [x] ())))))
@@ -126,8 +123,9 @@
   ;; collapse removes
   (let [p (promise)
         results (atom ())
-        h (fn [x] (if x (swap! results concat x)
-                      (deliver p true)))]
+        h (fn [x] 
+            (if x (swap! results concat x)
+                (deliver p true)))]
     (eve-close (eve-query s q h))
     @p
     @results))
@@ -178,18 +176,15 @@
         _ (doseq [i forms] 
             (eve-synchronous-query child (str i)))
         r (eve-synchronous-query child (check-query name))]
-    (println "test results" name (apply concat r))
     (swap! facts conj (list key :test name))
     (swap! facts conj (list key :tag "testresult"))
     (swap! facts conj (list key :run root))
     (doseq [i (apply concat r)] 
-      (swap! facts conj (list key :result (if (= i "false") false true))))))
+      (swap! facts conj (list key :result i)))))
 
 
-(defn run-test [url branch facts root]
-  (println "start test" url branch facts)
-  (let [path (checkout-repository url branch)
-        s (atom nil)
+(defn run-test [path facts root]
+  (let [s (atom nil)
         p (subprocess (str path "/server"))
         database (connect-to-eve "localhost:8081" 0 0 (fn [] ()))
         results (atom facts)]
@@ -219,9 +214,13 @@
      (catch Exception e nil))
     (eve-insert database @results)
     (disconnect-from-eve database)
-    (println "test lein exit" @(p 1))
-    (delete-recursively path)))
+    (println "test lein exit" @(p 1))))
 
+(defn checkout-and-test [url branch facts root]
+  (let [path (checkout-repository url branch)]
+    (println "start test" url branch facts)
+    (run-test path facts root)
+    (delete-recursively path)))
 
 (defn input-handler [request]
   (let [parsed (json/parsed-seq (clojure.java.io/reader (:body request) :encoding "UTF-8"))
@@ -230,11 +229,16 @@
         pr (a "pull_request")]
     (when (and pr (= (get-in pr ["state"]) "open"))
       ;; [pull-request mergable] false
-      (run-test (get-in a ["repository" "git_url"])
+      (checkout-and-test (get-in a ["repository" "git_url"])
                 (get-in pr ["head" "ref"])
                 (list (list key :user (get-in pr ["user" "login"]))
                       (list key :tag "testrun")
+                      (list key :branch (get-in pr ["head" "ref"]))
                       (list key :number (get-in a ["number"]))
+                      (list key :title (get-in pr ["title"]))
+                      (list key :additions (get-in pr ["additions"]))
+                      (list key :text (get-in pr ["body"]))
+                      (list key :deletions (get-in pr ["deletions"]))
                       (list key :sha (get-in pr ["head" "sha"])))
                 key))
     {:body "thanks"}))
@@ -249,11 +253,10 @@
   (org.apache.log4j.BasicConfigurator/configure) 
   (.setLevel (Logger/getRootLogger) Level/OFF)
 
-;;  (let [k (connect-to-eve "127.0.0.1:8081" 0 0)]
-;;    (eve-insert k "joeoy" :loves "salley"))
-
-  (when (> (count args) 0) 
-    (subprocess (first args)))
-  (serve 8080))
+  (if (> (count args) 0) 
+    (let [tag (gensym "testrun")]
+      (run-test (first args) (list (list tag :tag "testrun")) tag)
+      (System/exit 0))
+    (serve 8080)))
 
 
