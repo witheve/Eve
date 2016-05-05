@@ -50,9 +50,8 @@
             "tag" nil
             (.setAttribute neue prop (.getAttribute elem prop)))))
 
-      (doseq [i (range (.-length children))]
-        (some->> (aget children i) (.appendChild neue)))
-        ;;(some->> (aget children i) (insert-sorted neue)))
+      (while (not (zero? (.-length children)))
+        (.appendChild neue (aget children 0)))
 
       (when-let [parent (.-parentElement elem)]
         (.removeChild parent elem)
@@ -69,17 +68,19 @@
         parent (aget attrs "parent")
         elem (or (get elems elem-id)
                  (let [tag (or (aget attrs "tag") "div")
-                       ix (or (aget attrs "ix") 0)
-                       elem (.createElement js/document tag)]
-                   (aset elem "_bound-props" (array))
-                   (.setAttribute elem "ix" ix)
+                       ix (aget attrs "ix")
+                       elem (.createElement js/document tag)
+                       bound-props (array)]
+                   (aset elem "_bound-props" bound-props)
+                   (when ix
+                     (.setAttribute elem "ix" ix)
+                     (.push bound-props "ix"))
                    elem))
 
         parent-elem (when parent
                       (or (get elems parent)
                           ;; @TODO: Make this smarter -- if the parent is in the same batch, have him ordered first.
                           (let [tag "div"
-                                ix 0
                                 parent-elem (.createElement js/document tag)]
                             (aset parent-elem "_bound-props" (array))
                             parent-elem)))]
@@ -110,36 +111,38 @@
       (if-not (zero? (.-length bound-props))
         elems
         (do
-          (-> elem .-parentElement .removeChild)
+          (-> (.-parentElement elem) (.removeChild elem))
           (dissoc elems elem-id elem)))
-      (do
+      (let [elem (loop [elem elem
+                        key-ix 0]
+                   (let [attribute (aget keys key-ix)
+                         value (aget attrs attribute)
+                         elem (condp = attribute
+                                "tag" (replace-tag elem value)
+                                "parent" elem
+                                "ix" elem
+                                "text" (set-property elem "textContent" value)
+                                (do (.setAttribute elem attribute value)
+                                    elem))]
+                     (.push bound-props attribute)
+                     (if (< (inc key-ix) cnt)
+                       (recur elem (inc key-ix))
+                       elem)))]
+
         (when (aget attrs "ix")
           (.setAttribute elem "ix" (aget attrs "ix"))
-          (when (.-parentElement elem)
+          (when (and (.-parentElement elem) (not (aget attrs "parent")))
             (insert-sorted (.-parentElement elem) elem)))
         (when (aget attrs "parent")
           (insert-sorted (get elems (aget attrs "parent")) elem))
 
-        (loop [elem elem
-               key-ix 0]
-          (let [attribute (aget keys key-ix)
-                value (aget attrs attribute)
-                elem (condp = attribute
-                       "tag" (replace-tag elem value)
-                       "parent" elem
-                       "ix" elem
-                       "text" (set-property elem "textContent" value)
-                       (do (.setAttribute elem attribute value)
-                           elem))]
-            (.push bound-props attribute)
-            (if (< (inc key-ix) cnt)
-              (recur elem (inc key-ix))
-              (assoc elems elem-id elem))))))))
+        (assoc elems elem-id elem)))))
 
 (defn render [renderer diff]
   (let [root (:root @renderer)
         {inserts :inserts removes :removes} diff
         updates (glom renderer inserts removes)]
+
     (swap! renderer update-in [:elems]
            #(as-> %1 elems
               ;; Preprocessing phase to ensure that all elements and their parents are created
