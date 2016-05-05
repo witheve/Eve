@@ -347,6 +347,7 @@ li {
 .cm-s-default .cm-number { color: #acf; }
 .cm-s-default .cm-atom { color: #afc; }
 .cm-s-default .cm-builtin { color: #999; }
+.cm-s-default .cm-keyword { color: #999; }
 
 /* Switches */
 

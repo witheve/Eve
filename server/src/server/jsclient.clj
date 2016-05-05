@@ -99,20 +99,23 @@
         ))))
 
 (defn start-query [db query id channel]
-  (let [handler (query-callback id channel)
-        exe (repl/exec* db query (repl/buffered-result-handler id handler) (when DEBUG #{:expanded :compiled}))
-        m (meta exe)]
-    ;; @FIXME: Since this is on the meta now, this can be requested instead of always pushing it
-    (send-query-info channel id (:raw m) (:smil m) (:weasl m))
-    (let [exe
-          (if (:define-only m)
-            (do                 
-              (send-result channel id [] [])
-              (fn [x] (httpserver/send! channel (format-json {"type" "close" "id" id}))))
-            exe)]
-      (swap! clients assoc-in [channel :queries id] exe)
-      exe)))
-    
+  (cond
+    (= 'load (first query)) (do
+                              (repl/read-all db query false)
+                              (send-result channel id [] []))
+    :else (let [handler (query-callback id channel)
+                exe (repl/exec* db query (repl/buffered-result-handler id handler) (when DEBUG #{:expanded :compiled}))
+                m (meta exe)]
+            ;; @FIXME: Since this is on the meta now, this can be requested instead of always pushing it
+            (send-query-info channel id (:raw m) (:smil m) (:weasl m))
+            (let [exe
+                  (if (:define-only m)
+                    (do
+                      (send-result channel id [] [])
+                      (fn [x] (httpserver/send! channel (format-json {"type" "close" "id" id}))))
+                    exe)]
+              (swap! clients assoc-in [channel :queries id] exe)
+              exe))))
 
 (defn handle-connection [db channel]
   ;; this seems a little bad..the stack on errors after this seems
