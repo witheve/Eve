@@ -230,6 +230,14 @@
     (assoc-in args [:ids]
               (reduce-kv #(assoc %1 %3 (symbol (str (:group-id args) "_" %2))) {} (:elems args)))
 
+    (assoc-in args [:id-values]
+              (reduce-kv (fn [memo elem id]
+                           (let [grouping (:grouping args)
+                                 row-id (interpose "__" (cons (name id) grouping))]
+                             (assoc memo id `(~'str ~@row-id))))
+                         {}
+                         (:ids args)))
+
     (assoc-in args [:attributes]
               (map (fn [elem]
                      (let [id (get (:ids args) elem)]
@@ -252,6 +260,20 @@
                  (assoc memo val elem))
                {}
                (filter ui-id-alias? (:attributes args))))
+
+    (assoc-in args [:generated]
+                (loop [ids (:id-values args)
+                       aliases (:aliases args)
+                       generated [ ]]
+                  (if (zero? (count ids))
+                    (if-not (zero? (count aliases))
+                      (apply conj generated aliases)
+                      generated)
+                    (let [id (first ids)
+                          aliased-to-id (filter #(= (first id) (second %1)) aliases)]
+                      (recur (dissoc ids (first id))
+                             (apply dissoc aliases (map first aliased-to-id))
+                             (apply conj generated id aliased-to-id))))))
 
     (update-in args [:attributes] #(filter (complement ui-id-alias?) %1))
 
@@ -320,23 +342,7 @@
 
 (defn generate-ui [db args]
   (let [projection (vec (distinct (apply concat (map :join (:ui args)))))
-        generated (reduce
-                   (fn [memo ui-group]
-                     (as-> memo memo
-                       (reduce (fn [memo id]
-                                 (let [grouping (:grouping ui-group)
-                                       row-id (interpose "__" (cons (name id) grouping))]
-                                   (assoc memo id `(~'str ~@row-id))))
-                               memo
-                               (vals (:ids ui-group)))
-
-                       (reduce
-                        (fn [memo [var val]]
-                          (assoc memo var val))
-                        memo
-                        (:aliases ui-group))))
-                   {}
-                   (:ui args))
+        generated (apply concat (map :generated (:ui args)))
         query (concat (:query args)
                       (map
                        (fn [[var val]]
