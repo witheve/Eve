@@ -37,7 +37,7 @@
   (insert-fact! "t2-expected-3"
                 :tag "expected"
                 :test "fruit"
-                :value "pineapple")
+                :value "zango")
 
   (insert-fact! "t2-data-1"
                 :tag "data"
