@@ -627,6 +627,10 @@ function deleteCard(card: ReplCard) {
   deleteStoredCard(card);
   // Renumber the cards
   repl.deck.cards.filter((r) => r.col === card.col && r.row > card.row).forEach((c,i) => c.row = i + card.row);
+  // Add a card to the column if there are none left
+  if (repl.deck.cards.filter((c) => c.col === card.col).length === 0) {
+    repl.deck.cards.push(newReplCard(0, card.col));
+  }
   // send a remove to the server
   sendClose(card.query);
 }
