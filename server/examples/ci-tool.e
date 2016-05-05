@@ -9,11 +9,11 @@
   (= user-url (str "https://github.com/" user))
   (= test-class (str "test " result))
 
-  (ui [title pr url user user-url delta-text branch branch-url description]
-      (div :id run-tile :parent "root" :class "test-run")
+  (ui [title pr pr-number url user user-url delta-text branch branch-url description]
+      (div :id run-tile :parent "root" :ix pr-number :class "test-run")
       (h3 :id header :parent run-tile :ix 1)
         (div :parent header :ix 0 :class "spacer" :text title)
-        (a :parent header :ix 2 :text pr :href url)
+        (a :parent header :ix 1 :text pr :href url)
       (div :id user-tile :parent run-tile :ix 2 :class "run-info")
         (div :parent user-tile :ix 0 :text delta-text)
         (div :parent user-tile :ix 1 :text "in")
@@ -43,3 +43,21 @@
  (insert-fact! "test924" :result true :run "run916" :tag "testresult" :test "choose")
  (insert-fact! "test925" :result true :run "run916" :tag "testresult" :test "sum")
  (insert-fact! "test926" :result true :run "run916" :tag "testresult" :test "sort"))
+
+(query
+ (insert-fact! "run930"
+               :tag "testrun"
+               :user "joshuafcole"
+               :number 362
+               :sha "7dbaa754014874272d9d8dc2fe9e108da6cf6627"
+               :branch "master"
+               :title "CI Tool UI"
+               :description "This lays the groundwork for the visual aspect of the CI tool. It includes some basic css and richer information than the previous proof of concept."
+               :additions "111"
+               :deletions "25")
+ (insert-fact! "test932" :result true :run "run930" :tag "testresult" :test "harness-sanity-check")
+ (insert-fact! "test933" :result true :run "run930" :tag "testresult" :test "join")
+ (insert-fact! "test934" :result true :run "run930" :tag "testresult" :test "union")
+ (insert-fact! "test935" :result true :run "run930" :tag "testresult" :test "choose")
+ (insert-fact! "test936" :result true :run "run930" :tag "testresult" :test "sum")
+ (insert-fact! "test937" :result false :run "run930" :tag "testresult" :test "sort"))
