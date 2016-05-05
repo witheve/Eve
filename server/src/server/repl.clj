@@ -150,7 +150,7 @@
 
 (declare eeval)
 (defn trace [db expression trace-on]
-  (if (or (set? (second expression)) (vector? second expression))
+  (if (or (set? (second expression)) (vector? (second expression)))
     (eeval db (nth expression 2) (set (second expression)))
     (eeval db (second expression) true)))
 

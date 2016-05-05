@@ -267,6 +267,7 @@
                                      (fn [] (generate-send-cont env m cenv tail-name output)))
                               projection (set/intersection (get @cenv 'dependencies) (set (keys (get @env 'bound))))
                               mp (map (get @inner-env 'bound) projection)]
+                          (swap! inner-env update-in ['blocks] concat (get @cenv 'blocks))
                           (list (with-meta (list 'not mp inner) m)))
                        arms)))
 
