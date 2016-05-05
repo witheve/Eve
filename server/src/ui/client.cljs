@@ -99,11 +99,10 @@
 (defn websocket-init []
   (let [socket (new js/WebSocket websocket-address)]
     (set! (.-onopen socket) (fn [event]
-                              (send-query "all facts"
-                                          (query-string `(query [e a v]
-                                                                (fact-btu e a v))))
+                              ;(send-query "all facts"
+                              ;            (query-string `(query [e a v]
+                              ;                                  (fact-btu e a v))))
                               (doseq [func @open-queue]
-                                (println "hello" func)
                                 (func))
                               (reset! open-queue [])
                               (println "connected to server!")))
@@ -139,21 +138,17 @@
                                                       (reset! changed? true)
                                                       (.removeFacts diff (.-id data) removes))
                                                     (when @changed?
-                                                      (.applyDiff eve diff))
-                                                    (println "ADDS" adds)
-                                                    (println "REMOVES" removes))))
+                                                      (.applyDiff eve diff)))))
                                      "error" (.error js/console "uh oh")
                                      "query-info" (do)
                                      )
                                    (when @changed?
-                                     (println "GOT CHANGED")
-                                     (render))
-                                   (println (.-data event)))))
+                                     (render)))))
     ;; set a handler for when we navigate away so that we can make sure all
     ;; queries for this client are closed.
     (set! (.-onbeforeunload js/window)
           (fn []
-            (send-close "all facts")
+            ;(send-close "all facts")
             (for [[k query-id] @id-to-query]
               (send-close query-id))
             nil))
