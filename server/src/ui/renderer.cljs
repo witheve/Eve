@@ -20,17 +20,18 @@
             updates removes)))
 
 (defn insert-sorted [parent child]
-  ;(.log js/console "INSERT " child "into" parent "at" (or (aget child "ix") 0))
   (let [children (.-children parent)
         cnt (.-length children)
-        target-ix (or (aget child "ix") 0)]
-    (if (or (zero? cnt) (<= (or (aget (aget children (dec cnt)) "ix") 0) target-ix))
+        target-ix (or (int (.getAttribute child "ix")) 0)
+        greatest-ix (when-not (zero? cnt) (or (int (.getAttribute (aget children (dec cnt)) "ix")) 0))]
+    ;(.log js/console "INSERT " child "into" parent "at" target-ix "vs" greatest-ix "of" cnt)
+    (if (or (zero? cnt) (>= target-ix greatest-ix))
       (.appendChild parent child)
       ;; @NOTE: This is a linear scan for simplicity, if it's slow it can be replaced w/ a binary search
       (loop [ix 0]
         (let [cur (aget children ix)
-              cur-ix (aget cur "ix")]
-          (if (or (> cur-ix ix) (= (inc ix) cnt))
+              cur-ix (or (int (.getAttribute cur "ix")) 0)]
+          (if (or (<= target-ix cur-ix) (= (inc ix) cnt))
             (.insertBefore parent child cur)
             (recur (inc ix)))))))
   child)
@@ -38,7 +39,26 @@
 (defn replace-tag [elem tag]
   (if (= (.toLowerCase (.-tagName elem)) tag)
     elem
-    (println "@TODO: IMPLEMENT replace-tag")))
+    (let [neue (.createElement js/document tag)
+          bound-props (aget elem "_bound-props")
+          children (.-children elem)]
+      (doseq [i (range (.-length bound-props))]
+        (let [prop (aget bound-props i)]
+          (condp = prop
+            "text" (aset neue "textContent" (aget elem "textContent"))
+            "parent" nil
+            "tag" nil
+            (.setAttribute neue prop (.getAttribute elem prop)))))
+
+      (doseq [i (range (.-length children))]
+        (some->> (aget children i) (.appendChild neue)))
+        ;;(some->> (aget children i) (insert-sorted neue)))
+
+      (when-let [parent (.-parentElement elem)]
+        (.removeChild parent elem)
+        (insert-sorted parent neue))
+      (aset neue "_bound-props" bound-props)
+      neue)))
 
 (defn set-property [elem attribute value]
   (aset elem attribute value)
@@ -52,7 +72,7 @@
                        ix (or (aget attrs "ix") 0)
                        elem (.createElement js/document tag)]
                    (aset elem "_bound-props" (array))
-                   (aset elem "ix" ix)
+                   (.setAttribute elem "ix" ix)
                    elem))
 
         parent-elem (when parent
@@ -62,7 +82,6 @@
                                 ix 0
                                 parent-elem (.createElement js/document tag)]
                             (aset parent-elem "_bound-props" (array))
-                            (aset parent-elem "ix" ix)
                             parent-elem)))]
     (if parent
       (assoc elems parent parent-elem elem-id elem)
@@ -75,12 +94,11 @@
         bound-props (aget elem "_bound-props")
         keys (.keys js/Object attrs)
         cnt (.-length keys)]
-    (.apply (.-push bound-props) bound-props keys)
 
     (doseq [attribute removes]
       (condp = attribute
         "tag" (throw (js/Error. "@FIXME: This needs to do something sane in the non element removal case."))
-        "parent" (-> elem .-parentElement .removeChild)
+        "parent" (some-> (.-parentElement elem) (.removeChild elem))
         "text" (aset elem "textContent" js/undefined)
         (.removeAttribute elem attribute))
       (let [prop-ix (.indexOf bound-props attribute)]
@@ -94,23 +112,29 @@
         (do
           (-> elem .-parentElement .removeChild)
           (dissoc elems elem-id elem)))
-      (loop [elem elem
-             key-ix 0]
-        (let [attribute (aget keys key-ix)
-              value (aget attrs attribute)
-              elem (condp = attribute
-                     "tag" (replace-tag elem value)
-                     "parent" (insert-sorted (get elems value) elem)
-                     "ix" (if (.-parentElement elem)
-                            (insert-sorted (.-parentElement elem) elem)
-                            elem)
-                     "text" (set-property elem "textContent" value)
-                     (do
-                       (.setAttribute elem attribute value)
-                       elem))]
-          (if (< (inc key-ix) cnt)
-            (recur elem (inc key-ix))
-            (assoc elems elem-id elem)))))))
+      (do
+        (when (aget attrs "ix")
+          (.setAttribute elem "ix" (aget attrs "ix"))
+          (when (.-parentElement elem)
+            (insert-sorted (.-parentElement elem) elem)))
+        (when (aget attrs "parent")
+          (insert-sorted (get elems (aget attrs "parent")) elem))
+
+        (loop [elem elem
+               key-ix 0]
+          (let [attribute (aget keys key-ix)
+                value (aget attrs attribute)
+                elem (condp = attribute
+                       "tag" (replace-tag elem value)
+                       "parent" elem
+                       "ix" elem
+                       "text" (set-property elem "textContent" value)
+                       (do (.setAttribute elem attribute value)
+                           elem))]
+            (.push bound-props attribute)
+            (if (< (inc key-ix) cnt)
+              (recur elem (inc key-ix))
+              (assoc elems elem-id elem))))))))
 
 (defn render [renderer diff]
   (let [root (:root @renderer)
