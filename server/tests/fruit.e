@@ -48,6 +48,6 @@
 
 (query
   (= test "fruit")
-  (friend :fruit "lemon" :friend value)))
+  (friend :fruit "lemon" :friend value)
   (= id (str test " a: " a " value: " value))
   (insert-fact! id :tag "result" :test :a :value))
