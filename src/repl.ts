@@ -968,7 +968,7 @@ function tagsListClick(event, elem) {
   };
   // Generate the table
   let table = generateResultTable(result);
-  repl.modal = {c: "modal", left: 110, top: event.target.offsetTop, children: [table]};
+  repl.modal = {c: "modal", left: 110, top: event.y, children: [table]};
   // Prevent click event from propagating to another layer
   event.stopImmediatePropagation();
   rerender();
@@ -1155,6 +1155,8 @@ function generateStatusBarElement() {
   let deleteButton = {c: "button", text: "Delete Card", click: deleteCardClick};
   let addColumn = {c: "button", text: "Add Column", click: addColumnClick};
   let addCard = {c: "button", text: "Add Card", click: addCardClick};
+  //let importCSV = {c: "button", text: "Import CSV", click: importCSVClick};
+  // Chat button
   let unread = repl.chat.unread > 0 ? {c: "unread", text: `${repl.chat.unread}`} : {};
   let toggleChat = {c: "button", children: [{c: "inline", text: "Chat"}, unread], click: toggleChatClick};
   let buttonList = formListElement([deleteButton, addColumn, addCard, toggleChat]);
