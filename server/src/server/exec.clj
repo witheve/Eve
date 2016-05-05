@@ -2,7 +2,7 @@
   (:require [server.edb :as edb]
             [clojure.pprint :refer [pprint cl-format]]))
 
-(def basic-register-frame 30)
+(def basic-register-frame 35)
 (def op-register [0])
 (def qid-register [1])
 (def taxi-register [2])
@@ -102,7 +102,7 @@
         evaluations (atom {})
 
         head (atom ())
-    
+
         get-count (fn [r]
                     (when (process? r)
                       (let [k (map #(rget r %1) projection)]
@@ -115,7 +115,7 @@
                                        ;; complete synchronously
                                        (@head (object-array ['flush (rget r [1]) nil nil nil nil nil]))
                                        n))))))
-    
+
         ;; could cache the projection - meh
         tail  (fn [r]
                 (let [count (get-count r)]
@@ -133,7 +133,7 @@
           (@head r)
           ;; assuming synchronous?
           (c r))))))
-                                           
+
 
 
 (defn tuple [d terms build c]
