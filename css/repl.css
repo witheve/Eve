@@ -334,8 +334,10 @@ li {
   background-color: rgb(200,200,200);
 }
 
-.CodeMirror-selected {
 
+
+.CodeMirror-selected {
+  background:#505050 !important;
 }
 
 .CodeMirror-cursor { border-color: #ccc; }

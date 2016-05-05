@@ -708,8 +708,8 @@ window.onkeydown = function(event) {
       rightReplCard = getReplCard(rowsInNextCol, thisReplCard.col + 1);
       focusCard(rightReplCard);
     }
-  // Catch ctrl + r
-  } else if (event.keyCode === 82 && event.ctrlKey) {
+  // Catch ctrl + y
+  } else if (event.keyCode === 89 && event.ctrlKey) {
     addColumn();
   // Catch ctrl + e
   } else if (event.keyCode === 69 && modified) {
