@@ -11,8 +11,13 @@
   (doall (apply concat a)))
 
 (defn compile-error [message data]
-  (let [d2 (dissoc (:env data) 'db)]
-    (throw (ex-info message (assoc d2 :type "compile")))))
+  (let [data (if-not (:env data)
+               data
+               (assoc data :env (dissoc (if (instance? clojure.lang.Atom (:env data))
+                                             @(:env data)
+                                             (:env data))
+                                           'db)))]
+    (throw (ex-info message (assoc data :type "compile")))))
 
 (defn get-signature
   "Gets a readable identifier for the given adornment of a relation"
@@ -114,6 +119,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn term [env op m & terms]
+  (when-not (or (nil? m) (map? m))
+    (compile-error (str "Must provide valid meta for terms " (pr-str terms)) {:terms terms :m m :env env}))
   (let [p (with-meta (conj (map (fn [x] (lookup env x)) terms) op)
             (if (or (nil? m) (list? m)) {} m))]
     (list p)))
@@ -135,7 +142,7 @@
         input (map #(lookup inner-env %1) arguments)
         scope (concat taxi-slots input)]
     (when-let [arg (some identity (map #(if (is-bound? inner-env %1) nil %1) arguments))]
-    (compile-error (str "Cannot send unbound/nil argument " arg) {:env @env :target target :arguments arguments :bound (get @inner-env 'bound nil)}))
+      (compile-error (str "Cannot send unbound/nil argument " arg) {:env @env :target target :arguments arguments :bound (get @inner-env 'bound nil)}))
     (concat
      (apply term env 'tuple m exec/temp-register exec/op-register exec/qid-register [(exec/taxi-register 0) (exec/taxi-register 0)] nil scope)
      [(with-meta (list 'send target exec/temp-register) m)])))
@@ -194,7 +201,9 @@
   [env inner-env name body]
   (let [over (get @inner-env 'overflow)
         body (if over
-               (build body (term @inner-env 'tuple [(- exec/basic-register-frame 1)] (repeat over nil)))
+                                        ;(build body (term @inner-env 'tuple [(- exec/basic-register-frame 1)] (repeat over nil)))
+               (compile-error (str "Overflowed basic register frame (" (+ exec/basic-register-frame (get @inner-env 'overflow)) "/" exec/basic-register-frame ")")
+                              {:env inner-env})
                body)]
     (swap! env update-in ['blocks] concat (get @inner-env 'blocks))
     (make-continuation env name body)))
@@ -389,7 +398,7 @@
       a (rebind (argmap :a) (argmap :b))
       b (rebind (argmap :b) (argmap :a))
       :else
-      (compile-error "reordering necessary, not implemented" {:env @env :terms terms}))))
+      (compile-error "reordering necessary, not implemented" {:terms terms :env @env}))))
 
 (defn compile-not [env terms down]
   (let [child-env (atom {'name (gensym "not")
