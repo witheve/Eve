@@ -1,5 +1,5 @@
 (define-ui ci-run-result
-  (fact test-run :tag "testrun" :number pr-number :branch :user :title :description :additions :deletions)
+  (fact test-run :tag "testrun" :number pr-number :branch :user :title :text description :additions :deletions)
   (fact test-result :tag "testresult" :run test-run :test :result)
   (fact-btu test-result "result" :tick)
   (= test-order (+ 100 (sort tick)))
@@ -26,39 +26,3 @@
   (ui [run-tile test test-class test-order]
       (div :id test-tile :parent run-tile :ix test-order :class test-class)
       (div :parent test-tile :ix 0 :text test)))
-
-(query
- (insert-fact! "run916"
-               :tag "testrun"
-               :user "convolvatron"
-               :number 359
-               :sha "fe156b55583c417364651c750d03992b6e0953f4"
-               :branch "master"
-               :title "change edb flush to be per-scan, not per-item"
-               :description "this is probably a good idea"
-               :additions "45"
-               :deletions "42")
- (insert-fact! "test917" :result true :run "run916" :tag "testresult" :test "harness-sanity-check")
- (insert-fact! "test922" :result true :run "run916" :tag "testresult" :test "join")
- (insert-fact! "test923" :result true :run "run916" :tag "testresult" :test "union")
- (insert-fact! "test924" :result true :run "run916" :tag "testresult" :test "choose")
- (insert-fact! "test925" :result true :run "run916" :tag "testresult" :test "sum")
- (insert-fact! "test926" :result true :run "run916" :tag "testresult" :test "sort"))
-
-(query
- (insert-fact! "run930"
-               :tag "testrun"
-               :user "joshuafcole"
-               :number 362
-               :sha "7dbaa754014874272d9d8dc2fe9e108da6cf6627"
-               :branch "master"
-               :title "CI Tool UI"
-               :description "This lays the groundwork for the visual aspect of the CI tool. It includes some basic css and richer information than the previous proof of concept."
-               :additions "111"
-               :deletions "25")
- (insert-fact! "test932" :result true :run "run930" :tag "testresult" :test "harness-sanity-check")
- (insert-fact! "test933" :result true :run "run930" :tag "testresult" :test "join")
- (insert-fact! "test934" :result true :run "run930" :tag "testresult" :test "union")
- (insert-fact! "test935" :result true :run "run930" :tag "testresult" :test "choose")
- (insert-fact! "test936" :result true :run "run930" :tag "testresult" :test "sum")
- (insert-fact! "test937" :result false :run "run930" :tag "testresult" :test "sort"))
