@@ -5,7 +5,7 @@
   (fact friend :tag "fruit")
   (not= fruit friend))
 
-(query [f]
+(query 
        (insert-fact! "apple" :color "red" :tag "fruit")
        (insert-fact! "banana" :color "yellow" :tag "fruit")
        (insert-fact! "pineapple" :color "yellow" :tag "fruit")
