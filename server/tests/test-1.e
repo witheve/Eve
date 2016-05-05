@@ -3,12 +3,12 @@
   (insert-fact! "test-1"
                 :tag "test")
 
-  (insert-fact! "t2-expected-1"
+  (insert-fact! "t1-expected-1"
                 :tag "expected"
                 :test "test-1"
-                :value 3)
+                :value 4)
 
-  (insert-fact! "t2-data-1"
+  (insert-fact! "t1-data-1"
                 :tag "data"
                 :test "test-1"
                 :a 1))
