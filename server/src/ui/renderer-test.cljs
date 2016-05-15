@@ -12,8 +12,7 @@
         last-diff (client/get-last-diff "ui")
         inserts (map positionalize (aget last-diff "adds"))
         removes (map positionalize (aget last-diff "removes"))]
-    (println "LAST DIFF ADDS:" inserts)
-    (println "LAST DIFF REMOVES:" removes)
+    (println "+" (count inserts) "/ -" (count removes))
     ;; @TODO: get removes by  remembering previous facts.
     (renderer/render renderer {:inserts inserts
                                :removes removes})
