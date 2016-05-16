@@ -1,2 +1,11 @@
-luarocks-5.1 install --tree lua_modules utf8
-luarocks-5.1 install --tree lua_modules turbo
+if type "luarocks-5.1" > /dev/null; then
+  # install foobar here
+  luarocks-5.1 install --tree lua_modules utf8
+  luarocks-5.1 install --tree lua_modules turbo
+elif type "luarocks" > /dev/null; then
+  luarocks install --tree lua_modules utf8
+  luarocks install --tree lua_modules turbo
+else
+  echo "Couldn't find luarocks-5.1 or luarocks. You need luarocks installed for lua 5.1"
+fi
+

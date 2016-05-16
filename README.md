@@ -15,7 +15,6 @@ Then grab the luarocks we use and run!
 ```
 ./getRocks.sh
 ./run.sh
-
 ```
 
 On OSX if you get a build error about openssl, do the following
