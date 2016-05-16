@@ -1,15 +1,28 @@
 local parser = require("parser")
+local color = require("color")
 
 local commands = {
-  parse = parser.parseFile
+  parse = {
+    command = parser.parseFile,
+    args = "<file>"
+  }
 }
 
 local function go(args)
-  local command = commands[args[1]]
-  if command then
-    command(args)
+  local info = commands[args[1]]
+  if info then
+    info.command(args)
   else
-    print("Unknown command!")
+    print("---------------------------------------------------------")
+    print("")
+    print(string.format("Welcome to %s", color.bright("Eve!")))
+    print("")
+    print("Available commands: ")
+    for command, info in pairs(commands) do
+      print(string.format(" - %s %s", color.bright(command), color.info(info.args)))
+    end
+    print("")
+    print("---------------------------------------------------------")
   end
 end
 
