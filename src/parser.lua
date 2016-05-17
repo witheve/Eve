@@ -349,6 +349,12 @@ local function formatNode(node, depth)
   for k, v in pairs(node) do
     if k == "children" or k == "parent" or k == "type" then
       -- do nothing
+    elseif k == "variables" then
+      string = string .. childIndent .. color.dim("variables: ")
+      for variableName, _ in pairs(v) do
+        string = string .. variableName .. ", "
+      end
+      string = string .. "\n"
     elseif k == "tokens" then
       string = string .. childIndent .. color.dim("tokens: ")
       for _, token in pairs(v) do
@@ -371,7 +377,7 @@ local function formatGraph(root, seen, depth)
   local seen = seen or {}
   local depth = depth or 0
   if not root or seen[root] then return "" end
-  string = formatNode(root, depth) 
+  string = formatNode(root, depth)
   seen[root] = true
   if root.children then
     for _, child in pairs(root.children) do
