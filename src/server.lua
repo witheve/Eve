@@ -1,7 +1,7 @@
 _G.TURBO_SSL = true -- Always set me when using SSL, before loading framework.
 local turbo = require("turbo")
--- local t = require("test")
 local fs = require("fs")
+local color = require("color")
 
 local SSL_Handler = class("SSL_Handler", turbo.web.RequestHandler)
 function SSL_Handler:get()
@@ -21,10 +21,22 @@ local application = turbo.web.Application:new({
     {"^/ws$", WSExHandler}
 })
 
-application:listen(8888, nil, {
-  ssl_options = {
-    key_file = "server.key",
-    cert_file = "server.crt"
-  }
-})
-turbo.ioloop.instance():start()
+local function start(args)
+  local port = args[2] or 8888
+  application:listen(port, nil, {
+    -- ssl_options = {
+    --   key_file = "server.key",
+    --   cert_file = "server.crt"
+    -- }
+  })
+  print()
+  print(color.dim("---------------------------------------------------------"))
+  print()
+  print(string.format("Server running at ".. color.bright("http://localhost:%s/"), port))
+  print()
+  turbo.ioloop.instance():start()
+end
+
+return {
+  start = start
+}

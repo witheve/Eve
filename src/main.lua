@@ -1,10 +1,15 @@
 local parser = require("parser")
 local color = require("color")
+local server = require("server")
 
 local commands = {
   parse = {
     command = parser.parseFile,
     args = "<file>"
+  },
+  server = {
+    command = server.start,
+    args = "<port>"
   }
 }
 
@@ -15,11 +20,18 @@ local function go(args)
   else
     print(color.dim("---------------------------------------------------------"))
     print("")
-    print(string.format("Welcome to %s", color.bright("Eve!")))
+    print(color.bright([[
+    ______
+    |  ____|
+    | |____   _____
+    |  __\ \ / / _ \
+    | |___\ V /  __/
+    |______\_/ \___|
+    ]]))
     print("")
-    print("Available commands: ")
+    print("    Available commands: ")
     for command, info in pairs(commands) do
-      print(string.format(" - %s %s", color.bright(command), color.info(info.args)))
+      print(string.format("       %s %s", color.bright(command), color.info(info.args)))
     end
     print("")
     print(color.dim("---------------------------------------------------------"))
