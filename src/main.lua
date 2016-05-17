@@ -13,7 +13,7 @@ local function go(args)
   if info then
     info.command(args)
   else
-    print("---------------------------------------------------------")
+    print(color.dim("---------------------------------------------------------"))
     print("")
     print(string.format("Welcome to %s", color.bright("Eve!")))
     print("")
@@ -22,7 +22,7 @@ local function go(args)
       print(string.format(" - %s %s", color.bright(command), color.info(info.args)))
     end
     print("")
-    print("---------------------------------------------------------")
+    print(color.dim("---------------------------------------------------------"))
   end
 end
 

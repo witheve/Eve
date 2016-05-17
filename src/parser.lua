@@ -211,7 +211,7 @@ end
 
 local TokenScanner = {}
 function TokenScanner:new(tokens)
-  newObj = {pos = 0, tokens = tokens}
+  newObj = {pos = 1, tokens = tokens}
   self.__index = self
   return setmetatable(newObj, self)
 end
@@ -287,10 +287,10 @@ local function getLineNode(line)
   local node = line.node
   if node then return node end
   line.node = parseLine(line)
-  return line.node 
+  return line.node
 end
 
-local function getPreviousSiblingNode(line) 
+local function getPreviousSiblingNode(line)
   local children = line.parent.children
   for index, value in ipairs(children) do
     if line == value then
@@ -301,13 +301,115 @@ local function getPreviousSiblingNode(line)
   return nil
 end
 
-parseLine = function(line) 
-  if line.type == "context" then 
+local function resolveVariable(parentNode, token, name)
+  -- to resolve variables, we walk up the chain to find
+  -- all the containing queries. The top-most query contains
+  -- all variables in scope, we'll do the resolution there and if
+  -- we create a new variable, trickle it back down to the other
+  -- queries
+  local queries = {}
+  while parentNode do
+    if parentNode.type == "query" then
+      queries[#queries + 1] = parentNode
+    end
+    parentNode = parentNode.parent
+  end
+  local top = queries[#queries]
+  local var = top.variables[name] or makeNode("variable", top, token.line, token.offset)
+  var.name = name
+  for _, query in ipairs(queries) do
+    query.variables[name] = var
+  end
+  return var
+end
+
+local function parseObjectLine(line)
+  local parent = getLineNode(line.parent)
+  local scanner = TokenScanner:new(line.tokens)
+  local first = scanner:read()
+  local node = makeNode("object", parent, line.line, line.offset)
+  local resolved
+  if first.type == "TAG" then
+    local name = scanner:read()
+    if name.type == "IDENTIFIER" then
+      resolved = resolveVariable(parent, name, name.value)
+    elseif name.type == "STRING" then
+      -- @TODO we need to generate some random var
+    else
+      print(string.format(color.error("Expected a tag name or string after the # symbol on line %s"), line.line))
+    end
+    -- create the tag binding
+  elseif first.type == "NAME" then
+    local name = scanner:read()
+    if name.type == "IDENTIFIER" then
+      resolved = resolveVariable(parent, name, name.value)
+    elseif name.type == "STRING" then
+      -- @TODO we need to generate some random var
+    else
+      print(string.format(color.error("Expected a name or string after the @ symbol on line %s"), line.line))
+    end
+    -- create the name binding
+  end
+  if resolved then
+    node.variable = resolved
+  end
+  return node
+end
+
+local function parseAttributeLine(line)
+  local parent = getLineNode(line.parent)
+  local scanner = TokenScanner:new(line.tokens)
+  local first = scanner:read()
+  local node = makeNode("binding", parent, line.line, line.offset)
+  local attributeName
+  if first.type == "IDENTIFIER" then
+    attributeName = first.value
+  else
+    print(string.format(color.error("Expected the name of an attribute on line %s"), line.line))
+  end
+
+  local second = scanner:read()
+  if second and (second.type == "EQUAL" or second.type == "ALIAS") then
+    -- @TODO: this should be turned into a thing to generically take a scanner
+    -- and parse an expression, returning either a constant or a variable to
+    -- bind to
+    local third = scanner:read()
+    if not third then
+      -- it's possible that this continues on the next line. Maybe check for
+      -- children and if there aren't any, throw an error?
+    elseif third.type == "NUMBER" or third.type == "STRING" then
+      node.constant = third.value
+      node.constantType = third.type
+    elseif third.type == "IDENTIFIER" then
+      node.variable = resolveVariable(parent, third, third.name)
+    end
+  else
+    node.variable = resolveVariable(parent, first, attributeName)
+  end
+  node.source = parent
+  node.field = attributeName
+  return node
+end
+
+local function parseMutation(line)
+  local parent = getLineNode(line.parent)
+  local first = line.tokens[1]
+  local type = "add"
+  if first.type == "REMOVE" then
+    type = "remove"
+  end
+  return makeNode(type, parent, line.line, line.offset)
+end
+
+parseLine = function(line)
+  if line.type == "context" then
     return {type="context", children={}, file = line.file}
   end
 
   local node
   local parent = getLineNode(line.parent)
+  local scanner = TokenScanner:new(line.tokens)
+  local first = scanner:peek()
   -- if the line is at root indentation, then there are two possibilities
   -- the line is either the start of a query, or it's another line of documentation
   -- for the preceeding query
@@ -324,7 +426,16 @@ parseLine = function(line)
       node.name = Token:tokensToLine(line.tokens)
       node.variables = {}
     end
-  else
+  elseif first then
+    if parent.type == "object" then
+      node = parseAttributeLine(line)
+    end
+    if first.type == "TAG" or first.type == "NAME" then
+      node = parseObjectLine(line)
+    end
+    if first.type == "ADD" or first.type == "REMOVE" then
+      node = parseMutation(line)
+    end
   end
   if not node then
     node = makeNode("unknown", parent, line.line, line.offset)
@@ -349,6 +460,8 @@ local function formatNode(node, depth)
   for k, v in pairs(node) do
     if k == "children" or k == "parent" or k == "type" then
       -- do nothing
+    elseif k == "variable" then
+      string = string .. childIndent .. color.dim("variable: ") .. v.name .. "\n"
     elseif k == "variables" then
       string = string .. childIndent .. color.dim("variables: ")
       for variableName, _ in pairs(v) do
@@ -392,15 +505,33 @@ end
 ------------------------------------------------------------
 
 local function parseFile(args)
+  if not args[2] then
+    print(color.error("Parse requires a file to parse"))
+    return
+  elseif not fs.exists(args[2]) then
+    print(string.format(color.error("Couldn't open file %s for parsing"), args[2]))
+    return
+  end
+  print()
+  print(color.dim("---------------------------------------------------------"))
+  print(color.dim("-- Line tree"))
+  print(color.dim("---------------------------------------------------------"))
+  print()
   local path = args[2]
-  -- print("Parsing: ", path)
   local content = fs.read(path)
   local lines = lex(content)
   -- Token:printLines(lines)
   local lineTree = buildLineTree(lines, {file=path, type="file"})
   print(formatGraph(lineTree))
   parseLineTree(lineTree)
+  print()
+  print(color.dim("---------------------------------------------------------"))
+  print(color.dim("-- Parse tree"))
+  print(color.dim("---------------------------------------------------------"))
+  print()
   print(formatGraph(lineTree.node))
+  print()
+  print(color.dim("---------------------------------------------------------"))
 end
 
 ------------------------------------------------------------
@@ -408,3 +539,4 @@ end
 ------------------------------------------------------------
 
 return {parseFile = parseFile}
+
