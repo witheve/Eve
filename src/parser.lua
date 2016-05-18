@@ -6,12 +6,58 @@ local color = require("color")
 -- Utils
 ------------------------------------------------------------
 
-function makeWhitespace(size)
+function makeWhitespace(size, char)
   local whitespace = {}
+  local char = char or " "
   for i = 0, size do
-    whitespace[#whitespace + 1] = " "
+    whitespace[#whitespace + 1] = char
   end
   return table.concat(whitespace)
+end
+
+function split(str, delim)
+  local final = {}
+  for token in string.gmatch(str, string.format("[^%s]+", delim)) do
+    print("GOT TOKEN!", token)
+    final[#final + 1] = token
+  end
+  return final
+end
+
+local function split(str, delim)
+  local final = {}
+  local index = 1
+  local splitStart, splitEnd = string.find(str, delim, index)
+  while splitStart do
+    final[#final + 1] = string.sub(str, index, splitStart-1)
+    index = splitEnd + 1
+    splitStart, splitEnd = string.find(str, delim, index)
+  end
+  final[#final + 1] = string.sub(str, index)
+  return final
+end
+
+function dedent(str)
+    local lines = split(str,'\n')
+    local _, indent = lines[1]:find("^%s*")
+    local final = {}
+    for _, line in ipairs(lines) do
+      final[#final + 1] = line:sub(indent + 1)
+      final[#final + 1] = "\n"
+    end
+    return table.concat(final)
+end
+
+function indent(str, by)
+    local lines = split(str,'\n')
+    local whitespace = makeWhitespace(by)
+    local final = {}
+    for _, line in ipairs(lines) do
+      final[#final + 1] = whitespace
+      final[#final + 1] = line
+      final[#final + 1] = "\n"
+    end
+    return table.concat(final)
 end
 
 ------------------------------------------------------------
@@ -247,6 +293,52 @@ function TokenScanner:eatWhile(func)
 end
 
 ------------------------------------------------------------
+-- Errors
+------------------------------------------------------------
+
+local function formatErrorLine(line, offset, length)
+  local lineString = color.dim(line.line .. "|") .. makeWhitespace(line.offset) .. Token:tokensToLine(line.tokens)
+  if offset and length then
+    lineString = lineString .. "\n" .. makeWhitespace(offset + 2) .. color.error(makeWhitespace(length, "-"))
+  end
+  return lineString
+end
+
+-- Print error allows for the following bits of information
+-- type = error type
+-- line = offending line object (this is used to get the context, line text, etc)
+-- offset = offset in the line where the error starts
+-- length = length to highlight
+-- content = array
+--    the content array can contain a placeholder sting of "%LINE%" to embed the offending line
+local function printError(errorInfo)
+  local type, line, offset, length, content = errorInfo.type, errorInfo.line, errorInfo.offset, errorInfo.length, errorInfo.content
+  -- walk up the line tree until you get to the parent node
+  local file, context
+  local parentNode = line.parent
+  while parentNode do
+    if parentNode.type == "context" then
+      context = parentNode
+      file = parentNode.file
+    end
+    parentNode = parentNode.parent
+  end
+
+  local lineString = formatErrorLine(line, offset, length)
+
+  local finalContent = indent(dedent(content):gsub("%%LINE%%", lineString), 0)
+  finalContent = finalContent:gsub("(//[^\n]+)", function(match)
+    return color.dim(match)
+  end)
+
+  print(color.bright("---------------------------------------------------------"))
+  print(color.bright(string.format(" %s", type or "parse error")))
+  print(color.dim(string.format(" %s", file)))
+  print("")
+  print(finalContent)
+end
+
+------------------------------------------------------------
 -- Parse
 ------------------------------------------------------------
 
@@ -255,8 +347,9 @@ local function buildLineTree(lines, context)
   parent.offset = -1
   parent.line = -1
   parent.children = {}
+  parent.lines = {}
   parent.type = "context"
-  for _, line in pairs(lines) do
+  for _, line in ipairs(lines) do
     local child = {tokens = line, children = {}, type = "line"}
     local first = line[1]
     if first then
@@ -270,6 +363,7 @@ local function buildLineTree(lines, context)
       parent.children[#parent.children + 1] = child
       child.parent = parent
       parent = child
+      context.lines[#context.lines + 1] = child
     end
   end
   return context
@@ -331,12 +425,29 @@ local function parseObjectLine(line)
   local resolved
   if first.type == "TAG" then
     local name = scanner:read()
-    if name.type == "IDENTIFIER" then
+    if not name then
+      printError({type="Invalid tag", line = line, offset = first.offset + 1, length = 0, content = [[
+      Expected a name or string after the # symbol.
+
+      %LINE%
+
+      The # symbol denotes that you're looking for or adding a tag.
+
+      Examples:
+
+        // objects in the system tagged "person"
+        #person
+
+        // object in the system tagged "cool person"
+        #"cool person"
+      ]]})
+    elseif name.type == "IDENTIFIER" then
       resolved = resolveVariable(parent, name, name.value)
     elseif name.type == "STRING" then
       -- @TODO we need to generate some random var
     else
-      print(string.format(color.error("Expected a tag name or string after the # symbol on line %s"), line.line))
+      printError({type="Invalid tag", line = line, offset = first.offset + 1, length = 1})
+      -- print(string.format(color.error("Expected a tag name or string after the # symbol on line %s"), line.line))
     end
     -- create the tag binding
   elseif first.type == "NAME" then
