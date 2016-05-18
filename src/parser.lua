@@ -290,7 +290,7 @@ end
 local function formatErrorLine(line, offset, length)
   local lineString = color.dim(line.line .. "|") .. makeWhitespace(line.offset) .. Token:tokensToLine(line.tokens)
   if offset and length then
-    lineString = lineString .. "\n" .. makeWhitespace(offset + 2) .. color.error(makeWhitespace(length, "-"))
+    lineString = lineString .. "\n" .. makeWhitespace(offset + 2) .. color.error(string.format("^%s", makeWhitespace(length - 1, "-")))
   end
   return lineString
 end
@@ -416,8 +416,14 @@ local function parseObjectLine(line)
   local resolved
   if first.type == "TAG" then
     local name = scanner:read()
-    if not name then
-      printError({type="Invalid tag", line = line, offset = first.offset + 1, length = 0, content = [[
+    if name and name.type == "IDENTIFIER" then
+      resolved = resolveVariable(parent, name, name.value)
+    elseif name and name.type == "STRING" then
+      -- @TODO we need to generate some random var
+    else
+      local len = 0
+      if name then len = #name.value - 1 end
+      printError({type="Invalid tag", line = line, offset = first.offset + 1, length = len, content = [[
       Expected a name or string after the # symbol.
 
       %LINE%
@@ -432,13 +438,6 @@ local function parseObjectLine(line)
         // object in the system tagged "cool person"
         #"cool person"
       ]]})
-    elseif name.type == "IDENTIFIER" then
-      resolved = resolveVariable(parent, name, name.value)
-    elseif name.type == "STRING" then
-      -- @TODO we need to generate some random var
-    else
-      printError({type="Invalid tag", line = line, offset = first.offset + 1, length = 1})
-      -- print(string.format(color.error("Expected a tag name or string after the # symbol on line %s"), line.line))
     end
     -- create the tag binding
   elseif first.type == "NAME" then
