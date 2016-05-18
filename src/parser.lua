@@ -15,15 +15,6 @@ function makeWhitespace(size, char)
   return table.concat(whitespace)
 end
 
-function split(str, delim)
-  local final = {}
-  for token in string.gmatch(str, string.format("[^%s]+", delim)) do
-    print("GOT TOKEN!", token)
-    final[#final + 1] = token
-  end
-  return final
-end
-
 local function split(str, delim)
   local final = {}
   local index = 1
