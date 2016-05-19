@@ -88,6 +88,26 @@ function Set.intersection(lhs, rhs, mutate)
    return result
 end
 
+function Set.difference(lhs, rhs, mutate)
+   if not mutate then
+      local result = Set:new()
+      local count = 0
+      for k in pairs(lhs) do
+         if not rhs[k] then
+            result[k] = true
+            count = count + 1
+         end
+      end
+      lengths[result] = count
+      return result
+   else
+      for k in pairs(rhs) do
+         lhs:remove(k)
+      end
+      return lhs
+   end
+end
+
 function Set.__tostring(obj)
    local result = "#{ "
    for k in pairs(obj) do
@@ -108,13 +128,58 @@ function Set.__mul(lhs, rhs)
    return Set.intersection(lhs, rhs)
 end
 
--- Super simple perf-testing shim
+function Set.__div(lhs, rhs)
+   return Set.difference(lhs, rhs)
+end
+
 if ... == nil then
    local os = std.os
    local math = std.math
    local string = std.string
    local print = std.print
    local table = std.table
+   local util = require("src/util")
+
+   -- Super simple human smoke tests
+
+   print("Testing Set (empty)")
+   util.printTable(Set:new())
+   print("Testing Set (content)")
+   local testSet = Set:new{"foo", "bar", "baz", "quux"}
+   print(testSet)
+   print("Testing Set (cardinality)")
+   print(#testSet)
+
+   local otherSet = Set:new{"arg", "foo", 6, "baz", true}
+   print("Set union with", otherSet)
+   print(testSet + otherSet)
+
+   print("Set intersection with", otherSet)
+   print(testSet * otherSet)
+
+   print("mutating union")
+   local unionedSet = testSet:clone():union(otherSet, true)
+   print(unionedSet)
+
+   print("mutating intersect")
+   local intersectedSet = testSet:clone():intersection(otherSet, true)
+   print(intersectedSet)
+
+   print("add 27 to ", testSet)
+   testSet:add(27)
+   print(testSet, #testSet)
+   print("add 27 again")
+   testSet:add(27)
+   print(testSet, #testSet)
+
+   print("remove foo")
+   testSet:remove("foo")
+   print(testSet, #testSet)
+   print("remove foo again")
+   testSet:remove("foo")
+   print(testSet, #testSet)
+
+   -- Super simple perf-testing shim
 
    local dupRate = 0.4 -- Statistically (dupRate * 100)% of values are duplicates
    local removeRate = 0.4 -- Exactly (removeRate * 100)% of actions are removals from the set
@@ -202,40 +267,5 @@ end
 return Pkg
 
 --[[
-   print("Testing Set (empty)")
-   printTable(Set:new())
-   print("Testing Set (content)")
-   local testSet = Set:new{"foo", "bar", "baz", "quux"}
-   print(testSet)
-   print("Testing Set (cardinality)")
-   print(#testSet)
 
-   local otherSet = Set:new{"arg", "foo", 6, "baz", true}
-   print("Set union with", otherSet)
-   print(testSet + otherSet)
-
-   print("Set intersection with", otherSet)
-   print(testSet * otherSet)
-
-   print("mutating union")
-   local unionedSet = testSet:clone():union(otherSet, true)
-   print(unionedSet)
-
-   print("mutating intersect")
-   local intersectedSet = testSet:clone():intersection(otherSet, true)
-   print(intersectedSet)
-
-   print("add 27 to ", testSet)
-   testSet:add(27)
-   print(testSet, #testSet)
-   print("add 27 again")
-   testSet:add(27)
-   print(testSet, #testSet)
-
-   print("remove foo")
-   testSet:remove("foo")
-   print(testSet, #testSet)
-   print("remove foo again")
-   testSet:remove("foo")
-   print(testSet, #testSet)
  ]]--
