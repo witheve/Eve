@@ -719,7 +719,6 @@ local function parseAndLine(line)
       foundMe = true
     end
   end
-  print(formatNode(sibling))
   -- now that we have that union, make a new query node for it
   local childQuery = makeNode("query", sibling, line.line, line.offset)
   childQuery.variables = {}
@@ -756,7 +755,6 @@ local function parseOrLine(line)
       foundMe = true
     end
   end
-  print(formatNode(sibling))
   -- now that we have that union, make a new query node for it
   local childQuery = makeNode("query", sibling, line.line, line.offset)
   childQuery.variables = {}
@@ -867,7 +865,6 @@ parseLine = function(line)
   if not node then
     node = makeNode("unknown", parent, line.line, line.offset)
   end
-  print("Parsed:\n", formatNode(node))
   return node
 end
 
