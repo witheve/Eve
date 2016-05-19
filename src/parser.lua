@@ -463,6 +463,7 @@ local storeOnParent = {
   binding = "bindings",
   projection = "projections",
   grouping = "groupings",
+
 }
 
 local function makeNode(type, parent, line, offset)
@@ -489,13 +490,18 @@ local function makeNode(type, parent, line, offset)
     node.objects = {}
     node.mutates = {}
     node.expressions = {}
-  elseif storeOnParent[type] then
-    local array = parent[storeOnParent[type]]
-    if not array then
-      array = {}
-      parent[storeOnParent[type]] = array
+    -- if this is being parented to a not/choose/union then we want to
+    -- store this in queries on the parent
+    if isSubQueryNode(parent) then
+      local array = parent.queries or {}
+      array[#array + 1] = node
+      parent.queries = array
     end
+  elseif storeOnParent[type] then
+    local field = storeOnParent[type]
+    local array = parent[field] or {}
     array[#array + 1] = node
+    parent[field] = array
   end
   return node
 end
@@ -819,6 +825,10 @@ local function parseNot(line)
   local childQuery = makeNode("query", node, line.line, line.offset)
   childQuery.variableMap = {}
   return node
+end
+
+local function extractInlinExpression()
+    local stack = {}
 end
 
 local function parseExpression(line)
