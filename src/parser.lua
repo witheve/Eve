@@ -2,6 +2,8 @@ local fs = require("fs")
 local utf8 = require("utf8")
 local color = require("color")
 
+local MAGIC_ENTITY_FIELD = "ENTITY"
+
 ------------------------------------------------------------
 -- Utils
 ------------------------------------------------------------
@@ -151,36 +153,55 @@ local specials = {
   ["#"] = "TAG",
   ["."] = "DOT",
   [","] = "COMMA",
-  ["="] = "EQUAL",
-  [":"] = "ALIAS",
   ["*"] = "WILDCARD",
   ["("] = "OPEN_PAREN",
-  [")"] = "CLOSE_PAREN"
+  [")"] = "CLOSE_PAREN",
+  [":"] = "ALIAS",
 }
+
 local numeric = {["0"] = true, ["1"] = true, ["2"] = true, ["3"] = true,
                  ["4"] = true, ["5"] = true, ["6"] = true, ["7"] = true,
                  ["8"] = true, ["9"] = true}
+
 local keywords = {
   choose = "CHOOSE",
   union = "UNION",
   ["and"] = "AND",
   ["or"] = "OR",
   add = "ADD",
-  remove = "REMOVE"
+  remove = "REMOVE",
+  given = "GIVEN",
+  per = "PER",
+  [">="] = "EQUALITY",
+  [">="] = "EQUALITY",
+  ["!="] = "EQUALITY",
+  ["="] = "EQUALITY",
+  [">"] = "EQUALITY",
+  ["<"] = "EQUALITY",
+  ["+"] = "INFIX",
+  ["-"] = "INFIX",
+  ["*"] = "INFIX",
+  ["/"] = "INFIX"
 }
+
 local whitespace = { [" "] = true, ["\n"] = true, ["\t"] = true }
+
 local function isIdentifierChar(char)
   return not specials[char] and not whitespace[char]
 end
+
 local function inString(char, prev)
   return char ~= "\"" or prev == "\\"
 end
+
 local function isNumber(char)
   return numeric[char] or char == "-" or char == "."
 end
+
 local function notNewline(char)
   return char ~= "\n"
 end
+
 local function lex(str)
   local scanner = StringScanner:new(str)
   local char = scanner:read()
@@ -204,7 +225,7 @@ local function lex(str)
       scanner:read()
       tokens[#tokens+1] = Token:new("STRING", string, line, offset)
       offset = offset + #string
-    elseif char == ";" then
+    elseif char == "/" and scanner:peek() == "/" then
       scanner:unread()
       local comment = scanner:eatWhile(notNewline)
       tokens[#tokens+1] = Token:new("COMMENT", comment, line, offset)
@@ -330,231 +351,11 @@ local function printError(errorInfo)
 end
 
 ------------------------------------------------------------
--- Parse
+-- Parse graph printing
 ------------------------------------------------------------
 
-local function buildLineTree(lines, context)
-  local parent = context
-  parent.offset = -1
-  parent.line = -1
-  parent.children = {}
-  parent.lines = {}
-  parent.type = "context"
-  for _, line in ipairs(lines) do
-    local child = {tokens = line, children = {}, type = "line"}
-    local first = line[1]
-    if first then
-      child.offset = first.offset
-      child.line = first.line
-      -- if we're at a lower indent level than our parent,
-      -- walk up the tree until we're not
-      while parent and child.offset <= parent.offset do
-        parent = parent.parent
-      end
-      parent.children[#parent.children + 1] = child
-      child.parent = parent
-      parent = child
-      context.lines[#context.lines + 1] = child
-    end
-  end
-  return context
-end
-
-local function makeNode(type, parent, line, offset)
-  local node = {type = type, parent = parent, line = line, offset = offset, children = {}}
-  parent.children[#parent.children + 1] = node
-  return node
-end
-
-local parseLine
-
-local function getLineNode(line)
-  local node = line.node
-  if node then return node end
-  line.node = parseLine(line)
-  return line.node
-end
-
-local function getPreviousSiblingNode(line)
-  local children = line.parent.children
-  for index, value in ipairs(children) do
-    if line == value then
-      local prev = children[index - 1]
-      return prev and getLineNode(prev) or nil
-    end
-  end
-  return nil
-end
-
-local function resolveVariable(parentNode, token, name)
-  -- to resolve variables, we walk up the chain to find
-  -- all the containing queries. The top-most query contains
-  -- all variables in scope, we'll do the resolution there and if
-  -- we create a new variable, trickle it back down to the other
-  -- queries
-  local queries = {}
-  while parentNode do
-    if parentNode.type == "query" then
-      queries[#queries + 1] = parentNode
-    end
-    parentNode = parentNode.parent
-  end
-  local top = queries[#queries]
-  local var = top.variables[name] or makeNode("variable", top, token.line, token.offset)
-  var.name = name
-  for _, query in ipairs(queries) do
-    query.variables[name] = var
-  end
-  return var
-end
-
-local function parseObjectLine(line)
-  local parent = getLineNode(line.parent)
-  local scanner = TokenScanner:new(line.tokens)
-  local first = scanner:read()
-  local node = makeNode("object", parent, line.line, line.offset)
-  local resolved
-  if first.type == "TAG" then
-    local name = scanner:read()
-    if name and name.type == "IDENTIFIER" then
-      resolved = resolveVariable(parent, name, name.value)
-    elseif name and name.type == "STRING" then
-      -- @TODO we need to generate some random var
-    else
-      local len = 0
-      if name then len = #name.value - 1 end
-      printError({type="Invalid tag", line = line, offset = first.offset + 1, length = len, content = [[
-      Expected a name or string after the # symbol.
-
-      %LINE%
-
-      The # symbol denotes that you're looking for or adding a tag.
-
-      Examples:
-
-        // objects in the system tagged "person"
-        #person
-
-        // object in the system tagged "cool person"
-        #"cool person"
-      ]]})
-    end
-    -- create the tag binding
-  elseif first.type == "NAME" then
-    local name = scanner:read()
-    if name.type == "IDENTIFIER" then
-      resolved = resolveVariable(parent, name, name.value)
-    elseif name.type == "STRING" then
-      -- @TODO we need to generate some random var
-    else
-      print(string.format(color.error("Expected a name or string after the @ symbol on line %s"), line.line))
-    end
-    -- create the name binding
-  end
-  if resolved then
-    node.variable = resolved
-  end
-  return node
-end
-
-local function parseAttributeLine(line)
-  local parent = getLineNode(line.parent)
-  local scanner = TokenScanner:new(line.tokens)
-  local first = scanner:read()
-  local node = makeNode("binding", parent, line.line, line.offset)
-  local attributeName
-  if first.type == "IDENTIFIER" then
-    attributeName = first.value
-  else
-    print(string.format(color.error("Expected the name of an attribute on line %s"), line.line))
-  end
-
-  local second = scanner:read()
-  if second and (second.type == "EQUAL" or second.type == "ALIAS") then
-    -- @TODO: this should be turned into a thing to generically take a scanner
-    -- and parse an expression, returning either a constant or a variable to
-    -- bind to
-    local third = scanner:read()
-    if not third then
-      -- it's possible that this continues on the next line. Maybe check for
-      -- children and if there aren't any, throw an error?
-    elseif third.type == "NUMBER" or third.type == "STRING" then
-      node.constant = third.value
-      node.constantType = third.type
-    elseif third.type == "IDENTIFIER" then
-      node.variable = resolveVariable(parent, third, third.name)
-    end
-  else
-    node.variable = resolveVariable(parent, first, attributeName)
-  end
-  node.source = parent
-  node.field = attributeName
-  return node
-end
-
-local function parseMutation(line)
-  local parent = getLineNode(line.parent)
-  local first = line.tokens[1]
-  local type = "add"
-  if first.type == "REMOVE" then
-    type = "remove"
-  end
-  return makeNode(type, parent, line.line, line.offset)
-end
-
-parseLine = function(line)
-  if line.type == "context" then
-    return {type="context", children={}, file = line.file}
-  end
-
-  local node
-  local parent = getLineNode(line.parent)
-  local scanner = TokenScanner:new(line.tokens)
-  local first = scanner:peek()
-  -- if the line is at root indentation, then there are two possibilities
-  -- the line is either the start of a query, or it's another line of documentation
-  -- for the preceeding query
-  if line.offset == 0 then
-    local sibling = getPreviousSiblingNode(line)
-    -- if the sibling is exactly next to this one and it's a query,
-    -- then we're just adding to the name
-    if sibling and sibling.line == line.line - 1 then
-      sibling.name = sibling.name .. "\n" .. Token:tokensToLine(line.tokens)
-      node = sibling
-    else
-      -- otherwise, this is a brand new query node
-      node = makeNode("query", parent, line.line, line.offset)
-      node.name = Token:tokensToLine(line.tokens)
-      node.variables = {}
-    end
-  elseif first then
-    if parent.type == "object" then
-      node = parseAttributeLine(line)
-    end
-    if first.type == "TAG" or first.type == "NAME" then
-      node = parseObjectLine(line)
-    end
-    if first.type == "ADD" or first.type == "REMOVE" then
-      node = parseMutation(line)
-    end
-  end
-  if not node then
-    node = makeNode("unknown", parent, line.line, line.offset)
-  end
-  return node
-end
-
-local function parseLineTree(root)
-  local function walkNode(node)
-    getLineNode(node)
-    for _, child in ipairs(node.children) do
-      walkNode(child)
-    end
-  end
-  return walkNode(root)
-end
-
 local function formatNode(node, depth)
+  local depth = depth or 0
   local indent = makeWhitespace(depth * 4)
   local string = color.dim(string.format("%s%s| ", indent , depth)) .. color.warning(node.type) .. "\n"
   local childIndent = color.dim(indent .. " |      ")
@@ -600,6 +401,486 @@ local function formatGraph(root, seen, depth)
   end
   return string
 end
+
+------------------------------------------------------------
+-- Parse
+------------------------------------------------------------
+
+local function buildLineTree(lines, context)
+  local parent = context
+  parent.offset = -1
+  parent.line = -1
+  parent.children = {}
+  parent.lines = {}
+  parent.type = "context"
+  for _, line in ipairs(lines) do
+    local child = {tokens = line, children = {}, type = "line"}
+    local first = line[1]
+    if first then
+      child.offset = first.offset
+      child.line = first.line
+      -- if we're at a lower indent level than our parent,
+      -- walk up the tree until we're not
+      while parent and child.offset <= parent.offset do
+        parent = parent.parent
+      end
+      parent.children[#parent.children + 1] = child
+      child.parent = parent
+      parent = child
+      context.lines[#context.lines + 1] = child
+    end
+  end
+  return context
+end
+
+local function isSubQueryNode(node)
+  return node.type == "choose" or node.type == "union" or node.type == "not"
+end
+
+local function makeNode(type, parent, line, offset)
+  -- parents that are a choose, union, or not behave slightly differently
+  -- in that unless this is a query node, this node should be appended to the
+  -- most recent query child of the parent
+  if type ~= "query" and isSubQueryNode(parent) then
+    parent = parent.children[#parent.children]
+  end
+  local node = {type = type, parent = parent, line = line, offset = offset, children = {}}
+  parent.children[#parent.children + 1] = node
+  return node
+end
+
+local parseLine
+
+local function getLineNode(line)
+  local node = line.node
+  if node then return node end
+  line.node = parseLine(line)
+  return line.node
+end
+
+local function getParentNode(line)
+  local parent = getLineNode(line.parent)
+  if isSubQueryNode(parent) then
+    return parent.children[#parent.children]
+  end
+  return parent
+end
+
+local function getPreviousSiblingNode(line)
+  local children = line.parent.children
+  for index, value in ipairs(children) do
+    if line == value then
+      local prev = children[index - 1]
+      return prev and getLineNode(prev) or nil
+    end
+  end
+  return nil
+end
+
+local function resolveVariable(parentNode, token, name)
+  -- to resolve variables, we walk up the chain to find
+  -- all the containing queries. The top-most query contains
+  -- all variables in scope, we'll do the resolution there and if
+  -- we create a new variable, trickle it back down to the other
+  -- queries
+  local queries = {}
+  while parentNode do
+    if parentNode.type == "query" then
+      queries[#queries + 1] = parentNode
+    end
+    parentNode = parentNode.parent
+  end
+  local top = queries[#queries]
+  local var = top.variables[name] or makeNode("variable", top, token.line, token.offset)
+  var.name = name
+  for _, query in ipairs(queries) do
+    query.variables[name] = var
+  end
+  return var
+end
+
+local function isMutating(parent)
+  return parent.type == "add" or parent.type == "remove" or parent.type == "mutate"
+end
+
+local function parseObjectLine(line)
+  local parent = getParentNode(line)
+  local scanner = TokenScanner:new(line.tokens)
+  local first = scanner:read()
+  local type = "object"
+  local operator
+  -- @TODO what do we do about nested objects whose parent is an attribute
+  -- as opposed to an object-like node?
+  if parent.type == "binding" and isMutating(parent.parent) then
+    -- if this is a nested object to be added, we need to alias this object, add it to the query
+    -- create a binding from that alias to the parent binding
+  elseif isMutating(parent) then
+    type = "mutate"
+    operator = parent.operator or parent.type
+  end
+  local node = makeNode(type, parent, line.line, line.offset)
+  if type == "mutate" then
+    node.operator = operator
+  end
+  local resolved
+  if first.type == "TAG" then
+    local name = scanner:read()
+    local tag
+    if name and name.type == "IDENTIFIER" then
+      resolved = resolveVariable(parent, name, name.value)
+      tag = name.value
+    elseif name and name.type == "STRING" then
+      -- @TODO we need to generate some random var
+      tag = name.value
+    else
+      local len = 0
+      if name then len = #name.value - 1 end
+      printError({type="Invalid tag", line = line, offset = first.offset + 1, length = len, content = [[
+      Expected a name or string after the # symbol.
+
+      %LINE%
+
+      The # symbol denotes that you're looking for or adding a tag.
+
+      Examples:
+
+        // objects in the system tagged "person"
+        #person
+
+        // object in the system tagged "cool person"
+        #"cool person"
+      ]]})
+    end
+    -- create the tag binding
+    if tag then
+      local binding = makeNode("binding", node, line.line, line.offset)
+      binding.field = "tag"
+      binding.source = node
+      binding.constant = tag
+    end
+  elseif first.type == "NAME" then
+    local name = scanner:read()
+    local nameValue
+    if name.type == "IDENTIFIER" then
+      resolved = resolveVariable(parent, name, name.value)
+      nameValue = name.value
+    elseif name.type == "STRING" then
+      -- @TODO we need to generate some random var
+      nameValue = name.value
+    else
+      print(string.format(color.error("Expected a name or string after the @ symbol on line %s"), line.line))
+    end
+    -- create the name binding
+    if nameValue then
+      local binding = makeNode("binding", node, line.line, line.offset)
+      binding.field = "name"
+      binding.source = node
+      binding.constant = nameValue
+    end
+  end
+  if resolved then
+    node.variable = resolved
+  else
+    -- generate a random var
+  end
+  local binding = makeNode("binding", node, line.line, line.offset)
+  binding.field = MAGIC_ENTITY_FIELD
+  binding.source = node
+  binding.variable = node.variable
+  return node
+end
+
+local function parseAttributeLine(line)
+  local parent = getParentNode(line)
+  local scanner = TokenScanner:new(line.tokens)
+  local first = scanner:read()
+  local node = makeNode("binding", parent, line.line, line.offset)
+  local attributeName
+  if first.type == "IDENTIFIER" then
+    attributeName = first.value
+  elseif first.type == "NAME" then
+    node.field = "name"
+    local valueToken = scanner:read()
+    if valueToken and (valueToken.type == "IDENTIFIER" or valueToken.type == "STRING") then
+      node.constant = valueToken.value
+    else
+      print(color.error("Expected a name after the @"))
+    end
+    return node
+  elseif first.type == "TAG" then
+    node.field = "tag"
+    local valueToken = scanner:read()
+    if valueToken and (valueToken.type == "IDENTIFIER" or valueToken.type == "STRING") then
+      node.constant = valueToken.value
+    else
+      print(color.error("Expected a name after the @"))
+    end
+    return node
+  else
+    print(string.format(color.error("Expected the name of an attribute on line %s"), line.line))
+  end
+
+  local second = scanner:read()
+  if second and (second.type == "EQUALITY" or second.type == "ALIAS") then
+    -- @TODO: this should be turned into a thing to generically take a scanner
+    -- and parse an expression, returning either a constant or a variable to
+    -- bind to
+    local third = scanner:read()
+    if not third then
+      -- it's possible that this continues on the next line. Maybe check for
+      -- children and if there aren't any, throw an error?
+    elseif third.type == "NUMBER" or third.type == "STRING" then
+      node.constant = third.value
+      node.constantType = third.type
+    elseif third.type == "IDENTIFIER" then
+      node.variable = resolveVariable(parent, third, third.value)
+    end
+  elseif not second then
+    node.variable = resolveVariable(parent, first, attributeName)
+  end
+  node.source = parent
+  node.field = attributeName
+  return node
+end
+
+local function parseMutation(line)
+  local parent = getParentNode(line)
+  local first = line.tokens[1]
+  local type = "add"
+  if first.type == "REMOVE" then
+    type = "remove"
+  end
+  return makeNode(type, parent, line.line, line.offset)
+end
+
+local function parseMutatedObjectLine(line)
+  local parent = getParentNode(line)
+  local scanner = TokenScanner:new(line.tokens)
+  local first = scanner:read()
+  -- the only valid thing that can appear under an add or remove
+  -- that isn't already handled by # or @, is an identifier
+  if first.type ~= "IDENTIFIER"then
+    -- @TODO: based on what kind of tokens we see here, we can probably guess a bit at
+    -- what they were trying to express and hint them in the right direction
+    print(string.format(color.error("After an %s, I need to know what object to %s. You can express that as either a tag, a name, or an existing variable."), parent.type))
+  end
+  -- we need to create a mutate node here
+  local node = makeNode("mutate", parent, line.line, line.offset)
+  node.operator = parent.type
+  node.variable = resolveVariable(parent, first, first.value)
+  -- and then add a binding for the magical ENTITY field to the variable represented
+  local binding = makeNode("binding", node, line.line, line.offset)
+  binding.field = MAGIC_ENTITY_FIELD
+  binding.source = node
+  binding.variable = node.variable
+  local second = scanner:peek()
+  if second then
+    -- since the first token is specifying the object, the only thing that's valid from here on out
+    -- is a set of attribute expressions. If the next thing isn't an identifier, tag, or @, we've got
+    -- a problem
+    -- @FIXME this should probably just be generically part of attribute set parsing
+    if second.type ~= "IDENTIFIER" or second.type ~= "TAG" or second.type ~= "NAME" then
+      local verb = parent.type == "add" and "adding attributes to" or "removing attributes from"
+      print(string.format(color.error("You're %s %s here, so I was expecting a set of attributes, but I got a %s token instead"), verb, first.value, second.type))
+    else
+      -- parse the attribute string
+    end
+  end
+  return node
+end
+
+local function parseUnion(line)
+  local parent = getParentNode(line)
+  local first = line.tokens[1]
+  local node = makeNode("union", parent, line.line, line.offset)
+  local childQuery = makeNode("query", node, line.line, line.offset)
+  childQuery.variables = {}
+  return node
+end
+
+local function parseAndLine(line)
+  if not line.parent then
+    print(color.error("TOP LEVEL AND?"))
+  end
+  -- this turns into a query node attached to the nearest sibling union
+  -- first we have to find that union
+  local sibling
+  local foundMe = false
+  local parentChildren = line.parent.children
+  for i = #parentChildren, 1, -1 do
+    local siblingLine = parentChildren[i]
+    if foundMe then
+      sibling = getLineNode(siblingLine)
+      if sibling.type == "union" then
+        break
+      end
+    end
+    if siblingLine == line then
+      foundMe = true
+    end
+  end
+  print(formatNode(sibling))
+  -- now that we have that union, make a new query node for it
+  local childQuery = makeNode("query", sibling, line.line, line.offset)
+  childQuery.variables = {}
+  return childQuery
+end
+
+local function parseChoose(line)
+  local parent = getParentNode(line)
+  local first = line.tokens[1]
+  local node = makeNode("choose", parent, line.line, line.offset)
+  local childQuery = makeNode("query", node, line.line, line.offset)
+  childQuery.variables = {}
+  return node
+end
+
+local function parseOrLine(line)
+  if not line.parent then
+    print(color.error("TOP LEVEL OR?"))
+  end
+  -- this turns into a query node attached to the nearest sibling union
+  -- first we have to find that union
+  local sibling
+  local foundMe = false
+  local parentChildren = line.parent.children
+  for i = #parentChildren, 1, -1 do
+    local siblingLine = parentChildren[i]
+    if foundMe then
+      sibling = getLineNode(siblingLine)
+      if sibling.type == "choose" then
+        break
+      end
+    end
+    if siblingLine == line then
+      foundMe = true
+    end
+  end
+  print(formatNode(sibling))
+  -- now that we have that union, make a new query node for it
+  local childQuery = makeNode("query", sibling, line.line, line.offset)
+  childQuery.variables = {}
+  return childQuery
+end
+
+local function parseNot(line)
+  local parent = getParentNode(line)
+  local first = line.tokens[1]
+  local node = makeNode("not", parent, line.line, line.offset)
+  local childQuery = makeNode("query", node, line.line, line.offset)
+  childQuery.variables = {}
+  return node
+end
+
+local function parseExpression(line)
+  -- possible cases:
+  --  ident -> object
+  --  ident attribute-set -> object + attributes
+  --  ident equality constant -> constant variable
+  --  ident equality expression -> expression + inline
+  --  expression equality expression -> expression + inlines
+  --  constant equality expression -> expression
+  -- since we're parsing the start of a line, the only operators that make sense
+  -- are equalities (=, >, <, <=, >=, !=). Inline expressions can include functions and
+  -- the like
+
+  local node
+  local parent = getParentNode(line)
+  local scanner = TokenScanner:new(line.tokens)
+  local first = scanner:read()
+  -- first we need to determine if there is a second token
+  -- and if that second token is an equality
+  local second = scanner:read()
+  if not second then
+    -- if there isn't a second, then this needs to be an object ref
+    if first.type == "IDENTIFIER" then
+      local resolved = resolveVariable(parent, first, first.value)
+      node = makeNode("object", parent, line.line, line.offset)
+      node.variable = resolved
+      -- and then add a binding for the magical ENTITY field to the variable represented
+      local binding = makeNode("binding", node, line.line, line.offset)
+      binding.field = MAGIC_ENTITY_FIELD
+      binding.source = node
+      binding.variable = resolved
+    else
+      -- @TODO: error
+      print(color.error("Expected an identifier"))
+    end
+  elseif second.type == "EQUALITY" or second.type == "ALIAS" then
+  elseif second.type == "INFIX" then
+  elseif second.type == "IDENTIFIER" then
+  end
+  return node
+end
+
+parseLine = function(line)
+  if line.type == "context" then
+    return {type="context", children={}, file = line.file}
+  end
+
+  local node
+  local parent = getParentNode(line)
+  local scanner = TokenScanner:new(line.tokens)
+  local first = scanner:peek()
+  -- if the line is at root indentation, then there are two possibilities
+  -- the line is either the start of a query, or it's another line of documentation
+  -- for the preceeding query
+  if line.offset == 0 then
+    local sibling = getPreviousSiblingNode(line)
+    -- if the sibling is exactly next to this one and it's a query,
+    -- then we're just adding to the name
+    if sibling and sibling.line == line.line - 1 then
+      sibling.name = sibling.name .. "\n" .. Token:tokensToLine(line.tokens)
+      node = sibling
+    else
+      -- otherwise, this is a brand new query node
+      node = makeNode("query", parent, line.line, line.offset)
+      node.name = Token:tokensToLine(line.tokens)
+      node.variables = {}
+    end
+  elseif first then
+    if parent.type == "object" or parent.type == "mutate" then
+      node = parseAttributeLine(line)
+    elseif first.type == "COMMENT" then
+      node = makeNode("comment", parent, line.line, line.offset)
+      node.comment = first.value
+    elseif first.type == "TAG" or first.type == "NAME" then
+      node = parseObjectLine(line)
+    elseif parent.type == "add" or parent.type == "remove" then
+      node = parseMutatedObjectLine(line)
+    elseif first.type == "ADD" or first.type == "REMOVE" then
+      node = parseMutation(line)
+    elseif first.type == "CHOOSE" then
+      node = parseChoose(line)
+    elseif first.type == "OR" then
+      node = parseOrLine(line)
+    elseif first.type == "UNION" then
+      node = parseUnion(line)
+    elseif first.type == "AND" then
+      node = parseAndLine(line)
+    elseif first.type == "NOT" then
+      node = parseNot(line)
+    else
+      node = parseExpression(line)
+    end
+  end
+  if not node then
+    node = makeNode("unknown", parent, line.line, line.offset)
+  end
+  print("Parsed:\n", formatNode(node))
+  return node
+end
+
+local function parseLineTree(root)
+  local function walkNode(node)
+    getLineNode(node)
+    for _, child in ipairs(node.children) do
+      walkNode(child)
+    end
+  end
+  return walkNode(root)
+end
+
 
 ------------------------------------------------------------
 -- ParseFile
