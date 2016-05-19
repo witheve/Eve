@@ -364,8 +364,8 @@ local function formatNode(node, depth)
       -- do nothing
     elseif k == "variable" then
       string = string .. childIndent .. color.dim("variable: ") .. v.name .. "\n"
-    elseif k == "variables" then
-      string = string .. childIndent .. color.dim("variables: ")
+    elseif k == "variableMap" then
+      string = string .. childIndent .. color.dim("variableMap: ")
       for variableName, _ in pairs(v) do
         string = string .. variableName .. ", "
       end
@@ -437,6 +437,34 @@ local function isSubQueryNode(node)
   return node.type == "choose" or node.type == "union" or node.type == "not"
 end
 
+local function closestQuery(node)
+  if node.type == "query" then
+    return node
+  end
+  local parentNode = node.parent
+  while parentNode do
+    if parentNode.type == "query" then
+      return parentNode
+    end
+    parentNode = parentNode.parent
+  end
+end
+
+local storeOnQuery = {
+  variable = "variables",
+  ["not"] = "nots",
+  choose = "chooses",
+  union = "unions",
+  object = "objects",
+  expression = "expressions",
+}
+
+local storeOnParent = {
+  binding = "bindings",
+  projection = "projections",
+  grouping = "groupings",
+}
+
 local function makeNode(type, parent, line, offset)
   -- parents that are a choose, union, or not behave slightly differently
   -- in that unless this is a query node, this node should be appended to the
@@ -445,7 +473,30 @@ local function makeNode(type, parent, line, offset)
     parent = parent.children[#parent.children]
   end
   local node = {type = type, parent = parent, line = line, offset = offset, children = {}}
-  parent.children[#parent.children + 1] = node
+  if type ~= "variable" then
+    parent.children[#parent.children + 1] = node
+  end
+  if storeOnQuery[type] then
+    local query = closestQuery(parent)
+    local array = query[storeOnQuery[type]]
+    array[#array + 1] = node
+    node.query = query
+  elseif type == "query" then
+    node.variables = {}
+    node.nots = {}
+    node.chooses = {}
+    node.unions = {}
+    node.objects = {}
+    node.mutates = {}
+    node.expressions = {}
+  elseif storeOnParent[type] then
+    local array = parent[storeOnParent[type]]
+    if not array then
+      array = {}
+      parent[storeOnParent[type]] = array
+    end
+    array[#array + 1] = node
+  end
   return node
 end
 
@@ -491,10 +542,10 @@ local function resolveVariable(parentNode, token, name)
     parentNode = parentNode.parent
   end
   local top = queries[#queries]
-  local var = top.variables[name] or makeNode("variable", top, token.line, token.offset)
+  local var = top.variableMap[name] or makeNode("variable", top, token.line, token.offset)
   var.name = name
   for _, query in ipairs(queries) do
-    query.variables[name] = var
+    query.variableMap[name] = var
   end
   return var
 end
@@ -694,7 +745,7 @@ local function parseUnion(line)
   local first = line.tokens[1]
   local node = makeNode("union", parent, line.line, line.offset)
   local childQuery = makeNode("query", node, line.line, line.offset)
-  childQuery.variables = {}
+  childQuery.variableMap = {}
   return node
 end
 
@@ -721,7 +772,7 @@ local function parseAndLine(line)
   end
   -- now that we have that union, make a new query node for it
   local childQuery = makeNode("query", sibling, line.line, line.offset)
-  childQuery.variables = {}
+  childQuery.variableMap = {}
   return childQuery
 end
 
@@ -730,7 +781,7 @@ local function parseChoose(line)
   local first = line.tokens[1]
   local node = makeNode("choose", parent, line.line, line.offset)
   local childQuery = makeNode("query", node, line.line, line.offset)
-  childQuery.variables = {}
+  childQuery.variableMap = {}
   return node
 end
 
@@ -757,7 +808,7 @@ local function parseOrLine(line)
   end
   -- now that we have that union, make a new query node for it
   local childQuery = makeNode("query", sibling, line.line, line.offset)
-  childQuery.variables = {}
+  childQuery.variableMap = {}
   return childQuery
 end
 
@@ -766,7 +817,7 @@ local function parseNot(line)
   local first = line.tokens[1]
   local node = makeNode("not", parent, line.line, line.offset)
   local childQuery = makeNode("query", node, line.line, line.offset)
-  childQuery.variables = {}
+  childQuery.variableMap = {}
   return node
 end
 
@@ -834,7 +885,7 @@ parseLine = function(line)
       -- otherwise, this is a brand new query node
       node = makeNode("query", parent, line.line, line.offset)
       node.name = Token:tokensToLine(line.tokens)
-      node.variables = {}
+      node.variableMap = {}
     end
   elseif first then
     if parent.type == "object" or parent.type == "mutate" then
