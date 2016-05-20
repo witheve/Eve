@@ -14,10 +14,13 @@ DependencyGraph = {}
 
 function DependencyGraph:new(obj)
    obj = obj or {}
-   obj.nodes = obj.nodes or Set:new()
-   obj.dependents = obj.dependents or {}
-   obj.providers = obj.providers or {}
+   obj.unsorted = obj.unsorted or Set:new()
+   obj.provides = obj.provides or {}
    obj.unsatisfied = obj.unsatisfied or {}
+   obj.dependents = obj.dependents or {}
+
+   obj.sorted = obj.sorted or {}
+   obj.provided = obj.provided or Set:new{}
 
    std.setmetatable(obj, self)
    self.__index = self
@@ -26,51 +29,101 @@ end
 
 function DependencyGraph:fromQueryGraph(query)
    local dgraph = self:new{query = query}
+   if #query.objects > 0 then
+      for object in std.ipairs(query.objects) do
+         local produces = Set:new()
+         local depends = Set:new()
+         for  binding in std.ipairs(object.bindings) do
+            produces:add(binding.variable)
+            depends:add(binding.variable)
+         end
+         dgraph:add(node, produces, depends)
+      end
+   end
+   if #query.expressions > 0 then
+      error("@FIXME: Cannot determine expression production/dependencies without schema support")
+   end
+
+   draph.order()
+   -- @FIXME Also order subgraphs once they're completed
    return dgraph
 end
 
 function DependencyGraph:add(node, produces, depends)
-   self.nodes:add(node)
-   local requires = depends / produces
-   print("requires:")
-   util.printTable(requires)
+   self.unsorted:add(node)
+   self.provides[node] = produces
+   self.unsatisfied[node] = 0
 
    if depends then
-      for required in std.pairs(depends) do
-         -- Register this node as a dependent on all the terms it uses but cannot produce
-         if self.dependents[required] then
-            self.dependents[required]:add(node)
-         else
-            self.dependents[required] = Set:new{node}
-         end
+      local requires = depends
+      if produces then
+         requires = depends / produces
       end
-      self.unsatisfied[node] = #depends
-   end
-
-   if produces then
-      for produced in std.pairs(produces) do
-         -- Register this node as a possible producer for the given term. The length of this set represents the terms degrees of freedom
-         if self.providers[produced] then
-            self.providers[produced]:add(node)
-         else
-            self.providers[produced] = Set:new{node}
+      -- Register this node as a dependent on all the terms it requires but cannot produce
+      for term in std.pairs(requires) do
+         if not self.provided[term] then
+            if self.dependents[term] then
+               self.dependents[term]:add(node)
+            else
+               self.dependents[term] = Set:new{node}
+            end
+            self.unsatisfied[node] = self.unsatisfied[node] + 1
          end
       end
    end
 end
 
 function DependencyGraph:order()
+   -- @FIXME: We need to recursively construct DGraphs for ordering subgraphs (subqueries)
+   while #self.unsorted > 0 do
+      local scheduled = false
+      for node in std.pairs(self.unsorted) do
+         if self.unsatisfied[node] == 0 then
+            self.sorted[#self.sorted + 1] = node
+            self.unsorted:remove(node)
 
+            -- Decrement the unsatisfied term count for nodes depending on terms this node provides that haven't been provided elsewhere
+            if self.provides[node] then
+               for term in std.pairs(self.provides[node]) do
+                  if self.dependents[term] and not self.provided[term] then
+                     self.provided:add(term)
+                     for dependent in std.pairs(self.dependents[term]) do
+                        self.unsatisfied[dependent] = self.unsatisfied[dependent] - 1
+                     end
+                  end
+               end
+            end
+            scheduled = true
+            break
+         end
+      end
+      if not scheduled then
+         error("Unable to find a valid dependency ordering for the given graph, aborting")
+      end
+   end
+   return self.sorted
 end
+
 
 if ... == nil then
    local testTable = {a = 5, b = "z", c = {d = {}}}
    print("Testing printTable")
    util.printTable(testTable)
 
+   print("Testing DG")
    local dg = DependencyGraph:new()
    dg:add({name = "foo"}, Set:new{"a", "b"}, Set:new{"b", "c"})
+   dg:add({name = "bar"}, Set:new{"a", "c"}, Set:new{"c", "d"})
+   dg:add({name = "baz"}, Set:new{"d", "e", "f"}, Set:new{"d"})
+   dg:add({name = "quux"}, Set:new{"d", "c"}, nil)
+   dg:add({name = "buzz"}, nil, Set:new{"e", "b"})
    util.printTable(dg)
+   local sorted = dg:order()
+   local names = {}
+   for _, node in std.ipairs(sorted) do
+      names[#names + 1] = node.name
+   end
+   util.printList(names)
 end
 
 return Pkg
