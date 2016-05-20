@@ -1,6 +1,7 @@
 local fs = require("fs")
 local utf8 = require("utf8")
 local color = require("color")
+local errors = require("error")
 
 local MAGIC_ENTITY_FIELD = "ENTITY"
 
@@ -51,6 +52,32 @@ function indent(str, by)
       final[#final + 1] = "\n"
     end
     return table.concat(final)
+end
+
+------------------------------------------------------------
+-- Generic stack
+------------------------------------------------------------
+
+local Stack = {}
+
+function Stack:new()
+  newObj = {}
+  self.__index = self
+  return setmetatable(newObj, self)
+end
+
+function Stack:push(thing)
+  self[#self + 1] = thing
+end
+
+function Stack:pop()
+  local thing = self[#self]
+  self[#self] = nil
+  return thing
+end
+
+function Stack:peek()
+  return self[#self]
 end
 
 ------------------------------------------------------------
@@ -153,7 +180,6 @@ local specials = {
   ["#"] = "TAG",
   ["."] = "DOT",
   [","] = "COMMA",
-  ["*"] = "WILDCARD",
   ["("] = "OPEN_PAREN",
   [")"] = "CLOSE_PAREN",
   [":"] = "ALIAS",
@@ -264,34 +290,34 @@ local function lex(str)
 end
 
 ------------------------------------------------------------
--- TokenScanner
+-- ArrayScanner
 ------------------------------------------------------------
 
-local TokenScanner = {}
-function TokenScanner:new(tokens)
+local ArrayScanner = {}
+function ArrayScanner:new(tokens)
   newObj = {pos = 1, tokens = tokens}
   self.__index = self
   return setmetatable(newObj, self)
 end
-function TokenScanner:peek()
+function ArrayScanner:peek()
   return self.tokens[self.pos]
 end
 
-function TokenScanner:read()
+function ArrayScanner:read()
   token = self.tokens[self.pos]
   self.pos = self.pos + 1
   return token
 end
 
-function TokenScanner:unread()
+function ArrayScanner:unread()
   self.pos = self.pos - 1
 end
 
-function TokenScanner:setPos(pos)
+function ArrayScanner:setPos(pos)
   self.pos = pos
 end
 
-function TokenScanner:eatWhile(func)
+function ArrayScanner:eatWhile(func)
   local token = self:read()
   local final = {}
   local prev = nil
@@ -305,63 +331,19 @@ function TokenScanner:eatWhile(func)
 end
 
 ------------------------------------------------------------
--- Errors
-------------------------------------------------------------
-
-local function formatErrorLine(line, offset, length)
-  local lineString = color.dim(line.line .. "|") .. makeWhitespace(line.offset) .. Token:tokensToLine(line.tokens)
-  if offset and length then
-    lineString = lineString .. "\n" .. makeWhitespace(offset + 2) .. color.error(string.format("^%s", makeWhitespace(length - 1, "-")))
-  end
-  return lineString
-end
-
--- Print error allows for the following bits of information
--- type = error type
--- line = offending line object (this is used to get the context, line text, etc)
--- offset = offset in the line where the error starts
--- length = length to highlight
--- content = array
---    the content array can contain a placeholder sting of "%LINE%" to embed the offending line
-local function printError(errorInfo)
-  local type, line, offset, length, content = errorInfo.type, errorInfo.line, errorInfo.offset, errorInfo.length, errorInfo.content
-  -- walk up the line tree until you get to the parent node
-  local file, context
-  local parentNode = line.parent
-  while parentNode do
-    if parentNode.type == "context" then
-      context = parentNode
-      file = parentNode.file
-    end
-    parentNode = parentNode.parent
-  end
-
-  local lineString = formatErrorLine(line, offset, length)
-
-  local finalContent = indent(dedent(content):gsub("%%LINE%%", lineString), 0)
-  finalContent = finalContent:gsub("(//[^\n]+)", function(match)
-    return color.dim(match)
-  end)
-
-  print(color.bright("---------------------------------------------------------"))
-  print(color.bright(string.format(" %s", type or "parse error")))
-  print(color.dim(string.format(" %s", file)))
-  print("")
-  print(finalContent)
-end
-
-------------------------------------------------------------
 -- Parse graph printing
 ------------------------------------------------------------
 
 local function formatNode(node, depth)
   local depth = depth or 0
   local indent = makeWhitespace(depth * 4)
-  local string = color.dim(string.format("%s%s| ", indent , depth)) .. color.warning(node.type) .. "\n"
+  local string = color.dim(string.format("%s%s| ", indent , depth)) .. color.warning(node.type or "none") .. "\n"
   local childIndent = color.dim(indent .. " |      ")
   for k, v in pairs(node) do
     if k == "children" or k == "parent" or k == "type" then
       -- do nothing
+    elseif k == "op" and type(v) == "table" then
+      string = string .. childIndent .. color.dim("op: ") .. v.value .. "\n"
     elseif k == "variable" then
       string = string .. childIndent .. color.dim("variable: ") .. v.name .. "\n"
     elseif k == "variableMap" then
@@ -463,6 +445,7 @@ local storeOnParent = {
   binding = "bindings",
   projection = "projections",
   grouping = "groupings",
+
 }
 
 local function makeNode(type, parent, line, offset)
@@ -483,19 +466,25 @@ local function makeNode(type, parent, line, offset)
     node.query = query
   elseif type == "query" then
     node.variables = {}
+    node.variableMap = {}
     node.nots = {}
     node.chooses = {}
     node.unions = {}
     node.objects = {}
     node.mutates = {}
     node.expressions = {}
-  elseif storeOnParent[type] then
-    local array = parent[storeOnParent[type]]
-    if not array then
-      array = {}
-      parent[storeOnParent[type]] = array
+    -- if this is being parented to a not/choose/union then we want to
+    -- store this in queries on the parent
+    if isSubQueryNode(parent) then
+      local array = parent.queries or {}
+      array[#array + 1] = node
+      parent.queries = array
     end
+  elseif storeOnParent[type] then
+    local field = storeOnParent[type]
+    local array = parent[field] or {}
     array[#array + 1] = node
+    parent[field] = array
   end
   return node
 end
@@ -554,9 +543,159 @@ local function isMutating(parent)
   return parent.type == "add" or parent.type == "remove" or parent.type == "mutate"
 end
 
+local function extractInlineExpressions(scanner)
+  local stack = Stack:new()
+  local expressions = {}
+  local current = {type = "expr", op = nil, children = {}}
+
+  local token = scanner:read()
+  while token do
+    local type = token.type
+    local next = scanner:peek()
+    if type == "COMMA" then
+      -- we treat commas as whitespace
+    elseif type == "GIVEN" or type == "PER" then
+      current.children[#current.children + 1] = token
+    elseif type == "TAG" or type == "NAME" then
+      if not current.op and next and (next.type == "IDENTIFIER" or next.type == "STRING") then
+        current.op = token
+        current.children[#current.children + 1] = next
+        -- skip the next token since we've taken care of it here
+        expressions[#expressions + 1] = current
+        current = {type = "expr", op = nil, children = {}}
+        scanner:read()
+      else
+        expressions[#expressions + 1] = token
+        print(color.error("invalid tag or name"))
+      end
+    elseif type == "INFIX" or type == "DOT" then
+      if not current.op then
+        current.op = token
+      else
+        print(color.error("operator followed by an operator"))
+      end
+    elseif type == "EQUALITY" or type == "ALIAS" then
+      -- the stack should be empty as equalities can't be nested
+      if #stack == 0 then
+        if current.op then
+          stack:push({type = "expr", op = token, children = {current}})
+        else
+          stack:push({type = "expr", op = token, children = {current.children[1]}})
+        end
+        current = {type = "expr", op = nil, children = {}}
+      else
+        print(color.error("nested equalities aren't allowed"))
+      end
+    elseif type == "OPEN_PAREN" then
+      -- put the current thing on the stack if there's an op, start a new guy
+      -- if there isn't an op, but there's children, this is an error
+      if not current.op and #current.children > 0 then
+        print(color.error("Open paren following some token"))
+      elseif current.op then
+        stack:push(current)
+        current = {type = "expr", op = nil, children = {}}
+      end
+    elseif type == "CLOSE_PAREN" then
+      -- we need to pop the stack
+      local topOfStack = stack:peek()
+      if not topOfStack then
+        expressions[#expressions + 1] = current.children[1]
+        current = {type = "expr", op = nil, children = {}}
+      else
+        -- start popping the stack upward as this could finish several
+        -- infix ops in a cascade
+        while topOfStack do
+          local stackType = topOfStack.op.type
+          if current.op then
+            topOfStack.children[#topOfStack.children + 1] = current
+          else
+            topOfStack.children[#topOfStack.children + 1] = current.args[1]
+          end
+          expressions[#expressions + 1] = stack:pop()
+          if stackType ~= "EQUALITY" and stackType ~= "ALIAS" and stackType ~= "INFIX" then
+            -- if we're not looking at infix, then we're done popping upward
+            break
+          else
+            current = topOfStack
+            topOfStack = stack:peek()
+          end
+        end
+      end
+    elseif current.op and (current.op.type == "INFIX" or current.op.type == "TAG" or current.op.type == "NAME" or current.op.type == "DOT") then
+      -- we are done with this op, store it as the first arg to the next one
+      current.children[#current.children + 1] = token
+      current = {type = "expr", op = nil, children = {current}}
+    elseif not current.op and #current.children > 0 then
+      -- we need to check the stack, if the op on the stack is an equality or
+      -- alias then we're done here. If it's an infix then this should be an error
+      -- as it means we've done something like 1 + (4 5). If it's an arbitrary
+      -- function, then we consume this as an arg and keep going until we get
+      -- to a close paren. if the stack is empty then we just add this guy to the
+      -- expression list.
+      local topOfStack = stack:peek()
+      if not topOfStack then
+        expressions[#expressions + 1] = current.children[1]
+        current = {type = "expr", op = nil, children = {token}}
+      else
+        local stackType = topOfStack.op.type
+        topOfStack.children[#topOfStack.children + 1] = current.children[1]
+        current = {type = "expr", op = nil, children = {token}}
+        if stackType == "EQUALITY" or stackType == "ALIAS" then
+          -- we're done with this equality, put it in the expression list
+          expressions[#expressions + 1] = stack:pop()
+        elseif stackType == "INFIX" then
+          -- error
+          print(color.error("two children without an op"))
+        end
+      end
+    elseif type == "IDENTIFIER" and next and next.type == "OPEN_PAREN" then
+      -- this is a function call, we need to push current onto the stack if there
+      -- is an op
+      if current.op then
+        stack:push(current)
+      end
+      current = {type = "expr", op = token, children = {}}
+      -- consume the paren, it's been taken care of
+      scanner:read()
+    else
+      current.children[#current.children + 1] = token
+    end
+    token = scanner:read()
+  end
+  -- clean up anything that might still be hanging out on the stack
+  local topOfStack = stack:peek()
+  if not topOfStack then
+    expressions[#expressions + 1] = current.children[1]
+  end
+  while topOfStack do
+    local stackType = topOfStack.op.type
+    if current.op then
+      topOfStack.children[#topOfStack.children + 1] = current
+    else
+      topOfStack.children[#topOfStack.children + 1] = current.children[1]
+    end
+    expressions[#expressions + 1] = stack:pop()
+    if stackType ~= "EQUALITY" and stackType ~= "ALIAS" and stackType ~= "INFIX" then
+      -- if we're not looking at infix, then we're done popping upward
+      break
+    else
+      current = topOfStack
+      topOfStack = stack:peek()
+    end
+  end
+  if #stack ~= 0 then
+    -- there shouldn't still be stuff on the stack...
+    print(color.error("Finished parsing expressions, but the stack isn't empty"))
+    for _, v in ipairs(stack) do
+      print("STACK:", v)
+    end
+  end
+  return expressions
+end
+
 local function parseObjectLine(line)
   local parent = getParentNode(line)
-  local scanner = TokenScanner:new(line.tokens)
+  local scanner = ArrayScanner:new(line.tokens)
   local first = scanner:read()
   local type = "object"
   local operator
@@ -584,23 +723,7 @@ local function parseObjectLine(line)
       -- @TODO we need to generate some random var
       tag = name.value
     else
-      local len = 0
-      if name then len = #name.value - 1 end
-      printError({type="Invalid tag", line = line, offset = first.offset + 1, length = len, content = [[
-      Expected a name or string after the # symbol.
-
-      %LINE%
-
-      The # symbol denotes that you're looking for or adding a tag.
-
-      Examples:
-
-        // objects in the system tagged "person"
-        #person
-
-        // object in the system tagged "cool person"
-        #"cool person"
-      ]]})
+      errors.invalidTag(line, first)
     end
     -- create the tag binding
     if tag then
@@ -643,7 +766,7 @@ end
 
 local function parseAttributeLine(line)
   local parent = getParentNode(line)
-  local scanner = TokenScanner:new(line.tokens)
+  local scanner = ArrayScanner:new(line.tokens)
   local first = scanner:read()
   local node = makeNode("binding", parent, line.line, line.offset)
   local attributeName
@@ -706,14 +829,14 @@ end
 
 local function parseMutatedObjectLine(line)
   local parent = getParentNode(line)
-  local scanner = TokenScanner:new(line.tokens)
+  local scanner = ArrayScanner:new(line.tokens)
   local first = scanner:read()
   -- the only valid thing that can appear under an add or remove
   -- that isn't already handled by # or @, is an identifier
   if first.type ~= "IDENTIFIER"then
     -- @TODO: based on what kind of tokens we see here, we can probably guess a bit at
     -- what they were trying to express and hint them in the right direction
-    print(string.format(color.error("After an %s, I need to know what object to %s. You can express that as either a tag, a name, or an existing variable."), parent.type))
+    -- print(string.format(color.error("After an %s, I need to know what object to %s. You can express that as either a tag, a name, or an existing variable."), parent.type))
   end
   -- we need to create a mutate node here
   local node = makeNode("mutate", parent, line.line, line.offset)
@@ -821,47 +944,6 @@ local function parseNot(line)
   return node
 end
 
-local function parseExpression(line)
-  -- possible cases:
-  --  ident -> object
-  --  ident attribute-set -> object + attributes
-  --  ident equality constant -> constant variable
-  --  ident equality expression -> expression + inline
-  --  expression equality expression -> expression + inlines
-  --  constant equality expression -> expression
-  -- since we're parsing the start of a line, the only operators that make sense
-  -- are equalities (=, >, <, <=, >=, !=). Inline expressions can include functions and
-  -- the like
-
-  local node
-  local parent = getParentNode(line)
-  local scanner = TokenScanner:new(line.tokens)
-  local first = scanner:read()
-  -- first we need to determine if there is a second token
-  -- and if that second token is an equality
-  local second = scanner:read()
-  if not second then
-    -- if there isn't a second, then this needs to be an object ref
-    if first.type == "IDENTIFIER" then
-      local resolved = resolveVariable(parent, first, first.value)
-      node = makeNode("object", parent, line.line, line.offset)
-      node.variable = resolved
-      -- and then add a binding for the magical ENTITY field to the variable represented
-      local binding = makeNode("binding", node, line.line, line.offset)
-      binding.field = MAGIC_ENTITY_FIELD
-      binding.source = node
-      binding.variable = resolved
-    else
-      -- @TODO: error
-      print(color.error("Expected an identifier"))
-    end
-  elseif second.type == "EQUALITY" or second.type == "ALIAS" then
-  elseif second.type == "INFIX" then
-  elseif second.type == "IDENTIFIER" then
-  end
-  return node
-end
-
 parseLine = function(line)
   if line.type == "context" then
     return {type="context", children={}, file = line.file}
@@ -869,7 +951,8 @@ parseLine = function(line)
 
   local node
   local parent = getParentNode(line)
-  local scanner = TokenScanner:new(line.tokens)
+  local scanner = ArrayScanner:new(line.tokens)
+  local expressions = ArrayScanner:new(extractInlineExpressions(ArrayScanner:new(line.tokens)))
   local first = scanner:peek()
   -- if the line is at root indentation, then there are two possibilities
   -- the line is either the start of a query, or it's another line of documentation
@@ -885,9 +968,9 @@ parseLine = function(line)
       -- otherwise, this is a brand new query node
       node = makeNode("query", parent, line.line, line.offset)
       node.name = Token:tokensToLine(line.tokens)
-      node.variableMap = {}
     end
   elseif first then
+    print(formatGraph({type="expression tree", children = extractInlineExpressions(ArrayScanner:new(line.tokens))}))
     if parent.type == "object" or parent.type == "mutate" then
       node = parseAttributeLine(line)
     elseif first.type == "COMMENT" then
@@ -910,7 +993,7 @@ parseLine = function(line)
     elseif first.type == "NOT" then
       node = parseNot(line)
     else
-      node = parseExpression(line)
+      -- node = parseExpression(line)
     end
   end
   if not node then

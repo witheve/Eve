@@ -11,9 +11,9 @@ draw messages
   add
     #div parent: "{channel}-chat-messages", class: "chat-message"
       children:
-        #div class: "chat-user", text: "{name}"
-        #div class: "chat-time"    text: "{time}"
-        #div class: "chat-message", text: "{message}"
+        #div class: "chat-user", text: name
+        #div class: "chat-time"    text: time
+        #div class: "chat-message", text: message
 
 handle chat keydowns
   #keydown element, key: "enter"
