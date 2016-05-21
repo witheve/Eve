@@ -458,7 +458,7 @@ local function makeNode(type, parent, line, offset)
   local node = {type = type, parent = parent, line = line, offset = offset, children = {}}
 
   if type == "choose" or type == "union" or type == "not" then
-    node.children[#node.children + 1] = makeNode(query, node, line, offset)
+    node.children[#node.children + 1] = makeNode("query", node, line, offset)
   end
 
   if type ~= "variable" then
