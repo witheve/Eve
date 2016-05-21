@@ -8,6 +8,17 @@ setfenv(1, Pkg)
 
 -- Utilities
 
+function GetNode(subqueries)
+   local provides = Set:new()
+   local depends = Set:new()
+   for body in std.ipairs(node.members) do
+      local subgraph = DependencyGraph:fromQueryGraph(body)
+      provides.union(subgraph.provides(), true)
+      depends.union(subgraph.depends(), true)
+   end
+end
+
+
 -- Dependency Graph
 
 DependencyGraph = {}
@@ -27,6 +38,19 @@ function DependencyGraph:new(obj)
    return obj
 end
 
+-- Get the variables this dgraph depends on for reification
+function DependencyGraph:depends()
+   local depends = Set:new()
+   for term in std.pairs(self.dependents) do
+      depends:add(term)
+   end
+   return depends / self.provided
+end
+
+function DependencyGraph:provides()
+   return self.provided
+end
+
 function DependencyGraph:fromQueryGraph(query)
    local dgraph = self:new{query = query}
    if #query.objects > 0 then
@@ -40,8 +64,31 @@ function DependencyGraph:fromQueryGraph(query)
          dgraph:add(node, produces, depends)
       end
    end
+
    if #query.expressions > 0 then
       error("@FIXME: Cannot determine expression production/dependencies without schema support")
+   end
+
+
+
+   if #query.nots > 0 then
+      for node in std.ipairs(query.nots) do
+         local subgraph = DependencyGraph:fromQueryGraph(node.body)
+         dgraph:add(node, subgraph.provides(), subgraph.depends())
+      end
+   end
+
+   if #query.unions > 0 then
+      for node in std.ipairs(query.unions) do
+         local provides = Set:new()
+         local depends = Set:new()
+         for body in std.ipairs(node.members) do
+            local subgraph = DependencyGraph:fromQueryGraph(body)
+            provides.union(subgraph.provides(), true)
+            depends.union(subgraph.depends(), true)
+         end
+         dgraph:add(node, provides, depends)
+      end
    end
 
    draph.order()
