@@ -11,5 +11,5 @@ Draw a list of fruits
   #fruit color name
   add
     #div parent: "root", text: name
-      style:
+      style
         color
