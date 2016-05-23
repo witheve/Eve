@@ -703,8 +703,8 @@ local function extractInlineExpressions(scanner)
   return expressions
 end
 
-local function parseObjectLine(line, expression)
-  local parent = getParentNode(line)
+local function parseObjectLine(parent, line, expression, forceAlias)
+  local forceAlias = forceAlias or false
   local scanner = ArrayScanner:new(line.tokens)
   local first = scanner:read()
   local type = "object"
@@ -714,6 +714,10 @@ local function parseObjectLine(line, expression)
   if parent.type == "binding" and isMutating(parent.parent) then
     -- if this is a nested object to be added, we need to alias this object, add it to the query
     -- create a binding from that alias to the parent binding
+    -- @TODO: set parent?
+    parent = parent.parent;
+    type = "mutate"
+    operator = parent.operator or parent.type
   elseif isMutating(parent) then
     type = "mutate"
     operator = parent.operator or parent.type
@@ -722,7 +726,6 @@ local function parseObjectLine(line, expression)
   if type == "mutate" then
     node.operator = operator
   end
-  local resolved
   -- @TODO: check for an error here
   if expression.type == "IDENTIFIER" then
     resolved = resolveVariable(parent, expression, expression.value)
@@ -745,7 +748,7 @@ local function parseObjectLine(line, expression)
   -- mutates shouldn't bind an entity unless they are explicitly
   -- aliased to a name
   -- @TODO: handle the explicit aliasing of mutates
-  if type ~= "mutate" then
+  if forceAlias or type ~= "mutate" then
     local binding = makeNode("binding", node, line.line, line.offset)
     binding.field = MAGIC_ENTITY_FIELD
     binding.source = node
@@ -754,7 +757,7 @@ local function parseObjectLine(line, expression)
   return node
 end
 
-local function parseAttributeLine(parent, line, expression)
+local function parseAttributeLine(parent, line, expression, nextExpression)
   local node = makeNode("binding", parent, line.line, line.offset)
   local attributeName
   if expression.type == "IDENTIFIER" then
@@ -782,7 +785,11 @@ local function parseAttributeLine(parent, line, expression)
     local field = expression.children[1]
     local value = expression.children[2]
     node.field = field.value
-    if not value then return node end
+    -- if there isn't a value then it must continue on the next line
+    if not value then
+      node.needsContinuation = true
+      return node
+    end
     if value.type == "IDENTIFIER" then
       node.variable = resolveVariable(parent, value, value.value)
     elseif value.type == "STRING" then
@@ -795,6 +802,14 @@ local function parseAttributeLine(parent, line, expression)
 
   else
     print(string.format(color.error("Expected the name of an attribute on line %s"), line.line))
+  end
+  -- if this binding is a variable and has children, then we need to
+  -- create another object/mutate and match it up with the variable that
+  -- we just created for the attribute.
+  -- This only applies for the last attribute of the line, so we check
+  -- next expression here to make sure there's nothing after us.
+  if not nextExpression and node.variable and parent.line ~= line.line and #line.children > 0 then
+    node = parseObjectLine(node, line, expression, true)
   end
   return node
 end
@@ -915,7 +930,7 @@ parseLine = function(line)
       -- identifiers or expressions
       if parent.type == "object" or parent.type == "mutate" then
           -- print(formatGraph(firstExpression))
-        node = parseAttributeLine(parent, line, firstExpression)
+        node = parseAttributeLine(parent, line, firstExpression, expressions:peek())
 
         -- check for the keyword-based lines types
       elseif firstExpression.type == "ADD" or firstExpression.type == "REMOVE" then
@@ -938,7 +953,7 @@ parseLine = function(line)
         -- we're dealing with. At this level, the only valid expressions are
         -- tag/name expressions, or equalities.
         if firstExpression.op.type == "TAG" or firstExpression.op.type == "NAME" then
-          node = parseObjectLine(line, firstExpression)
+          node = parseObjectLine(parent, line, firstExpression)
           parent = node
         elseif firstExpression.op.type == "EQUALITY" or firstExpression.op.type == "ALIAS" then
           node = makeNode("expression", parent, line.line, line.offset)
@@ -947,7 +962,7 @@ parseLine = function(line)
         and (parent.type == "query" or parent.type == "add" or parent.type == "remove") then
         -- a naked identifier is also valid as the beginning of an object query
         -- which is valid at a query boundary or an add/remove
-        node = parseObjectLine(line, firstExpression)
+        node = parseObjectLine(parent, line, firstExpression)
       else
         -- @TODO: try and figure out what you were trying to type so we can offer
         -- a decent error message
