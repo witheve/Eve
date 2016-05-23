@@ -68,3 +68,7 @@ void error(char *);
 typedef struct interpreter *interpreter;
 interpreter build_lua();
 void lua_run_file(interpreter c, char *filename);
+
+heap float_heap;
+heap uuid_heap;
+heap estring_heap;

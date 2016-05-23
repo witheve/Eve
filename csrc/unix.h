@@ -2,7 +2,6 @@ typedef u64 offset;
 
 void initialize_timers(heap);
 typedef closure(buffer_handler_handler, buffer_handler);
-typedef closure(blocking_reader, buffer, thunk);
 thunk init_unix();
 
 string tree_root_path();
@@ -11,7 +10,7 @@ extern heap pages;
 
 typedef closure(status_handler, int);
 
-typedef int descriptor;
+typedef struct descriptor *descriptor;
 
 extern descriptor standardoutput;
 extern descriptor standardinput;
@@ -24,6 +23,7 @@ void register_read_handler(descriptor, thunk);
 void register_write_handler(descriptor, thunk);
 heap allocate_fence(heap);
 
+void now(ticks);
 buffer read_file(heap, char *);
 
 void register_console_input(heap h, buffer_handler bh);
@@ -46,8 +46,3 @@ extern void unix_shutdown();
     if (!(__x)) unix_fail()
     
 
-heap init_fixed_page_region(heap meta,
-                            iu64 base_address,
-                            iu64 max_address,
-                            bytes pagesize);
-void now(unsigned long *);

@@ -17,8 +17,13 @@ void print(buffer b, value v)
 {
 }
 
+// assumes bibop and interned strings and uuids
 boolean equals(value a, value b)
 {
+    if (a == b) return true;
+    if ((type_of(a) == float_space) && (type_of(b) == float_space)) {
+        return *(double *)a == *(double *)b;
+    }
     return false;
 }
 

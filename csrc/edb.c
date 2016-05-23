@@ -25,9 +25,6 @@ struct bag {
     level ave;
     value uuid;
     heap h;
-    heap float_heap;
-    heap uuid_heap;
-    heap interned_heap;
 };
 
 // ok, we're going to assume that if there is a miss here we should create the
@@ -56,9 +53,6 @@ bag create_bag(value bag_id)
     b->h = h ;
     b->eav = create_level(h);
     b->listeners = allocate_table(h, key_from_pointer, compare_pointer);
-    b->float_heap = allocate_rolling(pages);
-    b->uuid_heap = allocate_rolling(pages);
-    b->interned_heap = allocate_rolling(pages);
 
     return b;
 }

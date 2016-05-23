@@ -29,6 +29,7 @@
 
 // bibop - 
 #define region_mask 0x7ffe00000000ull
+#define region_size 0x10000000000ull
 // each of these is a 1T space
 #define uuid_space 0x10000000000ull
 #define float_space 0x20000000000ull
@@ -55,3 +56,5 @@ static inline unsigned long type_of (void *x)
 
 typedef void *uuid;
 uuid intern_uuid(unsigned char *x);
+void init_uuid();
+

@@ -24,6 +24,7 @@ static inline key position(table t, key x)
     return(x%t->buckets);
 }
 
+// need an atomic find and create
 value table_find (table t, void *c)
 {
     key k = t->key_function(c);
