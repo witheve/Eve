@@ -728,22 +728,33 @@ local function parseObjectLine(line, expression)
     resolved = resolveVariable(parent, expression, expression.value)
   elseif expression.op and (expression.op.type == "NAME" or expression.op.type == "TAG") then
     local objectName = expression.children[1]
-    resolved = resolveVariable(parent, objectName, objectName.value)
+    if type ~= "mutate" then
+      resolved = resolveVariable(parent, objectName, objectName.value)
+    end
+    local binding = makeNode("binding", node, line.line, line.offset)
+    binding.field = expression.op.type == "NAME" and "name" or "tag"
+    binding.source = node
+    binding.constant = objectName.value
+    binding.constantType = "string"
   end
   if resolved then
     node.variable = resolved
   else
     -- generate a random var
   end
-  local binding = makeNode("binding", node, line.line, line.offset)
-  binding.field = MAGIC_ENTITY_FIELD
-  binding.source = node
-  binding.variable = node.variable
+  -- mutates shouldn't bind an entity unless they are explicitly
+  -- aliased to a name
+  -- @TODO: handle the explicit aliasing of mutates
+  if type ~= "mutate" then
+    local binding = makeNode("binding", node, line.line, line.offset)
+    binding.field = MAGIC_ENTITY_FIELD
+    binding.source = node
+    binding.variable = node.variable
+  end
   return node
 end
 
-local function parseAttributeLine(line, expression)
-  local parent = getParentNode(line)
+local function parseAttributeLine(parent, line, expression)
   local node = makeNode("binding", parent, line.line, line.offset)
   local attributeName
   if expression.type == "IDENTIFIER" then
@@ -904,7 +915,7 @@ parseLine = function(line)
       -- identifiers or expressions
       if parent.type == "object" or parent.type == "mutate" then
           -- print(formatGraph(firstExpression))
-        node = parseAttributeLine(line, firstExpression)
+        node = parseAttributeLine(parent, line, firstExpression)
 
         -- check for the keyword-based lines types
       elseif firstExpression.type == "ADD" or firstExpression.type == "REMOVE" then
