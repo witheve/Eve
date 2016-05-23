@@ -14,8 +14,11 @@ void init_runtime()
     efalse = allocate(init, 1);
     etrue = allocate(init, 1);
     // from type.h
+    // should be in the right typespace
     *(unsigned char *)etrue = 1;
     *(unsigned char *)efalse = 0;
+    init_string();
+    void init_uuid();
 }
 
 

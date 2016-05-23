@@ -1,5 +1,6 @@
 typedef buffer string;
 
+void init_string();
 
 typedef iu32 character;
 
