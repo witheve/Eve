@@ -5,7 +5,7 @@
       socket.onmessage = function(msg) { console.log(msg) }
       socket.onopen = function() {
         console.log("Connected to eve server!");
-        socket.send("yo");
+        socket.send(JSON.stringify({id: "foo", type: "query", query: "#fruit"}));
       }
     </script>
   </head>

@@ -786,8 +786,10 @@ local function parseAttributeLine(parent, line, expression, nextExpression)
     local value = expression.children[2]
     node.field = field.value
     -- if there isn't a value then it must continue on the next line
+    -- @FIXME: is it true that it's multiple children if you use an '='
+    -- instead of a ':'?
     if not value then
-      node.needsContinuation = true
+      node.multipleChildren = true
       return node
     end
     if value.type == "IDENTIFIER" then
@@ -995,7 +997,22 @@ end
 -- ParseFile
 ------------------------------------------------------------
 
-local function parseFile(args)
+local function parseFile(path)
+  local content = fs.read(path)
+  local lines = lex(content)
+  local lineTree = buildLineTree(lines, {file=path, type="file"})
+  parseLineTree(lineTree)
+  return lineTree.node
+end
+
+local function parseString(str)
+  local lines = lex(str)
+  local lineTree = buildLineTree(lines, {file="none", type="string"})
+  parseLineTree(lineTree)
+  return lineTree.node
+end
+
+local function printFileParse(args)
   if not args[2] then
     print(color.error("Parse requires a file to parse"))
     return
@@ -1011,7 +1028,6 @@ local function parseFile(args)
   local path = args[2]
   local content = fs.read(path)
   local lines = lex(content)
-  -- Token:printLines(lines)
   local lineTree = buildLineTree(lines, {file=path, type="file"})
   print(formatGraph(lineTree))
   parseLineTree(lineTree)
@@ -1029,5 +1045,9 @@ end
 -- Parser interface
 ------------------------------------------------------------
 
-return {parseFile = parseFile}
+return {
+  parseFile = parseFile,
+  parseString = parseString,
+  printFileParse = printFileParse
+}
 

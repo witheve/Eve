@@ -4,7 +4,7 @@ local server = require("server")
 
 local commands = {
   parse = {
-    command = parser.parseFile,
+    command = parser.printFileParse,
     args = "<file>"
   },
   server = {
