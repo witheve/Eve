@@ -439,6 +439,7 @@ local storeOnQuery = {
   union = "unions",
   object = "objects",
   expression = "expressions",
+  mutate = "mutates"
 }
 
 local storeOnParent = {
