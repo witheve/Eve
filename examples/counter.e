@@ -9,7 +9,7 @@ build the counter
 
 increment the counter
   #click element
-  #counter count
+  #counter: counter, count
   #count-button element diff
   update forever
     counter

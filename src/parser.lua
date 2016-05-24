@@ -714,7 +714,6 @@ local function parseObjectLine(parent, line, expression, forceAlias)
   if parent.type == "binding" and isMutating(parent.parent) then
     -- if this is a nested object to be added, we need to alias this object, add it to the query
     -- create a binding from that alias to the parent binding
-    -- @TODO: set parent?
     parent = parent.parent;
     type = "mutate"
     operator = parent.operator or parent.type
@@ -726,20 +725,41 @@ local function parseObjectLine(parent, line, expression, forceAlias)
   if type == "mutate" then
     node.operator = operator
   end
+
+  -- prehandle the case where we're aliasing
+  if expression.op and (expression.op.type == "ALIAS" or expression.op.type == "EQUALITY") then
+    -- aliases are only allowed to be identifiers on the right and either
+    -- identifiers or name/tag on the left
+    local left = expression.children[1]
+    local right = expression.children[2]
+    if not left or not right then
+      print(string.format(color.error("Invalid alias on line %s"), line.line))
+    elseif right.type ~= "IDENTIFIER" then
+      print(string.format(color.error("Invalid alias on line %s, the right side is not an identifier"), line.line))
+    elseif left.type == "IDENTIFIER" then
+      resolved = resolveVariable(parent, left, left.value)
+    elseif left.op and (left.op.type == "NAME" or left.op.type == "TAG") then
+      local objectName = expression.children[1]
+      local binding = makeNode("binding", node, expression.line, expression.offset)
+      binding.field = expression.op.type == "NAME" and "name" or "tag"
+      binding.source = node
+      binding.constant = objectName.value
+      binding.constantType = "string"
+    else
+      print(string.format(color.error("Invalid alias on line %s"), line.line))
+    end
   -- @TODO: check for an error here
-  if expression.type == "IDENTIFIER" then
+  elseif expression.type == "IDENTIFIER" then
     resolved = resolveVariable(parent, expression, expression.value)
   elseif expression.op and (expression.op.type == "NAME" or expression.op.type == "TAG") then
     local objectName = expression.children[1]
-    if type ~= "mutate" then
-      resolved = resolveVariable(parent, objectName, objectName.value)
-    end
-    local binding = makeNode("binding", node, line.line, line.offset)
+    local binding = makeNode("binding", node, expression.line, expression.offset)
     binding.field = expression.op.type == "NAME" and "name" or "tag"
     binding.source = node
     binding.constant = objectName.value
     binding.constantType = "string"
   end
+
   if resolved then
     node.variable = resolved
   else
@@ -748,7 +768,7 @@ local function parseObjectLine(parent, line, expression, forceAlias)
   -- mutates shouldn't bind an entity unless they are explicitly
   -- aliased to a name
   -- @TODO: handle the explicit aliasing of mutates
-  if forceAlias or type ~= "mutate" then
+  if forceAlias or resolved then
     local binding = makeNode("binding", node, line.line, line.offset)
     binding.field = MAGIC_ENTITY_FIELD
     binding.source = node

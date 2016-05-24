@@ -2,6 +2,7 @@
 -- moving, and prompts the server to send results off
 
 local server = require("server")
+local parser = require("parser")
 
 local function makeQueryCallback(queryInfo, client)
   return function(op, tuple)
@@ -29,6 +30,7 @@ local function open(queryMessage, client)
   client.queries[id] = queryInfo
   local callback = makeQueryCallback(queryInfo, client)
   -- parse and compile
+  local parse = parser.parseString(queryMessage.query)
 end
 
 local function close(closeMessage, client)

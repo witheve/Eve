@@ -1,8 +1,8 @@
 draw a clock hand
-  #clock-hand
+  #clock-hand: hand
     angle
   add
-    clock-hand
+    hand
       #line
       x1: 50, y1: 50, stroke: "#023963"
       x2: 50 + 40 * cos(angle)
