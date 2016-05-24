@@ -703,8 +703,8 @@ local function extractInlineExpressions(scanner)
   return expressions
 end
 
-local function parseObjectLine(parent, line, expression, forceAlias)
-  local forceAlias = forceAlias or false
+local function parseObjectLine(parent, line, expression, forcedAlias)
+  local forcedAlias = forcedAlias or false
   local scanner = ArrayScanner:new(line.tokens)
   local first = scanner:read()
   local type = "object"
@@ -762,17 +762,15 @@ local function parseObjectLine(parent, line, expression, forceAlias)
 
   if resolved then
     node.variable = resolved
-  else
-    -- generate a random var
   end
-  -- mutates shouldn't bind an entity unless they are explicitly
-  -- aliased to a name
-  -- @TODO: handle the explicit aliasing of mutates
-  if forceAlias or resolved then
+
+  -- we only bind the magic entity field if there's been an alias or the parser
+  -- is explicitly asking us to force one
+  if forcedAlias or resolved then
     local binding = makeNode("binding", node, line.line, line.offset)
     binding.field = MAGIC_ENTITY_FIELD
     binding.source = node
-    binding.variable = node.variable
+    binding.variable = forcedAlias
   end
   return node
 end
@@ -831,7 +829,7 @@ local function parseAttributeLine(parent, line, expression, nextExpression)
   -- This only applies for the last attribute of the line, so we check
   -- next expression here to make sure there's nothing after us.
   if not nextExpression and node.variable and parent.line ~= line.line and #line.children > 0 then
-    node = parseObjectLine(node, line, expression, true)
+    node = parseObjectLine(node, line, expression, node.variable)
   end
   return node
 end
