@@ -11,11 +11,17 @@ struct interpreter  {
     lua_State *L;
 };
 
-typedef closure(execf, int, value *);
+typedef closure(execf, operator, value *);
 
 static inline interpreter lua_context(lua_State *L)
 {
     return (void *)lua_topointer(L, lua_upvalueindex(1));
+}
+
+static int lua_toregister(lua_State *L, int index)
+{
+    void *x = lua_touserdata(L, index);
+    return((unsigned long)x - register_base);
 }
 
 static value value_from_lua(heap h, lua_State *L, int index)
@@ -24,10 +30,14 @@ static value value_from_lua(heap h, lua_State *L, int index)
     case LUA_TBOOLEAN:
         return lua_toboolean(L, index)?etrue:efalse;
     case LUA_TNUMBER:
+        // our number isn't making it into float space
+        // also our heap is getting mixed up with luas
         return box_float(h, lua_tonumber(L, index));
     case LUA_TSTRING:
-        return allocate_estring(h, (void *)lua_tostring(L, index),  lua_strlen(L, index));
-        int size = lua_strlen(L, index);
+        return intern_string((void *)lua_tostring(L, index),  lua_strlen(L, index));
+    case LUA_TLIGHTUSERDATA:
+        //presumably from us
+        return lua_touserdata(L, index);
     default:
         // figure out how to signal a lua error
         printf("yeah, sorry, i dont eat that kind of stuff");
@@ -40,28 +50,64 @@ static int run(lua_State *L)
 {
     interpreter c = lua_context(L);
     execf f = (void *)lua_topointer(L, 1);
-    apply(f, 0, 0);
+    // xxx - execution heap...and parameterize this from the run function
+    apply(f, 0, allocate(init, sizeof(value) * 20));
     return 0;
 }
 
-// ok, different plan, each r is really an addressable stack
-static CONTINUATION_1_2(do_scan, execf, int, value *);
-
-static void scan_listener(value *r)
+// break this out...also copy r now that its well-formed how to do that
+static CONTINUATION_6_3(scan_listener_3, execf, operator, value *, int, int, int, value, value, value);
+static void scan_listener_3(execf n,  operator op, value *r, int a, int b, int c, value av, value bv, value cv)
 {
+    r[a] = av;
+    r[b] = bv;
+    r[c] = cv;
+    apply(n, 0, r);
 }
 
-static void do_scan(execf c, int op, value *r)
+static CONTINUATION_4_2(scan_listener_2, execf, value *, int, int, value, value);
+static void scan_listener_2(execf n, value *r, int a, int b, value av, value bv)
 {
-    apply(c, op, r);
+    r[a] = av;
+    r[b] = bv;
+    apply(n, 0, r);
 }
 
+static CONTINUATION_4_1(scan_listener_1, execf, int, value *, operator, value);
+static void scan_listener_1(execf n, int a, value *r, operator op, value av)
+{
+    // synchronous
+    r[a] = av;
+    apply(n, op, r);
+}
+
+static CONTINUATION_5_2(do_full_scan, interpreter, execf, int, int, int, operator, value *);
+static void do_full_scan(interpreter z, execf n, int a, int b, int c, operator op, value *r)
+{
+    full_scan(z->b, cont(z->h, scan_listener_3, n, op, r, a, b, c));
+}
+
+// this seems broken at the high end..
+//int popcount8( unsigned char x)
+//{
+//    return ( x* 0x8040201ULL & 0x11111111)%0xF;
+//}
+
+// value e = lua_toboolean(c->h, L, 1);
 static int build_scan(lua_State *L)
 {
     interpreter c = lua_context(L);
+    execf next = (void *)lua_topointer(L, 1);
     value e = value_from_lua(c->h, L, 1);
-    execf next = (void *)lua_topointer(L, 2);
-    execf r =cont(c->h, do_scan, next);
+    char *description = (void *)lua_tostring(L, 2);
+    int dlen = lua_strlen(L, 2);
+    int outstart = 3;
+
+    // selection
+    execf r =cont(c->h, do_full_scan, c, next,
+                  lua_toregister(L, outstart),
+                  lua_toregister(L, outstart + 1),
+                  lua_toregister(L, outstart+2));
     lua_pushlightuserdata(L, r);
     return 1;
 }
@@ -75,26 +121,28 @@ static int direct_insert(lua_State *L)
     value a = value_from_lua(c->h, L, 2);
     value v = value_from_lua(c->h, L, 3);
 
-    //    printf("inserty %p %p %p %x %x  %x\n", e, a, v, *(unsigned char*)e, *(unsigned char*)a, *(unsigned char*)v);
+    printf("inserty %p %p %p\n", e, a, v);
     edb_insert(c->b, e, a, v);
     return 0;
 }
 
 static CONTINUATION_2_2(luaresult, interpreter, int, int, value *);
-static void luaresult(interpreter c, int r, int b, value *x)
+static void luaresult(interpreter c, int r, operator op, value *x)
 {
-    int num_results=4;
+    // extract from x
+    int num_results=3;
     lua_rawgeti(c->L, LUA_REGISTRYINDEX, r);
 
+    lua_pushstring(c->L, "op");
     lua_createtable(c->L, num_results, 0);
     for (int i=0; i<num_results; i++) {
-        lua_pushinteger(c->L, i);
+        lua_pushlightuserdata(c->L, x[i]);
         lua_rawseti (c->L, -2, i + 1);
     }
-    
+
     // on the close path, we should luall_unref(L, LUA_REGISTRYINDEX, r)
     // translate args back to lua
-    if (lua_pcall(c->L, 1, 0, 0)) {
+    if (lua_pcall(c->L, 2, 0, 0)) {
         printf ("calback error");
         printf ("%s\n", lua_tostring(c->L, -1));
     }
@@ -166,7 +214,48 @@ static int construct_string(lua_State *L)
 
 static int lua_print_value(lua_State *L)
 {
-    return 0;
+    void *x = lua_touserdata(L, 1);
+    unsigned long t = type_of(x);
+    
+    switch (t) {
+    case uuid_space:
+        {
+            // ok, we did a little digging around in lua and apparently the guy keeps
+            // his own interned copies..so, we'll do a little construction
+            char temp[UUID_LENGTH*2];
+            uuid_base_print(temp, x);
+            lua_pushlstring(L, temp, sizeof(temp));
+        }
+        break;
+    case float_space:
+        lua_pushstring(L, "float");
+        break;
+    case interned_space:
+        {
+            string_intermediate si = x;
+            lua_pushlstring(L, (const char *)si->body, si->length);
+        }
+        break;
+    case register_space:
+        if (x == etrue) {
+            lua_pushstring(L, "true");
+            break;
+        }
+        if (x == efalse) {
+            lua_pushstring(L, "false");
+            break;
+        }
+    default:
+        printf ("what the hell! %p %lx %p %p\n", x, t, efalse, etrue);
+        return 0;
+    }
+    return 1;
+}
+
+static int lua_gen_uuid(lua_State *L)
+{
+    lua_pushlightuserdata(L, generate_uuid());
+    return 1;
 }
 
 
@@ -219,5 +308,6 @@ interpreter build_lua()
     define(c, "sboolean", construct_boolean);
     define(c, "sstring_boolean", construct_string);
     define(c, "value_to_string", lua_print_value);
+    define(c, "generate_uuid", lua_gen_uuid);
     return c;
 }

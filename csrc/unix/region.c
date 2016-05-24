@@ -16,6 +16,7 @@ static void *allocate_pages(heap h, bits s)
                    PROT_READ|PROT_WRITE,
                    MAP_PRIVATE|MAP_ANON|MAP_FIXED,
                    -1,0);
+    if (p == MAP_FAILED) return 0;
     // atomic increment
     r->fill += length;
     return(p);
@@ -43,6 +44,7 @@ heap init_fixed_page_region(heap meta,
     r->h.dealloc = free_pages;
     r->h.pagesize = pagesize;
     r->base = base_address;
+    r->fill = r->base;
     r->max = max_address;
     return (heap)r;
 }

@@ -70,5 +70,13 @@ interpreter build_lua();
 void lua_run_file(interpreter c, char *filename);
 
 heap float_heap;
-heap uuid_heap;
-heap estring_heap;
+
+
+#define UUID_LENGTH 12
+
+uuid generate_uuid();
+
+typedef int operator;
+typedef closure(three_listener, value, value, value);
+void full_scan(bag b, three_listener f);
+void uuid_base_print(char *, void *);

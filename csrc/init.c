@@ -18,7 +18,7 @@ void init_runtime()
     *(unsigned char *)etrue = 1;
     *(unsigned char *)efalse = 0;
     init_string();
-    void init_uuid();
+    init_uuid();
 }
 
 

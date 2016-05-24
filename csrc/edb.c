@@ -5,10 +5,36 @@ typedef struct level {
     table listeners;
 } *level;
 
+
+struct bag {
+    table listeners;
+    level eav;
+    level ave;
+    value uuid;
+    heap h;
+};
+
 static iu64 key_from_pointer(void *x) {return((unsigned long) x);}
 // uhh, if the key is iu64 then we are prefiltering on this anyways...so...
 // but maybe we can mix up key a little bit for better distribution?
 static boolean compare_pointer(void *x, void *y) {return(x==y);}
+
+
+typedef closure(two_listener, value, value);
+typedef closure(one_listener, value);
+
+
+void full_scan(bag b, three_listener f)
+{
+    // add listener
+    foreach_table(b->eav->lookup, e, avl) {
+        foreach_table(((level)avl)->lookup, a, vl) {
+            foreach_table(((level)vl)->lookup, v, vl) {
+                apply(f, e, a, v);
+            }
+        }
+    }
+}
 
 static level create_level(heap h)
 {
@@ -18,14 +44,6 @@ static level create_level(heap h)
     x->listeners = allocate_table(h, key_from_pointer, compare_pointer);
     return x;
 }
-
-struct bag {
-    table listeners;
-    level eav;
-    level ave;
-    value uuid;
-    heap h;
-};
 
 // ok, we're going to assume that if there is a miss here we should create the
 // next level, since at the very minimum we're going to want to register
@@ -38,6 +56,8 @@ level scan(heap h, level lev, value key)
     level x = table_find(lev->lookup, key);
     if (!x)  {
         x = create_level(h);
+        printf("set level %p %p\n", key, x);
+
         table_set(lev->lookup, key, x);
     }
     return x;
@@ -56,10 +76,6 @@ bag create_bag(value bag_id)
 
     return b;
 }
-
-typedef closure(three_listener, value, value, value);
-typedef closure(two_listener, value, value);
-typedef closure(one_listener, value);
 
 void edb_insert(bag b, value e, value a, value v)
 {
