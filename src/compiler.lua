@@ -166,7 +166,7 @@ function DependencyGraph:fromQueryGraph(query)
          if node.parent and node.parent.type == "mutate" then
             local old = node.variable
             node.variable = util.shallowCopy(node.variable)
-            node.variable.name = "$$tmp" .. uniqueCounter .. "-" .. node.variable.name
+            node.variable.name = "$$tmp" .. "-" .. node.variable.name .. "-" .. uniqueCounter
             uniqueCounter = uniqueCounter + 1
             for _, binding in std.pairs(node.bindings) do
                if binding.type == "binding" and binding.variable == old then
@@ -372,8 +372,10 @@ function unpackObjects(nodes)
             end
 
             for _, binding in std.ipairs(node.bindings) do
-               unpacked[ix] = ScanNode:fromBinding(node, binding, entity)
-               ix = ix + 1
+               if binding.field ~= ENTITY_FIELD then
+                  unpacked[ix] = ScanNode:fromBinding(node, binding, entity)
+                  ix = ix + 1
+               end
             end
          end
       else
