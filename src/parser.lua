@@ -1067,6 +1067,6 @@ end
 return {
   parseFile = parseFile,
   parseString = parseString,
-  printFileParse = printFileParse
+  printFileParse = printFileParse,
+  formatGraph = formatGraph
 }
-
