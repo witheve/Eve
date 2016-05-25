@@ -24,7 +24,8 @@ static int lua_toregister(lua_State *L, int index)
     return((unsigned long)x - register_base);
 }
 
-static value value_from_lua(heap h, lua_State *L, int index)
+// refcounting
+static value value_from_lua(lua_State *L, int index)
 {
     switch(lua_type(L, index)){
     case LUA_TBOOLEAN:
@@ -32,7 +33,7 @@ static value value_from_lua(heap h, lua_State *L, int index)
     case LUA_TNUMBER:
         // our number isn't making it into float space
         // also our heap is getting mixed up with luas
-        return box_float(h, lua_tonumber(L, index));
+        return box_float(lua_tonumber(L, index));
     case LUA_TSTRING:
         return intern_string((void *)lua_tostring(L, index),  lua_strlen(L, index));
     case LUA_TLIGHTUSERDATA:
@@ -98,7 +99,7 @@ static int build_scan(lua_State *L)
 {
     interpreter c = lua_context(L);
     execf next = (void *)lua_topointer(L, 1);
-    value e = value_from_lua(c->h, L, 1);
+    value e = value_from_lua(L, 1);
     char *description = (void *)lua_tostring(L, 2);
     int dlen = lua_strlen(L, 2);
     int outstart = 3;
@@ -117,11 +118,10 @@ static int direct_insert(lua_State *L)
 {
     interpreter c = lua_context(L);
     // should really go into the bag heap, dont you think?
-    value e = value_from_lua(c->h, L, 1);
-    value a = value_from_lua(c->h, L, 2);
-    value v = value_from_lua(c->h, L, 3);
+    value e = value_from_lua(L, 1);
+    value a = value_from_lua(L, 2);
+    value v = value_from_lua(L, 3);
 
-    printf("inserty %p %p %p\n", e, a, v);
     edb_insert(c->b, e, a, v);
     return 0;
 }
@@ -228,7 +228,11 @@ static int lua_print_value(lua_State *L)
         }
         break;
     case float_space:
-        lua_pushstring(L, "float");
+        {
+            char temp[32];
+            // sadness - extend the numeric tower
+            lua_pushlstring(L, temp, sprintf(temp, "%g", *(double *)x));
+        }
         break;
     case interned_space:
         {

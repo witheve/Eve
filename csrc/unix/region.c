@@ -7,7 +7,8 @@ typedef struct region_heap {
 } *region_heap;
 
 
-static void *allocate_pages(heap h, bits s)
+// ok, this needs to have a fill pointer..this is why we are allocating so many damn pages
+static void *allocate_pages(heap h, bytes s)
 {
     region_heap r = (void *)h;
     unsigned int length =  pad(s, h->pagesize);

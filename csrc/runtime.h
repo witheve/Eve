@@ -33,6 +33,7 @@ void *memcpy(void *s1, const void *s2, iu64 n);
 int memcmp(const void *s1, const void *s2, iu64 n);
 void *memset(void *b, int c, iu64 len);
 
+
 #include <heap.h>
 #include <continuation.h>
 #include <buffer.h>
@@ -69,7 +70,6 @@ typedef struct interpreter *interpreter;
 interpreter build_lua();
 void lua_run_file(interpreter c, char *filename);
 
-heap float_heap;
 
 
 #define UUID_LENGTH 12

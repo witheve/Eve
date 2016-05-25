@@ -56,8 +56,6 @@ level scan(heap h, level lev, value key)
     level x = table_find(lev->lookup, key);
     if (!x)  {
         x = create_level(h);
-        printf("set level %p %p\n", key, x);
-
         table_set(lev->lookup, key, x);
     }
     return x;
