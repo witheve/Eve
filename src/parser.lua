@@ -1068,5 +1068,6 @@ return {
   parseFile = parseFile,
   parseString = parseString,
   printFileParse = printFileParse,
-  formatGraph = formatGraph
+  formatGraph = formatGraph,
+  ENTITY_FIELD = MAGIC_ENTITY_FIELD
 }

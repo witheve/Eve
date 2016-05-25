@@ -4,20 +4,35 @@ local ipairs = ipairs
 local pairs = pairs
 local type = type
 local setmetatable = setmetatable
+local getmetatable = getmetatable
 local tostring = tostring
 local io = io
 local string = string
+local math = math
 
 setfenv(1, Pkg)
 
-function printTable(obj, indent)
+local empty = {}
+
+function printTable(obj, indent, maxDepth, seen)
+   seen = seen or {}
+   maxDepth = maxDepth or 10
+   if seen[obj] then
+      io.write("<<cycle detected>>")
+      return
+   end
+   if maxDepth == 0 then
+      io.write("<<maxDepth exceeded>>")
+      return
+   end
+   seen[obj] = true
    local indent = indent or 0
    local padding = string.rep("  ", indent)
    io.write("{\n")
    for k, v in pairs(obj) do
       io.write(padding, "  ", tostring(k), ": ")
       if type(v) == "table" then
-         printTable(v, indent + 1)
+         printTable(v, indent + 1, maxDepth - 1, seen)
          io.write(",\n")
       else
          io.write(tostring(v), "\n")
@@ -39,6 +54,17 @@ function printList(obj)
 end
 
 if ... == nil then
+end
+
+function shallowCopy(obj)
+   if type(obj) ~= "table" then return obj end
+   local meta = getmetatable(obj)
+   local neue = {}
+   for k, v in pairs(obj) do
+      neue[k] = v
+   end
+   setmetatable(neue, meta)
+   return neue
 end
 
 return Pkg

@@ -1,8 +1,13 @@
 local parser = require("parser")
 local color = require("color")
 local server = require("server")
+local compiler = require("compiler")
 
 local commands = {
+  analyze = {
+    command = compiler.analyze,
+    args = "<file>"
+  },
   parse = {
     command = parser.printFileParse,
     args = "<file>"
