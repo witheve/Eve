@@ -3,7 +3,7 @@ build the chat pane
   add
     #div class: "chat-pane"
       children:
-        #div class: "chat-messages" id: "{channel}-chat-messages"
+        #div#chat-messages class: "chat-messages" id: "{channel}-chat-messages"
         #input #channel-input channel
 
 draw messages

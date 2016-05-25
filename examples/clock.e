@@ -12,7 +12,7 @@ draw a clock
   #time hours minutes seconds
   add
     #svg
-      viewBox: "0 0 100 100" width: "300px{zomg}"
+      viewBox: "0 0 100 100" width: "300px"
       children:
         #circle cx: 50, cy: 50, r: 45, fill: "#0B79CE"
           children:

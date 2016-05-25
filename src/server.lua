@@ -22,6 +22,11 @@ function SSL_Handler:get()
     self:write(fs.read("index.html"))
 end
 
+local JSHandler = class("JSHandler", turbo.web.RequestHandler)
+function JSHandler:get()
+    self:write(fs.read("jssrc/renderer.js"))
+end
+
 local WSExHandler = class("WSExHandler", turbo.websocket.WebSocketHandler)
 function WSExHandler:open()
   clients[self] = {
@@ -54,6 +59,7 @@ local application = turbo.web.Application:new({
     -- {"^/$", turbo.web.StaticFileHandler, "/users/chris/scratch/lua/index.html"},
     -- {"^/static/(.*)$", turbo.web.StaticFileHandler, "static/"},
     {"^/$", SSL_Handler},
+    {"^/jssrc/.*$", JSHandler},
     {"^/ws$", WSExHandler}
 })
 

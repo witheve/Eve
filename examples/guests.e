@@ -3,8 +3,7 @@ count guests coming to the party
   union
     #person: guest
   and
-    #person
-      spouse: guest
+    #person spouse: guest
   total = count(guest given guest)
   add
     party
@@ -12,13 +11,9 @@ count guests coming to the party
       guest
 
 how many burgers do I need?
-  @"my party": party
-    guest
-  // decide how many burgers each guest
-  // will need
+  @"my party": party, guest
   choose
-    guest
-      #growing-boy
+    guest#growing-boy
     burgers = 2
   or
     burgers = 1
