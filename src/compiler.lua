@@ -12,6 +12,8 @@ local parser = require("parser")
 setfenv(1, Pkg)
 
 local ENTITY_FIELD = parser.ENTITY_FIELD
+local TAG_FIELD = "tag"
+local EAV_TAG = "eav"
 
 -- Utilities
 local nothing = {}
@@ -79,6 +81,10 @@ end
 
 function DependencyGraph:provided()
    return self.bound
+end
+
+function DependencyGraph:sorted()
+   return #obj.unsorted == 0
 end
 
 function DependencyGraph:addObjectNode(node)
@@ -160,7 +166,7 @@ function DependencyGraph:fromQueryGraph(query)
          if node.parent and node.parent.type == "mutate" then
             local old = node.variable
             node.variable = util.shallowCopy(node.variable)
-            node.variable.name = "$$tmp" .. uniqueCounter .. "-" .. node.variable.name
+            node.variable.name = "$$tmp" .. "-" .. node.variable.name .. "-" .. uniqueCounter
             uniqueCounter = uniqueCounter + 1
             for _, binding in std.pairs(node.bindings) do
                if binding.type == "binding" and binding.variable == old then
@@ -289,6 +295,98 @@ function DependencyGraph.__tostring(obj)
    return result .. "}"
 end
 
+
+ScanNode = {}
+function ScanNode:new(obj)
+   obj = obj or {}
+   setmetatable(obj, self)
+   self.__index = self
+   return obj
+end
+
+function ScanNode:fromObject(source)
+   local obj = self
+   if getmetatable(obj) ~= ScanNode then
+      obj = self:new()
+   end
+   obj.source = source
+   obj.type = source.type
+   for _, binding in std.ipairs(node.bindings) do
+      obj[binding.field] = binding.variable or binding.constant
+   end
+   return obj
+end
+
+function ScanNode:fromBinding(source, binding, entity)
+   local obj = self
+   if getmetatable(obj) ~= ScanNode then
+      obj = self:new()
+   end
+   obj.source = source
+   obj.type = source.type
+   obj[ENTITY_FIELD] = entity
+   obj.attribute = binding.field
+   obj.value = binding.variable or binding.constant
+   return obj
+end
+
+function ScanNode.__tostring(obj)
+   return "ScanNode{type: " .. obj.type .. ", " .. ENTITY_FIELD .. ": " .. obj[ENTITY_FIELD] .. ", attribute: " .. obj.attribute .. ", value: " .. obj.value .. "}"
+end
+
+
+function isEAVNode(node)
+   for _, binding in std.ipairs(node.bindings) do
+      if binding.field == TAG_FIELD and binding.constant == EAV_TAG then
+         return true
+      end
+   end
+   return false
+end
+
+function unpackObjects(nodes)
+   local unpacked = {}
+   local ix = 1
+   local tmpCounter = 0
+   for _, node in std.ipairs(nodes) do
+      if node.type == "object" or node.type == "mutate" then
+         local NodeKind = ScanNode
+
+         if isEAVNode(node) then
+            unpacked[ix] = ScanNode:fromObject(node)
+            ix = ix + 1
+         else
+            local entity
+            for _, binding in std.ipairs(node.bindings) do
+               if binding.field == ENTITY_FIELD then
+                  entity = binding.variable or binding.constant
+               end
+            end
+            -- Even if the entity isn't used by the user, we still need to create it to unify the exploded scans
+            if not entity then
+               local tmpName = "$$tmp-entity-" .. tmpCounter
+               tmpCounter = tmpCounter + 1
+               entity = {type = "variable", query = node.query, parent = node.query, children = {}, line = node.line, offset = node.offset, name = tmpName}
+               setmetatable(entity, DefaultNodeMeta)
+               node.query.variables[#node.query.variables] = entity
+            end
+
+            for _, binding in std.ipairs(node.bindings) do
+               if binding.field ~= ENTITY_FIELD then
+                  unpacked[ix] = ScanNode:fromBinding(node, binding, entity)
+                  ix = ix + 1
+               end
+            end
+         end
+      else
+         unpacked[ix] = node
+         ix = ix + 1
+      end
+   end
+
+   return unpacked
+end
+
 function analyze(args)
    local file = args[2]
    local parseGraph = parser.parseFile(file)
@@ -303,8 +401,16 @@ function analyze(args)
       print(dependencyGraph)
 
       print(" -- Sorted DGraph --")
-      dependencyGraph:order()
+      local sorted = dependencyGraph:order()
       print(dependencyGraph)
+
+      print(" -- Unpacked Objects / Mutates --")
+      local unpacked = unpackObjects(sorted)
+      print("{")
+      for ix, node in std.ipairs(unpacked) do
+         print("  " .. ix .. ".  {type: " .. node.type .. ", entity: " .. tostring(node[ENTITY_FIELD]) .. ", " .. "attribute: " .. tostring(node.attribute) .. ", value: " .. tostring(node.value) .. "}")
+      end
+      print("}")
    end
 end
 
