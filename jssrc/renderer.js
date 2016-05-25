@@ -8,43 +8,47 @@ function denormalizeResult(result) {
   let {insert, remove} = result;
   let additions = {};
   // build up a representation of the additions
-  for(let ins of insert) {
-    let [entity, attribute, value] = ins;
-    if(!additions[entity]) additions[entity] = {}
-    switch(attribute) {
-      case "tag":
-        // we don't care about tags on this guy unless they relate
-        // to dom tags
-        if(!supportedTags[value]) {
+  if(insert.length) {
+    for(let ins of insert) {
+      let [entity, attribute, value] = ins;
+      if(!additions[entity]) additions[entity] = {}
+      switch(attribute) {
+        case "tag":
+          // we don't care about tags on this guy unless they relate
+          // to dom tags
+          if(!supportedTags[value]) {
+            continue;
+          }
+          break;
+        case "children":
+          let children = additions[entity][attribute];
+          if(!children) {
+            children = [];
+            additions[entity][attribute] = children;
+          }
+          children.push(value);
           continue;
-        }
-        break;
-      case "children":
-        let children = additions[entity][attribute];
-        if(!children) {
-          children = [];
-          additions[entity][attribute] = children;
-        }
-        children.push(value);
-        continue;
-      case "text":
-        attribute = "textContent"
-        break;
+        case "text":
+          attribute = "textContent"
+          break;
+      }
+      additions[entity][attribute] = value
     }
-    additions[entity][attribute] = value
   }
   // do removes that aren't just going to be overwritten by
   // the adds
-  for(let rem of remove) {
-    let [entity, attribute, value] = rem;
-    switch(attribute) {
-      case "tag":
-        break;
-      case "children":
-        break;
-      case "text":
-        attribute = "textContent"
-        break;
+  if(remove.length) {
+    for(let rem of remove) {
+      let [entity, attribute, value] = rem;
+      switch(attribute) {
+        case "tag":
+          break;
+        case "children":
+          break;
+        case "text":
+          attribute = "textContent"
+          break;
+      }
     }
   }
 
@@ -110,5 +114,28 @@ function denormalizeResult(result) {
 
 document.body.appendChild(activeElements["root"])
 
-denormalizeResult({insert: [["foo", "tag", "div"], ["foo", "children", "bar"], ["foo", "children", "woot"], ["bar", "tag", "span"], ["bar", "style", "bar-style"], ["bar-style", "color", "red"], ["bar", "text", "meh"], ["woot", "tag", "span"], ["woot", "text", "ZOMG"]], remove: []})
-denormalizeResult({insert: [["woot", "text", "ya wai"], ["woot", "style", "woot-style"], ["woot-style", "background", "blue"], ["bar", "text", "no wai"]], remove: []})
+
+var socket = new WebSocket("ws://" + window.location.host +"/ws");
+socket.onmessage = function(msg) {
+  console.log(msg)
+  let data = JSON.parse(msg.data);
+  if(data.type == "result" && data.id == "ui-query") {
+    denormalizeResult(data);
+  }
+}
+socket.onopen = function() {
+  console.log("Connected to eve server!");
+  //TODO: open the ui query
+  socket.send(JSON.stringify({id: "ui-query", type: "query", query: `
+get all the ui facts
+  union
+    #html: entity
+    #eavs entity attribute value
+  and
+    #html style: entity
+    #eavs entity attribute value
+  `}));
+}
+
+// denormalizeResult({insert: [["foo", "tag", "div"], ["foo", "children", "bar"], ["foo", "children", "woot"], ["bar", "tag", "span"], ["bar", "style", "bar-style"], ["bar-style", "color", "red"], ["bar", "text", "meh"], ["woot", "tag", "span"], ["woot", "text", "ZOMG"]], remove: []})
+// denormalizeResult({insert: [["woot", "text", "ya wai"], ["woot", "style", "woot-style"], ["woot-style", "background", "blue"], ["bar", "text", "no wai"]], remove: []})

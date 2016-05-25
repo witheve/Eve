@@ -1,12 +1,6 @@
 <html>
   <head>
     <script type="text/javascript">
-      var socket = new WebSocket("ws://" + window.location.host +"/ws")
-      socket.onmessage = function(msg) { console.log(msg) }
-      socket.onopen = function() {
-        console.log("Connected to eve server!");
-        socket.send(JSON.stringify({id: "foo", type: "query", query: "#fruit"}));
-      }
     </script>
   </head>
   <body>
