@@ -108,6 +108,10 @@ function Set.difference(lhs, rhs, mutate)
    end
 end
 
+function Set.length(self)
+   return lengths[self]
+end
+
 function Set.__tostring(obj)
    local result = "#{ "
    for k in pairs(obj) do
@@ -116,7 +120,7 @@ function Set.__tostring(obj)
    return result .. "}"
 end
 
-function Set.__len (obj)
+function Set.__len(obj)
    return lengths[obj]
 end
 

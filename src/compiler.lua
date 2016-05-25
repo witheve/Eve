@@ -9,6 +9,7 @@ local setmetatable = setmetatable
 local util = require("util")
 local Set = require("set").Set
 local parser = require("parser")
+local color = require("color")
 setfenv(1, Pkg)
 
 local ENTITY_FIELD = parser.ENTITY_FIELD
@@ -245,8 +246,7 @@ function DependencyGraph:order(allowPartial)
         ii.  b -> a
         iii. a, b -> f
    ]]--
-
-   while #self.unsorted > 0 do
+   while self.unsorted:length() > 0 do
       local scheduled = false
       for node in std.pairs(self.unsorted) do
          if self.unsatisfied[node] == 0 then

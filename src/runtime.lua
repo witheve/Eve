@@ -32,6 +32,7 @@ local function open(queryMessage, client)
   -- parse and compile
   local parse = parser.parseString(queryMessage.query)
   -- FIXME: just sending random ui as a test for now
+  --
   callback("insert", {"foo", "tag", "div"})
   callback("insert", {"foo", "children", "bar"})
   callback("insert", {"foo", "children", "woot"})
