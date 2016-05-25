@@ -3,13 +3,13 @@ build the counter
   add
     #div class: "counter-container", parent
       children:
-        #div #count-button class: "button", text: "-", diff: -1
-        #div            class: "count",  text: "{count}"
-        #div #count-button class: "button", text: "+", diff: 1
+        #div#count-button class: "button", text: "-", diff: -1
+        #div class: "count", text: "{count}"
+        #div#count-button class: "button", text: "+", diff: 1
 
 increment the counter
   #click element
-  #counter count
+  #counter: counter, count
   #count-button element diff
   update forever
     counter

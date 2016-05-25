@@ -10,6 +10,6 @@ Add some fruits to the system
 Draw a list of fruits
   #fruit color name
   add
-    #div parent: "root", text: name
+    #div text: name
       style
         color

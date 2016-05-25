@@ -1,8 +1,8 @@
 draw a clock hand
-  #clock-hand
+  #clock-hand: hand
     angle
   add
-    clock-hand
+    hand
       #line
       x1: 50, y1: 50, stroke: "#023963"
       x2: 50 + 40 * cos(angle)
@@ -12,7 +12,7 @@ draw a clock
   #time hours minutes seconds
   add
     #svg
-      viewBox: "0 0 100 100" width: "300px{zomg}"
+      viewBox: "0 0 100 100" width: "300px"
       children:
         #circle cx: 50, cy: 50, r: 45, fill: "#0B79CE"
           children:

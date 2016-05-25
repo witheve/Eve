@@ -439,6 +439,7 @@ local storeOnQuery = {
   union = "unions",
   object = "objects",
   expression = "expressions",
+  mutate = "mutates"
 }
 
 local storeOnParent = {
@@ -703,8 +704,8 @@ local function extractInlineExpressions(scanner)
   return expressions
 end
 
-local function parseObjectLine(parent, line, expression, forceAlias)
-  local forceAlias = forceAlias or false
+local function parseObjectLine(parent, line, expression, forcedAlias)
+  local forcedAlias = forcedAlias or false
   local scanner = ArrayScanner:new(line.tokens)
   local first = scanner:read()
   local type = "object"
@@ -714,7 +715,6 @@ local function parseObjectLine(parent, line, expression, forceAlias)
   if parent.type == "binding" and isMutating(parent.parent) then
     -- if this is a nested object to be added, we need to alias this object, add it to the query
     -- create a binding from that alias to the parent binding
-    -- @TODO: set parent?
     parent = parent.parent;
     type = "mutate"
     operator = parent.operator or parent.type
@@ -726,33 +726,52 @@ local function parseObjectLine(parent, line, expression, forceAlias)
   if type == "mutate" then
     node.operator = operator
   end
+
+  -- prehandle the case where we're aliasing
+  if expression.op and (expression.op.type == "ALIAS" or expression.op.type == "EQUALITY") then
+    -- aliases are only allowed to be identifiers on the right and either
+    -- identifiers or name/tag on the left
+    local left = expression.children[1]
+    local right = expression.children[2]
+    if not left or not right then
+      print(string.format(color.error("Invalid alias on line %s"), line.line))
+    elseif right.type ~= "IDENTIFIER" then
+      print(string.format(color.error("Invalid alias on line %s, the right side is not an identifier"), line.line))
+    elseif left.type == "IDENTIFIER" then
+      resolved = resolveVariable(parent, left, left.value)
+    elseif left.op and (left.op.type == "NAME" or left.op.type == "TAG") then
+      local objectName = expression.children[1]
+      local binding = makeNode("binding", node, expression.line, expression.offset)
+      binding.field = expression.op.type == "NAME" and "name" or "tag"
+      binding.source = node
+      binding.constant = objectName.value
+      binding.constantType = "string"
+    else
+      print(string.format(color.error("Invalid alias on line %s"), line.line))
+    end
   -- @TODO: check for an error here
-  if expression.type == "IDENTIFIER" then
+  elseif expression.type == "IDENTIFIER" then
     resolved = resolveVariable(parent, expression, expression.value)
   elseif expression.op and (expression.op.type == "NAME" or expression.op.type == "TAG") then
     local objectName = expression.children[1]
-    if type ~= "mutate" then
-      resolved = resolveVariable(parent, objectName, objectName.value)
-    end
-    local binding = makeNode("binding", node, line.line, line.offset)
+    local binding = makeNode("binding", node, expression.line, expression.offset)
     binding.field = expression.op.type == "NAME" and "name" or "tag"
     binding.source = node
     binding.constant = objectName.value
     binding.constantType = "string"
   end
+
   if resolved then
     node.variable = resolved
-  else
-    -- generate a random var
   end
-  -- mutates shouldn't bind an entity unless they are explicitly
-  -- aliased to a name
-  -- @TODO: handle the explicit aliasing of mutates
-  if forceAlias or type ~= "mutate" then
+
+  -- we only bind the magic entity field if there's been an alias or the parser
+  -- is explicitly asking us to force one
+  if forcedAlias or resolved then
     local binding = makeNode("binding", node, line.line, line.offset)
     binding.field = MAGIC_ENTITY_FIELD
     binding.source = node
-    binding.variable = node.variable
+    binding.variable = forcedAlias
   end
   return node
 end
@@ -786,8 +805,10 @@ local function parseAttributeLine(parent, line, expression, nextExpression)
     local value = expression.children[2]
     node.field = field.value
     -- if there isn't a value then it must continue on the next line
+    -- @FIXME: is it true that it's multiple children if you use an '='
+    -- instead of a ':'?
     if not value then
-      node.needsContinuation = true
+      node.multipleChildren = true
       return node
     end
     if value.type == "IDENTIFIER" then
@@ -809,7 +830,7 @@ local function parseAttributeLine(parent, line, expression, nextExpression)
   -- This only applies for the last attribute of the line, so we check
   -- next expression here to make sure there's nothing after us.
   if not nextExpression and node.variable and parent.line ~= line.line and #line.children > 0 then
-    node = parseObjectLine(node, line, expression, true)
+    node = parseObjectLine(node, line, expression, node.variable)
   end
   return node
 end
@@ -995,7 +1016,22 @@ end
 -- ParseFile
 ------------------------------------------------------------
 
-local function parseFile(args)
+local function parseFile(path)
+  local content = fs.read(path)
+  local lines = lex(content)
+  local lineTree = buildLineTree(lines, {file=path, type="file"})
+  parseLineTree(lineTree)
+  return lineTree.node
+end
+
+local function parseString(str)
+  local lines = lex(str)
+  local lineTree = buildLineTree(lines, {file="none", type="string"})
+  parseLineTree(lineTree)
+  return lineTree.node
+end
+
+local function printFileParse(args)
   if not args[2] then
     print(color.error("Parse requires a file to parse"))
     return
@@ -1011,7 +1047,6 @@ local function parseFile(args)
   local path = args[2]
   local content = fs.read(path)
   local lines = lex(content)
-  -- Token:printLines(lines)
   local lineTree = buildLineTree(lines, {file=path, type="file"})
   print(formatGraph(lineTree))
   parseLineTree(lineTree)
@@ -1029,5 +1064,10 @@ end
 -- Parser interface
 ------------------------------------------------------------
 
-return {parseFile = parseFile}
-
+return {
+  parseFile = parseFile,
+  parseString = parseString,
+  printFileParse = printFileParse,
+  formatGraph = formatGraph,
+  ENTITY_FIELD = MAGIC_ENTITY_FIELD
+}
