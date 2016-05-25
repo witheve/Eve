@@ -324,6 +324,8 @@ function ScanNode:fromBinding(source, binding, entity)
    end
    obj.source = source
    obj.type = source.type
+   print("OP", source.operator)
+   obj.operator = source.operator
    obj[ENTITY_FIELD] = entity
    obj.attribute = binding.field
    obj.value = binding.variable or binding.constant
@@ -331,7 +333,14 @@ function ScanNode:fromBinding(source, binding, entity)
 end
 
 function ScanNode.__tostring(obj)
-   return "ScanNode{type: " .. obj.type .. ", " .. ENTITY_FIELD .. ": " .. obj[ENTITY_FIELD] .. ", attribute: " .. obj.attribute .. ", value: " .. obj.value .. "}"
+   local operator = ""
+   if obj.operator then
+      operator = "operator: " .. tostring(obj.operator) .. ", "
+   end
+   return "ScanNode{type: " .. tostring(obj.type) .. ", " .. operator ..
+      tostring(ENTITY_FIELD) .. ": " .. tostring(obj[ENTITY_FIELD]) ..
+      ", attribute: " .. tostring(obj.attribute) ..
+      ", value: " .. tostring(obj.value) .. "}"
 end
 
 
@@ -408,7 +417,7 @@ function analyze(args)
       local unpacked = unpackObjects(sorted)
       print("{")
       for ix, node in std.ipairs(unpacked) do
-         print("  " .. ix .. ".  {type: " .. node.type .. ", entity: " .. tostring(node[ENTITY_FIELD]) .. ", " .. "attribute: " .. tostring(node.attribute) .. ", value: " .. tostring(node.value) .. "}")
+         print("  " .. ix .. ". " .. tostring(node))
       end
       print("}")
    end
