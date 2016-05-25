@@ -4,6 +4,17 @@ var activeElements = {"root": document.createElement("div")};
 var activeStyles = {};
 var supportedTags = {"div": true, "span": true};
 
+function insertSorted(parent, child) {
+  let current;
+  for(let curIx = 0; curIx < parent.children.length; curIx++) {
+    current = parent.children[curIx];
+    if(current.ix && current.ix > child.ix) {
+      break;
+    }
+  }
+  parent.insertBefore(child, current);
+}
+
 function denormalizeResult(result) {
   let {insert, remove} = result;
   let additions = {};
@@ -38,17 +49,55 @@ function denormalizeResult(result) {
   // do removes that aren't just going to be overwritten by
   // the adds
   if(remove.length) {
+    // we clean up styles after the fact so that in the case where
+    // the style object is being removed, but the element is sticking
+    // around, we remove any styles that may have been applied
+    let stylesToGC = [];
     for(let rem of remove) {
       let [entity, attribute, value] = rem;
-      switch(attribute) {
-        case "tag":
-          break;
-        case "children":
-          break;
-        case "text":
-          attribute = "textContent"
-          break;
+      if(activeStyles[entity]) {
+        // do style stuff
+        let style = activeStyles[entity].style;
+        if(!additions[entity] || !additions[entity][attribute]) {
+          style[attribute] = "";
+        }
+      } else if(activeElements[entity]) {
+        let elem = activeElements[entity];
+        switch(attribute) {
+          case "tag":
+            if(supportedTags[value]) {
+              //nuke the whole element
+              elem.parentNode.removeChild(elem);
+              activeElements[entity] = null;
+            }
+            break;
+          case "style":
+            stylesToGC.push(value);
+            break;
+          case "children":
+            let child = activeElements[value];
+            if(child) {
+              elem.removeChild(child);
+              activeElements[value] = null;
+            }
+            break;
+          case "text":
+            if(!additions[entity] || !additions[entity]["text"]) {
+              elem.textContent = "";
+            }
+            break;
+          default:
+            if(!additions[entity] || !additions[entity][attribute]) {
+              //FIXME: some attributes don't like getting set to undefined...
+              elem[attribute] = undefined;
+            }
+            break;
+        }
       }
+    }
+    // clean up any styles that need to go
+    for(let styleId of stylesToGC) {
+      activeStyles[styleId] = null;
     }
   }
 
@@ -71,8 +120,9 @@ function denormalizeResult(result) {
       let value = ent[attr];
       if(attr == "children") {
         for(let child of value) {
-          if(activeElements[child]) {
-            elem.appendChild(child);
+          let childElem = activeElements[child];
+          if(childElem) {
+            insertSorted(elem, childElem)
           } else {
             let childAddition = additions[child];
             // FIXME: if somehow you get a child id, but that child
@@ -90,7 +140,7 @@ function denormalizeResult(result) {
         elem.textContent = value;
       } else if(attr == "_parent") {
         let parent = activeElements[value];
-        parent.appendChild(elem);
+        insertSorted(parent, elem);
       } else {
         elem.setAttribute(attr, value);
       }

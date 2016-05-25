@@ -771,7 +771,7 @@ local function parseObjectLine(parent, line, expression, forcedAlias)
     local binding = makeNode("binding", node, line.line, line.offset)
     binding.field = MAGIC_ENTITY_FIELD
     binding.source = node
-    binding.variable = forcedAlias
+    binding.variable = forcedAlias or resolved
   end
   return node
 end
