@@ -3,6 +3,7 @@ local turbo = require("turbo")
 local fs = require("fs")
 local color = require("color")
 local cjson = require("cjson.safe") -- safe means that in a parse fail, nil will be returned
+local runtime = require("runtime")
 
 
 local clients = {}
@@ -48,6 +49,11 @@ function WSExHandler:on_message(msg)
   local data = cjson.decode(msg)
   for k, v in pairs(data) do
     print(k, v)
+  end
+  if data.type == "query" then
+    runtime.open(data, clients[self])
+  elseif data.type == "close" then
+    runtime.close(data, clients[self])
   end
   -- switch on the message and determine what we need to do
   -- open a query, close a query...?
