@@ -125,8 +125,8 @@ function DependencyGraph:addSubqueryNode(node)
    local depends = Set:new()
    for _, body in std.ipairs(node.queries) do
       local subgraph = DependencyGraph:fromQueryGraph(body)
-      provides.union(subgraph:provides(), true)
-      depends.union(subgraph:depends(), true)
+      provides:union(subgraph:provided(), true)
+      depends:union(subgraph:depends(), true)
    end
    return self:add(node, depends, provides)
 end
@@ -149,7 +149,7 @@ function DependencyGraph:fromQueryGraph(query)
    end
 
    for _, node in std.ipairs(query.unions or nothing) do
-      dgraph.addSubqueryNode(node)
+      dgraph:addSubqueryNode(node)
    end
 
    for _, node in std.ipairs(query.chooses or nothing) do
@@ -252,7 +252,7 @@ function DependencyGraph:order(allowPartial)
          if self.unsatisfied[node] == 0 then
             if node.queries then
                for _, body in std.ipairs(node.queries) do
-                  body.dependencyGraph.order()
+                  body.dependencyGraph:order()
                end
             end
             self.sorted[#self.sorted + 1] = node
