@@ -166,7 +166,7 @@ function DependencyGraph:fromQueryGraph(query)
          if node.parent and node.parent.type == "mutate" then
             local old = node.variable
             node.variable = util.shallowCopy(node.variable)
-            node.variable.name = "$$tmp" .. uniqueCounter .. "-" .. node.variable.name
+            node.variable.name = "$$tmp" .. "-" .. node.variable.name .. "-" .. uniqueCounter
             uniqueCounter = uniqueCounter + 1
             for _, binding in std.pairs(node.bindings) do
                if binding.type == "binding" and binding.variable == old then
