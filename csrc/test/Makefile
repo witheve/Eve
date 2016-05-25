@@ -16,7 +16,7 @@ continuation_templates.h:
 	python ../continuations.py 8 8 continuation_templates.h
 
 %.o: %.c continuation_templates.h
-	clang -std=c99 -I../unix -I.. -I. -g -c $<
+	cc -std=c99 -I../unix -I.. -I. -g -c $<
 
 %.o: %.lua 
 	luajit  -b $< $@
@@ -26,7 +26,7 @@ continuation_templates.h:
 # address space where other people normally live..no idea why, but move
 # the executable out of the way for the moment
 lueve: $(CORE) $(UNIX) $(COMPILER) lueve.o
-	clang -pagezero_size 10000 -image_base 100000000  $^ $(LIBLUAJIT) -o $@
+	cc -pagezero_size 10000 -image_base 100000000  $^ $(LIBLUAJIT) -o $@
 
 clean:
 	rm -f *.o lueve continuation_templates.h

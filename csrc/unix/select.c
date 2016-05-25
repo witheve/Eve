@@ -23,10 +23,10 @@ void select_timer_block(ticks interval)
     FD_ZERO(&writes);
 
     foreach_table (read_handlers, d, z) 
-        FD_SET((descriptor)d, &reads);
+        FD_SET((unsigned long)d, &reads);
 
     foreach_table (write_handlers, d, z)
-        FD_SET((descriptor)d, &writes);
+        FD_SET((unsigned long)d, &writes);
 
     result = select(FD_SETSIZE, &reads, &writes, 0, timeout_pointer);
 
@@ -34,7 +34,7 @@ void select_timer_block(ticks interval)
         // should be order number of set descriptors looked up in 
         // iodescs, not number of iodescs
         foreach_table (read_handlers, d, t) 
-            if (FD_ISSET((descriptor)d, &reads)) {
+            if (FD_ISSET((unsigned long)d, &reads)) {
                 thunk i = table_find(read_handlers, d);
                 // for some reason we beleive these deletes are safe
                 table_set(read_handlers, d, EMPTY);
@@ -42,7 +42,7 @@ void select_timer_block(ticks interval)
             }
         
         foreach_table (write_handlers, d, t)
-            if (FD_ISSET((descriptor)d, &writes)) {
+            if (FD_ISSET((unsigned long)d, &writes)) {
                 thunk t = table_find(write_handlers, d);
                 table_set(write_handlers, t, EMPTY);
                 apply(t);
@@ -54,7 +54,7 @@ void select_timer_block(ticks interval)
 static iu64 key_from_fd(void *x) {return((unsigned long) x);}
 // uhh, if the key is iu64 then we are prefiltering on this anyways...so...
 // but maybe we can mix up key a little bit for better distribution?
-static boolean compare_fd(void *x, void *y) {return((unsigned int)x==(unsigned int)y);}
+static boolean compare_fd(void *x, void *y) {return((unsigned long)x==(unsigned long)y);}
 
 void select_init()
 {
