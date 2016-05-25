@@ -372,8 +372,10 @@ function unpackObjects(nodes)
             end
 
             for _, binding in std.ipairs(node.bindings) do
-               unpacked[ix] = ScanNode:fromBinding(node, binding, entity)
-               ix = ix + 1
+               if binding.field ~= ENTITY_FIELD then
+                  unpacked[ix] = ScanNode:fromBinding(node, binding, entity)
+                  ix = ix + 1
+               end
             end
          end
       else
