@@ -10,6 +10,7 @@ local util = require("util")
 local Set = require("set").Set
 local parser = require("parser")
 local color = require("color")
+local build = require("build")
 setfenv(1, Pkg)
 
 local ENTITY_FIELD = parser.ENTITY_FIELD
@@ -411,6 +412,7 @@ function analyze(args)
          print("  " .. ix .. ".  {type: " .. node.type .. ", entity: " .. tostring(node[ENTITY_FIELD]) .. ", " .. "attribute: " .. tostring(node.attribute) .. ", value: " .. tostring(node.value) .. "}")
       end
       print("}")
+      build.build(unpacked)
    end
 end
 
