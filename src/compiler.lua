@@ -6,6 +6,7 @@ local print = print
 local tostring = tostring
 local getmetatable = getmetatable
 local setmetatable = setmetatable
+local string = string
 local util = require("util")
 local Set = require("set").Set
 local parser = require("parser")
@@ -19,12 +20,25 @@ local EAV_TAG = "eav"
 -- Utilities
 local nothing = {}
 
-function formatQueryNode(node)
-   if node.type == "query" or
-      node.type == "variable" then
-         return node.type .. "<" .. node.name .. ">"
+function formatQueryNode(node, indent)
+   indent = indent or 0
+   local padding = string.rep("  ", indent)
+   local result = padding .. node.type
+   if node.type == "query" then
+      result = result .. "<" .. (node.name or "unnamed") .. ">"
+      if node.unpacked then
+         result = result .. "{\n"
+         for ix, guy in std.ipairs(node.unpacked) do
+            result = result .. padding .. "  " .. ix .. ". " .. tostring(guy) .. ",\n"
+         end
+         result = result .. padding .. "}"
+      elseif node.dependencyGraph then
+         result = result .. tostring(node.dependencyGraph)
+      end
+   elseif node.type == "variable" then
+      result = result .. "<" .. (node.name or "unnamed") .. ">"
    elseif node.type == "binding" then
-      local result = node.type .. "{" .. tostring(node.field) .. " -> "
+      result = result .. "{" .. tostring(node.field) .. " -> "
       if node.constant then
          result = result .. tostring(node.constant)
       elseif node.variable then
@@ -32,19 +46,25 @@ function formatQueryNode(node)
       end
       return result .. "}"
    elseif node.type == "object" then
-      local result = node.type .. "{"
+      result = result .. "{"
       for _, binding in std.ipairs(node.bindings) do
          result = result .. formatQueryNode(binding) .. ", "
       end
       return result .. "}"
    elseif node.type == "mutate" then
-      local result = node.type .. "<" .. node.operator .. ">{"
+      result = result .. "<" .. node.operator .. ">{"
       for _, binding in std.ipairs(node.bindings) do
          result = result .. formatQueryNode(binding) .. ", "
       end
       return result .. "}"
+   elseif node.type == "union" or node.type == "choose" then
+      result = result .. "{\n"
+      for _, query in std.ipairs(node.queries) do
+         result = result .. formatQueryNode(query, 1) .. ",\n"
+      end
+      return result .. "}"
    end
-   return "unknown " .. node.type
+   return result
 end
 
 local DefaultNodeMeta = {}
@@ -84,8 +104,8 @@ function DependencyGraph:provided()
    return self.bound
 end
 
-function DependencyGraph:sorted()
-   return #obj.unsorted == 0
+function DependencyGraph:isSorted()
+   return #self.unsorted == 0
 end
 
 function DependencyGraph:addObjectNode(node)
@@ -108,7 +128,8 @@ function DependencyGraph:addMutateNode(node, isBound)
          produces:add(binding.variable)
       end
 
-      if binding.variable then
+      -- If the binding is bound on a variable that is produced in the query, it becomes a dependency of the query.
+      if binding.variable and self.terms[binding.variable] then
          depends:add(binding.variable)
       end
    end
@@ -124,18 +145,22 @@ function DependencyGraph:addSubqueryNode(node)
    local provides = Set:new()
    local depends = Set:new()
    for _, body in std.ipairs(node.queries) do
-      local subgraph = DependencyGraph:fromQueryGraph(body)
+      local subgraph = DependencyGraph:fromQueryGraph(body, self.terms:clone(), self.terms:clone())
       provides:union(subgraph:provided(), true)
       depends:union(subgraph:depends(), true)
    end
    return self:add(node, depends, provides)
 end
 
-function DependencyGraph:fromQueryGraph(query)
+function DependencyGraph:fromQueryGraph(query, terms, bound)
    local uniqueCounter = 0
    local dgraph = self
    if getmetatable(dgraph) ~= DependencyGraph then
+      -- @FIXME: this naive injection strategy lets objects be scheduled willy-nilly after mutates...
+      -- Not tracking this information is currently incidentally correct, but cannot be relied upon to order subqueries properly within their parents
+      -- dgraph = self:new{terms = terms, bound = bound}
       dgraph = self:new()
+
    end
    dgraph.query = query
    query.dependencyGraph = dgraph
@@ -148,16 +173,16 @@ function DependencyGraph:fromQueryGraph(query)
       dgraph:addSubqueryNode(node)
    end
 
+   for _, node in std.ipairs(query.objects or nothing) do
+      dgraph:addObjectNode(node)
+   end
+
    for _, node in std.ipairs(query.unions or nothing) do
       dgraph:addSubqueryNode(node)
    end
 
    for _, node in std.ipairs(query.chooses or nothing) do
       dgraph:addSubqueryNode(node)
-   end
-
-   for _, node in std.ipairs(query.objects or nothing) do
-      dgraph:addObjectNode(node)
    end
 
    -- If the ENTITY variable of this mutate isn't already bound and it's a child of another mutate,
@@ -246,6 +271,7 @@ function DependencyGraph:order(allowPartial)
         ii.  b -> a
         iii. a, b -> f
    ]]--
+
    while self.unsorted:length() > 0 do
       local scheduled = false
       for node in std.pairs(self.unsorted) do
@@ -274,6 +300,9 @@ function DependencyGraph:order(allowPartial)
          end
       end
       if not scheduled and not allowPartial then
+         print("-----ERROR----")
+         print(tostring(self))
+         print("--------------")
          error("Unable to find a valid dependency ordering for the given graph, aborting")
       elseif not scheduled then
          break
@@ -324,7 +353,6 @@ function ScanNode:fromBinding(source, binding, entity)
    end
    obj.source = source
    obj.type = source.type
-   print("OP", source.operator)
    obj.operator = source.operator
    obj[ENTITY_FIELD] = entity
    obj.attribute = binding.field
@@ -388,6 +416,11 @@ function unpackObjects(nodes)
             end
          end
       else
+         if node.type == "union" or node.type == "choose" then
+            for _, query in std.ipairs(node.queries) do
+               query.unpacked = unpackObjects(query.dependencyGraph:order())
+            end
+         end
          unpacked[ix] = node
          ix = ix + 1
       end
