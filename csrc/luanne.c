@@ -46,6 +46,16 @@ static value value_from_lua(lua_State *L, int index)
     return 0;
 }
 
+static inline value lookup(value k, value *r)
+{
+    if (type_of(k) == register_space)  {
+        // good look keeping your sanity if this is a non-register value in this space
+        return(r[(unsigned long)k-register_base]);
+    }
+    return k;
+}
+
+
 // run an execf from lualand. should take an op
 static int run(lua_State *L)
 {
@@ -112,8 +122,18 @@ static int build_scan(lua_State *L)
     lua_pushlightuserdata(L, r);
     return 1;
 }
+
+// dynamic baggy?
+static void do_insert(bag b, value a, value b, value c, execf n, operator op, value *r) 
+{
+    edb_insert(lookup(a, r), lookup(b, r), lookup(c,r));
+    n(op, r);
+}
     
-// eav
+static int build_insert(lua_State *L)
+{
+}
+
 static int direct_insert(lua_State *L)
 {
     interpreter c = lua_context(L);
@@ -302,16 +322,21 @@ interpreter build_lua()
     
     luaL_openlibs(c->L);     // what run time dependencies do I have?
     require_luajit(c->L);
-    define(c, "insert", direct_insert);
-    define(c, "run", run);
-    define(c, "wrap_tail", wrap_tail);
-    define(c, "scan", build_scan);
     define(c, "register", construct_register);
     define(c, "suid", construct_uuid);
     define(c, "snumber", construct_number);
     define(c, "sboolean", construct_boolean);
     define(c, "sstring_boolean", construct_string);
     define(c, "value_to_string", lua_print_value);
-    define(c, "generate_uuid", lua_gen_uuid);
+
+    
+    // exec builder stuff
+    define(c, "run", run);
+    define(c, "generate_uuid", build_generate_uuid);
+    define(c, "wrap_tail", wrap_tail);
+    define(c, "scan", build_scan);
+    define(c, "build_insert", build_insert);
+    
+
     return c;
 }

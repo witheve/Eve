@@ -25,8 +25,9 @@ continuation_templates.h:
 # luajit has decided that they really need to use the specific part of the
 # address space where other people normally live..no idea why, but move
 # the executable out of the way for the moment
+#macosx -pagezero_size 10000 -image_base 100000000 
 lueve: $(CORE) $(UNIX) $(COMPILER) lueve.o
-	cc -pagezero_size 10000 -image_base 100000000  $^ $(LIBLUAJIT) -o $@
+	cc  $^ $(LIBLUAJIT) -lm -ldl  -o $@
 
 clean:
 	rm -f *.o lueve continuation_templates.h
