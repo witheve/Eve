@@ -560,11 +560,14 @@ local function extractInlineExpressions(scanner)
     local next = scanner:peek()
     if type == "COMMA" then
       -- we treat commas as whitespace
+
     elseif type == "AND" or type == "OR" or type == "CHOOSE" or type == "UNION"
            or type == "ADD" or type == "REMOVE" then
       expressions[#expressions + 1] = token;
+
     elseif type == "GIVEN" or type == "PER" then
       current.children[#current.children + 1] = token
+
     elseif type == "TAG" or type == "NAME" then
       -- if there were children in the current expression, then
       -- we need to put those into expressions as a #foo or @foo
@@ -579,6 +582,7 @@ local function extractInlineExpressions(scanner)
         end
         current = {type = "expr", op = nil, children = {}}
       end
+
       -- check for a valid next token (string/identifier)
       if not current.op and next and (next.type == "IDENTIFIER" or next.type == "STRING") then
         current.op = token
@@ -591,12 +595,14 @@ local function extractInlineExpressions(scanner)
         expressions[#expressions + 1] = token
         print(color.error("invalid tag or name"))
       end
+
     elseif type == "INFIX" or type == "DOT" then
       if not current.op then
         current.op = token
       else
         print(color.error("operator followed by an operator"))
       end
+
     elseif type == "EQUALITY" or type == "ALIAS" then
       -- the stack should be empty as equalities can't be nested
       if #stack == 0 then
@@ -609,6 +615,7 @@ local function extractInlineExpressions(scanner)
       else
         print(color.error("nested equalities aren't allowed"))
       end
+
     elseif type == "OPEN_PAREN" then
       -- put the current thing on the stack if there's an op, start a new guy
       -- if there isn't an op, but there's children, this is an error
@@ -618,6 +625,7 @@ local function extractInlineExpressions(scanner)
         stack:push(current)
         current = {type = "expr", op = nil, children = {}}
       end
+
     elseif type == "CLOSE_PAREN" then
       -- we need to pop the stack
       local topOfStack = stack:peek()
@@ -647,6 +655,7 @@ local function extractInlineExpressions(scanner)
           end
         end
       end
+
     elseif type == "IDENTIFIER" and next and next.type == "OPEN_PAREN" then
       -- this is a function call, we need to push current onto the stack if there
       -- is an op
@@ -656,10 +665,12 @@ local function extractInlineExpressions(scanner)
       current = {type = "expr", op = token, children = {}}
       -- consume the paren, it's been taken care of
       scanner:read()
+
     elseif current.op and (current.op.type == "INFIX" or current.op.type == "TAG" or current.op.type == "NAME" or current.op.type == "DOT") then
       -- we are done with this op, store it as the first arg to the next one
       current.children[#current.children + 1] = token
       current = {type = "expr", op = nil, children = {current}}
+
     elseif not current.op and #current.children > 0 then
       -- we need to check the stack, if the op on the stack is an equality or
       -- alias then we're done here. If it's an infix then this should be an error
@@ -690,9 +701,11 @@ local function extractInlineExpressions(scanner)
   end
   -- clean up anything that might still be hanging out on the stack
   local topOfStack = stack:pop()
+
   if not topOfStack and not current.op then
     expressions[#expressions + 1] = current.children[1]
   end
+
   while topOfStack do
     local stackType = topOfStack.op.type
     if current.op then
@@ -700,6 +713,7 @@ local function extractInlineExpressions(scanner)
     else
       topOfStack.children[#topOfStack.children + 1] = current.children[1]
     end
+
     if stackType ~= "EQUALITY" and stackType ~= "ALIAS" and stackType ~= "INFIX" then
       -- if we're not looking at infix, then we're done popping upward
       break
@@ -711,6 +725,7 @@ local function extractInlineExpressions(scanner)
       end
     end
   end
+
   if #stack ~= 0 then
     -- there shouldn't still be stuff on the stack...
     print(color.error("Finished parsing expressions, but the stack isn't empty"))
@@ -739,7 +754,9 @@ local function parseObjectLine(parent, line, expression, forcedAlias)
     type = "mutate"
     operator = parent.operator or parent.type
   end
+
   local node = makeNode(type, parent, line.line, line.offset)
+
   if type == "mutate" then
     node.operator = operator
   end
@@ -750,12 +767,16 @@ local function parseObjectLine(parent, line, expression, forcedAlias)
     -- identifiers or name/tag on the left
     local left = expression.children[1]
     local right = expression.children[2]
+
     if not left or not right then
       print(string.format(color.error("Invalid alias on line %s"), line.line))
+
     elseif right.type ~= "IDENTIFIER" then
       print(string.format(color.error("Invalid alias on line %s, the right side is not an identifier"), line.line))
+
     elseif left.type == "IDENTIFIER" then
       resolved = resolveVariable(parent, left, left.value)
+
     elseif left.op and (left.op.type == "NAME" or left.op.type == "TAG") then
       local objectName = expression.children[1]
       local binding = makeNode("binding", node, expression.line, expression.offset)
@@ -763,12 +784,15 @@ local function parseObjectLine(parent, line, expression, forcedAlias)
       binding.source = node
       binding.constant = objectName.value
       binding.constantType = "string"
+
     else
       print(string.format(color.error("Invalid alias on line %s"), line.line))
     end
+
   -- @TODO: check for an error here
   elseif expression.type == "IDENTIFIER" then
     resolved = resolveVariable(parent, expression, expression.value)
+
   elseif expression.op and (expression.op.type == "NAME" or expression.op.type == "TAG") then
     local objectName = expression.children[1]
     local binding = makeNode("binding", node, expression.line, expression.offset)
@@ -796,9 +820,11 @@ end
 local function parseAttributeLine(parent, line, expression, nextExpression)
   local node = makeNode("binding", parent, line.line, line.offset)
   local attributeName
+
   if expression.type == "IDENTIFIER" then
     node.field = expression.value
     node.variable = resolveVariable(parent, expression, expression.value)
+
   elseif expression.op and expression.op.type == "NAME" then
     node.field = "name"
     if expression.children[1] then
@@ -808,6 +834,7 @@ local function parseAttributeLine(parent, line, expression, nextExpression)
       print(color.error("Expect a name after the @"))
     end
     return node
+
   elseif expression.op and expression.op.type == "TAG" then
     node.field = "tag"
     if expression.children[1] then
@@ -817,6 +844,7 @@ local function parseAttributeLine(parent, line, expression, nextExpression)
       print(color.error("Expect a name after the #"))
     end
     return node
+
   elseif expression.type == "expr" and (expression.op.type == "ALIAS" or expression.op.type == "EQUALITY") then
     local field = expression.children[1]
     local value = expression.children[2]
@@ -830,9 +858,11 @@ local function parseAttributeLine(parent, line, expression, nextExpression)
     end
     if value.type == "IDENTIFIER" then
       node.variable = resolveVariable(parent, value, value.value)
+
     elseif value.type == "STRING" then
       node.constant = value.value
       node.constantType = "string"
+
     elseif value.type == "NUMBER" then
       node.constant = value.value
       node.constantType = "number"
@@ -953,75 +983,85 @@ parseLine = function(line)
 
   local node
   local parent = getParentNode(line)
-  local scanner = ArrayScanner:new(line.tokens)
   local expressions = ArrayScanner:new(extractInlineExpressions(ArrayScanner:new(line.tokens)))
-  local first = scanner:peek()
+  local first = expressions:read()
   -- we only have queries at the root level
   if line.offset == 0 then
     node = parseQueryLine(line)
+
   elseif first then
-    local firstExpression = expressions:read()
     local final
     -- print(formatGraph({type="expression tree", children = extractInlineExpressions(ArrayScanner:new(line.tokens))}))
-    while firstExpression do
+    while first do
       -- inside of an object or mutate, we expect to see either
       -- identifiers or expressions
       if parent.type == "object" or parent.type == "mutate" then
-          -- print(formatGraph(firstExpression))
-        node = parseAttributeLine(parent, line, firstExpression, expressions:peek())
+        node = parseAttributeLine(parent, line, first, expressions:peek())
 
         -- check for the keyword-based lines types
-      elseif firstExpression.type == "ADD" or firstExpression.type == "REMOVE" then
-        node = parseMutation(line, firstExpression)
+      elseif first.type == "ADD" or first.type == "REMOVE" then
+        node = parseMutation(line, first)
         parent = node
-      elseif firstExpression.type == "CHOOSE" then
+
+      elseif first.type == "CHOOSE" then
         node = makeNode("choose", parent, line.line, line.offset)
         parent = node
-      elseif firstExpression.type == "UNION" then
+
+      elseif first.type == "UNION" then
         node = makeNode("union", parent, line.line, line.offset)
         parent = node
-      elseif firstExpression.type == "OR" then
+
+      elseif first.type == "OR" then
         node = parseOrAnd("choose", line)
         parent = node
-      elseif firstExpression.type == "AND" then
+
+      elseif first.type == "AND" then
         node = parseOrAnd("union", line)
         parent = node
-      elseif firstExpression.type == "NOT" then
+
+      elseif first.type == "NOT" then
         node = makeNode("not", parent, line.line, line.offset)
         parent = node
-      elseif firstExpression.type == "COMMENT" then
+
+      elseif first.type == "COMMENT" then
         node = makeNode("comment", parent, line.line, line.offset)
         node.comment = first.value
-      elseif firstExpression.type == "expr" then
+
+      elseif first.type == "expr" then
         -- otherwise, we have to look more closely at what kind of expression
         -- we're dealing with. At this level, the only valid expressions are
         -- tag/name expressions, or equalities.
-        if firstExpression.op.type == "TAG" or firstExpression.op.type == "NAME" then
-          node = parseObjectLine(parent, line, firstExpression)
+        if first.op.type == "TAG" or first.op.type == "NAME" then
+          node = parseObjectLine(parent, line, first)
           parent = node
-        elseif firstExpression.op.type == "EQUALITY" or firstExpression.op.type == "ALIAS" then
+        elseif first.op.type == "EQUALITY" or first.op.type == "ALIAS" then
           node = makeNode("expression", parent, line.line, line.offset)
         end
-      elseif firstExpression.type == "IDENTIFIER"
+
+      elseif first.type == "IDENTIFIER"
         and (parent.type == "query" or parent.type == "add" or parent.type == "remove") then
         -- a naked identifier is also valid as the beginning of an object query
         -- which is valid at a query boundary or an add/remove
-        node = parseObjectLine(parent, line, firstExpression)
+        node = parseObjectLine(parent, line, first)
         parent = node;
+
       else
         -- @TODO: try and figure out what you were trying to type so we can offer
         -- a decent error message
       end
+
       if not final and node then
         final = node
       end
-      firstExpression = expressions:read()
+      first = expressions:read()
       node = final
     end
   end
+
   if not node then
     node = makeNode("unknown", parent, line.line, line.offset)
   end
+
   return node
 end
 
@@ -1034,7 +1074,6 @@ local function parseLineTree(root)
   end
   return walkNode(root)
 end
-
 
 ------------------------------------------------------------
 -- ParseFile
