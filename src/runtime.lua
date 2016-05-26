@@ -32,16 +32,19 @@ local function open(queryMessage, client)
   -- parse and compile
   local parse = parser.parseString(queryMessage.query)
   -- FIXME: just sending random ui as a test for now
-  --
   callback("insert", {"foo", "tag", "div"})
   callback("insert", {"foo", "children", "bar"})
   callback("insert", {"foo", "children", "woot"})
   callback("insert", {"bar", "tag", "span"})
   callback("insert", {"bar", "text", "yo, sup? "})
+  callback("insert", {"bar", "ix", 3})
   callback("insert", {"bar", "style", "bar-style"})
   callback("insert", {"bar-style", "color", "red"})
   callback("insert", {"woot", "tag", "span"})
   callback("insert", {"woot", "text", "zomg"})
+  callback("flush", nil)
+  callback("remove", {"bar-style", "color", "red"})
+  -- callback("remove", {"bar", "tag", "span"})
   callback("flush", nil)
 end
 

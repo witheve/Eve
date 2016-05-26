@@ -29,6 +29,7 @@ function JSHandler:get()
 end
 
 local WSExHandler = class("WSExHandler", turbo.websocket.WebSocketHandler)
+
 function WSExHandler:open()
   clients[self] = {
     id = nextId(),
@@ -39,11 +40,13 @@ function WSExHandler:open()
   }
   print("Got connection")
 end
+
 function WSExHandler:on_close()
   clients[self] = nil
   -- @TODO: nuke all the open queries for this client
   print("Dropped connection")
 end
+
 function WSExHandler:on_message(msg)
   print("Got message!")
   local data = cjson.decode(msg)
@@ -55,9 +58,6 @@ function WSExHandler:on_message(msg)
   elseif data.type == "close" then
     runtime.close(data, clients[self])
   end
-  -- switch on the message and determine what we need to do
-  -- open a query, close a query...?
-  self:write_message("Hello World.")
 end
 
 

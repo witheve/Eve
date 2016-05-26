@@ -7,13 +7,16 @@ build the chat pane
         #input #channel-input channel
 
 draw messages
+  #chat-messages: parent, channel
   #message name time message channel
   add
-    #div parent: "{channel}-chat-messages", class: "chat-message"
+    parent
       children:
-        #div class: "chat-user", text: name
-        #div class: "chat-time"    text: time
-        #div class: "chat-message", text: message
+        #div class: "chat-message"
+          children:
+            #div class: "chat-user", text: name
+            #div class: "chat-time"    text: time
+            #div class: "chat-message", text: message
 
 handle chat keydowns
   #keydown element, key: "enter"

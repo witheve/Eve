@@ -560,9 +560,26 @@ local function extractInlineExpressions(scanner)
     local next = scanner:peek()
     if type == "COMMA" then
       -- we treat commas as whitespace
+    elseif type == "AND" or type == "OR" or type == "CHOOSE" or type == "UNION"
+           or type == "ADD" or type == "REMOVE" then
+      expressions[#expressions + 1] = token;
     elseif type == "GIVEN" or type == "PER" then
       current.children[#current.children + 1] = token
     elseif type == "TAG" or type == "NAME" then
+      -- if there were children in the current expression, then
+      -- we need to put those into expressions as a #foo or @foo
+      -- can only ever start a new expression
+      if #current.children then
+        if current.op then
+          expressions[#expressions + 1] = current
+        else
+          for _, child in ipairs(current.children) do
+            expressions[#expressions + 1] = child
+          end
+        end
+        current = {type = "expr", op = nil, children = {}}
+      end
+      -- check for a valid next token (string/identifier)
       if not current.op and next and (next.type == "IDENTIFIER" or next.type == "STRING") then
         current.op = token
         current.children[#current.children + 1] = next
@@ -771,7 +788,7 @@ local function parseObjectLine(parent, line, expression, forcedAlias)
     local binding = makeNode("binding", node, line.line, line.offset)
     binding.field = MAGIC_ENTITY_FIELD
     binding.source = node
-    binding.variable = forcedAlias
+    binding.variable = forcedAlias or resolved
   end
   return node
 end
@@ -956,16 +973,22 @@ parseLine = function(line)
         -- check for the keyword-based lines types
       elseif firstExpression.type == "ADD" or firstExpression.type == "REMOVE" then
         node = parseMutation(line, firstExpression)
+        parent = node
       elseif firstExpression.type == "CHOOSE" then
         node = makeNode("choose", parent, line.line, line.offset)
+        parent = node
       elseif firstExpression.type == "UNION" then
         node = makeNode("union", parent, line.line, line.offset)
+        parent = node
       elseif firstExpression.type == "OR" then
         node = parseOrAnd("choose", line)
+        parent = node
       elseif firstExpression.type == "AND" then
         node = parseOrAnd("union", line)
+        parent = node
       elseif firstExpression.type == "NOT" then
         node = makeNode("not", parent, line.line, line.offset)
+        parent = node
       elseif firstExpression.type == "COMMENT" then
         node = makeNode("comment", parent, line.line, line.offset)
         node.comment = first.value
@@ -984,6 +1007,7 @@ parseLine = function(line)
         -- a naked identifier is also valid as the beginning of an object query
         -- which is valid at a query boundary or an add/remove
         node = parseObjectLine(parent, line, firstExpression)
+        parent = node;
       else
         -- @TODO: try and figure out what you were trying to type so we can offer
         -- a decent error message
