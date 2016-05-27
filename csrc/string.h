@@ -102,15 +102,15 @@ static inline iu8 digit_of(character x)
     return(x - '0');
 }
 
-static inline value allocate_estring(heap h, void *source, int length)
-{
-    // only very short strings today
-    unsigned char *result = allocate(h, length + 1);
-    // only strings up to 32, fix me, fix me
-    // consistent with type.h...fix me, fix me
-    result[0] = string_bits | length;
-    memcpy(result + 1, source, length);
-    return result;
-}
+typedef value estring;
+estring intern_string(unsigned char *, int);
 
-string intern_string(unsigned char *, int);
+
+// this intermediate is so we can compare things without copying up front, but its
+// kinda sad. the truth is we dont really need symmetry in the comparison
+typedef struct string_intermediate {
+    unsigned int length;
+    unsigned char *body;
+} *string_intermediate;
+
+extern char *hex_digits;

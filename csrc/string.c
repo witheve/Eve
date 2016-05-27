@@ -3,13 +3,6 @@
 
 static table symbol_table;
 
-// this intermediate is so we can compare things without copying up front, but its
-// kinda sad. the truth is we dont really need symmetry in the comparison
-typedef struct string_intermediate {
-    unsigned int length;
-    unsigned char *body;
-} *string_intermediate;
-
 boolean si_compare(void *a, void *b) 
 {
     string_intermediate sia = a, sib = b;
@@ -56,17 +49,18 @@ struct type string_methods = {
 };
 
 static table interned_string;
+static heap estring_heap;
 
-string intern_string(unsigned char* content, int length) {
+estring intern_string(unsigned char* content, int length) {
     struct string_intermediate si = {length, content};
-    void *x;
+    struct string_intermediate *x;
     // racy
     if (!(x = table_find(interned_string, &si))) {
-        struct string_intermediate *x = allocate(estring_heap, sizeof(struct string_intermediate));
+        x = allocate(estring_heap, sizeof(struct string_intermediate));
         x->length = length;
         x->body = allocate(estring_heap, length);
         memcpy(x->body, content, length);
-        table_set(interned_string, x, (void *)1);
+        table_set(interned_string, x, x);
     }
     return x;
 }

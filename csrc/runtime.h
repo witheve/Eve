@@ -33,6 +33,7 @@ void *memcpy(void *s1, const void *s2, iu64 n);
 int memcmp(const void *s1, const void *s2, iu64 n);
 void *memset(void *b, int c, iu64 len);
 
+
 #include <heap.h>
 #include <continuation.h>
 #include <buffer.h>
@@ -65,10 +66,20 @@ void edb_insert(bag b, value e, value a, value v);
 void init_runtime();
 
 void error(char *);
+
+// break this out 
 typedef struct interpreter *interpreter;
 interpreter build_lua();
+void lua_load_bytecode(interpreter, void *, bytes);
 void lua_run_file(interpreter c, char *filename);
+void require_luajit(interpreter c, char *z);
 
-heap float_heap;
-heap uuid_heap;
-heap estring_heap;
+
+#define UUID_LENGTH 12
+
+uuid generate_uuid();
+
+typedef int operator;
+typedef closure(three_listener, value, value, value);
+void full_scan(bag b, three_listener f);
+void uuid_base_print(char *, void *);

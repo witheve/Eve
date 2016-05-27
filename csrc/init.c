@@ -1,4 +1,5 @@
 #include <runtime.h>
+#include <unix/unix.h>
 
 eboolean efalse;
 eboolean etrue;
@@ -18,7 +19,8 @@ void init_runtime()
     *(unsigned char *)etrue = 1;
     *(unsigned char *)efalse = 0;
     init_string();
-    void init_uuid();
+    init_uuid();
+    float_heap = init_fixed_page_region(init, float_space, float_space + region_size, pages->pagesize);
 }
 
 

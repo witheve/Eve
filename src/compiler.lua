@@ -11,6 +11,7 @@ local util = require("util")
 local Set = require("set").Set
 local parser = require("parser")
 local color = require("color")
+local build = require("build")
 setfenv(1, Pkg)
 
 local ENTITY_FIELD = parser.ENTITY_FIELD
@@ -431,6 +432,21 @@ function unpackObjects(nodes)
    end
 
    return unpacked
+end
+
+function compiloo(contents)
+   local parseGraph = parser.parseString(contents)
+   print ("got parse rgraph")
+   for ix, queryGraph in std.ipairs(parseGraph.children) do
+      local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph)
+      local sorted = dependencyGraph:order()
+      local unpacked = unpackObjects(sorted)
+      print ("calling build dg", run) 
+      return build.build(unpacked, 
+                function(op, r)  
+                print(op, r)
+              end)
+   end
 end
 
 function analyze(args)

@@ -1,6 +1,6 @@
 #include <runtime.h>
 
-static char *hex_digit="0123456789abcdef";
+char *hex_digits="0123456789abcdef";
 
 #define MAX(a, b) ((a)>(b)?(a):(b))
 
@@ -8,7 +8,7 @@ void format_number(string s, iu64 x, int base, int pad)
 {
     if ((x > 0) || (pad > 0)) {
         format_number(s, x/base, base, pad - 1);
-        string_insert(s, hex_digit[x%base]);
+        string_insert(s, hex_digits[x%base]);
     } 
 }
 

@@ -59,7 +59,7 @@ static void read_nonblocking_desc(heap h,
 static CONTINUATION_3_0(rereg, heap, descriptor, blocking_reader);
 static void rereg(heap h, descriptor d, blocking_reader bh)
 {
-    register_read_handler(d, cont(h, read_nonblocking_desc, h, d, bh));
+    //    register_read_handler(d, cont(h, read_nonblocking_desc, h, d, bh));
 }
 
 static void read_nonblocking_desc(heap h, 
