@@ -245,17 +245,20 @@ local function lex(str)
       else
         offset = offset + 1
       end
+
     elseif char == "\"" then
       string = scanner:eatWhile(inString)
       -- skip the end quote
       scanner:read()
       tokens[#tokens+1] = Token:new("STRING", string, line, offset)
       offset = offset + #string
+
     elseif char == "/" and scanner:peek() == "/" then
       scanner:unread()
       local comment = scanner:eatWhile(notNewline)
       tokens[#tokens+1] = Token:new("COMMENT", comment, line, offset)
       offset = offset + #comment
+
     elseif numeric[char] then
       -- go back two positions to see if before this number started, there
       -- was a negative symbol
@@ -273,9 +276,11 @@ local function lex(str)
       local number = scanner:eatWhile(isNumber)
       tokens[tokenIx] = Token:new("NUMBER", number, line, offset)
       offset = offset + #number
+
     elseif specials[char] then
       tokens[#tokens+1] = Token:new(specials[char], char, line, offset)
       offset = offset + 1
+
     else
       scanner:unread()
       local identifier = scanner:eatWhile(isIdentifierChar)
