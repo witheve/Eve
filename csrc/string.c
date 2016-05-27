@@ -60,7 +60,7 @@ estring intern_string(unsigned char* content, int length) {
         x->length = length;
         x->body = allocate(estring_heap, length);
         memcpy(x->body, content, length);
-        table_set(interned_string, x, (void *)1);
+        table_set(interned_string, x, x);
     }
     return x;
 }

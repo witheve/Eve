@@ -16,11 +16,10 @@ end
 
 function lookup(bindings, x) 
    if type(x) == "table" then
-     return bindings[x]     
+     return register(bindings[x])
    end
    return x
 end
-
 
 
 function simple_print_table(label, t)
@@ -49,7 +48,7 @@ function allocate_register(freeset, registers, alloc, e)
   end
   if slot == alloc then alloc = alloc + 1
   else freeset[slot] = nil end 
-  registers[e] = register(slot)
+  registers[e] = slot
   return alloc
 end
 

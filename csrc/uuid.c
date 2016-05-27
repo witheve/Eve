@@ -56,9 +56,9 @@ uuid intern_uuid(unsigned char *x)
     if (!(result = table_find(interned_uuid, x))) {
         result = allocate(uuid_heap, UUID_LENGTH);
         memcpy(result, x, UUID_LENGTH);
-        table_set(interned_uuid, result, (void *)1);
+        table_set(interned_uuid, result, result);
     }
-    return 0;
+    return result;
 }
 
 
