@@ -48,16 +48,16 @@ end
 function walk(graph, bound, tail, key)
    nk = next(graph, key)    
    if nk then
-       defined = {}
-       n = graph[nk]
-       e = n[parser.ENTITY_FIELD]
-       a = a.attribute
-       v = a.value
+       local defined = {}
+       local n = graph[nk]
+       local e = n[parser.ENTITY_FIELD]
+       local a = n.attribute
+       local v = n.value
 
        -- looking at these two cases for object it seems pretty clear this can be generalized
        if n.type == "object" and not bound[e] and lookup(bound, a) and lookup(bound, v) then
           bound[e] = true;
-          registers, freeset, alocat, c = walk(graph, bound, tail, nk)   
+          local registers, freeset, alocat, c = walk(graph, bound, tail, nk)   
           alocat = allocate_register(freeset, registers, alocat, a)
           alocat = allocate_register(freeset, registers, alocat, v)
 
@@ -68,7 +68,7 @@ function walk(graph, bound, tail, key)
 
        if n.type == "object" and not bound[v] and lookup(bound, e) and lookup(bound, a) then
           bound[v] = true;
-          registers, freeset, alocat, c = walk(graph, bound, tail, nk)   
+          local registers, freeset, alocat, c = walk(graph, bound, tail, nk)   
           alocat = allocate_register(freeset, registers, alloc, e)
           alocat = allocate_register(freeset, registers, alloc, a)
           c = scan(c, "EAv", lookup(registers, e), lookup(registers, a), lookup(registers, v))
@@ -77,10 +77,10 @@ function walk(graph, bound, tail, key)
        end
 
        if (n.type == "mutate") then 
-          gen = (variable(e) and not bound[e])
+          local gen = (variable(e) and not bound[e])
           if (gen) then bound[e] = true end
-          registers, freeset, alocat, c = walk(graph, bound, tail, nk)   
-          c = build_insert(c, pass(e, n.attribute, n,value))
+          local registers, freeset, alocat, c = walk(graph, bound, tail, nk)   
+          local c = build_insert(c, lookup(registers, e), lookup(registers, a), lookup(registers, v))
           if gen then  
              c = generate_uuid(c, registers[e])
              alocat = free_register(freeset, registers, alloc, e)

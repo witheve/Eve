@@ -66,10 +66,13 @@ void edb_insert(bag b, value e, value a, value v);
 void init_runtime();
 
 void error(char *);
+
+// break this out 
 typedef struct interpreter *interpreter;
 interpreter build_lua();
+void lua_load_bytecode(interpreter, void *, bytes);
 void lua_run_file(interpreter c, char *filename);
-
+void require_luajit(interpreter c, char *z);
 
 
 #define UUID_LENGTH 12

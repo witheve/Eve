@@ -1,8 +1,8 @@
 #include <runtime.h>
 #include <unix/unix.h>
-#include <luajit-2.1/lua.h>
-#include <luajit-2.1/lauxlib.h>
-#include <luajit-2.1/lualib.h>
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
 
 
 struct interpreter  {
@@ -124,15 +124,43 @@ static int build_scan(lua_State *L)
 }
 
 // dynamic baggy?
-static void do_insert(bag b, value a, value b, value c, execf n, operator op, value *r) 
+static CONTINUATION_5_2(do_insert, bag, value, value, value, execf, operator, value *) ;
+static void do_insert(bag bg, value a, value b, value c, execf n, operator op, value *r) 
 {
-    edb_insert(lookup(a, r), lookup(b, r), lookup(c,r));
-    n(op, r);
+    edb_insert(bg, lookup(a, r), lookup(b, r), lookup(c,r));
+    apply(n, op, r);
 }
     
 static int build_insert(lua_State *L)
 {
+    interpreter c = lua_context(L);
+    execf r = cont(c->h, do_insert, 
+                   c->b, 
+                   value_from_lua(L, 2),
+                   value_from_lua(L, 3),
+                   value_from_lua(L, 4),
+                   value_from_lua(L, 1));
+    lua_pushlightuserdata(L, r);
+    return 1;
 }
+
+static CONTINUATION_2_2(do_genid, execf, int,  operator, value *);
+static void do_genid(execf n, int dest, operator op, value *r) 
+{
+    r[dest] = generate_uuid();
+    apply(n, op, r);
+}
+    
+static int build_genid(lua_State *L)
+{
+    interpreter c = lua_context(L);
+    execf n = cont(c->h, do_genid,
+                   value_from_lua(L, 1),
+                   lua_toregister(L, 2));
+    lua_pushlightuserdata(L, n);
+    return 1;
+}
+
 
 static int direct_insert(lua_State *L)
 {
@@ -289,11 +317,11 @@ void define(interpreter c, char *name, int (*f)(lua_State *)) {
     lua_setglobal(c->L, name);
 }
 
-void require_luajit(lua_State *L)
+void require_luajit(interpreter c, char *z)
 {
-    lua_getglobal(L, "require");
-    lua_pushliteral(L, "main");
-    lua_pcall(L, 1, 0, 0);
+    lua_getglobal(c->L, "require");
+    lua_pushlstring(c->L, z, cstring_length(z));;
+    lua_pcall(c->L, 1, 0, 0);
 }
 
 void lua_run_file(interpreter c, char *filename)
@@ -312,6 +340,11 @@ void lua_run_file(interpreter c, char *filename)
     }
 }
 
+
+extern int luaopen_utf8(lua_State *L);
+
+extern void bundle_add_loaders(lua_State* L);
+ 
 interpreter build_lua()
 {
     heap h = allocate_rolling(pages);
@@ -320,8 +353,9 @@ interpreter build_lua()
     c->h = h;
     c->b = create_bag(efalse);
     
-    luaL_openlibs(c->L);     // what run time dependencies do I have?
-    require_luajit(c->L);
+    luaL_openlibs(c->L);
+    bundle_add_loaders(c->L);
+
     define(c, "register", construct_register);
     define(c, "suid", construct_uuid);
     define(c, "snumber", construct_number);
@@ -332,11 +366,11 @@ interpreter build_lua()
     
     // exec builder stuff
     define(c, "run", run);
-    define(c, "generate_uuid", build_generate_uuid);
+    define(c, "generate_uuid", build_genid);
     define(c, "wrap_tail", wrap_tail);
     define(c, "scan", build_scan);
     define(c, "build_insert", build_insert);
-    
+
 
     return c;
 }

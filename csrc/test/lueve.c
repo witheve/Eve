@@ -1,8 +1,6 @@
 #include <runtime.h>
 #include <unix.h>
 
-
-
 int main(int argc, char **argv)
 {
     init_runtime();

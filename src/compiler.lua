@@ -430,6 +430,18 @@ function unpackObjects(nodes)
    return unpacked
 end
 
+function compiloo(contents)
+   local parseGraph = parser.parseString(contents)
+   print ("got parse rgraph")
+   for ix, queryGraph in std.ipairs(parseGraph.children) do
+      local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph)
+      print ("got dg") 
+      local unpacked = unpackObjects(sorted)
+      print ("calling build dg") 
+      build.build(unpacked)
+   end
+end
+
 function analyze(args)
    local file = args[2]
    local parseGraph = parser.parseFile(file)
@@ -454,7 +466,6 @@ function analyze(args)
          print("  " .. ix .. ". " .. tostring(node))
       end
       print("}")
-      build.build(unpacked)
    end
 end
 
