@@ -17,5 +17,11 @@ draw messages
   end            
 
 handle chat keydowns
-  printTime = "{hours}:{minutes}"
+  [#keydown element, key: "enter"]
+  element = [#channel-input value, channel]
+  [#user name]
+  [#time hours minutes]
   update
+    element.value := ""
+    [#message name, time: "{hours}:{minutes}", message: value, channel]
+  end
