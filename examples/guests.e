@@ -1,23 +1,26 @@
 count guests coming to the party
-  @"my party": party
+  party = [@"my party"]
   union
-    #person: guest
+    guest = [#person]
   and
-    #person spouse: guest
+    [#person spouse]
+    guest = spouse
+  end
   total = count(guest given guest)
-  add
-    party
-      guest-count: total
-      guest
+  update
+    party.guest-count := total
+    party.guest += guest
+  end
 
 how many burgers do I need?
-  @"my party": party, guest
+  party = [@"my party" guest]
   choose
-    guest#growing-boy
+    guest = #growing-boy
     burgers = 2
   or
     burgers = 1
+  end
   total = sum(burgers given burgers, guest)
-  add
-    party
-      burgers: total
+  update
+    party.burgers := total
+  end
