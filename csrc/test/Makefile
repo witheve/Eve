@@ -31,8 +31,8 @@ bundle.o: bundle.c
 %.o: %.c continuation_templates.h
 	cc -std=c99 -I../unix -I.. -I. -I$(LUAJIT_INCLUDES) -g -c $<
 
-%.o: %.lua 
-	luajit  -b $< $@
+%.o: %.lua %.lua
+	luajit -b -g $< $@
 
 
 # luajit has decided that they really need to use the specific part of the

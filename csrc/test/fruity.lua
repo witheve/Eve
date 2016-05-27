@@ -1,6 +1,6 @@
 local compiler = require "compiler"
 
-compiler.compiloo(
+run(compiler.compiloo(
 [[Add some fruits to the system
   add
     #fruit@lemon, color: "yellow"
@@ -16,5 +16,5 @@ Draw a list of fruits
     #div text: name
       style
         color
-]])
+]]))
 

@@ -14,7 +14,7 @@ function variable(x)
 end
 
 
-function lookup(bindings, name) 
+function lookup(bindings, x) 
    if type(x) == "table" then
      return bindings[x]     
    end
@@ -22,26 +22,34 @@ function lookup(bindings, name)
 end
 
 
+
+function simple_print_table(label, t)
+   for k, v in pairs(t) do
+     print(label, tostring(k), tostring(v))
+   end
+end
+
+
 -- consider binding these in a build scope with local functions
 function free_register(freeset, registers, alloc, e)
-  freeset[e] = true
-  table.remove(registers, e)
+  freeset[registers[e]] = true
+  registers[e] = nil
   while(freeset[alloc-1]) do 
-     table.remove(freeset, alloc-1)
      alloc = alloc - 1 
+     freeset[alloc] = nil
   end
   return alloc
 end
 
 function allocate_register(freeset, registers, alloc, e)
-  if not variable(x) then return alloc end
+  if not variable(e) or registers[e] then return alloc end
   slot = alloc
   for index,value in ipairs(freeset) do 
      slot = min(slot, index)
   end
   if slot == alloc then alloc = alloc + 1
   else freeset[slot] = nil end 
-  registers[e] = slot
+  registers[e] = register(slot)
   return alloc
 end
 
@@ -54,6 +62,7 @@ function walk(graph, bound, tail, key)
        local a = n.attribute
        local v = n.value
 
+       print("walk", n.type, e, a, v, tail)
        -- looking at these two cases for object it seems pretty clear this can be generalized
        if n.type == "object" and not bound[e] and lookup(bound, a) and lookup(bound, v) then
           bound[e] = true;
@@ -69,8 +78,9 @@ function walk(graph, bound, tail, key)
        if n.type == "object" and not bound[v] and lookup(bound, e) and lookup(bound, a) then
           bound[v] = true;
           local registers, freeset, alocat, c = walk(graph, bound, tail, nk)   
-          alocat = allocate_register(freeset, registers, alloc, e)
-          alocat = allocate_register(freeset, registers, alloc, a)
+          -- collapse register allocation
+          alocat = allocate_register(freeset, registers, alocat, e)
+          alocat = allocate_register(freeset, registers, alocat, a)
           c = scan(c, "EAv", lookup(registers, e), lookup(registers, a), lookup(registers, v))
           alocat = free_register(freeset, registers, alocat, v)          
           return registers, freeset, alocat, c
@@ -80,15 +90,17 @@ function walk(graph, bound, tail, key)
           local gen = (variable(e) and not bound[e])
           if (gen) then bound[e] = true end
           local registers, freeset, alocat, c = walk(graph, bound, tail, nk)   
-          local c = build_insert(c, lookup(registers, e), lookup(registers, a), lookup(registers, v))
           if gen then  
              c = generate_uuid(c, registers[e])
-             alocat = free_register(freeset, registers, alloc, e)
           else 
-             alocat = allocate_register(freeset, registers, alloc, e)
+             alocat = allocate_register(freeset, registers, alocat, e)
           end
-          alocat = allocate_register(freeset, registers, alloc, a)
-          alocat = allocate_register(freeset, registers, alloc, v)
+          alocat = allocate_register(freeset, registers, alocat, a)
+          alocat = allocate_register(freeset, registers, alocat, v)
+          local c = build_insert(c, lookup(registers, e), lookup(registers, a), lookup(registers, v))
+          if gen then
+             alocat = free_register(freeset, registers, alocat, e)
+          end
           return registers, freeset, alocat, c
        end
 
@@ -104,7 +116,8 @@ end
 
 
 function build(graph, tail) 
-   walk(graph, {}, tail, nil)
+   local _, _, _, program =  walk(graph, {}, wrap_tail(tail), nil)
+   return program
 end
       
 ------------------------------------------------------------

@@ -41,7 +41,7 @@ static value value_from_lua(lua_State *L, int index)
         return lua_touserdata(L, index);
     default:
         // figure out how to signal a lua error
-        printf("yeah, sorry, i dont eat that kind of stuff");
+        printf("yeah, sorry, i dont eat that kind of stuff %d\n", lua_type(L, index));
     }
     return 0;
 }
@@ -134,6 +134,7 @@ static void do_insert(bag bg, value a, value b, value c, execf n, operator op, v
 static int build_insert(lua_State *L)
 {
     interpreter c = lua_context(L);
+
     execf r = cont(c->h, do_insert, 
                    c->b, 
                    value_from_lua(L, 2),
@@ -324,15 +325,32 @@ void require_luajit(interpreter c, char *z)
     lua_pcall(c->L, 1, 0, 0);
 }
 
+void luaL_traceback (lua_State *L, lua_State *L1, const char *msg,
+                     int level);
+
+static int traceback(lua_State *L)
+{
+  if (!lua_isstring(L, 1)) { /* Non-string error object? Try metamethod. */
+    if (lua_isnoneornil(L, 1) ||
+	!luaL_callmeta(L, 1, "__tostring") ||
+	!lua_isstring(L, -1))
+      return 1;  /* Return non-string error object. */
+    lua_remove(L, 1);  /* Replace object by result of __tostring metamethod. */
+  }
+  luaL_traceback(L, L, lua_tostring(L, 1), 1);
+  return 1;
+}
+
 void lua_run_file(interpreter c, char *filename)
 {
     // iterate, flags, etc
     buffer b = read_file(c->h, filename);
     int r;
+    lua_pushcfunction(c->L, traceback);
     if ((r= luaL_loadbuffer(c->L, b->contents, buffer_length(b), filename))){
         printf ("lua load error %d\n", r);
     } else {
-        if (lua_pcall(c->L, 0, 0, 0)) {
+        if (lua_pcall(c->L, 0, 0, lua_gettop(c->L)-1)) {
             printf ("lua error\n");
             printf ("%s\n", lua_tostring(c->L, -1));
         }
@@ -356,6 +374,7 @@ interpreter build_lua()
     luaL_openlibs(c->L);
     bundle_add_loaders(c->L);
 
+    // make me a lua package ala utf8
     define(c, "register", construct_register);
     define(c, "suid", construct_uuid);
     define(c, "snumber", construct_number);

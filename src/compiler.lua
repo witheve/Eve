@@ -436,9 +436,18 @@ function compiloo(contents)
    for ix, queryGraph in std.ipairs(parseGraph.children) do
       local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph)
       print ("got dg") 
+      local sorted = dependencyGraph:order()
       local unpacked = unpackObjects(sorted)
-      print ("calling build dg") 
-      build.build(unpacked)
+      print("{")
+      for ix, node in std.ipairs(unpacked) do
+         print("  " .. ix .. ". " .. tostring(node))
+      end
+      print("}")
+      print ("calling build dg", run) 
+      return build.build(unpacked, 
+                function(op, r)  
+                print(op, r)
+              end)
    end
 end
 
