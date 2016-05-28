@@ -696,6 +696,18 @@ end
 
 local generateObjectNode
 
+local function generateBindingNode(node, context, parent)
+  node.type = "binding"
+  node.source = parent
+  if node.variable then
+    -- local bindings = context.variableToBindings[node.variable] or {}
+    -- bindings[#bindings + 1] = node
+    -- context.variableToBindings[node.variable] = bindings
+  end
+  parent.bindings[#parent.bindings + 1] = node
+  return node
+end
+
 local function resolveExpression(node, context)
   if node.type == "NUMBER" or node.type == "STRING" then
     return {type = "constant", constant = node.value, constantType = node.type:lower()}
@@ -703,11 +715,19 @@ local function resolveExpression(node, context)
   elseif node.type == "IDENTIFIER" then
     return resolveVariable(node.value, context)
 
+  elseif node.type == "attribute" then
+    -- TODO
+
   elseif node.type == "object" then
-    local objectRef = resolveVariable(string.format("object%s%s", node.line, node.offset), context)
+    local objectRef
+    if context.equalityLeft then
+      objectRef = context.equalityLeft
+    else
+      objectRef = resolveVariable(string.format("object%s%s", node.line, node.offset), context)
+    end
     local query = context.queryStack:peek()
     local objectNode = generateObjectNode(node, context)
-    objectNode.bindings[#objectNode.bindings + 1] = {type = "binding", source = objectNode, field = MAGIC_ENTITY_FIELD, variable = objectRef}
+    local binding = generateBindingNode({field = MAGIC_ENTITY_FIELD, variable = objectRef}, context, objectNode)
     local queryKey = objectNode.type == "object" and "objects" or "mutates"
     query[queryKey][#query[queryKey] + 1] = objectNode
     return objectRef
@@ -728,13 +748,25 @@ generateObjectNode = function(root, context)
     if type == "IDENTIFIER" then
       -- generate a variable
       local variable = resolveVariable(child.value, context)
-      object.bindings[#object.bindings + 1] = {type = "binding", source = object, field = child.value, variable = variable}
+      local binding = generateBindingNode({field = child.value, variable = variable}, context, object)
+      lastAttribute = nil
+
+    elseif type == "object" then
+      -- we have an object in here, if lastAttribute is set,
+      -- this node should be added as another binding to that field
+      -- if it's not, then this is an error
+      if lastAttribute then
+        local variable = resolveExpression(child, context)
+        local binding = generateBindingNode({field = lastAttribute.value, variable = variable}, context, object)
+      else
+        -- error
+      end
 
     elseif type == "equality" then
       -- the left has to be either a NAME, TAG, or IDENTIFIER
       local left = child.children[1]
       local right = child.children[2]
-      local binding = {type = "binding", source = object}
+      local binding = {}
 
       if left.type == "NAME" then
         binding.field = "name"
@@ -746,6 +778,7 @@ generateObjectNode = function(root, context)
 
       elseif left.type == "IDENTIFIER" then
         binding.field = left.value
+        lastAttribute = left
         local resolved = resolveExpression(right, context)
         if not resolved then
           -- error
@@ -763,7 +796,7 @@ generateObjectNode = function(root, context)
         -- error
       end
       if binding then
-        object.bindings[#object.bindings + 1] = binding
+        binding = generateBindingNode(binding, context, object)
       end
     end
   end
@@ -828,6 +861,12 @@ local function generateQueryNode(root, context)
       handleUpdateNode(child, query, context)
 
     elseif type == "equality" then
+      local left = resolveExpression(child.children[1], context)
+      -- set that when I try to resolve this expression,
+      -- I'm looking to resolve it to this specific variable
+      context.equalityLeft = left
+      local right = resolveExpression(child.children[2], context)
+      context.equalityLeft = nil
 
     elseif type == "choose" then
 
