@@ -182,6 +182,8 @@ local specials = {
   [","] = "COMMA",
   ["("] = "OPEN_PAREN",
   [")"] = "CLOSE_PAREN",
+  ["["] = "OPEN_BRACKET",
+  ["]"] = "CLOSE_BRACKET",
   [":"] = "ALIAS",
 }
 
@@ -190,24 +192,28 @@ local numeric = {["0"] = true, ["1"] = true, ["2"] = true, ["3"] = true,
                  ["8"] = true, ["9"] = true}
 
 local keywords = {
+  update = "UPDATE",
+  ["end"] = "END",
   choose = "CHOOSE",
   union = "UNION",
   ["and"] = "AND",
   ["or"] = "OR",
-  add = "ADD",
-  remove = "REMOVE",
+  none = "NONE",
   given = "GIVEN",
   per = "PER",
-  [">="] = "EQUALITY",
-  [">="] = "EQUALITY",
-  ["!="] = "EQUALITY",
   ["="] = "EQUALITY",
   [">"] = "EQUALITY",
   ["<"] = "EQUALITY",
+  [">="] = "EQUALITY",
+  [">="] = "EQUALITY",
+  ["!="] = "EQUALITY",
   ["+"] = "INFIX",
   ["-"] = "INFIX",
   ["*"] = "INFIX",
-  ["/"] = "INFIX"
+  ["/"] = "INFIX",
+  ["+="] = "ADD",
+  ["-="] = "REMOVE",
+  [":="] = "SET",
 }
 
 local whitespace = { [" "] = true, ["\n"] = true, ["\t"] = true }
@@ -234,28 +240,36 @@ local function lex(str)
   local line = 1
   local offset = 0
   local tokens = {}
-  local lines = {tokens}
   while char do
+
     if whitespace[char] then
       if char == "\n" then
         line = line + 1
         offset = 0
-        tokens = {}
-        lines[#lines + 1] = tokens
       else
         offset = offset + 1
       end
+
+    -- anything at root level is just documentation
+    elseif offset == 0 then
+      scanner:unread()
+      doc = scanner:eatWhile(notNewline)
+      tokens[#tokens+1] = Token:new("DOC", doc, line, offset)
+      offset = offset + #doc
+
     elseif char == "\"" then
       string = scanner:eatWhile(inString)
       -- skip the end quote
       scanner:read()
       tokens[#tokens+1] = Token:new("STRING", string, line, offset)
       offset = offset + #string
+
     elseif char == "/" and scanner:peek() == "/" then
       scanner:unread()
       local comment = scanner:eatWhile(notNewline)
       tokens[#tokens+1] = Token:new("COMMENT", comment, line, offset)
       offset = offset + #comment
+
     elseif numeric[char] then
       -- go back two positions to see if before this number started, there
       -- was a negative symbol
@@ -273,9 +287,20 @@ local function lex(str)
       local number = scanner:eatWhile(isNumber)
       tokens[tokenIx] = Token:new("NUMBER", number, line, offset)
       offset = offset + #number
+
     elseif specials[char] then
-      tokens[#tokens+1] = Token:new(specials[char], char, line, offset)
-      offset = offset + 1
+      local next = scanner:peek()
+      -- FIXME: there's gotta be a better way to deal with this than special casing it
+      if char == ":" and next == "=" then
+        tokens[#tokens+1] = Token:new(keywords[":="], ":=", line, offset)
+        -- skip the =
+        scanner:read()
+        offset = offset + 2
+      else
+        tokens[#tokens+1] = Token:new(specials[char], char, line, offset)
+        offset = offset + 1
+      end
+
     else
       scanner:unread()
       local identifier = scanner:eatWhile(isIdentifierChar)
@@ -286,7 +311,7 @@ local function lex(str)
     end
     char = scanner:read()
   end
-  return lines
+  return tokens
 end
 
 ------------------------------------------------------------
@@ -384,657 +409,494 @@ local function formatGraph(root, seen, depth)
   return string
 end
 
+local function formatQueryGraph(root, seen, depth)
+  local seen = seen or {}
+  local depth = depth or 0
+  if not root or seen[root] then return "" end
+  seen[root] = true
+  local indent = makeWhitespace(depth * 4)
+  local nextDepth = depth
+  local string = "\n"
+  if root.type then
+    string = color.dim(string.format("%s%s| ", indent , depth)) .. color.warning(root.type or "none") .. "\n"
+    nextDepth = depth + 1
+  end
+  local childIndent = color.dim(indent .. " |  ")
+  for k, v in pairs(root) do
+    if type(v) == "table" then
+      if type(k) == "string" and k ~= "children" then
+        string = string .. indent .. color.dim(" |  ") .. color.dim(k) .. ": "
+      end
+      if not seen[v] then
+        string = string .. formatQueryGraph(v, seen, nextDepth)
+      elseif v.type == "variable" then
+        string = string .. string.format(color.warning("variable<%s>\n"), v.name)
+      else
+        string = string .. color.error("seen\n")
+      end
+    elseif k == "type" then
+      -- ignore
+    else
+      local toPrint = v
+      if type(v) == "string" then
+        local extraWhitespace = makeWhitespace(#k + 1)
+        toPrint = toPrint:gsub("\n", color.dim("\n" .. childIndent .. extraWhitespace))
+      end
+      string = string .. childIndent .. string.format("%s: %s\n", color.dim(k), toPrint)
+    end
+  end
+  return string
+end
+
 ------------------------------------------------------------
 -- Parse
 ------------------------------------------------------------
 
-local function buildLineTree(lines, context)
-  local parent = context
-  parent.offset = -1
-  parent.line = -1
-  parent.children = {}
-  parent.lines = {}
-  parent.type = "context"
-  for _, line in ipairs(lines) do
-    local child = {tokens = line, children = {}, type = "line"}
-    local first = line[1]
-    if first then
-      child.offset = first.offset
-      child.line = first.line
-      -- if we're at a lower indent level than our parent,
-      -- walk up the tree until we're not
-      while parent and child.offset <= parent.offset do
-        parent = parent.parent
-      end
-      parent.children[#parent.children + 1] = child
-      child.parent = parent
-      parent = child
-      context.lines[#context.lines + 1] = child
-    end
-  end
-  return context
-end
+local infixTypes = {equality = true, infix = true, attribute = true, mutate = true}
+local endableTypes = {union = true, choose = true, ["not"] = true, update = true}
 
-local function isSubQueryNode(node)
-  return node.type == "choose" or node.type == "union" or node.type == "not"
-end
-
-local function closestQuery(node)
-  if node.type == "query" then
-    return node
-  end
-  local parentNode = node.parent
-  while parentNode do
-    if parentNode.type == "query" then
-      return parentNode
-    end
-    parentNode = parentNode.parent
-  end
-end
-
-local storeOnQuery = {
-  variable = "variables",
-  ["not"] = "nots",
-  choose = "chooses",
-  union = "unions",
-  object = "objects",
-  expression = "expressions",
-  mutate = "mutates"
-}
-
-local storeOnParent = {
-  binding = "bindings",
-  projection = "projections",
-  grouping = "groupings",
-
-}
-
-local function makeNode(type, parent, line, offset)
-  -- parents that are a choose, union, or not behave slightly differently
-  -- in that unless this is a query node, this node should be appended to the
-  -- most recent query child of the parent
-  if type ~= "query" and isSubQueryNode(parent) then
-    parent = parent.children[#parent.children]
-  end
-  local node = {type = type, parent = parent, line = line, offset = offset, children = {}}
-
-  if type == "choose" or type == "union" or type == "not" then
-    node.children[#node.children + 1] = makeNode("query", node, line, offset)
-  end
-
-  if type ~= "variable" then
-    parent.children[#parent.children + 1] = node
-  end
-  if storeOnQuery[type] then
-    local query = closestQuery(parent)
-    local array = query[storeOnQuery[type]]
-    array[#array + 1] = node
-    node.query = query
-  elseif type == "query" then
-    node.variables = {}
-    node.variableMap = {}
-    node.nots = {}
-    node.chooses = {}
-    node.unions = {}
-    node.objects = {}
-    node.mutates = {}
-    node.expressions = {}
-    -- if this is being parented to a not/choose/union then we want to
-    -- store this in queries on the parent
-    if isSubQueryNode(parent) then
-      local array = parent.queries or {}
-      array[#array + 1] = node
-      parent.queries = array
-    end
-  elseif storeOnParent[type] then
-    local field = storeOnParent[type]
-    local array = parent[field] or {}
-    array[#array + 1] = node
-    parent[field] = array
-  end
-  return node
-end
-
-local parseLine
-
-local function getLineNode(line)
-  local node = line.node
-  if node then return node end
-  line.node = parseLine(line)
-  return line.node
-end
-
-local function getParentNode(line)
-  local parent = getLineNode(line.parent)
-  if isSubQueryNode(parent) then
-    return parent.children[#parent.children]
-  end
-  return parent
-end
-
-local function getPreviousSiblingNode(line)
-  local children = line.parent.children
-  for index, value in ipairs(children) do
-    if line == value then
-      local prev = children[index - 1]
-      return prev and getLineNode(prev) or nil
-    end
-  end
-  return nil
-end
-
-local function resolveVariable(parentNode, token, name)
-  -- to resolve variables, we walk up the chain to find
-  -- all the containing queries. The top-most query contains
-  -- all variables in scope, we'll do the resolution there and if
-  -- we create a new variable, trickle it back down to the other
-  -- queries
-  local queries = {}
-  while parentNode do
-    if parentNode.type == "query" then
-      queries[#queries + 1] = parentNode
-    end
-    parentNode = parentNode.parent
-  end
-  local top = queries[#queries]
-  local var = top.variableMap[name] or makeNode("variable", top, token.line, token.offset)
-  var.name = name
-  for _, query in ipairs(queries) do
-    query.variableMap[name] = var
-  end
-  return var
-end
-
-local function isMutating(parent)
-  return parent.type == "add" or parent.type == "remove" or parent.type == "mutate"
-end
-
-local function extractInlineExpressions(scanner)
+local function parse(tokens)
   local stack = Stack:new()
-  local expressions = {}
-  local current = {type = "expr", op = nil, children = {}}
-
+  local scanner = ArrayScanner:new(tokens)
   local token = scanner:read()
-  while token do
-    local type = token.type
-    local next = scanner:peek()
-    if type == "COMMA" then
-      -- we treat commas as whitespace
-    elseif type == "AND" or type == "OR" or type == "CHOOSE" or type == "UNION"
-           or type == "ADD" or type == "REMOVE" then
-      expressions[#expressions + 1] = token;
-    elseif type == "GIVEN" or type == "PER" then
-      current.children[#current.children + 1] = token
-    elseif type == "TAG" or type == "NAME" then
-      -- if there were children in the current expression, then
-      -- we need to put those into expressions as a #foo or @foo
-      -- can only ever start a new expression
-      if #current.children then
-        if current.op then
-          expressions[#expressions + 1] = current
+  local final = {}
+  local info = {errors = {}, comments = {}}
+
+  local function popToEndable()
+    local stackTop = stack:peek()
+    while stackTop do
+      if not endableTypes[stackTop.type] then
+        -- pop this guy and add him as a child of the next guy
+        local prev = stack:pop()
+        stackTop = stack:peek()
+        if stackTop then
+          stackTop.children[#stackTop.children + 1] = prev
         else
-          for _, child in ipairs(current.children) do
-            expressions[#expressions + 1] = child
-          end
+          final[#final + 1] = prev
         end
-        current = {type = "expr", op = nil, children = {}}
-      end
-      -- check for a valid next token (string/identifier)
-      if not current.op and next and (next.type == "IDENTIFIER" or next.type == "STRING") then
-        current.op = token
-        current.children[#current.children + 1] = next
-        -- skip the next token since we've taken care of it here
-        expressions[#expressions + 1] = current
-        current = {type = "expr", op = nil, children = {}}
-        scanner:read()
       else
-        expressions[#expressions + 1] = token
-        print(color.error("invalid tag or name"))
-      end
-    elseif type == "INFIX" or type == "DOT" then
-      if not current.op then
-        current.op = token
-      else
-        print(color.error("operator followed by an operator"))
-      end
-    elseif type == "EQUALITY" or type == "ALIAS" then
-      -- the stack should be empty as equalities can't be nested
-      if #stack == 0 then
-        if current.op then
-          stack:push({type = "expr", op = token, children = {current}})
-        else
-          stack:push({type = "expr", op = token, children = {current.children[1]}})
-        end
-        current = {type = "expr", op = nil, children = {}}
-      else
-        print(color.error("nested equalities aren't allowed"))
-      end
-    elseif type == "OPEN_PAREN" then
-      -- put the current thing on the stack if there's an op, start a new guy
-      -- if there isn't an op, but there's children, this is an error
-      if not current.op and #current.children > 0 then
-        print(color.error("Open paren following some token"))
-      elseif current.op then
-        stack:push(current)
-        current = {type = "expr", op = nil, children = {}}
-      end
-    elseif type == "CLOSE_PAREN" then
-      -- we need to pop the stack
-      local topOfStack = stack:peek()
-      if not topOfStack then
-        expressions[#expressions + 1] = current.children[1]
-        current = {type = "expr", op = nil, children = {}}
-      else
-        -- start popping the stack upward as this could finish several
-        -- infix ops in a cascade
-        topOfStack = stack:pop()
-        while topOfStack do
-          local stackType = topOfStack.op.type
-          if current.op then
-            topOfStack.children[#topOfStack.children + 1] = current
-          else
-            topOfStack.children[#topOfStack.children + 1] = current.args[1]
-          end
-          if stackType ~= "EQUALITY" and stackType ~= "ALIAS" and stackType ~= "INFIX" then
-            -- if we're not looking at infix, then we're done popping upward
-            break
-          else
-            current = topOfStack
-            topOfStack = stack:pop()
-            if not topOfStack then
-              expressions[#expressions + 1] = current
-            end
-          end
-        end
-      end
-    elseif type == "IDENTIFIER" and next and next.type == "OPEN_PAREN" then
-      -- this is a function call, we need to push current onto the stack if there
-      -- is an op
-      if current.op then
-        stack:push(current)
-      end
-      current = {type = "expr", op = token, children = {}}
-      -- consume the paren, it's been taken care of
-      scanner:read()
-    elseif current.op and (current.op.type == "INFIX" or current.op.type == "TAG" or current.op.type == "NAME" or current.op.type == "DOT") then
-      -- we are done with this op, store it as the first arg to the next one
-      current.children[#current.children + 1] = token
-      current = {type = "expr", op = nil, children = {current}}
-    elseif not current.op and #current.children > 0 then
-      -- we need to check the stack, if the op on the stack is an equality or
-      -- alias then we're done here. If it's an infix then this should be an error
-      -- as it means we've done something like 1 + (4 5). If it's an arbitrary
-      -- function, then we consume this as an arg and keep going until we get
-      -- to a close paren. if the stack is empty then we just add this guy to the
-      -- expression list.
-      local topOfStack = stack:peek()
-      if not topOfStack then
-        expressions[#expressions + 1] = current.children[1]
-        current = {type = "expr", op = nil, children = {token}}
-      else
-        local stackType = topOfStack.op.type
-        topOfStack.children[#topOfStack.children + 1] = current.children[1]
-        current = {type = "expr", op = nil, children = {token}}
-        if stackType == "EQUALITY" or stackType == "ALIAS" then
-          -- we're done with this equality, put it in the expression list
-          expressions[#expressions + 1] = stack:pop()
-        elseif stackType == "INFIX" then
-          -- error
-          print(color.error("two children without an op"))
-        end
-      end
-    else
-      current.children[#current.children + 1] = token
-    end
-    token = scanner:read()
-  end
-  -- clean up anything that might still be hanging out on the stack
-  local topOfStack = stack:pop()
-  if not topOfStack and not current.op then
-    expressions[#expressions + 1] = current.children[1]
-  end
-  while topOfStack do
-    local stackType = topOfStack.op.type
-    if current.op then
-      topOfStack.children[#topOfStack.children + 1] = current
-    else
-      topOfStack.children[#topOfStack.children + 1] = current.children[1]
-    end
-    if stackType ~= "EQUALITY" and stackType ~= "ALIAS" and stackType ~= "INFIX" then
-      -- if we're not looking at infix, then we're done popping upward
-      break
-    else
-      current = topOfStack
-      topOfStack = stack:pop()
-      if not topOfStack then
-        expressions[#expressions + 1] = current
-      end
-    end
-  end
-  if #stack ~= 0 then
-    -- there shouldn't still be stuff on the stack...
-    print(color.error("Finished parsing expressions, but the stack isn't empty"))
-    for _, v in ipairs(stack) do
-      print("STACK:", v)
-    end
-  end
-  return expressions
-end
-
-local function parseObjectLine(parent, line, expression, forcedAlias)
-  local forcedAlias = forcedAlias or false
-  local scanner = ArrayScanner:new(line.tokens)
-  local first = scanner:read()
-  local type = "object"
-  local operator
-  -- @TODO what do we do about nested objects whose parent is an attribute
-  -- as opposed to an object-like node?
-  if parent.type == "binding" and isMutating(parent.parent) then
-    -- if this is a nested object to be added, we need to alias this object, add it to the query
-    -- create a binding from that alias to the parent binding
-    parent = parent.parent;
-    type = "mutate"
-    operator = parent.operator or parent.type
-  elseif isMutating(parent) then
-    type = "mutate"
-    operator = parent.operator or parent.type
-  end
-  local node = makeNode(type, parent, line.line, line.offset)
-  if type == "mutate" then
-    node.operator = operator
-  end
-
-  -- prehandle the case where we're aliasing
-  if expression.op and (expression.op.type == "ALIAS" or expression.op.type == "EQUALITY") then
-    -- aliases are only allowed to be identifiers on the right and either
-    -- identifiers or name/tag on the left
-    local left = expression.children[1]
-    local right = expression.children[2]
-    if not left or not right then
-      print(string.format(color.error("Invalid alias on line %s"), line.line))
-    elseif right.type ~= "IDENTIFIER" then
-      print(string.format(color.error("Invalid alias on line %s, the right side is not an identifier"), line.line))
-    elseif left.type == "IDENTIFIER" then
-      resolved = resolveVariable(parent, left, left.value)
-    elseif left.op and (left.op.type == "NAME" or left.op.type == "TAG") then
-      local objectName = expression.children[1]
-      local binding = makeNode("binding", node, expression.line, expression.offset)
-      binding.field = expression.op.type == "NAME" and "name" or "tag"
-      binding.source = node
-      binding.constant = objectName.value
-      binding.constantType = "string"
-    else
-      print(string.format(color.error("Invalid alias on line %s"), line.line))
-    end
-  -- @TODO: check for an error here
-  elseif expression.type == "IDENTIFIER" then
-    resolved = resolveVariable(parent, expression, expression.value)
-  elseif expression.op and (expression.op.type == "NAME" or expression.op.type == "TAG") then
-    local objectName = expression.children[1]
-    local binding = makeNode("binding", node, expression.line, expression.offset)
-    binding.field = expression.op.type == "NAME" and "name" or "tag"
-    binding.source = node
-    binding.constant = objectName.value
-    binding.constantType = "string"
-  end
-
-  if resolved then
-    node.variable = resolved
-  end
-
-  -- we only bind the magic entity field if there's been an alias or the parser
-  -- is explicitly asking us to force one
-  if forcedAlias or resolved then
-    local binding = makeNode("binding", node, line.line, line.offset)
-    binding.field = MAGIC_ENTITY_FIELD
-    binding.source = node
-    binding.variable = forcedAlias or resolved
-  end
-  return node
-end
-
-local function parseAttributeLine(parent, line, expression, nextExpression)
-  local node = makeNode("binding", parent, line.line, line.offset)
-  local attributeName
-  if expression.type == "IDENTIFIER" then
-    node.field = expression.value
-    node.variable = resolveVariable(parent, expression, expression.value)
-  elseif expression.op and expression.op.type == "NAME" then
-    node.field = "name"
-    if expression.children[1] then
-      node.constant = expression.children[1].value
-      node.constantType = "string"
-    else
-      print(color.error("Expect a name after the @"))
-    end
-    return node
-  elseif expression.op and expression.op.type == "TAG" then
-    node.field = "tag"
-    if expression.children[1] then
-      node.constant = expression.children[1].value
-      node.constantType = "string"
-    else
-      print(color.error("Expect a name after the #"))
-    end
-    return node
-  elseif expression.type == "expr" and (expression.op.type == "ALIAS" or expression.op.type == "EQUALITY") then
-    local field = expression.children[1]
-    local value = expression.children[2]
-    node.field = field.value
-    -- if there isn't a value then it must continue on the next line
-    -- @FIXME: is it true that it's multiple children if you use an '='
-    -- instead of a ':'?
-    if not value then
-      node.multipleChildren = true
-      return node
-    end
-    if value.type == "IDENTIFIER" then
-      node.variable = resolveVariable(parent, value, value.value)
-    elseif value.type == "STRING" then
-      node.constant = value.value
-      node.constantType = "string"
-    elseif value.type == "NUMBER" then
-      node.constant = value.value
-      node.constantType = "number"
-    end
-
-  else
-    print(string.format(color.error("Expected the name of an attribute on line %s"), line.line))
-  end
-  -- if this binding is a variable and has children, then we need to
-  -- create another object/mutate and match it up with the variable that
-  -- we just created for the attribute.
-  -- This only applies for the last attribute of the line, so we check
-  -- next expression here to make sure there's nothing after us.
-  if not nextExpression and node.variable and parent.line ~= line.line and #line.children > 0 then
-    node = parseObjectLine(node, line, expression, node.variable)
-  end
-  return node
-end
-
-local function parseMutation(line, expression)
-  -- @TODO: forever modifier
-  local parent = getParentNode(line)
-  -- local first = line.tokens[1]
-  local type = "add"
-  if expression.type == "REMOVE" then
-    type = "remove"
-  end
-  return makeNode(type, parent, line.line, line.offset)
-end
-
-local function parseMutatedObjectLine(line)
-  local parent = getParentNode(line)
-  local scanner = ArrayScanner:new(line.tokens)
-  local first = scanner:read()
-  -- the only valid thing that can appear under an add or remove
-  -- that isn't already handled by # or @, is an identifier
-  if first.type ~= "IDENTIFIER"then
-    -- @TODO: based on what kind of tokens we see here, we can probably guess a bit at
-    -- what they were trying to express and hint them in the right direction
-    -- print(string.format(color.error("After an %s, I need to know what object to %s. You can express that as either a tag, a name, or an existing variable."), parent.type))
-  end
-  -- we need to create a mutate node here
-  local node = makeNode("mutate", parent, line.line, line.offset)
-  node.operator = parent.type
-  node.variable = resolveVariable(parent, first, first.value)
-  -- and then add a binding for the magical ENTITY field to the variable represented
-  local binding = makeNode("binding", node, line.line, line.offset)
-  binding.field = MAGIC_ENTITY_FIELD
-  binding.source = node
-  binding.variable = node.variable
-  local second = scanner:peek()
-  if second then
-    -- since the first token is specifying the object, the only thing that's valid from here on out
-    -- is a set of attribute expressions. If the next thing isn't an identifier, tag, or @, we've got
-    -- a problem
-    -- @FIXME this should probably just be generically part of attribute set parsing
-    if second.type ~= "IDENTIFIER" or second.type ~= "TAG" or second.type ~= "NAME" then
-      local verb = parent.type == "add" and "adding attributes to" or "removing attributes from"
-      print(string.format(color.error("You're %s %s here, so I was expecting a set of attributes, but I got a %s token instead"), verb, first.value, second.type))
-    else
-      -- parse the attribute string
-    end
-  end
-  return node
-end
-
-local function parseOrAnd(parentType, line)
-  if not line.parent then
-    print(color.error("TOP LEVEL AND/OR?"))
-  end
-  -- this turns into a query node attached to the nearest sibling union
-  -- first we have to find that union
-  local sibling
-  local foundMe = false
-  local parentChildren = line.parent.children
-  for i = #parentChildren, 1, -1 do
-    local siblingLine = parentChildren[i]
-    if foundMe then
-      sibling = getLineNode(siblingLine)
-      if sibling.type == parentType then
         break
       end
     end
-    if siblingLine == line then
-      foundMe = true
-    end
-  end
-  -- now that we have that union, make a new query node for it
-  local childQuery = makeNode("query", sibling, line.line, line.offset)
-  childQuery.variableMap = {}
-  return childQuery
-end
-
-local function parseQueryLine(line)
-  local node
-  local parent = getParentNode(line)
-  -- if the line is at root indentation, then there are two possibilities
-  -- the line is either the start of a query, or it's another line of documentation
-  -- for the current query
-  local sibling = getPreviousSiblingNode(line)
-  -- if the sibling is exactly next to this one and it's a query,
-  -- then we're just adding to the name
-  if sibling and sibling.line == line.line - 1 then
-    sibling.name = sibling.name .. "\n" .. Token:tokensToLine(line.tokens)
-    node = sibling
-  else
-    -- otherwise, this is a brand new query node
-    node = makeNode("query", parent, line.line, line.offset)
-    node.name = Token:tokensToLine(line.tokens)
-  end
-  return node
-end
-
-parseLine = function(line)
-  if line.type == "context" then
-    return {type="context", children={}, file = line.file}
+    return stackTop
   end
 
-  local node
-  local parent = getParentNode(line)
-  local scanner = ArrayScanner:new(line.tokens)
-  local expressions = ArrayScanner:new(extractInlineExpressions(ArrayScanner:new(line.tokens)))
-  local first = scanner:peek()
-  -- we only have queries at the root level
-  if line.offset == 0 then
-    node = parseQueryLine(line)
-  elseif first then
-    local firstExpression = expressions:read()
-    local final
-    -- print(formatGraph({type="expression tree", children = extractInlineExpressions(ArrayScanner:new(line.tokens))}))
-    while firstExpression do
-      -- inside of an object or mutate, we expect to see either
-      -- identifiers or expressions
-      if parent.type == "object" or parent.type == "mutate" then
-          -- print(formatGraph(firstExpression))
-        node = parseAttributeLine(parent, line, firstExpression, expressions:peek())
-
-        -- check for the keyword-based lines types
-      elseif firstExpression.type == "ADD" or firstExpression.type == "REMOVE" then
-        node = parseMutation(line, firstExpression)
-        parent = node
-      elseif firstExpression.type == "CHOOSE" then
-        node = makeNode("choose", parent, line.line, line.offset)
-        parent = node
-      elseif firstExpression.type == "UNION" then
-        node = makeNode("union", parent, line.line, line.offset)
-        parent = node
-      elseif firstExpression.type == "OR" then
-        node = parseOrAnd("choose", line)
-        parent = node
-      elseif firstExpression.type == "AND" then
-        node = parseOrAnd("union", line)
-        parent = node
-      elseif firstExpression.type == "NOT" then
-        node = makeNode("not", parent, line.line, line.offset)
-        parent = node
-      elseif firstExpression.type == "COMMENT" then
-        node = makeNode("comment", parent, line.line, line.offset)
-        node.comment = first.value
-      elseif firstExpression.type == "expr" then
-        -- otherwise, we have to look more closely at what kind of expression
-        -- we're dealing with. At this level, the only valid expressions are
-        -- tag/name expressions, or equalities.
-        if firstExpression.op.type == "TAG" or firstExpression.op.type == "NAME" then
-          node = parseObjectLine(parent, line, firstExpression)
-          parent = node
-        elseif firstExpression.op.type == "EQUALITY" or firstExpression.op.type == "ALIAS" then
-          node = makeNode("expression", parent, line.line, line.offset)
+  local function tryFinishExpression(force)
+    local stackTop = stack:peek()
+    while stackTop do
+      local count = #stackTop.children
+      if force or stackTop.closed or (infixTypes[stackTop.type] and count == 2) then
+        -- pop this guy and add him as a child of the next guy
+        local prev = stack:pop()
+        stackTop = stack:peek()
+        if stackTop then
+          stackTop.children[#stackTop.children + 1] = prev
+        else
+          final[#final + 1] = prev
         end
-      elseif firstExpression.type == "IDENTIFIER"
-        and (parent.type == "query" or parent.type == "add" or parent.type == "remove") then
-        -- a naked identifier is also valid as the beginning of an object query
-        -- which is valid at a query boundary or an add/remove
-        node = parseObjectLine(parent, line, firstExpression)
-        parent = node;
       else
-        -- @TODO: try and figure out what you were trying to type so we can offer
-        -- a decent error message
+        break
       end
-      if not final and node then
-        final = node
+    end
+    return stackTop
+  end
+
+  while token do
+    local stackTop = stack:peek()
+    local type = token.type
+    local next = scanner:peek()
+
+    if type == "DOC" then
+      -- if there's already a query on the stack and this line is directly following
+      -- the last line of the start of the query, then this is just more doc for that
+      -- query
+      if stackTop and stackTop.type == "query" and stackTop.line + 1 == token.line then
+        stackTop.doc = stackTop.doc + "\n" + token.value
+        stackTop.line = token.line
+      else
+        -- clear everything currently on the stack as we're starting a totally new
+        -- query
+        stackTop = tryFinishExpression(true)
+        stack:push({type = "query", doc = token.value, line = token.line, children = {}})
       end
-      firstExpression = expressions:read()
-      node = final
+
+    elseif type == "COMMA" then
+      -- we treat commas as whitespace
+
+    elseif type == "COMMENT" then
+      info.comments[#info.comments + 1] = token
+
+    elseif type == "OPEN_BRACKET" then
+      stack:push({type = "object", children = {}, line = token.line, offset = token.offset})
+
+    elseif type == "CLOSE_BRACKET" then
+      if stackTop.type ~= "object" then
+        -- TODO: this is an error, the only thing that makes sense
+        -- is for a close bracket to be closing an object node
+      else
+        stackTop.closed = true
+      end
+
+    elseif type == "UPDATE" then
+      local update = {type = "update", scope = "transient", children = {}}
+      if next.value == "history" or next.value == "session" then
+        update.scope = next.value
+        -- eat that token
+        scanner:read()
+        -- @TODO: handle specifying a custom bag after history
+      end
+      stack:push(update)
+
+    elseif type == "END" then
+      -- clear everything in the stack up to an "endable" node
+      stackTop = popToEndable()
+      local stackType = stackTop and stackTop.type
+      if not stackType then
+        -- error
+      elseif endableTypes[stackType] then
+        stackTop.closed = true
+      else
+        -- error
+      end
+
+    elseif type == "UNION" or type == "CHOOSE" or type == "NOT" then
+      local childQuery = {type = "query", children = {}}
+      local node = {type = type:lower(), children = {}}
+      stack:push(node)
+      stack:push(childQuery)
+
+    elseif type == "OR" then
+      -- check if this is an inline or, by looking to see if the previous
+      -- child is an identifier
+      local prev = stackTop.children[#stackTop.children]
+      if prev and prev.type == "IDENTIFIER" then
+      else
+        -- otherwise we must be continuing a choose here, pop everything
+        -- up to that choose
+        stackTop = popToEndable()
+        if stackTop.type == "choose" then
+          stack:push({type = "query", children = {}})
+        else
+          -- error
+        end
+
+      end
+
+    elseif type == "AND" then
+      -- we must be continuing a union here, pop everything up to it
+      stackTop = popToEndable()
+      if stackTop.type == "union" then
+        stack:push({type = "query", children = {}})
+      else
+        -- error
+      end
+
+    elseif type == "TAG" or type == "NAME" then
+      if next.type == "STRING" or next.type == "IDENTIFIER" then
+        stackTop.children[#stackTop.children + 1] = {type = "equality", children = {token, next}}
+        -- consume the next token since we've already handled it
+        scanner:read()
+      else
+        -- error
+      end
+
+    elseif type == "DOT" then
+      local prev = stackTop.children[#stackTop.children]
+      if not prev then
+        -- error
+      else
+        -- remove prev, as it's going to get replaced with this attribute
+        stackTop.children[#stackTop.children] = nil
+        stack:push({type = "attribute", children = {prev}})
+      end
+
+    elseif type == "INFIX" then
+      -- get the previous child
+      local prev = stackTop.children[#stackTop.children]
+      -- it needs to either be an expression, an identifier, or a constant
+      if prev and (prev.type == "IDENTIFIER" or prev.type == "infix" or prev.type == "function" or
+                   prev.type == "NUMBER" or prev.type == "STRING" or prev.type == "grouping") then
+        stackTop.children[#stackTop.children] = nil
+        stack:push({type = "infix", func = token.value, children = {prev}})
+      else
+        -- error
+      end
+
+    elseif type == "EQUALITY" or type == "ALIAS" then
+      -- get the previous child
+      local prev = stackTop.children[#stackTop.children]
+      if not prev then
+        -- error
+      else
+        stackTop.children[#stackTop.children] = nil
+        stack:push({type = "equality", children = {prev}})
+      end
+
+    elseif type == "OPEN_PAREN" then
+      stack:push({type = "grouping", children = {}})
+
+    elseif type == "CLOSE_PAREN" then
+      if stackTop and (stackTop.type == "grouping" or stackTop.type == "function") then
+        stackTop.closed = true
+      else
+        -- error
+      end
+
+    elseif type == "ADD" or type == "REMOVE" or type == "SET" then
+      -- get the previous child since these ops are infix
+      local prev = stackTop.children[#stackTop.children]
+      if not prev then
+        -- error
+      else
+        stackTop.children[#stackTop.children] = nil
+        stack:push({type = "mutate", operator = type:lower(), children = {prev}})
+      end
+
+    elseif type == "IDENTIFIER" and next and next.type == "OPEN_PAREN" then
+      stack:push({type = "function", func = token.value, children = {}})
+      -- consume the paren
+      scanner:read()
+
+    elseif type == "IDENTIFIER" or type == "NUMBER" or type == "STRING" or type == "GIVEN" or type == "PER" then
+      stackTop.children[#stackTop.children + 1] = token
+
+    end
+
+    tryFinishExpression()
+    token = scanner:read()
+  end
+  tryFinishExpression(true)
+  return final
+end
+
+
+local function resolveVariable(name, context)
+  local mappings = context.nameMappings
+  local variable
+  for _, mapping in ipairs(mappings) do
+    if mapping[name] then
+      variable = mapping[name]
+      break
     end
   end
-  if not node then
-    node = makeNode("unknown", parent, line.line, line.offset)
+  -- if we didn't find it, then we have to create a new variable
+  -- and add it to the closest name mapping
+  if not variable then
+    variable = {type = "variable", name = name}
   end
+  -- if we haven't mapped this variable at this level then we
+  -- need to do so and add it to the containing query
+  if not mappings:peek()[name] then
+    local query = context.queryStack:peek()
+    query.variables[#query.variables + 1] = variable
+    mappings:peek()[name] = variable
+  end
+  return variable
+end
+
+local generateObjectNode
+
+local function generateBindingNode(node, context, parent)
+  node.type = "binding"
+  node.source = parent
+  if node.variable then
+    -- local bindings = context.variableToBindings[node.variable] or {}
+    -- bindings[#bindings + 1] = node
+    -- context.variableToBindings[node.variable] = bindings
+  end
+  parent.bindings[#parent.bindings + 1] = node
   return node
 end
 
-local function parseLineTree(root)
-  local function walkNode(node)
-    getLineNode(node)
-    for _, child in ipairs(node.children) do
-      walkNode(child)
+local function resolveExpression(node, context)
+  if node.type == "NUMBER" or node.type == "STRING" then
+    return {type = "constant", constant = node.value, constantType = node.type:lower()}
+
+  elseif node.type == "IDENTIFIER" then
+    return resolveVariable(node.value, context)
+
+  elseif node.type == "attribute" then
+    -- TODO
+
+  elseif node.type == "object" then
+    local objectRef
+    if context.equalityLeft then
+      objectRef = context.equalityLeft
+    else
+      objectRef = resolveVariable(string.format("object%s%s", node.line, node.offset), context)
     end
+    local query = context.queryStack:peek()
+    local objectNode = generateObjectNode(node, context)
+    local binding = generateBindingNode({field = MAGIC_ENTITY_FIELD, variable = objectRef}, context, objectNode)
+    local queryKey = objectNode.type == "object" and "objects" or "mutates"
+    query[queryKey][#query[queryKey] + 1] = objectNode
+    return objectRef
+
+  else
+    -- TODO
   end
-  return walkNode(root)
 end
 
+generateObjectNode = function(root, context)
+  local object = {type = "object",
+                  bindings = {},
+                  query = context.queryStack:peek()}
+  local lastAttribute
+
+  for _, child in ipairs(root.children) do
+    local type = child.type
+    if type == "IDENTIFIER" then
+      -- generate a variable
+      local variable = resolveVariable(child.value, context)
+      local binding = generateBindingNode({field = child.value, variable = variable}, context, object)
+      lastAttribute = nil
+
+    elseif type == "object" then
+      -- we have an object in here, if lastAttribute is set,
+      -- this node should be added as another binding to that field
+      -- if it's not, then this is an error
+      if lastAttribute then
+        local variable = resolveExpression(child, context)
+        local binding = generateBindingNode({field = lastAttribute.value, variable = variable}, context, object)
+      else
+        -- error
+      end
+
+    elseif type == "equality" then
+      -- the left has to be either a NAME, TAG, or IDENTIFIER
+      local left = child.children[1]
+      local right = child.children[2]
+      local binding = {}
+
+      if left.type == "NAME" then
+        binding.field = "name"
+        binding.constant = right.value
+
+      elseif left.type == "TAG" then
+        binding.field = "tag"
+        binding.constant = right.value
+
+      elseif left.type == "IDENTIFIER" then
+        binding.field = left.value
+        lastAttribute = left
+        local resolved = resolveExpression(right, context)
+        if not resolved then
+          -- error
+          binding = nil
+        elseif resolved.type == "constant" then
+          binding.constant = resolved.constant
+          binding.constantType = resolved.constantType
+        elseif resolved.type == "variable" then
+          binding.variable = resolved
+        else
+          binding = nil
+          -- error
+        end
+      else
+        -- error
+      end
+      if binding then
+        binding = generateBindingNode(binding, context, object)
+      end
+    end
+  end
+  if context.mutating then
+    object.type = "mutate"
+    object.operator = context.mutateOperator
+    object.scope = context.mutateScope
+  end
+  return object
+end
+
+
+local function handleUpdateNode(root, query, context)
+  context.mutating = true
+
+  for _, child in ipairs(root.children) do
+    local type = child.type
+    if type == "mutate" then
+      -- TODO
+    elseif type == "object" then
+      -- set some context information to handle nested
+      -- objects
+      context.mutateOperator = "add"
+      context.mutateScope = root.scope
+      -- generate the object
+      local object = generateObjectNode(child, context)
+      query.mutates[#query.mutates + 1] = object
+      -- clean up
+      context.mutateOperator = nil
+      context.mutateScope = nil
+    elseif type == "equality" then
+      -- equalities are allowed if the left is an identifier
+      -- and the right is an object, to allow for object references
+      -- TODO
+    end
+  end
+
+  context.mutating = false
+  return object
+end
+
+local function generateQueryNode(root, context)
+  local query = {type = "query",
+                 name = root.doc,
+                 variables = {},
+                 objects = {},
+                 mutates = {},
+                 expressions = {},
+                 nots = {},
+                 unions = {},
+                 chooses = {}}
+
+  -- push this query on to the stack
+  context.queryStack:push(query)
+  context.nameMappings:push({})
+
+  for _, child in ipairs(root.children) do
+    local type = child.type
+    if type == "object" then
+      query.objects[#query.objects + 1] = generateObjectNode(child, context)
+    elseif type == "update" then
+      handleUpdateNode(child, query, context)
+
+    elseif type == "equality" then
+      local left = resolveExpression(child.children[1], context)
+      -- set that when I try to resolve this expression,
+      -- I'm looking to resolve it to this specific variable
+      context.equalityLeft = left
+      local right = resolveExpression(child.children[2], context)
+      context.equalityLeft = nil
+
+    elseif type == "choose" then
+
+    elseif type == "union" then
+
+    elseif type == "not" then
+
+    else
+      -- errors
+    end
+  end
+
+  -- take this query out of the stack before moving on
+  context.queryStack:pop()
+  context.nameMappings:pop()
+  return query
+end
+
+local function generateNodes(root)
+  local context = {queryStack = Stack:new(), nameMappings = Stack:new()}
+  local nodes =  {}
+  for _, child in ipairs(root.children) do
+    if child.type == "query" then
+      nodes[#nodes + 1] = generateQueryNode(child, context)
+    else
+      -- error
+    end
+  end
+  return {type = "code", children = nodes}
+end
 
 ------------------------------------------------------------
 -- ParseFile
@@ -1042,17 +904,17 @@ end
 
 local function parseFile(path)
   local content = fs.read(path)
-  local lines = lex(content)
-  local lineTree = buildLineTree(lines, {file=path, type="file"})
-  parseLineTree(lineTree)
-  return lineTree.node
+  local tokens = lex(content)
+  local tree = {type="expression tree", children = parse(tokens)}
+  local graph = generateNodes(tree)
+  return graph
 end
 
 local function parseString(str)
-  local lines = lex(str)
-  local lineTree = buildLineTree(lines, {file="none", type="string"})
-  parseLineTree(lineTree)
-  return lineTree.node
+  local tokens = lex(str)
+  local tree = {type="expression tree", children = parse(tokens)}
+  local graph = generateNodes(tree)
+  return graph
 end
 
 local function printFileParse(args)
@@ -1063,23 +925,23 @@ local function printFileParse(args)
     print(string.format(color.error("Couldn't open file %s for parsing"), args[2]))
     return
   end
-  print()
-  print(color.dim("---------------------------------------------------------"))
-  print(color.dim("-- Line tree"))
-  print(color.dim("---------------------------------------------------------"))
-  print()
   local path = args[2]
   local content = fs.read(path)
-  local lines = lex(content)
-  local lineTree = buildLineTree(lines, {file=path, type="file"})
-  print(formatGraph(lineTree))
-  parseLineTree(lineTree)
+  local tokens = lex(content)
+  local tree = {type="expression tree", children = parse(tokens)}
+  local graph = generateNodes(tree)
+  -- print()
+  -- print(color.dim("---------------------------------------------------------"))
+  -- print(color.dim("-- Parse tree"))
+  -- print(color.dim("---------------------------------------------------------"))
+  -- print()
+  -- print(formatGraph(tree))
   print()
   print(color.dim("---------------------------------------------------------"))
-  print(color.dim("-- Parse tree"))
+  print(color.dim("-- Query graph"))
   print(color.dim("---------------------------------------------------------"))
   print()
-  print(formatGraph(lineTree.node))
+  print(formatQueryGraph(graph))
   print()
   print(color.dim("---------------------------------------------------------"))
 end
@@ -1093,5 +955,6 @@ return {
   parseString = parseString,
   printFileParse = printFileParse,
   formatGraph = formatGraph,
+  formatQueryGraph = formatQueryGraph,
   ENTITY_FIELD = MAGIC_ENTITY_FIELD
 }

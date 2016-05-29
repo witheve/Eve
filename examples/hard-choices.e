@@ -1,29 +1,10 @@
 choose test
-  #tv-nerds: person
-    location: "party"
-    conversing-with: me
-    favorite-show: show
-    favorite-hobby: hobby
-  choose
-    @me: me
-      favorite-show: show
-    add
-      #conversation
-        between: me
-        between: person
-        about: show
-  or
-    @me: me
-      favorite-hobby: hobby
-    add
-      #conversation
-        between: me
-        between: person
-        about: hobby
-  or
-    add
-      #conversation
-        between: me
-        between person:
-        about: "weather"
-        quality: "shitty"
+  me = [@me]
+  person = [#tv-nerds location: "party" conversing-with: [@me],
+            favorite-show: show, favorite-hobby: hobby]
+  (about, quality) =
+    if me.favorite-show = show then show "high"
+    else if me.favorite-hobby = hobby then hobby "ok"
+    else "weather" "shitty"
+  update
+    [#conversation between: me, between: person, about, quality]

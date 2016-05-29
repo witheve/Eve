@@ -355,6 +355,7 @@ function ScanNode:fromBinding(source, binding, entity)
    obj.source = source
    obj.type = source.type
    obj.operator = source.operator
+   obj.scope = source.scope
    obj[ENTITY_FIELD] = entity
    obj.attribute = binding.field
    obj.value = binding.variable or binding.constant
@@ -365,6 +366,9 @@ function ScanNode.__tostring(obj)
    local operator = ""
    if obj.operator then
       operator = "operator: " .. tostring(obj.operator) .. ", "
+   end
+   if obj.scope then
+      operator = "scope: " .. tostring(obj.scope) .. ", "
    end
    return "ScanNode{type: " .. tostring(obj.type) .. ", " .. operator ..
       tostring(ENTITY_FIELD) .. ": " .. tostring(obj[ENTITY_FIELD]) ..
@@ -449,7 +453,7 @@ function analyze(args)
    local file = args[2]
    local parseGraph = parser.parseFile(file)
    print("--- Parse Graph ---")
-   print(parser.formatGraph(parseGraph))
+   print(parser.formatQueryGraph(parseGraph))
 
    for ix, queryGraph in std.ipairs(parseGraph.children) do
       print("--- Query Graph (" .. ix .. ") " .. queryGraph.name .. " ---")

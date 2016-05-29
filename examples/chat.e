@@ -1,12 +1,12 @@
 build the chat pane
-  #chat-pane channel
-  add
-    #div class: "chat-pane"
-      children:
-        #div#chat-messages class: "chat-messages" id: "{channel}-chat-messages"
-        #input #channel-input channel
+  [#chat-pane channel]
+  update
+    [#div class: "chat-pane" children:
+      [#div#chat-messages class: "chat-messages" id: "{channel}-chat-messages"]
+      [#input #channel-input channel]]
 
 draw messages
+<<<<<<< HEAD
   #chat-messages: parent, channel
   #message name time message channel
   add
@@ -17,14 +17,22 @@ draw messages
             #div class: "chat-user", text: name
             #div class: "chat-time"    text: time
             #div class: "chat-message", text: message
+=======
+  parent = [#chat-messages channel]
+  [#message name time message channel]
+  update
+    parent.children += [#div class: "chat-message", children:
+                         [#div class: "chat-user", text: name]
+                         [#div class: "chat-time"    text: time]
+                         [#div class: "chat-message", text: message]]
+>>>>>>> master
 
 handle chat keydowns
-  #keydown element, key: "enter"
-  #channel-input: element, value, channel
-  #user name
-  #time hours minutes
-  printTime = "{hours}:{minutes}"
+  [#keydown element, key: "enter"]
+  element = [#channel-input value, channel]
+  [#user name]
+  [#time hours minutes]
   update
-    element.value = ""
-  add forever
-    #message name, time: printTime, message: value, channel
+    element.value := ""
+  update history
+    [#message name, time: "{hours}:{minutes}", message: value, channel]
