@@ -19,23 +19,6 @@ static iu64 key_from_pointer(void *x) {return((unsigned long) x);}
 // but maybe we can mix up key a little bit for better distribution?
 static boolean compare_pointer(void *x, void *y) {return(x==y);}
 
-
-typedef closure(two_listener, value, value);
-typedef closure(one_listener, value);
-
-
-void full_scan(bag b, three_listener f)
-{
-    // add listener
-    foreach_table(b->eav->lookup, e, avl) {
-        foreach_table(((level)avl)->lookup, a, vl) {
-            foreach_table(((level)vl)->lookup, v, vl) {
-                apply(f, e, a, v);
-            }
-        }
-    }
-}
-
 static level create_level(heap h)
 {
     level x = allocate(h, sizeof(struct level));
@@ -44,6 +27,7 @@ static level create_level(heap h)
     x->listeners = allocate_table(h, key_from_pointer, compare_pointer);
     return x;
 }
+
 
 // ok, we're going to assume that if there is a miss here we should create the
 // next level, since at the very minimum we're going to want to register
@@ -59,6 +43,40 @@ level scan(heap h, level lev, value key)
         table_set(lev->lookup, key, x);
     }
     return x;
+}
+
+void full_scan(bag b, three_listener f)
+{
+    // add listener
+    foreach_table(b->eav->lookup, e, avl) {
+        foreach_table(((level)avl)->lookup, a, vl) {
+            foreach_table(((level)vl)->lookup, v, vl) {
+                apply(f, e, a, v);
+            }
+        }
+    }
+}
+
+void ea_scan(bag b, value e, value a, one_listener f)
+{
+    level al = scan(b->h, b->eav, e);
+    level vl = scan(b->h, al, a);
+
+    // add listener
+    foreach_table(((level)vl)->lookup, v, vl) {
+        apply(f, v);
+    }
+}
+
+void av_scan(bag b, value a, value v, one_listener f)
+{
+    level al = scan(b->h, b->ave, a);
+    level vl = scan(b->h, al, v);
+
+    // add listener
+    foreach_table(((level)vl)->lookup, e, el) {
+        apply(f, e);
+    }
 }
 
 // its probably going to be better to keep a global guy with
@@ -77,22 +95,46 @@ bag create_bag(value bag_id)
 
 void edb_insert(bag b, value e, value a, value v)
 {
-    level el = scan(b->h, b->eav, e);
-    level al = scan(b->h, el, a);
-    level tail = scan(b->h, al, v);
+    // EAV
+    {
+        level el = scan(b->h, b->eav, e);
+        level al = scan(b->h, el, a);
+        level tail = scan(b->h, al, v);
+        
+        // incremental needs to deal with remove
+        foreach_table(b->listeners, k, v) {
+            apply((three_listener)k, e, a, v);
+        }
+        foreach_table(el->listeners, k, v) {
+            apply((two_listener)k, a, v);
+        }
+        foreach_table(al->listeners, k, v) {
+            apply((one_listener)k, v);
+        }
+        foreach_table(tail->listeners, k, v) {
+            apply((one_listener)k, etrue);
+        }
+    }
 
-    // incremental needs to deal with remove
-    foreach_table(b->listeners, k, v) {
-        apply((three_listener)k, e, a, v);
-    }
-    foreach_table(el->listeners, k, v) {
-        apply((two_listener)k, a, v);
-    }
-    foreach_table(al->listeners, k, v) {
-        apply((one_listener)k, v);
-    }
-    foreach_table(tail->listeners, k, v) {
-        apply((one_listener)k, etrue);
+    // AVE
+    {
+        level al = scan(b->h, b->ave, a);
+        level vl = scan(b->h, al, v);
+        level tail = scan(b->h, vl, e);
+        
+        // incremental needs to deal with remove
+        foreach_table(b->listeners, k, v) {
+            apply((three_listener)k, e, a, v);
+        }
+        foreach_table(al->listeners, k, v) {
+            apply((two_listener)k, a, v);
+        }
+        foreach_table(vl->listeners, k, v) {
+            apply((one_listener)k, v);
+        }
+        foreach_table(tail->listeners, k, v) {
+            apply((one_listener)k, etrue);
+        }
     }
 }
 

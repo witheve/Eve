@@ -434,18 +434,18 @@ function unpackObjects(nodes)
    return unpacked
 end
 
-function compiloo(contents)
+function compileExec(contents, guy)
    local parseGraph = parser.parseString(contents)
    print ("got parse rgraph")
    for ix, queryGraph in std.ipairs(parseGraph.children) do
       local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph)
       local sorted = dependencyGraph:order()
       local unpacked = unpackObjects(sorted)
-      print ("calling build dg", run) 
-      return build.build(unpacked, 
-                function(op, r)  
-                print(op, r)
-              end)
+      -- this handler function is just for debugging, we no longer have
+      -- an 'execution return' 
+      guy(build.build(unpacked,
+             function(op, r)  print(op, r) end
+             ))                 
    end
 end
 

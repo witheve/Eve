@@ -80,6 +80,12 @@ void require_luajit(interpreter c, char *z);
 uuid generate_uuid();
 
 typedef int operator;
+
+
 typedef closure(three_listener, value, value, value);
+typedef closure(two_listener, value, value);
+typedef closure(one_listener, value);
 void full_scan(bag b, three_listener f);
+void ea_scan(bag b, value, value, one_listener f);
+void av_scan(bag b, value, value, one_listener f);
 void uuid_base_print(char *, void *);

@@ -1,4 +1,5 @@
 util = require("util")
+math = require("math")
 parser = require("parser")
 
 function term(name, x)
@@ -31,25 +32,25 @@ end
 
 -- consider binding these in a build scope with local functions
 function free_register(freeset, registers, alloc, e)
-  freeset[registers[e]] = true
-  registers[e] = nil
-  while(freeset[alloc-1]) do 
-     alloc = alloc - 1 
-     freeset[alloc] = nil
-  end
-  return alloc
+   freeset[registers[e]] = true
+   registers[e] = nil
+   while(freeset[alloc-1]) do 
+      alloc = alloc - 1 
+      freeset[alloc] = nil
+   end
+   return alloc
 end
 
 function allocate_register(freeset, registers, alloc, e)
-  if not variable(e) or registers[e] then return alloc end
-  slot = alloc
-  for index,value in ipairs(freeset) do 
-     slot = min(slot, index)
-  end
-  if slot == alloc then alloc = alloc + 1
-  else freeset[slot] = nil end 
-  registers[e] = slot
-  return alloc
+   if not variable(e) or registers[e] then return alloc end
+   slot = alloc
+   for index,value in ipairs(freeset) do 
+      slot = math.min(slot, index)
+   end
+   if slot == alloc then alloc = alloc + 1
+   else freeset[slot] = nil end 
+   registers[e] = slot
+   return alloc
 end
 
 function walk(graph, bound, tail, key)
