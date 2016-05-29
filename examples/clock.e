@@ -1,11 +1,9 @@
 draw a clock hand
   hand = [#clock-hand angle stroke]
   update
-    hand := [#line stroke
-              x1: 50, y1: 50
+    hand := [#line stroke, x1: 50, y1: 50
               x2: 50 + 40 * cos(angle)
               y2: 50 + 40 * sin(angle)]
-  end
 
 draw a clock
   [#time hours minutes seconds]
@@ -15,4 +13,3 @@ draw a clock
         [#clock-hand angle: 30 * hours, stroke: "#023963"]
         [#clock-hand angle: 6 * minutes, stroke: "#023963"]
         [#clock-hand angle: 6 * seconds, stroke: "#ce0b46"]]]
-  end
