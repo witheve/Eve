@@ -4,6 +4,15 @@ LIBLUA = /usr/local/lib/liblua.a
 LIBLUAJIT = /usr/local/lib/libluajit-5.1.a
 LUAJIT_INCLUDES = /usr/local/include/luajit-2.1
 
+PLATFORM = $(shell uname)
+
+ifeq ($(PLATFORM), Darwin)
+  LINK += -pagezero_size 10000 -image_base 100000000 
+endif
+
+ifeq ($(PLATFORM), Linux)
+  LINK += -Wl,-E
+endif
 
 all: lueve
 
@@ -17,6 +26,7 @@ LUAPOWER = bundle.o
 UTF = lutf8lib.o
 COMPILER = compiler.o error.o fs.o parser.o util.o set.o color.o build.o
 UNIX =  unix_util.o region.o select.o #tcp_socket.o
+CORE = buffer.o table.o types.o vector.o format.o rolling.o edb.o init.o luanne.o string.o uuid.o
 CORE = buffer.o table.o types.o vector.o format.o rolling.o edb.o init.o luanne.o string.o uuid.o
 
 continuation_templates.h:
@@ -38,9 +48,9 @@ bundle.o: bundle.c
 # luajit has decided that they really need to use the specific part of the
 # address space where other people normally live..no idea why, but move
 # the executable out of the way for the moment
-#macosx -pagezero_size 10000 -image_base 100000000 
+#macosx 
 lueve: $(CORE) $(UNIX) $(COMPILER) $(UTF) $(LUAPOWER) lueve.o
-	cc  -Wl,-E $^ $(LIBLUAJIT) -lm -ldl  -o $@
+	cc  $(LINK) $^ $(LIBLUAJIT) -lm -ldl  -o $@
 
 clean:
 	rm -f *.o lueve continuation_templates.h
