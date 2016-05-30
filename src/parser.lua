@@ -193,11 +193,12 @@ local numeric = {["0"] = true, ["1"] = true, ["2"] = true, ["3"] = true,
 
 local keywords = {
   update = "UPDATE",
+  ["if"] = "IF",
+  ["then"] = "THEN",
+  ["else"] = "ELSE",
   ["end"] = "END",
-  choose = "CHOOSE",
-  union = "UNION",
-  ["and"] = "AND",
   ["or"] = "OR",
+  ["not"] = "NOT",
   none = "NONE",
   given = "GIVEN",
   per = "PER",
@@ -453,7 +454,8 @@ end
 ------------------------------------------------------------
 
 local infixTypes = {equality = true, infix = true, attribute = true, mutate = true}
-local endableTypes = {union = true, choose = true, ["not"] = true, update = true}
+local singletonTypes = {outputs = true}
+local endableTypes = {choose = true, union = true, ["not"] = true, update = true}
 
 local function parse(tokens)
   local stack = Stack:new()
@@ -485,7 +487,8 @@ local function parse(tokens)
     local stackTop = stack:peek()
     while stackTop do
       local count = #stackTop.children
-      if force or stackTop.closed or (infixTypes[stackTop.type] and count == 2) then
+      if force or stackTop.closed or (infixTypes[stackTop.type] and count == 2)
+         or (singletonTypes[stackTop.type] and count == 1) then
         -- pop this guy and add him as a child of the next guy
         local prev = stack:pop()
         stackTop = stack:peek()
@@ -559,34 +562,70 @@ local function parse(tokens)
         -- error
       end
 
-    elseif type == "UNION" or type == "CHOOSE" or type == "NOT" then
-      local childQuery = {type = "query", children = {}}
-      local node = {type = type:lower(), children = {}}
+    elseif type == "IF" then
+      if stackTop.type == "equality" then
+        -- pop the equality off since it represents the outputs of
+        -- this union/choose
+        local prev = stack:pop(node)
+        local outputs = prev.children[1]
+        if outputs.type ~= "grouping" or outputs.type ~= "IDENTIFIER" then
+          outputs = {}
+          -- error
+          -- attempting to assign an if to something that isn't
+          -- either a group or an identifier
+        end
+        local node = {type = "union", outputs = outputs, children = {}}
+        stack:push(node)
+        local childQuery = {type = "query", children = {}, line = token.line, offset = token.offset}
+        stack:push(childQuery)
+      elseif stackTop.type == "union" or stackTop.type == "choose" then
+        local childQuery = {type = "query", children = {}, line = token.line, offset = token.offset}
+        stack:push(childQuery)
+      else
+        -- error
+      end
+
+    elseif type == "ELSE" then
+      if stackTop.type == "union" then
+        stackTop.type = "choose"
+      elseif stackTop.type ~= "choose" then
+        -- error
+      end
+
+      if next and next.type ~= "IF" then
+        local childQuery = {type = "query", children = {}, closed = true, line = token.line, offset = token.offset}
+        stack:push(childQuery)
+        local childQuery = {type = "outputs", children = {}}
+        stack:push(childQuery)
+      end
+
+    elseif type == "THEN" then
+      if stackTop.type == "query" then
+        stackTop.closed = true
+        local childQuery = {type = "outputs", children = {}}
+        stack:push(childQuery)
+      else
+        -- error
+      end
+
+    elseif type == "NOT" then
+      local childQuery = {type = "query", children = {}, line = token.line, offset = token.offset}
+      local node = {type = "not", children = {}}
       stack:push(node)
       stack:push(childQuery)
+      if not next or next.type ~= "OPEN_PAREN" then
+        -- error
+      else
+        -- eat the open paren
+        scanner:read()
+      end
 
     elseif type == "OR" then
       -- check if this is an inline or, by looking to see if the previous
       -- child is an identifier
       local prev = stackTop.children[#stackTop.children]
       if prev and prev.type == "IDENTIFIER" then
-      else
-        -- otherwise we must be continuing a choose here, pop everything
-        -- up to that choose
-        stackTop = popToEndable()
-        if stackTop.type == "choose" then
-          stack:push({type = "query", children = {}})
-        else
-          -- error
-        end
-
-      end
-
-    elseif type == "AND" then
-      -- we must be continuing a union here, pop everything up to it
-      stackTop = popToEndable()
-      if stackTop.type == "union" then
-        stack:push({type = "query", children = {}})
+        -- TODO
       else
         -- error
       end
@@ -636,7 +675,7 @@ local function parse(tokens)
       stack:push({type = "grouping", children = {}})
 
     elseif type == "CLOSE_PAREN" then
-      if stackTop and (stackTop.type == "grouping" or stackTop.type == "function") then
+      if stackTop and (stackTop.type == "grouping" or stackTop.type == "function" or stackTop.type == "not") then
         stackTop.closed = true
       else
         -- error
@@ -662,8 +701,17 @@ local function parse(tokens)
 
     end
 
-    tryFinishExpression()
+    stackTop = tryFinishExpression()
     token = scanner:read()
+
+    -- choose and union get closed when they are the top of the stack
+    -- and the next token is not either an if or an else
+    if stackTop and (stackTop.type == "choose" or stackTop.type == "union") then
+      if not token or (token.type ~= "IF" and token.type ~= "ELSE") then
+        stackTop.closed = true
+        stackTop = tryFinishExpression()
+      end
+    end
   end
   tryFinishExpression(true)
   return final
@@ -930,19 +978,19 @@ local function printFileParse(args)
   local tokens = lex(content)
   local tree = {type="expression tree", children = parse(tokens)}
   local graph = generateNodes(tree)
-  -- print()
-  -- print(color.dim("---------------------------------------------------------"))
-  -- print(color.dim("-- Parse tree"))
-  -- print(color.dim("---------------------------------------------------------"))
-  -- print()
-  -- print(formatGraph(tree))
   print()
   print(color.dim("---------------------------------------------------------"))
-  print(color.dim("-- Query graph"))
+  print(color.dim("-- Parse tree"))
   print(color.dim("---------------------------------------------------------"))
   print()
-  print(formatQueryGraph(graph))
+  print(formatGraph(tree))
   print()
+  -- print(color.dim("---------------------------------------------------------"))
+  -- print(color.dim("-- Query graph"))
+  -- print(color.dim("---------------------------------------------------------"))
+  -- print()
+  -- print(formatQueryGraph(graph))
+  -- print()
   print(color.dim("---------------------------------------------------------"))
 end
 
