@@ -10,12 +10,12 @@ handle insert
 
 handle edit
   (todo, body, editing, completed) =
-    if [#double-click element: [#todo-item todo]] then todo, todo.body, true, todo.completed
-    else if [#keydown element: [#todo-editor todo] key: "escape"] then todo, todo.body, false, todo.completed
-    else if [#keydown element: [#todo-editor todo value] key: "enter", value] then todo, value, false, false
-    else if [#blur element: [#todo-editor todo value]] then todo, todo.body, false, todo.completed
-    else if [#click element: [#todo-checkbox todo]] then todo, todo.body, false, toggle(todo.completed)
-    else if [#click element: [@toggle-all checked]] then [#todo editing, body], body, editing, checked
+    if [#double-click element: [#todo-item todo]] then (todo, todo.body, true, todo.completed)
+    else if [#keydown element: [#todo-editor todo] key: "escape"] then (todo, todo.body, false, todo.completed)
+    else if [#keydown element: [#todo-editor todo value] key: "enter", value] then (todo, value, false, false)
+    else if [#blur element: [#todo-editor todo value]] then (todo, todo.body, false, todo.completed)
+    else if [#click element: [#todo-checkbox todo]] then (todo, todo.body, false, toggle(todo.completed))
+    else if [#click element: [@toggle-all checked]] then ([#todo editing, body], body, editing, checked)
   update history
     todo := [editing, body, completed]
 
@@ -28,14 +28,14 @@ handle removes
 draw todomvc
   [@app filter]
   (todo, body, completed, editing) =
-    if filter = "completed" then [#todo, body, completed: true, editing], body, true, editing
-    else if filter = "active" then [#todo, body, completed: false, editing], body, false, editing
-    else [#todo, body, completed, editing], body, completed, editing
-  all-checked = if not [#todo completed: false] end then true
+    if filter = "completed" then ([#todo, body, completed: true, editing], body, true, editing)
+    else if filter = "active" then ([#todo, body, completed: false, editing], body, false, editing)
+    else ([#todo, body, completed, editing], body, completed, editing)
+  all-checked = if not([#todo completed: false]) then true
                 else false
   count = count(given [#todo completed: false])
-  hide-clear-completed = count(given [#todo completed: true]) == 0
   [#pluralize number: count, singular: "item left", plural: "items left" text: count-text]
+  hide-clear-completed = count(given [#todo completed: true]) == 0
 
   update
     [#div @todoapp children:
