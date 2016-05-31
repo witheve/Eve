@@ -440,7 +440,7 @@ local function formatQueryGraph(root, seen, depth)
       end
     elseif k == "type" then
       -- ignore
-    else
+    elseif type(k) == "string" then
       local toPrint = v
       if type(v) == "string" then
         local extraWhitespace = makeWhitespace(#k + 1)
@@ -518,7 +518,7 @@ local function parse(tokens)
       -- the last line of the start of the query, then this is just more doc for that
       -- query
       if stackTop and stackTop.type == "query" and stackTop.line + 1 == token.line then
-        stackTop.doc = stackTop.doc + "\n" + token.value
+        stackTop.doc = stackTop.doc .. "\n" .. token.value
         stackTop.line = token.line
       else
         -- clear everything currently on the stack as we're starting a totally new

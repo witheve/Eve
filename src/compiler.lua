@@ -35,12 +35,14 @@ function formatQueryNode(node, indent)
       elseif node.dependencyGraph then
          result = result .. tostring(node.dependencyGraph)
       end
+   elseif node.type == "constant" then
+     result = result .. node.constant
    elseif node.type == "variable" then
       result = result .. "<" .. (node.name or "unnamed") .. ">"
    elseif node.type == "binding" then
       result = result .. "{" .. tostring(node.field) .. " -> "
       if node.constant then
-         result = result .. tostring(node.constant)
+         result = result .. tostring(node.constant.constant)
       elseif node.variable then
          result = result .. formatQueryNode(node.variable)
       end
@@ -367,12 +369,18 @@ function ScanNode.__tostring(obj)
       operator = "operator: " .. tostring(obj.operator) .. ", "
    end
    if obj.scope then
-      operator = "scope: " .. tostring(obj.scope) .. ", "
+      operator = operator .. "scope: " .. tostring(obj.scope) .. ", "
+   end
+   -- FIXME: I couldn't figure out how to get constants to print correctly
+   -- through whatever magical printing mechanism is going on here
+   local value = obj.value
+   if value.type == "constant" then
+     value = value.constant
    end
    return "ScanNode{type: " .. tostring(obj.type) .. ", " .. operator ..
       tostring(ENTITY_FIELD) .. ": " .. tostring(obj[ENTITY_FIELD]) ..
       ", attribute: " .. tostring(obj.attribute) ..
-      ", value: " .. tostring(obj.value) .. "}"
+      ", value: " .. tostring(value) .. "}"
 end
 
 
