@@ -427,6 +427,9 @@ local function formatQueryGraph(root, seen, depth)
     if type(v) == "table" then
       if type(k) == "string" and k ~= "children" then
         string = string .. indent .. color.dim(" |  ") .. color.dim(k) .. ": "
+        if v.type and not seen[v] then
+          string = string .. "\n"
+        end
       end
       if not seen[v] then
         string = string .. formatQueryGraph(v, seen, nextDepth)
@@ -908,6 +911,17 @@ local function generateUnionNode(root, context, unionType)
   return union
 end
 
+local function generateNotNode(root, context)
+  local notNode = {type = "not",
+                   query = context.queryStack:peek()}
+  if #root.children == 1 and root.children[1].type == "query" then
+    notNode.body = generateQueryNode(root.children[1], context)
+  else
+    -- error
+  end
+
+  return notNode
+end
 
 local function handleUpdateNode(root, query, context)
   context.mutating = true
@@ -969,6 +983,7 @@ generateQueryNode = function(root, context)
       query.unions[#query.unions + 1] = generateUnionNode(child, context, "union")
 
     elseif type == "not" then
+      query.nots[#query.nots + 1] = generateNotNode(child, context)
 
     elseif type == "outputs" then
       local outputs = root.outputs
