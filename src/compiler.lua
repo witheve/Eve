@@ -378,7 +378,7 @@ end
 
 function isEAVNode(node)
    for _, binding in std.ipairs(node.bindings) do
-      if binding.field == TAG_FIELD and binding.constant == EAV_TAG then
+      if binding.field == TAG_FIELD and binding.constant and binding.constant.constant == EAV_TAG then
          return true
       end
    end
