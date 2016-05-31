@@ -568,7 +568,7 @@ local function parse(tokens)
         -- this union/choose
         local prev = stack:pop(node)
         local outputs = prev.children[1]
-        if outputs.type ~= "grouping" or outputs.type ~= "IDENTIFIER" then
+        if outputs.type ~= "block" and outputs.type ~= "IDENTIFIER" then
           outputs = {}
           -- error
           -- attempting to assign an if to something that isn't
@@ -576,10 +576,10 @@ local function parse(tokens)
         end
         local node = {type = "union", outputs = outputs, children = {}}
         stack:push(node)
-        local childQuery = {type = "query", children = {}, line = token.line, offset = token.offset}
+        local childQuery = {type = "query", children = {}, outputs = outputs, line = token.line, offset = token.offset}
         stack:push(childQuery)
       elseif stackTop.type == "union" or stackTop.type == "choose" then
-        local childQuery = {type = "query", children = {}, line = token.line, offset = token.offset}
+        local childQuery = {type = "query", children = {}, outputs = stackTop.outputs, line = token.line, offset = token.offset}
         stack:push(childQuery)
       else
         -- error
@@ -593,7 +593,7 @@ local function parse(tokens)
       end
 
       if next and next.type ~= "IF" then
-        local childQuery = {type = "query", children = {}, closed = true, line = token.line, offset = token.offset}
+        local childQuery = {type = "query", children = {}, outputs = stackTop.outputs, closed = true, line = token.line, offset = token.offset}
         stack:push(childQuery)
         local childQuery = {type = "outputs", children = {}}
         stack:push(childQuery)
@@ -654,7 +654,7 @@ local function parse(tokens)
       local prev = stackTop.children[#stackTop.children]
       -- it needs to either be an expression, an identifier, or a constant
       if prev and (prev.type == "IDENTIFIER" or prev.type == "infix" or prev.type == "function" or
-                   prev.type == "NUMBER" or prev.type == "STRING" or prev.type == "grouping") then
+                   prev.type == "NUMBER" or prev.type == "STRING" or prev.type == "block") then
         stackTop.children[#stackTop.children] = nil
         stack:push({type = "infix", func = token.value, children = {prev}})
       else
@@ -672,10 +672,10 @@ local function parse(tokens)
       end
 
     elseif type == "OPEN_PAREN" then
-      stack:push({type = "grouping", children = {}})
+      stack:push({type = "block", children = {}})
 
     elseif type == "CLOSE_PAREN" then
-      if stackTop and (stackTop.type == "grouping" or stackTop.type == "function" or stackTop.type == "not") then
+      if stackTop and (stackTop.type == "block" or stackTop.type == "function" or stackTop.type == "not") then
         stackTop.closed = true
       else
         -- error
@@ -718,7 +718,7 @@ local function parse(tokens)
 end
 
 
-local function resolveVariable(name, context)
+local function resolveVariable(name, context, noCreate)
   local mappings = context.nameMappings
   local variable
   for _, mapping in ipairs(mappings) do
@@ -729,12 +729,12 @@ local function resolveVariable(name, context)
   end
   -- if we didn't find it, then we have to create a new variable
   -- and add it to the closest name mapping
-  if not variable then
+  if not variable and not noCreate then
     variable = {type = "variable", name = name}
   end
   -- if we haven't mapped this variable at this level then we
   -- need to do so and add it to the containing query
-  if not mappings:peek()[name] then
+  if not mappings:peek()[name] and not noCreate then
     local query = context.queryStack:peek()
     query.variables[#query.variables + 1] = variable
     mappings:peek()[name] = variable
@@ -743,14 +743,15 @@ local function resolveVariable(name, context)
 end
 
 local generateObjectNode
+local generateQueryNode
 
 local function generateBindingNode(node, context, parent)
   node.type = "binding"
   node.source = parent
   if node.variable then
-    -- local bindings = context.variableToBindings[node.variable] or {}
-    -- bindings[#bindings + 1] = node
-    -- context.variableToBindings[node.variable] = bindings
+    local bindings = context.variableToBindings[node.variable] or {}
+    bindings[#bindings + 1] = node
+    context.variableToBindings[node.variable] = bindings
   end
   parent.bindings[#parent.bindings + 1] = node
   return node
@@ -761,7 +762,40 @@ local function resolveExpression(node, context)
     return {type = "constant", constant = node.value, constantType = node.type:lower()}
 
   elseif node.type == "IDENTIFIER" then
-    return resolveVariable(node.value, context)
+    if context.equalityLeft and context.equalityLeft.type == "variable" then
+      -- transfer the bindings from this variable to the left variable
+      -- and fix the bindings to reference that var
+      -- FIXME: are we absolutely sure this is the right thing to do in all
+      -- cases?
+      local left = context.equalityLeft
+      local variable = resolveVariable(node.value, context, true)
+      if left == variable or not variable then
+        return left
+      else
+        local bindings = context.variableToBindings[variable]
+        if bindings then
+          local leftBindings = context.variableToBindings[left] or {}
+          for _, binding in ipairs(bindings) do
+            binding.variable = left
+            leftBindings[#leftBindings + 1] = binding
+          end
+          context.variableToBindings[left] = leftBindings
+        end
+        context.nameMappings:peek()[node.value] = left
+        return left
+      end
+    else
+      return resolveVariable(node.value, context)
+    end
+
+  elseif node.type == "equality" then
+    local left = resolveExpression(node.children[1], context)
+    -- set that when I try to resolve this expression,
+    -- I'm looking to resolve it to this specific variable
+    context.equalityLeft = left
+    local right = resolveExpression(node.children[2], context)
+    context.equalityLeft = nil
+    return left
 
   elseif node.type == "attribute" then
     -- TODO
@@ -857,6 +891,24 @@ generateObjectNode = function(root, context)
 end
 
 
+local function generateUnionNode(root, context, unionType)
+  local union = {type = unionType,
+                 query = context.queryStack:peek(),
+                 queries = {}}
+
+  for _, child in ipairs(root.children) do
+    local type = child.type
+    if type == "query" then
+      union.queries[#union.queries + 1] = generateQueryNode(child, context)
+    else
+      -- error
+    end
+  end
+
+  return union
+end
+
+
 local function handleUpdateNode(root, query, context)
   context.mutating = true
 
@@ -883,10 +935,9 @@ local function handleUpdateNode(root, query, context)
   end
 
   context.mutating = false
-  return object
 end
 
-local function generateQueryNode(root, context)
+generateQueryNode = function(root, context)
   local query = {type = "query",
                  name = root.doc,
                  variables = {},
@@ -909,18 +960,36 @@ local function generateQueryNode(root, context)
       handleUpdateNode(child, query, context)
 
     elseif type == "equality" then
-      local left = resolveExpression(child.children[1], context)
-      -- set that when I try to resolve this expression,
-      -- I'm looking to resolve it to this specific variable
-      context.equalityLeft = left
-      local right = resolveExpression(child.children[2], context)
-      context.equalityLeft = nil
+      local left = resolveExpression(child, context)
 
     elseif type == "choose" then
+      query.chooses[#query.chooses + 1] = generateUnionNode(child, context, "choose")
 
     elseif type == "union" then
+      query.unions[#query.unions + 1] = generateUnionNode(child, context, "union")
 
     elseif type == "not" then
+
+    elseif type == "outputs" then
+      local outputs = root.outputs
+      if not root.outputs then
+        -- error
+      elseif outputs.type == "IDENTIFIER" and #child.children == 1 then
+        local equality = {type = "equality", children = {outputs, child.children[1]}}
+        resolveExpression(equality, context)
+      elseif outputs.type == "block" and child.children[1].type == "block" then
+        local block = child.children[1]
+        if #block.children == #outputs.children then
+          for ix, output in ipairs(outputs.children) do
+            local equality = {type = "equality", children = {output, block.children[ix]}}
+            resolveExpression(equality, context)
+          end
+        else
+          -- error, output numbers don't match up
+        end
+      else
+        -- error mismatched outputs
+      end
 
     else
       -- errors
@@ -938,6 +1007,7 @@ local function generateNodes(root)
   local nodes =  {}
   for _, child in ipairs(root.children) do
     if child.type == "query" then
+      context.variableToBindings = {}
       nodes[#nodes + 1] = generateQueryNode(child, context)
     else
       -- error
@@ -978,19 +1048,19 @@ local function printFileParse(args)
   local tokens = lex(content)
   local tree = {type="expression tree", children = parse(tokens)}
   local graph = generateNodes(tree)
-  print()
-  print(color.dim("---------------------------------------------------------"))
-  print(color.dim("-- Parse tree"))
-  print(color.dim("---------------------------------------------------------"))
-  print()
-  print(formatGraph(tree))
-  print()
+  -- print()
   -- print(color.dim("---------------------------------------------------------"))
-  -- print(color.dim("-- Query graph"))
+  -- print(color.dim("-- Parse tree"))
   -- print(color.dim("---------------------------------------------------------"))
   -- print()
-  -- print(formatQueryGraph(graph))
-  -- print()
+  -- print(formatGraph(tree))
+  print()
+  print(color.dim("---------------------------------------------------------"))
+  print(color.dim("-- Query graph"))
+  print(color.dim("---------------------------------------------------------"))
+  print()
+  print(formatQueryGraph(graph))
+  print()
   print(color.dim("---------------------------------------------------------"))
 end
 
