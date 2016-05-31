@@ -1,5 +1,5 @@
 typedef struct http_server *http_server;
-http_server create_http_server(heap h, table s);
+http_server create_http_server(heap h, station p);
 void start_multipart_http_response(synchronous_buffer write);
 void send_multipart_http_response(synchronous_buffer write,
                                   buffer b);
@@ -24,3 +24,5 @@ void register_websocket_service(heap h,
                                 http_server s, 
                                 string url,
                                 thunk connect);
+
+void register_static_content(http_server h, char *url, buffer b);

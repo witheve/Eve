@@ -90,3 +90,12 @@ void error(char *x)
 {
     write(1, x, cstring_length(x));
 }
+
+void unix_wait()
+{
+    while (1) {
+        ticks next = timer_check(0);
+        select_timer_block(next);
+    }
+    
+}

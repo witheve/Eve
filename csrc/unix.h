@@ -46,3 +46,5 @@ extern void unix_shutdown();
     if (!(__x)) unix_fail()
     
 
+// should be init unix
+extern void init_select();

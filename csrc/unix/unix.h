@@ -59,3 +59,4 @@ void tcp_create_server(heap h,
                        new_client n,
                        thunk bound);
 
+void unix_wait();

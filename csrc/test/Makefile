@@ -4,6 +4,20 @@ LIBLUA = /usr/local/lib/liblua.a
 LIBLUAJIT = /usr/local/lib/libluajit-5.1.a
 LUAJIT_INCLUDES = /usr/local/include/luajit-2.1
 
+PLATFORM = $(shell uname)
+
+# its unfortunate to depend on brew for objcopy, but for today..
+ifeq ($(PLATFORM), Darwin)
+  LINK += -pagezero_size 10000 -image_base 100000000
+  OBJECT_FORMAT = mach-o-x86-64
+  OBJCOPY = gobjcopy
+endif
+
+ifeq ($(PLATFORM), Linux)
+  OBJECT_FORMAT = elf64-x86-64
+  OBJCOPY = objcopy
+  LINK += -Wl,-E
+endif
 
 all: lueve
 
@@ -32,6 +46,12 @@ lutf8lib.o: lutf8lib.c
 bundle.o: bundle.c
 	cc -std=c99 -c -g -I$(LUAJIT_INCLUDES) $^
 
+index.o: ../../index.html
+	cc wrap.S -DSTART=_index_start -DEND=_index_end -DFILE='"$<"' -c -o $@
+
+renderer.o: ../../jssrc/renderer.js
+	cc wrap.S -DSTART=_renderer_start -DEND=_renderer_end -DFILE='"$<"' -c -o $@
+
 %.o: %.c continuation_templates.h
 	cc -std=c99 -I../unix -I.. -I. -I$(LUAJIT_INCLUDES) -g -c $<
 
@@ -44,7 +64,7 @@ bundle.o: bundle.c
 # the executable out of the way for the moment
 #macosx 
 #linux  -Wl,-E
-lueve: $(CORE) $(UNIX) $(COMPILER) $(UTF) $(LUAPOWER) $(HTTP) lueve.o
+lueve: $(CORE) $(UNIX) $(COMPILER) $(UTF) $(LUAPOWER) $(HTTP) index.o renderer.o lueve.o
 	cc -pagezero_size 10000 -image_base 100000000 $^ $(LIBLUAJIT) -lm -ldl  -o $@
 
 clean:

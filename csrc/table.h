@@ -30,7 +30,7 @@ void table_set (table t, value c, value v);
 // much threadsafe...think about start
 #define foreach_table(__t, __k, __v)\
     for (void **__i = eK(__t, contents); __i<(void **)(eK(__t,contents) + eK(__t,end)); __i += sizeof(void *)) \
-        for (void * __k, *__v; *__i && (__k = eZ(__i, c), __v = eZ(__i, v), 1); __i = (void **)&eZ((__i),next))
+        for (void * __k, *__v, **__cache, **__j = __i; *__j && (__cache = __j, __k = eZ(__j, c), __v = eZ(__j, v), 1); __j = (void **)&eZ((__cache),next))
                  
 
 

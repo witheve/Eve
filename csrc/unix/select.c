@@ -45,17 +45,17 @@ void select_timer_block(ticks interval)
         // iodescs, not number of iodescs
         foreach_table (read_handlers, d, t) 
             if (FD_ISSET((unsigned long)d, &reads)) {
-                thunk i = table_find(read_handlers, d);
+                // should disable until reregistration, but this removal
+                // is going badly at the moment
                 // for some reason we beleive these deletes are safe
-                table_set(read_handlers, d, EMPTY);
-                apply(i);
+                //                table_set(read_handlers, d, (void *)1);
+                apply((thunk)t);
             }
         
         foreach_table (write_handlers, d, t)
             if (FD_ISSET((unsigned long)d, &writes)) {
-                thunk t = table_find(write_handlers, d);
-                table_set(write_handlers, t, EMPTY);
-                apply(t);
+                //table_set(write_handlers, t, (void *)1);
+                apply((thunk)t);
             }
         
     }
@@ -71,9 +71,6 @@ void select_init()
     read_handlers = allocate_table(init, key_from_fd, compare_fd);
     write_handlers = allocate_table(init, key_from_fd, compare_fd);
 }
-
-
-
 
 
 

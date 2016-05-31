@@ -67,7 +67,7 @@ void table_set (table t, value c, value v)
     key p = position(t, k);
     // xxx - opacity
     entry *e = bref(t->entries, p*bitsizeof(void *));
-    
+
     for (; *e; e = &(*e)->next)
         if (((*e)->k == k) && t->equals_function((*e)->c, c)) {
             if (v == EMPTY) {

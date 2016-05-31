@@ -58,7 +58,7 @@ ticks time_delta(heap h, ticks x, ticks n)
 }
 
 
-boolean timer_check(ticks d)
+ticks timer_check(ticks d)
 {
     timer current = false;
 
@@ -72,9 +72,12 @@ boolean timer_check(ticks d)
     if (current) {
         iu64 h = d;
         d = current->w-h;
-        return(true);
     }
-    return(false);
+    if ((current = pqueue_peek(timers)) != 0) {
+        // presumably this can be negative
+        return (current->w < now());
+    }
+    return(0);
 }
 
 

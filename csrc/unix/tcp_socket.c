@@ -184,10 +184,10 @@ static CONTINUATION_2_0(bind_try, tcpsock, new_client);
 static void bind_try(tcpsock t, new_client n)
 {
     struct sockaddr_in a;
-    
+
     encode_sockaddrin(&a, t->addr);
     // fill
-    if (bind(t->d, (struct sockaddr *)&a, sizeof(struct sockaddr_in))) {
+    if (bind(t->d, (struct sockaddr *)&a, sizeof(struct sockaddr_in)) == 0) {
         listen(t->d, 5);
 
         apply(t->connect, true);

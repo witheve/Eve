@@ -121,9 +121,9 @@ static inline iu64 buffer_read_byte(buffer b)
     return(r);
 }
 
-static inline void buffer_write_byte(buffer b, iu64 x)
+static inline void buffer_write_byte(buffer b, iu8 x)
 {
-    buffer_extend(b, 8);                                  
+    buffer_extend(b, 1);                                  
     *(u8)bref(b, buffer_length(b)) = x;
     b->end += 1;
 }

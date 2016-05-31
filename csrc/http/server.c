@@ -6,22 +6,26 @@
 
 struct http_server {
     heap h, p;
-    table dispatch;
+    table content;
 };
+    
+static char separators[] = {' ',' ','\n',':','\n'};
 
 typedef enum {
-    header =1,
+    method =0,
+    url =1,
+    version =2,
     name,
     property
 } header_state;
     
 typedef struct session {
     heap h;
+    synchronous_buffer write;
     synchronous_buffer child;
-    buffer prop;
-    buffer value;
+    string fields[5];
     header_state s;
-    string method;
+    table content;
 } *session; 
 
 thunk ignore;
@@ -72,25 +76,40 @@ void start_multipart_http_response(synchronous_buffer write)
 static void line(http_server s, synchronous_buffer write, string l);
 
 
+static inline void clear_buffer(buffer b)
+{
+    b->start = b->end = 0;
+}
+
 static CONTINUATION_1_2(session_buffer, session, buffer, thunk);
 static void session_buffer(session s,
                            buffer b,
                            thunk rereg)
 {
-    character i;
 
     // we don't actually handle unicode framing in the header.
     if (s->child) {
         apply(s->child, b, rereg);
     } else {
-        if (i == '\n') {
-
-        } else {
-            switch(s->s) {
-            case header:
-            case name:
-            case property:
-                break;
+        for (int i=0;i<buffer_length(b);i++) {
+            character c = *(u8)bref(b, i);
+            
+            if (c == separators[s->s]) {
+                if (++s->s == 5)  {
+                    clear_buffer(s->fields[3]);
+                    clear_buffer(s->fields[4]);
+                    s->s = 3;
+                }
+            } else {
+                if ((s->s == 3) && (c == '\n')) {
+                    buffer c;
+                    if ((c = table_find(s->content, s->fields[1]))) {
+                        send_http_response(s->h, s->write, sstring("application/html"), c);
+                    }
+                    // send a 404 buddy
+                } else {
+                    buffer_write_byte(s->fields[s->s], c);
+                }
             }
         }
     }
@@ -104,19 +123,32 @@ void new_connection(http_server s,
 {
     heap h = allocate_rolling(pages);
     session hs = allocate(h, sizeof(struct session));
-    //    register_io_handler();
-    //    return(cont(h, session_buffer, hs));
+    apply(read, cont(h, session_buffer, hs));
+    hs->child = 0;
+    hs->write = write;
+    hs->content = s->content;
+    hs->h = h;
+    for (int i = 0; i < 5 ; i++ ){
+        hs->fields[i] = allocate_buffer(h, 20); 
+    }
+    
+    hs->s = method;
 }
 
 static CONTINUATION_0_0(ignoro);
 static void ignoro(){}
 
-http_server create_http_server(heap h, table p)
+// content type
+void register_static_content(http_server h, char *url, buffer b)
+{
+}
+
+http_server create_http_server(heap h, station p)
 {
     if (!ignore) ignore = cont(init, ignoro);
     //    heap q = allocate_leaky_heap(h);
     http_server s = allocate(h, sizeof(struct http_server));
-    s->dispatch = allocate_table(h, 0, 0);
+    s->content = allocate_table(h, 0, 0);
     s->p = h;
     s->h = h;
     tcp_create_server(h,
