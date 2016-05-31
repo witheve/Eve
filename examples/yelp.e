@@ -5,48 +5,40 @@ Handle Events
 click on a restaurant or pin, show a restaurant
   app = [@app]
   [#click element]
-  choose
-    element = [#yelp-restaurant-list-element restaurant]
-  or
-    element = [#yelp-restaurant-pin restaurant]
-  end
+  restaurant = if [#click element: [#yelp-restaurant-list-element restaurant]] then restaurant
+               else if [#click element: [#yelp-restaurant-pin restaurant]] then restaurant
   update history
     app.selected := restaurant
     app.content := "restaurant"
-  end
 
 click on yelp logo, show map
   app = [@app]
-  [#click element]
-  element = [#yelp-logo]
+  [#click element: [#yelp-logo]]
   update history
     app.content := "map"
-  end
 
 -----------------
 Draw the page
 -----------------
 
 draw the selected restaurant
-  [@app content: "restaurant", selected: restaurant]
   root = [@yelp-root]
   restaurant = [#restaurant name image]
+  [@app content: "restaurant", selected: restaurant]
   update
-    root.children += [#div class: "restaurant-info", children: 
+    root.children += [#div class: "restaurant-info", children:
                         [#div class: "info-header", children:
                           [#h2 text: name]
-                          [#div children: 
+                          [#div children:
                             [#img src: image]]]]
-  end
 
 draw the map pane
-  [@app content: "map"]
   root = [@yelp-root]
+  [@app content: "map"]
   [#restaurant street city state zip]
   [#address-to-latlon street city state zip lat long]
   update
     root.children = [#map class: "map", pins: [#yelp-restaurant-pin lat lon]]
-  end
 
 draw the restaurant list
   restaurant = [#restaurant name rating]
@@ -60,10 +52,8 @@ draw the restaurant list
                           restaurant, name, star-image, children:
                           [#h1 text: name]
                           [#img src: star-image]]]]
-  end
 
 draw the main page
-  update 
-    [#div @yelp-root class: "yelp-root", children: 
+  update
+    [#div @yelp-root class: "yelp-root", children:
       [#div class: "header", children: [#h1 #yelp-logo text: "Yelp"]]]
-  end
