@@ -922,11 +922,11 @@ generateObjectNode = function(root, context)
 
       if left.type == "NAME" then
         binding.field = "name"
-        binding.constant = right.value
+        binding.constant = {type = "constant", constant = right.value, constantType = "string"}
 
       elseif left.type == "TAG" then
         binding.field = "tag"
-        binding.constant = right.value
+        binding.constant = {type = "constant", constant = right.value, constantType = "string"}
 
       elseif left.type == "IDENTIFIER" then
         binding.field = left.value
@@ -939,8 +939,7 @@ generateObjectNode = function(root, context)
           -- error
           binding = nil
         elseif resolved.type == "constant" then
-          binding.constant = resolved.constant
-          binding.constantType = resolved.constantType
+          binding.constant = resolved
         elseif resolved.type == "variable" then
           binding.variable = resolved
         else
