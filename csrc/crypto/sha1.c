@@ -26,7 +26,7 @@ Still 100% public domain
 typedef struct {
     iu32 state[5];
     iu32 count[2];
-    iu32 data[64];
+    iu8 data[64];
 } SHA1_CTX;
 
 #define SHA1_DIGEST_SIZE 20

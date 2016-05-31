@@ -24,6 +24,8 @@ typedef struct session {
     string method;
 } *session; 
 
+thunk ignore;
+
 void outline(synchronous_buffer write, string s)
 {
 
@@ -94,10 +96,10 @@ static void session_buffer(session s,
     }
 }
 
-CONTINUATION_1_3(new_connection, http_server, descriptor, buffer_handler, station);
+CONTINUATION_1_3(new_connection, http_server, synchronous_buffer, synchronous_buffer_handler, station);
 void new_connection(http_server s,
-                    descriptor d,
-                    buffer_handler write,
+                    synchronous_buffer write,
+                    synchronous_buffer_handler read,
                     station peer)
 {
     heap h = allocate_rolling(pages);
@@ -106,8 +108,12 @@ void new_connection(http_server s,
     //    return(cont(h, session_buffer, hs));
 }
 
+static CONTINUATION_0_0(ignoro);
+static void ignoro(){}
+
 http_server create_http_server(heap h, table p)
 {
+    if (!ignore) ignore = cont(init, ignoro);
     //    heap q = allocate_leaky_heap(h);
     http_server s = allocate(h, sizeof(struct http_server));
     s->dispatch = allocate_table(h, 0, 0);

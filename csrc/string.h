@@ -114,3 +114,9 @@ typedef struct string_intermediate {
 } *string_intermediate;
 
 extern char *hex_digits;
+
+#define sstring(__x) ({\
+  static string __s = 0;\
+  if (!__s) __s = string_from_cstring(init, __x);\
+  __s;\
+})

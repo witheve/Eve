@@ -7,6 +7,16 @@ static table write_handlers;
 static fd_set reads;
 static fd_set writes;
 
+void register_read_handler(descriptor d, thunk t)
+{
+    table_set(read_handlers, (void *)(unsigned long)d, t);
+}
+
+void register_write_handler(descriptor d, thunk t)
+{
+    table_set(write_handlers, (void *)(unsigned long)d, t);
+}
+
 void select_timer_block(ticks interval)
 {
     struct timeval timeout;

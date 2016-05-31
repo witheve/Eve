@@ -23,7 +23,7 @@ typedef iu8 *u8;
 typedef iu16 *u16;
 typedef iu32 *u32;
 typedef iu64 *u64;
-typedef u64 ticks;
+typedef iu64 ticks;
 typedef iu8 boolean;
 typedef iu64 bytes;
 
@@ -43,6 +43,8 @@ void *memset(void *b, int c, iu64 len);
 #include <alloca.h> // env
 #include <string.h>
 #include <number.h>
+#include <timer.h>
+#include <pqueue.h>
 
 typedef value eboolean;
 extern eboolean etrue;
@@ -89,3 +91,12 @@ void full_scan(bag b, three_listener f);
 void ea_scan(bag b, value, value, one_listener f);
 void av_scan(bag b, value, value, one_listener f);
 void uuid_base_print(char *, void *);
+string aprintf(heap h, char *fmt, ...);
+
+typedef value station;
+
+// assuming little
+#define htons(_x) (((_x>>8) & 0xff) | ((_x<<8) & 0xff00))
+#define htonl(_x) ((((_x)>>24) & 0xffL) | (((_x)>>8) & 0xff00L) | \
+                  (((_x)<<8) & 0xff0000L) | (((_x)<<24) & 0xff000000L))
+#define htonll(_x) ((((iu64)htonl(_x)) << 32) | (htonl(_x) >> 32))

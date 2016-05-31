@@ -11,28 +11,10 @@
 #include <unistd.h>
 
 void ticks_to_timeval(struct timeval *a, ticks b);
-void timeval_to_ticks(ticks d, struct timeval *a);
+ticks timeval_to_ticks(struct timeval *a);
 typedef int decsriptor;
 
 #define MIN(x, y) ((x)<(y)?(x):(y))
-#if 0
-// duplicated with read_nonblocking_desc?
-static void read_desc(heap h, descriptor d, buffer_handler bh, thunk next)
-{
-
-    int available;
-    buffer b;
-    // fix all these 8s
-    if ((available = system_available(d)) > 0){
-        if ((b = system_read(h, d, MIN(500*8, available*8)))) {
-            apply(bh, b, next);
-        }
-    } else {
-        apply(bh, false, next);
-    }
-}
-#endif
-
 
 static inline buffer system_read(heap h, 
                                  descriptor d,
@@ -50,24 +32,24 @@ static inline buffer system_read(heap h,
     return(false);
 }
 
-static CONTINUATION_3_0(read_nonblocking_desc, heap, descriptor, blocking_reader);
+static CONTINUATION_3_0(read_nonblocking_desc, heap, descriptor, synchronous_buffer);
 static void read_nonblocking_desc(heap h, 
                                   descriptor d,
-                                  blocking_reader bh);
+                                  synchronous_buffer bh);
 
 // need to keep this guy around
-static CONTINUATION_3_0(rereg, heap, descriptor, blocking_reader);
-static void rereg(heap h, descriptor d, blocking_reader bh)
+static CONTINUATION_3_0(rereg, heap, descriptor, synchronous_buffer);
+static void rereg(heap h, descriptor d, synchronous_buffer bh)
 {
     //    register_read_handler(d, cont(h, read_nonblocking_desc, h, d, bh));
 }
 
 static void read_nonblocking_desc(heap h, 
                                   descriptor d,
-                                  blocking_reader bh)
+                                  synchronous_buffer bh)
 {
     buffer b;
-    if ((b = system_read(h, d, 500*8))) {
+    if ((b = system_read(h, d, 500))) {
         apply(bh, b, cont(h, rereg, h, d, bh));
     } else {
         // consider having a seperate termination closure
@@ -76,7 +58,23 @@ static void read_nonblocking_desc(heap h,
 }
 
 
-
-//table digest_sockaddrin(heap h, struct sockaddr_in *a);
-//int encode_sockaddrin(struct sockaddr_in *out, table in);
 void select_timer_block(ticks interval);
+
+static station digest_sockaddrin(heap h, struct sockaddr_in *a)
+{
+    iu32 t;
+    unsigned char *new = allocate(h, 6);
+    memcpy (new, &a->sin_addr, 4);
+    memcpy (new + 4, &a->sin_port, 2);
+    return(new);
+}
+
+static int encode_sockaddrin(struct sockaddr_in *out, station in)
+{
+    memset (out, 0, sizeof(struct sockaddr_in));  
+    out->sin_len=sizeof(struct sockaddr_in);
+    out->sin_family = AF_INET;
+    memcpy (&out->sin_addr, in, 4);
+    memcpy (&out->sin_port, in + 4, 2);
+    return(sizeof(struct sockaddr_in));
+}

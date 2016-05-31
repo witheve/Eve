@@ -2,7 +2,8 @@ typedef u64 offset;
 
 void initialize_timers(heap);
 typedef closure(buffer_handler_handler, buffer_handler);
-typedef closure(blocking_reader, buffer, thunk);
+typedef closure(synchronous_buffer, buffer, thunk);
+typedef closure(synchronous_buffer_handler, synchronous_buffer);
 thunk init_unix();
 
 string tree_root_path();
@@ -38,7 +39,6 @@ void pf(char *, ...);
 
 extern heap pages;
 
-descriptor wrap_descriptor(heap h, int fd);
 extern void unix_fail();
 extern void unix_shutdown();
 
@@ -50,4 +50,12 @@ heap init_fixed_page_region(heap meta,
                             iu64 base_address,
                             iu64 max_address,
                             bytes pagesize);
-void now(unsigned long *);
+ticks now();
+
+typedef closure(new_client,synchronous_buffer, synchronous_buffer_handler, station);
+
+void tcp_create_server(heap h,
+                       table addr,
+                       new_client n,
+                       thunk bound);
+

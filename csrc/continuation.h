@@ -16,6 +16,6 @@
   
 typedef void (**thunk)();
 
-extern thunk ignore;
+//extern thunk ignore;
 
 #include <continuation_templates.h>

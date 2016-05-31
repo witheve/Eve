@@ -80,28 +80,6 @@ boolean vector_equal(vector x, vector y)
     return(false);
 }
 
-
-static value vector_peek(vector t)
-{
-    int len = vector_length(t);
-    if (len) {
-        value v = vector_ref(t, len -1);
-        return(v);
-    }
-    return(EMPTY);
-}
-
-static value vector_pop(vector t)
-{
-    int len = vector_length(t);
-    if (len) {
-        value v = vector_ref(t, len -1);
-        t->end -= bitsizeof(value);
-        return(v);
-    }
-    return(EMPTY);
-}
-
 void vector_insert(vector t, value n)
 {
     buffer_append(t, &n, bitsizeof(value)); 

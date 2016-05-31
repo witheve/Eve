@@ -7,24 +7,24 @@
 
 void ticks_to_timeval(struct timeval *a, ticks b)
 {
-    unsigned long long usec = (*b*1000000)>>32;
+    unsigned long long usec = (b*1000000)>>32;
     a->tv_sec  = usec / 1000000;
     a->tv_usec = usec % 1000000;
 }
 
-void timeval_to_ticks(ticks d, struct timeval *a)
+ticks timeval_to_ticks(struct timeval *a)
 {
-    *d = (((unsigned long long)a->tv_sec)<<32)|
+    return (((unsigned long long)a->tv_sec)<<32)|
         ((((unsigned long long)a->tv_usec)<<32)/1000000);
 }
 
 
-void now(ticks d)
+ticks now()
 {
     struct timeval result;
     
     gettimeofday(&result,0);
-    timeval_to_ticks(d, &result);
+    return timeval_to_ticks(&result);
 }
 
 

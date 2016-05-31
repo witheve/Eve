@@ -2,6 +2,7 @@
 #include <unix/unix.h>
 #include <http/http.h>
 
+extern thunk ignore;
 
   /*
     bit fin         0

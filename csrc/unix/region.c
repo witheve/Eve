@@ -3,7 +3,6 @@
 #endif
 
 #include <unix_internal.h>
-
  
 typedef struct region_heap {
     struct heap h;

@@ -25,3 +25,30 @@ void vector_set(vector v, int element, value x);
     for (value __i, __j = (void *)0; __i = vector_ref(__s, (unsigned long)__j), (unsigned long)__j < vector_length(__s); __j = (value)((unsigned long)__j + \
                                                                                                                                        1))
 
+
+static inline void *vector_peek(vector t)
+{
+    int len = vector_length(t);
+    if (len) {
+        value v = vector_ref(t, len - 1);
+        return(v);
+    }
+    return(EMPTY);
+}
+
+static inline value vector_pop(vector t)
+{
+    int len = vector_length(t);
+    if (len) {
+        value v = vector_ref(t, len -1);
+        t->end -= bitsizeof(value);
+        return(v);
+    }
+    return(EMPTY);
+}
+
+static inline void push(vector t, void *n)
+{
+    buffer_append(t, &n, bitsizeof(value)); 
+}
+
