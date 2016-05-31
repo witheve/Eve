@@ -178,12 +178,21 @@ socket.onopen = function() {
   //TODO: open the ui query
   socket.send(JSON.stringify({id: "ui-query", type: "query", query: `
 get all the ui facts
-  union
-    #html: entity
-    #eavs entity attribute value
-  and
-    #html style: entity
-    #eavs entity attribute value
+  (entity, attribute, value) =
+    if entity = [#html]
+       [#eavs entity attribute value] then (entity, attribute, value)
+    if [#html style]
+       [#eavs entity: style, attribute value] then (style, attribute, value)
+  update session
+    [#eavs entity attribute value]
+
+mark all the different tag types as html
+  entity = if [#div] then [#div]
+           if [#span] then [#span]
+           if [#ul] then [#ul]
+           if [#ol] then [#ol]
+           if [#li] then [#li]
+  update entity := [#html]
   `}));
 }
 
