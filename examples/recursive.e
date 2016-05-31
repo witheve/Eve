@@ -8,7 +8,8 @@ add some people to the organization
     gram = [#employee @gram boss: joe]
 
 get the people at the top
-  top = [#employee not(boss)]
+  top = [#employee]
+  not(top.boss)
   update
     top.level := 0
 
