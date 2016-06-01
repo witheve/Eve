@@ -187,11 +187,11 @@ get all the ui facts
     [#eavs entity attribute value]
 
 mark all the different tag types as html
-  entity = if [#div] then [#div]
-           if [#span] then [#span]
-           if [#ul] then [#ul]
-           if [#ol] then [#ol]
-           if [#li] then [#li]
+  entity = if e = [#div] then e
+           if e = [#span] then e
+           if e = [#ul] then e
+           if e = [#ol] then e
+           if e = [#li] then e
   update entity := [#html]
   `}));
 }
