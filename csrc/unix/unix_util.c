@@ -69,6 +69,18 @@ static void *allocate_pages_fence(heap h, bits s)
     return(p);
 }
 
+void prf(char *format, ...)
+{
+    string b = allocate_string(init);
+    va_list ap;
+    string f = string_from_cstring(init, format);
+    va_start(ap, format);
+    vbprintf(b, f, ap);
+    va_end(ap);
+    deallocate(init, f);
+    write(1, bref(b, 0), buffer_length(b));
+}
+
 static void free_pages(heap h, void *x)
 {
     // xxx - this doesn't free the whole page if its a multipage allocation

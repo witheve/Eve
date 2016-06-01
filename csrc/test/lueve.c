@@ -20,13 +20,16 @@ int main(int argc, char **argv)
         lua_run_file(c, argv[1]);
     }
     http_server h = create_http_server(init, create_station(0, 8080));
-    extern void *index_start, * index_end;
-    register_static_content(h, "/", wrap_buffer(init, index_start,
-                                                index_end - index_start));
+    extern void *index_start, *index_end;
+    printf("register: %p %p\n", &index_start, &index_end);
+    register_static_content(h, "/", wrap_buffer(init, &index_start,
+                                                &index_end - &index_start));
 
 
     extern void * renderer_start, *renderer_end;
-    register_static_content(h, "/render.js", wrap_buffer(init,  renderer_start,
-                                                         renderer_end -  renderer_start));
+    register_static_content(h, "/render.js", wrap_buffer(init,  &renderer_start,
+                                                         &renderer_end -  &renderer_start));
+    prf("foo %b\n", string_from_cstring(init, "foo"));
+
     unix_wait();
 }

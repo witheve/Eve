@@ -86,14 +86,15 @@ static void session_buffer(session s,
                            buffer b,
                            thunk rereg)
 {
-
-    // we don't actually handle unicode framing in the header.
+    if (!b) {
+        prf("connection closed\n");
+        return;
+    }
+    
     if (s->child) {
         apply(s->child, b, rereg);
     } else {
-        for (int i=0;i<buffer_length(b);i++) {
-            character c = *(u8)bref(b, i);
-            
+        string_foreach(c, b) {
             if (c == separators[s->s]) {
                 if (++s->s == 5)  {
                     clear_buffer(s->fields[3]);
@@ -103,15 +104,17 @@ static void session_buffer(session s,
             } else {
                 if ((s->s == 3) && (c == '\n')) {
                     buffer c;
+                    prf("got cona %b\n", s->fields[1]);
                     if ((c = table_find(s->content, s->fields[1]))) {
                         send_http_response(s->h, s->write, sstring("application/html"), c);
                     }
-                    // send a 404 buddy
+                    outline(s->write, sstring("HTTP/1.1 404 Not found"));
                 } else {
                     buffer_write_byte(s->fields[s->s], c);
                 }
             }
         }
+        apply(rereg);
     }
 }
 
@@ -141,6 +144,7 @@ static void ignoro(){}
 // content type
 void register_static_content(http_server h, char *url, buffer b)
 {
+    table_set(h->content, string_from_cstring(h->h, url), b);
 }
 
 http_server create_http_server(heap h, station p)

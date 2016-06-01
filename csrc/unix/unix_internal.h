@@ -37,11 +37,11 @@ static void read_nonblocking_desc(heap h,
                                   descriptor d,
                                   synchronous_buffer bh);
 
-// need to keep this guy around
+// need to keep this guy around, bleeding out conts here
 static CONTINUATION_3_0(rereg, heap, descriptor, synchronous_buffer);
 static void rereg(heap h, descriptor d, synchronous_buffer bh)
 {
-    //    register_read_handler(d, cont(h, read_nonblocking_desc, h, d, bh));
+    register_read_handler(d, cont(h, read_nonblocking_desc, h, d, bh));
 }
 
 static void read_nonblocking_desc(heap h, 

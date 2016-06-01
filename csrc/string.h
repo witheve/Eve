@@ -30,14 +30,11 @@ static int inline string_rune_length(char *s) {
     return (j);
 }
 
-static inline int string_byte_length(string s) {
-    return 0;
-}
 
 // the ascii subset
 #define string_foreach(__i, __s)                          \
-    for (iu32 __x = 0, __i, __limit = string_byte_length(__s);   \
-         __i = *(character*)bref(__s, __x), __x<__limit;    \
+    for (iu32 __x = 0, __i, __limit = buffer_length(__s);   \
+         __i = *(u8)bref(__s, __x), __x<__limit;    \
          __x++)
 
 #define alloca_string(_x)\
@@ -57,7 +54,7 @@ static inline int string_byte_length(string s) {
 static inline void string_insert(string s, character x)
 {
     // xxx - convert from utf32 into utf8
-    buffer_append(s, &x, 8);
+    buffer_append(s, &x, 1);
 }
 
 static inline void string_concat(string d, string s) {

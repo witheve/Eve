@@ -17,6 +17,25 @@ void register_write_handler(descriptor d, thunk t)
     table_set(write_handlers, (void *)(unsigned long)d, t);
 }
 
+extern int ffsll(long long value);
+
+static void scan_table(fd_set *t, table f)
+{
+    u64 b = (void *)t;
+    unsigned int i;
+    for (i = 0 ; i <(FDSIZE/64); i++) {
+        descriptor d;
+        while ((d = ffsll(b[i]))) {
+            d--;
+            FD_CLR(d, t);
+            thunk handler =(thunk)table_find(f, (void *)(unsigned long)d);
+            table_set(f, (void *)(unsigned long)d, 0);
+            apply(handler);
+        }
+    }
+}
+
+                       
 void select_timer_block(ticks interval)
 {
     struct timeval timeout;
@@ -29,9 +48,6 @@ void select_timer_block(ticks interval)
         timeout_pointer = &timeout;
     } 
 
-    FD_ZERO(&reads);
-    FD_ZERO(&writes);
-
     foreach_table (read_handlers, d, z) 
         FD_SET((unsigned long)d, &reads);
 
@@ -41,23 +57,8 @@ void select_timer_block(ticks interval)
     result = select(FD_SETSIZE, &reads, &writes, 0, timeout_pointer);
 
     if (result > 0) {
-        // should be order number of set descriptors looked up in 
-        // iodescs, not number of iodescs
-        foreach_table (read_handlers, d, t) 
-            if (FD_ISSET((unsigned long)d, &reads)) {
-                // should disable until reregistration, but this removal
-                // is going badly at the moment
-                // for some reason we beleive these deletes are safe
-                //                table_set(read_handlers, d, (void *)1);
-                apply((thunk)t);
-            }
-        
-        foreach_table (write_handlers, d, t)
-            if (FD_ISSET((unsigned long)d, &writes)) {
-                //table_set(write_handlers, t, (void *)1);
-                apply((thunk)t);
-            }
-        
+        scan_table(&reads, read_handlers);
+        scan_table(&writes, write_handlers);
     }
 }
 

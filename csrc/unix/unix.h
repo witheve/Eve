@@ -32,11 +32,6 @@ void register_console_input(heap h, buffer_handler bh);
 int spinning_write(descriptor, buffer);
 void register_idle_process(thunk n);
 
-
-void pr(value);
-void prf(value);
-void pf(char *, ...);
-
 extern heap pages;
 
 extern void unix_fail();
@@ -61,3 +56,4 @@ void tcp_create_server(heap h,
 
 void unix_wait();
 void select_init();
+void prf(char *, ...);

@@ -55,13 +55,12 @@ static void actually_write(tcpsock t)
             tcppop(t);
         } else {
             buffer b = t->q->b;
-            int transfer = buffer_length(t->q->b)/8;
+            int transfer = buffer_length(t->q->b);
             
             // this should handle EWOULDBLOCK 
             int result = write(t->d, 
                                bref(b, 0),
-                               transfer) * 8;
-            
+                               transfer);
             if (result > 0){
                 if (result < transfer) {
                     buffer_consume(b, result);
