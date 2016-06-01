@@ -81,6 +81,14 @@ static inline void clear_buffer(buffer b)
     b->start = b->end = 0;
 }
 
+static void reset_session(session s)
+{
+    for (int i = 0; i<5 ; i++) {
+        clear_buffer(s->fields[i]);
+    }
+    s->s = method;
+}
+
 static CONTINUATION_1_2(session_buffer, session, buffer, thunk);
 static void session_buffer(session s,
                            buffer b,
@@ -94,6 +102,7 @@ static void session_buffer(session s,
     if (s->child) {
         apply(s->child, b, rereg);
     } else {
+        prf ("buf! %b\n", b);
         string_foreach(c, b) {
             if (c == separators[s->s]) {
                 if (++s->s == 5)  {
@@ -106,9 +115,12 @@ static void session_buffer(session s,
                     buffer c;
                     prf("got cona %b\n", s->fields[1]);
                     if ((c = table_find(s->content, s->fields[1]))) {
-                        send_http_response(s->h, s->write, sstring("application/html"), c);
+                        // reset connection state
+                        send_http_response(s->h, s->write, sstring("text/html"), c);
+                    } else {
+                        outline(s->write, sstring("HTTP/1.1 404 Not found"));
                     }
-                    outline(s->write, sstring("HTTP/1.1 404 Not found"));
+                    reset_session(s);
                 } else {
                     buffer_write_byte(s->fields[s->s], c);
                 }
@@ -134,8 +146,7 @@ void new_connection(http_server s,
     for (int i = 0; i < 5 ; i++ ){
         hs->fields[i] = allocate_buffer(h, 20); 
     }
-    
-    hs->s = method;
+    reset_session(hs);
 }
 
 static CONTINUATION_0_0(ignoro);

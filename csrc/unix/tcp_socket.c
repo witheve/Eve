@@ -56,7 +56,8 @@ static void actually_write(tcpsock t)
         } else {
             buffer b = t->q->b;
             int transfer = buffer_length(t->q->b);
-            
+
+            prf("actually write %b %d\n", b, buffer_length(b)); 
             // this should handle EWOULDBLOCK 
             int result = write(t->d, 
                                bref(b, 0),
