@@ -60,3 +60,4 @@ void tcp_create_server(heap h,
                        thunk bound);
 
 void unix_wait();
+void select_init();

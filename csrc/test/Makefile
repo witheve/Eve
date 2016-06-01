@@ -47,10 +47,10 @@ bundle.o: bundle.c
 	cc -std=c99 -c -g -I$(LUAJIT_INCLUDES) $^
 
 index.o: ../../index.html
-	cc wrap.S -DSTART=_index_start -DEND=_index_end -DFILE='"$<"' -c -o $@
+	cc wrap.S -DSTART=$(S)index_start -DEND=$(S)index_end -DFILE='"$<"' -c -o $@
 
 renderer.o: ../../jssrc/renderer.js
-	cc wrap.S -DSTART=_renderer_start -DEND=_renderer_end -DFILE='"$<"' -c -o $@
+	cc wrap.S -DSTART=$(S)renderer_start -DEND=$(S)renderer_end -DFILE='"$<"' -c -o $@
 
 %.o: %.c continuation_templates.h
 	cc -std=c99 -I../unix -I.. -I. -I$(LUAJIT_INCLUDES) -g -c $<
@@ -65,7 +65,7 @@ renderer.o: ../../jssrc/renderer.js
 #macosx 
 #linux  -Wl,-E
 lueve: $(CORE) $(UNIX) $(COMPILER) $(UTF) $(LUAPOWER) $(HTTP) index.o renderer.o lueve.o
-	cc -pagezero_size 10000 -image_base 100000000 $^ $(LIBLUAJIT) -lm -ldl  -o $@
+	cc $(LINK) $^ $(LIBLUAJIT) -lm -ldl  -o $@
 
 clean:
 	rm -f *.o lueve continuation_templates.h

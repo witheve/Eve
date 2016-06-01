@@ -157,9 +157,11 @@ static void new_connection(tcpsock t, new_client n)
         setsockopt(fd, /*SOL_TCP*/0, TCP_NODELAY,
                           (char *)&x, sizeof(x));
         
+#ifdef SO_NOSIGPIPE
         int one = 1;
         setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE,
                    (char *)&one, sizeof(one));
+#endif
         
         station peer; // = sockaddr_to_station(t->h, &from);        
         flen = sizeof(struct sockaddr_in);

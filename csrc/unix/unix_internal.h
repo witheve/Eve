@@ -72,7 +72,9 @@ static station digest_sockaddrin(heap h, struct sockaddr_in *a)
 static int encode_sockaddrin(struct sockaddr_in *out, station in)
 {
     memset (out, 0, sizeof(struct sockaddr_in));  
+#ifdef HAVE_SOCKADDR_LEN
     out->sin_len=sizeof(struct sockaddr_in);
+#endif
     out->sin_family = AF_INET;
     memcpy (&out->sin_addr, in, 4);
     memcpy (&out->sin_port, in + 4, 2);

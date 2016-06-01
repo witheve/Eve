@@ -1,6 +1,7 @@
 #include <runtime.h>
 #include <unix/unix.h>
 #include <http/http.h>
+#include <bswap.h>
 
 extern thunk ignore;
 

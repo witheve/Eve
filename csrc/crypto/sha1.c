@@ -1,5 +1,5 @@
 #include <runtime.h>
-
+#include <bswap.h>
 /*
 SHA-1 in C
 By Steve Reid <sreid@sea-to-sky.net>

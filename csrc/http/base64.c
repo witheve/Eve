@@ -1,4 +1,5 @@
 #include <runtime.h>
+#include <bswap.h>
 
 char *map="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
