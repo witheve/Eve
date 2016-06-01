@@ -4,7 +4,6 @@ Handle Events
 
 click on a restaurant or pin, show a restaurant
   app = [@app]
-  [#click element]
   restaurant = if [#click element: [#yelp-restaurant-list-element restaurant]] then restaurant
                else if [#click element: [#yelp-restaurant-pin restaurant]] then restaurant
   update history
