@@ -148,7 +148,7 @@ http_server create_http_server(heap h, station p)
     if (!ignore) ignore = cont(init, ignoro);
     //    heap q = allocate_leaky_heap(h);
     http_server s = allocate(h, sizeof(struct http_server));
-    s->content = allocate_table(h, 0, 0);
+    s->content = allocate_table(h, string_hash, string_equal);
     s->p = h;
     s->h = h;
     tcp_create_server(h,

@@ -36,7 +36,7 @@ static iu64 estring_length(void *x) {
 }
 
 
-static iu64 string_hash(void *x)
+iu64 string_hash(void *x)
 {
     return 0;
 }

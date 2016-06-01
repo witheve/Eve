@@ -11,6 +11,7 @@ ifeq ($(PLATFORM), Darwin)
   LINK += -pagezero_size 10000 -image_base 100000000
   OBJECT_FORMAT = mach-o-x86-64
   OBJCOPY = gobjcopy
+  S = _
 endif
 
 ifeq ($(PLATFORM), Linux)

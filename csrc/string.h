@@ -120,3 +120,7 @@ extern char *hex_digits;
   if (!__s) __s = string_from_cstring(init, __x);\
   __s;\
 })
+
+iu64 string_hash(void *x);
+boolean string_equal(void *a, void *b);
+
