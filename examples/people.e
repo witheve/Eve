@@ -1,5 +1,3 @@
 get people!
-  #person
-    name
-    age
+  [#person name age]
   x + 4 + z = age * 10
