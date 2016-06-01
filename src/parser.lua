@@ -664,13 +664,13 @@ local function parse(tokens)
         prev.children[2] = nil
         stack:push(prev)
         -- now push this expression on the stack as well
-        stack:push({type = "infix", func = token.value, children = {right}})
+        stack:push({type = "infix", func = token.value, children = {right}, line = token.line, offset = token.offset})
 
       -- it needs to either be an expression, an identifier, or a constant
       elseif prev and (prev.type == "IDENTIFIER" or prev.type == "infix" or prev.type == "function" or
                    prev.type == "NUMBER" or prev.type == "STRING" or prev.type == "block") then
         stackTop.children[#stackTop.children] = nil
-        stack:push({type = "infix", func = token.value, children = {prev}})
+        stack:push({type = "infix", func = token.value, children = {prev}, line = token.line, offset = token.offset})
       else
         -- error
       end
@@ -689,9 +689,15 @@ local function parse(tokens)
       stack:push({type = "block", children = {}})
 
     elseif type == "CLOSE_PAREN" then
-      if stackTop and (stackTop.type == "block" or stackTop.type == "function"
-                      or (stackTop.parent and stackTop.parent.type == "not")) then
+      local stackType = stackTop.type
+      if stackTop and (stackType == "block" or stackType == "function" or stackType == "grouping"
+                      or stackType == "projection" or (stackTop.parent and stackTop.parent.type == "not")) then
         stackTop.closed = true
+        -- this also closes out the containing function in the case of aggregate
+        -- modifiers
+        if stackType == "projection" or stackType == "grouping" then
+          stack[#stack - 1].closed = true
+        end
       else
         -- error
       end
@@ -707,11 +713,21 @@ local function parse(tokens)
       end
 
     elseif type == "IDENTIFIER" and next and next.type == "OPEN_PAREN" then
-      stack:push({type = "function", func = token.value, children = {}})
+      stack:push({type = "function", func = token.value, children = {}, line = token.line, offset = token.offset})
       -- consume the paren
       scanner:read()
 
-    elseif type == "IDENTIFIER" or type == "NUMBER" or type == "STRING" or type == "GIVEN" or type == "PER" then
+    elseif type == "GIVEN" or type == "PER" then
+      -- if we are currently working on one of the other modifiers, we're
+      -- done with that one and should clean it out
+      if stackTop.type == "grouping" or stackTop.type == "projection" then
+        stackTop.closed = true
+        tryFinishExpression()
+      end
+      local modifier = type == "GIVEN" and "projection" or "grouping"
+      stack:push({type = modifier, children = {}})
+
+    elseif type == "IDENTIFIER" or type == "NUMBER" or type == "STRING" then
       stackTop.children[#stackTop.children + 1] = token
 
     end
@@ -856,13 +872,13 @@ local function resolveExpression(node, context)
     query[queryKey][#query[queryKey] + 1] = objectNode
     return objectRef
 
-  elseif node.type == "infix" or node.type == "expression" then
+  elseif node.type == "infix" or node.type == "function" then
     if context.equalityLeft then
       resultVar = context.equalityLeft
     else
       resultVar = resolveVariable(string.format("result%s%s", node.line, node.offset), context)
     end
-    local expression = {type = "expression", operator = node.func, bindings = {}}
+    local expression = {type = "expression", operator = node.func, projections = {}, groupings = {}, bindings = {}}
     local prevLeft = context.equalityLeft
     -- create bindings
     for ix, child in ipairs(node.children) do
@@ -871,8 +887,29 @@ local function resolveExpression(node, context)
       local resolved = resolveExpression(child, context)
       if resolved.type == "variable" then
         generateBindingNode({field = field, variable = resolved}, context, expression)
+
       elseif resolved.type == "constant" then
         generateBindingNode({field = field, constant = resolved}, context, expression)
+
+      elseif resolved.type == "grouping" then
+        for ix, grouping in ipairs(resolved.children) do
+          local groupingVar = resolveExpression(grouping, context)
+          if groupingVar.type == "variable" then
+            expression.groupings[#expression.groupings + 1] = {type = "grouping", expression = expression, variable = groupingVar, ix = ix}
+          else
+            -- error
+          end
+        end
+
+      elseif resolved.type == "projection" then
+        for _, project in ipairs(resolved.children) do
+          local projectVar = resolveExpression(project, context)
+          if projectVar.type == "variable" then
+            expression.projections[#expression.projections + 1] = {type = "projection", expression = expression, variable = projectVar}
+          else
+            -- error
+          end
+        end
       else
         -- error?
       end
@@ -883,6 +920,9 @@ local function resolveExpression(node, context)
     local query = context.queryStack:peek()
     query.expressions[#query.expressions + 1] = expression
     return resultVar
+
+  elseif node.type == "grouping" or node.type == "projection" then
+    return node
 
   else
     -- TODO
