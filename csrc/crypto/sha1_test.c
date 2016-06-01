@@ -1,3 +1,7 @@
+#include <runtime.h>
+#include <stdint.h>
+#include "sha1.h"
+#include <stdio.h>
 
 static char *test_data[] = {
     "abc",
@@ -38,9 +42,9 @@ main(int argc, char **argv)
     fprintf(stdout, "verifying SHA-1 implementation... ");
 
     for (k = 0; k < 2; k++) {
-        SHA1_Init(&amp;context);
-        SHA1_Update(&amp;context, (uint8_t *) test_data[k], strlen(test_data[k]));
-        SHA1_Final(&amp;context, digest);
+        SHA1_Init(&context);
+        SHA1_Update(&context, (uint8_t *) test_data[k], strlen(test_data[k]));
+        SHA1_Final(&context, digest);
         digest_to_hex(digest, output);
 
         if (strcmp(output, test_results[k])) {
@@ -52,10 +56,10 @@ main(int argc, char **argv)
         }
     }
     /* million 'a' vector we feed separately */
-    SHA1_Init(&amp;context);
+    SHA1_Init(&context);
     for (k = 0; k < 1000000; k++)
-        SHA1_Update(&amp;context, (uint8_t *) "a", 1);
-    SHA1_Final(&amp;context, digest);
+        SHA1_Update(&context, (uint8_t *) "a", 1);
+    SHA1_Final(&context, digest);
     digest_to_hex(digest, output);
     if (strcmp(output, test_results[2])) {
         fprintf(stdout, "FAIL\n");

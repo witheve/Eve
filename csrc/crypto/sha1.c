@@ -23,13 +23,8 @@ Still 100% public domain
 */
 
 
-typedef struct {
-    iu32 state[5];
-    iu32 count[2];
-    iu8 data[64];
-} SHA1_CTX;
+#include "sha1.h"
 
-#define SHA1_DIGEST_SIZE 20
 
 void SHA1_Transform(iu32 state[5], iu8 buffer[64]);
 
@@ -37,7 +32,13 @@ void SHA1_Transform(iu32 state[5], iu8 buffer[64]);
 
 /* blk0() and blk() perform the initial expand. */
 /* I got the idea of expanding during the round function from SSLeay */
-#define blk0(i) htonl(block->l[i])
+/* FIXME: can we do this in an endian-proof way? */
+#ifdef WORDS_BIGENDIAN
+#define blk0(i) block->l[i]
+#else
+#define blk0(i) (block->l[i] = (rol(block->l[i],24)&0xFF00FF00) \
+    |(rol(block->l[i],8)&0x00FF00FF))
+#endif
 #define blk(i) (block->l[i&15] = rol(block->l[(i+13)&15]^block->l[(i+8)&15] \
     ^block->l[(i+2)&15]^block->l[i&15],1))
 
@@ -48,8 +49,18 @@ void SHA1_Transform(iu32 state[5], iu8 buffer[64]);
 #define R3(v,w,x,y,z,i) z+=(((w|x)&y)|(w&x))+blk(i)+0x8F1BBCDC+rol(v,5);w=rol(w,30);
 #define R4(v,w,x,y,z,i) z+=(w^x^y)+blk(i)+0xCA62C1D6+rol(v,5);w=rol(w,30);
 
+#ifdef VERBOSE                  /* SAK */
+void
+SHAPrintContext(SHA1_CTX *context, char *msg)
+{
+    printf("%s (%d,%d) %x %x %x %x %x\n",
+           msg, context->count[0], context->count[1], context->state[0], context->state[1], context->state[2], context->state[3], context->state[4]);
+}
+#endif /* VERBOSE */
+
 /* Hash a single 512-bit block. This is the core of the algorithm. */
-void SHA1_Transform(iu32 state[5], iu8 data[64])
+void
+SHA1_Transform(iu32 state[5], iu8 buffer[64])
 {
     iu32 a, b, c, d, e;
     typedef union {
@@ -58,7 +69,14 @@ void SHA1_Transform(iu32 state[5], iu8 data[64])
     } CHAR64LONG16;
     CHAR64LONG16 *block;
 
-    block = (CHAR64LONG16 *) data;
+#ifdef SHA1HANDSOFF
+    static uint8_t workspace[64];
+
+    block = (CHAR64LONG16 *) workspace;
+    memcpy(block, buffer, 64);
+#else
+    block = (CHAR64LONG16 *) buffer;
+#endif
 
     /* Copy context->state[] to working vars */
     a = state[0];
@@ -95,10 +113,14 @@ void SHA1_Transform(iu32 state[5], iu8 data[64])
     state[2] += c;
     state[3] += d;
     state[4] += e;
+
+    /* Wipe variables */
+    a = b = c = d = e = 0;
 }
 
 /* SHA1Init - Initialize new context */
-void SHA1_Init(SHA1_CTX *context)
+void
+SHA1_Init(SHA1_CTX *context)
 {
     /* SHA1 initialization constants */
     context->state[0] = 0x67452301;
@@ -109,28 +131,39 @@ void SHA1_Init(SHA1_CTX *context)
     context->count[0] = context->count[1] = 0;
 }
 
-void SHA1_Update(SHA1_CTX *context, iu8 *data, bytes len)
+/* Run your data through this. */
+void
+SHA1_Update(SHA1_CTX *context, u8 data, const size_t len)
 {
     size_t i, j;
+
+#ifdef VERBOSE
+    SHAPrintContext(context, "before");
+#endif
 
     j = (context->count[0] >> 3) & 63;
     if ((context->count[0] += len << 3) < (len << 3))
         context->count[1]++;
     context->count[1] += (len >> 29);
     if ((j + len) > 63) {
-        memcpy(&context->data[j], data, (i = 64 - j));
-        SHA1_Transform(context->state, context->data);
+        memcpy(&context->buf[j], data, (i = 64 - j));
+        SHA1_Transform(context->state, context->buf);
         for (; i + 63 < len; i += 64) {
             SHA1_Transform(context->state, data + i);
         }
         j = 0;
     } else
         i = 0;
-    memcpy(&context->data[j], &data[i], len - i);
+    memcpy(&context->buf[j], &data[i], len - i);
+
+#ifdef VERBOSE
+    SHAPrintContext(context, "after ");
+#endif
 }
 
 /* Add padding and return the message digest. */
-void SHA1_Final(SHA1_CTX *context, iu8 digest[SHA1_DIGEST_SIZE])
+void
+SHA1_Final(SHA1_CTX *context, iu8 digest[SHA1_DIGEST_SIZE])
 {
     iu32 i;
     iu8 finalcount[8];
@@ -139,20 +172,36 @@ void SHA1_Final(SHA1_CTX *context, iu8 digest[SHA1_DIGEST_SIZE])
         finalcount[i] = (unsigned char)((context->count[(i >= 4 ? 0 : 1)]
                                          >> ((3 - (i & 3)) * 8)) & 255);        /* Endian independent */
     }
-    SHA1_Update(context, (u8) "\200", 1);
+    SHA1_Update(context, (iu8 *) "\200", 1);
     while ((context->count[0] & 504) != 448) {
-        SHA1_Update(context, (u8) "\0", 1);
+        SHA1_Update(context, (iu8 *) "\0", 1);
     }
     SHA1_Update(context, finalcount, 8);        /* Should cause a SHA1_Transform() */
     for (i = 0; i < SHA1_DIGEST_SIZE; i++) {
         digest[i] = (iu8)
                     ((context->state[i >> 2] >> ((3 - (i & 3)) * 8)) & 255);
     }
+
+    /* Wipe variables */
+    i = 0;
+    memset(context->buf, 0, 64);
+    memset(context->state, 0, 20);
+    memset(context->count, 0, 8);
+    memset(finalcount, 0, 8);   /* SWR */
+
+#ifdef SHA1HANDSOFF             /* make SHA1Transform overwrite its own static vars */
+    SHA1_Transform(context->state, context->buf);
+#endif
 }
-
-
 
 void sha1(buffer dest, buffer source)
 {
+    SHA1_CTX a;
+
+    SHA1_Init (&a);
+    SHA1_Update(&a, bref(source, 0), buffer_length(source));
+    buffer_extend(dest, SHA1_DIGEST_SIZE);
+    SHA1_Final(&a, (unsigned char *)dest->contents + dest->end);
+    dest->end += SHA1_DIGEST_SIZE;
 }
 

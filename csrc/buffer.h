@@ -7,7 +7,6 @@ typedef struct buffer {
     void *contents;
 } *buffer;
 
-typedef closure(buffer_handler, buffer);
 
 static inline buffer wrap_buffer(heap h,
                                  void *body,

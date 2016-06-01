@@ -94,3 +94,4 @@ void uuid_base_print(char *, void *);
 string aprintf(heap h, char *fmt, ...);
 
 typedef value station;
+void bbprintf(string b, string fmt, ...);

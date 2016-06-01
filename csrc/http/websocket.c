@@ -24,11 +24,10 @@ typedef struct websocket {
     buffer reassembly;
     buffer_handler client;
     buffer_handler write;
-    iu32 mask;
 } *websocket;
 
-CONTINUATION_2_2(websocket_output_frame, websocket, synchronous_buffer, buffer, thunk);
-void websocket_output_frame(websocket w, synchronous_buffer write, buffer b, thunk t)
+CONTINUATION_2_2(websocket_output_frame, websocket, buffer_handler, buffer, thunk);
+void websocket_output_frame(websocket w, buffer_handler write, buffer b, thunk t)
 {
     int length = buffer_length(b);
     // force a resize if length is extended
@@ -46,74 +45,89 @@ void websocket_output_frame(websocket w, synchronous_buffer write, buffer b, thu
 static CONTINUATION_1_2(websocket_input_frame, websocket, buffer, thunk);
 static void websocket_input_frame(websocket w, buffer b, thunk t)
 {
-    int offset;
+    int offset = 2;
     
     if (!b) {
-        apply(w->client, 0);
+        apply(w->client, 0, ignore);
         return;
     }
 
-    iu32 mask;
-    // there is a better approach here
+    // there is a better approach here, chained buffers, or at least assuming it will fit
     buffer_append(w->reassembly, bref(b, 0), buffer_length(b));
     int rlen = buffer_length(w->reassembly);
-    if (rlen < 2) return;
+    if (rlen < offset) return;
 
     iu64 length = *(u8)bref(w->reassembly, 1) & 0x7f;
-    int olen = length;
 
-    if (length > 126) {
+    if (length == 126) {
         if (rlen < 4) return;
-        length = (length << 16) + htons(*(u16)bref(b, 2));
-        offset = 2;
-    }
-    
-    if (olen == 127) {
-        // ok, we are throwing away the top byte, who the hell thought
-        // that 1TB wasn't enough per object
-        if (rlen< 10) return;
-        length = htonll(*(u32)bref(b, 2));
-        offset = 4;
-    }
-    
-    if (rlen < length) {
-        buffer out = allocate_buffer(w->h, length);
-
-        if (length > 126) w->reassembly->start += 2;
-        if (length == 127) w->reassembly->start += 4;
-        // which should always be the case for client streams
-        if (*(u8)bref(w->reassembly, 1) & 0x80) {
-            if (rlen < offset + 4) return;
-            w->mask = *(unsigned int *)bref(b, offset);
-            offset +=4;
+        length = htons(*(u16)bref(w->reassembly, 2));
+        offset += 2;
+    } else {
+        if (length == 127) {
+            // ok, we are throwing away the top byte, who the hell thought
+            // that 1TB wasn't enough per object
+            if (rlen< 10) return;
+            length = htonll(*(u64)bref(w->reassembly, 2));
+            offset += 8;
         }
+    }
+    
+
+    iu32 mask = 0;
+    // which should always be the case for client streams
+    if (*(u8)bref(w->reassembly, 1) & 0x80) {
+        mask = *(u32)bref(b, offset);
+        offset += 4;
+    }
+
+    printf("webby input %ld %ld %ld %d\n", buffer_length(b), buffer_length(w->reassembly), length, offset);
+        
+    if ((rlen - offset) >= length) {
+        if (mask) {
+            for (int i=0;i<((length +3)/4); i++) {
+                // xxx - fallin off the end 
+                *(u32)bref(w->reassembly, offset + i * 4) ^= mask;
+            }
+        }
+        // xxx - only deliver this message
+        // compress reassembly buffer
 
         w->reassembly->start += offset;
-        apply(w->client, w->reassembly);
-        w->reassembly = allocate_buffer(w->h, 128);
+        prf("webbo %b\n", w->reassembly);
+        apply(w->client, w->reassembly, ignore);
+        w->reassembly->start += length;
     }
+    apply(t);
 }
 
-buffer sha1(heap h, buffer b);
+void sha1(buffer d, buffer s);
 
-synchronous_buffer websocket_send_upgrade(heap h, 
-                                          thunk connect,
-                                          table props,
-                                          synchronous_buffer write)
+buffer_handler websocket_send_upgrade(heap h, 
+                                      thunk connect,
+                                      string key,
+                                      buffer_handler write)
 {
     websocket w = allocate(h, sizeof(struct websocket));
 
-    string f = table_find(props, "Sec-WebSocket-Key");
-    string_concat(f, sstring("258EAFA5-E914-47DA-95CA-C5AB0DC85B11"));
-    string r = base64_encode(h, sha1(h, f));
+    // fix
+    w->reassembly = allocate_buffer(h, 1000);
 
-    outline(write, sstring("HTTP/1.1 101 Switching Protocols"));
-    outline(write, sstring("Upgrade: websocket"));
-    outline(write, sstring("Connection: Upgrade"));
-    outline(write, aprintf(h, "Sec-WebSocket-Accept: %b", r));
-    outline(write, sstring(""));
+    string_concat(key, sstring("258EAFA5-E914-47DA-95CA-C5AB0DC85B11"));
+    buffer sh = allocate_buffer(h, 20);
+    sha1(sh, key);
+    string r = base64_encode(h, sh);
+    buffer b = allocate_buffer(h, 200);
 
-    apply(connect, props, cont(h, websocket_output_frame,w, write));
+    outline(b, "HTTP/1.1 101 Switching Protocols");
+    outline(b, "Upgrade: websocket");
+    outline(b, "Connection: Upgrade");
+    outline(b, "Sec-WebSocket-Accept: %b", r);
+    outline(b, "");
+    prf("websocket accept: %b\n", b);
+
+    apply(write, b, ignore);
+    apply(connect, 0, cont(h, websocket_output_frame,w, write));
     return(cont(h, websocket_input_frame, w));
 }
 

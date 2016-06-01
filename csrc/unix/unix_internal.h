@@ -20,7 +20,7 @@ static inline buffer system_read(heap h,
                                  descriptor d,
                                  bits length)
 {
-    iu64 len = length/8;
+    iu64 len = length;
     buffer b = allocate_buffer(h, length);
     void *dest = bref(b, 0);
     // error handling
@@ -32,24 +32,24 @@ static inline buffer system_read(heap h,
     return(false);
 }
 
-static CONTINUATION_3_0(read_nonblocking_desc, heap, descriptor, synchronous_buffer);
+static CONTINUATION_3_0(read_nonblocking_desc, heap, descriptor, buffer_handler);
 static void read_nonblocking_desc(heap h, 
                                   descriptor d,
-                                  synchronous_buffer bh);
+                                  buffer_handler bh);
 
-// need to keep this guy around, bleeding out conts here
-static CONTINUATION_3_0(rereg, heap, descriptor, synchronous_buffer);
-static void rereg(heap h, descriptor d, synchronous_buffer bh)
+// need to keep this guy around, bleeding out conts here...looks like its time for myself
+static CONTINUATION_3_0(rereg, heap, descriptor, buffer_handler);
+static void rereg(heap h, descriptor d, buffer_handler bh)
 {
     register_read_handler(d, cont(h, read_nonblocking_desc, h, d, bh));
 }
 
 static void read_nonblocking_desc(heap h, 
                                   descriptor d,
-                                  synchronous_buffer bh)
+                                  buffer_handler bh)
 {
     buffer b;
-    if ((b = system_read(h, d, 500))) {
+    if ((b = system_read(h, d, 1500))) {
         apply(bh, b, cont(h, rereg, h, d, bh));
     } else {
         // consider having a seperate termination closure

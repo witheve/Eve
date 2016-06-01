@@ -57,7 +57,6 @@ static void actually_write(tcpsock t)
             buffer b = t->q->b;
             int transfer = buffer_length(t->q->b);
 
-            prf("actually write %b %d\n", b, buffer_length(b)); 
             // this should handle EWOULDBLOCK 
             int result = write(t->d, 
                                bref(b, 0),
@@ -85,6 +84,7 @@ static void actually_write(tcpsock t)
 CONTINUATION_1_2(tcp_write, tcpsock, buffer, thunk);
 void tcp_write(tcpsock t, buffer b, thunk n)
 {
+    // track socket buffer occupancy and fast path this guy
     if (!t->q)
         register_write_handler(t->d, cont(t->h, actually_write, t));
 
@@ -130,8 +130,8 @@ static void connect_try (tcpsock t)
             sizeof(struct sockaddr_in));
 }
 
-static CONTINUATION_1_1(register_read, tcpsock, synchronous_buffer);
-static void register_read(tcpsock t, synchronous_buffer r)
+static CONTINUATION_1_1(register_read, tcpsock, buffer_handler);
+static void register_read(tcpsock t, buffer_handler r)
 {
     register_read_handler(t->d,
                           cont(t->h, read_nonblocking_desc, 
