@@ -24,6 +24,7 @@ all: lueve
 
 VPATH += ..
 VPATH += ../unix
+VPATH += ../core
 VPATH += ../http
 VPATH += ../crypto
 VPATH += ../luautf8
@@ -34,12 +35,13 @@ LUAPOWER = bundle.o
 UTF = lutf8lib.o
 COMPILER = compiler.o error.o fs.o parser.o util.o set.o color.o build.o
 UNIX =  unix_util.o region.o select.o tcp_socket.o
-CORE = buffer.o table.o types.o vector.o format.o rolling.o edb.o init.o luanne.o string.o uuid.o\
+CORE = buffer.o table.o types.o vector.o format.o rolling.o edb.o init.o string.o uuid.o\
        pqueue.o timer.o
+LANG =  luanne.o json_request.o
 HTTP = server.o websocket.o base64.o sha1.o
 
-continuation_templates.h:
-	python ../continuations.py 8 8 continuation_templates.h
+continuation_templates.h: continuations.py
+	python $^ 8 8 continuation_templates.h
 
 lutf8lib.o: lutf8lib.c
 	cc -std=c99 -c -g -I$(LUAJIT_INCLUDES) $^
@@ -54,7 +56,7 @@ renderer.o: ../../jssrc/renderer.js
 	cc wrap.S -DSTART=$(S)renderer_start -DEND=$(S)renderer_end -DFILE='"$<"' -c -o $@
 
 %.o: %.c continuation_templates.h
-	cc -std=c99 -I../unix -I.. -I. -I$(LUAJIT_INCLUDES) -g -c $<
+	cc -std=c99 -I../unix -I../core -I.. -I. -I$(LUAJIT_INCLUDES) -g -c $<
 
 %.o: %.lua %.lua
 	luajit -b -g $< $@
@@ -65,7 +67,7 @@ renderer.o: ../../jssrc/renderer.js
 # the executable out of the way for the moment
 #macosx 
 #linux  -Wl,-E
-lueve: $(CORE) $(UNIX) $(COMPILER) $(UTF) $(LUAPOWER) $(HTTP) index.o renderer.o lueve.o
+lueve: $(CORE) $(UNIX) $(COMPILER) $(UTF) $(LUAPOWER) $(HTTP) $(LANG) index.o renderer.o lueve.o
 	cc $(LINK) $^ $(LIBLUAJIT) -lm -ldl  -o $@
 
 clean:

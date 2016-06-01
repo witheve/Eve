@@ -38,3 +38,4 @@ buffer_handler websocket_send_upgrade(heap h,
                                       thunk connect,
                                       string key,
                                       buffer_handler write);
+

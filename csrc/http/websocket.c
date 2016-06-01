@@ -26,8 +26,8 @@ typedef struct websocket {
     buffer_handler write;
 } *websocket;
 
-CONTINUATION_2_2(websocket_output_frame, websocket, buffer_handler, buffer, thunk);
-void websocket_output_frame(websocket w, buffer_handler write, buffer b, thunk t)
+CONTINUATION_1_2(websocket_output_frame, websocket, buffer, thunk);
+void websocket_output_frame(websocket w, buffer b, thunk t)
 {
     int length = buffer_length(b);
     // force a resize if length is extended
@@ -36,11 +36,14 @@ void websocket_output_frame(websocket w, buffer_handler write, buffer b, thunk t
     unsigned char control = 0x81;
     buffer_append(out, &control, 8);
     unsigned char plen = length;
+    // xxx - length extensions
     buffer_append(out, &plen, 1);
 
-    apply(write, out, ignore); // reclaim
-    apply(write, b, t);
+    apply(w->write, out, ignore); // reclaim
+    apply(w->write, b, t);
 }
+
+extern void handle_json_query(buffer b, buffer_handler output);
 
 static CONTINUATION_1_2(websocket_input_frame, websocket, buffer, thunk);
 static void websocket_input_frame(websocket w, buffer b, thunk t)
@@ -81,8 +84,6 @@ static void websocket_input_frame(websocket w, buffer b, thunk t)
         offset += 4;
     }
 
-    printf("webby input %ld %ld %ld %d\n", buffer_length(b), buffer_length(w->reassembly), length, offset);
-        
     if ((rlen - offset) >= length) {
         if (mask) {
             for (int i=0;i<((length +3)/4); i++) {
@@ -95,13 +96,16 @@ static void websocket_input_frame(websocket w, buffer b, thunk t)
 
         w->reassembly->start += offset;
         prf("webbo %b\n", w->reassembly);
-        apply(w->client, w->reassembly, ignore);
+        handle_json_query(w->reassembly, cont(w->h, websocket_output_frame, w));
+        //        apply(w->client, w->reassembly, ignore);
+        // compress
         w->reassembly->start += length;
     }
     apply(t);
 }
 
 void sha1(buffer d, buffer s);
+// xxx - fix wiring
 
 buffer_handler websocket_send_upgrade(heap h, 
                                       thunk connect,
@@ -112,6 +116,8 @@ buffer_handler websocket_send_upgrade(heap h,
 
     // fix
     w->reassembly = allocate_buffer(h, 1000);
+    w->write = write;
+    w->h = h;
 
     string_concat(key, sstring("258EAFA5-E914-47DA-95CA-C5AB0DC85B11"));
     buffer sh = allocate_buffer(h, 20);
@@ -127,7 +133,7 @@ buffer_handler websocket_send_upgrade(heap h,
     prf("websocket accept: %b\n", b);
 
     apply(write, b, ignore);
-    apply(connect, 0, cont(h, websocket_output_frame,w, write));
+    apply(connect, 0, cont(h, websocket_output_frame,w));
     return(cont(h, websocket_input_frame, w));
 }
 
