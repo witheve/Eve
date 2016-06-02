@@ -3,31 +3,21 @@ Eve in Lua
 
 ## Getting started
 
-Install lua
+### OSX / Linux
 
-### OSX
-
-```
-brew install --devel --with-52compat luajit
-brew install lua51
-```
-
-Then grab the luarocks we use and run!
+Install luajit by downloading [LuaJIT-2.1.0-beta2](http://luajit.org/download.html) and then
 
 ```
-./getRocks.sh
-./run.sh
+make
+make install
 ```
 
-On OSX if you get a build error about openssl, do the following
+then in the `lueve/build` directory:
 
 ```
-xcode-select --install
-brew uninstall openssl
-brew install openssl
-brew link openssl --force
+make && ./lueve
 ```
 
 ### Windows
 
-On windows you can either install from source, or use a precompiled binary. Binaries for Lua 5.1 can be found [here](https://sourceforge.net/projects/luabinaries/files/5.1.5/Tools%20Executables/)
+A Docker container is forthcoming.

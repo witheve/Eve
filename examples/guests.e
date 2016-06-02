@@ -1,6 +1,6 @@
 count guests coming to the party
   party = [@"my party"]
-  guest = if [#person] then [#person]
+  guest = if p = [#person] then p
           if [#person spouse] then spouse
   total = count(given guest)
   update
