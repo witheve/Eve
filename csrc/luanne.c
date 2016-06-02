@@ -322,7 +322,8 @@ void require_luajit(interpreter c, char *z)
 {
     lua_getglobal(c->L, "require");
     lua_pushlstring(c->L, z, cstring_length(z));;
-    lua_pcall(c->L, 1, 0, 0);
+    lua_pcall(c->L, 1, 1, 0);
+    lua_setglobal(c->L, z);
 }
 
 void luaL_traceback (lua_State *L, lua_State *L1, const char *msg,
@@ -344,8 +345,7 @@ static int traceback(lua_State *L)
 void lua_run_eve(interpreter c, buffer b)
 {
     lua_getglobal(c->L, "compiler");
-    lua_pushstring(c->L, "compileExec");
-    lua_gettable(c->L, -1);
+    lua_getfield(c->L, -1, "compileExec");
     lua_pushlstring(c->L, bref(b, 0), buffer_length(b));
     if (lua_pcall(c->L, 1, 0, 0)) {
         printf ("lua error\n");
@@ -384,8 +384,6 @@ interpreter build_lua()
     luaL_openlibs(c->L);
     bundle_add_loaders(c->L);
 
-    require_luajit(c, "compiler");
-    
     // make me a lua package ala utf8
     define(c, "register", construct_register);
     define(c, "suid", construct_uuid);

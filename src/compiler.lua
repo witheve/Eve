@@ -450,10 +450,11 @@ function compileExec(contents, guy)
       local sorted = dependencyGraph:order()
       local unpacked = unpackObjects(sorted)
       -- this handler function is just for debugging, we no longer have
-      -- an 'execution return' 
-      guy(build.build(unpacked,
-             function(op, r)  print(op, r) end
-             ))                 
+      -- an 'execution return'
+      local built = build.build(unpacked, function(op, r)  print(op, r) end)
+      if guy then
+        guy(built)
+      end
    end
 end
 
