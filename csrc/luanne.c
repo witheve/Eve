@@ -341,6 +341,16 @@ static int traceback(lua_State *L)
   return 1;
 }
 
+void lua_run_eve(interpreter c, buffer b)
+{
+    void *x lua_getglobal(c->L, "compiler");
+    printf ("ev %p\n",x);
+    // lua from string not estring here
+    lua_pushvalue();
+    lua_gettable(x, "compileExec");
+}
+
+    
 void lua_run(interpreter c, buffer b)
 {
     int r;
@@ -388,6 +398,7 @@ interpreter build_lua()
     define(c, "scan", build_scan);
     define(c, "build_insert", build_insert);
 
+    require_luajit("compiler")
 
     return c;
 }

@@ -12,7 +12,13 @@ typedef enum {
     val,
     sep
 } states;
-    
+
+static void start_guy(heap h, buffer b)
+{
+    interpreter c = build_lua();
+    lua_run_eve(c, b);
+}
+
 void handle_json_query(heap h, buffer in, buffer_handler out)
 {
     states s = top;
@@ -32,5 +38,6 @@ void handle_json_query(heap h, buffer in, buffer_handler out)
             if (s == val) buffer_write_byte(bv, c);
         }
     }
+
 }
         
