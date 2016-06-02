@@ -96,3 +96,6 @@ string aprintf(heap h, char *fmt, ...);
 
 typedef value station;
 void bbprintf(string b, string fmt, ...);
+
+
+void lua_run_eve(interpreter c, buffer b);

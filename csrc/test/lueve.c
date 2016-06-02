@@ -12,14 +12,20 @@ station create_station(unsigned int address, unsigned short port) {
     return(a);
 }
 
+extern int strcmp(const char *, const char *);
 int main(int argc, char **argv)
 {
     init_runtime();
     interpreter c = build_lua();
-    if (argc > 1) {
-        buffer b = read_file(init, argv[1]);
-        lua_run(c, b);
+    for (int i = 1; i <argc ; i++) {
+        if (!strcmp(argv[i], "-e")) {
+            lua_run_eve(c, read_file(init, argv[++i]));
+        }
+        if (!strcmp(argv[i],"-l")) {
+            lua_run(c, read_file(init, argv[++i]));
+        }
     }
+    
     http_server h = create_http_server(init, create_station(0, 8080));
     extern unsigned char index_start, index_end;
     register_static_content(h, "/", "text/html", wrap_buffer(init, &index_start,
