@@ -40,5 +40,9 @@ luac.out
 *.hex
 
 lua_modules/
-build/lueve
+
+*~
 build/continuation_templates.h
+build/lueve
+
+

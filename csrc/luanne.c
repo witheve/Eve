@@ -344,10 +344,11 @@ static int traceback(lua_State *L)
 
 void lua_run_eve(interpreter c, buffer b)
 {
+    lua_pushcfunction(c->L, traceback);
     lua_getglobal(c->L, "compiler");
     lua_getfield(c->L, -1, "compileExec");
     lua_pushlstring(c->L, bref(b, 0), buffer_length(b));
-    if (lua_pcall(c->L, 1, 0, 0)) {
+    if (lua_pcall(c->L, 1, 0, lua_gettop(c->L)-3)) {
         printf ("lua error\n");
         printf ("%s\n", lua_tostring(c->L, -1));
     }
