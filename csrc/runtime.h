@@ -23,7 +23,7 @@ typedef iu8 *u8;
 typedef iu16 *u16;
 typedef iu32 *u32;
 typedef iu64 *u64;
-typedef u64 ticks;
+typedef iu64 ticks;
 typedef iu8 boolean;
 typedef iu64 bytes;
 
@@ -32,6 +32,7 @@ boolean equals(value, value);
 void *memcpy(void *s1, const void *s2, iu64 n);
 int memcmp(const void *s1, const void *s2, iu64 n);
 void *memset(void *b, int c, iu64 len);
+
 
 #include <heap.h>
 #include <continuation.h>
@@ -42,6 +43,8 @@ void *memset(void *b, int c, iu64 len);
 #include <alloca.h> // env
 #include <string.h>
 #include <number.h>
+#include <timer.h>
+#include <pqueue.h>
 
 typedef value eboolean;
 extern eboolean etrue;
@@ -65,10 +68,34 @@ void edb_insert(bag b, value e, value a, value v);
 void init_runtime();
 
 void error(char *);
+
+// break this out 
 typedef struct interpreter *interpreter;
 interpreter build_lua();
-void lua_run_file(interpreter c, char *filename);
+void lua_load_bytecode(interpreter, void *, bytes);
+void lua_run(interpreter c, buffer b);
+void eve_run(interpreter c, buffer b);
+void require_luajit(interpreter c, char *z);
 
-heap float_heap;
-heap uuid_heap;
-heap estring_heap;
+
+#define UUID_LENGTH 12
+
+uuid generate_uuid();
+
+typedef int operator;
+
+
+typedef closure(three_listener, value, value, value);
+typedef closure(two_listener, value, value);
+typedef closure(one_listener, value);
+void full_scan(bag b, three_listener f);
+void ea_scan(bag b, value, value, one_listener f);
+void av_scan(bag b, value, value, one_listener f);
+void uuid_base_print(char *, void *);
+string aprintf(heap h, char *fmt, ...);
+
+typedef value station;
+void bbprintf(string b, string fmt, ...);
+
+
+void lua_run_eve(interpreter c, buffer b);

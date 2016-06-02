@@ -1,5 +1,8 @@
-#include <unix_internal.h>
+#ifdef __linux__
+#define _GNU_SOURCE
+#endif
 
+#include <unix_internal.h>
  
 typedef struct region_heap {
     struct heap h;
@@ -7,7 +10,8 @@ typedef struct region_heap {
 } *region_heap;
 
 
-static void *allocate_pages(heap h, bits s)
+// ok, this needs to have a fill pointer..this is why we are allocating so many damn pages
+static void *allocate_pages(heap h, bytes s)
 {
     region_heap r = (void *)h;
     unsigned int length =  pad(s, h->pagesize);
@@ -16,6 +20,7 @@ static void *allocate_pages(heap h, bits s)
                    PROT_READ|PROT_WRITE,
                    MAP_PRIVATE|MAP_ANON|MAP_FIXED,
                    -1,0);
+    if (p == MAP_FAILED) return 0;
     // atomic increment
     r->fill += length;
     return(p);
@@ -43,6 +48,7 @@ heap init_fixed_page_region(heap meta,
     r->h.dealloc = free_pages;
     r->h.pagesize = pagesize;
     r->base = base_address;
+    r->fill = r->base;
     r->max = max_address;
     return (heap)r;
 }

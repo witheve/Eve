@@ -11,6 +11,7 @@ local util = require("util")
 local Set = require("set").Set
 local parser = require("parser")
 local color = require("color")
+local build = require("build")
 setfenv(1, Pkg)
 
 local ENTITY_FIELD = parser.ENTITY_FIELD
@@ -439,6 +440,32 @@ function unpackObjects(nodes)
    end
 
    return unpacked
+end
+
+function compileExec(contents, guy)
+   print ("got input", contents)
+   local parseGraph = parser.parseString(contents)
+   print ("got parse rgraph", parser.formatQueryGraph(parseGraph))
+
+   for ix, queryGraph in std.ipairs(parseGraph.children) do
+      print("--- Query Graph (" .. ix .. ") " .. queryGraph.name .. " ---")       
+      local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph)
+      print(dependencyGraph)
+      local sorted = dependencyGraph:order()
+      print(dependencyGraph)      
+      local unpacked = unpackObjects(sorted)
+      print("{")
+      for ix, node in std.ipairs(unpacked) do
+         print("  " .. ix .. ". " .. tostring(node))
+      end
+      print("}")      
+      -- this handler function is just for debugging, we no longer have
+      -- an 'execution return'
+      local built = build.build(unpacked, function(op, r)  print(op, r) end)
+      if guy then
+        guy(built)
+      end
+   end
 end
 
 function analyze(args)

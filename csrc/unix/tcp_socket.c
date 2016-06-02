@@ -55,13 +55,12 @@ static void actually_write(tcpsock t)
             tcppop(t);
         } else {
             buffer b = t->q->b;
-            int transfer = buffer_length(t->q->b)/8;
-            
+            int transfer = buffer_length(t->q->b);
+
             // this should handle EWOULDBLOCK 
             int result = write(t->d, 
                                bref(b, 0),
-                               transfer) * 8;
-            
+                               transfer);
             if (result > 0){
                 if (result < transfer) {
                     buffer_consume(b, result);
@@ -82,8 +81,10 @@ static void actually_write(tcpsock t)
 
 // thunk needs to be bound up in the buffer
 // doesn't handle being called until connect
+CONTINUATION_1_2(tcp_write, tcpsock, buffer, thunk);
 void tcp_write(tcpsock t, buffer b, thunk n)
 {
+    // track socket buffer occupancy and fast path this guy
     if (!t->q)
         register_write_handler(t->d, cont(t->h, actually_write, t));
 
@@ -96,21 +97,21 @@ void tcp_write(tcpsock t, buffer b, thunk n)
     t->last = &w->next;
 }
 
-static int connect_finish(tcpsock t)
+static CONTINUATION_1_0(connect_finish, tcpsock);
+static void connect_finish(tcpsock t)
 {
     struct sockaddr_in foo;
-    unsigned int size=sizeof(foo);
+    unsigned int size = sizeof(foo);
 
     if (getpeername(t->d, (struct sockaddr *)&foo, &size) == -1) {
         // error 
         apply(t->connect, false);
         close(t->d);
     } else {
-        register_read_handler(t->d, cont(t->h, read_nonblocking_desc, t));
+        // this 0 is the handler
+        register_read_handler(t->d, cont(t->h, read_nonblocking_desc, t->h, t->d, 0));
         apply(t->connect, t);
     }
-    //actually_write(t, ignore);
-    return(0);
 }
 
 static void connect_try (tcpsock t)
@@ -129,7 +130,17 @@ static void connect_try (tcpsock t)
             sizeof(struct sockaddr_in));
 }
 
-static void new_connection(tcpsock t)
+static CONTINUATION_1_1(register_read, tcpsock, buffer_handler);
+static void register_read(tcpsock t, buffer_handler r)
+{
+    register_read_handler(t->d,
+                          cont(t->h, read_nonblocking_desc, 
+                               t->h, t->d, r));
+}
+
+    
+static CONTINUATION_2_0(new_connection, tcpsock, new_client);
+static void new_connection(tcpsock t, new_client n)
 {
     tcpsock new = allocate_tcpsock(t->h);
     struct sockaddr_in from;
@@ -137,57 +148,55 @@ static void new_connection(tcpsock t)
     unsigned int addrsize = sizeof(struct sockaddr_in);
     int fd;
 
-    if ((fd = accept(desc(t->d), 
+    if ((fd = accept(t->d, 
                      (struct sockaddr *)&from,
                      &flen)) >= 0) {
         unsigned char x = 1;
-        new->d = wrap_descriptor(t->h, fd);
+        new->d = fd;
         // error handling
         setsockopt(fd, /*SOL_TCP*/0, TCP_NODELAY,
                           (char *)&x, sizeof(x));
-
+        
+#ifdef SO_NOSIGPIPE
         int one = 1;
         setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE,
                    (char *)&one, sizeof(one));
-
-        table peer = digest_sockaddrin(t->h, &from);        
-        flen = sizeof(struct sockaddr_in);
-        getsockname(fd, (struct sockaddr *)&from, &flen);
-        table myself = digest_sockaddrin(t->h, &from);
+#endif
         
-        buffer_handler r = apply(t->each, 
-                                 cont(t->h, tcp_write, new),
-                                 myself, peer);
-
-        if (r) {
-            new->each = r;
-            register_read_handler(new->d, 
-                                  cont(t->h, read_nonblocking_desc, 
-                                          t->h, new->d, r));
-        } else {
-            close(t->d);
-        }
+        station peer; // = sockaddr_to_station(t->h, &from);        
+        flen = sizeof(struct sockaddr_in);
+        // do we really care about this?
+        //        getsockname(fd, (struct sockaddr *)&from, &flen);
+        //        table myself = digest_sockaddrin(t->h, &from);
+        
+        apply(n,
+              cont(new->h, tcp_write, new),
+              cont(new->h, register_read, new),
+              peer);
+    } else {
+        close(t->d);
     }
-    register_read_handler(t->d, 
-                          cont(t->h, new_connection, t));
 
+    register_read_handler(t->d, 
+                          cont(t->h, new_connection, t, n));
 }
 
 
-static void bind_try(tcpsock t)
+static CONTINUATION_2_0(bind_try, tcpsock, new_client);
+static void bind_try(tcpsock t, new_client n)
 {
     struct sockaddr_in a;
-    
+
     encode_sockaddrin(&a, t->addr);
     // fill
-    if (bind(t->d, (struct sockaddr *)&a, sizeof(struct sockaddr_in))) {
+    if (bind(t->d, (struct sockaddr *)&a, sizeof(struct sockaddr_in)) == 0) {
         listen(t->d, 5);
 
         apply(t->connect, true);
-        register_read_handler(t->d, cont(t->h, new_connection, t));
+        register_read_handler(t->d, cont(t->h, new_connection, t, n));
     } else {
-        register_timer(seconds(t->h, 5),
-                       cont(t->h, bind_try, t));
+        register_timer(seconds(5),
+                       cont(t->h, bind_try, t, n));
     }
 }
 
@@ -210,20 +219,19 @@ void tcp_create_client (heap h,
 // a handle to reclaim me? - maybe a nice thunk?
 void tcp_create_server(heap h,
                        table addr,
-                       closure new_client,
+                       new_client n,
                        thunk bound)
 {
     tcpsock new = allocate_tcpsock(h);
     
     new->h = h;
-    new->each = new_client;
     new->connect = bound;
     new->d = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     new->addr = addr;
 
-    int flags = fcntl(*(int *)new->d, F_GETFD);
+    int flags = fcntl(new->d, F_GETFD);
     flags |= FD_CLOEXEC;
-    fcntl(*(int *)new->d, F_SETFD, flags);
+    fcntl(new->d, F_SETFD, flags);
     
     
 #ifdef SO_REUSEPORT
@@ -243,7 +251,7 @@ void tcp_create_server(heap h,
 
     unsigned char on = 1;        
     ioctl(new->d, FIONBIO, &on);
-    bind_try(new);
+    bind_try(new, n);
 }
 
 

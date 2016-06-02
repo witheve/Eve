@@ -7,24 +7,24 @@
 
 void ticks_to_timeval(struct timeval *a, ticks b)
 {
-    unsigned long long usec = (*b*1000000)>>32;
+    unsigned long long usec = (b*1000000)>>32;
     a->tv_sec  = usec / 1000000;
     a->tv_usec = usec % 1000000;
 }
 
-void timeval_to_ticks(ticks d, struct timeval *a)
+ticks timeval_to_ticks(struct timeval *a)
 {
-    *d = (((unsigned long long)a->tv_sec)<<32)|
+    return (((unsigned long long)a->tv_sec)<<32)|
         ((((unsigned long long)a->tv_usec)<<32)/1000000);
 }
 
 
-void now(ticks d)
+ticks now()
 {
     struct timeval result;
     
     gettimeofday(&result,0);
-    timeval_to_ticks(d, &result);
+    return timeval_to_ticks(&result);
 }
 
 
@@ -69,6 +69,18 @@ static void *allocate_pages_fence(heap h, bits s)
     return(p);
 }
 
+void prf(char *format, ...)
+{
+    string b = allocate_string(init);
+    va_list ap;
+    string f = string_from_cstring(init, format);
+    va_start(ap, format);
+    vbprintf(b, f, ap);
+    va_end(ap);
+    deallocate(init, f);
+    write(1, bref(b, 0), buffer_length(b));
+}
+
 static void free_pages(heap h, void *x)
 {
     // xxx - this doesn't free the whole page if its a multipage allocation
@@ -89,4 +101,13 @@ heap init_memory(bytes pagesize)
 void error(char *x)
 {
     write(1, x, cstring_length(x));
+}
+
+void unix_wait()
+{
+    while (1) {
+        ticks next = timer_check(0);
+        select_timer_block(next);
+    }
+    
 }
