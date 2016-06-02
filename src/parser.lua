@@ -1013,6 +1013,19 @@ local function generateUnionNode(root, context, unionType)
                  query = context.queryStack:peek(),
                  queries = {}}
 
+  -- generate vars for the outputs
+  local outputs = {}
+  if root.outputs.type == "IDENTIFIER" then
+    outputs[#outputs + 1] = resolveVariable(root.outputs, context)
+  elseif root.outputs.type == "block" then
+    for _, child in ipairs(root.outputs.children) do
+      outputs[#outputs + 1] = resolveVariable(child, context)
+    end
+  else
+    -- error
+  end
+  union.outputs = outputs
+
   for _, child in ipairs(root.children) do
     local type = child.type
     if type == "query" then
