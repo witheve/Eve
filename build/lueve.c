@@ -21,17 +21,25 @@ int main(int argc, char **argv)
         if (!strcmp(argv[i], "-e")) {
             lua_run_eve(c, read_file(init, argv[++i]));
         }
+        if (!strcmp(argv[i], "-parse")) {
+            lua_run_module_func(c, read_file(init, argv[++i]), "parser", "printParse");
+            return 0;
+        }
+        if (!strcmp(argv[i], "-analyze")) {
+            lua_run_module_func(c, read_file(init, argv[++i]), "compiler", "analyze");
+            return 0;
+        }
         if (!strcmp(argv[i],"-l")) {
             lua_run(c, read_file(init, argv[++i]));
         }
     }
-    
+
     http_server h = create_http_server(init, create_station(0, 8080));
     extern unsigned char index_start, index_end;
     register_static_content(h, "/", "text/html", wrap_buffer(init, &index_start,
                                                              &index_end - &index_start));
-    
-    
+
+
     extern unsigned char renderer_start, renderer_end;
     register_static_content(h, "/jssrc/renderer.js",
                             "application/javascript",

@@ -353,6 +353,18 @@ void lua_run_eve(interpreter c, buffer b)
     }
 }
 
+void lua_run_module_func(interpreter c, buffer b, char *module, char *func)
+{
+    require_luajit(c, module);
+    lua_getglobal(c->L, module);
+    lua_getfield(c->L, -1, func);
+    lua_pushlstring(c->L, bref(b, 0), buffer_length(b));
+    if (lua_pcall(c->L, 1, 0, 0)) {
+        printf ("lua error\n");
+        printf ("%s\n", lua_tostring(c->L, -1));
+    }
+}
+
 void lua_run(interpreter c, buffer b)
 {
     int r;

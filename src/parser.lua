@@ -1175,16 +1175,7 @@ local function parseString(str)
   return graph
 end
 
-local function printFileParse(args)
-  if not args[2] then
-    print(color.error("Parse requires a file to parse"))
-    return
-  elseif not fs.exists(args[2]) then
-    print(string.format(color.error("Couldn't open file %s for parsing"), args[2]))
-    return
-  end
-  local path = args[2]
-  local content = fs.read(path)
+local function printParse(content)
   local tokens = lex(content)
   local tree = {type="expression tree", children = parse(tokens)}
   local graph = generateNodes(tree)
@@ -1211,7 +1202,7 @@ end
 return {
   parseFile = parseFile,
   parseString = parseString,
-  printFileParse = printFileParse,
+  printParse = printParse,
   formatGraph = formatGraph,
   formatQueryGraph = formatQueryGraph,
   ENTITY_FIELD = MAGIC_ENTITY_FIELD

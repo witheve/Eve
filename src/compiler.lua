@@ -468,9 +468,8 @@ function compileExec(contents, guy)
    end
 end
 
-function analyze(args)
-   local file = args[2]
-   local parseGraph = parser.parseFile(file)
+function analyze(content)
+   local parseGraph = parser.parseString(content)
    print("--- Parse Graph ---")
    print(parser.formatQueryGraph(parseGraph))
 
