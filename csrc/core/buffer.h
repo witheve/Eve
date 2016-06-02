@@ -136,7 +136,7 @@ static inline buffer sub_buffer(heap h,
     return(wrap_buffer(h, b->contents+(b->start+start), length));
 }
 
-static inline void clear_buffer(buffer b)
+static inline void buffer_clear(buffer b)
 {
     b->start = b->end = 0;
 }

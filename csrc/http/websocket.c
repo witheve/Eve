@@ -82,7 +82,6 @@ static void websocket_input_frame(websocket w, buffer b, thunk t)
         // compress reassembly buffer
 
         w->reassembly->start += offset;
-        prf("webbo %b\n", w->reassembly);
         handle_json_query(w->h, w->reassembly, cont(w->h, websocket_output_frame, w));
         //        apply(w->client, w->reassembly, ignore);
         // compress

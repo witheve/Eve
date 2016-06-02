@@ -83,7 +83,7 @@ void start_multipart_http_response(heap h, buffer_handler write)
 static void reset_session(session s)
 {
     for (int i = 0; i<total_states ; i++) {
-        clear_buffer(s->fields[i]);
+        buffer_clear(s->fields[i]);
     }
     s->s = method;
 }
@@ -108,8 +108,8 @@ static void session_buffer(session s,
                     if (string_equal(s->fields[name], sstring("Sec-WebSocket-Key"))) {
                         s->child = websocket_send_upgrade(s->h, ignore, s->fields[property], s->write); 
                     }
-                    clear_buffer(s->fields[name]);
-                    clear_buffer(s->fields[property]);
+                    buffer_clear(s->fields[name]);
+                    buffer_clear(s->fields[property]);
                     s->s = 3;
                 }
             } else {
