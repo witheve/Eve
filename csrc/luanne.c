@@ -313,7 +313,7 @@ static int lua_gen_uuid(lua_State *L)
 
 
 void define(interpreter c, char *name, int (*f)(lua_State *)) {
-    lua_pushlightuserdata(c->L, c); 
+    lua_pushlightuserdata(c->L, c);
     lua_pushcclosure(c->L, f, 1);
     lua_setglobal(c->L, name);
 }
@@ -343,14 +343,13 @@ static int traceback(lua_State *L)
 
 void lua_run_eve(interpreter c, buffer b)
 {
-    void *x lua_getglobal(c->L, "compiler");
-    printf ("ev %p\n",x);
-    // lua from string not estring here
-    lua_pushvalue();
-    lua_gettable(x, "compileExec");
+    lua_getglobal(c->L, "compiler");
+    lua_pushlstring(c->L, b->contents, buffer_length(b));
+    lua_pushstring(c->L, "compileExec");
+    lua_gettable(c->L, -2);
+    lua_pcall(c->L, 1, 0, 0);
 }
 
-    
 void lua_run(interpreter c, buffer b)
 {
     int r;
@@ -398,7 +397,7 @@ interpreter build_lua()
     define(c, "scan", build_scan);
     define(c, "build_insert", build_insert);
 
-    require_luajit("compiler")
+    require_luajit(c, "compiler");
 
     return c;
 }
