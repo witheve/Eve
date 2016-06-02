@@ -17,7 +17,8 @@ int main(int argc, char **argv)
     init_runtime();
     interpreter c = build_lua();
     if (argc > 1) {
-        lua_run_file(c, argv[1]);
+        buffer b = read_file(init, argv[1]);
+        lua_run(c, b);
     }
     http_server h = create_http_server(init, create_station(0, 8080));
     extern unsigned char index_start, index_end;

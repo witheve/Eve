@@ -73,7 +73,8 @@ void error(char *);
 typedef struct interpreter *interpreter;
 interpreter build_lua();
 void lua_load_bytecode(interpreter, void *, bytes);
-void lua_run_file(interpreter c, char *filename);
+void lua_run(interpreter c, buffer b);
+void eve_run(interpreter c, buffer b);
 void require_luajit(interpreter c, char *z);
 
 

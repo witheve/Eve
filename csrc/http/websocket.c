@@ -5,19 +5,6 @@
 
 extern thunk ignore;
 
-  /*
-    bit fin         0
-    bit rsv[3]
-    bit opcode[4]   4
-    bit mask        5
-    bit payload_len[7]
-    bit length_extension1[16]
-    bit length_extension2[48]
-    bit masking_key[32]
-    ....data...
-  */
-
-
 typedef struct websocket {
     heap h;
     heap buffer_heap;
@@ -43,7 +30,7 @@ void websocket_output_frame(websocket w, buffer b, thunk t)
     apply(w->write, b, t);
 }
 
-extern void handle_json_query(buffer b, buffer_handler output);
+extern void handle_json_query(heap h, buffer b, buffer_handler output);
 
 static CONTINUATION_1_2(websocket_input_frame, websocket, buffer, thunk);
 static void websocket_input_frame(websocket w, buffer b, thunk t)
@@ -96,7 +83,7 @@ static void websocket_input_frame(websocket w, buffer b, thunk t)
 
         w->reassembly->start += offset;
         prf("webbo %b\n", w->reassembly);
-        handle_json_query(w->reassembly, cont(w->h, websocket_output_frame, w));
+        handle_json_query(w->h, w->reassembly, cont(w->h, websocket_output_frame, w));
         //        apply(w->client, w->reassembly, ignore);
         // compress
         w->reassembly->start += length;
@@ -136,16 +123,3 @@ buffer_handler websocket_send_upgrade(heap h,
     apply(connect, 0, cont(h, websocket_output_frame,w));
     return(cont(h, websocket_input_frame, w));
 }
-
-/*
-void register_websocket_service(heap h,
-                                http_server s, 
-                                string url,
-                                thunk connect)
-{
-    register_http_service(s, url,
-                          cont(h, websocket_send_upgrade,
-                                  h, connect));
-}
-
-*/

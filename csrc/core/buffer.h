@@ -135,3 +135,8 @@ static inline buffer sub_buffer(heap h,
     // copy?
     return(wrap_buffer(h, b->contents+(b->start+start), length));
 }
+
+static inline void clear_buffer(buffer b)
+{
+    b->start = b->end = 0;
+}

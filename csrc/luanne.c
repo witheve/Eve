@@ -341,13 +341,11 @@ static int traceback(lua_State *L)
   return 1;
 }
 
-void lua_run_file(interpreter c, char *filename)
+void lua_run(interpreter c, buffer b)
 {
-    // iterate, flags, etc
-    buffer b = read_file(c->h, filename);
     int r;
     lua_pushcfunction(c->L, traceback);
-    if ((r= luaL_loadbuffer(c->L, b->contents, buffer_length(b), filename))){
+    if ((r= luaL_loadbuffer(c->L, b->contents, buffer_length(b), ""))){
         printf ("lua load error %d\n", r);
     } else {
         if (lua_pcall(c->L, 0, 0, lua_gettop(c->L)-1)) {

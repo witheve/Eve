@@ -80,14 +80,6 @@ void start_multipart_http_response(heap h, buffer_handler write)
     apply(write, b, ignore);
 }
 
-static void line(http_server s, buffer_handler write, string l);
-
-
-static inline void clear_buffer(buffer b)
-{
-    b->start = b->end = 0;
-}
-
 static void reset_session(session s)
 {
     for (int i = 0; i<total_states ; i++) {
