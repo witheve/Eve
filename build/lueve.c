@@ -37,5 +37,7 @@ int main(int argc, char **argv)
                             "application/javascript",
                             wrap_buffer(init,  &renderer_start,
                                         &renderer_end -  &renderer_start));
+
+    printf("\n----------------------------------------------\n\nEve started. Running at http://localhost:8080\n\n");
     unix_wait();
 }
