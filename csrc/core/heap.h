@@ -4,8 +4,8 @@ typedef struct heap {
     void *(*alloc)();
     void (*dealloc)();
     void (*destroy)();
-    bits pagesize;
-    bits allocated;
+    bytes pagesize;
+    bytes allocated;
 } *heap;
 
 

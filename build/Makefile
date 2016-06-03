@@ -28,9 +28,8 @@ LUAPOWER = bundle.o
 UTF = lutf8lib.o
 COMPILER = compiler.o error.o fs.o parser.o util.o set.o color.o build.o implicationResolver.o
 UNIX =  unix_util.o region.o select.o tcp_socket.o
-CORE = buffer.o table.o types.o vector.o format.o rolling.o edb.o init.o string.o uuid.o\
-       pqueue.o timer.o
-LANG =  luanne.o json_request.o
+CORE = buffer.o table.o vector.o format.o rolling.o string.o pqueue.o timer.o
+RUNTIME =  edb.o init.o uuid.o estring.o types.o  luanne.o json_request.o
 HTTP = server.o websocket.o base64.o sha1.o
 
 continuation_templates.h: continuations.py
@@ -59,7 +58,7 @@ renderer.o: ../jssrc/renderer.js
 # the executable out of the way for the moment
 #macosx 
 #linux  -Wl,-E
-lueve: $(CORE) $(UNIX) $(COMPILER) $(UTF) $(LUAPOWER) $(HTTP) $(LANG) index.o renderer.o lueve.o
+lueve: $(CORE) $(UNIX) $(COMPILER) $(UTF) $(LUAPOWER) $(HTTP) $(RUNTIME) index.o renderer.o lueve.o
 	cc $(LINK) $^ $(LIBLUAJIT) -lm -ldl  -o $@
 
 clean:

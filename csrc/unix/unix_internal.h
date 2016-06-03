@@ -18,7 +18,7 @@ typedef int decsriptor;
 
 static inline buffer system_read(heap h, 
                                  descriptor d,
-                                 bits length)
+                                 bytes length)
 {
     iu64 len = length;
     buffer b = allocate_buffer(h, length);

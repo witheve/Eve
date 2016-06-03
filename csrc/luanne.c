@@ -25,7 +25,7 @@ static int lua_toregister(lua_State *L, int index)
 }
 
 // refcounting
-static value value_from_lua(lua_State *L, int index)
+static value lua_tovalue(lua_State *L, int index)
 {
     switch(lua_type(L, index)){
     case LUA_TBOOLEAN:
@@ -68,9 +68,9 @@ static int run(lua_State *L)
 
 // break this out...also copy r now that its well-formed how to do that
 static CONTINUATION_6_4(scan_listener_3, execf, operator, value *, int, int, int,
-                        value, value, value, boolean);
+                        value, value, value, eboolean);
 static void scan_listener_3(execf n,  operator op, value *r, int a, int b, int c,
-                            value av, value bv, value cv, boolean present)
+                            value av, value bv, value cv, eboolean present)
 {
     r[a] = av;
     r[b] = bv;
@@ -78,25 +78,25 @@ static void scan_listener_3(execf n,  operator op, value *r, int a, int b, int c
     apply(n, 0, r);
 }
 
-static CONTINUATION_5_3(scan_listener_2, execf, operator, value *, int, int, value, value, boolean);
+static CONTINUATION_5_3(scan_listener_2, execf, operator, value *, int, int, value, value, eboolean);
 static void scan_listener_2(execf n, operator op, value *r, int a, int b,
-                            value av, value bv, boolean present)
+                            value av, value bv, eboolean present)
 {
     r[a] = av;
     r[b] = bv;
     apply(n, 0, r);
 }
 
-static CONTINUATION_4_2(scan_listener_1, execf, operator, value *, int, value, boolean);
-static void scan_listener_1(execf n, operator op, value *r, int a, value av, boolean present)
+static CONTINUATION_4_2(scan_listener_1, execf, operator, value *, int, value, eboolean);
+static void scan_listener_1(execf n, operator op, value *r, int a, value av, eboolean present)
 {
     // synchronous
     r[a] = av;
     apply(n, op, r);
 }
 
-static CONTINUATION_4_1(scan_listener_1, execf, int, value *, operator, boolean);
-static void scan_listener_0(execf n, int a, value *r, operator op, boolean present)
+static CONTINUATION_3_1(scan_listener_0, execf, value *, operator, eboolean);
+static void scan_listener_0(execf n, value *r, operator op, eboolean present)
 {
     apply(n, op, r);
 }
@@ -108,22 +108,22 @@ static void do_full_scan(interpreter z, execf n, int e, int a, int v, operator o
     full_scan(z->b, cont(z->h, scan_listener_3, n, op, r, e, a, v));
 }
 
-static CONTINUATION_5_2(do_ea_scan, interpreter, execf, int, int, int, operator, value *);
+static CONTINUATION_5_2(do_ea_scan, interpreter, execf, value, value, int, operator, value *);
 static void do_ea_scan(interpreter z, execf n, value e, value a, int v, operator op, value *r)
 {
-    full_scan(z->b, cont(z->h, scan_listener_3, n, op, r, a, b, c));
+    ea_scan(z->b, e, a, cont(z->h, scan_listener_1, n, op, r, v));
 }
 
-static CONTINUATION_4_2(do_av_scan, interpreter, execf, int, int, operator, value *);
+static CONTINUATION_5_2(do_av_scan, interpreter, execf, int, value, value, operator, value *);
 static void do_av_scan(interpreter z, execf n, int e, value a, value v, operator op, value *r)
 {
-    full_scan(z->b, cont(z->h, scan_listener_3, n, op, r, a, b, c));
+    av_scan(z->b, a, v, cont(z->h, scan_listener_1, n, op, r, e));
 }
 
-static CONTINUATION_2_2(do_eav_scan, interpreter, execf, operator, value *);
-static void do_check_scan(interpreter z, execf n, value e, value a, value c, operator op, value *r)
+static CONTINUATION_5_2(do_eav_scan, interpreter, execf, value, value, value, operator, value *);
+static void do_eav_scan(interpreter z, execf n, value e, value a, value v, operator op, value *r)
 {
-    full_scan(z->b, cont(z->h, scan_listener_3, n, op, r, a, b, c));
+    eav_scan(z->b, e, a, v, cont(z->h, scan_listener_0, n, r, op));
 }
 
 // this seems broken at the high end..
@@ -133,11 +133,15 @@ static void do_check_scan(interpreter z, execf n, value e, value a, value c, ope
 //}
 
 // value e = lua_toboolean(c->h, L, 1);
+
+// xxx - intrinsic
+extern int strcmp(const char *x, const char *y);
+
 static int build_scan(lua_State *L)
 {
     interpreter c = lua_context(L);
     execf next = (void *)lua_topointer(L, 1);
-    value e = value_from_lua(L, 1);
+    value e = lua_tovalue(L, 1);
     char *description = (void *)lua_tostring(L, 2);
     int outstart = 3;
     execf r;
@@ -146,8 +150,8 @@ static int build_scan(lua_State *L)
     if (!strcmp(description, "eav")) {
         r =cont(c->h, do_full_scan, c, next,
                 lua_toregister(L, outstart),
-                lua_tovalue(L, outstart + 1),
-                lua_tovalue(L, outstart+2));
+                lua_toregister(L, outstart + 1),
+                lua_toregister(L, outstart+2));
     }
     if (!strcmp(description, "EAv")) {
          r =cont(c->h, do_ea_scan, c, next,
@@ -162,10 +166,10 @@ static int build_scan(lua_State *L)
                 lua_tovalue(L, outstart+2));
     }
     if (!strcmp(description, "EAV")) {
-        r =cont(c->h, do_check_scan, c, next,
+        r =cont(c->h, do_eav_scan, c, next,
                 lua_tovalue(L, outstart),
                 lua_tovalue(L, outstart + 1),
-                lua_tovalue(L, outstart+2));
+                lua_tovalue(L, outstart + 2));
     }
     lua_pushlightuserdata(L, r);
     return 1;
@@ -185,10 +189,10 @@ static int build_insert(lua_State *L)
 
     execf r = cont(c->h, do_insert, 
                    c->b, 
-                   value_from_lua(L, 2),
-                   value_from_lua(L, 3),
-                   value_from_lua(L, 4),
-                   value_from_lua(L, 1));
+                   lua_tovalue(L, 2),
+                   lua_tovalue(L, 3),
+                   lua_tovalue(L, 4),
+                   lua_tovalue(L, 1));
     lua_pushlightuserdata(L, r);
     return 1;
 }
@@ -204,7 +208,7 @@ static int build_genid(lua_State *L)
 {
     interpreter c = lua_context(L);
     execf n = cont(c->h, do_genid,
-                   value_from_lua(L, 1),
+                   lua_tovalue(L, 1),
                    lua_toregister(L, 2));
     lua_pushlightuserdata(L, n);
     return 1;
@@ -215,9 +219,9 @@ static int direct_insert(lua_State *L)
 {
     interpreter c = lua_context(L);
     // should really go into the bag heap, dont you think?
-    value e = value_from_lua(L, 1);
-    value a = value_from_lua(L, 2);
-    value v = value_from_lua(L, 3);
+    value e = lua_tovalue(L, 1);
+    value a = lua_tovalue(L, 2);
+    value v = lua_tovalue(L, 3);
 
     edb_insert(c->b, e, a, v);
     return 0;

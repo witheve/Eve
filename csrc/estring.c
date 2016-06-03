@@ -1,0 +1,39 @@
+#include <runtime.h>
+#include <unix/unix.h>
+
+static void string_print(buffer b, void *x, heap h)
+{
+}
+
+static iu64 estring_length(void *x) {
+    return 12;
+}
+
+struct type string_methods = {
+    string_print,
+    estring_length,
+    string_hash,    
+};
+
+static table interned_string;
+static heap estring_heap;
+
+estring intern_string(unsigned char* content, int length) {
+    struct string_intermediate si = {length, content};
+    struct string_intermediate *x;
+    // racy
+    if (!(x = table_find(interned_string, &si))) {
+        x = allocate(estring_heap, sizeof(struct string_intermediate));
+        x->length = length;
+        x->body = allocate(estring_heap, length);
+        memcpy(x->body, content, length);
+        table_set(interned_string, x, x);
+    }
+    return x;
+}
+    
+void init_string()
+{
+    interned_string = allocate_table(init, si_hash, si_compare);
+    estring_heap = init_fixed_page_region(init, interned_space, interned_space + region_size, pages->pagesize);
+}

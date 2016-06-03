@@ -1,4 +1,4 @@
-#include <runtime.h>
+#include <core.h>
 
 struct pqueue {
     vector v;
@@ -9,7 +9,7 @@ typedef iu32 index; //indices are off by 1 from vector references
 
 static inline void swap(pqueue q, index x, index y)
 {
-    value temp = vector_ref(q->v, x-1);
+    void *temp = vector_ref(q->v, x-1);
     vector_set(q->v, x-1, vector_ref(q->v, y-1));
     vector_set(q->v, y-1, temp);
 }
@@ -48,7 +48,7 @@ static void add_pqueue(pqueue q, index i)
     }
 }
 
-void pqueue_insert(pqueue q, value v)
+void pqueue_insert(pqueue q, void *v)
 {
     vector_insert(q->v, v);
     add_pqueue(q, vector_length(q->v));
@@ -56,11 +56,11 @@ void pqueue_insert(pqueue q, value v)
 
 void *pqueue_pop(pqueue q)
 {
-    value result = EMPTY;
+    void *result = EMPTY;
 
     if (vector_length(q->v) > 0) {
         result = vector_ref(q->v, 0);
-        value n = vector_pop(q->v);
+        void *n = vector_pop(q->v);
         if (vector_peek(q->v) != EMPTY) {
             vector_set(q->v, 0, n);
             heal(q, 1);

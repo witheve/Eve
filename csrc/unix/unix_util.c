@@ -47,7 +47,7 @@ buffer read_file(heap h, char *path)
     return 0;
 }
 
-static void *allocate_pages(heap h, bits s)
+static void *allocate_pages(heap h, bytes s)
 {
     void *p = mmap(0, pad(s, h->pagesize),
                    PROT_READ|PROT_WRITE,
@@ -57,9 +57,9 @@ static void *allocate_pages(heap h, bits s)
     return(p);
 }
 
-static void *allocate_pages_fence(heap h, bits s)
+static void *allocate_pages_fence(heap h, bytes s)
 {
-    int baselen = pad(bytesof(s), h->pagesize);
+    int baselen = pad(s, h->pagesize);
     void *p = mmap(0,  baselen + h->pagesize,
                    PROT_READ|PROT_WRITE,
                    MAP_PRIVATE|MAP_ANON,

@@ -6,9 +6,9 @@ int table_elements(table t);
 typedef iu64 key;
 
 typedef struct entry {
-    value v;
+    void *v;
     key k;
-    value c; 
+    void *c; 
     struct entry *next;
 } *entry;
 
@@ -21,8 +21,8 @@ struct table {
     boolean (*equals_function)(void *x, void *y);
 };
 
-value table_find (table t, void *c);
-void table_set (table t, value c, value v);
+void *table_find (table t, void *c);
+void table_set (table t, void *c, void *v);
 
 #define eZ(x,y) ((entry) *x)->y
 #define eK(x,y) (x->entries->y)

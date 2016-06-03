@@ -1,4 +1,4 @@
-#include <runtime.h>
+#include <core.h>
 
 typedef struct pageheader *pageheader;
 
@@ -19,7 +19,7 @@ typedef struct rolling {
 static void rolling_advance_page(rolling l, bytes len)
 {
     pageheader old = l->buffer;
-    bits plen = pad(len, l->parent->pagesize);
+    bytes plen = pad(len, l->parent->pagesize);
     pageheader p =  allocate(l->parent, plen);
     l->buffer = p;
     l->offset = sizeof(pageheader);
@@ -68,7 +68,7 @@ heap allocate_rolling(heap p)
     l->buffer = ph;
     l->parent = p;
     l->offset = sizeof(struct rolling);
-    l->length = bytesof(p->pagesize);
+    l->length = p->pagesize;
     ph->last = 0;
     ph->refcnt = 1;
     ph->next = 0;

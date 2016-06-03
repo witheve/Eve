@@ -1,4 +1,4 @@
-#include <runtime.h>
+#include <core.h>
 
 #define forall_entries(__i, __v)\
    vector_foreach (__i, __v) \
@@ -25,7 +25,7 @@ static inline key position(table t, key x)
 }
 
 // need an atomic find and create
-value table_find (table t, void *c)
+void *table_find (table t, void *c)
 {
     key k = t->key_function(c);
     
@@ -61,12 +61,12 @@ static void resize_table(table t, int buckets)
 }
 
 
-void table_set (table t, value c, value v)
+void table_set (table t, void *c, void *v)
 {
     key k = t->key_function(c);
     key p = position(t, k);
     // xxx - opacity
-    entry *e = bref(t->entries, p*bitsizeof(void *));
+    entry *e = bref(t->entries, p*sizeof(void *));
 
     for (; *e; e = &(*e)->next)
         if (((*e)->k == k) && t->equals_function((*e)->c, c)) {
