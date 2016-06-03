@@ -21,7 +21,7 @@ void websocket_output_frame(websocket w, buffer b, thunk t)
     buffer out = allocate_buffer(w->h, length + 6);
     // just the short case
     unsigned char control = 0x81;
-    buffer_append(out, &control, 8);
+    buffer_append(out, &control, 1);
     unsigned char plen = length;
     // xxx - length extensions
     buffer_append(out, &plen, 1);
@@ -90,10 +90,17 @@ static void websocket_input_frame(websocket w, buffer b, thunk t)
     apply(t);
 }
 
+void websocket_connect(int status, thunk send)
+{
+    buffer b = allocate_buffer(init, 20);
+    buffer_append(b, "hello!", 6);
+    apply(send, b, ignore);
+}
+
 void sha1(buffer d, buffer s);
 // xxx - fix wiring
 
-buffer_handler websocket_send_upgrade(heap h, 
+buffer_handler websocket_send_upgrade(heap h,
                                       thunk connect,
                                       string key,
                                       buffer_handler write)
@@ -120,5 +127,7 @@ buffer_handler websocket_send_upgrade(heap h,
 
     apply(write, b, ignore);
     apply(connect, 0, cont(h, websocket_output_frame,w));
+    websocket_connect(0, cont(h, websocket_output_frame,w));
     return(cont(h, websocket_input_frame, w));
 }
+
