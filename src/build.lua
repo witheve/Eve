@@ -2,19 +2,29 @@ util = require("util")
 math = require("math")
 parser = require("parser")
 
-function simple_print_table(t)
+function recurse_print_table(t)
    if t == nil then return nil end
    local result = ""
    for k, v in pairs(t) do
       result = result .. " " .. tostring(k) .. ":"
      if (type(v) == "table") then
-        result = result .. "{" .. simple_print_table(v) .. "}"
+        result = result .. "{" .. recurse_print_table(v) .. "}"
      else
         result = result .. tostring(v)
      end
    end
    return result
 end
+
+function flat_print_table(t)
+   local result = ""
+   for k, v in pairs(t) do
+      result = result .. " " .. tostring(k) .. ":"
+      result = result .. tostring(v)
+   end
+   return result
+end    
+
 
 function deepcopy(orig)
    local orig_type = type(orig)
@@ -29,9 +39,21 @@ function deepcopy(orig)
     end
    return copy
 end
+
+function shallowcopy(orig)
+    local copy = {}
+    for k, v in pairs(orig) do
+       copy[k] = v
+    end
+    return copy
+end
                                                                             
 
 -- end of util
+
+function empty_env()
+   return {alloc=0, freelist = {}, registers = {}, permanent = {}}
+end
 
 function variable(x)
    return type(x) == "table" and x.type == "variable" 
@@ -39,11 +61,13 @@ end
 
 
 function free_register(env, e)
-   env.freelist[env.registers[e]] = true
-   env.registers[e] = nil
-   while(env.freelist[env.alloc-1]) do 
-      env.alloc = env.alloc - 1 
-      env.freelist[env.alloc] = nil
+   if env.permanent[e] == nil then
+     env.freelist[env.registers[e]] = true
+     env.registers[e] = nil
+     while(env.freelist[env.alloc-1]) do 
+        env.alloc = env.alloc - 1 
+        env.freelist[env.alloc] = nil
+     end
    end
 end
 
@@ -94,13 +118,11 @@ end
 function walk(graph, bound, tail, tail_env, key)
    nk = next(graph, key)    
    if nk then
-       local defined = {}
        local n = graph[nk]
-       local e = n[parser.ENTITY_FIELD]
+       local e = n.entity
        local a = n.attribute
        local v = n.value
-
-       print("walk", n.type, e, a, simple_print_table(v))
+       
        -- looking at these two cases for object it seems pretty clear this can be generalized
        if n.type == "object" and not bound[e] and bound_lookup(bound, a) and bound_lookup(bound, v) then
           bound[e] = true;
@@ -134,14 +156,30 @@ function walk(graph, bound, tail, tail_env, key)
        end
 
        if (n.type == "union") then
+          local heads
+          
           for _, v in pairs(n.outputs) do
              bound[v] = true
           end
+
           local env, c = walk(graph, bound, tail, tail_env, nk)
-          for _, v in pairs(n.queries) do
---               util.printTable(v, 0, 10, {})
-               e2, c2 = walk(v.unpacked, bound, c, env, nil)
+                
+          local orig_perm = shallowcopy(env.permanent)
+          for n, _ in pairs(env.registers) do
+             env.permanent[n] = true
           end
+          
+          for _, v in pairs(n.queries) do
+             local c3
+             env, c3 = walk(v.unpacked, bound, tail, env, nk)
+             if c2 then
+                 c2 = build_fork(c2, c3)
+             else
+                 c2 = c3
+             end
+          end
+          env.permanent = orig_perm
+          return e2, c2
        end
        
        print ("ok, so we kind of suck right now and only handle some fixed patterns",
@@ -155,8 +193,13 @@ function walk(graph, bound, tail, tail_env, key)
 end
 
 
-function build(graph, tail) 
-   local _, _, _, program =  walk(graph, {}, wrap_tail(tail),  {alloc=0, freelist = {}, registers = {}}, nil)
+function build(graph, tail)
+      print("{")
+      for ix, node in ipairs(graph) do
+         print("  " .. ix .. ". " .. tostring(node))
+      end
+      print("}")
+   _, program =  walk(graph, {}, wrap_tail(tail),  empty_env(), nil)
    return program
 end
       

@@ -448,22 +448,12 @@ function unpackObjects(nodes)
 end
 
 function compileExec(contents, guy)
-   print ("got input", contents)
    local parseGraph = parser.parseString(contents)
-   print ("got parse rgraph", parser.formatQueryGraph(parseGraph))
 
    for ix, queryGraph in std.ipairs(parseGraph.children) do
-      print("--- Query Graph (" .. ix .. ") " .. queryGraph.name .. " ---")       
       local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph)
-      print(dependencyGraph)
       local sorted = dependencyGraph:order()
-      print(dependencyGraph)      
       local unpacked = unpackObjects(sorted)
-      print("{")
-      for ix, node in std.ipairs(unpacked) do
-         print("  " .. ix .. ". " .. tostring(node))
-      end
-      print("}")      
       -- this handler function is just for debugging, we no longer have
       -- an 'execution return'
       local built = build.build(unpacked, function(op, r)  print(op, r) end)

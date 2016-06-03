@@ -144,7 +144,7 @@ static int build_scan(lua_State *L)
     value e = lua_tovalue(L, 1);
     char *description = (void *)lua_tostring(L, 2);
     int outstart = 3;
-    execf r;
+    execf r = 0;
 
     // so unhappy
     if (!strcmp(description, "eav")) {
@@ -175,6 +175,22 @@ static int build_scan(lua_State *L)
     return 1;
 }
 
+static CONTINUATION_2_2(do_fork, execf, execf, operator, value  *);
+static void do_fork(execf a, execf b, operator op, value  *r)
+{
+    apply(a, op, r);
+    apply(b, op, r);
+}
+
+static int build_fork(lua_State *L)
+{
+    interpreter c = lua_context(L);
+    lua_pushlightuserdata(L, cont(c->h, do_fork,
+                                  (void *)lua_topointer(L, 1),
+                                  (void *)lua_topointer(L, 2)));
+    return 1;
+}
+
 // dynamic baggy?
 static CONTINUATION_5_2(do_insert, bag, value, value, value, execf, operator, value *) ;
 static void do_insert(bag bg, value a, value b, value c, execf n, operator op, value *r) 
@@ -182,7 +198,7 @@ static void do_insert(bag bg, value a, value b, value c, execf n, operator op, v
     edb_insert(bg, lookup(a, r), lookup(b, r), lookup(c,r));
     apply(n, op, r);
 }
-    
+
 static int build_insert(lua_State *L)
 {
     interpreter c = lua_context(L);
@@ -464,6 +480,7 @@ interpreter build_lua()
     define(c, "wrap_tail", wrap_tail);
     define(c, "scan", build_scan);
     define(c, "build_insert", build_insert);
+    define(c, "build_fork", build_fork);
 
     require_luajit(c, "compiler");
 
