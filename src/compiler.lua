@@ -147,6 +147,11 @@ end
 function DependencyGraph:addSubqueryNode(node)
    local provides = Set:new()
    local depends = Set:new()
+
+   for _, var in std.pairs(node.outputs) do
+     provides:add(var)
+   end
+
    for _, body in std.ipairs(node.queries) do
       local subgraph = DependencyGraph:fromQueryGraph(body, self.terms:clone(), self.terms:clone())
       provides:union(subgraph:provided(), true)

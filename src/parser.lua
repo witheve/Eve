@@ -1016,10 +1016,10 @@ local function generateUnionNode(root, context, unionType)
   -- generate vars for the outputs
   local outputs = {}
   if root.outputs.type == "IDENTIFIER" then
-    outputs[#outputs + 1] = resolveVariable(root.outputs, context)
+    outputs[#outputs + 1] = resolveVariable(root.outputs.value, context)
   elseif root.outputs.type == "block" then
     for _, child in ipairs(root.outputs.children) do
-      outputs[#outputs + 1] = resolveVariable(child, context)
+      outputs[#outputs + 1] = resolveVariable(child.value, context)
     end
   else
     -- error
