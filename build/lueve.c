@@ -29,6 +29,10 @@ int main(int argc, char **argv)
             lua_run_module_func(c, read_file(init, argv[++i]), "compiler", "analyze");
             return 0;
         }
+        if (!strcmp(argv[i], "-resolve")) {
+            lua_run_module_func(c, read_file(init, argv[++i]), "implicationResolver", "testCollect");
+            return 0;
+        }
         if (!strcmp(argv[i],"-l")) {
             lua_run(c, read_file(init, argv[++i]));
         }

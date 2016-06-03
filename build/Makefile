@@ -26,7 +26,7 @@ VPATH += ../csrc
 
 LUAPOWER = bundle.o
 UTF = lutf8lib.o
-COMPILER = compiler.o error.o fs.o parser.o util.o set.o color.o build.o
+COMPILER = compiler.o error.o fs.o parser.o util.o set.o color.o build.o implicationResolver.o
 UNIX =  unix_util.o region.o select.o tcp_socket.o
 CORE = buffer.o table.o types.o vector.o format.o rolling.o edb.o init.o string.o uuid.o\
        pqueue.o timer.o
