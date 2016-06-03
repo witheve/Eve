@@ -229,7 +229,7 @@ end
 function collectImplications(parse)
   -- TODO: we can make this incremental if we pass in the previous
   -- context here
-  local context = {consumers = {}, producers = {}, equivalences = {}, resolutions = {}
+  local context = {consumers = {}, producers = {}, equivalences = {}, resolutions = {},
                    objectInfo = {}, variableToObjectInfo = {}, toResolve = Set:new()}
   -- build all the indexes we need to resolve
   indexConsumers(parse, context)

@@ -343,7 +343,7 @@ function ScanNode:fromObject(source)
    end
    obj.source = source
    obj.type = source.type
-   for _, binding in std.ipairs(node.bindings) do
+   for _, binding in std.ipairs(source.bindings) do
       obj[binding.field] = binding.variable or binding.constant
    end
    return obj
@@ -358,7 +358,7 @@ function ScanNode:fromBinding(source, binding, entity)
    obj.type = source.type
    obj.operator = source.operator
    obj.scope = source.scope
-   obj[ENTITY_FIELD] = entity
+   obj.entity = entity
    obj.attribute = binding.field
    obj.value = binding.variable or binding.constant
    return obj
@@ -379,7 +379,7 @@ function ScanNode.__tostring(obj)
      value = value.constant
    end
    return "ScanNode{type: " .. tostring(obj.type) .. ", " .. operator ..
-      tostring(ENTITY_FIELD) .. ": " .. tostring(obj[ENTITY_FIELD]) ..
+      "entity: " .. tostring(obj.entity) ..
       ", attribute: " .. tostring(obj.attribute) ..
       ", value: " .. tostring(value) .. "}"
 end
