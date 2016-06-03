@@ -13,21 +13,32 @@ typedef struct websocket {
     buffer_handler write;
 } *websocket;
 
+// implement close
+void websocket_send(websocket w, int opcode, buffer b, thunk t)
+{
+    int length = buffer_length(b);
+    buffer out = allocate_buffer(w->h, 10);
+    buffer_write_byte(opcode);
+    if (length > 65536) {
+        buffer_write_byte(out, 127);
+        buffer_write_be64(length);
+    } else {
+        if (length > 125) {
+            buffer_write_byte(out, 126);
+            buffer_write_be16(length);
+        } else {
+            buffer_write_byte(out, length, 8);
+        }
+    }
+    apply(w->write, out, ignore); // reclaim
+    apply(w->write, b, t);
+}
+
+    
 CONTINUATION_1_2(websocket_output_frame, websocket, buffer, thunk);
 void websocket_output_frame(websocket w, buffer b, thunk t)
 {
-    int length = buffer_length(b);
-    // force a resize if length is extended
-    buffer out = allocate_buffer(w->h, length + 6);
-    // just the short case
-    unsigned char control = 0x81;
-    buffer_append(out, &control, 1);
-    unsigned char plen = length;
-    // xxx - length extensions
-    buffer_append(out, &plen, 1);
-
-    apply(w->write, out, ignore); // reclaim
-    apply(w->write, b, t);
+    websocket_send(w, 1, b, t);
 }
 
 extern void handle_json_query(heap h, buffer b, buffer_handler output);
@@ -49,6 +60,7 @@ static void websocket_input_frame(websocket w, buffer b, thunk t)
 
     iu64 length = *(u8)bref(w->reassembly, 1) & 0x7f;
 
+    // could use read_be, but it consumes
     if (length == 126) {
         if (rlen < 4) return;
         length = htons(*(u16)bref(w->reassembly, 2));
@@ -63,9 +75,7 @@ static void websocket_input_frame(websocket w, buffer b, thunk t)
         }
     }
     
-
     iu32 mask = 0;
-    // which should always be the case for client streams
     if (*(u8)bref(w->reassembly, 1) & 0x80) {
         mask = *(u32)bref(b, offset);
         offset += 4;
@@ -80,11 +90,10 @@ static void websocket_input_frame(websocket w, buffer b, thunk t)
         }
         // xxx - only deliver this message
         // compress reassembly buffer
-
+        
         w->reassembly->start += offset;
         handle_json_query(w->h, w->reassembly, cont(w->h, websocket_output_frame, w));
         //        apply(w->client, w->reassembly, ignore);
-        // compress
         w->reassembly->start += length;
     }
     apply(t);
