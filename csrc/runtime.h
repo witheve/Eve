@@ -99,3 +99,4 @@ void bbprintf(string b, string fmt, ...);
 
 
 void lua_run_eve(interpreter c, buffer b);
+void lua_run_module_func(interpreter c, buffer b, char *module, char *func);

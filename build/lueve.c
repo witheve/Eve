@@ -2,6 +2,7 @@
 #include <unix.h>
 #include <http/http.h>
 #include <bswap.h>
+#include <stdio.h>
 
 
 station create_station(unsigned int address, unsigned short port) {
@@ -13,6 +14,7 @@ station create_station(unsigned int address, unsigned short port) {
 }
 
 extern int strcmp(const char *, const char *);
+
 int main(int argc, char **argv)
 {
     init_runtime();

@@ -106,7 +106,7 @@ static void session_buffer(session s,
                 if (++s->s == total_states)  {
                     // xxx - fix plumbing..so sad
                     if (string_equal(s->fields[name], sstring("Sec-WebSocket-Key"))) {
-                        s->child = websocket_send_upgrade(s->h, ignore, s->fields[property], s->write); 
+                        s->child = websocket_send_upgrade(s->h, ignore, s->fields[property], s->write);
                     }
                     buffer_clear(s->fields[name]);
                     buffer_clear(s->fields[property]);
