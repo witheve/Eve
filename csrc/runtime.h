@@ -85,9 +85,11 @@ uuid generate_uuid();
 typedef int operator;
 
 
-typedef closure(three_listener, value, value, value);
-typedef closure(two_listener, value, value);
-typedef closure(one_listener, value);
+typedef closure(three_listener, value, value, value, boolean);
+typedef closure(two_listener, value, value, boolean);
+typedef closure(one_listener, value, boolean);
+typedef closure(zero_listener, boolean);
+
 void full_scan(bag b, three_listener f);
 void ea_scan(bag b, value, value, one_listener f);
 void av_scan(bag b, value, value, one_listener f);
