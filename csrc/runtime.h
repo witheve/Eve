@@ -58,6 +58,7 @@ void uuid_base_print(char *, void *);
 string aprintf(heap h, char *fmt, ...);
 void bbprintf(string b, string fmt, ...);
 
+typedef closure(execf, operator, value *);
 
-void lua_run_eve(interpreter c, buffer b);
+execf lua_compile_eve(interpreter c, buffer b);
 void lua_run_module_func(interpreter c, buffer b, char *module, char *func);

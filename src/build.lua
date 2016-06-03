@@ -194,11 +194,6 @@ end
 
 
 function build(graph, tail)
-      print("{")
-      for ix, node in ipairs(graph) do
-         print("  " .. ix .. ". " .. tostring(node))
-      end
-      print("}")
    _, program =  walk(graph, {}, wrap_tail(tail),  empty_env(), nil)
    return program
 end

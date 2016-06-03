@@ -16,7 +16,7 @@ typedef enum {
 static void start_guy(heap h, buffer b, buffer_handler out)
 {
     interpreter c = build_lua();
-    lua_run_eve(c, b);
+    lua_compile_eve(c, b);
 }
 
 void handle_json_query(heap h, buffer in, buffer_handler out)

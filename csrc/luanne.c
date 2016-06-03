@@ -11,8 +11,6 @@ struct interpreter  {
     lua_State *L;
 };
 
-typedef closure(execf, operator, value *);
-
 static inline interpreter lua_context(lua_State *L)
 {
     return (void *)lua_topointer(L, lua_upvalueindex(1));
@@ -409,7 +407,7 @@ static int traceback(lua_State *L)
   return 1;
 }
 
-void lua_run_eve(interpreter c, buffer b)
+execf lua_compile_eve(interpreter c, buffer b)
 {
     lua_pushcfunction(c->L, traceback);
     lua_getglobal(c->L, "compiler");
@@ -419,6 +417,7 @@ void lua_run_eve(interpreter c, buffer b)
         printf ("lua error\n");
         printf ("%s\n", lua_tostring(c->L, -1));
     }
+    return((void *)lua_topointer(c->L, 1));
 }
 
 void lua_run_module_func(interpreter c, buffer b, char *module, char *func)
