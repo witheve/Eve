@@ -15,17 +15,17 @@ station create_station(unsigned int address, unsigned short port) {
 
 extern int strcmp(const char *, const char *);
 
+    
 int main(int argc, char **argv)
 {
     init_runtime();
     interpreter c = build_lua();
     for (int i = 1; i <argc ; i++) {
         if (!strcmp(argv[i], "-e")) {
-            apply(lua_compile_eve(c, read_file(init, argv[i])),
-                  // fix this
-                  0, allocate(init, 30 * sizeof(value)));
-            i++;
+            buffer b = read_file(init, argv[++i]);
+            lua_compile_eve(c, b);
         }
+        
         if (!strcmp(argv[i], "-parse")) {
             lua_run_module_func(c, read_file(init, argv[++i]), "parser", "printParse");
             return 0;

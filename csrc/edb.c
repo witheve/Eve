@@ -91,9 +91,10 @@ void av_scan(bag b, value a, value v, one_listener f)
 bag create_bag(value bag_id) 
 {
     heap h = allocate_rolling(pages);
-    bag b = allocate(h, sizeof(struct level));
+    bag b = allocate(h, sizeof(struct bag));
     b->h = h ;
     b->eav = create_level(h);
+    b->ave = create_level(h);
     b->listeners = allocate_table(h, key_from_pointer, compare_pointer);
 
     return b;

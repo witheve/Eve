@@ -90,7 +90,7 @@ function read_lookup(env, x)
          r = allocate_register(env, x)
          env.registers[x] = r          
        end
-      return r
+      return register(r)
    end
    -- demultiplex types on x.constantType
    if type(x) == "table" then
@@ -103,7 +103,7 @@ function write_lookup(env, x)
    -- can't be a constant or unbound
    r = env.registers[x]
    free_register(env, x)
-   return r
+   return register(r)
 end
 
 
@@ -122,7 +122,7 @@ function walk(graph, bound, tail, tail_env, key)
        local e = n.entity
        local a = n.attribute
        local v = n.value
-       
+
        -- looking at these two cases for object it seems pretty clear this can be generalized
        if n.type == "object" and not bound[e] and bound_lookup(bound, a) and bound_lookup(bound, v) then
           bound[e] = true;

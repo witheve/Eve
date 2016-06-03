@@ -109,19 +109,19 @@ static void do_full_scan(interpreter z, execf n, int e, int a, int v, operator o
 static CONTINUATION_5_2(do_ea_scan, interpreter, execf, value, value, int, operator, value *);
 static void do_ea_scan(interpreter z, execf n, value e, value a, int v, operator op, value *r)
 {
-    ea_scan(z->b, e, a, cont(z->h, scan_listener_1, n, op, r, v));
+    ea_scan(z->b, lookup(e, r), lookup(a, r), cont(z->h, scan_listener_1, n, op, r, v));
 }
 
 static CONTINUATION_5_2(do_av_scan, interpreter, execf, int, value, value, operator, value *);
 static void do_av_scan(interpreter z, execf n, int e, value a, value v, operator op, value *r)
 {
-    av_scan(z->b, a, v, cont(z->h, scan_listener_1, n, op, r, e));
+    av_scan(z->b, lookup(a, r), lookup(v, r), cont(z->h, scan_listener_1, n, op, r, e));
 }
 
 static CONTINUATION_5_2(do_eav_scan, interpreter, execf, value, value, value, operator, value *);
 static void do_eav_scan(interpreter z, execf n, value e, value a, value v, operator op, value *r)
 {
-    eav_scan(z->b, e, a, v, cont(z->h, scan_listener_0, n, r, op));
+    eav_scan(z->b, lookup(e, r), lookup(a,r), lookup(v,r), cont(z->h, scan_listener_0, n, r, op));
 }
 
 // this seems broken at the high end..
@@ -413,7 +413,8 @@ execf lua_compile_eve(interpreter c, buffer b)
     lua_getglobal(c->L, "compiler");
     lua_getfield(c->L, -1, "compileExec");
     lua_pushlstring(c->L, bref(b, 0), buffer_length(b));
-    if (lua_pcall(c->L, 1, 0, lua_gettop(c->L)-3)) {
+    lua_pushcfunction(c->L, run);
+    if (lua_pcall(c->L, 2, 0, lua_gettop(c->L)-3)) {
         printf ("lua error\n");
         printf ("%s\n", lua_tostring(c->L, -1));
     }

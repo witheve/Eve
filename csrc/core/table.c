@@ -66,7 +66,7 @@ void table_set (table t, void *c, void *v)
     key k = t->key_function(c);
     key p = position(t, k);
     // xxx - opacity
-    entry *e = bref(t->entries, p*sizeof(void *));
+    entry *e = bref(t->entries, p * sizeof(void *));
 
     for (; *e; e = &(*e)->next)
         if (((*e)->k == k) && t->equals_function((*e)->c, c)) {
