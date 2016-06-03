@@ -1,4 +1,4 @@
-#include <runtime.h>
+#include <core.h>
 
 char *hex_digits="0123456789abcdef";
 
@@ -58,10 +58,6 @@ void vbprintf(string s, string fmt, va_list ap)
             case 'n':
                 count = va_arg(ap, unsigned int);
                 state = 2;
-                break;
-                
-            case 'v':
-                print(s, va_arg(ap, value));
                 break;
                 
             case 'c':

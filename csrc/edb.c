@@ -51,13 +51,13 @@ void full_scan(bag b, three_listener f)
     foreach_table(b->eav->lookup, e, avl) {
         foreach_table(((level)avl)->lookup, a, vl) {
             foreach_table(((level)vl)->lookup, v, vl) {
-                apply(f, e, a, v);
+                apply(f, e, a, v, etrue);
             }
         }
     }
 }
 
-void eav_scan(bag b, value e, value a, value b, zero_listener f)
+void eav_scan(bag b, value e, value a, value v, zero_listener f)
 {
     level al = scan(b->h, b->eav, e);
     level vl = scan(b->h, al, a);
@@ -70,7 +70,7 @@ void ea_scan(bag b, value e, value a, one_listener f)
 
     // add listener
     foreach_table(((level)vl)->lookup, v, vl) {
-        apply(f, v);
+        apply(f, v, etrue);
     }
 }
 
@@ -81,7 +81,7 @@ void av_scan(bag b, value a, value v, one_listener f)
 
     // add listener
     foreach_table(((level)vl)->lookup, e, el) {
-        apply(f, e);
+        apply(f, e, etrue);
     }
 }
 
@@ -109,16 +109,16 @@ void edb_insert(bag b, value e, value a, value v)
         
         // incremental needs to deal with remove
         foreach_table(b->listeners, k, v) {
-            apply((three_listener)k, e, a, v);
+            apply((three_listener)k, e, a, v, etrue);
         }
         foreach_table(el->listeners, k, v) {
-            apply((two_listener)k, a, v);
+            apply((two_listener)k, a, v, etrue);
         }
         foreach_table(al->listeners, k, v) {
-            apply((one_listener)k, v);
+            apply((one_listener)k, v, etrue);
         }
         foreach_table(tail->listeners, k, v) {
-            apply((one_listener)k, etrue);
+            apply((zero_listener)k, etrue);
         }
     }
 
@@ -130,16 +130,16 @@ void edb_insert(bag b, value e, value a, value v)
         
         // incremental needs to deal with remove
         foreach_table(b->listeners, k, v) {
-            apply((three_listener)k, e, a, v);
+            apply((three_listener)k, e, a, v, etrue);
         }
         foreach_table(al->listeners, k, v) {
-            apply((two_listener)k, a, v);
+            apply((two_listener)k, a, v, etrue);
         }
         foreach_table(vl->listeners, k, v) {
-            apply((one_listener)k, v);
+            apply((one_listener)k, v, etrue);
         }
         foreach_table(tail->listeners, k, v) {
-            apply((one_listener)k, etrue);
+            apply((zero_listener)k, etrue);
         }
     }
 }
