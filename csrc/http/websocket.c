@@ -93,7 +93,7 @@ static void websocket_input_frame(websocket w, buffer b, thunk t)
 void websocket_connect(int status, thunk send)
 {
     buffer b = allocate_buffer(init, 20);
-    buffer_append(b, "hello!", 6);
+    buffer_append(b, "\"hello!\"", 8);
     apply(send, b, ignore);
 }
 

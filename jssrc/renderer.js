@@ -1,8 +1,14 @@
 "use strict"
 
+//---------------------------------------------------------
+// handle dom updates
+//---------------------------------------------------------
+
+// TODO: queue updates to be applied during requestAnimationFrame
+
 var activeElements = {"root": document.createElement("div")};
 var activeStyles = {};
-var supportedTags = {"div": true, "span": true};
+var supportedTags = {"div": true, "span": true, "input": true};
 
 function insertSorted(parent, child) {
   let current;
@@ -15,7 +21,7 @@ function insertSorted(parent, child) {
   parent.insertBefore(child, current);
 }
 
-function denormalizeResult(result) {
+function handleDOMUpdates(result) {
   let {insert, remove} = result;
   let additions = {};
   // build up a representation of the additions
@@ -112,6 +118,7 @@ function denormalizeResult(result) {
     if(!elem) {
       //TODO: support finding the correct tag
       elem = document.createElement(ent.tag || "div")
+      elem.entity = entId;
       activeElements[entId] = elem;
       activeElements.root.appendChild(elem);
     }
@@ -162,21 +169,130 @@ function denormalizeResult(result) {
   }
 }
 
+// add our root to the body so that we update appropriately
 document.body.appendChild(activeElements["root"])
 
+//---------------------------------------------------------
+// Helpers to send event update queries
+//---------------------------------------------------------
+
+function formatObjects(objs) {
+  let rows = [];
+  for(let obj of objs) {
+    let fields = []
+    for(let key in obj) {
+      let value = obj[key];
+      if(key == "tags") {
+        for(let tag of value) {
+          fields.push("#" + tag)
+        }
+      } else {
+        fields.push(key + ": " + JSON.stringify(value));
+      }
+    }
+    rows.push("[" + fields.join(", ") + "]")
+  }
+  return rows;
+}
+
+function sendEvent(objs) {
+  let query = `handle some event
+  update external
+    ${formatObjects(objs).join("\n    ")}
+  `
+  if(socket && socket.readyState == 1) {
+    socket.send(JSON.stringify({type: "query", query}))
+  }
+  return query;
+}
+
+//---------------------------------------------------------
+// Event bindings to forward events to the server
+//---------------------------------------------------------
+
+window.addEventListener("clicks", function(event) {
+  let {target} = event;
+  let current = target;
+  let objs = [];
+  while(current) {
+    if(current.entity) {
+      objs.push({tags: ["click"], element: current.entity});
+    }
+    current = current.parentNode
+  }
+  objs.push({tags: ["click"], element: "window"});
+  sendEvent(objs);
+});
+
+window.addEventListener("input", function(event) {
+  let {target} = event;
+  let objs = [{tags: ["input"], element: target.entity, value: target.value}];
+  sendEvent(objs);
+});
+
+window.addEventListener("focus", function(event) {
+  let {target} = event;
+  console.log("FOCUS", event);
+  if(target.entity) {
+    let objs = [{tags: ["focus"], element: target.entity}];
+    console.log(sendEvent(objs));
+  }
+}, true);
+
+window.addEventListener("blur", function(event) {
+  let {target} = event;
+  if(target.entity) {
+    let objs = [{tags: ["blur"], element: target.entity}];
+    console.log(sendEvent(objs));
+  }
+}, true);
+
+window.addEventListener("keydown", function(event) {
+  let {target} = event;
+  let current = target;
+  let objs = [];
+  let key = event.keyCode;
+  while(current) {
+    if(current.entity) {
+      objs.push({tags: ["keydown"], element: current.entity, key});
+    }
+    current = current.parentNode
+  }
+  objs.push({tags: ["keydown"], element: "window", key});
+  sendEvent(objs);
+});
+
+window.addEventListener("keyup", function(event) {
+  let {target} = event;
+  let current = target;
+  let objs = [];
+  let key = event.keyCode;
+  while(current) {
+    if(current.entity) {
+      objs.push({tags: ["keyup"], element: current.entity, key});
+    }
+    current = current.parentNode
+  }
+  objs.push({tags: ["keyup"], element: "window", key});
+  sendEvent(objs);
+});
+
+//---------------------------------------------------------
+// Connect the websocket, send the ui code
+//---------------------------------------------------------
 
 var socket = new WebSocket("ws://" + window.location.host +"/ws");
 socket.onmessage = function(msg) {
   console.log(msg)
   let data = JSON.parse(msg.data);
   if(data.type == "result" && data.id == "ui-query") {
-    denormalizeResult(data);
+    handleDOMUpdates(data);
   }
 }
 socket.onopen = function() {
   console.log("Connected to eve server!");
   //TODO: open the ui query
-  socket.send(JSON.stringify({id: "ui-query", type: "query", query: `
+  socket.send(JSON.stringify({type: "query", query: `
 get all the ui facts
   (entity, attribute, value) =
     if entity = [#html]
@@ -196,5 +312,5 @@ mark all the different tag types as html
   `}));
 }
 
-// denormalizeResult({insert: [["foo", "tag", "div"], ["foo", "children", "bar"], ["foo", "children", "woot"], ["bar", "tag", "span"], ["bar", "style", "bar-style"], ["bar-style", "color", "red"], ["bar", "text", "meh"], ["woot", "tag", "span"], ["woot", "text", "ZOMG"]], remove: []})
-// denormalizeResult({insert: [["woot", "text", "ya wai"], ["woot", "style", "woot-style"], ["woot-style", "background", "blue"], ["bar", "text", "no wai"]], remove: []})
+// handleDOMUpdates({insert: [["foo", "tag", "div"], ["foo", "children", "bar"], ["foo", "children", "woot"], ["bar", "tag", "span"], ["bar", "style", "bar-style"], ["bar-style", "color", "red"], ["bar", "text", "meh"], ["woot", "tag", "input"], ["woot", "value", "ZOMG"]], remove: []})
+// handleDOMUpdates({insert: [["woot", "text", "ya wai"], ["woot", "style", "woot-style"], ["woot-style", "background", "blue"], ["bar", "text", "no wai"]], remove: []})
