@@ -57,6 +57,12 @@ void full_scan(bag b, three_listener f)
     }
 }
 
+void eav_scan(bag b, value e, value a, value b, zero_listener f)
+{
+    level al = scan(b->h, b->eav, e);
+    level vl = scan(b->h, al, a);
+}
+
 void ea_scan(bag b, value e, value a, one_listener f)
 {
     level al = scan(b->h, b->eav, e);
