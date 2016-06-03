@@ -99,16 +99,6 @@ static inline iu8 digit_of(character x)
     return(x - '0');
 }
 
-typedef value estring;
-estring intern_string(unsigned char *, int);
-
-
-// this intermediate is so we can compare things without copying up front, but its
-// kinda sad. the truth is we dont really need symmetry in the comparison
-typedef struct string_intermediate {
-    unsigned int length;
-    unsigned char *body;
-} *string_intermediate;
 
 extern char *hex_digits;
 
@@ -121,3 +111,4 @@ extern char *hex_digits;
 iu64 string_hash(void *x);
 boolean string_equal(void *a, void *b);
 
+iu64 shash(unsigned char *content, int length);

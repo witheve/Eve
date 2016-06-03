@@ -3,6 +3,7 @@ math = require("math")
 parser = require("parser")
 
 function recurse_print_table(t)
+   if t == nil then return nil end
    local result = ""
    for k, v in pairs(t) do
       result = result .. " " .. tostring(k) .. ":"
@@ -47,14 +48,6 @@ function shallowcopy(orig)
     return copy
 end
                                                                             
-function term(name, x)
-   if type(x) == "table" then
-     print (name, "variable", x.name)
-   else         
-     print (name, x)
-   end
-end
-
 
 -- end of util
 
@@ -68,7 +61,6 @@ end
 
 
 function free_register(env, e)
-   print("free", e, recurse_print_table(env))      
    if env.permanent[e] == nil then
      env.freelist[env.registers[e]] = true
      env.registers[e] = nil
@@ -123,35 +115,39 @@ function bound_lookup(bindings, x)
 end   
 
 
-function walk(graph, bound, tail, tailenv, key)
+function walk(graph, bound, tail, tail_env, key)
    nk = next(graph, key)    
    if nk then
-       local defined = {}
        local n = graph[nk]
-       local e = n[parser.ENTITY_FIELD]
+       local e = n.entity
        local a = n.attribute
        local v = n.value
-
-       print("walk", n.type, e, a, v, tail, key, nk)
+       
        -- looking at these two cases for object it seems pretty clear this can be generalized
        if n.type == "object" and not bound[e] and bound_lookup(bound, a) and bound_lookup(bound, v) then
           bound[e] = true;
-          local env, c = walk(graph, bound, tail, tailenv, nk)   
+          local env, c = walk(graph, bound, tail, tail_env, nk)   
           c = scan(c, "eAV", write_lookup(env, e), read_lookup(env, a), read_lookup(env, v))
           return env, c
        end
 
-       if n.type == "object" and not bound[v] and bound_lookup(bound, e) and bound_lookup(bound, a) then
+       if n.type == "object" and not bound_lookup(bound, v) and bound_lookup(bound, e) and bound_lookup(bound, a) then
           bound[v] = true;
-          local env, c = walk(graph, bound, tail, tailenv, nk)   
+          local env, c = walk(graph, bound, tail, tail_env, nk)   
           c = scan(c, "EAv", read_lookup(env, e), read_lookup(env, a), write_lookup(env, v))
           return env, c
        end
 
+       if n.type == "object" and bound_lookup(bound,v) and bound_lookup(bound, e) and bound_lookup(bound, a) then
+          local env, c = walk(graph, bound, tail, tail_env, nk)         
+          c = scan(c, "EAV", read_lookup(env, e), read_lookup(env, a), read_lookup(env, v))
+          return env, c             
+       end
+       
        if (n.type == "mutate") then 
           local gen = (variable(e) and not bound[e])
           if (gen) then bound[e] = true end
-          local env, c = walk(graph, bound, tail, tailenv, nk)
+          local env, c = walk(graph, bound, tail, tail_env, nk)
           local c  = build_insert(c, read_lookup(env, e), read_lookup(env, a), read_lookup(env, v));    
           if gen then
              c = generate_uuid(c, write_lookup(env, e))
@@ -166,9 +162,7 @@ function walk(graph, bound, tail, tailenv, key)
              bound[v] = true
           end
 
-          print ("starting the tail")
-          local env, c = walk(graph, bound, tail, tailenv, nk)
-          print ("finished the tail")   
+          local env, c = walk(graph, bound, tail, tail_env, nk)
                 
           local orig_perm = shallowcopy(env.permanent)
           for n, _ in pairs(env.registers) do
@@ -177,11 +171,7 @@ function walk(graph, bound, tail, tailenv, key)
           
           for _, v in pairs(n.queries) do
              local c3
-
-             print ("starting a leg")           
              env, c3 = walk(v.unpacked, bound, tail, env, nk)
-             print ("finishe a leg")
-             
              if c2 then
                  c2 = build_fork(c2, c3)
              else
@@ -194,16 +184,21 @@ function walk(graph, bound, tail, tailenv, key)
        
        print ("ok, so we kind of suck right now and only handle some fixed patterns",
              "type", n.type,   
-             "entity", term(e),
-             "value", term(n.value),
-             "atribute", term(n.attribute))
+             "entity", simple_print_table(e),
+             "value", simple_print_table(n.value),
+             "atribute", simple_print_table(n.attribute))
     else
-        return tailenv,  tail
+        return tail_env,  tail
    end
 end
 
 
-function build(graph, tail) 
+function build(graph, tail)
+      print("{")
+      for ix, node in ipairs(graph) do
+         print("  " .. ix .. ". " .. tostring(node))
+      end
+      print("}")
    _, program =  walk(graph, {}, wrap_tail(tail),  empty_env(), nil)
    return program
 end

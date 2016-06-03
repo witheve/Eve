@@ -1,57 +1,16 @@
-typedef unsigned long long bits;
 typedef void *value;
-#define bitsizeof(__x) (sizeof(__x) * 8)
 
-#include <stdarg.h> //env
-// change tree
-#define false (0)
-#define true (1)
-
-#define EMPTY ((void *) 0)
-
-static inline int bytesof(bits x)
-{
-    // who uses this? it should probably pad up?
-    return(x>>3);
-}
-
-typedef unsigned char iu8;
-typedef unsigned short iu16;
-typedef unsigned int iu32;
-typedef unsigned long iu64;
-typedef iu8 *u8;
-typedef iu16 *u16;
-typedef iu32 *u32;
-typedef iu64 *u64;
-typedef iu64 ticks;
-typedef iu8 boolean;
-typedef iu64 bytes;
+#include <core/core.h>
 
 iu64 key_of(value);
 boolean equals(value, value);
-void *memcpy(void *s1, const void *s2, iu64 n);
-int memcmp(const void *s1, const void *s2, iu64 n);
-void *memset(void *b, int c, iu64 len);
-
-
-#include <heap.h>
-#include <continuation.h>
-#include <buffer.h>
-#include <vector.h>
-#include <table.h>
-#include <types.h>
-#include <alloca.h> // env
-#include <string.h>
 #include <number.h>
-#include <timer.h>
-#include <pqueue.h>
+#include <estring.h>
 
 typedef value eboolean;
 extern eboolean etrue;
 extern eboolean efalse;
 
-extern heap init;
-extern heap pages;
 
 void print(buffer, value);
 static inline table create_value_table(heap h)
@@ -85,16 +44,18 @@ uuid generate_uuid();
 typedef int operator;
 
 
-typedef closure(three_listener, value, value, value);
-typedef closure(two_listener, value, value);
-typedef closure(one_listener, value);
+typedef closure(three_listener, value, value, value, eboolean);
+typedef closure(two_listener, value, value, eboolean);
+typedef closure(one_listener, value, eboolean);
+typedef closure(zero_listener, eboolean);
+
 void full_scan(bag b, three_listener f);
 void ea_scan(bag b, value, value, one_listener f);
 void av_scan(bag b, value, value, one_listener f);
+void eav_scan(bag b, value e, value a, value v, zero_listener f);
+
 void uuid_base_print(char *, void *);
 string aprintf(heap h, char *fmt, ...);
-
-typedef value station;
 void bbprintf(string b, string fmt, ...);
 
 

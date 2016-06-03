@@ -1,4 +1,4 @@
-#include <runtime.h>
+#include <core.h>
 #include <unix.h>
 
 
@@ -103,7 +103,7 @@ ticks parse_time(string b)
     return(result);
 }
 
-void print_time(string b, value v)
+void print_time(string b, void *v)
 {
     unsigned int *f=(unsigned int *)v;
 

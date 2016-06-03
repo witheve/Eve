@@ -16,32 +16,30 @@ vector build_vector_internal(heap, ...);
 
 
 //bootstrap
-void vector_insert(vector, value);
+void vector_insert(vector, void *);
 iu32 vector_length(vector);
 // why isn't this vector_get?
-value vector_ref(vector v, int element);
-void vector_set(vector v, int element, value x);
+void *vector_ref(vector v, int element);
+void vector_set(vector v, int element, void *x);
 #define vector_foreach(__i, __s)\
-    for (value __i, __j = (void *)0; __i = vector_ref(__s, (unsigned long)__j), (unsigned long)__j < vector_length(__s); __j = (value)((unsigned long)__j + \
-                                                                                                                                       1))
+    for (void * __i, *__j = (void *)0; __i = vector_ref(__s, (unsigned long)__j), (unsigned long)__j < vector_length(__s); __j = (void *)((unsigned long)__j + 1))
 
 
 static inline void *vector_peek(vector t)
 {
     int len = vector_length(t);
     if (len) {
-        value v = vector_ref(t, len - 1);
-        return(v);
+        return(vector_ref(t, len - 1));
     }
     return(EMPTY);
 }
 
-static inline value vector_pop(vector t)
+static inline void *vector_pop(vector t)
 {
     int len = vector_length(t);
     if (len) {
-        value v = vector_ref(t, len -1);
-        t->end -= bitsizeof(value);
+        void *v = vector_ref(t, len -1);
+        t->end -= sizeof(void *);
         return(v);
     }
     return(EMPTY);
@@ -49,6 +47,6 @@ static inline value vector_pop(vector t)
 
 static inline void push(vector t, void *n)
 {
-    buffer_append(t, &n, bitsizeof(value)); 
+    buffer_append(t, &n, sizeof(void *));
 }
 

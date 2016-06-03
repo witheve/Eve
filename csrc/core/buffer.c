@@ -1,4 +1,4 @@
-#include <runtime.h>
+#include <core.h>
 
 static char *hex_digit="0123456789abcdef";
 static inline void print_byte(string s, iu8 f)
