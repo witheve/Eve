@@ -123,11 +123,11 @@ function DependencyGraph:addObjectNode(node)
    return self:add(node, depends, produces)
 end
 
-function DependencyGraph:addMutateNode(node, isBound)
+function DependencyGraph:addMutateNode(node)
    local produces = Set:new()
    local depends = Set:new()
    for _, binding in std.ipairs(node.bindings or nothing) do
-      if binding.field == ENTITY_FIELD and not isBound then
+      if binding.field == ENTITY_FIELD and not self.terms[binding.variable] then
          produces:add(binding.variable)
       end
 
@@ -218,7 +218,7 @@ function DependencyGraph:fromQueryGraph(query, terms, bound)
    end
 
    for _, node in std.ipairs(query.mutates or nothing) do
-      dgraph:addMutateNode(node, node.variable and dgraph.terms[node.variable])
+      dgraph:addMutateNode(node)
    end
 
    return dgraph
