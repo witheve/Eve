@@ -3,6 +3,7 @@ math = require("math")
 parser = require("parser")
 
 function simple_print_table(t)
+   if t == nil then return nil end
    local result = ""
    for k, v in pairs(t) do
       result = result .. " " .. tostring(k) .. ":"
@@ -29,14 +30,6 @@ function deepcopy(orig)
    return copy
 end
                                                                             
-function term(name, x)
-   if type(x) == "table" then
-     print (name, "variable", x.name)
-   else         
-     print (name, x)
-   end
-end
-
 
 -- end of util
 
@@ -98,7 +91,7 @@ function bound_lookup(bindings, x)
 end   
 
 
-function walk(graph, bound, tail, key)
+function walk(graph, bound, tail, tail_env, key)
    nk = next(graph, key)    
    if nk then
        local defined = {}
@@ -107,26 +100,32 @@ function walk(graph, bound, tail, key)
        local a = n.attribute
        local v = n.value
 
-       print("walk", n.type, e, a, v, tail)
+       print("walk", n.type, e, a, simple_print_table(v))
        -- looking at these two cases for object it seems pretty clear this can be generalized
        if n.type == "object" and not bound[e] and bound_lookup(bound, a) and bound_lookup(bound, v) then
           bound[e] = true;
-          local env, c = walk(graph, bound, tail, nk)   
+          local env, c = walk(graph, bound, tail, tail_env, nk)   
           c = scan(c, "eAV", write_lookup(env, e), read_lookup(env, a), read_lookup(env, v))
           return env, c
        end
 
-       if n.type == "object" and not bound[v] and bound_lookup(bound, e) and bound_lookup(bound, a) then
+       if n.type == "object" and not bound_lookup(bound, v) and bound_lookup(bound, e) and bound_lookup(bound, a) then
           bound[v] = true;
-          local env, c = walk(graph, bound, tail, nk)   
+          local env, c = walk(graph, bound, tail, tail_env, nk)   
           c = scan(c, "EAv", read_lookup(env, e), read_lookup(env, a), write_lookup(env, v))
           return env, c
        end
 
+       if n.type == "object" and bound_lookup(bound,v) and bound_lookup(bound, e) and bound_lookup(bound, a) then
+          local env, c = walk(graph, bound, tail, tail_env, nk)         
+          c = scan(c, "EAV", read_lookup(env, e), read_lookup(env, a), read_lookup(env, v))
+          return env, c             
+       end
+       
        if (n.type == "mutate") then 
           local gen = (variable(e) and not bound[e])
           if (gen) then bound[e] = true end
-          local env, c = walk(graph, bound, tail, nk)
+          local env, c = walk(graph, bound, tail, tail_env, nk)
           local c  = build_insert(c, read_lookup(env, e), read_lookup(env, a), read_lookup(env, v));    
           if gen then
              c = generate_uuid(c, write_lookup(env, e))
@@ -135,23 +134,29 @@ function walk(graph, bound, tail, key)
        end
 
        if (n.type == "union") then
-          print("union")
+          for _, v in pairs(n.outputs) do
+             bound[v] = true
+          end
+          local env, c = walk(graph, bound, tail, tail_env, nk)
+          for _, v in pairs(n.queries) do
+--               util.printTable(v, 0, 10, {})
+               e2, c2 = walk(v.unpacked, bound, c, env, nil)
+          end
        end
        
        print ("ok, so we kind of suck right now and only handle some fixed patterns",
              "type", n.type,   
-             "entity", term(e),
-             "value", term(n.value),
-             "atribute", term(n.attribute))
+             "entity", simple_print_table(e),
+             "value", simple_print_table(n.value),
+             "atribute", simple_print_table(n.attribute))
     else
-        local env = {alloc=0, freelist = {}, registers = {}}
-        return env,  tail
+        return tail_env,  tail
    end
 end
 
 
 function build(graph, tail) 
-   local _, _, _, program =  walk(graph, {}, wrap_tail(tail), nil)
+   local _, _, _, program =  walk(graph, {}, wrap_tail(tail),  {alloc=0, freelist = {}, registers = {}}, nil)
    return program
 end
       
