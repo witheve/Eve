@@ -13,21 +13,33 @@ typedef struct websocket {
     buffer_handler write;
 } *websocket;
 
+
+// implement close
+void websocket_send(websocket w, int opcode, buffer b, thunk t)
+{
+    int length = buffer_length(b);
+    buffer out = allocate_buffer(w->h, 10);
+    buffer_write_byte(out, opcode | 0x80);
+    if (length > 65536) {
+        buffer_write_byte(out, 127);
+        buffer_write_be64(out, length);
+    } else {
+        if (length > 125) {
+            buffer_write_byte(out, 126);
+            buffer_write_be16(out, length);
+        } else {
+            buffer_write_byte(out, length);
+        }
+    }
+    apply(w->write, out, ignore); // reclaim
+    apply(w->write, b, t);
+}
+
+
 CONTINUATION_1_2(websocket_output_frame, websocket, buffer, thunk);
 void websocket_output_frame(websocket w, buffer b, thunk t)
 {
-    int length = buffer_length(b);
-    // force a resize if length is extended
-    buffer out = allocate_buffer(w->h, length + 6);
-    // just the short case
-    unsigned char control = 0x81;
-    buffer_append(out, &control, 1);
-    unsigned char plen = length;
-    // xxx - length extensions
-    buffer_append(out, &plen, 1);
-
-    apply(w->write, out, ignore); // reclaim
-    apply(w->write, b, t);
+    websocket_send(w, 1, b, t);
 }
 
 extern void handle_json_query(heap h, buffer b, buffer_handler output);

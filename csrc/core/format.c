@@ -86,6 +86,17 @@ void vbprintf(string s, string fmt, va_list ap)
                     format_number(s, x, base, pad?pad:1);
                     break;
                 }
+                
+            case 'X':
+                // xxx - utf8 will break this
+                 {
+                  buffer xx = va_arg(ap, buffer);
+                  string_foreach(i, xx){
+                     print_byte(s, i);
+                  }
+                 }
+                break;
+                
             case 'd': case 'i':
                 {
                     int x = va_arg(ap, int);

@@ -30,7 +30,7 @@ void error(char *);
 
 // break this out 
 typedef struct interpreter *interpreter;
-interpreter build_lua(bag);
+interpreter build_lua(bag, table);
 void lua_load_bytecode(interpreter, void *, bytes);
 void lua_run(interpreter c, buffer b);
 void eve_run(interpreter c, buffer b);
@@ -60,6 +60,17 @@ string aprintf(heap h, char *fmt, ...);
 void bbprintf(string b, string fmt, ...);
 
 typedef closure(execf, operator, value *);
+typedef closure(insertron, value, value, value);
 
 execf lua_compile_eve(interpreter c, buffer b);
 void lua_run_module_func(interpreter c, buffer b, char *module, char *func);
+#define def(__s, __v, __i)  table_set(__s, intern_string((unsigned char *)__v, cstring_length((char *)__v)), __i);
+
+static inline iu64 key_from_pointer(void *x) {return((unsigned long) x);}
+// uhh, if the key is iu64 then we are prefiltering on this anyways...so...
+// but maybe we can mix up key a little bit for better distribution?
+static inline boolean compare_pointer(void *x, void *y) {return(x==y);}
+
+
+CONTINUATION_1_3(edb_insert, bag, value, value, value);
+

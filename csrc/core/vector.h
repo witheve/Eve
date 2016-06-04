@@ -7,6 +7,8 @@ fifo allocate_fifo(heap);
 
 vector build_vector_internal(heap, ...);
 
+#define END_OF_ARGUMENTS ((void *)-1)
+
 #define build_vector(_h, ...)\
     build_vector_internal(_h, ##__VA_ARGS__, END_OF_ARGUMENTS)
 

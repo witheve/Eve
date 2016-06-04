@@ -66,7 +66,8 @@ uuid generate_uuid()
 {
     // top bit has to be clear for serialization
     void *result = allocate(uuid_heap, UUID_LENGTH);
-    now((unsigned long*)result);
+    ticks z = now();
+    memcpy(result, &z, 8);
     table_set(interned_uuid, result, (void *)1);
     return result;
 }

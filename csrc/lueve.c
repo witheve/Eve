@@ -17,11 +17,19 @@ extern int strcmp(const char *, const char *);
 
 bag my_awesome_bag;
 
+
 int main(int argc, char **argv)
 {
     init_runtime();
     my_awesome_bag = create_bag(efalse);
-    interpreter c = build_lua(my_awesome_bag);
+    insertron b = cont(init, edb_insert, my_awesome_bag);
+    table scopes = allocate_table(init, key_from_pointer, compare_pointer);
+    def(scopes, "session", b);
+    def(scopes, "transient", b);
+    def(scopes, "history", b);
+    def(scopes, "external", b)
+        
+    interpreter c = build_lua(my_awesome_bag, scopes);
     
     for (int i = 1; i <argc ; i++) {
         if (!strcmp(argv[i], "-e")) {

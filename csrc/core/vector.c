@@ -6,6 +6,26 @@ iu32 vector_length(vector v)
     return(buffer_length(v)/sizeof(void *));
 }
 
+static inline vector va_construct_vector(heap h, va_list a)
+{
+    vector v = allocate_vector(h);
+    void *n;
+
+    while ((n = va_arg(a, void *)) != END_OF_ARGUMENTS)
+        vector_insert(v, n);
+
+    return(v);
+}
+
+
+vector build_vector_internal(heap h, ...)
+{
+    va_list a;
+    va_start(a, h);
+    return(va_construct_vector(h, a));
+}
+
+
 void vector_set(vector t, int index, void *n)
 {
     int b = index * sizeof(void *);

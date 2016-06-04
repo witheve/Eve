@@ -81,28 +81,30 @@ void buffer_read_field(buffer b,
                        void *dest,
                        bytes length);
 
-#define WRITE_BE(bytes)\
-  static inline void buffer_write_be##bytes(buffer b, iu64 x)\
+#define WRITE_BE(bits)\
+  static inline void buffer_write_be##bits(buffer b, iu64 x)\
   {                                                            \
       iu64 k = x;                                              \
-      buffer_extend(b, bytes);                                  \
+      int len = bits>>3;                                       \
+      buffer_extend(b, len);                                  \
       iu8 *n = bref(b, b->end);                                \
-      for (int i = (bytes)-1; i >= 0; i--) {                  \
+      for (int i = len-1; i >= 0; i--) {                 \
           n[i] = k & 0xff;                                     \
           k >>= 8;                                             \
       }                                                        \
-      b->end += bytes;                                          \
+      b->end += len;                                           \
   }
 
-#define READ_BE(bytes)                                   \
-    static inline iu64 buffer_read_be##bytes(buffer b)        \
+#define READ_BE(bits)                                   \
+    static inline iu64 buffer_read_be##bits(buffer b)        \
     {                                                           \
         iu64 k = 0;                                          \
+        int len = bits>>3;                                       \
         iu8 *n = bref(b, b->start);                             \
-        for (int i = 0; i < (bytes); i++) {                    \
+        for (int i = 0; i < len; i++) {                    \
             k = (k << 8) | (*n++);                              \
         }                                                       \
-        b->start += bytes;                                       \
+        b->start +=len;                                         \
         return(k);                                              \
     }
 
@@ -140,3 +142,7 @@ static inline void buffer_clear(buffer b)
 {
     b->start = b->end = 0;
 }
+
+void print_hex_buffer(buffer s, buffer b);
+
+void print_byte(buffer b, iu8 f);

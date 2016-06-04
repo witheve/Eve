@@ -8,6 +8,7 @@
 struct interpreter  {
     heap h;
     bag b;
+    table scope_map;
     lua_State *L;
 };
 
@@ -204,23 +205,25 @@ static int build_fork(lua_State *L)
     return 1;
 }
 
-// dynamic baggy?
-static CONTINUATION_5_2(do_insert, bag, value, value, value, execf, operator, value *) ;
-static void do_insert(bag bg, value a, value b, value c, execf n, operator op, value *r) 
+static CONTINUATION_6_2(do_insert, table, execf, value, value, value, value, operator, value *) ;
+static void do_insert(table scope_map, execf n, value scope, value e, value a, value v, operator op, value *r) 
 {
-    edb_insert(bg, lookup(a, r), lookup(b, r), lookup(c,r));
+    insertron i = table_find(scope_map, scope);
+    apply(i, lookup(e, r), lookup(a, r), lookup(v, r));
     apply(n, op, r);
 }
 
 static int build_insert(lua_State *L)
 {
     interpreter c = lua_context(L);
-    execf r = cont(c->h, do_insert, 
-                   c->b, 
+    execf r = cont(c->h, do_insert,
+                   c->scope_map,
+                   lua_tovalue(L, 1),
                    lua_tovalue(L, 2),
                    lua_tovalue(L, 3),
                    lua_tovalue(L, 4),
-                   lua_tovalue(L, 1));
+                   lua_tovalue(L, 5));
+
     lua_pushlightuserdata(L, r);
     return 1;
 }
@@ -242,18 +245,6 @@ static int build_genid(lua_State *L)
     return 1;
 }
 
-
-static int direct_insert(lua_State *L)
-{
-    interpreter c = lua_context(L);
-    // should really go into the bag heap, dont you think?
-    value e = lua_tovalue(L, 1);
-    value a = lua_tovalue(L, 2);
-    value v = lua_tovalue(L, 3);
-
-    edb_insert(c->b, e, a, v);
-    return 0;
-}
 
 static CONTINUATION_2_2(luaresult, interpreter, int, int, value *);
 static void luaresult(interpreter c, int r, operator op, value *x)
@@ -468,13 +459,15 @@ extern int luaopen_utf8(lua_State *L);
 
 extern void bundle_add_loaders(lua_State* L);
  
-interpreter build_lua(bag b)
+interpreter build_lua(bag b, table scopes)
 {
     heap h = allocate_rolling(pages);
     interpreter c = allocate(h, sizeof(struct interpreter));
     c->L = luaL_newstate();
     c->h = h;
     c->b = b;
+    c->scope_map = scopes;
+    
     
     luaL_openlibs(c->L);
     bundle_add_loaders(c->L);

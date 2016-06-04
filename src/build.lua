@@ -160,11 +160,12 @@ function walk(graph, bound, tail, tail_env, key)
           return env, c             
        end
        
-       if (n.type == "mutate") then 
+       if (n.type == "mutate") then
+          print("pupate", n.scope)
           local gen = (variable(e) and not bound[e])
           if (gen) then bound[e] = true end
           local env, c = walk(graph, bound, tail, tail_env, nk)
-          local c  = build_insert(c, read_lookup(env, e), read_lookup(env, a), read_lookup(env, v));    
+          local c  = build_insert(c, n.scope, read_lookup(env, e), read_lookup(env, a), read_lookup(env, v));    
           if gen then
              c = generate_uuid(c, write_lookup(env, e))
           end

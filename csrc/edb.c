@@ -14,11 +14,6 @@ struct bag {
     heap h;
 };
 
-static iu64 key_from_pointer(void *x) {return((unsigned long) x);}
-// uhh, if the key is iu64 then we are prefiltering on this anyways...so...
-// but maybe we can mix up key a little bit for better distribution?
-static boolean compare_pointer(void *x, void *y) {return(x==y);}
-
 static level create_level(heap h)
 {
     level x = allocate(h, sizeof(struct level));

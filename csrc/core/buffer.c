@@ -1,13 +1,13 @@
 #include <core.h>
 
 static char *hex_digit="0123456789abcdef";
-static inline void print_byte(string s, iu8 f)
+void print_byte(buffer s, iu8 f)
 {
     string_insert(s, hex_digit[f >> 4]);
     string_insert(s, hex_digit[f & 15]);
 }
 
-static void print_hex_buffer(string s, buffer b)
+void print_hex_buffer(buffer s, buffer b)
 {
     int len = buffer_length(b);
     int wlen = 32;

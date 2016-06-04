@@ -6,7 +6,7 @@ typedef iu32 character;
 
 static inline string allocate_string(heap h)
 {
-    return(allocate_buffer(h, 20*8));
+    return(allocate_buffer(h, 20));
 }
 
 
@@ -42,7 +42,7 @@ static int inline string_rune_length(char *s) {
         buffer _b = alloca(sizeof(struct buffer));\
         _b->contents = _x;\
         _b->length = 0;\
-        for (char *_i = _x; *_i; _i++, _b->length += 8);\
+        for (char *_i = _x; *_i; _i++, _b->length++);\
         _b->end = _b->length;\
         _b->start = 0;\
         _b->h = 0;\
