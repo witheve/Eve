@@ -21,13 +21,26 @@ function insertSorted(parent, child) {
   parent.insertBefore(child, current);
 }
 
+function safeEav(eav) {
+  if(eav[0].type == "uuid")  {
+    eav[0] = `⦑${eav[0].value}⦒`
+  }
+  if(eav[1].type == "uuid")  {
+    eav[1] = `⦑${eav[1].value}⦒`
+  }
+  if(eav[2].type == "uuid")  {
+    eav[2] = `⦑${eav[2].value}⦒`
+  }
+  return eav;
+}
+
 function handleDOMUpdates(result) {
   let {insert, remove} = result;
   let additions = {};
   // build up a representation of the additions
   if(insert.length) {
     for(let ins of insert) {
-      let [entity, attribute, value] = ins;
+      let [entity, attribute, value] = safeEav(ins);
       if(!additions[entity]) additions[entity] = {}
       switch(attribute) {
         case "tag":
@@ -54,13 +67,13 @@ function handleDOMUpdates(result) {
   }
   // do removes that aren't just going to be overwritten by
   // the adds
-  if(remove.length) {
+  if(remove && remove.length) {
     // we clean up styles after the fact so that in the case where
     // the style object is being removed, but the element is sticking
     // around, we remove any styles that may have been applied
     let stylesToGC = [];
     for(let rem of remove) {
-      let [entity, attribute, value] = rem;
+      let [entity, attribute, value] = safeEav(rem);
       if(activeStyles[entity]) {
         // do style stuff
         let style = activeStyles[entity].style;
@@ -285,7 +298,7 @@ var socket = new WebSocket("ws://" + window.location.host +"/ws");
 socket.onmessage = function(msg) {
   console.log(msg)
   let data = JSON.parse(msg.data);
-  if(data.type == "result" && data.id == "ui-query") {
+  if(data.type == "result") {
     handleDOMUpdates(data);
   }
 }
@@ -312,5 +325,5 @@ get all the ui facts
   `}));
 }
 
-// handleDOMUpdates({insert: [["foo", "tag", "div"], ["foo", "children", "bar"], ["foo", "children", "woot"], ["bar", "tag", "span"], ["bar", "style", "bar-style"], ["bar-style", "color", "red"], ["bar", "text", "meh"], ["woot", "tag", "input"], ["woot", "value", "ZOMG"]], remove: []})
+// handleDOMUpdates({insert: [[{type: "uuid", value: "foo"}, "tag", "div"], [{type: "uuid", value: "foo"}, "children", "bar"], [{type: "uuid", value: "foo"}, "children", "woot"], ["bar", "tag", "span"], ["bar", "style", "bar-style"], ["bar-style", "color", "red"], ["bar", "text", "meh"], ["woot", "tag", "input"], ["woot", "value", "ZOMG"]], remove: []})
 // handleDOMUpdates({insert: [["woot", "text", "ya wai"], ["woot", "style", "woot-style"], ["woot-style", "background", "blue"], ["bar", "text", "no wai"]], remove: []})

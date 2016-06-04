@@ -184,6 +184,8 @@ local specials = {
   [")"] = "CLOSE_PAREN",
   ["["] = "OPEN_BRACKET",
   ["]"] = "CLOSE_BRACKET",
+  ["⦑"] = "OPEN_UUID",
+  ["⦒"] = "CLOSE_UUID",
   [":"] = "ALIAS",
 }
 
@@ -231,6 +233,10 @@ local function isNumber(char)
   return numeric[char] or char == "-" or char == "."
 end
 
+local function isUUID(char)
+  return char ~= "⦒"
+end
+
 local function notNewline(char)
   return char ~= "\n"
 end
@@ -254,16 +260,23 @@ local function lex(str)
     -- anything at root level is just documentation
     elseif offset == 0 then
       scanner:unread()
-      doc = scanner:eatWhile(notNewline)
+      local doc = scanner:eatWhile(notNewline)
       tokens[#tokens+1] = Token:new("DOC", doc, line, offset)
       offset = offset + #doc
 
     elseif char == "\"" then
-      string = scanner:eatWhile(inString)
+      local string = scanner:eatWhile(inString)
       -- skip the end quote
       scanner:read()
       tokens[#tokens+1] = Token:new("STRING", string, line, offset)
       offset = offset + #string
+
+    elseif char == "⦑" then
+      local UUID = scanner:eatWhile(isUUID)
+      -- skip the end bracket
+      scanner:read()
+      tokens[#tokens+1] = Token:new("UUID", UUID, line, offset)
+      offset = offset + #UUID
 
     elseif char == "/" and scanner:peek() == "/" then
       scanner:unread()
@@ -727,7 +740,7 @@ local function parse(tokens)
       local modifier = type == "GIVEN" and "projection" or "grouping"
       stack:push({type = modifier, children = {}})
 
-    elseif type == "IDENTIFIER" or type == "NUMBER" or type == "STRING" then
+    elseif type == "IDENTIFIER" or type == "NUMBER" or type == "STRING" or type == "UUID" then
       stackTop.children[#stackTop.children + 1] = token
 
     end
@@ -789,7 +802,7 @@ local function generateBindingNode(node, context, parent)
 end
 
 local function resolveExpression(node, context)
-  if node.type == "NUMBER" or node.type == "STRING" then
+  if node.type == "NUMBER" or node.type == "STRING" or node.type == "UUID" then
     local left = context.equalityLeft
     if left and left.type == "variable" then
       left.constant = {type = "constant", constant = node.value, constantType = node.type:lower()}
