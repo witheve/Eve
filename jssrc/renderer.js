@@ -169,6 +169,7 @@ function handleDOMUpdates(result) {
 
   for(let styleId of styles) {
     let style = additions[styleId];
+    if(!style) continue;
     let elem = activeStyles[styleId];
     if(!elem) {
       console.error("Got a style for an element that doesn't exist.");
