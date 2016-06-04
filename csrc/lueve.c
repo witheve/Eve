@@ -15,13 +15,18 @@ station create_station(unsigned int address, unsigned short port) {
 
 extern int strcmp(const char *, const char *);
 
+bag my_awesome_bag;
+
 int main(int argc, char **argv)
 {
     init_runtime();
-    interpreter c = build_lua();
+    my_awesome_bag = create_bag(efalse);
+    interpreter c = build_lua(my_awesome_bag);
+    
     for (int i = 1; i <argc ; i++) {
         if (!strcmp(argv[i], "-e")) {
-            lua_run_eve(c, read_file(init, argv[++i]));
+            buffer b = read_file(init, argv[++i]);
+            lua_compile_eve(c, b);
         }
         if (!strcmp(argv[i], "-parse")) {
             lua_run_module_func(c, read_file(init, argv[++i]), "parser", "printParse");

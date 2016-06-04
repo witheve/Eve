@@ -30,7 +30,7 @@ void error(char *);
 
 // break this out 
 typedef struct interpreter *interpreter;
-interpreter build_lua();
+interpreter build_lua(bag);
 void lua_load_bytecode(interpreter, void *, bytes);
 void lua_run(interpreter c, buffer b);
 void eve_run(interpreter c, buffer b);
@@ -53,11 +53,13 @@ void full_scan(bag b, three_listener f);
 void ea_scan(bag b, value, value, one_listener f);
 void av_scan(bag b, value, value, one_listener f);
 void eav_scan(bag b, value e, value a, value v, zero_listener f);
+void e_scan(bag b, value e,  two_listener f);
 
 void uuid_base_print(char *, void *);
 string aprintf(heap h, char *fmt, ...);
 void bbprintf(string b, string fmt, ...);
 
+typedef closure(execf, operator, value *);
 
-void lua_run_eve(interpreter c, buffer b);
+execf lua_compile_eve(interpreter c, buffer b);
 void lua_run_module_func(interpreter c, buffer b, char *module, char *func);

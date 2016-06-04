@@ -74,6 +74,18 @@ void ea_scan(bag b, value e, value a, one_listener f)
     }
 }
 
+void e_scan(bag b, value e, two_listener f)
+{
+    level al = scan(b->h, b->eav, e);
+    
+    // add listener
+    foreach_table(al->lookup, a, vl) {
+        foreach_table(((level)vl)->lookup, v, vl) {
+            apply(f, a, v, etrue);
+        }
+    }
+}
+
 void av_scan(bag b, value a, value v, one_listener f)
 {
     level al = scan(b->h, b->ave, a);
@@ -91,9 +103,10 @@ void av_scan(bag b, value a, value v, one_listener f)
 bag create_bag(value bag_id) 
 {
     heap h = allocate_rolling(pages);
-    bag b = allocate(h, sizeof(struct level));
+    bag b = allocate(h, sizeof(struct bag));
     b->h = h ;
     b->eav = create_level(h);
+    b->ave = create_level(h);
     b->listeners = allocate_table(h, key_from_pointer, compare_pointer);
 
     return b;
