@@ -13,9 +13,11 @@ typedef enum {
     sep
 } states;
 
+extern bag my_awesome_bag;
 static void start_guy(heap h, buffer b, buffer_handler out)
 {
-    interpreter c = build_lua();
+    interpreter c = build_lua(my_awesome_bag);
+    prf("start guy %b\n", b);
     lua_compile_eve(c, b);
 }
 
@@ -32,7 +34,6 @@ void handle_json_query(heap h, buffer in, buffer_handler out)
                 start_guy(h, bv, out);
             }
             
-            prf("%b %d %b\n", bt, buffer_length(bt), bv);
             buffer_clear(bt);
             buffer_clear(bv);
         }

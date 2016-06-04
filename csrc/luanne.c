@@ -112,6 +112,12 @@ static void do_ea_scan(interpreter z, execf n, value e, value a, int v, operator
     ea_scan(z->b, lookup(e, r), lookup(a, r), cont(z->h, scan_listener_1, n, op, r, v));
 }
 
+static CONTINUATION_5_2(do_e_scan, interpreter, execf, value, int, int, operator, value *);
+static void do_e_scan(interpreter z, execf n, value e, int a, int v, operator op, value *r)
+{
+    e_scan(z->b, lookup(e, r), cont(z->h, scan_listener_2, n, op, r, a, v));
+}
+
 static CONTINUATION_5_2(do_av_scan, interpreter, execf, int, value, value, operator, value *);
 static void do_av_scan(interpreter z, execf n, int e, value a, value v, operator op, value *r)
 {
@@ -157,12 +163,21 @@ static int build_scan(lua_State *L)
                  lua_tovalue(L, outstart + 1),
                  lua_toregister(L, outstart+2));
     }
+    
+    if (!strcmp(description, "Eav")) {
+         r =cont(c->h, do_e_scan, c, next,
+                 lua_tovalue(L, outstart),
+                 lua_toregister(L, outstart+1),
+                 lua_toregister(L, outstart+2));
+    }
+    
     if (!strcmp(description, "eAV")) {
         r =cont(c->h, do_av_scan, c, next,
                 lua_toregister(L, outstart),
                 lua_tovalue(L, outstart + 1),
                 lua_tovalue(L, outstart+2));
     }
+    
     if (!strcmp(description, "EAV")) {
         r =cont(c->h, do_eav_scan, c, next,
                 lua_tovalue(L, outstart),
@@ -414,7 +429,7 @@ execf lua_compile_eve(interpreter c, buffer b)
     lua_getfield(c->L, -1, "compileExec");
     lua_pushlstring(c->L, bref(b, 0), buffer_length(b));
     lua_pushcfunction(c->L, run);
-    if (lua_pcall(c->L, 2, 0, lua_gettop(c->L)-3)) {
+    if (lua_pcall(c->L, 2, 0, lua_gettop(c->L)-4)) {
         printf ("lua error\n");
         printf ("%s\n", lua_tostring(c->L, -1));
     }
@@ -453,13 +468,13 @@ extern int luaopen_utf8(lua_State *L);
 
 extern void bundle_add_loaders(lua_State* L);
  
-interpreter build_lua()
+interpreter build_lua(bag b)
 {
     heap h = allocate_rolling(pages);
     interpreter c = allocate(h, sizeof(struct interpreter));
     c->L = luaL_newstate();
     c->h = h;
-    c->b = create_bag(efalse);
+    c->b = b;
     
     luaL_openlibs(c->L);
     bundle_add_loaders(c->L);

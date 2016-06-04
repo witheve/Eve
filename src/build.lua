@@ -123,18 +123,34 @@ function walk(graph, bound, tail, tail_env, key)
        local a = n.attribute
        local v = n.value
 
-       -- looking at these two cases for object it seems pretty clear this can be generalized
-       if n.type == "object" and not bound[e] and bound_lookup(bound, a) and bound_lookup(bound, v) then
-          bound[e] = true;
+       if n.type == "object" and not bound_lookup(bound, e) and not bound_lookup(bound, a) and not bound_lookup(bound, v) then
+          bound[e] = true
+          bound[a] = true    
+          bound[v] = true
+          local env, c = walk(graph, bound, tail, tail_env, nk)   
+          c = scan(c, "eav", write_lookup(env, e), write_lookup(env, a), write_lookup(env, v))
+          return env, c
+       end
+
+       if n.type == "object" and not bound_lookup(bound, e) and bound_lookup(bound, a) and bound_lookup(bound, v) then
+          bound[e] = true
           local env, c = walk(graph, bound, tail, tail_env, nk)   
           c = scan(c, "eAV", write_lookup(env, e), read_lookup(env, a), read_lookup(env, v))
           return env, c
        end
 
-       if n.type == "object" and not bound_lookup(bound, v) and bound_lookup(bound, e) and bound_lookup(bound, a) then
-          bound[v] = true;
+       if n.type == "object" and bound_lookup(bound, e) and bound_lookup(bound, a) and not bound_lookup(bound, v) then
+          bound[v] = true
           local env, c = walk(graph, bound, tail, tail_env, nk)   
           c = scan(c, "EAv", read_lookup(env, e), read_lookup(env, a), write_lookup(env, v))
+          return env, c
+       end
+       
+       if n.type == "object" and bound_lookup(bound, e) and not bound_lookup(bound, a) and not bound_lookup(bound, v) then
+          bound[a] = true                    
+          bound[v] = true
+          local env, c = walk(graph, bound, tail, tail_env, nk)   
+          c = scan(c, "Eav", read_lookup(env, e), write_lookup(env, a), write_lookup(env, v))
           return env, c
        end
 
@@ -157,12 +173,13 @@ function walk(graph, bound, tail, tail_env, key)
 
        if (n.type == "union") then
           local heads
+          tail_bound = shallowcopy(bound)
           
           for _, v in pairs(n.outputs) do
-             bound[v] = true
+             tail_bound[v] = true
           end
 
-          local env, c = walk(graph, bound, tail, tail_env, nk)
+          local env, c = walk(graph, tail_bound, tail, tail_env, nk)
                 
           local orig_perm = shallowcopy(env.permanent)
           for n, _ in pairs(env.registers) do
@@ -171,7 +188,9 @@ function walk(graph, bound, tail, tail_env, key)
           
           for _, v in pairs(n.queries) do
              local c3
-             env, c3 = walk(v.unpacked, bound, tail, env, nk)
+             local b2 = shallowcopy(bound)
+
+             env, c3 = walk(v.unpacked, b2, c, env, nk)
              if c2 then
                  c2 = build_fork(c2, c3)
              else
@@ -184,9 +203,9 @@ function walk(graph, bound, tail, tail_env, key)
        
        print ("ok, so we kind of suck right now and only handle some fixed patterns",
              "type", n.type,   
-             "entity", simple_print_table(e),
-             "value", simple_print_table(n.value),
-             "atribute", simple_print_table(n.attribute))
+             "entity", flat_print_table(e),
+             "value", flat_print_table(n.value),
+             "atribute", flat_print_table(n.attribute))
     else
         return tail_env,  tail
    end
