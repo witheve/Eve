@@ -348,6 +348,8 @@ function ScanNode:fromObject(source)
    end
    obj.source = source
    obj.type = source.type
+   obj.scope = source.scope
+   obj.operator = source.operator
    for _, binding in std.ipairs(source.bindings) do
       obj[binding.field] = binding.variable or binding.constant
    end
