@@ -201,7 +201,13 @@ function formatObjects(objs) {
           fields.push("#" + tag)
         }
       } else {
-        fields.push(key + ": " + JSON.stringify(value));
+        let stringValue;
+        if(typeof value == "string" && value[0] == "⦑") {
+          stringValue = value
+        } else {
+          stringValue = JSON.stringify(value);
+        }
+        fields.push(key + ": " + stringValue);
       }
     }
     rows.push("[" + fields.join(", ") + "]")
@@ -224,7 +230,7 @@ function sendEvent(objs) {
 // Event bindings to forward events to the server
 //---------------------------------------------------------
 
-window.addEventListener("clicks", function(event) {
+window.addEventListener("click", function(event) {
   let {target} = event;
   let current = target;
   let objs = [];
