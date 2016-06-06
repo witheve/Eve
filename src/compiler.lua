@@ -140,8 +140,18 @@ function DependencyGraph:addMutateNode(node)
 end
 
 function DependencyGraph:addExpressionNode(node)
-   error("@FIXME: Cannot determine expression production/dependencies without schema support")
-   -- also need to consider projections and groupings as dependencies
+   -- TODO also need to consider projections and groupings as dependencies
+   -- TODO handle productions other than just "return", this will require schemas
+   local produces = Set:new()
+   local depends = Set:new()
+   for _, binding in std.ipairs(node.bindings) do
+     if binding.field == "return" and binding.variable then
+       produces:add(binding.variable)
+     elseif binding.variable then
+       depends:add(binding.variable)
+     end
+   end
+   return self:add(node, depends, produces)
 end
 
 function DependencyGraph:addSubqueryNode(node)

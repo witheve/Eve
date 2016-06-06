@@ -22,7 +22,7 @@ static void rolling_advance_page(rolling l, bytes len)
     bytes plen = pad(len, l->parent->pagesize);
     pageheader p =  allocate(l->parent, plen);
     l->buffer = p;
-    l->offset = sizeof(pageheader);
+    l->offset = sizeof(struct pageheader);
     l->length = plen;
     p->last = &old->next;
     p->next = 0;
@@ -59,15 +59,16 @@ static void rolling_destroy(rolling c)
 // where heap p must be aligned
 heap allocate_rolling(heap p)
 {
-    pageheader ph = allocate(p, sizeof(struct rolling));
-    rolling l = (rolling)(p+1);
+    int off = sizeof(struct pageheader) +  sizeof(struct rolling);
+    pageheader ph = allocate(p, off);
+    rolling l = (rolling)(ph+1);
     l->h.alloc = rolling_alloc;
     l->h.dealloc = rolling_free;
     l->h.pagesize = 1;
     l->h.destroy = rolling_destroy;
     l->buffer = ph;
     l->parent = p;
-    l->offset = sizeof(struct rolling);
+    l->offset = off;
     l->length = p->pagesize;
     ph->last = 0;
     ph->refcnt = 1;

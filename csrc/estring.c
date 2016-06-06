@@ -35,5 +35,9 @@ estring intern_string(unsigned char* content, int length) {
 void init_string()
 {
     interned_string = allocate_table(init, si_hash, si_compare);
-    estring_heap = init_fixed_page_region(init, interned_space, interned_space + region_size, pages->pagesize);
+    heap string_region = init_fixed_page_region(init,
+                                                interned_space, 
+                                                interned_space + region_size,
+                                                pages->pagesize);
+    estring_heap = allocate_rolling(string_region);
 }

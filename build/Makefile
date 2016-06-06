@@ -29,7 +29,7 @@ UTF = lutf8lib.o
 COMPILER = compiler.o error.o fs.o parser.o util.o set.o color.o build.o implicationResolver.o
 UNIX =  unix_util.o region.o select.o tcp_socket.o
 CORE = buffer.o table.o vector.o format.o rolling.o string.o pqueue.o timer.o
-RUNTIME =  edb.o init.o uuid.o estring.o types.o  luanne.o json_request.o
+RUNTIME =  edb.o init.o uuid.o estring.o types.o luanne.o json_request.o exec.o
 HTTP = server.o websocket.o base64.o sha1.o
 
 continuation_templates.h: continuations.py

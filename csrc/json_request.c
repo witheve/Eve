@@ -1,5 +1,7 @@
 #include <runtime.h>
 #include <unix/unix.h>
+#include <luanne.h>
+#include <unistd.h>
 
 static char separator[] = {'{', '"', '"', ':', '"', '"', ','};
                            
@@ -50,7 +52,7 @@ extern thunk ignore;
 
 static void start_guy(heap h, buffer b, buffer_handler output)
 {
-    vector v = allocate_vector(h);
+    vector v = allocate_vector(h, 10);
     insertron a = cont(h, chute, h, v);
     insertron z = cont(h, edb_insert, my_awesome_bag);
     table scopes = allocate_table(h, key_from_pointer, compare_pointer);
@@ -62,7 +64,6 @@ static void start_guy(heap h, buffer b, buffer_handler output)
         
     interpreter c = build_lua(my_awesome_bag, scopes);
     
-    prf("start guy %b\n", b);
     lua_compile_eve(c, b);
     
     string out = allocate_string(h);
@@ -87,7 +88,6 @@ static void start_guy(heap h, buffer b, buffer_handler output)
         bprintf(out, "]");
     }
     bprintf(out, "]}");
-    write(1, bref(out, 0), buffer_length(out));
     apply(output, out, ignore);
 }
 

@@ -1,14 +1,9 @@
 #include <core.h>
 
 
-iu32 vector_length(vector v)
-{
-    return(buffer_length(v)/sizeof(void *));
-}
-
 static inline vector va_construct_vector(heap h, va_list a)
 {
-    vector v = allocate_vector(h);
+    vector v = allocate_vector(h, 10);
     void *n;
 
     while ((n = va_arg(a, void *)) != END_OF_ARGUMENTS)
@@ -58,9 +53,9 @@ void vector_insert(vector t, void *n)
     buffer_append(t, &n, sizeof(void *)); 
 }
 
-vector allocate_vector(heap h)
+vector allocate_vector(heap h, int elements)
 {
-    return(allocate_buffer(h, 4*sizeof(void *)));
+    return(allocate_buffer(h, elements*sizeof(void *)));
 }
 
 void *vector_ref(vector v, int element)

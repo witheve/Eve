@@ -94,7 +94,7 @@ heap init_memory(bytes pagesize)
                            MAP_PRIVATE|MAP_ANON,-1,0);
     h->alloc = allocate_pages;
     h->dealloc = free_pages;
-    h->pagesize = pagesize;
+    h->pagesize = 4096; //dont forget we're promising pagesize alignment
     return(h);
 }
 

@@ -80,6 +80,6 @@ void *pqueue_peek(pqueue q)
 pqueue allocate_pqueue(heap h)
 {
     pqueue q = allocate(h, sizeof(struct pqueue));
-    q->v = allocate_vector(h);
+    q->v = allocate_vector(h, 4);
     return(q);
 }

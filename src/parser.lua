@@ -842,9 +842,10 @@ local function resolveExpression(node, context)
     local left = resolveExpression(node.children[1], context)
     -- set that when I try to resolve this expression,
     -- I'm looking to resolve it to this specific variable
+    local prev = context.equalityLeft
     context.equalityLeft = left
     local right = resolveExpression(node.children[2], context)
-    context.equalityLeft = nil
+    context.equalityLeft = prev
     return left
 
   elseif node.type == "attribute" then
@@ -1114,7 +1115,8 @@ generateQueryNode = function(root, context)
   for _, child in ipairs(root.children) do
     local type = child.type
     if type == "object" then
-      query.objects[#query.objects + 1] = generateObjectNode(child, context)
+      local node = generateObjectNode(child, context)
+      query.objects[#query.objects + 1] = node
     elseif type == "update" then
       handleUpdateNode(child, query, context)
 
@@ -1122,13 +1124,16 @@ generateQueryNode = function(root, context)
       local left = resolveExpression(child, context)
 
     elseif type == "choose" then
-      query.chooses[#query.chooses + 1] = generateUnionNode(child, context, "choose")
+      local node = generateUnionNode(child, context, "choose")
+      query.chooses[#query.chooses + 1] = node
 
     elseif type == "union" then
-      query.unions[#query.unions + 1] = generateUnionNode(child, context, "union")
+      local node = generateUnionNode(child, context, "union")
+      query.unions[#query.unions + 1] = node
 
     elseif type == "not" then
-      query.nots[#query.nots + 1] = generateNotNode(child, context)
+      local node = generateNotNode(child, context)
+      query.nots[#query.nots + 1] = node
 
     elseif type == "attribute" then
       -- attribute expressions are allowed at the top level as well

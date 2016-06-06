@@ -1,9 +1,13 @@
 
 typedef buffer vector;
 
-vector allocate_vector(heap);
+vector allocate_vector(heap, int);
 typedef vector fifo;
 fifo allocate_fifo(heap);
+static inline iu32 vector_length(vector v)
+{
+    return(buffer_length(v)/sizeof(void *));
+}
 
 vector build_vector_internal(heap, ...);
 

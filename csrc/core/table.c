@@ -5,15 +5,19 @@
      for (; __i; __i=((entry)__i)->next)
 
 
+static void allocate_buckets(table t)
+{
+    t->entries = allocate_vector(t->h, t->buckets);
+    memset(t->entries->contents, 0, t->entries->end = t->buckets * sizeof(void *));
+}
+
 table allocate_table(heap h, iu64 (*key_function)(void *x), boolean (*equals_function)(void *x, void *y))
 {
     table new = allocate(h, sizeof(struct table));
     new->h = h;
     new->count = 0;
     new->buckets = 4;
-    new->entries = allocate_vector(h);
-    // xxx - ugly force
-    vector_set(new->entries, new->buckets - 1, 0);
+    allocate_buckets(new);
     new->key_function = key_function;
     new->equals_function = equals_function;
     return(new);
@@ -37,15 +41,14 @@ void *table_find (table t, void *c)
     return(EMPTY);
 }
 
+
 static void resize_table(table t, int buckets)
 {
     vector old_entries = t->entries;
     key km;
     
     t->buckets = buckets;
-    t->entries = allocate_vector(t->h);
-    // xxx -ugly force
-    vector_set(t->entries, buckets - 1, 0);
+    allocate_buckets(t);
 
     vector_foreach (k, old_entries){
         entry j = k;

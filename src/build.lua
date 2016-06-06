@@ -26,8 +26,7 @@ function flat_print_table(t)
      return result
    end
    return tostring(t)
-end    
-
+end
 
 function deepcopy(orig)
    local orig_type = type(orig)
@@ -50,7 +49,6 @@ function shallowcopy(orig)
     end
     return copy
 end
-                                                                            
 
 -- end of util
 
@@ -59,7 +57,7 @@ function empty_env()
 end
 
 function variable(x)
-   return type(x) == "table" and x.type == "variable" 
+   return type(x) == "table" and x.type == "variable"
 end
 
 
@@ -67,8 +65,8 @@ function free_register(env, e)
    if env.permanent[e] == nil then
      env.freelist[env.registers[e]] = true
      env.registers[e] = nil
-     while(env.freelist[env.alloc-1]) do 
-        env.alloc = env.alloc - 1 
+     while(env.freelist[env.alloc-1]) do
+        env.alloc = env.alloc - 1
         env.freelist[env.alloc] = nil
      end
    end
@@ -77,11 +75,11 @@ end
 function allocate_register(env, e)
    if not variable(e) or env.registers[e] then return end
    slot = env.alloc
-   for index,value in ipairs(env.freelist) do 
+   for index,value in ipairs(env.freelist) do
       slot = math.min(slot, index)
    end
    if slot == env.alloc then env.alloc = env.alloc + 1
-   else env.freelist[slot] = nil end 
+   else env.freelist[slot] = nil end
    env.registers[e] = slot
    return slot
 end
@@ -91,14 +89,14 @@ function read_lookup(env, x)
       local r = env.registers[x]
       if not r then
          r = allocate_register(env, x)
-         env.registers[x] = r          
+         env.registers[x] = r
        end
       return register(r)
    end
    -- demultiplex types on x.constantType
    if type(x) == "table" then
       return x["constant"]
-   end 
+   end
    return x
 end
 
@@ -115,7 +113,7 @@ function bound_lookup(bindings, x)
          return bindings[x]
    end
    return x
-end   
+end
 
 
 function translate_object(n, bound, down)
@@ -205,9 +203,10 @@ function trace(n, bound, down)
 end
 
 function walk(graph, bound, tail, tail_env, key)
-   nk = next(graph, key)    
+   nk = next(graph, key)
    if nk then
        local n = graph[nk]
+
        down = function (bound)
                     return walk(graph, bound, tail, tail_env, nk)
                end
@@ -223,10 +222,11 @@ function walk(graph, bound, tail, tail_env, key)
        end
        if (n.type == "object") then
           return translate_object(n, bound, down)
+
        end
-       
+
        print ("ok, so we kind of suck right now and only handle some fixed patterns",
-             "type", n.type,   
+             "type", n.type,
              "entity", flat_print_table(e),
              "attribute", flat_print_table(a),
              "value", flat_print_table(v))
@@ -240,7 +240,7 @@ function build(graph, tail)
    _, program =  walk(graph, {}, wrap_tail(tail),  empty_env(), nil)
    return program
 end
-      
+
 ------------------------------------------------------------
 -- Parser interface
 ------------------------------------------------------------
