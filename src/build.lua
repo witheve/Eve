@@ -161,7 +161,6 @@ function walk(graph, bound, tail, tail_env, key)
        end
        
        if (n.type == "mutate") then
-          print("pupate", n.scope)
           local gen = (variable(e) and not bound[e])
           if (gen) then bound[e] = true end
           local env, c = walk(graph, bound, tail, tail_env, nk)

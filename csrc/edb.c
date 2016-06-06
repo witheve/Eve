@@ -56,6 +56,9 @@ void eav_scan(bag b, value e, value a, value v, zero_listener f)
 {
     level al = scan(b->h, b->eav, e);
     level vl = scan(b->h, al, a);
+    if(table_elements(vl->lookup) > 0) {
+      apply(f, etrue);
+    }
 }
 
 void ea_scan(bag b, value e, value a, one_listener f)

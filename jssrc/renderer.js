@@ -272,7 +272,7 @@ window.addEventListener("keydown", function(event) {
     current = current.parentNode
   }
   objs.push({tags: ["keydown"], element: "window", key});
-  sendEvent(objs);
+  // sendEvent(objs);
 });
 
 window.addEventListener("keyup", function(event) {
@@ -287,7 +287,7 @@ window.addEventListener("keyup", function(event) {
     current = current.parentNode
   }
   objs.push({tags: ["keyup"], element: "window", key});
-  sendEvent(objs);
+  // sendEvent(objs);
 });
 
 //---------------------------------------------------------
