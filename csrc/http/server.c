@@ -47,7 +47,7 @@ void send_http_response(heap h,
 {
     buffer o = allocate_buffer(h, 200);
     outline(o, "HTTP/1.1 200 OK");
-    outline(o, "Content-Type: %b", type);
+    outline(o, "Content-Type: %b; charset=utf-8", type);
     outline(o, "Cache-Control: no-cache");
     outline(o, "Content-Length: %d", buffer_length(b));
     outline(o, "");
