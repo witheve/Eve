@@ -17,12 +17,15 @@ function recurse_print_table(t)
 end
 
 function flat_print_table(t)
-   local result = ""
-   for k, v in pairs(t) do
-      result = result .. " " .. tostring(k) .. ":"
-      result = result .. tostring(v)
+   if type(t) == "table" then 
+     local result = ""
+     for k, v in pairs(t) do
+        result = result .. " " .. tostring(k) .. ":"
+        result = result .. tostring(v)
+     end
+     return result
    end
-   return result
+   return tostring(t)
 end    
 
 
@@ -115,98 +118,118 @@ function bound_lookup(bindings, x)
 end   
 
 
+function translate_object(n, bound, down)
+   local e = n.entity
+   local a = n.attribute
+   local v = n.value
+   local sig = "EAV"
+   local ef = read_lookup
+   local af = read_lookup
+   local vf = read_lookup
+
+   if not bound_lookup(bound, e) then 
+       sig = "eAV"
+       bound[e] = true
+       ef = write_lookup
+   end
+   if not bound_lookup(bound, a) then 
+       sig = string.sub(sig, 0, 1) .. "aV"
+       bound[a] = true
+       af = write_lookup
+   end
+   if not bound_lookup(bound, v) then 
+       sig = string.sub(sig, 0, 2) .. "v"
+       bound[v] = true
+       vf = write_lookup
+   end
+
+   local env, c = down(bound)
+   c = scan(c, sig, ef(env, e), af(env, a), vf(env, v))
+   return env, c
+ end
+
+
+function translate_mutate(n, bound, down)
+   local e = n.entity
+   local a = n.attribute
+   local v = n.value
+
+   local gen = (variable(e) and not bound[e])
+   if (gen) then bound[e] = true end
+   local env, c = down(bound)
+   local c  = build_insert(c, n.scope, read_lookup(env, e), read_lookup(env, a), read_lookup(env, v));    
+   if gen then
+      c = generate_uuid(c, write_lookup(env, e))
+   end
+   return env, c
+end
+
+function translate_union(n, bound, down)
+   local heads
+   tail_bound = shallowcopy(bound)
+   
+   for _, v in pairs(n.outputs) do
+      tail_bound[v] = true
+   end
+
+   local env, c = down(tail_bound)
+         
+   local orig_perm = shallowcopy(env.permanent)
+   for n, _ in pairs(env.registers) do
+      env.permanent[n] = true
+   end
+   
+   for _, v in pairs(n.queries) do
+      local c3
+      local b2 = shallowcopy(bound)
+
+      env, c3 = walk(v.unpacked, b2, c, env, nk)
+      if c2 then
+          c2 = build_fork(c2, c3)
+      else
+          c2 = c3
+      end
+   end
+   env.permanent = orig_perm
+   return e2, c2
+end
+
+function trace(n, bound, down)
+    local entry = shallowcopy(bound)
+    local env, c = down(bound)
+    local map = {}
+    for n, v in pairs(entry) do
+       map[n] = env[n]
+    end
+    return env, build_trace(c, n.type, map)
+end
+
 function walk(graph, bound, tail, tail_env, key)
    nk = next(graph, key)    
    if nk then
        local n = graph[nk]
-       local e = n.entity
-       local a = n.attribute
-       local v = n.value
-
-       if n.type == "object" and not bound_lookup(bound, e) and not bound_lookup(bound, a) and not bound_lookup(bound, v) then
-          bound[e] = true
-          bound[a] = true    
-          bound[v] = true
-          local env, c = walk(graph, bound, tail, tail_env, nk)   
-          c = scan(c, "eav", write_lookup(env, e), write_lookup(env, a), write_lookup(env, v))
-          return env, c
-       end
-
-       if n.type == "object" and not bound_lookup(bound, e) and bound_lookup(bound, a) and bound_lookup(bound, v) then
-          bound[e] = true
-          local env, c = walk(graph, bound, tail, tail_env, nk)   
-          c = scan(c, "eAV", write_lookup(env, e), read_lookup(env, a), read_lookup(env, v))
-          return env, c
-       end
-
-       if n.type == "object" and bound_lookup(bound, e) and bound_lookup(bound, a) and not bound_lookup(bound, v) then
-          bound[v] = true
-          local env, c = walk(graph, bound, tail, tail_env, nk)   
-          c = scan(c, "EAv", read_lookup(env, e), read_lookup(env, a), write_lookup(env, v))
-          return env, c
-       end
-       
-       if n.type == "object" and bound_lookup(bound, e) and not bound_lookup(bound, a) and not bound_lookup(bound, v) then
-          bound[a] = true                    
-          bound[v] = true
-          local env, c = walk(graph, bound, tail, tail_env, nk)   
-          c = scan(c, "Eav", read_lookup(env, e), write_lookup(env, a), write_lookup(env, v))
-          return env, c
-       end
-
-       if n.type == "object" and bound_lookup(bound,v) and bound_lookup(bound, e) and bound_lookup(bound, a) then
-          local env, c = walk(graph, bound, tail, tail_env, nk)         
-          c = scan(c, "EAV", read_lookup(env, e), read_lookup(env, a), read_lookup(env, v))
-          return env, c             
-       end
-       
-       if (n.type == "mutate") then
-          print("pupate", n.scope)
-          local gen = (variable(e) and not bound[e])
-          if (gen) then bound[e] = true end
-          local env, c = walk(graph, bound, tail, tail_env, nk)
-          local c  = build_insert(c, n.scope, read_lookup(env, e), read_lookup(env, a), read_lookup(env, v));    
-          if gen then
-             c = generate_uuid(c, write_lookup(env, e))
-          end
-          return env, c
-       end
-
+       down = function (bound)
+                    return walk(graph, bound, tail, tail_env, nk)
+               end
+       downtrace = function (bound)
+                      return trace(n, bound, down)
+                   end
+ 
        if (n.type == "union") then
-          local heads
-          tail_bound = shallowcopy(bound)
-          
-          for _, v in pairs(n.outputs) do
-             tail_bound[v] = true
-          end
-
-          local env, c = walk(graph, tail_bound, tail, tail_env, nk)
-                
-          local orig_perm = shallowcopy(env.permanent)
-          for n, _ in pairs(env.registers) do
-             env.permanent[n] = true
-          end
-          
-          for _, v in pairs(n.queries) do
-             local c3
-             local b2 = shallowcopy(bound)
-
-             env, c3 = walk(v.unpacked, b2, c, env, nk)
-             if c2 then
-                 c2 = build_fork(c2, c3)
-             else
-                 c2 = c3
-             end
-          end
-          env.permanent = orig_perm
-          return e2, c2
+          return translate_union(n, bound, down)
+       end
+       if (n.type == "mutate") then
+          return translate_mutate(n, bound, down)
+       end
+       if (n.type == "object") then
+          return translate_object(n, bound, down)
        end
        
        print ("ok, so we kind of suck right now and only handle some fixed patterns",
              "type", n.type,   
              "entity", flat_print_table(e),
-             "value", flat_print_table(n.value),
-             "atribute", flat_print_table(n.attribute))
+             "attribute", flat_print_table(a),
+             "value", flat_print_table(v))
     else
         return tail_env,  tail
    end

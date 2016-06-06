@@ -1,4 +1,5 @@
 #include <runtime.h>
+#include <unistd.h>
 
 typedef struct level {
     table lookup;
@@ -56,6 +57,8 @@ void eav_scan(bag b, value e, value a, value v, zero_listener f)
 {
     level al = scan(b->h, b->eav, e);
     level vl = scan(b->h, al, a);
+    if (table_elements(vl->lookup) > 0)
+        apply(f, etrue);
 }
 
 void ea_scan(bag b, value e, value a, one_listener f)
@@ -150,6 +153,62 @@ void edb_insert(bag b, value e, value a, value v)
             apply((zero_listener)k, etrue);
         }
     }
+}
+
+
+static void indent(buffer out, int x)
+{
+    for (int i= 0; i< x; i++)
+        buffer_write_byte(out, ' ');
+}
+
+static void value_print(buffer out, value v)
+{
+    switch(type_of(v)) {
+    case uuid_space:
+        bprintf(out , "%X", wrap_buffer(init, v, UUID_LENGTH));
+        break;
+        //    case float_space:
+        //        break;
+    case interned_space:
+        {
+            string_intermediate si = v;
+            bprintf(out , "\"");
+            buffer_append(out, si->body, si->length);
+            bprintf(out , "\"");
+        }
+        break;
+    default:
+        write (1, "wth!@\n", 6);
+    }
+    
+}
+
+string bag_dump(heap h, bag b) 
+{
+    buffer out = allocate_string(h);
+    foreach_table(b->eav->lookup, e, avl) {
+        int start = buffer_length(out);
+        int afirst = 0;
+        value_print(out, e);
+        indent(out, 1);
+        int ind = buffer_length(out)-start;
+        
+        foreach_table(((level)avl)->lookup, a, vl) {
+            int start = buffer_length(out);
+            int vfirst = 0;
+            if (afirst++) indent(out, ind);
+            value_print(out, a);
+            indent(out, 1);
+            int ind2 = ind+buffer_length(out)-start;
+            foreach_table(((level)vl)->lookup, v, vl) {
+                if (vfirst++) indent(out, ind2);
+                value_print(out, v);
+                buffer_write_byte(out, '\n');
+            }
+        }
+    }
+    return out;
 }
 
 void edb_remove(bag b, value e, value a, value v)
