@@ -583,7 +583,7 @@ local function parse(tokens)
       if stackTop.type == "equality" then
         -- pop the equality off since it represents the outputs of
         -- this union/choose
-        local prev = stack:pop(node)
+        local prev = stack:pop()
         local outputs = prev.children[1]
         if outputs.type ~= "block" and outputs.type ~= "IDENTIFIER" then
           outputs = {}
