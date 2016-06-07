@@ -1,5 +1,5 @@
 # lueve
-Eve in Lua
+Eve in C/Lua
 
 ## Getting started
 
