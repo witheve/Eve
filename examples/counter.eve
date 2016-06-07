@@ -1,18 +1,17 @@
-go!
-  update history
-    [#counter count: 0, parent: "root"]
-
 build the counter
   [#counter count parent]
   update
     [#div class: "counter-container", parent, children:
-      [#div #count-button class: "button", text: "-", diff: "-1"]
+      [#div #count-button class: "button", text: "-", diff: -1, counter]
       [#div class: "count", text: count]
-      [#div #count-button class: "button", text: "+", diff: "1"]]
+      [#div #count-button class: "button", text: "+", diff: 1, counter]]
 
 increment the counter
-  [#click element: [#count-button diff]]
-  counter = [#counter count]
+  [#click element: [#count-button diff counter]]
   update history
-    counter.count := count + diff
+    counter.count := counter.count + diff
+
+go!
+  update history
+    [#counter count: 0, parent: "root"]
 
