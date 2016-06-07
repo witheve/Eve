@@ -63,8 +63,11 @@ static void start_guy(heap h, buffer b, buffer_handler output)
     def(scopes, "external", z);
         
     interpreter c = build_lua(my_awesome_bag, scopes);
-    
+
+    ticks start_time = rdtsc();
     lua_compile_eve(c, b);
+    ticks end_time = rdtsc();
+    printf ("user query in %ld ticks\n", end_time-start_time);
     
     string out = allocate_string(h);
     bprintf(out, "{\"type\":\"result\", \"insert\":[");

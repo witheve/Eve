@@ -2,6 +2,14 @@
 #include <lauxlib.h>
 #include <lualib.h>
 
+typedef struct evaluation  {
+    heap h;
+    bag b;
+    table scope_map;
+    vector listeners; // should probably be a vector of vectors
+    execf head;
+} *evaluation;
+    
 typedef struct interpreter  {
     heap h;
     bag b;
@@ -31,7 +39,10 @@ static inline int run(lua_State *L)
     interpreter c = lua_context(L);
     execf f = (void *)lua_topointer(L, 1);
     // xxx - execution heap...and parameterize this from the run function
+    ticks start_time = rdtsc();
     apply(f, 0, allocate(init, sizeof(value) * 20));
+    ticks end_time = rdtsc();
+    printf ("exec in %ld ticks\n", end_time-start_time);
     return 0;
 }
 
