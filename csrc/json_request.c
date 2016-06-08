@@ -71,7 +71,7 @@ static evaluation start_guy(heap h, buffer b, buffer_handler output)
         
     interpreter c = build_lua(my_awesome_bag, scopes);
 
-    execute(lua_compile_eve(c, b));
+    execute(lua_compile_eve(c, b, false));
     
     string out = allocate_string(h);
     bprintf(out, "{\"type\":\"result\", \"insert\":[");

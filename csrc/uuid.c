@@ -71,19 +71,6 @@ uuid generate_uuid()
     memcpy(result, &z, 8);
     *((unsigned short *)result + 4) = count++;
     unsigned char *y = result;
-    printf ("%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x\n",
-            y[0],
-            y[1],
-            y[2],
-            y[3],
-            y[4],
-            y[5],
-            y[6],
-            y[7],
-            y[8],
-            y[9],
-            y[10],
-            y[11]);
     table_set(interned_uuid, result, (void *)1);
     return result;
 }

@@ -107,13 +107,15 @@ static int traceback(lua_State *L)
   return 1;
 }
 
-evaluation lua_compile_eve(interpreter c, buffer b)
+evaluation lua_compile_eve(interpreter c, buffer b, boolean tracing)
 {
     lua_pushcfunction(c->L, traceback);
     lua_getglobal(c->L, "compiler");
     lua_getfield(c->L, -1, "compileExec");
     lua_pushlstring(c->L, bref(b, 0), buffer_length(b));
-    if (lua_pcall(c->L, 1, 1, lua_gettop(c->L)-3)) {
+    lua_pushboolean(c->L, tracing);
+    
+    if (lua_pcall(c->L, 2, 1, lua_gettop(c->L)-3)) {
         printf ("lua error\n");
         printf ("%s\n", lua_tostring(c->L, -1));
     }

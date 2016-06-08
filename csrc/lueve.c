@@ -37,7 +37,7 @@ int main(int argc, char **argv)
     for (int i = 1; i <argc ; i++) {
         if (!strcmp(argv[i], "-e")) {
             buffer b = read_file(init, argv[++i]);
-            execute(lua_compile_eve(c, b));
+            execute(lua_compile_eve(c, b, true));
         }
         if (!strcmp(argv[i], "-parse")) {
             lua_run_module_func(c, read_file(init, argv[++i]), "parser", "printParse");

@@ -252,11 +252,9 @@ static void do_trace(bag b, execf n, estring name, table regmap, operator op, va
 {
     string_intermediate si = name;
     write(1, si->body, si->length);
-    write(1, " ", 1);
-    
+
     foreach_table(regmap, k, v) {
-        prf("%b ", k);
-        print_value(lookup(v, r)));
+        prf(" %b %v", k, lookup(v, r));
     }
     write(1, "\n", 1);
 
@@ -271,7 +269,7 @@ static int build_trace(lua_State *L)
     while (lua_next(L, 4) != 0) {
         string x = allocate_string(c->h);
         buffer_append(x, (void *)lua_tostring(L, -2), lua_strlen(L, -2));
-        table_set(regnames, x, (void *)lua_tointeger(L, -1));
+        table_set(regnames, x, (void *)(lua_tointeger(L, -1) + register_base));
         lua_pop(L, 1);
     }
     lua_pop(L, 1);
@@ -400,7 +398,9 @@ void register_exec(interpreter c)
 void execute(evaluation e)
 {
     ticks start_time = rdtsc();
-    apply(e->head, 0, allocate(init, sizeof(value) * e->registerfile));
+    value *r = allocate(init, sizeof(value) * e->registerfile);
+    memset(r, 0xaa, sizeof(value) * e->registerfile);
+    apply(e->head, 0, r);
     ticks end_time = rdtsc();
     printf ("exec in %ld ticks\n", end_time-start_time);
 }
