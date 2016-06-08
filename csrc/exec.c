@@ -255,7 +255,8 @@ static void do_trace(bag b, execf n, estring name, table regmap, operator op, va
     write(1, " ", 1);
     
     foreach_table(regmap, k, v) {
-        prf("%b %x ", k, r[(int)v]);
+        prf("%b ", k);
+        print_value(lookup(v, r)));
     }
     write(1, "\n", 1);
 
