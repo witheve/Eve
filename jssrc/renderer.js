@@ -16,9 +16,15 @@ function insertSorted(parent, child) {
     current = parent.children[curIx];
     if(current.ix && current.ix > child.ix) {
       break;
+    } else {
+      current = null;
     }
   }
-  parent.insertBefore(child, current);
+  if(current) {
+    parent.insertBefore(child, current);
+  } else  {
+    parent.appendChild(child);
+  }
 }
 
 function safeEav(eav) {
@@ -133,7 +139,8 @@ function handleDOMUpdates(result) {
       elem = document.createElement(ent.tag || "div")
       elem.entity = entId;
       activeElements[entId] = elem;
-      activeElements.root.appendChild(elem);
+      elem.ix = ent.ix;
+      insertSorted(activeElements.root, elem)
     }
     let attributes = Object.keys(ent);
     for(let attr of attributes) {
@@ -158,6 +165,8 @@ function handleDOMUpdates(result) {
         activeStyles[value] = elem;
       } else if(attr == "textContent") {
         elem.textContent = value;
+      } else if(attr == "tag" || attr == "ix") {
+        //ignore
       } else if(attr == "_parent") {
         let parent = activeElements[value];
         insertSorted(parent, elem);

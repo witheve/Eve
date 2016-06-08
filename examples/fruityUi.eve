@@ -10,4 +10,4 @@ Add some fruits to the system
 Draw a list of fruits
   [#fruit color name]
   update
-    [#div text: name, style: [color]]
+    [#div ix: name, text: name, style: [color]]
