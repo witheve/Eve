@@ -13,8 +13,26 @@ iu64 key_of(value v)
     return (0);
 }
 
-void print(buffer b, value v)
+void print_value(buffer out, value v)
 {
+    switch(type_of(v)) {
+    case uuid_space:
+        // FIXME: is it sketchy to write this on the buffer's heap?
+        bprintf(out , "⦑%X⦒", wrap_buffer(out->h, v, UUID_LENGTH));
+        break;
+        //    case float_space:
+        //        break;
+    case estring_space:
+        {
+            string_intermediate si = v;
+            bprintf(out , "\"");
+            buffer_append(out, si->body, si->length);
+            bprintf(out , "\"");
+        }
+        break;
+    default:
+        printf(1, "wth!@\n", 6);
+    }
 }
 
 // assumes bibop and interned strings and uuids
