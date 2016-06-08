@@ -45,11 +45,7 @@ void print_value(buffer b, value v)
         }
         break;
     default:
-<<<<<<< d6699ccb1b353206010aa58dd4524e1487b99716
-        printf(1, "wth!@\n", 6);
-=======
         prf ("corrupt value %p\n", v);
->>>>>>> plumb tracing as a flag through the compiler, fix register access the tracer, fix up print_value
     }
 }
 

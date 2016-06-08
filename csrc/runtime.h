@@ -1,6 +1,7 @@
 typedef void *value;
 
 #include <core/core.h>
+#include <types.h>
 
 iu64 key_of(value);
 boolean equals(value, value);

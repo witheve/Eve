@@ -30,7 +30,6 @@ typedef void *station;
 #include <buffer.h>
 #include <vector.h>
 #include <table.h>
-#include <types.h>
 #include <alloca.h> // env
 #include <string.h>
 #include <timer.h>
