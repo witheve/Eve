@@ -57,7 +57,7 @@
       </MacroExpansion>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "-e ../examples/fruityUi.e"
+            argument = "-e ../examples/fruityUi.eve"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>

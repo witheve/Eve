@@ -62,7 +62,7 @@ end
 
 
 function free_register(env, e)
-   if env.permanent[e] == nil then
+   if env.permanent[e] == nil and env.registers[e] then
      env.freelist[env.registers[e]] = true
      env.registers[e] = nil
      while(env.freelist[env.alloc-1]) do
