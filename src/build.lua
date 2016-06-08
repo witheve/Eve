@@ -53,7 +53,7 @@ end
 -- end of util
 
 function empty_env()
-   return {alloc=0, freelist = {}, registers = {}, permanent = {}}
+   return {alloc=0, freelist = {}, registers = {}, permanent = {}, maxregs = 0}
 end
 
 function variable(x)
@@ -81,6 +81,7 @@ function allocate_register(env, e)
    if slot == env.alloc then env.alloc = env.alloc + 1
    else env.freelist[slot] = nil end
    env.registers[e] = slot
+   env.maxregs = math.max(env.maxregs, slot)
    return slot
 end
 
@@ -147,7 +148,7 @@ function translate_object(ex, n, bound, down)
  end
 
 
-function translate_mutate(ex, bound, down)
+function translate_mutate(ex, n, bound, down)
    local e = n.entity
    local a = n.attribute
    local v = n.value
@@ -164,6 +165,7 @@ end
 
 function translate_union(ex, n, bound, down)
    local heads
+   local c2
    tail_bound = shallowcopy(bound)
    
    for _, v in pairs(n.outputs) do
@@ -189,17 +191,18 @@ function translate_union(ex, n, bound, down)
       end
    end
    env.permanent = orig_perm
-   return e2, c2
+   -- currently leaking the perms
+   return env, c2
 end
 
-function trace(n, bound, down)
+function trace(ex, n, bound, down)
     local entry = shallowcopy(bound)
     local env, c = down(bound)
     local map = {}
     for n, v in pairs(entry) do
        map[n] = env[n]
     end
-    return env, build_trace(c, n.type, map)
+    return env, build_trace(ex, c, n.type, map)
 end
 
 function walk(ex, graph, bound, tail, tail_env, key)
@@ -216,15 +219,16 @@ function walk(ex, graph, bound, tail, tail_env, key)
    downtrace = function (bound)
                   return trace(ex, n, bound, down)
                end
+   d = down
 
    if (n.type == "union") then
-      return translate_union(ex, n, bound, down)
+      return translate_union(ex, n, bound, d)
    end
    if (n.type == "mutate") then
-      return translate_mutate(ex, n, bound, down)
+      return translate_mutate(ex, n, bound, d)
    end
    if (n.type == "object") then
-      return translate_object(ex, n, bound, down)
+      return translate_object(ex, n, bound, d)
    end
 
    print ("ok, so we kind of suck right now and only handle some fixed patterns",
@@ -235,12 +239,21 @@ function walk(ex, graph, bound, tail, tail_env, key)
 end
 
 
-function build(graph, tail)
-   --wrap_tail(tail)
-   ex = evaluation()
-   _, program =  walk(ex, graph, {}, ignore(),  empty_env(), nil)
-   set_head(ex, program)
-   return e
+function build(graphs)
+   local head
+   local regs = 0
+   ex = new_evaluation()
+   for _, g in pairs(graphs) do
+      env, program =  walk(ex, g, {}, ignore(), empty_env(), nil)
+      regs = math.max(regs, env.maxregs + 1)
+      if head then
+         head = build_fork(ex, head, program)
+      else
+         head = program
+      end
+   end
+   set_head(ex, head, regs)
+   return ex
 end
 
 ------------------------------------------------------------

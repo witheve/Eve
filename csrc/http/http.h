@@ -32,9 +32,13 @@ void register_static_content(http_server h, char *url, char *content_type, buffe
     buffer_append(__b, "\r\n", 2);
 
 // maybe deconstruct the headers across the interface instead of the raw business
-typedef closure(http_handler, table, station, buffer_handler);
+typedef closure(http_handler, table headers, station, buffer_handler);
 
-buffer_handler websocket_send_upgrade(heap h, 
-                                      thunk connect,
-                                      string key,
-                                      buffer_handler write);
+buffer_handler websocket_send_upgrade(heap h,
+                                      table headers,
+                                      buffer_handler down,
+                                      buffer_handler up,
+                                      buffer_handler *from_above);
+
+typedef  buffer_handler(*http_service)(buffer_handler, table);
+void http_register_service(http_server, http_service, string);

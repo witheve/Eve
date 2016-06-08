@@ -42,8 +42,6 @@ void websocket_output_frame(websocket w, buffer b, thunk t)
     websocket_send(w, 1, b, t);
 }
 
-extern void handle_json_query(heap h, buffer b, buffer_handler output);
-
 static CONTINUATION_1_2(websocket_input_frame, websocket, buffer, thunk);
 static void websocket_input_frame(websocket w, buffer b, thunk t)
 {
@@ -94,34 +92,38 @@ static void websocket_input_frame(websocket w, buffer b, thunk t)
         // compress reassembly buffer
 
         w->reassembly->start += offset;
-        handle_json_query(w->h, w->reassembly, cont(w->h, websocket_output_frame, w));
-        //        apply(w->client, w->reassembly, ignore);
+        apply(w->client,  w->reassembly, t);
         // compress
         w->reassembly->start += length;
     }
     apply(t);
 }
 
-void websocket_connect(int status, thunk send)
-{
-    buffer b = allocate_buffer(init, 20);
-    buffer_append(b, "\"hello!\"", 8);
-    apply(send, b, ignore);
-}
-
 void sha1(buffer d, buffer s);
-// xxx - fix wiring
 
 buffer_handler websocket_send_upgrade(heap h,
-                                      thunk connect,
-                                      string key,
-                                      buffer_handler write)
+                                      table headers,
+                                      buffer_handler down,
+                                      buffer_handler up,
+                                      buffer_handler *from_above)
 {
     websocket w = allocate(h, sizeof(struct websocket));
+    struct string_intermediate *ekey;
+    string key;
 
+    if (!(ekey=table_find(headers, intern_buffer(sstring("Sec-WebSocket-Key"))))) {
+        // something tasier
+        return 0;
+    } 
+
+    // sad
+    key = allocate_buffer(h, ekey->length);
+    buffer_append(key, ekey->body, ekey->length);
+    
     // fix
     w->reassembly = allocate_buffer(h, 1000);
-    w->write = write;
+    w->write = down;
+    w->client = up;
     w->h = h;
 
     string_concat(key, sstring("258EAFA5-E914-47DA-95CA-C5AB0DC85B11"));
@@ -135,11 +137,9 @@ buffer_handler websocket_send_upgrade(heap h,
     outline(b, "Connection: Upgrade");
     outline(b, "Sec-WebSocket-Accept: %b", r);
     outline(b, "");
-    prf("websocket accept: %b\n", b);
 
-    apply(write, b, ignore);
-    apply(connect, 0, cont(h, websocket_output_frame,w));
-    websocket_connect(0, cont(h, websocket_output_frame,w));
+    apply(w->write, b, ignore);
+    *from_above = cont(h, websocket_output_frame,w);
     return(cont(h, websocket_input_frame, w));
 }
 

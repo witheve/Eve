@@ -183,6 +183,36 @@ static int build_insert(lua_State *L)
     return 1;
 }
 
+
+static CONTINUATION_5_2(do_plus, evaluation, execf, int, value, value,  operator, value *);
+static void do_plus(evaluation ex, execf n, int dest, value a, value b, operator op, value *r)
+{
+    value ar = lookup( r, a);
+    value br = lookup( r, b);
+    if ((type_of(ar) != float_space ) || (type_of(br) != float_space)) {
+        exec_error(ex, "attempt to add non-numbers", a, b);
+    } else {
+        r[dest] = box_float(*(double *)lookup( r, a) + *(double *)lookup( r, b));
+        apply(n, op, r);
+    }
+}
+
+static int build_plus(lua_State *L)
+{
+    evaluation e = (void *)lua_topointer(L, 1);
+    execf n = cont(e->h,
+                   do_plus,
+                   e,
+                   lua_tovalue(L, 1),
+                   lua_toregister(L, 2),
+                   lua_tovalue(L, 3),
+                   lua_tovalue(L, 4));
+    
+    lua_pushlightuserdata(L, n);
+    return 1;
+}
+
+    
 static CONTINUATION_2_2(do_genid, execf, int,  operator, value *);
 static void do_genid(execf n, int dest, operator op, value *r) 
 {
@@ -304,6 +334,8 @@ evaluation allocate_evaluation(bag b, table scopes)
     evaluation e = allocate(h, sizeof(struct evaluation));
     e->listeners = allocate_vector(h, 10);
     e->h =h;
+    e->scope_map = scopes;
+    e->b =b;
     return e;
 }
 
@@ -329,6 +361,7 @@ static int lua_set_head(lua_State *L)
 {
     evaluation e = (void *)lua_topointer(L, 1);
     e->head = lua_tovalue(L, 2);
+    e->registerfile = lua_tointeger(L, 3);
     return 0;
 }
 
@@ -343,6 +376,15 @@ void register_exec(interpreter c)
     define(c, "build_fork", build_fork);
     define(c, "build_trace", build_trace);
     define(c, "ignore", build_ignore);
-    define(c, "evaluation", lua_allocate_evaluation);
+    define(c, "new_evaluation", lua_allocate_evaluation);
     define(c, "set_head", lua_set_head);
 }
+
+void execute(evaluation e)
+{
+    ticks start_time = rdtsc();
+    apply(e->head, 0, allocate(init, sizeof(value) * e->registerfile));
+    ticks end_time = rdtsc();
+    printf ("exec in %ld ticks\n", end_time-start_time);
+}
+

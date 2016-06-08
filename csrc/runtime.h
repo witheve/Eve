@@ -65,3 +65,20 @@ static inline boolean compare_pointer(void *x, void *y) {return(x==y);}
 CONTINUATION_1_3(edb_insert, bag, value, value, value);
 
 string bag_dump(heap h, bag b);
+
+static inline estring intern_buffer(buffer b)
+{
+    return intern_string(bref(b,0), buffer_length(b));
+}
+
+typedef struct evaluation  {
+    heap h;
+    bag b;
+    table scope_map;
+    vector listeners; // should probably be a vector of vectors to cut down on resizes
+    execf head;
+    int registerfile;
+} *evaluation;
+
+void execute(evaluation e);
+

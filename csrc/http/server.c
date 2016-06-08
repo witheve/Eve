@@ -7,6 +7,7 @@
 struct http_server {
     heap h, p;
     table content;
+    table services;
 };
     
 static char separators[] = {' ',
@@ -29,12 +30,13 @@ typedef enum {
 } header_state;
     
 typedef struct session {
+    http_server parent;
     heap h;
     buffer_handler write;
     buffer_handler child;
     string fields[total_states];
     header_state s;
-    table content;
+    table headers;
 } *session; 
 
 thunk ignore;
@@ -85,6 +87,10 @@ static void reset_session(session s)
     for (int i = 0; i<total_states ; i++) {
         buffer_clear(s->fields[i]);
     }
+    // xxx - reuse header table or some such...and* we should really
+    // make a table specifically using e-things
+    
+    s->headers = allocate_table(s->h, key_from_pointer, compare_pointer);
     s->s = method;
 }
 
@@ -104,23 +110,29 @@ static void session_buffer(session s,
         string_foreach(c, b) {
             if (c == separators[s->s]) {
                 if (++s->s == total_states)  {
-                    // xxx - fix plumbing..so sad
-                    if (string_equal(s->fields[name], sstring("Sec-WebSocket-Key"))) {
-                        s->child = websocket_send_upgrade(s->h, ignore, s->fields[property], s->write);
-                    }
+                    table_set(s->headers,
+                              intern_buffer(s->fields[name]),
+                              intern_buffer(s->fields[property]));
+                    // we're interning these because they should be visible in
+                    // eve-land, but is that really what we want?
                     buffer_clear(s->fields[name]);
                     buffer_clear(s->fields[property]);
-                    s->s = 3;
+                    s->s = name;
                 }
             } else {
                 if ((s->s == name) && (c == '\n')) {
                     buffer *c;
                     if (!s->child) { // sadness
-                        if ((c = table_find(s->content, s->fields[url]))) {
-                            // reset connection state
-                            send_http_response(s->h, s->write, c[0], c[1]);
+                        if ((c = table_find(s->parent->services, s->fields[url]))) {
+                            // stash the method and the url in the headers
+                            s->child = ((http_service) c)(s->write, s->headers);
                         } else {
-                            apply(s->write, sstring("HTTP/1.1 404 Not found\r\n"), ignore);
+                            if ((c = table_find(s->parent->content, s->fields[url]))) {
+                                // reset connection state
+                                send_http_response(s->h, s->write, c[0], c[1]);
+                            } else {
+                                apply(s->write, sstring("HTTP/1.1 404 Not found\r\n"), ignore);
+                            }
                         }
                     }
                     reset_session(s);
@@ -144,7 +156,7 @@ void new_connection(http_server s,
     apply(read, cont(h, session_buffer, hs));
     hs->child = 0;
     hs->write = write;
-    hs->content = s->content;
+    hs->parent = s;
     hs->h = h;
     for (int i = 0; i < total_states ; i++ ){
         hs->fields[i] = allocate_buffer(h, 20); 
@@ -164,12 +176,19 @@ void register_static_content(http_server h, char *url, char *content_type, buffe
     table_set(h->content, string_from_cstring(h->h, url), x);
 }
 
+void http_register_service(http_server h, http_service r, string url)
+{
+    table_set(h->services, url, r);
+}
+
+
 http_server create_http_server(heap h, station p)
 {
     if (!ignore) ignore = cont(init, ignoro);
     //    heap q = allocate_leaky_heap(h);
     http_server s = allocate(h, sizeof(struct http_server));
     s->content = allocate_table(h, string_hash, string_equal);
+    s->services = allocate_table(h, string_hash, string_equal);
     s->p = h;
     s->h = h;
     tcp_create_server(h,

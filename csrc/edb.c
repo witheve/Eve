@@ -176,7 +176,7 @@ static void value_print(buffer out, value v)
         break;
         //    case float_space:
         //        break;
-    case interned_space:
+    case estring_space:
         {
             string_intermediate si = v;
             bprintf(out , "\"");
