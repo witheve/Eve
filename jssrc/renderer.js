@@ -226,7 +226,7 @@ function formatObjects(objs) {
 
 function sendEvent(objs) {
   let query = `handle some event
-  update external
+  update history
     ${formatObjects(objs).join("\n    ")}
   `
   if(socket && socket.readyState == 1) {
