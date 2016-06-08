@@ -26,7 +26,7 @@ static void scan_table(fd_set *t, table f)
     for (i = 0 ; i <(FDSIZE/64); i++) {
         descriptor d;
         while ((d = ffsll(b[i]))) {
-            d--;
+            d = (d-1) + (64*i);
             FD_CLR(d, t);
             thunk handler =(thunk)table_find(f, (void *)(unsigned long)d);
             table_set(f, (void *)(unsigned long)d, 0);

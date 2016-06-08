@@ -247,24 +247,40 @@ static int build_fork(lua_State *L)
     return 1;
 }
 
-static CONTINUATION_4_2(do_trace, bag, execf, estring, void*, operator, value *) ;
-static void do_trace(bag b, execf n, estring name, void *regmap, operator op, value *r)
+static CONTINUATION_4_2(do_trace, bag, execf, estring, table, operator, value *) ;
+static void do_trace(bag b, execf n, estring name, table regmap, operator op, value *r)
 {
     string_intermediate si = name;
     write(1, si->body, si->length);
+    write(1, " ", 1);
+    
+    foreach_table(regmap, k, v) {
+        prf("%b %x ", k, r[(int)v]);
+    }
     write(1, "\n", 1);
+
     apply(n, op, r);
 }
 
 static int build_trace(lua_State *L)
 {
     evaluation c = (void *)lua_topointer(L, 1);
+    table regnames = allocate_table(c->h, string_hash, string_equal);
+    lua_pushnil(L);  /* first key */
+    while (lua_next(L, 4) != 0) {
+        string x = allocate_string(c->h);
+        buffer_append(x, (void *)lua_tostring(L, -2), lua_strlen(L, -2));
+        table_set(regnames, x, (void *)lua_tointeger(L, -1));
+        lua_pop(L, 1);
+    }
+    lua_pop(L, 1);
+            
     lua_pushlightuserdata(L, cont(c->h, 
                                   do_trace,
                                   c->b,
                                   (void *)lua_topointer(L, 2),
                                   (void *)lua_tovalue(L, 3),
-                                  (void *)lua_topointer(L, 4)));
+                                  regnames));
     return 1;
 }
 

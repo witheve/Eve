@@ -200,7 +200,7 @@ function trace(ex, n, bound, down)
     local env, c = down(bound)
     local map = {}
     for n, v in pairs(entry) do
-       map[n] = env[n]
+       map[n.name] = env.registers[n]
     end
     return env, build_trace(ex, c, n.type, map)
 end
@@ -219,7 +219,7 @@ function walk(ex, graph, bound, tail, tail_env, key)
    downtrace = function (bound)
                   return trace(ex, n, bound, down)
                end
-   d = down
+   d = downtrace
 
    if (n.type == "union") then
       return translate_union(ex, n, bound, d)
