@@ -413,15 +413,16 @@ end
 
 function unpackObjects(nodes)
    local unpacked = {}
+   local unpackedMutates = {}
    local ix = 1
    local tmpCounter = 0
    for _, node in std.ipairs(nodes) do
       if node.type == "object" or node.type == "mutate" then
+         local unpackList = node.type == "object" and unpacked or unpackedMutates
          local NodeKind = ScanNode
 
          if isEAVNode(node) then
-            unpacked[ix] = ScanNode:fromObject(node)
-            ix = ix + 1
+            unpackList[#unpackList + 1] = ScanNode:fromObject(node)
          else
             local entity
             for _, binding in std.ipairs(node.bindings) do
@@ -440,8 +441,7 @@ function unpackObjects(nodes)
 
             for _, binding in std.ipairs(node.bindings) do
                if binding.field ~= ENTITY_FIELD then
-                  unpacked[ix] = ScanNode:fromBinding(node, binding, entity)
-                  ix = ix + 1
+                  unpackList[#unpackList + 1] = ScanNode:fromBinding(node, binding, entity)
                end
             end
          end
@@ -454,6 +454,10 @@ function unpackObjects(nodes)
          unpacked[ix] = node
          ix = ix + 1
       end
+   end
+
+   for _, node in std.ipairs(unpackedMutates) do
+     unpacked[#unpacked + 1] = node
    end
 
    return unpacked
