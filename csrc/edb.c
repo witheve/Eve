@@ -41,9 +41,9 @@ level scan(heap h, level lev, value key)
     return x;
 }
 
-void full_scan(bag b, three_listener f)
+table full_scan(bag b, three_listener f)
 {
-    // add listener
+    table_set(b->eav->listeners, f, (void *)1);
     foreach_table(b->eav->lookup, e, avl) {
         foreach_table(((level)avl)->lookup, a, vl) {
             foreach_table(((level)vl)->lookup, v, vl) {
@@ -51,48 +51,54 @@ void full_scan(bag b, three_listener f)
             }
         }
     }
+    return b->eav->listeners;
 }
 
-void eav_scan(bag b, value e, value a, value v, zero_listener f)
+table eav_scan(bag b, value e, value a, value v, zero_listener f)
 {
     level al = scan(b->h, b->eav, e);
     level vl = scan(b->h, al, a);
+    table_set(vl->listeners, f, (void *)1);
     if (table_elements(vl->lookup) > 0)
         apply(f, etrue);
+    return vl->listeners;
 }
 
-void ea_scan(bag b, value e, value a, one_listener f)
+table ea_scan(bag b, value e, value a, one_listener f)
 {
     level al = scan(b->h, b->eav, e);
     level vl = scan(b->h, al, a);
 
-    // add listener
+    table_set(al->listeners, f, (void *)1);
     foreach_table(((level)vl)->lookup, v, vl) {
         apply(f, v, etrue);
     }
+    return al->listeners;
 }
 
-void e_scan(bag b, value e, two_listener f)
+table e_scan(bag b, value e, two_listener f)
 {
     level al = scan(b->h, b->eav, e);
-    
-    // add listener
+
+    table_set(al->listeners, f, (void *)1);
     foreach_table(al->lookup, a, vl) {
         foreach_table(((level)vl)->lookup, v, vl) {
             apply(f, a, v, etrue);
         }
     }
+    return al->listeners;
 }
 
-void av_scan(bag b, value a, value v, one_listener f)
+table av_scan(bag b, value a, value v, one_listener f)
 {
     level al = scan(b->h, b->ave, a);
     level vl = scan(b->h, al, v);
 
-    // add listener
+    table_set(vl->listeners, f, (void *)1);
     foreach_table(((level)vl)->lookup, e, el) {
         apply(f, e, etrue);
     }
+    return(vl->listeners);
 }
 
 // its probably going to be better to keep a global guy with
@@ -170,7 +176,7 @@ static void value_print(buffer out, value v)
         break;
         //    case float_space:
         //        break;
-    case interned_space:
+    case estring_space:
         {
             string_intermediate si = v;
             bprintf(out , "\"");

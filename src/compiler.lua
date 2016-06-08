@@ -459,8 +459,9 @@ function unpackObjects(nodes)
    return unpacked
 end
 
-function compileExec(contents, guy)
+function compileExec(contents)
    local parseGraph = parser.parseString(contents)
+   local set = {}
 
    for ix, queryGraph in std.ipairs(parseGraph.children) do
       local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph)
@@ -468,11 +469,9 @@ function compileExec(contents, guy)
       local unpacked = unpackObjects(sorted)
       -- this handler function is just for debugging, we no longer have
       -- an 'execution return'
-      local built = build.build(unpacked, function(op, r)  print(op, r) end)
-      if guy then
-        guy(built)
-      end
+      set[#set+1] = unpacked
    end
+   return build.build(set)
 end
 
 function analyze(content)

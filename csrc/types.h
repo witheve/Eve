@@ -33,7 +33,7 @@
 // each of these is a 1T space
 #define uuid_space 0x10000000000ull
 #define float_space 0x20000000000ull
-#define interned_space 0x30000000000ull
+#define estring_space 0x30000000000ull
 //maybe give this guy an unpopulated region
 #define register_space 0x00000000000ull
 #define register_base 0x100ull

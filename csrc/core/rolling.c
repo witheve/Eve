@@ -43,8 +43,8 @@ static void rolling_free(rolling c, void *x)
 {
     pageheader p = (pageheader)page_of(x, c->parent->pagesize);
     if (!--p->refcnt) {
-        *p->last = p->next;
-        deallocate(c->parent, p);
+        //        *p->last = p->next;
+        //        deallocate(c->parent, p);
     }
 }
 
