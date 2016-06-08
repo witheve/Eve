@@ -2,36 +2,6 @@
 #include <unix/unix.h>
 #include <luanne.h>
 
-static void iterate_and_print(lua_State *L, int index)
-{
-    // Push another reference to the table on top of the stack (so we know
-    // where it is, and this function can work for negative, positive and
-    // pseudo indices
-    lua_pushvalue(L, index);
-    // stack now contains: -1 => table
-    lua_pushnil(L);
-    // stack now contains: -1 => nil; -2 => table
-    while (lua_next(L, -2))
-        {
-            // stack now contains: -1 => value; -2 => key; -3 => table
-            // copy the key so that lua_tostring does not modify the original
-            lua_pushvalue(L, -2);
-            // stack now contains: -1 => key; -2 => value; -3 => key; -4 => table
-            const char *key = lua_tostring(L, -1);
-            const char *value = lua_tostring(L, -2);
-            // pop value + copy of key, leaving original key
-            lua_pop(L, 2);
-            // stack now contains: -1 => key; -2 => table
-        }
-    // stack now contains: -1 => table (when lua_next returns 0 it pops the key
-    // but does not push anything.)
-    // Pop table
-    lua_pop(L, 1);
-    // Stack is now the same as it was on entry to this function
-}
-
-
-// refcounting
 value lua_tovalue(lua_State *L, int index)
 {
     switch(lua_type(L, index)){
@@ -52,7 +22,6 @@ value lua_tovalue(lua_State *L, int index)
     }
     return 0;
 }
-
 
 
 static int construct_uuid(lua_State *L)
@@ -101,44 +70,10 @@ static int construct_string(lua_State *L)
 static int lua_print_value(lua_State *L)
 {
     void *x = lua_touserdata(L, 1);
-    unsigned long t = type_of(x);
-    
-    switch (t) {
-    case uuid_space:
-        {
-            // ok, we did a little digging around in lua and apparently the guy keeps
-            // his own interned copies..so, we'll do a little construction
-            char temp[UUID_LENGTH*2];
-            uuid_base_print(temp, x);
-            lua_pushlstring(L, temp, sizeof(temp));
-        }
-        break;
-    case float_space:
-        {
-            char temp[32];
-            // sadness - extend the numeric tower
-            lua_pushlstring(L, temp, sprintf(temp, "%g", *(double *)x));
-        }
-        break;
-    case estring_space:
-        {
-            string_intermediate si = x;
-            lua_pushlstring(L, (const char *)si->body, si->length);
-        }
-        break;
-    case register_space:
-        if (x == etrue) {
-            lua_pushstring(L, "true");
-            break;
-        }
-        if (x == efalse) {
-            lua_pushstring(L, "false");
-            break;
-        }
-    default:
-        printf ("what the hell! %p %lx %p %p\n", x, t, efalse, etrue);
-        return 0;
-    }
+    interpreter c = lua_context(L);
+    string out = allocate_string(c->h);
+    print_value(out, x);
+    lua_pushlstring(L, bref(out->contents, 0), buffer_length(out));
     return 1;
 }
 

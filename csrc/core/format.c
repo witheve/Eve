@@ -87,6 +87,10 @@ void vbprintf(string s, string fmt, va_list ap)
                     break;
                 }
                 
+            case 'v':
+                print_value(s, va_arg(ap, value));
+                break;
+                
             case 'X':
                 // xxx - utf8 will break this
                  {
