@@ -53,7 +53,7 @@ end
 -- end of util
 
 function empty_env()
-   return {alloc=0, freelist = {}, registers = {}, permanent = {}}
+   return {alloc=0, freelist = {}, registers = {}, permanent = {}, maxregs = 0}
 end
 
 function variable(x)
@@ -81,6 +81,7 @@ function allocate_register(env, e)
    if slot == env.alloc then env.alloc = env.alloc + 1
    else env.freelist[slot] = nil end
    env.registers[e] = slot
+   env.maxregs = math.max(env.maxregs, slot)
    return slot
 end
 
@@ -116,7 +117,7 @@ function bound_lookup(bindings, x)
 end
 
 
-function translate_object(n, bound, down)
+function translate_object(ex, n, bound, down)
    local e = n.entity
    local a = n.attribute
    local v = n.value
@@ -142,12 +143,12 @@ function translate_object(n, bound, down)
    end
 
    local env, c = down(bound)
-   c = scan(c, sig, ef(env, e), af(env, a), vf(env, v))
+   c = scan(ex,c, sig, ef(env, e), af(env, a), vf(env, v))
    return env, c
  end
 
 
-function translate_mutate(n, bound, down)
+function translate_mutate(ex, n, bound, down)
    local e = n.entity
    local a = n.attribute
    local v = n.value
@@ -155,15 +156,16 @@ function translate_mutate(n, bound, down)
    local gen = (variable(e) and not bound[e])
    if (gen) then bound[e] = true end
    local env, c = down(bound)
-   local c  = build_insert(c, n.scope, read_lookup(env, e), read_lookup(env, a), read_lookup(env, v));    
+   local c  = build_insert(ex, c, n.scope, read_lookup(env, e), read_lookup(env, a), read_lookup(env, v));    
    if gen then
-      c = generate_uuid(c, write_lookup(env, e))
+      c = generate_uuid(ex, c, write_lookup(env, e))
    end
    return env, c
 end
 
-function translate_union(n, bound, down)
+function translate_union(ex, n, bound, down)
    local heads
+   local c2
    tail_bound = shallowcopy(bound)
    
    for _, v in pairs(n.outputs) do
@@ -181,64 +183,77 @@ function translate_union(n, bound, down)
       local c3
       local b2 = shallowcopy(bound)
 
-      env, c3 = walk(v.unpacked, b2, c, env, nk)
+      env, c3 = walk(ex, v.unpacked, b2, c, env, nk)
       if c2 then
-          c2 = build_fork(c2, c3)
+          c2 = build_fork(ex, c2, c3)
       else
           c2 = c3
       end
    end
    env.permanent = orig_perm
-   return e2, c2
+   -- currently leaking the perms
+   return env, c2
 end
 
-function trace(n, bound, down)
+function trace(ex, n, bound, down)
     local entry = shallowcopy(bound)
     local env, c = down(bound)
     local map = {}
     for n, v in pairs(entry) do
        map[n] = env[n]
     end
-    return env, build_trace(c, n.type, map)
+    return env, build_trace(ex, c, n.type, map)
 end
 
-function walk(graph, bound, tail, tail_env, key)
+function walk(ex, graph, bound, tail, tail_env, key)
    nk = next(graph, key)
-   if nk then
-       local n = graph[nk]
-
-       down = function (bound)
-                    return walk(graph, bound, tail, tail_env, nk)
-               end
-       downtrace = function (bound)
-                      return trace(n, bound, down)
-                   end
- 
-       if (n.type == "union") then
-          return translate_union(n, bound, down)
-       end
-       if (n.type == "mutate") then
-          return translate_mutate(n, bound, down)
-       end
-       if (n.type == "object") then
-          return translate_object(n, bound, down)
-
-       end
-
-       print ("ok, so we kind of suck right now and only handle some fixed patterns",
-             "type", n.type,
-             "entity", flat_print_table(e),
-             "attribute", flat_print_table(a),
-             "value", flat_print_table(v))
-    else
-        return tail_env,  tail
+   if not nk then
+      return tail_env, tail
    end
+   
+   local n = graph[nk]
+
+   down = function (bound)
+                return walk(ex, graph, bound, tail, tail_env, nk)
+           end
+   downtrace = function (bound)
+                  return trace(ex, n, bound, down)
+               end
+   d = down
+
+   if (n.type == "union") then
+      return translate_union(ex, n, bound, d)
+   end
+   if (n.type == "mutate") then
+      return translate_mutate(ex, n, bound, d)
+   end
+   if (n.type == "object") then
+      return translate_object(ex, n, bound, d)
+   end
+
+   print ("ok, so we kind of suck right now and only handle some fixed patterns",
+         "type", n.type,
+         "entity", flat_print_table(e),
+         "attribute", flat_print_table(a),
+         "value", flat_print_table(v))
 end
 
 
-function build(graph, tail)
-   _, program =  walk(graph, {}, wrap_tail(tail),  empty_env(), nil)
-   return program
+function build(graphs)
+   local head
+   local regs = 0
+   ex = new_evaluation()
+   for _, g in pairs(graphs) do
+      env, program =  walk(ex, g, {}, ignore(), empty_env(), nil)
+      regs = math.max(regs, env.maxregs + 1)
+      if head then
+         head = build_fork(ex, head, program)
+      else
+         head = program
+      end
+   end
+   set_head(ex, head, regs)
+   return ex
 end
 
 ------------------------------------------------------------

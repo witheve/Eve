@@ -120,7 +120,7 @@ static int lua_print_value(lua_State *L)
             lua_pushlstring(L, temp, sprintf(temp, "%g", *(double *)x));
         }
         break;
-    case interned_space:
+    case estring_space:
         {
             string_intermediate si = x;
             lua_pushlstring(L, (const char *)si->body, si->length);
@@ -172,18 +172,19 @@ static int traceback(lua_State *L)
   return 1;
 }
 
-execf lua_compile_eve(interpreter c, buffer b)
+evaluation lua_compile_eve(interpreter c, buffer b)
 {
     lua_pushcfunction(c->L, traceback);
     lua_getglobal(c->L, "compiler");
     lua_getfield(c->L, -1, "compileExec");
     lua_pushlstring(c->L, bref(b, 0), buffer_length(b));
-    lua_pushcfunction(c->L, run);
-    if (lua_pcall(c->L, 2, 0, lua_gettop(c->L)-4)) {
+    if (lua_pcall(c->L, 1, 1, lua_gettop(c->L)-3)) {
         printf ("lua error\n");
         printf ("%s\n", lua_tostring(c->L, -1));
     }
-    return((void *)lua_topointer(c->L, 1));
+    void *z = (void *)lua_topointer(c->L, -1);
+    lua_pop(c->L, 1);
+    return((evaluation)z);
 }
 
 void lua_run_module_func(interpreter c, buffer b, char *module, char *func)

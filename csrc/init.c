@@ -1,5 +1,6 @@
 #include <runtime.h>
 #include <unix/unix.h>
+#include <http/http.h>
 
 eboolean efalse;
 eboolean etrue;

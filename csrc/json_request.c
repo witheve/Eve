@@ -1,5 +1,6 @@
 #include <runtime.h>
 #include <unix/unix.h>
+#include <http/http.h>
 #include <luanne.h>
 #include <unistd.h>
 
@@ -16,6 +17,12 @@ typedef enum {
 } states;
 
 
+typedef struct json_session {
+    heap h;
+    table evaluations;
+    buffer_handler write; // to weboscket
+} *json_session;
+
 extern bag my_awesome_bag;
 
 static CONTINUATION_2_3(chute, heap, vector, value, value, value)
@@ -24,7 +31,7 @@ static void chute(heap h, vector out, value e, value a,  value v)
     vector_insert(out, build_vector(h, e, a, v));
 }
 
-static void print_value(buffer out, value v)
+static void print_value_json(buffer out, value v)
 {
     switch(type_of(v)) {
     case uuid_space:
@@ -33,7 +40,7 @@ static void print_value(buffer out, value v)
         break;
         //    case float_space:
         //        break;
-    case interned_space:
+    case estring_space:
         {
             string_intermediate si = v;
             bprintf(out , "\"");
@@ -50,7 +57,7 @@ static void print_value(buffer out, value v)
 
 extern thunk ignore;
 
-static void start_guy(heap h, buffer b, buffer_handler output)
+static evaluation start_guy(heap h, buffer b, buffer_handler output)
 {
     vector v = allocate_vector(h, 10);
     insertron a = cont(h, chute, h, v);
@@ -63,8 +70,8 @@ static void start_guy(heap h, buffer b, buffer_handler output)
     def(scopes, "external", z);
         
     interpreter c = build_lua(my_awesome_bag, scopes);
-    
-    lua_compile_eve(c, b);
+
+    execute(lua_compile_eve(c, b));
     
     string out = allocate_string(h);
     bprintf(out, "{\"type\":\"result\", \"insert\":[");
@@ -80,7 +87,7 @@ static void start_guy(heap h, buffer b, buffer_handler output)
         bprintf(out, "["); 
         vector_foreach(j, i){
             
-            print_value(out, j);
+            print_value_json(out, j);
             if (count ++ < 2) {
                 bprintf(out, ",  ");
             }
@@ -89,26 +96,43 @@ static void start_guy(heap h, buffer b, buffer_handler output)
     }
     bprintf(out, "]}");
     apply(output, out, ignore);
+    return 0;
 }
 
-void handle_json_query(heap h, buffer in, buffer_handler out)
+CONTINUATION_1_2(handle_json_query, json_session, buffer, thunk);
+void handle_json_query(json_session j, buffer in, thunk c)
 {
     states s = top;
-    buffer bt = allocate_buffer(h, 10);
-    buffer bv = allocate_buffer(h, 100);
+    buffer bt = allocate_buffer(j->h, 10);
+    buffer bv = allocate_buffer(j->h, 100);
+    buffer id, type, query;
     boolean backslash = false;
     
     string_foreach(c, in) {
         if (s == sep) {
             if (string_equal(bt, sstring("query"))) {
-                start_guy(h, bv, out);
+                query = bv;
+                bv = allocate_buffer(j->h, 100);
             }
-            
+            if (string_equal(bt, sstring("id"))) {
+                id = bv;
+                bv = allocate_buffer(j->h, 100);
+            }
+            if (string_equal(bt, sstring("type"))) {
+                type = bv;
+                bv = allocate_buffer(j->h, 100);
+            }
             buffer_clear(bt);
             buffer_clear(bv);
         }
 
         if ((c == '}')  && (s== sep)) {
+            if (string_equal(type, sstring("query"))) {
+                // xxx - this id is currently meaningless
+                table_set(j->evaluations, id,
+                             start_guy(j->h, query, j->write));
+            }
+                
             // do the thing
         }
         
@@ -128,4 +152,20 @@ void handle_json_query(heap h, buffer in, buffer_handler out)
         }
     }
 }
-        
+
+
+buffer_handler new_json_session(buffer_handler write, table headers)
+{
+    heap h = allocate_rolling(pages);
+    
+    json_session js = allocate(h, sizeof(struct json_session));
+    // interned? not interned?
+    js->h = h;
+    js->evaluations = allocate_table(h, string_hash, string_equal);
+    return websocket_send_upgrade(h, headers, write, cont(h, handle_json_query, js), &js->write);
+}
+
+void init_json_service(http_server h)
+{
+    http_register_service(h, new_json_session, sstring("/ws"));
+}

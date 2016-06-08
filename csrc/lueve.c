@@ -14,6 +14,8 @@ station create_station(unsigned int address, unsigned short port) {
     return(a);
 }
 
+
+extern void init_json_service(http_server);
 extern int strcmp(const char *, const char *);
 
 bag my_awesome_bag;
@@ -35,7 +37,7 @@ int main(int argc, char **argv)
     for (int i = 1; i <argc ; i++) {
         if (!strcmp(argv[i], "-e")) {
             buffer b = read_file(init, argv[++i]);
-            lua_compile_eve(c, b);
+            execute(lua_compile_eve(c, b));
         }
         if (!strcmp(argv[i], "-parse")) {
             lua_run_module_func(c, read_file(init, argv[++i]), "parser", "printParse");
@@ -65,6 +67,8 @@ int main(int argc, char **argv)
                             "application/javascript",
                             wrap_buffer(init,  &renderer_start,
                                         &renderer_end -  &renderer_start));
+        
+    init_json_service(h);
 
     printf("\n----------------------------------------------\n\nEve started. Running at http://localhost:8080\n\n");
     unix_wait();

@@ -48,7 +48,7 @@ renderer.o: ../jssrc/renderer.js
 	cc wrap.S -DSTART=$(S)renderer_start -DEND=$(S)renderer_end -DFILE='"$<"' -c -o $@
 
 %.o: %.c continuation_templates.h
-	cc -std=c99 -I../csrc/unix -I../csrc/core -I../csrc -I. -I$(LUAJIT_INCLUDES) -g -c $<
+	cc -std=gnu99 -I../csrc/unix -I../csrc/core -I../csrc -I. -I$(LUAJIT_INCLUDES) -g -c $<
 
 %.o: %.lua %.lua
 	luajit -b -g $< $@

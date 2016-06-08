@@ -2,6 +2,11 @@
 #include <luanne.h>
 #include <unistd.h>
 
+static void exec_error(evaluation e, char *format, ...)
+{
+    printf ("error %s\n", format);
+}
+
 static inline value lookup(value k, value *r)
 {
     if (type_of(k) == register_space)  {
@@ -46,87 +51,97 @@ static void scan_listener_0(execf n, value *r, operator op, eboolean present)
     apply(n, op, r);
 }
 
-    
-static CONTINUATION_5_2(do_full_scan, interpreter, execf, int, int, int, operator, value *);
-static void do_full_scan(interpreter z, execf n, int e, int a, int v, operator op, value *r)
+static inline void register_listener(evaluation ex, table reg, void *f)
 {
-    full_scan(z->b, cont(z->h, scan_listener_3, n, op, r, e, a, v));
+    vector_insert(ex->listeners, reg);
+    vector_insert(ex->listeners, f);
 }
 
-static CONTINUATION_5_2(do_ea_scan, interpreter, execf, value, value, int, operator, value *);
-static void do_ea_scan(interpreter z, execf n, value e, value a, int v, operator op, value *r)
+static CONTINUATION_5_2(do_full_scan, evaluation, execf, int, int, int, operator, value *);
+static void do_full_scan(evaluation ex, execf n, int e, int a, int v, operator op, value *r)
 {
-    ea_scan(z->b, lookup(e, r), lookup(a, r), cont(z->h, scan_listener_1, n, op, r, v));
+    void *listen = cont(ex->h, scan_listener_3, n, op, r, e, a, v);
+    table reg = full_scan(ex->b, listen);
+    register_listener(ex, reg, listen);
 }
 
-static CONTINUATION_5_2(do_e_scan, interpreter, execf, value, int, int, operator, value *);
-static void do_e_scan(interpreter z, execf n, value e, int a, int v, operator op, value *r)
+static CONTINUATION_5_2(do_ea_scan, evaluation, execf, value, value, int, operator, value *);
+static void do_ea_scan(evaluation ex, execf n, value e, value a, int v, operator op, value *r)
 {
-    e_scan(z->b, lookup(e, r), cont(z->h, scan_listener_2, n, op, r, a, v));
+    void *listen = cont(ex->h, scan_listener_1, n, op, r, v);
+    table reg = ea_scan(ex->b, lookup(e, r), lookup(a, r), listen);
+    register_listener(ex, reg, listen);
 }
 
-static CONTINUATION_5_2(do_av_scan, interpreter, execf, int, value, value, operator, value *);
-static void do_av_scan(interpreter z, execf n, int e, value a, value v, operator op, value *r)
+static CONTINUATION_5_2(do_e_scan, evaluation, execf, value, int, int, operator, value *);
+static void do_e_scan(evaluation ex, execf n, value e, int a, int v, operator op, value *r)
 {
-    av_scan(z->b, lookup(a, r), lookup(v, r), cont(z->h, scan_listener_1, n, op, r, e));
+    void *listen = cont(ex->h,scan_listener_2, n, op, r, a, v);
+    table reg = e_scan(ex->b, lookup(e, r), listen);
+    register_listener(ex, reg, listen);
 }
 
-static CONTINUATION_5_2(do_eav_scan, interpreter, execf, value, value, value, operator, value *);
-static void do_eav_scan(interpreter z, execf n, value e, value a, value v, operator op, value *r)
+static CONTINUATION_5_2(do_av_scan, evaluation, execf, int, value, value, operator, value *);
+static void do_av_scan(evaluation ex, execf n, int e, value a, value v, operator op, value *r)
 {
-    eav_scan(z->b, lookup(e, r), lookup(a,r), lookup(v,r), cont(z->h, scan_listener_0, n, r, op));
+    void *listen = cont(ex->h, scan_listener_1, n, op, r, e);
+    table reg = av_scan(ex->b, lookup(a, r), lookup(v, r), listen);
+    register_listener(ex, reg, listen);
 }
 
-// this seems broken at the high end..
-//int popcount8( unsigned char x)
-//{
-//    return ( x* 0x8040201ULL & 0x11111111)%0xF;
-//}
+static CONTINUATION_5_2(do_eav_scan, evaluation, execf, value, value, value, operator, value *);
+static void do_eav_scan(evaluation ex, execf n, value e, value a, value v, operator op, value *r)
+{
+    void *listen = cont(ex->h, scan_listener_0, n, r, op);
+    table reg = eav_scan(ex->b, lookup(e, r), lookup(a,r), lookup(v,r), listen);
+    register_listener(ex, reg, listen);
+}
 
-// value e = lua_toboolean(c->h, L, 1);
-
-// xxx - intrinsic
-extern int strcmp(const char *x, const char *y);
+static inline boolean match(char *x, char *key)
+{
+    return (x[0] == key[0]) && (x[1] == key[1]) && (x[2] == key[2]);
+}
 
 static int build_scan(lua_State *L)
 {
-    interpreter c = lua_context(L);
-    execf next = (void *)lua_topointer(L, 1);
+    evaluation ex = (void *)lua_topointer(L, 1);
+    execf next = (void *)lua_topointer(L, 2);
+    char *description =  (char *)lua_tostring(L, 3);
     value e = lua_tovalue(L, 1);
-    char *description = (void *)lua_tostring(L, 2);
-    int outstart = 3;
+    int outstart = 4;
     execf r = 0;
 
-    // so unhappy
-    if (!strcmp(description, "eav")) {
-        r =cont(c->h, do_full_scan, c, next,
+    if (lua_strlen(L, 3) != 3) return false;
+    
+    if (match(description, "eav")) {
+        r =cont(ex->h, do_full_scan, ex, next,
                 lua_toregister(L, outstart),
                 lua_toregister(L, outstart + 1),
                 lua_toregister(L, outstart+2));
     }
-    if (!strcmp(description, "EAv")) {
-         r =cont(c->h, do_ea_scan, c, next,
+    if (match(description, "EAv")){
+         r =cont(ex->h, do_ea_scan, ex, next,
                  lua_tovalue(L, outstart),
                  lua_tovalue(L, outstart + 1),
                  lua_toregister(L, outstart+2));
     }
     
-    if (!strcmp(description, "Eav")) {
-         r =cont(c->h, do_e_scan, c, next,
+    if (match(description, "Eav")) {
+         r =cont(ex->h, do_e_scan, ex, next,
                  lua_tovalue(L, outstart),
                  lua_toregister(L, outstart+1),
                  lua_toregister(L, outstart+2));
     }
     
-    if (!strcmp(description, "eAV")) {
-        r =cont(c->h, do_av_scan, c, next,
+    if (match(description, "eAV")) {
+        r =cont(ex->h, do_av_scan, ex, next,
                 lua_toregister(L, outstart),
                 lua_tovalue(L, outstart + 1),
                 lua_tovalue(L, outstart+2));
     }
     
-    if (!strcmp(description, "EAV")) {
-        r =cont(c->h, do_eav_scan, c, next,
+    if (match(description,"EAV")) {
+        r =cont(ex->h, do_eav_scan, ex, next,
                 lua_tovalue(L, outstart),
                 lua_tovalue(L, outstart + 1),
                 lua_tovalue(L, outstart + 2));
@@ -140,29 +155,64 @@ static int build_scan(lua_State *L)
     return 1;
 }
 
-static CONTINUATION_6_2(do_insert, table, execf, value, value, value, value, operator, value *) ;
-static void do_insert(table scope_map, execf n, value scope, value e, value a, value v, operator op, value *r) 
+static CONTINUATION_6_2(do_insert, evaluation, execf, value, value, value, value, operator, value *) ;
+static void do_insert(evaluation ex, execf n, value scope, value e, value a, value v, operator op, value *r) 
 {
-    insertron i = table_find(scope_map, scope);
+    insertron i = table_find(ex->scope_map, scope);
+    if (!i) {
+        exec_error(e, "no destination for scope %s", scope); 
+    }
+    
     apply(i, lookup(e, r), lookup(a, r), lookup(v, r));
     apply(n, op, r);
 }
 
 static int build_insert(lua_State *L)
 {
-    interpreter c = lua_context(L);
-    execf r = cont(c->h, do_insert,
-                   c->scope_map,
-                   lua_tovalue(L, 1),
+    evaluation e = (void *)lua_topointer(L, 1);
+    
+    execf r = cont(e->h, do_insert,
+                   e,
                    lua_tovalue(L, 2),
                    lua_tovalue(L, 3),
                    lua_tovalue(L, 4),
-                   lua_tovalue(L, 5));
+                   lua_tovalue(L, 5),
+                   lua_tovalue(L, 6));
 
     lua_pushlightuserdata(L, r);
     return 1;
 }
 
+
+static CONTINUATION_5_2(do_plus, evaluation, execf, int, value, value,  operator, value *);
+static void do_plus(evaluation ex, execf n, int dest, value a, value b, operator op, value *r)
+{
+    value ar = lookup( r, a);
+    value br = lookup( r, b);
+    if ((type_of(ar) != float_space ) || (type_of(br) != float_space)) {
+        exec_error(ex, "attempt to add non-numbers", a, b);
+    } else {
+        r[dest] = box_float(*(double *)lookup( r, a) + *(double *)lookup( r, b));
+        apply(n, op, r);
+    }
+}
+
+static int build_plus(lua_State *L)
+{
+    evaluation e = (void *)lua_topointer(L, 1);
+    execf n = cont(e->h,
+                   do_plus,
+                   e,
+                   lua_tovalue(L, 1),
+                   lua_toregister(L, 2),
+                   lua_tovalue(L, 3),
+                   lua_tovalue(L, 4));
+    
+    lua_pushlightuserdata(L, n);
+    return 1;
+}
+
+    
 static CONTINUATION_2_2(do_genid, execf, int,  operator, value *);
 static void do_genid(execf n, int dest, operator op, value *r) 
 {
@@ -172,10 +222,10 @@ static void do_genid(execf n, int dest, operator op, value *r)
     
 static int build_genid(lua_State *L)
 {
-    interpreter c = lua_context(L);
-    execf n = cont(c->h, do_genid,
-                   lua_tovalue(L, 1),
-                   lua_toregister(L, 2));
+    evaluation e = (void *)lua_topointer(L, 1);
+    execf n = cont(e->h, do_genid,
+                   lua_tovalue(L, 2),
+                   lua_toregister(L, 3));
     lua_pushlightuserdata(L, n);
     return 1;
 }
@@ -190,10 +240,10 @@ static void do_fork(execf a, execf b, operator op, value *r)
 
 static int build_fork(lua_State *L)
 {
-    interpreter c = lua_context(L);
+    evaluation c = (void *)lua_topointer(L, 1);
     lua_pushlightuserdata(L, cont(c->h, do_fork,
-                                  (void *)lua_topointer(L, 1),
-                                  (void *)lua_topointer(L, 2)));
+                                  (void *)lua_topointer(L, 2),
+                                  (void *)lua_topointer(L, 3)));
     return 1;
 }
 
@@ -208,25 +258,41 @@ static void do_trace(bag b, execf n, estring name, void *regmap, operator op, va
 
 static int build_trace(lua_State *L)
 {
-    interpreter c = lua_context(L);
+    evaluation c = (void *)lua_topointer(L, 1);
     lua_pushlightuserdata(L, cont(c->h, 
                                   do_trace,
                                   c->b,
-                                  (void *)lua_topointer(L, 1),
-                                  (void *)lua_tovalue(L, 2),
-                                  (void *)lua_topointer(L, 3)));
+                                  (void *)lua_topointer(L, 2),
+                                  (void *)lua_tovalue(L, 3),
+                                  (void *)lua_topointer(L, 4)));
     return 1;
 }
 
 static int construct_register(lua_State *L)
 {
-    interpreter c = lua_context(L);
-    // does this have to be round?
+    evaluation c = (void *)lua_context(L);
     int offset = (int)lua_tonumber(L, 1);
     lua_pushlightuserdata(L, (void *)(register_base + offset));
     return 1;
 }
 
+
+
+static CONTINUATION_0_2(nothing, operator, value *);
+static void nothing(operator op, value *r) {
+}
+
+static execf nothing_handler;
+
+static int build_ignore(lua_State *l)
+{
+    if (nothing_handler == 0)
+        nothing_handler = cont(init, nothing);
+    
+    evaluation c = (void *)lua_context(l);
+    lua_pushlightuserdata(l, nothing_handler);
+    return 1;
+}
 
 static CONTINUATION_2_2(luaresult, interpreter, int, int, value *);
 static void luaresult(interpreter c, int r, operator op, value *x)
@@ -262,6 +328,42 @@ static int wrap_tail(lua_State *L)
     return 1;
 }
 
+evaluation allocate_evaluation(bag b, table scopes)
+{
+    heap h = allocate_rolling(pages);
+    evaluation e = allocate(h, sizeof(struct evaluation));
+    e->listeners = allocate_vector(h, 10);
+    e->h =h;
+    e->scope_map = scopes;
+    e->b =b;
+    return e;
+}
+
+void close_evaluation(evaluation ex)
+{
+    // close
+    apply(ex->head, 1, 0);
+    for (int i = 0 ; i< vector_length(ex->listeners) ; i +=2) {
+        table_set(vector_ref(ex->listeners, i), vector_ref(ex->listeners, i+1), EMPTY);
+    }
+    ex->h->destroy();
+}
+
+
+int lua_allocate_evaluation(lua_State *L)
+{
+    interpreter c = lua_context(L);
+    lua_pushlightuserdata(L, allocate_evaluation(c->b, c->scope_map));
+    return 1;
+}
+
+static int lua_set_head(lua_State *L)
+{
+    evaluation e = (void *)lua_topointer(L, 1);
+    e->head = lua_tovalue(L, 2);
+    e->registerfile = lua_tointeger(L, 3);
+    return 0;
+}
 
 void register_exec(interpreter c)
 {
@@ -273,5 +375,16 @@ void register_exec(interpreter c)
     define(c, "build_insert", build_insert);
     define(c, "build_fork", build_fork);
     define(c, "build_trace", build_trace);
-
+    define(c, "ignore", build_ignore);
+    define(c, "new_evaluation", lua_allocate_evaluation);
+    define(c, "set_head", lua_set_head);
 }
+
+void execute(evaluation e)
+{
+    ticks start_time = rdtsc();
+    apply(e->head, 0, allocate(init, sizeof(value) * e->registerfile));
+    ticks end_time = rdtsc();
+    printf ("exec in %ld ticks\n", end_time-start_time);
+}
+
