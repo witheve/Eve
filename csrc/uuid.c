@@ -64,10 +64,13 @@ uuid intern_uuid(unsigned char *x)
 
 uuid generate_uuid()
 {
+    static int count = 0;
     // top bit has to be clear for serialization
     void *result = allocate(uuid_heap, UUID_LENGTH);
     ticks z = now();
     memcpy(result, &z, 8);
+    *((unsigned short *)result + 4) = count++;
+    unsigned char *y = result;
     table_set(interned_uuid, result, (void *)1);
     return result;
 }

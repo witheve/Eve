@@ -13,25 +13,43 @@ iu64 key_of(value v)
     return (0);
 }
 
-void print_value(buffer out, value v)
+extern int sprintf(char *, const char *, ...);
+
+void print_value(buffer b, value v)
 {
-    switch(type_of(v)) {
+    switch(type_of(v)){
     case uuid_space:
-        // FIXME: is it sketchy to write this on the buffer's heap?
-        bprintf(out , "⦑%X⦒", wrap_buffer(out->h, v, UUID_LENGTH));
+        bprintf(b , "⦑%X⦒", wrap_buffer(b->h, v, UUID_LENGTH));
         break;
-        //    case float_space:
-        //        break;
+    case float_space:
+        {
+            char temp[64];
+            int c = sprintf(temp, "%g",  *(double *)v);
+            buffer_append(b, temp, c);
+        }
+        break;
     case estring_space:
         {
             string_intermediate si = v;
-            bprintf(out , "\"");
-            buffer_append(out, si->body, si->length);
-            bprintf(out , "\"");
+            buffer_append(b, "\"", 1);
+            buffer_append(b, si->body, si->length);
+            buffer_append(b, "\"", 1);
+        }
+        break;
+    case register_space:
+        if (v == etrue) {
+            bprintf(b, "true");
+        }
+        if (v == efalse) {
+            bprintf(b, "false");
         }
         break;
     default:
+<<<<<<< d6699ccb1b353206010aa58dd4524e1487b99716
         printf(1, "wth!@\n", 6);
+=======
+        prf ("corrupt value %p\n", v);
+>>>>>>> plumb tracing as a flag through the compiler, fix register access the tracer, fix up print_value
     }
 }
 

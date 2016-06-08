@@ -463,7 +463,7 @@ function unpackObjects(nodes)
    return unpacked
 end
 
-function compileExec(contents)
+function compileExec(contents, tracing)
    local parseGraph = parser.parseString(contents)
    local set = {}
 
@@ -475,7 +475,7 @@ function compileExec(contents)
       -- an 'execution return'
       set[#set+1] = unpacked
    end
-   return build.build(set)
+   return build.build(set, tracing)
 end
 
 function analyze(content)

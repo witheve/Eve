@@ -205,7 +205,8 @@ function trace(ex, n, bound, down)
     return env, build_trace(ex, c, n.type, map)
 end
 
-function walk(ex, graph, bound, tail, tail_env, key)
+function walk(ex, graph, bound, tail, tail_env, key, tracing)
+   local d
    nk = next(graph, key)
    if not nk then
       return tail_env, tail
@@ -214,12 +215,14 @@ function walk(ex, graph, bound, tail, tail_env, key)
    local n = graph[nk]
 
    down = function (bound)
-                return walk(ex, graph, bound, tail, tail_env, nk)
+                return walk(ex, graph, bound, tail, tail_env, nk, tracing)
            end
-   downtrace = function (bound)
+           
+   if tracing then
+      d = function (bound)
                   return trace(ex, n, bound, down)
-               end
-   d = downtrace
+          end
+   else d = down end       
 
    if (n.type == "union") then
       return translate_union(ex, n, bound, d)
@@ -239,12 +242,12 @@ function walk(ex, graph, bound, tail, tail_env, key)
 end
 
 
-function build(graphs)
+function build(graphs, tracing)
    local head
    local regs = 0
    ex = new_evaluation()
    for _, g in pairs(graphs) do
-      env, program =  walk(ex, g, {}, ignore(), empty_env(), nil)
+      env, program =  walk(ex, g, {}, ignore(), empty_env(), nil, tracing)
       regs = math.max(regs, env.maxregs + 1)
       if head then
          head = build_fork(ex, head, program)

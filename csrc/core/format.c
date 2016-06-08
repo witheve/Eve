@@ -12,6 +12,8 @@ void format_number(string s, iu64 x, int base, int pad)
     } 
 }
 
+extern void print_value();
+
 void vbprintf(string s, string fmt, va_list ap)
 {
     character i;
@@ -76,6 +78,11 @@ void vbprintf(string s, string fmt, va_list ap)
                 
             // there is plenty wrong here
             case 'p':
+                pad = 16;
+                unsigned int x = va_arg(ap, unsigned int);
+                format_number(s, x, 16, pad?pad:1);
+                break;
+                
             case 'x':
                 base=16;
             case 'o':
@@ -86,6 +93,11 @@ void vbprintf(string s, string fmt, va_list ap)
                     format_number(s, x, base, pad?pad:1);
                     break;
                 }
+
+             // layer violation..meh
+            case 'v':
+                print_value(s, va_arg(ap, void *));
+                break;
                 
             case 'X':
                 // xxx - utf8 will break this
