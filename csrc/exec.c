@@ -269,7 +269,7 @@ static int build_trace(lua_State *L)
     while (lua_next(L, 4) != 0) {
         string x = allocate_string(c->h);
         buffer_append(x, (void *)lua_tostring(L, -2), lua_strlen(L, -2));
-        table_set(regnames, x, (void *)(lua_tointeger(L, -1) + register_base));
+        table_set(regnames, x, (void *)(lua_tovalue(L, -1)));
         lua_pop(L, 1);
     }
     lua_pop(L, 1);

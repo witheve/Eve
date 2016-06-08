@@ -195,17 +195,37 @@ function translate_union(ex, n, bound, down)
    return env, c2
 end
 
-function trace(ex, n, bound, down)
-    local entry = shallowcopy(bound)
-    local env, c = down(bound)
-    local map = {}
-    for n, v in pairs(entry) do
-       map[n.name] = env.registers[n]
-    end
-    return env, build_trace(ex, c, n.type, map)
+-- this doesn't really need to be disjoint from read lookup, except for concerns about
+-- environment mutation - be sure to use the same type multiplexing
+function trace_lookup(env, x)
+   if variable(x) then
+      local r = env.registers[x]
+      return register(r)
+   end
+   -- demultiplex types on x.constantType
+   if type(x) == "table" then
+      return x["constant"]
+   end
+   return x
 end
 
-function walk(ex, graph, bound, tail, tail_env, key, tracing)
+function trace(ex, n, bound, down)
+--    local entry = shallowcopy(bound)
+    local env, c = down(bound)
+    local map = {}
+--    for n, v in pairs(entry) do
+--       map[n.name] = env.registers[n]
+--    end
+    if (n.type == "mutate") or (n.type == "object") then
+       map["entity"] =  trace_lookup(env, n.entity)
+       map["attribute"] =  trace_lookup(env, n.attribute)
+       map["value"] =  trace_lookup(env, n.value)
+       return env, build_trace(ex, c, n.type, map)
+    end
+    return env, c
+end
+
+function walk(ex, graph, key, bound, tail, tail_env, tracing)
    local d
    nk = next(graph, key)
    if not nk then
@@ -215,7 +235,7 @@ function walk(ex, graph, bound, tail, tail_env, key, tracing)
    local n = graph[nk]
 
    down = function (bound)
-                return walk(ex, graph, bound, tail, tail_env, nk, tracing)
+                return walk(ex, graph, nk, bound, tail, tail_env, tracing)
            end
            
    if tracing then
@@ -247,7 +267,7 @@ function build(graphs, tracing)
    local regs = 0
    ex = new_evaluation()
    for _, g in pairs(graphs) do
-      env, program =  walk(ex, g, {}, ignore(), empty_env(), nil, tracing)
+      env, program =  walk(ex, g, nil, {}, ignore(), empty_env(), tracing)
       regs = math.max(regs, env.maxregs + 1)
       if head then
          head = build_fork(ex, head, program)
