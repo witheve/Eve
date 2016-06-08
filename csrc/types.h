@@ -58,3 +58,4 @@ typedef void *uuid;
 uuid intern_uuid(unsigned char *x);
 void init_uuid();
 
+void print_value(buffer, value);

@@ -147,13 +147,13 @@ void edb_insert(bag b, value e, value a, value v)
         
         // incremental needs to deal with remove
         foreach_table(b->listeners, k, v) {
-            apply((three_listener)k, e, a, v, etrue);
+            apply((three_listener)k, a, v, e, etrue);
         }
         foreach_table(al->listeners, k, v) {
-            apply((two_listener)k, a, v, etrue);
+            apply((two_listener)k, v, e, etrue);
         }
         foreach_table(vl->listeners, k, v) {
-            apply((one_listener)k, v, etrue);
+            apply((one_listener)k, e, etrue);
         }
         foreach_table(tail->listeners, k, v) {
             apply((zero_listener)k, etrue);
