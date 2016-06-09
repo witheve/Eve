@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		28D365EF1D0633E900748682 /* build */ = {isa = PBXFileReference; lastKnownFileType = folder; name = build; sourceTree = "<group>"; };
 		28D365F01D0633E900748682 /* csrc */ = {isa = PBXFileReference; lastKnownFileType = folder; name = csrc; path = ../csrc; sourceTree = "<group>"; };
 		28D365F11D0633E900748682 /* examples */ = {isa = PBXFileReference; lastKnownFileType = folder; name = examples; path = ../examples; sourceTree = "<group>"; };
 		28D365F21D0633E900748682 /* index.html */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.html; name = index.html; path = ../index.html; sourceTree = "<group>"; };
@@ -15,13 +14,14 @@
 		28D365F41D0633E900748682 /* LICENSE */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = LICENSE; path = ../LICENSE; sourceTree = "<group>"; };
 		28D365F51D0633E900748682 /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; name = README.md; path = ../README.md; sourceTree = "<group>"; };
 		28D365F61D0633E900748682 /* src */ = {isa = PBXFileReference; lastKnownFileType = folder; name = src; path = ../src; sourceTree = "<group>"; };
+		832033021D09273A0011450C /* build */ = {isa = PBXFileReference; lastKnownFileType = folder; name = build; path = ../build; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
 		28D365DC1D06337100748682 = {
 			isa = PBXGroup;
 			children = (
-				28D365EF1D0633E900748682 /* build */,
+				832033021D09273A0011450C /*  build */,
 				28D365F01D0633E900748682 /* csrc */,
 				28D365F11D0633E900748682 /* examples */,
 				28D365F21D0633E900748682 /* index.html */,

@@ -115,7 +115,7 @@ evaluation lua_compile_eve(interpreter c, buffer b, boolean tracing)
     lua_pushlstring(c->L, bref(b, 0), buffer_length(b));
     lua_pushboolean(c->L, tracing);
     
-    if (lua_pcall(c->L, 2, 1, lua_gettop(c->L)-3)) {
+    if (lua_pcall(c->L, 2, 1, lua_gettop(c->L)-4)) {
         printf ("lua error\n");
         printf ("%s\n", lua_tostring(c->L, -1));
     }

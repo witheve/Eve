@@ -183,7 +183,7 @@ function translate_union(ex, n, bound, down)
       local c3
       local b2 = shallowcopy(bound)
 
-      env, c3 = walk(ex, v.unpacked, b2, c, env, nk)
+      env, c3 = walk(ex, v.unpacked, nil, b2, c, env, nk)
       if c2 then
           c2 = build_fork(ex, c2, c3)
       else
@@ -267,7 +267,7 @@ function build(graphs, tracing)
    local regs = 0
    ex = new_evaluation()
    for _, g in pairs(graphs) do
-      env, program =  walk(ex, g, nil, {}, ignore(), empty_env(), tracing)
+      env, program = walk(ex, g, nil, {}, ignore(), empty_env(), tracing)
       regs = math.max(regs, env.maxregs + 1)
       if head then
          head = build_fork(ex, head, program)

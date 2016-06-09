@@ -69,7 +69,7 @@ table ea_scan(bag b, value e, value a, one_listener f)
     level al = scan(b->h, b->eav, e);
     level vl = scan(b->h, al, a);
 
-    table_set(al->listeners, f, (void *)1);
+    table_set(vl->listeners, f, (void *)1);
     foreach_table(((level)vl)->lookup, v, vl) {
         apply(f, v, etrue);
     }
