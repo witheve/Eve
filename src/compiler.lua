@@ -108,7 +108,7 @@ function DependencyGraph:provided()
 end
 
 function DependencyGraph:isSorted()
-   return #self.unsorted == 0
+   return self.unsorted:length() == 0
 end
 
 function DependencyGraph:addObjectNode(node)
