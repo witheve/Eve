@@ -6,7 +6,7 @@ typedef struct level {
     table listeners;
 } *level;
 
-
+    
 struct bag {
     table listeners;
     level eav;
@@ -101,11 +101,21 @@ table av_scan(bag b, value a, value v, one_listener f)
     return(vl->listeners);
 }
 
-// its probably going to be better to keep a global guy with
-// reference counts because of the object sharing, but this is
-// ok for today
-bag create_bag(value bag_id) 
+
+// seems like we could scope this for testing purposes
+static table bag_table;
+
+void register_bag(uuid x, insertron i)
 {
+    if (!bag_table) {
+        bag_table = allocate_table(init, key_from_pointer, compare_pointer);
+    }
+    table_set(bag_table, x, i);
+}
+
+bag create_bag() 
+{
+    
     heap h = allocate_rolling(pages);
     bag b = allocate(h, sizeof(struct bag));
     b->h = h ;
@@ -185,6 +195,7 @@ static void value_print(buffer out, value v)
         }
         break;
     default:
+        // xxx runtime error
         write (1, "wth!@\n", 6);
     }
     
@@ -221,5 +232,4 @@ void edb_remove(bag b, value e, value a, value v)
 {
     error("but we went to so much trouble!\n");
 }
-
 

@@ -86,3 +86,5 @@ void execute(evaluation e);
 void print_value(buffer, value);
 
 void prf(char *, ...);
+
+typedef struct batch *batch;

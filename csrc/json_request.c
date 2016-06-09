@@ -35,11 +35,8 @@ static void print_value_json(buffer out, value v)
 {
     switch(type_of(v)) {
     case uuid_space:
-        // leak on init?really?
         bprintf(out , "{\"type\" : \"uuid\", \"value\" : \"%X\"}", wrap_buffer(init, v, UUID_LENGTH));
         break;
-        //    case float_space:
-        //        break;
     case estring_space:
         {
             string_intermediate si = v;
@@ -52,6 +49,37 @@ static void print_value_json(buffer out, value v)
         write (1, "wth!@\n", 6);
     }
     
+}
+
+// always call this guy independent of commit so that we get an update,
+// even on empty, after the first evaluation
+static void send_guy(heap h, buffer_handler output, vector tuples)
+{
+    string out = allocate_string(h);
+    bprintf(out, "{\"type\":\"result\", \"insert\":[");
+    int start = 0;
+    
+    vector_foreach(i, v){
+        int count = 0;
+
+        if (start++ != 0) bprintf(out, ",");
+        bprintf(out, "["); 
+        vector_foreach(j, i){
+            print_value_json(out, j);
+            if (count ++ < 2) {
+                bprintf(out, ",  ");
+            }
+        }
+        bprintf(out, "]");
+    }
+    bprintf(out, "]}");
+    // reclaim
+    apply(output, out, ignore);
+}
+
+
+static void json_commit()
+{
 }
 
 
@@ -68,34 +96,13 @@ static evaluation start_guy(heap h, buffer b, buffer_handler output)
     def(scopes, "transient", z);
     def(scopes, "history", z);
     def(scopes, "external", z);
-        
+
+    // take this from the lua pool
     interpreter c = build_lua(my_awesome_bag, scopes);
+    evaluation e = lua_compile_eve(c, b, false);
 
-    execute(lua_compile_eve(c, b, false));
-    
-    string out = allocate_string(h);
-    bprintf(out, "{\"type\":\"result\", \"insert\":[");
-    int start = 0;
-    
-    vector_foreach(i, v){
-        int count = 0;
+    execute(e);
 
-        if (start++ != 0){
-            bprintf(out, ",");
-        }
-        
-        bprintf(out, "["); 
-        vector_foreach(j, i){
-            
-            print_value_json(out, j);
-            if (count ++ < 2) {
-                bprintf(out, ",  ");
-            }
-        }
-        bprintf(out, "]");
-    }
-    bprintf(out, "]}");
-    apply(output, out, ignore);
     return 0;
 }
 
