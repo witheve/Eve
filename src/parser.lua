@@ -856,7 +856,7 @@ local function resolveExpression(node, context)
     local right = node.children[2]
     if right and right.type == "IDENTIFIER" then
       -- generate a temporary variable to hold this attribute binding
-      local attributeRef = resolveVariable(string.format("%s%s%s", right.value, right.line, right.offset), context)
+      local attributeRef = resolveVariable(string.format("%s-%s-%s", right.value, right.line, right.offset), context)
       -- generate a temporary object that we can attach this attribute to by adding
       -- an equality from the attribute name to our temp variable
       local tempObject = {type = "object", children = {{type = "equality", children = {right, {type = "IDENTIFIER", value = attributeRef.name}}}}}
@@ -879,7 +879,7 @@ local function resolveExpression(node, context)
     if context.equalityLeft then
       objectRef = context.equalityLeft
     else
-      objectRef = resolveVariable(string.format("object%s%s", node.line, node.offset), context)
+      objectRef = resolveVariable(string.format("object-%s-%s", node.line, node.offset), context)
     end
     local query = context.queryStack:peek()
     local objectNode = generateObjectNode(node, context)
@@ -892,7 +892,7 @@ local function resolveExpression(node, context)
     if context.equalityLeft then
       resultVar = context.equalityLeft
     else
-      resultVar = resolveVariable(string.format("result%s%s", node.line, node.offset), context)
+      resultVar = resolveVariable(string.format("result-%s-%s", node.line, node.offset), context)
     end
     local expression = {type = "expression", operator = node.func, projections = {}, groupings = {}, bindings = {}}
     local prevLeft = context.equalityLeft
