@@ -107,7 +107,7 @@ static void session_buffer(session s,
     if ((s->s == method) && s->child) {
         apply(s->child, b, rereg);
     } else {
-        string_foreach(c, b) {
+        string_foreach(b, c) {
             if (c == separators[s->s]) {
                 if (++s->s == total_states)  {
                     table_set(s->headers,

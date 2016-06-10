@@ -108,7 +108,7 @@ void handle_json_query(json_session j, buffer in, thunk c)
     buffer id, type, query;
     boolean backslash = false;
     
-    string_foreach(c, in) {
+    string_foreach(in, c) {
         if (s == sep) {
             if (string_equal(bt, sstring("query"))) {
                 query = bv;

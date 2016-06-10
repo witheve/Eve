@@ -87,7 +87,7 @@ ticks parse_time(string b)
     iu64 s = 0, frac = 0, fracnorm = 0;
     ticks result;
 
-    string_foreach (c, b) {
+    string_foreach (b, c) {
         if (c == '.')  {
             fracnorm = 1;
         } else {

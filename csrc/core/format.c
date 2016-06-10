@@ -22,7 +22,7 @@ void vbprintf(string s, string fmt, va_list ap)
     int pad;
     int count = 0;
 
-    string_foreach(i, fmt) {
+    string_foreach(fmt, i) {
         switch (state){
         case 2:
             for (int j = 0; j < count; j++)
@@ -103,7 +103,7 @@ void vbprintf(string s, string fmt, va_list ap)
                 // xxx - utf8 will break this
                  {
                   buffer xx = va_arg(ap, buffer);
-                  string_foreach(i, xx){
+                  string_foreach(xx, i){
                      print_byte(s, i);
                   }
                  }
