@@ -50,7 +50,7 @@ typedef struct type {
 typedef struct values_diff {
   vector insert;
   vector remove;
-};
+} *values_diff;
 
 static inline unsigned long type_of (void *x)
 {
