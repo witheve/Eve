@@ -83,7 +83,6 @@ function DependencyGraph:new(obj)
    obj.unsorted = obj.unsorted or Set:new() -- set of nodes that need to be ordered
    obj.sorted = obj.sorted or {} -- append-only set of ordered nodes
 
-
    obj.unsatisfied = obj.unsatisfied or {} -- Number of terms required but not bound per node
    obj.dependents = obj.dependents or {} -- Set of terms required per node
    obj.bound = obj.bound or Set:new() -- Set of terms bound by the currently ordered set of nodes
@@ -127,6 +126,9 @@ function DependencyGraph:addMutateNode(node)
    local produces = Set:new()
    local depends = Set:new()
    for _, binding in std.ipairs(node.bindings or nothing) do
+      -- If the entity term isn't bound, the mutation produces it
+      -- @FIXME: This is (incorrectly) insertion-order dependent, since any intended dependents of this entity
+      -- that were inserted first will see that the term does not exist and not add a dependency on it.
       if binding.field == ENTITY_FIELD and not self.terms[binding.variable] then
          produces:add(binding.variable)
       end
@@ -136,6 +138,7 @@ function DependencyGraph:addMutateNode(node)
          depends:add(binding.variable)
       end
    end
+
    return self:add(node, depends, produces)
 end
 
@@ -333,11 +336,11 @@ function DependencyGraph.__tostring(obj)
    local result = "DependencyGraph{\n"
    for ix, node in std.ipairs(obj.sorted) do
       result = result .. "  " .. ix .. ": " .. tostring(node.requires) .. " -> " .. tostring(node.produces) .. "\n"
-      result = result .. "    " .. tostring(node) .. "\n"
+      result = result .. "    " .. util.indentString(1, tostring(node)) .. "\n"
    end
    for node in std.pairs(obj.unsorted) do
       result = result .. "  ?: " .. tostring(node.requires) .. " -> " .. tostring(node.produces) .. "\n"
-      result = result .. "    " .. tostring(node) .. "\n"
+      result = result .. "   ? " .. util.indentString(1, tostring(node)) .. "\n"
    end
    return result .. "}"
 end
@@ -401,6 +404,27 @@ function ScanNode.__tostring(obj)
       ", value: " .. tostring(value) .. "}"
 end
 
+SubprojectNode = {}
+function SubprojectNode:new(obj)
+   obj = obj or {}
+   obj.projection = obj.projection or Set:new()
+   obj.nodes = obj.nodes or {}
+   setmetatable(obj, self)
+   self.__index = self
+   return obj
+end
+
+function SubprojectNode.__tostring(obj)
+   local result = "SubprojectNode " .. tostring(obj.projection) .. " -> " .. tostring(obj.produces) .. " {\n"
+
+   for _, node in std.pairs(obj.nodes) do
+      result = result .. "  " .. tostring(node.requires) .. " -> " .. tostring(node.produces) .. "\n"
+      result = result .. "    " .. tostring(node) .. "\n"
+   end
+
+   return result .. "}"
+end
+
 
 function isEAVNode(node)
    for _, binding in std.ipairs(node.bindings) do
@@ -413,13 +437,22 @@ end
 
 function unpackObjects(nodes)
    local unpacked = {}
-   local unpackedMutates = {}
+   local unpackedSubprojects = {}
    local ix = 1
    local tmpCounter = 0
    for _, node in std.ipairs(nodes) do
       if node.type == "object" or node.type == "mutate" then
-         local unpackList = node.type == "object" and unpacked or unpackedMutates
-         local NodeKind = ScanNode
+         local unpackList = unpacked
+         if node.type ~= "object" then
+            local projection = Set:new()
+            for ix, proj in std.pairs(node.projection) do
+               projection:union(proj, true)
+            end
+
+            local subproject = SubprojectNode:new{projection = projection, produces = node.produces}
+            unpackList = subproject.nodes
+            unpackedSubprojects[#unpackedSubprojects + 1] = subproject
+         end
 
          if isEAVNode(node) then
             unpackList[#unpackList + 1] = ScanNode:fromObject(node)
@@ -456,7 +489,7 @@ function unpackObjects(nodes)
       end
    end
 
-   for _, node in std.ipairs(unpackedMutates) do
+   for _, node in std.ipairs(unpackedSubprojects) do
      unpacked[#unpacked + 1] = node
    end
 
@@ -498,7 +531,7 @@ function analyze(content)
       local unpacked = unpackObjects(sorted)
       print("{")
       for ix, node in std.ipairs(unpacked) do
-         print("  " .. ix .. ". " .. tostring(node))
+         print("  " .. ix .. ". " .. util.indentString(1, tostring(node)))
       end
       print("}")
    end
