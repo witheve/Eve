@@ -206,11 +206,11 @@ local keywords = {
   given = "GIVEN",
   per = "PER",
   ["="] = "EQUALITY",
-  [">"] = "EQUALITY",
-  ["<"] = "EQUALITY",
-  [">="] = "EQUALITY",
-  [">="] = "EQUALITY",
-  ["!="] = "EQUALITY",
+  [">"] = "INEQUALITY",
+  ["<"] = "INEQUALITY",
+  [">="] = "INEQUALITY",
+  [">="] = "INEQUALITY",
+  ["!="] = "INEQUALITY",
   ["+"] = "INFIX",
   ["-"] = "INFIX",
   ["*"] = "INFIX",
@@ -470,7 +470,7 @@ end
 -- Parse
 ------------------------------------------------------------
 
-local infixTypes = {equality = true, infix = true, attribute = true, mutate = true}
+local infixTypes = {equality = true, infix = true, attribute = true, mutate = true, inequality = true}
 local singletonTypes = {outputs = true}
 local endableTypes = {choose = true, union = true, ["not"] = true, update = true}
 local alphaFields = {"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o"}
@@ -670,7 +670,7 @@ local function parse(tokens)
     elseif type == "INFIX" then
       -- get the previous child
       local prev = stackTop.children[#stackTop.children]
-      if prev and (prev.type == "equality" or prev.type == "mutate") then
+      if prev and (prev.type == "equality" or prev.type == "mutate" or type == "inequality") then
         stackTop.children[#stackTop.children] = nil
         local right = prev.children[2]
         -- remove the right hand side of the equality and put it back on the
@@ -689,14 +689,15 @@ local function parse(tokens)
         -- error
       end
 
-    elseif type == "EQUALITY" or type == "ALIAS" then
+    elseif type == "EQUALITY" or type == "ALIAS" or type == "INEQUALITY" then
       -- get the previous child
       local prev = stackTop.children[#stackTop.children]
       if not prev then
         -- error
       else
+        local nodeType = type == "INEQUALITY" and "inequality" or "equality"
         stackTop.children[#stackTop.children] = nil
-        stack:push({type = "equality", children = {prev}})
+        stack:push({type = nodeType, children = {prev}})
       end
 
     elseif type == "OPEN_PAREN" then
@@ -855,7 +856,7 @@ local function resolveExpression(node, context)
     local right = node.children[2]
     if right and right.type == "IDENTIFIER" then
       -- generate a temporary variable to hold this attribute binding
-      local attributeRef = resolveVariable(string.format("%s%s%s", right.value, right.line, right.offset), context)
+      local attributeRef = resolveVariable(string.format("%s-%s-%s", right.value, right.line, right.offset), context)
       -- generate a temporary object that we can attach this attribute to by adding
       -- an equality from the attribute name to our temp variable
       local tempObject = {type = "object", children = {{type = "equality", children = {right, {type = "IDENTIFIER", value = attributeRef.name}}}}}
@@ -878,7 +879,7 @@ local function resolveExpression(node, context)
     if context.equalityLeft then
       objectRef = context.equalityLeft
     else
-      objectRef = resolveVariable(string.format("object%s%s", node.line, node.offset), context)
+      objectRef = resolveVariable(string.format("object-%s-%s", node.line, node.offset), context)
     end
     local query = context.queryStack:peek()
     local objectNode = generateObjectNode(node, context)
@@ -891,7 +892,7 @@ local function resolveExpression(node, context)
     if context.equalityLeft then
       resultVar = context.equalityLeft
     else
-      resultVar = resolveVariable(string.format("result%s%s", node.line, node.offset), context)
+      resultVar = resolveVariable(string.format("result-%s-%s", node.line, node.offset), context)
     end
     local expression = {type = "expression", operator = node.func, projections = {}, groupings = {}, bindings = {}}
     local prevLeft = context.equalityLeft

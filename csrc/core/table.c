@@ -1,10 +1,5 @@
 #include <core.h>
 
-#define forall_entries(__i, __v)\
-   vector_foreach (__i, __v) \
-     for (; __i; __i=((entry)__i)->next)
-
-
 static void allocate_buckets(table t)
 {
     t->entries = allocate_vector(t->h, t->buckets);
@@ -32,9 +27,9 @@ static inline key position(table t, key x)
 void *table_find (table t, void *c)
 {
     key k = t->key_function(c);
-    
-    for (entry i = vector_ref(t->entries, position(t, k)); 
-         i; i = i->next) 
+
+    for (entry i = vector_get(t->entries, position(t, k));
+         i; i = i->next)
         if ((i->k == k) && t->equals_function(i->c, c))
             return(i->v);
 
@@ -46,17 +41,17 @@ static void resize_table(table t, int buckets)
 {
     vector old_entries = t->entries;
     key km;
-    
+
     t->buckets = buckets;
     allocate_buckets(t);
 
-    vector_foreach (k, old_entries){
+    vector_foreach (old_entries, k){
         entry j = k;
 
         while(j) {
             entry n = j->next;
             km = j->k % t->buckets;
-            j->next = vector_ref(t->entries, km);
+            j->next = vector_get(t->entries, km);
             vector_set(t->entries, km, j);
             j = n;
         }
@@ -103,7 +98,7 @@ void print_table(string b,table t)
     int i;
   
     bprintf (b, "{");
-    vector_foreach(k, t->entries) {
+    vector_foreach(t->entries, k) {
         entry j = k; 
         for (;j;j = j->next)
             // xxx  - use the input syntax for fucks sake

@@ -9,15 +9,15 @@ typedef iu32 index; //indices are off by 1 from vector references
 
 static inline void swap(pqueue q, index x, index y)
 {
-    void *temp = vector_ref(q->v, x-1);
-    vector_set(q->v, x-1, vector_ref(q->v, y-1));
+    void *temp = vector_get(q->v, x-1);
+    vector_set(q->v, x-1, vector_get(q->v, y-1));
     vector_set(q->v, y-1, temp);
 }
 
 
 #define qcompare(__q, __x, __y)\
-  (q->compare(vector_ref(__q->v, (__x-1)), \
-              vector_ref(__q->v, (__y-1))))
+  (q->compare(vector_get(__q->v, (__x-1)), \
+              vector_get(__q->v, (__y-1))))
 
 static void heal(pqueue q, index where)
 {
@@ -59,7 +59,7 @@ void *pqueue_pop(pqueue q)
     void *result = EMPTY;
 
     if (vector_length(q->v) > 0) {
-        result = vector_ref(q->v, 0);
+        result = vector_get(q->v, 0);
         void *n = vector_pop(q->v);
         if (vector_peek(q->v) != EMPTY) {
             vector_set(q->v, 0, n);
@@ -72,7 +72,7 @@ void *pqueue_pop(pqueue q)
 void *pqueue_peek(pqueue q)
 {
     if (vector_length(q->v))
-        return(vector_ref(q->v, 0));
+        return(vector_get(q->v, 0));
     return(false);
 }
 

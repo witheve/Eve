@@ -77,7 +77,7 @@ static evaluation start_guy(heap h, buffer b, buffer_handler output)
     bprintf(out, "{\"type\":\"result\", \"insert\":[");
     int start = 0;
     
-    vector_foreach(i, v){
+    vector_foreach(v, i){
         int count = 0;
 
         if (start++ != 0){
@@ -85,7 +85,7 @@ static evaluation start_guy(heap h, buffer b, buffer_handler output)
         }
         
         bprintf(out, "["); 
-        vector_foreach(j, i){
+        vector_foreach(i, j){
             
             print_value_json(out, j);
             if (count ++ < 2) {
@@ -108,7 +108,7 @@ void handle_json_query(json_session j, buffer in, thunk c)
     buffer id, type, query;
     boolean backslash = false;
     
-    string_foreach(c, in) {
+    string_foreach(in, c) {
         if (s == sep) {
             if (string_equal(bt, sstring("query"))) {
                 query = bv;

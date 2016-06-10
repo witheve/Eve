@@ -32,7 +32,7 @@ static int inline string_rune_length(char *s) {
 
 
 // the ascii subset
-#define string_foreach(__i, __s)                          \
+#define string_foreach(__s, __i)                          \
     for (iu32 __x = 0, __i, __limit = buffer_length(__s);   \
          __i = *(u8)bref(__s, __x), __x<__limit;    \
          __x++)

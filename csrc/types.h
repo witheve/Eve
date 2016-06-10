@@ -47,7 +47,10 @@ typedef struct type {
     void *(*deserialize)(buffer b);
 } *type;
 
-
+typedef struct values_diff {
+  vector insert;
+  vector remove;
+} *values_diff;
 
 static inline unsigned long type_of (void *x)
 {
@@ -59,3 +62,8 @@ uuid intern_uuid(unsigned char *x);
 void init_uuid();
 
 void print_value(buffer, value);
+iu64 value_as_key(value);
+boolean value_equals(value, value);
+
+iu64 value_vector_as_key(void *);
+boolean value_vector_equals(void *, void *);
