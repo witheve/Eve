@@ -86,7 +86,7 @@ boolean value_vector_equals(void * a, void * b)
     if(vector_length(a) != vector_length(b)) return false;
     int pos = 0;
     vector_foreach(a, current) {
-      if(current != vector_ref(b, pos)) return false;
+      if(!value_equals(current, vector_ref(b_pos))) return false;
       pos++;
     }
     return true;
