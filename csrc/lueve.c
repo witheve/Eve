@@ -17,6 +17,7 @@ station create_station(unsigned int address, unsigned short port) {
 
 extern void init_json_service(http_server);
 extern int strcmp(const char *, const char *);
+static buffer read_file_or_exit(heap, char *);
 
 bag my_awesome_bag;
 
@@ -36,23 +37,23 @@ int main(int argc, char **argv)
     
     for (int i = 1; i <argc ; i++) {
         if (!strcmp(argv[i], "-e")) {
-            buffer b = read_file(init, argv[++i]);
+            buffer b = read_file_or_exit(init, argv[++i]);
             execute(lua_compile_eve(c, b, true));
         }
         if (!strcmp(argv[i], "-parse")) {
-            lua_run_module_func(c, read_file(init, argv[++i]), "parser", "printParse");
+            lua_run_module_func(c, read_file_or_exit(init, argv[++i]), "parser", "printParse");
             return 0;
         }
         if (!strcmp(argv[i], "-analyze")) {
-            lua_run_module_func(c, read_file(init, argv[++i]), "compiler", "analyze");
+            lua_run_module_func(c, read_file_or_exit(init, argv[++i]), "compiler", "analyze");
             return 0;
         }
         if (!strcmp(argv[i], "-resolve")) {
-            lua_run_module_func(c, read_file(init, argv[++i]), "implicationResolver", "testCollect");
+            lua_run_module_func(c, read_file_or_exit(init, argv[++i]), "implicationResolver", "testCollect");
             return 0;
         }
         if (!strcmp(argv[i],"-l")) {
-            lua_run(c, read_file(init, argv[++i]));
+            lua_run(c, read_file_or_exit(init, argv[++i]));
         }
     }
 
@@ -72,4 +73,16 @@ int main(int argc, char **argv)
 
     printf("\n----------------------------------------------\n\nEve started. Running at http://localhost:8080\n\n");
     unix_wait();
+}
+
+buffer read_file_or_exit(heap h, char *path)
+{
+    buffer b = read_file(h, path);
+
+    if (b) {
+        return b;
+    } else {
+        printf("can't read a file: %s\n", path);
+        exit(1);
+    }
 }
