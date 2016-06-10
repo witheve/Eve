@@ -1,6 +1,5 @@
 #include <core.h>
 
-
 static inline vector va_construct_vector(heap h, va_list a)
 {
     vector v = allocate_vector(h, 10);
@@ -12,14 +11,12 @@ static inline vector va_construct_vector(heap h, va_list a)
     return(v);
 }
 
-
 vector build_vector_internal(heap h, ...)
 {
     va_list a;
     va_start(a, h);
     return(va_construct_vector(h, a));
 }
-
 
 void vector_set(vector t, int index, void *n)
 {
@@ -32,7 +29,7 @@ void vector_set(vector t, int index, void *n)
         memset(bref(t, z), 0, (e-z)/8);
         t->end = e;
     }
-    *((void **)bref(t, b)) = n;    
+    *((void **)bref(t, b)) = n;
 }
 
 static void vector_elements(vector v, u32 i)
@@ -42,7 +39,7 @@ static void vector_elements(vector v, u32 i)
 
 void vector_insert(vector t, void *n)
 {
-    buffer_append(t, &n, sizeof(void *)); 
+    buffer_append(t, &n, sizeof(void *));
 }
 
 vector allocate_vector(heap h, int elements)
