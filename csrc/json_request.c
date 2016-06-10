@@ -24,6 +24,7 @@ typedef struct json_session {
 } *json_session;
 
 extern bag my_awesome_bag;
+extern thunk ignore;
 
 static CONTINUATION_2_3(chute, heap, vector, value, value, value)
 static void chute(heap h, vector out, value e, value a,  value v)
@@ -59,7 +60,7 @@ static void send_guy(heap h, buffer_handler output, vector tuples)
     bprintf(out, "{\"type\":\"result\", \"insert\":[");
     int start = 0;
     
-    vector_foreach(i, v){
+    vector_foreach(i, tuples){
         int count = 0;
 
         if (start++ != 0) bprintf(out, ",");
@@ -82,8 +83,6 @@ static void json_commit()
 {
 }
 
-
-extern thunk ignore;
 
 static evaluation start_guy(heap h, buffer b, buffer_handler output)
 {

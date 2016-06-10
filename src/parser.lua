@@ -2,6 +2,7 @@ local fs = require("fs")
 local utf8 = require("utf8")
 local color = require("color")
 local errors = require("error")
+local Set = require("set").Set
 
 local MAGIC_ENTITY_FIELD = "ENTITY"
 
@@ -947,6 +948,33 @@ generateObjectNode = function(root, context)
   local object = {type = "object",
                   bindings = {},
                   query = context.queryStack:peek()}
+
+  -- to ensure the right cardinality for mutates, we have to track
+  -- what variables we depend on so that we can project the mutate
+  -- over them
+  local dependencies = Set:new()
+  -- in case a sub-object is looking for projections, we should
+  -- push our dependencies on the stack
+  context.projections:push(dependencies)
+
+  -- check if we're mutating and set the scope, operator, and
+  -- projections if we are
+  local mutating = context.mutating
+  if mutating then
+    object.type = "mutate"
+    object.operator = context.mutateOperator
+    object.scope = context.mutateScope
+    -- store all our parents' projections to reconcile later
+    object.projection = {dependencies}
+    for _, projection in ipairs(context.projections) do
+      object.projection[#object.projection + 1] = projection
+    end
+  end
+
+  -- last attribute handles the case where we have adjacent sub-objects
+  -- which should be added as values to the last attribute we've seen
+  -- e.g. [#div children: [#span] [#span]], both spans should be hooked
+  -- to the children attribute
   local lastAttribute
 
   for _, child in ipairs(root.children) do
@@ -956,6 +984,7 @@ generateObjectNode = function(root, context)
       local variable = resolveVariable(child.value, context)
       local binding = generateBindingNode({field = child.value, variable = variable}, context, object)
       lastAttribute = nil
+      dependencies:add(variable)
 
     elseif type == "object" then
       -- we have an object in here, if lastAttribute is set,
@@ -964,6 +993,7 @@ generateObjectNode = function(root, context)
       if lastAttribute then
         local variable = resolveExpression(child, context)
         local binding = generateBindingNode({field = lastAttribute.value, variable = variable}, context, object)
+        dependencies:add(variable)
       else
         -- error
       end
@@ -996,6 +1026,11 @@ generateObjectNode = function(root, context)
           binding.constant = resolved
         elseif resolved.type == "variable" then
           binding.variable = resolved
+          -- we only add non-objects to dependencies since sub
+          -- objects have their own cardinalities to deal with
+          if right.type ~= "object" then
+            dependencies:add(resolved)
+          end
         else
           binding = nil
           -- error
@@ -1013,11 +1048,11 @@ generateObjectNode = function(root, context)
       -- error
     end
   end
-  if context.mutating then
-    object.type = "mutate"
-    object.operator = context.mutateOperator
-    object.scope = context.mutateScope
-  end
+
+  -- our dependencies are no longer relevant to anyone else,
+  -- so let's clean them up
+  context.projections:pop()
+
   return object
 end
 
@@ -1174,7 +1209,7 @@ generateQueryNode = function(root, context)
 end
 
 local function generateNodes(root)
-  local context = {queryStack = Stack:new(), nameMappings = Stack:new()}
+  local context = {queryStack = Stack:new(), nameMappings = Stack:new(), projections = Stack:new()}
   local nodes =  {}
   for _, child in ipairs(root.children) do
     if child.type == "query" then

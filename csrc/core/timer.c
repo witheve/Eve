@@ -12,16 +12,6 @@ struct timer {
 static pqueue timers;
 static heap theap;
 
-static boolean timer_less_than(timer a, timer b)
-{
-    return(a->w < b->w);
-}
-
-void timer_print(string s, timer t)
-{
-    bprintf (s, "<%v %v>", t->w, t->t);
-}
-
 void remove_timer(timer t)
 {
     t->disable = true;
