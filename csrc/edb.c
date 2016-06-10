@@ -43,7 +43,6 @@ level scan(heap h, level lev, value key)
 
 table full_scan(bag b, three_listener f)
 {
-    table_set(b->eav->listeners, f, (void *)1);
     foreach_table(b->eav->lookup, e, avl) {
         foreach_table(((level)avl)->lookup, a, vl) {
             foreach_table(((level)vl)->lookup, v, vl) {
@@ -58,7 +57,6 @@ table eav_scan(bag b, value e, value a, value v, zero_listener f)
 {
     level al = scan(b->h, b->eav, e);
     level vl = scan(b->h, al, a);
-    table_set(vl->listeners, f, (void *)1);
     if (table_elements(vl->lookup) > 0)
         apply(f, etrue);
     return vl->listeners;
@@ -69,7 +67,6 @@ table ea_scan(bag b, value e, value a, one_listener f)
     level al = scan(b->h, b->eav, e);
     level vl = scan(b->h, al, a);
 
-    table_set(vl->listeners, f, (void *)1);
     foreach_table(((level)vl)->lookup, v, vl) {
         apply(f, v, etrue);
     }
@@ -80,7 +77,6 @@ table e_scan(bag b, value e, two_listener f)
 {
     level al = scan(b->h, b->eav, e);
 
-    table_set(al->listeners, f, (void *)1);
     foreach_table(al->lookup, a, vl) {
         foreach_table(((level)vl)->lookup, v, vl) {
             apply(f, a, v, etrue);
@@ -94,7 +90,6 @@ table av_scan(bag b, value a, value v, one_listener f)
     level al = scan(b->h, b->ave, a);
     level vl = scan(b->h, al, v);
 
-    table_set(vl->listeners, f, (void *)1);
     foreach_table(((level)vl)->lookup, e, el) {
         apply(f, e, etrue);
     }
@@ -123,20 +118,6 @@ void edb_insert(bag b, value e, value a, value v)
         level el = scan(b->h, b->eav, e);
         level al = scan(b->h, el, a);
         level tail = scan(b->h, al, v);
-        
-        // incremental needs to deal with remove
-        foreach_table(b->listeners, k, v) {
-            apply((three_listener)k, e, a, v, etrue);
-        }
-        foreach_table(el->listeners, k, v) {
-            apply((two_listener)k, a, v, etrue);
-        }
-        foreach_table(al->listeners, k, v) {
-            apply((one_listener)k, v, etrue);
-        }
-        foreach_table(tail->listeners, k, v) {
-            apply((zero_listener)k, etrue);
-        }
     }
 
     // AVE
@@ -144,20 +125,6 @@ void edb_insert(bag b, value e, value a, value v)
         level al = scan(b->h, b->ave, a);
         level vl = scan(b->h, al, v);
         level tail = scan(b->h, vl, e);
-        
-        // incremental needs to deal with remove
-        foreach_table(b->listeners, k, v) {
-            apply((three_listener)k, a, v, e, etrue);
-        }
-        foreach_table(al->listeners, k, v) {
-            apply((two_listener)k, v, e, etrue);
-        }
-        foreach_table(vl->listeners, k, v) {
-            apply((one_listener)k, e, etrue);
-        }
-        foreach_table(tail->listeners, k, v) {
-            apply((zero_listener)k, etrue);
-        }
     }
 }
 

@@ -51,18 +51,11 @@ static void scan_listener_0(execf n, value *r, operator op, eboolean present)
     apply(n, op, r);
 }
 
-static inline void register_listener(evaluation ex, table reg, void *f)
-{
-    vector_insert(ex->listeners, reg);
-    vector_insert(ex->listeners, f);
-}
-
 static CONTINUATION_5_2(do_full_scan, evaluation, execf, int, int, int, operator, value *);
 static void do_full_scan(evaluation ex, execf n, int e, int a, int v, operator op, value *r)
 {
     void *listen = cont(ex->h, scan_listener_3, n, op, r, e, a, v);
     table reg = full_scan(ex->b, listen);
-    register_listener(ex, reg, listen);
 }
 
 static CONTINUATION_5_2(do_ea_scan, evaluation, execf, value, value, int, operator, value *);
@@ -70,7 +63,6 @@ static void do_ea_scan(evaluation ex, execf n, value e, value a, int v, operator
 {
     void *listen = cont(ex->h, scan_listener_1, n, op, r, v);
     table reg = ea_scan(ex->b, lookup(e, r), lookup(a, r), listen);
-    register_listener(ex, reg, listen);
 }
 
 static CONTINUATION_5_2(do_e_scan, evaluation, execf, value, int, int, operator, value *);
@@ -78,7 +70,6 @@ static void do_e_scan(evaluation ex, execf n, value e, int a, int v, operator op
 {
     void *listen = cont(ex->h,scan_listener_2, n, op, r, a, v);
     table reg = e_scan(ex->b, lookup(e, r), listen);
-    register_listener(ex, reg, listen);
 }
 
 static CONTINUATION_5_2(do_av_scan, evaluation, execf, int, value, value, operator, value *);
@@ -86,7 +77,6 @@ static void do_av_scan(evaluation ex, execf n, int e, value a, value v, operator
 {
     void *listen = cont(ex->h, scan_listener_1, n, op, r, e);
     table reg = av_scan(ex->b, lookup(a, r), lookup(v, r), listen);
-    register_listener(ex, reg, listen);
 }
 
 static CONTINUATION_5_2(do_eav_scan, evaluation, execf, value, value, value, operator, value *);
@@ -94,7 +84,6 @@ static void do_eav_scan(evaluation ex, execf n, value e, value a, value v, opera
 {
     void *listen = cont(ex->h, scan_listener_0, n, r, op);
     table reg = eav_scan(ex->b, lookup(e, r), lookup(a,r), lookup(v,r), listen);
-    register_listener(ex, reg, listen);
 }
 
 static inline boolean match(char *x, char *key)
@@ -347,7 +336,6 @@ evaluation allocate_evaluation(bag b, table scopes)
 {
     heap h = allocate_rolling(pages);
     evaluation e = allocate(h, sizeof(struct evaluation));
-    e->listeners = allocate_vector(h, 10);
     e->h =h;
     e->scope_map = scopes;
     e->b =b;
@@ -358,9 +346,6 @@ void close_evaluation(evaluation ex)
 {
     // close
     apply(ex->head, 1, 0);
-    for (int i = 0 ; i< vector_length(ex->listeners) ; i +=2) {
-        table_set(vector_ref(ex->listeners, i), vector_ref(ex->listeners, i+1), EMPTY);
-    }
     ex->h->destroy();
 }
 
