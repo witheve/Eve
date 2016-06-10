@@ -47,7 +47,10 @@ typedef struct type {
     void *(*deserialize)(buffer b);
 } *type;
 
-
+typedef struct values_diff {
+  vector insert;
+  vector remove;
+};
 
 static inline unsigned long type_of (void *x)
 {

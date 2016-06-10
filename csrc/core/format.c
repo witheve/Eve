@@ -98,6 +98,10 @@ void vbprintf(string s, string fmt, va_list ap)
             case 'v':
                 print_value(s, va_arg(ap, void *));
                 break;
+
+            case 'V':
+                print_value_vector(s, va_arg(ap, void *));
+                break;
                 
             case 'X':
                 // xxx - utf8 will break this

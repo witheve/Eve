@@ -21,7 +21,6 @@ static buffer read_file_or_exit(heap, char *);
 
 bag my_awesome_bag;
 
-
 int main(int argc, char **argv)
 {
     init_runtime();

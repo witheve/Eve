@@ -40,6 +40,15 @@ void print_value(buffer b, value v)
     }
 }
 
+void print_value_vector(buffer out, vector vec) {
+  bprintf(out, "[ ");
+  vector_foreach(vec, current) {
+    print_value(out, current);
+    bprintf(out, " ");
+  }
+  bprintf(out, "]");
+}
+
 //-------------------------------------------------------
 // Value hash/equals
 //-------------------------------------------------------
@@ -90,4 +99,35 @@ boolean value_vector_equals(void * a, void * b)
       pos++;
     }
     return true;
+}
+
+//-------------------------------------------------------
+// Diffing value vector tables
+//-------------------------------------------------------
+
+struct values_diff {
+  vector insert;
+  vector remove;
+};
+
+struct values_diff * diff_value_vector_tables(heap h, table old, table neue) {
+  vector remove = allocate_vector(h, 10);
+  vector insert = allocate_vector(h, 10);
+
+  table_foreach(old, key, value) {
+    if(!table_find(neue, key)) {
+      vector_insert(remove, key);
+    }
+  }
+
+  table_foreach(neue, key, value) {
+    if(!table_find(old, key)) {
+      vector_insert(insert, key);
+    }
+  }
+
+  struct values_diff * diff = allocate(h, sizeof(struct values_diff));
+  diff->insert = insert;
+  diff->remove = remove;
+  return diff;
 }
