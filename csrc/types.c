@@ -10,7 +10,10 @@ extern type uuid_methods;
 
 iu64 key_of(value v)
 {
-    return (0);
+    if (type_of(v) == float_space) {
+        return *(unsigned long *)v;
+    }
+    return (unsigned long)v;
 }
 
 extern int sprintf(char *, const char *, ...);
