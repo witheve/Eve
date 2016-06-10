@@ -152,10 +152,26 @@ void lua_run(interpreter c, buffer b)
 }
 
 
+static int lua_set_head(lua_State *L)
+{
+    evaluation e = (void *)lua_topointer(L, 1);
+    e->head = lua_tovalue(L, 2);
+    e->registerfile = lua_tointeger(L, 3);
+    return 0;
+}
+
+
 extern int luaopen_utf8(lua_State *L);
 
 extern void bundle_add_loaders(lua_State* L);
- 
+
+int lua_allocate_evaluation(lua_State *L)
+{
+    interpreter c = lua_context(L);
+    lua_pushlightuserdata(L, allocate_evaluation(c->b, c->scope_map));
+    return 1;
+}
+
 interpreter build_lua(bag b, table scopes)
 {
     heap h = allocate_rolling(pages);
@@ -174,6 +190,7 @@ interpreter build_lua(bag b, table scopes)
     define(c, "sboolean", construct_boolean);
     define(c, "sstring_boolean", construct_string);
     define(c, "value_to_string", lua_print_value);
+    define(c, "build_node", lua_print_value);
 
     register_exec(c);
     require_luajit(c, "compiler");
