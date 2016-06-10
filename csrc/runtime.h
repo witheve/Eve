@@ -3,6 +3,14 @@ typedef void *value;
 #include <core/core.h>
 #include <types.h>
 
+typedef enum {
+    op_insert = 1,
+    op_remove,
+    op_flush,
+    op_close
+} operator;
+    
+
 iu64 key_of(value);
 boolean equals(value, value);
 #include <number.h>
@@ -34,9 +42,6 @@ void error(char *);
 
 uuid generate_uuid();
 
-typedef int operator;
-
-
 typedef closure(three_listener, value, value, value, eboolean);
 typedef closure(two_listener, value, value, eboolean);
 typedef closure(one_listener, value, eboolean);
@@ -53,7 +58,8 @@ string aprintf(heap h, char *fmt, ...);
 void bbprintf(string b, string fmt, ...);
 
 typedef closure(execf, operator, value *);
-typedef closure(insertron, value, value, value);
+typedef closure(insertron, bag);
+typedef closre(builder, execf);
 
 #define def(__s, __v, __i)  table_set(__s, intern_string((unsigned char *)__v, cstring_length((char *)__v)), __i);
 
@@ -87,4 +93,5 @@ void print_value(buffer, value);
 
 void prf(char *, ...);
 
-typedef struct batch *batch;
+typedef table bagset;
+
