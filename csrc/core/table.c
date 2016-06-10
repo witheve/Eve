@@ -1,10 +1,5 @@
 #include <core.h>
 
-#define forall_entries(__i, __v)\
-   vector_foreach (__i, __v) \
-     for (; __i; __i=((entry)__i)->next)
-
-
 static void allocate_buckets(table t)
 {
     t->entries = allocate_vector(t->h, t->buckets);
@@ -50,7 +45,7 @@ static void resize_table(table t, int buckets)
     t->buckets = buckets;
     allocate_buckets(t);
 
-    vector_foreach (k, old_entries){
+    vector_foreach (old_entries, k){
         entry j = k;
 
         while(j) {
@@ -103,7 +98,7 @@ void print_table(string b,table t)
     int i;
   
     bprintf (b, "{");
-    vector_foreach(k, t->entries) {
+    vector_foreach(t->entries, k) {
         entry j = k; 
         for (;j;j = j->next)
             // xxx  - use the input syntax for fucks sake

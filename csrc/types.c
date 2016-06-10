@@ -69,7 +69,7 @@ boolean value_equals(value a, value b)
 iu64 value_vector_as_key(void * v)
 {
   iu64 key = 0;
-  vector_foreach(current, v) {
+  vector_foreach(v, current) {
     iu64 subkey = value_as_key((value) v);
     if(key == 0) {
       key = subkey;
@@ -85,7 +85,7 @@ boolean value_vector_equals(void * a, void * b)
     if (a == b) return true;
     if(vector_length(a) != vector_length(b)) return false;
     int pos = 0;
-    vector_foreach(current, a) {
+    vector_foreach(a, current) {
       if(current != vector_ref(b, pos)) return false;
       pos++;
     }

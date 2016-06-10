@@ -27,7 +27,7 @@ iu32 vector_length(vector);
 // why isn't this vector_get?
 void *vector_ref(vector v, int element);
 void vector_set(vector v, int element, void *x);
-#define vector_foreach(__i, __s)\
+#define vector_foreach(__s, __i)\
     for (void * __i, *__j = (void *)0; __i = vector_ref(__s, (unsigned long)__j), (unsigned long)__j < vector_length(__s); __j = (void *)((unsigned long)__j + 1))
 
 
