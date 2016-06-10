@@ -1,20 +1,8 @@
 #include <runtime.h>
 
-
-extern type estring_methods;
-extern type bignum_methods;
-extern type smallnum_methods;
-extern type efloat_methods;
-extern type uuid_methods;
-
-
-iu64 key_of(value v)
-{
-    if (type_of(v) == float_space) {
-        return *(unsigned long *)v;
-    }
-    return (unsigned long)v;
-}
+//-------------------------------------------------------
+// Value printing
+//-------------------------------------------------------
 
 extern int sprintf(char *, const char *, ...);
 
@@ -52,8 +40,20 @@ void print_value(buffer b, value v)
     }
 }
 
+//-------------------------------------------------------
+// Value hash/equals
+//-------------------------------------------------------
+
+iu64 value_as_key(value v)
+{
+    if (type_of(v) == float_space) {
+        return *(iu64 *)v;
+    }
+    return (iu64)v;
+}
+
 // assumes bibop and interned strings and uuids
-boolean equals(value a, value b)
+boolean value_equals(value a, value b)
 {
     if (a == b) return true;
     if ((type_of(a) == float_space) && (type_of(b) == float_space)) {
@@ -62,8 +62,32 @@ boolean equals(value a, value b)
     return false;
 }
 
-void init_types()
+//-------------------------------------------------------
+// Value vector hash/equals
+//-------------------------------------------------------
+
+iu64 value_vector_as_key(void * v)
 {
+  iu64 key = 0;
+  vector_foreach(current, v) {
+    iu64 subkey = value_as_key((value) v);
+    if(key == 0) {
+      key = subkey;
+    } else {
+      key ^= subkey;
+    }
+  }
+  return key;
 }
 
-    
+boolean value_vector_equals(void * a, void * b)
+{
+    if (a == b) return true;
+    if(vector_length(a) != vector_length(b)) return false;
+    int pos = 0;
+    vector_foreach(current, a) {
+      if(current != vector_ref(b, pos)) return false;
+      pos++;
+    }
+    return true;
+}
