@@ -81,9 +81,11 @@ void vbprintf(string s, string fmt, va_list ap)
                 break;
 
             case 'S':
-                unsigned int x = va_arg(ap, unsigned int);
-                for (int i =0 ; i < x; i++) string_insert(s, ' ');
-                break;
+                {
+                    unsigned int x = va_arg(ap, unsigned int);
+                    for (int i =0 ; i < x; i++) string_insert(s, ' ');
+                    break;
+                }
                 
             case 'p':
                 pad = 16;

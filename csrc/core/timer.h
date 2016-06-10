@@ -4,6 +4,7 @@ timer register_timer(ticks, thunk n);
 void remove_timer();
 void initialize_timer();
 ticks parse_time();
+void print_time(string b, ticks t);
 ticks timer_check(ticks d);
 ticks now();
 

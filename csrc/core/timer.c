@@ -93,23 +93,23 @@ ticks parse_time(string b)
     return(result);
 }
 
-void print_time(string b, void *v)
+// this seems quite broken 
+void print_time(string b, ticks f)
 {
-    unsigned int *f=(unsigned int *)v;
+    unsigned int seconds = f>>32;
+    iu64 fraction = f&0xfffffffful;
 
-    // assumes little endian
-    bprintf(b, "%u", f[1]);
-    if (f[0]) {
-        iu64 t = f[0];
+    bprintf(b, "%u", seconds);
+    if (fraction) {
         int count=0;
-
+        
         bprintf(b,".");
-
+        
         /* should round or something */
-        while ((t *= 10) && (count++ < 6)) {
-            iu32 d = (t>>32);
+        while ((fraction *= 10) && (count++ < 6)) {
+            iu32 d = (fraction>>32);
             bprintf (b, "%d", d);
-            t -= ((iu64)d)<<32;
+            fraction -= ((iu64)d)<<32;
         }
     }
 }

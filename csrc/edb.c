@@ -123,16 +123,12 @@ void edb_insert(bag b, value e, value a, value v)
     }
 }
 
-void multibag_insert(mutibag m, uuid b, value e, value a, value v)
-{
-    
-}
 
-void multibag_insert(mutibag m, uuid u, value e, value a, value v)
+void multibag_insert(multibag m, uuid u, value e, value a, value v)
 {
     bag b;
     if (!(b = table_find(m, u))){
-        b = allocate_bag(m->h);
+        b = create_bag(m->h);
         table_set(m, u, b);
     }
     edb_insert(b, e, a, v);
@@ -144,7 +140,7 @@ string bag_dump(heap h, bag b)
     buffer out = allocate_string(h);
     foreach_table(b->eav, e, avl) {
         int start = buffer_length(out);
-        bprintf(b, "%v ", e);
+        bprintf(out, "%v ", e);
         int ind = buffer_length(out)-start;
         
         foreach_table(((table)avl), a, vl) {

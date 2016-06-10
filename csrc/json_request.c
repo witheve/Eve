@@ -87,8 +87,8 @@ static void json_commit()
 static evaluation start_guy(heap h, buffer b, buffer_handler output)
 {
     vector v = allocate_vector(h, 10);
-    insertron a = cont(h, chute, h, v);
-    insertron z = cont(h, edb_insert, my_awesome_bag);
+    insertron a;//  = cont(h, chute, h, v);
+    insertron z;// = cont(h, edb_insert, my_awesome_bag);
     table scopes = allocate_table(h, key_from_pointer, compare_pointer);
 
     def(scopes, "session", a);

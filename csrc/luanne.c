@@ -2,6 +2,11 @@
 #include <unix/unix.h>
 #include <luanne.h>
 
+#define foreach_lua_table(__L, __ind, __k, __v) \
+    lua_pushnil(__L); \
+    for (int __k = -2, __v = - 1; (lua_next(__L, __ind) != 0) || (lua_pop(__L, 1), 0) ; lua_pop(__L, 1))
+
+
 value lua_tovalue(lua_State *L, int index)
 {
     switch(lua_type(L, index)){
@@ -151,26 +156,35 @@ void lua_run(interpreter c, buffer b)
     }
 }
 
-
-static int lua_set_head(lua_State *L)
-{
-    evaluation e = (void *)lua_topointer(L, 1);
-    e->head = lua_tovalue(L, 2);
-    e->registerfile = lua_tointeger(L, 3);
-    return 0;
-}
-
-
 extern int luaopen_utf8(lua_State *L);
+
 
 extern void bundle_add_loaders(lua_State* L);
 
-int lua_allocate_evaluation(lua_State *L)
+int lua_build_node(lua_State *L)
 {
     interpreter c = lua_context(L);
-    lua_pushlightuserdata(L, allocate_evaluation(c->b, c->scope_map));
+    node n = allocate(c->h, sizeof(struct node));
+    n->arms = allocate_vector(c->h, 5);
+    n->arguments = allocate_vector(c->h, 5);
+    n->type = lua_tovalue(L, 1); // a string which is a node type
+            
+    foreach_lua_table(L, 2, k, v)
+        vector_insert(n->arms, (void *)lua_topointer(L, v));
+    
+    foreach_lua_table(L, 3, k, v)
+        vector_insert(n->arguments, lua_tovalue(L, v));
+
+    lua_pushlightuserdata(L, n);
     return 1;
 }
+
+//int lua_allocate_evaluation(lua_State *L)
+//{
+//   interpreter c = lua_context(L);
+//    lua_pushlightuserdata(L, allocate_evaluation(c->b, c->scope_map));
+//    return 1;
+//}
 
 interpreter build_lua(bag b, table scopes)
 {
@@ -190,9 +204,7 @@ interpreter build_lua(bag b, table scopes)
     define(c, "sboolean", construct_boolean);
     define(c, "sstring_boolean", construct_string);
     define(c, "value_to_string", lua_print_value);
-    define(c, "build_node", lua_print_value);
-
-    register_exec(c);
+    define(c, "build_node", lua_build_node);
     require_luajit(c, "compiler");
 
     return c;

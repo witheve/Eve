@@ -60,7 +60,6 @@ void bbprintf(string b, string fmt, ...);
 
 typedef closure(execf, operator, value *);
 typedef closure(insertron, bag);
-typedef closre(builder, execf);
 
 #define def(__s, __v, __i)  table_set(__s, intern_string((unsigned char *)__v, cstring_length((char *)__v)), __i);
 
@@ -79,27 +78,30 @@ static inline estring intern_buffer(buffer b)
     return intern_string(bref(b,0), buffer_length(b));
 }
 
-typedef struct evaluation  {
-    heap h;
-    bag b;
-    table scope_map;
-    vector listeners; // should probably be a vector of vectors to cut down on resizes
-    execf head;
-    int registerfile;
-} *evaluation;
 
-void execute(evaluation e);
 
 void print_value(buffer, value);
 
 void prf(char *, ...);
 
-typedef table bagset;
+typedef table multibag;
 
+void multibag_insert(multibag m, uuid b, value e, value a, value v);
 
-typedef node {
-    vector arms; // the first slot is the defualt continuation
-    vector arguments;
-    string format;
+typedef struct evaluation  {
+    heap h;
+    bag b;
+    vector listeners; // should probably be a vector of vectors to cut down on resizes
+    execf head;
+    int registerfile;
+    multibag mb;
+} *evaluation;
+
+void execute(evaluation e);
+
+typedef struct node {
     string type;
+    // i mean really all this could just be a vector?
+    vector arms;
+    vector arguments;
 } *node;
