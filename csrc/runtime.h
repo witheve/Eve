@@ -11,6 +11,7 @@ typedef enum {
 } operator;
     
 
+
 iu64 key_of(value);
 boolean equals(value, value);
 #include <number.h>
@@ -95,3 +96,10 @@ void prf(char *, ...);
 
 typedef table bagset;
 
+
+typedef node {
+    vector arms; // the first slot is the defualt continuation
+    vector arguments;
+    string format;
+    string type;
+} *node;

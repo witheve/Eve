@@ -91,7 +91,7 @@ static inline boolean match(char *x, char *key)
     return (x[0] == key[0]) && (x[1] == key[1]) && (x[2] == key[2]);
 }
 
-static int build_scan(lua_State *L)
+static execf build_scan(node n)
 {
     evaluation ex = (void *)lua_topointer(L, 1);
     execf next = (void *)lua_topointer(L, 2);
@@ -156,11 +156,11 @@ static void do_insert(evaluation ex, execf n, value scope, value e, value a, val
     apply(n, op, r);
 }
 
-static int build_insert(lua_State *L)
+static execf build_insert(node n)
 {
     evaluation e = (void *)lua_topointer(L, 1);
     
-    execf r = cont(e->h, do_insert,
+    return cont(e->h, do_insert,
                    e,
                    lua_tovalue(L, 2),
                    lua_tovalue(L, 3),
@@ -168,8 +168,7 @@ static int build_insert(lua_State *L)
                    lua_tovalue(L, 5),
                    lua_tovalue(L, 6));
 
-    lua_pushlightuserdata(L, r);
-    return 1;
+
 }
 
 
@@ -186,7 +185,7 @@ static void do_plus(evaluation ex, execf n, int dest, value a, value b, operator
     }
 }
 
-static int build_plus(lua_State *L)
+static int build_plus(node n)
 {
     evaluation e = (void *)lua_topointer(L, 1);
     execf n = cont(e->h,
@@ -209,7 +208,7 @@ static void do_genid(execf n, int dest, operator op, value *r)
     apply(n, op, r);
 }
     
-static int build_genid(lua_State *L)
+static int build_genid(node n)
 {
     evaluation e = (void *)lua_topointer(L, 1);
     execf n = cont(e->h, do_genid,
@@ -227,13 +226,12 @@ static void do_fork(execf a, execf b, operator op, value *r)
     apply(b, op, r);
 }
 
-static int build_fork(lua_State *L)
+static execf build_fork(node n)
 {
     evaluation c = (void *)lua_topointer(L, 1);
-    lua_pushlightuserdata(L, cont(c->h, do_fork,
-                                  (void *)lua_topointer(L, 2),
-                                  (void *)lua_topointer(L, 3)));
-    return 1;
+    return cont(c->h, do_fork,
+                (void *)lua_topointer(L, 2),
+                (void *)lua_topointer(L, 3));
 }
 
 static CONTINUATION_4_2(do_trace, bag, execf, estring, table, operator, value *) ;
