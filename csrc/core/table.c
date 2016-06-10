@@ -27,9 +27,9 @@ static inline key position(table t, key x)
 void *table_find (table t, void *c)
 {
     key k = t->key_function(c);
-    
-    for (entry i = vector_ref(t->entries, position(t, k)); 
-         i; i = i->next) 
+
+    for (entry i = vector_get(t->entries, position(t, k));
+         i; i = i->next)
         if ((i->k == k) && t->equals_function(i->c, c))
             return(i->v);
 
@@ -41,7 +41,7 @@ static void resize_table(table t, int buckets)
 {
     vector old_entries = t->entries;
     key km;
-    
+
     t->buckets = buckets;
     allocate_buckets(t);
 
@@ -51,7 +51,7 @@ static void resize_table(table t, int buckets)
         while(j) {
             entry n = j->next;
             km = j->k % t->buckets;
-            j->next = vector_ref(t->entries, km);
+            j->next = vector_get(t->entries, km);
             vector_set(t->entries, km, j);
             j = n;
         }

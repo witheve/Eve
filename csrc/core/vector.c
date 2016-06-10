@@ -40,14 +40,6 @@ static void vector_elements(vector v, u32 i)
     *i = vector_length(v);
 }
 
-static inline void *vector_get(vector v, void *i)
-{
-    /* generalize extraction - this needs to filter out keys with the wrong type!
-     */
-    u32 u = i;
-    return(vector_ref(v, *u));
-}
-
 void vector_insert(vector t, void *n)
 {
     buffer_append(t, &n, sizeof(void *)); 
@@ -58,7 +50,7 @@ vector allocate_vector(heap h, int elements)
     return(allocate_buffer(h, elements*sizeof(void *)));
 }
 
-void *vector_ref(vector v, int element)
+void *vector_get(vector v, int element)
 {
     if (element >= vector_length(v)) return(false);
     return(*(void **)bref(v, element*sizeof(void *)));

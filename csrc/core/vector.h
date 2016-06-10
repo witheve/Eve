@@ -24,18 +24,18 @@ vector build_vector_internal(heap, ...);
 //bootstrap
 void vector_insert(vector, void *);
 iu32 vector_length(vector);
-// why isn't this vector_get?
-void *vector_ref(vector v, int element);
+
+void *vector_get(vector v, int element);
 void vector_set(vector v, int element, void *x);
 #define vector_foreach(__s, __i)\
-    for (void * __i, *__j = (void *)0; __i = vector_ref(__s, (unsigned long)__j), (unsigned long)__j < vector_length(__s); __j = (void *)((unsigned long)__j + 1))
+    for (void * __i, *__j = (void *)0; __i = vector_get(__s, (unsigned long)__j), (unsigned long)__j < vector_length(__s); __j = (void *)((unsigned long)__j + 1))
 
 
 static inline void *vector_peek(vector t)
 {
     int len = vector_length(t);
     if (len) {
-        return(vector_ref(t, len - 1));
+        return(vector_get(t, len - 1));
     }
     return(EMPTY);
 }
@@ -44,7 +44,7 @@ static inline void *vector_pop(vector t)
 {
     int len = vector_length(t);
     if (len) {
-        void *v = vector_ref(t, len -1);
+        void *v = vector_get(t, len -1);
         t->end -= sizeof(void *);
         return(v);
     }
