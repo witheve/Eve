@@ -206,11 +206,11 @@ local keywords = {
   given = "GIVEN",
   per = "PER",
   ["="] = "EQUALITY",
-  [">"] = "EQUALITY",
-  ["<"] = "EQUALITY",
-  [">="] = "EQUALITY",
-  [">="] = "EQUALITY",
-  ["!="] = "EQUALITY",
+  [">"] = "INEQUALITY",
+  ["<"] = "INEQUALITY",
+  [">="] = "INEQUALITY",
+  [">="] = "INEQUALITY",
+  ["!="] = "INEQUALITY",
   ["+"] = "INFIX",
   ["-"] = "INFIX",
   ["*"] = "INFIX",
@@ -470,7 +470,7 @@ end
 -- Parse
 ------------------------------------------------------------
 
-local infixTypes = {equality = true, infix = true, attribute = true, mutate = true}
+local infixTypes = {equality = true, infix = true, attribute = true, mutate = true, inequality = true}
 local singletonTypes = {outputs = true}
 local endableTypes = {choose = true, union = true, ["not"] = true, update = true}
 local alphaFields = {"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o"}
@@ -670,7 +670,7 @@ local function parse(tokens)
     elseif type == "INFIX" then
       -- get the previous child
       local prev = stackTop.children[#stackTop.children]
-      if prev and (prev.type == "equality" or prev.type == "mutate") then
+      if prev and (prev.type == "equality" or prev.type == "mutate" or type == "inequality") then
         stackTop.children[#stackTop.children] = nil
         local right = prev.children[2]
         -- remove the right hand side of the equality and put it back on the
@@ -689,14 +689,15 @@ local function parse(tokens)
         -- error
       end
 
-    elseif type == "EQUALITY" or type == "ALIAS" then
+    elseif type == "EQUALITY" or type == "ALIAS" or type == "INEQUALITY" then
       -- get the previous child
       local prev = stackTop.children[#stackTop.children]
       if not prev then
         -- error
       else
+        local nodeType = type == "INEQUALITY" and "inequality" or "equality"
         stackTop.children[#stackTop.children] = nil
-        stack:push({type = "equality", children = {prev}})
+        stack:push({type = nodeType, children = {prev}})
       end
 
     elseif type == "OPEN_PAREN" then
