@@ -42,11 +42,11 @@ typedef closure(two_listener, value, value, eboolean);
 typedef closure(one_listener, value, eboolean);
 typedef closure(zero_listener, eboolean);
 
-table full_scan(bag b, three_listener f);
-table ea_scan(bag b, value, value, one_listener f);
-table av_scan(bag b, value, value, one_listener f);
-table eav_scan(bag b, value e, value a, value v, zero_listener f);
-table e_scan(bag b, value e,  two_listener f);
+void full_scan(bag b, three_listener f);
+void ea_scan(bag b, value, value, one_listener f);
+void av_scan(bag b, value, value, one_listener f);
+void eav_scan(bag b, value e, value a, value v, zero_listener f);
+void e_scan(bag b, value e,  two_listener f);
 
 void uuid_base_print(char *, void *);
 string aprintf(heap h, char *fmt, ...);

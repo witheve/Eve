@@ -55,35 +55,35 @@ static CONTINUATION_5_2(do_full_scan, evaluation, execf, int, int, int, operator
 static void do_full_scan(evaluation ex, execf n, int e, int a, int v, operator op, value *r)
 {
     void *listen = cont(ex->h, scan_listener_3, n, op, r, e, a, v);
-    table reg = full_scan(ex->b, listen);
+    full_scan(ex->b, listen);
 }
 
 static CONTINUATION_5_2(do_ea_scan, evaluation, execf, value, value, int, operator, value *);
 static void do_ea_scan(evaluation ex, execf n, value e, value a, int v, operator op, value *r)
 {
     void *listen = cont(ex->h, scan_listener_1, n, op, r, v);
-    table reg = ea_scan(ex->b, lookup(e, r), lookup(a, r), listen);
+    ea_scan(ex->b, lookup(e, r), lookup(a, r), listen);
 }
 
 static CONTINUATION_5_2(do_e_scan, evaluation, execf, value, int, int, operator, value *);
 static void do_e_scan(evaluation ex, execf n, value e, int a, int v, operator op, value *r)
 {
     void *listen = cont(ex->h,scan_listener_2, n, op, r, a, v);
-    table reg = e_scan(ex->b, lookup(e, r), listen);
+    e_scan(ex->b, lookup(e, r), listen);
 }
 
 static CONTINUATION_5_2(do_av_scan, evaluation, execf, int, value, value, operator, value *);
 static void do_av_scan(evaluation ex, execf n, int e, value a, value v, operator op, value *r)
 {
     void *listen = cont(ex->h, scan_listener_1, n, op, r, e);
-    table reg = av_scan(ex->b, lookup(a, r), lookup(v, r), listen);
+    av_scan(ex->b, lookup(a, r), lookup(v, r), listen);
 }
 
 static CONTINUATION_5_2(do_eav_scan, evaluation, execf, value, value, value, operator, value *);
 static void do_eav_scan(evaluation ex, execf n, value e, value a, value v, operator op, value *r)
 {
     void *listen = cont(ex->h, scan_listener_0, n, r, op);
-    table reg = eav_scan(ex->b, lookup(e, r), lookup(a,r), lookup(v,r), listen);
+    eav_scan(ex->b, lookup(e, r), lookup(a,r), lookup(v,r), listen);
 }
 
 static inline boolean match(char *x, char *key)
