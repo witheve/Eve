@@ -125,6 +125,7 @@ end
 function DependencyGraph:addMutateNode(node)
    local produces = Set:new()
    local depends = Set:new()
+   local weakDepends = Set:new()
    for _, binding in std.ipairs(node.bindings or nothing) do
       -- If the entity term isn't bound, the mutation produces it
       -- @FIXME: This is (incorrectly) insertion-order dependent, since any intended dependents of this entity
@@ -134,12 +135,12 @@ function DependencyGraph:addMutateNode(node)
       end
 
       -- If the binding is bound on a variable that is produced in the query, it becomes a dependency of the query.
-      if binding.variable and self.terms[binding.variable] then
-         depends:add(binding.variable)
+      if binding.variable then
+         weakDepends:add(binding.variable)
       end
    end
 
-   return self:add(node, depends, produces)
+   return self:add(node, depends, produces, weakDepends)
 end
 
 function DependencyGraph:addExpressionNode(node)
@@ -236,10 +237,18 @@ function DependencyGraph:fromQueryGraph(query, terms, bound)
 
    return dgraph
 end
-
-function DependencyGraph:add(node, depends, produces)
+-- depends are the set of terms that must be produced prior to scheduling this node
+-- produces are the set of terms produced after this node has been scheduled
+-- weakDepends are the set of terms that, IFF produced in this query, become dependencies of this node
+-- strongDepends are the set of terms that must be completely settled (cardinality-stable) prior to scheduling this node
+function DependencyGraph:add(node, depends, produces, weakDepends, strongDepends)
    depends = depends or node.depends or Set:new()
+   node.depends = depends
    produces = produces or node.produces or Set:new()
+   node.produces = produces
+   node.weakDepends = weakDepends
+   node.strongDepends = strongDepends
+
    self.terms:union(produces, true)
 
    if getmetatable(node) == nil then
@@ -255,18 +264,52 @@ function DependencyGraph:add(node, depends, produces)
          setmetatable(term, DefaultNodeMeta)
       end
    end
+   for term in std.pairs(weakDepends or {}) do
+      if getmetatable(term) == nil then
+         setmetatable(term, DefaultNodeMeta)
+      end
+   end
+   for term in std.pairs(strongDepends or {}) do
+      if getmetatable(term) == nil then
+         setmetatable(term, DefaultNodeMeta)
+      end
+   end
+
+   -- Link new weak dependencies to existing terms
+   if weakDepends then
+      for term in std.pairs(weakDepends) do
+         if self.terms[term] then
+            depends:add(term)
+         end
+      end
+   end
+
+   -- Link existing weak dependencies to new terms
+   for term in std.pairs(produces) do
+      if self.dependents[term] == nil then
+         self.dependents[term] = Set:new()
+         for other in std.pairs(self.unsorted) do
+            if other.weakDepends then
+            end
+            if other.weakDepends and other.weakDepends[term] then
+               other.depends = other.depends or Set:new()
+               other.depends:add(term)
+               self.dependents[term]:add(other)
+               self.unsatisfied[other] = self.unsatisfied[other] + 1
+            end
+         end
+      end
+   end
 
    self.unsorted:add(node)
    self.unsatisfied[node] = 0
-   node.produces = produces
    if depends then
-      local requires = depends
       if produces then
-         requires = depends / produces
+         depends:difference(produces, true)
       end
-      node.requires = requires
+
       -- Register this node as a dependent on all the terms it requires but cannot produce
-      for term in std.pairs(requires) do
+      for term in std.pairs(depends) do
          if not self.bound[term] then
             if self.dependents[term] then
                self.dependents[term]:add(node)
@@ -335,11 +378,11 @@ end
 function DependencyGraph.__tostring(obj)
    local result = "DependencyGraph{\n"
    for ix, node in std.ipairs(obj.sorted) do
-      result = result .. "  " .. ix .. ": " .. tostring(node.requires) .. " -> " .. tostring(node.produces) .. "\n"
+      result = result .. "  " .. ix .. ": " .. tostring(node.depends) .. " -> " .. tostring(node.produces) .. "\n"
       result = result .. "    " .. util.indentString(1, tostring(node)) .. "\n"
    end
    for node in std.pairs(obj.unsorted) do
-      result = result .. "  ?: " .. tostring(node.requires) .. " -> " .. tostring(node.produces) .. "\n"
+      result = result .. "  ?: " .. tostring(node.depends) .. " -> " .. tostring(node.produces) .. "\n"
       result = result .. "   ? " .. util.indentString(1, tostring(node)) .. "\n"
    end
    return result .. "}"
@@ -419,7 +462,7 @@ function SubprojectNode.__tostring(obj)
    local result = "SubprojectNode " .. tostring(obj.projection) .. " -> " .. tostring(obj.produces) .. " {\n"
 
    for _, node in std.pairs(obj.nodes) do
-      result = result .. "  " .. tostring(node.requires) .. " -> " .. tostring(node.produces) .. "\n"
+      result = result .. "  " .. tostring(node.depends) .. " -> " .. tostring(node.produces) .. "\n"
       result = result .. "    " .. tostring(node) .. "\n"
    end
 
