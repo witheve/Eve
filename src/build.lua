@@ -116,11 +116,13 @@ function bound_lookup(bindings, x)
    return x
 end
 
-function translate_subProject(n, bound, down)
+function translate_subproject(n, bound, down)
    local p = n.projection
-   local t = n.produces
-   env, c2 = walk(ex, n.produces, nil, c, env, nk)    
-   return env, build_node("scan", {c}, {ef(env, e), af(env, a), vf(env, v)})
+   local t = n.nodes
+   local prod = n.produces
+   print ("subproject", p, t, prod, flat_print_table(n))
+   env, c2 = walk(n.produces, nil, c, env, nk)    
+   return env, build_node("sub", {c, c2}, {}, {})
    
 end
 
@@ -150,7 +152,7 @@ function translate_object(n, bound, down)
    end
 
    local env, c = down(bound)
-   return env, build_node("scan", {c}, {ef(env, e), af(env, a), vf(env, v)})
+   return env, build_node("scan", {c}, {ef(env, e), af(env, a), vf(env, v)}, {})
  end
 
 
@@ -162,7 +164,7 @@ function translate_mutate(n, bound, down)
    local gen = (variable(e) and not bound[e])
    if (gen) then bound[e] = true end
    local env, c = down(bound)
-   local c = build_node("insert", {c}, {n.scope, ef(env, e), af(env, a), vf(env, v)})
+   local c = build_node("insert", {c}, {n.scope, ef(env, e), af(env, a), vf(env, v)}, {})
    if gen then
       c = generate_uuid(ex, c, write_lookup(env, e))
    end
@@ -189,12 +191,12 @@ function translate_union(n, bound, down)
    
    for _, v in pairs(n.queries) do
       local c2
-      env, c2 = walk(ex, v.unpacked, nil, shallowcopy(bound), c, env, nk)
+      env, c2 = walk(v.unpacked, nil, shallowcopy(bound), c, env, nk)
       arms[#arms+1] = c2 
    end
    env.permanent = orig_perm
    -- currently leaking the perms
-   return env, build_node("fork", arms, {})
+   return env, build_node("fork", arms, {}, {})
 end
 
 -- this doesn't really need to be disjoint from read lookup, except for concerns about
@@ -221,40 +223,47 @@ function trace(ex, n, bound, down)
     if (n.type == "mutate") or (n.type == "object") then
 
        return env, build_node("trace", {c},
-              {"entity", trace_lookup(env, n.entity),
-              "attribute", trace_lookup(env, n.attribute),
-             "value", trace_lookup(env, n.value)})
+                              {"entity", trace_lookup(env, n.entity),
+                               "attribute", trace_lookup(env, n.attribute),
+                               "value", trace_lookup(env, n.value)},
+                             {})
     end
     return env, c
 end
 
-function walk(ex, graph, key, bound, tail, tail_env, tracing)
+function walk(graph, key, bound, tail, tail_env, tracing)
    local d
    nk = next(graph, key)
    if not nk then
       return tail_env, tail
    end
-   
+
    local n = graph[nk]
 
+   print("walk: ", n.type) 
+
    down = function (bound)
-                return walk(ex, graph, nk, bound, tail, tail_env, tracing)
+                return walk(graph, nk, bound, tail, tail_env, tracing)
            end
            
    if tracing then
       d = function (bound)
-                  return trace(ex, n, bound, down)
+                  return trace(n, bound, down)
           end
    else d = down end       
 
+
    if (n.type == "union") then
-      return translate_union(ex, n, bound, d)
+      return translate_union(n, bound, d)
    end
    if (n.type == "mutate") then
-      return translate_mutate(ex, n, bound, d)
+      return translate_mutate(n, bound, d)
    end
    if (n.type == "object") then
-      return translate_object(ex, n, bound, d)
+      return translate_object(n, bound, d)
+   end
+   if (n.type == "subproject") then
+      return translate_subproject(n, bound, d)
    end
 
    print ("ok, so we kind of suck right now and only handle some fixed patterns",
@@ -268,9 +277,8 @@ end
 function build(graphs, tracing)
    local head
    local regs = 0
-   ex = new_evaluation()
    for _, g in pairs(graphs) do
-      env, program = walk(ex, g, nil, {}, ignore(), empty_env(), tracing)
+      local env, program = walk(g, nil, {}, build_node("terminal", {}, {}), empty_env(), tracing)
       regs = math.max(regs, env.maxregs + 1)
       if head then
          head = build_fork(ex, head, program)

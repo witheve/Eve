@@ -15,7 +15,7 @@ void format_number(string s, iu64 x, int base, int pad)
 // should entertain a registration method with a type and a character and a function pointer
 // or maybe just float this up to runtime
 extern void print_value();
-extern void print_value_vector(buffer out, vector vec);
+extern void print_value_vector();
 
 void vbprintf(string s, string fmt, va_list ap)
 {
