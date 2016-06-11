@@ -99,12 +99,12 @@ static inline boolean match(char *x, char *key)
 
 static execf build_scan(evaluation ex, node n)
 {
-    execf next = vector_ref(n->arms, 0);
-    char *description =  vector_ref(n->arguments, 0);
+    execf next = vector_get(n->arms, 0);
+    char *description =  vector_get(n->arguments, 0);
     execf r = 0;
-    value e = vector_ref(n->arguments, 1);
-    value a = vector_ref(n->arguments, 2);
-    value v = vector_ref(n->arguments, 3);
+    value e = vector_get(n->arguments, 1);
+    value a = vector_get(n->arguments, 2);
+    value v = vector_get(n->arguments, 3);
 
     // can pass vec here
     if (match(description, "eav")) 
@@ -140,11 +140,11 @@ static void do_insert(evaluation ex, execf n, uuid u, value e, value a, value v,
 static execf build_insert(evaluation e, node n)
 {
     return cont(e->h, do_insert,  e,
-                vector_ref(n->arms, 0),
-                vector_ref(n->arguments, 0),
-                vector_ref(n->arguments, 1),
-                vector_ref(n->arguments, 2),
-                vector_ref(n->arguments, 3));
+                vector_get(n->arms, 0),
+                vector_get(n->arguments, 0),
+                vector_get(n->arguments, 1),
+                vector_get(n->arguments, 2),
+                vector_get(n->arguments, 3));
 }
 
 
@@ -166,10 +166,10 @@ static execf build_plus(evaluation e, node n)
     return cont(e->h,
                 do_plus,
                 e,
-                vector_ref(n->arms, 0),
-                vector_ref(n->arguments, 0),
-                vector_ref(n->arguments, 1),
-                vector_ref(n->arguments, 2));
+                vector_get(n->arms, 0),
+                vector_get(n->arguments, 0),
+                vector_get(n->arguments, 1),
+                vector_get(n->arguments, 2));
 }
 
     
@@ -183,8 +183,8 @@ static void do_genid(execf n, value dest, operator op, value *r)
 static execf build_genid(evaluation e, node n)
 {
     return cont(e->h, do_genid,
-                vector_ref(n->arms, 0),
-                vector_ref(n->arguments, 1));
+                vector_get(n->arms, 0),
+                vector_get(n->arguments, 1));
 }
 
 static CONTINUATION_2_2(do_fork, execf, execf, operator, value *) ;
@@ -198,20 +198,19 @@ static execf build_fork(evaluation e, node n)
 {
     // should handle all the arms
     return cont(e->h, do_fork,
-                vector_ref(n->arms, 0),
-                vector_ref(n->arms, 1));
+                vector_get(n->arms, 0),
+                vector_get(n->arms, 1));
 }
 
 static CONTINUATION_2_2(do_trace, execf, vector, operator, value *);
 static void do_trace(execf n, vector terms, operator op, value *r)
 {
     // term 1 is 
-    string_intermediate si = vector_ref(terms, 0);
+    string_intermediate si = vector_get(terms, 0);
     write(1, si->body, si->length);
-    
-    //    foreach_table(regmap, k, v) {
-    //        prf(" %b %v", k, lookup(v, r));
-    //    }
+            //    table_foreach(regmap, k, v) {
+            //        prf(" %b %v", k, lookup(v, r));
+            //    }
     write(1, "\n", 1);
     apply(n, op, r);
 }
@@ -222,7 +221,7 @@ static execf build_trace(evaluation ex, node n)
     
     return cont(ex->h, 
                 do_trace,
-                vector_ref(n->arms, 0),
+                vector_get(n->arms, 0),
                 n->arguments);
 }
 

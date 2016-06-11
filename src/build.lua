@@ -116,8 +116,15 @@ function bound_lookup(bindings, x)
    return x
 end
 
+function translate_subProject(n, bound, down)
+   local p = n.projection
+   local t = n.produces
+   env, c2 = walk(ex, n.produces, nil, c, env, nk)    
+   return env, build_node("scan", {c}, {ef(env, e), af(env, a), vf(env, v)})
+   
+end
 
-function translate_object(ex, n, bound, down)
+function translate_object(n, bound, down)
    local e = n.entity
    local a = n.attribute
    local v = n.value
@@ -143,12 +150,11 @@ function translate_object(ex, n, bound, down)
    end
 
    local env, c = down(bound)
-   c = scan(ex,c, sig, ef(env, e), af(env, a), vf(env, v))
-   return env, c
+   return env, build_node("scan", {c}, {ef(env, e), af(env, a), vf(env, v)})
  end
 
 
-function translate_mutate(ex, n, bound, down)
+function translate_mutate(n, bound, down)
    local e = n.entity
    local a = n.attribute
    local v = n.value
@@ -156,17 +162,19 @@ function translate_mutate(ex, n, bound, down)
    local gen = (variable(e) and not bound[e])
    if (gen) then bound[e] = true end
    local env, c = down(bound)
-   local c  = build_insert(ex, c, n.scope, read_lookup(env, e), read_lookup(env, a), read_lookup(env, v));    
+   local c = build_node("insert", {c}, {n.scope, ef(env, e), af(env, a), vf(env, v)})
    if gen then
       c = generate_uuid(ex, c, write_lookup(env, e))
    end
    return env, c
 end
 
-function translate_union(ex, n, bound, down)
+function translate_union(n, bound, down)
    local heads
    local c2
+   local arms = {}
    tail_bound = shallowcopy(bound)
+   
    
    for _, v in pairs(n.outputs) do
       tail_bound[v] = true
@@ -180,19 +188,13 @@ function translate_union(ex, n, bound, down)
    end
    
    for _, v in pairs(n.queries) do
-      local c3
-      local b2 = shallowcopy(bound)
-
-      env, c3 = walk(ex, v.unpacked, nil, b2, c, env, nk)
-      if c2 then
-          c2 = build_fork(ex, c2, c3)
-      else
-          c2 = c3
-      end
+      local c2
+      env, c2 = walk(ex, v.unpacked, nil, shallowcopy(bound), c, env, nk)
+      arms[#arms+1] = c2 
    end
    env.permanent = orig_perm
    -- currently leaking the perms
-   return env, c2
+   return env, build_node("fork", arms, {})
 end
 
 -- this doesn't really need to be disjoint from read lookup, except for concerns about
@@ -217,10 +219,11 @@ function trace(ex, n, bound, down)
 --       map[n.name] = env.registers[n]
 --    end
     if (n.type == "mutate") or (n.type == "object") then
-       map["entity"] =  trace_lookup(env, n.entity)
-       map["attribute"] =  trace_lookup(env, n.attribute)
-       map["value"] =  trace_lookup(env, n.value)
-       return env, build_trace(ex, c, n.type, map)
+
+       return env, build_node("trace", {c},
+              {"entity", trace_lookup(env, n.entity),
+              "attribute", trace_lookup(env, n.attribute),
+             "value", trace_lookup(env, n.value)})
     end
     return env, c
 end

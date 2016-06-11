@@ -3,6 +3,7 @@ typedef void *value;
 #include <core/core.h>
 #include <types.h>
 
+
 typedef enum {
     op_insert = 1,
     op_remove,
@@ -11,9 +12,9 @@ typedef enum {
 } operator;
     
 
-
 iu64 key_of(value);
 boolean equals(value, value);
+
 #include <number.h>
 #include <estring.h>
 
@@ -21,11 +22,16 @@ typedef value eboolean;
 extern eboolean etrue;
 extern eboolean efalse;
 
-
 void print(buffer, value);
+
 static inline table create_value_table(heap h)
 {
-    return  allocate_table(h, key_of, equals);
+    return  allocate_table(h, value_as_key, value_equals);
+}
+
+static inline table create_value_vector_table(heap h)
+{
+    return  allocate_table(h, value_vector_as_key, value_vector_equals);
 }
 
 

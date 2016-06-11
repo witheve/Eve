@@ -20,9 +20,9 @@ table level_fetch(heap h, table current, value key) {
 
 void full_scan(bag b, three_listener f)
 {
-    foreach_table(b->eav, e, al) {
-        foreach_table(((table)al), a, vl) {
-            foreach_table(((table)vl), v, _) {
+    table_foreach(b->eav, e, al) {
+        table_foreach(((table)al), a, vl) {
+            table_foreach(((table)vl), v, _) {
                 apply(f, e, a, v, etrue);
             }
         }
@@ -48,7 +48,7 @@ void ea_scan(bag b, value e, value a, one_listener f)
     if(al) {
         table vl = table_find(al, a);
         if(vl) {
-            foreach_table(vl, v, _) {
+            table_foreach(vl, v, _) {
                 apply(f, v, etrue);
             }
         }
@@ -59,8 +59,8 @@ void e_scan(bag b, value e, two_listener f)
 {
     table al = table_find(b->eav, e);
     if(al) {
-        foreach_table(al, a, vl) {
-            foreach_table(((table)vl), v, _) {
+        table_foreach(al, a, vl) {
+            table_foreach(((table)vl), v, _) {
                 apply(f, a, v, etrue);
             }
         }
@@ -73,7 +73,7 @@ void av_scan(bag b, value a, value v, one_listener f)
     if(al) {
         table vl = table_find(al, v);
         if(vl) {
-            foreach_table(vl, e, _) {
+            table_foreach(vl, e, _) {
                 apply(f, e, etrue);
             }
         }
@@ -138,21 +138,22 @@ void multibag_insert(multibag m, uuid u, value e, value a, value v)
 string bag_dump(heap h, bag b)
 {
     buffer out = allocate_string(h);
-    foreach_table(b->eav, e, avl) {
+    table_foreach(b->eav, e, avl) {
         int start = buffer_length(out);
         bprintf(out, "%v ", e);
         int ind = buffer_length(out)-start;
         
-        foreach_table(((table)avl), a, vl) {
+        table_foreach(((table)avl), a, vl) {
             int start = buffer_length(out);
             bprintf(out, "%S%v ", ind, a);
             int ind2 = ind+buffer_length(out)-start;
-            foreach_table(((table)vl), v, _) 
+            table_foreach(((table)vl), v, _) 
                 bprintf(out, "%S%v\n", ind2, v);
         }
     }
     return out;
 }
+
 
 void edb_remove(bag b, value e, value a, value v)
 {
