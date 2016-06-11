@@ -56,6 +56,16 @@ end
 if ... == nil then
 end
 
+function indentString(indent, str)
+   local sep = "\n" .. string.rep("  ", indent)
+   local result = ""
+   for line in string.gmatch(str, "[^\n]+") do
+      result = result .. (#result > 0 and sep or "") .. line
+   end
+
+   return result
+end
+
 function shallowCopy(obj)
    if type(obj) ~= "table" then return obj end
    local meta = getmetatable(obj)
