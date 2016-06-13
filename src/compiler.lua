@@ -87,6 +87,7 @@ function DependencyGraph:new(obj)
    obj.dependents = obj.dependents or {} -- Set of terms required per node
    obj.bound = obj.bound or Set:new() -- Set of terms bound by the currently ordered set of nodes
    obj.terms = obj.terms or Set:new() -- Set of all terms provided by any node in the graph
+   obj.termGroups = obj.termGroups or Set:new() -- Set of sets of terms that are in some way joined
 
    setmetatable(obj, self)
    self.__index = self
@@ -241,6 +242,7 @@ end
 -- produces are the set of terms produced after this node has been scheduled
 -- weakDepends are the set of terms that, IFF produced in this query, become dependencies of this node
 -- strongDepends are the set of terms that must be completely settled (cardinality-stable) prior to scheduling this node
+-- @NOTE: that, in order to permit stable scheduling, weak and strong depends will not be treated as joining term groups
 function DependencyGraph:add(node, depends, produces, weakDepends, strongDepends)
    depends = depends or node.depends or Set:new()
    node.depends = depends
@@ -273,6 +275,39 @@ function DependencyGraph:add(node, depends, produces, weakDepends, strongDepends
       if getmetatable(term) == nil then
          setmetatable(term, DefaultNodeMeta)
       end
+   end
+
+   -- group new/updated terms, consolidating any newly joined groups
+   local terms = Set:new()
+   if produces then terms:union(produces, true) end
+   if depends then terms:union(depends, true) end
+   local groups = Set:new()
+   local neueGroup = Set:new()
+   for term in std.pairs(terms) do
+      local grouped = false
+      for group in std.pairs(self.termGroups) do
+         if group[term] then
+            groups:add(group)
+            grouped = true
+         end
+      end
+      if not grouped then
+         neueGroup:add(term)
+         groups:add(neueGroup)
+      end
+   end
+   if groups:length() == 1 then
+      for group in std.pairs(groups) do
+         self.termGroups:add(group)
+      end
+   elseif groups:length() > 1 then
+      for group in std.pairs(groups) do
+         for term in std.pairs(group) do
+            neueGroup:add(term)
+         end
+         self.termGroups:remove(group)
+      end
+      self.termGroups:add(neueGroup)
    end
 
    -- Link new weak dependencies to existing terms
@@ -318,6 +353,14 @@ function DependencyGraph:add(node, depends, produces, weakDepends, strongDepends
             end
             self.unsatisfied[node] = self.unsatisfied[node] + 1
          end
+      end
+   end
+end
+
+function DependencyGraph:group(term) -- get the termGroup of the given term
+   for group in std.pairs(self.termGroups) do
+      if group[term] then
+         return group
       end
    end
 end
@@ -385,6 +428,7 @@ function DependencyGraph.__tostring(obj)
       result = result .. "  ?: " .. tostring(node.depends) .. " -> " .. tostring(node.produces) .. "\n"
       result = result .. "   ? " .. util.indentString(1, tostring(node)) .. "\n"
    end
+   result = result .. tostring(obj.termGroups) .. "\n"
    return result .. "}"
 end
 
