@@ -22,3 +22,8 @@ static inline iu64 si_hash(void *z)
     string_intermediate si = z;
     return shash(si->body, si->length);
 }
+
+static inline value intern_cstring(char *x)
+{
+    return intern_string((unsigned char *)x, cstring_length(x));
+}

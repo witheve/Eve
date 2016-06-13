@@ -121,7 +121,7 @@ static int traceback(lua_State *L)
   return 1;
 }
 
-evaluation lua_compile_eve(interpreter c, buffer b, boolean tracing)
+node lua_compile_eve(interpreter c, buffer b, boolean tracing)
 {
     lua_pushcfunction(c->L, traceback);
     lua_getglobal(c->L, "compiler");
@@ -135,7 +135,7 @@ evaluation lua_compile_eve(interpreter c, buffer b, boolean tracing)
     }
     void *z = (void *)lua_topointer(c->L, -1);
     lua_pop(c->L, 1);
-    return((evaluation)z);
+    return((node)z);
 }
 
 void lua_run_module_func(interpreter c, buffer b, char *module, char *func)
@@ -176,7 +176,7 @@ int lua_build_node(lua_State *L)
     node n = allocate(c->h, sizeof(struct node));
     n->arms = allocate_vector(c->h, 5);
     n->arguments = allocate_vector(c->h, 5);
-    n->type = lua_tovalue(L, 1); // a string which is a node type
+    n->builder = table_find(builders_table(), lua_tovalue(L, 1));
             
     foreach_lua_table(L, 2, k, v)
         vector_insert(n->arms, (void *)lua_topointer(L, v));

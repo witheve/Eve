@@ -6,6 +6,11 @@ static void exec_error(evaluation e, char *format, ...)
     prf ("error %s\n", format);
 }
 
+static inline execf resolve_cfg(evaluation e, node n)
+{
+    return (*(execf *)table_find(e->nmap, n));
+}
+
 static inline value lookup(value k, value *r)
 {
     if (type_of(k) == register_space)  {
@@ -99,7 +104,7 @@ static inline boolean match(char *x, char *key)
 
 static execf build_scan(evaluation ex, node n)
 {
-    execf next = vector_get(n->arms, 0);
+    execf next = resolve_cfg(vector_ref(n-.arms, 0));
     char *description =  vector_get(n->arguments, 0);
     execf r = 0;
     value e = vector_get(n->arguments, 1);
@@ -134,7 +139,7 @@ static CONTINUATION_6_2(do_insert, evaluation, execf, value, value, value, value
 static void do_insert(evaluation ex, execf n, uuid u, value e, value a, value v, operator op, value *r) 
 {
     multibag_insert(ex->mb, u, lookup(e, r), lookup(a, r), lookup(v, r));
-    apply(n, op, r);
+    apply(*n, op, r);
 }
 
 static execf build_insert(evaluation e, node n)
@@ -157,7 +162,7 @@ static void do_plus(evaluation ex, execf n, value dest, value a, value b, operat
         exec_error(ex, "attempt to add non-numbers", a, b);
     } else {
         r[reg(dest)] = box_float(*(double *)lookup( r, a) + *(double *)lookup( r, b));
-        apply(n, op, r);
+        apply(*n, op, r);
     }
 }
 
@@ -179,27 +184,25 @@ static void do_genid(execf n, value dest, operator op, value *r)
     r[reg(dest)] = generate_uuid();
     apply(n, op, r);
 }
-    
+
+
 static execf build_genid(evaluation e, node n)
 {
     return cont(e->h, do_genid,
-                vector_get(n->arms, 0),
+                resolve_cfg(vector_ref(n-.arms, 0)),
                 vector_get(n->arguments, 1));
 }
 
-static CONTINUATION_2_2(do_fork, execf, execf, operator, value *) ;
-static void do_fork(execf a, execf b, operator op, value *r)
+static CONTINUATION_2_2(do_fork, int, execf *, operator, value *) ;
+static void do_fork(int count, execf *b, operator op, value *r)
 {
-    apply(a, op, r);
-    apply(b, op, r);
+    for (int i =0; i<count ;i ++) apply(b[i], op, r);
 }
 
-static execf build_fork(evaluation e, node n)
+static execf build_fork(evaluation e, node n, execf *arms)
 {
-    // should handle all the arms
-    return cont(e->h, do_fork,
-                vector_get(n->arms, 0),
-                vector_get(n->arms, 1));
+    // count o arms?
+    return cont(e->h, do_fork, 2, arms);
 }
 
 static CONTINUATION_2_2(do_trace, execf, vector, operator, value *);
@@ -215,42 +218,64 @@ static void do_trace(execf n, vector terms, operator op, value *r)
     apply(n, op, r);
 }
 
-static execf build_trace(evaluation ex, node n)
+static execf build_trace(evaluation ex, node n, execf *arms)
 {
     table regnames = allocate_table(ex->h, string_hash, string_equal);
     
     return cont(ex->h, 
                 do_trace,
-                vector_get(n->arms, 0),
+                resolve_cfg(vector_ref(n-.arms, 0)),
                 n->arguments);
-}
-
-
-
-evaluation allocate_evaluation(bag b, table scopes)
-{
-    heap h = allocate_rolling(pages);
-    evaluation e = allocate(h, sizeof(struct evaluation));
-    e->h =h;
-    //    e->scope_map = scopes;
-    e->b =b;
-    return e;
 }
 
 void close_evaluation(evaluation ex)
 {
     // close
     apply(ex->head, 1, 0);
-    ex->h->destroy();
+    ex->h->destroy(ex->h);
 }
 
+static table builders;
 
-void execute(evaluation e)
+table builders_table()
 {
+    if (!builders) {
+        builders = allocate_table(init, key_from_pointer, compare_pointer);
+        table_set(builders, intern_cstring("plus"), build_plus);
+        table_set(builders, intern_cstring("insert"), build_insert);
+        table_set(builders, intern_cstring("scan"), build_scan);
+        table_set(builders, intern_cstring("fork"), build_scan);
+    }
+    return builders;
+}
+
+execf *build(evaluation e, table nmap, node n)
+{
+    execf *x;
+    if ((x = table_find(nmap, n))){
+        return x;
+    }
+    x = allocate(e->h, sizeof(execf *));
+    table_set(nmap, n, x);
+
+    int count;
+    execf **a = allocate(e->h, vector_length(n->arms) * sizeof(execf *));
+    vector_foreach(n->arms, i) 
+        a[count++] = build(e, nmap, i);
+    *x = n->builder(e, n, a);
+}
+
+void execute(node n)
+{
+    heap h = allocate_rolling(pages);
+    evaluation e = allocate(h, sizeof(struct evaluation));
+    e->h =h;
+    e->mb = allocate_table(h, key_from_pointer, compare_pointer);
+    table nmap = allocate_table(e->h, key_from_pointer, compare_pointer);
+    execf head = build(e, nmap, n);
     ticks start_time = rdtsc();
     value *r = allocate(init, sizeof(value) * e->registerfile);
-    memset(r, 0xaa, sizeof(value) * e->registerfile);
-    apply(e->head, 0, r);
+    apply(head, 0, r);
     ticks end_time = rdtsc();
     prf ("exec in %ld ticks\n", end_time-start_time);
 }

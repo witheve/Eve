@@ -31,7 +31,7 @@ estring intern_string(unsigned char* content, int length) {
     }
     return x;
 }
-    
+
 void init_string()
 {
     interned_string = allocate_table(init, si_hash, si_compare);

@@ -103,11 +103,18 @@ typedef struct evaluation  {
     multibag mb;
 } *evaluation;
 
-void execute(evaluation e);
 
-typedef struct node {
-    string type;
-    // i mean really all this could just be a vector?
+
+typedef struct node *node;
+
+typedef execf (*buildf)(evaluation, node, execf **);
+    
+struct node {
+    buildf builder;
     vector arms;
     vector arguments;
-} *node;
+};
+
+void execute(node n);
+
+table builders_table();

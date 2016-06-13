@@ -98,9 +98,9 @@ static evaluation start_guy(heap h, buffer b, buffer_handler output)
 
     // take this from the lua pool
     interpreter c = build_lua(my_awesome_bag, scopes);
-    evaluation e = lua_compile_eve(c, b, false);
+    node n = lua_compile_eve(c, b, false);
 
-    execute(e);
+    execute(n);
 
     return 0;
 }
