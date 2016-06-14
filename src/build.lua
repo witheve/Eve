@@ -33,10 +33,10 @@ function translate_value(x)
    if type(x) == "table" then
       local ct = x.constantType
       if ct == "string" then
-         return sstring(x)
+         return sstring(x.constant)
       end
       if ct == "number" then
-         return snumber(x)
+         return snumber(x.constant)
       end
       print ("i couldn't figure out this value", flat_print_table(x))
       return x
@@ -128,6 +128,14 @@ function bound_lookup(bindings, x)
    return x
 end
 
+function set_to_array(x)
+   local out = {}
+   for k, v in pairs(x) do
+      out[#out+1] = k
+   end
+   return out
+end
+
 function translate_subproject(n, bound, down, tracing)
    local p = n.projection
    local t = n.nodes
@@ -139,7 +147,8 @@ function translate_subproject(n, bound, down, tracing)
       return env, dc
    end
    env, c2 = walk(n.nodes, nil, bound, tail, tracing)   
-   return env, build_node("sub", {dc, c2}, n.projection, n.produces)
+   print("gah", flat_print_table(n.produces))
+   return env, build_node("sub", {dc, c2}, n.projection, set_to_array(n.produces))
 end
 
 function translate_object(n, bound, down, tracing)
@@ -244,6 +253,7 @@ function trace(n, bound, down, tracing)
 --    for n, v in pairs(entry) do
 --       map[n.name] = env.registers[n]
 --    end
+    print ("trace", n.type)
     if (n.type == "mutate") or (n.type == "object") then
 
        return env, build_node("trace", {c},
@@ -276,16 +286,16 @@ function walk(graph, key, bound, tail, tracing)
 
 
    if (n.type == "union") then
-      return translate_union(n, bound, d)
+      return translate_union(n, bound, d, tracing)
    end
    if (n.type == "mutate") then
-      return translate_mutate(n, bound, d)
+      return translate_mutate(n, bound, d, tracing)
    end
    if (n.type == "object") then
-      return translate_object(n, bound, d)
+      return translate_object(n, bound, d, tracing)
    end
    if (n.type == "subproject") then
-      return translate_subproject(n, bound, d)
+      return translate_subproject(n, bound, d, tracing)
    end
 
    print ("ok, so we kind of suck right now and only handle some fixed patterns",

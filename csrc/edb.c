@@ -142,13 +142,15 @@ string bag_dump(heap h, bag b)
         int start = buffer_length(out);
         bprintf(out, "%v ", e);
         int ind = buffer_length(out)-start;
+        int first =0;
         
         table_foreach(((table)avl), a, vl) {
+            int second = 0;
             int start = buffer_length(out);
-            bprintf(out, "%S%v ", ind, a);
-            int ind2 = ind+buffer_length(out)-start;
+            bprintf(out, "%S%v ", first++?ind:0, a);
+            int ind2 = buffer_length(out)-start-ind;
             table_foreach(((table)vl), v, _) 
-                bprintf(out, "%S%v\n", ind2, v);
+                bprintf(out, "%S%v\n", second++?ind2:0, v);
         }
     }
     return out;
