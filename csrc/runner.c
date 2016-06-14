@@ -20,6 +20,13 @@ static void inserty(table multibag, boolean *flag, uuid u, value e, value a, val
     edb_insert(b, e, a, v);
 }
 
+static CONTINUATION_1_5(merge_scan, table, int, void *, value, value, value);
+static void merge_scan(table t, int sig, void *listen, value e, value a, value v)
+{
+}
+
+
+
 // should extract the implications from a bag
 void start_fixedpoint() 
 {

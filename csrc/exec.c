@@ -108,7 +108,7 @@ static execf build_scan(evaluation ex, node n)
     value a = vector_get(n->arguments, 2);
     value v = vector_get(n->arguments, 3);
     int sig = 0;
-    for (int i=0; i< 3; i) 
+    for (int i=0; i< 3; i++) 
         sig <<= is_cap(description->body[i]);
     return(cont(ex->h, do_scan, ex, next, sig, e, a, v));
 }
