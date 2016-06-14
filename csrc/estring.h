@@ -1,25 +1,21 @@
-typedef value estring;
-estring intern_string(unsigned char *, int);
 
-
-// this intermediate is so we can compare things without copying up front, but its
-// kinda sad. the truth is we dont really need symmetry in the comparison
-typedef struct string_intermediate {
+typedef struct estring {
     unsigned int length;
     unsigned char *body;
-} *string_intermediate;
+} *estring;
 
+estring intern_string(unsigned char *, int);
 
 static inline boolean si_compare(void *a, void *b) 
 {
-    string_intermediate sia = a, sib = b;
+    estring sia = a, sib = b;
     if (sia->length != sib->length) return false;
     return !memcmp(sia->body, sib->body, sia->length);
 }
 
 static inline iu64 si_hash(void *z)
 {
-    string_intermediate si = z;
+    estring si = z;
     return shash(si->body, si->length);
 }
 
@@ -27,3 +23,9 @@ static inline value intern_cstring(char *x)
 {
     return intern_string((unsigned char *)x, cstring_length(x));
 }
+
+static inline estring intern_buffer(buffer b)
+{
+    return intern_string(bref(b,0), buffer_length(b));
+}
+

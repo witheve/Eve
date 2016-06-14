@@ -22,7 +22,7 @@ void standardout(string s);
 
 void register_read_handler(descriptor, thunk);
 void register_write_handler(descriptor, thunk);
-heap allocate_fence(heap);
+heap efence_heap(bytes);
 
 buffer read_file(heap, char *);
 

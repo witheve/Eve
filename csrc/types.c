@@ -21,7 +21,7 @@ void print_value(buffer b, value v)
         break;
     case estring_space:
         {
-            string_intermediate si = v;
+            estring si = v;
             buffer_append(b, "\"", 1);
             buffer_append(b, si->body, si->length);
             buffer_append(b, "\"", 1);
@@ -81,12 +81,7 @@ iu64 value_vector_as_key(void * v)
 {
   iu64 key = 0;
   vector_foreach(v, current) {
-    iu64 subkey = value_as_key((value) v);
-    if(key == 0) {
-      key = subkey;
-    } else {
-      key ^= subkey;
-    }
+     key ^= value_as_key(current);;
   }
   return key;
 }

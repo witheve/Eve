@@ -18,65 +18,77 @@ table level_fetch(heap h, table current, value key) {
     return next_level;
 }
 
-void full_scan(bag b, three_listener f)
-{
-    table_foreach(b->eav, e, al) {
-        table_foreach(((table)al), a, vl) {
-            table_foreach(((table)vl), v, _) {
-                apply(f, e, a, v, etrue);
-            }
-        }
-    }
-}
 
-void eav_scan(bag b, value e, value a, value v, zero_listener f)
+void edb_scan(bag b, int sig, void *f, value e, value a, value v)
 {
-    table al = table_find(b->eav, e);
-    if(al) {
-        table vl = table_find(al, a);
-        if(vl) {
-            if (table_elements(vl) > 0) {
-                apply(f, etrue);
+    // we can share further
+    switch (sig) {
+    case s_eav:
+        table_foreach(b->eav, e, al) {
+            table_foreach(((table)al), a, vl) {
+                table_foreach(((table)vl), v, _) {
+                    apply((three_listener)f, e, a, v, etrue);
+                }
             }
         }
-    }
-}
+        break;
 
-void ea_scan(bag b, value e, value a, one_listener f)
-{
-    table al = table_find(b->eav, e);
-    if(al) {
-        table vl = table_find(al, a);
-        if(vl) {
-            table_foreach(vl, v, _) {
-                apply(f, v, etrue);
+    case s_EAV:
+        {
+            table al = table_find(b->eav, e);
+            if(al) {
+                table vl = table_find(al, a);
+                if(vl) {
+                    if (table_elements(vl) > 0) {
+                        apply((zero_listener)f, etrue);
+                    }
+                }
             }
+            break;
         }
-    }
-}
 
-void e_scan(bag b, value e, two_listener f)
-{
-    table al = table_find(b->eav, e);
-    if(al) {
-        table_foreach(al, a, vl) {
-            table_foreach(((table)vl), v, _) {
-                apply(f, a, v, etrue);
+    case s_EAv:
+        {
+            table al = table_find(b->eav, e);
+            if(al) {
+                table vl = table_find(al, a);
+                if(vl) {
+                    table_foreach(vl, v, _) {
+                        apply((one_listener)f, v, etrue);
+                    }
+                }
             }
+            break;
         }
-    }
-}
 
-void av_scan(bag b, value a, value v, one_listener f)
-{
-    table al = table_find(b->ave, a);
-    if(al) {
-        table vl = table_find(al, v);
-        if(vl) {
-            table_foreach(vl, e, _) {
-                apply(f, e, etrue);
+    case s_Eav:
+        {
+            table al = table_find(b->eav, e);
+            if(al) {
+                table_foreach(al, a, vl) {
+                    table_foreach(((table)vl), v, _) {
+                        apply((two_listener)f, a, v, etrue);
+                    }
+                }
             }
+            break;
         }
+            
+    case s_eAV:
+        {
+            table al = table_find(b->ave, a);
+            if(al) {
+                table vl = table_find(al, v);
+                if(vl) {
+                    table_foreach(vl, e, _) {
+                        apply((one_listener)f, e, etrue);
+                    }
+                }
+            }
+            break;
+        }
+    default:
+        prf("unknown scan signature:%x\n", sig);
     }
 }
 
@@ -123,17 +135,6 @@ void edb_insert(bag b, value e, value a, value v)
     }
 }
 
-
-void multibag_insert(multibag m, uuid u, value e, value a, value v)
-{
-    bag b;
-    if (!(b = table_find(m, u))){
-        b = create_bag(m->h);
-        table_set(m, u, b);
-    }
-    edb_insert(b, e, a, v);
-}
-
    
 string bag_dump(heap h, bag b)
 {
@@ -148,7 +149,7 @@ string bag_dump(heap h, bag b)
             int second = 0;
             int start = buffer_length(out);
             bprintf(out, "%S%v ", first++?ind:0, a);
-            int ind2 = buffer_length(out)-start-ind;
+            int ind2 = ind+buffer_length(out)-start;
             table_foreach(((table)vl), v, _) 
                 bprintf(out, "%S%v\n", second++?ind2:0, v);
         }

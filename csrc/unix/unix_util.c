@@ -98,6 +98,17 @@ heap init_memory(bytes pagesize)
     return(h);
 }
 
+heap efence_heap(bytes pagesize)
+{
+    heap h = (heap)mmap(0, sizeof(struct heap) + 1,
+                           PROT_READ|PROT_WRITE,
+                           MAP_PRIVATE|MAP_ANON,-1,0);
+    h->alloc = allocate_pages_fence;
+    h->dealloc = free_pages;
+    h->pagesize = 4096; //dont forget we're promising pagesize alignment
+    return(h);
+}
+
 void error(char *x)
 {
     write(1, x, cstring_length(x));

@@ -92,7 +92,7 @@ void vbprintf(string s, string fmt, va_list ap)
                 
             case 'p':
                 pad = 16;
-                unsigned int x = va_arg(ap, unsigned int);
+                unsigned long x = va_arg(ap, unsigned long);
                 format_number(s, x, 16, pad?pad:1);
                 break;
                 

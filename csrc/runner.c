@@ -10,13 +10,13 @@ void register_implication(node n)
     table_set(implications, n, (void *)1);
 }
 
-static CONTINUATION_2_3(inserty, bag, boolean *, value, value, value);
-static void inserty(bag b, boolean *flag, value e, value a, value v)
+static CONTINUATION_2_4(inserty, table, boolean *, value, value, value, value);
+static void inserty(table multibag, boolean *flag, uuid u, value e, value a, value v)
 {
     *flag = true;
-    //    bag b = table_get(multibag, u);
-    prf("zikky: %p %v %v %v\n", e, e, a, v);
-
+    bag b;
+    if (!(b = table_find(multibag, u))) 
+        table_set(multibag, u, b = create_bag());
     edb_insert(b, e, a, v);
 }
 
@@ -24,15 +24,19 @@ static void inserty(bag b, boolean *flag, value e, value a, value v)
 void start_fixedpoint() 
 {
     heap h = allocate_rolling(pages);
-    bag b = create_bag();
+    table t = create_value_table(h);
     vector handlers = allocate_vector(h,10);
     boolean pass = true;
-    insertron in = cont(h, inserty, b, &pass);
-    
+    insertron in = cont(h, inserty, t, &pass);
+        
+    table scopes = create_value_table(h);
+    table_set(scopes, intern_cstring("transient"), generate_uuid());
+    table_set(scopes, intern_cstring("session"), generate_uuid());
+
     table_foreach(implications, i, v) {
         // last argument is terminal, ignore for a moment since the
         // evaluation is synchronous
-        vector_insert(handlers, build(i, in, b, 0));
+        vector_insert(handlers, build(i, scopes, 0, in, 0));
     }
 
     while (pass) {
@@ -42,6 +46,7 @@ void start_fixedpoint()
             execute(k);
         }
     }
-    prf("%b\n", bag_dump(h, b));
-    // and ... what
+    table_foreach(t, k, v) {
+        prf("%v:\n %b\n", k, bag_dump(h, v));
+    }
 }

@@ -183,7 +183,7 @@ int lua_build_node(lua_State *L)
     if (!n->builder) {
         prf ("no such node type: %v\n", x);
     }
-    prf("build node %v\n", x);
+
     foreach_lua_table(L, 2, k, v)
         vector_insert(n->arms, (void *)lua_topointer(L, v));
 

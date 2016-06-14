@@ -54,8 +54,8 @@ static void scan_listener_1(execf n, operator op, value *r, int a, value av, ebo
     apply(n, op, r);
 }
 
-static CONTINUATION_3_1(scan_listener_0, execf, value *, operator, eboolean);
-static void scan_listener_0(execf n, value *r, operator op, eboolean present)
+static CONTINUATION_3_1(scan_listener_0, execf, operator, value *, eboolean);
+static void scan_listener_0(execf n, operator op, value *r, eboolean present)
 {
     apply(n, op, r);
 }
@@ -67,86 +67,56 @@ static inline int reg(value n)
     return ((unsigned long) n - register_base);
 }
 
-static CONTINUATION_5_2(do_full_scan, evaluation, execf, value, value, value, operator, value *);
-static void do_full_scan(evaluation ex, execf n, value e, value a, value v, operator op, value *r)
+static CONTINUATION_6_2(do_scan, evaluation, execf, int, value, value, value, operator, value *);
+static void do_scan(evaluation ex, execf n, int sig, value e, value a, value v, operator op, value *r)
 {
-    void *listen = cont(ex->h, scan_listener_3, n, op, r, reg(e), reg(a), reg(v));
-    full_scan(ex->b, listen);
+    void *listen;
+    // generify this too
+    switch(sig) {
+    case s_eav:
+        listen = cont(ex->h, scan_listener_3, n, op, r, reg(e), reg(a), reg(v));
+        break;
+    case s_eAv:
+        listen = cont(ex->h, scan_listener_2, n, op, r, reg(e), reg(v));
+        break;
+    case s_eAV:
+        listen = cont(ex->h, scan_listener_1, n, op, r, reg(e));
+        break;
+    case s_Eav:
+        listen = cont(ex->h, scan_listener_2, n, op, r, reg(a), reg(v));
+        break;
+    case s_EAv:
+        listen = cont(ex->h, scan_listener_1, n, op, r, reg(v));
+        break;
+    case s_EAV:
+        listen = cont(ex->h, scan_listener_0, n, op, r);
+        break;
+    default:
+        exec_error(ex, "unknown scan");
+    }
+    apply(ex->s, sig, listen, e, a, v);
 }
 
-static CONTINUATION_5_2(do_ea_scan, evaluation, execf, value, value, value, operator, value *);
-static void do_ea_scan(evaluation ex, execf n, value e, value a, value v, operator op, value *r)
-{
-    void *listen = cont(ex->h, scan_listener_1, n, op, r, reg(v));
-    ea_scan(ex->b, lookup(e, r), lookup(a, r), listen);
-}
-
-static CONTINUATION_5_2(do_e_scan, evaluation, execf, value, value, value, operator, value *);
-static void do_e_scan(evaluation ex, execf n, value e, value a, value v, operator op, value *r)
-{
-    void *listen = cont(ex->h,scan_listener_2, n, op, r, reg(a), reg(v));
-    e_scan(ex->b, lookup(e, r), listen);
-}
-
-static CONTINUATION_5_2(do_av_scan, evaluation, execf, value, value, value, operator, value *);
-static void do_av_scan(evaluation ex, execf n, value e, value a, value v, operator op, value *r)
-{
-    void *listen = cont(ex->h, scan_listener_1, n, op, r, reg(e));
-    av_scan(ex->b, lookup(a, r), lookup(v, r), listen);
-}
-
-static CONTINUATION_5_2(do_eav_scan, evaluation, execf, value, value, value, operator, value *);
-static void do_eav_scan(evaluation ex, execf n, value e, value a, value v, operator op, value *r)
-{
-    void *listen = cont(ex->h, scan_listener_0, n, r, op);
-    eav_scan(ex->b, lookup(e, r), lookup(a,r), lookup(v,r), listen);
-}
-
-static inline boolean match(value k, char *key)
-{
-    string_intermediate x =k;
-    if ((type_of(k) == estring_space) && (x->length == 3))
-        return (x->body[0] == key[0]) && (x->body[1] == key[1]) && (x->body[2] == key[2]);
-    return false;
-}
+static inline boolean is_cap(unsigned char x) {return (x >= 'A') && (x <= 'Z');}
 
 static execf build_scan(evaluation ex, node n)
 {
     execf next = resolve_cfg(ex, n, 0);
-    char *description =  vector_get(n->arguments, 0);
+    estring description = vector_get(n->arguments, 0);
     execf r = 0;
     value e = vector_get(n->arguments, 1);
     value a = vector_get(n->arguments, 2);
     value v = vector_get(n->arguments, 3);
-
-    // can pass vec here
-    if (match(description, "eav")) 
-        r =cont(ex->h, do_full_scan, ex, next, e, a, v);
-    
-    if (match(description, "EAv"))
-        r =cont(ex->h, do_ea_scan, ex, next, e, a, v);
-    
-    if (match(description, "Eav")) 
-        r =cont(ex->h, do_e_scan, ex, next, e, a, v);
-
-    
-    if (match(description, "eAV"))
-        r =cont(ex->h, do_av_scan, ex, next, e, a, v);
-
-    
-    if (match(description,"EAV")) 
-        r =cont(ex->h, do_eav_scan, ex, next, e, a, v);
-
-    if (!r) {
-        prf ("couldn't find scan for %v\n", description);
-    }
-    return r;
+    int sig = 0;
+    for (int i=0; i< 3; i) 
+        sig <<= is_cap(description->body[i]);
+    return(cont(ex->h, do_scan, ex, next, sig, e, a, v));
 }
 
-static CONTINUATION_5_2(do_insert, evaluation, execf, value, value, value, operator, value *) ;
-static void do_insert(evaluation ex, execf n, value e, value a, value v, operator op, value *r) 
+static CONTINUATION_6_2(do_insert, evaluation, execf, value, value, value, value, operator, value *) ;
+static void do_insert(evaluation ex, execf n, value uuid, value e, value a, value v, operator op, value *r) 
 {
-    apply(ex->insert, lookup(e, r), lookup(a, r), lookup(v, r));
+    apply(ex->insert, uuid, lookup(e, r), lookup(a, r), lookup(v, r));
     apply(n, op, r);
 }
 
@@ -154,9 +124,10 @@ static execf build_insert(evaluation e, node n)
 {
     return cont(e->h, do_insert,  e,
                 resolve_cfg(e, n, 0),
-                vector_get(n->arguments, 0),
+                table_find(e->scopes, vector_get(n->arguments, 0)),
                 vector_get(n->arguments, 1),
-                vector_get(n->arguments, 2));
+                vector_get(n->arguments, 2),
+                vector_get(n->arguments, 3));
 }
 
 
@@ -193,27 +164,33 @@ static CONTINUATION_6_2(do_sub, execf, execf, table, vector, vector, vector, ope
 static void do_sub(execf next, execf leg, table results, vector v, vector inputs, vector outputs,
                    operator op, value *r)
 {
-    for (int i = 0; i< vector_length(inputs); i ++) 
+    for (int i = 0; i< vector_length(inputs); i ++) {
         vector_set(v, i, lookup(vector_get(inputs, i), r));
+    }
     
     vector res;
     if ((res = table_find(results, v))) {
         for (int i = 0; i< vector_length(outputs); i ++) 
-            r[toreg(vector_get(outputs, i)) ] = vector_get(res, i);
+            r[toreg(vector_get(outputs, i))] = vector_get(res, i);
     } else {
         apply(leg, op, r);
+        // copy vector?
+        vector key = allocate_vector(results->h, vector_length(inputs));
+        for (int i = 0; i< vector_length(inputs); i ++) 
+            vector_set(key, i, vector_get(v, i));
+
         res = allocate_vector(results->h, vector_length(outputs));
         for (int i = 0; i< vector_length(outputs); i ++) 
             vector_set(res, i, r[toreg(vector_get(outputs, i))]);
-        table_set(results, v, res);
+        table_set(results, key, res);
     }
 }
 
 // ahem
 static execf build_sub(evaluation e, node n)
 {
-    table results = allocate_table(e->h, value_vector_as_key, value_vector_equals);
-    // gonna share this one todya
+    table results = create_value_vector_table(e->h);
+    // gonna share this one today
     vector v = allocate_vector(e->h, vector_length(n->arguments));
     return cont(e->h,
                 do_sub,
@@ -282,8 +259,7 @@ static execf build_fork(evaluation e, node n)
 static CONTINUATION_2_2(do_trace, execf, vector, operator, value *);
 static void do_trace(execf n, vector terms, operator op, value *r)
 {
-    // term 1 is 
-    string_intermediate si = vector_get(terms, 0);
+    estring si = vector_get(terms, 0);
     write(1, si->body, si->length);
             //    table_foreach(regmap, k, v) {
             //        prf(" %b %v", k, lookup(v, r));
@@ -347,14 +323,15 @@ void execute(evaluation e)
     prf ("exec in %t seconds\n", end_time-start_time);
 }
 
-evaluation build(node n, insertron insert, bag b, thunk terminal)
+evaluation build(node n, table scopes, scan s, insertron insert, thunk terminal)
 {
     heap h = allocate_rolling(pages);
     evaluation e = allocate(h, sizeof(struct evaluation));
     e->h =h;
+    e->scopes = scopes;
+    e->s = s;
     e->insert = insert;
     e->terminal = terminal;
-    e->b = b;
     e->nmap = allocate_table(e->h, key_from_pointer, compare_pointer);
     force_node(e, n);
     e->head = *(execf *)table_find(e->nmap, n);

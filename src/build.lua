@@ -128,10 +128,10 @@ function bound_lookup(bindings, x)
    return x
 end
 
-function set_to_array(x)
+function set_to_read_array(env, x)
    local out = {}
    for k, v in pairs(x) do
-      out[#out+1] = k
+      out[#out+1] = read_lookup(env, k)
    end
    return out
 end
@@ -147,8 +147,9 @@ function translate_subproject(n, bound, down, tracing)
       return env, dc
    end
    env, c2 = walk(n.nodes, nil, bound, tail, tracing)   
-   print("gah", flat_print_table(n.produces))
-   return env, build_node("sub", {dc, c2}, n.projection, set_to_array(n.produces))
+   return env, build_node("sub", {dc, c2}, 
+                          set_to_read_array(env, n.projection),
+                          set_to_read_array(env, n.produces))
 end
 
 function translate_object(n, bound, down, tracing)
@@ -191,7 +192,8 @@ function translate_mutate(n, bound, down, tracing)
    local env, c = down(bound)
 
    local c = build_node("insert", {c}, 
-         {read_lookup(env,e),         
+         {n.scope, 
+          read_lookup(env,e),         
           read_lookup(env,a),          
           read_lookup(env, v)}, 
           {})

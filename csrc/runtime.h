@@ -21,6 +21,7 @@ boolean equals(value, value);
 typedef value eboolean;
 extern eboolean etrue;
 extern eboolean efalse;
+extern heap efence;
 
 void print(buffer, value);
 
@@ -65,7 +66,7 @@ string aprintf(heap h, char *fmt, ...);
 void bbprintf(string b, string fmt, ...);
 
 typedef closure(execf, operator, value *);
-typedef closure(insertron, value, value, value);
+typedef closure(insertron, value, value, value, value);
 
 #define def(__s, __v, __i)  table_set(__s, intern_string((unsigned char *)__v, cstring_length((char *)__v)), __i);
 
@@ -79,30 +80,22 @@ CONTINUATION_1_3(edb_insert, bag, value, value, value);
 
 string bag_dump(heap h, bag b);
 
-static inline estring intern_buffer(buffer b)
-{
-    return intern_string(bref(b,0), buffer_length(b));
-}
-
-
-
 void print_value(buffer, value);
 
 void prf(char *, ...);
 
-typedef table multibag;
-
-void multibag_insert(multibag m, uuid b, value e, value a, value v);
+// turn off all the typesafety, sig, listener, values as matched by the position
+typedef closure(scan, int, void *, value, value, value);
 
 typedef struct evaluation  {
     heap h;
     bag b;
     thunk terminal;
     insertron insert;
-    vector listeners; // should probably be a vector of vectors to cut down on resizes
+    table scopes;
     execf head;
+    scan s;
     int registerfile;
-    multibag mb;
     table nmap;
 } *evaluation;
 
@@ -123,7 +116,13 @@ struct node {
 void execute(evaluation);
 
 table builders_table();
-evaluation build(node n, insertron insert, bag b, thunk terminal);
 void register_implication(node n);
-
+evaluation build(node n, table scopes, scan s, insertron insert, thunk terminal);
 void start_fixedpoint();
+
+#define s_eav 0x0
+#define s_eAv 0x2
+#define s_eAV 0x3
+#define s_Eav 0x4
+#define s_EAv 0x6
+#define s_EAV 0x7
