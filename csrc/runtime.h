@@ -37,7 +37,7 @@ static inline table create_value_vector_table(heap h)
 
 typedef struct bag *bag;
 
-bag create_bag(value); 
+bag create_bag(); 
 void edb_insert(bag b, value e, value a, value v);
 
 void init_runtime();
@@ -65,7 +65,7 @@ string aprintf(heap h, char *fmt, ...);
 void bbprintf(string b, string fmt, ...);
 
 typedef closure(execf, operator, value *);
-typedef closure(insertron, bag);
+typedef closure(insertron, value, value, value);
 
 #define def(__s, __v, __i)  table_set(__s, intern_string((unsigned char *)__v, cstring_length((char *)__v)), __i);
 
@@ -97,24 +97,33 @@ void multibag_insert(multibag m, uuid b, value e, value a, value v);
 typedef struct evaluation  {
     heap h;
     bag b;
+    thunk terminal;
+    insertron insert;
     vector listeners; // should probably be a vector of vectors to cut down on resizes
     execf head;
     int registerfile;
     multibag mb;
+    table nmap;
 } *evaluation;
 
 
 
 typedef struct node *node;
 
-typedef execf (*buildf)(evaluation, node, execf **);
+// need a terminus
+typedef execf (*buildf)(evaluation, node);
     
 struct node {
     buildf builder;
     vector arms;
     vector arguments;
+    vector ancillary; // sub takes two projections
 };
 
-void execute(node n);
+void execute(evaluation);
 
 table builders_table();
+evaluation build(node n, insertron insert, bag b, thunk terminal);
+void register_implication(node n);
+
+void start_fixedpoint();

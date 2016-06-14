@@ -132,15 +132,14 @@ function translate_subproject(n, bound, down, tracing)
    local p = n.projection
    local t = n.nodes
    local prod = n.produces
-   local dc
+   local dc, c2
    function tail (bound)
       local env
       env, dc = down(bound)
-      -- insert cachy
       return env, dc
    end
    env, c2 = walk(n.nodes, nil, bound, tail, tracing)   
-   return env, build_node("sub", {c, dc}, {}, {})
+   return env, build_node("sub", {dc, c2}, n.projection, n.produces)
 end
 
 function translate_object(n, bound, down, tracing)
@@ -169,7 +168,7 @@ function translate_object(n, bound, down, tracing)
    end
 
    local env, c = down(bound)
-   return env, build_node("scan", {c}, {ef(env, e), af(env, a), vf(env, v)}, {})
+   return env, build_node("scan", {c}, {sig, ef(env, e), af(env, a), vf(env, v)}, {})
  end
 
 
@@ -181,11 +180,13 @@ function translate_mutate(n, bound, down, tracing)
    local gen = (variable(e) and not bound[e])
    if (gen) then bound[e] = true end
    local env, c = down(bound)
-         
-   local c = build_node("insert", {c}, {n.scope,
-         read_lookup(e),
-         read_lookup(a),
-         read_lookup(v)}, {})
+
+   print("mutate: ", e, a, v, read_lookup(e), read_lookup(a), read_lookup(v));          
+   local c = build_node("insert", {c}, 
+         {read_lookup(e),         
+          read_lookup(a),          
+          read_lookup(v)}, 
+          {})
    if gen then
       c = build_node("generate", {c}, {write_lookup(env, e)}, {})
    end
@@ -301,7 +302,7 @@ function build(graphs, tracing)
    local heads ={}
    local regs = 0
    tailf = function(b)
-               return empty_env(), build_node("terminal", {}, {}) 
+               return empty_env(), build_node("terminal", {}, {}, {}) 
            end
    for _, g in pairs(graphs) do
       local env, program = walk(g, nil, {}, tailf, tracing)

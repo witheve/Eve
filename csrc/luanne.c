@@ -2,9 +2,10 @@
 #include <unix/unix.h>
 #include <luanne.h>
 
+
 #define foreach_lua_table(__L, __ind, __k, __v) \
     lua_pushnil(__L); \
-    for (int __k = -2, __v = - 1; (lua_next(__L, __ind) != 0) || (lua_pop(__L, 1), 0) ; lua_pop(__L, 1))
+    for (int __k = -2, __v = - 1; (lua_next(__L, __ind) != 0) ; lua_pop(__L, 1))
 
 
 value lua_tovalue(lua_State *L, int index)
@@ -176,27 +177,40 @@ int lua_build_node(lua_State *L)
     node n = allocate(c->h, sizeof(struct node));
     n->arms = allocate_vector(c->h, 5);
     n->arguments = allocate_vector(c->h, 5);
-    n->builder = table_find(builders_table(), lua_tovalue(L, 1));
-            
-    foreach_lua_table(L, 2, k, v)
+    n->ancillary = allocate_vector(c->h, 5);
+    estring x = lua_tovalue(L, 1);
+    n->builder = table_find(builders_table(),x) ;
+    if (!n->builder) {
+        prf ("no such node type: %v\n", x);
+    }
+           
+    foreach_lua_table(L, 2, k, v){
+        prf ("arm: %p\n",  (void *)lua_topointer(L, v));
         vector_insert(n->arms, (void *)lua_topointer(L, v));
-    
-    foreach_lua_table(L, 3, k, v)
-        vector_insert(n->arguments, lua_tovalue(L, v));
+    }
 
+    foreach_lua_table(L, 3, k, v){
+        prf ("arg: %p\n",  (void *)lua_topointer(L, v));
+        vector_insert(n->arguments, lua_tovalue(L, v));
+    }
+           
+    foreach_lua_table(L, 4, k, v){
+        prf ("anc: %p\n",  (void *)lua_topointer(L, v));
+        vector_insert(n->ancillary, lua_tovalue(L, v));
+    }
+
+    prf("build %v %V %V\n", x, n->arguments, n->ancillary);
     lua_pushlightuserdata(L, n);
     return 1;
 }
 
-interpreter build_lua(bag b, table scopes)
+interpreter build_lua()
 {
     heap h = allocate_rolling(pages);
     interpreter c = allocate(h, sizeof(struct interpreter));
     c->L = luaL_newstate();
     c->h = h;
-    c->b = b;
-    c->scope_map = scopes;
-    
+
     luaL_openlibs(c->L);
     bundle_add_loaders(c->L);
 

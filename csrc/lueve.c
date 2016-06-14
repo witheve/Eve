@@ -25,23 +25,13 @@ int main(int argc, char **argv)
 {
     init_runtime();
 
-    uuid u = generate_uuid();
-    bag b = create_bag(efalse);
-    //    insertron b = cont(init, edb_insert, my_awesome_bag);
-    table scopes = allocate_table(init, key_from_pointer, compare_pointer);
-        
-    def(scopes, "session", b);
-    def(scopes, "transient", b);
-    def(scopes, "history", b);
-    def(scopes, "external", b)
-
-
-    interpreter c = build_lua(my_awesome_bag, scopes);
+    
+    interpreter c = build_lua();
 
     for (int i = 1; i <argc ; i++) {
         if (!strcmp(argv[i], "-e")) {
             buffer b = read_file_or_exit(init, argv[++i]);
-            execute(lua_compile_eve(c, b, true));
+            register_implication(lua_compile_eve(c, b, true));
         }
         if (!strcmp(argv[i], "-parse")) {
             lua_run_module_func(c, read_file_or_exit(init, argv[++i]), "parser", "printParse");

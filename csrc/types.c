@@ -30,11 +30,13 @@ void print_value(buffer b, value v)
     case register_space:
         if (v == etrue) {
             bprintf(b, "true");
+            break;
         }
         if (v == efalse) {
             bprintf(b, "false");
+            break;
         }
-        break;
+
     default:
         prf ("corrupt value %p\n", v);
     }

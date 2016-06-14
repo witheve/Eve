@@ -4,14 +4,12 @@
     
 typedef struct interpreter  {
     heap h;
-    bag b;
-    table scope_map;
     lua_State *L;
 } *interpreter;
 
 
 
-interpreter build_lua(bag, table);
+interpreter build_lua();
 void lua_load_bytecode(interpreter, void *, bytes);
 void lua_run(interpreter c, buffer b);
 void eve_run(interpreter c, buffer b);
