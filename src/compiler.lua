@@ -549,6 +549,7 @@ function SubprojectNode:new(obj)
    obj = obj or {}
    obj.type = obj.type or "subproject"
    obj.projection = obj.projection or Set:new()
+   obj.produces = obj.produces or Set:new()
    obj.nodes = obj.nodes or {}
    setmetatable(obj, self)
    self.__index = self
