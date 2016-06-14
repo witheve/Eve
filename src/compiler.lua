@@ -84,7 +84,8 @@ function DependencyGraph:new(obj)
    obj.sorted = obj.sorted or {} -- append-only set of ordered nodes
 
    obj.unsatisfied = obj.unsatisfied or {} -- Number of terms required but not bound per node
-   obj.dependents = obj.dependents or {} -- Set of terms required per node
+   obj.dependents = obj.dependents or {} -- Sets of nodes depending on a term
+   obj.strongDependents = obj.strongDependents or {} -- Sets of nodes strongly depending on (requiring stabilization of) a term
    obj.bound = obj.bound or Set:new() -- Set of terms bound by the currently ordered set of nodes
    obj.terms = obj.terms or Set:new() -- Set of all terms provided by any node in the graph
    obj.termGroups = obj.termGroups or Set:new() -- Set of sets of terms that are in some way joined
@@ -240,15 +241,18 @@ function DependencyGraph:fromQueryGraph(query, terms, bound)
 end
 -- depends are the set of terms that must be produced prior to scheduling this node
 -- produces are the set of terms produced after this node has been scheduled
--- weakDepends are the set of terms that, IFF produced in this query, become dependencies of this node
+-- maybeDepends are the set of terms that, IFF produced in this query, become dependencies of this node
 -- strongDepends are the set of terms that must be completely settled (cardinality-stable) prior to scheduling this node
 -- @NOTE: that, in order to permit stable scheduling, weak and strong depends will not be treated as joining term groups
-function DependencyGraph:add(node, depends, produces, weakDepends, strongDepends)
-   depends = depends or node.depends or Set:new()
+function DependencyGraph:add(node, depends, produces, maybeDepends, strongDepends)
+   produces = produces or Set:new()
+   depends = depends and depends:difference(produces, true) or Set:new()
+   maybeDepends = maybeDepends and maybeDepends:difference(produces, true)or Set:new()
+   strongDepends = strongDepends and strongDepends:difference(produces, true)or Set:new()
+
    node.depends = depends
-   produces = produces or node.produces or Set:new()
    node.produces = produces
-   node.weakDepends = weakDepends
+   node.maybeDepends = maybeDepends
    node.strongDepends = strongDepends
 
    self.terms:union(produces, true)
@@ -266,12 +270,12 @@ function DependencyGraph:add(node, depends, produces, weakDepends, strongDepends
          setmetatable(term, DefaultNodeMeta)
       end
    end
-   for term in std.pairs(weakDepends or {}) do
+   for term in std.pairs(maybeDepends) do
       if getmetatable(term) == nil then
          setmetatable(term, DefaultNodeMeta)
       end
    end
-   for term in std.pairs(strongDepends or {}) do
+   for term in std.pairs(strongDepends) do
       if getmetatable(term) == nil then
          setmetatable(term, DefaultNodeMeta)
       end
@@ -310,26 +314,23 @@ function DependencyGraph:add(node, depends, produces, weakDepends, strongDepends
       self.termGroups:add(neueGroup)
    end
 
-   -- Link new weak dependencies to existing terms
-   if weakDepends then
-      for term in std.pairs(weakDepends) do
+   -- Link new maybe dependencies to existing terms
+   if maybeDepends then
+      for term in std.pairs(maybeDepends) do
          if self.terms[term] then
-            depends:add(term)
+            strongDepends:add(term)
          end
       end
    end
 
-   -- Link existing weak dependencies to new terms
+   -- Link existing maybe dependencies to new terms
    for term in std.pairs(produces) do
-      if self.dependents[term] == nil then
-         self.dependents[term] = Set:new()
+      if self.strongDependents[term] == nil then
+         self.strongDependents[term] = Set:new()
          for other in std.pairs(self.unsorted) do
-            if other.weakDepends then
-            end
-            if other.weakDepends and other.weakDepends[term] then
-               other.depends = other.depends or Set:new()
-               other.depends:add(term)
-               self.dependents[term]:add(other)
+            if other.maybeDepends[term] then
+               other.strongDepends:add(term)
+               self.strongDependents[term]:add(other)
                self.unsatisfied[other] = self.unsatisfied[other] + 1
             end
          end
@@ -354,6 +355,17 @@ function DependencyGraph:add(node, depends, produces, weakDepends, strongDepends
             self.unsatisfied[node] = self.unsatisfied[node] + 1
          end
       end
+
+      for term in std.pairs(strongDepends) do
+         if not self.bound[term] then
+            if self.strongDependents[term] then
+               self.strongDependents[term]:add(node)
+            else
+               self.strongDependents[term] = Set:new{node}
+            end
+            self.unsatisfied[node] = self.unsatisfied[node] + 1
+         end
+      end
    end
 end
 
@@ -363,6 +375,21 @@ function DependencyGraph:group(term) -- get the termGroup of the given term
          return group
       end
    end
+end
+
+function DependencyGraph:groupUnsatisfied(group) -- get the number of  outstanding nodes that must be ordered before the group stabilizes
+   local unsatisfied = 0
+   for term in std.pairs(group) do
+      if self.dependents[term] then
+         unsatisfied = unsatisfied + self.dependents[term]:length()
+      end
+      for node in std.pairs(self.unsorted) do
+         if node.produces[term] then
+            unsatisfied = unsatisfied + 1
+         end
+      end
+   end
+   return unsatisfied
 end
 
 function DependencyGraph:order(allowPartial)
@@ -390,14 +417,32 @@ function DependencyGraph:order(allowPartial)
             end
             self.sorted[#self.sorted + 1] = node
             self.unsorted:remove(node)
+            for term in std.pairs(node.depends) do
+               self.dependents[term]:remove(node)
+            end
 
             -- Decrement the unsatisfied term count for nodes depending on terms this node provides that haven't been provided
-            if node.produces then
+            if node.produces:length() > 0 then
+               local someTerm
                for term in std.pairs(node.produces) do
+                  someTerm = term
                   if self.dependents[term] and not self.bound[term] then
                      self.bound:add(term)
                      for dependent in std.pairs(self.dependents[term]) do
                         self.unsatisfied[dependent] = self.unsatisfied[dependent] - 1
+                     end
+                  end
+               end
+
+               -- Determine if the group containing the produced terms is stabilized by ordering this node
+               -- If so, satisfy the strong dependencies of every term in the group
+               local group = self:group(someTerm)
+               if self:groupUnsatisfied(group) == 0 then
+                  for term in std.pairs(group) do
+                     if self.strongDependents[term] then
+                        for dependent in std.pairs(self.strongDependents[term]) do
+                           self.unsatisfied[dependent] = self.unsatisfied[dependent] - 1
+                        end
                      end
                   end
                end
@@ -421,11 +466,19 @@ end
 function DependencyGraph.__tostring(obj)
    local result = "DependencyGraph{\n"
    for ix, node in std.ipairs(obj.sorted) do
-      result = result .. "  " .. ix .. ": " .. tostring(node.depends) .. " -> " .. tostring(node.produces) .. "\n"
+      local depends = tostring(node.depends)
+      if node.strongDepends:length() > 0 then
+         depends = depends .. "|" .. tostring(node.strongDepends)
+      end
+      result = result .. "  " .. ix .. ": " .. depends .. " -> " .. tostring(node.produces) .. "\n"
       result = result .. "    " .. util.indentString(1, tostring(node)) .. "\n"
    end
    for node in std.pairs(obj.unsorted) do
-      result = result .. "  ?: " .. tostring(node.depends) .. " -> " .. tostring(node.produces) .. "\n"
+      local depends = tostring(node.depends)
+      if node.strongDepends:length() > 0 then
+         depends = depends .. "|" .. tostring(node.strongDepends)
+      end
+      result = result .. "  ?: " .. depends .. " -> " .. tostring(node.produces) .. "\n"
       result = result .. "   ? " .. util.indentString(1, tostring(node)) .. "\n"
    end
    result = result .. tostring(obj.termGroups) .. "\n"
