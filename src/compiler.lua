@@ -560,7 +560,7 @@ function SubprojectNode.__tostring(obj)
 
    for _, node in std.pairs(obj.nodes) do
       result = result .. "  " .. tostring(node.depends) .. " -> " .. tostring(node.produces) .. "\n"
-      result = result .. "    " .. tostring(node) .. "\n"
+      result = result .. "    " .. util.indentString(2, tostring(node)) .. "\n"
    end
 
    return result .. "}"
@@ -584,13 +584,14 @@ function unpackObjects(nodes)
    for _, node in std.ipairs(nodes) do
       if node.type == "object" or node.type == "mutate" then
          local unpackList = unpacked
+         local subproject
          if node.type ~= "object" then
             local projection = Set:new()
             for ix, proj in std.pairs(node.projection) do
                projection:union(proj, true)
             end
 
-            local subproject = SubprojectNode:new{projection = projection, produces = node.produces}
+            subproject = SubprojectNode:new{projection = projection, produces = node.produces}
             unpackList = subproject.nodes
             unpackedSubprojects[#unpackedSubprojects + 1] = subproject
          end
@@ -615,7 +616,12 @@ function unpackObjects(nodes)
 
             for _, binding in std.ipairs(node.bindings) do
                if binding.field ~= ENTITY_FIELD then
-                  unpackList[#unpackList + 1] = ScanNode:fromBinding(node, binding, entity)
+                  if subproject and binding.variable and not subproject.projection[binding.variable] then
+                     unpackList[#unpackList + 1] = SubprojectNode:new{projection = subproject.projection + Set:new{binding.variable}, nodes = {ScanNode:fromBinding(node, binding, entity)}}
+                  else
+                     unpackList[#unpackList + 1] = ScanNode:fromBinding(node, binding, entity)
+                  end
+
                end
             end
          end
