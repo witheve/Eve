@@ -15,7 +15,7 @@ static void inserty(bag b, boolean *flag, value e, value a, value v)
 {
     *flag = true;
     //    bag b = table_get(multibag, u);
-    prf("zikky: %v %v %v\n", e, a, v);
+    prf("zikky: %p %v %v %v\n", e, e, a, v);
 
     edb_insert(b, e, a, v);
 }
@@ -42,5 +42,6 @@ void start_fixedpoint()
             execute(k);
         }
     }
+    prf("%b\n", bag_dump(h, b));
     // and ... what
 }

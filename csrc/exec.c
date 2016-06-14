@@ -238,7 +238,7 @@ static execf build_genid(evaluation e, node n)
 {
     return cont(e->h, do_genid,
                 resolve_cfg(e, n, 0),
-                vector_get(n->arguments, 1));
+                vector_get(n->arguments, 0));
 }
 
 static CONTINUATION_3_2(do_join, execf, int, u32, operator, value *);
