@@ -181,11 +181,10 @@ function translate_mutate(n, bound, down, tracing)
    if (gen) then bound[e] = true end
    local env, c = down(bound)
 
-   print("mutate: ", e, a, v, read_lookup(e), read_lookup(a), read_lookup(v));          
    local c = build_node("insert", {c}, 
-         {read_lookup(e),         
-          read_lookup(a),          
-          read_lookup(v)}, 
+         {read_lookup(env,e),         
+          read_lookup(env,a),          
+          read_lookup(env, v)}, 
           {})
    if gen then
       c = build_node("generate", {c}, {write_lookup(env, e)}, {})

@@ -184,22 +184,15 @@ int lua_build_node(lua_State *L)
         prf ("no such node type: %v\n", x);
     }
            
-    foreach_lua_table(L, 2, k, v){
-        prf ("arm: %p\n",  (void *)lua_topointer(L, v));
+    foreach_lua_table(L, 2, k, v)
         vector_insert(n->arms, (void *)lua_topointer(L, v));
-    }
 
-    foreach_lua_table(L, 3, k, v){
-        prf ("arg: %p\n",  (void *)lua_topointer(L, v));
+    foreach_lua_table(L, 3, k, v)
         vector_insert(n->arguments, lua_tovalue(L, v));
-    }
            
-    foreach_lua_table(L, 4, k, v){
-        prf ("anc: %p\n",  (void *)lua_topointer(L, v));
+    foreach_lua_table(L, 4, k, v)
         vector_insert(n->ancillary, lua_tovalue(L, v));
-    }
 
-    prf("build %v %V %V\n", x, n->arguments, n->ancillary);
     lua_pushlightuserdata(L, n);
     return 1;
 }
