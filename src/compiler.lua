@@ -130,8 +130,6 @@ function DependencyGraph:addMutateNode(node)
    local weakDepends = Set:new()
    for _, binding in std.ipairs(node.bindings or nothing) do
       -- If the entity term isn't bound, the mutation produces it
-      -- @FIXME: This is (incorrectly) insertion-order dependent, since any intended dependents of this entity
-      -- that were inserted first will see that the term does not exist and not add a dependency on it.
       if binding.field == ENTITY_FIELD and not self.terms[binding.variable] then
          produces:add(binding.variable)
       end
@@ -588,6 +586,12 @@ function unpackObjects(nodes)
          local subproject
          if node.type ~= "object" then
             local projection = Set:new()
+            for _, binding in std.ipairs(node.bindings or nothing) do
+               if binding.field == ENTITY_FIELD and not node.produces[binding.variable] then
+                  projection:add(binding.variable)
+                  break
+               end
+            end
             for ix, proj in std.pairs(node.projection) do
                projection:union(proj, true)
             end
