@@ -21,13 +21,15 @@ typedef struct json_session {
     heap h;
     table evaluations;
     buffer_handler write; // to weboscket
+    uuid session;
+    table scopes;
 } *json_session;
 
 extern bag my_awesome_bag;
 extern thunk ignore;
 
-static CONTINUATION_2_3(chute, heap, vector, value, value, value)
-static void chute(heap h, vector out, value e, value a,  value v)
+static CONTINUATION_2_4(chute, heap, vector, value, value, value, eboolean)
+     static void chute(heap h, vector out, value e, value a,  value v, eboolean nothing)
 {
     vector_insert(out, build_vector(h, e, a, v));
 }
@@ -84,33 +86,29 @@ static void json_commit()
 }
 
 
-static evaluation start_guy(heap h, buffer b, buffer_handler output)
+static evaluation start_guy(json_session js, buffer b, buffer_handler output)
 {
-    vector v = allocate_vector(h, 10);
+    vector v = allocate_vector(js->h, 10);
     insertron z;// = cont(h, edb_insert, my_awesome_bag);
 
-    table scopes = create_value_table(h);
-    table_set(scopes, intern_cstring("transient"), generate_uuid());
-    table_set(scopes, intern_cstring("session"), generate_uuid());
-
     prf("SCOPES: \n");
-    table_foreach(scopes, scope, scope_id) {
+    table_foreach(js->scopes, scope, scope_id) {
         prf("   %v: %v", scope, scope_id);
     }
     prf("\n");
 
     // take this from the lua pool
-    interpreter c = build_lua(my_awesome_bag, scopes);
+    interpreter c = build_lua(my_awesome_bag, js->scopes);
     node n = lua_compile_eve(c, b, enable_tracing);
     register_implication(n);
     // needs to be scoped
-    table result_bags = start_fixedpoint(scopes);
-    bag session_bag = table_find(result_bags, table_find(scopes, intern_cstring("session")));
+    table result_bags = start_fixedpoint(js->scopes);
+    bag session_bag = table_find(result_bags, js->session);
     prf("PRINTING SESSION\n");
-    prf("%b\n", bag_dump(h, session_bag));
-    insertron scanner = cont(h, chute, h, v);
+    prf("%b\n", bag_dump(js->h, session_bag));
+    insertron scanner = cont(js->h, chute, js->h, v);
     edb_scan(session_bag, 0, scanner, 0, 0, 0);
-    send_guy(h, output, v);
+    send_guy(js->h, output, v);
     return 0;
 }
 
@@ -145,7 +143,7 @@ void handle_json_query(json_session j, buffer in, thunk c)
             if (string_equal(type, sstring("query"))) {
                 // xxx - this id is currently meaningless
                 table_set(j->evaluations, id,
-                             start_guy(j->h, query, j->write));
+                             start_guy(j, query, j->write));
             }
                 
             // do the thing
@@ -174,9 +172,12 @@ buffer_handler new_json_session(buffer_handler write, table headers)
     heap h = allocate_rolling(pages);
     
     json_session js = allocate(h, sizeof(struct json_session));
-    // interned? not interned?
     js->h = h;
     js->evaluations = allocate_table(h, string_hash, string_equal);
+    js->scopes = create_value_table(js->h);
+    js->session = generate_uuid();
+    table_set(js->scopes, intern_cstring("transient"), generate_uuid());
+    table_set(js->scopes, intern_cstring("session"), js->session);
     return websocket_send_upgrade(h, headers, write, cont(h, handle_json_query, js), &js->write);
 }
 
