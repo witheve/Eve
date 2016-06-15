@@ -242,7 +242,7 @@ static void do_trace(bag b, execf n, estring name, table regmap, operator op, va
     string_intermediate si = name;
     write(1, si->body, si->length);
 
-    foreach_table(regmap, k, v) {
+    table_foreach(regmap, k, v) {
         prf(" %b %v", k, lookup(v, r));
     }
     write(1, "\n", 1);

@@ -21,7 +21,6 @@ static buffer read_file_or_exit(heap, char *);
 
 bag my_awesome_bag;
 
-
 int main(int argc, char **argv)
 {
     init_runtime();
@@ -32,9 +31,9 @@ int main(int argc, char **argv)
     def(scopes, "transient", b);
     def(scopes, "history", b);
     def(scopes, "external", b)
-        
+
     interpreter c = build_lua(my_awesome_bag, scopes);
-    
+
     for (int i = 1; i <argc ; i++) {
         if (!strcmp(argv[i], "-e")) {
             buffer b = read_file_or_exit(init, argv[++i]);
@@ -68,7 +67,7 @@ int main(int argc, char **argv)
                             "application/javascript",
                             wrap_buffer(init,  &renderer_start,
                                         &renderer_end -  &renderer_start));
-        
+
     init_json_service(h);
 
     printf("\n----------------------------------------------\n\nEve started. Running at http://localhost:8080\n\n");

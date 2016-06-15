@@ -11,7 +11,7 @@ draw messages
   update
     parent.children += [#div class: "chat-message", children:
                          [#div class: "chat-user", text: name]
-                         [#div class: "chat-time"    text: time]
+                         [#div class: "chat-time", text: time]
                          [#div class: "chat-message", text: message]]
 
 handle chat keydowns

@@ -35,7 +35,6 @@ static void scan_table(fd_set *t, table f)
     }
 }
 
-                       
 void select_timer_block(ticks interval)
 {
     struct timeval timeout;
@@ -46,12 +45,12 @@ void select_timer_block(ticks interval)
     if (interval){
         ticks_to_timeval(&timeout, interval);
         timeout_pointer = &timeout;
-    } 
+    }
 
-    foreach_table (read_handlers, d, z) 
+    table_foreach (read_handlers, d, z)
         FD_SET((unsigned long)d, &reads);
 
-    foreach_table (write_handlers, d, z)
+    table_foreach (write_handlers, d, z)
         FD_SET((unsigned long)d, &writes);
 
     result = select(FD_SETSIZE, &reads, &writes, 0, timeout_pointer);
