@@ -20,6 +20,7 @@ typedef enum {
 typedef struct json_session {
     heap h;
     table evaluations;
+    table current_delta;
     buffer_handler write; // to weboscket
     uuid session;
     table scopes;
@@ -28,10 +29,10 @@ typedef struct json_session {
 extern bag my_awesome_bag;
 extern thunk ignore;
 
-static CONTINUATION_2_4(chute, heap, vector, value, value, value, eboolean)
-     static void chute(heap h, vector out, value e, value a,  value v, eboolean nothing)
+static CONTINUATION_2_4(chute, heap, table, value, value, value, eboolean)
+static void chute(heap h, table out, value e, value a,  value v, eboolean nothing)
 {
-    vector_insert(out, build_vector(h, e, a, v));
+    table_set(out, build_vector(h, e, a, v), etrue);
 }
 
 static void print_value_json(buffer out, value v)
@@ -56,15 +57,14 @@ static void print_value_json(buffer out, value v)
 
 // always call this guy independent of commit so that we get an update,
 // even on empty, after the first evaluation
-static void send_guy(heap h, buffer_handler output, vector tuples)
+static void send_guy(heap h, buffer_handler output, values_diff diff)
 {
     string out = allocate_string(h);
     bprintf(out, "{\"type\":\"result\", \"insert\":[");
-    int start = 0;
-    
-    vector_foreach(tuples, i){
-        int count = 0;
 
+    int start = 0;
+    vector_foreach(diff->insert, i){
+        int count = 0;
         if (start++ != 0) bprintf(out, ",");
         bprintf(out, "["); 
         vector_foreach(i, j){
@@ -75,6 +75,23 @@ static void send_guy(heap h, buffer_handler output, vector tuples)
         }
         bprintf(out, "]");
     }
+
+    bprintf(out, "], \"remove\": [");
+
+    start = 0;
+    vector_foreach(diff->remove, i){
+        int count = 0;
+        if (start++ != 0) bprintf(out, ",");
+        bprintf(out, "["); 
+        vector_foreach(i, j){
+            print_value_json(out, j);
+            if (count ++ < 2) {
+                bprintf(out, ",  ");
+            }
+        }
+        bprintf(out, "]");
+    }
+
     bprintf(out, "]}");
     // reclaim
     apply(output, out, ignore);
@@ -88,9 +105,6 @@ static void json_commit()
 
 static evaluation start_guy(json_session js, buffer b, buffer_handler output)
 {
-    vector v = allocate_vector(js->h, 10);
-    insertron z;// = cont(h, edb_insert, my_awesome_bag);
-
     prf("SCOPES: \n");
     table_foreach(js->scopes, scope, scope_id) {
         prf("   %v: %v", scope, scope_id);
@@ -106,9 +120,14 @@ static evaluation start_guy(json_session js, buffer b, buffer_handler output)
     bag session_bag = table_find(result_bags, js->session);
     prf("PRINTING SESSION\n");
     prf("%b\n", bag_dump(js->h, session_bag));
-    insertron scanner = cont(js->h, chute, js->h, v);
+
+    table results = create_value_vector_table(js->h);
+    insertron scanner = cont(js->h, chute, js->h, results);
     edb_scan(session_bag, 0, scanner, 0, 0, 0);
-    send_guy(js->h, output, v);
+    values_diff diff = diff_value_vector_tables(js->h, js->current_delta, results);
+    send_guy(js->h, output, diff);
+    // FIXME: we need to clean up the old delta, we're currently just leaking it
+    js->current_delta = results;
     return 0;
 }
 
@@ -176,6 +195,7 @@ buffer_handler new_json_session(buffer_handler write, table headers)
     js->evaluations = allocate_table(h, string_hash, string_equal);
     js->scopes = create_value_table(js->h);
     js->session = generate_uuid();
+    js->current_delta = create_value_vector_table(js->h);
     table_set(js->scopes, intern_cstring("transient"), generate_uuid());
     table_set(js->scopes, intern_cstring("session"), js->session);
     return websocket_send_upgrade(h, headers, write, cont(h, handle_json_query, js), &js->write);
