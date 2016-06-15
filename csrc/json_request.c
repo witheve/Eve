@@ -160,9 +160,8 @@ void handle_json_query(json_session j, buffer in, thunk c)
 
         if ((c == '}')  && (s== sep)) {
             if (string_equal(type, sstring("query"))) {
-                // xxx - this id is currently meaningless
-                table_set(j->evaluations, id,
-                             start_guy(j, query, j->write));
+                // xxx - get and id and register it
+                start_guy(j, query, j->write);
             }
                 
             // do the thing
