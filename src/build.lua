@@ -38,6 +38,10 @@ function translate_value(x)
       if ct == "number" then
          return snumber(x.constant)
       end
+      if ct == "uuid" then
+        print("UUID", x.constant)
+         return suuid(x.constant)
+      end
       print ("i couldn't figure out this value", flat_print_table(x))
       return x
    end

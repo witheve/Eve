@@ -43,11 +43,10 @@ static int construct_uuid(lua_State *L)
         return 1;
     }
     
-    for (int i = 0 ; i < length; i++) {
-        int loc = (length - i)/2;
-        id[loc] = ((i&1)?(id[loc] << 4):0) | digit_of(body[i]);
+    for (int i = 0 ; i < length; i += 2) {
+        int loc = i/2;
+        id[loc] = (digit_of(body[i]) * 16) + digit_of(body[i+1]);
     }
-    
     lua_pushlightuserdata(L, intern_uuid(id));
     return 1;
 }
@@ -187,11 +186,13 @@ int lua_build_node(lua_State *L)
     foreach_lua_table(L, 2, k, v)
         vector_insert(n->arms, (void *)lua_topointer(L, v));
 
-    foreach_lua_table(L, 3, k, v)
+    foreach_lua_table(L, 3, k, v) {
         vector_insert(n->arguments, lua_tovalue(L, v));
+    }
            
-    foreach_lua_table(L, 4, k, v)
+    foreach_lua_table(L, 4, k, v) {
         vector_insert(n->ancillary, lua_tovalue(L, v));
+    }
 
     lua_pushlightuserdata(L, n);
     return 1;
@@ -208,7 +209,7 @@ interpreter build_lua()
     bundle_add_loaders(c->L);
 
     // make me a lua package ala utf8
-    define(c, "suid", construct_uuid);
+    define(c, "suuid", construct_uuid);
     define(c, "snumber", construct_number);
     define(c, "sregister", construct_register);
     define(c, "sboolean", construct_boolean);

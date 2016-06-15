@@ -229,6 +229,7 @@ function sendEvent(objs) {
   update history
     ${formatObjects(objs).join("\n    ")}
   `
+  console.log("QUERY", query);
   if(socket && socket.readyState == 1) {
     socket.send(JSON.stringify({type: "query", query}))
   }

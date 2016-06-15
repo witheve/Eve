@@ -87,22 +87,30 @@ static void json_commit()
 static evaluation start_guy(heap h, buffer b, buffer_handler output)
 {
     vector v = allocate_vector(h, 10);
-    insertron a;//  = cont(h, chute, h, v);
     insertron z;// = cont(h, edb_insert, my_awesome_bag);
-    table scopes = allocate_table(h, key_from_pointer, compare_pointer);
 
-    def(scopes, "session", a);
-    def(scopes, "transient", z);
-    def(scopes, "history", z);
-    def(scopes, "external", z);
+    table scopes = create_value_table(h);
+    table_set(scopes, intern_cstring("transient"), generate_uuid());
+    table_set(scopes, intern_cstring("session"), generate_uuid());
+
+    prf("SCOPES: \n");
+    table_foreach(scopes, scope, scope_id) {
+        prf("   %v: %v", scope, scope_id);
+    }
+    prf("\n");
 
     // take this from the lua pool
     interpreter c = build_lua(my_awesome_bag, scopes);
     node n = lua_compile_eve(c, b, false);
     register_implication(n);
     // needs to be scoped
-    start_fixedpoint();
-
+    table result_bags = start_fixedpoint(scopes);
+    bag session_bag = table_find(result_bags, table_find(scopes, intern_cstring("session")));
+    prf("PRINTING SESSION\n");
+    prf("%b\n", bag_dump(h, session_bag));
+    insertron scanner = cont(h, chute, h, v);
+    edb_scan(session_bag, 0, scanner, 0, 0, 0);
+    send_guy(h, output, v);
     return 0;
 }
 

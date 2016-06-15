@@ -72,7 +72,7 @@ uuid generate_uuid()
     memcpy(result, &z, 8);
     *((unsigned short *)result + 4) = count++;
     unsigned char *y = result;
-    table_set(interned_uuid, result, (void *)1);
+    table_set(interned_uuid, result, (void *)result);
     return result;
 }
 

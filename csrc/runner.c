@@ -31,7 +31,7 @@ static void merge_scan(table t, int sig, void *listen, value e, value a, value v
 
 
 // should extract the implications from a bag
-void start_fixedpoint() 
+table start_fixedpoint(table scopes) 
 {
     heap h = allocate_rolling(pages);
     table t = create_value_table(h);
@@ -39,10 +39,6 @@ void start_fixedpoint()
     boolean pass = true;
     insertron in = cont(h, inserty, t, &pass);
         
-    table scopes = create_value_table(h);
-    table_set(scopes, intern_cstring("transient"), generate_uuid());
-    table_set(scopes, intern_cstring("session"), generate_uuid());
-
     table_foreach(implications, i, v) {
         // last argument is terminal, ignore for a moment since the
         // evaluation is synchronous
@@ -59,4 +55,5 @@ void start_fixedpoint()
     table_foreach(t, k, v) {
         prf("%v:\n %b\n", k, bag_dump(h, v));
     }
+    return t;
 }
