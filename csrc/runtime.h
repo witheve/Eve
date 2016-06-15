@@ -126,3 +126,5 @@ void start_fixedpoint();
 #define s_Eav 0x4
 #define s_EAv 0x6
 #define s_EAV 0x7
+
+void edb_scan(bag b, int sig, void *f, value e, value a, value v);

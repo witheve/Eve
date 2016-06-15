@@ -23,6 +23,9 @@ static void inserty(table multibag, boolean *flag, uuid u, value e, value a, val
 static CONTINUATION_1_5(merge_scan, table, int, void *, value, value, value);
 static void merge_scan(table t, int sig, void *listen, value e, value a, value v)
 {
+    table_foreach(t, u, b) {
+        edb_scan(b, sig, listen, e, a, v);
+    }
 }
 
 
@@ -43,7 +46,7 @@ void start_fixedpoint()
     table_foreach(implications, i, v) {
         // last argument is terminal, ignore for a moment since the
         // evaluation is synchronous
-        vector_insert(handlers, build(i, scopes, 0, in, 0));
+        vector_insert(handlers, build(i, scopes, cont(h, merge_scan, t), in, 0));
     }
 
     while (pass) {
