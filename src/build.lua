@@ -16,6 +16,11 @@ function recurse_print_table(t)
    return result
 end
 
+function push(m, x, y)  
+   m[#m+1] = x
+   m[#m+1] = y
+end
+
 function flat_print_table(t)
    if type(t) == "table" then 
      local result = ""
@@ -136,20 +141,31 @@ function set_to_read_array(env, x)
    return out
 end
 
+function buildo(name, arms, args, anc, env, tracing)
+end
+
 function translate_subproject(n, bound, down, tracing)
    local p = n.projection
    local t = n.nodes
    local prod = n.produces
-   local dc, c2
+   local dc, c2, c
    function tail (bound)
       local env
       env, dc = down(bound)
       return env, dc
    end
    env, c2 = walk(n.nodes, nil, bound, tail, tracing)   
-   return env, build_node("sub", {dc, c2}, 
+   c = build_node("sub", {dc, c2}, 
                           set_to_read_array(env, n.projection),
                           set_to_read_array(env, n.produces))
+   if tracing then 
+      local map = {"proj", ""} 
+      for k, v in pairs(n.projection) do
+         push(map, k.name,  read_lookup(env, k))
+      end
+      c = build_node("trace", {c}, map, {})
+   end                          
+   return env, c
 end
 
 function translate_object(n, bound, down, tracing)
@@ -178,6 +194,16 @@ function translate_object(n, bound, down, tracing)
    end
 
    local env, c = down(bound)
+   if tracing then 
+      c = build_node("trace", {c},
+                  {"scan", "" ,
+                   "sig", sig,
+                   "entity", read_lookup(env,e),         
+                   "attribute", read_lookup(env, a),         
+                   "value", read_lookup(env, v)},
+                   {})
+   end 
+
    return env, build_node("scan", {c}, {sig, ef(env, e), af(env, a), vf(env, v)}, {})
  end
 
@@ -190,11 +216,21 @@ function translate_mutate(n, bound, down, tracing)
    local gen = (variable(e) and not bound[e])
    if (gen) then bound[e] = true end
    local env, c = down(bound)
+   if tracing then 
+      c = build_node("trace", {c},
+                  {"insert", "" ,
+                   "scope", n.scope,
+                   "entity", read_lookup(env,e),         
+                   "attribute", read_lookup(env, a),         
+                   "value", read_lookup(env, v)},
+                   {})
+   end 
+   
    local c = build_node("insert", {c}, 
          {n.scope, 
           read_lookup(env,e),         
           read_lookup(env,a),          
-          read_lookup(env, v)}, 
+          read_lookup(env,v)}, 
           {})
    if gen then
       c = build_node("generate", {c}, {write_lookup(env, e)}, {})
@@ -243,27 +279,6 @@ function trace_lookup(env, x)
    return translate_value(x)
 end
 
-function push(m, x, y)  
-   m[#m+1] = x
-   m[#m+1] = y
-end
-
-function trace(n, bound, down, tracing)
-    local entry = shallowcopy(bound)
-    local env, c = down(bound)
-    local map = {}
-    for n, v in pairs(entry) do
-       push(map, n.name, sregister(env.registers[n]))
-    end
-    push(map, "type", n.type)
-    if (n.type == "mutate")  then
-       push(map, "entity", trace_lookup(env, n.entity))
-       push(map, "attribute", trace_lookup(env, attribute))
-       push(map, "value", trace_lookup(env, n.value))
-    end
-    return env, build_node("trace", {c}, map, {})
-end
-
 function walk(graph, key, bound, tail, tracing)
    local d, down 
    local nk = next(graph, key)
@@ -273,16 +288,9 @@ function walk(graph, key, bound, tail, tracing)
 
    local n = graph[nk]
 
-   down = function (bound)
+   d = function (bound)
                 return walk(graph, nk, bound, tail, tracing)
            end
-           
-   if tracing then
-      d = function (bound)
-              return trace(n, bound, down)
-      end
-   else d = down end       
-
 
    if (n.type == "union") then
       return translate_union(n, bound, d, tracing)

@@ -128,3 +128,5 @@ void start_fixedpoint();
 #define s_EAV 0x7
 
 void edb_scan(bag b, int sig, void *f, value e, value a, value v);
+
+extern int enable_tracing;
