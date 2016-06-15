@@ -49,7 +49,6 @@ static void scan_listener_2(execf n, operator op, value *r, int a, int b,
 static CONTINUATION_4_2(scan_listener_1, execf, operator, value *, int, value, eboolean);
 static void scan_listener_1(execf n, operator op, value *r, int a, value av, eboolean present)
 {
-    prf("scan listener 1 %v\n", av);
     r[a] = av;
     apply(n, op, r);
 }
@@ -94,9 +93,8 @@ static void do_scan(evaluation ex, execf n, int sig, value e, value a, value v, 
     default:
         exec_error(ex, "unknown scan");
     }
-    prf("plag %p %d %v %v %v\n", ex, sig, e, a, v);
     
-    apply(ex->s, sig, listen, e, a, v);
+    apply(ex->s, sig, listen, lookup(e, r), lookup(a, r), lookup(v, r));
 }
 
 static inline boolean is_cap(unsigned char x) {return (x >= 'A') && (x <= 'Z');}

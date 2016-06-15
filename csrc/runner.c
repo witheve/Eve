@@ -24,7 +24,6 @@ static CONTINUATION_1_5(merge_scan, table, int, void *, value, value, value);
 static void merge_scan(table t, int sig, void *listen, value e, value a, value v)
 {
     table_foreach(t, u, b) {
-        prf("scan %v\n", u);
         edb_scan(b, sig, listen, e, a, v);
     }
 }
