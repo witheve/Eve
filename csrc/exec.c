@@ -329,6 +329,7 @@ evaluation build(node n, table scopes, scan s, insertron insert, thunk terminal)
 {
     heap h = allocate_rolling(pages);
     evaluation e = allocate(h, sizeof(struct evaluation));
+    e->registerfile = 30;
     e->h =h;
     e->scopes = scopes;
     e->s = s;
