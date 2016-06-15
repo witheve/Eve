@@ -190,7 +190,6 @@ function translate_mutate(n, bound, down, tracing)
    local gen = (variable(e) and not bound[e])
    if (gen) then bound[e] = true end
    local env, c = down(bound)
-
    local c = build_node("insert", {c}, 
          {n.scope, 
           read_lookup(env,e),         
@@ -241,30 +240,28 @@ function trace_lookup(env, x)
       local r = env.registers[x]
       return sregister(r)
    end
-   -- demultiplex types on x.constantType
-   if type(x) == "table" then
-      return x["constant"]
-   end
-   return x
+   return translate_value(x)
+end
+
+function push(m, x, y)  
+   m[#m+1] = x
+   m[#m+1] = y
 end
 
 function trace(n, bound, down, tracing)
---    local entry = shallowcopy(bound)
+    local entry = shallowcopy(bound)
     local env, c = down(bound)
     local map = {}
---    for n, v in pairs(entry) do
---       map[n.name] = env.registers[n]
---    end
-    print ("trace", n.type)
-    if (n.type == "mutate") or (n.type == "object") then
-
-       return env, build_node("trace", {c},
-                              {"entity", trace_lookup(env, n.entity),
-                               "attribute", trace_lookup(env, n.attribute),
-                               "value", trace_lookup(env, n.value)},
-                             {})
+    for n, v in pairs(entry) do
+       push(map, n.name, sregister(env.registers[n]))
     end
-    return env, c
+    push(map, "type", n.type)
+    if (n.type == "mutate")  then
+       push(map, "entity", trace_lookup(env, n.entity))
+       push(map, "attribute", trace_lookup(env, attribute))
+       push(map, "value", trace_lookup(env, n.value))
+    end
+    return env, build_node("trace", {c}, map, {})
 end
 
 function walk(graph, key, bound, tail, tracing)
