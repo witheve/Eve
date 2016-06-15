@@ -1,5 +1,6 @@
 #include <runtime.h>
 #include <unistd.h>
+#include <stdio.h>
 
 struct bag {
     table listeners;
@@ -73,7 +74,7 @@ void edb_scan(bag b, int sig, void *f, value e, value a, value v)
             }
             break;
         }
-            
+
     case s_eAV:
         {
             table al = table_find(b->ave, a);
@@ -109,7 +110,7 @@ void register_bag(uuid x, insertron i)
 // ok for today
 bag create_bag()
 {
-    
+
     heap h = allocate_rolling(pages);
     bag b = allocate(h, sizeof(struct bag));
     b->h = h;
@@ -135,22 +136,34 @@ void edb_insert(bag b, value e, value a, value v)
     }
 }
 
-   
+int buffer_unicode_length(buffer buf)
+{
+    int length = 0;
+    rune_foreach(buf, c) {
+        length++;
+    }
+    return length;
+}
+
 string bag_dump(heap h, bag b)
 {
+
     buffer out = allocate_string(h);
     table_foreach(b->eav, e, avl) {
-        int start = buffer_length(out);
+        int start = buffer_unicode_length(out);
         bprintf(out, "%v ", e);
-        int ind = buffer_length(out)-start;
+
+        int ind = buffer_unicode_length(out)-start;
         int first =0;
-        
+
+
+
         table_foreach(((table)avl), a, vl) {
             int second = 0;
-            int start = buffer_length(out);
+            int start = buffer_unicode_length(out);
             bprintf(out, "%S%v ", first++?ind:0, a);
-            int ind2 = ind+buffer_length(out)-start;
-            table_foreach(((table)vl), v, _) 
+            int ind2 = buffer_unicode_length(out)-start;
+            table_foreach(((table)vl), v, _)
                 bprintf(out, "%S%v\n", second++?ind2:0, v);
         }
     }
@@ -162,4 +175,3 @@ void edb_remove(bag b, value e, value a, value v)
 {
     error("but we went to so much trouble!\n");
 }
-
