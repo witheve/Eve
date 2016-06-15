@@ -208,7 +208,8 @@ static execf build_sub(evaluation e, node n)
 static CONTINUATION_2_2(do_genid, execf, value,  operator, value *);
 static void do_genid(execf n, value dest, operator op, value *r) 
 {
-    r[reg(dest)] = generate_uuid();
+    value v = generate_uuid();
+    r[reg(dest)] = v;
     apply(n, op, r);
 }
 
@@ -261,19 +262,16 @@ static execf build_fork(evaluation e, node n)
 static CONTINUATION_2_2(do_trace, execf, vector, operator, value *);
 static void do_trace(execf n, vector terms, operator op, value *r)
 {
-    estring si = vector_get(terms, 0);
-    write(1, si->body, si->length);
-            //    table_foreach(regmap, k, v) {
-            //        prf(" %b %v", k, lookup(v, r));
-            //    }
+    prf ("trace");
+    for (int i=0; i<vector_length(terms); i+=2) {
+        prf(" %v %v", lookup(vector_get(terms, i), r), lookup(vector_get(terms, i+1), r));
+    }
     write(1, "\n", 1);
     apply(n, op, r);
 }
 
 static execf build_trace(evaluation ex, node n, execf *arms)
 {
-    table regnames = allocate_table(ex->h, string_hash, string_equal);
-    
     return cont(ex->h, 
                 do_trace,
                 resolve_cfg(ex, n, 0),
@@ -333,6 +331,7 @@ evaluation build(node n, table scopes, scan s, insertron insert, thunk terminal)
     e->h =h;
     e->scopes = scopes;
     e->s = s;
+    e->registerfile = 50;
     e->insert = insert;
     e->terminal = terminal;
     e->nmap = allocate_table(e->h, key_from_pointer, compare_pointer);

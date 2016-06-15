@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <luanne.h>
 
+int enable_tracing = false;
 
 station create_station(unsigned int address, unsigned short port) {
     void *a = allocate(init,6);
@@ -31,7 +32,7 @@ int main(int argc, char **argv)
     for (int i = 1; i <argc ; i++) {
         if (!strcmp(argv[i], "-e")) {
             buffer b = read_file_or_exit(init, argv[++i]);
-            register_implication(lua_compile_eve(c, b, false));
+            register_implication(lua_compile_eve(c, b, enable_tracing));
         }
         if (!strcmp(argv[i], "-parse")) {
             lua_run_module_func(c, read_file_or_exit(init, argv[++i]), "parser", "printParse");
@@ -47,6 +48,9 @@ int main(int argc, char **argv)
         }
         if (!strcmp(argv[i],"-l")) {
             lua_run(c, read_file_or_exit(init, argv[++i]));
+        }
+        if (!strcmp(argv[i],"-t")) {
+            enable_tracing = true;
         }
     }
 
