@@ -40,7 +40,7 @@ void edb_scan(bag b, int sig, void *f, value e, value a, value v)
             if(al) {
                 table vl = table_find(al, a);
                 if(vl) {
-                    if (table_elements(vl) > 0) {
+                    if (table_find(vl, v)){
                         apply((zero_listener)f, etrue);
                     }
                 }

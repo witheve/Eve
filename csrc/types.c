@@ -102,7 +102,7 @@ boolean value_vector_equals(void * a, void * b)
 // Diffing value vector tables
 //-------------------------------------------------------
 
-struct values_diff * diff_value_vector_tables(heap h, table old, table neue) {
+values_diff diff_value_vector_tables(heap h, table old, table neue) {
   vector remove = allocate_vector(h, 10);
   vector insert = allocate_vector(h, 10);
 
