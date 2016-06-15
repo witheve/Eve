@@ -5,8 +5,8 @@ table implications;
 
 void register_implication(node n)
 {
-    if (!implications) 
-        implications = allocate_table(init, key_from_pointer, compare_pointer); 
+    if (!implications)
+        implications = allocate_table(init, key_from_pointer, compare_pointer);
     table_set(implications, n, (void *)1);
 }
 
@@ -15,7 +15,7 @@ static void inserty(table multibag, boolean *flag, uuid u, value e, value a, val
 {
     *flag = true;
     bag b;
-    if (!(b = table_find(multibag, u))) 
+    if (!(b = table_find(multibag, u)))
         table_set(multibag, u, b = create_bag());
     edb_insert(b, e, a, v);
 }
@@ -31,14 +31,14 @@ static void merge_scan(table t, int sig, void *listen, value e, value a, value v
 
 
 // should extract the implications from a bag
-table start_fixedpoint(table scopes) 
+table start_fixedpoint(table scopes)
 {
     heap h = allocate_rolling(pages);
     table t = create_value_table(h);
     vector handlers = allocate_vector(h,10);
     boolean pass = true;
     insertron in = cont(h, inserty, t, &pass);
-        
+
     table_foreach(implications, i, v) {
         // last argument is terminal, ignore for a moment since the
         // evaluation is synchronous
@@ -53,7 +53,7 @@ table start_fixedpoint(table scopes)
         }
     }
     table_foreach(t, k, v) {
-        prf("%v:\n %b\n", k, bag_dump(h, v));
+        prf("%v:\n%b\n", k, bag_dump(h, v));
     }
     return t;
 }
