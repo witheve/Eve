@@ -1,0 +1,5 @@
+Simple cross produce example
+  [#person name]
+  [#farm potatos]
+  update
+    [#div text: name]

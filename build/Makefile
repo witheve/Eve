@@ -28,9 +28,13 @@ LUAPOWER = bundle.o
 UTF = lutf8lib.o
 COMPILER = compiler.o error.o fs.o parser.o util.o set.o color.o build.o implicationResolver.o
 UNIX =  unix_util.o region.o select.o tcp_socket.o
+UNIX_H = unix_internal.h unix.h
 CORE = buffer.o table.o vector.o format.o rolling.o string.o pqueue.o timer.o
-RUNTIME =  edb.o init.o uuid.o estring.o types.o luanne.o json_request.o exec.o
+CORE_H = bswap.h pqueue.h vector.h buffer.h heap.h timer.h continuation.h core.h string.h table.h
+RUNTIME =  edb.o init.o uuid.o estring.o types.o luanne.o json_request.o exec.o runner.o
+RUNTIME_H = ./luanne.h ./runtime.h ./estring.h ./number.h ./types.h 
 HTTP = server.o websocket.o base64.o sha1.o
+HTTP_H = ./http/http.h
 
 continuation_templates.h: continuations.py
 	python $^ 8 8 continuation_templates.h
@@ -47,7 +51,7 @@ index.o: ../index.html
 renderer.o: ../jssrc/renderer.js
 	cc wrap.S -DSTART=$(S)renderer_start -DEND=$(S)renderer_end -DFILE='"$<"' -c -o $@
 
-%.o: %.c continuation_templates.h
+%.o: %.c continuation_templates.h $(UNIX_H) $(CORE_H) $(RUNTIME_H) $(HTTP_H)
 	cc -std=gnu99 -I../csrc/unix -I../csrc/core -I../csrc -I. -I$(LUAJIT_INCLUDES) -g -c $<
 
 %.o: %.lua %.lua

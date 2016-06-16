@@ -7,10 +7,13 @@ eboolean etrue;
 
 heap init;
 heap pages;
+heap efence;
 
 void init_runtime()
 {
     pages = init_memory(131072);
+    efence = efence_heap(4096);
+
     init = allocate_rolling(pages);
 
     efalse = allocate(init, 1);

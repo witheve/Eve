@@ -12,6 +12,8 @@ void format_number(string s, iu64 x, int base, int pad)
     } 
 }
 
+// should entertain a registration method with a type and a character and a function pointer
+// or maybe just float this up to runtime
 extern void print_value();
 extern void print_value_vector();
 
@@ -53,6 +55,10 @@ void vbprintf(string s, string fmt, va_list ap)
             case '%':
                 string_insert(s, '\%');
                 break;
+
+            case 't':
+                print_time(s, va_arg(ap, ticks));
+                break;
                 
             case 'b':
                 string_concat(s, (va_arg(ap, string)));
@@ -76,16 +82,23 @@ void vbprintf(string s, string fmt, va_list ap)
                         string_insert(s, *c);
                 }
                 break;
+
+            case 'S':
+                {
+                    unsigned int x = va_arg(ap, unsigned int);
+                    for (int i =0 ; i < x; i++) string_insert(s, ' ');
+                    break;
+                }
                 
-            // there is plenty wrong here
             case 'p':
                 pad = 16;
-                unsigned int x = va_arg(ap, unsigned int);
+                unsigned long x = va_arg(ap, unsigned long);
                 format_number(s, x, 16, pad?pad:1);
                 break;
                 
             case 'x':
                 base=16;
+                
             case 'o':
                 if (base == 10) base=8;
             case 'u':

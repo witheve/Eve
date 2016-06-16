@@ -273,6 +273,11 @@ local function lex(str)
       offset = offset + #string
 
     elseif char == "⦑" then
+      -- FIXME: why are these extra reads necessary? it seems like
+      -- the utf8 stuff isn't getting handled correctly for whatever
+      -- readon
+      scanner:read()
+      scanner:read()
       local UUID = scanner:eatWhile(isUUID)
       -- skip the end bracket
       scanner:read()

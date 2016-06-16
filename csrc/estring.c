@@ -19,11 +19,11 @@ static table interned_string;
 static heap estring_heap;
 
 estring intern_string(unsigned char* content, int length) {
-    struct string_intermediate si = {length, content};
-    struct string_intermediate *x;
+    struct estring si = {length, content};
+    estring x;
     // racy
     if (!(x = table_find(interned_string, &si))) {
-        x = allocate(estring_heap, sizeof(struct string_intermediate));
+        x = allocate(estring_heap, sizeof(struct estring));
         x->length = length;
         x->body = allocate(estring_heap, length);
         memcpy(x->body, content, length);
@@ -31,7 +31,7 @@ estring intern_string(unsigned char* content, int length) {
     }
     return x;
 }
-    
+
 void init_string()
 {
     interned_string = allocate_table(init, si_hash, si_compare);
