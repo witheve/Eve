@@ -1,4 +1,4 @@
-This is a tokenizer for Eve's current syntax, which takes code from #code object, breaks
+This is a tokenizer for Eve's current syntax, which takes code from a #code object, breaks
 it into characters and then aggregates those into tokens of various types. Before we do
 that, we'll first create some #char-type and #keyword objects to match against
 
@@ -82,7 +82,7 @@ can have numbers in them.
 
 uuids are defined by starting with ⦑ and ending with ⦒. To handle that we'll put
 the parser into uuid mode so that we know to just eat all the characters until
-we get to the end token
+we get to the end delimiter
 
   [#char char: "⦑" block, index, not(mode)]
   next = [#char block index: index + 1]
@@ -121,9 +121,9 @@ the current character is not a quote or the previous character is a \
     token.char += next
     next := [token mode: "string"]
 
-The last special case we need to deal with is for doc strings which we identify by
-looking for new line characters where the next char is not whitespace or we're at
-index 0 and it's not whitespace. 
+The last special case we need to deal with is for doc strings (any text at the top level),
+which we identify by looking for new line characters where the next char is not whitespace
+or we're at index 0 and it's not whitespace. 
 
   next = if [#char char: "\n" block, index, not(mode)]
             char = [#char block index: index + 1, type != "whitespace"] then char
