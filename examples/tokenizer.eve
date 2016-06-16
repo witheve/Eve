@@ -147,9 +147,9 @@ is just the type of the first character.
   token = [#token block char start not(type)]
   [#char block token, index: start, type]
   update
-    token.type = type
-    token.value = concat(char.char, char.index given char)
-    token.length = count(given char)
+    token.type := type
+    token.value := concat(char.char, char.index given char)
+    token.length := count(given char)
 
 We also need to check if any of the tokens are keywords and associate
 the keyword with them if they are.
@@ -166,5 +166,5 @@ parse them in order
   token = [#token block start]
   index = index(given start increasing per block)
   update
-    token.index = index
+    token.index := index
 
