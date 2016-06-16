@@ -74,8 +74,8 @@ can have numbers in them.
   char = [#char block, index, type]
   prev = [#char block index: index - 1, token, not(mode)]
   prev = if prev.type = type then prev
-         elseif prev.type = "identifier"
-                type = "numeric" then prev
+         else if prev.type = "identifier"
+                 type = "numeric" then prev
   update
     token += [char]
     char := [token]
