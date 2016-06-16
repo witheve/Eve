@@ -93,7 +93,7 @@ static void do_scan(evaluation ex, execf n, int sig, value e, value a, value v, 
     default:
         exec_error(ex, "unknown scan");
     }
-    
+
     apply(ex->s, sig, listen, lookup(e, r), lookup(a, r), lookup(v, r));
 }
 
@@ -116,7 +116,7 @@ static execf build_scan(evaluation ex, node n)
 }
 
 static CONTINUATION_6_2(do_insert, evaluation, execf, value, value, value, value, operator, value *) ;
-static void do_insert(evaluation ex, execf n, value uuid, value e, value a, value v, operator op, value *r) 
+static void do_insert(evaluation ex, execf n, value uuid, value e, value a, value v, operator op, value *r)
 {
     apply(ex->insert, uuid, lookup(e, r), lookup(a, r), lookup(v, r));
     apply(n, op, r);
@@ -133,29 +133,37 @@ static execf build_insert(evaluation e, node n)
 }
 
 
-static CONTINUATION_5_2(do_plus, evaluation, execf, value, value, value,  operator, value *);
-static void do_plus(evaluation ex, execf n, value dest, value a, value b, operator op, value *r)
-{
-    value ar = lookup( r, a);
-    value br = lookup( r, b);
-    if ((type_of(ar) != float_space ) || (type_of(br) != float_space)) {
-        exec_error(ex, "attempt to add non-numbers", a, b);
-    } else {
-        r[reg(dest)] = box_float(*(double *)lookup( r, a) + *(double *)lookup( r, b));
-        apply(*n, op, r);
+#define DO_BINARY_NUMERIC(__name, __op) \
+    static void __name (evaluation ex, execf n, value dest, value a, value b, operator op, value *r) \
+    {                                                                                                \
+        value ar = lookup( r, a);                                                                    \
+        value br = lookup( r, b);                                                                    \
+        if ((type_of(ar) != float_space ) || (type_of(br) != float_space)) {                         \
+            exec_error(ex, "attempt to add non-numbers", a, b);                                      \
+        } else {                                                                                     \
+            r[reg(dest)] = box_float(*(double *)lookup( r, a) __op *(double *)lookup( r, b));        \
+            apply(*n, op, r);                                                                        \
+        }                                                                                            \
     }
-}
 
-static execf build_plus(evaluation e, node n)
-{
-    return cont(e->h,
-                do_plus,
-                e,
-                vector_get(n->arms, 0),
-                vector_get(n->arguments, 0),
-                vector_get(n->arguments, 1),
-                vector_get(n->arguments, 2));
-}
+
+#define BUILD_BINARY_NUMERIC(__name, __do_op)   \
+    static execf __name (evaluation e, node n)  \
+    {                                           \
+        return cont(e->h,                       \
+                __do_op,                        \
+                e,                              \
+                vector_get(n->arms, 0),         \
+                vector_get(n->arguments, 0),    \
+                vector_get(n->arguments, 1),    \
+                vector_get(n->arguments, 2));   \
+    }
+
+
+static CONTINUATION_5_2(do_plus, evaluation, execf, value, value, value,  operator, value *);
+DO_BINARY_NUMERIC(do_plus, +)
+BUILD_BINARY_NUMERIC(build_plus, do_plus)
+
 
 
 // ok - we need to refactor the build process to allow the insertion of a tail node
@@ -169,20 +177,20 @@ static void do_sub(execf next, execf leg, table results, vector v, vector inputs
     for (int i = 0; i< vector_length(inputs); i ++) {
         vector_set(v, i, lookup(vector_get(inputs, i), r));
     }
-    
+
     vector res;
     if ((res = table_find(results, v))) {
-        for (int i = 0; i< vector_length(outputs); i ++) 
+        for (int i = 0; i< vector_length(outputs); i ++)
             r[toreg(vector_get(outputs, i))] = vector_get(res, i);
     } else {
         apply(leg, op, r);
         // copy vector?
         vector key = allocate_vector(results->h, vector_length(inputs));
-        for (int i = 0; i< vector_length(inputs); i ++) 
+        for (int i = 0; i< vector_length(inputs); i ++)
             vector_set(key, i, vector_get(v, i));
 
         res = allocate_vector(results->h, vector_length(outputs));
-        for (int i = 0; i< vector_length(outputs); i ++) 
+        for (int i = 0; i< vector_length(outputs); i ++)
             vector_set(res, i, r[toreg(vector_get(outputs, i))]);
         table_set(results, key, res);
     }
@@ -196,17 +204,17 @@ static execf build_sub(evaluation e, node n)
     vector v = allocate_vector(e->h, vector_length(n->arguments));
     return cont(e->h,
                 do_sub,
-                resolve_cfg(e, n, 0), 
-                resolve_cfg(e, n, 1), 
+                resolve_cfg(e, n, 0),
+                resolve_cfg(e, n, 1),
                 results,
-                v, 
-                n->arguments, 
+                v,
+                n->arguments,
                 n->ancillary);
 }
 
-    
+
 static CONTINUATION_2_2(do_genid, execf, value,  operator, value *);
-static void do_genid(execf n, value dest, operator op, value *r) 
+static void do_genid(execf n, value dest, operator op, value *r)
 {
     value v = generate_uuid();
     r[reg(dest)] = v;
@@ -222,7 +230,7 @@ static execf build_genid(evaluation e, node n)
 }
 
 static CONTINUATION_3_2(do_join, execf, int, u32, operator, value *);
-static void do_join(execf n, int count, u32 total, operator op, value *r) 
+static void do_join(execf n, int count, u32 total, operator op, value *r)
 {
     apply(n, op, r);
 }
@@ -234,7 +242,7 @@ static execf build_join(evaluation e, node n)
 }
 
 static CONTINUATION_0_2(do_terminal, operator, value *);
-static void do_terminal(operator op, value *r) 
+static void do_terminal(operator op, value *r)
 {
 }
 
@@ -272,7 +280,7 @@ static void do_trace(execf n, vector terms, operator op, value *r)
 
 static execf build_trace(evaluation ex, node n, execf *arms)
 {
-    return cont(ex->h, 
+    return cont(ex->h,
                 do_trace,
                 resolve_cfg(ex, n, 0),
                 n->arguments);
@@ -339,4 +347,3 @@ evaluation build(node n, table scopes, scan s, insertron insert, thunk terminal)
     e->head = *(execf *)table_find(e->nmap, n);
     return e;
 }
-
