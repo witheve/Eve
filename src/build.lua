@@ -273,9 +273,40 @@ function translate_union(n, bound, down, tracing)
    return env, build_node("fork", arms, {}, {})
 end
 
+local expressionMap = {["+"] = "plus"}
 function translate_expression(n, bound, down, tracing)
+   for term in pairs(n.produces) do
+      bound[term] = true
+   end
+   local result, a, b
+   for _, binding in pairs(n.bindings) do
+      if binding.field == "result" then
+         result = binding.variable
+         if not binding.variable or binding.constant then
+            error("Must bind result of expression to variable")
+         end
+      end
+      if binding.field == "a" then
+         a = binding.variable or binding.constant
+      end
+      if binding.field == "b" then
+         b = binding.variable or binding.constant
+      end
+   end
 
-   error("@TODO: Implement translate_expression\n" .. flat_print_table(e) .. "\n" .. flat_print_table(a) .. "\n" .. flat_print_table(v))
+   local env, c = down(bound)
+
+   local operator = expressionMap[n.operator]
+   if tracing then
+      c = build_node("trace", {c},
+                     {operator, "" ,
+                      "result", write_lookup(env, result),
+                      "a", read_lookup(env, a),
+                      "b", read_lookup(env, b)},
+                      {})
+   end
+
+   return env, build_node(operator, {c}, {write_lookup(env, result), read_lookup(env, a), read_lookup(env, b)}, {})
 end
 
 -- this doesn't really need to be disjoint from read lookup, except for concerns about
