@@ -51,9 +51,9 @@ static void rolling_free(rolling c, void *x)
 static void rolling_destroy(rolling c)
 {
 
-    for (pageheader i = c->buffer;
-         deallocate(c->parent, i), ((rolling)i != c);
-         i = i->next);
+    for (pageheader i = c->buffer, j;
+         i && (j = i->next, deallocate(c->parent, i), 1);
+         i = j);
 }
 
 // where heap p must be aligned

@@ -38,7 +38,7 @@ static inline table create_value_vector_table(heap h)
 
 typedef struct bag *bag;
 
-bag create_bag(); 
+bag create_bag(uuid); 
 void edb_insert(bag b, value e, value a, value v);
 
 void init_runtime();
@@ -118,7 +118,7 @@ void execute(evaluation);
 table builders_table();
 void register_implication(node n);
 evaluation build(node n, table scopes, scan s, insertron insert, thunk terminal);
-table start_fixedpoint(table);
+table start_fixedpoint(heap, table);
 
 #define s_eav 0x0
 #define s_eAv 0x2
@@ -129,4 +129,9 @@ table start_fixedpoint(table);
 
 void edb_scan(bag b, int sig, void *f, value e, value a, value v);
 
-extern int enable_tracing;
+table edb_implications();
+void edb_register_implication(bag b, node n);
+void edb_remove_implication(bag b, node n);
+uuid edb_uuid(bag b);
+int edb_size(bag b);
+

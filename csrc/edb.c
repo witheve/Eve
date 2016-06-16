@@ -6,7 +6,9 @@ struct bag {
     table listeners;
     table eav;
     table ave;
-    value uuid;
+    uuid u;
+    int count;
+    table implications;
     heap h;
 };
 
@@ -19,6 +21,30 @@ table level_fetch(heap h, table current, value key) {
     return next_level;
 }
 
+int edb_size(bag b)
+{
+    return b->count;
+}
+
+uuid edb_uuid(bag b)
+{
+    return b->u;
+}
+
+table edb_implications(bag b)
+{
+    return(b->implications);
+}
+
+void edb_register_implication(bag b, node n)
+{
+    table_set(b->implications, n, n);
+}
+
+void edb_remove_implication(bag b, node n)
+{
+    table_set(b->implications, n, 0);
+}
 
 void edb_scan(bag b, int sig, void *f, value e, value a, value v)
 {
@@ -108,14 +134,15 @@ void register_bag(uuid x, insertron i)
 // its probably going to be better to keep a global guy with
 // reference counts because of the object sharing, but this is
 // ok for today
-bag create_bag()
+bag create_bag(uuid u)
 {
-
     heap h = allocate_rolling(pages);
     bag b = allocate(h, sizeof(struct bag));
     b->h = h;
+    b->u = u;
     b->eav = create_value_table(h);
     b->ave = create_value_table(h);
+    b->implications = allocate_table(h, key_from_pointer, compare_pointer);
     return b;
 }
 
@@ -134,6 +161,7 @@ void edb_insert(bag b, value e, value a, value v)
         table vl = level_fetch(b->h, al, v);
         table tail = level_fetch(b->h, vl, e);
     }
+    b->count++;
 }
 
 int buffer_unicode_length(buffer buf)

@@ -124,8 +124,8 @@ static void session_buffer(session s,
                     buffer *c;
                     if (!s->child) { // sadness
                         if ((c = table_find(s->parent->services, s->fields[url]))) {
-                            // stash the method and the url in the headers
-                            s->child = ((http_service) c)(s->write, s->headers);
+                            // stash the method and the url in the headers - actually turn this into a bag
+                            apply((http_service)c, s->write, s->headers, &s->child);
                         } else {
                             if ((c = table_find(s->parent->content, s->fields[url]))) {
                                 // reset connection state
