@@ -124,9 +124,10 @@ static void do_insert(evaluation ex, execf n, value uuid, value e, value a, valu
 
 static execf build_insert(evaluation e, node n)
 {
+    bag x = table_find(e->scopes, vector_get(n->arguments, 0));
     return cont(e->h, do_insert,  e,
                 resolve_cfg(e, n, 0),
-                table_find(e->scopes, vector_get(n->arguments, 0)),
+                edb_uuid(x),
                 vector_get(n->arguments, 1),
                 vector_get(n->arguments, 2),
                 vector_get(n->arguments, 3));
@@ -316,11 +317,8 @@ static void force_node(evaluation e, node n)
 
 void execute(evaluation e)
 {
-    ticks start_time = now();
     value *r = allocate(init, sizeof(value) * e->registerfile);
     apply(e->head, 0, r);
-    ticks end_time = now();
-    prf ("exec in %t seconds\n", end_time-start_time);
 }
 
 evaluation build(node n, table scopes, scan s, insertron insert, thunk terminal)

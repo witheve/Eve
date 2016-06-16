@@ -2,10 +2,9 @@
 #include <unix.h>
 #include <http/http.h>
 #include <bswap.h>
-#include <stdio.h>
 #include <luanne.h>
 
-int enable_tracing = false;
+
 
 station create_station(unsigned int address, unsigned short port) {
     void *a = allocate(init,6);
@@ -16,23 +15,23 @@ station create_station(unsigned int address, unsigned short port) {
 }
 
 
-extern void init_json_service(http_server);
+extern void init_json_service(http_server, bag, boolean);
 extern int strcmp(const char *, const char *);
 static buffer read_file_or_exit(heap, char *);
 
-bag my_awesome_bag;
 
 int main(int argc, char **argv)
 {
     init_runtime();
-
+    bag root = create_bag(generate_uuid());
+    boolean enable_tracing = false;
     
     interpreter c = build_lua();
 
     for (int i = 1; i <argc ; i++) {
         if (!strcmp(argv[i], "-e")) {
             buffer b = read_file_or_exit(init, argv[++i]);
-            register_implication(lua_compile_eve(c, b, enable_tracing));
+            edb_register_implication(root, lua_compile_eve(c, b, enable_tracing));
         }
         if (!strcmp(argv[i], "-parse")) {
             lua_run_module_func(c, read_file_or_exit(init, argv[++i]), "parser", "printParse");
@@ -66,9 +65,9 @@ int main(int argc, char **argv)
                             wrap_buffer(init,  &renderer_start,
                                         &renderer_end -  &renderer_start));
 
-    init_json_service(h);
+    init_json_service(h, root, enable_tracing);
 
-    printf("\n----------------------------------------------\n\nEve started. Running at http://localhost:8080\n\n");
+    prf("\n----------------------------------------------\n\nEve started. Running at http://localhost:8080\n\n");
     unix_wait();
 }
 
