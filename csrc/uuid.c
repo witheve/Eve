@@ -55,6 +55,7 @@ uuid intern_uuid(unsigned char *x)
     // atomicity;
     if (!(result = table_find(interned_uuid, x))) {
         result = allocate(uuid_heap, UUID_LENGTH);
+
         memcpy(result, x, UUID_LENGTH);
         table_set(interned_uuid, result, result);
     }
@@ -71,14 +72,14 @@ uuid generate_uuid()
     memcpy(result, &z, 8);
     *((unsigned short *)result + 4) = count++;
     unsigned char *y = result;
-    table_set(interned_uuid, result, (void *)1);
+    table_set(interned_uuid, result, (void *)result);
     return result;
 }
 
 void init_uuid()
 {
     uuid_heap = init_fixed_page_region(init, uuid_space, uuid_space + region_size, pages->pagesize);
-    interned_uuid = allocate_table(init, uuid_hash, uuid_compare);
+    interned_uuid = allocate_table(efence, uuid_hash, uuid_compare);
 }
 
 

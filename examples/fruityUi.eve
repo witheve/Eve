@@ -15,4 +15,4 @@ Draw a list of fruits
 draw clicks
   [#click element]
   update
-    [#div text: "yo"]
+    [#div element text: "yo"]

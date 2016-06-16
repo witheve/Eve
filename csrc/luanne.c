@@ -2,6 +2,12 @@
 #include <unix/unix.h>
 #include <luanne.h>
 
+
+#define foreach_lua_table(__L, __ind, __k, __v) \
+    lua_pushnil(__L); \
+    for (int __k = -2, __v = - 1; (lua_next(__L, __ind) != 0) ; lua_pop(__L, 1))
+
+
 value lua_tovalue(lua_State *L, int index)
 {
     switch(lua_type(L, index)){
@@ -18,7 +24,7 @@ value lua_tovalue(lua_State *L, int index)
         return lua_touserdata(L, index);
     default:
         // figure out how to signal a lua error
-        printf("yeah, sorry, i dont eat that kind of stuff %d\n", lua_type(L, index));
+        printf("yeah, sorry, i dont eat that kind of stuff %s\n", lua_typename(L, lua_type(L, index)));
     }
     return 0;
 }
@@ -37,12 +43,20 @@ static int construct_uuid(lua_State *L)
         return 1;
     }
     
-    for (int i = 0 ; i < length; i++) {
-        int loc = (length - i)/2;
-        id[loc] = ((i&1)?(id[loc] << 4):0) | digit_of(body[i]);
+    for (int i = 0 ; i < length; i += 2) {
+        int loc = i/2;
+        id[loc] = (digit_of(body[i]) * 16) + digit_of(body[i+1]);
     }
-    
     lua_pushlightuserdata(L, intern_uuid(id));
+    return 1;
+}
+
+
+static int construct_register(lua_State *L)
+{
+    evaluation c = (void *)lua_context(L);
+    int offset = (int)lua_tonumber(L, 1);
+    lua_pushlightuserdata(L, (void *)(register_base + offset));
     return 1;
 }
 
@@ -107,7 +121,7 @@ static int traceback(lua_State *L)
   return 1;
 }
 
-evaluation lua_compile_eve(interpreter c, buffer b, boolean tracing)
+node lua_compile_eve(interpreter c, buffer b, boolean tracing)
 {
     lua_pushcfunction(c->L, traceback);
     lua_getglobal(c->L, "compiler");
@@ -121,7 +135,7 @@ evaluation lua_compile_eve(interpreter c, buffer b, boolean tracing)
     }
     void *z = (void *)lua_topointer(c->L, -1);
     lua_pop(c->L, 1);
-    return((evaluation)z);
+    return((node)z);
 }
 
 void lua_run_module_func(interpreter c, buffer b, char *module, char *func)
@@ -151,31 +165,57 @@ void lua_run(interpreter c, buffer b)
     }
 }
 
-
 extern int luaopen_utf8(lua_State *L);
 
+
 extern void bundle_add_loaders(lua_State* L);
- 
-interpreter build_lua(bag b, table scopes)
+
+int lua_build_node(lua_State *L)
+{
+    interpreter c = lua_context(L);
+    node n = allocate(c->h, sizeof(struct node));
+    n->arms = allocate_vector(c->h, 5);
+    n->arguments = allocate_vector(c->h, 5);
+    n->ancillary = allocate_vector(c->h, 5);
+    estring x = lua_tovalue(L, 1);
+    n->builder = table_find(builders_table(),x) ;
+    if (!n->builder) {
+        prf ("no such node type: %v\n", x);
+    }
+
+    foreach_lua_table(L, 2, k, v)
+        vector_insert(n->arms, (void *)lua_topointer(L, v));
+
+    foreach_lua_table(L, 3, k, v) {
+        vector_insert(n->arguments, lua_tovalue(L, v));
+    }
+           
+    foreach_lua_table(L, 4, k, v) {
+        vector_insert(n->ancillary, lua_tovalue(L, v));
+    }
+
+    lua_pushlightuserdata(L, n);
+    return 1;
+}
+
+interpreter build_lua()
 {
     heap h = allocate_rolling(pages);
     interpreter c = allocate(h, sizeof(struct interpreter));
     c->L = luaL_newstate();
     c->h = h;
-    c->b = b;
-    c->scope_map = scopes;
-    
+
     luaL_openlibs(c->L);
     bundle_add_loaders(c->L);
 
     // make me a lua package ala utf8
-    define(c, "suid", construct_uuid);
+    define(c, "suuid", construct_uuid);
     define(c, "snumber", construct_number);
+    define(c, "sregister", construct_register);
     define(c, "sboolean", construct_boolean);
-    define(c, "sstring_boolean", construct_string);
+    define(c, "sstring", construct_string);
     define(c, "value_to_string", lua_print_value);
-
-    register_exec(c);
+    define(c, "build_node", lua_build_node);
     require_luajit(c, "compiler");
 
     return c;

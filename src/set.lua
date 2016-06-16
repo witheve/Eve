@@ -29,7 +29,7 @@ end
 function Set:clone()
    local result = Set:new()
    for k in pairs(self) do result[k] = true end
-   lengths[result] = #self
+   lengths[result] = self:length()
    return result
  end
 
@@ -49,7 +49,7 @@ end
 
 function Set.union(lhs, rhs, mutate)
    local result = lhs
-   local count = #lhs
+   local count = lhs:length()
    if not mutate then
       result = Set:new()
       for k in pairs(lhs) do result[k] = true end
@@ -66,7 +66,7 @@ end
 
 function Set.intersection(lhs, rhs, mutate)
    local result = lhs
-   local count = #lhs
+   local count = lhs:length()
    if not mutate then
       result = Set:new()
       count = 0

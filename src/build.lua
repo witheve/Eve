@@ -16,6 +16,11 @@ function recurse_print_table(t)
    return result
 end
 
+function push(m, x, y)  
+   m[#m+1] = x
+   m[#m+1] = y
+end
+
 function flat_print_table(t)
    if type(t) == "table" then 
      local result = ""
@@ -26,6 +31,26 @@ function flat_print_table(t)
      return result
    end
    return tostring(t)
+end
+
+
+function translate_value(x)
+   if type(x) == "table" then
+      local ct = x.constantType
+      if ct == "string" then
+         return sstring(x.constant)
+      end
+      if ct == "number" then
+         return snumber(x.constant)
+      end
+      if ct == "uuid" then
+        print("UUID", x.constant)
+         return suuid(x.constant)
+      end
+      print ("i couldn't figure out this value", flat_print_table(x))
+      return x
+   end
+   return x
 end
 
 function deepcopy(orig)
@@ -92,20 +117,16 @@ function read_lookup(env, x)
          r = allocate_register(env, x)
          env.registers[x] = r
        end
-      return register(r)
+      return sregister(r)
    end
-   -- demultiplex types on x.constantType
-   if type(x) == "table" then
-      return x["constant"]
-   end
-   return x
+   return translate_value(x)
 end
 
 function write_lookup(env, x)
    -- can't be a constant or unbound
    r = env.registers[x]
    free_register(env, x)
-   return register(r)
+   return sregister(r)
 end
 
 
@@ -116,8 +137,42 @@ function bound_lookup(bindings, x)
    return x
 end
 
+function set_to_read_array(env, x)
+   local out = {}
+   for k, v in pairs(x) do
+      out[#out+1] = read_lookup(env, k)
+   end
+   return out
+end
 
-function translate_object(ex, n, bound, down)
+function buildo(name, arms, args, anc, env, tracing)
+end
+
+function translate_subproject(n, bound, down, tracing)
+   local p = n.projection
+   local t = n.nodes
+   local prod = n.produces
+   local dc, c2, c
+   function tail (bound)
+      local env
+      env, dc = down(bound)
+      return env, dc
+   end
+   env, c2 = walk(n.nodes, nil, bound, tail, tracing)   
+   c = build_node("sub", {dc, c2}, 
+                          set_to_read_array(env, n.projection),
+                          set_to_read_array(env, n.produces))
+   if tracing then 
+      local map = {"proj", ""} 
+      for k, v in pairs(n.projection) do
+         push(map, k.name,  read_lookup(env, k))
+      end
+      c = build_node("trace", {c}, map, {})
+   end                          
+   return env, c
+end
+
+function translate_object(n, bound, down, tracing)
    local e = n.entity
    local a = n.attribute
    local v = n.value
@@ -143,12 +198,21 @@ function translate_object(ex, n, bound, down)
    end
 
    local env, c = down(bound)
-   c = scan(ex,c, sig, ef(env, e), af(env, a), vf(env, v))
-   return env, c
+   if tracing then 
+      c = build_node("trace", {c},
+                  {"scan", "" ,
+                   "sig", sig,
+                   "entity", read_lookup(env,e),         
+                   "attribute", read_lookup(env, a),         
+                   "value", read_lookup(env, v)},
+                   {})
+   end 
+
+   return env, build_node("scan", {c}, {sig, ef(env, e), af(env, a), vf(env, v)}, {})
  end
 
 
-function translate_mutate(ex, n, bound, down)
+function translate_mutate(n, bound, down, tracing)
    local e = n.entity
    local a = n.attribute
    local v = n.value
@@ -156,16 +220,32 @@ function translate_mutate(ex, n, bound, down)
    local gen = (variable(e) and not bound[e])
    if (gen) then bound[e] = true end
    local env, c = down(bound)
-   local c  = build_insert(ex, c, n.scope, read_lookup(env, e), read_lookup(env, a), read_lookup(env, v));    
+   if tracing then 
+      c = build_node("trace", {c},
+                  {"insert", "" ,
+                   "scope", n.scope,
+                   "entity", read_lookup(env,e),         
+                   "attribute", read_lookup(env, a),         
+                   "value", read_lookup(env, v)},
+                   {})
+   end 
+   
+   local c = build_node("insert", {c}, 
+         {n.scope, 
+          read_lookup(env,e),         
+          read_lookup(env,a),          
+          read_lookup(env,v)}, 
+          {})
    if gen then
-      c = generate_uuid(ex, c, write_lookup(env, e))
+      c = build_node("generate", {c}, {write_lookup(env, e)}, {})
    end
    return env, c
 end
 
-function translate_union(ex, n, bound, down)
+function translate_union(n, bound, down, tracing)
    local heads
    local c2
+   local arms = {}
    tail_bound = shallowcopy(bound)
    
    for _, v in pairs(n.outputs) do
@@ -173,6 +253,10 @@ function translate_union(ex, n, bound, down)
    end
 
    local env, c = down(tail_bound)
+
+   local arm_bottom = function (bound)
+                         return env, c
+                      end
          
    local orig_perm = shallowcopy(env.permanent)
    for n, _ in pairs(env.registers) do
@@ -180,19 +264,13 @@ function translate_union(ex, n, bound, down)
    end
    
    for _, v in pairs(n.queries) do
-      local c3
-      local b2 = shallowcopy(bound)
-
-      env, c3 = walk(ex, v.unpacked, nil, b2, c, env, nk)
-      if c2 then
-          c2 = build_fork(ex, c2, c3)
-      else
-          c2 = c3
-      end
+      local c2
+      env, c2 = walk(v.unpacked, nil, shallowcopy(bound), arm_bottom, tracing)
+      arms[#arms+1] = c2 
    end
    env.permanent = orig_perm
    -- currently leaking the perms
-   return env, c2
+   return env, build_node("fork", arms, {}, {})
 end
 
 -- this doesn't really need to be disjoint from read lookup, except for concerns about
@@ -200,58 +278,35 @@ end
 function trace_lookup(env, x)
    if variable(x) then
       local r = env.registers[x]
-      return register(r)
+      return sregister(r)
    end
-   -- demultiplex types on x.constantType
-   if type(x) == "table" then
-      return x["constant"]
-   end
-   return x
+   return translate_value(x)
 end
 
-function trace(ex, n, bound, down)
---    local entry = shallowcopy(bound)
-    local env, c = down(bound)
-    local map = {}
---    for n, v in pairs(entry) do
---       map[n.name] = env.registers[n]
---    end
-    if (n.type == "mutate") or (n.type == "object") then
-       map["entity"] =  trace_lookup(env, n.entity)
-       map["attribute"] =  trace_lookup(env, n.attribute)
-       map["value"] =  trace_lookup(env, n.value)
-       return env, build_trace(ex, c, n.type, map)
-    end
-    return env, c
-end
-
-function walk(ex, graph, key, bound, tail, tail_env, tracing)
-   local d
-   nk = next(graph, key)
+function walk(graph, key, bound, tail, tracing)
+   local d, down 
+   local nk = next(graph, key)
    if not nk then
-      return tail_env, tail
+      return tail(bound)
    end
-   
+
    local n = graph[nk]
 
-   down = function (bound)
-                return walk(ex, graph, nk, bound, tail, tail_env, tracing)
+   d = function (bound)
+                return walk(graph, nk, bound, tail, tracing)
            end
-           
-   if tracing then
-      d = function (bound)
-                  return trace(ex, n, bound, down)
-          end
-   else d = down end       
 
    if (n.type == "union") then
-      return translate_union(ex, n, bound, d)
+      return translate_union(n, bound, d, tracing)
    end
    if (n.type == "mutate") then
-      return translate_mutate(ex, n, bound, d)
+      return translate_mutate(n, bound, d, tracing)
    end
    if (n.type == "object") then
-      return translate_object(ex, n, bound, d)
+      return translate_object(n, bound, d, tracing)
+   end
+   if (n.type == "subproject") then
+      return translate_subproject(n, bound, d, tracing)
    end
 
    print ("ok, so we kind of suck right now and only handle some fixed patterns",
@@ -264,19 +319,17 @@ end
 
 function build(graphs, tracing)
    local head
+   local heads ={}
    local regs = 0
-   ex = new_evaluation()
+   tailf = function(b)
+               return empty_env(), build_node("terminal", {}, {}, {}) 
+           end
    for _, g in pairs(graphs) do
-      env, program = walk(ex, g, nil, {}, ignore(), empty_env(), tracing)
+      local env, program = walk(g, nil, {}, tailf, tracing)
       regs = math.max(regs, env.maxregs + 1)
-      if head then
-         head = build_fork(ex, head, program)
-      else
-         head = program
-      end
+      heads[#heads+1] = program
    end
-   set_head(ex, head, regs)
-   return ex
+   return build_node("fork", heads, {}, {})  
 end
 
 ------------------------------------------------------------

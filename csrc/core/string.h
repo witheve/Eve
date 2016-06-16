@@ -9,13 +9,14 @@ static inline string allocate_string(heap h)
     return(allocate_buffer(h, 20));
 }
 
-
-extern int fls(int);
-
 static inline int utf8_length(unsigned char x)
 {
-    unsigned char y = ~x;
-    return 9-fls(y);
+    if (~x & 0x80) return 1;
+    if ((x & 0xe0) == 0xc0) return 2;
+    if ((x & 0xf0) == 0xe0) return 3;
+    if ((x & 0xf8) == 0xf0) return 4;
+    // help
+    return(1);
 }
 
 
@@ -36,6 +37,20 @@ static int inline string_rune_length(char *s) {
     for (iu32 __x = 0, __i, __limit = buffer_length(__s);   \
          __i = *(u8)bref(__s, __x), __x<__limit;    \
          __x++)
+
+// other defines and prototypes make it difficult to use someone else's
+#define swap32(_x) ((((_x)>>24) & 0xffL) | (((_x)>>8) & 0xff00L) | \
+                    (((_x)<<8) & 0xff0000L) | (((_x)<<24) & 0xff000000L))
+
+#define rune_foreach(__s, __i)                                        \
+    for (iu32 __x = 0, *__t, __q, __i, __limit = buffer_length(__s);  \
+         __i = 0, __t = (u32)bref(__s, __x), __q = utf8_length(*__t), \
+         memcpy(&__i, __t, __q),                                      \
+         __i = swap32(__i),                                           \
+         __i = __i >> 8 * (4 - __q),                                  \
+         __x<__limit;                                                 \
+         __x += __q)
+
 
 #define alloca_string(_x)\
     ({\
@@ -79,7 +94,7 @@ static inline iu32 cstring_length(char *s)
     return r;
 }
 
-// the ascii subset 
+// the ascii subset
 static inline string string_from_cstring(heap h, char *s)
 {
     string b = allocate_string(h);

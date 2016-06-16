@@ -108,7 +108,7 @@ buffer_handler websocket_send_upgrade(heap h,
                                       buffer_handler *from_above)
 {
     websocket w = allocate(h, sizeof(struct websocket));
-    struct string_intermediate *ekey;
+    estring ekey;
     string key;
 
     if (!(ekey=table_find(headers, intern_buffer(sstring("Sec-WebSocket-Key"))))) {
