@@ -702,7 +702,7 @@ local function parse(tokens)
       else
         local nodeType = type == "INEQUALITY" and "inequality" or "equality"
         stackTop.children[#stackTop.children] = nil
-        stack:push({type = nodeType, children = {prev}})
+        stack:push({type = nodeType, op = token.value, children = {prev}, line = token.line, offset = token.offset})
       end
 
     elseif type == "OPEN_PAREN" then
@@ -855,6 +855,42 @@ local function resolveExpression(node, context)
     context.equalityLeft = prev
     return left
 
+  elseif node.type == "inequality" then
+    local left = resolveExpression(node.children[1], context)
+    -- set that when I try to resolve this expression,
+    -- I'm looking to resolve it to this specific variable
+    local prev = context.equalityLeft
+    context.equalityLeft = nil
+    local right = resolveExpression(node.children[2], context)
+    context.equalityLeft = prev
+    local expression = {type = "expression", operator = node.op, projections = {}, groupings = {}, bindings = {}}
+    local leftBinding = {field = "a"}
+    if left.type == "variable" then
+      leftBinding.variable = left
+    elseif left.type == "constant" then
+      leftBinding.constant = left
+    else
+      error("Inequality with invalid left")
+    end
+    local rightBinding = {field = "b"}
+    if right.type == "variable" then
+      rightBinding.variable = right
+    elseif right.type == "constant" then
+      rightBinding.constant = right
+    else
+      error("Inequality with invalid right")
+    end
+    local resultVar = context.equalityLeft
+    if not context.equalityLeft then
+      resultVar = resolveVariable(string.format("inequality-%s-%s", node.line, node.offset), context)
+    end
+    generateBindingNode(leftBinding, context, expression)
+    generateBindingNode(rightBinding, context, expression)
+    generateBindingNode({field = "return", variable = resultVar}, context, expression)
+    local query = context.queryStack:peek()
+    query.expressions[#query.expressions + 1] = expression
+    return resultVar
+
   elseif node.type == "attribute" then
     -- TODO
     local left = resolveExpression(node.children[1], context)
@@ -1000,6 +1036,17 @@ generateObjectNode = function(root, context)
         local variable = resolveExpression(child, context)
         local binding = generateBindingNode({field = lastAttribute.value, variable = variable}, context, object)
         dependencies:add(variable)
+      else
+        -- error
+      end
+
+    elseif type == "inequality" then
+      local left = child.children[1]
+      if left.type == "IDENTIFIER" then
+        local variable = resolveVariable(left.value, context)
+        local binding = generateBindingNode({field = child.value, variable = variable}, context, object)
+        resolveExpression(child, context)
+        lastAttribute = nil
       else
         -- error
       end
@@ -1163,6 +1210,9 @@ generateQueryNode = function(root, context)
 
     elseif type == "equality" then
       local left = resolveExpression(child, context)
+
+    elseif type == "inequality" then
+      resolveExpression(child, context)
 
     elseif type == "choose" then
       local node = generateUnionNode(child, context, "choose")
