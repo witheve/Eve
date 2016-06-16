@@ -15,6 +15,8 @@ static inline int utf8_length(unsigned char x)
     if ((x & 0xe0) == 0xc0) return 2;
     if ((x & 0xf0) == 0xe0) return 3;
     if ((x & 0xf8) == 0xf0) return 4;
+    // help
+    return(1);
 }
 
 
