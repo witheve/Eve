@@ -78,7 +78,6 @@ static int construct_number(lua_State *L)
     }
     
     lua_pushlightuserdata(L, box_float(rez * fact));
-    lua_pushnil(L);
     return 1;
 }
 
