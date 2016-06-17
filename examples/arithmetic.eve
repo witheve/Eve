@@ -1,5 +1,8 @@
 simple constant addition
-  a = 1 + 3
+  a = 1 + 2
   b = a + 2
+  c = b - 1
+  d = c / 2
+  e = d * 3
   update
-    [#div #num ix: a, text: a]
+    [#div #num text: e]
