@@ -272,7 +272,7 @@ function translate_union(n, bound, down, tracing)
    return env, build_node("fork", arms, {}, {})
 end
 
-local expressionMap = {["+"] = "plus", ["-"] = "minus", ["*"] = "multiply", ["/"] = "divide"}
+local expressionMap = {["+"] = "plus", ["-"] = "minus", ["*"] = "multiply", ["/"] = "divide", ["<"] = "less_than", ["<="] = "less_than_or_equal"}
 function translate_expression(n, bound, down, tracing)
    for term in pairs(n.produces) do
       bound[term] = true
