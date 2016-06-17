@@ -185,6 +185,8 @@ local specials = {
   [")"] = "CLOSE_PAREN",
   ["["] = "OPEN_BRACKET",
   ["]"] = "CLOSE_BRACKET",
+  ["{"] = "OPEN_CURLY",
+  ["}"] = "CLOSE_CURLY",
   ["⦑"] = "OPEN_UUID",
   ["⦒"] = "CLOSE_UUID",
   [":"] = "ALIAS",
@@ -227,7 +229,7 @@ local function isIdentifierChar(char)
 end
 
 local function inString(char, prev)
-  return char ~= "\"" or prev == "\\"
+  return (char ~= "\"" and char ~= "{") or prev == "\\"
 end
 
 local function isNumber(char)
@@ -265,11 +267,19 @@ local function lex(str)
       tokens[#tokens+1] = Token:new("DOC", doc, line, offset)
       offset = offset + #doc
 
-    elseif char == "\"" then
+    elseif char == "\"" or char == "}" then
+      if char == "\"" then
+        tokens[#tokens+1] = Token:new("STRING_OPEN", "\"", line, offset)
+      end
       local string = scanner:eatWhile(inString)
+      if #string > 0 then
+        tokens[#tokens+1] = Token:new("STRING", string, line, offset)
+      end
       -- skip the end quote
-      scanner:read()
-      tokens[#tokens+1] = Token:new("STRING", string, line, offset)
+      if scanner:peek() == "\"" then
+        scanner:read()
+        tokens[#tokens+1] = Token:new("STRING_CLOSE", "\"", line, offset)
+      end
       offset = offset + #string
 
     elseif char == "⦑" then
@@ -551,6 +561,27 @@ local function parse(tokens)
 
     elseif type == "COMMENT" then
       info.comments[#info.comments + 1] = token
+
+    elseif type == "STRING_OPEN" then
+      stack:push({type = "function", operator = "concat", children = {right}, line = token.line, offset = token.offset})
+
+    elseif type == "STRING_CLOSE" then
+      if stackTop and stackTop.type == "function" and stackTop.operator == "concat" then
+        -- if there's zero or one children, then this concat isn't needed
+        if #stackTop.children == 0 or (#stackTop.children == 1 and stackTop.children[1].type == "STRING") then
+          local string = stackTop.children[1] or {type = "STRING", value = "", line = token.line, offset = token.offset}
+          stack:pop()
+          stackTop = stack:peek()
+          stackTop.children[#stackTop.children + 1] = string
+        else
+          stackTop.closed = true
+        end
+      else
+        -- error
+      end
+
+    elseif type == "OPEN_CURLY" or type == "CLOSE_CURLY" then
+      -- we can just ignore these
 
     elseif type == "OPEN_BRACKET" then
       stack:push({type = "object", children = {}, line = token.line, offset = token.offset})
@@ -943,7 +974,9 @@ local function resolveExpression(node, context)
       field = alphaFields[ix]
       context.equalityLeft = nil
       local resolved = resolveExpression(child, context)
-      if resolved.type == "variable" then
+      if not resolved then
+        -- error
+      elseif resolved.type == "variable" then
         generateBindingNode({field = field, variable = resolved}, context, expression)
 
       elseif resolved.type == "constant" then
