@@ -211,7 +211,7 @@ local keywords = {
   [">"] = "INEQUALITY",
   ["<"] = "INEQUALITY",
   [">="] = "INEQUALITY",
-  [">="] = "INEQUALITY",
+  ["<="] = "INEQUALITY",
   ["!="] = "INEQUALITY",
   ["+"] = "INFIX",
   ["-"] = "INFIX",
