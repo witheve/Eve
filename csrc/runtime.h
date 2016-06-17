@@ -95,6 +95,7 @@ typedef struct evaluation  {
     table scopes;
     execf head;
     scan s;
+    int invocations;
     int registerfile;
     table nmap;
 } *evaluation;
