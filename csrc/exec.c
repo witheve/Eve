@@ -165,6 +165,18 @@ static CONTINUATION_5_2(do_plus, evaluation, execf, value, value, value,  operat
 DO_BINARY_NUMERIC(do_plus, +)
 BUILD_BINARY_NUMERIC(build_plus, do_plus)
 
+static CONTINUATION_5_2(do_minus, evaluation, execf, value, value, value,  operator, value *);
+DO_BINARY_NUMERIC(do_minus, -)
+BUILD_BINARY_NUMERIC(build_minus, do_minus)
+
+static CONTINUATION_5_2(do_multiply, evaluation, execf, value, value, value,  operator, value *);
+DO_BINARY_NUMERIC(do_multiply, *)
+BUILD_BINARY_NUMERIC(build_multiply, do_multiply)
+
+static CONTINUATION_5_2(do_divide, evaluation, execf, value, value, value,  operator, value *);
+DO_BINARY_NUMERIC(do_divide, /)
+BUILD_BINARY_NUMERIC(build_divide, do_divide)
+
 
 
 // ok - we need to refactor the build process to allow the insertion of a tail node
@@ -301,6 +313,9 @@ table builders_table()
     if (!builders) {
         builders = allocate_table(init, key_from_pointer, compare_pointer);
         table_set(builders, intern_cstring("plus"), build_plus);
+        table_set(builders, intern_cstring("minus"), build_minus);
+        table_set(builders, intern_cstring("multiply"), build_multiply);
+        table_set(builders, intern_cstring("divide"), build_divide);
         table_set(builders, intern_cstring("insert"), build_insert);
         table_set(builders, intern_cstring("scan"), build_scan);
         table_set(builders, intern_cstring("generate"), build_genid);
