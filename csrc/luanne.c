@@ -63,6 +63,21 @@ static int construct_register(lua_State *L)
 static int construct_number(lua_State *L)
 {
     interpreter c = lua_context(L);
+    char *s = (char *)lua_tostring(L, 1);
+    int len = lua_strlen(L, 1);
+    boolean fractional = false;
+    double rez = 0, fact = (s[0]=='-')?(s++, len--, -1.0):1.0;
+
+    for (int i = 0; i < len ; i++) {
+        if (s[i] == '.'){
+            fractional = true; 
+        } else {
+            if (fractional) fact /= 10.0f;
+            rez = rez * 10.0f + (double)digit_of(s[i]);
+        }
+    }
+    
+    lua_pushlightuserdata(L, box_float(rez * fact));
     lua_pushnil(L);
     return 1;
 }

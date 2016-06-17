@@ -231,7 +231,7 @@ function sendEvent(objs) {
   `
   console.log("QUERY", query);
   if(socket && socket.readyState == 1) {
-    socket.send(JSON.stringify({type: "query", query}))
+    socket.send(JSON.stringify({scope: "event", type: "query", query}))
   }
   return query;
 }
@@ -322,7 +322,7 @@ socket.onmessage = function(msg) {
 socket.onopen = function() {
   console.log("Connected to eve server!");
   //TODO: open the ui query
-  socket.send(JSON.stringify({type: "query", query: `
+  socket.send(JSON.stringify({type: "query", scope: "session", query: `
 mark all the different tag types as html
   entity = if e = [#div] then e
            if e = [#span] then e
