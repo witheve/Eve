@@ -8,7 +8,7 @@ heap float_heap;
 
 static inline value box_float(double x)
 {
-    void *result = allocate(float_heap, 1 + sizeof(double));
+    void *result = allocate(float_heap, sizeof(double));
     *(double *)result = x;
     return result;
 }

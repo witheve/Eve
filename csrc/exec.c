@@ -142,8 +142,8 @@ static execf build_insert(evaluation e, node n)
         if ((type_of(ar) != float_space ) || (type_of(br) != float_space)) {                         \
             exec_error(ex, "attempt to add non-numbers", a, b);                                      \
         } else {                                                                                     \
-            r[reg(dest)] = box_float(*(double *)lookup( r, a) __op *(double *)lookup( r, b));        \
-            apply(n, op, r);                                                                        \
+            r[reg(dest)] = box_float(*(double *)ar __op *(double *)br);                              \
+            apply(n, op, r);                                                                         \
         }                                                                                            \
     }
 

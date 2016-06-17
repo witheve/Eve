@@ -279,7 +279,7 @@ function translate_expression(n, bound, down, tracing)
    end
    local result, a, b
    for _, binding in pairs(n.bindings) do
-      if binding.field == "result" then
+      if binding.field == "return" then
          result = binding.variable
          if not binding.variable or binding.constant then
             error("Must bind result of expression to variable")
@@ -299,7 +299,7 @@ function translate_expression(n, bound, down, tracing)
    if tracing then
       c = build_node("trace", {c},
                      {operator, "" ,
-                      "result", write_lookup(env, result),
+                      "result", read_lookup(env, result),
                       "a", read_lookup(env, a),
                       "b", read_lookup(env, b)},
                       {})
