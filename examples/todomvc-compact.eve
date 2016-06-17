@@ -35,7 +35,7 @@ draw todomvc
                 else false
   count = count(given [#todo completed: false])
   [#pluralize number: count, singular: "item left", plural: "items left" text: count-text]
-  hide-clear-completed = count(given [#todo completed: true]) == 0
+  hide-clear-completed = is(count(given [#todo completed: true]) = 0)
 
   update
     [#div @todoapp children:
@@ -53,8 +53,8 @@ draw todomvc
       [#footer children:
         [#span @todo-count children: [#strong text: count] [#span text: count-text]]
         [#ul @filters
-          [#li children: [#a href: "#/all" class: [selected: filter == "all"] text: "all"]]
-          [#li children: [#a href: "#/active" class: [selected: filter == "active"] text: "active"]]
-          [#li children: [#a href: "#/completed" class: [selected: filter == "completed"] text: "completed"]]]
+          [#li children: [#a href: "#/all" class: [selected: is(filter = "all")] text: "all"]]
+          [#li children: [#a href: "#/active" class: [selected: is(filter = "active")] text: "active"]]
+          [#li children: [#a href: "#/completed" class: [selected: is(filter = "completed")] text: "completed"]]]
         [#button @clear-completed, style: [display: toggle(hide-clear-completed)] text: "Clear completed"]]]
 

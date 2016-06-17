@@ -6,5 +6,7 @@ people older than 20
 
 inline people older than 20
   [#person age > 20]
+  really-old = is(age > 100)
+  awesome = is(age = 50)
   update
    person += [#adult]
