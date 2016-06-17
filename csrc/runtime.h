@@ -103,8 +103,7 @@ typedef struct evaluation  {
 
 typedef struct node *node;
 
-// need a terminus
-typedef execf (*buildf)(evaluation, node);
+typedef void execf (*buildf)(evaluation, node);
     
 struct node {
     buildf builder;

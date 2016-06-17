@@ -112,7 +112,7 @@ static execf build_scan(evaluation ex, node n)
         sig <<= 1;
         sig |= is_cap(description->body[i]);
     }
-    return(cont(ex->h, do_scan, ex, next, sig, e, a, v));
+    return cont(ex->h, do_scan, ex, next, sig, e, a, v);
 }
 
 static CONTINUATION_6_2(do_insert, evaluation, execf, value, value, value, value, operator, value *) ;
@@ -125,12 +125,12 @@ static void do_insert(evaluation ex, execf n, value uuid, value e, value a, valu
 static execf build_insert(evaluation e, node n)
 {
     bag x = table_find(e->scopes, vector_get(n->arguments, 0));
-    return cont(e->h, do_insert,  e,
-                resolve_cfg(e, n, 0),
-                edb_uuid(x),
-                vector_get(n->arguments, 1),
-                vector_get(n->arguments, 2),
-                vector_get(n->arguments, 3));
+    return = cont(e->h, do_insert,  e,
+                  resolve_cfg(e, n, 0),
+                  edb_uuid(x),
+                  vector_get(n->arguments, 1),
+                  vector_get(n->arguments, 2),
+                  vector_get(n->arguments, 3));
 }
 
 
@@ -149,23 +149,83 @@ static void do_plus(evaluation ex, execf n, value dest, value a, value b, operat
 
 static execf build_plus(evaluation e, node n)
 {
-    return cont(e->h,
-                do_plus,
-                e,
-                vector_get(n->arms, 0),
-                vector_get(n->arguments, 0),
-                vector_get(n->arguments, 1),
-                vector_get(n->arguments, 2));
+    return = cont(e->h,
+                  do_plus,
+                  e,
+                  vector_get(n->arms, 0),
+                  vector_get(n->arguments, 0),
+                  vector_get(n->arguments, 1),
+                  vector_get(n->arguments, 2));
 }
 
+
+static inline void extract(vector dest, vector keys, value *r)
+{
+    for (int i = 0; i< vector_length(keys); i ++) {
+        vector_set(dest, i, lookup(vector_get(keys, i), r));
+    }
+}
+
+static inline void copyout(value *dest, vector keys, vector source)
+{
+    for (int i = 0; i< vector_length(keys); i ++)
+        dest[toreg(vector_get(keys, i))] = vector_get(source, i);
+}
+
+static CONTINUATION_6_2(do_sub_tail, table, vector, vector, vector, operator, value *);
+static void do_sub_tail(table results,
+                        int resreg,
+                        vector inputs, vector outputs,
+                        operator op, value *r)
+{
+    vector result = allocate_vector(results->h, vector_length(outputs));
+    extract(result, ouputs);
+    table_set(r[resreg], res, etrue);
+}
+
+                        
+static CONTINUATION_6_2(do_sub, execf, execf, table, vector, vector, vector, operator, value *);
+static void do_sub(execf next, execf leg, table results, vector v, vector inputs, vector outputs,
+                   operator op, value *r)
+{
+    table res;
+    
+    extract(v, inputs, r);
+    if (!(res = table_find(results, v))){ 
+        res = create_value_vector_table(results->h);
+        vector key = allocate_vector(results->h, vector_length(inputs));
+        table_insert(results, v, res);
+        apply(leg, op, r);
+        // ok, leg needs a tailio
+    }
+    table_foreach(res, n, _) {
+        copyout(r, outputs, n);
+        apply(next, r);
+    }
+}
+
+static void build_sub(evaluation e, node n, void **dest)
+{
+    table results = create_value_vector_table(e->h);
+    // gonna share this one today
+    vector v = allocate_vector(e->h, vector_length(n->arguments));
+    return cont(e->h,
+                do_sub,
+                resolve_cfg(e, n, 0), 
+                resolve_cfg(e, n, 1), 
+                results,
+                v, 
+                n->arguments, 
+                n->ancillary);
+}
 
 // ok - we need to refactor the build process to allow the insertion of a tail node
 // this is going to be necessary for not also, but for today we'll use the synchronous
 // assumption, and expect r to be augments with the results
 
-static CONTINUATION_6_2(do_sub, execf, execf, table, vector, vector, vector, operator, value *);
-static void do_sub(execf next, execf leg, table results, vector v, vector inputs, vector outputs,
-                   operator op, value *r)
+static CONTINUATION_6_2(do_choose, execf, vector, table, vector, vector, vector, operator, value *);
+static void do_choose(execf next, vector legs, table results, vector v, vector inputs, vector outputs,
+                      operator op, value *r)
 {
     for (int i = 0; i< vector_length(inputs); i ++) {
         vector_set(v, i, lookup(vector_get(inputs, i), r));
@@ -189,20 +249,20 @@ static void do_sub(execf next, execf leg, table results, vector v, vector inputs
     }
 }
 
-// ahem
-static execf build_sub(evaluation e, node n)
+
+static execf build_choose(evaluation e, node n)
 {
     table results = create_value_vector_table(e->h);
     // gonna share this one today
     vector v = allocate_vector(e->h, vector_length(n->arguments));
-    return cont(e->h,
-                do_sub,
-                resolve_cfg(e, n, 0), 
-                resolve_cfg(e, n, 1), 
-                results,
-                v, 
-                n->arguments, 
-                n->ancillary);
+    *dest = cont(e->h,
+                 do_sub,
+                 resolve_cfg(e, n, 0), 
+                 resolve_cfg(e, n, 1), 
+                 results,
+                 v, 
+                 n->arguments, 
+                 n->ancillary);
 }
 
     
@@ -231,7 +291,7 @@ static void do_join(execf n, int count, u32 total, operator op, value *r)
 static execf build_join(evaluation e, node n)
 {
     u32 c = allocate(e->h, sizeof(iu32));
-    return cont(e->h, do_join,resolve_cfg(e, n, 0), 0, c);
+    *dest = cont(e->h, do_join,resolve_cfg(e, n, 0), 0, c);
 }
 
 static CONTINUATION_0_2(do_terminal, operator, value *);
@@ -300,6 +360,7 @@ table builders_table()
         table_set(builders, intern_cstring("trace"), build_trace);
         table_set(builders, intern_cstring("sub"), build_sub);
         table_set(builders, intern_cstring("terminal"), build_terminal);
+        table_set(builders, intern_cstring("choose"), build_choose);
     }
     return builders;
 }
@@ -307,11 +368,10 @@ table builders_table()
 static void force_node(evaluation e, node n)
 {
     if (!table_find(e->nmap, n)){
-        execf *x = allocate(e->h, sizeof(execf *));
+        void **x = allocate(e->h, 2*sizeof(void *));
         table_set(e->nmap, n, x);
-        int count;
         vector_foreach(n->arms, i) force_node(e, i);
-        *x = n->builder(e, n);
+        n->builder(e, n, x);
     }
 }
 

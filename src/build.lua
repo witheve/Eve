@@ -157,6 +157,8 @@ function translate_subproject(n, bound, down, tracing)
       env, dc = down(bound)
       return env, dc
    end
+   -- allocate a register to pass from head to tail
+   -- different tail
    env, c2 = walk(n.nodes, nil, bound, tail, tracing)   
    c = build_node("sub", {dc, c2}, 
                           set_to_read_array(env, n.projection),
@@ -241,12 +243,20 @@ function translate_mutate(n, bound, down, tracing)
    return env, c
 end
 
+function translate_choose(n, bound, down, tracing)
+         print("chooso ", flat_print_table(n))
+         for _, v in pairs(n.queries) do     
+             print("choose  q ", flat_print_table(v))
+         end
+end
+
 function translate_union(n, bound, down, tracing)
    local heads
    local c2
    local arms = {}
    tail_bound = shallowcopy(bound)
-   
+
+   print("union ", flat_print_table(n))
    for _, v in pairs(n.outputs) do
       tail_bound[v] = true
    end
@@ -263,6 +273,7 @@ function translate_union(n, bound, down, tracing)
    end
    
    for _, v in pairs(n.queries) do
+      print("union  q ", flat_print_table(v))
       local c2
       env, c2 = walk(v.unpacked, nil, shallowcopy(bound), arm_bottom, tracing)
       arms[#arms+1] = c2 
@@ -306,6 +317,9 @@ function walk(graph, key, bound, tail, tracing)
    end
    if (n.type == "subproject") then
       return translate_subproject(n, bound, d, tracing)
+   end
+   if (n.type == "choose") then
+      return translate_choose(n, bound, d, tracing)
    end
 
    print ("ok, so we kind of suck right now and only handle some fixed patterns",
