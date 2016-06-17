@@ -34,7 +34,8 @@ static void run_test(bag root, buffer b, boolean tracing)
     interpreter c = build_lua(root, scopes);
     node n = lua_compile_eve(c, b, tracing);
     edb_register_implication(event, n);
-    table result_bags = start_fixedpoint(h, scopes);
+    table persisted = create_value_table(h);
+    table result_bags = start_fixedpoint(h, scopes, persisted);
     table_foreach(result_bags, n, v) {
         prf("%v %b\n", n, bag_dump(h, v));
     }

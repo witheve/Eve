@@ -126,7 +126,9 @@ static evaluation start_guy(json_session js, buffer b, buffer_handler output, st
     if (target) {
         edb_register_implication(target, n);
         
-        table result_bags = start_fixedpoint(h, scopes);
+        table persisted = create_value_table(h);
+        table_set(persisted, edb_uuid(js->root), js->root);
+        table result_bags = start_fixedpoint(h, scopes, persisted);
         bag session_bag = table_find(result_bags, edb_uuid(js->session));
         prf("session bag facts: %d\n", session_bag?edb_size(session_bag): 0);
         // and if not?
