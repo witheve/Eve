@@ -137,7 +137,8 @@ static execf build_insert(evaluation e, node n)
 #define DO_BINARY_NUMERIC(__name, __op) \
     static void __name (evaluation ex, execf n, value dest, value a, value b, operator op, value *r) \
     {                                                                                                \
-        value ar = lookup( r, a);                                                                    \
+        prf("greg a: %v b: %v\n", a, b);            \
+        value ar = lookup( r, a);                                         \
         value br = lookup( r, b);                                                                    \
         if ((type_of(ar) != float_space ) || (type_of(br) != float_space)) {                         \
             exec_error(ex, "attempt to add non-numbers", a, b);                                      \
