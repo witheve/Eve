@@ -14,5 +14,5 @@ Draw a list of fruits
 
 draw clicks
   [#click element]
-  update
+  update 
     [#div element text: "yo"]

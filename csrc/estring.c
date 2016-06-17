@@ -1,19 +1,9 @@
 #include <runtime.h>
 #include <unix/unix.h>
 
-static void string_print(buffer b, void *x, heap h)
-{
-}
-
 static iu64 estring_length(void *x) {
     return 12;
 }
-
-struct type string_methods = {
-    string_print,
-    estring_length,
-    string_hash,    
-};
 
 static table interned_string;
 static heap estring_heap;

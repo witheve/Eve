@@ -185,6 +185,8 @@ local specials = {
   [")"] = "CLOSE_PAREN",
   ["["] = "OPEN_BRACKET",
   ["]"] = "CLOSE_BRACKET",
+  ["{"] = "OPEN_CURLY",
+  ["}"] = "CLOSE_CURLY",
   ["⦑"] = "OPEN_UUID",
   ["⦒"] = "CLOSE_UUID",
   [":"] = "ALIAS",
@@ -227,7 +229,7 @@ local function isIdentifierChar(char)
 end
 
 local function inString(char, prev)
-  return char ~= "\"" or prev == "\\"
+  return (char ~= "\"" and char ~= "{") or prev == "\\"
 end
 
 local function isNumber(char)
@@ -265,11 +267,19 @@ local function lex(str)
       tokens[#tokens+1] = Token:new("DOC", doc, line, offset)
       offset = offset + #doc
 
-    elseif char == "\"" then
+    elseif char == "\"" or char == "}" then
+      if char == "\"" then
+        tokens[#tokens+1] = Token:new("STRING_OPEN", "\"", line, offset)
+      end
       local string = scanner:eatWhile(inString)
+      if #string > 0 then
+        tokens[#tokens+1] = Token:new("STRING", string, line, offset)
+      end
       -- skip the end quote
-      scanner:read()
-      tokens[#tokens+1] = Token:new("STRING", string, line, offset)
+      if scanner:peek() == "\"" then
+        scanner:read()
+        tokens[#tokens+1] = Token:new("STRING_CLOSE", "\"", line, offset)
+      end
       offset = offset + #string
 
     elseif char == "⦑" then
@@ -552,6 +562,27 @@ local function parse(tokens)
     elseif type == "COMMENT" then
       info.comments[#info.comments + 1] = token
 
+    elseif type == "STRING_OPEN" then
+      stack:push({type = "function", operator = "concat", children = {right}, line = token.line, offset = token.offset})
+
+    elseif type == "STRING_CLOSE" then
+      if stackTop and stackTop.type == "function" and stackTop.operator == "concat" then
+        -- if there's zero or one children, then this concat isn't needed
+        if #stackTop.children == 0 or (#stackTop.children == 1 and stackTop.children[1].type == "STRING") then
+          local string = stackTop.children[1] or {type = "STRING", value = "", line = token.line, offset = token.offset}
+          stack:pop()
+          stackTop = stack:peek()
+          stackTop.children[#stackTop.children + 1] = string
+        else
+          stackTop.closed = true
+        end
+      else
+        -- error
+      end
+
+    elseif type == "OPEN_CURLY" or type == "CLOSE_CURLY" then
+      -- we can just ignore these
+
     elseif type == "OPEN_BRACKET" then
       stack:push({type = "object", children = {}, line = token.line, offset = token.offset})
 
@@ -702,7 +733,7 @@ local function parse(tokens)
       else
         local nodeType = type == "INEQUALITY" and "inequality" or "equality"
         stackTop.children[#stackTop.children] = nil
-        stack:push({type = nodeType, children = {prev}})
+        stack:push({type = nodeType, op = token.value, children = {prev}, line = token.line, offset = token.offset})
       end
 
     elseif type == "OPEN_PAREN" then
@@ -795,6 +826,7 @@ end
 
 local generateObjectNode
 local generateQueryNode
+local generateNotNode
 
 local function generateBindingNode(node, context, parent)
   node.type = "binding"
@@ -855,6 +887,42 @@ local function resolveExpression(node, context)
     context.equalityLeft = prev
     return left
 
+  elseif node.type == "inequality" then
+    local left = resolveExpression(node.children[1], context)
+    -- set that when I try to resolve this expression,
+    -- I'm looking to resolve it to this specific variable
+    local prev = context.equalityLeft
+    context.equalityLeft = nil
+    local right = resolveExpression(node.children[2], context)
+    context.equalityLeft = prev
+    local expression = {type = "expression", operator = node.op, projections = {}, groupings = {}, bindings = {}}
+    local leftBinding = {field = "a"}
+    if left.type == "variable" then
+      leftBinding.variable = left
+    elseif left.type == "constant" then
+      leftBinding.constant = left
+    else
+      error("Inequality with invalid left")
+    end
+    local rightBinding = {field = "b"}
+    if right.type == "variable" then
+      rightBinding.variable = right
+    elseif right.type == "constant" then
+      rightBinding.constant = right
+    else
+      error("Inequality with invalid right")
+    end
+    local resultVar = context.equalityLeft
+    if not context.equalityLeft then
+      resultVar = resolveVariable(string.format("inequality-%s-%s", node.line, node.offset), context)
+    end
+    generateBindingNode(leftBinding, context, expression)
+    generateBindingNode(rightBinding, context, expression)
+    generateBindingNode({field = "return", variable = resultVar}, context, expression)
+    local query = context.queryStack:peek()
+    query.expressions[#query.expressions + 1] = expression
+    return resultVar
+
   elseif node.type == "attribute" then
     -- TODO
     local left = resolveExpression(node.children[1], context)
@@ -906,7 +974,9 @@ local function resolveExpression(node, context)
       field = alphaFields[ix]
       context.equalityLeft = nil
       local resolved = resolveExpression(child, context)
-      if resolved.type == "variable" then
+      if not resolved then
+        -- error
+      elseif resolved.type == "variable" then
         generateBindingNode({field = field, variable = resolved}, context, expression)
 
       elseif resolved.type == "constant" then
@@ -1004,6 +1074,17 @@ generateObjectNode = function(root, context)
         -- error
       end
 
+    elseif type == "inequality" then
+      local left = child.children[1]
+      if left.type == "IDENTIFIER" then
+        local variable = resolveVariable(left.value, context)
+        local binding = generateBindingNode({field = child.value, variable = variable}, context, object)
+        resolveExpression(child, context)
+        lastAttribute = nil
+      else
+        -- error
+      end
+
     elseif type == "equality" then
       -- the left has to be either a NAME, TAG, or IDENTIFIER
       local left = child.children[1]
@@ -1049,7 +1130,47 @@ generateObjectNode = function(root, context)
       end
 
     elseif type == "not" then
-      -- TODO: inline not
+      -- this needs to translate into a regular not that references this object
+      -- via a constructed attribute call. So first we get the ref
+      local ref = context.equalityLeft
+      if not ref then
+        ref = resolveVariable(string.format("object-%s-%s", root.line, root.offset), context)
+        generateBindingNode({field = MAGIC_ENTITY_FIELD, variable = objectRef}, context, objectNode)
+      end
+      -- we'll need that ref as an identifier for our constructed attribute node
+      local objectIdentifier = {type = "IDENTIFIER", line = child.line, offset = child.offset, value = ref.name}
+      -- construct the not
+      local constructedNot = {type = "not", children = {}, closed = true}
+      local childQuery = {type = "query", children = {}, parent = node, line = child.line, offset = child.offset}
+      constructedNot.children[1] = childQuery
+      -- FIXME: for now we're only going to support not(attr) and not(#tag)
+      -- but there's no technical reason we couldn't support more complex
+      -- versions of inline not. They're just a lot harder to deal with.
+      local attr = child.children[1].children[1]
+      if attr.type == "IDENTIFIER" then
+        -- not(parent.(attr.children[1]))
+        local attributeIdentifier = {type = "IDENTIFIER", line = attr.line, offset = attr.offset, value = attr.value}
+        local dotNode = {type = "attribute", children = {objectIdentifier, attributeIdentifier}}
+        childQuery.children[#childQuery.children + 1] = dotNode
+
+      elseif attr.type == "equality" and attr.children[1] and attr.children[1].type == "TAG" then
+        local tag = attr.children[1]
+        local tagValue = attr.children[2]
+        -- not(parent.tag = attr.children[1])
+        local attributeIdentifier = {type = "IDENTIFIER", line = tag.line, offset = tag.offset, value = "tag"}
+        local dotNode = {type = "attribute", children = {objectIdentifier, attributeIdentifier}}
+        local constantNode = {type = "STRING", value = tagValue.value}
+        local equalityNode = {type = "equality", children = {dotNode, constantNode}}
+        childQuery.children[#childQuery.children + 1] = equalityNode
+
+      else
+        -- error
+      end
+
+      -- finally generate the not node
+      local notNode = generateNotNode(constructedNot, context)
+      object.query.nots[#object.query.nots + 1] = notNode
+
     else
       -- error
     end
@@ -1093,11 +1214,13 @@ local function generateUnionNode(root, context, unionType)
   return union
 end
 
-local function generateNotNode(root, context)
+generateNotNode = function(root, context)
   local notNode = {type = "not",
                    query = context.queryStack:peek()}
   if #root.children == 1 and root.children[1].type == "query" then
+    context.notNode = true
     notNode.body = generateQueryNode(root.children[1], context)
+    context.notNode = false
   else
     -- error
   end
@@ -1163,6 +1286,9 @@ generateQueryNode = function(root, context)
 
     elseif type == "equality" then
       local left = resolveExpression(child, context)
+
+    elseif type == "inequality" then
+      resolveExpression(child, context)
 
     elseif type == "choose" then
       local node = generateUnionNode(child, context, "choose")

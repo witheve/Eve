@@ -36,15 +36,6 @@ static void *uuid_deserialize(buffer source)
     return 0;
 }
 
-    
-struct type uuid_methods = {
-    uuid_print,
-    uuid_length,
-    uuid_hash,
-    uuid_serialize,
-    uuid_deserialize
-};
-
 
 static table interned_uuid;
 

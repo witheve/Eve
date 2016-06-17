@@ -22,8 +22,9 @@ typedef struct json_session {
     table evaluations;
     table current_delta;
     buffer_handler write; // to weboscket
-    uuid session;
     table scopes;
+    bag root, session;
+    boolean tracing;
 } *json_session;
 
 extern bag my_awesome_bag;
@@ -53,6 +54,12 @@ static void print_value_json(buffer out, value v)
         write (1, "wth!@\n", 6);
     }
     
+}
+
+static CONTINUATION_1_0(destroy, heap);
+static void destroy(heap h)
+{
+    h->destroy(h);
 }
 
 // always call this guy independent of commit so that we get an update,
@@ -94,38 +101,42 @@ static void send_guy(heap h, buffer_handler output, values_diff diff)
 
     bprintf(out, "]}");
     // reclaim
-    apply(output, out, ignore);
+    apply(output, out, cont(h, destroy, h));
 }
 
 
-static void json_commit()
+static evaluation start_guy(json_session js, buffer b, buffer_handler output, string scope)
 {
-}
-
-
-static evaluation start_guy(json_session js, buffer b, buffer_handler output)
-{
-    prf("SCOPES: \n");
-    table_foreach(js->scopes, scope, scope_id) {
-        prf("   %v: %v", scope, scope_id);
-    }
-    prf("\n");
-
-    // take this from the lua pool
-    interpreter c = build_lua(my_awesome_bag, js->scopes);
-    node n = lua_compile_eve(c, b, enable_tracing);
-    register_implication(n);
-    // needs to be scoped
-    table result_bags = start_fixedpoint(js->scopes);
-    bag session_bag = table_find(result_bags, js->session);
-    prf("PRINTING SESSION\n");
-    prf("%b\n", bag_dump(js->h, session_bag));
-
+    heap h = allocate_rolling(pages);
+    bag event = create_bag(generate_uuid());
+    vector implications = allocate_vector(h, 10);
+    table scopes = create_value_table(h);
     table results = create_value_vector_table(js->h);
-    insertron scanner = cont(js->h, chute, js->h, results);
-    edb_scan(session_bag, 0, scanner, 0, 0, 0);
+
+    table_foreach(js->scopes, scope, b) {
+        table_set(scopes, scope, b);
+    }
+    table_set(scopes, intern_cstring("event"), event);
+    
+    // take this from a pool
+    interpreter c = build_lua(js->root, js->scopes);
+    node n = lua_compile_eve(c, b, js->tracing);
+    bag target = table_find(scopes, intern_string(scope->contents, buffer_length(scope)));
+    
+    if (target) {
+        edb_register_implication(target, n);
+        
+        table result_bags = start_fixedpoint(h, scopes);
+        bag session_bag = table_find(result_bags, edb_uuid(js->session));
+        prf("session bag facts: %d\n", session_bag?edb_size(session_bag): 0);
+        // and if not?
+        insertron scanner = cont(js->h, chute, js->h, results);
+        if (session_bag) {
+            edb_scan(session_bag, 0, scanner, 0, 0, 0);
+        }
+    }
     values_diff diff = diff_value_vector_tables(js->h, js->current_delta, results);
-    send_guy(js->h, output, diff);
+    send_guy(h, output, diff);
     // FIXME: we need to clean up the old delta, we're currently just leaking it
     js->current_delta = results;
     return 0;
@@ -137,7 +148,7 @@ void handle_json_query(json_session j, buffer in, thunk c)
     states s = top;
     buffer bt = allocate_buffer(j->h, 10);
     buffer bv = allocate_buffer(j->h, 100);
-    buffer id, type, query;
+    buffer id, type, query, scope;
     boolean backslash = false;
     
     string_foreach(in, c) {
@@ -150,6 +161,10 @@ void handle_json_query(json_session j, buffer in, thunk c)
                 id = bv;
                 bv = allocate_buffer(j->h, 100);
             }
+            if (string_equal(bt, sstring("scope"))) {
+                scope = bv;
+                bv = allocate_buffer(j->h, 100);
+            }
             if (string_equal(bt, sstring("type"))) {
                 type = bv;
                 bv = allocate_buffer(j->h, 100);
@@ -160,8 +175,8 @@ void handle_json_query(json_session j, buffer in, thunk c)
 
         if ((c == '}')  && (s== sep)) {
             if (string_equal(type, sstring("query"))) {
-                // xxx - get and id and register it
-                start_guy(j, query, j->write);
+                // xxx - get and id and register it.. do we have those anymore?
+                start_guy(j, query, j->write, scope);
             }
                 
             // do the thing
@@ -185,22 +200,27 @@ void handle_json_query(json_session j, buffer in, thunk c)
 }
 
 
-buffer_handler new_json_session(buffer_handler write, table headers)
+CONTINUATION_2_3(new_json_session, bag, boolean, buffer_handler, table, buffer_handler *)
+void new_json_session(bag root, boolean tracing, buffer_handler write, table headers, buffer_handler *handler)
 {
     heap h = allocate_rolling(pages);
     
     json_session js = allocate(h, sizeof(struct json_session));
     js->h = h;
+    js->root = root;
+    js->tracing = tracing;
     js->evaluations = allocate_table(h, string_hash, string_equal);
     js->scopes = create_value_table(js->h);
-    js->session = generate_uuid();
+    js->session = create_bag(generate_uuid());
     js->current_delta = create_value_vector_table(js->h);
-    table_set(js->scopes, intern_cstring("transient"), generate_uuid());
+    // what is this guy really?
+    table_set(js->scopes, intern_cstring("transient"), create_bag(generate_uuid()));
     table_set(js->scopes, intern_cstring("session"), js->session);
-    return websocket_send_upgrade(h, headers, write, cont(h, handle_json_query, js), &js->write);
+    table_set(js->scopes, intern_cstring("history"), root);
+    *handler = websocket_send_upgrade(h, headers, write, cont(h, handle_json_query, js), &js->write);
 }
 
-void init_json_service(http_server h)
+void init_json_service(http_server h, bag root, boolean tracing)
 {
-    http_register_service(h, new_json_session, sstring("/ws"));
+    http_register_service(h, cont(init, new_json_session, root, tracing), sstring("/ws"));
 }
