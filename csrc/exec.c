@@ -137,14 +137,13 @@ static execf build_insert(evaluation e, node n)
 #define DO_BINARY_NUMERIC(__name, __op) \
     static void __name (evaluation ex, execf n, value dest, value a, value b, operator op, value *r) \
     {                                                                                                \
-        prf("greg a: %v b: %v\n", a, b);            \
-        value ar = lookup( r, a);                                         \
-        value br = lookup( r, b);                                                                    \
+        value ar = lookup( a, r);                                         \
+        value br = lookup( b, r);                                                                    \
         if ((type_of(ar) != float_space ) || (type_of(br) != float_space)) {                         \
             exec_error(ex, "attempt to add non-numbers", a, b);                                      \
         } else {                                                                                     \
             r[reg(dest)] = box_float(*(double *)lookup( r, a) __op *(double *)lookup( r, b));        \
-            apply(*n, op, r);                                                                        \
+            apply(n, op, r);                                                                        \
         }                                                                                            \
     }
 
@@ -155,7 +154,7 @@ static execf build_insert(evaluation e, node n)
         return cont(e->h,                       \
                 __do_op,                        \
                 e,                              \
-                vector_get(n->arms, 0),         \
+                resolve_cfg(e, n, 0),           \
                 vector_get(n->arguments, 0),    \
                 vector_get(n->arguments, 1),    \
                 vector_get(n->arguments, 2));   \
