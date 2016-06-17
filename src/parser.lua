@@ -795,6 +795,7 @@ end
 
 local generateObjectNode
 local generateQueryNode
+local generateNotNode
 
 local function generateBindingNode(node, context, parent)
   node.type = "binding"
@@ -1096,7 +1097,47 @@ generateObjectNode = function(root, context)
       end
 
     elseif type == "not" then
-      -- TODO: inline not
+      -- this needs to translate into a regular not that references this object
+      -- via a constructed attribute call. So first we get the ref
+      local ref = context.equalityLeft
+      if not ref then
+        ref = resolveVariable(string.format("object-%s-%s", root.line, root.offset), context)
+        generateBindingNode({field = MAGIC_ENTITY_FIELD, variable = objectRef}, context, objectNode)
+      end
+      -- we'll need that ref as an identifier for our constructed attribute node
+      local objectIdentifier = {type = "IDENTIFIER", line = child.line, offset = child.offset, value = ref.name}
+      -- construct the not
+      local constructedNot = {type = "not", children = {}, closed = true}
+      local childQuery = {type = "query", children = {}, parent = node, line = child.line, offset = child.offset}
+      constructedNot.children[1] = childQuery
+      -- FIXME: for now we're only going to support not(attr) and not(#tag)
+      -- but there's no technical reason we couldn't support more complex
+      -- versions of inline not. They're just a lot harder to deal with.
+      local attr = child.children[1].children[1]
+      if attr.type == "IDENTIFIER" then
+        -- not(parent.(attr.children[1]))
+        local attributeIdentifier = {type = "IDENTIFIER", line = attr.line, offset = attr.offset, value = attr.value}
+        local dotNode = {type = "attribute", children = {objectIdentifier, attributeIdentifier}}
+        childQuery.children[#childQuery.children + 1] = dotNode
+
+      elseif attr.type == "equality" and attr.children[1] and attr.children[1].type == "TAG" then
+        local tag = attr.children[1]
+        local tagValue = attr.children[2]
+        -- not(parent.tag = attr.children[1])
+        local attributeIdentifier = {type = "IDENTIFIER", line = tag.line, offset = tag.offset, value = "tag"}
+        local dotNode = {type = "attribute", children = {objectIdentifier, attributeIdentifier}}
+        local constantNode = {type = "STRING", value = tagValue.value}
+        local equalityNode = {type = "equality", children = {dotNode, constantNode}}
+        childQuery.children[#childQuery.children + 1] = equalityNode
+
+      else
+        -- error
+      end
+
+      -- finally generate the not node
+      local notNode = generateNotNode(constructedNot, context)
+      object.query.nots[#object.query.nots + 1] = notNode
+
     else
       -- error
     end
@@ -1140,11 +1181,13 @@ local function generateUnionNode(root, context, unionType)
   return union
 end
 
-local function generateNotNode(root, context)
+generateNotNode = function(root, context)
   local notNode = {type = "not",
                    query = context.queryStack:peek()}
   if #root.children == 1 and root.children[1].type == "query" then
+    context.notNode = true
     notNode.body = generateQueryNode(root.children[1], context)
+    context.notNode = false
   else
     -- error
   end
