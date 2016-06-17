@@ -200,6 +200,14 @@ static CONTINUATION_5_2(do_less_than_or_equal, evaluation, execf, value, value, 
 DO_BINARY_NUMERIC_FILTER(do_less_than_or_equal, <=)
 BUILD_BINARY_NUMERIC(build_less_than_or_equal, do_less_than_or_equal)
 
+static CONTINUATION_5_2(do_greater_than, evaluation, execf, value, value, value,  operator, value *);
+DO_BINARY_NUMERIC_FILTER(do_greater_than, >)
+BUILD_BINARY_NUMERIC(build_greater_than, do_greater_than)
+
+static CONTINUATION_5_2(do_greater_than_or_equal, evaluation, execf, value, value, value,  operator, value *);
+DO_BINARY_NUMERIC_FILTER(do_greater_than_or_equal, >=)
+BUILD_BINARY_NUMERIC(build_greater_than_or_equal, do_greater_than_or_equal)
+
 // ok - we need to refactor the build process to allow the insertion of a tail node
 // this is going to be necessary for not also, but for today we'll use the synchronous
 // assumption, and expect r to be augments with the results
@@ -340,6 +348,8 @@ table builders_table()
         table_set(builders, intern_cstring("insert"), build_insert);
         table_set(builders, intern_cstring("less_than"), build_less_than);
         table_set(builders, intern_cstring("less_than_or_equal"), build_less_than_or_equal);
+        table_set(builders, intern_cstring("greater_than"), build_less_than);
+        table_set(builders, intern_cstring("greater_than_or_equal"), build_less_than_or_equal);
         table_set(builders, intern_cstring("scan"), build_scan);
         table_set(builders, intern_cstring("generate"), build_genid);
         table_set(builders, intern_cstring("fork"), build_fork);
