@@ -25,6 +25,13 @@ static inline value lookup(value k, value *r)
     return k;
 }
 
+static int *register_counter(evaluation e, node n)
+{
+    int *c = allocate(e->h, sizeof(int));
+    table_set(e->counters, n, c);
+    return c;
+}
+
 // break this out...also copy r now that its well-formed how to do that
 static CONTINUATION_6_4(scan_listener_3, execf, operator, value *, int, int, int,
                         value, value, value, eboolean);
@@ -66,11 +73,12 @@ static inline int reg(value n)
     return ((unsigned long) n - register_base);
 }
 
-static CONTINUATION_6_2(do_scan, evaluation, execf, int, value, value, value, operator, value *);
-static void do_scan(evaluation ex, execf n, int sig, value e, value a, value v, operator op, value *r)
+static CONTINUATION_7_2(do_scan, evaluation, int *, execf, int, value, value, value, operator, value *);
+static void do_scan(evaluation ex, int *count, execf n, int sig, value e, value a, value v, operator op, value *r)
 {
     void *listen;
-    ex->invocations++;
+    
+    *count = *count + 1;
     // generify this too
     switch(sig) {
     case s_eav:
@@ -113,13 +121,13 @@ static execf build_scan(evaluation ex, node n)
         sig <<= 1;
         sig |= is_cap(description->body[i]);
     }
-    return(cont(ex->h, do_scan, ex, next, sig, e, a, v));
+    return(cont(ex->h, do_scan, ex, register_counter(ex, n), next, sig, e, a, v));
 }
 
-static CONTINUATION_6_2(do_insert, evaluation, execf, value, value, value, value, operator, value *) ;
-static void do_insert(evaluation ex, execf n, value uuid, value e, value a, value v, operator op, value *r)
+static CONTINUATION_7_2(do_insert, evaluation, int *, execf, value, value, value, value, operator, value *) ;
+static void do_insert(evaluation ex, int *count, execf n, value uuid, value e, value a, value v, operator op, value *r)
 {
-    ex->invocations++;
+    *count = *count + 1;
     apply(ex->insert, uuid, lookup(e, r), lookup(a, r), lookup(v, r));
     apply(n, op, r);
 }
@@ -127,7 +135,7 @@ static void do_insert(evaluation ex, execf n, value uuid, value e, value a, valu
 static execf build_insert(evaluation e, node n)
 {
     bag x = table_find(e->scopes, vector_get(n->arguments, 0));
-    return cont(e->h, do_insert,  e,
+    return cont(e->h, do_insert,  e, register_counter(e, n), 
                 resolve_cfg(e, n, 0),
                 edb_uuid(x),
                 vector_get(n->arguments, 1),
@@ -137,11 +145,12 @@ static execf build_insert(evaluation e, node n)
 
 
 #define DO_BINARY_NUMERIC(__name, __op)                                                              \
-    static void __name (evaluation ex, execf n, value dest, value a, value b, operator op, value *r) \
+    static CONTINUATION_6_2(__name, evaluation, int *, execf, value, value, value,  operator, value *);\
+    static void __name (evaluation ex, int *count, execf n, value dest, value a, value b, operator op, value *r) \
     {                                                                                                \
         value ar = lookup(a, r);                                                                     \
         value br = lookup(b, r);                                                                     \
-        ex->invocations++;                                                                           \
+        *count = *count + 1;                                                                         \
         if ((type_of(ar) != float_space ) || (type_of(br) != float_space)) {                         \
             exec_error(ex, "attempt to add non-numbers", a, b);                                      \
         } else {                                                                                     \
@@ -156,6 +165,7 @@ static execf build_insert(evaluation e, node n)
         return cont(e->h,                       \
                 __do_op,                        \
                 e,                              \
+                register_counter(e, n),         \
                 resolve_cfg(e, n, 0),           \
                 vector_get(n->arguments, 0),    \
                 vector_get(n->arguments, 1),    \
@@ -163,10 +173,12 @@ static execf build_insert(evaluation e, node n)
     }
 
 #define DO_BINARY_NUMERIC_FILTER(__name, __op)                                                               \
-    static void __name (evaluation ex, execf n, value dest, value a, value b, operator op, value *r) \
+    static CONTINUATION_6_2(__name, evaluation, int *, execf, value, value, value,  operator, value *); \
+    static void __name (evaluation ex, int *count, execf n, value dest, value a, value b, operator op, value *r) \
     {                                                                                                \
         value ar = lookup(a, r);                                                                     \
         value br = lookup(b, r);                                                                     \
+        *count = *count+1;                                                                           \
         if ((type_of(ar) != float_space ) || (type_of(br) != float_space)) {                         \
             exec_error(ex, "attempt to add non-numbers", a, b);                                      \
         }                                                                                            \
@@ -179,27 +191,22 @@ static execf build_insert(evaluation e, node n)
         }                                                                                            \
     }
 
-static CONTINUATION_5_2(do_plus, evaluation, execf, value, value, value,  operator, value *);
+
 DO_BINARY_NUMERIC(do_plus, +)
 BUILD_BINARY_NUMERIC(build_plus, do_plus)
 
-static CONTINUATION_5_2(do_minus, evaluation, execf, value, value, value,  operator, value *);
 DO_BINARY_NUMERIC(do_minus, -)
 BUILD_BINARY_NUMERIC(build_minus, do_minus)
 
-static CONTINUATION_5_2(do_multiply, evaluation, execf, value, value, value,  operator, value *);
 DO_BINARY_NUMERIC(do_multiply, *)
 BUILD_BINARY_NUMERIC(build_multiply, do_multiply)
 
-static CONTINUATION_5_2(do_divide, evaluation, execf, value, value, value,  operator, value *);
 DO_BINARY_NUMERIC(do_divide, /)
 BUILD_BINARY_NUMERIC(build_divide, do_divide)
 
-static CONTINUATION_5_2(do_less_than, evaluation, execf, value, value, value,  operator, value *);
 DO_BINARY_NUMERIC_FILTER(do_less_than, <)
 BUILD_BINARY_NUMERIC(build_less_than, do_less_than)
 
-static CONTINUATION_5_2(do_less_than_or_equal, evaluation, execf, value, value, value,  operator, value *);
 DO_BINARY_NUMERIC_FILTER(do_less_than_or_equal, <=)
 BUILD_BINARY_NUMERIC(build_less_than_or_equal, do_less_than_or_equal)
 
@@ -207,11 +214,11 @@ BUILD_BINARY_NUMERIC(build_less_than_or_equal, do_less_than_or_equal)
 // this is going to be necessary for not also, but for today we'll use the synchronous
 // assumption, and expect r to be augments with the results
 
-static CONTINUATION_7_2(do_sub, evaluation, execf, execf, table, vector, vector, vector, operator, value *);
-static void do_sub(evaluation ex, execf next, execf leg, table results, vector v, vector inputs, vector outputs,
+static CONTINUATION_8_2(do_sub, evaluation, int *, execf, execf, table, vector, vector, vector, operator, value *);
+static void do_sub(evaluation ex, int *count, execf next, execf leg, table results, vector v, vector inputs, vector outputs,
                    operator op, value *r)
 {
-    ex->invocations++;
+    *count = *count + 1;
     for (int i = 0; i< vector_length(inputs); i ++) {
         vector_set(v, i, lookup(vector_get(inputs, i), r));
     }
@@ -235,7 +242,6 @@ static void do_sub(evaluation ex, execf next, execf leg, table results, vector v
     apply(next, op, r);
 }
 
-// ahem
 static execf build_sub(evaluation e, node n)
 {
     table results = create_value_vector_table(e->h);
@@ -244,6 +250,7 @@ static execf build_sub(evaluation e, node n)
     return cont(e->h,
                 do_sub,
                 e,
+                register_counter(e, n),        
                 resolve_cfg(e, n, 0),
                 resolve_cfg(e, n, 1),
                 results,
@@ -253,10 +260,10 @@ static execf build_sub(evaluation e, node n)
 }
 
 
-static CONTINUATION_3_2(do_genid, evaluation, execf, value,  operator, value *);
-static void do_genid(evaluation ex, execf n, value dest, operator op, value *r)
+static CONTINUATION_4_2(do_genid, evaluation, int *, execf, value,  operator, value *);
+static void do_genid(evaluation ex, int *count, execf n, value dest, operator op, value *r)
 {
-    ex->invocations++;
+    *count = *count+1;
     value v = generate_uuid();
     r[reg(dest)] = v;
     apply(n, op, r);
@@ -267,6 +274,7 @@ static execf build_genid(evaluation e, node n)
 {
     return cont(e->h, do_genid,
                 e,
+                register_counter(e, n),        
                 resolve_cfg(e, n, 0),
                 vector_get(n->arguments, 0));
 }
@@ -293,10 +301,11 @@ static execf build_terminal(evaluation e, node n)
     return cont(e->h, do_terminal);
 }
 
-static CONTINUATION_2_2(do_fork, int, execf *, operator, value *) ;
-static void do_fork(int count, execf *b, operator op, value *r)
+static CONTINUATION_3_2(do_fork, int *, int, execf *, operator, value *) ;
+static void do_fork(int *count, int legs, execf *b, operator op, value *r)
 {
-    for (int i =0; i<count ;i ++) apply(b[i], op, r);
+    *count = *count+1;
+    for (int i =0; i<legs ;i ++) apply(b[i], op, r);
 }
 
 static execf build_fork(evaluation e, node n)
@@ -306,7 +315,7 @@ static execf build_fork(evaluation e, node n)
 
     for (int i=0; i < count; i++)
         a[i] = resolve_cfg(e, n, i);
-    return cont(e->h, do_fork, count, a);
+    return cont(e->h, do_fork, register_counter(e, n), count, a);
 }
 
 static CONTINUATION_2_2(do_trace, execf, vector, operator, value *);
@@ -382,7 +391,7 @@ evaluation build(node n, table scopes, scan s, insertron insert, thunk terminal)
     e->registerfile = 30;
     e->h =h;
     e->scopes = scopes;
-    e->invocations = 0;
+    e->counters = allocate_table(h, key_from_pointer, compare_pointer);
     e->s = s;
     e->registerfile = 50;
     e->insert = insert;
