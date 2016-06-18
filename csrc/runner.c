@@ -33,6 +33,7 @@ static void merge_scan(table t, int sig, void *listen, value e, value a, value v
 table start_fixedpoint(heap h, table scopes, table persisted)
 {
     table t = create_value_table(h);
+    table counts = allocate_table(h, key_from_pointer, compare_pointer);
     table_foreach(persisted, bag_id, bag) {
         table_set(t, bag_id, bag);
     }
@@ -47,7 +48,7 @@ table start_fixedpoint(heap h, table scopes, table persisted)
         // evaluation is synchronous
         table_foreach(edb_implications(b), n, v) {
             rules++;
-            vector_insert(handlers, build(n, scopes, cont(h, merge_scan, t), in, 0));
+            vector_insert(handlers, build(n, scopes, cont(h, merge_scan, t), in, counts, 0));
         }
     }
 

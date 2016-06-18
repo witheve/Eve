@@ -408,14 +408,14 @@ void execute(evaluation e)
     apply(e->head, 0, r);
 }
 
-evaluation build(node n, table scopes, scan s, insertron insert, thunk terminal)
+evaluation build(node n, table scopes, scan s, insertron insert, table counts, thunk terminal)
 {
     heap h = allocate_rolling(pages);
     evaluation e = allocate(h, sizeof(struct evaluation));
     e->registerfile = 30;
     e->h =h;
     e->scopes = scopes;
-    e->counters = allocate_table(h, key_from_pointer, compare_pointer);
+    e->counters = counts;
     e->s = s;
     e->registerfile = 50;
     e->insert = insert;
