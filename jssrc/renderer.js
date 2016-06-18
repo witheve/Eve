@@ -371,26 +371,4 @@ socket.onmessage = function(msg) {
 }
 socket.onopen = function() {
   console.log("Connected to eve server!");
-  //TODO: open the ui query
-  socket.send(JSON.stringify({type: "query", scope: "session", query: `
-mark all the different tag types as html
-  entity = if e = [#div] then e
-           if e = [#span] then e
-           if e = [#ul] then e
-           if e = [#ol] then e
-           if e = [#li] then e
-  update entity := [#html]
-                                
-get all the ui facts
-  (entity, attribute, value) =
-    if entity = [#html]
-       [#eav entity attribute value] then (entity, attribute, value)
-    if [#html style]
-       [#eav entity: style, attribute value] then (style, attribute, value)
-  update session
-    [#eav entity attribute value]
-  `}));
 }
-
-// handleDOMUpdates({insert: [[{type: "uuid", value: "foo"}, "tag", "div"], [{type: "uuid", value: "foo"}, "children", "bar"], [{type: "uuid", value: "foo"}, "children", "woot"], ["bar", "tag", "span"], ["bar", "style", "bar-style"], ["bar-style", "color", "red"], ["bar", "text", "meh"], ["woot", "tag", "input"], ["woot", "value", "ZOMG"]], remove: []})
-// handleDOMUpdates({insert: [["woot", "text", "ya wai"], ["woot", "style", "woot-style"], ["woot-style", "background", "blue"], ["bar", "text", "no wai"]], remove: []})
