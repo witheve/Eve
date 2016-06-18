@@ -20,6 +20,28 @@ extern int strcmp(const char *, const char *);
 static buffer read_file_or_exit(heap, char *);
 
 
+static void run_test(bag root, buffer b, boolean tracing)
+{
+    heap h = allocate_rolling(pages);
+    bag event = create_bag(generate_uuid());
+    table scopes = create_value_table(h);
+    table results = create_value_vector_table(h);
+    table_set(scopes, intern_cstring("history"), root);
+    table_set(scopes, intern_cstring("event"), event);
+    table_set(scopes, intern_cstring("transient"), event);
+    
+    // take this from a pool
+    interpreter c = build_lua(root, scopes);
+    node n = lua_compile_eve(c, b, tracing);
+    edb_register_implication(event, n);
+    table persisted = create_value_table(h);
+    table result_bags = start_fixedpoint(h, scopes, persisted);
+    table_foreach(result_bags, n, v) {
+        prf("%v %b\n", n, bag_dump(h, v));
+    }
+    h->destroy(h);
+}
+
 int main(int argc, char **argv)
 {
     init_runtime();
@@ -29,6 +51,10 @@ int main(int argc, char **argv)
     interpreter c = build_lua();
 
     for (int i = 1; i <argc ; i++) {
+        if (!strcmp(argv[i], "-r")) {
+            buffer b = read_file_or_exit(init, argv[++i]);
+            run_test(root, b, enable_tracing);
+        }
         if (!strcmp(argv[i], "-e")) {
             buffer b = read_file_or_exit(init, argv[++i]);
             edb_register_implication(root, lua_compile_eve(c, b, enable_tracing));

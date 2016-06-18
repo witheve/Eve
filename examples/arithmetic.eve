@@ -1,0 +1,8 @@
+simple constant addition
+  a = 1 + 2
+  b = a + 2
+  c = b - 1
+  d = c / 2
+  e = d * 3
+  update
+    [#div #num text: e]

@@ -63,7 +63,21 @@ static int construct_register(lua_State *L)
 static int construct_number(lua_State *L)
 {
     interpreter c = lua_context(L);
-    lua_pushnil(L);
+    char *s = (char *)lua_tostring(L, 1);
+    int len = lua_strlen(L, 1);
+    boolean fractional = false;
+    double rez = 0, fact = (s[0]=='-')?(s++, len--, -1.0):1.0;
+
+    for (int i = 0; i < len ; i++) {
+        if (s[i] == '.'){
+            fractional = true; 
+        } else {
+            if (fractional) fact /= 10.0f;
+            rez = rez * 10.0f + (double)digit_of(s[i]);
+        }
+    }
+    
+    lua_pushlightuserdata(L, box_float(rez * fact));
     return 1;
 }
 
@@ -176,24 +190,24 @@ int lua_build_node(lua_State *L)
     node n = allocate(c->h, sizeof(struct node));
     n->arms = allocate_vector(c->h, 5);
     n->arguments = allocate_vector(c->h, 5);
-    n->ancillary = allocate_vector(c->h, 5);
     estring x = lua_tovalue(L, 1);
     n->builder = table_find(builders_table(),x) ;
     if (!n->builder) {
         prf ("no such node type: %v\n", x);
     }
 
-    foreach_lua_table(L, 2, k, v)
+    foreach_lua_table(L, 2, _, v) {
         vector_insert(n->arms, (void *)lua_topointer(L, v));
-
-    foreach_lua_table(L, 3, k, v) {
-        vector_insert(n->arguments, lua_tovalue(L, v));
     }
-           
-    foreach_lua_table(L, 4, k, v) {
-        vector_insert(n->ancillary, lua_tovalue(L, v));
+    
+    foreach_lua_table(L, 3, _, v) {
+        vector s = allocate_vector(c->h, 5);
+        vector_insert(n->arguments, s);
+        foreach_lua_table(L, v, _, a) {
+            vector_insert(s, lua_tovalue(L, a));
+        }
     }
-
+    
     lua_pushlightuserdata(L, n);
     return 1;
 }

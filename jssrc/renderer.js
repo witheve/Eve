@@ -139,7 +139,7 @@ function handleDOMUpdates(result) {
       elem = document.createElement(ent.tag || "div")
       elem.entity = entId;
       activeElements[entId] = elem;
-      elem.ix = ent.ix;
+      elem.ix = ent.ix || "";
       insertSorted(activeElements.root, elem)
     }
     let attributes = Object.keys(ent);
@@ -226,7 +226,7 @@ function formatObjects(objs) {
 
 function sendEvent(objs) {
   let query = `handle some event
-  update history
+  update
     ${formatObjects(objs).join("\n    ")}
   `
   console.log("QUERY", query);

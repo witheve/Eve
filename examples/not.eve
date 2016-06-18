@@ -3,4 +3,4 @@ people who are not employees
   not(person = [#employee])
 
 inline people who are not employees
-  person = [#person not(#employee)]
+  person = [#person not(salary) not(#employee)]

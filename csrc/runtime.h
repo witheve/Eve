@@ -99,17 +99,14 @@ typedef struct evaluation  {
     table nmap;
 } *evaluation;
 
-
-
 typedef struct node *node;
 
-typedef void execf (*buildf)(evaluation, node);
+typedef execf (*buildf)(evaluation, node);
     
 struct node {
     buildf builder;
     vector arms;
-    vector arguments;
-    vector ancillary; // sub takes two projections
+    vector arguments; // always vectors of vectors
 };
 
 void execute(evaluation);
@@ -117,7 +114,7 @@ void execute(evaluation);
 table builders_table();
 void register_implication(node n);
 evaluation build(node n, table scopes, scan s, insertron insert, thunk terminal);
-table start_fixedpoint(heap, table);
+table start_fixedpoint(heap, table, table);
 
 #define s_eav 0x0
 #define s_eAv 0x2

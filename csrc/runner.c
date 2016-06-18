@@ -30,9 +30,12 @@ static void merge_scan(table t, int sig, void *listen, value e, value a, value v
 
 
 
-table start_fixedpoint(heap h, table scopes)
+table start_fixedpoint(heap h, table scopes, table persisted)
 {
     table t = create_value_table(h);
+    table_foreach(persisted, bag_id, bag) {
+        table_set(t, bag_id, bag);
+    }
     vector handlers = allocate_vector(h,10);
     boolean pass = true;
     int rules = 0;
