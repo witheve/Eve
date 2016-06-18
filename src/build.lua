@@ -152,11 +152,13 @@ function translate_subproject(n, bound, down, tracing)
    local t = n.nodes
    local prod = n.produces
    local dc, c2, c
+
    function tail (bound)
-      local env
-      env, dc = down(bound)
-      return env, dc
+      local penv
+      penv, dc = down(bound)                
+      return penv, build_node("terminal", {}, {}, {})
    end
+   
    env, c2 = walk(n.nodes, nil, bound, tail, tracing)
    c = build_node("sub", {dc, c2},
                           set_to_read_array(env, n.projection),

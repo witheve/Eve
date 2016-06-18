@@ -62,7 +62,12 @@ table start_fixedpoint(heap h, table scopes, table persisted)
         }
     }
     ticks end_time = now();
-    prf ("fixedpoint in %t seconds, %d rules, %d iterations, %d input bags, %d output bags\n", 
-         end_time-start_time, rules, iterations, table_elements(scopes), table_elements(t));
+    int ivok = 0;
+    vector_foreach(handlers, k) {
+        evaluation e = k;
+        ivok += e->invocations;
+    }
+    prf ("fixedpoint in %t seconds, %d rules, %d iterations, %d input bags, %d output bags %d invocations\n", 
+         end_time-start_time, rules, iterations, table_elements(scopes), table_elements(t), ivok);
     return t;
 }

@@ -70,6 +70,7 @@ static CONTINUATION_6_2(do_scan, evaluation, execf, int, value, value, value, op
 static void do_scan(evaluation ex, execf n, int sig, value e, value a, value v, operator op, value *r)
 {
     void *listen;
+    ex->invocations++;
     // generify this too
     switch(sig) {
     case s_eav:
@@ -118,6 +119,7 @@ static execf build_scan(evaluation ex, node n)
 static CONTINUATION_6_2(do_insert, evaluation, execf, value, value, value, value, operator, value *) ;
 static void do_insert(evaluation ex, execf n, value uuid, value e, value a, value v, operator op, value *r)
 {
+    ex->invocations++;
     apply(ex->insert, uuid, lookup(e, r), lookup(a, r), lookup(v, r));
     apply(n, op, r);
 }
@@ -139,6 +141,7 @@ static execf build_insert(evaluation e, node n)
     {                                                                                                \
         value ar = lookup(a, r);                                                                     \
         value br = lookup(b, r);                                                                     \
+        ex->invocations++;                                                                           \
         if ((type_of(ar) != float_space ) || (type_of(br) != float_space)) {                         \
             exec_error(ex, "attempt to add non-numbers", a, b);                                      \
         } else {                                                                                     \
@@ -224,10 +227,11 @@ BUILD_BINARY_FILTER(build_greater_than_or_equal, do_greater_than_or_equal)
 // this is going to be necessary for not also, but for today we'll use the synchronous
 // assumption, and expect r to be augments with the results
 
-static CONTINUATION_6_2(do_sub, execf, execf, table, vector, vector, vector, operator, value *);
-static void do_sub(execf next, execf leg, table results, vector v, vector inputs, vector outputs,
+static CONTINUATION_7_2(do_sub, evaluation, execf, execf, table, vector, vector, vector, operator, value *);
+static void do_sub(evaluation ex, execf next, execf leg, table results, vector v, vector inputs, vector outputs,
                    operator op, value *r)
 {
+    ex->invocations++;
     for (int i = 0; i< vector_length(inputs); i ++) {
         vector_set(v, i, lookup(vector_get(inputs, i), r));
     }
@@ -248,6 +252,7 @@ static void do_sub(execf next, execf leg, table results, vector v, vector inputs
             vector_set(res, i, r[toreg(vector_get(outputs, i))]);
         table_set(results, key, res);
     }
+    apply(next, op, r);
 }
 
 // ahem
@@ -258,6 +263,7 @@ static execf build_sub(evaluation e, node n)
     vector v = allocate_vector(e->h, vector_length(n->arguments));
     return cont(e->h,
                 do_sub,
+                e,
                 resolve_cfg(e, n, 0),
                 resolve_cfg(e, n, 1),
                 results,
@@ -267,9 +273,10 @@ static execf build_sub(evaluation e, node n)
 }
 
 
-static CONTINUATION_2_2(do_genid, execf, value,  operator, value *);
-static void do_genid(execf n, value dest, operator op, value *r)
+static CONTINUATION_3_2(do_genid, evaluation, execf, value,  operator, value *);
+static void do_genid(evaluation ex, execf n, value dest, operator op, value *r)
 {
+    ex->invocations++;
     value v = generate_uuid();
     r[reg(dest)] = v;
     apply(n, op, r);
@@ -279,6 +286,7 @@ static void do_genid(execf n, value dest, operator op, value *r)
 static execf build_genid(evaluation e, node n)
 {
     return cont(e->h, do_genid,
+                e,
                 resolve_cfg(e, n, 0),
                 vector_get(n->arguments, 0));
 }
@@ -396,6 +404,7 @@ evaluation build(node n, table scopes, scan s, insertron insert, thunk terminal)
     e->registerfile = 30;
     e->h =h;
     e->scopes = scopes;
+    e->invocations = 0;
     e->s = s;
     e->registerfile = 50;
     e->insert = insert;
