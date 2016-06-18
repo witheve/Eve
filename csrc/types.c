@@ -55,12 +55,20 @@ void print_value_vector(buffer out, vector vec) {
 // Value hash/equals
 //-------------------------------------------------------
 
+iu64 fold_key(iu64 key)
+{
+    key ^= key >> 32;
+    key ^= key>>16;
+    key ^= key>>8;
+    return key;
+}
+
 iu64 value_as_key(value v)
 {
     if (type_of(v) == float_space) {
-        return *(iu64 *)v;
+        return fold_key(*(iu64 *)v);
     }
-    return (iu64)v;
+    return fold_key((iu64)v);
 }
 
 // assumes bibop and interned strings and uuids

@@ -63,6 +63,9 @@ table start_fixedpoint(heap h, table scopes, table persisted, table counts)
     }
     ticks end_time = now();
 
+    // FIXME: this seems sketch, can something bad happen as a result of this casting?
+    table_set(counts, intern_cstring("time"), (void *)(end_time - start_time));
+    table_set(counts, intern_cstring("iterations"), (void *)(long)iterations);
     prf ("fixedpoint in %t seconds, %d rules, %d iterations, %d input bags, %d output bags\n", 
          end_time-start_time, rules, iterations, table_elements(scopes), table_elements(t));
     return t;

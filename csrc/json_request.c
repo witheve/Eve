@@ -109,7 +109,9 @@ static void send_guy(heap h, buffer_handler output, values_diff diff)
 static void send_node_graph(heap h, buffer_handler output, node head, table counts)
 {
     string out = allocate_string(h);
-    bprintf(out, "{\"type\":\"node_graph\", \"head\": \"%p\", \"nodes\":{", head);
+    int time = (int)table_find(counts, intern_cstring("time"));
+    long iterations = (long)table_find(counts, intern_cstring("iterations"));
+    bprintf(out, "{\"type\":\"node_graph\", \"total_time\": %t, \"iterations\": %d, \"head\": \"%p\", \"nodes\":{", time, iterations, head);
 
     vector to_scan = allocate_vector(h, 10);
     vector_insert(to_scan, head);
@@ -186,8 +188,13 @@ static evaluation start_guy(json_session js, buffer b, buffer_handler output, st
 
     heap impl_heap = allocate_rolling(pages);
     send_node_graph(impl_heap, output, n, counts);
-    table impls = edb_implications(js->root);
-    table_foreach(impls, k, impl) {
+    /* table impls = edb_implications(js->root); */
+    table_foreach(edb_implications(js->root), k, impl) {
+        heap impl_heap = allocate_rolling(pages);
+        send_node_graph(impl_heap, output, impl, counts);
+    }
+
+    table_foreach(edb_implications(js->session), k, impl) {
         heap impl_heap = allocate_rolling(pages);
         send_node_graph(impl_heap, output, impl, counts);
     }

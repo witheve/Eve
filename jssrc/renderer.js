@@ -329,7 +329,7 @@ function drawNode(nodeId, graph, seen) {
   if(seen[nodeId]) {
     return {text: `seen ${node.type}`};
   }
-  // seen[nodeId] = true;
+  seen[nodeId] = true;
   let children = [];
   let me = {style: styles.node, children: [
     {style: styles.nodeType, text: `${node.type} ${node.scan_type || ""} (${node.count || 0})`},
@@ -346,7 +346,11 @@ function drawNodeGraph(graph) {
   let graphs = [];
   for(let headId in allNodeGraphs) {
     let tree = drawNode(headId, allNodeGraphs[headId].nodes, {});
-    graphs.push({style: styles.graph, children: [tree]});
+    graphs.push({style: styles.graph, children: [
+      {text: `total time: ${allNodeGraphs[headId].total_time}s`},
+      {text: `iterations: ${allNodeGraphs[headId].iterations}`},
+      tree
+    ]});
   }
   renderer.render([{style: styles.root, children: graphs}]);
 }
