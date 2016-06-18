@@ -42,6 +42,9 @@ static void print_value_json(buffer out, value v)
     case uuid_space:
         bprintf(out , "{\"type\" : \"uuid\", \"value\" : \"%X\"}", wrap_buffer(init, v, UUID_LENGTH));
         break;
+    case float_space:
+        bprintf(out, "%v", v);
+        break;
     case estring_space:
         {
             estring si = v;
