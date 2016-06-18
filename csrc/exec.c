@@ -159,7 +159,7 @@ static execf build_insert(evaluation e, node n)
         }                                                                                            \
     }
 
-#define BUILD_BINARY_NUMERIC(__name, __do_op)   \
+#define BUILD_BINARY(__name, __do_op)   \
     static execf __name (evaluation e, node n)  \
     {                                           \
         return cont(e->h,                       \
@@ -172,43 +172,65 @@ static execf build_insert(evaluation e, node n)
                 vector_get(n->arguments, 2));   \
     }
 
-#define DO_BINARY_NUMERIC_FILTER(__name, __op)                                                               \
-    static CONTINUATION_6_2(__name, evaluation, int *, execf, value, value, value,  operator, value *); \
-    static void __name (evaluation ex, int *count, execf n, value dest, value a, value b, operator op, value *r) \
+
+#define DO_BINARY_FILTER(__name, __op)                                                               \
+    static CONTINUATION_5_2(__name, evaluation, int *, execf, value, value,  operator, value *);     \
+    static void __name (evaluation ex, int *count, execf n, value a, value b, operator op, value *r) \
     {                                                                                                \
         value ar = lookup(a, r);                                                                     \
         value br = lookup(b, r);                                                                     \
-        *count = *count+1;                                                                           \
-        if ((type_of(ar) != float_space ) || (type_of(br) != float_space)) {                         \
-            exec_error(ex, "attempt to add non-numbers", a, b);                                      \
-        }                                                                                            \
-        else if (true) /*@TODO: if dest, set instead of filter */                                    \
-        {                                                                                            \
+        *count = *count + 1;                                                                         \
+        if ((type_of(ar) == float_space ) && (type_of(br) == float_space)) {                         \
             if (*(double *)ar __op *(double *)br)                                                    \
             {                                                                                        \
                 apply(n, op, r);                                                                     \
             }                                                                                        \
         }                                                                                            \
+        else                                                                                         \
+          {                                                                                          \
+            exec_error(ex, "@FIXME filter non-numbers", a, b);                                       \
+          }                                                                                          \
     }
 
 
+#define BUILD_BINARY_FILTER(__name, __do_op)   \
+    static execf __name (evaluation e, node n)  \
+    {                                           \
+        return cont(e->h,                       \
+                __do_op,                        \
+                e,                              \
+                register_counter(e, n),         \
+                resolve_cfg(e, n, 0),           \
+                vector_get(n->arguments, 0),    \
+                vector_get(n->arguments, 1));   \
+    }
+
+
+
+
 DO_BINARY_NUMERIC(do_plus, +)
-BUILD_BINARY_NUMERIC(build_plus, do_plus)
+BUILD_BINARY(build_plus, do_plus)
 
 DO_BINARY_NUMERIC(do_minus, -)
-BUILD_BINARY_NUMERIC(build_minus, do_minus)
+BUILD_BINARY(build_minus, do_minus)
 
 DO_BINARY_NUMERIC(do_multiply, *)
-BUILD_BINARY_NUMERIC(build_multiply, do_multiply)
+BUILD_BINARY(build_multiply, do_multiply)
 
 DO_BINARY_NUMERIC(do_divide, /)
-BUILD_BINARY_NUMERIC(build_divide, do_divide)
+BUILD_BINARY(build_divide, do_divide)
 
-DO_BINARY_NUMERIC_FILTER(do_less_than, <)
-BUILD_BINARY_NUMERIC(build_less_than, do_less_than)
+DO_BINARY_FILTER(do_less_than, <)
+BUILD_BINARY_FILTER(build_less_than, do_less_than)
 
-DO_BINARY_NUMERIC_FILTER(do_less_than_or_equal, <=)
-BUILD_BINARY_NUMERIC(build_less_than_or_equal, do_less_than_or_equal)
+DO_BINARY_FILTER(do_less_than_or_equal, <=)
+BUILD_BINARY_FILTER(build_less_than_or_equal, do_less_than_or_equal)
+
+DO_BINARY_FILTER(do_greater_than, >)
+BUILD_BINARY_FILTER(build_greater_than, do_greater_than)
+
+DO_BINARY_FILTER(do_greater_than_or_equal, >=)
+BUILD_BINARY_FILTER(build_greater_than_or_equal, do_greater_than_or_equal)
 
 // ok - we need to refactor the build process to allow the insertion of a tail node
 // this is going to be necessary for not also, but for today we'll use the synchronous
@@ -357,6 +379,8 @@ table builders_table()
         table_set(builders, intern_cstring("insert"), build_insert);
         table_set(builders, intern_cstring("less_than"), build_less_than);
         table_set(builders, intern_cstring("less_than_or_equal"), build_less_than_or_equal);
+        table_set(builders, intern_cstring("greater_than"), build_less_than);
+        table_set(builders, intern_cstring("greater_than_or_equal"), build_less_than_or_equal);
         table_set(builders, intern_cstring("scan"), build_scan);
         table_set(builders, intern_cstring("generate"), build_genid);
         table_set(builders, intern_cstring("fork"), build_fork);

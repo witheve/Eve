@@ -274,40 +274,55 @@ function translate_union(n, bound, down, tracing)
    return env, build_node("fork", arms, {}, {})
 end
 
-local expressionMap = {["+"] = "plus", ["-"] = "minus", ["*"] = "multiply", ["/"] = "divide", ["<"] = "less_than", ["<="] = "less_than_or_equal"}
+local binaryArgs = {"return", "a", "b"}
+local binaryFilterArgs = {"a", "b"}
+local expressionMap = {
+   ["+"] = {"plus", binaryArgs},
+   ["-"] = {"minus", binaryArgs},
+   ["*"] = {"multiply", binaryArgs},
+   ["/"] = {"divide", binaryArgs},
+   ["<"] = {"less_than", binaryFilterArgs},
+   ["<="] = {"less_than_or_equal", binaryFilterArgs},
+   [">"] = {"greater_than", binaryFilterArgs},
+   [">="] = {"greater_than_or_equal", binaryFilterArgs},
+}
 function translate_expression(n, bound, down, tracing)
    for term in pairs(n.produces) do
       bound[term] = true
    end
-   local result, a, b
+   local args = {}
    for _, binding in pairs(n.bindings) do
-      if binding.field == "return" then
-         result = binding.variable
-         if not binding.variable or binding.constant then
-            error("Must bind result of expression to variable")
-         end
-      end
-      if binding.field == "a" then
-         a = binding.variable or binding.constant
-      end
-      if binding.field == "b" then
-         b = binding.variable or binding.constant
-      end
+      args[binding.field] = binding.variable or binding.constant
    end
 
    local env, c = down(bound)
-
-   local operator = expressionMap[n.operator]
+   local m = expressionMap[n.operator]
+   local operator = m[1]
+   local schema = m[2]
    if tracing then
-      c = build_node("trace", {c},
-                     {operator, "" ,
-                      "result", read_lookup(env, result),
-                      "a", read_lookup(env, a),
-                      "b", read_lookup(env, b)},
-                      {})
+      local traceArgs = {operator, ""}
+      for _, field in ipairs(schema) do
+         if args[field] == nil then
+            error("must bind field " .. field .. " for operator " .. n.operator)
+         end
+         traceArgs[#traceArgs + 1] = field
+         traceArgs[#traceArgs + 1] = read_lookup(env, args[field])
+      end
+      c = build_node("trace", {c}, traceArgs, {})
    end
 
-   return env, build_node(operator, {c}, {write_lookup(env, result), read_lookup(env, a), read_lookup(env, b)}, {})
+   local nodeArgs = {}
+   for _, field in ipairs(schema) do
+      if args[field] == nil then
+         error("must bind field " .. field .. " for operator " .. n.operator)
+      end
+      if field == "return" then
+         nodeArgs[#nodeArgs + 1] = write_lookup(env, args[field])
+      else
+         nodeArgs[#nodeArgs + 1] = read_lookup(env, args[field])
+      end
+   end
+   return env, build_node(operator, {c}, nodeArgs, {})
 end
 
 -- this doesn't really need to be disjoint from read lookup, except for concerns about
