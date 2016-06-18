@@ -192,6 +192,7 @@ int lua_build_node(lua_State *L)
     n->arguments = allocate_vector(c->h, 5);
     n->ancillary = allocate_vector(c->h, 5);
     estring x = lua_tovalue(L, 1);
+    n->type = x;
     n->builder = table_find(builders_table(),x) ;
     if (!n->builder) {
         prf ("no such node type: %v\n", x);

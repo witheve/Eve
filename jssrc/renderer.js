@@ -308,6 +308,50 @@ window.addEventListener("keyup", function(event) {
 });
 
 //---------------------------------------------------------
+// Draw node graph
+//---------------------------------------------------------
+
+let allNodeGraphs = {};
+let renderer = new Renderer();
+document.body.appendChild(renderer.content);
+renderer.content.style.display = "flex";
+
+let styles  = {
+  root: "display:flex; flex-direction:column; justify-content:flex-start; align-items:flex-start; margin-top:20px;",
+  graph: "margin-top:30px;",
+  node: "display: flex; flex-direction:column; margin:0 0px; flex:none;",
+  nodeChildren: "display: flex; flex-direction:row; justify-content:center;",
+  nodeType: "display:flex; justify-content:center; background: #ddd; margin: 5px 15px; padding: 5px 10px;"
+}
+
+function drawNode(nodeId, graph, seen) {
+  let node = graph[nodeId];
+  if(seen[nodeId]) {
+    return {text: `seen ${node.type}`};
+  }
+  // seen[nodeId] = true;
+  let children = [];
+  let me = {style: styles.node, children: [
+    {style: styles.nodeType, text: `${node.type} ${node.scan_type || ""} (${node.count || 0})`},
+    {style: styles.nodeChildren, children}
+  ]};
+  for(let child of node.arms) {
+    children.push(drawNode(child, graph, seen));
+  }
+  return me;
+}
+
+function drawNodeGraph(graph) {
+  allNodeGraphs[graph.head] = graph;
+  let graphs = [];
+  for(let headId in allNodeGraphs) {
+    let tree = drawNode(headId, allNodeGraphs[headId].nodes, {});
+    graphs.push({style: styles.graph, children: [tree]});
+  }
+  renderer.render([{style: styles.root, children: graphs}]);
+}
+
+//---------------------------------------------------------
 // Connect the websocket, send the ui code
 //---------------------------------------------------------
 
@@ -317,6 +361,8 @@ socket.onmessage = function(msg) {
   let data = JSON.parse(msg.data);
   if(data.type == "result") {
     handleDOMUpdates(data);
+  } else if(data.type == "node_graph") {
+    drawNodeGraph(data);
   }
 }
 socket.onopen = function() {

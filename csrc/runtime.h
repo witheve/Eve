@@ -108,6 +108,7 @@ typedef struct node *node;
 typedef execf (*buildf)(evaluation, node);
     
 struct node {
+    estring type;
     buildf builder;
     vector arms;
     vector arguments;
@@ -119,7 +120,7 @@ void execute(evaluation);
 table builders_table();
 void register_implication(node n);
 evaluation build(node n, table scopes, scan s, insertron insert, table counts, thunk terminal);
-table start_fixedpoint(heap, table, table);
+table start_fixedpoint(heap, table, table, table);
 
 #define s_eav 0x0
 #define s_eAv 0x2

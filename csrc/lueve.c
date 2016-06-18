@@ -35,7 +35,8 @@ static void run_test(bag root, buffer b, boolean tracing)
     node n = lua_compile_eve(c, b, tracing);
     edb_register_implication(event, n);
     table persisted = create_value_table(h);
-    table result_bags = start_fixedpoint(h, scopes, persisted);
+    table counts = allocate_table(h, key_from_pointer, compare_pointer);
+    table result_bags = start_fixedpoint(h, scopes, persisted, counts);
     table_foreach(result_bags, n, v) {
         prf("%v %b\n", n, bag_dump(h, v));
     }
@@ -90,6 +91,12 @@ int main(int argc, char **argv)
                             "application/javascript",
                             wrap_buffer(init,  &renderer_start,
                                         &renderer_end -  &renderer_start));
+
+    extern unsigned char microReact_start, microReact_end;
+    register_static_content(h, "/jssrc/microReact.js",
+                            "application/javascript",
+                            wrap_buffer(init,  &microReact_start,
+                                        &microReact_end -  &microReact_start));
 
     init_json_service(h, root, enable_tracing);
 
