@@ -2,6 +2,10 @@
 #include <unix/unix.h>
 #include <luanne.h>
 
+static char *luat(lua_State *L, int index)
+{
+    return (char *)lua_typename(L, lua_type(L, index));
+}
 
 #define foreach_lua_table(__L, __ind, __k, __v) \
     lua_pushnil(__L); \
@@ -191,18 +195,21 @@ int lua_build_node(lua_State *L)
     n->arms = allocate_vector(c->h, 5);
     n->arguments = allocate_vector(c->h, 5);
     estring x = lua_tovalue(L, 1);
+    n->type = x;
     n->builder = table_find(builders_table(),x) ;
     if (!n->builder) {
         prf ("no such node type: %v\n", x);
     }
-
+    prf("build: %v\n", x);
     foreach_lua_table(L, 2, _, v) {
+        prf("zag %s %s\n", luat(L, v));
         vector_insert(n->arms, (void *)lua_topointer(L, v));
     }
     
-    foreach_lua_table(L, 3, _, v) {
+    foreach_lua_table(L, 3, p, v) {
         vector s = allocate_vector(c->h, 5);
         vector_insert(n->arguments, s);
+        prf("zeg %s %s\n", luat(L, v), luat(L, p));
         foreach_lua_table(L, v, _, a) {
             vector_insert(s, lua_tovalue(L, a));
         }

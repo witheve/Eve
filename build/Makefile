@@ -37,7 +37,7 @@ HTTP = server.o websocket.o base64.o sha1.o
 HTTP_H = ./http/http.h
 
 continuation_templates.h: continuations.py
-	python $^ 8 8 continuation_templates.h
+	python $^ 9 9 continuation_templates.h
 
 lutf8lib.o: lutf8lib.c
 	cc -std=c99 -c -g -I$(LUAJIT_INCLUDES) $^
@@ -51,6 +51,9 @@ index.o: ../index.html
 renderer.o: ../jssrc/renderer.js
 	cc wrap.S -DSTART=$(S)renderer_start -DEND=$(S)renderer_end -DFILE='"$<"' -c -o $@
 
+microReact.o: ../jssrc/microReact.js
+	cc wrap.S -DSTART=$(S)microReact_start -DEND=$(S)microReact_end -DFILE='"$<"' -c -o $@
+
 %.o: %.c continuation_templates.h $(UNIX_H) $(CORE_H) $(RUNTIME_H) $(HTTP_H)
 	cc -std=gnu99 -I../csrc/unix -I../csrc/core -I../csrc -I. -I$(LUAJIT_INCLUDES) -g -c $<
 
@@ -62,7 +65,7 @@ renderer.o: ../jssrc/renderer.js
 # the executable out of the way for the moment
 #macosx 
 #linux  -Wl,-E
-lueve: $(CORE) $(UNIX) $(COMPILER) $(UTF) $(LUAPOWER) $(HTTP) $(RUNTIME) index.o renderer.o lueve.o
+lueve: $(CORE) $(UNIX) $(COMPILER) $(UTF) $(LUAPOWER) $(HTTP) $(RUNTIME) index.o renderer.o microReact.o lueve.o
 	cc $(LINK) $^ $(LIBLUAJIT) -lm -ldl  -o $@
 
 clean:

@@ -104,6 +104,48 @@ static void send_guy(heap h, buffer_handler output, values_diff diff)
     apply(output, out, cont(h, destroy, h));
 }
 
+// for tracing we want to be able to send the structure of the machines
+// that we build as a json message
+static void send_node_graph(heap h, buffer_handler output, node head, table counts)
+{
+    string out = allocate_string(h);
+    bprintf(out, "{\"type\":\"node_graph\", \"head\": \"%p\", \"nodes\":{", head);
+
+    vector to_scan = allocate_vector(h, 10);
+    vector_insert(to_scan, head);
+    int nodeComma = 0;
+    vector_foreach(to_scan, n){
+        node current = (node) n;
+        if(nodeComma) {
+            bprintf(out, ",");
+        }
+        bprintf(out, "\"%p\": {\"type\": %v, \"arms\": [", current, current->type);
+        int needsComma = 0;
+        vector_foreach(current->arms, arm) {
+            vector_insert(to_scan, arm);
+            if(needsComma) {
+                bprintf(out, ",");
+            }
+            bprintf(out, "\"%p\"", arm);
+            needsComma = 1;
+        }
+        bprintf(out, "]");
+        int* count = table_find(counts, current);
+        if(count) {
+          bprintf(out, ", \"count\": %u", *count);
+        }
+        if(current->type == intern_cstring("scan")) {
+            bprintf(out, ", \"scan_type\": %v", vector_get(current->arguments, 0));
+        }
+        bprintf(out, "}");
+        nodeComma = 1;
+    }
+
+    bprintf(out, "}}");
+    // reclaim
+    apply(output, out, cont(h, destroy, h));
+}
+
 
 static evaluation start_guy(json_session js, buffer b, buffer_handler output, string scope)
 {
@@ -112,6 +154,7 @@ static evaluation start_guy(json_session js, buffer b, buffer_handler output, st
     vector implications = allocate_vector(h, 10);
     table scopes = create_value_table(h);
     table results = create_value_vector_table(js->h);
+    table counts = allocate_table(h, key_from_pointer, compare_pointer);
 
     table_foreach(js->scopes, scope, b) {
         table_set(scopes, scope, b);
@@ -128,7 +171,10 @@ static evaluation start_guy(json_session js, buffer b, buffer_handler output, st
         
         table persisted = create_value_table(h);
         table_set(persisted, edb_uuid(js->root), js->root);
-        table result_bags = start_fixedpoint(h, scopes, persisted);
+
+        // DO FIXPOINT
+        table result_bags = start_fixedpoint(h, scopes, persisted, counts);
+
         bag session_bag = table_find(result_bags, edb_uuid(js->session));
         prf("session bag facts: %d\n", session_bag?edb_size(session_bag): 0);
         // and if not?
@@ -137,6 +183,15 @@ static evaluation start_guy(json_session js, buffer b, buffer_handler output, st
             edb_scan(session_bag, 0, scanner, 0, 0, 0);
         }
     }
+
+    heap impl_heap = allocate_rolling(pages);
+    send_node_graph(impl_heap, output, n, counts);
+    table impls = edb_implications(js->root);
+    table_foreach(impls, k, impl) {
+        heap impl_heap = allocate_rolling(pages);
+        send_node_graph(impl_heap, output, impl, counts);
+    }
+
     values_diff diff = diff_value_vector_tables(js->h, js->current_delta, results);
     send_guy(h, output, diff);
     // FIXME: we need to clean up the old delta, we're currently just leaking it

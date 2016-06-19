@@ -211,7 +211,7 @@ local keywords = {
   [">"] = "INEQUALITY",
   ["<"] = "INEQUALITY",
   [">="] = "INEQUALITY",
-  [">="] = "INEQUALITY",
+  ["<="] = "INEQUALITY",
   ["!="] = "INEQUALITY",
   ["+"] = "INFIX",
   ["-"] = "INFIX",
@@ -686,7 +686,7 @@ local function parse(tokens)
 
     elseif type == "TAG" or type == "NAME" then
       if next.type == "STRING" or next.type == "IDENTIFIER" then
-        stackTop.children[#stackTop.children + 1] = {type = "equality", children = {token, next}}
+        stackTop.children[#stackTop.children + 1] = {type = "equality", operator = "=", children = {token, next}}
         -- consume the next token since we've already handled it
         scanner:read()
       else
@@ -877,7 +877,7 @@ local function resolveExpression(node, context)
       return resolveVariable(node.value, context)
     end
 
-  elseif node.type == "equality" then
+  elseif node.type == "equality" and not context.nonFilteringInequality then
     local left = resolveExpression(node.children[1], context)
     -- set that when I try to resolve this expression,
     -- I'm looking to resolve it to this specific variable
@@ -887,7 +887,7 @@ local function resolveExpression(node, context)
     context.equalityLeft = prev
     return left
 
-  elseif node.type == "inequality" then
+  elseif node.type == "inequality" or node.type == "equality" then
     local left = resolveExpression(node.children[1], context)
     -- set that when I try to resolve this expression,
     -- I'm looking to resolve it to this specific variable
@@ -912,13 +912,12 @@ local function resolveExpression(node, context)
     else
       error("Inequality with invalid right")
     end
-    local resultVar = context.equalityLeft
-    if not context.equalityLeft then
+    if context.nonFilteringInequality then
       resultVar = resolveVariable(string.format("inequality-%s-%s", node.line, node.offset), context)
+      generateBindingNode({field = "return", variable = resultVar}, context, expression)
     end
     generateBindingNode(leftBinding, context, expression)
     generateBindingNode(rightBinding, context, expression)
-    generateBindingNode({field = "return", variable = resultVar}, context, expression)
     local query = context.queryStack:peek()
     query.expressions[#query.expressions + 1] = expression
     return resultVar
@@ -932,7 +931,7 @@ local function resolveExpression(node, context)
       local attributeRef = resolveVariable(string.format("%s-%s-%s", right.value, right.line, right.offset), context)
       -- generate a temporary object that we can attach this attribute to by adding
       -- an equality from the attribute name to our temp variable
-      local tempObject = {type = "object", children = {{type = "equality", children = {right, {type = "IDENTIFIER", value = attributeRef.name}}}}}
+      local tempObject = {type = "object", children = {{type = "equality", operator = "=", children = {right, {type = "IDENTIFIER", value = attributeRef.name}}}}}
       -- create the object
       local objectNode = generateObjectNode(tempObject, context)
       -- bind that object's entity field to the left side varaible
@@ -967,7 +966,12 @@ local function resolveExpression(node, context)
     else
       resultVar = resolveVariable(string.format("result-%s-%s", node.line, node.offset), context)
     end
+    local prevNonfiltering = context.nonFilteringInequality
+    if node.func == "is" then
+      context.nonFilteringInequality = true
+    end
     local expression = {type = "expression", operator = node.func, projections = {}, groupings = {}, bindings = {}}
+    generateBindingNode({field = "return", variable = resultVar}, context, expression)
     local prevLeft = context.equalityLeft
     -- create bindings
     for ix, child in ipairs(node.children) do
@@ -1006,8 +1010,10 @@ local function resolveExpression(node, context)
       end
     end
     context.equalityLeft = prevLeft;
+    if node.func == "is" then
+      context.nonFilteringInequality = prevNonfiltering
+    end
     -- bind the return
-    local binding = generateBindingNode({field = "return", variable = resultVar}, context, expression)
     local query = context.queryStack:peek()
     query.expressions[#query.expressions + 1] = expression
     return resultVar
@@ -1160,7 +1166,7 @@ generateObjectNode = function(root, context)
         local attributeIdentifier = {type = "IDENTIFIER", line = tag.line, offset = tag.offset, value = "tag"}
         local dotNode = {type = "attribute", children = {objectIdentifier, attributeIdentifier}}
         local constantNode = {type = "STRING", value = tagValue.value}
-        local equalityNode = {type = "equality", children = {dotNode, constantNode}}
+        local equalityNode = {type = "equality", operator = "=", children = {dotNode, constantNode}}
         childQuery.children[#childQuery.children + 1] = equalityNode
 
       else
@@ -1241,7 +1247,7 @@ local function handleUpdateNode(root, query, context)
     if type == "mutate" then
       -- the operator depends on the mutate's operator here
       context.mutateOperator = child.operator
-      resolveExpression({type = "equality", children = child.children}, context)
+      resolveExpression({type = "equality", operator = "=", children = child.children}, context)
     elseif type == "object" then
       -- generate the object
       local object = generateObjectNode(child, context)
@@ -1313,13 +1319,13 @@ generateQueryNode = function(root, context)
       if not root.outputs then
         -- error
       elseif outputs.type == "IDENTIFIER" and #child.children == 1 then
-        local equality = {type = "equality", children = {outputs, child.children[1]}}
+        local equality = {type = "equality", operator = "=", children = {outputs, child.children[1]}}
         resolveExpression(equality, context)
       elseif outputs.type == "block" and child.children[1].type == "block" then
         local block = child.children[1]
         if #block.children == #outputs.children then
           for ix, output in ipairs(outputs.children) do
-            local equality = {type = "equality", children = {output, block.children[ix]}}
+            local equality = {type = "equality", operator = "=", children = {output, block.children[ix]}}
             resolveExpression(equality, context)
           end
         else
