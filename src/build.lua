@@ -277,6 +277,7 @@ end
 
 local binaryArgs = {"return", "a", "b"}
 local binaryFilterArgs = {"a", "b"}
+local mathFunctionArgs = {"return", "a"}
 local expressionMap = {
    ["+"] = {"plus", binaryArgs},
    ["-"] = {"minus", binaryArgs},
@@ -286,6 +287,9 @@ local expressionMap = {
    ["<="] = {"less_than_or_equal", binaryFilterArgs},
    [">"] = {"greater_than", binaryFilterArgs},
    [">="] = {"greater_than_or_equal", binaryFilterArgs},
+   ["sin"] = {"sin", mathFunctionArgs},
+   ["cos"] = {"cos", mathFunctionArgs},
+   ["tan"] = {"tan", mathFunctionArgs},
 }
 function translate_expression(n, bound, down, tracing)
    for term in pairs(n.produces) do
