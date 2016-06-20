@@ -109,6 +109,14 @@ function allocate_register(env, e)
    return slot
 end
 
+head_to_tail_counter = 0
+
+function allocate_temp()
+   local n = "temp_" .. head_to_tail_counter
+   head_to_tail_counter =  head_to_tail_counter + 1
+   return {name = n, type = "variable"}
+end
+
 function read_lookup(env, x)
    if variable(x) then
       local r = env.registers[x]
@@ -144,31 +152,31 @@ function set_to_read_array(env, x)
    return out
 end
 
-head_to_tail_counter = 0
 
 function translate_subproject(n, bound, down, tracing)
    local p = n.projection
    local t = n.nodes
    local prod = n.produces
-   local dc, c2, c
-   local passing_state = "results" .. head_to_tail_counter
-   head_to_tail_counter =  head_to_tail_counter + 1
+   local env, rest, fill
+   local pass = allocate_temp()
 
-   bound[passing_state] = true
-   
+   bound[pass] = true
+
+   env, rest = down(bound)
+
    function tail (bound)
-      local env
-      env, dc = down(bound)
-      print("pop", set_to_read_array(env, n.produces))
-      return env, build_node("subtail", {dc}, 
-                             {set_to_read_array(env, n.produces),
-                             {read_lookup(passing_state)}})
-   end
+      z = read_lookup(env, pass)
+      return env, build_node("subtail", {build_node("terminal", {}, {})}, 
+                             {set_to_read_array(env, n.produces),   
+                              {z}})                  
+   end                        
 
-   env, c2 = walk(n.nodes, nil, bound, tail, tracing)
-   c = build_node("sub", {dc, c2},
+   env, fill = walk(n.nodes, nil, bound, tail, tracing)
+
+   c = build_node("sub", {rest, fill},
                           {set_to_read_array(env, n.projection),
-                           {passing_state}})
+                          set_to_read_array(env, n.produces),
+                          {write_lookup(env, pass)}})
 
    if tracing then
       local map = {"proj", ""}
@@ -228,16 +236,17 @@ function translate_mutate(n, bound, down, tracing)
    local gen = (variable(e) and not bound[e])
    if (gen) then bound[e] = true end
    local env, c = down(bound)
+   local operator = n.operator
    if tracing then
       c = build_node("trace", {c},
-                  {{"insert", "" ,
+                  {{operator, "" ,
                    "scope", n.scope,
                    "entity", read_lookup(env,e),
                    "attribute", read_lookup(env, a),
                    "value", read_lookup(env, v)}})
    end
 
-   local c = build_node("insert", {c},
+   local c = build_node(operator, {c},
                         {{n.scope,
                          read_lookup(env,e),
                          read_lookup(env,a),
@@ -250,8 +259,6 @@ function translate_mutate(n, bound, down, tracing)
 end
 
 function translate_choose(n, bound, down, tracing)
-      print("chooso ", flat_print_table(n))
-
       local arm_bottom = function (bound)
             return env, c
        end
@@ -287,7 +294,6 @@ function translate_union(n, bound, down, tracing)
    end
 
    for _, v in pairs(n.queries) do
-      print("union  q ", flat_print_table(v))
       local c2
       env, c2 = walk(v.unpacked, nil, shallowcopy(bound), arm_bottom, tracing)
       arms[#arms+1] = c2
@@ -299,6 +305,7 @@ end
 
 local binaryArgs = {"return", "a", "b"}
 local binaryFilterArgs = {"a", "b"}
+local mathFunctionArgs = {"return", "a"}
 local expressionMap = {
    ["+"] = {"plus", binaryArgs},
    ["-"] = {"minus", binaryArgs},
@@ -308,6 +315,9 @@ local expressionMap = {
    ["<="] = {"less_than_or_equal", binaryFilterArgs},
    [">"] = {"greater_than", binaryFilterArgs},
    [">="] = {"greater_than_or_equal", binaryFilterArgs},
+   ["sin"] = {"sin", mathFunctionArgs},
+   ["cos"] = {"cos", mathFunctionArgs},
+   ["tan"] = {"tan", mathFunctionArgs},
 }
 function translate_expression(n, bound, down, tracing)
    for term in pairs(n.produces) do
@@ -364,7 +374,7 @@ function walk(graph, key, bound, tail, tracing)
    if not nk then
       return tail(bound)
    end
-
+   
    local n = graph[nk]
 
    d = function (bound)

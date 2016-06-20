@@ -217,7 +217,7 @@ local keywords = {
   ["-"] = "INFIX",
   ["*"] = "INFIX",
   ["/"] = "INFIX",
-  ["+="] = "ADD",
+  ["+="] = "INSERT",
   ["-="] = "REMOVE",
   [":="] = "SET",
 }
@@ -300,22 +300,10 @@ local function lex(str)
       tokens[#tokens+1] = Token:new("COMMENT", comment, line, offset)
       offset = offset + #comment
 
-    elseif numeric[char] then
-      -- go back two positions to see if before this number started, there
-      -- was a negative symbol
-      scanner:setPos(scanner.pos - 2)
-      local prev = scanner:peek()
-      local tokenIx = #tokens + 1
-      if prev == "-" then
-        -- we'll let isNumber eat this guy and we need to shift
-        -- the previous token out
-        tokenIx = tokenIx - 1
-      else
-        -- ignore that char and get back to where we should be
-        scanner:setPos(scanner.pos + 1)
-      end
+    elseif (char == "-" and numeric[scanner:peek()]) or numeric[char] then
+      scanner:unread()
       local number = scanner:eatWhile(isNumber)
-      tokens[tokenIx] = Token:new("NUMBER", number, line, offset)
+      tokens[#tokens+1] = Token:new("NUMBER", number, line, offset)
       offset = offset + #number
 
     elseif specials[char] then
@@ -753,7 +741,7 @@ local function parse(tokens)
         -- error
       end
 
-    elseif type == "ADD" or type == "REMOVE" or type == "SET" then
+    elseif type == "INSERT" or type == "REMOVE" or type == "SET" then
       -- get the previous child since these ops are infix
       local prev = stackTop.children[#stackTop.children]
       if not prev then
@@ -1242,7 +1230,7 @@ local function handleUpdateNode(root, query, context)
     -- set some context information to handle nested objects
     -- most of the time we're just adding, so we'll default
     -- the operator to add
-    context.mutateOperator = "add"
+    context.mutateOperator = "insert"
     context.mutateScope = root.scope
     if type == "mutate" then
       -- the operator depends on the mutate's operator here

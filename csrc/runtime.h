@@ -38,8 +38,10 @@ static inline table create_value_vector_table(heap h)
 
 typedef struct bag *bag;
 
-bag create_bag(uuid); 
+bag create_bag(uuid);
 void edb_insert(bag b, value e, value a, value v);
+void edb_remove(bag b, value e, value a, value v);
+void edb_set(bag b, value e, value a, value v);
 
 void init_runtime();
 
@@ -92,6 +94,8 @@ typedef struct evaluation  {
     bag b;
     thunk terminal;
     insertron insert;
+    insertron remove;
+    insertron set;
     table scopes;
     execf head;
     scan s;
@@ -115,7 +119,7 @@ void execute(evaluation);
 
 table builders_table();
 void register_implication(node n);
-evaluation build(node n, table scopes, scan s, insertron insert, table counts, thunk terminal);
+evaluation build(node n, table scopes, scan s, insertron insert, insertron remove, insertron set, table counts, thunk terminal);
 table start_fixedpoint(heap, table, table, table);
 
 #define s_eav 0x0

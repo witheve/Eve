@@ -42,6 +42,9 @@ static void print_value_json(buffer out, value v)
     case uuid_space:
         bprintf(out , "{\"type\" : \"uuid\", \"value\" : \"%X\"}", wrap_buffer(init, v, UUID_LENGTH));
         break;
+    case float_space:
+        bprintf(out, "%v", v);
+        break;
     case estring_space:
         {
             estring si = v;
@@ -109,7 +112,9 @@ static void send_guy(heap h, buffer_handler output, values_diff diff)
 static void send_node_graph(heap h, buffer_handler output, node head, table counts)
 {
     string out = allocate_string(h);
-    bprintf(out, "{\"type\":\"node_graph\", \"head\": \"%p\", \"nodes\":{", head);
+    int time = (int)table_find(counts, intern_cstring("time"));
+    long iterations = (long)table_find(counts, intern_cstring("iterations"));
+    bprintf(out, "{\"type\":\"node_graph\", \"total_time\": %t, \"iterations\": %d, \"head\": \"%p\", \"nodes\":{", time, iterations, head);
 
     vector to_scan = allocate_vector(h, 10);
     vector_insert(to_scan, head);
@@ -146,50 +151,48 @@ static void send_node_graph(heap h, buffer_handler output, node head, table coun
     apply(output, out, cont(h, destroy, h));
 }
 
+static void compile_json_query(json_session js, buffer code, string scope)
+{
+    // FIXME: how do we clean up old event bags if they can't be used anymore?
+    bag event = create_bag(generate_uuid());
+    table_set(js->scopes, intern_cstring("event"), event);
 
-static evaluation start_guy(json_session js, buffer b, buffer_handler output, string scope)
+    // take this from a pool
+    interpreter lua = build_lua(js->root, js->scopes);
+    node headNode = lua_compile_eve(lua, code, js->tracing);
+    bag target = table_find(js->scopes, intern_string(scope->contents, buffer_length(scope)));
+
+    if (target) {
+        edb_register_implication(target, headNode);
+    }
+}
+
+
+static evaluation start_guy(json_session js, buffer_handler output)
 {
     heap h = allocate_rolling(pages);
-    bag event = create_bag(generate_uuid());
-    vector implications = allocate_vector(h, 10);
-    table scopes = create_value_table(h);
     table results = create_value_vector_table(js->h);
     table counts = allocate_table(h, key_from_pointer, compare_pointer);
 
-    table_foreach(js->scopes, scope, b) {
-        table_set(scopes, scope, b);
+    table persisted = create_value_table(h);
+    table_set(persisted, edb_uuid(js->root), js->root);
+
+    // DO FIXPOINT
+    table result_bags = start_fixedpoint(h, js->scopes, persisted, counts);
+
+    bag session_bag = table_find(result_bags, edb_uuid(js->session));
+    prf("session bag facts: %d\n", session_bag?edb_size(session_bag): 0);
+    // and if not?
+    insertron scanner = cont(js->h, chute, js->h, results);
+    if (session_bag) {
+        edb_scan(session_bag, 0, scanner, 0, 0, 0);
     }
-    table_set(scopes, intern_cstring("event"), event);
-    
-    // take this from a pool
-    interpreter c = build_lua(js->root, js->scopes);
-    node n = lua_compile_eve(c, b, js->tracing);
-    bag target = table_find(scopes, intern_string(scope->contents, buffer_length(scope)));
-    
-    if (target) {
-        edb_register_implication(target, n);
-        
-        table persisted = create_value_table(h);
-        table_set(persisted, edb_uuid(js->root), js->root);
 
-        // DO FIXPOINT
-        table result_bags = start_fixedpoint(h, scopes, persisted, counts);
-
-        bag session_bag = table_find(result_bags, edb_uuid(js->session));
-        prf("session bag facts: %d\n", session_bag?edb_size(session_bag): 0);
-        // and if not?
-        insertron scanner = cont(js->h, chute, js->h, results);
-        if (session_bag) {
-            edb_scan(session_bag, 0, scanner, 0, 0, 0);
+    table_foreach(js->scopes, k, scopeBag) {
+        table_foreach(edb_implications(scopeBag), k, impl) {
+            heap impl_heap = allocate_rolling(pages);
+            send_node_graph(impl_heap, output, impl, counts);
         }
-    }
-
-    heap impl_heap = allocate_rolling(pages);
-    send_node_graph(impl_heap, output, n, counts);
-    table impls = edb_implications(js->root);
-    table_foreach(impls, k, impl) {
-        heap impl_heap = allocate_rolling(pages);
-        send_node_graph(impl_heap, output, impl, counts);
     }
 
     values_diff diff = diff_value_vector_tables(js->h, js->current_delta, results);
@@ -233,7 +236,8 @@ void handle_json_query(json_session j, buffer in, thunk c)
         if ((c == '}')  && (s== sep)) {
             if (string_equal(type, sstring("query"))) {
                 // xxx - get and id and register it.. do we have those anymore?
-                start_guy(j, query, j->write, scope);
+                compile_json_query(j, query, scope);
+                start_guy(j, j->write);
             }
                 
             // do the thing
@@ -275,6 +279,7 @@ void new_json_session(bag root, boolean tracing, buffer_handler write, table hea
     table_set(js->scopes, intern_cstring("session"), js->session);
     table_set(js->scopes, intern_cstring("history"), root);
     *handler = websocket_send_upgrade(h, headers, write, cont(h, handle_json_query, js), &js->write);
+    start_guy(js, js->write);
 }
 
 void init_json_service(http_server h, bag root, boolean tracing)

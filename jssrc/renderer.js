@@ -319,24 +319,44 @@ renderer.content.style.display = "flex";
 let styles  = {
   root: "display:flex; flex-direction:column; justify-content:flex-start; align-items:flex-start; margin-top:20px;",
   graph: "margin-top:30px;",
-  node: "display: flex; flex-direction:column; margin:0 0px; flex:none;",
-  nodeChildren: "display: flex; flex-direction:row; justify-content:center;",
-  nodeType: "display:flex; justify-content:center; background: #ddd; margin: 5px 15px; padding: 5px 10px;"
+  node: "display: flex; flex-direction:column; margin:0 0px;",
+  nodeChildren: "display: flex; flex-direction:column; align-items:stretch; ",
+  nodeType: "display:flex; justify-content:center; background: #ddd; margin: 0px; padding: 5px 10px;",
+  subNodeChildren: "flex-direction:column; margin-left: 0px;",
+  forkNodeChildren: "flex-direction:row; justify-content: center;",
+  sub: "background: #AEB0FF;",
+  scan: "background: #A1FFC3;",
+  insert: "background: #FFA9A9;",
+  generate: "background: #FAC989;",
 }
 
 function drawNode(nodeId, graph, seen) {
   let node = graph[nodeId];
   if(seen[nodeId]) {
     return {text: `seen ${node.type}`};
+  } else if(node.type == "terminal") {
+    return undefined;
   }
-  // seen[nodeId] = true;
+  seen[nodeId] = true;
   let children = [];
+  let childrenContainer = {style: styles.nodeChildren, children};
   let me = {style: styles.node, children: [
-    {style: styles.nodeType, text: `${node.type} ${node.scan_type || ""} (${node.count || 0})`},
-    {style: styles.nodeChildren, children}
+    {style: `${styles.nodeType} ${styles[node.type]}`, text: `${node.type} ${node.scan_type || ""} (${node.count || 0})`},
+    childrenContainer
   ]};
-  for(let child of node.arms) {
-    children.push(drawNode(child, graph, seen));
+  if(node.type == "fork") {
+    childrenContainer.style += ` ${styles.forkNodeChildren}}`;
+    for(let child of node.arms) {
+      children.push({style: "margin-right: 20px;", children: [drawNode(child, graph, seen)]});
+    }
+  } else if(node.type == "sub") {
+    childrenContainer.style += ` ${styles.subNodeChildren}}`;
+    children.push({style: "margin-left: 30px;", children: [drawNode(node.arms[1], graph, seen)]});
+    children.push(drawNode(node.arms[0], graph, seen));
+  } else {
+    for(let child of node.arms) {
+      children.push(drawNode(child, graph, seen));
+    }
   }
   return me;
 }
@@ -346,7 +366,11 @@ function drawNodeGraph(graph) {
   let graphs = [];
   for(let headId in allNodeGraphs) {
     let tree = drawNode(headId, allNodeGraphs[headId].nodes, {});
-    graphs.push({style: styles.graph, children: [tree]});
+    graphs.push({style: styles.graph, children: [
+      {text: `total time: ${allNodeGraphs[headId].total_time}s`},
+      {text: `iterations: ${allNodeGraphs[headId].iterations}`},
+      tree
+    ]});
   }
   renderer.render([{style: styles.root, children: graphs}]);
 }
@@ -367,26 +391,4 @@ socket.onmessage = function(msg) {
 }
 socket.onopen = function() {
   console.log("Connected to eve server!");
-  //TODO: open the ui query
-  socket.send(JSON.stringify({type: "query", scope: "session", query: `
-mark all the different tag types as html
-  entity = if e = [#div] then e
-           if e = [#span] then e
-           if e = [#ul] then e
-           if e = [#ol] then e
-           if e = [#li] then e
-  update entity := [#html]
-                                
-get all the ui facts
-  (entity, attribute, value) =
-    if entity = [#html]
-       [#eav entity attribute value] then (entity, attribute, value)
-    if [#html style]
-       [#eav entity: style, attribute value] then (style, attribute, value)
-  update session
-    [#eav entity attribute value]
-  `}));
 }
-
-// handleDOMUpdates({insert: [[{type: "uuid", value: "foo"}, "tag", "div"], [{type: "uuid", value: "foo"}, "children", "bar"], [{type: "uuid", value: "foo"}, "children", "woot"], ["bar", "tag", "span"], ["bar", "style", "bar-style"], ["bar-style", "color", "red"], ["bar", "text", "meh"], ["woot", "tag", "input"], ["woot", "value", "ZOMG"]], remove: []})
-// handleDOMUpdates({insert: [["woot", "text", "ya wai"], ["woot", "style", "woot-style"], ["woot-style", "background", "blue"], ["bar", "text", "no wai"]], remove: []})
