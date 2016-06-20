@@ -360,17 +360,13 @@ static void do_sub(int *count, execf next, execf leg, value resreg,
                    table results, vector v, vector inputs, vector outputs,
                    operator op, value *r)
 {
-    table res;
-    *count = *count + 1;
-    for (int i = 0; i< vector_length(inputs); i ++) {
-        vector_set(v, i, lookup(vector_get(inputs, i), r));
-    }
-
     if (op == op_flush) {
         apply(next, op, r);
         return;
     }
-    
+
+    table res;
+    *count = *count + 1;
     extract(v, inputs, r);
     if (!(res = table_find(results, v))){ 
         res = create_value_vector_table(results->h);
@@ -379,11 +375,11 @@ static void do_sub(int *count, execf next, execf leg, value resreg,
         r[toreg(resreg)] = res;
         apply(leg, op, r);
     }
+
     table_foreach(res, n, _) {
         copyout(r, outputs, n);
         apply(next, op, r);
     }
-    apply(next, op, r);
 }
 
 
