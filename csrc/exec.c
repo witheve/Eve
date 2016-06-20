@@ -135,7 +135,45 @@ static void do_insert(evaluation ex, int *count, execf n, value uuid, value e, v
 static execf build_insert(evaluation e, node n)
 {
     bag x = table_find(e->scopes, vector_get(n->arguments, 0));
-    return cont(e->h, do_insert,  e, register_counter(e, n), 
+    return cont(e->h, do_insert,  e, register_counter(e, n),
+                resolve_cfg(e, n, 0),
+                edb_uuid(x),
+                vector_get(n->arguments, 1),
+                vector_get(n->arguments, 2),
+                vector_get(n->arguments, 3));
+}
+
+static CONTINUATION_7_2(do_remove, evaluation, int *, execf, value, value, value, value, operator, value *) ;
+static void do_remove(evaluation ex, int *count, execf n, value uuid, value e, value a, value v, operator op, value *r)
+{
+    *count = *count + 1;
+    apply(ex->remove, uuid, lookup(e, r), lookup(a, r), lookup(v, r));
+    apply(n, op, r);
+}
+
+static execf build_remove(evaluation e, node n)
+{
+    bag x = table_find(e->scopes, vector_get(n->arguments, 0));
+    return cont(e->h, do_remove,  e, register_counter(e, n),
+                resolve_cfg(e, n, 0),
+                edb_uuid(x),
+                vector_get(n->arguments, 1),
+                vector_get(n->arguments, 2),
+                vector_get(n->arguments, 3));
+}
+
+static CONTINUATION_7_2(do_set, evaluation, int *, execf, value, value, value, value, operator, value *) ;
+static void do_set(evaluation ex, int *count, execf n, value uuid, value e, value a, value v, operator op, value *r)
+{
+    *count = *count + 1;
+    apply(ex->set, uuid, lookup(e, r), lookup(a, r), lookup(v, r));
+    apply(n, op, r);
+}
+
+static execf build_set(evaluation e, node n)
+{
+    bag x = table_find(e->scopes, vector_get(n->arguments, 0));
+    return cont(e->h, do_set,  e, register_counter(e, n),
                 resolve_cfg(e, n, 0),
                 edb_uuid(x),
                 vector_get(n->arguments, 1),
@@ -377,6 +415,8 @@ table builders_table()
         table_set(builders, intern_cstring("multiply"), build_multiply);
         table_set(builders, intern_cstring("divide"), build_divide);
         table_set(builders, intern_cstring("insert"), build_insert);
+        table_set(builders, intern_cstring("remove"), build_remove);
+        table_set(builders, intern_cstring("set"), build_set);
         table_set(builders, intern_cstring("less_than"), build_less_than);
         table_set(builders, intern_cstring("less_than_or_equal"), build_less_than_or_equal);
         table_set(builders, intern_cstring("greater_than"), build_less_than);
@@ -408,7 +448,7 @@ void execute(evaluation e)
     apply(e->head, 0, r);
 }
 
-evaluation build(node n, table scopes, scan s, insertron insert, table counts, thunk terminal)
+evaluation build(node n, table scopes, scan s, insertron insert, insertron remove, insertron set, table counts, thunk terminal)
 {
     heap h = allocate_rolling(pages);
     evaluation e = allocate(h, sizeof(struct evaluation));
@@ -418,6 +458,8 @@ evaluation build(node n, table scopes, scan s, insertron insert, table counts, t
     e->s = s;
     e->registerfile = 50;
     e->insert = insert;
+    e->remove = remove;
+    e->set = set;
     e->terminal = terminal;
     e->nmap = allocate_table(e->h, key_from_pointer, compare_pointer);
     force_node(e, n);

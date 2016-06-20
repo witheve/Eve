@@ -53,8 +53,10 @@ void edb_scan(bag b, int sig, void *f, value e, value a, value v)
     case s_eav:
         table_foreach(b->eav, e, al) {
             table_foreach(((table)al), a, vl) {
-                table_foreach(((table)vl), v, _) {
-                    apply((three_listener)f, e, a, v, etrue);
+                table_foreach(((table)vl), v, count) {
+                    if(count > 0) {
+                        apply((three_listener)f, e, a, v, etrue);
+                    }
                 }
             }
         }
@@ -66,7 +68,7 @@ void edb_scan(bag b, int sig, void *f, value e, value a, value v)
             if(al) {
                 table vl = table_find(al, a);
                 if(vl) {
-                    if (table_find(vl, v)){
+                    if (table_find(vl, v) > 0){
                         apply((zero_listener)f, etrue);
                     }
                 }
@@ -80,8 +82,10 @@ void edb_scan(bag b, int sig, void *f, value e, value a, value v)
             if(al) {
                 table vl = table_find(al, a);
                 if(vl) {
-                    table_foreach(vl, v, _) {
-                        apply((one_listener)f, v, etrue);
+                    table_foreach(vl, v, count) {
+                        if(count > 0) {
+                            apply((one_listener)f, v, etrue);
+                        }
                     }
                 }
             }
@@ -93,8 +97,10 @@ void edb_scan(bag b, int sig, void *f, value e, value a, value v)
             table al = table_find(b->eav, e);
             if(al) {
                 table_foreach(al, a, vl) {
-                    table_foreach(((table)vl), v, _) {
-                        apply((two_listener)f, a, v, etrue);
+                    table_foreach(((table)vl), v, count) {
+                        if(count) {
+                            apply((two_listener)f, a, v, etrue);
+                        }
                     }
                 }
             }
@@ -107,8 +113,10 @@ void edb_scan(bag b, int sig, void *f, value e, value a, value v)
             if(al) {
                 table vl = table_find(al, v);
                 if(vl) {
-                    table_foreach(vl, e, _) {
-                        apply((one_listener)f, e, etrue);
+                    table_foreach(vl, e, count) {
+                        if(count) {
+                            apply((one_listener)f, e, etrue);
+                        }
                     }
                 }
             }
@@ -153,6 +161,12 @@ void edb_insert(bag b, value e, value a, value v)
         table el = level_fetch(b->h, b->eav, e);
         table al = level_fetch(b->h, el, a);
         table tail = level_fetch(b->h, al, v);
+        long cur = (long)table_find(tail, v);
+        if(!cur) {
+            table_set(tail, v, (void *)1);
+        } else {
+            table_set(tail, v, (void *)(cur + 1));
+        }
     }
 
     // AVE
@@ -160,6 +174,12 @@ void edb_insert(bag b, value e, value a, value v)
         table al = level_fetch(b->h, b->ave, a);
         table vl = level_fetch(b->h, al, v);
         table tail = level_fetch(b->h, vl, e);
+        long cur = (long)table_find(tail, v);
+        if(!cur) {
+            table_set(tail, v, (void *)1);
+        } else {
+            table_set(tail, v, (void *)(cur + 1));
+        }
     }
     b->count++;
 }
@@ -184,8 +204,6 @@ string bag_dump(heap h, bag b)
         int ind = buffer_unicode_length(out)-start;
         int first =0;
 
-
-
         table_foreach(((table)avl), a, vl) {
             int second = 0;
             int start = buffer_unicode_length(out);
@@ -201,5 +219,55 @@ string bag_dump(heap h, bag b)
 
 void edb_remove(bag b, value e, value a, value v)
 {
-    error("but we went to so much trouble!\n");
+    // EAV
+    {
+        table el = table_find(b->eav, e);
+        if(el) {
+            table al = table_find(el, a);
+            if(al) {
+                table tail = table_find(al, v);
+                if(tail) {
+                    long cur = (long)table_find(tail, v);
+                    if(!cur) {
+                        table_set(tail, v, (void *)-1);
+                    } else {
+                        table_set(tail, v, (void *)(cur - 1));
+                    }
+                }
+            }
+        }
+    }
+
+    // AVE
+    {
+        table al = table_find(b->ave, a);
+        if(al) {
+            table vl = table_find(al, v);
+            if(vl) {
+                table tail = table_find(vl, e);
+                if(tail) {
+                    long cur = (long)table_find(tail, e);
+                    if(!cur) {
+                        table_set(tail, e, (void *)-1);
+                    } else {
+                        table_set(tail, e, (void *)(cur - 1));
+                    }
+                }
+            }
+        }
+    }
+    b->count++;
+}
+
+void edb_set(bag b, value e, value a, value v)
+{
+    // remove all the current values
+    table el = level_fetch(b->h, b->eav, e);
+    table al = level_fetch(b->h, el, a);
+    table tail = level_fetch(b->h, al, v);
+    table_foreach(tail, v, count) {
+        edb_remove(b, e, a, v);
+    }
+    // insert the new value
+    edb_insert(b, e, a, v);
 }

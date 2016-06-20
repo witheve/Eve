@@ -217,7 +217,7 @@ local keywords = {
   ["-"] = "INFIX",
   ["*"] = "INFIX",
   ["/"] = "INFIX",
-  ["+="] = "ADD",
+  ["+="] = "INSERT",
   ["-="] = "REMOVE",
   [":="] = "SET",
 }
@@ -753,7 +753,7 @@ local function parse(tokens)
         -- error
       end
 
-    elseif type == "ADD" or type == "REMOVE" or type == "SET" then
+    elseif type == "INSERT" or type == "REMOVE" or type == "SET" then
       -- get the previous child since these ops are infix
       local prev = stackTop.children[#stackTop.children]
       if not prev then
@@ -1242,7 +1242,7 @@ local function handleUpdateNode(root, query, context)
     -- set some context information to handle nested objects
     -- most of the time we're just adding, so we'll default
     -- the operator to add
-    context.mutateOperator = "add"
+    context.mutateOperator = "insert"
     context.mutateScope = root.scope
     if type == "mutate" then
       -- the operator depends on the mutate's operator here

@@ -20,6 +20,26 @@ static void inserty(table multibag, boolean *flag, uuid u, value e, value a, val
     edb_insert(b, e, a, v);
 }
 
+static CONTINUATION_2_4(removey, table, boolean *, uuid, value, value, value);
+static void removey(table multibag, boolean *flag, uuid u, value e, value a, value v)
+{
+    *flag = true;
+    bag b;
+    if (!(b = table_find(multibag, u)))
+        table_set(multibag, u, b = create_bag(u));
+    edb_remove(b, e, a, v);
+}
+
+static CONTINUATION_2_4(setty, table, boolean *, uuid, value, value, value);
+static void setty(table multibag, boolean *flag, uuid u, value e, value a, value v)
+{
+    *flag = true;
+    bag b;
+    if (!(b = table_find(multibag, u)))
+        table_set(multibag, u, b = create_bag(u));
+    edb_set(b, e, a, v);
+}
+
 static CONTINUATION_1_5(merge_scan, table, int, void *, value, value, value);
 static void merge_scan(table t, int sig, void *listen, value e, value a, value v)
 {
@@ -40,14 +60,16 @@ table start_fixedpoint(heap h, table scopes, table persisted, table counts)
     boolean pass = true;
     int rules = 0;
     int iterations = 0;
-    three_listener in = cont(h, inserty, t, &pass);
+    three_listener inserter = cont(h, inserty, t, &pass);
+    three_listener remover = cont(h, removey, t, &pass);
+    three_listener setter = cont(h, setty, t, &pass);
 
     table_foreach(scopes, name, b) {
         // last argument is terminal, ignore for a moment since the
         // evaluation is synchronous
         table_foreach(edb_implications(b), n, v) {
             rules++;
-            vector_insert(handlers, build(n, scopes, cont(h, merge_scan, t), in, counts, 0));
+            vector_insert(handlers, build(n, scopes, cont(h, merge_scan, t), inserter, remover, setter, counts, 0));
         }
     }
 

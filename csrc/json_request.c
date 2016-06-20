@@ -153,6 +153,7 @@ static void send_node_graph(heap h, buffer_handler output, node head, table coun
 
 static void compile_json_query(json_session js, buffer code, string scope)
 {
+    // FIXME: how do we clean up old event bags if they can't be used anymore?
     bag event = create_bag(generate_uuid());
     table_set(js->scopes, intern_cstring("event"), event);
 

@@ -221,9 +221,10 @@ function translate_mutate(n, bound, down, tracing)
    local gen = (variable(e) and not bound[e])
    if (gen) then bound[e] = true end
    local env, c = down(bound)
+   local operator = n.operator
    if tracing then
       c = build_node("trace", {c},
-                  {"insert", "" ,
+                  {operator, "" ,
                    "scope", n.scope,
                    "entity", read_lookup(env,e),
                    "attribute", read_lookup(env, a),
@@ -231,7 +232,7 @@ function translate_mutate(n, bound, down, tracing)
                    {})
    end
 
-   local c = build_node("insert", {c},
+   local c = build_node(operator, {c},
          {n.scope,
           read_lookup(env,e),
           read_lookup(env,a),
