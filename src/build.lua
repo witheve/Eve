@@ -277,6 +277,7 @@ end
 
 local binaryArgs = {"return", "a", "b"}
 local binaryFilterArgs = {"a", "b"}
+local mathFunctionArgs = {"return", "a"}
 local expressionMap = {
    ["+"] = {"plus", binaryArgs},
    ["-"] = {"minus", binaryArgs},
