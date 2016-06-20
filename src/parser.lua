@@ -1129,7 +1129,7 @@ generateObjectNode = function(root, context)
       local ref = context.equalityLeft
       if not ref then
         ref = resolveVariable(string.format("object-%s-%s", root.line, root.offset), context)
-        generateBindingNode({field = MAGIC_ENTITY_FIELD, variable = objectRef}, context, objectNode)
+        generateBindingNode({field = MAGIC_ENTITY_FIELD, variable = ref}, context, object)
       end
       -- we'll need that ref as an identifier for our constructed attribute node
       local objectIdentifier = {type = "IDENTIFIER", line = child.line, offset = child.offset, value = ref.name}

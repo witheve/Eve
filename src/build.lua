@@ -307,10 +307,12 @@ function translate_union(n, bound, down, tracing)
    return env, build_node("fork", arms, {})
 end
 
+local unaryArgs = {"return", "a"}
 local binaryArgs = {"return", "a", "b"}
-local binaryFilterArgs = {"a", "b"}
+local binaryFilterArgs = {"a", "b", filter = true, alternateSchema = binaryArgs}
 local mathFunctionArgs = {"return", "a"}
 local expressionMap = {
+   is = {"is", unaryArgs},
    ["+"] = {"plus", binaryArgs},
    ["-"] = {"minus", binaryArgs},
    ["*"] = {"multiply", binaryArgs},
@@ -319,23 +321,33 @@ local expressionMap = {
    ["<="] = {"less_than_or_equal", binaryFilterArgs},
    [">"] = {"greater_than", binaryFilterArgs},
    [">="] = {"greater_than_or_equal", binaryFilterArgs},
-   ["sin"] = {"sin", mathFunctionArgs},
-   ["cos"] = {"cos", mathFunctionArgs},
-   ["tan"] = {"tan", mathFunctionArgs},
+   ["="] = {"equal", binaryFilterArgs},
+   ["!="] = {"not_equal", binaryFilterArgs},
 }
 function translate_expression(n, bound, down, tracing)
+   local m = expressionMap[n.operator]
+   if not m then error("Unknown expression: " .. n.operator) end
+   local operator = m[1]
+   local schema = m[2]
+
+   local produces = false
    for term in pairs(n.produces) do
       bound[term] = true
+      produces = true
    end
+
+   if produces and schema.filter then
+      operator = "is_" .. operator
+      schema = schema.alternateSchema
+   end
+
    local args = {}
    for _, binding in pairs(n.bindings) do
       args[binding.field] = binding.variable or binding.constant
    end
 
    local env, c = down(bound)
-   local m = expressionMap[n.operator]
-   local operator = m[1]
-   local schema = m[2]
+
    if tracing then
       local traceArgs = {operator, ""}
       for _, field in ipairs(schema) do

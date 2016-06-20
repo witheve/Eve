@@ -622,7 +622,7 @@ function unpackObjects(nodes)
             for _, binding in std.ipairs(node.bindings) do
                if binding.field ~= ENTITY_FIELD then
                   if subproject and binding.variable and not subproject.projection[binding.variable] then
-                     unpackList[#unpackList + 1] = SubprojectNode:new{projection = subproject.projection + Set:new{binding.variable}, nodes = {ScanNode:fromBinding(node, binding, entity)}}
+                     unpackedSubprojects[#unpackedSubprojects + 1] = SubprojectNode:new{projection = subproject.projection + Set:new{binding.variable}, nodes = {ScanNode:fromBinding(node, binding, entity)}}
                   else
                      unpackList[#unpackList + 1] = ScanNode:fromBinding(node, binding, entity)
                   end
