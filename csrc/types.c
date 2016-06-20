@@ -44,6 +44,7 @@ void print_value(buffer b, value v)
 
     default:
         prf ("corrupt value %p\n", v);
+        bprintf(b, "@");
     }
 }
 

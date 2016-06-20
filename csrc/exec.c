@@ -273,9 +273,9 @@ static execf build_set(evaluation e, node n)
                 e,                              \
                 register_counter(e, n),         \
                 resolve_cfg(e, n, 0),           \
-                vector_get(n->arguments, 0),    \
-                vector_get(n->arguments, 1),    \
-                vector_get(n->arguments, 2));   \
+                vector_get(a, 0),    \
+                vector_get(a, 1),    \
+                vector_get(a, 2));   \
     }
 
 
@@ -302,13 +302,14 @@ static execf build_set(evaluation e, node n)
 #define BUILD_BINARY_FILTER(__name, __do_op)   \
     static execf __name (evaluation e, node n)  \
     {                                           \
+        vector a = vector_get(n->arguments, 0); \
         return cont(e->h,                       \
                 __do_op,                        \
                 e,                              \
                 register_counter(e, n),         \
                 resolve_cfg(e, n, 0),           \
-                vector_get(n->arguments, 0),    \
-                vector_get(n->arguments, 1));   \
+                vector_get(a, 0),    \
+                vector_get(a, 1));   \
     }
 
 
@@ -657,7 +658,7 @@ table builders_table()
 static void force_node(evaluation e, node n)
 {
     if (!table_find(e->nmap, n)){
-        execf *x = allocate(e->h, sizeof(execf));
+        execf *x = allocate(e->h, sizeof(execf *));
         table_set(e->nmap, n, x);
         vector_foreach(n->arms, i) force_node(e, i);
         *x = n->builder(e, n);

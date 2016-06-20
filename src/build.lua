@@ -235,6 +235,7 @@ function translate_mutate(n, bound, down, tracing)
 
    local gen = (variable(e) and not bound[e])
    if (gen) then bound[e] = true end
+
    local env, c = down(bound)
    local operator = n.operator
    if tracing then
@@ -371,7 +372,7 @@ function translate_expression(n, bound, down, tracing)
          nodeArgs[#nodeArgs + 1] = read_lookup(env, args[field])
       end
    end
-   return env, build_node(operator, {c}, nodeArgs, {})
+   return env, build_node(operator, {c}, {nodeArgs})
 end
 
 -- this doesn't really need to be disjoint from read lookup, except for concerns about
