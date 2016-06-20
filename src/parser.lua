@@ -300,22 +300,10 @@ local function lex(str)
       tokens[#tokens+1] = Token:new("COMMENT", comment, line, offset)
       offset = offset + #comment
 
-    elseif numeric[char] then
-      -- go back two positions to see if before this number started, there
-      -- was a negative symbol
-      scanner:setPos(scanner.pos - 2)
-      local prev = scanner:peek()
-      local tokenIx = #tokens + 1
-      if prev == "-" then
-        -- we'll let isNumber eat this guy and we need to shift
-        -- the previous token out
-        tokenIx = tokenIx - 1
-      else
-        -- ignore that char and get back to where we should be
-        scanner:setPos(scanner.pos + 1)
-      end
+    elseif (char == "-" and numeric[scanner:peek()]) or numeric[char] then
+      scanner:unread()
       local number = scanner:eatWhile(isNumber)
-      tokens[tokenIx] = Token:new("NUMBER", number, line, offset)
+      tokens[#tokens+1] = Token:new("NUMBER", number, line, offset)
       offset = offset + #number
 
     elseif specials[char] then
