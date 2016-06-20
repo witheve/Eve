@@ -77,7 +77,7 @@ static CONTINUATION_7_2(do_scan, evaluation, int *, execf, int, value, value, va
 static void do_scan(evaluation ex, int *count, execf n, int sig, value e, value a, value v, operator op, value *r)
 {
     void *listen;
-    
+
     *count = *count + 1;
     // generify this too
     switch(sig) {
@@ -245,7 +245,6 @@ static execf build_set(evaluation e, node n)
 
 
 
-
 DO_BINARY_NUMERIC(do_plus, +)
 BUILD_BINARY(build_plus, do_plus)
 
@@ -269,6 +268,14 @@ BUILD_BINARY_FILTER(build_greater_than, do_greater_than)
 
 DO_BINARY_FILTER(do_greater_than_or_equal, >=)
 BUILD_BINARY_FILTER(build_greater_than_or_equal, do_greater_than_or_equal)
+
+DO_BINARY_FILTER(do_equal, ==)
+BUILD_BINARY_FILTER(build_equal, do_equal)
+
+DO_BINARY_FILTER(do_not_equal, !=)
+BUILD_BINARY_FILTER(build_not_equal, do_not_equal)
+
+
 
 // ok - we need to refactor the build process to allow the insertion of a tail node
 // this is going to be necessary for not also, but for today we'll use the synchronous
@@ -310,7 +317,7 @@ static execf build_sub(evaluation e, node n)
     return cont(e->h,
                 do_sub,
                 e,
-                register_counter(e, n),        
+                register_counter(e, n),
                 resolve_cfg(e, n, 0),
                 resolve_cfg(e, n, 1),
                 results,
@@ -334,7 +341,7 @@ static execf build_genid(evaluation e, node n)
 {
     return cont(e->h, do_genid,
                 e,
-                register_counter(e, n),        
+                register_counter(e, n),
                 resolve_cfg(e, n, 0),
                 vector_get(n->arguments, 0));
 }
@@ -421,6 +428,8 @@ table builders_table()
         table_set(builders, intern_cstring("less_than_or_equal"), build_less_than_or_equal);
         table_set(builders, intern_cstring("greater_than"), build_less_than);
         table_set(builders, intern_cstring("greater_than_or_equal"), build_less_than_or_equal);
+        table_set(builders, intern_cstring("equal"), build_equal);
+        table_set(builders, intern_cstring("not_equal"), build_not_equal);
         table_set(builders, intern_cstring("scan"), build_scan);
         table_set(builders, intern_cstring("generate"), build_genid);
         table_set(builders, intern_cstring("fork"), build_fork);

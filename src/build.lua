@@ -155,10 +155,10 @@ function translate_subproject(n, bound, down, tracing)
 
    function tail (bound)
       local penv
-      penv, dc = down(bound)                
+      penv, dc = down(bound)
       return penv, build_node("terminal", {}, {}, {})
    end
-   
+
    env, c2 = walk(n.nodes, nil, bound, tail, tracing)
    c = build_node("sub", {dc, c2},
                           set_to_read_array(env, n.projection),
@@ -286,6 +286,8 @@ local expressionMap = {
    ["<="] = {"less_than_or_equal", binaryFilterArgs},
    [">"] = {"greater_than", binaryFilterArgs},
    [">="] = {"greater_than_or_equal", binaryFilterArgs},
+   ["="] = {"equal", binaryFilterArgs},
+   ["!="] = {"not_equal", binaryFilterArgs},
 }
 function translate_expression(n, bound, down, tracing)
    for term in pairs(n.produces) do
