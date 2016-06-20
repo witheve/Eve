@@ -5,7 +5,7 @@
 #include <unistd.h>
 
 static char separator[] = {'{', '"', '"', ':', '"', '"', ','};
-                           
+
 typedef enum {
     top = 0,
     tag_start,
@@ -54,9 +54,14 @@ static void print_value_json(buffer out, value v)
         }
         break;
     default:
-        write (1, "wth!@\n", 6);
+        if(v == etrue)
+            bprintf(out, "true");
+        else if( v == efalse)
+            bprintf(out, "false");
+        else
+            write (1, "wth!@\n", 6);
     }
-    
+
 }
 
 static CONTINUATION_1_0(destroy, heap);
@@ -76,7 +81,7 @@ static void send_guy(heap h, buffer_handler output, values_diff diff)
     vector_foreach(diff->insert, i){
         int count = 0;
         if (start++ != 0) bprintf(out, ",");
-        bprintf(out, "["); 
+        bprintf(out, "[");
         vector_foreach(i, j){
             print_value_json(out, j);
             if (count ++ < 2) {
@@ -92,7 +97,7 @@ static void send_guy(heap h, buffer_handler output, values_diff diff)
     vector_foreach(diff->remove, i){
         int count = 0;
         if (start++ != 0) bprintf(out, ",");
-        bprintf(out, "["); 
+        bprintf(out, "[");
         vector_foreach(i, j){
             print_value_json(out, j);
             if (count ++ < 2) {
@@ -210,7 +215,7 @@ void handle_json_query(json_session j, buffer in, thunk c)
     buffer bv = allocate_buffer(j->h, 100);
     buffer id, type, query, scope;
     boolean backslash = false;
-    
+
     string_foreach(in, c) {
         if (s == sep) {
             if (string_equal(bt, sstring("query"))) {
@@ -239,10 +244,10 @@ void handle_json_query(json_session j, buffer in, thunk c)
                 compile_json_query(j, query, scope);
                 start_guy(j, j->write);
             }
-                
+
             // do the thing
         }
-        
+
         if ((c == separator[s]) && !backslash) {
             if (s == sep) s = tag_start;
             else s++;
@@ -250,7 +255,7 @@ void handle_json_query(json_session j, buffer in, thunk c)
             // utf8
             if (backslash && (c == 'n')) c = '\n';
             if (c == '\\') {
-                backslash = true; 
+                backslash = true;
             }  else {
                 backslash = false;
                 if (s == tag) buffer_write_byte(bt, c);
@@ -265,7 +270,7 @@ CONTINUATION_2_3(new_json_session, bag, boolean, buffer_handler, table, buffer_h
 void new_json_session(bag root, boolean tracing, buffer_handler write, table headers, buffer_handler *handler)
 {
     heap h = allocate_rolling(pages);
-    
+
     json_session js = allocate(h, sizeof(struct json_session));
     js->h = h;
     js->root = root;
