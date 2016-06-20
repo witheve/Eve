@@ -272,6 +272,10 @@ function translate_choose(n, bound, down, tracing)
      end
 end
 
+function translate_concat(n, bound, down, tracing)
+   local env, c = down(bound)     
+end
+
 function translate_union(n, bound, down, tracing)
    local heads
    local c2
@@ -398,6 +402,9 @@ function walk(graph, key, bound, tail, tracing)
    end
    if (n.type == "expression") then
       return translate_expression(n, bound, d, tracing)
+   end
+   if (n.type == "concat") then
+      return translate_concat(n, bound, d, tracing)
    end
 
    print ("ok, so we kind of suck right now and only handle some fixed patterns",
