@@ -384,8 +384,9 @@ static inline void extract(vector dest, vector keys, value *r)
 
 static inline void copyout(value *dest, vector keys, vector source)
 {
-    for (int i = 0; i< vector_length(keys); i ++)
+    for (int i = 0; i< vector_length(keys); i ++) {
         dest[toreg(vector_get(keys, i))] = vector_get(source, i);
+    }
 }
 
 static CONTINUATION_3_2(do_sub_tail, int *, value, vector, operator, value *);
@@ -406,10 +407,11 @@ static void do_sub_tail(int *count,
 
 static execf build_sub_tail(evaluation e, node n)
 {
+    value resreg = vector_get(vector_get(n->arguments, 1), 0);
     return cont(e->h,
                 do_sub_tail,
                 register_counter(e, n),
-                vector_get(vector_get(n->arguments, 1), 0),
+                resreg,
                 vector_get(n->arguments, 0));
 }
 
@@ -434,7 +436,6 @@ static void do_sub(int *count, execf next, execf leg, value resreg,
         r[toreg(resreg)] = res;
         apply(leg, op, r);
     }
-
     table_foreach(res, n, _) {
         copyout(r, outputs, n);
         apply(next, op, r);

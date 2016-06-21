@@ -186,7 +186,6 @@ static evaluation start_guy(json_session js, buffer_handler output)
     table result_bags = start_fixedpoint(h, js->scopes, persisted, counts);
 
     bag session_bag = table_find(result_bags, edb_uuid(js->session));
-    prf("session bag facts: %d\n", session_bag?edb_size(session_bag): 0);
     // and if not?
     insertron scanner = cont(js->h, chute, js->h, results);
     if (session_bag) {

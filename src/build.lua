@@ -152,6 +152,14 @@ function set_to_read_array(env, x)
    return out
 end
 
+function set_to_write_array(env, x)
+   local out = {}
+   for k, v in pairs(x) do
+      out[#out+1] = write_lookup(env, k)
+   end
+   return out
+end
+
 
 function translate_subproject(n, bound, down, tracing)
    local p = n.projection
@@ -159,24 +167,30 @@ function translate_subproject(n, bound, down, tracing)
    local prod = n.produces
    local env, rest, fill
    local pass = allocate_temp()
-
+   local db = shallowcopy(bound)
    bound[pass] = true
 
-   env, rest = down(bound)
+   for k, _ in pairs(n.produces) do      
+     db[k] = true
+   end
+
+   env, rest = down(db)
 
    function tail (bound)
-      z = read_lookup(env, pass)
       return env, build_node("subtail", {build_node("terminal", {}, {})}, 
                              {set_to_read_array(env, n.produces),   
-                              {z}})                  
+                             {read_lookup(env, pass)}})                  
    end                        
 
+   local outregs =  set_to_read_array(env, n.produces)
    env, fill = walk(n.nodes, nil, bound, tail, tracing)
 
    c = build_node("sub", {rest, fill},
                           {set_to_read_array(env, n.projection),
-                          set_to_read_array(env, n.produces),
-                          {write_lookup(env, pass)}})
+                          outregs,
+--                           set_to_read_array(env, n.produces),
+                          -- leak
+                          {read_lookup(env, pass)}})
 
    if tracing then
       local map = {"proj", ""}
