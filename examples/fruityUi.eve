@@ -9,15 +9,15 @@ Add some fruits to the system
 
 Draw a list of fruits
   [#fruit color name]
-  update session
+  update
     [#div #foo ix: name, text: name, style: [color]]
 
 draw clicks
   c = [#clicky]
-  update session
+  update
     [#div ix: "zzz" c text: "yo"]
 
 store clicks
   [#click element]
-  update history
+  update all
     [#clicky element]

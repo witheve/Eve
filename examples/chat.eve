@@ -21,5 +21,5 @@ handle chat keydowns
   [#time hours minutes]
   update
     element.value := ""
-  update history
+  update all
     [#message name, time: "{hours}:{minutes}", message: value, channel]

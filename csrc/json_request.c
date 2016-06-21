@@ -280,9 +280,8 @@ void new_json_session(bag root, boolean tracing, buffer_handler write, table hea
     js->session = create_bag(generate_uuid());
     js->current_delta = create_value_vector_table(js->h);
     // what is this guy really?
-    table_set(js->scopes, intern_cstring("transient"), create_bag(generate_uuid()));
     table_set(js->scopes, intern_cstring("session"), js->session);
-    table_set(js->scopes, intern_cstring("history"), root);
+    table_set(js->scopes, intern_cstring("all"), root);
     *handler = websocket_send_upgrade(h, headers, write, cont(h, handle_json_query, js), &js->write);
     start_guy(js, js->write);
 }

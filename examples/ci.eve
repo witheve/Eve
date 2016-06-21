@@ -12,18 +12,18 @@ receive the webhook from github on a pull request
 checkout the git repository
   [#pull-request github-url, branch, sha]
   path = "/tmp/{branch}/{sha}"
-  update history
+  update all
     [#git-repository #eve-repo source: github-url, branch, sha, path]
 
 once checked out build eve
   [#success of: [#eve-repo path]]
-  update history
+  update all
     [#process #eve-build shell: "make", cwd: path]
 
 once built, run eve
   [#success of: [#eve-build path]]
   [#eve-repo path sha]
-  update history
+  update all
     [#process #eve-run shell: "./eve -b {sha}", cwd: path, sha]
 
 send facts over to that bag
@@ -35,7 +35,7 @@ send facts over to that bag
        [#eavs entity, attribute, value] then (entity, attribute, value)
     if entity = [#test-views]
        [#eavs entity, attribute, value] then (entity, attribute, value)
-  update history sha
+  update sha
     [#eavs entity attribute value]
 
 check that bag for the results
@@ -43,7 +43,7 @@ check that bag for the results
   context bag: sha
     [#test-result test result]
   end
-  update history
+  update all
     [#run sha result:
       [#test-result test result]]
 

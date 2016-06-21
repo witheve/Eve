@@ -5,7 +5,7 @@ routing
 
 handle insert
   [#keydown element: [@new-todo value] key: "enter"]
-  update history
+  update
     [#todo body: value, completed: false, editing: false]
 
 handle edit
@@ -16,13 +16,13 @@ handle edit
     else if [#blur element: [#todo-editor todo value]] then (todo, todo.body, false, todo.completed)
     else if [#click element: [#todo-checkbox todo]] then (todo, todo.body, false, toggle(todo.completed))
     else if [#click element: [@toggle-all checked]] then ([#todo editing, body], body, editing, checked)
-  update history
+  update 
     todo := [editing, body, completed]
 
 handle removes
   todo = if [#click element: [#remove-todo todo]] then todo
          else if [#click element: [@clear-completed]] then [#todo completed: true]
-  update history
+  update
     todo -= [#todo]
 
 draw todomvc

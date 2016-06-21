@@ -4,7 +4,7 @@ get all the ui facts
        [#eav entity attribute value] then (entity, attribute, value)
     if [#html style]
        [#eav entity: style, attribute value] then (style, attribute, value)
-  update session
+  update
     [#eav entity attribute value]
 
 mark all the different tag types as html
