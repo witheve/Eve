@@ -582,7 +582,6 @@ end
 function unpackObjects(nodes)
    local unpacked = {}
    local unpackedSubprojects = {}
-   local ix = 1
    local tmpCounter = 0
    for _, node in std.ipairs(nodes) do
       if node.type == "object" or node.type == "mutate" then
@@ -641,8 +640,7 @@ function unpackObjects(nodes)
                query.unpacked = unpackObjects(query.dependencyGraph:order())
             end
          end
-         unpacked[ix] = node
-         ix = ix + 1
+         unpacked[#unpacked + 1] = node
       end
    end
 
