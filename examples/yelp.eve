@@ -6,14 +6,14 @@ click on a restaurant or pin, show a restaurant
   app = [@app]
   restaurant = if [#click element: [#yelp-restaurant-list-element restaurant]] then restaurant
                else if [#click element: [#yelp-restaurant-pin restaurant]] then restaurant
-  update history
+  update
     app.selected := restaurant
     app.content := "restaurant"
 
 click on yelp logo, show map
   app = [@app]
   [#click element: [#yelp-logo]]
-  update history
+  update
     app.content := "map"
 
 -----------------

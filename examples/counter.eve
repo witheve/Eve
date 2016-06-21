@@ -1,6 +1,6 @@
 build the counter
   counter = [#counter count]
-  update session
+  update
     [#div counter class: "counter-container", children:
       [#div #count-button class: "button", text: "-", diff: -1, counter]
       [#div class: "count", text: count]
@@ -8,10 +8,10 @@ build the counter
 
 increment the counter
   [#click element: [#count-button diff counter]]
-  update history
+  update
     counter.count := counter.count + diff
 
 go!
-  update history
+  update
     [#counter count: 0]
 

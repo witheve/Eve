@@ -583,12 +583,12 @@ local function parse(tokens)
       end
 
     elseif type == "UPDATE" then
-      local update = {type = "update", scope = "transient", children = {}}
-      if next.value == "history" or next.value == "session" then
+      local update = {type = "update", scope = "session", children = {}}
+      if next.value == "all" then
         update.scope = next.value
         -- eat that token
         scanner:read()
-        -- @TODO: handle specifying a custom bag after history
+        -- @TODO: handle specifying a custom bag
       end
       stack:push(update)
 
