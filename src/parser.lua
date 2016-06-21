@@ -732,7 +732,7 @@ local function parse(tokens)
       else
         local nodeType = type == "INEQUALITY" and "inequality" or "equality"
         stackTop.children[#stackTop.children] = nil
-        stack:push({type = nodeType, op = token.value, children = {prev}, line = token.line, offset = token.offset})
+        stack:push({type = nodeType, operator = token.value, children = {prev}, line = token.line, offset = token.offset})
       end
 
     elseif type == "OPEN_PAREN" then
@@ -841,73 +841,30 @@ end
 
 local function resolveExpression(node, context)
   if node.type == "NUMBER" or node.type == "STRING" or node.type == "UUID" then
-    local left = context.equalityLeft
-    if left and left.type == "variable" then
-      left.constant = {type = "constant", constant = node.value, constantType = node.type:lower()}
-      return left
-    else
-      return {type = "constant", constant = node.value, constantType = node.type:lower()}
-    end
+    return {type = "constant", constant = node.value, constantType = node.type:lower()}
+
+  elseif node.type == "variable" then
+    return node
 
   elseif node.type == "IDENTIFIER" then
-    if context.equalityLeft and context.equalityLeft.type == "variable" then
-      -- transfer the bindings from this variable to the left variable
-      -- and fix the bindings to reference that var
-      -- FIXME: are we absolutely sure this is the right thing to do in all
-      -- cases?
-      local left = context.equalityLeft
-      local variable = resolveVariable(node.value, context, true)
-      if left == variable or not variable then
-        return left
-      else
-        local bindings = context.variableToBindings[variable]
-        if bindings then
-          local leftBindings = context.variableToBindings[left] or {}
-          for _, binding in ipairs(bindings) do
-            binding.variable = left
-            leftBindings[#leftBindings + 1] = binding
-          end
-          context.variableToBindings[left] = leftBindings
-        end
-        context.nameMappings:peek()[node.value] = left
-        return left
-      end
-    else
-      return resolveVariable(node.value, context)
-    end
+    return resolveVariable(node.value, context)
 
   elseif node.type == "mutate" then
     local left = resolveExpression(node.children[1], context)
     -- set that when I try to resolve this expression,
     -- I'm looking to resolve it to this specific variable
-    local prev = context.equalityLeft
-    context.equalityLeft = left
     local prevMutating = context.mutating
     context.mutating = nil
     local right = resolveExpression(node.children[2], context)
     context.mutating = prevMutating
-    context.equalityLeft = prev
-    return left
-
-  elseif node.type == "equality" and not context.nonFilteringInequality then
-    local left = resolveExpression(node.children[1], context)
-    -- set that when I try to resolve this expression,
-    -- I'm looking to resolve it to this specific variable
-    local prev = context.equalityLeft
-    context.equalityLeft = left
-    local right = resolveExpression(node.children[2], context)
-    context.equalityLeft = prev
     return left
 
   elseif node.type == "inequality" or node.type == "equality" then
     local left = resolveExpression(node.children[1], context)
     -- set that when I try to resolve this expression,
     -- I'm looking to resolve it to this specific variable
-    local prev = context.equalityLeft
-    context.equalityLeft = nil
     local right = resolveExpression(node.children[2], context)
-    context.equalityLeft = prev
-    local expression = {type = "expression", operator = node.op, projections = {}, groupings = {}, bindings = {}}
+    local expression = {type = "expression", operator = node.operator, projections = {}, groupings = {}, bindings = {}}
     local leftBinding = {field = "a"}
     if left.type == "variable" then
       leftBinding.variable = left
@@ -925,7 +882,7 @@ local function resolveExpression(node, context)
       error("Inequality with invalid right")
     end
     if context.nonFilteringInequality then
-      resultVar = resolveVariable(string.format("inequality-%s-%s", node.line, node.offset), context)
+      resultVar = resolveVariable(string.format("%s-%s-%s", node.type, node.line, node.offset), context)
       generateBindingNode({field = "return", variable = resultVar}, context, expression)
     end
     generateBindingNode(leftBinding, context, expression)
@@ -943,11 +900,12 @@ local function resolveExpression(node, context)
       local attributeRef = resolveVariable(string.format("%s-%s-%s", right.value, right.line, right.offset), context)
       -- generate a temporary object that we can attach this attribute to by adding
       -- an equality from the attribute name to our temp variable
-      local tempObject = {type = "object", children = {{type = "equality", operator = "=", children = {right, {type = "IDENTIFIER", value = attributeRef.name}}}}}
+      local tempObject = {type = "object", line = right.line, offset = right.offset,
+                          children = {{type = "equality", operator = "=", children = {right, {type = "IDENTIFIER", value = attributeRef.name}}}}}
       -- create the object
       local objectNode = generateObjectNode(tempObject, context)
-      -- bind that object's entity field to the left side varaible
-      local binding = generateBindingNode({field = MAGIC_ENTITY_FIELD, variable = left}, context, objectNode)
+      -- create an equality between the entity fields
+      resolveExpression({type = "equality", operator = "=", children = {left, objectNode.entityVariable}}, context);
       -- add it to the query
       local query = context.queryStack:peek()
       local queryKey = objectNode.type == "object" and "objects" or "mutates"
@@ -959,36 +917,23 @@ local function resolveExpression(node, context)
     end
 
   elseif node.type == "object" then
-    local objectRef
-    if context.equalityLeft then
-      objectRef = context.equalityLeft
-    else
-      objectRef = resolveVariable(string.format("object-%s-%s", node.line, node.offset), context)
-    end
     local query = context.queryStack:peek()
     local objectNode = generateObjectNode(node, context)
-    local binding = generateBindingNode({field = MAGIC_ENTITY_FIELD, variable = objectRef}, context, objectNode)
     local queryKey = objectNode.type == "object" and "objects" or "mutates"
     query[queryKey][#query[queryKey] + 1] = objectNode
-    return objectRef
+    return objectNode.entityVariable
 
   elseif node.type == "infix" or node.type == "function" then
-    if context.equalityLeft then
-      resultVar = context.equalityLeft
-    else
-      resultVar = resolveVariable(string.format("result-%s-%s", node.line, node.offset), context)
-    end
+    local resultVar = resolveVariable(string.format("result-%s-%s", node.line, node.offset), context)
     local prevNonfiltering = context.nonFilteringInequality
     if node.func == "is" then
       context.nonFilteringInequality = true
     end
     local expression = {type = "expression", operator = node.func, projections = {}, groupings = {}, bindings = {}}
     generateBindingNode({field = "return", variable = resultVar}, context, expression)
-    local prevLeft = context.equalityLeft
     -- create bindings
     for ix, child in ipairs(node.children) do
       field = alphaFields[ix]
-      context.equalityLeft = nil
       local resolved = resolveExpression(child, context)
       if not resolved then
         -- error
@@ -1021,7 +966,6 @@ local function resolveExpression(node, context)
         -- error?
       end
     end
-    context.equalityLeft = prevLeft;
     if node.func == "is" then
       context.nonFilteringInequality = prevNonfiltering
     end
@@ -1064,6 +1008,12 @@ generateObjectNode = function(root, context)
       object.projection[#object.projection + 1] = projection
     end
   end
+
+  -- create a binding to this node's entity field
+  local entityVariable = resolveVariable(string.format("object-%s-%s", root.line, root.offset), context)
+  generateBindingNode({field = MAGIC_ENTITY_FIELD, variable = entityVariable}, context, object)
+  -- store it on the object for ease of use
+  object.entityVariable = entityVariable
 
   -- last attribute handles the case where we have adjacent sub-objects
   -- which should be added as values to the last attribute we've seen
@@ -1120,10 +1070,7 @@ generateObjectNode = function(root, context)
       elseif left.type == "IDENTIFIER" then
         binding.field = left.value
         lastAttribute = left
-        local prev = context.equalityLeft;
-        context.equalityLeft = nil
         local resolved = resolveExpression(right, context)
-        context.equalityLeft = prev
         if not resolved then
           -- error
           binding = nil
@@ -1149,14 +1096,9 @@ generateObjectNode = function(root, context)
 
     elseif type == "not" then
       -- this needs to translate into a regular not that references this object
-      -- via a constructed attribute call. So first we get the ref
-      local ref = context.equalityLeft
-      if not ref then
-        ref = resolveVariable(string.format("object-%s-%s", root.line, root.offset), context)
-        generateBindingNode({field = MAGIC_ENTITY_FIELD, variable = ref}, context, object)
-      end
-      -- we'll need that ref as an identifier for our constructed attribute node
-      local objectIdentifier = {type = "IDENTIFIER", line = child.line, offset = child.offset, value = ref.name}
+      -- via a constructed attribute call. we'll need the entityVariable as an identifier 
+      -- for that node
+      local objectIdentifier = {type = "IDENTIFIER", line = child.line, offset = child.offset, value = entityVariable.name}
       -- construct the not
       local constructedNot = {type = "not", children = {}, closed = true}
       local childQuery = {type = "query", children = {}, parent = node, line = child.line, offset = child.offset}
