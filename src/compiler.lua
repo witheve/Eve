@@ -37,7 +37,7 @@ function formatQueryNode(node, indent)
          result = result .. tostring(node.dependencyGraph)
       end
    elseif node.type == "constant" then
-     result = result .. node.constant
+     result = result .. "<" .. node.constant .. ">"
    elseif node.type == "variable" then
       result = result .. "<" .. (node.name or "unnamed") .. ">"
    elseif node.type == "binding" then
@@ -66,6 +66,12 @@ function formatQueryNode(node, indent)
          result = result .. formatQueryNode(query, 1) .. ",\n"
       end
       return result .. "}"
+   elseif node.type == "expression" then
+      result = result .. " " .. node.operator .. "("
+      for _, binding in std.ipairs(node.bindings) do
+         result = result .. binding.field .. " = " .. formatQueryNode(binding.variable or binding.constant) .. ", "
+      end
+      result = string.sub(result, 1, -2) .. ")"
    end
    return result
 end
@@ -391,18 +397,16 @@ function DependencyGraph:groupUnsatisfied(group) -- get the number of  outstandi
 end
 
 function DependencyGraph:order(allowPartial)
-   --[[
-     The is naive ordering rules out a subset of valid subgraph embeddings that depend upon parent term production.
-      The easy solution to fix this is to iteratively fix point the parent and child graphs until ordering is finished or
-      or no new productions are possible.
-      E.g.:
-      1. a -> a
-      2. f -> b
-      3. subquery
-        i.   a -> b
-        ii.  b -> a
-        iii. a, b -> f
-   ]]--
+   -- The is naive ordering rules out a subset of valid subgraph embeddings that depend upon parent term production.
+   -- The easy solution to fix this is to iteratively fix point the parent and child graphs until ordering is finished or
+   -- or no new productions are possible.
+   -- E.g.:
+   -- 1. a -> a
+   -- 2. f -> b
+   -- 3. subquery
+   --   i.   a -> b
+   --   ii.  b -> a
+   --   iii. a, b -> f
 
    while self.unsorted:length() > 0 do
       local scheduled = false
