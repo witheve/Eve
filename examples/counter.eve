@@ -2,9 +2,9 @@ build the counter
   counter = [#counter count]
   update
     [#div counter class: "counter-container", children:
-      [#div #count-button class: "button", text: "-", diff: -1, counter]
-      [#div class: "count", text: count]
-      [#div #count-button class: "button", text: "+", diff: 1, counter]]
+      [#div #count-button class: "button", ix: 0, text: "-", diff: -1, counter]
+      [#div class: "count", ix: 1, text: count]
+      [#div #count-button class: "button", ix: 2, text: "+", diff: 1, counter]]
 
 increment the counter
   [#click element: [#count-button diff counter]]

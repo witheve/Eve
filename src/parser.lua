@@ -683,12 +683,23 @@ local function parse(tokens)
 
     elseif type == "DOT" then
       local prev = stackTop.children[#stackTop.children]
-      if not prev then
-        -- error
-      else
-        -- remove prev, as it's going to get replaced with this attribute
+      if prev and (prev.type == "equality" or prev.type == "mutate" or type == "inequality") then
+        stackTop.children[#stackTop.children] = nil
+        local right = prev.children[2]
+        -- remove the right hand side of the equality and put it back on the
+        -- stack
+        prev.children[2] = nil
+        stack:push(prev)
+        -- now push this expression on the stack as well
+        stack:push({type = "attribute", children = {right}})
+
+      -- it needs to either be an expression, an identifier, or a constant
+      elseif prev and (prev.type == "IDENTIFIER" or prev.type == "infix" or prev.type == "function" or
+                   prev.type == "NUMBER" or prev.type == "STRING" or prev.type == "block") then
         stackTop.children[#stackTop.children] = nil
         stack:push({type = "attribute", children = {prev}})
+      else
+        -- error
       end
 
     elseif type == "INFIX" then
@@ -864,6 +875,19 @@ local function resolveExpression(node, context)
     else
       return resolveVariable(node.value, context)
     end
+
+  elseif node.type == "mutate" then
+    local left = resolveExpression(node.children[1], context)
+    -- set that when I try to resolve this expression,
+    -- I'm looking to resolve it to this specific variable
+    local prev = context.equalityLeft
+    context.equalityLeft = left
+    local prevMutating = context.mutating
+    context.mutating = nil
+    local right = resolveExpression(node.children[2], context)
+    context.mutating = prevMutating
+    context.equalityLeft = prev
+    return left
 
   elseif node.type == "equality" and not context.nonFilteringInequality then
     local left = resolveExpression(node.children[1], context)
@@ -1235,7 +1259,7 @@ local function handleUpdateNode(root, query, context)
     if type == "mutate" then
       -- the operator depends on the mutate's operator here
       context.mutateOperator = child.operator
-      resolveExpression({type = "equality", operator = "=", children = child.children}, context)
+      resolveExpression({type = "mutate", operator = child.operator, children = child.children}, context)
     elseif type == "object" then
       -- generate the object
       local object = generateObjectNode(child, context)
