@@ -163,7 +163,8 @@ static void do_remove(evaluation ex, int *count, execf n, value uuid, value e, v
 
 static execf build_remove(evaluation e, node n)
 {
-    bag x = table_find(e->scopes, vector_get(n->arguments, 0));
+    vector a = vector_get(n->arguments, 0);
+    bag x = table_find(e->scopes, vector_get(a, 0));
     return cont(e->h, do_remove,  e, register_counter(e, n),
                 resolve_cfg(e, n, 0),
                 edb_uuid(x),
@@ -182,7 +183,8 @@ static void do_set(evaluation ex, int *count, execf n, value uuid, value e, valu
 
 static execf build_set(evaluation e, node n)
 {
-    bag x = table_find(e->scopes, vector_get(n->arguments, 0));
+    vector a = vector_get(n->arguments, 0);
+    bag x = table_find(e->scopes, vector_get(a, 0));
     return cont(e->h, do_set,  e, register_counter(e, n),
                 resolve_cfg(e, n, 0),
                 edb_uuid(x),
@@ -241,7 +243,8 @@ static execf build_set(evaluation e, node n)
         value br = lookup(b, r);                                                                     \
         *count = *count + 1;                                                                         \
         if ((type_of(ar) != float_space ) || (type_of(br) != float_space)) {                         \
-            exec_error(ex, "attempt to __op non-numbers", a, b);                                      \
+            exec_error(ex, "attempt to __op non-numbers", a, b);                                     \
+            prf("UHOH %v, %v\n", ar, br);                                                                                    \
         } else {                                                                                     \
             r[reg(dest)] = box_float(*(double *)ar __op *(double *)br);                              \
             apply(n, op, r);                                                                         \
