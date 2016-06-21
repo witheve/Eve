@@ -277,6 +277,7 @@ end
 function translate_choose(n, bound, down, tracing)
    local env
    local arms = {}
+   local flag = allocate_temp()
    
    print("choose", flat_print_table(n))
 
@@ -288,9 +289,9 @@ function translate_choose(n, bound, down, tracing)
 
    local env, c = down(tail_bound)
    local orig_perm = shallowcopy(env.permanent)
-   local bot = build_node("choosetail", {build_node("terminal", {}, {})}, 
-                             {set_to_read_array(env, n.produces),   
-                             {read_lookup(env, pass)}})
+   local bot = build_node("choosetail", 
+                          {c},
+                          {{read_lookup(env, flag)}})
                              
    local arm_bottom = function (bound)
         return env, bot     
@@ -307,7 +308,7 @@ function translate_choose(n, bound, down, tracing)
 
    env.permanent = orig_perm
    -- currently leaking the perms
-   return env, build_node("fork", arms, {})
+   return env, build_node("choose", arms, {{read_lookup(env, flag)}})
 end
 
 

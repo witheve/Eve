@@ -464,9 +464,10 @@ static execf build_sub(evaluation e, node n)
 
 
 
-static CONTINUATION_2_2(do_choose_tail, execf, value, operator, value *);
-static void do_choose_tail(execf next, value flag, operator op, value *r)
+static CONTINUATION_3_2(do_choose_tail, int *, execf, value, operator, value *);
+static void do_choose_tail(int * count, execf next, value flag, operator op, value *r)
 {
+    *count = *count + 1;
     r[toreg(flag)] = etrue;
     apply(next, op, r);
 }
@@ -478,16 +479,19 @@ static execf build_choose_tail(evaluation e, node n)
     vector v = allocate_vector(e->h, vector_length(n->arguments));
     return cont(e->h,
                 do_choose_tail,
+                register_counter(e, n),
                 resolve_cfg(e, n, 0),
                 vector_get(vector_get(n->arguments, 0), 0));
 }
 
-static CONTINUATION_3_2(do_choose, execf, vector, value, operator, value *);
-static void do_choose(execf next, vector legs, value flag, operator op, value *r)
+static CONTINUATION_3_2(do_choose, int *, vector, value, operator, value *);
+static void do_choose(int *count, vector legs, value flag, operator op, value *r)
 {
+    *count = *count + 1;
     r[toreg(flag)] = efalse;
     vector_foreach (legs, i){
         apply((execf) i, op, r);
+        prf("choso %d %d\n", r[toreg(flag)] == etrue,  r[toreg(flag)] == efalse);
         if (r[toreg(flag)] == etrue) return;
     }
 }
@@ -497,12 +501,13 @@ static execf build_choose(evaluation e, node n)
 {
     int arms = vector_length(n->arms);
     vector v = allocate_vector(e->h, arms);
+    prf("build choose %d", arms);
     for (int i = 0 ; i < arms; i++ )
         vector_set(v, i, resolve_cfg(e, n, i));
     
     return cont(e->h,
                 do_choose,
-                resolve_cfg(e, n, 0),
+                register_counter(e, n),
                 v,
                 vector_get(vector_get(n->arguments, 0), 0));
 }

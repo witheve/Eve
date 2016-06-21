@@ -52,8 +52,8 @@ void edb_scan(bag b, int sig, void *f, value e, value a, value v)
     switch (sig) {
     case s_eav:
         table_foreach(b->eav, e, al) {
-            table_foreach(((table)al), a, vl) {
-                table_foreach(((table)vl), v, count) {
+            table_foreach((table)al, a, vl) {
+                table_foreach((table)vl, v, count) {
                     if(count > 0) {
                         apply((three_listener)f, e, a, v, etrue);
                     }
@@ -64,6 +64,7 @@ void edb_scan(bag b, int sig, void *f, value e, value a, value v)
 
     case s_EAV:
         {
+            prf ("EAV: %v %v %v\n", e, a, v);
             table al = table_find(b->eav, e);
             if(al) {
                 table vl = table_find(al, a);
@@ -78,6 +79,8 @@ void edb_scan(bag b, int sig, void *f, value e, value a, value v)
 
     case s_EAv:
         {
+            prf ("EAv: %v %v\n", e, a);
+            
             table al = table_find(b->eav, e);
             if(al) {
                 table vl = table_find(al, a);
@@ -97,7 +100,7 @@ void edb_scan(bag b, int sig, void *f, value e, value a, value v)
             table al = table_find(b->eav, e);
             if(al) {
                 table_foreach(al, a, vl) {
-                    table_foreach(((table)vl), v, count) {
+                    table_foreach((table)vl, v, count) {
                         if(count) {
                             apply((two_listener)f, a, v, etrue);
                         }
@@ -122,6 +125,22 @@ void edb_scan(bag b, int sig, void *f, value e, value a, value v)
             }
             break;
         }
+
+    case s_eAv:
+        {
+            table al = table_find(b->ave, a);
+            if(al) {
+                table_foreach(al, v, vl) {
+                    table_foreach((table)vl, e, count) {
+                        if(count) {
+                            apply((two_listener)f, e, v, etrue);
+                        }
+                    }
+                }
+            }
+            break;
+        }
+
     default:
         prf("unknown scan signature:%x\n", sig);
     }
