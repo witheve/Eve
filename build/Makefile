@@ -37,7 +37,7 @@ HTTP = server.o websocket.o base64.o sha1.o
 HTTP_H = ./http/http.h
 
 continuation_templates.h: continuations.py
-	python $^ 8 8 continuation_templates.h
+	python $^ 9 9 continuation_templates.h
 
 lutf8lib.o: lutf8lib.c
 	cc -std=c99 -c -g -I$(LUAJIT_INCLUDES) $^

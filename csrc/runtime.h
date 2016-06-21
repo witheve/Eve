@@ -104,19 +104,15 @@ typedef struct evaluation  {
     table nmap;
 } *evaluation;
 
-
-
 typedef struct node *node;
 
-// need a terminus
 typedef execf (*buildf)(evaluation, node);
     
 struct node {
     estring type;
     buildf builder;
     vector arms;
-    vector arguments;
-    vector ancillary; // sub takes two projections
+    vector arguments; // always vectors of vectors
 };
 
 void execute(evaluation);

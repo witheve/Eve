@@ -37,8 +37,14 @@ void print_value(buffer b, value v)
             break;
         }
 
+        if (((unsigned long)v & ~0xff) == register_base) {
+            bprintf (b, "r%d", (unsigned long)v - register_base);
+            break;
+        }
+
     default:
         prf ("corrupt value %p\n", v);
+        bprintf(b, "@");
     }
 }
 

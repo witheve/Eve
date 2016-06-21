@@ -117,7 +117,7 @@ static void send_guy(heap h, buffer_handler output, values_diff diff)
 static void send_node_graph(heap h, buffer_handler output, node head, table counts)
 {
     string out = allocate_string(h);
-    int time = (int)table_find(counts, intern_cstring("time"));
+    iu64 time = (iu64)table_find(counts, intern_cstring("time"));
     long iterations = (long)table_find(counts, intern_cstring("iterations"));
     bprintf(out, "{\"type\":\"node_graph\", \"total_time\": %t, \"iterations\": %d, \"head\": \"%p\", \"nodes\":{", time, iterations, head);
 
@@ -145,7 +145,7 @@ static void send_node_graph(heap h, buffer_handler output, node head, table coun
           bprintf(out, ", \"count\": %u", *count);
         }
         if(current->type == intern_cstring("scan")) {
-            bprintf(out, ", \"scan_type\": %v", vector_get(current->arguments, 0));
+            bprintf(out, ", \"scan_type\": %v", vector_get(vector_get(current->arguments, 0), 0));
         }
         bprintf(out, "}");
         nodeComma = 1;
