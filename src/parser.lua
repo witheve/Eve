@@ -641,10 +641,8 @@ local function parse(tokens, context)
       end
 
     elseif type == "TAG" or type == "NAME" then
-      if next.type == "STRING" or next.type == "IDENTIFIER" then
-        stackTop.children[#stackTop.children + 1] = makeNode("equality", token, {operator = "=", children = {token, next}})
-        -- consume the next token since we've already handled it
-        scanner:read()
+      if next.type == "STRING_OPEN" or next.type == "IDENTIFIER" then
+        stack:push(makeNode("equality", token, {operator = "=", children = {token}}))
       else
         -- error
         errors.invalidTag(context, token, next)
@@ -1171,8 +1169,14 @@ generateObjectNode = function(root, context)
     for _, binding in ipairs(object.bindings) do
       if binding.field == MAGIC_ENTITY_FIELD then
         binding = generateBindingNode({field = "return", variable = entityVariable}, context, object)
+      -- FIXME: this is a hacky.. way to ignore the binding we just added so we don't
+      -- end up with it twice
+      elseif binding.field == "return" then
+        binding = nil
       end
-      finalBindings[#finalBindings + 1] = binding
+      if binding then
+        finalBindings[#finalBindings + 1] = binding
+      end
     end
     object.bindings = finalBindings
   end
