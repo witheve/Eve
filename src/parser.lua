@@ -5,7 +5,15 @@ local errors = require("error")
 local Set = require("set").Set
 local util = require("util")
 
+------------------------------------------------------------
+-- Constants
+------------------------------------------------------------
+
 local MAGIC_ENTITY_FIELD = "ENTITY"
+local SPECIAL_TAGS = {
+  time = true,
+  split = true
+}
 
 ------------------------------------------------------------
 -- Utils
@@ -88,8 +96,10 @@ function StringScanner:eatWhile(func)
   local char = self:peek()
   local final = {}
   local prev = nil
-  while char and func(char, prev) do
+  local prev2 = nil
+  while char and func(char, prev, prev2) do
     char = self:read()
+    prev2 = prev
     prev = char
     final[#final+1] = char
     char = self:peek()
@@ -188,8 +198,8 @@ local function isIdentifierChar(char)
   return not specials[char] and not whitespace[char]
 end
 
-local function inString(char, prev)
-  return (char ~= "\"" and char ~= "{") or prev == "\\"
+local function inString(char, prev, prev2)
+  return (char ~= "\"" and char ~= "{") or (prev == "\\" and prev2 ~= "\\")
 end
 
 local function isNumber(char)
@@ -501,10 +511,10 @@ local function parse(tokens, context)
       info.comments[#info.comments + 1] = token
 
     elseif type == "STRING_OPEN" then
-      stack:push(makeNode("function", token, {operator = "concat", children = {right}}))
+      stack:push(makeNode("function", token, {func = "concat", children = {right}}))
 
     elseif type == "STRING_CLOSE" then
-      if stackTop.type == "function" and stackTop.operator == "concat" then
+      if stackTop.type == "function" and stackTop.func == "concat" then
         -- if there's zero or one children, then this concat isn't needed
         if #stackTop.children == 0 or (#stackTop.children == 1 and stackTop.children[1].type == "STRING") then
           local string = stackTop.children[1] or makeNode("STRING", token, {value = ""})
@@ -540,6 +550,12 @@ local function parse(tokens, context)
         -- eat that token
         scanner:read()
         -- @TODO: handle specifying a custom bag
+      end
+      -- if we are already in an update node, then this update closes the old
+      -- one and puts us into a new one
+      if stackTop.type == "update" then
+        stackTop.closed = true
+        stackTop = tryFinishExpression()
       end
       stack:push(update)
 
@@ -636,7 +652,7 @@ local function parse(tokens, context)
 
     elseif type == "DOT" then
       local prev = stackTop.children[#stackTop.children]
-      if prev and (prev.type == "equality" or prev.type == "mutate" or type == "inequality") then
+      if prev and (prev.type == "equality" or prev.type == "mutate" or prev.type == "inequality") then
         local right = prev.children[2]
         if right and right.type == "IDENTIFIER" then
           stackTop.children[#stackTop.children] = nil
@@ -663,7 +679,7 @@ local function parse(tokens, context)
     elseif type == "INFIX" then
       -- get the previous child
       local prev = stackTop.children[#stackTop.children]
-      if prev and (prev.type == "equality" or prev.type == "mutate" or type == "inequality") then
+      if prev and (prev.type == "equality" or prev.type == "mutate" or prev.type == "inequality") then
         local right = prev.children[2]
         if right and valueTypes[right.type] then
           stackTop.children[#stackTop.children] = nil
@@ -892,7 +908,7 @@ local function resolveExpression(node, context)
       -- create the object
       local objectNode = generateObjectNode(tempObject, context)
       -- create an equality between the entity fields
-      resolveExpression(makeNode("equality", token, {operator = "=", children = {left, objectNode.entityVariable}}), context);
+      resolveExpression(makeNode("equality", right, {operator = "=", children = {left, objectNode.entityVariable}}), context);
       -- add it to the query
       local query = context.queryStack:peek()
       local queryKey = objectNode.type == "object" and "objects" or "mutates"
@@ -907,8 +923,12 @@ local function resolveExpression(node, context)
   elseif node.type == "object" then
     local query = context.queryStack:peek()
     local objectNode = generateObjectNode(node, context)
-    local queryKey = objectNode.type == "object" and "objects" or "mutates"
-    query[queryKey][#query[queryKey] + 1] = objectNode
+    if objectNode.type == "object" or objectNode.type == "mutate" then
+      local queryKey = objectNode.type == "object" and "objects" or "mutates"
+      query[queryKey][#query[queryKey] + 1] = objectNode
+    elseif objectNode.type == "expression" then
+      query.expressions[#query.expressions + 1] = objectNode
+    end
     return objectNode.entityVariable
 
   elseif node.type == "infix" or node.type == "function" then
@@ -1062,6 +1082,11 @@ generateObjectNode = function(root, context)
       elseif left.type == "TAG" then
         binding.field = "tag"
         binding.constant = makeNode("constant", right, {constant = right.value, constantType = "string"})
+        if not mutating and SPECIAL_TAGS[right.value] then
+          object.type = "expression"
+          object.operator = right.value
+          binding = nil;
+        end
 
       elseif left.type == "IDENTIFIER" then
         binding.field = left.value
@@ -1093,7 +1118,7 @@ generateObjectNode = function(root, context)
         binding = generateBindingNode(binding, context, object)
       end
 
-    elseif type == "not" then
+    elseif type == "not" and object.type == "object" then
       -- this needs to translate into a regular not that references this object
       -- via a constructed attribute call. we'll need the entityVariable as an identifier 
       -- for that node
@@ -1135,6 +1160,21 @@ generateObjectNode = function(root, context)
       -- error
       errors.invalidObjectChild(context, child)
     end
+  end
+
+  -- a few objects ultimately end up parsed as expressions, we need to fix
+  -- up the bindings and such in here if that ends up being the case.
+  -- TODO: should we check the schema here? what should we do if something
+  -- doesn't match?
+  if object.type == "expression" then
+    local finalBindings = {}
+    for _, binding in ipairs(object.bindings) do
+      if binding.field == MAGIC_ENTITY_FIELD then
+        binding = generateBindingNode({field = "return", variable = entityVariable}, context, object)
+      end
+      finalBindings[#finalBindings + 1] = binding
+    end
+    object.bindings = finalBindings
   end
 
   -- our dependencies are no longer relevant to anyone else,
@@ -1209,7 +1249,12 @@ local function handleUpdateNode(root, query, context)
     elseif type == "object" then
       -- generate the object
       local object = generateObjectNode(child, context)
-      query.mutates[#query.mutates + 1] = object
+      if object.type == "mutate" then
+        query.mutates[#query.mutates + 1] = object
+      else
+        -- error
+        errors.updatingNonMutate(context, object)
+      end
     elseif type == "equality" then
       -- equalities are allowed if the left is an identifier
       -- and the right is an object, to allow for object references
@@ -1246,7 +1291,14 @@ generateQueryNode = function(root, context)
     local type = child.type
     if type == "object" then
       local node = generateObjectNode(child, context)
-      query.objects[#query.objects + 1] = node
+      if node.type == "object" then
+        query.objects[#query.objects + 1] = node
+      elseif node.type == "expression" then
+        query.expressions[#query.expressions + 1] = node
+      else
+        -- error
+        errors.invalidQueryChild(context, token)
+      end
     elseif type == "update" then
       handleUpdateNode(child, query, context)
 
@@ -1325,6 +1377,8 @@ local function generateNodes(root, extraContext)
     if child.type == "query" then
       context.variableToBindings = {}
       nodes[#nodes + 1] = generateQueryNode(child, context)
+      -- TODO: check the query for updates. If there aren't any and we're not in
+      -- some weird context then this should warn that it will do nothing.
     else
       -- error
       errors.invalidTopLevel(context, child)
