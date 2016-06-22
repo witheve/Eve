@@ -816,12 +816,7 @@ local function resolveExpression(node, context)
 
   elseif node.type == "mutate" then
     local left = resolveExpression(node.children[1], context)
-    -- set that when I try to resolve this expression,
-    -- I'm looking to resolve it to this specific variable
-    local prevMutating = context.mutating
-    context.mutating = nil
     local right = resolveExpression(node.children[2], context)
-    context.mutating = prevMutating
     return left
 
   elseif node.type == "inequality" or node.type == "equality" then
