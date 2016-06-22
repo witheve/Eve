@@ -251,8 +251,6 @@ static execf build_set(evaluation e, node n)
             apply(n, op, r);                                                                         \
             return;                                                                                  \
         }       \
-        prf("binary numeric %p %p %v %v\n", a, b, lookup(a, r), lookup(b, r)) ;\
-                                                            \
         value ar = lookup(a, r);                                                                     \
         value br = lookup(b, r);                                                                     \
         *count = *count + 1;                                                                         \
@@ -487,9 +485,10 @@ static execf build_sub(evaluation e, node n)
 
 
 
-static CONTINUATION_2_2(do_choose_tail, execf, value, operator, value *);
-static void do_choose_tail(execf next, value flag, operator op, value *r)
+static CONTINUATION_3_2(do_choose_tail, int *, execf, value, operator, value *);
+static void do_choose_tail(int * count, execf next, value flag, operator op, value *r)
 {
+    *count = *count + 1;
     r[toreg(flag)] = etrue;
     apply(next, op, r);
 }
@@ -501,13 +500,15 @@ static execf build_choose_tail(evaluation e, node n)
     vector v = allocate_vector(e->h, vector_length(n->arguments));
     return cont(e->h,
                 do_choose_tail,
+                register_counter(e, n),
                 resolve_cfg(e, n, 0),
                 vector_get(vector_get(n->arguments, 0), 0));
 }
 
-static CONTINUATION_3_2(do_choose, execf, vector, value, operator, value *);
-static void do_choose(execf next, vector legs, value flag, operator op, value *r)
+static CONTINUATION_3_2(do_choose, int *, vector, value, operator, value *);
+static void do_choose(int *count, vector legs, value flag, operator op, value *r)
 {
+    *count = *count + 1;
     r[toreg(flag)] = efalse;
     vector_foreach (legs, i){
         apply((execf) i, op, r);
@@ -525,7 +526,7 @@ static execf build_choose(evaluation e, node n)
 
     return cont(e->h,
                 do_choose,
-                resolve_cfg(e, n, 0),
+                register_counter(e, n),
                 v,
                 vector_get(vector_get(n->arguments, 0), 0));
 }

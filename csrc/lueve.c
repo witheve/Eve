@@ -26,8 +26,8 @@ static void run_test(bag root, buffer b, boolean tracing)
     bag event = create_bag(generate_uuid());
     table scopes = create_value_table(h);
     table results = create_value_vector_table(h);
-    table_set(scopes, intern_cstring("history"), root);
-    table_set(scopes, intern_cstring("event"), event);
+    table_set(scopes, intern_cstring("all"), root);
+    table_set(scopes, intern_cstring("session"), event);
     table_set(scopes, intern_cstring("transient"), event);
     
     // take this from a pool
