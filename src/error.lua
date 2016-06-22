@@ -78,6 +78,15 @@ function errors.crazySyntax(context, token)
   error("Parse failure")
 end
 
+function errors.invalidTopLevel(context, token)
+  printError({type = "Invalid top level node", context = context, token = token, content = string.format([[
+  There's a program level node that I don't understand here
+
+  <LINE>
+  ]])})
+  error("Parse failure")
+end
+
 ------------------------------------------------------------
 -- Delimiter errors
 ------------------------------------------------------------
@@ -156,11 +165,28 @@ end
 
 function errors.notWithoutParen(context, token, next)
   -- we can check next here to take a guess at what the badness might be
-  printError({type = "Misplaced then", context = context, token = token, content = [[
+  printError({type = "Not without parens", context = context, token = token, content = [[
   `not` requires a set of parens after it, e.g. `not(x > 2)`
 
   <LINE>
   ]]})
+end
+
+function errors.invalidInlineNotChild(context, token, child)
+  -- we can give a more direct message by looking at child
+  printError({type = "Invalid inline not", context = context, token = token, content = [[
+  Inline `not` only supports an attribute name or a tag name, e.g. [not(#person)]
+
+  <LINE>
+  ]]})
+end
+
+function errors.invalidNotChild(context, token)
+  printError({type = "Invalid not child", context = context, token = token, content = string.format([[
+  INTERNAL: Not can only be followed by a query, we somehow got something else.
+
+  <LINE>
+  ]])})
 end
 
 ------------------------------------------------------------
@@ -197,6 +223,14 @@ function errors.invalidTag(context, token, next)
         // objects in the system tagged "cool person"
         [#"cool person"]
       ]]})
+end
+
+function errors.bareTagOrName(context, token)
+  printError({type = "Non-object Tag", context = context, token = token, content = string.format([[
+  `#tag` and `@name` must be in an object, e.g. [#foo]
+
+  <LINE>
+  ]])})
 end
 
 ------------------------------------------------------------
@@ -270,6 +304,14 @@ end
 -- Object errors
 ------------------------------------------------------------
 
+function errors.invalidObjectChild(context, token)
+  printError({type = "Invalid object attribute", context = context, token = token, content = string.format([[
+  Objects only support attributes, inequalities, and nots as children. Not sure what to do with this:
+
+  <LINE>
+  ]])})
+end
+
 function errors.bareSubObject(context, token)
   printError({type = "Unbound nested object", context = context, token = token, content = string.format([[
   Nested objects have to be bound to some attribute.
@@ -318,6 +360,66 @@ end
 function errors.invalidProjection(context, token)
   printError({type = "Invalid aggregate projection", context = context, token = token, content = string.format([[
   Projections can only be experessions or identifiers
+
+  <LINE>
+  ]])})
+end
+
+------------------------------------------------------------
+-- Union errors
+------------------------------------------------------------
+
+function errors.invalidUnionChild(context, token)
+  printError({type = "Invalid if child", context = context, token = token, content = string.format([[
+  INTERNAL: If can only be followed by a query, we somehow got something else.
+
+  <LINE>
+  ]])})
+end
+
+function errors.invalidUnionOutputsType(context, token)
+  printError({type = "Invalid if equivalence", context = context, token = token, content = string.format([[
+  The left hand side of an equivalence with an if can only be a name or a block of names, e.g. (foo, bar)
+
+  <LINE>
+  ]])})
+end
+
+function errors.outputNumberMismatch(context, block, outputs)
+  printError({type = "If ... then return mismatch", context = context, token = token, content = string.format([[
+  The number of values returned after a then has to match the left hand side of the equivalence.
+
+  <LINE>
+  ]])})
+end
+
+function errors.outputTypeMismatch(context, node, outputs)
+  printError({type = "If ... then return mismatch", context = context, token = token, content = string.format([[
+  There's a mismatch between the type being returned and the expected outputs.
+
+  <LINE>
+  ]])})
+end
+
+------------------------------------------------------------
+-- Update errors
+------------------------------------------------------------
+
+function errors.invalidUpdateChild(context, token)
+  printError({type = "Invalid expression in update", context = context, token = token, content = string.format([[
+  Update only allows for equalities, objects, and setters as top level expressions.
+
+  <LINE>
+  ]])})
+end
+
+------------------------------------------------------------
+-- Query errors
+------------------------------------------------------------
+
+function errors.invalidQueryChild(context, token)
+  printError({type = "Invalid query child", context = context, token = token, content = string.format([[
+  There's a node at the type level that I don't know how to deal with here:
 
   <LINE>
   ]])})
