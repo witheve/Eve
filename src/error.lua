@@ -27,7 +27,7 @@ local function printError(errorInfo)
     offset = token.offset
   end
   if not length then
-    length = #token.value
+    length = token.value and #token.value or 1
   end
   if not lineNumber then
     lineNumber = token.line
@@ -205,8 +205,16 @@ end
 
 function errors.invalidAttributeLeft(context, token, prev)
   -- check what prev is to see if maybe it's a constant or bare.. or something else?
-  printError({type = "Invalid .", context = context, token = token, content = [[
+  printError({type = "Invalid attribute access", context = context, token = token, content = [[
   `.` can only come after a name, e.g. `person.age`
+
+  <LINE>
+  ]]})
+end
+
+function errors.invalidAttributeRight(context, token)
+  printError({type = "Invalid attribute access", context = context, token = token, content = [[
+  `.` can only be followed by the name of an attribute, e.g. `person.age`
 
   <LINE>
   ]]})
@@ -226,6 +234,18 @@ function errors.invalidInfixLeft(context, token, prev)
 end
 
 ------------------------------------------------------------
+-- Function errors
+------------------------------------------------------------
+
+function errors.invalidFunctionArgument(context, token, nodeType)
+  printError({type = "Invalid function argument", context = context, token = token, content = string.format([[
+  Only expressions can be arguments to functions
+
+  <LINE>
+  ]], token.value, token.value)})
+end
+
+------------------------------------------------------------
 -- Equality errors
 ------------------------------------------------------------
 
@@ -233,21 +253,49 @@ function errors.invalidEqualityLeft(context, token, prev)
   -- check what prev is to see if we're equiving another equiv or nothing
   if not prev then
     printError({type = "Invalid equivalence", context = context, token = token, content = string.format([[
-    `=` should be inbetween two expressions
+    `%s` should be inbetween two expressions
 
     <LINE>
-    ]])})
+    ]], token.value)})
   else
     printError({type = "Invalid equivalence", context = context, token = token, content = string.format([[
-    `=` can only be used between expressions
+    `%s` can only be used between expressions
 
     <LINE>
-    ]])})
+    ]], token.value)})
   end
 end
 
 ------------------------------------------------------------
--- Aggregate errors
+-- Object errors
+------------------------------------------------------------
+
+function errors.bareSubObject(context, token)
+  printError({type = "Unbound nested object", context = context, token = token, content = string.format([[
+  Nested objects have to be bound to some attribute.
+
+  <LINE>
+  ]])})
+end
+
+function errors.unboundAttributeInequality(context, token)
+  printError({type = "Invalid inline filter", context = context, token = token, content = string.format([[
+  Inline filters have to have an attribute name on the left side, e.g. `[age > 10]`
+
+  <LINE>
+  ]])})
+end
+
+function errors.invalidObjectAttributeBinding(context, token)
+  printError({type = "Invalid attribute binding", context = context, token = token, content = string.format([[
+  Invalid attribute binding
+
+  <LINE>
+  ]])})
+end
+
+------------------------------------------------------------
+-- aggregate errors
 ------------------------------------------------------------
 
 function errors.invalidAggregateModifier(context, token, prev)
@@ -257,6 +305,22 @@ function errors.invalidAggregateModifier(context, token, prev)
 
   <LINE>
   ]], token.value)})
+end
+
+function errors.invalidGrouping(context, token)
+  printError({type = "Invalid aggregate grouping", context = context, token = token, content = string.format([[
+  Groupings can only be experessions or identifiers
+
+  <LINE>
+  ]])})
+end
+
+function errors.invalidProjection(context, token)
+  printError({type = "Invalid aggregate projection", context = context, token = token, content = string.format([[
+  Projections can only be experessions or identifiers
+
+  <LINE>
+  ]])})
 end
 
 ------------------------------------------------------------

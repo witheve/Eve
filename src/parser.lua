@@ -806,6 +806,8 @@ local function generateBindingNode(node, context, parent)
 end
 
 local function resolveExpression(node, context)
+  if not node then return end
+
   if node.type == "NUMBER" or node.type == "STRING" or node.type == "UUID" then
     return {type = "constant", constant = node.value, constantType = node.type:lower()}
 
@@ -875,6 +877,7 @@ local function resolveExpression(node, context)
 
     else
       -- error
+      errors.invalidAttributeRight(context, right)
     end
 
   elseif node.type == "object" then
@@ -898,6 +901,8 @@ local function resolveExpression(node, context)
       local resolved = resolveExpression(child, context)
       if not resolved then
         -- error
+        errors.invalidFunctionArgument(context, child, node.type)
+
       elseif resolved.type == "variable" then
         generateBindingNode({field = field, variable = resolved}, context, expression)
 
@@ -911,6 +916,7 @@ local function resolveExpression(node, context)
             expression.groupings[#expression.groupings + 1] = {type = "grouping", expression = expression, variable = groupingVar, ix = ix}
           else
             -- error
+            errors.invalidGrouping(context, grouping)
           end
         end
 
@@ -921,10 +927,12 @@ local function resolveExpression(node, context)
             expression.projections[#expression.projections + 1] = {type = "projection", expression = expression, variable = projectVar}
           else
             -- error
+            errors.invalidProjection(context, grouping)
           end
         end
       else
         -- error?
+        errors.invalidFunctionArgument(context, child, node.type)
       end
     end
     if node.func == "is" then
@@ -1001,6 +1009,7 @@ generateObjectNode = function(root, context)
         dependencies:add(variable)
       else
         -- error
+        errors.bareSubObject(context, child)
       end
 
     elseif type == "inequality" then
@@ -1012,6 +1021,7 @@ generateObjectNode = function(root, context)
         lastAttribute = nil
       else
         -- error
+        errors.unboundAttributeInequality(context, child)
       end
 
     elseif type == "equality" then
@@ -1035,6 +1045,7 @@ generateObjectNode = function(root, context)
         if not resolved then
           -- error
           binding = nil
+          errors.invalidObjectAttributeBinding(context, right or child)
         elseif resolved.type == "constant" then
           binding.constant = resolved
         elseif resolved.type == "variable" then
@@ -1047,9 +1058,11 @@ generateObjectNode = function(root, context)
         else
           binding = nil
           -- error
+          errors.invalidObjectAttributeBinding(context, right)
         end
       else
         -- error
+        errors.invalidObjectAttributeBinding(context, child)
       end
       if binding then
         binding = generateBindingNode(binding, context, object)
@@ -1261,8 +1274,11 @@ generateQueryNode = function(root, context)
   return query
 end
 
-local function generateNodes(root)
+local function generateNodes(root, extraContext)
   local context = {queryStack = Stack:new(), nameMappings = Stack:new(), projections = Stack:new()}
+  for key, value in pairs(extraContext) do
+    context[key] = value
+  end
   local nodes =  {}
   for _, child in ipairs(root.children) do
     if child.type == "query" then
@@ -1281,23 +1297,26 @@ end
 
 local function parseFile(path)
   local content = fs.read(path)
+  content = content:gsub("\t", "  ")
   local tokens = lex(content)
   local tree = {type="expression tree", children = parse(tokens, {file = path, code = content})}
-  local graph = generateNodes(tree)
+  local graph = generateNodes(tree, {file = path, code = content})
   return graph
 end
 
 local function parseString(str)
+  str = str:gsub("\t", "  ")
   local tokens = lex(str)
   local tree = {type="expression tree", children = parse(tokens, {code = str})}
-  local graph = generateNodes(tree)
+  local graph = generateNodes(tree, {code = str})
   return graph
 end
 
 local function printParse(content)
+  content = content:gsub("\t", "  ")
   local tokens = lex(content)
   local tree = {type="expression tree", children = parse(tokens, {code = content})}
-  local graph = generateNodes(tree)
+  local graph = generateNodes(tree, {code = content})
   print()
   print(color.dim("---------------------------------------------------------"))
   print(color.dim("-- Parse tree"))
