@@ -114,8 +114,11 @@ end
 
 function Set.__tostring(obj)
    local result = "#{ "
+   local multiple = false
    for k in pairs(obj) do
-      result = result .. tostring(k) .. ", "
+      if multiple then result = result .. ", " end
+      result = result .. tostring(k)
+      multiple = true
    end
    return result .. "}"
 end

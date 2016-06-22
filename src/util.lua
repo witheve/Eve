@@ -6,6 +6,7 @@ local type = type
 local setmetatable = setmetatable
 local getmetatable = getmetatable
 local tostring = tostring
+local table = table
 local io = io
 local string = string
 local math = math
@@ -76,6 +77,72 @@ function shallowCopy(obj)
    setmetatable(neue, meta)
    return neue
 end
+
+function walk(obj, fn, seen)
+   if type(obj) ~= "table" then return end
+   seen = seen or {}
+
+   for k, v in pairs(obj) do
+      fn(k, v, obj)
+      if type(v) == "table" and not seen[v] then
+         seen[v] = true
+         walk(v, fn, seen)
+      end
+   end
+end
+
+------------------------------------------------------------
+-- String helpers
+------------------------------------------------------------
+
+function makeWhitespace(size, char)
+  local whitespace = {}
+  local char = char or " "
+  for i = 0, size do
+    whitespace[#whitespace + 1] = char
+  end
+  return table.concat(whitespace)
+end
+
+function split(str, delim)
+  local final = {}
+  local index = 1
+  local splitStart, splitEnd = string.find(str, delim, index)
+  while splitStart do
+    final[#final + 1] = string.sub(str, index, splitStart-1)
+    index = splitEnd + 1
+    splitStart, splitEnd = string.find(str, delim, index)
+  end
+  final[#final + 1] = string.sub(str, index)
+  return final
+end
+
+function dedent(str)
+    local lines = split(str,'\n')
+    local _, indent = lines[1]:find("^%s*")
+    local final = {}
+    for _, line in ipairs(lines) do
+      final[#final + 1] = line:sub(indent + 1)
+      final[#final + 1] = "\n"
+    end
+    return table.concat(final)
+end
+
+function indent(str, by)
+    local lines = split(str,'\n')
+    local whitespace = makeWhitespace(by)
+    local final = {}
+    for _, line in ipairs(lines) do
+      final[#final + 1] = whitespace
+      final[#final + 1] = line
+      final[#final + 1] = "\n"
+    end
+    return table.concat(final)
+end
+
+------------------------------------------------------------
+-- Package
+------------------------------------------------------------
 
 return Pkg
 
