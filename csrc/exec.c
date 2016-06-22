@@ -527,6 +527,26 @@ static execf build_genid(evaluation e, node n)
                 vector_get(vector_get(n->arguments, 0), 0));
 }
 
+
+static CONTINUATION_4_2(do_move, int *, execf, value,  value, operator, value *);
+static void do_move(int *count, execf n, value dest, value src, operator op, value *r)
+{
+    *count = *count+1;
+    r[reg(dest)] = lookup(src, r);
+    apply(n, op, r);
+}
+
+
+static execf build_move(evaluation e, node n)
+{
+    vector a = vector_get(n->arguments, 0);
+    return cont(e->h, do_move,
+                register_counter(e, n),
+                resolve_cfg(e, n, 0),
+                vector_get(a, 0),
+                vector_get(a, 1));
+}
+
 static CONTINUATION_4_2(do_concat, int *, execf, value, vector,  operator, value *);
 static void do_concat(int *count, execf n, value dest, vector terms, operator op, value *r)
 {
@@ -655,6 +675,7 @@ table builders_table()
         table_set(builders, intern_cstring("choose"), build_choose);
         table_set(builders, intern_cstring("choosetail"), build_choose_tail);
         table_set(builders, intern_cstring("concat"), build_concat);
+        table_set(builders, intern_cstring("move"), build_move);
     }
     return builders;
 }

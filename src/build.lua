@@ -25,8 +25,8 @@ function flat_print_table(t)
    if type(t) == "table" then
      local result = ""
      for k, v in pairs(t) do
-        result = result .. " " .. tostring(k) .. ":"
-        result = result .. tostring(v)
+        if not (k == nil) then result = result .. " " .. tostring(k) .. ":" end
+        if not (v == nil) then result = result .. tostring(v) end 
      end
      return result
    end
@@ -322,6 +322,18 @@ function translate_union(n, bound, down, tracing)
    return env, build_node("fork", arms, {})
 end
 
+function translate_assignment(n, bound, down, tracing)
+    local target = n.bindings["a"]
+    local source = n.bindings["b"]
+    if bound[target] then
+        source = target
+        target =  n.bindings["b"]
+    end
+    bound[target] = true;
+    env, c = down(bound)
+    return env, build_node("move", {c}, {{target, source}})
+end
+
 local unaryArgs = {"return", "a"}
 local binaryArgs = {"return", "a", "b"}
 local binaryFilterArgs = {"a", "b", filter = true, alternateSchema = binaryArgs}
@@ -345,6 +357,12 @@ function translate_expression(n, bound, down, tracing)
    local operator = m[1]
    local schema = m[2]
 
+   print("zig: ", n.operator, n.produces, flat_print_table(n.bindings))
+
+   if (not bound[n.bindings["a"]]) or (not bound[n.bindings["b"]]) then
+      return translate_assignment(n, bound, down, tracing)
+   end
+      
    local produces = false
    for term in pairs(n.produces) do
       bound[term] = true
@@ -386,6 +404,7 @@ function translate_expression(n, bound, down, tracing)
          nodeArgs[#nodeArgs + 1] = read_lookup(env, args[field])
       end
    end
+
    return env, build_node(operator, {c}, {nodeArgs})
 end
 
