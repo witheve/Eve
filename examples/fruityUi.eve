@@ -1,6 +1,23 @@
+Add some fruits to the system
+  update
+    [#fruit @lemon color: "yellow"]
+    [#fruit @cherry color: "red"]
+    [#fruit @orange color: "orange"]
+    [#fruit @apple color: "green"]
+    [#fruit @banana color: "yellow"]
+    [#fruit #exotic @lychee color: "white"]
+
+Draw a list of fruits
+  [#fruit color name]
+  update
+    [#div #foo ix: name, text: name, style: [color]]
+
 draw clicks
   c = [#clicky]
   update
-    + := 3
-    asdf oasdjf }
+    [#div ix: "zzz" c text: "yo"]
 
+store clicks
+  [#click element]
+  update all
+    [#clicky element]
