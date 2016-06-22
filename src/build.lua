@@ -170,17 +170,17 @@ function translate_subproject(n, bound, down, tracing)
    local db = shallowcopy(bound)
    bound[pass] = true
 
-   for k, _ in pairs(n.produces) do      
+   for k, _ in pairs(n.produces) do
      db[k] = true
    end
 
    env, rest = down(db)
 
    function tail (bound)
-      return env, build_node("subtail", {build_node("terminal", {}, {})}, 
-                             {set_to_read_array(env, n.produces),   
-                             {read_lookup(env, pass)}})                  
-   end                        
+      return env, build_node("subtail", {build_node("terminal", {}, {})},
+                             {set_to_read_array(env, n.produces),
+                             {read_lookup(env, pass)}})
+   end
 
    local outregs =  set_to_read_array(env, n.produces)
    env, fill = walk(n.nodes, nil, bound, tail, tracing)
@@ -199,7 +199,7 @@ function translate_subproject(n, bound, down, tracing)
       end
       c = build_node("trace", {c}, {map})
    end
-   
+
    return env, c
 end
 
@@ -281,14 +281,14 @@ function translate_choose(n, bound, down, tracing)
       for n, _ in pairs(env.registers) do
          env.permanent[n] = true
       end
-      
+
      for _, v in pairs(n.queries) do
          env, c2 = walk(v.unpacked, nil, shallowcopy(bound), arm_bottom, tracing)
      end
 end
 
 function translate_concat(n, bound, down, tracing)
-   local env, c = down(bound)     
+   local env, c = down(bound)
 end
 
 function translate_union(n, bound, down, tracing)
@@ -336,7 +336,7 @@ local expressionMap = {
    ["<="] = {"less_than_or_equal", binaryFilterArgs},
    [">"] = {"greater_than", binaryFilterArgs},
    [">="] = {"greater_than_or_equal", binaryFilterArgs},
-   ["="] = {"equal", binaryFilterArgs},
+   ["="] = {"assign", binaryFilterArgs}, -- @FIXME: this is going to break is_equal
    ["!="] = {"not_equal", binaryFilterArgs},
 }
 function translate_expression(n, bound, down, tracing)
@@ -380,7 +380,7 @@ function translate_expression(n, bound, down, tracing)
       if args[field] == nil then
          error("must bind field " .. field .. " for operator " .. n.operator)
       end
-      if field == "return" then
+      if field == "return" or n.produces[field] then
          nodeArgs[#nodeArgs + 1] = write_lookup(env, args[field])
       else
          nodeArgs[#nodeArgs + 1] = read_lookup(env, args[field])
@@ -405,7 +405,7 @@ function walk(graph, key, bound, tail, tracing)
    if not nk then
       return tail(bound)
    end
-   
+
    local n = graph[nk]
 
    d = function (bound)
