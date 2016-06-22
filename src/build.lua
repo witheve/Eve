@@ -393,7 +393,7 @@ function translate_expression(n, bound, down, tracing)
          traceArgs[#traceArgs + 1] = field
          traceArgs[#traceArgs + 1] = read_lookup(env, args[field])
       end
-      c = build_node("trace", {c}, traceArgs, {})
+      c = build_node("trace", {c}, {traceArgs})
    end
 
    local nodeArgs = {}
@@ -473,7 +473,7 @@ function build(graphs, tracing)
    for _, g in pairs(graphs) do
       local env, program = walk(g, nil, {}, tailf, tracing)
       regs = math.max(regs, env.maxregs + 1)
-      heads[#heads+1] = program
+      heads[#heads+1] = build_node("regfile", {c}, {{regs}})
    end
    return build_node("fork", heads, {})
 end

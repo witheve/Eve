@@ -595,6 +595,22 @@ static execf build_fork(evaluation e, node n)
     return cont(e->h, do_fork, register_counter(e, n), count, a);
 }
 
+
+static CONTINUATION_3_2(do_regfile, heap, execf, int, operator, value *);
+static void do_regfile(heap h, execf n, int count, operator op, value *r)
+{
+    apply(n, op, allocate(h, count * sizeof(value)));
+}
+
+static execf build_regfile(evaluation ex, node n, execf *arms)
+{
+    return cont(ex->h,
+                do_regfile,
+                ex->h,
+                resolve_cfg(ex, n, 0),
+                (int)*(double *)vector_get(vector_get(n->arguments, 0), 0));
+}
+
 static CONTINUATION_2_2(do_trace, execf, vector, operator, value *);
 static void do_trace(execf n, vector terms, operator op, value *r)
 {
@@ -606,7 +622,7 @@ static void do_trace(execf n, vector terms, operator op, value *r)
     apply(n, op, r);
 }
 
-static execf build_trace(evaluation ex, node n, execf *arms)
+static execf build_trace(evaluation ex, node n)
 {
     return cont(ex->h,
                 do_trace,
@@ -660,6 +676,7 @@ table builders_table()
         table_set(builders, intern_cstring("choose"), build_choose);
         table_set(builders, intern_cstring("choosetail"), build_choose_tail);
         table_set(builders, intern_cstring("concat"), build_concat);
+        table_set(builders, intern_cstring("regfile"), build_regfile);
     }
     return builders;
 }
