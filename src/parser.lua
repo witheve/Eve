@@ -845,6 +845,11 @@ local function resolveExpression(node, context)
 
   elseif node.type == "inequality" or node.type == "equality" then
     local left = resolveExpression(node.children[1], context)
+    if not left then
+      -- error
+      errors.invalidEqualityLeft(context, node, left)
+      return
+    end
     -- set that when I try to resolve this expression,
     -- I'm looking to resolve it to this specific variable
     local right = resolveExpression(node.children[2], context)
@@ -1119,6 +1124,7 @@ generateObjectNode = function(root, context)
 
       else
         -- error
+        errors.invalidInlineNotChild(context, child, attr)
       end
 
       -- finally generate the not node
@@ -1127,6 +1133,7 @@ generateObjectNode = function(root, context)
 
     else
       -- error
+      errors.invalidObjectChild(context, child)
     end
   end
 
@@ -1154,6 +1161,7 @@ local function generateUnionNode(root, context, unionType)
     end
   else
     -- error
+    errors.invalidUnionOutputsType(context, roout.outputs)
   end
   union.outputs = outputs
 
@@ -1163,6 +1171,7 @@ local function generateUnionNode(root, context, unionType)
       union.queries[#union.queries + 1] = generateQueryNode(child, context)
     else
       -- error
+      errors.invalidUnionChild(context, child)
     end
   end
 
@@ -1177,6 +1186,7 @@ generateNotNode = function(root, context)
     context.notNode = false
   else
     -- error
+    errors.invalidNotChild(context, root)
   end
 
   return notNode
@@ -1206,6 +1216,7 @@ local function handleUpdateNode(root, query, context)
       resolveExpression(child, context)
     else
       -- error
+      errors.invalidUpdateChild(context, child)
     end
     -- clean up
     context.mutateOperator = nil
@@ -1240,7 +1251,12 @@ generateQueryNode = function(root, context)
       handleUpdateNode(child, query, context)
 
     elseif type == "equality" then
-      local left = resolveExpression(child, context)
+      if #child.children > 0 and (child.children[1].type == "TAG" or child.children[1].type == "NAME") then
+        errors.bareTagOrName(context, child)
+      else
+        local left = resolveExpression(child, context)
+      end
+        
 
     elseif type == "inequality" then
       resolveExpression(child, context)
@@ -1265,8 +1281,9 @@ generateQueryNode = function(root, context)
 
     elseif type == "outputs" then
       local outputs = root.outputs
-      if not root.outputs then
+      if not outputs then
         -- error
+        errors.invalidUnionOutputsType(context, outputs)
       elseif outputs.type == "IDENTIFIER" and #child.children == 1 then
         local equality = makeNode("equality", child.children[1], {operator = "=", children = {outputs, child.children[1]}})
         resolveExpression(equality, context)
@@ -1279,13 +1296,16 @@ generateQueryNode = function(root, context)
           end
         else
           -- error, output numbers don't match up
+          errors.outputNumberMismatch(context, block, outputs)
         end
       else
         -- error mismatched outputs
+        errors.outputTypeMismatch(context, child.children[1], outputs)
       end
 
     else
       -- error
+      errors.invalidQueryChild(context, child)
     end
   end
 
@@ -1307,6 +1327,7 @@ local function generateNodes(root, extraContext)
       nodes[#nodes + 1] = generateQueryNode(child, context)
     else
       -- error
+      errors.invalidTopLevel(context, child)
     end
   end
   return {type = "code", children = nodes}
