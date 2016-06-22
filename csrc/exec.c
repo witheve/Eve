@@ -136,8 +136,13 @@ static execf build_scan(evaluation ex, node n)
 static CONTINUATION_7_2(do_insert, evaluation, int *, execf, value, value, value, value, operator, value *) ;
 static void do_insert(evaluation ex, int *count, execf n, value uuid, value e, value a, value v, operator op, value *r)
 {
-    *count = *count + 1;
-    apply(ex->insert, uuid, lookup(e, r), lookup(a, r), lookup(v, r));
+    if (op == op_insert) {
+        *count = *count + 1;
+        apply(ex->insert, uuid, lookup(e, r), lookup(a, r), lookup(v, r));
+    }
+    if (op == op_remove) {
+        apply(ex->remove, uuid, lookup(e, r), lookup(a, r), lookup(v, r));
+    }
     apply(n, op, r);
 }
 
@@ -399,13 +404,15 @@ static void do_sub_tail(int *count,
                         vector outputs,
                         operator op, value *r)
 {
-    // needs to synch on the flush
-    if ( op == op_insert) {
-        *count = *count + 1;
-        table results = lookup(resreg, r);
-        vector result = allocate_vector(results->h, vector_length(outputs));
-        extract(result, outputs, r);
-        table_set(results, result, etrue);
+    if ( op == op_remove) {
+    } else {
+        if ( op == op_insert) {
+            *count = *count + 1;
+            table results = lookup(resreg, r);
+            vector result = allocate_vector(results->h, vector_length(outputs));
+            extract(result, outputs, r);
+            table_set(results, result, etrue);
+        }
     }
 }
 
@@ -419,13 +426,22 @@ static execf build_sub_tail(evaluation e, node n)
                 vector_get(n->arguments, 0));
 }
 
-static CONTINUATION_8_2(do_sub, int *, execf, execf, value, table, vector, vector, vector,
+// ech - 9
+static CONTINUATION_9_2(do_sub,
+                        int *, execf, execf, value, table *, table, vector, vector, vector,
                         operator, value *);
 static void do_sub(int *count, execf next, execf leg, value resreg,
-                   table results, vector v, vector inputs, vector outputs,
+                   table *previous, table results, vector v, vector inputs, vector outputs,
                    operator op, value *r)
 {
     if (op == op_flush) {
+        prf ("sub flushies\n");
+        if (*previous) {
+            table_foreach(*previous, k, v) {
+                prf("removal %V %V\n", k, v); 
+            }
+        }
+        // vent the remaining elements from the last hash
         apply(next, op, r);
         return;
     }
@@ -436,6 +452,8 @@ static void do_sub(int *count, execf next, execf leg, value resreg,
     if (!(res = table_find(results, v))){
         res = create_value_vector_table(results->h);
         vector key = allocate_vector(results->h, vector_length(inputs));
+        if (*previous) 
+            table_set(*previous, v, NULL);
         extract(key, inputs, r);
         table_set(results, key, res);
         r[toreg(resreg)] = res;
@@ -452,12 +470,14 @@ static execf build_sub(evaluation e, node n)
 {
     table results = create_value_vector_table(e->h);
     vector v = allocate_vector(e->h, vector_length(n->arguments));
+    table *last = allocate(e->h, sizeof(table));
     return cont(e->h,
                 do_sub,
                 register_counter(e, n),
                 resolve_cfg(e, n, 0),
                 resolve_cfg(e, n, 1),
                 vector_get(vector_get(n->arguments, 2), 0),
+                last,
                 results,
                 v,
                 vector_get(n->arguments, 0),
@@ -598,7 +618,7 @@ static execf build_terminal(evaluation e, node n)
 static CONTINUATION_3_2(do_fork, int *, int, execf *, operator, value *) ;
 static void do_fork(int *count, int legs, execf *b, operator op, value *r)
 {
-    *count = *count+1;
+    if (op != op_flush) *count = *count+1;
     for (int i =0; i<legs ;i ++) apply(b[i], op, r);
 }
 
@@ -630,6 +650,30 @@ static execf build_trace(evaluation ex, node n, execf *arms)
                 resolve_cfg(ex, n, 0),
                 vector_get(n->arguments, 0));
 }
+
+
+static CONTINUATION_4_2(do_regfile, heap, execf, int*, int, operator, value *);
+static void do_regfile(heap h, execf n, int *count, int size, operator op, value *ignore)
+{
+    value *r;
+    if (op == op_insert) {
+        *count = *count +1;
+        prf ("allocating reg: %d\n", size);
+        r = allocate(h, size * sizeof(value));
+    }
+    apply(n, op, r);
+}
+
+static execf build_regfile(evaluation e, node n, execf *arms)
+{
+    return cont(e->h,
+                do_regfile,
+                e->h,
+                resolve_cfg(e, n, 0),
+                register_counter(e, n),
+                (int)*(double *)vector_get(vector_get(n->arguments, 0), 0));
+}
+
 
 void close_evaluation(evaluation ex)
 {
@@ -678,6 +722,7 @@ table builders_table()
         table_set(builders, intern_cstring("choosetail"), build_choose_tail);
         table_set(builders, intern_cstring("concat"), build_concat);
         table_set(builders, intern_cstring("move"), build_move);
+        table_set(builders, intern_cstring("regfile"), build_regfile);
     }
     return builders;
 }
@@ -694,9 +739,8 @@ static void force_node(evaluation e, node n)
 
 void execute(evaluation e)
 {
-    value *r = allocate(init, sizeof(value) * e->registerfile);
-    apply(e->head, op_insert, r);
-    apply(e->head, op_flush, r);
+    apply(e->head, op_insert, 0);
+    apply(e->head, op_flush, 0);
 }
 
 evaluation build(node n, table scopes, scan s, insertron insert, insertron remove, insertron set, table counts, thunk terminal)
@@ -707,7 +751,6 @@ evaluation build(node n, table scopes, scan s, insertron insert, insertron remov
     e->scopes = scopes;
     e->counters = counts;
     e->s = s;
-    e->registerfile = 50;
     e->insert = insert;
     e->remove = remove;
     e->set = set;

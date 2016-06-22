@@ -77,7 +77,7 @@ end
 -- end of util
 
 function empty_env()
-   return {alloc=0, freelist = {}, registers = {}, permanent = {}, maxregs = 0}
+   return {alloc=0, freelist = {}, registers = {}, permanent = {}, maxregs = 0, ids = {}}
 end
 
 function variable(x)
@@ -165,7 +165,7 @@ function translate_subproject(n, bound, down, tracing)
    local p = n.projection
    local t = n.nodes
    local prod = n.produces
-   local env, rest, fill
+   local env, rest, fill, c
    local pass = allocate_temp()
    local db = shallowcopy(bound)
    bound[pass] = true
@@ -185,11 +185,15 @@ function translate_subproject(n, bound, down, tracing)
    local outregs =  set_to_read_array(env, n.produces)
    env, fill = walk(n.nodes, nil, bound, tail, tracing)
 
+
+   -- just extend the lifetime here for a sec
+   for i, _ in pairs(env.ids) do
+          write_lookup(env, i)
+   end
+
    c = build_node("sub", {rest, fill},
                           {set_to_read_array(env, n.projection),
-                          outregs,
---                           set_to_read_array(env, n.produces),
-                          -- leak
+                           outregs,
                           {read_lookup(env, pass)}})
 
    if tracing then
@@ -268,7 +272,10 @@ function translate_mutate(n, bound, down, tracing)
                          read_lookup(env,v)}})
 
    if gen then
-      c = build_node("generate", {c}, {{write_lookup(env, e)}})
+      env.ids[read_lookup(env, e)] = true
+      -- assigning these all the way up to the enclosing sub
+      c = build_node("generate", {c}, {{read_lookup(env, e)}})
+
    end
    return env, c
 end
@@ -472,7 +479,7 @@ function build(graphs, tracing)
    for _, g in pairs(graphs) do
       local env, program = walk(g, nil, {}, tailf, tracing)
       regs = math.max(regs, env.maxregs + 1)
-      heads[#heads+1] = program
+      heads[#heads+1] = build_node("regfile", {program}, {{regs}})
    end
    return build_node("fork", heads, {})
 end

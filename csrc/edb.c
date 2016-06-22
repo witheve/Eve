@@ -53,7 +53,7 @@ void edb_scan(bag b, int sig, void *f, value e, value a, value v)
     case s_eav:
         table_foreach(b->eav, e, al) {
             table_foreach(((table)al), a, vl) {
-                table_foreach(((table)vl), v, count) {
+                table_foreach((table)vl, v, count) {
                     if(count > 0) {
                         apply((three_listener)f, e, a, v, etrue);
                     }
@@ -97,7 +97,7 @@ void edb_scan(bag b, int sig, void *f, value e, value a, value v)
             table al = table_find(b->eav, e);
             if(al) {
                 table_foreach(al, a, vl) {
-                    table_foreach(((table)vl), v, count) {
+                    table_foreach((table)vl, v, count) {
                         if(count) {
                             apply((two_listener)f, a, v, etrue);
                         }
@@ -204,12 +204,12 @@ string bag_dump(heap h, bag b)
         int ind = buffer_unicode_length(out)-start;
         int first =0;
 
-        table_foreach(((table)avl), a, vl) {
+        table_foreach((table)avl, a, vl) {
             int second = 0;
             int start = buffer_unicode_length(out);
             bprintf(out, "%S%v ", first++?ind:0, a);
             int ind2 = buffer_unicode_length(out)-start;
-            table_foreach(((table)vl), v, _)
+            table_foreach((table)vl, v, _)
                 bprintf(out, "%S%v\n", second++?ind2:0, v);
         }
     }
