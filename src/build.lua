@@ -322,20 +322,6 @@ function translate_union(n, bound, down, tracing)
    return env, build_node("fork", arms, {})
 end
 
-function translate_assignment(n, bound, down, tracing)
-    local target, soruce
-    for _, b in ipairs(n.bindings) do
-       if bound[b] then
-           source = b
-       else
-           target = b    
-       end
-    end
-    
-    bound[target] = true;
-    env, c = down(bound)
-    return env, build_node("move", {c}, {{write_lookup(env, target), read_lookup(env, source)}})
-end
 
 local unaryArgs = {"return", "a"}
 local binaryArgs = {"return", "a", "b"}
@@ -360,15 +346,29 @@ function translate_expression(n, bound, down, tracing)
    local operator = m[1]
    local schema = m[2]
 
-   if (not bound[n.bindings["a"]]) or (not bound[n.bindings["b"]]) then
-      return translate_assignment(n, bound, down, tracing)
+   -- we think this means one bound, one free, no returns
+   if ((#n.bindings == 2) and (n.operator == "=")) then
+      local target, source
+      for _, b in ipairs(n.bindings) do
+         if bound[b.variable] or b.constant then
+             source = b.variable or b.constant
+         else
+             target = b.variable    
+         end
+      end
+      if target and source then 
+         bound[target] = true;
+         env, c = down(bound)
+         return env, build_node("move", {c}, {{write_lookup(env, target), read_lookup(env, source)}}, true)
+      end
    end
-      
+
    local produces = false
    for term in pairs(n.produces) do
       bound[term] = true
       produces = true
    end
+
 
    if produces and schema.filter then
       operator = "is_" .. operator
