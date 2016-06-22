@@ -537,7 +537,6 @@ static void do_genid(evaluation ex, int *count, execf n, value dest, operator op
     if (op != op_flush) {
         *count = *count+1;
         value v = generate_uuid();
-        prf("genid %v\n", v);
         r[reg(dest)] = v;
     }
     apply(n, op, r);
