@@ -85,15 +85,15 @@ function StringScanner:setPos(pos)
 end
 
 function StringScanner:eatWhile(func)
-  local char = self:read()
+  local char = self:peek()
   local final = {}
   local prev = nil
   while char and func(char, prev) do
+    char = self:read()
     prev = char
     final[#final+1] = char
-    char = self:read()
+    char = self:peek()
   end
-  self:unread()
   return table.concat(final)
 end
 
@@ -211,7 +211,6 @@ local function lex(str)
   local offset = 0
   local tokens = {}
   while char do
-
     if whitespace[char] then
       if char == "\n" then
         line = line + 1
@@ -245,14 +244,16 @@ local function lex(str)
     elseif char == "⦑" then
       -- FIXME: why are these extra reads necessary? it seems like
       -- the utf8 stuff isn't getting handled correctly for whatever
-      -- readon
+      -- reason
       scanner:read()
       scanner:read()
       local UUID = scanner:eatWhile(isUUID)
       -- skip the end bracket
       scanner:read()
+      scanner:read()
+      scanner:read()
       tokens[#tokens+1] = Token:new("UUID", UUID, line, offset)
-      offset = offset + #UUID
+      offset = offset + #UUID + 3
 
     elseif char == "/" and scanner:peek() == "/" then
       scanner:unread()

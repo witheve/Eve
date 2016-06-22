@@ -13,9 +13,9 @@ Draw a list of fruits
     [#div #foo ix: name, text: name, style: [color]]
 
 draw clicks
-  c = [#clicky]
+  c = [#clicky element]
   update
-    [#div ix: "zzz" c text: "yo"]
+    [#div element ix: "zzz" c text: "yo"]
 
 store clicks
   [#click element]
