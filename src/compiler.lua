@@ -3,6 +3,7 @@ local Pkg = {}
 local std = _G
 local error = error
 local print = print
+local type = type
 local tostring = tostring
 local getmetatable = getmetatable
 local setmetatable = setmetatable
@@ -37,7 +38,7 @@ function formatQueryNode(node, indent)
          result = result .. tostring(node.dependencyGraph)
       end
    elseif node.type == "constant" then
-     result = result .. node.constant
+     result = result .. "<" .. node.constant .. ">"
    elseif node.type == "variable" then
       result = result .. "<" .. (node.name or "unnamed") .. ">"
    elseif node.type == "binding" then
@@ -66,12 +67,24 @@ function formatQueryNode(node, indent)
          result = result .. formatQueryNode(query, 1) .. ",\n"
       end
       return result .. "}"
+   elseif node.type == "expression" then
+      result = result .. " " .. node.operator .. "("
+      for _, binding in std.ipairs(node.bindings) do
+         result = result .. binding.field .. " = " .. formatQueryNode(binding.variable or binding.constant) .. ", "
+      end
+      result = string.sub(result, 1, -3) .. ")"
    end
    return result
 end
 
 local DefaultNodeMeta = {}
 DefaultNodeMeta.__tostring = formatQueryNode
+
+local function applyDefaultMeta(_, node)
+   if type(node) == "table" and getmetatable(node) == nil then
+      setmetatable(node, DefaultNodeMeta)
+   end
+end
 
 -- Dependency Graph
 
@@ -155,6 +168,11 @@ function DependencyGraph:addExpressionNode(node)
        depends:add(binding.variable)
      end
    end
+   if node.operator == "=" and produces:length() == 0 then
+      local tmp = produces
+      produces = depends
+      depends = tmp
+   end
    return self:add(node, depends, produces)
 end
 
@@ -186,6 +204,8 @@ function DependencyGraph:fromQueryGraph(query, terms, bound)
    end
    dgraph.query = query
    query.dependencyGraph = dgraph
+
+   util.walk(query, applyDefaultMeta)
 
    for _, node in std.ipairs(query.expressions or nothing) do
       dgraph:addExpressionNode(node)
@@ -254,30 +274,6 @@ function DependencyGraph:add(node, depends, produces, maybeDepends, strongDepend
    node.strongDepends = strongDepends
 
    self.terms:union(produces, true)
-
-   if getmetatable(node) == nil then
-      setmetatable(node, DefaultNodeMeta)
-   end
-   for term in std.pairs(depends) do
-      if getmetatable(term) == nil then
-         setmetatable(term, DefaultNodeMeta)
-      end
-   end
-   for term in std.pairs(produces) do
-      if getmetatable(term) == nil then
-         setmetatable(term, DefaultNodeMeta)
-      end
-   end
-   for term in std.pairs(maybeDepends) do
-      if getmetatable(term) == nil then
-         setmetatable(term, DefaultNodeMeta)
-      end
-   end
-   for term in std.pairs(strongDepends) do
-      if getmetatable(term) == nil then
-         setmetatable(term, DefaultNodeMeta)
-      end
-   end
 
    -- group new/updated terms, consolidating any newly joined groups
    local terms = Set:new()
@@ -391,18 +387,16 @@ function DependencyGraph:groupUnsatisfied(group) -- get the number of  outstandi
 end
 
 function DependencyGraph:order(allowPartial)
-   --[[
-     The is naive ordering rules out a subset of valid subgraph embeddings that depend upon parent term production.
-      The easy solution to fix this is to iteratively fix point the parent and child graphs until ordering is finished or
-      or no new productions are possible.
-      E.g.:
-      1. a -> a
-      2. f -> b
-      3. subquery
-        i.   a -> b
-        ii.  b -> a
-        iii. a, b -> f
-   ]]--
+   -- The is naive ordering rules out a subset of valid subgraph embeddings that depend upon parent term production.
+   -- The easy solution to fix this is to iteratively fix point the parent and child graphs until ordering is finished or
+   -- or no new productions are possible.
+   -- E.g.:
+   -- 1. a -> a
+   -- 2. f -> b
+   -- 3. subquery
+   --   i.   a -> b
+   --   ii.  b -> a
+   --   iii. a, b -> f
 
    while self.unsorted:length() > 0 do
       local scheduled = false
@@ -578,7 +572,6 @@ end
 function unpackObjects(nodes)
    local unpacked = {}
    local unpackedSubprojects = {}
-   local ix = 1
    local tmpCounter = 0
    for _, node in std.ipairs(nodes) do
       if node.type == "object" or node.type == "mutate" then
@@ -637,8 +630,7 @@ function unpackObjects(nodes)
                query.unpacked = unpackObjects(query.dependencyGraph:order())
             end
          end
-         unpacked[ix] = node
-         ix = ix + 1
+         unpacked[#unpacked + 1] = node
       end
    end
 

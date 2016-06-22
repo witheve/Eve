@@ -78,6 +78,19 @@ function shallowCopy(obj)
    return neue
 end
 
+function walk(obj, fn, seen)
+   if type(obj) ~= "table" then return end
+   seen = seen or {}
+
+   for k, v in pairs(obj) do
+      fn(k, v, obj)
+      if type(v) == "table" and not seen[v] then
+         seen[v] = true
+         walk(v, fn, seen)
+      end
+   end
+end
+
 ------------------------------------------------------------
 -- String helpers
 ------------------------------------------------------------
