@@ -819,7 +819,20 @@ local function resolveExpression(node, context)
 
   elseif node.type == "mutate" then
     local left = resolveExpression(node.children[1], context)
-    local right = resolveExpression(node.children[2], context)
+    local rightNode = node.children[2]
+    -- we have to distinguish between objects and any other kind
+    -- of expression on the right here. Objects should still be
+    -- mutating, but other expressions should not. If we don't do
+    -- this then attribute lookups with . syntax will incorrectly
+    -- end up being mutates
+    if rightNode.type == "object" then
+      local right = resolveExpression(rightNode, context)
+    else
+      local prevMutating = context.mutating;
+      context.mutating = nil
+      local right = resolveExpression(rightNode, context)
+      context.mutating = prevMutating
+    end
     return left
 
   elseif node.type == "inequality" or node.type == "equality" then
