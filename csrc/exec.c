@@ -130,7 +130,7 @@ static execf build_scan(evaluation ex, node n)
                 vector_get(ar, 1),
                 vector_get(ar, 2),
                 vector_get(ar, 3));
-                
+
 }
 
 static CONTINUATION_7_2(do_insert, evaluation, int *, execf, value, value, value, value, operator, value *) ;
@@ -145,7 +145,7 @@ static execf build_insert(evaluation e, node n)
 {
     vector a = vector_get(n->arguments, 0);
     bag x = table_find(e->scopes, vector_get(a, 0));
-    return cont(e->h, do_insert,  e, register_counter(e, n), 
+    return cont(e->h, do_insert,  e, register_counter(e, n),
                 resolve_cfg(e, n, 0),
                 edb_uuid(x),
                 vector_get(a, 1),
@@ -357,8 +357,9 @@ BUILD_BINARY_FILTER(build_greater_than_or_equal, do_greater_than_or_equal)
 DO_BINARY_BOOLEAN(do_is_greater_than_or_equal, >=)
 BUILD_BINARY(build_is_greater_than_or_equal, do_is_greater_than_or_equal)
 
-DO_BINARY_FILTER(do_equal, ==)
-BUILD_BINARY_FILTER(build_equal, do_equal)
+// @TODO: make assign do its job instead of just filtering
+DO_BINARY_FILTER(do_assign, ==)
+BUILD_BINARY_FILTER(build_assign, do_assign)
 DO_BINARY_BOOLEAN(do_is_equal, ==)
 BUILD_BINARY(build_is_equal, do_is_equal)
 
@@ -432,7 +433,7 @@ static void do_sub(int *count, execf next, execf leg, value resreg,
     table res;
     *count = *count + 1;
     extract(v, inputs, r);
-    if (!(res = table_find(results, v))){ 
+    if (!(res = table_find(results, v))){
         res = create_value_vector_table(results->h);
         vector key = allocate_vector(results->h, vector_length(inputs));
         table_set(results, v, res);
@@ -499,7 +500,7 @@ static execf build_choose(evaluation e, node n)
     vector v = allocate_vector(e->h, arms);
     for (int i = 0 ; i < arms; i++ )
         vector_set(v, i, resolve_cfg(e, n, i));
-    
+
     return cont(e->h,
                 do_choose,
                 resolve_cfg(e, n, 0),
@@ -565,7 +566,7 @@ static void do_concat(int *count, execf n, value dest, vector terms, operator op
 static execf build_concat(evaluation e, node n)
 {
     return cont(e->h, do_concat,
-                register_counter(e, n), 
+                register_counter(e, n),
                 resolve_cfg(e, n, 0),
                 vector_get(vector_get(n->arguments, 0), 0),
                 (vector)vector_get(n->arguments, 1));
@@ -653,7 +654,7 @@ table builders_table()
         table_set(builders, intern_cstring("less_than_or_equal"), build_less_than_or_equal);
         table_set(builders, intern_cstring("greater_than"), build_greater_than);
         table_set(builders, intern_cstring("greater_than_or_equal"), build_greater_than_or_equal);
-        table_set(builders, intern_cstring("equal"), build_equal);
+        table_set(builders, intern_cstring("assign"), build_assign);
         table_set(builders, intern_cstring("not_equal"), build_not_equal);
         table_set(builders, intern_cstring("is"), build_is);
         table_set(builders, intern_cstring("is_less_than"), build_is_less_than);
