@@ -71,13 +71,19 @@ function formatQueryNode(node, indent)
       for _, binding in std.ipairs(node.bindings) do
          result = result .. binding.field .. " = " .. formatQueryNode(binding.variable or binding.constant) .. ", "
       end
-      result = string.sub(result, 1, -2) .. ")"
+      result = string.sub(result, 1, -3) .. ")"
    end
    return result
 end
 
 local DefaultNodeMeta = {}
 DefaultNodeMeta.__tostring = formatQueryNode
+
+local function applyDefaultMeta(_, node)
+   if getmetatable(node) == nil then
+      setmetatable(node, DefaultNodeMeta)
+   end
+end
 
 -- Dependency Graph
 
@@ -193,6 +199,8 @@ function DependencyGraph:fromQueryGraph(query, terms, bound)
    dgraph.query = query
    query.dependencyGraph = dgraph
 
+   util.walk(query, applyDefaultMeta)
+
    for _, node in std.ipairs(query.expressions or nothing) do
       dgraph:addExpressionNode(node)
    end
@@ -260,30 +268,6 @@ function DependencyGraph:add(node, depends, produces, maybeDepends, strongDepend
    node.strongDepends = strongDepends
 
    self.terms:union(produces, true)
-
-   if getmetatable(node) == nil then
-      setmetatable(node, DefaultNodeMeta)
-   end
-   for term in std.pairs(depends) do
-      if getmetatable(term) == nil then
-         setmetatable(term, DefaultNodeMeta)
-      end
-   end
-   for term in std.pairs(produces) do
-      if getmetatable(term) == nil then
-         setmetatable(term, DefaultNodeMeta)
-      end
-   end
-   for term in std.pairs(maybeDepends) do
-      if getmetatable(term) == nil then
-         setmetatable(term, DefaultNodeMeta)
-      end
-   end
-   for term in std.pairs(strongDepends) do
-      if getmetatable(term) == nil then
-         setmetatable(term, DefaultNodeMeta)
-      end
-   end
 
    -- group new/updated terms, consolidating any newly joined groups
    local terms = Set:new()
