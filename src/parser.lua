@@ -509,10 +509,10 @@ local function parse(tokens, context)
       info.comments[#info.comments + 1] = token
 
     elseif type == "STRING_OPEN" then
-      stack:push(makeNode("function", token, {operator = "concat", children = {right}}))
+      stack:push(makeNode("function", token, {func = "concat", children = {right}}))
 
     elseif type == "STRING_CLOSE" then
-      if stackTop.type == "function" and stackTop.operator == "concat" then
+      if stackTop.type == "function" and stackTop.func == "concat" then
         -- if there's zero or one children, then this concat isn't needed
         if #stackTop.children == 0 or (#stackTop.children == 1 and stackTop.children[1].type == "STRING") then
           local string = stackTop.children[1] or makeNode("STRING", token, {value = ""})
@@ -548,6 +548,12 @@ local function parse(tokens, context)
         -- eat that token
         scanner:read()
         -- @TODO: handle specifying a custom bag
+      end
+      -- if we are already in an update node, then this update closes the old
+      -- one and puts us into a new one
+      if stackTop.type == "update" then
+        stackTop.closed = true
+        stackTop = tryFinishExpression()
       end
       stack:push(update)
 
@@ -900,7 +906,7 @@ local function resolveExpression(node, context)
       -- create the object
       local objectNode = generateObjectNode(tempObject, context)
       -- create an equality between the entity fields
-      resolveExpression(makeNode("equality", token, {operator = "=", children = {left, objectNode.entityVariable}}), context);
+      resolveExpression(makeNode("equality", right, {operator = "=", children = {left, objectNode.entityVariable}}), context);
       -- add it to the query
       local query = context.queryStack:peek()
       local queryKey = objectNode.type == "object" and "objects" or "mutates"
@@ -1369,7 +1375,7 @@ local function generateNodes(root, extraContext)
     if child.type == "query" then
       context.variableToBindings = {}
       nodes[#nodes + 1] = generateQueryNode(child, context)
-      -- TODO: check the query for updates. If there aren't any and we're not in 
+      -- TODO: check the query for updates. If there aren't any and we're not in
       -- some weird context then this should warn that it will do nothing.
     else
       -- error
