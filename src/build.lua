@@ -26,7 +26,7 @@ function flat_print_table(t)
      local result = ""
      for k, v in pairs(t) do
         if not (k == nil) then result = result .. " " .. tostring(k) .. ":" end
-        if not (v == nil) then result = result .. tostring(v) end 
+        if not (v == nil) then result = result .. tostring(v) end
      end
      return result
    end
@@ -170,17 +170,17 @@ function translate_subproject(n, bound, down, tracing)
    local db = shallowcopy(bound)
    bound[pass] = true
 
-   for k, _ in pairs(n.produces) do      
+   for k, _ in pairs(n.produces) do
      db[k] = true
    end
 
    env, rest = down(db)
 
    function tail (bound)
-      return env, build_node("subtail", {build_node("terminal", {}, {})}, 
-                             {set_to_read_array(env, n.produces),   
-                             {read_lookup(env, pass)}})                  
-   end                        
+      return env, build_node("subtail", {build_node("terminal", {}, {})},
+                             {set_to_read_array(env, n.produces),
+                             {read_lookup(env, pass)}})
+   end
 
    local outregs =  set_to_read_array(env, n.produces)
    env, fill = walk(n.nodes, nil, bound, tail, tracing)
@@ -199,7 +199,7 @@ function translate_subproject(n, bound, down, tracing)
       end
       c = build_node("trace", {c}, {map})
    end
-   
+
    return env, c
 end
 
@@ -281,14 +281,14 @@ function translate_choose(n, bound, down, tracing)
       for n, _ in pairs(env.registers) do
          env.permanent[n] = true
       end
-      
+
      for _, v in pairs(n.queries) do
          env, c2 = walk(v.unpacked, nil, shallowcopy(bound), arm_bottom, tracing)
      end
 end
 
 function translate_concat(n, bound, down, tracing)
-   local env, c = down(bound)     
+   local env, c = down(bound)
 end
 
 function translate_union(n, bound, down, tracing)
@@ -356,32 +356,30 @@ function translate_expression(n, bound, down, tracing)
          if bound[b.variable] or b.constant then
              source = b.variable or b.constant
          else
-             target = b.variable    
+             target = b.variable
          end
       end
-      if target and source then 
+      if target and source then
          bound[target] = true;
          env, c = down(bound)
          return env, build_node("move", {c}, {{write_lookup(env, target), read_lookup(env, source)}}, true)
       end
    end
 
-   local produces = false
    for term in pairs(n.produces) do
       bound[term] = true
-      produces = true
-   end
-
-
-   if produces and schema.filter then
-      operator = "is_" .. operator
-      schema = schema.alternateSchema
    end
 
    local args = {}
    for _, binding in pairs(n.bindings) do
       args[binding.field] = binding.variable or binding.constant
    end
+
+   if args["return"] and schema.filter then
+      operator = "is_" .. operator
+      schema = schema.alternateSchema
+   end
+
 
    local env, c = down(bound)
 
@@ -400,7 +398,7 @@ function translate_expression(n, bound, down, tracing)
    local nodeArgs = {}
    for _, field in ipairs(schema) do
       if args[field] == nil then
-         error("must bind field " .. field .. " for operator " .. n.operator)
+         error("must bind field " .. field .. " for operator " .. n.operator .. " @" .. (n.line or "N/A"))
       end
       if field == "return" then
          nodeArgs[#nodeArgs + 1] = write_lookup(env, args[field])
@@ -428,7 +426,7 @@ function walk(graph, key, bound, tail, tracing)
    if not nk then
       return tail(bound)
    end
-   
+
    local n = graph[nk]
 
    d = function (bound)
