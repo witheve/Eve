@@ -339,6 +339,9 @@ local expressionMap = {
    [">="] = {"greater_than_or_equal", binaryFilterArgs},
    ["="] = {"equal", binaryFilterArgs},
    ["!="] = {"not_equal", binaryFilterArgs},
+   ["sin"] = {"sin", unaryArgs},
+   ["cos"] = {"cos", unaryArgs},
+   ["tan"] = {"tan", unaryArgs},
 }
 function translate_expression(n, bound, down, tracing)
    local m = expressionMap[n.operator]
