@@ -436,7 +436,8 @@ static void do_sub(int *count, execf next, execf leg, value resreg,
     if (!(res = table_find(results, v))){
         res = create_value_vector_table(results->h);
         vector key = allocate_vector(results->h, vector_length(inputs));
-        table_set(results, v, res);
+        extract(key, inputs, r);
+        table_set(results, key, res);
         r[toreg(resreg)] = res;
         apply(leg, op, r);
     }
