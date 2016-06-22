@@ -25,7 +25,7 @@ void *table_find (table t, void *c);
 void table_set (table t, void *c, void *v);
 
 #define eZ(x,y) ((entry) *x)->y
-#define eK(x,y) (x->entries->y)
+#define eK(x,y) ((x)->entries->y)
 
 // much threadsafe...think about start
 #define table_foreach(__t, __k, __v)\
