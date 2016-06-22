@@ -9,7 +9,7 @@ local errors = {}
 local function formatErrorLine(line, number, offset, length)
   local lineString = color.dim(number .. "|") .. line
   if offset and length then
-    lineString = lineString .. "\n" .. util.makeWhitespace(offset + 1) .. color.error(string.format("^%s", util.makeWhitespace(length - 2, "-")))
+    lineString = lineString .. "\n" .. util.makeWhitespace(offset + 2) .. color.error(string.format("^%s", util.makeWhitespace(length - 2, "-")))
   end
   return lineString
 end

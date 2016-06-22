@@ -434,7 +434,7 @@ end
 -- Parse
 ------------------------------------------------------------
 
-local valueTypes = {IDENTIFIER = true, infix = true, ["function"] = true, NUMBER = true, STRING = true, block = true}
+local valueTypes = {IDENTIFIER = true, infix = true, ["function"] = true, NUMBER = true, STRING = true, block = true, attribute = true}
 local infixTypes = {equality = true, infix = true, attribute = true, mutate = true, inequality = true}
 local singletonTypes = {outputs = true}
 local alphaFields = {"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o"}
