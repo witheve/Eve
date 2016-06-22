@@ -251,8 +251,6 @@ static execf build_set(evaluation e, node n)
             apply(n, op, r);                                                                         \
             return;                                                                                  \
         }       \
-        prf("binary numeric %p %p %v %v\n", a, b, lookup(a, r), lookup(b, r)) ;\
-                                                            \
         value ar = lookup(a, r);                                                                     \
         value br = lookup(b, r);                                                                     \
         *count = *count + 1;                                                                         \
@@ -514,7 +512,6 @@ static void do_choose(int *count, vector legs, value flag, operator op, value *r
     r[toreg(flag)] = efalse;
     vector_foreach (legs, i){
         apply((execf) i, op, r);
-        prf("choso %d %d\n", r[toreg(flag)] == etrue,  r[toreg(flag)] == efalse);
         if (r[toreg(flag)] == etrue) return;
     }
 }
@@ -524,7 +521,6 @@ static execf build_choose(evaluation e, node n)
 {
     int arms = vector_length(n->arms);
     vector v = allocate_vector(e->h, arms);
-    prf("build choose %d", arms);
     for (int i = 0 ; i < arms; i++ )
         vector_set(v, i, resolve_cfg(e, n, i));
 

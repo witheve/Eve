@@ -197,7 +197,6 @@ int lua_build_node(lua_State *L)
     estring x = lua_tovalue(L, 1);
     n->type = x;
     n->builder = table_find(builders_table(),x) ;
-    prf("build: %v\n", x);
     if (!n->builder) {
         prf ("no such node type: %v\n", x);
     }

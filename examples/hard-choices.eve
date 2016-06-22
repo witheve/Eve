@@ -1,19 +1,10 @@
-Add some fruits to the system
-  update
-    me = [@me favorite-show:"rick-and-morty" hobby:"competitive delicing"]
-    [#tv-nerd favorite-show:"golden girls" location:"party" conversing-with:me]
-    [#tv-nerd favorite-show:"rick-and-morty" location:"party" conversing-with:me]
-    [#tv-nerd favorite-show:"a-team" hobby:"competitive delicing" location:"party" conversing-with:me]
-    [#tv-nerd]
-
-
 choose test
   me = [@me]
-  person = [#tv-nerd location: "party" conversing-with: me]
-
+  person = [#tv-nerds location: "party" conversing-with: [@me],
+            favorite-show: show, favorite-hobby: hobby]
   (about, quality) =
-    if me.favorite-show = person.favorite-show then (me.favorite-show, "high")
-    else if me.hobby = person.hobby then (me.hobby, "ok")
+    if me.favorite-show = show then (show, "high")
+    else if me.favorite-hobby = hobby then (hobby, "ok")
     else ("weather", "shitty")
   update
     [#conversation between: me, between: person, about, quality]

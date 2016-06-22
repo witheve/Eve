@@ -64,7 +64,6 @@ void edb_scan(bag b, int sig, void *f, value e, value a, value v)
 
     case s_EAV:
         {
-            prf ("EAV: %v %v %v\n", e, a, v);
             table al = table_find(b->eav, e);
             if(al) {
                 table vl = table_find(al, a);
@@ -79,8 +78,6 @@ void edb_scan(bag b, int sig, void *f, value e, value a, value v)
 
     case s_EAv:
         {
-            prf ("EAv: %v %v\n", e, a);
-            
             table al = table_find(b->eav, e);
             if(al) {
                 table vl = table_find(al, a);
