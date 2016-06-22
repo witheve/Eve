@@ -96,8 +96,10 @@ function StringScanner:eatWhile(func)
   local char = self:peek()
   local final = {}
   local prev = nil
-  while char and func(char, prev) do
+  local prev2 = nil
+  while char and func(char, prev, prev2) do
     char = self:read()
+    prev2 = prev
     prev = char
     final[#final+1] = char
     char = self:peek()
@@ -196,8 +198,8 @@ local function isIdentifierChar(char)
   return not specials[char] and not whitespace[char]
 end
 
-local function inString(char, prev)
-  return (char ~= "\"" and char ~= "{") or prev == "\\"
+local function inString(char, prev, prev2)
+  return (char ~= "\"" and char ~= "{") or (prev == "\\" and prev2 ~= "\\")
 end
 
 local function isNumber(char)
@@ -650,7 +652,7 @@ local function parse(tokens, context)
 
     elseif type == "DOT" then
       local prev = stackTop.children[#stackTop.children]
-      if prev and (prev.type == "equality" or prev.type == "mutate" or type == "inequality") then
+      if prev and (prev.type == "equality" or prev.type == "mutate" or prev.type == "inequality") then
         local right = prev.children[2]
         if right and right.type == "IDENTIFIER" then
           stackTop.children[#stackTop.children] = nil
@@ -677,7 +679,7 @@ local function parse(tokens, context)
     elseif type == "INFIX" then
       -- get the previous child
       local prev = stackTop.children[#stackTop.children]
-      if prev and (prev.type == "equality" or prev.type == "mutate" or type == "inequality") then
+      if prev and (prev.type == "equality" or prev.type == "mutate" or prev.type == "inequality") then
         local right = prev.children[2]
         if right and valueTypes[right.type] then
           stackTop.children[#stackTop.children] = nil
