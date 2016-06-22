@@ -413,6 +413,14 @@ function errors.invalidUpdateChild(context, token)
   ]])})
 end
 
+function errors.updatingNonMutate(context, token)
+  printError({type = "Invalid mutate node", context = context, token = token, content = string.format([[
+  INTERNAL: somehow we got an object in an update that didn't result in a mutate node.
+
+  <LINE>
+  ]])})
+end
+
 ------------------------------------------------------------
 -- Query errors
 ------------------------------------------------------------
