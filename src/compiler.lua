@@ -3,6 +3,7 @@ local Pkg = {}
 local std = _G
 local error = error
 local print = print
+local type = type
 local tostring = tostring
 local getmetatable = getmetatable
 local setmetatable = setmetatable
@@ -80,7 +81,7 @@ local DefaultNodeMeta = {}
 DefaultNodeMeta.__tostring = formatQueryNode
 
 local function applyDefaultMeta(_, node)
-   if getmetatable(node) == nil then
+   if type(node) == "table" and getmetatable(node) == nil then
       setmetatable(node, DefaultNodeMeta)
    end
 end
@@ -166,6 +167,11 @@ function DependencyGraph:addExpressionNode(node)
      elseif binding.variable then
        depends:add(binding.variable)
      end
+   end
+   if node.operator == "=" and produces:length() == 0 then
+      local tmp = produces
+      produces = depends
+      depends = tmp
    end
    return self:add(node, depends, produces)
 end
