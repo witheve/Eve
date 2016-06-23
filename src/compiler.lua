@@ -691,7 +691,7 @@ function compileExec(contents, tracing)
       -- an 'execution return'
       set[#set+1] = unpacked
    end
-   return build.build(set, tracing)
+   return build.build(set, tracing, parseGraph)
 end
 
 function analyze(content)

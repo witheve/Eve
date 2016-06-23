@@ -429,7 +429,7 @@ function walk(graph, key, bound, tail, tracing)
 end
 
 
-function build(graphs, tracing)
+function build(graphs, tracing, parseGraph)
    local head
    local heads ={}
    local regs = 0
@@ -441,7 +441,7 @@ function build(graphs, tracing)
       regs = math.max(regs, env.maxregs + 1)
       heads[#heads+1] = program
    end
-   return build_node("fork", heads, {})
+   return build_node("fork", heads, {{util.toJSON(parseGraph)}})
 end
 
 ------------------------------------------------------------
