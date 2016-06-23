@@ -607,11 +607,12 @@ function isEAVNode(node)
    return false
 end
 
-function unpackObjects(nodes)
+function unpackObjects(dg)
    local unpacked = {}
    local unpackedSubprojects = {}
    local tmpCounter = 0
-   for _, node in std.ipairs(nodes) do
+   dg:order()
+   for _, node in std.ipairs(dg.sorted) do
       if node.type == "object" or node.type == "mutate" then
          local unpackList = unpacked
          local subproject
@@ -665,7 +666,7 @@ function unpackObjects(nodes)
       else
          if node.type == "union" or node.type == "choose" then
             for _, query in std.ipairs(node.queries) do
-               query.unpacked = unpackObjects(query.dependencyGraph:order())
+               unpackObjects(query.dependencyGraph)
             end
          end
          unpacked[#unpacked + 1] = node
@@ -676,6 +677,7 @@ function unpackObjects(nodes)
      unpacked[#unpacked + 1] = node
    end
 
+   dg.query.unpacked = unpacked
    return unpacked
 end
 
@@ -685,8 +687,7 @@ function compileExec(contents, tracing)
 
    for ix, queryGraph in std.ipairs(parseGraph.children) do
       local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph)
-      local sorted = dependencyGraph:order()
-      local unpacked = unpackObjects(sorted)
+      local unpacked = unpackObjects(dependencyGraph)
       -- this handler function is just for debugging, we no longer have
       -- an 'execution return'
       set[#set+1] = unpacked
@@ -711,7 +712,7 @@ function analyze(content)
       print(dependencyGraph)
 
       print(" -- Unpacked Objects / Mutates --")
-      local unpacked = unpackObjects(sorted)
+      local unpacked = unpackObjects(dependencyGraph)
       print("{")
       for ix, node in std.ipairs(unpacked) do
          print("  " .. ix .. ". " .. util.indentString(1, tostring(node)))
