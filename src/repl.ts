@@ -393,6 +393,7 @@ function connectToServer() {
         if (repl.init === false && objectToArray(repl.system).every((q: Query) => q.result !== undefined)) {
           if (repl.system.users.result.values.length === 0) {
             let addUsers = `(query []
+                              (insert-fact! "8abecbae-3984-11e6-ac61-9e71128cae77" :tag "repl-user" :tag "system" :name "Eve" :username "corey" :password "eve")
                               (insert-fact! "9f546210-20aa-460f-ab7b-55800bec82f0" :tag "repl-user" :tag "system" :name "Corey" :username "corey" :password "corey")
                               (insert-fact! "3037e028-3395-4d8c-a0a7-0e92368c9ec3" :tag "repl-user" :tag "system" :name "Eric" :username "eric" :password "eric")
                               (insert-fact! "62741d3b-b94a-4417-9794-1e6f86e262b6" :tag "repl-user" :tag "system" :name "Josh" :username "josh" :password "josh")
