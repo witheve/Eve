@@ -37,7 +37,7 @@ draw the map pane
   [#restaurant street city state zip]
   [#address-to-latlon street city state zip lat long]
   update
-    root.children = [#map class: "map", pins: [#yelp-restaurant-pin lat lon]]
+    root.children += [#map class: "map", pins: [#yelp-restaurant-pin lat lon]]
 
 draw the restaurant list
   restaurant = [#restaurant name rating]
