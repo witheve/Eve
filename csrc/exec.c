@@ -457,7 +457,6 @@ static execf build_sub_tail(evaluation e, node n)
                 vector_get(n->arguments, 0));
 }
 
-// ech - 9
 static CONTINUATION_9_2(do_sub,
                         int *, execf, execf, value, table *, table, vector, vector, vector,
                         operator, value *);
@@ -466,7 +465,6 @@ static void do_sub(int *count, execf next, execf leg, value resreg,
                    operator op, value *r)
 {
     if (op == op_flush) {
-        prf ("sub flushies\n");
         if (*previous) {
             table_foreach(*previous, k, v) {
                 prf("removal %V %V\n", k, v); 
@@ -696,7 +694,7 @@ static void do_regfile(heap h, execf n, int *count, int size, operator op, value
     value *r;
     if (op == op_insert) {
         *count = *count +1;
-        prf ("allocating reg: %d\n", size);
+        prf("regfile: %d\n", size);
         r = allocate(h, size * sizeof(value));
     }
     apply(n, op, r);

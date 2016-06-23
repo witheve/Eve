@@ -54,16 +54,15 @@ void solver_add_implication(solver s, node n)
 void run_solver(solver s)
 {
     long iterations = 0;
-    three_listener inserter = cont(s->h, inserty, s);
-    three_listener remover = cont(s->h, removey, s);
-    three_listener setter = cont(s->h, setty, s);
+    s->pass = true;
 
     ticks start_time = now();
     while (s->pass) {
         iterations++;
         s->pass = false;
-        vector_foreach(s->handlers, k) 
+        vector_foreach(s->handlers, k) {
             execute(k);
+        }
         // do not check in
         prf("complete\n");
         if (iterations > 10)

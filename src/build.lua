@@ -368,7 +368,7 @@ function translate_expression(n, bound, down, tracing)
          traceArgs[#traceArgs + 1] = field
          traceArgs[#traceArgs + 1] = read_lookup(env, args[ix])
       end
-      c = build_node("trace", {c}, traceArgs, {})
+      c = build_node("trace", {c}, {traceArgs})
    end
 
    local nodeArgs = {}

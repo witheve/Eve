@@ -160,19 +160,13 @@ static void send_node_graph(heap h, buffer_handler output, node head, table coun
 }
 
 
-static evaluation start_guy(json_session js, buffer query, string scope)
+static evaluation start_guy(json_session js)
 {
     heap h = allocate_rolling(pages);
-    node headNode = compile_eve(query, js->tracing);
-    bag target = table_find(js->scopes, intern_string(scope->contents, buffer_length(scope)));
     table results = create_value_vector_table(js->h);
     
-    if (target) {
-        edb_register_implication(target, headNode);
-    }
     
     // UPDATE FIXPOINT
-    solver_add_implication(js->s, headNode);
     run_solver(js->s);
 
     bag session_bag = table_find(js->s->solution, edb_uuid(js->session));
@@ -193,7 +187,7 @@ static evaluation start_guy(json_session js, buffer query, string scope)
     
     // FIXME: we need to clean up the old delta, we're currently just leaking it
     // this has to be a copy
-    js->current_delta = js->s->solution;
+    js->current_delta = results;
     return 0;
 }
 
@@ -230,7 +224,16 @@ void handle_json_query(json_session j, buffer in, thunk c)
 
         if ((c == '}')  && (s== sep)) {
             if (string_equal(type, sstring("query"))) {
-                start_guy(j, query, scope);
+                node headNode = compile_eve(query, j->tracing);
+                // was a thing
+                //    bag target = table_find(js->scopes, intern_string(scope->contents, buffer_length(scope)));
+                //
+                //    if (target) {
+                //        edb_register_implication(target, headNode);
+                //    }
+
+                solver_add_implication(j->s, headNode);
+                start_guy(j);
             }
 
             // do the thing
@@ -283,7 +286,7 @@ void new_json_session(bag root, boolean tracing, buffer_handler write, table hea
     table_set(js->scopes, intern_cstring("all"), root);
     js->s = build_solver(h, js->scopes, persisted, counts);
     *handler = websocket_send_upgrade(h, headers, write, cont(h, handle_json_query, js), &js->write);
-    start_guy(js, sstring(""), sstring("session"));
+    start_guy(js);
 }
 
 void init_json_service(http_server h, bag root, boolean tracing)
