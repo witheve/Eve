@@ -273,23 +273,45 @@ function translate_mutate(n, bound, down, tracing)
    return env, c
 end
 
+-- looks alot like union
 function translate_choose(n, bound, down, tracing)
-      local arm_bottom = function (bound)
-            return env, c
-       end
+   local env
+   local arms = {}
+   local flag = allocate_temp()
+   
+   tail_bound = shallowcopy(bound)
+   for _, v in pairs(n.outputs) do
+      tail_bound[v] = true
+   end
 
-      for n, _ in pairs(env.registers) do
+   local env, c = down(tail_bound)
+   local orig_perm = shallowcopy(env.permanent)
+   local bot = build_node("choosetail", 
+                          {c},
+                          {{read_lookup(env, flag)}})
+                             
+   local arm_bottom = function (bound)
+        return env, bot     
+   end
+                             
+   for n, _ in pairs(env.registers) do
          env.permanent[n] = true
-      end
+   end
+      
+   for _, v in pairs(n.queries) do
+        env, c2 = walk(v.unpacked, nil, shallowcopy(bound), arm_bottom, tracing)
+        arms[#arms+1] = c2
+   end
 
-     for _, v in pairs(n.queries) do
-         env, c2 = walk(v.unpacked, nil, shallowcopy(bound), arm_bottom, tracing)
-     end
+   env.permanent = orig_perm
+   -- currently leaking the perms
+   return env, build_node("choose", arms, {{read_lookup(env, flag)}})
 end
 
 function translate_concat(n, bound, down, tracing)
    local env, c = down(bound)
 end
+
 
 function translate_union(n, bound, down, tracing)
    local heads
