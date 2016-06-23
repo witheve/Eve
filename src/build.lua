@@ -1,6 +1,7 @@
 util = require("util")
 math = require("math")
 parser = require("parser")
+db = require("db")
 
 function recurse_print_table(t)
    if t == nil then return nil end
@@ -278,7 +279,7 @@ function translate_choose(n, bound, down, tracing)
    local env
    local arms = {}
    local flag = allocate_temp()
-   
+
    tail_bound = shallowcopy(bound)
    for _, v in pairs(n.outputs) do
       tail_bound[v] = true
@@ -286,18 +287,18 @@ function translate_choose(n, bound, down, tracing)
 
    local env, c = down(tail_bound)
    local orig_perm = shallowcopy(env.permanent)
-   local bot = build_node("choosetail", 
+   local bot = build_node("choosetail",
                           {c},
                           {{read_lookup(env, flag)}})
-                             
+
    local arm_bottom = function (bound)
-        return env, bot     
+        return env, bot
    end
-                             
+
    for n, _ in pairs(env.registers) do
          env.permanent[n] = true
    end
-      
+
    for _, v in pairs(n.queries) do
         env, c2 = walk(v.unpacked, nil, shallowcopy(bound), arm_bottom, tracing)
         arms[#arms+1] = c2
@@ -344,92 +345,35 @@ function translate_union(n, bound, down, tracing)
    return env, build_node("fork", arms, {})
 end
 
-
-local unaryArgs = {"return", "a"}
-local binaryArgs = {"return", "a", "b"}
-local binaryFilterArgs = {"a", "b", filter = true, alternateSchema = binaryArgs}
-local mathFunctionArgs = {"return", "a"}
-local expressionMap = {
-   is = {"is", unaryArgs},
-   ["+"] = {"plus", binaryArgs},
-   ["-"] = {"minus", binaryArgs},
-   ["*"] = {"multiply", binaryArgs},
-   ["/"] = {"divide", binaryArgs},
-   ["<"] = {"less_than", binaryFilterArgs},
-   ["<="] = {"less_than_or_equal", binaryFilterArgs},
-   [">"] = {"greater_than", binaryFilterArgs},
-   [">="] = {"greater_than_or_equal", binaryFilterArgs},
-   ["="] = {"equal", binaryFilterArgs},
-   ["!="] = {"not_equal", binaryFilterArgs},
-   ["sin"] = {"sin", unaryArgs},
-   ["cos"] = {"cos", unaryArgs},
-   ["tan"] = {"tan", unaryArgs},
-}
 function translate_expression(n, bound, down, tracing)
-   local m = expressionMap[n.operator]
-   if not m then error("Unknown expression: " .. n.operator) end
-   local operator = m[1]
-   local schema = m[2]
+  local signature = db.getSignature(n.bindings, bound)
+  local schema = db.getSchema(n.operator, signature, bound)
+  local args, fields = db.getArgs(schema, n.bindings)
 
-   -- we think this means one bound, one free, no returns
-   if ((#n.bindings == 2) and (n.operator == "=")) then
-      local target, source
-      for _, b in ipairs(n.bindings) do
-         if bound[b.variable] or b.constant then
-             source = b.variable or b.constant
-         else
-             target = b.variable
-         end
-      end
-      if target and source then
-         bound[target] = true;
-         env, c = down(bound)
-         return env, build_node("move", {c}, {{write_lookup(env, target), read_lookup(env, source)}}, true)
-      end
-   end
-
-   for term in pairs(n.produces) do
-      bound[term] = true
-   end
-
-   local args = {}
-   for _, binding in pairs(n.bindings) do
-      args[binding.field] = binding.variable or binding.constant
-   end
-
-   if args["return"] and schema.filter then
-      operator = "is_" .. operator
-      schema = schema.alternateSchema
-   end
-
-
-   local env, c = down(bound)
+  for _, term in ipairs(args) do
+    bound[term] = true
+  end
+  local env, c = down(bound)
 
    if tracing then
-      local traceArgs = {operator, ""}
-      for _, field in ipairs(schema) do
-         if args[field] == nil then
-            error("must bind field " .. field .. " for operator " .. n.operator)
-         end
+      local traceArgs = {schema.name or n.operator, ""}
+      for ix, field in ipairs(fields) do
          traceArgs[#traceArgs + 1] = field
-         traceArgs[#traceArgs + 1] = read_lookup(env, args[field])
+         traceArgs[#traceArgs + 1] = read_lookup(env, args[ix])
       end
       c = build_node("trace", {c}, traceArgs, {})
    end
 
    local nodeArgs = {}
-   for _, field in ipairs(schema) do
-      if args[field] == nil then
-         error("must bind field " .. field .. " for operator " .. n.operator .. " @" .. (n.line or "N/A"))
-      end
-      if field == "return" then
-         nodeArgs[#nodeArgs + 1] = write_lookup(env, args[field])
-      else
-         nodeArgs[#nodeArgs + 1] = read_lookup(env, args[field])
-      end
+   for ix, field in ipairs(fields) do
+     if schema.signature[field] == db.OUT then
+       nodeArgs[#nodeArgs + 1] = write_lookup(env, args[ix])
+     else
+       nodeArgs[#nodeArgs + 1] = read_lookup(env, args[ix])
+     end
    end
 
-   return env, build_node(operator, {c}, {nodeArgs})
+   return env, build_node(schema.name or n.operator, {c}, {nodeArgs})
 end
 
 -- this doesn't really need to be disjoint from read lookup, except for concerns about
@@ -485,7 +429,7 @@ function walk(graph, key, bound, tail, tracing)
 end
 
 
-function build(graphs, tracing)
+function build(graphs, tracing, parseGraph)
    local head
    local heads ={}
    local regs = 0
@@ -497,7 +441,7 @@ function build(graphs, tracing)
       regs = math.max(regs, env.maxregs + 1)
       heads[#heads+1] = program
    end
-   return build_node("fork", heads, {})
+   return build_node("fork", heads, {{util.toJSON(parseGraph)}})
 end
 
 ------------------------------------------------------------

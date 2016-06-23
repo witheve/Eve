@@ -381,7 +381,7 @@ function drawNodeGraph(graph) {
 
 var socket = new WebSocket("ws://" + window.location.host +"/ws");
 socket.onmessage = function(msg) {
-  console.log(msg)
+  console.log(msg.data)
   let data = JSON.parse(msg.data);
   if(data.type == "result") {
     handleDOMUpdates(data);

@@ -6,6 +6,7 @@ local type = type
 local setmetatable = setmetatable
 local getmetatable = getmetatable
 local tostring = tostring
+local print = print
 local table = table
 local io = io
 local string = string
@@ -89,6 +90,43 @@ function walk(obj, fn, seen)
          walk(v, fn, seen)
       end
    end
+end
+
+------------------------------------------------------------
+-- JSON helpers
+------------------------------------------------------------
+
+function toJSON(obj, seen)
+  seen = seen or {}
+  local objType = type(obj)
+  if objType == "table" and obj.toJSON then
+    return obj:toJSON(seen)
+  elseif objType == "table" and obj[1] then
+    seen[obj] = true
+    local temp = {}
+    for ix, child in ipairs(obj) do
+      if not seen[child] then
+        temp[#temp + 1] = toJSON(child, shallowCopy(seen))
+      end
+    end
+    return string.format("[%s]", table.concat(temp, ", "))
+  elseif objType == "table" then
+    seen[obj] = true
+    local temp = {}
+    for key, value in pairs(obj) do
+      if not seen[value] then
+        temp[#temp + 1] = string.format("\"%s\": %s", key, toJSON(value, shallowCopy(seen)))
+      end
+    end
+    return string.format("{%s}", table.concat(temp, ", "))
+  elseif objType == "string" then
+    return string.format("\"%s\"", obj:gsub("\"", "\\\""):gsub("\n", "\\n"))
+  elseif objType == "number" then
+    return tostring(obj)
+  elseif objType == "boolean" then
+    return tostring(obj)
+  end
+  return "uh oh"
 end
 
 ------------------------------------------------------------
