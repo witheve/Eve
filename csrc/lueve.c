@@ -2,6 +2,7 @@
 #include <unix.h>
 #include <http/http.h>
 #include <bswap.h>
+#include <luanne.h>
 
 
 
@@ -33,11 +34,13 @@ static void run_test(bag root, buffer b, boolean tracing)
     edb_register_implication(event, n);
     table persisted = create_value_table(h);
     table counts = allocate_table(h, key_from_pointer, compare_pointer);
-    table result_bags = start_fixedpoint(h, scopes, persisted, counts);
-    table_foreach(result_bags, n, v) {
+    solver s = build_solver(h, scopes, persisted, counts);
+    run_solver(s);
+    
+    table_foreach(s->solution, n, v) {
         prf("%v %b\n", n, bag_dump(h, v));
     }
-    h->destroy(h);
+    destroy(h);
 }
 
 int main(int argc, char **argv)
@@ -45,7 +48,6 @@ int main(int argc, char **argv)
     init_runtime();
     bag root = create_bag(generate_uuid());
     boolean enable_tracing = false;
-    
     interpreter c = build_lua();
 
     for (int i = 1; i <argc ; i++) {
@@ -55,7 +57,7 @@ int main(int argc, char **argv)
         }
         if (!strcmp(argv[i], "-e")) {
             buffer b = read_file_or_exit(init, argv[++i]);
-            edb_register_implication(root, lua_compile_eve(c, b, enable_tracing));
+            edb_register_implication(root, compile_eve(b, enable_tracing));
         }
         if (!strcmp(argv[i], "-parse")) {
             lua_run_module_func(c, read_file_or_exit(init, argv[++i]), "parser", "printParse");

@@ -109,10 +109,13 @@ typedef execf (*buildf)(evaluation, node);
 
 
 typedef struct solver {
-    table machines;
     heap h;
     table counters;
     table solution;
+    table scopes;
+    insertron insert, remove, set;
+    boolean pass;
+    vector handlers;
 } *solver;
 
 struct node {
@@ -148,4 +151,5 @@ int edb_size(bag b);
 
 node compile_eve(buffer b, boolean tracing);
 solver build_solver(heap h, table scopes, table persisted, table counts);
-void run_solver(solver s, node n);
+void run_solver(solver s);
+void solver_add_implication(solver, node);

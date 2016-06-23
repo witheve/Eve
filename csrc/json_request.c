@@ -31,7 +31,7 @@ extern bag my_awesome_bag;
 extern thunk ignore;
 
 static CONTINUATION_2_4(collect_results, heap, table, value, value, value, eboolean)
-static void chute(heap h, table out, value e, value a,  value v, eboolean nothing)
+static void collect_results(heap h, table out, value e, value a,  value v, eboolean nothing)
 {
     table_set(out, build_vector(h, e, a, v), etrue);
 }
@@ -165,20 +165,21 @@ static evaluation start_guy(json_session js, buffer query, string scope)
     heap h = allocate_rolling(pages);
     node headNode = compile_eve(query, js->tracing);
     bag target = table_find(js->scopes, intern_string(scope->contents, buffer_length(scope)));
-
+    table results = create_value_vector_table(js->h);
+    
     if (target) {
         edb_register_implication(target, headNode);
     }
     
     // UPDATE FIXPOINT
-    run_solver(js->s, headNode);
+    solver_add_implication(js->s, headNode);
+    run_solver(js->s);
 
     bag session_bag = table_find(js->s->solution, edb_uuid(js->session));
     prf("session bag facts: %d\n", session_bag?edb_size(session_bag): 0);
-    // FIXME: since this is coming out of the sub - diff...oh, right, we'd need to
-    // shadow the session edb with removes and adds - do that
+    
     if (session_bag) {
-        edb_scan(session_bag, 0, cont(js->h, collect_results, js->h, js->s->solution), 0, 0, 0);
+        edb_scan(session_bag, 0, cont(js->h, collect_results, js->h, results), 0, 0, 0);
     }
 
     table_foreach(js->scopes, k, scopeBag) {
@@ -187,7 +188,7 @@ static evaluation start_guy(json_session js, buffer query, string scope)
         }
     }
 
-    values_diff diff = diff_value_vector_tables(h, js->current_delta, js->s->solution);
+    values_diff diff = diff_value_vector_tables(h, js->current_delta, results);
     send_guy(h, js->write, diff);
     
     // FIXME: we need to clean up the old delta, we're currently just leaking it

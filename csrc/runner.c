@@ -1,42 +1,36 @@
 #include <runtime.h>
 
-// should be out of the bag
-table implications;
 
-void register_implication(node n)
+static CONTINUATION_1_4(inserty, solver, uuid, value, value, value);
+static void inserty(solver s, uuid u, value e, value a, value v)
 {
-    if (!implications)
-        implications = allocate_table(init, key_from_pointer, compare_pointer);
-    table_set(implications, n, (void *)1);
-}
-
-static CONTINUATION_2_4(inserty, table, boolean *, uuid, value, value, value);
-static void inserty(table multibag, boolean *flag, uuid u, value e, value a, value v)
-{
-    *flag = true;
+    s->pass = true;
     bag b;
-    if (!(b = table_find(multibag, u)))
-        table_set(multibag, u, b = create_bag(u));
+    prf("insert %v %v %v\n", e, a, v);
+    if (!(b = table_find(s->solution, u)))
+        table_set(s->solution, u, b = create_bag(u));
     edb_insert(b, e, a, v);
 }
 
-static CONTINUATION_2_4(removey, table, boolean *, uuid, value, value, value);
-static void removey(table multibag, boolean *flag, uuid u, value e, value a, value v)
+static CONTINUATION_1_4(removey, solver,uuid, value, value, value);
+static void removey(solver s, uuid u, value e, value a, value v)
 {
-    *flag = true;
+    s->pass = true;
     bag b;
-    if (!(b = table_find(multibag, u)))
-        table_set(multibag, u, b = create_bag(u));
+    prf("remove %v %v %v\n", e, a, v);
+    if (!(b = table_find(s->solution, u)))
+        table_set(s->solution, u, b = create_bag(u));
     edb_remove(b, e, a, v);
 }
 
-static CONTINUATION_2_4(setty, table, boolean *, uuid, value, value, value);
-static void setty(table multibag, boolean *flag, uuid u, value e, value a, value v)
+static CONTINUATION_1_4(setty, solver, uuid, value, value, value);
+static void setty(solver s, uuid u, value e, value a, value v)
 {
-    *flag = true;
+    prf("set %v %v %v\n", e, a, v);
+    s->pass = true;
     bag b;
-    if (!(b = table_find(multibag, u)))
-        table_set(multibag, u, b = create_bag(u));
+    if (!(b = table_find(s->solution, u)))
+        table_set(s->solution, u, b = create_bag(u));
     edb_set(b, e, a, v);
 }
 
@@ -48,53 +42,66 @@ static void merge_scan(table t, int sig, void *listen, value e, value a, value v
     }
 }
 
-void run_solver(solver s, node augmentation)
+void solver_add_implication(solver s, node n)
 {
+    vector_insert(s->handlers, build(n, s->scopes,
+                                     cont(s->h, merge_scan, s->solution),
+                                     s->insert, s->remove, s->set, s->counters,
+                                     // missing mail
+                                     0));
+}
 
-    boolean pass = true;
-    int rules = 0;
-    int iterations = 0;
-    three_listener inserter = cont(h, inserty, t, &pass);
-    three_listener remover = cont(h, removey, t, &pass);
-    three_listener setter = cont(h, setty, t, &pass);
-
-    table_foreach(scopes, name, b) {
-        // last argument is terminal, ignore for a moment since the
-        // evaluation is synchronous
-        table_foreach(edb_implications(b), n, v) {
-            rules++;
-            vector_insert(handlers, build(n, scopes, cont(h, merge_scan, t), inserter, remover, setter, counts, 0));
-        }
-    }
-
+void run_solver(solver s)
+{
+    long iterations = 0;
+    three_listener inserter = cont(s->h, inserty, s);
+    three_listener remover = cont(s->h, removey, s);
+    three_listener setter = cont(s->h, setty, s);
 
     ticks start_time = now();
-    while (pass) {
+    while (s->pass) {
         iterations++;
-        pass = false;
-        vector_foreach(handlers, k) {
-            // synch
+        s->pass = false;
+        vector_foreach(s->handlers, k) 
             execute(k);
-        }
+        // do not check in
+        prf("complete\n");
+        if (iterations > 10)
+            exit(-1);
     }
     ticks end_time = now();
 
     // FIXME: this seems sketch, can something bad happen as a result of this casting?
-    table_set(counts, intern_cstring("time"), (void *)(end_time - start_time));
-    table_set(counts, intern_cstring("iterations"), (void *)(long)iterations);
+    // (EAH) - not really, i mean we should probably abstract it, and maybe
+    // do something a little more polymorphic with tables...
+    table_set(s->counters, intern_cstring("time"), (void *)(end_time - start_time));
+    table_set(s->counters, intern_cstring("iterations"), (void *)iterations);
     prf ("fixedpoint in %t seconds, %d rules, %d iterations, %d input bags, %d output bags\n", 
-         end_time-start_time, rules, iterations, table_elements(scopes), table_elements(t));
-    return t;
+         end_time-start_time, vector_length(s->handlers),
+         iterations, table_elements(s->scopes), table_elements(s->solution));
 }
 
 
-void build_solver(heap h, table scopes, table persisted, table counts)
+solver build_solver(heap h, table scopes, table persisted, table counts)
 {
-    solver s = allocate(sizof(struct solver));
+    solver s = allocate(h, sizeof(struct solver));
     s->h = h;
     s->scopes = scopes;
-    table_foreach(s->persisted, bag_id, bag) {
-        table_set(t, bag_id, bag);
+    s->solution =  create_value_table(h);
+    s->counters = counts;
+    s->insert = cont(h, inserty, s);
+    s->remove = cont(h, removey, s);
+    s->set = cont(h, setty, s);
+    
+    table_foreach(persisted, bag_id, bag) {
+        table_set(s->solution, bag_id, bag);
     }
+
     s->handlers = allocate_vector(h,10);
+        
+    table_foreach(s->scopes, name, b) {
+        table_foreach(edb_implications(b), n, v) 
+            solver_add_implication(s, n);
+    }
+    return s;
 }
