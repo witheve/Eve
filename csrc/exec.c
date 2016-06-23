@@ -198,6 +198,10 @@ static execf build_set(evaluation e, node n)
     static CONTINUATION_5_2(__name, evaluation, int *, execf, value, value, operator, value *);      \
     static void __name (evaluation ex, int *count, execf n, value dest, value a, operator op, value *r) \
     {                                                                                                \
+        if (op == op_flush)  {                                                                       \
+            apply(n, op, r);                                                                         \
+            return;                                                                                  \
+        }                                                                                            \
         value ar = lookup(a, r);                                                                     \
         *count = *count + 1;                                                                         \
         if ((type_of(ar) != float_space )) {                                                         \
@@ -212,6 +216,10 @@ static execf build_set(evaluation e, node n)
     static CONTINUATION_5_2(__name, evaluation, int *, execf, value, value, operator, value *);      \
     static void __name (evaluation ex, int *count, execf n, value dest, value a, operator op, value *r) \
     {                                                                                                \
+        if (op == op_flush)  {                                                                       \
+            apply(n, op, r);                                                                         \
+            return;                                                                                  \
+        }                                                                                            \
         value ar = lookup(a, r);                                                                     \
         *count = *count + 1;                                                                         \
         if ((type_of(ar) != float_space )) {                                                         \
@@ -239,12 +247,16 @@ static execf build_set(evaluation e, node n)
     static CONTINUATION_6_2(__name, evaluation, int *, execf, value, value, value,  operator, value *);\
     static void __name (evaluation ex, int *count, execf n, value dest, value a, value b, operator op, value *r) \
     {                                                                                                \
+        if (op == op_flush)  {                                                                       \
+            apply(n, op, r);                                                                         \
+            return;                                                                                  \
+        }       \
         value ar = lookup(a, r);                                                                     \
         value br = lookup(b, r);                                                                     \
         *count = *count + 1;                                                                         \
         if ((type_of(ar) != float_space ) || (type_of(br) != float_space)) {                         \
-            exec_error(ex, "attempt to __op non-numbers", a, b);                                     \
-            prf("UHOH %v, %v\n", ar, br);                                                                                    \
+            exec_error(ex, "attempt to " #__name" non-numbers", a, b);                               \
+            prf("UHOH %v, %v\n", ar, br);                                                            \
         } else {                                                                                     \
             r[reg(dest)] = box_float(*(double *)ar __op *(double *)br);                              \
             apply(n, op, r);                                                                         \
@@ -255,6 +267,10 @@ static execf build_set(evaluation e, node n)
     static CONTINUATION_6_2(__name, evaluation, int *, execf, value, value, value,  operator, value *);\
     static void __name (evaluation ex, int *count, execf n, value dest, value a, value b, operator op, value *r) \
     {                                                                                                  \
+        if (op == op_flush)  {                                                                       \
+            apply(n, op, r);                                                                         \
+            return;                                                                                  \
+        }                                                                                            \
         value ar = lookup(a, r);                                                                       \
         value br = lookup(b, r);                                                                       \
         *count = *count + 1;                                                                           \
@@ -286,6 +302,9 @@ static execf build_set(evaluation e, node n)
     static CONTINUATION_5_2(__name, evaluation, int *, execf, value, value,  operator, value *);     \
     static void __name (evaluation ex, int *count, execf n, value a, value b, operator op, value *r) \
     {                                                                                                \
+        if (op == op_flush)  {                                                                       \
+            apply(n, op, r);                                                                         \
+        }                                                                                            \
         value ar = lookup(a, r);                                                                     \
         value br = lookup(b, r);                                                                     \
         *count = *count + 1;                                                                         \
@@ -358,8 +377,8 @@ DO_BINARY_BOOLEAN(do_is_greater_than_or_equal, >=)
 BUILD_BINARY(build_is_greater_than_or_equal, do_is_greater_than_or_equal)
 
 // @TODO: make assign do its job instead of just filtering
-DO_BINARY_FILTER(do_assign, ==)
-BUILD_BINARY_FILTER(build_assign, do_assign)
+DO_BINARY_FILTER(do_equal, ==)
+BUILD_BINARY_FILTER(build_equal, do_equal)
 DO_BINARY_BOOLEAN(do_is_equal, ==)
 BUILD_BINARY(build_is_equal, do_is_equal)
 
@@ -466,9 +485,10 @@ static execf build_sub(evaluation e, node n)
 
 
 
-static CONTINUATION_2_2(do_choose_tail, execf, value, operator, value *);
-static void do_choose_tail(execf next, value flag, operator op, value *r)
+static CONTINUATION_3_2(do_choose_tail, int *, execf, value, operator, value *);
+static void do_choose_tail(int * count, execf next, value flag, operator op, value *r)
 {
+    *count = *count + 1;
     r[toreg(flag)] = etrue;
     apply(next, op, r);
 }
@@ -480,13 +500,15 @@ static execf build_choose_tail(evaluation e, node n)
     vector v = allocate_vector(e->h, vector_length(n->arguments));
     return cont(e->h,
                 do_choose_tail,
+                register_counter(e, n),
                 resolve_cfg(e, n, 0),
                 vector_get(vector_get(n->arguments, 0), 0));
 }
 
-static CONTINUATION_3_2(do_choose, execf, vector, value, operator, value *);
-static void do_choose(execf next, vector legs, value flag, operator op, value *r)
+static CONTINUATION_3_2(do_choose, int *, vector, value, operator, value *);
+static void do_choose(int *count, vector legs, value flag, operator op, value *r)
 {
+    *count = *count + 1;
     r[toreg(flag)] = efalse;
     vector_foreach (legs, i){
         apply((execf) i, op, r);
@@ -504,7 +526,7 @@ static execf build_choose(evaluation e, node n)
 
     return cont(e->h,
                 do_choose,
-                resolve_cfg(e, n, 0),
+                register_counter(e, n),
                 v,
                 vector_get(vector_get(n->arguments, 0), 0));
 }
@@ -513,9 +535,11 @@ static execf build_choose(evaluation e, node n)
 static CONTINUATION_4_2(do_genid, evaluation, int *, execf, value,  operator, value *);
 static void do_genid(evaluation ex, int *count, execf n, value dest, operator op, value *r)
 {
-    *count = *count+1;
-    value v = generate_uuid();
-    r[reg(dest)] = v;
+    if (op != op_flush) {
+        *count = *count+1;
+        value v = generate_uuid();
+        r[reg(dest)] = v;
+    }
     apply(n, op, r);
 }
 
@@ -533,8 +557,10 @@ static execf build_genid(evaluation e, node n)
 static CONTINUATION_4_2(do_move, int *, execf, value,  value, operator, value *);
 static void do_move(int *count, execf n, value dest, value src, operator op, value *r)
 {
-    *count = *count+1;
-    r[reg(dest)] = lookup(src, r);
+    if (op == op_insert) {
+        *count = *count+1;
+        r[reg(dest)] = lookup(src, r);
+    }
     apply(n, op, r);
 }
 
@@ -655,7 +681,7 @@ table builders_table()
         table_set(builders, intern_cstring("less_than_or_equal"), build_less_than_or_equal);
         table_set(builders, intern_cstring("greater_than"), build_greater_than);
         table_set(builders, intern_cstring("greater_than_or_equal"), build_greater_than_or_equal);
-        table_set(builders, intern_cstring("assign"), build_assign);
+        table_set(builders, intern_cstring("equal"), build_equal);
         table_set(builders, intern_cstring("not_equal"), build_not_equal);
         table_set(builders, intern_cstring("is"), build_is);
         table_set(builders, intern_cstring("is_less_than"), build_is_less_than);

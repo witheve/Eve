@@ -344,7 +344,7 @@ function drawNode(nodeId, graph, seen) {
     {style: `${styles.nodeType} ${styles[node.type]}`, text: `${node.type} ${node.scan_type || ""} (${node.count || 0})`},
     childrenContainer
   ]};
-  if(node.type == "fork") {
+  if((node.type == "fork") || (node.type == "choose")) {
     childrenContainer.style += ` ${styles.forkNodeChildren}}`;
     for(let child of node.arms) {
       children.push({style: "margin-right: 20px;", children: [drawNode(child, graph, seen)]});
