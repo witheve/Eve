@@ -26,13 +26,13 @@ VPATH += ../csrc
 
 LUAPOWER = bundle.o
 UTF = lutf8lib.o
-COMPILER = compiler.o error.o fs.o parser.o util.o set.o color.o build.o implicationResolver.o
+COMPILER = compiler.o error.o fs.o parser.o util.o set.o color.o build.o implicationResolver.o db.o
 UNIX =  unix_util.o region.o select.o tcp_socket.o
 UNIX_H = unix_internal.h unix.h
 CORE = buffer.o table.o vector.o format.o rolling.o string.o pqueue.o timer.o
 CORE_H = bswap.h pqueue.h vector.h buffer.h heap.h timer.h continuation.h core.h string.h table.h
 RUNTIME =  edb.o init.o uuid.o estring.o types.o luanne.o json_request.o exec.o runner.o
-RUNTIME_H = ./luanne.h ./runtime.h ./estring.h ./number.h ./types.h 
+RUNTIME_H = ./luanne.h ./runtime.h ./estring.h ./number.h ./types.h
 HTTP = server.o websocket.o base64.o sha1.o
 HTTP_H = ./http/http.h
 
@@ -63,7 +63,7 @@ microReact.o: ../jssrc/microReact.js
 # luajit has decided that they really need to use the specific part of the
 # address space where other people normally live..no idea why, but move
 # the executable out of the way for the moment
-#macosx 
+#macosx
 #linux  -Wl,-E
 lueve: $(CORE) $(UNIX) $(COMPILER) $(UTF) $(LUAPOWER) $(HTTP) $(RUNTIME) index.o renderer.o microReact.o lueve.o
 	cc $(LINK) $^ $(LIBLUAJIT) -lm -ldl  -o $@
