@@ -151,7 +151,10 @@ static void send_node_graph(heap h, buffer_handler output, node head, table coun
         nodeComma = 1;
     }
 
-    bprintf(out, "}}");
+    bprintf(out, "}, \"parse\": ");
+    estring parse = vector_get(vector_get(head->arguments, 0), 0);
+    buffer_append(out, parse->body, parse->length);
+    bprintf(out, "}");
     // reclaim
     apply(output, out, ignore);
 }

@@ -164,35 +164,39 @@ function DependencyGraph:addExpressionNode(node)
    local maybeDepends
    local strongDepend
    local anyDepends
+   local hasConstant = false
    for _, binding in std.ipairs(node.bindings) do
      if binding.field == "return" and binding.variable then
        produces:add(binding.variable)
      elseif binding.variable then
        depends:add(binding.variable)
+     elseif binding.constant then
+       hasConstant = true
      end
    end
    if node.operator == "=" and produces:length() == 0 then
-      anyDepends = depends
-      produces = depends:clone()
-      depends = Set:new()
+     anyDepends = not hasConstant and depends or Set:new()
+     produces = depends:clone()
+     depends = Set:new()
    end
    return self:add(node, depends, produces, maybeDepends, strongDepends, anyDepends)
 end
 
 function DependencyGraph:addSubqueryNode(node)
-   local provides = Set:new()
-   local depends = Set:new()
+  local depends
+  local provides = Set:new()
 
-   for _, var in std.pairs(node.outputs) do
-     provides:add(var)
-   end
+  local maybeDepends = Set:new()
 
-   for _, body in std.ipairs(node.queries) do
-      local subgraph = DependencyGraph:fromQueryGraph(body, self.terms:clone(), self.terms:clone())
-      provides:union(subgraph:provided(), true)
-      depends:union(subgraph:depends(), true)
-   end
-   return self:add(node, depends, provides)
+  for _, var in std.pairs(node.outputs) do
+    provides:add(var)
+  end
+
+  for _, body in std.ipairs(node.queries) do
+    local subgraph = DependencyGraph:fromQueryGraph(body)
+    maybeDepends:union(subgraph:depends(), true)
+  end
+  return self:add(node, depends, provides, maybeDepends)
 end
 
 function DependencyGraph:fromQueryGraph(query, terms, bound)
@@ -213,19 +217,15 @@ function DependencyGraph:fromQueryGraph(query, terms, bound)
    for _, node in std.ipairs(query.expressions or nothing) do
       dgraph:addExpressionNode(node)
    end
-
-   for _, node in std.ipairs(query.nots or nothing) do
-      dgraph:addSubqueryNode(node)
-   end
-
    for _, node in std.ipairs(query.objects or nothing) do
       dgraph:addObjectNode(node)
    end
-
+   for _, node in std.ipairs(query.nots or nothing) do
+      dgraph:addSubqueryNode(node)
+   end
    for _, node in std.ipairs(query.unions or nothing) do
       dgraph:addSubqueryNode(node)
    end
-
    for _, node in std.ipairs(query.chooses or nothing) do
       dgraph:addSubqueryNode(node)
    end
@@ -691,7 +691,7 @@ function compileExec(contents, tracing)
       -- an 'execution return'
       set[#set+1] = unpacked
    end
-   return build.build(set, tracing)
+   return build.build(set, tracing, parseGraph)
 end
 
 function analyze(content)

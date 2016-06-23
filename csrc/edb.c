@@ -130,7 +130,7 @@ void edb_scan(bag b, int sig, void *f, value e, value a, value v)
                 table_foreach(al, v, vl) {
                     table_foreach((table)vl, e, count) {
                         if(count) {
-                            apply((two_listener)f, v, e, etrue);
+                            apply((two_listener)f, e, v, etrue);
                         }
                     }
                 }

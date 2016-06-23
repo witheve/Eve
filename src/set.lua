@@ -2,8 +2,11 @@ local Pkg = {}
 local std = _G
 local ipairs = ipairs
 local pairs = pairs
+local string = string
+local table = table
 local setmetatable = setmetatable
 local tostring = tostring
+local util = require("util")
 setfenv(1, Pkg)
 
 local weakKeys = {__mode = "k"}
@@ -45,6 +48,18 @@ function Set:remove(val)
    self[val] = nil
    lengths[self] = lengths[self] - 1
    return true
+end
+
+function Set:toJSON(seen)
+  local temp = {}
+  seen = seen or {}
+  seen[self] = true
+  for key, value in pairs(self) do
+    if not seen[value] then
+      temp[#temp + 1] = util.toJSON(key, util.shallowCopy(seen))
+    end
+  end
+  return string.format("[%s]", table.concat(temp, ", "))
 end
 
 function Set.union(lhs, rhs, mutate)
