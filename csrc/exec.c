@@ -704,7 +704,7 @@ void close_evaluation(evaluation ex)
 {
     // close
     apply(ex->head, 1, 0);
-    ex->h->destroy(ex->h);
+    destroy(ex->h);
 }
 
 static table builders;

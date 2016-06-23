@@ -100,6 +100,7 @@ typedef struct evaluation  {
     execf head;
     scan s;
     table nmap;
+    table counters;
 } *evaluation;
 
 typedef struct node *node;
@@ -121,7 +122,7 @@ struct node {
     vector arguments; // always vectors of vectors
 };
 
-void run_solver(solver s, node n);
+
 
 void execute(evaluation);
 
@@ -146,4 +147,5 @@ uuid edb_uuid(bag b);
 int edb_size(bag b);
 
 node compile_eve(buffer b, boolean tracing);
-void build_solver(heap h, table scopes, table persisted, table counts);
+solver build_solver(heap h, table scopes, table persisted, table counts);
+void run_solver(solver s, node n);

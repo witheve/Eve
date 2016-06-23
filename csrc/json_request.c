@@ -157,7 +157,7 @@ static void send_node_graph(heap h, buffer_handler output, node head, table coun
 }
 
 
-static evaluation start_guy(json_session js, buffer_handler output, buffer query, string scope)
+static evaluation start_guy(json_session js, buffer query, string scope)
 {
     heap h = allocate_rolling(pages);
     node headNode = compile_eve(query, js->tracing);
@@ -180,12 +180,12 @@ static evaluation start_guy(json_session js, buffer_handler output, buffer query
 
     table_foreach(js->scopes, k, scopeBag) {
         table_foreach(edb_implications(scopeBag), k, impl) {
-            send_node_graph(h, output, impl, js->s->counters);
+            send_node_graph(h, js->write, impl, js->s->counters);
         }
     }
 
     values_diff diff = diff_value_vector_tables(h, js->current_delta, js->s->solution);
-    send_guy(h, output, diff);
+    send_guy(h, js->write, diff);
     
     // FIXME: we need to clean up the old delta, we're currently just leaking it
     // this has to be a copy
@@ -226,7 +226,7 @@ void handle_json_query(json_session j, buffer in, thunk c)
 
         if ((c == '}')  && (s== sep)) {
             if (string_equal(type, sstring("query"))) {
-                start_guy(j, j->write, query, scope);
+                start_guy(j, query, scope);
             }
 
             // do the thing
@@ -279,7 +279,7 @@ void new_json_session(bag root, boolean tracing, buffer_handler write, table hea
     table_set(js->scopes, intern_cstring("all"), root);
     js->s = build_solver(h, js->scopes, persisted, counts);
     *handler = websocket_send_upgrade(h, headers, write, cont(h, handle_json_query, js), &js->write);
-    start_guy(js, js->write);
+    start_guy(js, sstring(""), sstring("session"));
 }
 
 void init_json_service(http_server h, bag root, boolean tracing)

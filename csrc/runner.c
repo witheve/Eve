@@ -48,11 +48,7 @@ static void merge_scan(table t, int sig, void *listen, value e, value a, value v
     }
 }
 
-
-
-
-
-table run_solver(solver s, node augmentation)
+void run_solver(solver s, node augmentation)
 {
 
     boolean pass = true;
