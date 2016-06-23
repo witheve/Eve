@@ -1262,7 +1262,14 @@ local function handleUpdateNode(root, query, context)
     elseif type == "equality" then
       -- equalities are allowed if the left is an identifier
       -- and the right is an object, to allow for object references
-      resolveExpression(child, context)
+      local left = child.children[1]
+      local right = child.children[2]
+      if left.type == "IDENTIFIER" and right.type == "OBJECT" then
+        resolveExpression(child, context)
+      else
+        -- error
+        errors.invalidUpdateEquality(context, child, left, right)
+      end
     else
       -- error
       errors.invalidUpdateChild(context, child)

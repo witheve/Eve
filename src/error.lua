@@ -413,6 +413,16 @@ function errors.invalidUpdateChild(context, token)
   ]])})
 end
 
+function errors.invalidUpdateEquality(context, token, left, right)
+  printError({type = "Invalid equality in update", context = context, token = token, content = string.format([[
+  Update only allows equalities of `name = [ ... ]`
+
+  <LINE>
+
+  Did you mean to use `:=`, `+=`, or `-=`?
+  ]])})
+end
+
 function errors.updatingNonMutate(context, token)
   printError({type = "Invalid mutate node", context = context, token = token, content = string.format([[
   INTERNAL: somehow we got an object in an update that didn't result in a mutate node.
