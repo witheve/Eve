@@ -1264,7 +1264,7 @@ local function handleUpdateNode(root, query, context)
       -- and the right is an object, to allow for object references
       local left = child.children[1]
       local right = child.children[2]
-      if left.type == "IDENTIFIER" and right.type == "OBJECT" then
+      if left.type == "IDENTIFIER" and right.type == "object" then
         resolveExpression(child, context)
       else
         -- error
