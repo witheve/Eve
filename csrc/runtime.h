@@ -99,21 +99,29 @@ typedef struct evaluation  {
     table scopes;
     execf head;
     scan s;
-    table counters;
-    int registerfile;
     table nmap;
 } *evaluation;
 
 typedef struct node *node;
 
 typedef execf (*buildf)(evaluation, node);
-    
+
+
+typedef struct solver {
+    table machines;
+    heap h;
+    table counters;
+    table solution;
+} *solver;
+
 struct node {
     estring type;
     buildf builder;
     vector arms;
     vector arguments; // always vectors of vectors
 };
+
+void run_solver(solver s, node n);
 
 void execute(evaluation);
 
@@ -137,3 +145,5 @@ void edb_remove_implication(bag b, node n);
 uuid edb_uuid(bag b);
 int edb_size(bag b);
 
+node compile_eve(buffer b, boolean tracing);
+void build_solver(heap h, table scopes, table persisted, table counts);

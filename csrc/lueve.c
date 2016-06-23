@@ -2,7 +2,6 @@
 #include <unix.h>
 #include <http/http.h>
 #include <bswap.h>
-#include <luanne.h>
 
 
 
@@ -29,10 +28,8 @@ static void run_test(bag root, buffer b, boolean tracing)
     table_set(scopes, intern_cstring("history"), root);
     table_set(scopes, intern_cstring("event"), event);
     table_set(scopes, intern_cstring("transient"), event);
-    
-    // take this from a pool
-    interpreter c = build_lua(root, scopes);
-    node n = lua_compile_eve(c, b, tracing);
+
+    node n = compile_eve(b, tracing);
     edb_register_implication(event, n);
     table persisted = create_value_table(h);
     table counts = allocate_table(h, key_from_pointer, compare_pointer);

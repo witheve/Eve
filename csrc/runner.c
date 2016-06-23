@@ -50,13 +50,11 @@ static void merge_scan(table t, int sig, void *listen, value e, value a, value v
 
 
 
-table start_fixedpoint(heap h, table scopes, table persisted, table counts)
+
+
+table run_solver(solver s, node augmentation)
 {
-    table t = create_value_table(h);
-    table_foreach(persisted, bag_id, bag) {
-        table_set(t, bag_id, bag);
-    }
-    vector handlers = allocate_vector(h,10);
+
     boolean pass = true;
     int rules = 0;
     int iterations = 0;
@@ -91,4 +89,16 @@ table start_fixedpoint(heap h, table scopes, table persisted, table counts)
     prf ("fixedpoint in %t seconds, %d rules, %d iterations, %d input bags, %d output bags\n", 
          end_time-start_time, rules, iterations, table_elements(scopes), table_elements(t));
     return t;
+}
+
+
+void build_solver(heap h, table scopes, table persisted, table counts)
+{
+    solver s = allocate(sizof(struct solver));
+    s->h = h;
+    s->scopes = scopes;
+    table_foreach(s->persisted, bag_id, bag) {
+        table_set(t, bag_id, bag);
+    }
+    s->handlers = allocate_vector(h,10);
 }

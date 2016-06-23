@@ -35,4 +35,5 @@ static inline int subdivide(int quantum, int per, int s, int o)
 }
 
 #define allocate(h, size) ((h)->alloc)(h, size)
-#define deallocate(h, size) ((h)->dealloc)(h, size)
+#define deallocate(h, x) ((h)->dealloc)(h, x)
+#define destroy(h) ((h)->dealloc)(h)

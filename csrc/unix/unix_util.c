@@ -5,6 +5,11 @@
 #include <unix_internal.h>
 #include <sys/time.h>
 
+typedef struct page_heap {
+    struct heap h;
+    void **freelist;
+} *page_heap;
+    
 void ticks_to_timeval(struct timeval *a, ticks b)
 {
     unsigned long long usec = (b*1000000)>>32;
@@ -49,12 +54,20 @@ buffer read_file(heap h, char *path)
 
 static void *allocate_pages(heap h, bytes s)
 {
-    void *p = mmap(0, pad(s, h->pagesize),
-                   PROT_READ|PROT_WRITE,
-                   MAP_PRIVATE|MAP_ANON,
-                   -1,0);
-
-    return(p);
+    page_heap p = (page_heap)h;
+    int baselen = pad(s, h->pagesize);
+    void *r;
+    
+    if ((baselen == h->pagesize)  && p->freelist) {
+        r = p->freelist;
+        p->freelist = *p->freelist;
+    } else {
+        r = mmap(0, baselen,
+                 PROT_READ|PROT_WRITE,
+                 MAP_PRIVATE|MAP_ANON,
+                 -1,0);
+    }
+    return(r);
 }
 
 static void *allocate_pages_fence(heap h, bytes s)
@@ -83,19 +96,26 @@ void prf(char *format, ...)
 
 static void free_pages(heap h, void *x)
 {
-    // xxx - this doesn't free the whole page if its a multipage allocation
-    munmap(x, h->pagesize);
+    page_heap p = (page_heap)h;
+    *(void **) x = p->freelist;
+    p->freelist = x;
+    // xxx - this leaks later pages in a a multipage allocation
+    // should have a policy to return pages to the OS
+    // for redistribution between threads and defragmentation
+    // if we have such a thing
+    // munmap(x, h->pagesize);
 }
     
 heap init_memory(bytes pagesize)
 {
-    heap h = (heap)mmap(0, sizeof(struct heap) + 1,
-                           PROT_READ|PROT_WRITE,
-                           MAP_PRIVATE|MAP_ANON,-1,0);
-    h->alloc = allocate_pages;
-    h->dealloc = free_pages;
-    h->pagesize = 4096; //dont forget we're promising pagesize alignment
-    return(h);
+    page_heap p = mmap(0, sizeof(struct heap) + 1,
+                       PROT_READ|PROT_WRITE,
+                       MAP_PRIVATE|MAP_ANON,-1,0);
+    p->h.alloc = allocate_pages;
+    p->h.dealloc = free_pages;
+    p->h.pagesize = 4096; //dont forget we're promising pagesize alignment
+    p->freelist = 0;
+    return(&p->h);
 }
 
 heap efence_heap(bytes pagesize)
