@@ -193,6 +193,18 @@ static execf build_set(evaluation e, node n)
                 vector_get(n->arguments, 3));
 }
 
+static CONTINUATION_5_2(do_equal, evaluation, int *, execf, value, value,  operator, value *); \
+static void do_equal(evaluation e, int *count, execf n, value a, value b, operator op, value *r) 
+{
+    *count = *count + 1;                        
+    if (op != op_flush) {
+        value ar = lookup(a, r);                    
+        value br = lookup(b, r);                
+        if (!value_equals(ar, br)) return;
+    }
+    apply(n, op, r);
+}
+
 
 #define DO_UNARY_NUMERIC(__name, __op)                                                               \
     static CONTINUATION_5_2(__name, evaluation, int *, execf, value, value, operator, value *);      \
@@ -377,7 +389,7 @@ DO_BINARY_BOOLEAN(do_is_greater_than_or_equal, >=)
 BUILD_BINARY(build_is_greater_than_or_equal, do_is_greater_than_or_equal)
 
 // @TODO: make assign do its job instead of just filtering
-DO_BINARY_FILTER(do_equal, ==)
+//DO_BINARY_FILTER(do_equal, ==)
 BUILD_BINARY_FILTER(build_equal, do_equal)
 DO_BINARY_BOOLEAN(do_is_equal, ==)
 BUILD_BINARY(build_is_equal, do_is_equal)
