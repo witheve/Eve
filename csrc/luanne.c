@@ -136,8 +136,12 @@ void require_luajit(interpreter c, char *z)
 {
     lua_pushcfunction(c->L, traceback);
     lua_getglobal(c->L, "require");
-    lua_pushlstring(c->L, z, cstring_length(z));;
-    lua_pcall(c->L, 1, 1, lua_gettop(c->L)-2);
+    lua_pushlstring(c->L, z, cstring_length(z));
+    if (lua_pcall(c->L, 1, 1, lua_gettop(c->L)-3)) {
+        printf ("lua error\n");
+        printf ("%s\n", lua_tostring(c->L, -1));
+    }
+    
     lua_setglobal(c->L, z);
 }
 
