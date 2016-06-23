@@ -46,7 +46,7 @@ static int construct_uuid(lua_State *L)
         lua_pushnil(L);
         return 1;
     }
-    
+
     for (int i = 0 ; i < length; i += 2) {
         int loc = i/2;
         id[loc] = (digit_of(body[i]) * 16) + digit_of(body[i+1]);
@@ -74,13 +74,13 @@ static int construct_number(lua_State *L)
 
     for (int i = 0; i < len ; i++) {
         if (s[i] == '.'){
-            fractional = true; 
+            fractional = true;
         } else {
             if (fractional) fact /= 10.0f;
             rez = rez * 10.0f + (double)digit_of(s[i]);
         }
     }
-    
+
     lua_pushlightuserdata(L, box_float(rez * fact));
     return 1;
 }
@@ -123,8 +123,8 @@ static int traceback(lua_State *L)
 {
   if (!lua_isstring(L, 1)) { /* Non-string error object? Try metamethod. */
     if (lua_isnoneornil(L, 1) ||
-	!luaL_callmeta(L, 1, "__tostring") ||
-	!lua_isstring(L, -1))
+        !luaL_callmeta(L, 1, "__tostring") ||
+        !lua_isstring(L, -1))
       return 1;  /* Return non-string error object. */
     lua_remove(L, 1);  /* Replace object by result of __tostring metamethod. */
   }
@@ -137,11 +137,11 @@ void require_luajit(interpreter c, char *z)
     lua_pushcfunction(c->L, traceback);
     lua_getglobal(c->L, "require");
     lua_pushlstring(c->L, z, cstring_length(z));
-    if (lua_pcall(c->L, 1, 1, lua_gettop(c->L)-3)) {
+    if (lua_pcall(c->L, 1, 1, lua_gettop(c->L)-2)) {
         printf ("lua error\n");
         printf ("%s\n", lua_tostring(c->L, -1));
     }
-    
+
     lua_setglobal(c->L, z);
 }
 
@@ -152,7 +152,7 @@ node lua_compile_eve(interpreter c, buffer b, boolean tracing)
     lua_getfield(c->L, -1, "compileExec");
     lua_pushlstring(c->L, bref(b, 0), buffer_length(b));
     lua_pushboolean(c->L, tracing);
-    
+
     if (lua_pcall(c->L, 2, 1, lua_gettop(c->L)-4)) {
         printf ("lua error\n");
         printf ("%s\n", lua_tostring(c->L, -1));
@@ -210,7 +210,7 @@ int lua_build_node(lua_State *L)
     foreach_lua_table(L, 2, _, v) {
         vector_insert(n->arms, (void *)lua_topointer(L, v));
     }
-    
+
     foreach_lua_table(L, 3, p, v) {
         vector s = allocate_vector(c->h, 5);
         vector_insert(n->arguments, s);
