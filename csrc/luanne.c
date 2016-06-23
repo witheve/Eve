@@ -115,13 +115,6 @@ static int lua_gen_uuid(lua_State *L)
     return 1;
 }
 
-void require_luajit(interpreter c, char *z)
-{
-    lua_getglobal(c->L, "require");
-    lua_pushlstring(c->L, z, cstring_length(z));;
-    lua_pcall(c->L, 1, 1, 0);
-    lua_setglobal(c->L, z);
-}
 
 void luaL_traceback (lua_State *L, lua_State *L1, const char *msg,
                      int level);
@@ -137,6 +130,15 @@ static int traceback(lua_State *L)
   }
   luaL_traceback(L, L, lua_tostring(L, 1), 1);
   return 1;
+}
+
+void require_luajit(interpreter c, char *z)
+{
+    lua_pushcfunction(c->L, traceback);
+    lua_getglobal(c->L, "require");
+    lua_pushlstring(c->L, z, cstring_length(z));;
+    lua_pcall(c->L, 1, 1, lua_gettop(c->L)-2);
+    lua_setglobal(c->L, z);
 }
 
 node lua_compile_eve(interpreter c, buffer b, boolean tracing)
