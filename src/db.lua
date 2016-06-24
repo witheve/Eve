@@ -104,11 +104,19 @@ local expressions = {
   is = {schemas.unary},
   sin = {schemas.unary},
   cos = {schemas.unary},
-  tan = {schemas.unary}
+  tan = {schemas.unary},
+
+  time = {schema{"return", OPT, "seconds", "minutes", "hours"}}
 }
 
-function getSchema(name, signature, bound)
+function getSchemas(name)
   if not expressions[name] then error("Unknown expression '" .. name .. "'") end
+  return expressions[name]
+end
+
+function getSchema(name, signature)
+  if not expressions[name] then error("Unknown expression '" .. name .. "'") end
+  if not signature then error("Must specify signature to disambiguate expression alternatives") end
 
   local result
   for _, schema in ipairs(expressions[name]) do
@@ -121,7 +129,7 @@ function getSchema(name, signature, bound)
     end
     for arg, mode in pairs(signature) do
       required:remove(arg)
-      if schema.signature[arg] ~= mode then
+      if schema.signature[arg] ~= mode and schema.signature[arg] ~= OPT then
         match = false
         break
       end

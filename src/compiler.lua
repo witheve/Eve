@@ -14,6 +14,7 @@ local util = require("util")
 local Set = require("set").Set
 local parser = require("parser")
 local color = require("color")
+local db = require("db")
 local build = require("build")
 setfenv(1, Pkg)
 
@@ -154,7 +155,9 @@ function DependencyGraph:addMutateNode(node)
     -- If the entity term isn't bound, the mutation provides it
     -- If the binding is bound on a variable that is provided in the query, it becomes a dependency of the variable.
     if binding.variable then
-      deps.maybeProvides:add(binding.variable)
+      if binding.field == ENTITY_FIELD then
+        deps.maybeProvides:add(binding.variable)
+      end
       deps.maybeDepends:add(binding.variable)
     end
   end
@@ -166,26 +169,56 @@ function DependencyGraph:addExpressionNode(node)
   -- TODO handle productions other than just "return", this will require schemas
   local deps = {
     provides = Set:new(),
-    depends = Set:new()
+    maybeProvides = Set:new(),
+    depends = Set:new(),
+    anyDepends = Set:new(),
+    weakDepends = Set:new()
   }
   node.deps = deps
-  local hasConstant = false
-  for _, binding in std.ipairs(node.bindings) do
-    if binding.field == "return" and binding.variable then
-      deps.provides:add(binding.variable)
-    elseif binding.variable then
-      deps.depends:add(binding.variable)
-    elseif binding.constant then
-      hasConstant = true
+
+  local args = {}
+  for _, binding in ipairs(node.bindings) do
+    args[binding.field] = binding.variable or binding.constant
+  end
+
+  if node.operator == "=" and not args["return"] then
+    if args.a.type == "constant" and args.b.type == "constant" then
+      -- no deps, no provides
+    elseif args.a.type == "constant" then
+      deps.provides:add(b)
+    elseif args.b.type == "constant" then
+      deps.provides:add(a)
+    else
+      deps.maybeProvides:add(args.a)
+      deps.anyDepends:add(args.a)
+      deps.maybeProvides:add(args.b)
+      deps.anyDepends:add(args.b)
+    end
+  else
+    local schemas = db.getSchemas(node.operator)
+    local pattern = util.shallowCopy(schemas[1].signature)
+    for _, schema in ipairs(schemas) do
+      for field in pairs(schema.signature) do
+        if pattern[field] ~= schema.signature[field] then
+          pattern[field] = db.OPT
+        end
+      end
+    end
+
+    for field in pairs(pattern) do
+      if args[field] and args[field].type ~= "constant" then
+        if pattern[field] == db.IN then
+          deps.depends:add(args[field])
+        elseif pattern[field] == db.OUT then
+          deps.provides:add(args[field])
+        else
+          deps.maybeProvides:add(args[field])
+          deps.weakDepends:add(args[field])
+        end
+      end
     end
   end
-  if node.operator == "=" and deps.provides:length() == 0 then
-    if not hasConstant then
-      deps.anyDepends = deps.depends
-    end
-    deps.maybeProvides = deps.depends:clone()
-    deps.depends = Set:new()
-  end
+
   return self:add(node)
 end
 
@@ -247,13 +280,14 @@ end
 -- maybeDepends are the set of terms that, IFF provided in this query, become dependencies of this node
 -- strongDepends are the set of terms that must be completely settled (cardinality-stable) prior to scheduling this node
 -- anyDepends are the set of terms that, if any single term is satisfied, are all satisfied as a set
--- @NOTE: that, in order to permit stable scheduling, weak and strong depends will not be treated as joining term groups
+-- @NOTE: that, in order to permit stable scheduling, maybe and strong depends will not be treated as joining term groups
 function DependencyGraph:add(node)
   node.deps = node.deps or {}
   local deps = node.deps
   deps.provides = deps.provides or Set:new()
   deps.maybeProvides = deps.maybeProvides or Set:new()
   deps.depends = deps.depends or Set:new()
+  deps.weakDepends = deps.weakDepends or Set:new()
   deps.maybeDepends = deps.maybeDepends or Set:new()
   deps.strongDepends = deps.strongDepends or Set:new()
   deps.anyDepends = deps.anyDepends or Set:new()
@@ -285,6 +319,12 @@ function DependencyGraph:prepare() -- prepares a completed graph for ordering
         node.deps.strongDepends:add(term)
       end
     end
+
+    for term in pairs(node.deps.weakDepends) do
+      if self.terms[term] and not node.deps.provides[term] then
+        node.deps.depends:add(term)
+      end
+    end
   end
 
   -- Link existing maybe dependencies to new terms
@@ -295,6 +335,17 @@ function DependencyGraph:prepare() -- prepares a completed graph for ordering
         if node.deps.maybeDepends[term] then
           self.strongDependents[term]:add(node)
           node.deps.strongDepends:add(term)
+          node.deps.unsatisfied = node.deps.unsatisfied + 1
+        end
+      end
+    end
+
+    if self.dependents[term] == nil then
+      self.dependents[term] = Set:new()
+      for node in pairs(self.unsorted) do
+        if node.deps.weakDepends[term] then
+          self.dependents[term]:add(node)
+          node.deps.depends:add(term)
           node.deps.unsatisfied = node.deps.unsatisfied + 1
         end
       end
@@ -315,7 +366,7 @@ function DependencyGraph:prepare() -- prepares a completed graph for ordering
   -- once all terms in the group have been maximally joined/filtered
   for node in pairs(self.unprepared) do
     local deps = node.deps
-    local terms = deps.provides + deps.depends + deps.strongDepends + deps.anyDepends
+    local terms = deps.provides + deps.depends + deps.anyDepends
     local groups = Set:new()
     local neueGroup = Set:new()
     for term in pairs(terms) do

@@ -346,7 +346,7 @@ end
 
 function translate_expression(n, bound, down, tracing)
   local signature = db.getSignature(n.bindings, bound)
-  local schema = db.getSchema(n.operator, signature, bound)
+  local schema = db.getSchema(n.operator, signature)
   local args, fields = db.getArgs(schema, n.bindings)
 
   for _, term in ipairs(args) do
