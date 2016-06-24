@@ -1226,7 +1226,7 @@ generateNotNode = function(root, context)
   local notNode = makeNode("not", root, {query = context.queryStack:peek()})
   if #root.children == 1 and root.children[1].type == "query" then
     context.notNode = true
-    notNode.body = generateQueryNode(root.children[1], context)
+    notNode.queries = {generateQueryNode(root.children[1], context)}
     context.notNode = false
   else
     -- error
