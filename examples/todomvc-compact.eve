@@ -1,5 +1,5 @@
 routing
-  [#url segment: [ix: 1, value]]
+  [#url segment: [index: 1, value]]
   update
     [@app filter: value]
 
@@ -12,8 +12,8 @@ handle edit
   (todo, body, editing, completed) =
     if [#double-click element: [#todo-item todo]] then (todo, todo.body, true, todo.completed)
     else if [#keydown element: [#todo-editor todo] key: "escape"] then (todo, todo.body, false, todo.completed)
-    else if [#keydown element: [#todo-editor todo value] key: "enter", value] then (todo, value, false, false)
-    else if [#blur element: [#todo-editor todo value]] then (todo, todo.body, false, todo.completed)
+    else if [#keydown element: [#todo-editor todo value] key: "enter"] then (todo, value, false, false)
+    else if [#blur element: [#todo-editor todo value]] then (todo, value, false, todo.completed)
     else if [#click element: [#todo-checkbox todo]] then (todo, todo.body, false, toggle(todo.completed))
     else if [#click element: [@toggle-all checked]] then ([#todo editing, body], body, editing, checked)
   update 
@@ -23,7 +23,7 @@ handle removes
   todo = if [#click element: [#remove-todo todo]] then todo
          else if [#click element: [@clear-completed]] then [#todo completed: true]
   update
-    todo -= [#todo]
+    todo := none
 
 draw todomvc
   [@app filter]

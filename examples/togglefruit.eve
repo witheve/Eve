@@ -6,13 +6,24 @@ Add some fruits to the system
     [#fruit @apple color: "green"]
     [#fruit @banana color: "yellow"]
     [#fruit #exotic @lychee color: "white"]
+    [#fruit @papaya color: "yellow"]
+    [#fruit @kiwi color: "green"]
 
 Draw a list of fruits
   [#fruit color name]
   update
-    [#div #foo sort: name, text: name, style: [color]]
+    [#div ix: name, text: name, style: [color]]
 
-draw clicks
-  click = [#click element]
+make yo
+  [#click element]
+  element = [not(children)]
   update
-    [#div sort: "zzz", click, text: "yo"]
+     element.children += [#div text:"yo"]
+
+trash yo
+  [#click element]
+  element = [children]
+  update
+     element.children -= children
+
+
