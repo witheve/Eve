@@ -435,15 +435,13 @@ static void do_sub_tail(int *count,
                         vector outputs,
                         operator op, value *r)
 {
-    if ( op == op_remove) {
-    } else {
-        if ( op == op_insert) {
-            *count = *count + 1;
-            table results = lookup(resreg, r);
-            vector result = allocate_vector(results->h, vector_length(outputs));
-            extract(result, outputs, r);
-            table_set(results, result, etrue);
-        }
+    // just drop flush and remove on the floor
+    if ( op == op_insert) {
+        *count = *count + 1;
+        table results = lookup(resreg, r);
+        vector result = allocate_vector(results->h, vector_length(outputs));
+        extract(result, outputs, r);
+        table_set(results, result, etrue);
     }
 }
 
@@ -467,10 +465,15 @@ static void do_sub(int *count, execf next, execf leg, value resreg,
     if (op == op_flush) {
         if (*previous) {
             table_foreach(*previous, k, v) {
-                prf("removal %V %V\n", k, v); 
+                table_foreach(v, n, _) {
+                    copyout(r, outputs, n);
+                    apply(next, op_remove, r);
+                }
             }
         }
-        // vent the remaining elements from the last hash
+        // we could conceivalby double buffer these
+        *previous = results;
+        *results = create_value_vector_table(e->h);
         apply(next, op, r);
         return;
     }
