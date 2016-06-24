@@ -36,8 +36,8 @@ function formatQueryNode(node, indent)
         result = result .. padding .. "  " .. ix .. ". " .. tostring(guy) .. ",\n"
       end
       result = result .. padding .. "}"
-    elseif node.dependencyGraph then
-      result = result .. tostring(node.dependencyGraph)
+    elseif node.deps and node.deps.graph then
+      result = result .. tostring(node.deps.graph)
     end
   elseif node.type == "constant" then
     result = result .. "<" .. node.constant .. ">"
@@ -63,7 +63,7 @@ function formatQueryNode(node, indent)
       result = result .. formatQueryNode(binding) .. ", "
     end
     return result .. "}"
-  elseif node.type == "union" or node.type == "choose" then
+  elseif node.type == "union" or node.type == "choose" or node.type == "not" then
     result = result .. "{\n"
     for _, query in std.ipairs(node.queries) do
       result = result .. formatQueryNode(query, 1) .. ",\n"
@@ -83,7 +83,7 @@ local DefaultNodeMeta = {}
 DefaultNodeMeta.__tostring = formatQueryNode
 
 local function applyDefaultMeta(_, node)
-  if type(node) == "table" and getmetatable(node) == nil then
+  if type(node) == "table" and node.type and getmetatable(node) == nil then
     setmetatable(node, DefaultNodeMeta)
   end
 end
@@ -112,12 +112,15 @@ end
 
 -- Get the variables this dgraph depends on for reification
 function DependencyGraph:depends()
-  local depends = Set:new()
-  for term in pairs(self.dependents) do
-    depends:add(term)
-  end
   self:order(true)
-  return depends / self.bound
+  local depends = Set:new()
+  for node in pairs(self.unprepared + self.unsorted) do
+    depends:add(node.deps.depends + node.deps.anyDepends + node.deps.maybeDepends + node.deps.strongDepends)
+  end
+  for _, node in ipairs(self.sorted) do
+    depends:union(node.deps.depends + node.deps.anyDepends + node.deps.maybeDepends + node.deps.strongDepends, true)
+  end
+  return depends
 end
 
 function DependencyGraph:provides()
@@ -193,8 +196,10 @@ function DependencyGraph:addSubqueryNode(node)
   }
   node.deps = deps
 
-  for _, var in std.pairs(node.outputs) do
-    deps.provides:add(var)
+  if node.outputs then
+    for _, var in std.pairs(node.outputs) do
+      deps.provides:add(var)
+    end
   end
 
   for _, body in std.ipairs(node.queries) do
