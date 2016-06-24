@@ -14,7 +14,7 @@ function insertSorted(parent, child) {
   let current;
   for(let curIx = 0; curIx < parent.children.length; curIx++) {
     current = parent.children[curIx];
-    if(current.ix && current.ix > child.ix) {
+    if(current.sort && current.sort > child.sort) {
       break;
     } else {
       current = null;
@@ -139,7 +139,7 @@ function handleDOMUpdates(result) {
       elem = document.createElement(ent.tag || "div")
       elem.entity = entId;
       activeElements[entId] = elem;
-      elem.ix = ent.ix || "";
+      elem.sort = ent.sort || "";
       insertSorted(activeElements.root, elem)
     }
     let attributes = Object.keys(ent);

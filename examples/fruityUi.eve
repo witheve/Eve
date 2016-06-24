@@ -10,14 +10,9 @@ Add some fruits to the system
 Draw a list of fruits
   [#fruit color name]
   update
-    [#div #foo ix: name, text: name, style: [color]]
+    [#div #foo sort: name, text: name, style: [color]]
 
 draw clicks
-  c = [#clicky element]
+  click = [#click element]
   update
-    [#div element ix: "zzz" c text: "yo"]
-
-store clicks
-  [#click element]
-  update all
-    [#clicky element]
+    [#div sort: "zzz", click, text: "yo"]
