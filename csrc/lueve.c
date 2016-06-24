@@ -50,33 +50,74 @@ int main(int argc, char **argv)
     boolean enable_tracing = false;
     interpreter c = build_lua();
 
+    boolean doParse = false;
+    boolean doAnalyze = false;
+    boolean doAnalyzeQuiet = false;
+    boolean doExec = false;
+    boolean doRead = false;
+    boolean consumeFile = false;
+    char * file = "";
     for (int i = 1; i <argc ; i++) {
-        if (!strcmp(argv[i], "-r")) {
-            buffer b = read_file_or_exit(init, argv[++i]);
-            run_test(root, b, enable_tracing);
+        if (!strcmp(argv[i], "--parse") || !strcmp(argv[i], "-p")) {
+            doParse = true;
+            consumeFile = true;
         }
-        if (!strcmp(argv[i], "-e")) {
-            buffer b = read_file_or_exit(init, argv[++i]);
-            edb_register_implication(root, compile_eve(b, enable_tracing));
+        else if (!strcmp(argv[i], "--analyze") || !strcmp(argv[i], "-a")) {
+            doAnalyze = true;
+            consumeFile = true;
         }
-        if (!strcmp(argv[i], "-parse")) {
-            lua_run_module_func(c, read_file_or_exit(init, argv[++i]), "parser", "printParse");
-            return 0;
+        else if (!strcmp(argv[i], "--analyze-quiet") || !strcmp(argv[i], "-A")) {
+          doAnalyzeQuiet = true;
+          consumeFile = true;
         }
-        if (!strcmp(argv[i], "-analyze")) {
-            lua_run_module_func(c, read_file_or_exit(init, argv[++i]), "compiler", "analyze");
-            return 0;
+        else if (!strcmp(argv[i], "-r")) {
+            doRead = true;
+            consumeFile = true;
         }
-        if (!strcmp(argv[i], "-resolve")) {
-            lua_run_module_func(c, read_file_or_exit(init, argv[++i]), "implicationResolver", "testCollect");
-            return 0;
+        else if (!strcmp(argv[i], "--exec") || !strcmp(argv[i], "-e")) {
+            doExec = true;
+            consumeFile = true;
         }
-        if (!strcmp(argv[i],"-l")) {
-            lua_run(c, read_file_or_exit(init, argv[++i]));
+        else {
+            if (!strcmp(argv[i], "--resolve")) {
+                lua_run_module_func(c, read_file_or_exit(init, argv[++i]), "implicationResolver", "testCollect");
+                return 0;
+            }
+            else if (!strcmp(argv[i],"-l")) {
+                lua_run(c, read_file_or_exit(init, argv[++i]));
+            }
+            else if (!strcmp(argv[i],"-t")) {
+                enable_tracing = true;
+            }
+            else if (consumeFile) {
+                file = argv[i];
+            }
+            else {
+                prf("\nUnknown flag %s, aborting", argv[i]);
+                return -1;
+            }
+            consumeFile = false;
         }
-        if (!strcmp(argv[i],"-t")) {
-            enable_tracing = true;
-        }
+    }
+
+    if (doParse) {
+        lua_run_module_func(c, read_file_or_exit(init, file), "parser", "printParse");
+    }
+    if (doAnalyze) {
+        lua_run_module_func(c, read_file_or_exit(init, file), "compiler", "analyze");
+    } else if (doAnalyzeQuiet) {
+        lua_run_module_func(c, read_file_or_exit(init, file), "compiler", "analyzeQuiet");
+    }
+    if (doRead) {
+        buffer b = read_file_or_exit(init, file);
+        run_test(root, b, enable_tracing);
+    }
+    if (doExec) {
+        buffer b = read_file_or_exit(init, file);
+        edb_register_implication(root, lua_compile_eve(c, b, enable_tracing));
+    }
+    else {
+        return 0;
     }
 
     http_server h = create_http_server(init, create_station(0, 8080));
