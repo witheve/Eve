@@ -3,6 +3,8 @@ local Pkg = {}
 local std = _G
 local error = error
 local print = print
+local pairs = pairs
+local ipairs = ipairs
 local type = type
 local tostring = tostring
 local getmetatable = getmetatable
@@ -87,12 +89,12 @@ local function applyDefaultMeta(_, node)
 end
 
 -- Dependency Graph
-
 DependencyGraph = {}
 
 function DependencyGraph:new(obj)
   obj = obj or {}
   -- Essential state
+  obj.unprepared = obj.unprepared or Set:new() -- set of nodes that must still be prepared prior to ordering
   obj.unsorted = obj.unsorted or Set:new() -- set of nodes that need to be ordered
   obj.sorted = obj.sorted or {} -- append-only set of ordered nodes
 
@@ -111,108 +113,105 @@ end
 -- Get the variables this dgraph depends on for reification
 function DependencyGraph:depends()
   local depends = Set:new()
-  for term in std.pairs(self.dependents) do
+  for term in pairs(self.dependents) do
     depends:add(term)
   end
   self:order(true)
   return depends / self.bound
 end
 
-function DependencyGraph:provided()
+function DependencyGraph:provides()
   self:order(true)
   return self.bound
 end
 
-function DependencyGraph:isSorted()
+function DependencyGraph:isOrdered()
   return self.unsorted:length() == 0
 end
 
 function DependencyGraph:addObjectNode(node)
-  local produces = Set:new()
-  local depends = Set:new()
-  for _, binding in std.ipairs(node.bindings or nothing) do
+  local deps = {provides = Set:new()}
+  node.deps = deps
+  for _, binding in ipairs(node.bindings or nothing) do
     if binding.variable then
-      produces:add(binding.variable)
-      depends:add(binding.variable)
+      deps.provides:add(binding.variable)
     end
   end
-  return self:add(node, depends, produces)
+  return self:add(node)
 end
 
 function DependencyGraph:addMutateNode(node)
-  local produces = Set:new()
-  local depends = Set:new()
-  local weakDepends = Set:new()
-  for _, binding in std.ipairs(node.bindings or nothing) do
-    -- If the entity term isn't bound, the mutation produces it
-    if binding.field == ENTITY_FIELD and not self.terms[binding.variable] then
-      produces:add(binding.variable)
-    end
-
-    -- If the binding is bound on a variable that is produced in the query, it becomes a dependency of the query.
+  local deps = {
+    maybeProvides = Set:new(),
+    depends = Set:new(),
+    maybeDepends = Set:new()
+  }
+  node.deps = deps
+  for _, binding in ipairs(node.bindings or nothing) do
+    -- If the entity term isn't bound, the mutation provides it
+    -- If the binding is bound on a variable that is provided in the query, it becomes a dependency of the variable.
     if binding.variable then
-      weakDepends:add(binding.variable)
+      deps.maybeProvides:add(binding.variable)
+      deps.maybeDepends:add(binding.variable)
     end
   end
-
-  return self:add(node, depends, produces, weakDepends)
+  return self:add(node)
 end
 
 function DependencyGraph:addExpressionNode(node)
   -- TODO also need to consider projections and groupings as dependencies
   -- TODO handle productions other than just "return", this will require schemas
-  local produces = Set:new()
-  local depends = Set:new()
-  local maybeDepends
-  local strongDepend
-  local anyDepends
+  local deps = {
+    provides = Set:new(),
+    depends = Set:new()
+  }
+  node.deps = deps
   local hasConstant = false
   for _, binding in std.ipairs(node.bindings) do
     if binding.field == "return" and binding.variable then
-      produces:add(binding.variable)
+      deps.provides:add(binding.variable)
     elseif binding.variable then
-      depends:add(binding.variable)
+      deps.depends:add(binding.variable)
     elseif binding.constant then
       hasConstant = true
     end
   end
-  if node.operator == "=" and produces:length() == 0 then
-    anyDepends = not hasConstant and depends or Set:new()
-    produces = depends:clone()
-    depends = Set:new()
+  if node.operator == "=" and deps.provides:length() == 0 then
+    if not hasConstant then
+      deps.anyDepends = deps.depends
+    end
+    deps.maybeProvides = deps.depends:clone()
+    deps.depends = Set:new()
   end
-  return self:add(node, depends, produces, maybeDepends, strongDepends, anyDepends)
+  return self:add(node)
 end
 
 function DependencyGraph:addSubqueryNode(node)
-  local depends
-  local provides = Set:new()
-
-  local maybeDepends = Set:new()
+  local deps = {
+    provides = Set:new(),
+    maybeDepends = Set:new()
+  }
+  node.deps = deps
 
   for _, var in std.pairs(node.outputs) do
-    provides:add(var)
+    deps.provides:add(var)
   end
 
   for _, body in std.ipairs(node.queries) do
     local subgraph = DependencyGraph:fromQueryGraph(body)
-    maybeDepends:union(subgraph:depends(), true)
+    deps.maybeDepends:union(subgraph:depends(), true)
   end
-  return self:add(node, depends, provides, maybeDepends)
+  return self:add(node)
 end
 
 function DependencyGraph:fromQueryGraph(query, terms, bound)
   local uniqueCounter = 0
   local dgraph = self
   if getmetatable(dgraph) ~= DependencyGraph then
-    -- @FIXME: this naive injection strategy lets objects be scheduled willy-nilly after mutates...
-    -- Not tracking this information is currently incidentally correct, but cannot be relied upon to order subqueries properly within their parents
-    -- dgraph = self:new{terms = terms, bound = bound}
     dgraph = self:new()
-
   end
   dgraph.query = query
-  query.dependencyGraph = dgraph
+  query.deps = {graph = dgraph}
 
   util.walk(query, applyDefaultMeta)
 
@@ -231,165 +230,172 @@ function DependencyGraph:fromQueryGraph(query, terms, bound)
   for _, node in std.ipairs(query.chooses or nothing) do
     dgraph:addSubqueryNode(node)
   end
-
-  -- If the ENTITY variable of this mutate isn't already bound and it's a child of another mutate,
-  -- then we need to uniquify it to prevent unification with other mutates.
-  for _, node in std.ipairs(query.mutates or nothing) do
-    if not dgraph.terms[node.variable] then
-      if node.parent and node.parent.type == "mutate" then
-        local old = node.variable
-        node.variable = util.shallowCopy(node.variable)
-        node.variable.name = "$$tmp" .. "-" .. node.variable.name .. "-" .. uniqueCounter
-        uniqueCounter = uniqueCounter + 1
-        for _, binding in std.pairs(node.bindings) do
-          if binding.type == "binding" and binding.variable == old then
-            binding.variable = node.variable
-          end
-        end
-        local parent = node.parent
-        for _, binding in std.pairs(parent.bindings) do
-          if binding.type == "binding" and binding.variable == old then
-            binding.variable = node.variable
-          end
-        end
-      end
-    end
-  end
-
   for _, node in std.ipairs(query.mutates or nothing) do
     dgraph:addMutateNode(node)
   end
 
   return dgraph
 end
--- depends are the set of terms that must be produced prior to scheduling this node
--- produces are the set of terms produced after this node has been scheduled
--- maybeDepends are the set of terms that, IFF produced in this query, become dependencies of this node
+-- provides are the set of terms provided after this node has been scheduled
+-- maybeProvides are the set of terms that, IFF provided in this query, become dependencies of this node
+-- depends are the set of terms that must be provided prior to scheduling this node
+-- maybeDepends are the set of terms that, IFF provided in this query, become dependencies of this node
 -- strongDepends are the set of terms that must be completely settled (cardinality-stable) prior to scheduling this node
 -- anyDepends are the set of terms that, if any single term is satisfied, are all satisfied as a set
 -- @NOTE: that, in order to permit stable scheduling, weak and strong depends will not be treated as joining term groups
-function DependencyGraph:add(node, depends, produces, maybeDepends, strongDepends, anyDepends)
-  produces = produces or Set:new()
-  depends = depends and depends:difference(produces, true) or Set:new()
-  maybeDepends = maybeDepends and maybeDepends:difference(produces, true)or Set:new()
-  strongDepends = strongDepends and strongDepends:difference(produces, true)or Set:new()
-  anyDepends = anyDepends or Set:new()
+function DependencyGraph:add(node)
+  node.deps = node.deps or {}
+  local deps = node.deps
+  deps.provides = deps.provides or Set:new()
+  deps.maybeProvides = deps.maybeProvides or Set:new()
+  deps.depends = deps.depends or Set:new()
+  deps.maybeDepends = deps.maybeDepends or Set:new()
+  deps.strongDepends = deps.strongDepends or Set:new()
+  deps.anyDepends = deps.anyDepends or Set:new()
 
-  node.depends = depends
-  node.produces = produces
-  node.maybeDepends = maybeDepends
-  node.strongDepends = strongDepends
-  node.anyDepends = anyDepends
+  self.unprepared:add(node)
+end
 
-  self.terms:union(produces, true)
-
-  -- group new/updated terms, consolidating any newly joined groups
-  local terms = Set:new()
-  terms:union(produces, true)
-  terms:union(depends, true)
-  terms:union(anyDepends, true)
-  local groups = Set:new()
-  local neueGroup = Set:new()
-  for term in std.pairs(terms) do
-    local grouped = false
-    for group in std.pairs(self.termGroups) do
-      if group[term] then
-        groups:add(group)
-        grouped = true
+function DependencyGraph:prepare() -- prepares a completed graph for ordering
+  -- Link new maybe provides if no other nodes provide them
+  for node in pairs(self.unprepared) do
+    for term in pairs(node.deps.maybeProvides) do
+      if not self.terms[term] then
+        node.deps.provides:add(term)
       end
     end
-    if not grouped then
-      neueGroup:add(term)
-      groups:add(neueGroup)
-    end
   end
-  if groups:length() == 1 then
-    for group in std.pairs(groups) do
-      self.termGroups:add(group)
-    end
-  elseif groups:length() > 1 then
-    for group in std.pairs(groups) do
-      for term in std.pairs(group) do
-        neueGroup:add(term)
-      end
-      self.termGroups:remove(group)
-    end
-    self.termGroups:add(neueGroup)
+
+  -- Add newly provided terms to the DG's terms
+  local neueTerms = Set:new()
+  for node in pairs(self.unprepared) do
+    neueTerms:union(node.deps.provides + node.deps.maybeProvides, true)
   end
+  self.terms:union(neueTerms, true)
 
   -- Link new maybe dependencies to existing terms
-  if maybeDepends then
-    for term in std.pairs(maybeDepends) do
-      if self.terms[term] then
-        strongDepends:add(term)
+  for node in pairs(self.unprepared) do
+    for term in pairs(node.deps.maybeDepends) do
+      if self.terms[term] and not node.deps.provides[term] then
+        node.deps.strongDepends:add(term)
       end
     end
   end
 
   -- Link existing maybe dependencies to new terms
-  for term in std.pairs(produces) do
+  for term in std.pairs(neueTerms) do
     if self.strongDependents[term] == nil then
       self.strongDependents[term] = Set:new()
-      for other in std.pairs(self.unsorted) do
-        if other.maybeDepends[term] then
-          other.strongDepends:add(term)
-          self.strongDependents[term]:add(other)
-          self.unsatisfied[other] = self.unsatisfied[other] + 1
+      for node in pairs(self.unsorted) do
+        if node.deps.maybeDepends[term] then
+          self.strongDependents[term]:add(node)
+          node.deps.strongDepends:add(term)
+          node.deps.unsatisfied = node.deps.unsatisfied + 1
         end
       end
     end
   end
 
-  self.unsorted:add(node)
-  self.unsatisfied[node] = 0
-  depends:difference(produces, true)
+  -- Trim dependencies on terms the node expects to provide and unused maybes
+  for node in pairs(self.unprepared) do
+    local deps = node.deps
+    deps.depends:difference(deps.provides, true)
+    deps.strongDepends:difference(deps.provides, true)
+    deps.maybeDepends = Set:new()
+    deps.maybeProvides = Set:new()
+  end
 
-  -- Register this node as a dependent on all the terms it requires but cannot produce
-  for term in std.pairs(depends) do
-    if not self.bound[term] then
-      if self.dependents[term] then
-        self.dependents[term]:add(node)
-      else
-        self.dependents[term] = Set:new{node}
+  -- Group terms and consolidate with existing term groups
+  -- These are grouped into "cardinality islands", in which cardinality can be guaranteed to be stable
+  -- once all terms in the group have been maximally joined/filtered
+  for node in pairs(self.unprepared) do
+    local deps = node.deps
+    local terms = deps.provides + deps.depends + deps.strongDepends + deps.anyDepends
+    local groups = Set:new()
+    local neueGroup = Set:new()
+    for term in pairs(terms) do
+      local grouped = false
+      for group in pairs(self.termGroups) do
+        if group[term] then
+          groups:add(group)
+          grouped = true
+        end
       end
-      self.unsatisfied[node] = self.unsatisfied[node] + 1
-    end
-  end
-
-  for term in std.pairs(strongDepends) do
-    if not self.bound[term] then
-      if self.strongDependents[term] then
-        self.strongDependents[term]:add(node)
-      else
-        self.strongDependents[term] = Set:new{node}
+      if not grouped then
+        neueGroup:add(term)
+        groups:add(neueGroup)
       end
-      self.unsatisfied[node] = self.unsatisfied[node] + 1
+    end
+    if groups:length() == 1 then
+      for group in pairs(groups) do
+        self.termGroups:add(group)
+      end
+    elseif groups:length() > 1 then
+      for group in pairs(groups) do
+        for term in pairs(group) do
+          neueGroup:add(term)
+        end
+        self.termGroups:remove(group)
+      end
+      self.termGroups:add(neueGroup)
     end
   end
 
-  if anyDepends:length() > 0 then
-    self.unsatisfied[node] = self.unsatisfied[node] + 1
-  end
-  local anyBound = false
-  for term in std.pairs(anyDepends) do
-    if self.bound[term] then
-      anyBound = true
-      break
+  -- Register new nodes as a dependent on all the terms they require but cannot provide
+  -- Move new nodes into unsorted
+  for node in pairs(self.unprepared) do
+    node.deps.unsatisfied = 0
+    self.unprepared:remove(node)
+    self.unsorted:add(node)
+
+    local deps = node.deps
+    for term in pairs(deps.depends) do
+      if not self.bound[term] then
+        if self.dependents[term] then
+          self.dependents[term]:add(node)
+        else
+          self.dependents[term] = Set:new{node}
+        end
+        deps.unsatisfied = deps.unsatisfied + 1
+      end
     end
-  end
-  if not anyBound then
-    for term in std.pairs(anyDepends) do
-      if self.dependents[term] then
-        self.dependents[term]:add(node)
-      else
-        self.dependents[term] = Set:new{node}
+
+    for term in pairs(deps.strongDepends) do
+      if not self.bound[term] then
+        if self.strongDependents[term] then
+          self.strongDependents[term]:add(node)
+        else
+          self.strongDependents[term] = Set:new{node}
+        end
+        deps.unsatisfied = deps.unsatisfied + 1
+      end
+    end
+
+    local anyBound = false
+    for term in std.pairs(deps.anyDepends) do
+      if self.bound[term] then
+        anyBound = true
+        break
+      end
+    end
+    if not anyBound then
+      if deps.anyDepends:length() > 0 then
+        deps.unsatisfied = deps.unsatisfied + 1
+      end
+
+      for term in pairs(deps.anyDepends) do
+        if self.dependents[term] then
+          self.dependents[term]:add(node)
+        else
+          self.dependents[term] = Set:new{node}
+        end
       end
     end
   end
 end
 
 function DependencyGraph:group(term) -- get the termGroup of the given term
-  for group in std.pairs(self.termGroups) do
+  for group in pairs(self.termGroups) do
     if group[term] then
       return group
     end
@@ -398,12 +404,12 @@ end
 
 function DependencyGraph:groupUnsatisfied(group) -- get the number of  outstanding nodes that must be ordered before the group stabilizes
   local unsatisfied = 0
-  for term in std.pairs(group) do
+  for term in pairs(group) do
     if self.dependents[term] then
       unsatisfied = unsatisfied + self.dependents[term]:length()
     end
-    for node in std.pairs(self.unsorted) do
-      if node.produces[term] then
+    for node in pairs(self.unsorted) do
+      if node.deps.provides[term] then
         unsatisfied = unsatisfied + 1
       end
     end
@@ -422,48 +428,54 @@ function DependencyGraph:order(allowPartial)
   --   i.   a -> b
   --   ii.  b -> a
   --   iii. a, b -> f
-
+  self:prepare()
   while self.unsorted:length() > 0 do
     local scheduled = false
-    for node in std.pairs(self.unsorted) do
-      if self.unsatisfied[node] == 0 then
-        if node.queries then
-          for _, body in std.ipairs(node.queries) do
-            body.dependencyGraph:order()
-          end
-        end
+    for node in pairs(self.unsorted) do
+      local deps = node.deps
+      if deps.unsatisfied == 0 then
         self.sorted[#self.sorted + 1] = node
         self.unsorted:remove(node)
-        for term in std.pairs(node.depends) do
-          self.dependents[term]:remove(node)
+
+        -- order child graphs, if any
+        if node.queries then
+          for _, body in ipairs(node.queries) do
+            body.deps.graph:order()
+          end
+        elseif deps.graph then
+          deps.graph:order()
         end
-        for term in std.pairs(node.anyDepends) do
+
+        -- clean dependency hooks
+        for term in pairs(deps.depends + deps.anyDepends) do
           self.dependents[term]:remove(node)
         end
 
         -- Decrement the unsatisfied term count for nodes depending on terms this node provides that haven't been provided
-        if node.produces:length() > 0 then
+        if deps.provides:length() > 0 then
           local someTerm
-          for term in std.pairs(node.produces) do
+          for term in pairs(deps.provides) do
             someTerm = term
             if self.dependents[term] and not self.bound[term] then
               self.bound:add(term)
-              for dependent in std.pairs(self.dependents[term]) do
-                if self.unsatisfied[dependent] > 0 then
-                  self.unsatisfied[dependent] = self.unsatisfied[dependent] - 1
+              for dependent in pairs(self.dependents[term]) do
+                local deps = dependent.deps
+                if deps.unsatisfied > 0 then
+                  deps.unsatisfied = deps.unsatisfied - 1
                 end
               end
             end
           end
 
-          -- Determine if the group containing the produced terms is stabilized by ordering this node
+          -- Determine if the group containing the provided terms is stabilized by ordering this node
           -- If so, satisfy the strong dependencies of every term in the group
           local group = self:group(someTerm)
           if self:groupUnsatisfied(group) == 0 then
-            for term in std.pairs(group) do
+            for term in pairs(group) do
               if self.strongDependents[term] then
-                for dependent in std.pairs(self.strongDependents[term]) do
-                  self.unsatisfied[dependent] = self.unsatisfied[dependent] - 1
+                for dependent in pairs(self.strongDependents[term]) do
+                  local deps = dependent.deps
+                  deps.unsatisfied = deps.unsatisfied - 1
                 end
               end
             end
@@ -476,10 +488,6 @@ function DependencyGraph:order(allowPartial)
     if not scheduled and not allowPartial then
       print("-----ERROR----")
       print(tostring(self))
-      print("GROUPS")
-      for group in std.pairs(self.termGroups) do
-        print("  group", group, self:groupUnsatisfied(group))
-      end
       print("--------------")
       error("Unable to find a valid dependency ordering for the given graph, aborting")
     elseif not scheduled then
@@ -489,32 +497,52 @@ function DependencyGraph:order(allowPartial)
   return self.sorted, #self.unsorted > 0
 end
 
-function DependencyGraph.__tostring(obj)
-  local result = "DependencyGraph{\n"
-  for ix, node in std.ipairs(obj.sorted) do
-    local depends = tostring(node.depends)
-    if node.strongDepends:length() > 0 then
-      depends = depends .. "|" .. "STRONG:" .. tostring(node.strongDepends)
-    end
-    if node.anyDepends:length() > 0 then
-      depends = depends .. "|" .. "ANY:" .. tostring(node.anyDepends)
-    end
-    result = result .. "  " .. ix .. ": " .. depends .. " -> " .. tostring(node.produces) .. "\n"
-    result = result .. "    " .. util.indentString(1, tostring(node)) .. "\n"
+function fmtDepNode(node)
+  if not node.deps then error(std.debug.traceback()) end
+  local deps = node.deps
+  local result = tostring(deps.depends)
+  if deps.strongDepends:length() > 0 then
+    result = result .. "|STRONG:" .. tostring(deps.strongDepends)
   end
-  for node in std.pairs(obj.unsorted) do
-    local depends = tostring(node.depends)
-    if node.strongDepends:length() > 0 then
-      depends = depends .. "|" .. "STRONG:" .. tostring(node.strongDepends)
-    end
-    if node.anyDepends:length() > 0 then
-      depends = depends .. "|" .. "ANY:" .. tostring(node.anyDepends)
-    end
-    result = result .. "  ?: " .. depends .. " -> " .. tostring(node.produces) .. "\n"
-    result = result .. "    " .. util.indentString(1, tostring(node)) .. "\n"
+  if deps.maybeDepends:length() > 0 then
+    result = result .. "|MAYBE:" .. tostring(deps.maybeDepends)
   end
-  result = result .. tostring(obj.termGroups) .. "\n"
-  return result .. "}"
+  if deps.anyDepends:length() > 0 then
+    result = result .. "|ANY:" .. tostring(deps.anyDepends)
+  end
+  result = result .. " -> "
+  result = result .. tostring(node.deps.provides)
+  if deps.maybeProvides:length() > 0 then
+    result = result .. "|MAYBE:" .. tostring(deps.maybeProvides)
+  end
+  result = result .. "\n  " .. util.indentString(1, tostring(node))
+  return result
+end
+
+function DependencyGraph.__tostring(dg)
+  local result = "DependencyGraph{"
+  if dg.unprepared:length() > 0 then
+    for node in pairs(dg.unprepared) do
+      result = string.format("%s\n   X: %s", result, util.indentString(2, fmtDepNode(node)))
+    end
+  end
+  if #dg.sorted > 0 then
+    for ix, node in ipairs(dg.sorted) do
+      result = string.format("%s\n  %2d: %s", result, ix, util.indentString(2, fmtDepNode(node)))
+    end
+  end
+  if dg.unsorted:length() > 0 then
+    for node in pairs(dg.unsorted) do
+      result = string.format("%s\n   ?: %s", result, util.indentString(2, fmtDepNode(node)))
+    end
+  end
+  if dg.termGroups:length() > 0 then
+    result = result .. "\n  -- term groups -- "
+    for group in pairs(dg.termGroups) do
+      result = result .. "\n  " .. tostring(group) .. ": " .. dg:groupUnsatisfied(group)
+    end
+  end
+  return result .. "\n}"
 end
 
 
@@ -581,7 +609,7 @@ function SubprojectNode:new(obj)
   obj = obj or {}
   obj.type = obj.type or "subproject"
   obj.projection = obj.projection or Set:new()
-  obj.produces = obj.produces or Set:new()
+  obj.provides = obj.provides or Set:new()
   obj.nodes = obj.nodes or {}
   setmetatable(obj, self)
   self.__index = self
@@ -589,13 +617,13 @@ function SubprojectNode:new(obj)
 end
 
 function SubprojectNode.__tostring(obj)
-  local result = "SubprojectNode " .. tostring(obj.projection) .. " -> " .. tostring(obj.produces) .. " {\n"
-
-  for _, node in std.pairs(obj.nodes) do
-    result = result .. "  " .. tostring(node.depends) .. " -> " .. tostring(node.produces) .. "\n"
-    result = result .. "    " .. util.indentString(2, tostring(node)) .. "\n"
+  local result = "SubprojectNode " .. tostring(obj.projection) .. " -> " .. tostring(obj.provides) .. " {"
+  for _, node in ipairs(obj.nodes) do
+    result = result .. "\n  " .. util.indentString(2, tostring(node))
   end
-
+  if #obj.nodes > 0 then
+    result = result .. "\n"
+  end
   return result .. "}"
 end
 
@@ -614,23 +642,23 @@ function unpackObjects(dg)
   local unpackedSubprojects = {}
   local tmpCounter = 0
   dg:order()
-  for _, node in std.ipairs(dg.sorted) do
+  for _, node in ipairs(dg.sorted) do
     if node.type == "object" or node.type == "mutate" then
       local unpackList = unpacked
       local subproject
       if node.type ~= "object" then
         local projection = Set:new()
-        for _, binding in std.ipairs(node.bindings or nothing) do
-          if binding.field == ENTITY_FIELD and not node.produces[binding.variable] then
+        for _, binding in ipairs(node.bindings or nothing) do
+          if binding.field == ENTITY_FIELD and not node.deps.provides[binding.variable] then
             projection:add(binding.variable)
             break
           end
         end
-        for ix, proj in std.pairs(node.projection) do
+        for ix, proj in pairs(node.projection) do
           projection:union(proj, true)
         end
 
-        subproject = SubprojectNode:new{projection = projection, produces = node.produces}
+        subproject = SubprojectNode:new{projection = projection, provides = node.deps.provides}
         unpackList = subproject.nodes
         unpackedSubprojects[#unpackedSubprojects + 1] = subproject
       end
@@ -639,24 +667,16 @@ function unpackObjects(dg)
         unpackList[#unpackList + 1] = ScanNode:fromObject(node)
       else
         local entity
-        for _, binding in std.ipairs(node.bindings) do
+        for _, binding in ipairs(node.bindings) do
           if binding.field == ENTITY_FIELD then
             entity = binding.variable or binding.constant
           end
         end
-        -- Even if the entity isn't used by the user, we still need to create it to unify the exploded scans
-        if not entity then
-          local tmpName = "$$tmp-entity-" .. tmpCounter
-          tmpCounter = tmpCounter + 1
-          entity = {type = "variable", query = node.query, parent = node.query, children = {}, line = node.line, offset = node.offset, name = tmpName}
-          setmetatable(entity, DefaultNodeMeta)
-          node.query.variables[#node.query.variables] = entity
-        end
 
-        for _, binding in std.ipairs(node.bindings) do
+        for _, binding in ipairs(node.bindings) do
           if binding.field ~= ENTITY_FIELD then
             if subproject and binding.variable and not subproject.projection[binding.variable] then
-              subproject.produces:add(entity)
+              subproject.provides:add(entity)
               unpackedSubprojects[#unpackedSubprojects + 1] = SubprojectNode:new{projection = subproject.projection + Set:new{entity, binding.variable}, nodes = {ScanNode:fromBinding(node, binding, entity)}}
             else
               unpackList[#unpackList + 1] = ScanNode:fromBinding(node, binding, entity)
@@ -667,8 +687,8 @@ function unpackObjects(dg)
       end
     else
       if node.type == "union" or node.type == "choose" then
-        for _, query in std.ipairs(node.queries) do
-          unpackObjects(query.dependencyGraph)
+        for _, query in ipairs(node.queries) do
+          unpackObjects(query.deps.graph)
         end
       end
       unpacked[#unpacked + 1] = node
@@ -687,7 +707,7 @@ function compileExec(contents, tracing)
   local parseGraph = parser.parseString(contents)
   local set = {}
 
-  for ix, queryGraph in std.ipairs(parseGraph.children) do
+  for ix, queryGraph in ipairs(parseGraph.children) do
     local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph)
     local unpacked = unpackObjects(dependencyGraph)
     -- this handler function is just for debugging, we no longer have
@@ -697,32 +717,39 @@ function compileExec(contents, tracing)
   return build.build(set, tracing, parseGraph)
 end
 
-function analyze(content)
+function analyze(content, quiet)
   local parseGraph = parser.parseString(content)
-  print("--- Parse Graph ---")
-  print(parser.formatQueryGraph(parseGraph))
-
   for ix, queryGraph in std.ipairs(parseGraph.children) do
-    print("--- Query Graph (" .. ix .. ") " .. queryGraph.name .. " ---")
-
-    print(" -- Unsorted DGraph --")
+    print("----- Query Graph (" .. ix .. ") " .. queryGraph.name .. " -----")
     local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph)
-    print(dependencyGraph)
-
-    print(" -- Sorted DGraph --")
-    local sorted = dependencyGraph:order()
-    print(dependencyGraph)
-
-    print(" -- Unpacked Objects / Mutates --")
-    local unpacked = unpackObjects(dependencyGraph)
-    print("{")
-    for ix, node in std.ipairs(unpacked) do
-      print("  " .. ix .. ". " .. util.indentString(1, tostring(node)))
+    if not quiet then
+      print("--- Unprepared DGraph ---")
+      print("  " .. util.indentString(1, tostring(dependencyGraph)))
     end
-    print("}")
+
+    dependencyGraph:prepare()
+    if not quiet then
+      print("--- Unsorted DGraph ---")
+      print("  " .. util.indentString(1, tostring(dependencyGraph)))
+    end
+
+    local sorted = dependencyGraph:order()
+    print("--- Sorted DGraph ---")
+    print("  " .. util.indentString(1, tostring(dependencyGraph)))
+
+    local unpacked = unpackObjects(dependencyGraph)
+    print("--- Unpacked Objects / Mutates ---")
+    print("  {")
+    for ix, node in ipairs(unpacked) do
+      print(string.format("    %2d: %s", ix, util.indentString(4, tostring(node))))
+    end
+    print("  }")
   end
 end
 
+function analyzeQuiet(content)
+  analyze(content, true)
+end
 
 if ... == nil then
   local testTable = {a = 5, b = "z", c = {d = {}}}

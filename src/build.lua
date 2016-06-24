@@ -165,13 +165,12 @@ end
 function translate_subproject(n, bound, down, tracing)
    local p = n.projection
    local t = n.nodes
-   local prod = n.produces
    local env, rest, fill
    local pass = allocate_temp()
    local db = shallowcopy(bound)
    bound[pass] = true
 
-   for k, _ in pairs(n.produces) do
+   for k, _ in pairs(n.provides) do
      db[k] = true
    end
 
@@ -179,17 +178,17 @@ function translate_subproject(n, bound, down, tracing)
 
    function tail (bound)
       return env, build_node("subtail", {build_node("terminal", {}, {})},
-                             {set_to_read_array(env, n.produces),
+                             {set_to_read_array(env, n.provides),
                              {read_lookup(env, pass)}})
    end
 
-   local outregs =  set_to_read_array(env, n.produces)
+   local outregs =  set_to_read_array(env, n.provides)
    env, fill = walk(n.nodes, nil, bound, tail, tracing)
 
    c = build_node("sub", {rest, fill},
                           {set_to_read_array(env, n.projection),
                           outregs,
---                           set_to_read_array(env, n.produces),
+--                           set_to_read_array(env, n.provides),
                           -- leak
                           {read_lookup(env, pass)}})
 
