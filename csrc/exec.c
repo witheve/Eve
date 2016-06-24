@@ -456,24 +456,25 @@ static execf build_sub_tail(evaluation e, node n)
 }
 
 static CONTINUATION_9_2(do_sub,
-                        int *, execf, execf, value, table *, table, vector, vector, vector,
+                        int *, execf, execf, value, table *, table *, vector, vector, vector,
                         operator, value *);
 static void do_sub(int *count, execf next, execf leg, value resreg,
-                   table *previous, table results, vector v, vector inputs, vector outputs,
+                   table *previous, table *results, vector v, vector inputs, vector outputs,
                    operator op, value *r)
 {
+    heap h = (*results)->h;
     if (op == op_flush) {
         if (*previous) {
             table_foreach(*previous, k, v) {
-                table_foreach(v, n, _) {
+                table_foreach((table)v, n, _) {
                     copyout(r, outputs, n);
                     apply(next, op_remove, r);
                 }
             }
         }
-        // we could conceivalby double buffer these
-        *previous = results;
-        *results = create_value_vector_table(e->h);
+        // we could conceivably double buffer these
+        *previous = *results;
+        *results = create_value_vector_table(h);
         apply(next, op, r);
         return;
     }
@@ -481,13 +482,13 @@ static void do_sub(int *count, execf next, execf leg, value resreg,
     table res;
     *count = *count + 1;
     extract(v, inputs, r);
-    if (!(res = table_find(results, v))){
-        res = create_value_vector_table(results->h);
-        vector key = allocate_vector(results->h, vector_length(inputs));
+    if (!(res = table_find(*results, v))){
+        res = create_value_vector_table(h);
+        vector key = allocate_vector(h, vector_length(inputs));
         if (*previous) 
             table_set(*previous, v, NULL);
         extract(key, inputs, r);
-        table_set(results, key, res);
+        table_set(*results, key, res);
         r[toreg(resreg)] = res;
         apply(leg, op, r);
     }
@@ -501,21 +502,22 @@ static void do_sub(int *count, execf next, execf leg, value resreg,
 static execf build_sub(evaluation e, node n)
 {
     table results = create_value_vector_table(e->h);
+    table *rp = allocate(e->h, sizeof(table));
+    table *pp = allocate(e->h, sizeof(table));
     vector v = allocate_vector(e->h, vector_length(n->arguments));
-    table *last = allocate(e->h, sizeof(table));
+    *rp = results;
     return cont(e->h,
                 do_sub,
                 register_counter(e, n),
                 resolve_cfg(e, n, 0),
                 resolve_cfg(e, n, 1),
                 vector_get(vector_get(n->arguments, 2), 0),
-                last,
-                results,
+                pp,
+                rp,
                 v,
                 vector_get(n->arguments, 0),
                 vector_get(n->arguments, 1));
 }
-
 
 
 static CONTINUATION_3_2(do_choose_tail, int *, execf, value, operator, value *);
@@ -561,6 +563,28 @@ static execf build_choose(evaluation e, node n)
                 do_choose,
                 register_counter(e, n),
                 v,
+                vector_get(vector_get(n->arguments, 0), 0));
+}
+
+
+static CONTINUATION_4_2(do_not, int *, execf, execf, value, operator, value *);
+static void do_not(int *count, execf leg, execf next, value flag, operator op, value *r)
+{
+    *count = *count + 1;
+    r[toreg(flag)] = efalse;
+    apply(leg, op, r);
+    if (lookup(flag, r) == efalse)
+        apply(next, op, r);
+}
+
+
+static execf build_not(evaluation e, node n)
+{
+    return cont(e->h,
+                do_not,
+                register_counter(e, n),
+                resolve_cfg(e, n, 0),
+                resolve_cfg(e, n, 1),
                 vector_get(vector_get(n->arguments, 0), 0));
 }
 
@@ -762,6 +786,7 @@ table builders_table()
         table_set(builders, intern_cstring("concat"), build_concat);
         table_set(builders, intern_cstring("move"), build_move);
         table_set(builders, intern_cstring("regfile"), build_regfile);
+        table_set(builders, intern_cstring("not"), build_not);
     }
     return builders;
 }

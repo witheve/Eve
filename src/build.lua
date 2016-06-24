@@ -282,6 +282,33 @@ function translate_mutate(n, bound, down, tracing)
    return env, c
 end
 
+function translate_not(n, bound, down, tracing)
+   local env
+   local arms = {}
+   local flag = allocate_temp()
+   tail_bound = shallowcopy(bound)
+   for _, v in pairs(n.outputs) do
+      tail_bound[v] = true
+   end
+
+   local env, c = down(tail_bound)
+   local orig_perm = shallowcopy(env.permanent)
+   local bot = build_node("choosetail",
+                          {c},
+                          {{read_lookup(env, flag)}})
+
+   local arm_bottom = function (bound)
+        return env, bot
+   end
+
+   for n, _ in pairs(env.registers) do
+         env.permanent[n] = true
+   end
+   env, arm = walk(v.unpacked, nil, shallowcopy(bound), arm_bottom, tracing)
+   return env, build_node("not", {arm}, {{read_lookup(env, flag)}})
+end
+
+
 -- looks alot like union
 function translate_choose(n, bound, down, tracing)
    local env
@@ -427,6 +454,9 @@ function walk(graph, key, bound, tail, tracing)
    end
    if (n.type == "concat") then
       return translate_concat(n, bound, d, tracing)
+   end
+   if (n.type == "not") then
+      return translate_not(n, bound, d, tracing)
    end
 
    print ("ok, so we kind of suck right now and only handle some fixed patterns",
