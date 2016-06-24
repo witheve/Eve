@@ -165,7 +165,6 @@ static evaluation start_guy(json_session js)
     heap h = allocate_rolling(pages);
     table results = create_value_vector_table(js->h);
     
-    
     // UPDATE FIXPOINT
     run_solver(js->s);
 
@@ -225,18 +224,9 @@ void handle_json_query(json_session j, buffer in, thunk c)
         if ((c == '}')  && (s== sep)) {
             if (string_equal(type, sstring("query"))) {
                 node headNode = compile_eve(query, j->tracing);
-                // was a thing
-                //    bag target = table_find(js->scopes, intern_string(scope->contents, buffer_length(scope)));
-                //
-                //    if (target) {
-                //        edb_register_implication(target, headNode);
-                //    }
-
-                solver_add_implication(j->s, headNode);
+                inject_event(j->s, headNode);
                 start_guy(j);
             }
-
-            // do the thing
         }
 
         if ((c == separator[s]) && !backslash) {

@@ -42,14 +42,15 @@ static void merge_scan(table t, int sig, void *listen, value e, value a, value v
     }
 }
 
-void solver_add_implication(solver s, node n)
+evaluation solver_build(solver s, node n)
 {
-    vector_insert(s->handlers, build(n, s->scopes,
-                                     cont(s->h, merge_scan, s->solution),
-                                     s->insert, s->remove, s->set, s->counters,
-                                     // missing mail
-                                     0));
+    return (build(n, s->scopes,
+                  cont(s->h, merge_scan, s->solution),
+                  s->insert, s->remove, s->set, s->counters,
+                  // missing mail
+                  0));
 }
+
 
 void run_solver(solver s)
 {
@@ -81,6 +82,15 @@ void run_solver(solver s)
 }
 
 
+void inject_event(solver s, node n)
+{
+    evaluation nb = solver_build(s, n);
+    execute(nb);
+    vector_foreach(s->handlers, k) {
+        execute(k);
+    }
+}
+
 solver build_solver(heap h, table scopes, table persisted, table counts)
 {
     solver s = allocate(h, sizeof(struct solver));
@@ -91,16 +101,17 @@ solver build_solver(heap h, table scopes, table persisted, table counts)
     s->insert = cont(h, inserty, s);
     s->remove = cont(h, removey, s);
     s->set = cont(h, setty, s);
+    s->handlers = allocate_vector(h,10);
     
     table_foreach(persisted, bag_id, bag) {
         table_set(s->solution, bag_id, bag);
     }
-
-    s->handlers = allocate_vector(h,10);
         
     table_foreach(s->scopes, name, b) {
-        table_foreach(edb_implications(b), n, v) 
-            solver_add_implication(s, n);
+        table_foreach(edb_implications(b), n, v){
+            vector_insert(s->handlers, solver_build(s, n));
+        }
     }
+
     return s;
 }

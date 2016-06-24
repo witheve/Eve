@@ -152,4 +152,4 @@ int edb_size(bag b);
 node compile_eve(buffer b, boolean tracing);
 solver build_solver(heap h, table scopes, table persisted, table counts);
 void run_solver(solver s);
-void solver_add_implication(solver, node);
+void inject_event(solver, node);
