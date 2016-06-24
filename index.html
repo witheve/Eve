@@ -1,9 +1,25 @@
 <html>
   <head>
     <title>Eve</title>
+    <style>
+      body { background: #202930; color: rgb(156,192,214); font-family: Avenir; display: flex; }
+      .__root { padding:20px 40px; margin-right: 100px; }
+      .graph-root { display:flex; flex-direction:column; align-items:flex-start; }
+      .graph + .graph { margin-top:50px; }
+      .node-text { padding: 3px 6px; background: rgb(44,72,97); }
+      .sub { background: hsl(153, 100%, 72%); color: #202930; }
+      .scan { background: #29A4FF; color: #202930; }
+      .generate {  }
+      .insert { background: #84CBFF; color: #202930; }
+
+      .node { display: flex; flex-direction:column; margin:0 0px; }
+      .node-children { display: flex; flex-direction:column; align-items:stretch;  }
+      .fork-node-children { flex-direction:row; justify-content: center; }
+      .sub-node-children { margin-left: 0px; }
+
+    </style>
   </head>
   <body>
-    <p>Welcome to Eve</p>
     <script type="text/javascript" src="jssrc/microReact.js"></script>
     <script type="text/javascript" src="jssrc/renderer.js"></script>
   </body>

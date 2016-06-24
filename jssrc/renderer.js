@@ -1,6 +1,13 @@
 "use strict"
 
 //---------------------------------------------------------
+// MicroReact renderer
+//---------------------------------------------------------
+
+let renderer = new Renderer();
+document.body.appendChild(renderer.content);
+
+//---------------------------------------------------------
 // handle dom updates
 //---------------------------------------------------------
 
@@ -312,9 +319,6 @@ window.addEventListener("keyup", function(event) {
 //---------------------------------------------------------
 
 let allNodeGraphs = {};
-let renderer = new Renderer();
-document.body.appendChild(renderer.content);
-renderer.content.style.display = "flex";
 
 let styles  = {
   root: "display:flex; flex-direction:column; justify-content:flex-start; align-items:flex-start; margin-top:20px;",
@@ -324,33 +328,29 @@ let styles  = {
   nodeType: "display:flex; justify-content:center; background: #ddd; margin: 0px; padding: 5px 10px;",
   subNodeChildren: "flex-direction:column; margin-left: 0px;",
   forkNodeChildren: "flex-direction:row; justify-content: center;",
-  sub: "background: #AEB0FF;",
-  scan: "background: #A1FFC3;",
-  insert: "background: #FFA9A9;",
-  generate: "background: #FAC989;",
 }
 
 function drawNode(nodeId, graph, seen) {
   let node = graph[nodeId];
   if(seen[nodeId]) {
     return {text: `seen ${node.type}`};
-  } else if(node.type == "terminal") {
+  } else if(node.type == "terminal" || node.type == "subtail") {
     return undefined;
   }
   seen[nodeId] = true;
   let children = [];
-  let childrenContainer = {style: styles.nodeChildren, children};
-  let me = {style: styles.node, children: [
-    {style: `${styles.nodeType} ${styles[node.type]}`, text: `${node.type} ${node.scan_type || ""} (${node.count || 0})`},
+  let childrenContainer = {c: "node-children", children};
+  let me = {c: "node", children: [
+    {c: `${node.type} node-text`, text: `${node.type} ${node.scan_type || ""} (${node.count || 0})`},
     childrenContainer
   ]};
   if((node.type == "fork") || (node.type == "choose")) {
-    childrenContainer.style += ` ${styles.forkNodeChildren}}`;
+    childrenContainer.c += ` fork-node-children`;
     for(let child of node.arms) {
       children.push({style: "margin-right: 20px;", children: [drawNode(child, graph, seen)]});
     }
   } else if(node.type == "sub") {
-    childrenContainer.style += ` ${styles.subNodeChildren}}`;
+    childrenContainer.c += ` sub-node-children`;
     children.push({style: "margin-left: 30px;", children: [drawNode(node.arms[1], graph, seen)]});
     children.push(drawNode(node.arms[0], graph, seen));
   } else {
@@ -366,13 +366,13 @@ function drawNodeGraph(graph) {
   let graphs = [];
   for(let headId in allNodeGraphs) {
     let tree = drawNode(headId, allNodeGraphs[headId].nodes, {});
-    graphs.push({style: styles.graph, children: [
+    graphs.push({c: "graph", children: [
       {text: `total time: ${allNodeGraphs[headId].total_time}s`},
       {text: `iterations: ${allNodeGraphs[headId].iterations}`},
       tree
     ]});
   }
-  renderer.render([{style: styles.root, children: graphs}]);
+  renderer.render([{c: "graph-root", children: graphs}]);
 }
 
 //---------------------------------------------------------
