@@ -119,6 +119,7 @@ typedef struct solver {
 } *solver;
 
 struct node {
+    value id;
     estring type;
     buildf builder;
     vector arms;

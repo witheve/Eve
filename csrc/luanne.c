@@ -217,6 +217,8 @@ int lua_build_node(lua_State *L)
             vector_insert(s, lua_tovalue(L, a));
         }
     }
+    value node_id = lua_tovalue(L, 4);
+    n->id = node_id;
 
     lua_pushlightuserdata(L, n);
     return 1;
