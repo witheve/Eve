@@ -179,7 +179,8 @@ function translate_subproject(n, bound, down, tracing)
    function tail (bound)
       return env, build_node("subtail", {build_node("terminal", {}, {})},
                              {set_to_read_array(env, n.provides),
-                             {read_lookup(env, pass)}})
+                             {read_lookup(env, pass)}},
+                             n)
    end
 
    local outregs =  set_to_read_array(env, n.provides)
@@ -190,14 +191,15 @@ function translate_subproject(n, bound, down, tracing)
                           outregs,
 --                           set_to_read_array(env, n.provides),
                           -- leak
-                          {read_lookup(env, pass)}})
+                          {read_lookup(env, pass)}},
+                          n)
 
    if tracing then
       local map = {"proj", ""}
       for k, v in pairs(n.projection) do
          push(map, k.name,  read_lookup(env, k))
       end
-      c = build_node("trace", {c}, {map})
+      c = build_node("trace", {c}, {map}, n)
    end
 
    return env, c
@@ -235,10 +237,11 @@ function translate_object(n, bound, down, tracing)
                        "sig", sig,
                        "entity", read_lookup(env,e),
                        "attribute", read_lookup(env, a),
-                       "value", read_lookup(env, v)}})
+                       "value", read_lookup(env, v)}},
+                     n)
    end
 
-   return env, build_node("scan", {c}, {{sig, ef(env, e), af(env, a), vf(env, v)}})
+   return env, build_node("scan", {c}, {{sig, ef(env, e), af(env, a), vf(env, v)}}, n)
  end
 
 
@@ -265,10 +268,10 @@ function translate_mutate(n, bound, down, tracing)
                         {{n.scope,
                          read_lookup(env,e),
                          read_lookup(env,a),
-                         read_lookup(env,v)}})
+                         read_lookup(env,v)}}, n)
 
    if gen then
-      c = build_node("generate", {c}, {{write_lookup(env, e)}})
+      c = build_node("generate", {c}, {{write_lookup(env, e)}}, n)
    end
    return env, c
 end
@@ -288,7 +291,7 @@ function translate_choose(n, bound, down, tracing)
    local orig_perm = shallowcopy(env.permanent)
    local bot = build_node("choosetail",
                           {c},
-                          {{read_lookup(env, flag)}})
+                          {{read_lookup(env, flag)}}, n)
 
    local arm_bottom = function (bound)
         return env, bot
@@ -305,7 +308,7 @@ function translate_choose(n, bound, down, tracing)
 
    env.permanent = orig_perm
    -- currently leaking the perms
-   return env, build_node("choose", arms, {{read_lookup(env, flag)}})
+   return env, build_node("choose", arms, {{read_lookup(env, flag)}}, n)
 end
 
 function translate_concat(n, bound, down, tracing)
@@ -341,7 +344,7 @@ function translate_union(n, bound, down, tracing)
    end
    env.permanent = orig_perm
    -- currently leaking the perms
-   return env, build_node("fork", arms, {})
+   return env, build_node("fork", arms, {}, n)
 end
 
 function translate_expression(n, bound, down, tracing)
@@ -360,7 +363,7 @@ function translate_expression(n, bound, down, tracing)
          traceArgs[#traceArgs + 1] = field
          traceArgs[#traceArgs + 1] = read_lookup(env, args[ix])
       end
-      c = build_node("trace", {c}, traceArgs, {})
+      c = build_node("trace", {c}, traceArgs, {}, n)
    end
 
    local nodeArgs = {}
@@ -372,7 +375,7 @@ function translate_expression(n, bound, down, tracing)
      end
    end
 
-   return env, build_node(schema.name or n.operator, {c}, {nodeArgs})
+   return env, build_node(schema.name or n.operator, {c}, {nodeArgs}, n)
 end
 
 -- this doesn't really need to be disjoint from read lookup, except for concerns about
@@ -433,14 +436,14 @@ function build(graphs, tracing, parseGraph)
    local heads ={}
    local regs = 0
    tailf = function(b)
-               return empty_env(), build_node("terminal", {}, {})
+               return empty_env(), build_node("terminal", {}, {}, nil)
            end
    for _, g in pairs(graphs) do
       local env, program = walk(g, nil, {}, tailf, tracing)
       regs = math.max(regs, env.maxregs + 1)
       heads[#heads+1] = program
    end
-   return build_node("fork", heads, {{util.toJSON(parseGraph)}})
+   return build_node("fork", heads, {{util.toJSON(parseGraph)}}, nil)
 end
 
 ------------------------------------------------------------
