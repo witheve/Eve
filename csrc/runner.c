@@ -61,10 +61,6 @@ void run_solver(solver s)
         vector_foreach(s->handlers, k) {
             execute(k);
         }
-        if (iterations > 5) {
-            printf("failing out\n");
-            return;
-        }
     }
     ticks end_time = now();
 
