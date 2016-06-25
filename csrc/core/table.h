@@ -22,6 +22,7 @@ struct table {
 };
 
 void *table_find (table t, void *c);
+void *table_find_key (table t, void *c, void **kr);
 void table_set (table t, void *c, void *v);
 
 #define eZ(x,y) ((entry) *x)->y

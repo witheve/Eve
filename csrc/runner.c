@@ -6,7 +6,6 @@ static void inserty(solver s, uuid u, value e, value a, value v)
 {
     s->pass = true;
     bag b;
-    prf("insert %v %v %v\n", e, a, v);
     if (!(b = table_find(s->solution, u)))
         table_set(s->solution, u, b = create_bag(u));
     edb_insert(b, e, a, v);
@@ -17,7 +16,6 @@ static void removey(solver s, uuid u, value e, value a, value v)
 {
     s->pass = true;
     bag b;
-    prf("remove %v %v %v\n", e, a, v);
     if (!(b = table_find(s->solution, u)))
         table_set(s->solution, u, b = create_bag(u));
     edb_remove(b, e, a, v);
@@ -26,7 +24,6 @@ static void removey(solver s, uuid u, value e, value a, value v)
 static CONTINUATION_1_4(setty, solver, uuid, value, value, value);
 static void setty(solver s, uuid u, value e, value a, value v)
 {
-    prf("set %v %v %v\n", e, a, v);
     s->pass = true;
     bag b;
     if (!(b = table_find(s->solution, u)))
@@ -64,10 +61,10 @@ void run_solver(solver s)
         vector_foreach(s->handlers, k) {
             execute(k);
         }
-        // do not check in
-        prf("complete\n");
-        if (iterations > 10)
-            exit(-1);
+        if (iterations > 5) {
+            printf("failing out\n");
+            return;
+        }
     }
     ticks end_time = now();
 

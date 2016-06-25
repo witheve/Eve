@@ -312,7 +312,7 @@ function translate_mutate(n, bound, down, tracing, context)
      local id = util.generateId()
      context.downEdges[#context.downEdges + 1] = {n.id, id}
      
-      c = build_node("generate", {c}, {{write_lookup(env, e)}}, id)
+      c = build_node("generate", {c}, {{read_lookup(env, e)}}, id)
    end
    return env, c
 end
@@ -483,7 +483,6 @@ function walk(graph, key, bound, tail, tracing, context)
    end
 
    local n = graph[nk]
-
    d = function (bound)
                 return walk(graph, nk, bound, tail, tracing, context)
            end
@@ -533,7 +532,8 @@ function build(graphs, tracing, parseGraph)
    for _, g in pairs(graphs) do
       local env, program = walk(g, nil, {}, tailf, tracing, parseGraph.context)
       regs = math.max(regs, env.maxregs + 1)
-      heads[#heads+1] = build_node("regfile", {program}, {{regs}})
+      local id = util.generateId()       
+      heads[#heads+1] = build_node("regfile", {program}, {{regs}}, id)
    end
    return build_node("fork", heads, {{util.toJSON(parseGraph)}}, util.generateId())
 end

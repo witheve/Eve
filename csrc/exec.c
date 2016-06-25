@@ -482,15 +482,18 @@ static void do_sub(int *count, execf next, execf leg, value resreg,
     table res;
     *count = *count + 1;
     extract(v, inputs, r);
+    vector key;
     if (!(res = table_find(*results, v))){
-        res = create_value_vector_table(h);
-        vector key = allocate_vector(h, vector_length(inputs));
-        if (*previous) 
-            table_set(*previous, v, NULL);
-        extract(key, inputs, r);
+        if (*previous && (res = table_find_key(*previous, v, (void **)&key))) {
+            table_set(*previous, key, NULL);
+        } else {
+            res = create_value_vector_table(h);
+            key = allocate_vector(h, vector_length(inputs));
+            extract(key, inputs, r);
+            r[toreg(resreg)] = res;
+            apply(leg, op, r);
+        }
         table_set(*results, key, res);
-        r[toreg(resreg)] = res;
-        apply(leg, op, r);
     }
     table_foreach(res, n, _) {
         copyout(r, outputs, n);
@@ -698,7 +701,6 @@ static execf build_fork(evaluation e, node n)
 static CONTINUATION_2_2(do_trace, execf, vector, operator, value *);
 static void do_trace(execf n, vector terms, operator op, value *r)
 {
-    prf ("trace");
     for (int i=0; i<vector_length(terms); i+=2) {
         prf(" %v %v", lookup(vector_get(terms, i), r), lookup(vector_get(terms, i+1), r));
     }
@@ -721,7 +723,6 @@ static void do_regfile(heap h, execf n, int *count, int size, operator op, value
     value *r;
     if (op == op_insert) {
         *count = *count +1;
-        prf("regfile: %d\n", size);
         r = allocate(h, size * sizeof(value));
     }
     apply(n, op, r);
