@@ -93,15 +93,34 @@ function walk(obj, fn, seen)
 end
 
 ------------------------------------------------------------
+-- ID helpers
+------------------------------------------------------------
+
+local id = 0
+function generateId()
+  id = id + 1
+  return id
+end
+
+------------------------------------------------------------
 -- JSON helpers
 ------------------------------------------------------------
+
+local function isArray(t)
+  local i = 0
+  for _ in pairs(t) do
+      i = i + 1
+      if t[i] == nil then return false end
+  end
+  return true
+end
 
 function toJSON(obj, seen)
   seen = seen or {}
   local objType = type(obj)
   if objType == "table" and obj.toJSON then
     return obj:toJSON(seen)
-  elseif objType == "table" and obj[1] then
+  elseif objType == "table" and isArray(obj) then
     seen[obj] = true
     local temp = {}
     for ix, child in ipairs(obj) do

@@ -119,7 +119,7 @@ static void send_node_graph(heap h, buffer_handler output, node head, table coun
     string out = allocate_string(h);
     iu64 time = (iu64)table_find(counts, intern_cstring("time"));
     long iterations = (long)table_find(counts, intern_cstring("iterations"));
-    bprintf(out, "{\"type\":\"node_graph\", \"total_time\": %t, \"iterations\": %d, \"head\": \"%p\", \"nodes\":{", time, iterations, head);
+    bprintf(out, "{\"type\":\"node_graph\", \"total_time\": %t, \"iterations\": %d, \"head\": \"%v\", \"nodes\":{", time, iterations, head->id);
 
     vector to_scan = allocate_vector(h, 10);
     vector_insert(to_scan, head);
@@ -129,14 +129,14 @@ static void send_node_graph(heap h, buffer_handler output, node head, table coun
         if(nodeComma) {
             bprintf(out, ",");
         }
-        bprintf(out, "\"%p\": {\"type\": %v, \"arms\": [", current, current->type);
+        bprintf(out, "\"%v\": {\"id\": \"%v\", \"type\": %v, \"arms\": [", current->id, current->id, current->type);
         int needsComma = 0;
         vector_foreach(current->arms, arm) {
             vector_insert(to_scan, arm);
             if(needsComma) {
                 bprintf(out, ",");
             }
-            bprintf(out, "\"%p\"", arm);
+            bprintf(out, "\"%v\"", ((node)arm)->id);
             needsComma = 1;
         }
         bprintf(out, "]");

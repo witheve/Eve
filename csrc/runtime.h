@@ -109,6 +109,7 @@ typedef struct node *node;
 typedef execf (*buildf)(evaluation, node);
     
 struct node {
+    value id;
     estring type;
     buildf builder;
     vector arms;

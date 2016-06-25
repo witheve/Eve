@@ -14,6 +14,7 @@ document.body.appendChild(renderer.content);
 // TODO: queue updates to be applied during requestAnimationFrame
 
 var activeElements = {"root": document.createElement("div")};
+activeElements["root"].className = "program";
 var activeStyles = {};
 var supportedTags = {"div": true, "span": true, "input": true};
 
@@ -320,16 +321,6 @@ window.addEventListener("keyup", function(event) {
 
 let allNodeGraphs = {};
 
-let styles  = {
-  root: "display:flex; flex-direction:column; justify-content:flex-start; align-items:flex-start; margin-top:20px;",
-  graph: "margin-top:30px;",
-  node: "display: flex; flex-direction:column; margin:0 0px;",
-  nodeChildren: "display: flex; flex-direction:column; align-items:stretch; ",
-  nodeType: "display:flex; justify-content:center; background: #ddd; margin: 0px; padding: 5px 10px;",
-  subNodeChildren: "flex-direction:column; margin-left: 0px;",
-  forkNodeChildren: "flex-direction:row; justify-content: center;",
-}
-
 function drawNode(nodeId, graph, seen) {
   let node = graph[nodeId];
   if(seen[nodeId]) {
@@ -363,12 +354,15 @@ function drawNode(nodeId, graph, seen) {
 
 function drawNodeGraph(graph) {
   allNodeGraphs[graph.head] = graph;
+  console.log(graph.parse.context.downEdges);
   let graphs = [];
   for(let headId in allNodeGraphs) {
     let tree = drawNode(headId, allNodeGraphs[headId].nodes, {});
     graphs.push({c: "graph", children: [
-      {text: `total time: ${allNodeGraphs[headId].total_time}s`},
-      {text: `iterations: ${allNodeGraphs[headId].iterations}`},
+      {c: "run-info", children: [
+        {text: `total time: ${allNodeGraphs[headId].total_time}s`},
+        {text: `iterations: ${allNodeGraphs[headId].iterations}`},
+      ]},
       tree
     ]});
   }
@@ -381,8 +375,8 @@ function drawNodeGraph(graph) {
 
 var socket = new WebSocket("ws://" + window.location.host +"/ws");
 socket.onmessage = function(msg) {
-  console.log(msg.data)
   let data = JSON.parse(msg.data);
+  console.log(data)
   if(data.type == "result") {
     handleDOMUpdates(data);
   } else if(data.type == "node_graph") {
