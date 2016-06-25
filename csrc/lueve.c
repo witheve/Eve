@@ -30,17 +30,17 @@ static void run_test(bag root, buffer b, boolean tracing)
     table_set(scopes, intern_cstring("session"), event);
     table_set(scopes, intern_cstring("transient"), event);
 
-    // take this from a pool
-    interpreter c = build_lua(root, scopes);
-    node n = lua_compile_eve(c, b, tracing);
+    node n = compile_eve(b, tracing);
     edb_register_implication(event, n);
     table persisted = create_value_table(h);
     table counts = allocate_table(h, key_from_pointer, compare_pointer);
-    table result_bags = start_fixedpoint(h, scopes, persisted, counts);
-    table_foreach(result_bags, n, v) {
+    solver s = build_solver(h, scopes, persisted, counts);
+    run_solver(s);
+    
+    table_foreach(s->solution, n, v) {
         prf("%v %b\n", n, bag_dump(h, v));
     }
-    h->destroy(h);
+    destroy(h);
 }
 
 int main(int argc, char **argv)
@@ -48,7 +48,6 @@ int main(int argc, char **argv)
     init_runtime();
     bag root = create_bag(generate_uuid());
     boolean enable_tracing = false;
-
     interpreter c = build_lua();
 
     boolean doParse = false;

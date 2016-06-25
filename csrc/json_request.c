@@ -1,7 +1,6 @@
 #include <runtime.h>
 #include <unix/unix.h>
 #include <http/http.h>
-#include <luanne.h>
 #include <unistd.h>
 
 static char separator[] = {'{', '"', '"', ':', '"', '"', ','};
@@ -25,13 +24,14 @@ typedef struct json_session {
     table scopes;
     bag root, session;
     boolean tracing;
+    solver s;
 } *json_session;
 
 extern bag my_awesome_bag;
 extern thunk ignore;
 
-static CONTINUATION_2_4(chute, heap, table, value, value, value, eboolean)
-static void chute(heap h, table out, value e, value a,  value v, eboolean nothing)
+static CONTINUATION_2_4(collect_results, heap, table, value, value, value, eboolean)
+static void collect_results(heap h, table out, value e, value a,  value v, eboolean nothing)
 {
     table_set(out, build_vector(h, e, a, v), etrue);
 }
@@ -64,10 +64,10 @@ static void print_value_json(buffer out, value v)
 
 }
 
-static CONTINUATION_1_0(destroy, heap);
-static void destroy(heap h)
+static CONTINUATION_1_0(send_destroy, heap);
+static void send_destroy(heap h)
 {
-    h->destroy(h);
+    destroy(h);
 }
 
 // always call this guy independent of commit so that we get an update,
@@ -109,7 +109,7 @@ static void send_guy(heap h, buffer_handler output, values_diff diff)
 
     bprintf(out, "]}");
     // reclaim
-    apply(output, out, cont(h, destroy, h));
+    apply(output, out, cont(h, send_destroy, h));
 }
 
 // for tracing we want to be able to send the structure of the machines
@@ -156,56 +156,36 @@ static void send_node_graph(heap h, buffer_handler output, node head, table coun
     buffer_append(out, parse->body, parse->length);
     bprintf(out, "}");
     // reclaim
-    apply(output, out, cont(h, destroy, h));
-}
-
-static void compile_json_query(json_session js, buffer code, string scope)
-{
-    // FIXME: how do we clean up old event bags if they can't be used anymore?
-    bag event = create_bag(generate_uuid());
-    table_set(js->scopes, intern_cstring("event"), event);
-
-    // take this from a pool
-    interpreter lua = build_lua(js->root, js->scopes);
-    node headNode = lua_compile_eve(lua, code, js->tracing);
-    bag target = table_find(js->scopes, intern_string(scope->contents, buffer_length(scope)));
-
-    if (target) {
-        edb_register_implication(target, headNode);
-    }
+    apply(output, out, ignore);
 }
 
 
-static evaluation start_guy(json_session js, buffer_handler output)
+static evaluation start_guy(json_session js)
 {
     heap h = allocate_rolling(pages);
     table results = create_value_vector_table(js->h);
-    table counts = allocate_table(h, key_from_pointer, compare_pointer);
+    
+    // UPDATE FIXPOINT
+    run_solver(js->s);
 
-    table persisted = create_value_table(h);
-    table_set(persisted, edb_uuid(js->root), js->root);
-
-    // DO FIXPOINT
-    table result_bags = start_fixedpoint(h, js->scopes, persisted, counts);
-
-    bag session_bag = table_find(result_bags, edb_uuid(js->session));
+    bag session_bag = table_find(js->s->solution, edb_uuid(js->session));
     prf("session bag facts: %d\n", session_bag?edb_size(session_bag): 0);
-    // and if not?
-    insertron scanner = cont(js->h, chute, js->h, results);
+    
     if (session_bag) {
-        edb_scan(session_bag, 0, scanner, 0, 0, 0);
+        edb_scan(session_bag, 0, cont(js->h, collect_results, js->h, results), 0, 0, 0);
     }
 
     table_foreach(js->scopes, k, scopeBag) {
         table_foreach(edb_implications(scopeBag), k, impl) {
-            heap impl_heap = allocate_rolling(pages);
-            send_node_graph(impl_heap, output, impl, counts);
+            send_node_graph(h, js->write, impl, js->s->counters);
         }
     }
 
-    values_diff diff = diff_value_vector_tables(js->h, js->current_delta, results);
-    send_guy(h, output, diff);
+    values_diff diff = diff_value_vector_tables(h, js->current_delta, results);
+    send_guy(h, js->write, diff);
+    
     // FIXME: we need to clean up the old delta, we're currently just leaking it
+    // this has to be a copy
     js->current_delta = results;
     return 0;
 }
@@ -243,12 +223,10 @@ void handle_json_query(json_session j, buffer in, thunk c)
 
         if ((c == '}')  && (s== sep)) {
             if (string_equal(type, sstring("query"))) {
-                // xxx - get and id and register it.. do we have those anymore?
-                compile_json_query(j, query, scope);
-                start_guy(j, j->write);
+                node headNode = compile_eve(query, j->tracing);
+                inject_event(j->s, headNode);
+                start_guy(j);
             }
-
-            // do the thing
         }
 
         if ((c == separator[s]) && !backslash) {
@@ -273,6 +251,8 @@ CONTINUATION_2_3(new_json_session, bag, boolean, buffer_handler, table, buffer_h
 void new_json_session(bag root, boolean tracing, buffer_handler write, table headers, buffer_handler *handler)
 {
     heap h = allocate_rolling(pages);
+    // ok, now counts just accrete forever
+    table counts = allocate_table(h, key_from_pointer, compare_pointer);
 
     json_session js = allocate(h, sizeof(struct json_session));
     js->h = h;
@@ -282,11 +262,21 @@ void new_json_session(bag root, boolean tracing, buffer_handler write, table hea
     js->scopes = create_value_table(js->h);
     js->session = create_bag(generate_uuid());
     js->current_delta = create_value_vector_table(js->h);
-    // what is this guy really?
+
+    table persisted = create_value_table(h);
+    table_set(persisted, edb_uuid(js->root), js->root);
+
+    // FIXME - for the moment we're just going to accrete the events so that
+    // the quasi-incremental guy knows what to do, we'd like to clean up
+    // a big for long lived sessions
+    bag event = create_bag(generate_uuid());
+    table_set(js->scopes, intern_cstring("event"), event);
+
     table_set(js->scopes, intern_cstring("session"), js->session);
     table_set(js->scopes, intern_cstring("all"), root);
+    js->s = build_solver(h, js->scopes, persisted, counts);
     *handler = websocket_send_upgrade(h, headers, write, cont(h, handle_json_query, js), &js->write);
-    start_guy(js, js->write);
+    start_guy(js);
 }
 
 void init_json_service(http_server h, bag root, boolean tracing)

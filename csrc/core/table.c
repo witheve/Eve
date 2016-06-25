@@ -36,6 +36,20 @@ void *table_find (table t, void *c)
     return(EMPTY);
 }
 
+void *table_find_key (table t, void *c, void **kr)
+{
+    key k = t->key_function(c);
+
+    for (entry i = vector_get(t->entries, position(t, k));
+         i; i = i->next)
+        if ((i->k == k) && t->equals_function(i->c, c)){
+            *kr = i->c;
+            return(i->v);
+        }
+
+    return(EMPTY);
+}
+
 
 static void resize_table(table t, int buckets)
 {
