@@ -287,10 +287,7 @@ function translate_not(n, bound, down, tracing)
    local arms = {}
    local flag = allocate_temp()
    tail_bound = shallowcopy(bound)
-   for _, v in pairs(n.outputs) do
-      tail_bound[v] = true
-   end
-
+   
    local env, c = down(tail_bound)
    local orig_perm = shallowcopy(env.permanent)
    local bot = build_node("choosetail",
@@ -304,7 +301,7 @@ function translate_not(n, bound, down, tracing)
    for n, _ in pairs(env.registers) do
          env.permanent[n] = true
    end
-   env, arm = walk(v.unpacked, nil, shallowcopy(bound), arm_bottom, tracing)
+   env, arm = walk(n.queries[1].unpacked, nil, shallowcopy(bound), arm_bottom, tracing)
    return env, build_node("not", {arm}, {{read_lookup(env, flag)}})
 end
 
