@@ -754,7 +754,7 @@ function unpackObjects(dg, context)
         end
       end
     else
-      if node.type == "union" or node.type == "choose" then
+      if node.type == "union" or node.type == "choose" or node.type == "not" then
         for _, query in ipairs(node.queries) do
           unpackObjects(query.deps.graph)
         end
