@@ -189,9 +189,9 @@ function DependencyGraph:addExpressionNode(node)
     elseif args.b.type == "constant" then
       deps.provides:add(a)
     else
-      deps.maybeProvides:add(args.a)
+      deps.provides:add(args.a)
       deps.anyDepends:add(args.a)
-      deps.maybeProvides:add(args.b)
+      deps.provides:add(args.b)
       deps.anyDepends:add(args.b)
     end
   else
@@ -695,7 +695,6 @@ end
 
 function unpackObjects(dg)
   local unpacked = {}
-  local unpackedSubprojects = {}
   local tmpCounter = 0
   dg:order()
   for _, node in ipairs(dg.sorted) do
@@ -716,7 +715,7 @@ function unpackObjects(dg)
 
         subproject = SubprojectNode:new{projection = projection, provides = node.deps.provides}
         unpackList = subproject.nodes
-        unpackedSubprojects[#unpackedSubprojects + 1] = subproject
+        unpacked[#unpacked + 1] = subproject
       end
 
       if isEAVNode(node) then
@@ -733,7 +732,7 @@ function unpackObjects(dg)
           if binding.field ~= ENTITY_FIELD then
             if subproject and binding.variable and not subproject.projection[binding.variable] then
               subproject.provides:add(entity)
-              unpackedSubprojects[#unpackedSubprojects + 1] = SubprojectNode:new{projection = subproject.projection + Set:new{entity, binding.variable}, nodes = {ScanNode:fromBinding(node, binding, entity)}}
+              unpacked[#unpacked + 1] = SubprojectNode:new{projection = subproject.projection + Set:new{entity, binding.variable}, nodes = {ScanNode:fromBinding(node, binding, entity)}}
             else
               unpackList[#unpackList + 1] = ScanNode:fromBinding(node, binding, entity)
             end
@@ -751,10 +750,6 @@ function unpackObjects(dg)
     end
   end
 
-  for _, node in std.ipairs(unpackedSubprojects) do
-    unpacked[#unpacked + 1] = node
-  end
-
   dg.query.unpacked = unpacked
   return unpacked
 end
@@ -768,6 +763,11 @@ function compileExec(contents, tracing)
     local unpacked = unpackObjects(dependencyGraph)
     -- this handler function is just for debugging, we no longer have
     -- an 'execution return'
+    print("  {")
+    for ix, node in ipairs(unpacked) do
+      print(string.format("    %2d: %s", ix, util.indentString(4, tostring(node))))
+    end
+    print("  }")
     set[#set+1] = unpacked
   end
   return build.build(set, tracing, parseGraph)
