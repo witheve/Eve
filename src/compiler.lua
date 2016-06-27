@@ -635,8 +635,8 @@ function ScanNode:fromBinding(source, binding, entity, context)
     obj = self:new()
   end
   obj.id = util.generateId()
-  if source.id then
-    context.downEdges[#context.downEdges + 1] = {source.id, obj.id}
+  if binding.id then
+    context.downEdges[#context.downEdges + 1] = {binding.id, obj.id}
   end
   obj.source = source
   obj.type = source.type

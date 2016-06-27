@@ -233,6 +233,7 @@ function formatObjects(objs) {
 }
 
 function sendEvent(objs) {
+  if(!objs.length) return;
   let query = `handle some event
   update
     ${formatObjects(objs).join("\n    ")}
@@ -258,7 +259,7 @@ window.addEventListener("click", function(event) {
     }
     current = current.parentNode
   }
-  objs.push({tags: ["click"], element: "window"});
+  // objs.push({tags: ["click"], element: "window"});
   sendEvent(objs);
 });
 
@@ -319,9 +320,10 @@ window.addEventListener("keyup", function(event) {
 // Draw node graph
 //---------------------------------------------------------
 
+let activeIds = {};
 let allNodeGraphs = {};
 
-function drawNode(nodeId, graph, seen) {
+function drawNode(nodeId, graph, state, seen) {
   let node = graph[nodeId];
   if(seen[nodeId]) {
     return {text: `seen ${node.type}`};
@@ -329,44 +331,207 @@ function drawNode(nodeId, graph, seen) {
     return undefined;
   }
   seen[nodeId] = true;
+  let active = activeClass(node, state);
   let children = [];
   let childrenContainer = {c: "node-children", children};
-  let me = {c: "node", children: [
-    {c: `${node.type} node-text`, text: `${node.type} ${node.scan_type || ""} (${node.count || 0})`},
+  let me = {c: `node`, children: [
+    {c: `${node.type} node-text ${active}`, text: `${node.type} ${node.scan_type || ""} (${node.count || 0})`},
     childrenContainer
   ]};
   if((node.type == "fork") || (node.type == "choose")) {
     childrenContainer.c += ` fork-node-children`;
     for(let child of node.arms) {
-      children.push({style: "margin-right: 20px;", children: [drawNode(child, graph, seen)]});
+      children.push({style: "margin-right: 20px;", children: [drawNode(child, graph, state, seen)]});
     }
   } else if(node.type == "sub") {
     childrenContainer.c += ` sub-node-children`;
-    children.push({style: "margin-left: 30px;", children: [drawNode(node.arms[1], graph, seen)]});
-    children.push(drawNode(node.arms[0], graph, seen));
+    children.push({style: "margin-left: 30px;", children: [drawNode(node.arms[1], graph, state, seen)]});
+    children.push(drawNode(node.arms[0], graph, state, seen));
   } else {
     for(let child of node.arms) {
-      children.push(drawNode(child, graph, seen));
+      children.push(drawNode(child, graph, state, seen));
     }
   }
   return me;
 }
 
-function drawNodeGraph(graph) {
-  allNodeGraphs[graph.head] = graph;
-  console.log(graph.parse.context.downEdges);
+function posToToken(pos, lines) {
+  let tokens = lines[pos.line + 1] || [];
+  for(let token of tokens) {
+    console.log(pos, token);
+    if(token.offset <= pos.ch && token.offset + token.value.length >= pos.ch) {
+      return token;
+    }
+  }
+  return false;
+}
+
+function injectCodeMirror(node, elem) {
+  if(!node.editor) {
+    let editor = new CodeMirror(node);
+    editor.setValue(elem.value);
+    editor.on("cursorActivity", function() {
+      let pos = editor.getCursor();
+      activeIds = nodeToRelated(posToToken(pos, elem.parse.lines), elem.parse);
+      console.log(activeIds);
+      drawNodeGraph();
+    });
+    node.editor = editor;
+  }
+}
+
+function CodeMirrorNode(info) {
+  info.postRender = injectCodeMirror;
+  return info;
+}
+
+function indexParse(parse) {
+  let lines = {};
+  for(let token of parse.context.tokens) {
+    if(!lines[token.line]) {
+      lines[token.line] = [];
+    }
+    lines[token.line].push(token)
+  }
+  parse.lines = lines;
+  let down = {};
+  let up = {};
+  for(let edge of parse.context.downEdges) {
+    if(!down[edge[0]]) down[edge[0]] = [];
+    if(!up[edge[1]]) up[edge[1]] = [];
+    down[edge[0]].push(edge[1]);
+    up[edge[1]].push(edge[0]);
+  }
+  parse.edges = {down, up};
+}
+
+function nodeToRelated(node, parse) {
+  if(!node.id) return {};
+  let {up, down} = parse.edges;
+  let active = {};
+  active[node.id] = true;
+  let nodesUp = up[node.id] ? up[node.id].slice() : [];
+  for(let ix = 0; ix < nodesUp.length; ix++) {
+    let cur = nodesUp[ix];
+    active[cur] = true;
+    for(let next of up[cur] || []) nodesUp.push(next);
+  }
+  let nodesDown = down[node.id] ? down[node.id].slice() : [];
+  for(let ix = 0; ix < nodesDown.length; ix++) {
+    let cur = nodesDown[ix];
+    active[cur] = true;
+    for(let next of down[cur] || []) nodesDown.push(next);
+  }
+  return active;
+}
+
+function activeClass(node, state) {
+  return state.activeIds[node.id] ? "active" : "";
+}
+
+function drawNodeGraph() {
   let graphs = [];
   for(let headId in allNodeGraphs) {
-    let tree = drawNode(headId, allNodeGraphs[headId].nodes, {});
-    graphs.push({c: "graph", children: [
+    let cur = allNodeGraphs[headId];
+    let tree = drawNode(headId, cur.nodes, {activeIds}, {});
+    let ast = drawAST(cur.parse.ast, {activeIds});
+    let parse = drawParse(cur.parse, {activeIds});
+    let ordered = drawOrdered(cur.parse.children, {activeIds});
+    graphs.push({c: "parse-info", children: [
       {c: "run-info", children: [
-        {text: `total time: ${allNodeGraphs[headId].total_time}s`},
-        {text: `iterations: ${allNodeGraphs[headId].iterations}`},
+        CodeMirrorNode({value: cur.parse.context.code, parse: cur.parse}),
+        {text: `total time: ${cur.total_time}s`},
+        {text: `iterations: ${cur.iterations}`},
       ]},
-      tree
+      ast,
+      parse,
+      ordered,
+      tree,
     ]});
   }
   renderer.render([{c: "graph-root", children: graphs}]);
+}
+
+//---------------------------------------------------------
+// Draw AST
+//---------------------------------------------------------
+
+function drawAST(root, state) {
+  let children = [];
+  let node = {c: "ast-node", children: [
+    {c: "ast-type", text: root.type},
+    {c: "ast-children", children}
+  ]}
+  if(root.children) {
+    for(let child of root.children) {
+      children.push(drawAST(child, state));
+    }
+  }
+  return node;
+}
+
+//---------------------------------------------------------
+// Draw parse
+//---------------------------------------------------------
+
+function drawParse(root, state) {
+  let children = [];
+  let node = {c: "parse-node", children: [
+    {c: "parse-type", text: root.type},
+    {c: "parse-children", children}
+  ]}
+  if(root.type == "code") {
+    for(let child of root.children) {
+      children.push(drawParse(child, state));
+    }
+  } else if(root.type == "query") {
+    for(let object of root.objects) {
+      children.push(drawParse(object, state));
+    }
+  }
+  return node;
+}
+
+//---------------------------------------------------------
+// Draw ordered
+//---------------------------------------------------------
+
+function orderedNode(node, state) {
+  let active = activeClass(node, state);
+  if(node.type == "object" || node.type == "mutate") {
+    return {c: `ordered-object ${active}`, children: [
+      {text: node.type},
+      {c: "eav", children: [orderedNode(node.entity, state), orderedNode(node.attribute, state), orderedNode(node.value, state)]}
+    ]};
+  } else if(node.type == "subproject") {
+    return {c: `subproject ${active}`, children: [
+      {text: node.type},
+      {c: "subproject-children", children: node.nodes.map(function(cur) { return orderedNode(cur, state); })}
+    ]};
+  } else if(node.type == "variable") {
+    return {text: `variable<${node.name}>`};
+  } else if(node.type == "constant") {
+    return {text: node.constant};
+  } else if(typeof node == "string") {
+    return {text: node};
+  }
+}
+
+function drawOrdered(ordered, state) {
+  let queries = [];
+  for(let query of ordered) {
+    var items = [];
+    for(let node of query.unpacked) {
+      items.push(orderedNode(node, state));
+    }
+    queries.push({c: "ordered-query", children: [
+      {text: query.name},
+      {c: "ordered-query-children", children: items},
+    ]});
+  }
+  return {c: "ordered", children: [
+    {children: queries},
+  ]}
 }
 
 //---------------------------------------------------------
@@ -380,7 +545,9 @@ socket.onmessage = function(msg) {
   if(data.type == "result") {
     handleDOMUpdates(data);
   } else if(data.type == "node_graph") {
-    drawNodeGraph(data);
+    allNodeGraphs[data.head] = data;
+    indexParse(data.parse);
+    drawNodeGraph();
   }
 }
 socket.onopen = function() {

@@ -138,6 +138,18 @@ int main(int argc, char **argv)
                             wrap_buffer(init,  &microReact_start,
                                         &microReact_end -  &microReact_start));
 
+    extern unsigned char codemirror_start, codemirror_end;
+    register_static_content(h, "/jssrc/codemirror.js",
+                            "application/javascript",
+                            wrap_buffer(init,  &codemirror_start,
+                                        &codemirror_end -  &codemirror_start));
+
+    extern unsigned char codemirrorCss_start, codemirrorCss_end;
+    register_static_content(h, "/jssrc/codemirror.css",
+                            "text/css",
+                            wrap_buffer(init,  &codemirrorCss_start,
+                                        &codemirrorCss_end -  &codemirrorCss_start));
+
     init_json_service(h, root, enable_tracing);
 
     prf("\n----------------------------------------------\n\nEve started. Running at http://localhost:8080\n\n");

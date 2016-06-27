@@ -54,6 +54,11 @@ renderer.o: ../jssrc/renderer.js
 microReact.o: ../jssrc/microReact.js
 	cc wrap.S -DSTART=$(S)microReact_start -DEND=$(S)microReact_end -DFILE='"$<"' -c -o $@
 
+codemirror.o: ../jssrc/codemirror.js
+	cc wrap.S -DSTART=$(S)codemirror_start -DEND=$(S)codemirror_end -DFILE='"$<"' -c -o $@
+codemirrorCss.o: ../jssrc/codemirror.css
+	cc wrap.S -DSTART=$(S)codemirrorCss_start -DEND=$(S)codemirrorCss_end -DFILE='"$<"' -c -o $@
+
 %.o: %.c continuation_templates.h $(UNIX_H) $(CORE_H) $(RUNTIME_H) $(HTTP_H)
 	cc -std=gnu99 -I../csrc/unix -I../csrc/core -I../csrc -I. -I$(LUAJIT_INCLUDES) -g -c $<
 
@@ -65,7 +70,7 @@ microReact.o: ../jssrc/microReact.js
 # the executable out of the way for the moment
 #macosx
 #linux  -Wl,-E
-lueve: $(CORE) $(UNIX) $(COMPILER) $(UTF) $(LUAPOWER) $(HTTP) $(RUNTIME) index.o renderer.o microReact.o lueve.o
+lueve: $(CORE) $(UNIX) $(COMPILER) $(UTF) $(LUAPOWER) $(HTTP) $(RUNTIME) index.o renderer.o microReact.o codemirror.o codemirrorCss.o lueve.o
 	cc $(LINK) $^ $(LIBLUAJIT) -lm -ldl  -o $@
 
 clean:

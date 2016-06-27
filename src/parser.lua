@@ -114,7 +114,7 @@ end
 local Token = {}
 
 function Token:new(type, value, line, offset)
-  return {type = type, value = value, line = line, offset = offset}
+  return {id = util.generateId(), type = type, value = value, line = line, offset = offset}
 end
 
 function Token:format(token)
@@ -239,6 +239,7 @@ local function lex(str)
     elseif char == "\"" or char == "}" then
       if char == "\"" then
         tokens[#tokens+1] = Token:new("STRING_OPEN", "\"", line, offset)
+        offset = offset + 1
       end
       local string = scanner:eatWhile(inString)
       if #string > 0 then
@@ -247,7 +248,8 @@ local function lex(str)
       -- skip the end quote
       if scanner:peek() == "\"" then
         scanner:read()
-        tokens[#tokens+1] = Token:new("STRING_CLOSE", "\"", line, offset)
+        tokens[#tokens+1] = Token:new("STRING_CLOSE", "\"", line, offset + #string)
+        offset = offset + 1
       end
       offset = offset + #string
 
@@ -790,7 +792,7 @@ local function parse(tokens, context)
 end
 
 
-local function resolveVariable(name, context, noCreate)
+local function resolveVariable(context, name, related, noCreate)
   local mappings = context.nameMappings
   local variable
   for _, mapping in ipairs(mappings) do
@@ -802,7 +804,7 @@ local function resolveVariable(name, context, noCreate)
   -- if we didn't find it, then we have to create a new variable
   -- and add it to the closest name mapping
   if not variable and not noCreate then
-    variable = makeNode(context, "variable", {}, {name = name})
+    variable = makeNode(context, "variable", related, {name = name})
   end
   -- if we haven't mapped this variable at this level then we
   -- need to do so and add it to the containing query
@@ -818,8 +820,8 @@ local generateObjectNode
 local generateQueryNode
 local generateNotNode
 
-local function generateBindingNode(node, context, parent)
-  node.type = "binding"
+local function generateBindingNode(context, node, related, parent)
+  node = makeNode(context, "binding", related, node);
   node.source = parent
   if node.variable then
     local bindings = context.variableToBindings[node.variable] or {}
@@ -840,7 +842,7 @@ local function resolveExpression(node, context)
     return node
 
   elseif node.type == "IDENTIFIER" then
-    return resolveVariable(node.value, context)
+    return resolveVariable(context, node.value, node)
 
   elseif node.type == "mutate" then
     local left = resolveExpression(node.children[1], context)
@@ -888,11 +890,11 @@ local function resolveExpression(node, context)
       error("Inequality with invalid right")
     end
     if context.nonFilteringInequality then
-      resultVar = resolveVariable(string.format("%s-%s-%s", node.type, node.line, node.offset), context)
-      generateBindingNode({field = "return", variable = resultVar}, context, expression)
+      resultVar = resolveVariable(context, string.format("%s-%s-%s", node.type, node.line, node.offset), node)
+      generateBindingNode(context, {field = "return", variable = resultVar}, node, expression)
     end
-    generateBindingNode(leftBinding, context, expression)
-    generateBindingNode(rightBinding, context, expression)
+    generateBindingNode(context, leftBinding, left, expression)
+    generateBindingNode(context, rightBinding, right, expression)
     local query = context.queryStack:peek()
     query.expressions[#query.expressions + 1] = expression
     return resultVar
@@ -902,7 +904,7 @@ local function resolveExpression(node, context)
     local right = node.children[2]
     if right and right.type == "IDENTIFIER" then
       -- generate a temporary variable to hold this attribute binding
-      local attributeRef = resolveVariable(string.format("%s-%s-%s", right.value, right.line, right.offset), context)
+      local attributeRef = resolveVariable(context, string.format("%s-%s-%s", right.value, right.line, right.offset), right)
       -- generate a temporary object that we can attach this attribute to by adding
       -- an equality from the attribute name to our temp variable
       local tempObject = makeNode(context, "object", right, {children = {makeNode(context, "equality", right, {operator = "=", children = {right, makeNode(context, "IDENTIFIER", node.children[1], {value = attributeRef.name})}})}})
@@ -933,13 +935,13 @@ local function resolveExpression(node, context)
     return objectNode.entityVariable
 
   elseif node.type == "infix" or node.type == "function" then
-    local resultVar = resolveVariable(string.format("result-%s-%s", node.line, node.offset), context)
+    local resultVar = resolveVariable(context, string.format("result-%s-%s", node.line, node.offset), node)
     local prevNonfiltering = context.nonFilteringInequality
     if node.func == "is" then
       context.nonFilteringInequality = true
     end
     local expression = makeNode(context, "expression", node, {operator = node.func, projections = {}, groupings = {}, bindings = {}})
-    generateBindingNode({field = "return", variable = resultVar}, context, expression)
+    generateBindingNode(context, {field = "return", variable = resultVar}, resultVar, expression)
     -- create bindings
     for ix, child in ipairs(node.children) do
       field = alphaFields[ix]
@@ -949,10 +951,10 @@ local function resolveExpression(node, context)
         errors.invalidFunctionArgument(context, child, node.type)
 
       elseif resolved.type == "variable" then
-        generateBindingNode({field = field, variable = resolved}, context, expression)
+        generateBindingNode(context, {field = field, variable = resolved}, resolved, expression)
 
       elseif resolved.type == "constant" then
-        generateBindingNode({field = field, constant = resolved}, context, expression)
+        generateBindingNode(context, {field = field, constant = resolved}, resolved, expression)
 
       elseif resolved.type == "grouping" then
         for ix, grouping in ipairs(resolved.children) do
@@ -1025,8 +1027,8 @@ generateObjectNode = function(root, context)
   end
 
   -- create a binding to this node's entity field
-  local entityVariable = resolveVariable(string.format("object-%s-%s", root.line, root.offset), context)
-  generateBindingNode({field = MAGIC_ENTITY_FIELD, variable = entityVariable}, context, object)
+  local entityVariable = resolveVariable(context, string.format("object-%s-%s", root.line, root.offset), root)
+  generateBindingNode(context, {field = MAGIC_ENTITY_FIELD, variable = entityVariable}, entityVariable, object)
   -- store it on the object for ease of use
   object.entityVariable = entityVariable
 
@@ -1040,8 +1042,8 @@ generateObjectNode = function(root, context)
     local type = child.type
     if type == "IDENTIFIER" then
       -- generate a variable
-      local variable = resolveVariable(child.value, context)
-      local binding = generateBindingNode({field = child.value, variable = variable}, context, object)
+      local variable = resolveVariable(context, child.value, child)
+      local binding = generateBindingNode(context, {field = child.value, variable = variable}, child, object)
       lastAttribute = nil
       dependencies:add(variable)
 
@@ -1051,7 +1053,7 @@ generateObjectNode = function(root, context)
       -- if it's not, then this is an error
       if lastAttribute then
         local variable = resolveExpression(child, context)
-        local binding = generateBindingNode({field = lastAttribute.value, variable = variable}, context, object)
+        local binding = generateBindingNode(context, {field = lastAttribute.value, variable = variable}, lastAttribute, object)
         dependencies:add(variable)
       else
         -- error
@@ -1061,8 +1063,8 @@ generateObjectNode = function(root, context)
     elseif type == "inequality" then
       local left = child.children[1]
       if left.type == "IDENTIFIER" then
-        local variable = resolveVariable(left.value, context)
-        local binding = generateBindingNode({field = child.value, variable = variable}, context, object)
+        local variable = resolveVariable(context, left.value, left)
+        local binding = generateBindingNode(context, {field = child.value, variable = variable}, child, object)
         resolveExpression(child, context)
         lastAttribute = nil
       else
@@ -1075,14 +1077,17 @@ generateObjectNode = function(root, context)
       local left = child.children[1]
       local right = child.children[2]
       local binding = {}
+      local related
 
       if left.type == "NAME" then
         binding.field = "name"
         binding.constant = makeNode(context, "constant", right, {constant = right.value, constantType = "string"})
+        related = right
 
       elseif left.type == "TAG" then
         binding.field = "tag"
         binding.constant = makeNode(context, "constant", right, {constant = right.value, constantType = "string"})
+        related = right
         if not mutating and SPECIAL_TAGS[right.value] then
           object.type = "expression"
           object.operator = right.value
@@ -1090,6 +1095,7 @@ generateObjectNode = function(root, context)
         end
 
       elseif left.type == "IDENTIFIER" then
+        related = left
         binding.field = left.value
         lastAttribute = left
         local resolved = resolveExpression(right, context)
@@ -1116,7 +1122,8 @@ generateObjectNode = function(root, context)
         errors.invalidObjectAttributeBinding(context, child)
       end
       if binding then
-        binding = generateBindingNode(binding, context, object)
+        -- FIXME: is this the right related node for the binding?
+        binding = generateBindingNode(context, binding, related, object)
       end
 
     elseif type == "not" and object.type == "object" then
@@ -1171,7 +1178,7 @@ generateObjectNode = function(root, context)
     local finalBindings = {}
     for _, binding in ipairs(object.bindings) do
       if binding.field == MAGIC_ENTITY_FIELD then
-        binding = generateBindingNode({field = "return", variable = entityVariable}, context, object)
+        binding = generateBindingNode(context, {field = "return", variable = entityVariable}, entityVariable, object)
       -- FIXME: this is a hacky.. way to ignore the binding we just added so we don't
       -- end up with it twice
       elseif binding.field == "return" then
@@ -1201,10 +1208,10 @@ local function generateUnionNode(root, context, unionType)
   -- generate vars for the outputs
   local outputs = {}
   if root.outputs.type == "IDENTIFIER" then
-    outputs[#outputs + 1] = resolveVariable(root.outputs.value, context)
+    outputs[#outputs + 1] = resolveVariable(context, root.outputs.value, root.outputs)
   elseif root.outputs.type == "block" then
     for _, child in ipairs(root.outputs.children) do
-      outputs[#outputs + 1] = resolveVariable(child.value, context)
+      outputs[#outputs + 1] = resolveVariable(context, child.value, child)
     end
   else
     -- error
@@ -1410,6 +1417,7 @@ local function parseFile(path)
   content = content:gsub("\t", "  ")
   local context = {code = content, downEdges = {}, file = path}
   local tokens = lex(content)
+  context.tokens = tokens
   local tree = {type="expression tree", children = parse(tokens, context)}
   local graph = generateNodes(tree, context)
   return graph
@@ -1419,6 +1427,7 @@ local function parseString(str)
   str = str:gsub("\t", "  ")
   local context = {code = str, downEdges = {}}
   local tokens = lex(str)
+  context.tokens = tokens
   local tree = {type="expression tree", children = parse(tokens, context)}
   local graph = generateNodes(tree, context)
   return graph
@@ -1428,6 +1437,7 @@ local function printParse(content)
   content = content:gsub("\t", "  ")
   local context = {code = content, downEdges = {}}
   local tokens = lex(content)
+  context.tokens = tokens
   local tree = {type="expression tree", children = parse(tokens, context)}
   local graph = generateNodes(tree, {code = content})
   print()

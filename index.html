@@ -6,7 +6,8 @@
       .program { padding:20px; }
       .__root { padding:20px 40px; margin-right: 100px; }
       .graph-root { display:flex; flex-direction:column; align-items:flex-start; }
-      .graph + .graph { margin-top:50px; }
+      .parse-info { display:flex; flex-direction: row; }
+      .parse-info + .parse-info { margin-top:50px; }
       .node-text { padding: 3px 6px; background: rgb(44,72,97); }
       .sub { background: hsl(153, 100%, 72%); color: #202930; }
       .scan { background: #29A4FF; color: #202930; }
@@ -18,10 +19,22 @@
       .fork-node-children { flex-direction:row; justify-content: center; }
       .sub-node-children { margin-left: 0px; }
 
+
+      .ordered-object { display:flex; flex-direction:row; }
+      .ordered-object .eav { display:flex; flex-direction:row; }
+      .ordered-object .eav > * { margin-left: 10px; }
+
+      .ordered-query-children, .subproject-children { margin-left:20px; }
+
+      .active { color: red !important; }
+
     </style>
+    <link rel="stylesheet" type="text/css" href="jssrc/codemirror.css">
   </head>
   <body>
+    <script type="text/javascript" src="jssrc/codemirror.js"></script>
     <script type="text/javascript" src="jssrc/microReact.js"></script>
     <script type="text/javascript" src="jssrc/renderer.js"></script>
   </body>
 </html>
+
