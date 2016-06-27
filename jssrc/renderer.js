@@ -434,8 +434,8 @@ function drawNodeGraph() {
   for(let headId in allNodeGraphs) {
     let cur = allNodeGraphs[headId];
     let tree = drawNode(headId, cur.nodes, {activeIds}, {});
-    let ast = drawAST(cur.parse.ast, {activeIds});
-    let parse = drawParse(cur.parse, {activeIds});
+    // let ast = drawAST(cur.parse.ast, {activeIds});
+    // let parse = drawParse(cur.parse, {activeIds});
     let ordered = drawOrdered(cur.parse.children, {activeIds});
     graphs.push({c: "parse-info", children: [
       {c: "run-info", children: [
@@ -443,8 +443,8 @@ function drawNodeGraph() {
         {text: `total time: ${cur.total_time}s`},
         {text: `iterations: ${cur.iterations}`},
       ]},
-      ast,
-      parse,
+      // ast,
+      // parse,
       ordered,
       tree,
     ]});
