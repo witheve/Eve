@@ -168,11 +168,16 @@ static CONTINUATION_0_0(ignoro);
 static void ignoro(){}
 
     
-void register_static_content(http_server h, char *url, char *content_type, buffer b)
+void register_static_content(http_server h, char *url, char *content_type, buffer b, char *backing)
 {
-    buffer *x = allocate(h->h, 2*sizeof(buffer));
+    buffer *x = allocate(h->h, 3*sizeof(buffer));
     x[0] = string_from_cstring(h->h,content_type);
     x[1] = b;
+    if (backing) {
+        x[2] = string_from_cstring(h->h, backing);
+    } else {
+        x[2] = 0;
+    }
     table_set(h->content, string_from_cstring(h->h, url), x);
 }
 

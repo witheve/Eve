@@ -25,7 +25,7 @@ void register_websocket_service(heap h,
                                 string url,
                                 thunk connect);
 
-void register_static_content(http_server h, char *url, char *content_type, buffer b);
+void register_static_content(http_server h, char *url, char *content_type, buffer b, char *);
 
 #define outline(__b, __format, ...)\
     bbprintf(__b, sstring(__format), ## __VA_ARGS__);\
