@@ -141,7 +141,6 @@ void require_luajit(interpreter c, char *z)
         printf ("lua error\n");
         printf ("%s\n", lua_tostring(c->L, -1));
     }
-
     lua_setglobal(c->L, z);
 }
 
@@ -218,10 +217,15 @@ int lua_build_node(lua_State *L)
             vector_insert(s, lua_tovalue(L, a));
         }
     }
+    value node_id = lua_tovalue(L, 4);
+    n->id = node_id;
 
     lua_pushlightuserdata(L, n);
     return 1;
 }
+
+// FIXME - CAS thread safety or per core lists
+static interpreter freelist = 0;
 
 interpreter build_lua()
 {
@@ -229,10 +233,10 @@ interpreter build_lua()
     interpreter c = allocate(h, sizeof(struct interpreter));
     c->L = luaL_newstate();
     c->h = h;
-
+    
     luaL_openlibs(c->L);
     bundle_add_loaders(c->L);
-
+    
     // make me a lua package ala utf8
     define(c, "suuid", construct_uuid);
     define(c, "snumber", construct_number);
@@ -242,6 +246,21 @@ interpreter build_lua()
     define(c, "value_to_string", lua_print_value);
     define(c, "build_node", lua_build_node);
     require_luajit(c, "compiler");
-
     return c;
+}
+
+node compile_eve(buffer b, boolean tracing)
+{
+    interpreter c;
+        // FIXME - CAS threading
+    if (freelist) {
+        c = freelist;
+        freelist = c->next;
+    } else {
+        c = build_lua();
+    }
+    node n = lua_compile_eve(c, b, tracing);
+    c->next = freelist;
+    freelist = c;
+    return n;
 }

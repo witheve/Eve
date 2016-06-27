@@ -1,0 +1,13 @@
+choose
+  update
+    [#cheese @mimolette]
+    [#cheese @morbier]
+    [#cheese @manchego]
+    [#cheese @portsalut]
+    [#cheese @wensleydale]
+
+zikky
+  [#cheese color name]
+  color = if length(name) > 6 then "orange" else "black"
+  update
+    [#div #foo ix: name, text: name, style: [color]]

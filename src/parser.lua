@@ -114,7 +114,7 @@ end
 local Token = {}
 
 function Token:new(type, value, line, offset)
-  return {type = type, value = value, line = line, offset = offset}
+  return {id = util.generateId(), type = type, value = value, line = line, offset = offset}
 end
 
 function Token:format(token)
@@ -239,6 +239,7 @@ local function lex(str)
     elseif char == "\"" or char == "}" then
       if char == "\"" then
         tokens[#tokens+1] = Token:new("STRING_OPEN", "\"", line, offset)
+        offset = offset + 1
       end
       local string = scanner:eatWhile(inString)
       if #string > 0 then
@@ -247,7 +248,8 @@ local function lex(str)
       -- skip the end quote
       if scanner:peek() == "\"" then
         scanner:read()
-        tokens[#tokens+1] = Token:new("STRING_CLOSE", "\"", line, offset)
+        tokens[#tokens+1] = Token:new("STRING_CLOSE", "\"", line, offset + #string)
+        offset = offset + 1
       end
       offset = offset + #string
 
@@ -444,8 +446,11 @@ end
 -- Parse
 ------------------------------------------------------------
 
-local function makeNode(type, token, rest)
-  local node = {type = type, line = token.line, offset = token.offset}
+local function makeNode(context, type, token, rest)
+  local node = {type = type, line = token.line, offset = token.offset, id = util.generateId()}
+  if token.id then
+    context.downEdges[#context.downEdges + 1] = {token.id, node.id}
+  end
   for k, v in pairs(rest) do
     node[k] = v
   end
@@ -501,7 +506,7 @@ local function parse(tokens, context)
         -- clear everything currently on the stack as we're starting a totally new
         -- query
         stackTop = tryFinishExpression(true)
-        stack:push(makeNode("query", token, {doc = token.value, children = {}}))
+        stack:push(makeNode(context, "query", token, {doc = token.value, children = {}}))
       end
 
     elseif type == "COMMA" then
@@ -511,13 +516,13 @@ local function parse(tokens, context)
       info.comments[#info.comments + 1] = token
 
     elseif type == "STRING_OPEN" then
-      stack:push(makeNode("function", token, {func = "concat", children = {right}}))
+      stack:push(makeNode(context, "function", token, {func = "concat", children = {right}}))
 
     elseif type == "STRING_CLOSE" then
       if stackTop.type == "function" and stackTop.func == "concat" then
         -- if there's zero or one children, then this concat isn't needed
         if #stackTop.children == 0 or (#stackTop.children == 1 and stackTop.children[1].type == "STRING") then
-          local string = stackTop.children[1] or makeNode("STRING", token, {value = ""})
+          local string = stackTop.children[1] or makeNode(context, "STRING", token, {value = ""})
           stack:pop()
           stackTop = stack:peek()
           stackTop.children[#stackTop.children + 1] = string
@@ -533,7 +538,7 @@ local function parse(tokens, context)
       -- we can just ignore these
 
     elseif type == "OPEN_BRACKET" then
-      stack:push(makeNode("object", token, {children = {}}))
+      stack:push(makeNode(context, "object", token, {children = {}}))
 
     elseif type == "CLOSE_BRACKET" then
       if stackTop.type ~= "object" then
@@ -544,7 +549,7 @@ local function parse(tokens, context)
       end
 
     elseif type == "UPDATE" then
-      local update = makeNode("update", token, {scope = "session", children = {}})
+      local update = makeNode(context, "update", token, {scope = "session", children = {}})
       if next.value == "all" then
         update.scope = next.value
         -- eat that token
@@ -572,12 +577,12 @@ local function parse(tokens, context)
           errors.invalidIfAssignment(context, token, outputs)
           outputs = {}
         end
-        local node = makeNode("union", token, {outputs = outputs, children = {}})
+        local node = makeNode(context, "union", token, {outputs = outputs, children = {}})
         stack:push(node)
-        local childQuery = makeNode("query", token, {outputs = outputs, parent = stackTop, children = {}}) 
+        local childQuery = makeNode(context, "query", token, {outputs = outputs, parent = stackTop, children = {}}) 
         stack:push(childQuery)
       elseif stackTop.type == "union" or stackTop.type == "choose" then
-        local childQuery = makeNode("query", token, {children = {}, outputs = stackTop.outputs, parent = stackTop})
+        local childQuery = makeNode(context, "query", token, {children = {}, outputs = stackTop.outputs, parent = stackTop})
         stack:push(childQuery)
       else
         -- error
@@ -596,9 +601,9 @@ local function parse(tokens, context)
 
       if continue then
         if next and next.type ~= "IF" then
-          local childQuery = makeNode("query", token, {outputs = stackTop.outputs, parent = stackTop, closed = true, children = {}})
+          local childQuery = makeNode(context, "query", token, {outputs = stackTop.outputs, parent = stackTop, closed = true, children = {}})
           stack:push(childQuery)
-          local childQuery = makeNode("outputs", token, {children = {}}) 
+          local childQuery = makeNode(context, "outputs", token, {children = {}}) 
           stack:push(childQuery)
         end
       end
@@ -608,7 +613,7 @@ local function parse(tokens, context)
       -- sure that query is part of a choose or union...
       if stackTop.type == "query" then
         stackTop.closed = true
-        local childQuery = makeNode("outputs", token, {children = {}})
+        local childQuery = makeNode(context, "outputs", token, {children = {}})
         stack:push(childQuery)
       else
         -- error
@@ -616,8 +621,8 @@ local function parse(tokens, context)
       end
 
     elseif type == "NOT" then
-      local node = makeNode("not", token, {closed = true, children = {}})
-      local childQuery = makeNode("query", token, {children = {}, parent = node})
+      local node = makeNode(context, "not", token, {closed = true, children = {}})
+      local childQuery = makeNode(context, "query", token, {children = {}, parent = node})
       stack:push(node)
       stack:push(childQuery)
       if not next or next.type ~= "OPEN_PAREN" then
@@ -642,7 +647,7 @@ local function parse(tokens, context)
 
     elseif type == "TAG" or type == "NAME" then
       if next.type == "STRING_OPEN" or next.type == "IDENTIFIER" then
-        stack:push(makeNode("equality", token, {operator = "=", children = {token}}))
+        stack:push(makeNode(context, "equality", token, {operator = "=", children = {token}}))
       else
         -- error
         errors.invalidTag(context, token, next)
@@ -659,7 +664,7 @@ local function parse(tokens, context)
           prev.children[2] = nil
           stack:push(prev)
           -- now push this expression on the stack as well
-          stack:push(makeNode("attribute", token, {children = {right}}))
+          stack:push(makeNode(context, "attribute", token, {children = {right}}))
         else
           -- error
           errors.invalidAttributeLeft(context, token, right)
@@ -668,7 +673,7 @@ local function parse(tokens, context)
       -- it needs to either be an expression, an identifier, or a constant
       elseif prev and prev.type == "IDENTIFIER" then
         stackTop.children[#stackTop.children] = nil
-        stack:push(makeNode("attribute", token, {children = {prev}}))
+        stack:push(makeNode(context, "attribute", token, {children = {prev}}))
       else
         -- error
         errors.invalidAttributeLeft(context, token, prev)
@@ -686,7 +691,7 @@ local function parse(tokens, context)
           prev.children[2] = nil
           stack:push(prev)
           -- now push this expression on the stack as well
-          stack:push(makeNode("infix", token, {func = token.value, children = {right}}))
+          stack:push(makeNode(context, "infix", token, {func = token.value, children = {right}}))
         else
           -- error
           errors.invalidInfixLeft(context, token, prev)
@@ -694,7 +699,7 @@ local function parse(tokens, context)
       -- it needs to either be an expression, an identifier, or a constant
       elseif prev and valueTypes[prev.type] then 
         stackTop.children[#stackTop.children] = nil
-        stack:push(makeNode("infix", token, {func = token.value, children = {prev}}))
+        stack:push(makeNode(context, "infix", token, {func = token.value, children = {prev}}))
       else
         -- error
         errors.invalidInfixLeft(context, token, prev)
@@ -710,11 +715,11 @@ local function parse(tokens, context)
       else
         local nodeType = type == "INEQUALITY" and "inequality" or "equality"
         stackTop.children[#stackTop.children] = nil
-        stack:push(makeNode(nodeType, token, {operator = token.value, children = {prev}}))
+        stack:push(makeNode(context, nodeType, token, {operator = token.value, children = {prev}}))
       end
 
     elseif type == "OPEN_PAREN" then
-      stack:push(makeNode("block", token, {children = {}}))
+      stack:push(makeNode(context, "block", token, {children = {}}))
 
     elseif type == "CLOSE_PAREN" then
       local stackType = stackTop.type
@@ -739,11 +744,11 @@ local function parse(tokens, context)
         errors.invalidInfixLeft(context, token, prev)
       else
         stackTop.children[#stackTop.children] = nil
-        stack:push(makeNode("mutate", token, {operator = type:lower(), children = {prev}}))
+        stack:push(makeNode(context, "mutate", token, {operator = type:lower(), children = {prev}}))
       end
 
     elseif type == "IDENTIFIER" and next and next.type == "OPEN_PAREN" then
-      stack:push(makeNode("function", token, {func = token.value, children = {}}))
+      stack:push(makeNode(context, "function", token, {func = token.value, children = {}}))
       -- consume the paren
       scanner:read()
 
@@ -756,7 +761,7 @@ local function parse(tokens, context)
           tryFinishExpression()
         end
         local modifier = type == "GIVEN" and "projection" or "grouping"
-        stack:push(makeNode(modifier, token, {children = {}}))
+        stack:push(makeNode(context, modifier, token, {children = {}}))
       else
         -- error
         errors.invalidAggregateModifier(context, token, stackTop)
@@ -787,7 +792,7 @@ local function parse(tokens, context)
 end
 
 
-local function resolveVariable(name, context, noCreate)
+local function resolveVariable(context, name, related, noCreate)
   local mappings = context.nameMappings
   local variable
   for _, mapping in ipairs(mappings) do
@@ -799,7 +804,7 @@ local function resolveVariable(name, context, noCreate)
   -- if we didn't find it, then we have to create a new variable
   -- and add it to the closest name mapping
   if not variable and not noCreate then
-    variable = makeNode("variable", {}, {name = name})
+    variable = makeNode(context, "variable", related, {name = name})
   end
   -- if we haven't mapped this variable at this level then we
   -- need to do so and add it to the containing query
@@ -815,8 +820,8 @@ local generateObjectNode
 local generateQueryNode
 local generateNotNode
 
-local function generateBindingNode(node, context, parent)
-  node.type = "binding"
+local function generateBindingNode(context, node, related, parent)
+  node = makeNode(context, "binding", related, node);
   node.source = parent
   if node.variable then
     local bindings = context.variableToBindings[node.variable] or {}
@@ -831,13 +836,13 @@ local function resolveExpression(node, context)
   if not node then return end
 
   if node.type == "NUMBER" or node.type == "STRING" or node.type == "UUID" then
-    return makeNode("constant", node, {constant = node.value, constantType = node.type:lower()})
+    return makeNode(context, "constant", node, {constant = node.value, constantType = node.type:lower()})
 
   elseif node.type == "variable" then
     return node
 
   elseif node.type == "IDENTIFIER" then
-    return resolveVariable(node.value, context)
+    return resolveVariable(context, node.value, node)
 
   elseif node.type == "mutate" then
     local left = resolveExpression(node.children[1], context)
@@ -867,7 +872,7 @@ local function resolveExpression(node, context)
     -- set that when I try to resolve this expression,
     -- I'm looking to resolve it to this specific variable
     local right = resolveExpression(node.children[2], context)
-    local expression = makeNode("expression", node, {operator = node.operator, projections = {}, groupings = {}, bindings = {}})
+    local expression = makeNode(context, "expression", node, {operator = node.operator, projections = {}, groupings = {}, bindings = {}})
     local leftBinding = {field = "a"}
     if left.type == "variable" then
       leftBinding.variable = left
@@ -885,11 +890,11 @@ local function resolveExpression(node, context)
       error("Inequality with invalid right")
     end
     if context.nonFilteringInequality then
-      resultVar = resolveVariable(string.format("%s-%s-%s", node.type, node.line, node.offset), context)
-      generateBindingNode({field = "return", variable = resultVar}, context, expression)
+      resultVar = resolveVariable(context, string.format("%s-%s-%s", node.type, node.line, node.offset), node)
+      generateBindingNode(context, {field = "return", variable = resultVar}, node, expression)
     end
-    generateBindingNode(leftBinding, context, expression)
-    generateBindingNode(rightBinding, context, expression)
+    generateBindingNode(context, leftBinding, left, expression)
+    generateBindingNode(context, rightBinding, right, expression)
     local query = context.queryStack:peek()
     query.expressions[#query.expressions + 1] = expression
     return resultVar
@@ -899,14 +904,14 @@ local function resolveExpression(node, context)
     local right = node.children[2]
     if right and right.type == "IDENTIFIER" then
       -- generate a temporary variable to hold this attribute binding
-      local attributeRef = resolveVariable(string.format("%s-%s-%s", right.value, right.line, right.offset), context)
+      local attributeRef = resolveVariable(context, string.format("%s-%s-%s", right.value, right.line, right.offset), right)
       -- generate a temporary object that we can attach this attribute to by adding
       -- an equality from the attribute name to our temp variable
-      local tempObject = makeNode("object", right, {children = {makeNode("equality", right, {operator = "=", children = {right, makeNode("IDENTIFIER", node.children[1], {value = attributeRef.name})}})}})
+      local tempObject = makeNode(context, "object", right, {children = {makeNode(context, "equality", right, {operator = "=", children = {right, makeNode(context, "IDENTIFIER", node.children[1], {value = attributeRef.name})}})}})
       -- create the object
       local objectNode = generateObjectNode(tempObject, context)
       -- create an equality between the entity fields
-      resolveExpression(makeNode("equality", right, {operator = "=", children = {left, objectNode.entityVariable}}), context);
+      resolveExpression(makeNode(context, "equality", right, {operator = "=", children = {left, objectNode.entityVariable}}), context);
       -- add it to the query
       local query = context.queryStack:peek()
       local queryKey = objectNode.type == "object" and "objects" or "mutates"
@@ -930,13 +935,13 @@ local function resolveExpression(node, context)
     return objectNode.entityVariable
 
   elseif node.type == "infix" or node.type == "function" then
-    local resultVar = resolveVariable(string.format("result-%s-%s", node.line, node.offset), context)
+    local resultVar = resolveVariable(context, string.format("result-%s-%s", node.line, node.offset), node)
     local prevNonfiltering = context.nonFilteringInequality
     if node.func == "is" then
       context.nonFilteringInequality = true
     end
-    local expression = makeNode("expression", node, {operator = node.func, projections = {}, groupings = {}, bindings = {}})
-    generateBindingNode({field = "return", variable = resultVar}, context, expression)
+    local expression = makeNode(context, "expression", node, {operator = node.func, projections = {}, groupings = {}, bindings = {}})
+    generateBindingNode(context, {field = "return", variable = resultVar}, resultVar, expression)
     -- create bindings
     for ix, child in ipairs(node.children) do
       field = alphaFields[ix]
@@ -946,16 +951,16 @@ local function resolveExpression(node, context)
         errors.invalidFunctionArgument(context, child, node.type)
 
       elseif resolved.type == "variable" then
-        generateBindingNode({field = field, variable = resolved}, context, expression)
+        generateBindingNode(context, {field = field, variable = resolved}, resolved, expression)
 
       elseif resolved.type == "constant" then
-        generateBindingNode({field = field, constant = resolved}, context, expression)
+        generateBindingNode(context, {field = field, constant = resolved}, resolved, expression)
 
       elseif resolved.type == "grouping" then
         for ix, grouping in ipairs(resolved.children) do
           local groupingVar = resolveExpression(grouping, context)
           if groupingVar.type == "variable" then
-            expression.groupings[#expression.groupings + 1] = makeNode("grouping", grouping, {expression = expression, variable = groupingVar, ix = ix})
+            expression.groupings[#expression.groupings + 1] = makeNode(context, "grouping", grouping, {expression = expression, variable = groupingVar, ix = ix})
           else
             -- error
             errors.invalidGrouping(context, grouping)
@@ -966,7 +971,7 @@ local function resolveExpression(node, context)
         for _, project in ipairs(resolved.children) do
           local projectVar = resolveExpression(project, context)
           if projectVar.type == "variable" then
-            expression.projections[#expression.projections + 1] = makeNode("projection", project, {expression = expression, variable = projectVar})
+            expression.projections[#expression.projections + 1] = makeNode(context, "projection", project, {expression = expression, variable = projectVar})
           else
             -- error
             errors.invalidProjection(context, grouping)
@@ -994,7 +999,7 @@ local function resolveExpression(node, context)
 end
 
 generateObjectNode = function(root, context)
-  local object = makeNode("object", root, {
+  local object = makeNode(context, "object", root, {
                   bindings = {},
                   query = context.queryStack:peek()
                 })
@@ -1022,8 +1027,8 @@ generateObjectNode = function(root, context)
   end
 
   -- create a binding to this node's entity field
-  local entityVariable = resolveVariable(string.format("object-%s-%s", root.line, root.offset), context)
-  generateBindingNode({field = MAGIC_ENTITY_FIELD, variable = entityVariable}, context, object)
+  local entityVariable = resolveVariable(context, string.format("object-%s-%s", root.line, root.offset), root)
+  generateBindingNode(context, {field = MAGIC_ENTITY_FIELD, variable = entityVariable}, entityVariable, object)
   -- store it on the object for ease of use
   object.entityVariable = entityVariable
 
@@ -1037,8 +1042,8 @@ generateObjectNode = function(root, context)
     local type = child.type
     if type == "IDENTIFIER" then
       -- generate a variable
-      local variable = resolveVariable(child.value, context)
-      local binding = generateBindingNode({field = child.value, variable = variable}, context, object)
+      local variable = resolveVariable(context, child.value, child)
+      local binding = generateBindingNode(context, {field = child.value, variable = variable}, child, object)
       lastAttribute = nil
       dependencies:add(variable)
 
@@ -1048,7 +1053,7 @@ generateObjectNode = function(root, context)
       -- if it's not, then this is an error
       if lastAttribute then
         local variable = resolveExpression(child, context)
-        local binding = generateBindingNode({field = lastAttribute.value, variable = variable}, context, object)
+        local binding = generateBindingNode(context, {field = lastAttribute.value, variable = variable}, lastAttribute, object)
         dependencies:add(variable)
       else
         -- error
@@ -1058,8 +1063,8 @@ generateObjectNode = function(root, context)
     elseif type == "inequality" then
       local left = child.children[1]
       if left.type == "IDENTIFIER" then
-        local variable = resolveVariable(left.value, context)
-        local binding = generateBindingNode({field = child.value, variable = variable}, context, object)
+        local variable = resolveVariable(context, left.value, left)
+        local binding = generateBindingNode(context, {field = child.value, variable = variable}, child, object)
         resolveExpression(child, context)
         lastAttribute = nil
       else
@@ -1072,14 +1077,17 @@ generateObjectNode = function(root, context)
       local left = child.children[1]
       local right = child.children[2]
       local binding = {}
+      local related
 
       if left.type == "NAME" then
         binding.field = "name"
-        binding.constant = makeNode("constant", right, {constant = right.value, constantType = "string"})
+        binding.constant = makeNode(context, "constant", right, {constant = right.value, constantType = "string"})
+        related = right
 
       elseif left.type == "TAG" then
         binding.field = "tag"
-        binding.constant = makeNode("constant", right, {constant = right.value, constantType = "string"})
+        binding.constant = makeNode(context, "constant", right, {constant = right.value, constantType = "string"})
+        related = right
         if not mutating and SPECIAL_TAGS[right.value] then
           object.type = "expression"
           object.operator = right.value
@@ -1087,6 +1095,7 @@ generateObjectNode = function(root, context)
         end
 
       elseif left.type == "IDENTIFIER" then
+        related = left
         binding.field = left.value
         lastAttribute = left
         local resolved = resolveExpression(right, context)
@@ -1113,17 +1122,18 @@ generateObjectNode = function(root, context)
         errors.invalidObjectAttributeBinding(context, child)
       end
       if binding then
-        binding = generateBindingNode(binding, context, object)
+        -- FIXME: is this the right related node for the binding?
+        binding = generateBindingNode(context, binding, related, object)
       end
 
     elseif type == "not" and object.type == "object" then
       -- this needs to translate into a regular not that references this object
       -- via a constructed attribute call. we'll need the entityVariable as an identifier 
       -- for that node
-      local objectIdentifier = makeNode("IDENTIFIER", child, {value = entityVariable.name})
+      local objectIdentifier = makeNode(context, "IDENTIFIER", child, {value = entityVariable.name})
       -- construct the not
-      local constructedNot = makeNode("not", child, {children = {}, closed = true})
-      local childQuery = makeNode("query", child, {parent = object, children = {}})
+      local constructedNot = makeNode(context, "not", child, {children = {}, closed = true})
+      local childQuery = makeNode(context, "query", child, {parent = object, children = {}})
       constructedNot.children[1] = childQuery
       -- FIXME: for now we're only going to support not(attr) and not(#tag)
       -- but there's no technical reason we couldn't support more complex
@@ -1131,18 +1141,18 @@ generateObjectNode = function(root, context)
       local attr = child.children[1].children[1]
       if attr.type == "IDENTIFIER" then
         -- not(parent.(attr.children[1]))
-        local attributeIdentifier = makeNode("IDENTIFIER", attr, {value = attr.value})
-        local dotNode = makeNode("attribute", attr, {children = {objectIdentifier, attributeIdentifier}})
+        local attributeIdentifier = makeNode(context, "IDENTIFIER", attr, {value = attr.value})
+        local dotNode = makeNode(context, "attribute", attr, {children = {objectIdentifier, attributeIdentifier}})
         childQuery.children[#childQuery.children + 1] = dotNode
 
       elseif attr.type == "equality" and attr.children[1] and attr.children[1].type == "TAG" then
         local tag = attr.children[1]
         local tagValue = attr.children[2]
         -- not(parent.tag = attr.children[1])
-        local attributeIdentifier = makeNode("IDENTIFIER", tag, {value = "tag"})
-        local dotNode = makeNode("attribute", tag, {children = {objectIdentifier, attributeIdentifier}})
-        local constantNode = makeNode("STRING", tagValue, {value = tagValue.value})
-        local equalityNode = makeNode("equality", tag, {operator = "=", children = {dotNode, constantNode}})
+        local attributeIdentifier = makeNode(context, "IDENTIFIER", tag, {value = "tag"})
+        local dotNode = makeNode(context, "attribute", tag, {children = {objectIdentifier, attributeIdentifier}})
+        local constantNode = makeNode(context, "STRING", tagValue, {value = tagValue.value})
+        local equalityNode = makeNode(context, "equality", tag, {operator = "=", children = {dotNode, constantNode}})
         childQuery.children[#childQuery.children + 1] = equalityNode
 
       else
@@ -1168,7 +1178,7 @@ generateObjectNode = function(root, context)
     local finalBindings = {}
     for _, binding in ipairs(object.bindings) do
       if binding.field == MAGIC_ENTITY_FIELD then
-        binding = generateBindingNode({field = "return", variable = entityVariable}, context, object)
+        binding = generateBindingNode(context, {field = "return", variable = entityVariable}, entityVariable, object)
       -- FIXME: this is a hacky.. way to ignore the binding we just added so we don't
       -- end up with it twice
       elseif binding.field == "return" then
@@ -1190,7 +1200,7 @@ end
 
 
 local function generateUnionNode(root, context, unionType)
-  local union = makeNode(unionType, root, {
+  local union = makeNode(context, unionType, root, {
                  query = context.queryStack:peek(),
                  queries = {}
                })
@@ -1198,10 +1208,10 @@ local function generateUnionNode(root, context, unionType)
   -- generate vars for the outputs
   local outputs = {}
   if root.outputs.type == "IDENTIFIER" then
-    outputs[#outputs + 1] = resolveVariable(root.outputs.value, context)
+    outputs[#outputs + 1] = resolveVariable(context, root.outputs.value, root.outputs)
   elseif root.outputs.type == "block" then
     for _, child in ipairs(root.outputs.children) do
-      outputs[#outputs + 1] = resolveVariable(child.value, context)
+      outputs[#outputs + 1] = resolveVariable(context, child.value, child)
     end
   else
     -- error
@@ -1223,7 +1233,7 @@ local function generateUnionNode(root, context, unionType)
 end
 
 generateNotNode = function(root, context)
-  local notNode = makeNode("not", root, {query = context.queryStack:peek()})
+  local notNode = makeNode(context, "not", root, {query = context.queryStack:peek()})
   if #root.children == 1 and root.children[1].type == "query" then
     context.notNode = true
     notNode.queries = {generateQueryNode(root.children[1], context)}
@@ -1249,7 +1259,7 @@ local function handleUpdateNode(root, query, context)
     if type == "mutate" then
       -- the operator depends on the mutate's operator here
       context.mutateOperator = child.operator
-      resolveExpression(makeNode("mutate", child, {operator = child.operator, children = child.children}), context)
+      resolveExpression(makeNode(context, "mutate", child, {operator = child.operator, children = child.children}), context)
     elseif type == "object" then
       -- generate the object
       local object = generateObjectNode(child, context)
@@ -1283,7 +1293,7 @@ local function handleUpdateNode(root, query, context)
 end
 
 generateQueryNode = function(root, context)
-  local query = makeNode("query", root, {
+  local query = makeNode(context, "query", root, {
                  name = root.doc,
                  variables = {},
                  objects = {},
@@ -1348,13 +1358,13 @@ generateQueryNode = function(root, context)
         -- error
         errors.invalidUnionOutputsType(context, outputs)
       elseif outputs.type == "IDENTIFIER" and #child.children == 1 then
-        local equality = makeNode("equality", child.children[1], {operator = "=", children = {outputs, child.children[1]}})
+        local equality = makeNode(context, "equality", child.children[1], {operator = "=", children = {outputs, child.children[1]}})
         resolveExpression(equality, context)
       elseif outputs.type == "block" and child.children[1].type == "block" then
         local block = child.children[1]
         if #block.children == #outputs.children then
           for ix, output in ipairs(outputs.children) do
-            local equality = makeNode("equality", block.children[ix], {operator = "=", children = {output, block.children[ix]}})
+            local equality = makeNode(context, "equality", block.children[ix], {operator = "=", children = {output, block.children[ix]}})
             resolveExpression(equality, context)
           end
         else
@@ -1405,24 +1415,30 @@ end
 local function parseFile(path)
   local content = fs.read(path)
   content = content:gsub("\t", "  ")
+  local context = {code = content, downEdges = {}, file = path}
   local tokens = lex(content)
-  local tree = {type="expression tree", children = parse(tokens, {file = path, code = content})}
-  local graph = generateNodes(tree, {file = path, code = content})
+  context.tokens = tokens
+  local tree = {type="expression tree", children = parse(tokens, context)}
+  local graph = generateNodes(tree, context)
   return graph
 end
 
 local function parseString(str)
   str = str:gsub("\t", "  ")
+  local context = {code = str, downEdges = {}}
   local tokens = lex(str)
-  local tree = {type="expression tree", children = parse(tokens, {code = str})}
-  local graph = generateNodes(tree, {code = str})
+  context.tokens = tokens
+  local tree = {type="expression tree", children = parse(tokens, context)}
+  local graph = generateNodes(tree, context)
   return graph
 end
 
 local function printParse(content)
   content = content:gsub("\t", "  ")
+  local context = {code = content, downEdges = {}}
   local tokens = lex(content)
-  local tree = {type="expression tree", children = parse(tokens, {code = content})}
+  context.tokens = tokens
+  local tree = {type="expression tree", children = parse(tokens, context)}
   local graph = generateNodes(tree, {code = content})
   print()
   print(color.dim("---------------------------------------------------------"))

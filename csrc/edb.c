@@ -220,12 +220,12 @@ string bag_dump(heap h, bag b)
         int ind = buffer_unicode_length(out)-start;
         int first =0;
 
-        table_foreach(((table)avl), a, vl) {
+        table_foreach((table)avl, a, vl) {
             int second = 0;
             int start = buffer_unicode_length(out);
             bprintf(out, "%S%v ", first++?ind:0, a);
             int ind2 = buffer_unicode_length(out)-start;
-            table_foreach(((table)vl), v, _)
+            table_foreach((table)vl, v, _)
                 bprintf(out, "%S%v\n", second++?ind2:0, v);
         }
     }

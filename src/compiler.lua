@@ -610,10 +610,14 @@ function ScanNode:new(obj)
   return obj
 end
 
-function ScanNode:fromObject(source)
+function ScanNode:fromObject(source, context)
   local obj = self
   if getmetatable(obj) ~= ScanNode then
     obj = self:new()
+  end
+  obj.id = util.generateId()
+  if source.id then
+    context.downEdges[#context.downEdges + 1] = {source.id, obj.id}
   end
   obj.source = source
   obj.type = source.type
@@ -625,10 +629,14 @@ function ScanNode:fromObject(source)
   return obj
 end
 
-function ScanNode:fromBinding(source, binding, entity)
+function ScanNode:fromBinding(source, binding, entity, context)
   local obj = self
   if getmetatable(obj) ~= ScanNode then
     obj = self:new()
+  end
+  obj.id = util.generateId()
+  if binding.id then
+    context.downEdges[#context.downEdges + 1] = {binding.id, obj.id}
   end
   obj.source = source
   obj.type = source.type
@@ -661,8 +669,12 @@ function ScanNode.__tostring(obj)
 end
 
 SubprojectNode = {}
-function SubprojectNode:new(obj)
+function SubprojectNode:new(obj, source, context)
   obj = obj or {}
+  obj.id = util.generateId()
+  if source.id then
+    context.downEdges[#context.downEdges + 1] = {source.id, obj.id}
+  end
   obj.type = obj.type or "subproject"
   obj.projection = obj.projection or Set:new()
   obj.provides = obj.provides or Set:new()
@@ -693,7 +705,7 @@ function isEAVNode(node)
   return false
 end
 
-function unpackObjects(dg)
+function unpackObjects(dg, context)
   local unpacked = {}
   local tmpCounter = 0
   dg:order()
@@ -713,13 +725,13 @@ function unpackObjects(dg)
           projection:union(proj, true)
         end
 
-        subproject = SubprojectNode:new{projection = projection, provides = node.deps.provides}
+        subproject = SubprojectNode:new({projection = projection, provides = node.deps.provides}, node, context)
         unpackList = subproject.nodes
         unpacked[#unpacked + 1] = subproject
       end
 
       if isEAVNode(node) then
-        unpackList[#unpackList + 1] = ScanNode:fromObject(node)
+        unpackList[#unpackList + 1] = ScanNode:fromObject(node, context)
       else
         local entity
         for _, binding in ipairs(node.bindings) do
@@ -732,9 +744,9 @@ function unpackObjects(dg)
           if binding.field ~= ENTITY_FIELD then
             if subproject and binding.variable and not subproject.projection[binding.variable] then
               subproject.provides:add(entity)
-              unpacked[#unpacked + 1] = SubprojectNode:new{projection = subproject.projection + Set:new{entity, binding.variable}, nodes = {ScanNode:fromBinding(node, binding, entity)}}
+              unpacked[#unpacked + 1] = SubprojectNode:new({projection = subproject.projection + Set:new{entity, binding.variable}, nodes = {ScanNode:fromBinding(node, binding, entity, context)}}, binding, context)
             else
-              unpackList[#unpackList + 1] = ScanNode:fromBinding(node, binding, entity)
+              unpackList[#unpackList + 1] = ScanNode:fromBinding(node, binding, entity, context)
             end
 
           end
@@ -760,7 +772,7 @@ function compileExec(contents, tracing)
 
   for ix, queryGraph in ipairs(parseGraph.children) do
     local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph)
-    local unpacked = unpackObjects(dependencyGraph)
+    local unpacked = unpackObjects(dependencyGraph, parseGraph.context)
     -- this handler function is just for debugging, we no longer have
     -- an 'execution return'
     print("  {")
@@ -793,7 +805,7 @@ function analyze(content, quiet)
     print("--- Sorted DGraph ---")
     print("  " .. util.indentString(1, tostring(dependencyGraph)))
 
-    local unpacked = unpackObjects(dependencyGraph)
+    local unpacked = unpackObjects(dependencyGraph, parseGraph.context)
     print("--- Unpacked Objects / Mutates ---")
     print("  {")
     for ix, node in ipairs(unpacked) do

@@ -78,7 +78,7 @@ end
 -- end of util
 
 function empty_env()
-   return {alloc=0, freelist = {}, registers = {}, permanent = {}, maxregs = 0}
+   return {alloc=0, freelist = {}, registers = {}, permanent = {}, maxregs = 0, ids = {}}
 end
 
 function variable(x)
@@ -162,10 +162,10 @@ function set_to_write_array(env, x)
 end
 
 
-function translate_subproject(n, bound, down, tracing)
+function translate_subproject(n, bound, down, tracing, context)
    local p = n.projection
    local t = n.nodes
-   local env, rest, fill
+   local env, rest, fill, c
    local pass = allocate_temp()
    local db = shallowcopy(bound)
    bound[pass] = true
@@ -177,33 +177,54 @@ function translate_subproject(n, bound, down, tracing)
    env, rest = down(db)
 
    function tail (bound)
-      return env, build_node("subtail", {build_node("terminal", {}, {})},
+     -- create an edge between the c node and the parse node
+     local id = util.generateId()
+     local id2 = util.generateId()
+     context.downEdges[#context.downEdges + 1] = {n.id, id}
+     context.downEdges[#context.downEdges + 1] = {n.id, id2}
+      return env, build_node("subtail", {build_node("terminal", {}, {}, id2)},
                              {set_to_read_array(env, n.provides),
-                             {read_lookup(env, pass)}})
+                             {read_lookup(env, pass)}},
+                             id)
    end
 
    local outregs =  set_to_read_array(env, n.provides)
-   env, fill = walk(n.nodes, nil, bound, tail, tracing)
+   env, fill = walk(n.nodes, nil, bound, tail, tracing, context)
+
+   -- create an edge between the c node and the parse node
+   local id = util.generateId()
+   context.downEdges[#context.downEdges + 1] = {n.id, id}
+
+
+   -- just extend the lifetime here for a sec
+   for i, _ in pairs(env.ids) do
+          write_lookup(env, i)
+   end
 
    c = build_node("sub", {rest, fill},
                           {set_to_read_array(env, n.projection),
                           outregs,
 --                           set_to_read_array(env, n.provides),
                           -- leak
-                          {read_lookup(env, pass)}})
+                          {read_lookup(env, pass)},
+                          },
+                          id)
 
    if tracing then
       local map = {"proj", ""}
       for k, v in pairs(n.projection) do
          push(map, k.name,  read_lookup(env, k))
       end
-      c = build_node("trace", {c}, {map})
+      -- create an edge between the c node and the parse node
+      local id = util.generateId()
+      context.downEdges[#context.downEdges + 1] = {n.id, id}
+      c = build_node("trace", {c}, {map}, id)
    end
 
    return env, c
 end
 
-function translate_object(n, bound, down, tracing)
+function translate_object(n, bound, down, tracing, context)
    local e = n.entity
    local a = n.attribute
    local v = n.value
@@ -230,19 +251,28 @@ function translate_object(n, bound, down, tracing)
 
    local env, c = down(bound)
    if tracing then
+     -- create an edge between the c node and the parse node
+     local id = util.generateId()
+     context.downEdges[#context.downEdges + 1] = {n.id, id}
+      
       c = build_node("trace", {c},
                       {{"scan", "" ,
                        "sig", sig,
                        "entity", read_lookup(env,e),
                        "attribute", read_lookup(env, a),
-                       "value", read_lookup(env, v)}})
+                       "value", read_lookup(env, v)}},
+                       id)
    end
 
-   return env, build_node("scan", {c}, {{sig, ef(env, e), af(env, a), vf(env, v)}})
+   -- create an edge between the c node and the parse node
+   local id = util.generateId()
+   context.downEdges[#context.downEdges + 1] = {n.id, id}
+
+   return env, build_node("scan", {c}, {{sig, ef(env, e), af(env, a), vf(env, v)}}, id)
  end
 
 
-function translate_mutate(n, bound, down, tracing)
+function translate_mutate(n, bound, down, tracing, context)
    local e = n.entity
    local a = n.attribute
    local v = n.value
@@ -253,37 +283,46 @@ function translate_mutate(n, bound, down, tracing)
    local env, c = down(bound)
    local operator = n.operator
    if tracing then
+     -- create an edge between the c node and the parse node
+     local id = util.generateId()
+     context.downEdges[#context.downEdges + 1] = {n.id, id}
       c = build_node("trace", {c},
                   {{operator, "" ,
                    "scope", n.scope,
                    "entity", read_lookup(env,e),
                    "attribute", read_lookup(env, a),
-                   "value", read_lookup(env, v)}})
+                   "value", read_lookup(env, v)}},
+                   id)
    end
 
+   -- create an edge between the c node and the parse node
+   local id = util.generateId()
+   context.downEdges[#context.downEdges + 1] = {n.id, id}
+   
    local c = build_node(operator, {c},
                         {{n.scope,
                          read_lookup(env,e),
                          read_lookup(env,a),
-                         read_lookup(env,v)}})
+                         read_lookup(env,v)}},
+                         id)
 
    if gen then
-      c = build_node("generate", {c}, {{write_lookup(env, e)}})
+      env.ids[read_lookup(env, e)] = true
+     -- create an edge between the c node and the parse node
+     local id = util.generateId()
+     context.downEdges[#context.downEdges + 1] = {n.id, id}
+     
+      c = build_node("generate", {c}, {{read_lookup(env, e)}}, id)
    end
    return env, c
 end
 
--- looks alot like union
-function translate_choose(n, bound, down, tracing)
+function translate_not(n, bound, down, tracing)
    local env
    local arms = {}
    local flag = allocate_temp()
-
    tail_bound = shallowcopy(bound)
-   for _, v in pairs(n.outputs) do
-      tail_bound[v] = true
-   end
-
+   
    local env, c = down(tail_bound)
    local orig_perm = shallowcopy(env.permanent)
    local bot = build_node("choosetail",
@@ -297,23 +336,62 @@ function translate_choose(n, bound, down, tracing)
    for n, _ in pairs(env.registers) do
          env.permanent[n] = true
    end
+   env, arm = walk(n.queries[1].unpacked, nil, shallowcopy(bound), arm_bottom, tracing)
+   return env, build_node("not", {arm}, {{read_lookup(env, flag)}})
+end
+
+
+-- looks alot like union
+function translate_choose(n, bound, down, tracing, context)
+   local env
+   local arms = {}
+   local flag = allocate_temp()
+
+   tail_bound = shallowcopy(bound)
+   for _, v in pairs(n.outputs) do
+      tail_bound[v] = true
+   end
+
+   local env, c = down(tail_bound)
+   local orig_perm = shallowcopy(env.permanent)
+
+   -- create an edge between the c node and the parse node
+   local id = util.generateId()
+   context.downEdges[#context.downEdges + 1] = {n.id, id}
+   
+   local bot = build_node("choosetail",
+                          {c},
+                          {{read_lookup(env, flag)}},
+                          id)
+
+   local arm_bottom = function (bound)
+        return env, bot
+   end
+
+   for n, _ in pairs(env.registers) do
+         env.permanent[n] = true
+   end
 
    for _, v in pairs(n.queries) do
-        env, c2 = walk(v.unpacked, nil, shallowcopy(bound), arm_bottom, tracing)
+        env, c2 = walk(v.unpacked, nil, shallowcopy(bound), arm_bottom, tracing, context)
         arms[#arms+1] = c2
    end
 
+   -- create an edge between the c node and the parse node
+   local id = util.generateId()
+   context.downEdges[#context.downEdges + 1] = {n.id, id}
+   
    env.permanent = orig_perm
    -- currently leaking the perms
-   return env, build_node("choose", arms, {{read_lookup(env, flag)}})
+   return env, build_node("choose", arms, {{read_lookup(env, flag)}}, id)
 end
 
-function translate_concat(n, bound, down, tracing)
+function translate_concat(n, bound, down, tracing, context)
    local env, c = down(bound)
 end
 
 
-function translate_union(n, bound, down, tracing)
+function translate_union(n, bound, down, tracing, context)
    local heads
    local c2
    local arms = {}
@@ -336,15 +414,20 @@ function translate_union(n, bound, down, tracing)
 
    for _, v in pairs(n.queries) do
       local c2
-      env, c2 = walk(v.unpacked, nil, shallowcopy(bound), arm_bottom, tracing)
+      env, c2 = walk(v.unpacked, nil, shallowcopy(bound), arm_bottom, tracing, context)
       arms[#arms+1] = c2
    end
    env.permanent = orig_perm
+
+   -- create an edge between the c node and the parse node
+   local id = util.generateId()
+   context.downEdges[#context.downEdges + 1] = {n.id, id}
+
    -- currently leaking the perms
-   return env, build_node("fork", arms, {})
+   return env, build_node("fork", arms, {}, id)
 end
 
-function translate_expression(n, bound, down, tracing)
+function translate_expression(n, bound, down, tracing, context)
   local signature = db.getSignature(n.bindings, bound)
   local schema = db.getSchema(n.operator, signature)
   local args, fields = db.getArgs(schema, n.bindings)
@@ -360,7 +443,10 @@ function translate_expression(n, bound, down, tracing)
          traceArgs[#traceArgs + 1] = field
          traceArgs[#traceArgs + 1] = read_lookup(env, args[ix])
       end
-      c = build_node("trace", {c}, traceArgs, {})
+      -- create an edge between the c node and the parse node
+      local id = util.generateId()
+      context.downEdges[#context.downEdges + 1] = {n.id, id}
+      c = build_node("trace", {c}, {traceArgs}, id)
    end
 
    local nodeArgs = {}
@@ -372,7 +458,11 @@ function translate_expression(n, bound, down, tracing)
      end
    end
 
-   return env, build_node(schema.name or n.operator, {c}, {nodeArgs})
+   -- create an edge between the c node and the parse node
+   local id = util.generateId()
+   context.downEdges[#context.downEdges + 1] = {n.id, id}
+
+   return env, build_node(schema.name or n.operator, {c}, {nodeArgs}, id)
 end
 
 -- this doesn't really need to be disjoint from read lookup, except for concerns about
@@ -385,7 +475,7 @@ function trace_lookup(env, x)
    return translate_value(x)
 end
 
-function walk(graph, key, bound, tail, tracing)
+function walk(graph, key, bound, tail, tracing, context)
    local d, down
    local nk = next(graph, key)
    if not nk then
@@ -393,31 +483,33 @@ function walk(graph, key, bound, tail, tracing)
    end
 
    local n = graph[nk]
-
    d = function (bound)
-                return walk(graph, nk, bound, tail, tracing)
+                return walk(graph, nk, bound, tail, tracing, context)
            end
 
    if (n.type == "union") then
-      return translate_union(n, bound, d, tracing)
+      return translate_union(n, bound, d, tracing, context)
    end
    if (n.type == "mutate") then
-      return translate_mutate(n, bound, d, tracing)
+      return translate_mutate(n, bound, d, tracing, context)
    end
    if (n.type == "object") then
-      return translate_object(n, bound, d, tracing)
+      return translate_object(n, bound, d, tracing, context)
    end
    if (n.type == "subproject") then
-      return translate_subproject(n, bound, d, tracing)
+      return translate_subproject(n, bound, d, tracing, context)
    end
    if (n.type == "choose") then
-      return translate_choose(n, bound, d, tracing)
+      return translate_choose(n, bound, d, tracing, context)
    end
    if (n.type == "expression") then
-      return translate_expression(n, bound, d, tracing)
+      return translate_expression(n, bound, d, tracing, context)
    end
    if (n.type == "concat") then
-      return translate_concat(n, bound, d, tracing)
+      return translate_concat(n, bound, d, tracing, context)
+   end
+   if (n.type == "not") then
+      return translate_not(n, bound, d, tracing)
    end
 
    print ("ok, so we kind of suck right now and only handle some fixed patterns",
@@ -433,14 +525,17 @@ function build(graphs, tracing, parseGraph)
    local heads ={}
    local regs = 0
    tailf = function(b)
-               return empty_env(), build_node("terminal", {}, {})
+               -- create an edge between the c node and the parse node
+               local id = util.generateId()
+               return empty_env(), build_node("terminal", {}, {}, id)
            end
    for _, g in pairs(graphs) do
-      local env, program = walk(g, nil, {}, tailf, tracing)
+      local env, program = walk(g, nil, {}, tailf, tracing, parseGraph.context)
       regs = math.max(regs, env.maxregs + 1)
-      heads[#heads+1] = program
+      local id = util.generateId()       
+      heads[#heads+1] = build_node("regfile", {program}, {{regs}}, id)
    end
-   return build_node("fork", heads, {{util.toJSON(parseGraph)}})
+   return build_node("fork", heads, {{util.toJSON(parseGraph)}}, util.generateId())
 end
 
 ------------------------------------------------------------
