@@ -3,4 +3,6 @@ START:
         .incbin FILE
 
         .global END
-END:    
+END:
+        .asciz FILE
+
