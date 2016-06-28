@@ -1,31 +1,30 @@
 #include <runtime.h>
 #include <exec.h>
 
-// break this out...also copy r now that its well-formed how to do that
-static CONTINUATION_6_4(scan_listener_3, execf, operator, value *, int, int, int,
+static CONTINUATION_6_4(scan_listener_3, execf, operator, value *, value, value, value,
                         value, value, value, eboolean);
-static void scan_listener_3(execf n,  operator op, value *r, int a, int b, int c,
+static void scan_listener_3(execf n,  operator op, value *r, value a, value b, value c,
                             value av, value bv, value cv, eboolean present)
 {
-    r[a] = av;
-    r[b] = bv;
-    r[c] = cv;
-    apply(n, 0, r);
+    store(r, a, av);
+    store(r, b, bv);
+    store(r, c, cv);
+    apply(n, op, r);
 }
 
-static CONTINUATION_5_3(scan_listener_2, execf, operator, value *, int, int, value, value, eboolean);
-static void scan_listener_2(execf n, operator op, value *r, int a, int b,
+static CONTINUATION_5_3(scan_listener_2, execf, operator, value *, value, value, value, value, eboolean);
+static void scan_listener_2(execf n, operator op, value *r, value a, value b,
                             value av, value bv, eboolean present)
 {
-    r[a] = av;
-    r[b] = bv;
-    apply(n, 0, r);
+    store(r, a, av);
+    store(r, b, bv);
+    apply(n, op, r);
 }
 
-static CONTINUATION_4_2(scan_listener_1, execf, operator, value *, int, value, eboolean);
-static void scan_listener_1(execf n, operator op, value *r, int a, value av, eboolean present)
+static CONTINUATION_4_2(scan_listener_1, execf, operator, value *, value, value, eboolean);
+static void scan_listener_1(execf n, operator op, value *r, value a, value av, eboolean present)
 {
-    r[a] = av;
+    store(r, a, av);
     apply(n, op, r);
 }
 
@@ -50,19 +49,19 @@ static void do_scan(evaluation ex, int *count, execf n, int sig, value e, value 
     // generify this too
     switch(sig) {
     case s_eav:
-        listen = cont(ex->h, scan_listener_3, n, op, r, toreg(e), toreg(a), toreg(v));
+        listen = cont(ex->h, scan_listener_3, n, op, r, e, a, v);
         break;
     case s_eAv:
-        listen = cont(ex->h, scan_listener_2, n, op, r, toreg(e), toreg(v));
+        listen = cont(ex->h, scan_listener_2, n, op, r, e, v);
         break;
     case s_eAV:
-        listen = cont(ex->h, scan_listener_1, n, op, r, toreg(e));
+        listen = cont(ex->h, scan_listener_1, n, op, r, e);
         break;
     case s_Eav:
-        listen = cont(ex->h, scan_listener_2, n, op, r, toreg(a), toreg(v));
+        listen = cont(ex->h, scan_listener_2, n, op, r, a, v);
         break;
     case s_EAv:
-        listen = cont(ex->h, scan_listener_1, n, op, r, toreg(v));
+        listen = cont(ex->h, scan_listener_1, n, op, r, v);
         break;
     case s_EAV:
         listen = cont(ex->h, scan_listener_0, n, op, r);
@@ -167,7 +166,7 @@ static void do_genid(evaluation ex, int *count, execf n, value dest, operator op
     if (op != op_flush) {
         *count = *count+1;
         value v = generate_uuid();
-        r[toreg(dest)] = v;
+        store(r, dest, v);
     }
     apply(n, op, r);
 }

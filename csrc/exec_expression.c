@@ -8,8 +8,8 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
 {
     *count = *count + 1;                        
     if (op != op_flush) {
-        value ar = lookup(a, r);                    
-        value br = lookup(b, r);                
+        value ar = lookup(r, a);                    
+        value br = lookup(r, b);                
         if (!value_equals(ar, br)) return;
     }
     apply(n, op, r);
@@ -24,12 +24,12 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
             apply(n, op, r);                                                                         \
             return;                                                                                  \
         }                                                                                            \
-        value ar = lookup(a, r);                                                                     \
+        value ar = lookup(r, a);                                                                     \
         *count = *count + 1;                                                                         \
         if ((type_of(ar) != float_space )) {                                                         \
             exec_error(ex, "attempt to do math on non-number", a);                                   \
         } else {                                                                                     \
-            r[toreg(dest)] = box_float(__op(*(double *)ar));                                           \
+            store(r, dest, box_float(__op(*(double *)ar)));                                          \
             apply(n, op, r);                                                                         \
         }                                                                                            \
     }
@@ -42,12 +42,12 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
             apply(n, op, r);                                                                         \
             return;                                                                                  \
         }                                                                                            \
-        value ar = lookup(a, r);                                                                     \
+        value ar = lookup(r, a);                                                                     \
         *count = *count + 1;                                                                         \
         if ((type_of(ar) != float_space )) {                                                         \
             exec_error(ex, "attempt to do math on non-number", a);                                   \
         } else {                                                                                     \
-          r[toreg(dest)] = __op(*ar == etrue ? true : false) ? etrue : efalse;                         \
+            store(r, dest, __op(*ar == etrue ? true : false) ? etrue : efalse); \
             apply(n, op, r);                                                                         \
         }                                                                                            \
     }
@@ -73,14 +73,14 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
             apply(n, op, r);                                                                         \
             return;                                                                                  \
         }       \
-        value ar = lookup(a, r);                                                                     \
-        value br = lookup(b, r);                                                                     \
+        value ar = lookup(r, a);                                                                     \
+        value br = lookup(r, b);                                                                     \
         *count = *count + 1;                                                                         \
         if ((type_of(ar) != float_space ) || (type_of(br) != float_space)) {                         \
             exec_error(ex, "attempt to " #__name" non-numbers", a, b);                               \
             prf("UHOH %v, %v\n", ar, br);                                                            \
         } else {                                                                                     \
-            r[toreg(dest)] = box_float(*(double *)ar __op *(double *)br);                              \
+            store(r, dest, box_float(*(double *)ar __op *(double *)br));                             \
             apply(n, op, r);                                                                         \
         }                                                                                            \
     }
@@ -93,13 +93,13 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
             apply(n, op, r);                                                                         \
             return;                                                                                  \
         }                                                                                            \
-        value ar = lookup(a, r);                                                                       \
-        value br = lookup(b, r);                                                                       \
+        value ar = lookup(r, a);                                                                       \
+        value br = lookup(r, b);                                                                       \
         *count = *count + 1;                                                                           \
         if ((type_of(ar) != float_space ) || (type_of(br) != float_space)) {                           \
             exec_error(ex, "attempt to __op non-numbers", a, b);                                       \
         } else {                                                                                       \
-          r[toreg(dest)] = (*(double *)ar __op *(double *)br) ? etrue : efalse;                          \
+            store(r, dest, (*(double *)ar __op *(double *)br) ? etrue : efalse);                       \
             apply(n, op, r);                                                                           \
         }                                                                                              \
     }
@@ -127,8 +127,8 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
         if (op == op_flush)  {                                                                       \
             apply(n, op, r);                                                                         \
         }                                                                                            \
-        value ar = lookup(a, r);                                                                     \
-        value br = lookup(b, r);                                                                     \
+        value ar = lookup(r, a);                                                                     \
+        value br = lookup(r, b);                                                                     \
         *count = *count + 1;                                                                         \
         if ((type_of(ar) == float_space ) && (type_of(br) == float_space)) {                         \
             if (*(double *)ar __op *(double *)br)                                                    \
@@ -217,10 +217,10 @@ static void do_concat(int *count, execf n, value dest, vector terms, operator op
     *count = *count+1;
 
     vector_foreach(terms, i) {
-        bprintf(b, "%v", lookup(i, r));
+        bprintf(b, "%v", lookup(r, i));
     }
 
-    r[toreg(dest)] = intern_string(bref(b, 0), buffer_length(b));
+    store(r, dest, intern_string(bref(b, 0), buffer_length(b)));
     apply(n, op, r);
 }
 
@@ -239,7 +239,7 @@ static CONTINUATION_5_2(do_is, evaluation, int *, execf, value, value, operator,
 static void do_is (evaluation ex, int *count, execf n, value dest, value a, operator op, value *r)
 {
   *count = *count + 1;
-  r[toreg(dest)] = lookup(a, r);
+  store(r, dest, lookup(r, a));
   apply(n, op, r);
 }
 

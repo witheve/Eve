@@ -20,6 +20,15 @@ extern int strcmp(const char *, const char *);
 static buffer read_file_or_exit(heap, char *);
 
 
+static CONTINUATION_1_0(print_result, evaluation);
+static void print_result(evaluation s) 
+{
+    table_foreach(s->solution, n, v) {
+        prf("%v %b\n", n, bag_dump(s->h, v));
+    }
+    destroy(s->h);
+}
+
 static void run_test(bag root, buffer b, boolean tracing)
 {
     heap h = allocate_rolling(pages);
@@ -34,13 +43,8 @@ static void run_test(bag root, buffer b, boolean tracing)
     edb_register_implication(event, n);
     table persisted = create_value_table(h);
     table counts = allocate_table(h, key_from_pointer, compare_pointer);
-    solver s = build_solver(h, scopes, persisted, counts);
-    run_solver(s);
-    
-    table_foreach(s->solution, n, v) {
-        prf("%v %b\n", n, bag_dump(h, v));
-    }
-    destroy(h);
+    evaluation s = build_evaluation(h, scopes, persisted, counts, cont(h, print_result, 0));
+    run_evaluation(s);
 }
 
 int main(int argc, char **argv)

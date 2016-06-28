@@ -13,7 +13,7 @@ static void do_concat(int *count, execf n, value dest, vector terms, operator op
         bprintf(b, "%v", lookup(i, r));
     }
     
-    r[toreg(dest)] = intern_string(bref(b, 0), buffer_length(b));
+    store(r, dest, intern_string(bref(b, 0), buffer_length(b)));
     apply(n, op, r);
 }
 
@@ -43,7 +43,7 @@ static void do_split(heap h, int *count, execf n, value dest, value source, valu
                 if (k->body[j] != s->body[i+j]) break; 
             }
             if (j == k->length) {
-                r[toreg(dest)] = intern_buffer(out);
+                store(r, dest, intern_buffer(out));
                 i+= j-1;
                 buffer_clear(out);
                 apply(n, op, r);
@@ -71,7 +71,7 @@ static void do_length(int *count, execf n, value dest, value src, operator op, v
 {
     if (op == op_insert) {
         *count = *count+1;
-        r[toreg(dest)] = lookup(src, r);
+        store(r, dest, lookup(src, r));
     }
     apply(n, op, r);
 }

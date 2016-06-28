@@ -89,50 +89,37 @@ void prf(char *, ...);
 // turn off all the typesafety, sig, listener, values as matched by the position
 typedef closure(scan, int, void *, value, value, value);
 
-typedef struct evaluation  {
-    heap h;
-    bag b;
-    thunk terminal;
-    insertron insert;
-    insertron remove;
-    insertron set;
-    table scopes;
-    execf head;
-    scan s;
-    table nmap;
-    table counters;
-} *evaluation;
-
 typedef struct node *node;
 
-typedef execf (*buildf)(evaluation, node);
-
-
-typedef struct solver {
+typedef struct evaluation {
     heap h;
     table counters;
     table solution;
     table scopes;
     insertron insert, remove, set;
+    table nmap;
     boolean pass;
     vector handlers;
-} *solver;
+    execf head;
+    execf tail;
+    ticks t;
+    scan s;
+} *evaluation;
 
-struct node {
+
+typedef execf (*buildf)(evaluation, node);
+typedef struct node {
     value id;
     estring type;
     buildf builder;
     vector arms;
     vector arguments; // always vectors of vectors
-};
+} *node;
 
-
-
-void execute(evaluation);
 
 table builders_table();
 void register_implication(node n);
-evaluation build(node n, table scopes, scan s, insertron insert, insertron remove, insertron set, table counts, thunk terminal);
+execf build(evaluation e, node n);
 table start_fixedpoint(heap, table, table, table);
 
 #define s_eav 0x0
@@ -151,9 +138,9 @@ uuid edb_uuid(bag b);
 int edb_size(bag b);
 
 node compile_eve(buffer b, boolean tracing);
-solver build_solver(heap h, table scopes, table persisted, table counts);
-void run_solver(solver s);
-void inject_event(solver, node);
+evaluation build_evaluation(heap h, table scopes, table persisted, table counts, thunk final);
+void run_evaluation(evaluation);
+void inject_event(evaluation, node);
 
 // months, days, weeks, day or week, year, day of year, etc.
-void clocktime(unsigned int *hours, unsigned int *minutes, unsigned int *seconds);
+void clocktime(ticks t, unsigned int *hours, unsigned int *minutes, unsigned int *seconds);

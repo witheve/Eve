@@ -17,7 +17,7 @@ static inline int toreg(value k)
     return((unsigned long) k - register_base);
 }
 
-static inline value lookup(value k, value *r)
+static inline value lookup(value *r, value k)
 {
     if (type_of(k) == register_space)  {
         // good look keeping your sanity if this is a non-register value in this space
@@ -46,3 +46,10 @@ static inline void copyout(value *dest, vector keys, vector source)
         dest[toreg(vector_get(keys, i))] = vector_get(source, i);
     }
 }
+
+static inline void store(value *r, value reg, value v)
+{
+    if ((unsigned long)reg != register_ignore) 
+        r[toreg(reg)] = v;
+}
+

@@ -24,18 +24,10 @@ static inline interpreter lua_context(lua_State *L)
     return (void *)lua_topointer(L, lua_upvalueindex(1));
 }
 
-// run an execf from lualand. should take an op
-static inline int run(lua_State *L)
-{
-    execute((void *)lua_topointer(L, 1));
-    return 0;
-}
-
 void register_exec(interpreter c);
 
 
 value lua_tovalue(lua_State *L, int index);
-
 
 static inline int lua_toregister(lua_State *L, int index)
 {

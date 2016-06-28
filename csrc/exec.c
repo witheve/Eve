@@ -10,7 +10,7 @@ static void do_sub_tail(int *count,
     // just drop flush and remove on the floor
     if ( op == op_insert) {
         *count = *count + 1;
-        table results = lookup(resreg, r);
+        table results = lookup(r, resreg);
         vector result = allocate_vector(results->h, vector_length(outputs));
         extract(result, outputs, r);
         table_set(results, result, etrue);
@@ -62,7 +62,7 @@ static void do_sub(int *count, execf next, execf leg, value resreg,
             res = create_value_vector_table(h);
             key = allocate_vector(h, vector_length(inputs));
             extract(key, inputs, r);
-            r[toreg(resreg)] = res;
+            store(r, resreg, res);
             apply(leg, op, r);
         }
         table_set(*results, key, res);
@@ -99,7 +99,7 @@ static CONTINUATION_3_2(do_choose_tail, int *, execf, value, operator, value *);
 static void do_choose_tail(int * count, execf next, value flag, operator op, value *r)
 {
     *count = *count + 1;
-    r[toreg(flag)] = etrue;
+    store(r, flag, etrue);
     apply(next, op, r);
 }
 
@@ -119,10 +119,10 @@ static CONTINUATION_3_2(do_choose, int *, vector, value, operator, value *);
 static void do_choose(int *count, vector legs, value flag, operator op, value *r)
 {
     *count = *count + 1;
-    r[toreg(flag)] = efalse;
+    store(r, flag, efalse);
     vector_foreach (legs, i){
         apply((execf) i, op, r);
-        if (r[toreg(flag)] == etrue) return;
+        if (lookup(r, flag) == etrue) return;
     }
 }
 
@@ -146,9 +146,9 @@ static CONTINUATION_4_2(do_not, int *, execf, execf, value, operator, value *);
 static void do_not(int *count, execf leg, execf next, value flag, operator op, value *r)
 {
     *count = *count + 1;
-    r[toreg(flag)] = efalse;
+    store (r, flag, efalse);
     apply(leg, op, r);
-    if (lookup(flag, r) == efalse)
+    if (lookup(r, flag) == efalse)
         apply(next, op, r);
 }
 
@@ -170,7 +170,7 @@ static void do_move(int *count, execf n, value dest, value src, operator op, val
 {
     if (op == op_insert) {
         *count = *count+1;
-        r[toreg(dest)] = lookup(src, r);
+        store (r, dest, lookup(r, src));
     }
     apply(n, op, r);
 }
@@ -232,7 +232,7 @@ static CONTINUATION_2_2(do_trace, execf, vector, operator, value *);
 static void do_trace(execf n, vector terms, operator op, value *r)
 {
     for (int i=0; i<vector_length(terms); i+=2) {
-        prf(" %v %v", lookup(vector_get(terms, i), r), lookup(vector_get(terms, i+1), r));
+        prf(" %v %v", lookup(r, vector_get(terms, i)), lookup(r, vector_get(terms, i+1)));
     }
     write(1, "\n", 1);
     apply(n, op, r);
@@ -247,36 +247,44 @@ static execf build_trace(evaluation ex, node n, execf *arms)
 }
 
 
-// does this need to come in as an event?
-static CONTINUATION_4_0(handle_time, execf, value, operator, value *);
-static void handle_time(execf n, value dest, operator op, value *r)
+static CONTINUATION_6_2(do_time,
+                        evaluation, int *, execf, value, value, value, 
+                        operator, value *);
+static void do_time(evaluation e, int *count, execf n, value s, value m, value h, operator op, value *r)
 {
-    unsigned int hours;
-    unsigned int minutes;
-    unsigned int seconds;
-    clocktime(&hours, &minutes, &seconds);
-    r[toreg(dest)] = box_float((double)seconds);
+    if (op == op_insert) {
+        unsigned int seconds, minutes,  hours;
+        *count = *count +1;
+        clocktime(e->t, &hours, &minutes, &seconds);
+        store(r, s, box_float((double)seconds));
+        store(r, m, box_float((double)minutes));
+        store(r, h, box_float((double)hours));
+    }
     apply(n, op, r);
 }
 
-// remove removes the registration?...and its consequences?
-
-static CONTINUATION_4_2(do_time, heap, int *, execf, value, operator, value *);
-static void do_time(heap h, int *count , execf n, value dest, operator op, value *r)
+static CONTINUATION_1_0(time_expire, evaluation);
+static void time_expire(evaluation e)
 {
+    // set t
+    // fixie point
     // shutdown...shutdown
-    register_periodic_timer(seconds(1), cont(h, handle_time, n, dest, op, r));
+
 }
 
 // xxx  - handle the bound case
 static execf build_time(evaluation e, node n, execf *arms)
 {
+    vector a = vector_get(n->arguments, 0);
+    register_periodic_timer(seconds(1), cont(e->h, time_expire, e));
     return cont(e->h,
                 do_time,
-                e->h,
+                e,
                 register_counter(e, n),
                 resolve_cfg(e, n, 0),
-                vector_get(vector_get(n->arguments, 0), 0));
+                vector_get(a, 0), 
+                vector_get(a, 1), 
+                vector_get(a, 2));
 }
 
 static CONTINUATION_4_2(do_regfile, heap, execf, int*, int, operator, value *);
@@ -349,26 +357,8 @@ static void force_node(evaluation e, node n)
     }
 }
 
-void execute(evaluation e)
+execf build(evaluation e, node n)
 {
-    apply(e->head, op_insert, 0);
-    apply(e->head, op_flush, 0);
-}
-
-evaluation build(node n, table scopes, scan s, insertron insert, insertron remove, insertron set, table counts, thunk terminal)
-{
-    heap h = allocate_rolling(pages);
-    evaluation e = allocate(h, sizeof(struct evaluation));
-    e->h =h;
-    e->scopes = scopes;
-    e->counters = counts;
-    e->s = s;
-    e->insert = insert;
-    e->remove = remove;
-    e->set = set;
-    e->terminal = terminal;
-    e->nmap = allocate_table(e->h, key_from_pointer, compare_pointer);
     force_node(e, n);
-    e->head = *(execf *)table_find(e->nmap, n);
-    return e;
+    return *(execf *)table_find(e->nmap, n);
 }
