@@ -755,7 +755,7 @@ function unpackObjects(dg, context)
     else
       if node.type == "union" or node.type == "choose" or node.type == "not" then
         for _, query in ipairs(node.queries) do
-          unpackObjects(query.deps.graph)
+          unpackObjects(query.deps.graph, context)
         end
       end
       unpacked[#unpacked + 1] = node
@@ -775,11 +775,6 @@ function compileExec(contents, tracing)
     local unpacked = unpackObjects(dependencyGraph, parseGraph.context)
     -- this handler function is just for debugging, we no longer have
     -- an 'execution return'
-    print("  {")
-    for ix, node in ipairs(unpacked) do
-      print(string.format("    %2d: %s", ix, util.indentString(4, tostring(node))))
-    end
-    print("  }")
     set[#set+1] = unpacked
   end
   return build.build(set, tracing, parseGraph)

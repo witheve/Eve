@@ -414,7 +414,9 @@ local function formatQueryGraph(root, seen, depth)
   end
   local childIndent = color.dim(indent .. " |  ")
   for k, v in pairs(root) do
-    if type(v) == "table" then
+    if k == "type" or k == "context" or k == "ast" then
+      -- ignore
+    elseif type(v) == "table" then
       if type(k) == "string" and k ~= "children" then
         string = string .. indent .. color.dim(" |  ") .. color.dim(k) .. ": "
         if v.type and not seen[v] then
@@ -428,8 +430,6 @@ local function formatQueryGraph(root, seen, depth)
       else
         string = string .. color.error("seen\n")
       end
-    elseif k == "type" then
-      -- ignore
     elseif type(k) == "string" then
       local toPrint = v
       if type(v) == "string" then
@@ -1439,7 +1439,7 @@ local function printParse(content)
   local tokens = lex(content)
   context.tokens = tokens
   local tree = {type="expression tree", children = parse(tokens, context)}
-  local graph = generateNodes(tree, {code = content})
+  local graph = generateNodes(tree, context)
   print()
   print(color.dim("---------------------------------------------------------"))
   print(color.dim("-- Parse tree"))
