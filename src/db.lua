@@ -106,6 +106,9 @@ local expressions = {
   cos = {schemas.unary},
   tan = {schemas.unary},
 
+  length = {schemas.unary},
+  sum = {schemas.unary},
+
   time = {schema{"return", OPT, "seconds", "minutes", "hours"}}
 }
 

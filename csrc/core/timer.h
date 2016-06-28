@@ -1,6 +1,7 @@
 
 typedef struct timer *timer;
 timer register_timer(ticks, thunk n);
+timer register_periodic_timer(ticks interval, thunk n);
 void remove_timer();
 void initialize_timer();
 ticks parse_time();

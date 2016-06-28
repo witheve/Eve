@@ -31,8 +31,9 @@ UNIX =  unix_util.o region.o select.o tcp_socket.o
 UNIX_H = unix_internal.h unix.h
 CORE = buffer.o table.o vector.o format.o rolling.o string.o pqueue.o timer.o
 CORE_H = bswap.h pqueue.h vector.h buffer.h heap.h timer.h continuation.h core.h string.h table.h
-RUNTIME =  edb.o init.o uuid.o estring.o types.o luanne.o json_request.o exec.o runner.o
-RUNTIME_H = ./luanne.h ./runtime.h ./estring.h ./number.h ./types.h
+RUNTIME =  edb.o init.o uuid.o estring.o types.o luanne.o json_request.o  runner.o 
+EXEC = exec_edb.o exec_aggregate.o exec_expression.o exec_string.o exec.o exec_edb.o
+RUNTIME_H = luanne.h runtime.h estring.h number.h types.h exec.h
 HTTP = server.o websocket.o base64.o sha1.o
 HTTP_H = ./http/http.h
 
@@ -56,8 +57,11 @@ microReact.o: ../jssrc/microReact.js
 
 codemirror.o: ../jssrc/codemirror.js
 	cc wrap.S -DSTART=$(S)codemirror_start -DEND=$(S)codemirror_end -DFILE='"$<"' -c -o $@
+
 codemirrorCss.o: ../jssrc/codemirror.css
 	cc wrap.S -DSTART=$(S)codemirrorCss_start -DEND=$(S)codemirrorCss_end -DFILE='"$<"' -c -o $@
+
+CONTENT = codemirrorCss.o codemirror.o microReact.o renderer.o index.o
 
 %.o: %.c continuation_templates.h $(UNIX_H) $(CORE_H) $(RUNTIME_H) $(HTTP_H)
 	cc -std=gnu99 -I../csrc/unix -I../csrc/core -I../csrc -I. -I$(LUAJIT_INCLUDES) -g -c $<
@@ -70,7 +74,7 @@ codemirrorCss.o: ../jssrc/codemirror.css
 # the executable out of the way for the moment
 #macosx
 #linux  -Wl,-E
-lueve: $(CORE) $(UNIX) $(COMPILER) $(UTF) $(LUAPOWER) $(HTTP) $(RUNTIME) index.o renderer.o microReact.o codemirror.o codemirrorCss.o lueve.o
+lueve: $(CORE) $(UNIX) $(COMPILER) $(UTF) $(LUAPOWER) $(HTTP) $(RUNTIME) $(CONTENT) $(EXEC) lueve.o
 	cc $(LINK) $^ $(LIBLUAJIT) -lm -ldl  -o $@
 
 clean:

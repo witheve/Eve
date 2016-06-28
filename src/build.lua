@@ -317,7 +317,7 @@ function translate_mutate(n, bound, down, tracing, context)
    return env, c
 end
 
-function translate_not(n, bound, down, tracing)
+function translate_not(n, bound, down, tracing, context)
    local env
    local arms = {}
    local flag = allocate_temp()
@@ -388,6 +388,15 @@ end
 
 function translate_concat(n, bound, down, tracing, context)
    local env, c = down(bound)
+end
+
+function translate_sum(n, bound, down, tracing, context)
+   local env, c = down(bound)
+end
+
+function translate_sort(n, bound, down, tracing, context)
+   local env, c = down(bound)
+   
 end
 
 
@@ -509,7 +518,13 @@ function walk(graph, key, bound, tail, tracing, context)
       return translate_concat(n, bound, d, tracing, context)
    end
    if (n.type == "not") then
-      return translate_not(n, bound, d, tracing)
+      return translate_not(n, bound, d, tracing, context)
+   end
+   if (n.type == "sum") then
+      return translate_sum(n, bound, d, tracing, context)
+   end
+   if (n.type == "sort") then
+      return translate_sort(n, bound, d, tracing, context)
    end
 
    print ("ok, so we kind of suck right now and only handle some fixed patterns",

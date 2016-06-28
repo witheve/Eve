@@ -154,3 +154,6 @@ node compile_eve(buffer b, boolean tracing);
 solver build_solver(heap h, table scopes, table persisted, table counts);
 void run_solver(solver s);
 void inject_event(solver, node);
+
+// months, days, weeks, day or week, year, day of year, etc.
+void clocktime(unsigned int *hours, unsigned int *minutes, unsigned int *seconds);

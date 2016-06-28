@@ -66,10 +66,32 @@ static execf build_split(evaluation e, node n)
 }
 
 
+static CONTINUATION_4_2(do_length, int *, execf, value,  value, operator, value *);
+static void do_length(int *count, execf n, value dest, value src, operator op, value *r)
+{
+    if (op == op_insert) {
+        *count = *count+1;
+        r[toreg(dest)] = lookup(src, r);
+    }
+    apply(n, op, r);
+}
+
+
+static execf build_length(evaluation e, node n)
+{
+    vector a = vector_get(n->arguments, 0);
+    return cont(e->h, do_length,
+                register_counter(e, n),
+                resolve_cfg(e, n, 0),
+                vector_get(a, 0),
+                vector_get(a, 1));
+}
+
 void register_string_builders(table builders)
 {
     table_set(builders, intern_cstring("concat"), build_concat);
     table_set(builders, intern_cstring("split"), build_split);
+    table_set(builders, intern_cstring("length"), build_length);
 }
 
 

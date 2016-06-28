@@ -142,3 +142,8 @@ void unix_wait()
     }
     
 }
+
+void clocktime(unsigned int *hours, unsigned int *minutes, unsigned int *seconds)
+{
+    *seconds = 5;
+}

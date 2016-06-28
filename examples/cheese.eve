@@ -1,13 +1,22 @@
-choose
+cheeses
   update
-    [#cheese @mimolette]
-    [#cheese @morbier]
-    [#cheese @manchego]
-    [#cheese @portsalut]
-    [#cheese @wensleydale]
+    [#cheese @mimolette color: orange  nationality: french]
+    [#cheese @pave-du-nord color: orange  nationality: french]
+    [#cheese @edam color: pale  nationality: dutch]
+    [#cheese @morbier color: pale  nationality: french]
+    [#cheese @manchego color: pale  nationality: french]
+    [#cheese @portsalut color: pale nationality: french]
+    [#cheese @wensleydale color: yellow nationality: english]
 
 zikky
-  [#cheese color name]
-  color = if length(name) > 6 then "orange" else "black"
+  [#cheese nationality]
+  count = sum(1 given nationality)
   update
-    [#div #foo ix: name, text: name, style: [color]]
+    [#div #foo ix: nationality, text: count]
+
+tango
+  [#cheese name color]
+  out = if color = "pale" then "yellow"
+  else color 
+  update
+    [#div #foo ix: nationality, text: name, style: [out]]

@@ -185,9 +185,9 @@ function DependencyGraph:addExpressionNode(node)
     if args.a.type == "constant" and args.b.type == "constant" then
       -- no deps, no provides
     elseif args.a.type == "constant" then
-      deps.provides:add(b)
+      deps.provides:add(args.b)
     elseif args.b.type == "constant" then
-      deps.provides:add(a)
+      deps.provides:add(args.a)
     else
       deps.provides:add(args.a)
       deps.anyDepends:add(args.a)
