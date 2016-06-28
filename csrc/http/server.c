@@ -128,8 +128,10 @@ static void session_buffer(session s,
                             apply((http_service)c, s->write, s->headers, &s->child);
                         } else {
                             if ((c = table_find(s->parent->content, s->fields[url]))) {
+                                buffer k;
+                                if (c[2] && !(k = read_file(s->h, (char *)c[2]))) k = c[1];
                                 // reset connection state
-                                send_http_response(s->h, s->write, c[0], c[1]);
+                                send_http_response(s->h, s->write, c[0], k);
                             } else {
                                 apply(s->write, sstring("HTTP/1.1 404 Not found\r\n"), ignore);
                             }
@@ -173,11 +175,7 @@ void register_static_content(http_server h, char *url, char *content_type, buffe
     buffer *x = allocate(h->h, 3*sizeof(buffer));
     x[0] = string_from_cstring(h->h,content_type);
     x[1] = b;
-    if (backing) {
-        x[2] = string_from_cstring(h->h, backing);
-    } else {
-        x[2] = 0;
-    }
+    x[2] = (buffer)backing;
     table_set(h->content, string_from_cstring(h->h, url), x);
 }
 
