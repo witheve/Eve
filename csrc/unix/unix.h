@@ -55,3 +55,4 @@ void tcp_create_server(heap h,
 
 void unix_wait();
 void select_init();
+void init_processes();
