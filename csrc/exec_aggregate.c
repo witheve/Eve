@@ -38,8 +38,20 @@ static void do_sum(heap h, execf n, int *count,
     if (op == op_insert) {
         *count = *count +1;
         extract(pk, proj, r);
+        double *x;
+        if (!(x = table_find(targets, pk))) {
+            x = allocate(h, sizeof(double *));
+            
+        }
     }
-    apply(n, op, r);
+    if (op == op_flush) {
+        foreach(targets, pk, x) {
+            copyout(r, proj, x);
+            store(r, dst, box_float(*x));
+            apply(n, op_insert, r);        
+        }
+        apply(n, op_flush, r);        
+    }
 }
 
 static execf build_sum(evaluation e, node n, execf *arms)
