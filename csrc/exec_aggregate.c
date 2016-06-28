@@ -10,12 +10,25 @@ static void do_sort(heap h, execf n, int *count,
                         table dest, value key, value out, vector proj, vector pk,
                     operator op, value *ignore)
 {
-    value *r;
     if (op == op_insert) {
         *count = *count +1;
         extract(pk, proj, r);
+        double *x;
+        if (!(x = table_find(targets, pk))) {
+            x = allocate(h, sizeof(double *));
+            *x = 0.0;
+        }
+        x += lookup(r, src);
     }
-    apply(n, op, r);
+
+    if (op == op_flush) {
+        foreach(targets, pk, x) {
+            copyout(r, proj, x);
+            store(r, dst, box_float(*x));
+            apply(n, op_insert, r);        
+        }
+        apply(n, op_flush, r);        
+    }
 }
 
 static execf build_sort(evaluation e, node n, execf *arms)
@@ -41,9 +54,11 @@ static void do_sum(heap h, execf n, int *count,
         double *x;
         if (!(x = table_find(targets, pk))) {
             x = allocate(h, sizeof(double *));
-            
+            *x = 0.0;
         }
+        x += lookup(r, src);
     }
+
     if (op == op_flush) {
         foreach(targets, pk, x) {
             copyout(r, proj, x);
