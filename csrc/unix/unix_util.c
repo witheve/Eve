@@ -4,6 +4,7 @@
 
 #include <unix_internal.h>
 #include <sys/time.h>
+#include <time.h>
 
 typedef struct page_heap {
     struct heap h;
@@ -143,7 +144,13 @@ void unix_wait()
     
 }
 
-void clocktime(unsigned int *hours, unsigned int *minutes, unsigned int *seconds)
+void clocktime(ticks t, unsigned int *hours, unsigned int *minutes, unsigned int *seconds)
 {
-    *seconds = 5;
+    struct timeval tv;
+    time_t z = t >> 32;
+    // not threadsafe
+    struct tm *tm = localtime(&z);
+    *hours = tm->tm_hour;
+    *minutes = tm->tm_min;
+    *seconds = tm->tm_sec;
 }
