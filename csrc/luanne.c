@@ -163,11 +163,12 @@ node lua_compile_eve(interpreter c, buffer b, boolean tracing)
 
 void lua_run_module_func(interpreter c, buffer b, char *module, char *func)
 {
+    lua_pushcfunction(c->L, traceback);
     require_luajit(c, module);
     lua_getglobal(c->L, module);
     lua_getfield(c->L, -1, func);
     lua_pushlstring(c->L, bref(b, 0), buffer_length(b));
-    if (lua_pcall(c->L, 1, 0, 0)) {
+    if (lua_pcall(c->L, 1, 1, lua_gettop(c->L)-3)) {
         printf ("lua error\n");
         printf ("%s\n", lua_tostring(c->L, -1));
     }
