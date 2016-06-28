@@ -792,7 +792,7 @@ local function parse(tokens, context)
 end
 
 
-local function resolveVariable(context, name, related, noCreate)
+local function resolveVariable(context, name, related, generated)
   local mappings = context.nameMappings
   local variable
   for _, mapping in ipairs(mappings) do
@@ -803,12 +803,12 @@ local function resolveVariable(context, name, related, noCreate)
   end
   -- if we didn't find it, then we have to create a new variable
   -- and add it to the closest name mapping
-  if not variable and not noCreate then
-    variable = makeNode(context, "variable", related, {name = name})
+  if not variable then
+    variable = makeNode(context, "variable", related, {name = name, generated = generated})
   end
   -- if we haven't mapped this variable at this level then we
   -- need to do so and add it to the containing query
-  if not mappings:peek()[name] and not noCreate then
+  if not mappings:peek()[name] then
     local query = context.queryStack:peek()
     query.variables[#query.variables + 1] = variable
     mappings:peek()[name] = variable
@@ -890,7 +890,7 @@ local function resolveExpression(node, context)
       error("Inequality with invalid right")
     end
     if context.nonFilteringInequality then
-      resultVar = resolveVariable(context, string.format("%s-%s-%s", node.type, node.line, node.offset), node)
+      resultVar = resolveVariable(context, string.format("%s-%s-%s", node.type, node.line, node.offset), node, true)
       generateBindingNode(context, {field = "return", variable = resultVar}, node, expression)
     end
     generateBindingNode(context, leftBinding, left, expression)
@@ -904,7 +904,7 @@ local function resolveExpression(node, context)
     local right = node.children[2]
     if right and right.type == "IDENTIFIER" then
       -- generate a temporary variable to hold this attribute binding
-      local attributeRef = resolveVariable(context, string.format("%s-%s-%s", right.value, right.line, right.offset), right)
+      local attributeRef = resolveVariable(context, string.format("%s-%s-%s", right.value, right.line, right.offset), right, true)
       -- generate a temporary object that we can attach this attribute to by adding
       -- an equality from the attribute name to our temp variable
       local tempObject = makeNode(context, "object", right, {children = {makeNode(context, "equality", right, {operator = "=", children = {right, makeNode(context, "IDENTIFIER", node.children[1], {value = attributeRef.name})}})}})
@@ -935,7 +935,7 @@ local function resolveExpression(node, context)
     return objectNode.entityVariable
 
   elseif node.type == "infix" or node.type == "function" then
-    local resultVar = resolveVariable(context, string.format("result-%s-%s", node.line, node.offset), node)
+    local resultVar = resolveVariable(context, string.format("result-%s-%s", node.line, node.offset), node, true)
     local prevNonfiltering = context.nonFilteringInequality
     if node.func == "is" then
       context.nonFilteringInequality = true
