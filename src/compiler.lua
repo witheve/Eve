@@ -981,7 +981,7 @@ function unpackObjects(dg, context)
   return unpacked
 end
 
-function compileExec(contents, tracing)
+function compileExec(contents, tracing, tail)
   local parseGraph = parser.parseString(contents)
   local set = {}
 
@@ -990,7 +990,7 @@ function compileExec(contents, tracing)
     local unpacked = unpackObjects(dependencyGraph, parseGraph.context)
     set[#set+1] = unpacked
   end
-  return build.build(set, tracing, parseGraph)
+  return build.build(set, tracing, parseGraph, tail)
 end
 
 function analyze(content, quiet)

@@ -116,6 +116,8 @@ typedef struct solver {
     insertron insert, remove, set;
     boolean pass;
     vector handlers;
+    ticks t; // evaluation clock
+    boolean non_empty; // per eval
 } *solver;
 
 struct node {
@@ -150,7 +152,7 @@ void edb_remove_implication(bag b, node n);
 uuid edb_uuid(bag b);
 int edb_size(bag b);
 
-vector compile_eve(buffer b, boolean tracing);
+vector compile_eve(buffer b, boolean tracing, execf tail);
 solver build_solver(heap h, table scopes, table persisted, table counts);
 void run_solver(solver s);
 void inject_event(solver, vector node);

@@ -527,14 +527,12 @@ function walk(graph, key, bound, tail, tracing, context)
 end
 
 
-function build(graphs, tracing, parseGraph)
+function build(graphs, tracing, parseGraph, tail)
    local head
    local heads ={}
    local regs = 0
    tailf = function(b)
-               -- create an edge between the c node and the parse node
-               local id = util.generateId()
-               return empty_env(), build_node("terminal", {}, {}, id)
+               return empty_env(), tail
            end
    for _, g in pairs(graphs) do
       local env, program = walk(g, nil, {}, tailf, tracing, parseGraph.context)

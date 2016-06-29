@@ -144,7 +144,7 @@ void require_luajit(interpreter c, char *z)
     lua_setglobal(c->L, z);
 }
 
-vector lua_compile_eve(interpreter c, buffer b, boolean tracing)
+vector lua_compile_eve(interpreter c, buffer b, boolean tracing, execf tail)
 {
     vector result = allocate_vector(c->h, 3);
     lua_pushcfunction(c->L, traceback);
@@ -152,8 +152,9 @@ vector lua_compile_eve(interpreter c, buffer b, boolean tracing)
     lua_getfield(c->L, -1, "compileExec");
     lua_pushlstring(c->L, bref(b, 0), buffer_length(b));
     lua_pushboolean(c->L, tracing);
+    lua_pushlightuserdata(c->L, tail);
 
-    if (lua_pcall(c->L, 2, 1, lua_gettop(c->L)-4)) {
+    if (lua_pcall(c->L, 3, 1, lua_gettop(c->L)-4)) {
         printf ("lua error\n");
         printf ("%s\n", lua_tostring(c->L, -1));
     }
@@ -253,7 +254,7 @@ interpreter build_lua()
     return c;
 }
 
-vector compile_eve(buffer b, boolean tracing)
+vector compile_eve(buffer b, boolean tracing, execf tail)
 {
     interpreter c;
         // FIXME - CAS threading
@@ -263,7 +264,7 @@ vector compile_eve(buffer b, boolean tracing)
     } else {
         c = build_lua();
     }
-    vector v = lua_compile_eve(c, b, tracing);
+    vector v = lua_compile_eve(c, b, tracing, tail);
     c->next = freelist;
     freelist = c;
     return v;

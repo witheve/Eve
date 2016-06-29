@@ -577,6 +577,7 @@ static void do_not(int *count, execf next, execf leg, value flag, operator op, v
 {
     *count = *count + 1;
     r[toreg(flag)] = efalse;
+
     apply(leg, op, r);
     if (lookup(flag, r) == efalse)
         apply(next, op, r);

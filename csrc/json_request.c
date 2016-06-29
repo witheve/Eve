@@ -224,7 +224,7 @@ void handle_json_query(json_session j, buffer in, thunk c)
 
         if ((c == '}')  && (s== sep)) {
             if (string_equal(type, sstring("query"))) {
-                vector nodes = compile_eve(query, j->tracing);
+                vector nodes = compile_eve(query, j->tracing, ignore);
                 inject_event(j->s, nodes);
                 start_guy(j);
             }

@@ -39,13 +39,18 @@ static void merge_scan(table t, int sig, void *listen, value e, value a, value v
     }
 }
 
+static CONTINUATION_1_2(evaluation_complete, solver, operator, value *);
+static void evaluation_complete(solver s, operator op, value *r)
+{
+    s->non_empty = true;
+}
+
 evaluation solver_build(solver s, node n)
 {
     return (build(n, s->scopes,
                   cont(s->h, merge_scan, s->solution),
                   s->insert, s->remove, s->set, s->counters,
-                  // missing mail
-                  0));
+                  cont(s->h, evaluation_complete, s)));
 }
 
 
