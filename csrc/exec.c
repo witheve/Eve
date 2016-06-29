@@ -173,9 +173,9 @@ static execf build_remove(evaluation e, node n)
     return cont(e->h, do_remove,  e, register_counter(e, n),
                 resolve_cfg(e, n, 0),
                 edb_uuid(x),
-                vector_get(n->arguments, 1),
-                vector_get(n->arguments, 2),
-                vector_get(n->arguments, 3));
+                vector_get(a, 1),
+                vector_get(a, 2),
+                vector_get(a, 3));
 }
 
 static CONTINUATION_7_2(do_set, evaluation, int *, execf, value, value, value, value, operator, value *) ;
@@ -524,11 +524,13 @@ static execf build_sub(evaluation e, node n)
 
 
 static CONTINUATION_3_2(do_choose_tail, int *, execf, value, operator, value *);
-static void do_choose_tail(int * count, execf next, value flag, operator op, value *r)
+static void do_choose_tail(int *count, execf next, value flag, operator op, value *r)
 {
-    *count = *count + 1;
-    r[toreg(flag)] = etrue;
-    apply(next, op, r);
+    if (op != op_flush) {
+        *count = *count + 1;
+        r[toreg(flag)] = etrue;
+        apply(next, op, r);
+    }
 }
 
 static execf build_choose_tail(evaluation e, node n)
@@ -571,7 +573,7 @@ static execf build_choose(evaluation e, node n)
 
 
 static CONTINUATION_4_2(do_not, int *, execf, execf, value, operator, value *);
-static void do_not(int *count, execf leg, execf next, value flag, operator op, value *r)
+static void do_not(int *count, execf next, execf leg, value flag, operator op, value *r)
 {
     *count = *count + 1;
     r[toreg(flag)] = efalse;

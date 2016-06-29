@@ -15,7 +15,7 @@ void lua_load_bytecode(interpreter, void *, bytes);
 void lua_run(interpreter c, buffer b);
 void eve_run(interpreter c, buffer b);
 void require_luajit(interpreter c, char *z);
-node lua_compile_eve(interpreter c, buffer b, boolean trace);
+vector lua_compile_eve(interpreter c, buffer b, boolean trace);
 void lua_run_module_func(interpreter c, buffer b, char *module, char *func);
 
 

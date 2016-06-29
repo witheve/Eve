@@ -75,10 +75,16 @@ void run_solver(solver s)
 }
 
 
-void inject_event(solver s, node n)
+void inject_event(solver s, vector n)
 {
-    evaluation nb = solver_build(s, n);
-    execute(nb);
+    bag event = create_bag(generate_uuid());
+    table_set(s->scopes, intern_cstring("event"), event);
+    
+    vector_foreach(n, i) {
+        evaluation nb = solver_build(s, i);
+        execute(nb);
+    }
+    
     vector_foreach(s->handlers, k) {
         execute(k);
     }

@@ -344,7 +344,7 @@ function translate_not(n, bound, down, tracing, context)
          env.permanent[n] = true
    end
    env, arm = walk(n.queries[1].unpacked, nil, shallowcopy(bound), arm_bottom, tracing, context)
-   return env, build_node("not", {arm}, {{read_lookup(env, flag)}}, id)
+   return env, build_node("not", {c, arm}, {{read_lookup(env, flag)}}, id)
 end
 
 

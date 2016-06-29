@@ -94,6 +94,7 @@ static void send_guy(heap h, buffer_handler output, values_diff diff)
     bprintf(out, "], \"remove\": [");
 
     start = 0;
+    prf("removal delta: %d\n", vector_length(diff->remove));
     vector_foreach(diff->remove, i){
         int count = 0;
         if (start++ != 0) bprintf(out, ",");
@@ -223,8 +224,8 @@ void handle_json_query(json_session j, buffer in, thunk c)
 
         if ((c == '}')  && (s== sep)) {
             if (string_equal(type, sstring("query"))) {
-                node headNode = compile_eve(query, j->tracing);
-                inject_event(j->s, headNode);
+                vector nodes = compile_eve(query, j->tracing);
+                inject_event(j->s, nodes);
                 start_guy(j);
             }
         }
@@ -265,13 +266,6 @@ void new_json_session(bag root, boolean tracing, buffer_handler write, table hea
 
     table persisted = create_value_table(h);
     table_set(persisted, edb_uuid(js->root), js->root);
-
-    // FIXME - for the moment we're just going to accrete the events so that
-    // the quasi-incremental guy knows what to do, we'd like to clean up
-    // a big for long lived sessions
-    bag event = create_bag(generate_uuid());
-    table_set(js->scopes, intern_cstring("event"), event);
-
     table_set(js->scopes, intern_cstring("session"), js->session);
     table_set(js->scopes, intern_cstring("all"), root);
     js->s = build_solver(h, js->scopes, persisted, counts);
