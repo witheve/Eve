@@ -854,7 +854,18 @@ local function resolveExpression(node, context)
     -- end up being mutates
     local right
     if rightNode.type == "object" then
+      -- if our left is an attribute call then we need to add the
+      -- attribute's parent to our projection to make sure that
+      -- the generated object is per each parent not just potentially
+      -- one global one
+      if left.attributeLeft then
+        context.projections:push(Set:new({left.attributeLeft}))
+      end
       right = resolveExpression(rightNode, context)
+      -- cleanup our projection
+      if left.attributeLeft then
+        context.projections:pop()
+      end
     else
       local prevMutating = context.mutating;
       context.mutating = nil
@@ -909,6 +920,9 @@ local function resolveExpression(node, context)
     if right and right.type == "IDENTIFIER" then
       -- generate a temporary variable to hold this attribute binding
       local attributeRef = resolveVariable(context, string.format("%s-%s-%s", right.value, right.line, right.offset), right, true)
+      -- store the left on the attribute as we may need it for adding
+      -- to the projection in the case of a mutate
+      attributeRef.attributeLeft = left;
       -- generate a temporary object that we can attach this attribute to by adding
       -- an equality from the attribute name to our temp variable
       local tempObject = makeNode(context, "object", right, {children = {makeNode(context, "equality", right, {operator = "=", children = {right, makeNode(context, "IDENTIFIER", node.children[1], {value = attributeRef.name})}})}})
