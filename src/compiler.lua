@@ -247,6 +247,35 @@ function unify(query, mapping, projection)
   recur(query.unions)
   recur(query.nots)
 
+  function remapNodes(nodes)
+    for _, node in ipairs(nodes) do
+      if node.projection then
+        local nodeProj = Set:new()
+        for ix, layerOrVar in ipairs(node.projection) do
+          if layerOrVar.type == "variable" then
+            nodeProj:add(layerOrVar)
+          else
+            nodeProj:union(layerOrVar, true)
+          end
+        end
+
+        local mappedProj = Set:new()
+        node.projection = mappedProj
+        for var in pairs(nodeProj) do
+          mappedProj:add(query.mapping[var] or var)
+        end
+      end
+
+      for ix, var in ipairs(node.groupings or nothing) do
+        node.groupings[ix] = query.mapping[var] or var
+      end
+    end
+  end
+
+  remapNodes(query.expressions)
+  remapNodes(query.objects)
+  remapNodes(query.mutates)
+
   return query
 end
 
@@ -908,9 +937,7 @@ function unpackObjects(dg, context)
             break
           end
         end
-        for ix, proj in pairs(node.projection) do
-          projection:union(proj, true)
-        end
+        projection:union(node.projection or nothing, true)
 
         subproject = SubprojectNode:new({projection = projection, provides = node.deps.provides}, node, context)
         unpackList = subproject.nodes
