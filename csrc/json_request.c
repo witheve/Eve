@@ -24,7 +24,7 @@ typedef struct json_session {
     table scopes;
     bag root, session;
     boolean tracing;
-    solver s;
+    evaluation s;
 } *json_session;
 
 extern bag my_awesome_bag;
@@ -224,7 +224,7 @@ void handle_json_query(json_session j, buffer in, thunk c)
 
         if ((c == '}')  && (s== sep)) {
             if (string_equal(type, sstring("query"))) {
-                vector nodes = compile_eve(query, j->tracing, ignore);
+                vector nodes = compile_eve(query, j->tracing);
                 inject_event(j->s, nodes);
                 start_guy(j);
             }
@@ -268,7 +268,7 @@ void new_json_session(bag root, boolean tracing, buffer_handler write, table hea
     table_set(persisted, edb_uuid(js->root), js->root);
     table_set(js->scopes, intern_cstring("session"), js->session);
     table_set(js->scopes, intern_cstring("all"), root);
-    js->s = build_solver(h, js->scopes, persisted, counts);
+    js->s = build_evaluation(h, js->scopes, persisted, counts);
     *handler = websocket_send_upgrade(h, headers, write, cont(h, handle_json_query, js), &js->write);
     start_guy(js);
 }

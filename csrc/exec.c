@@ -741,14 +741,6 @@ static execf build_regfile(evaluation e, node n, execf *arms)
                 (int)*(double *)vector_get(vector_get(n->arguments, 0), 0));
 }
 
-
-void close_evaluation(evaluation ex)
-{
-    // close
-    apply(ex->head, 1, 0);
-    destroy(ex->h);
-}
-
 static table builders;
 
 table builders_table()
@@ -805,26 +797,8 @@ static void force_node(evaluation e, node n)
     }
 }
 
-void execute(evaluation e)
+execf build(evaluation e, node n)
 {
-    apply(e->head, op_insert, 0);
-    apply(e->head, op_flush, 0);
-}
-
-evaluation build(node n, table scopes, scan s, insertron insert, insertron remove, insertron set, table counts, thunk terminal)
-{
-    heap h = allocate_rolling(pages);
-    evaluation e = allocate(h, sizeof(struct evaluation));
-    e->h =h;
-    e->scopes = scopes;
-    e->counters = counts;
-    e->s = s;
-    e->insert = insert;
-    e->remove = remove;
-    e->set = set;
-    e->terminal = terminal;
-    e->nmap = allocate_table(e->h, key_from_pointer, compare_pointer);
     force_node(e, n);
-    e->head = *(execf *)table_find(e->nmap, n);
-    return e;
+    return *(execf *)table_find(e->nmap, n);
 }

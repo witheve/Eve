@@ -182,7 +182,7 @@ function translate_subproject(n, bound, down, tracing, context)
      local id2 = util.generateId()
      context.downEdges[#context.downEdges + 1] = {n.id, id}
      context.downEdges[#context.downEdges + 1] = {n.id, id2}
-      return env, build_node("subtail", {build_node("terminal", {}, {}, id2)},
+      return env, build_node("subtail", {},
                              {set_to_read_array(env, n.provides),
                              {read_lookup(env, pass)}},
                              id)
@@ -527,12 +527,13 @@ function walk(graph, key, bound, tail, tracing, context)
 end
 
 
-function build(graphs, tracing, parseGraph, tail)
+function build(graphs, tracing, parseGraph)
    local head
    local heads ={}
    local regs = 0
    tailf = function(b)
-               return empty_env(), tail
+               local id = util.generateId()
+               return empty_env(), build_node("terminal", {}, {}, id)
            end
    for _, g in pairs(graphs) do
       local env, program = walk(g, nil, {}, tailf, tracing, parseGraph.context)
@@ -540,7 +541,7 @@ function build(graphs, tracing, parseGraph, tail)
       local id = util.generateId()
       heads[#heads+1] = build_node("regfile", {program}, {{regs}}, id)
    end
-   return build_node("fork", heads, {{util.toJSON(parseGraph)}}, util.generateId())
+   return heads
 end
 
 ------------------------------------------------------------
