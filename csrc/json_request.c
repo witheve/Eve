@@ -253,6 +253,7 @@ void new_json_session(bag root, boolean tracing, buffer_handler write, table hea
     table counts = allocate_table(h, key_from_pointer, compare_pointer);
 
     json_session j = allocate(h, sizeof(struct json_session));
+    j->h = h;
     j->root = root;
     j->tracing = tracing;
     j->evaluations = allocate_table(h, string_hash, string_equal);
