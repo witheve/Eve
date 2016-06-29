@@ -29,6 +29,17 @@ function Set:new(args)
    return args
 end
 
+function Set:from(list)
+  local args = setmetatable({}, self)
+  self.__index = self
+  local count = #list
+  for ix = count, 1, -1 do
+      args[list[ix]] = true
+   end
+  lengths[args] = count
+  return args
+end
+
 function Set:clone()
    local result = Set:new()
    for k in pairs(self) do result[k] = true end
