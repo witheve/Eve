@@ -550,7 +550,7 @@ local function parse(tokens, context)
 
     elseif type == "UPDATE" then
       local update = makeNode(context, "update", token, {scope = "session", children = {}})
-      if next.value == "all" then
+      if next.value == "all" or next.value == "event" then
         update.scope = next.value
         -- eat that token
         scanner:read()
