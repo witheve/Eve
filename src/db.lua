@@ -55,8 +55,8 @@ function Schema.__tostring(schema)
   return "Schema<" .. (schema.name or "UNNAMED") .. ", (" .. fmtSignature(schema.args, schema.signature) .. ")>"
 end
 
-local function schema(args)
-  local schema = {args = {}, signature = setmetatable({}, Signature)}
+local function schema(args, name)
+  local schema = {args = {}, signature = setmetatable({}, Signature), name = name}
   setmetatable(schema, Schema)
   if args.name then
     schema.name = args.name
@@ -101,12 +101,13 @@ local expressions = {
   ["="] = {rename("equal", schemas.binary), rename("is_equal", schemas.binaryFilter), rename("move", schemas.moveIn), rename("move", schemas.moveOut)},
   ["!="] = {rename("not_equal", schemas.binary), rename("is_not_equal", schemas.binaryFilter)},
 
-  is = {schemas.unary},
-  sin = {schemas.unary},
-  cos = {schemas.unary},
-  tan = {schemas.unary},
+  is = {rename("is", schemas.unary)},
+  sin = {rename("sin", schemas.unary)},
+  cos = {rename("cos", schemas.unary)},
+  tan = {rename("tan", schemas.unary)},
+  length = {rename("length", schemas.unary)},
 
-  time = {schema{"return", OPT, "seconds", "minutes", "hours"}}
+  time = {schema({"return", OPT, "seconds", "minutes", "hours"}, "time")}
 }
 
 function getSchemas(name)
