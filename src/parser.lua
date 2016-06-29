@@ -1068,7 +1068,7 @@ generateObjectNode = function(root, context)
       local left = child.children[1]
       if left.type == "IDENTIFIER" then
         local variable = resolveVariable(context, left.value, left)
-        local binding = generateBindingNode(context, {field = child.value, variable = variable}, child, object)
+        local binding = generateBindingNode(context, {field = left.value, variable = variable}, child, object)
         resolveExpression(child, context)
         lastAttribute = nil
       else
