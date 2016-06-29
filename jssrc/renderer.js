@@ -504,8 +504,16 @@ function orderedNode(node, state) {
       {c: "eav", children: [orderedNode(node.entity, state), orderedNode(node.attribute, state), orderedNode(node.value, state)]}
     ]};
   } else if(node.type == "subproject") {
+    let projections = [{text: "["}]
+    for(let proj of node.projection) {
+      projections.push(orderedNode(proj, state));
+    }
+    projections.push({text: "]"});
     return {c: `subproject ${active}`, children: [
-      {text: node.type},
+      {c: "row", children: [
+        {text: node.type},
+        {c: "subproject-projection", children: projections},
+      ]},
       {c: "subproject-children", children: node.nodes.map(function(cur) { return orderedNode(cur, state); })}
     ]};
   } else if(node.type == "variable") {
