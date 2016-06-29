@@ -4,30 +4,37 @@
 // we're suposed to have multiple keys and multiple sort orders, ideally
 // just generate a comparator over r
 static CONTINUATION_8_2(do_sort, heap, execf, int*, 
-                        table, value, value, vector,vector,
+                        table *, value, value, vector,vector,
                         operator, value *);
 static void do_sort(heap h, execf n, int *count,
-                        table dest, value key, value out, vector proj, vector pk,
-                    operator op, value *ignore)
+                    table *targets, value key, value out, vector proj, vector pk,
+                    operator op, value *r)
 {
     if (op == op_insert) {
         *count = *count +1;
         extract(pk, proj, r);
-        double *x;
-        if (!(x = table_find(targets, pk))) {
-            x = allocate(h, sizeof(double *));
-            *x = 0.0;
+        pqueue x;
+        if (!(x = table_find(*targets, pk))) {
+            x = allocate_pqueue(h, order_values);
+            // make a new key idiot
+            table_set(*targets,pk, x);
         }
-        x += lookup(r, src);
+        pqueue_insert(x, lookup(r, key));
     }
 
     if (op == op_flush) {
-        foreach(targets, pk, x) {
+        table_foreach(*targets, pk, x) {
+            pqueue p = x;
+            int count;
             copyout(r, proj, x);
-            store(r, dst, box_float(*x));
-            apply(n, op_insert, r);        
+            vector_foreach(p->v, i) {
+                // if we dont do the denorm trick, these should at least be findable and resuable
+                store(out, out, box_float(count++));
+                apply(n, op_insert, r);        
+            }
         }
         apply(n, op_flush, r);        
+        *targets = allocate_table((*targets)->h, key_from_pointer, compare_pointer);
     }
 }
 
@@ -42,9 +49,9 @@ static execf build_sort(evaluation e, node n, execf *arms)
 }
 
 
-static CONTINUATION_8_2(do_sum, heap, execf, int*, table, vector, value, value, vector, operator, value *);
+static CONTINUATION_8_2(do_sum, heap, execf, int*, table*, vector, value, value, vector, operator, value *);
 static void do_sum(heap h, execf n, int *count,
-                   table targets, vector proj, value src, value dst, vector pk,
+                   table *targets, vector proj, value src, value dst, vector pk,
                    operator op, value *ignore)
 {
     value *r;
@@ -52,19 +59,22 @@ static void do_sum(heap h, execf n, int *count,
         *count = *count +1;
         extract(pk, proj, r);
         double *x;
-        if (!(x = table_find(targets, pk))) {
+        if (!(x = table_find(*targets, pk))) {
             x = allocate(h, sizeof(double *));
             *x = 0.0;
+            // make a new key idiot
+            table_set(*targets, pk, x);
         }
-        x += lookup(r, src);
+        *x = *x + *(double *)lookup(r, src);
     }
-
+    
     if (op == op_flush) {
-        foreach(targets, pk, x) {
+        table_foreach(*targets, pk, x) {
             copyout(r, proj, x);
-            store(r, dst, box_float(*x));
+            store(r, dst, box_float(*(double *)x));
             apply(n, op_insert, r);        
         }
+        *targets = allocate_table((*targets)->h, key_from_pointer, compare_pointer);
         apply(n, op_flush, r);        
     }
 }

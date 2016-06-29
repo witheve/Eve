@@ -36,8 +36,7 @@ timer register_periodic_timer(ticks interval, thunk n)
 
     t->t = n;
     t->disable = 0;
-    t->w = 0;
-    now(t->w);
+    t->w = now();
     pqueue_insert(timers, t);
     return(t);
 }
@@ -114,8 +113,15 @@ void print_time(string b, ticks f)
     }
 }
 
+static boolean compare_timer(void *za, void *zb) 
+{
+    timer a = za;
+    timer b = zb;
+    return (a->w < b->w);
+}
+
 void initialize_timers(heap h)
 {
-    timers = allocate_pqueue(h);
+    timers = allocate_pqueue(h, compare_timer);
     theap = h;
 }

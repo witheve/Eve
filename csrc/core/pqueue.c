@@ -1,9 +1,4 @@
 #include <core.h>
-
-struct pqueue {
-    vector v;
-    boolean (*compare)(void *, void *);
-};
      
 typedef iu32 index; //indices are off by 1 from vector references
 

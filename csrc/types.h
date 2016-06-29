@@ -58,6 +58,7 @@ static inline unsigned long type_of (void *x)
     return ((unsigned long)x) & region_mask;
 }
 
+boolean order_values(void *, void *);
 typedef void *uuid;
 uuid intern_uuid(unsigned char *x);
 void init_uuid();
