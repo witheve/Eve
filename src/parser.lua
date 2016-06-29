@@ -876,7 +876,7 @@ local function resolveExpression(node, context)
     -- set that when I try to resolve this expression,
     -- I'm looking to resolve it to this specific variable
     local right = resolveExpression(node.children[2], context)
-    local expression = makeNode(context, "expression", node, {operator = node.operator, projections = {}, groupings = {}, bindings = {}})
+    local expression = makeNode(context, "expression", node, {operator = node.operator, projection = {}, groupings = {}, bindings = {}})
     local leftBinding = {field = "a"}
     if left.type == "variable" then
       leftBinding.variable = left
@@ -944,7 +944,7 @@ local function resolveExpression(node, context)
     if node.func == "is" then
       context.nonFilteringInequality = true
     end
-    local expression = makeNode(context, "expression", node, {operator = node.func, projections = {}, groupings = {}, bindings = {}})
+    local expression = makeNode(context, "expression", node, {operator = node.func, projection = {}, groupings = {}, bindings = {}})
     generateBindingNode(context, {field = "return", variable = resultVar}, resultVar, expression)
     -- create bindings
     for ix, child in ipairs(node.children) do
@@ -975,7 +975,7 @@ local function resolveExpression(node, context)
         for _, project in ipairs(resolved.children) do
           local projectVar = resolveExpression(project, context)
           if projectVar.type == "variable" then
-            expression.projections[#expression.projections + 1] = makeNode(context, "projection", project, {expression = expression, variable = projectVar})
+            expression.projection[#expression.projection + 1] = makeNode(context, "projection", project, {expression = expression, variable = projectVar})
           else
             -- error
             errors.invalidProjection(context, grouping)
