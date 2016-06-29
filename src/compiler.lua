@@ -988,9 +988,6 @@ function compileExec(contents, tracing)
   for ix, queryGraph in ipairs(parseGraph.children) do
     local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph)
     local unpacked = unpackObjects(dependencyGraph, parseGraph.context)
-    -- this handler function is just for debugging, we no longer have
-    -- an 'execution return'
-    print(queryGraph)
     set[#set+1] = unpacked
   end
   return build.build(set, tracing, parseGraph)

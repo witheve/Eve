@@ -4,6 +4,12 @@
 #include <bswap.h>
 #include <luanne.h>
 
+#define register(__h, __url, __content, __name)\
+ {\
+    extern unsigned char __name##_start, __name##_end;\
+    unsigned char *s = &__name##_start, *e = &__name##_end;\
+    register_static_content(__h, __url, __content, wrap_buffer(init, s, e-s), dynamicReload?(char *)e:0); \
+ }
 
 
 station create_station(unsigned int address, unsigned short port) {
@@ -56,6 +62,8 @@ int main(int argc, char **argv)
     boolean doExec = false;
     boolean doRead = false;
     boolean consumeFile = false;
+    boolean dynamicReload = true;
+    
     char * file = "";
     for (int i = 1; i <argc ; i++) {
         if (!strcmp(argv[i], "--parse") || !strcmp(argv[i], "-p")) {
@@ -119,42 +127,13 @@ int main(int argc, char **argv)
     else {
         return 0;
     }
-
+    
     http_server h = create_http_server(init, create_station(0, 8080));
-    extern unsigned char index_start, index_end;
-    register_static_content(h, "/", "text/html", wrap_buffer(init, &index_start,
-                                                             &index_end - &index_start),
-                            (char *)&index_end);
-
-
-    extern unsigned char renderer_start, renderer_end;
-
-    register_static_content(h, "/jssrc/renderer.js",
-                            "application/javascript",
-                            wrap_buffer(init,  &renderer_start,
-                                        &renderer_end -  &renderer_start),
-                            (char *) &renderer_end);
-
-    extern unsigned char microReact_start, microReact_end;
-    register_static_content(h, "/jssrc/microReact.js",
-                            "application/javascript",
-                            wrap_buffer(init,  &microReact_start,
-                                        &microReact_end -  &microReact_start),
-                            (char *) &microReact_end);
-
-    extern unsigned char codemirror_start, codemirror_end;
-    register_static_content(h, "/jssrc/codemirror.js",
-                            "application/javascript",
-                            wrap_buffer(init,  &codemirror_start,
-                                        &codemirror_end -  &codemirror_start),
-                            (char *) &codemirror_end);
-
-    extern unsigned char codemirrorCss_start, codemirrorCss_end;
-    register_static_content(h, "/jssrc/codemirror.css",
-                            "text/css",
-                            wrap_buffer(init,  &codemirrorCss_start,
-                                        &codemirrorCss_end -  &codemirrorCss_start),
-                            (char *) &codemirrorCss_end);
+    register(h, "/", "text/html", index);
+    register(h, "/jssrc/renderer.js", "application/javascript", renderer);
+    register(h, "/jssrc/microReact.js", "application/javascript", microReact);
+    register(h, "/jssrc/codemirror.js", "application/javascript", codemirror);
+    register(h, "/jssrc/codemirror.css", "text/css", codemirrorCss);
 
     init_json_service(h, root, enable_tracing);
 
