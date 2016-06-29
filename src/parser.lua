@@ -1031,7 +1031,7 @@ generateObjectNode = function(root, context)
   end
 
   -- create a binding to this node's entity field
-  local entityVariable = resolveVariable(context, string.format("object-%s-%s", root.line, root.offset), root)
+  local entityVariable = resolveVariable(context, string.format("object-%s-%s", root.line, root.offset), root, true)
   generateBindingNode(context, {field = MAGIC_ENTITY_FIELD, variable = entityVariable}, entityVariable, object)
   -- store it on the object for ease of use
   object.entityVariable = entityVariable
