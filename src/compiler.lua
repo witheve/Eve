@@ -306,7 +306,7 @@ function DependencyGraph:depends()
   self:order(true)
   local depends = Set:new()
   for node in pairs(self.unprepared + self.unsorted) do
-    depends:add(node.deps.depends + node.deps.anyDepends + node.deps.maybeDepends + node.deps.strongDepends)
+    depends:union(node.deps.depends + node.deps.anyDepends + node.deps.maybeDepends + node.deps.strongDepends, true)
   end
   for _, node in ipairs(self.sorted) do
     depends:union(node.deps.depends + node.deps.anyDepends + node.deps.maybeDepends + node.deps.strongDepends, true)
@@ -317,6 +317,10 @@ end
 function DependencyGraph:provides()
   self:order(true)
   return self.bound
+end
+
+function DependencyGraph:requires()
+  return self:depends() / self.terms
 end
 
 function DependencyGraph:isOrdered()
@@ -419,14 +423,15 @@ end
 
 function DependencyGraph:addSubqueryNode(node)
   local deps = {
-    provides = Set:new(),
+    maybeProvides = Set:new(),
     maybeDepends = Set:new()
   }
   node.deps = deps
 
   if node.outputs then
     for _, var in ipairs(node.outputs) do
-      deps.provides:add(var)
+      deps.maybeDepends:add(var)
+      deps.maybeProvides:add(var)
     end
   end
 
@@ -504,7 +509,7 @@ function DependencyGraph:add(node)
   self.unprepared:add(node)
 end
 
-function DependencyGraph:prepare() -- prepares a completed graph for ordering
+function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for ordering
   -- Add newly provided terms to the DG's terms
   local neueTerms = Set:new()
   for node in pairs(self.unprepared) do
@@ -570,6 +575,28 @@ function DependencyGraph:prepare() -- prepares a completed graph for ordering
     deps.strongDepends:difference(deps.provides, true)
     deps.maybeDepends = Set:new()
     deps.maybeProvides = Set:new()
+  end
+
+  -- Recursively prepare any child graphs
+  for node in pairs(self.unprepared) do
+    local deps = node.deps
+    if node.deps.graph then
+      node.deps.graph:prepare()
+      local required = node.deps.graph:requires()
+      for term in pairs(required) do
+        node.deps.graph:satisfy(term)
+        node.deps.strongDepends:add(term)
+      end
+    elseif node.queries then
+      for _, query in ipairs(node.queries) do
+        query.deps.graph:prepare()
+        local required = query.deps.graph:requires()
+        for term in pairs(required) do
+          query.deps.graph:satisfy(term)
+          node.deps.strongDepends:add(term)
+        end
+      end
+    end
   end
 
   -- Group terms and consolidate with existing term groups
@@ -684,6 +711,39 @@ function DependencyGraph:groupUnsatisfied(group) -- get the number of  outstandi
   return unsatisfied
 end
 
+function DependencyGraph:satisfyGroup(group)
+  for term in pairs(group) do
+    if self.strongDependents[term] then
+      for dependent in pairs(self.strongDependents[term]) do
+        local deps = dependent.deps
+        if deps.unsatisfied > 0 then
+          deps.unsatisfied = deps.unsatisfied - 1
+        end
+      end
+    end
+  end
+end
+
+function DependencyGraph:satisfy(term)
+  -- Decrement the unsatisfied term count for nodes depending on this term if it hasn't been provided already
+  if self.dependents[term] and not self.bound[term] then
+    self.bound:add(term)
+    for dependent in pairs(self.dependents[term]) do
+      local deps = dependent.deps
+      if deps.unsatisfied > 0 then
+        deps.unsatisfied = deps.unsatisfied - 1
+      end
+    end
+  end
+
+  -- Determine if the group containing the term is stabilized by satisfying this term
+  -- If so, satisfy the strong dependencies of every term in the group
+  local group = self:group(term)
+  if group and self:groupUnsatisfied(group) == 0 then
+    self:satisfyGroup(group)
+  end
+end
+
 function DependencyGraph:order(allowPartial)
   -- The is naive ordering rules out a subset of valid subgraph embeddings that depend upon parent term production.
   -- The easy solution to fix this is to iteratively fix point the parent and child graphs until ordering is finished or
@@ -719,40 +779,24 @@ function DependencyGraph:order(allowPartial)
         end
 
         -- Decrement the unsatisfied term count for nodes depending on terms this node provides that haven't been provided
-        local someTerm
         for term in pairs(deps.provides) do
-          someTerm = term
-          if self.dependents[term] and not self.bound[term] then
-            self.bound:add(term)
-            for dependent in pairs(self.dependents[term]) do
-              local deps = dependent.deps
-              if deps.unsatisfied > 0 then
-                deps.unsatisfied = deps.unsatisfied - 1
-              end
-            end
-          end
+          self:satisfy(term)
         end
 
-        if not someTerm then
+        -- If the node doesn't provide any terms, it's dependencies may still mean it satisfies a group (e.g. a filter)
+        if deps.provides:length() == 0 then
+          local someTerm
           for term in pairs(deps.depends) do
             someTerm = term
             break
           end
-        end
 
-        -- Determine if the group containing the provided terms is stabilized by ordering this node
-        -- If so, satisfy the strong dependencies of every term in the group
-        local group = self:group(someTerm)
-        if group and self:groupUnsatisfied(group) == 0 then
-          for term in pairs(group) do
-            if self.strongDependents[term] then
-              for dependent in pairs(self.strongDependents[term]) do
-                local deps = dependent.deps
-                deps.unsatisfied = deps.unsatisfied - 1
-              end
-            end
+          local group = self:group(someTerm)
+          if group and self:groupUnsatisfied(group) == 0 then
+            self:satisfyGroup(group)
           end
         end
+
         scheduled = true
         break
       end
