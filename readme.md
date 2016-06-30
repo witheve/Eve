@@ -4,12 +4,16 @@ Eve is a set of tools to help us think. Currently, those tools include a databas
 
 ## Quick start
 
-Eve relies on [TypeScript](http://www.typescriptlang.org/) and node.js
+Eve relies on [TypeScript](http://www.typescriptlang.org/), node.js, and leiningen
 
 ```
 npm install
 npm run dev
+cd server/
+lein run
 ```
+
+Now go to `localhost:8081/repl` you can login with chris/chris
 
 ## Learn more
 

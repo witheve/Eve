@@ -56,6 +56,8 @@ function makeBundler(name, opts) {
       .on("close", function() {
         state[name].completed = true;
         state[name].endTime = Date.now();
+        screen.destroy();
+        process.exit(0);
         render();
       });
   };
