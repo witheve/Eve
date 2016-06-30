@@ -1034,7 +1034,7 @@ function compileExec(contents, tracing)
   for ix, queryGraph in ipairs(parseGraph.children) do
     local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph)
     local unpacked = unpackObjects(dependencyGraph, parseGraph.context)
-    set[#set+1] = unpacked
+    set[#set+1] = queryGraph
   end
   return build.build(set, tracing, parseGraph)
 end

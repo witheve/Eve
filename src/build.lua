@@ -535,10 +535,11 @@ function build(graphs, tracing, parseGraph)
                local id = util.generateId()
                return empty_env(), build_node("terminal", {}, {}, id)
            end
-   for _, g in pairs(graphs) do
-      local env, program = walk(g, nil, {}, tailf, tracing, parseGraph.context)
+   for _, queryGraph in pairs(graphs) do
+      local env, program = walk(queryGraph.unpacked, nil, {}, tailf, tracing, parseGraph.context)
       regs = math.max(regs, env.maxregs + 1)
       local id = util.generateId()
+      parseGraph.context.downEdges[#parseGraph.context.downEdges + 1] = {queryGraph.id, id}
       heads[#heads+1] = build_node("regfile", {program}, {{regs}, {util.toJSON(parseGraph)}}, id)
    end
 

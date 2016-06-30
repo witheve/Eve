@@ -3,39 +3,53 @@
     <title>Eve</title>
     <link rel="stylesheet" type="text/css" href="jssrc/codemirror.css">
     <style>
+      * { box-sizing:border-box; }
       body { background: #202930; color: rgb(156,192,214); font-family: Avenir; display: flex; margin:0; }
       .program { padding:20px; }
-      .__root { padding:20px 40px; margin-right: 100px; }
-      .graph-root { display:flex; flex-direction:column; align-items:flex-start; }
-      .parse-info { display:flex; flex-direction: row; }
-      .parse-info + .parse-info { margin-top:50px; }
-      .node-text { padding: 3px 6px; background: rgb(44,72,97); }
-      .sub { background: hsl(153, 100%, 72%); color: #202930; }
-      .scan { background: #29A4FF; color: #202930; }
-      .generate {  }
-      .insert { background: #84CBFF; color: #202930; }
+      .graph-root { position:relative; display:flex; flex-direction:column; align-items:flex-start; margin-right:10px; padding:20px 40px; height:100%; overflow:hidden;  }
 
-      .node { display: flex; flex-direction:column; margin:0 0px; }
+      .parse-info { display:flex; flex-direction: row; height:100%; overflow: hidden; }
+      .parse-info + .parse-info { margin-top:50px; }
+
+      .node-text { padding: 3px 6px; background: rgb(44,72,97); flex:none; }
+
+
+      .node { display: flex; flex-direction:column; margin:1px 0; }
       .node-children { display: flex; flex-direction:column; align-items:stretch;  }
       .fork-node-children { flex-direction:row; justify-content: center; }
       .sub-node-children { margin-left: 0px; }
 
+      .graphs { background: rgba(0,0,0,0.4); display:flex; flex-direction:row; overflow:auto; margin-left:5px; padding:20px; border-radius:3px; }
+      .graphs > * + * { margin-left:40px; }
+
+      .ordered-node.ordered-query { background:none; padding: 0; }
+
+      .ordered-node { padding:5px; background: rgba(0,0,0,0.3); background: rgb(44,72,97); margin-bottom:1px; }
+      .ordered-node.subproject { background:none; padding:5px 0; }
+      .ordered-node.subproject .row { padding:5px; background: rgb(44,72,97); margin-bottom:1px; }
 
       .ordered-object { display:flex; flex-direction:row; }
       .ordered-object .eav { display:flex; flex-direction:row; }
       .ordered-object .eav > * { margin-left: 10px; }
 
-      .ordered-query-children, .subproject-children { margin-left:20px; }
+      .subproject-children { display:flex; flex-direction:column; margin-left:20px; }
 
       .subproject-projection { display: flex; flex-direction: row; }
       .subproject-projection > * { margin-left: 10px; }
 
-      .active { color: red !important; }
+      .active { background: #84CBFF; color: #202930; }
+      .active * { background: #84CBFF !important; color: #202930; }
       .row {display:flex; flex-direction:row; }
 
-      .cm-container { padding: 10px; background:rgba(0,0,0,0.4); border-radius:3px; }
-      .CodeMirror { background:none; color: inherit; height:auto; }
-      .CodeMirror-scroll { height:auto; }
+      .run-info { display:flex; flex-direction: column; flex:1; }
+
+      .toolbar { display:flex; align-items:center; padding:10px; background:rgba(0,0,0,0.6); flex-direction:row; display:flex; border-radius: 0 0 3px 3px; }
+      .stats { flex:1; }
+      .show-graphs { padding:3px 8px; border-radius:3px; background: rgba(255,255,255,0.1); }
+
+      .cm-container { position:relative; display:flex; flex-direction:column; flex:1; padding: 10px; background:rgba(0,0,0,0.4); border-radius:3px 3px 0 0; }
+      .CodeMirror { background:none; color: inherit; height:100%; }
+      .CodeMirror-scroll { height:100%; }
       .CodeMirror-cursor { background: white; border-color:white; }
 
     </style>
