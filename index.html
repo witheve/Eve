@@ -1,6 +1,7 @@
 <html>
   <head>
     <title>Eve</title>
+    <link rel="stylesheet" type="text/css" href="jssrc/codemirror.css">
     <style>
       body { background: #202930; color: rgb(156,192,214); font-family: Avenir; display: flex; margin:0; }
       .program { padding:20px; }
@@ -32,8 +33,12 @@
       .active { color: red !important; }
       .row {display:flex; flex-direction:row; }
 
+      .cm-container { padding: 10px; background:rgba(0,0,0,0.4); border-radius:3px; }
+      .CodeMirror { background:none; color: inherit; height:auto; }
+      .CodeMirror-scroll { height:auto; }
+      .CodeMirror-cursor { background: white; border-color:white; }
+
     </style>
-    <link rel="stylesheet" type="text/css" href="jssrc/codemirror.css">
   </head>
   <body>
     <script type="text/javascript" src="jssrc/codemirror.js"></script>

@@ -265,8 +265,10 @@ window.addEventListener("click", function(event) {
 
 window.addEventListener("input", function(event) {
   let {target} = event;
-  let objs = [{tags: ["input"], element: target.entity, value: target.value}];
-  sendEvent(objs);
+  if(target.entity) {
+    let objs = [{tags: ["input"], element: target.entity, value: target.value}];
+    sendEvent(objs);
+  }
 });
 
 window.addEventListener("focus", function(event) {
@@ -382,6 +384,7 @@ function injectCodeMirror(node, elem) {
 
 function CodeMirrorNode(info) {
   info.postRender = injectCodeMirror;
+  info.c = "cm-container";
   return info;
 }
 
