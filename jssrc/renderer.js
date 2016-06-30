@@ -273,7 +273,6 @@ window.addEventListener("input", function(event) {
 
 window.addEventListener("focus", function(event) {
   let {target} = event;
-  console.log("FOCUS", event);
   if(target.entity) {
     let objs = [{tags: ["focus"], element: target.entity}];
     console.log(sendEvent(objs));
