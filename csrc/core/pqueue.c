@@ -1,9 +1,4 @@
 #include <core.h>
-
-struct pqueue {
-    vector v;
-    int (*compare)(void *, void *);
-};
      
 typedef iu32 index; //indices are off by 1 from vector references
 
@@ -77,9 +72,10 @@ void *pqueue_peek(pqueue q)
 }
 
 
-pqueue allocate_pqueue(heap h)
+pqueue allocate_pqueue(heap h, boolean (*compare)(void *, void *))
 {
     pqueue q = allocate(h, sizeof(struct pqueue));
     q->v = allocate_vector(h, 4);
+    q->compare = compare;
     return(q);
 }

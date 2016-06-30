@@ -49,3 +49,12 @@ static inline int reg(value n)
 {
     return ((unsigned long) n - register_base);
 }
+
+
+static inline void store(value *r, value reg, value v)
+{
+    if ((unsigned long)reg != register_ignore)
+        r[toreg(reg)] = v;
+}
+
+

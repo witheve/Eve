@@ -37,6 +37,8 @@
 //maybe give this guy an unpopulated region
 #define register_space 0x00000000000ull
 #define register_base 0x100ull
+#define register_ignore 0xffull
+
 
 typedef struct type {
     void (*print)(buffer, void *, heap);
@@ -69,3 +71,4 @@ iu64 value_vector_as_key(void *);
 boolean value_vector_equals(void *, void *);
 
 values_diff diff_value_vector_tables(heap, table, table);
+boolean order_values(void *, void *);
