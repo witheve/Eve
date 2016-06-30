@@ -161,10 +161,9 @@ boolean order_values(value a, value b)
         break;
     case register_space:
         return ((unsigned long)a) < ((unsigned long)b);
+    default:
+        prf("unsupported type in compare\n");
+        return false;
     }
 }
-
-
-
-
 

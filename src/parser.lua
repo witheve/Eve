@@ -550,7 +550,7 @@ local function parse(tokens, context)
 
     elseif type == "UPDATE" then
       local update = makeNode(context, "update", token, {scope = "session", children = {}})
-      if next.value == "all" then
+      if next.value == "all" or next.value == "event" then
         update.scope = next.value
         -- eat that token
         scanner:read()
@@ -792,7 +792,7 @@ local function parse(tokens, context)
 end
 
 
-local function resolveVariable(context, name, related, noCreate)
+local function resolveVariable(context, name, related, generated)
   local mappings = context.nameMappings
   local variable
   for _, mapping in ipairs(mappings) do
@@ -803,12 +803,12 @@ local function resolveVariable(context, name, related, noCreate)
   end
   -- if we didn't find it, then we have to create a new variable
   -- and add it to the closest name mapping
-  if not variable and not noCreate then
-    variable = makeNode(context, "variable", related, {name = name})
+  if not variable then
+    variable = makeNode(context, "variable", related, {name = name, generated = generated})
   end
   -- if we haven't mapped this variable at this level then we
   -- need to do so and add it to the containing query
-  if not mappings:peek()[name] and not noCreate then
+  if not mappings:peek()[name] then
     local query = context.queryStack:peek()
     query.variables[#query.variables + 1] = variable
     mappings:peek()[name] = variable
@@ -852,14 +852,29 @@ local function resolveExpression(node, context)
     -- mutating, but other expressions should not. If we don't do
     -- this then attribute lookups with . syntax will incorrectly
     -- end up being mutates
+    local right
     if rightNode.type == "object" then
-      local right = resolveExpression(rightNode, context)
+      -- if our left is an attribute call then we need to add the
+      -- attribute's parent to our projection to make sure that
+      -- the generated object is per each parent not just potentially
+      -- one global one
+      if left.attributeLeft then
+        context.projections:push(Set:new({left.attributeLeft}))
+      end
+      right = resolveExpression(rightNode, context)
+      -- cleanup our projection
+      if left.attributeLeft then
+        context.projections:pop()
+      end
     else
       local prevMutating = context.mutating;
       context.mutating = nil
-      local right = resolveExpression(rightNode, context)
+      right = resolveExpression(rightNode, context)
       context.mutating = prevMutating
     end
+    -- we need to create an equality between whatever the left resolved to
+    -- and whatever the right resolved to
+    resolveExpression(makeNode(context, "equality", node, {operator = "=", children = {left, right}}), context);
     return left
 
   elseif node.type == "inequality" or node.type == "equality" then
@@ -872,7 +887,7 @@ local function resolveExpression(node, context)
     -- set that when I try to resolve this expression,
     -- I'm looking to resolve it to this specific variable
     local right = resolveExpression(node.children[2], context)
-    local expression = makeNode(context, "expression", node, {operator = node.operator, projections = {}, groupings = {}, bindings = {}})
+    local expression = makeNode(context, "expression", node, {operator = node.operator, projection = {}, groupings = {}, bindings = {}})
     local leftBinding = {field = "a"}
     if left.type == "variable" then
       leftBinding.variable = left
@@ -890,7 +905,7 @@ local function resolveExpression(node, context)
       error("Inequality with invalid right")
     end
     if context.nonFilteringInequality then
-      resultVar = resolveVariable(context, string.format("%s-%s-%s", node.type, node.line, node.offset), node)
+      resultVar = resolveVariable(context, string.format("%s-%s-%s", node.type, node.line, node.offset), node, true)
       generateBindingNode(context, {field = "return", variable = resultVar}, node, expression)
     end
     generateBindingNode(context, leftBinding, left, expression)
@@ -904,7 +919,10 @@ local function resolveExpression(node, context)
     local right = node.children[2]
     if right and right.type == "IDENTIFIER" then
       -- generate a temporary variable to hold this attribute binding
-      local attributeRef = resolveVariable(context, string.format("%s-%s-%s", right.value, right.line, right.offset), right)
+      local attributeRef = resolveVariable(context, string.format("%s-%s-%s", right.value, right.line, right.offset), right, true)
+      -- store the left on the attribute as we may need it for adding
+      -- to the projection in the case of a mutate
+      attributeRef.attributeLeft = left;
       -- generate a temporary object that we can attach this attribute to by adding
       -- an equality from the attribute name to our temp variable
       local tempObject = makeNode(context, "object", right, {children = {makeNode(context, "equality", right, {operator = "=", children = {right, makeNode(context, "IDENTIFIER", node.children[1], {value = attributeRef.name})}})}})
@@ -935,12 +953,12 @@ local function resolveExpression(node, context)
     return objectNode.entityVariable
 
   elseif node.type == "infix" or node.type == "function" then
-    local resultVar = resolveVariable(context, string.format("result-%s-%s", node.line, node.offset), node)
+    local resultVar = resolveVariable(context, string.format("result-%s-%s", node.line, node.offset), node, true)
     local prevNonfiltering = context.nonFilteringInequality
     if node.func == "is" then
       context.nonFilteringInequality = true
     end
-    local expression = makeNode(context, "expression", node, {operator = node.func, projections = {}, groupings = {}, bindings = {}})
+    local expression = makeNode(context, "expression", node, {operator = node.func, projection = {}, groupings = {}, bindings = {}})
     generateBindingNode(context, {field = "return", variable = resultVar}, resultVar, expression)
     -- create bindings
     for ix, child in ipairs(node.children) do
@@ -971,7 +989,7 @@ local function resolveExpression(node, context)
         for _, project in ipairs(resolved.children) do
           local projectVar = resolveExpression(project, context)
           if projectVar.type == "variable" then
-            expression.projections[#expression.projections + 1] = makeNode(context, "projection", project, {expression = expression, variable = projectVar})
+            expression.projection[#expression.projection + 1] = makeNode(context, "projection", project, {expression = expression, variable = projectVar})
           else
             -- error
             errors.invalidProjection(context, grouping)
@@ -1027,7 +1045,7 @@ generateObjectNode = function(root, context)
   end
 
   -- create a binding to this node's entity field
-  local entityVariable = resolveVariable(context, string.format("object-%s-%s", root.line, root.offset), root)
+  local entityVariable = resolveVariable(context, string.format("object-%s-%s", root.line, root.offset), root, true)
   generateBindingNode(context, {field = MAGIC_ENTITY_FIELD, variable = entityVariable}, entityVariable, object)
   -- store it on the object for ease of use
   object.entityVariable = entityVariable
@@ -1064,7 +1082,7 @@ generateObjectNode = function(root, context)
       local left = child.children[1]
       if left.type == "IDENTIFIER" then
         local variable = resolveVariable(context, left.value, left)
-        local binding = generateBindingNode(context, {field = child.value, variable = variable}, child, object)
+        local binding = generateBindingNode(context, {field = left.value, variable = variable}, child, object)
         resolveExpression(child, context)
         lastAttribute = nil
       else

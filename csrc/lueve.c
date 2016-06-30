@@ -4,6 +4,12 @@
 #include <bswap.h>
 #include <luanne.h>
 
+#define register(__h, __url, __content, __name)\
+ {\
+    extern unsigned char __name##_start, __name##_end;\
+    unsigned char *s = &__name##_start, *e = &__name##_end;\
+    register_static_content(__h, __url, __content, wrap_buffer(init, s, e-s), dynamicReload?(char *)e:0); \
+ }
 
 
 station create_station(unsigned int address, unsigned short port) {
@@ -19,6 +25,7 @@ extern void init_json_service(http_server, bag, boolean);
 extern int strcmp(const char *, const char *);
 static buffer read_file_or_exit(heap, char *);
 
+extern void *ignore;
 
 static CONTINUATION_1_0(print_result, evaluation);
 static void print_result(evaluation s) 
@@ -39,12 +46,19 @@ static void run_test(bag root, buffer b, boolean tracing)
     table_set(scopes, intern_cstring("session"), event);
     table_set(scopes, intern_cstring("transient"), event);
 
-    node n = compile_eve(b, tracing);
-    edb_register_implication(event, n);
+    vector n = compile_eve(b, tracing);
+    vector_foreach(n, i)
+        edb_register_implication(event, i);
     table persisted = create_value_table(h);
     table counts = allocate_table(h, key_from_pointer, compare_pointer);
-    evaluation s = build_evaluation(h, scopes, persisted, counts, cont(h, print_result, 0));
+
+    evaluation s = build_evaluation(h, scopes, persisted, counts);
     run_evaluation(s);
+    
+    table_foreach(s->solution, n, v) {
+        prf("%v %b\n", n, bag_dump(h, v));
+    }
+    destroy(h);
 }
 
 int main(int argc, char **argv)
@@ -60,23 +74,30 @@ int main(int argc, char **argv)
     boolean doExec = false;
     boolean doRead = false;
     boolean consumeFile = false;
+    boolean dynamicReload = true;
+    boolean has_non_exec_action = false;
+    
     char * file = "";
     for (int i = 1; i <argc ; i++) {
         if (!strcmp(argv[i], "--parse") || !strcmp(argv[i], "-p")) {
             doParse = true;
             consumeFile = true;
+            has_non_exec_action = true;
         }
         else if (!strcmp(argv[i], "--analyze") || !strcmp(argv[i], "-a")) {
             doAnalyze = true;
             consumeFile = true;
+            has_non_exec_action = true;
         }
         else if (!strcmp(argv[i], "--analyze-quiet") || !strcmp(argv[i], "-A")) {
           doAnalyzeQuiet = true;
           consumeFile = true;
+          has_non_exec_action = true;
         }
         else if (!strcmp(argv[i], "-r")) {
             doRead = true;
             consumeFile = true;
+            has_non_exec_action = true;
         }
         else if (!strcmp(argv[i], "--exec") || !strcmp(argv[i], "-e")) {
             doExec = true;
@@ -92,6 +113,9 @@ int main(int argc, char **argv)
             }
             else if (!strcmp(argv[i],"-t")) {
                 enable_tracing = true;
+            } else if(!has_non_exec_action) {
+                doExec = true;
+                file = argv[i];
             }
             else if (consumeFile) {
                 file = argv[i];
@@ -118,47 +142,21 @@ int main(int argc, char **argv)
     }
     if (doExec) {
         buffer b = read_file_or_exit(init, file);
-        edb_register_implication(root, lua_compile_eve(c, b, enable_tracing));
+        vector v = compile_eve(b, enable_tracing);
+        vector_foreach(v, i) {
+            edb_register_implication(root, i);
+        }
     }
     else {
         return 0;
     }
-
+    
     http_server h = create_http_server(init, create_station(0, 8080));
-    extern unsigned char index_start, index_end;
-    register_static_content(h, "/", "text/html", wrap_buffer(init, &index_start,
-                                                             &index_end - &index_start),
-                            (char *)&index_end);
-
-
-    extern unsigned char renderer_start, renderer_end;
-
-    register_static_content(h, "/jssrc/renderer.js",
-                            "application/javascript",
-                            wrap_buffer(init,  &renderer_start,
-                                        &renderer_end -  &renderer_start),
-                            (char *) &renderer_end);
-
-    extern unsigned char microReact_start, microReact_end;
-    register_static_content(h, "/jssrc/microReact.js",
-                            "application/javascript",
-                            wrap_buffer(init,  &microReact_start,
-                                        &microReact_end -  &microReact_start),
-                            (char *) &microReact_end);
-
-    extern unsigned char codemirror_start, codemirror_end;
-    register_static_content(h, "/jssrc/codemirror.js",
-                            "application/javascript",
-                            wrap_buffer(init,  &codemirror_start,
-                                        &codemirror_end -  &codemirror_start),
-                            (char *) &codemirror_end);
-
-    extern unsigned char codemirrorCss_start, codemirrorCss_end;
-    register_static_content(h, "/jssrc/codemirror.css",
-                            "text/css",
-                            wrap_buffer(init,  &codemirrorCss_start,
-                                        &codemirrorCss_end -  &codemirrorCss_start),
-                            (char *) &codemirrorCss_end);
+    register(h, "/", "text/html", index);
+    register(h, "/jssrc/renderer.js", "application/javascript", renderer);
+    register(h, "/jssrc/microReact.js", "application/javascript", microReact);
+    register(h, "/jssrc/codemirror.js", "application/javascript", codemirror);
+    register(h, "/jssrc/codemirror.css", "text/css", codemirrorCss);
 
     init_json_service(h, root, enable_tracing);
 

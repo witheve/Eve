@@ -69,13 +69,14 @@ static void print_value_json(buffer out, value v)
 static CONTINUATION_1_0(send_destroy, heap);
 static void send_destroy(heap h)
 {
-    destroy(h);
+    //    destroy(h);
 }
 
 // always call this guy independent of commit so that we get an update,
 // even on empty, after the first evaluation
-static void send_guy(heap h, buffer_handler output, values_diff diff)
+static void send_guy(buffer_handler output, values_diff diff)
 {
+    heap h = allocate_rolling(pages);
     string out = allocate_string(h);
     bprintf(out, "{\"type\":\"result\", \"insert\":[");
 
@@ -96,6 +97,7 @@ static void send_guy(heap h, buffer_handler output, values_diff diff)
     bprintf(out, "], \"remove\": [");
 
     start = 0;
+
     vector_foreach(diff->remove, i){
         int count = 0;
         if (start++ != 0) bprintf(out, ",");
@@ -115,8 +117,9 @@ static void send_guy(heap h, buffer_handler output, values_diff diff)
 
 // for tracing we want to be able to send the structure of the machines
 // that we build as a json message
-static void send_node_graph(heap h, buffer_handler output, node head, table counts)
+static void send_node_graph(buffer_handler output, node head, table counts)
 {
+    heap h = allocate_rolling(pages);
     string out = allocate_string(h);
     iu64 time = (iu64)table_find(counts, intern_cstring("time"));
     long iterations = (long)table_find(counts, intern_cstring("iterations"));
@@ -153,11 +156,12 @@ static void send_node_graph(heap h, buffer_handler output, node head, table coun
     }
 
     bprintf(out, "}, \"parse\": ");
-    estring parse = vector_get(vector_get(head->arguments, 0), 0);
+
+    estring parse = vector_get(vector_get(head->arguments, 1), 0);
     buffer_append(out, parse->body, parse->length);
     bprintf(out, "}");
     // reclaim
-    apply(output, out, ignore);
+    apply(output, out, cont(h, send_destroy, h));
 }
 
 
@@ -180,9 +184,10 @@ static void terminal(json_session j)
     j->current_delta = results;
     table_foreach(j->scopes, k, scopeBag) {
         table_foreach(edb_implications(scopeBag), k, impl) {
-            send_node_graph(j->h, j->write, impl, j->s->counters);
+            send_node_graph(js->write, impl, js->s->counters);
         }
     }
+
     // FIXME: we need to clean up the old delta, we're currently just leaking it
     // this has to be a copy
     j->current_delta = results;
@@ -221,8 +226,8 @@ void handle_json_query(json_session j, buffer in, thunk c)
 
         if ((c == '}')  && (s== sep)) {
             if (string_equal(type, sstring("query"))) {
-                node headNode = compile_eve(query, j->tracing);
-                inject_event(j->s, headNode);
+                vector nodes = compile_eve(query, j->tracing);
+                inject_event(j->s, nodes);
                 run_evaluation(j->s);
             }
         }
@@ -262,6 +267,7 @@ void new_json_session(bag root, boolean tracing, buffer_handler write, table hea
     j->current_delta = create_value_vector_table(j->h);
 
     table persisted = create_value_table(h);
+<<<<<<< HEAD
     table_set(persisted, edb_uuid(j->root), j->root);
 
     // FIXME - for the moment we're just going to accrete the events so that
@@ -275,6 +281,15 @@ void new_json_session(bag root, boolean tracing, buffer_handler write, table hea
     j->s = build_evaluation(h, j->scopes, persisted, counts, cont(h, terminal, j));
     *handler = websocket_send_upgrade(h, headers, write, cont(h, handle_json_query, j), &j->write);
     run_evaluation(j->s);
+=======
+    table_set(persisted, edb_uuid(js->root), js->root);
+    table_set(js->scopes, intern_cstring("session"), js->session);
+    table_set(js->scopes, intern_cstring("all"), root);
+    js->s = build_evaluation(h, js->scopes, persisted, counts);
+    
+    *handler = websocket_send_upgrade(h, headers, write, cont(h, handle_json_query, js), &js->write);
+    start_guy(js);
+>>>>>>> origin
 }
 
 void init_json_service(http_server h, bag root, boolean tracing)

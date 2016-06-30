@@ -1,7 +1,5 @@
 
 
-
-
 static inline void exec_error(evaluation e, char *format, ...)
 {
     prf ("error %s\n", format);
@@ -52,4 +50,3 @@ static inline void store(value *r, value reg, value v)
     if ((unsigned long)reg != register_ignore) 
         r[toreg(reg)] = v;
 }
-

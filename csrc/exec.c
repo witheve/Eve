@@ -96,11 +96,13 @@ static execf build_sub(evaluation e, node n)
 
 
 static CONTINUATION_3_2(do_choose_tail, int *, execf, value, operator, value *);
-static void do_choose_tail(int * count, execf next, value flag, operator op, value *r)
+static void do_choose_tail(int *count, execf next, value flag, operator op, value *r)
 {
-    *count = *count + 1;
-    store(r, flag, etrue);
-    apply(next, op, r);
+    if (op != op_flush) {
+        *count = *count + 1;
+        store(r, flag, etrue);
+        apply(next, op, r);
+    }
 }
 
 static execf build_choose_tail(evaluation e, node n)
@@ -143,7 +145,7 @@ static execf build_choose(evaluation e, node n)
 
 
 static CONTINUATION_4_2(do_not, int *, execf, execf, value, operator, value *);
-static void do_not(int *count, execf leg, execf next, value flag, operator op, value *r)
+static void do_not(int *count, execf next, execf leg, value flag, operator op, value *r)
 {
     *count = *count + 1;
     store (r, flag, efalse);
@@ -162,7 +164,6 @@ static execf build_not(evaluation e, node n)
                 resolve_cfg(e, n, 1),
                 vector_get(vector_get(n->arguments, 0), 0));
 }
-
 
 
 static CONTINUATION_4_2(do_move, int *, execf, value,  value, operator, value *);
@@ -308,15 +309,13 @@ static execf build_regfile(evaluation e, node n, execf *arms)
                 (int)*(double *)vector_get(vector_get(n->arguments, 0), 0));
 }
 
-
-void close_evaluation(evaluation ex)
-{
-    // close
-    apply(ex->head, 1, 0);
-    destroy(ex->h);
-}
-
 static table builders;
+
+extern void register_exec_expression(table builders);
+extern void register_string_builders(table builders);
+extern void register_aggregate_builders(table builders);
+extern void register_edb_builders(table builders);
+
 
 extern  void register_exec_expression(table builders);
 extern  void register_string_builders(table builders);
@@ -339,6 +338,7 @@ table builders_table()
         table_set(builders, intern_cstring("regfile"), build_regfile);
         table_set(builders, intern_cstring("not"), build_not);
         table_set(builders, intern_cstring("time"), build_time);
+
         register_exec_expression(builders);
         register_string_builders(builders);
         register_aggregate_builders(builders);

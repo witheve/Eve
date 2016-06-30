@@ -47,7 +47,7 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
         if ((type_of(ar) != float_space )) {                                                         \
             exec_error(ex, "attempt to do math on non-number", a);                                   \
         } else {                                                                                     \
-            store(r, dest, __op(*ar == etrue ? true : false) ? etrue : efalse); \
+            store(r, dest, __op(*ar == etrue ? true : false) ? etrue : efalse);                      \
             apply(n, op, r);                                                                         \
         }                                                                                            \
     }
@@ -209,32 +209,6 @@ BUILD_BINARY_FILTER(build_not_equal, do_not_equal)
 DO_BINARY_BOOLEAN(do_is_not_equal, !=)
 BUILD_BINARY(build_is_not_equal, do_is_not_equal)
 
-
-static CONTINUATION_4_2(do_concat, int *, execf, value, vector,  operator, value *);
-static void do_concat(int *count, execf n, value dest, vector terms, operator op, value *r)
-{
-    buffer b = allocate_string(init);
-    *count = *count+1;
-
-    vector_foreach(terms, i) {
-        bprintf(b, "%v", lookup(r, i));
-    }
-
-    store(r, dest, intern_string(bref(b, 0), buffer_length(b)));
-    apply(n, op, r);
-}
-
-
-static execf build_concat(evaluation e, node n)
-{
-    return cont(e->h, do_concat,
-                register_counter(e, n),
-                resolve_cfg(e, n, 0),
-                vector_get(vector_get(n->arguments, 0), 0),
-                (vector)vector_get(n->arguments, 1));
-}
-
-
 static CONTINUATION_5_2(do_is, evaluation, int *, execf, value, value, operator, value *);
 static void do_is (evaluation ex, int *count, execf n, value dest, value a, operator op, value *r)
 {
@@ -247,6 +221,7 @@ BUILD_UNARY(build_is, do_is)
 
 
 void register_exec_expression(table builders) 
+
 {
     table_set(builders, intern_cstring("plus"), build_plus);
     table_set(builders, intern_cstring("minus"), build_minus);

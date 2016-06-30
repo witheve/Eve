@@ -34,7 +34,7 @@ function formatQueryNode(node, indent)
     if node.unpacked then
       result = result .. "{\n"
       for ix, guy in std.ipairs(node.unpacked) do
-        result = result .. padding .. "  " .. ix .. ". " .. tostring(guy) .. ",\n"
+        result = result .. padding .. "  " .. ix .. ". " .. util.indentString(2, tostring(guy)) .. ",\n"
       end
       result = result .. padding .. "}"
     elseif node.deps and node.deps.graph then
@@ -89,6 +89,196 @@ local function applyDefaultMeta(_, node)
   end
 end
 
+
+-- The unifier fixes a few edge-cases by pre-collapsing a subset of variables that can be statically proven to be equivalent
+function unify(query, mapping, projection)
+  mapping = mapping or {}
+  query.mapping = {}
+  local variableBindings = {}
+
+  function flattify(nodes)
+    for _, node in ipairs(nodes or nothing) do
+      for _, binding in ipairs(node.bindings or nothing) do
+        local variable = binding.variable
+        if variable then
+          query.mapping[variable] = variable
+          if not variableBindings[variable] then
+            variableBindings[variable] = Set:new{binding}
+          else
+            variableBindings[variable]:add(binding)
+          end
+        end
+      end
+    end
+  end
+
+  flattify(query.expressions)
+  flattify(query.objects)
+  flattify(query.mutates)
+  flattify(query.unions)
+  flattify(query.chooses)
+  flattify(query.nots)
+
+  local assignments = Set:new()
+  local equalities = Set:new()
+  for _, node in ipairs(query.expressions) do
+    if node.operator == "=" and #node.bindings == 2 then
+      assignments:add(node)
+      for _, binding in ipairs(node.bindings) do
+        local a = node.bindings[1].variable
+        local b = node.bindings[2].variable
+        if a and b then
+          local groups = Set:new()
+          for equality in pairs(equalities) do
+            if equality[a] or equality[b] then
+              groups:add(equality)
+            end
+          end
+
+          if groups:length() == 0 then
+            equalities:add(Set:new{a, b})
+          elseif groups:length() == 1 then
+            for group in pairs(groups) do
+              group:add(a)
+              group:add(b)
+            end
+          else
+            local neue = Set:new{a, b}
+            for group in pairs(groups) do
+              neue:union(group, true)
+              equalities:remove(group)
+            end
+            equalities:add(neue)
+          end
+        end
+      end
+    end
+  end
+
+  if projection and getmetatable(projection) ~= Set then
+    projection = Set:from(projection)
+  end
+
+  for equality in pairs(equalities) do
+    local projected
+    if projection then
+      projected = equality * projection
+    else
+      projected = Set:new()
+    end
+
+    if projected:length() > 1 then
+      error("Unable to unify multiple projected variables in group: " .. tostring(equality) .. " for query " .. tostring(query))
+    else
+      local variable
+
+      for var in pairs(equality) do
+        if mapping[var] then
+          variable = mapping[var]
+        end
+      end
+
+      if variable then
+        -- intentionally blank
+      elseif projected:length() == 1 then
+        for var in pairs(projected) do
+          variable = var
+        end
+      else
+        for var in pairs(equality) do
+          if not var.generated then
+            variable = var
+            break
+          elseif not variable then
+            variable = var
+          end
+        end
+      end
+
+      variable.unifies = equality
+      for var in pairs(equality) do
+        query.mapping[var] = variable
+      end
+
+      for var in pairs(equality) do
+        if var ~= variable then
+          var.unifiedBy = variable
+
+          for binding in pairs(variableBindings[var] or nothing) do
+            if not mapping[var] then
+              binding.variable = variable
+            else
+              binding.variable = mapping[var]
+            end
+          end
+        end
+      end
+    end
+  end
+
+  -- Scrub all of the assignments that have been made useless by unifying (a === b ?)
+  for assignment in pairs(assignments) do
+    local a = assignment.bindings[1]
+    local b = assignment.bindings[2]
+    if a.variable and a.variable == b.variable then
+      assignment.ignore = true
+    end
+  end
+
+  -- Strip empty objects (illegal to only bind E ever)
+  for _, object in ipairs(query.objects) do
+    if #object.bindings == 1 and object.bindings[1].field == ENTITY_FIELD then
+      object.ignore = true
+    end
+  end
+
+  -- Recursively unify children nodes
+  function recur(children)
+    for _, node in ipairs(children) do
+      for ix, output in ipairs(node.outputs or nothing) do
+        node.outputs[ix] = query.mapping[output] or output
+      end
+      for _, body in ipairs(node.queries) do
+        unify(body, query.mapping, node.outputs)
+      end
+    end
+  end
+  recur(query.chooses)
+  recur(query.unions)
+  recur(query.nots)
+
+  function remapNodes(nodes)
+    for _, node in ipairs(nodes) do
+      if node.projection then
+        local nodeProj = Set:new()
+        for ix, layerOrVar in ipairs(node.projection) do
+          if layerOrVar.type == "variable" then
+            nodeProj:add(layerOrVar)
+          else
+            nodeProj:union(layerOrVar, true)
+          end
+        end
+
+        local mappedProj = Set:new()
+        node.projection = mappedProj
+        for var in pairs(nodeProj) do
+          mappedProj:add(query.mapping[var] or var)
+        end
+      end
+
+      for ix, var in ipairs(node.groupings or nothing) do
+        node.groupings[ix] = query.mapping[var] or var
+      end
+    end
+  end
+
+  remapNodes(query.expressions)
+  remapNodes(query.objects)
+  remapNodes(query.mutates)
+
+  return query
+end
+
 -- Dependency Graph
 DependencyGraph = {}
 
@@ -116,7 +306,7 @@ function DependencyGraph:depends()
   self:order(true)
   local depends = Set:new()
   for node in pairs(self.unprepared + self.unsorted) do
-    depends:add(node.deps.depends + node.deps.anyDepends + node.deps.maybeDepends + node.deps.strongDepends)
+    depends:union(node.deps.depends + node.deps.anyDepends + node.deps.maybeDepends + node.deps.strongDepends, true)
   end
   for _, node in ipairs(self.sorted) do
     depends:union(node.deps.depends + node.deps.anyDepends + node.deps.maybeDepends + node.deps.strongDepends, true)
@@ -127,6 +317,10 @@ end
 function DependencyGraph:provides()
   self:order(true)
   return self.bound
+end
+
+function DependencyGraph:requires()
+  return self:depends() / self.terms
 end
 
 function DependencyGraph:isOrdered()
@@ -148,7 +342,8 @@ function DependencyGraph:addMutateNode(node)
   local deps = {
     maybeProvides = Set:new(),
     depends = Set:new(),
-    maybeDepends = Set:new()
+    maybeDepends = Set:new(),
+    strongDepends = Set:new()
   }
   node.deps = deps
   for _, binding in ipairs(node.bindings or nothing) do
@@ -157,8 +352,11 @@ function DependencyGraph:addMutateNode(node)
     if binding.variable then
       if binding.field == ENTITY_FIELD then
         deps.maybeProvides:add(binding.variable)
+        deps.maybeDepends:add(binding.variable)
+      else
+        deps.strongDepends:add(binding.variable)
       end
-      deps.maybeDepends:add(binding.variable)
+
     end
   end
   return self:add(node)
@@ -172,6 +370,7 @@ function DependencyGraph:addExpressionNode(node)
     maybeProvides = Set:new(),
     depends = Set:new(),
     anyDepends = Set:new(),
+    strongDepends = Set:new(),
     weakDepends = Set:new()
   }
   node.deps = deps
@@ -209,6 +408,8 @@ function DependencyGraph:addExpressionNode(node)
       if args[field] and args[field].type ~= "constant" then
         if pattern[field] == db.IN then
           deps.depends:add(args[field])
+        elseif pattern[field] == db.STRONG_IN then
+          deps.strongDepends:add(args[field])
         elseif pattern[field] == db.OUT then
           deps.provides:add(args[field])
         else
@@ -224,52 +425,67 @@ end
 
 function DependencyGraph:addSubqueryNode(node)
   local deps = {
-    provides = Set:new(),
+    maybeProvides = Set:new(),
     maybeDepends = Set:new()
   }
   node.deps = deps
 
   if node.outputs then
-    for _, var in std.pairs(node.outputs) do
-      deps.provides:add(var)
+    for _, var in ipairs(node.outputs) do
+      deps.maybeDepends:add(var)
+      deps.maybeProvides:add(var)
     end
   end
 
-  for _, body in std.ipairs(node.queries) do
-    local subgraph = DependencyGraph:fromQueryGraph(body)
-    deps.maybeDepends:union(subgraph:depends(), true)
+  for _, body in ipairs(node.queries) do
+    local subgraph = DependencyGraph:fromQueryGraph(body, true)
+    deps.maybeDepends:union(subgraph:depends() + subgraph:provides(), true)
   end
   return self:add(node)
 end
 
-function DependencyGraph:fromQueryGraph(query, terms, bound)
+function DependencyGraph:fromQueryGraph(query, isSubquery)
   local uniqueCounter = 0
   local dgraph = self
   if getmetatable(dgraph) ~= DependencyGraph then
     dgraph = self:new()
   end
-  dgraph.query = query
+  dgraph.query = query;
+  if not isSubquery then
+    util.walk(query, applyDefaultMeta)
+    unify(query)
+  end
   query.deps = {graph = dgraph}
 
-  util.walk(query, applyDefaultMeta)
-
-  for _, node in std.ipairs(query.expressions or nothing) do
-    dgraph:addExpressionNode(node)
+  for _, node in ipairs(query.expressions or nothing) do
+    if not node.ignore then
+      dgraph:addExpressionNode(node)
+    end
   end
-  for _, node in std.ipairs(query.objects or nothing) do
-    dgraph:addObjectNode(node)
+  for _, node in ipairs(query.objects or nothing) do
+    if not node.ignore then
+      dgraph:addObjectNode(node)
+    end
   end
-  for _, node in std.ipairs(query.nots or nothing) do
-    dgraph:addSubqueryNode(node)
+  for _, node in ipairs(query.nots or nothing) do
+    if not node.ignore then
+      dgraph:addSubqueryNode(node)
+    end
   end
-  for _, node in std.ipairs(query.unions or nothing) do
-    dgraph:addSubqueryNode(node)
+  for _, node in ipairs(query.unions or nothing) do
+    if not node.ignore then
+      dgraph:addSubqueryNode(node)
+    end
   end
-  for _, node in std.ipairs(query.chooses or nothing) do
-    dgraph:addSubqueryNode(node)
+  for _, node in ipairs(query.chooses or nothing) do
+    if not node.ignore then
+      dgraph:addSubqueryNode(node)
+    end
   end
-  for _, node in std.ipairs(query.mutates or nothing) do
-    dgraph:addMutateNode(node)
+  for _, node in ipairs(query.mutates or nothing) do
+    if not node.ignore then
+      dgraph:addMutateNode(node)
+    end
   end
 
   return dgraph
@@ -295,22 +511,24 @@ function DependencyGraph:add(node)
   self.unprepared:add(node)
 end
 
-function DependencyGraph:prepare() -- prepares a completed graph for ordering
+function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for ordering
+  -- Add newly provided terms to the DG's terms
+  local neueTerms = Set:new()
+  for node in pairs(self.unprepared) do
+    neueTerms:union(node.deps.provides, true)
+  end
+  self.terms:union(neueTerms, true)
+
   -- Link new maybe provides if no other nodes provide them
   for node in pairs(self.unprepared) do
     for term in pairs(node.deps.maybeProvides) do
       if not self.terms[term] then
         node.deps.provides:add(term)
+        neueTerms:add(term)
+        self.terms:add(term)
       end
     end
   end
-
-  -- Add newly provided terms to the DG's terms
-  local neueTerms = Set:new()
-  for node in pairs(self.unprepared) do
-    neueTerms:union(node.deps.provides + node.deps.maybeProvides, true)
-  end
-  self.terms:union(neueTerms, true)
 
   -- Link new maybe dependencies to existing terms
   for node in pairs(self.unprepared) do
@@ -359,6 +577,28 @@ function DependencyGraph:prepare() -- prepares a completed graph for ordering
     deps.strongDepends:difference(deps.provides, true)
     deps.maybeDepends = Set:new()
     deps.maybeProvides = Set:new()
+  end
+
+  -- Recursively prepare any child graphs
+  for node in pairs(self.unprepared) do
+    local deps = node.deps
+    if node.deps.graph then
+      node.deps.graph:prepare()
+      local required = node.deps.graph:requires()
+      for term in pairs(required) do
+        node.deps.graph:satisfy(term)
+        node.deps.strongDepends:add(term)
+      end
+    elseif node.queries then
+      for _, query in ipairs(node.queries) do
+        query.deps.graph:prepare()
+        local required = query.deps.graph:requires()
+        for term in pairs(required) do
+          query.deps.graph:satisfy(term)
+          node.deps.strongDepends:add(term)
+        end
+      end
+    end
   end
 
   -- Group terms and consolidate with existing term groups
@@ -473,6 +713,39 @@ function DependencyGraph:groupUnsatisfied(group) -- get the number of  outstandi
   return unsatisfied
 end
 
+function DependencyGraph:satisfyGroup(group)
+  for term in pairs(group) do
+    if self.strongDependents[term] then
+      for dependent in pairs(self.strongDependents[term]) do
+        local deps = dependent.deps
+        if deps.unsatisfied > 0 then
+          deps.unsatisfied = deps.unsatisfied - 1
+        end
+      end
+    end
+  end
+end
+
+function DependencyGraph:satisfy(term)
+  -- Decrement the unsatisfied term count for nodes depending on this term if it hasn't been provided already
+  if self.dependents[term] and not self.bound[term] then
+    self.bound:add(term)
+    for dependent in pairs(self.dependents[term]) do
+      local deps = dependent.deps
+      if deps.unsatisfied > 0 then
+        deps.unsatisfied = deps.unsatisfied - 1
+      end
+    end
+  end
+
+  -- Determine if the group containing the term is stabilized by satisfying this term
+  -- If so, satisfy the strong dependencies of every term in the group
+  local group = self:group(term)
+  if group and self:groupUnsatisfied(group) == 0 then
+    self:satisfyGroup(group)
+  end
+end
+
 function DependencyGraph:order(allowPartial)
   -- The is naive ordering rules out a subset of valid subgraph embeddings that depend upon parent term production.
   -- The easy solution to fix this is to iteratively fix point the parent and child graphs until ordering is finished or
@@ -508,35 +781,24 @@ function DependencyGraph:order(allowPartial)
         end
 
         -- Decrement the unsatisfied term count for nodes depending on terms this node provides that haven't been provided
-        if deps.provides:length() > 0 then
+        for term in pairs(deps.provides) do
+          self:satisfy(term)
+        end
+
+        -- If the node doesn't provide any terms, it's dependencies may still mean it satisfies a group (e.g. a filter)
+        if deps.provides:length() == 0 then
           local someTerm
-          for term in pairs(deps.provides) do
+          for term in pairs(deps.depends) do
             someTerm = term
-            if self.dependents[term] and not self.bound[term] then
-              self.bound:add(term)
-              for dependent in pairs(self.dependents[term]) do
-                local deps = dependent.deps
-                if deps.unsatisfied > 0 then
-                  deps.unsatisfied = deps.unsatisfied - 1
-                end
-              end
-            end
+            break
           end
 
-          -- Determine if the group containing the provided terms is stabilized by ordering this node
-          -- If so, satisfy the strong dependencies of every term in the group
           local group = self:group(someTerm)
-          if self:groupUnsatisfied(group) == 0 then
-            for term in pairs(group) do
-              if self.strongDependents[term] then
-                for dependent in pairs(self.strongDependents[term]) do
-                  local deps = dependent.deps
-                  deps.unsatisfied = deps.unsatisfied - 1
-                end
-              end
-            end
+          if group and self:groupUnsatisfied(group) == 0 then
+            self:satisfyGroup(group)
           end
         end
+
         scheduled = true
         break
       end
@@ -713,7 +975,7 @@ function unpackObjects(dg, context)
     if node.type == "object" or node.type == "mutate" then
       local unpackList = unpacked
       local subproject
-      if node.type ~= "object" then
+      if node.type == "mutate" then
         local projection = Set:new()
         for _, binding in ipairs(node.bindings or nothing) do
           if binding.field == ENTITY_FIELD and not node.deps.provides[binding.variable] then
@@ -721,9 +983,7 @@ function unpackObjects(dg, context)
             break
           end
         end
-        for ix, proj in pairs(node.projection) do
-          projection:union(proj, true)
-        end
+        projection:union(node.projection or nothing, true)
 
         subproject = SubprojectNode:new({projection = projection, provides = node.deps.provides}, node, context)
         unpackList = subproject.nodes
@@ -748,7 +1008,8 @@ function unpackObjects(dg, context)
             else
               unpackList[#unpackList + 1] = ScanNode:fromBinding(node, binding, entity, context)
             end
-
+          elseif #node.bindings == 1 then
+            error("Eliding only binding on object: " .. tostring(node))
           end
         end
       end
@@ -773,8 +1034,6 @@ function compileExec(contents, tracing)
   for ix, queryGraph in ipairs(parseGraph.children) do
     local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph)
     local unpacked = unpackObjects(dependencyGraph, parseGraph.context)
-    -- this handler function is just for debugging, we no longer have
-    -- an 'execution return'
     set[#set+1] = unpacked
   end
   return build.build(set, tracing, parseGraph)

@@ -134,9 +134,9 @@ static execf build_remove(evaluation e, node n)
     return cont(e->h, do_remove,  e, register_counter(e, n),
                 resolve_cfg(e, n, 0),
                 edb_uuid(x),
-                vector_get(n->arguments, 1),
-                vector_get(n->arguments, 2),
-                vector_get(n->arguments, 3));
+                vector_get(a, 1),
+                vector_get(a, 2),
+                vector_get(a, 3));
 }
 
 static CONTINUATION_7_2(do_set, evaluation, int *, execf, value, value, value, value, operator, value *) ;
@@ -181,7 +181,6 @@ static execf build_genid(evaluation e, node n)
                 vector_get(vector_get(n->arguments, 0), 0));
 }
 
-
 extern void register_edb_builders(table builders)
 {
     table_set(builders, intern_cstring("insert"), build_insert);
@@ -190,4 +189,3 @@ extern void register_edb_builders(table builders)
     table_set(builders, intern_cstring("scan"), build_scan);
     table_set(builders, intern_cstring("generate"), build_genid);
 }
-

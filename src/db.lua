@@ -17,8 +17,9 @@ setfenv(1, Pkg)
 
 OUT = "$$OUT"
 IN = "$$IN"
+STRONG_IN = "$$STRONG_IN"
 OPT = "$$OPT"
-local sigSymbols = {[OUT] = "f", [IN] = "B", [OPT] = "?"}
+local sigSymbols = {[OUT] = "f", [IN] = "b", [STRONG_IN] = "B", [OPT] = "?"}
 local function fmtSignature(args, signature)
   local result = ""
   local multi = false
@@ -55,15 +56,15 @@ function Schema.__tostring(schema)
   return "Schema<" .. (schema.name or "UNNAMED") .. ", (" .. fmtSignature(schema.args, schema.signature) .. ")>"
 end
 
-local function schema(args)
-  local schema = {args = {}, signature = setmetatable({}, Signature)}
+local function schema(args, name, kind)
+  local schema = {args = {}, signature = setmetatable({}, Signature), name = name, kind = kind}
   setmetatable(schema, Schema)
   if args.name then
     schema.name = args.name
   end
   local mode = OUT
   for _, arg in ipairs(args) do
-    if arg == OUT or arg == IN or arg == OPT then
+    if arg == OUT or arg == IN or arg == STRONG_IN or arg == OPT then
       mode = arg
     else
       schema.args[#schema.args + 1] = arg
@@ -101,15 +102,21 @@ local expressions = {
   ["="] = {rename("equal", schemas.binary), rename("is_equal", schemas.binaryFilter), rename("move", schemas.moveIn), rename("move", schemas.moveOut)},
   ["!="] = {rename("not_equal", schemas.binary), rename("is_not_equal", schemas.binaryFilter)},
 
-  is = {schemas.unary},
-  sin = {schemas.unary},
-  cos = {schemas.unary},
-  tan = {schemas.unary},
+  is = {rename("is", schemas.unary)},
+  sin = {rename("sin", schemas.unary)},
+  cos = {rename("cos", schemas.unary)},
+  tan = {rename("tan", schemas.unary)},
+  length = {rename("length", schemas.unary)},
+  time = {schema({"return", OPT, "seconds", "minutes", "hours"}, "time")},
 
   length = {schemas.unary},
   sum = {schemas.unary},
 
   time = {schema{"return", OPT, "seconds", "minutes", "hours"}}
+
+  -- Aggregates
+  count = {schema({"return", STRONG_IN, "a"}, "count", "aggregate")},
+  sum = {schema({"return", STRONG_IN, "a"}, "sum", "aggregate")}
 }
 
 function getSchemas(name)
@@ -126,7 +133,7 @@ function getSchema(name, signature)
     local match = true
     local required = Set:new()
     for arg, mode in pairs(schema.signature) do
-      if mode == OUT or mode == IN then
+      if mode == OUT or mode == IN or mode == STRONG_IN then
         required:add(arg)
       end
     end
