@@ -103,6 +103,9 @@ evaluation build_evaluation(heap h, table scopes, table persisted, table counts)
     e->remove = cont(h, removey, e);
     e->set = cont(h, setty, e);
     e->handlers = allocate_vector(h,10);
+    // this is only used during building
+    e->nmap = allocate_table(e->h, key_from_pointer, compare_pointer);
+    e->s = cont(e->h, merge_scan, e->solution);
     
     table_foreach(persisted, bag_id, bag) {
         table_set(e->solution, bag_id, bag);

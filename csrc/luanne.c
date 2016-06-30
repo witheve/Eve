@@ -158,7 +158,7 @@ vector lua_compile_eve(interpreter c, buffer b, boolean tracing)
         printf ("%s\n", lua_tostring(c->L, -1));
     }
     foreach_lua_table(c->L, -1, k, v) {
-        vector_insert(result, (void *)lua_topointer(c->L, k));
+        vector_insert(result, (void *)lua_topointer(c->L, v));
     }
     lua_pop(c->L, 1);
     return(result);

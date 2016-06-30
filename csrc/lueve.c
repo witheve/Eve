@@ -125,8 +125,9 @@ int main(int argc, char **argv)
     if (doExec) {
         buffer b = read_file_or_exit(init, file);
         vector v = compile_eve(b, enable_tracing);
-        vector_foreach(v, i)
+        vector_foreach(v, i) {
             edb_register_implication(root, i);
+        }
     }
     else {
         return 0;

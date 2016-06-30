@@ -269,6 +269,7 @@ void new_json_session(bag root, boolean tracing, buffer_handler write, table hea
     table_set(js->scopes, intern_cstring("session"), js->session);
     table_set(js->scopes, intern_cstring("all"), root);
     js->s = build_evaluation(h, js->scopes, persisted, counts);
+    
     *handler = websocket_send_upgrade(h, headers, write, cont(h, handle_json_query, js), &js->write);
     start_guy(js);
 }
