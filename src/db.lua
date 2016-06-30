@@ -56,8 +56,8 @@ function Schema.__tostring(schema)
   return "Schema<" .. (schema.name or "UNNAMED") .. ", (" .. fmtSignature(schema.args, schema.signature) .. ")>"
 end
 
-local function schema(args, name)
-  local schema = {args = {}, signature = setmetatable({}, Signature), name = name}
+local function schema(args, name, kind)
+  local schema = {args = {}, signature = setmetatable({}, Signature), name = name, kind = kind}
   setmetatable(schema, Schema)
   if args.name then
     schema.name = args.name
