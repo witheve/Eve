@@ -13,7 +13,7 @@ cd server/
 lein run
 ```
 
-Now go to `localhost:8081/repl` you can login with chris/chris
+Now go to `localhost:8081/repl` you can login with eve/eve
 
 ## Learn more
 
