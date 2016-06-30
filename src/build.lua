@@ -539,8 +539,9 @@ function build(graphs, tracing, parseGraph)
       local env, program = walk(g, nil, {}, tailf, tracing, parseGraph.context)
       regs = math.max(regs, env.maxregs + 1)
       local id = util.generateId()
-      heads[#heads+1] = build_node("regfile", {program}, {{regs}}, id)
+      heads[#heads+1] = build_node("regfile", {program}, {{regs}, {util.toJSON(parseGraph)}}, id)
    end
+
    return heads
 end
 

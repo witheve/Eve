@@ -153,7 +153,8 @@ static void send_node_graph(heap h, buffer_handler output, node head, table coun
     }
 
     bprintf(out, "}, \"parse\": ");
-    estring parse = vector_get(vector_get(head->arguments, 0), 0);
+
+    estring parse = vector_get(vector_get(head->arguments, 1), 0);
     buffer_append(out, parse->body, parse->length);
     bprintf(out, "}");
     // reclaim
