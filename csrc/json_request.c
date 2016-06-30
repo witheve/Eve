@@ -177,14 +177,14 @@ static void terminal(json_session j)
     }
     
     values_diff diff = diff_value_vector_tables(j->h, j->current_delta, results);
-    send_guy(j->h, j->write, diff);
+    send_guy(j->write, diff);
     
     // FIXME: we need to clean up the old delta, we're currently just leaking it
     // this has to be a copy
     j->current_delta = results;
     table_foreach(j->scopes, k, scopeBag) {
         table_foreach(edb_implications(scopeBag), k, impl) {
-            send_node_graph(js->write, impl, js->s->counters);
+            send_node_graph(j->write, impl, j->s->counters);
         }
     }
 
@@ -267,29 +267,12 @@ void new_json_session(bag root, boolean tracing, buffer_handler write, table hea
     j->current_delta = create_value_vector_table(j->h);
 
     table persisted = create_value_table(h);
-<<<<<<< HEAD
     table_set(persisted, edb_uuid(j->root), j->root);
-
-    // FIXME - for the moment we're just going to accrete the events so that
-    // the quasi-incremental guy knows what to do, we'd like to clean up
-    // a big for long lived sessions
-    bag event = create_bag(generate_uuid());
-    table_set(j->scopes, intern_cstring("event"), event);
-
     table_set(j->scopes, intern_cstring("session"), j->session);
     table_set(j->scopes, intern_cstring("all"), root);
-    j->s = build_evaluation(h, j->scopes, persisted, counts, cont(h, terminal, j));
+    j->s = build_evaluation(h, j->scopes, persisted, counts);
     *handler = websocket_send_upgrade(h, headers, write, cont(h, handle_json_query, j), &j->write);
     run_evaluation(j->s);
-=======
-    table_set(persisted, edb_uuid(js->root), js->root);
-    table_set(js->scopes, intern_cstring("session"), js->session);
-    table_set(js->scopes, intern_cstring("all"), root);
-    js->s = build_evaluation(h, js->scopes, persisted, counts);
-    
-    *handler = websocket_send_upgrade(h, headers, write, cont(h, handle_json_query, js), &js->write);
-    start_guy(js);
->>>>>>> origin
 }
 
 void init_json_service(http_server h, bag root, boolean tracing)

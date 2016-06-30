@@ -1,6 +1,5 @@
 #include <runtime.h>
 
-
 static CONTINUATION_1_4(inserty, evaluation, uuid, value, value, value);
 static void inserty(evaluation s, uuid u, value e, value a, value v)
 {
@@ -88,11 +87,11 @@ void run_evaluation(evaluation e)
     ticks start_time = now();
     while (e->pass) {
         iterations++;
-        vector_foreach(s->handlers, k) run_execf(s, k);
+        vector_foreach(e->handlers, k) run_execf(e, k);
     }
     ticks end_time = now();
-    table_set(s->counters, intern_cstring("time"), (void *)(end_time - start_time));
-    table_set(s->counters, intern_cstring("iterations"), (void *)iterations);
+    table_set(e->counters, intern_cstring("time"), (void *)(end_time - start_time));
+    table_set(e->counters, intern_cstring("iterations"), (void *)iterations);
 
     prf ("fixedpoint in %t seconds, %d rules, %d iterations, %d input bags, %d output bags\n", 
          end_time-start_time, vector_length(e->handlers),
