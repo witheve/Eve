@@ -5,6 +5,10 @@
 #include <unix_internal.h>
 #include <sys/time.h>
 
+decsriptor standardinput = 0;
+decsriptor standardoutput = 1;
+decsriptor standarderror = 2;
+
 typedef struct page_heap {
     struct heap h;
     void **freelist;
