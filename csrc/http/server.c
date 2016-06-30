@@ -57,31 +57,6 @@ void send_http_response(heap h,
     apply(write, b, ignore);
 }
 
-void send_multipart_http_response(heap h,
-                                  buffer_handler write,
-                                  buffer b)
-{
-    apply(write, sstring("\r\n"), ignore);
-    apply(write, b, ignore);
-    
-    buffer o = allocate_buffer(h, 200);
-    outline(o, "");
-    outline(o, "--xstringx");
-    apply(write, o, ignore);
-}
-
-// take a session
-void start_multipart_http_response(heap h, buffer_handler write)
-{
-    char *n = "Content-Type: multipart/x-mixed-replace; boundary=xstringx";
-    buffer b = allocate_buffer(h, 200);
-    outline(b, "HTTP/1.1 200 OK");
-    outline(b, "Content-Type: multipart/x-mixed-replace; boundary=xstringx");
-    outline(b, "");
-    outline(b, "--xstringx");
-    apply(write, b, ignore);
-}
-
 static void reset_session(session s)
 {
     for (int i = 0; i<total_states ; i++) {
@@ -92,6 +67,26 @@ static void reset_session(session s)
     
     s->headers = allocate_table(s->h, key_from_pointer, compare_pointer);
     s->s = method;
+}
+
+// in eav
+static void dispatch_url(session s, buffer url, table headers)
+{
+    buffer *c;
+
+    if ((c = table_find(s->parent->services, url))) {
+        // stash the method and the url in the headers - actually turn this into a bag
+        apply((http_service)c, s->write, s->headers, &s->child);
+    } else {
+        if ((c = table_find(s->parent->content, url))) {
+            buffer k;
+            if (c[2] && !(k = read_file(s->h, (char *)c[2]))) k = c[1];
+            // reset connection state
+            send_http_response(s->h, s->write, c[0], k);
+        } else {
+            apply(s->write, sstring("HTTP/1.1 404 Not found\r\n"), ignore);
+        }
+    }
 }
 
 static CONTINUATION_1_2(session_buffer, session, buffer, thunk);
@@ -121,21 +116,8 @@ static void session_buffer(session s,
                 }
             } else {
                 if ((s->s == name) && (c == '\n')) {
-                    buffer *c;
                     if (!s->child) { // sadness
-                        if ((c = table_find(s->parent->services, s->fields[url]))) {
-                            // stash the method and the url in the headers - actually turn this into a bag
-                            apply((http_service)c, s->write, s->headers, &s->child);
-                        } else {
-                            if ((c = table_find(s->parent->content, s->fields[url]))) {
-                                buffer k;
-                                if (c[2] && !(k = read_file(s->h, (char *)c[2]))) k = c[1];
-                                // reset connection state
-                                send_http_response(s->h, s->write, c[0], k);
-                            } else {
-                                apply(s->write, sstring("HTTP/1.1 404 Not found\r\n"), ignore);
-                            }
-                        }
+                        dispatch_url(s, s->fields[url], s->headers);
                     }
                     reset_session(s);
                 } else {
