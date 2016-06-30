@@ -235,7 +235,7 @@ function formatObjects(objs) {
 function sendEvent(objs) {
   if(!objs.length) return;
   let query = `handle some event
-  update
+  update event
     ${formatObjects(objs).join("\n    ")}
   `
   console.log("QUERY", query);
@@ -328,7 +328,7 @@ function drawNode(nodeId, graph, state, seen) {
   let node = graph[nodeId];
   if(seen[nodeId]) {
     return {text: `seen ${node.type}`};
-  } else if(node.type == "terminal" || node.type == "subtail") {
+  } else if(node.type == "terminal" || node.type == "subtail" || node.type == "choosetail") {
     return undefined;
   }
   seen[nodeId] = true;
@@ -344,7 +344,7 @@ function drawNode(nodeId, graph, state, seen) {
     for(let child of node.arms) {
       children.push({style: "margin-right: 20px;", children: [drawNode(child, graph, state, seen)]});
     }
-  } else if(node.type == "sub") {
+  } else if((node.type == "sub") || (node.type == "not")) {
     childrenContainer.c += ` sub-node-children`;
     children.push({style: "margin-left: 30px;", children: [drawNode(node.arms[1], graph, state, seen)]});
     children.push(drawNode(node.arms[0], graph, state, seen));

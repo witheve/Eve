@@ -64,7 +64,7 @@ static void actually_write(tcpsock t)
             if (result > 0){
                 if (result < transfer) {
                     buffer_consume(b, result);
-                    return;
+                    break;
                 } else {
                     apply(t->q->finished, true); 
                     tcppop(t);
@@ -77,6 +77,9 @@ static void actually_write(tcpsock t)
             }
         }
     }
+    // myself
+    if (t->q)
+        register_write_handler(t->d, cont(t->h, actually_write, t));
 }
 
 // thunk needs to be bound up in the buffer

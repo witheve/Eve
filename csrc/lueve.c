@@ -25,6 +25,7 @@ extern void init_json_service(http_server, bag, boolean);
 extern int strcmp(const char *, const char *);
 static buffer read_file_or_exit(heap, char *);
 
+extern void *ignore;
 
 static void run_test(bag root, buffer b, boolean tracing)
 {
@@ -36,11 +37,12 @@ static void run_test(bag root, buffer b, boolean tracing)
     table_set(scopes, intern_cstring("session"), event);
     table_set(scopes, intern_cstring("transient"), event);
 
-    node n = compile_eve(b, tracing);
-    edb_register_implication(event, n);
+    vector n = compile_eve(b, tracing);
+    vector_foreach(n, i)
+        edb_register_implication(event, i);
     table persisted = create_value_table(h);
     table counts = allocate_table(h, key_from_pointer, compare_pointer);
-    solver s = build_solver(h, scopes, persisted, counts);
+    evaluation s = build_evaluation(h, scopes, persisted, counts);
     run_solver(s);
     
     table_foreach(s->solution, n, v) {
@@ -130,7 +132,10 @@ int main(int argc, char **argv)
     }
     if (doExec) {
         buffer b = read_file_or_exit(init, file);
-        edb_register_implication(root, lua_compile_eve(c, b, enable_tracing));
+        vector v = compile_eve(b, enable_tracing);
+        vector_foreach(v, i) {
+            edb_register_implication(root, i);
+        }
     }
     else {
         return 0;
