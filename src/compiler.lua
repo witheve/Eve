@@ -354,7 +354,6 @@ function DependencyGraph:addMutateNode(node)
         deps.maybeProvides:add(binding.variable)
         deps.maybeDepends:add(binding.variable)
       else
-        -- @FIXME: this should be strongDepends unless the mutate is an update
         deps.strongDepends:add(binding.variable)
       end
 
@@ -371,6 +370,7 @@ function DependencyGraph:addExpressionNode(node)
     maybeProvides = Set:new(),
     depends = Set:new(),
     anyDepends = Set:new(),
+    strongDepends = Set:new(),
     weakDepends = Set:new()
   }
   node.deps = deps
@@ -408,6 +408,8 @@ function DependencyGraph:addExpressionNode(node)
       if args[field] and args[field].type ~= "constant" then
         if pattern[field] == db.IN then
           deps.depends:add(args[field])
+        elseif pattern[field] == db.STRONG_IN then
+          deps.strongDepends:add(args[field])
         elseif pattern[field] == db.OUT then
           deps.provides:add(args[field])
         else

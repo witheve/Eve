@@ -65,24 +65,29 @@ int main(int argc, char **argv)
     boolean doRead = false;
     boolean consumeFile = false;
     boolean dynamicReload = true;
+    boolean has_non_exec_action = false;
     
     char * file = "";
     for (int i = 1; i <argc ; i++) {
         if (!strcmp(argv[i], "--parse") || !strcmp(argv[i], "-p")) {
             doParse = true;
             consumeFile = true;
+            has_non_exec_action = true;
         }
         else if (!strcmp(argv[i], "--analyze") || !strcmp(argv[i], "-a")) {
             doAnalyze = true;
             consumeFile = true;
+            has_non_exec_action = true;
         }
         else if (!strcmp(argv[i], "--analyze-quiet") || !strcmp(argv[i], "-A")) {
           doAnalyzeQuiet = true;
           consumeFile = true;
+          has_non_exec_action = true;
         }
         else if (!strcmp(argv[i], "-r")) {
             doRead = true;
             consumeFile = true;
+            has_non_exec_action = true;
         }
         else if (!strcmp(argv[i], "--exec") || !strcmp(argv[i], "-e")) {
             doExec = true;
@@ -98,6 +103,9 @@ int main(int argc, char **argv)
             }
             else if (!strcmp(argv[i],"-t")) {
                 enable_tracing = true;
+            } else if(!has_non_exec_action) {
+                doExec = true;
+                file = argv[i];
             }
             else if (consumeFile) {
                 file = argv[i];
