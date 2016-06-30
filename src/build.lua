@@ -182,7 +182,7 @@ function translate_subproject(n, bound, down, tracing, context)
      local id2 = util.generateId()
      context.downEdges[#context.downEdges + 1] = {n.id, id}
      context.downEdges[#context.downEdges + 1] = {n.id, id2}
-      return env, build_node("subtail", {build_node("terminal", {}, {}, id2)},
+      return env, build_node("subtail", {},
                              {set_to_read_array(env, n.provides),
                              {read_lookup(env, pass)}},
                              id)
@@ -344,7 +344,7 @@ function translate_not(n, bound, down, tracing, context)
          env.permanent[n] = true
    end
    env, arm = walk(n.queries[1].unpacked, nil, shallowcopy(bound), arm_bottom, tracing, context)
-   return env, build_node("not", {arm}, {{read_lookup(env, flag)}}, id)
+   return env, build_node("not", {c, arm}, {{read_lookup(env, flag)}}, id)
 end
 
 
@@ -532,7 +532,6 @@ function build(graphs, tracing, parseGraph)
    local heads ={}
    local regs = 0
    tailf = function(b)
-               -- create an edge between the c node and the parse node
                local id = util.generateId()
                return empty_env(), build_node("terminal", {}, {}, id)
            end
@@ -540,9 +539,10 @@ function build(graphs, tracing, parseGraph)
       local env, program = walk(g, nil, {}, tailf, tracing, parseGraph.context)
       regs = math.max(regs, env.maxregs + 1)
       local id = util.generateId()
-      heads[#heads+1] = build_node("regfile", {program}, {{regs}}, id)
+      heads[#heads+1] = build_node("regfile", {program}, {{regs}, {util.toJSON(parseGraph)}}, id)
    end
-   return build_node("fork", heads, {{util.toJSON(parseGraph)}}, util.generateId())
+
+   return heads
 end
 
 ------------------------------------------------------------

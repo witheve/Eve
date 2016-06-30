@@ -18,7 +18,7 @@ make yo
   [#click element]
   element = [not(children)]
   update
-     element.children += [#div text:"yo"]
+     element.children += [#div element text:"yo"]
 
 trash yo
   [#click element]

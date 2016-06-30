@@ -96,27 +96,20 @@ typedef struct evaluation  {
     insertron insert;
     insertron remove;
     insertron set;
+    table counters;
+    table solution;
     table scopes;
-    execf head;
+    vector handlers;
+    boolean pass;
     scan s;
     table nmap;
-    table counters;
+    ticks t;
+    boolean non_empty;
 } *evaluation;
 
 typedef struct node *node;
 
 typedef execf (*buildf)(evaluation, node);
-
-
-typedef struct solver {
-    heap h;
-    table counters;
-    table solution;
-    table scopes;
-    insertron insert, remove, set;
-    boolean pass;
-    vector handlers;
-} *solver;
 
 struct node {
     value id;
@@ -127,12 +120,11 @@ struct node {
 };
 
 
-
 void execute(evaluation);
 
 table builders_table();
 void register_implication(node n);
-evaluation build(node n, table scopes, scan s, insertron insert, insertron remove, insertron set, table counts, thunk terminal);
+execf build(evaluation e, node n);
 table start_fixedpoint(heap, table, table, table);
 
 #define s_eav 0x0
@@ -150,7 +142,7 @@ void edb_remove_implication(bag b, node n);
 uuid edb_uuid(bag b);
 int edb_size(bag b);
 
-node compile_eve(buffer b, boolean tracing);
-solver build_solver(heap h, table scopes, table persisted, table counts);
-void run_solver(solver s);
-void inject_event(solver, node);
+vector compile_eve(buffer b, boolean tracing);
+evaluation build_evaluation(heap h, table scopes, table persisted, table counts);
+void run_solver(evaluation s);
+void inject_event(evaluation, vector node);
