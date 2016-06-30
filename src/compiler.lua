@@ -1013,8 +1013,7 @@ function compileExec(contents, tracing)
     print(queryGraph)
     print(queryGraph.deps.graph)
     print("")
-    print("")
-    set[#set+1] = unpacked
+    set[#set+1] = queryGraph
   end
   return build.build(set, tracing, parseGraph)
 end

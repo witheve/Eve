@@ -27,14 +27,15 @@ VPATH += ../csrc
 LUAPOWER = bundle.o
 UTF = lutf8lib.o
 COMPILER = compiler.o error.o fs.o parser.o util.o set.o color.o build.o implicationResolver.o db.o
-UNIX =  unix_util.o region.o select.o tcp_socket.o
+UNIX =  unix_util.o region.o select.o tcp_socket.o process.o
 UNIX_H = unix_internal.h unix.h
 CORE = buffer.o table.o vector.o format.o rolling.o string.o pqueue.o timer.o
 CORE_H = bswap.h pqueue.h vector.h buffer.h heap.h timer.h continuation.h core.h string.h table.h
-RUNTIME =  edb.o init.o uuid.o estring.o types.o luanne.o json_request.o exec.o runner.o
-RUNTIME_H = ./luanne.h ./runtime.h ./estring.h ./number.h ./types.h
+EXEC = exec_expression.o exec_edb.o exec_string.o exec_aggregate.o exec.o
+RUNTIME =  edb.o init.o uuid.o estring.o types.o luanne.o json_request.o runner.o $(EXEC)
+RUNTIME_H = luanne.h runtime.h estring.h number.h types.h exec.h
 HTTP = server.o websocket.o base64.o sha1.o
-HTTP_H = ./http/http.h
+HTTP_H = http.h
 
 continuation_templates.h: continuations.py
 	python $^ 9 9 continuation_templates.h

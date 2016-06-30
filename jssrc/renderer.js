@@ -235,7 +235,7 @@ function formatObjects(objs) {
 function sendEvent(objs) {
   if(!objs.length) return;
   let query = `handle some event
-  update
+  update event
     ${formatObjects(objs).join("\n    ")}
   `
   console.log("QUERY", query);
@@ -265,13 +265,14 @@ window.addEventListener("click", function(event) {
 
 window.addEventListener("input", function(event) {
   let {target} = event;
-  let objs = [{tags: ["input"], element: target.entity, value: target.value}];
-  sendEvent(objs);
+  if(target.entity) {
+    let objs = [{tags: ["input"], element: target.entity, value: target.value}];
+    sendEvent(objs);
+  }
 });
 
 window.addEventListener("focus", function(event) {
   let {target} = event;
-  console.log("FOCUS", event);
   if(target.entity) {
     let objs = [{tags: ["focus"], element: target.entity}];
     console.log(sendEvent(objs));
@@ -321,13 +322,15 @@ window.addEventListener("keyup", function(event) {
 //---------------------------------------------------------
 
 let activeIds = {};
+let activeParse = {};
 let allNodeGraphs = {};
+let showGraphs = false;
 
 function drawNode(nodeId, graph, state, seen) {
   let node = graph[nodeId];
   if(seen[nodeId]) {
     return {text: `seen ${node.type}`};
-  } else if(node.type == "terminal" || node.type == "subtail") {
+  } else if(node.type == "terminal" || node.type == "subtail" || node.type == "choosetail") {
     return undefined;
   }
   seen[nodeId] = true;
@@ -343,7 +346,7 @@ function drawNode(nodeId, graph, state, seen) {
     for(let child of node.arms) {
       children.push({style: "margin-right: 20px;", children: [drawNode(child, graph, state, seen)]});
     }
-  } else if(node.type == "sub") {
+  } else if((node.type == "sub") || (node.type == "not")) {
     childrenContainer.c += ` sub-node-children`;
     children.push({style: "margin-left: 30px;", children: [drawNode(node.arms[1], graph, state, seen)]});
     children.push(drawNode(node.arms[0], graph, state, seen));
@@ -372,8 +375,7 @@ function injectCodeMirror(node, elem) {
     editor.setValue(elem.value);
     editor.on("cursorActivity", function() {
       let pos = editor.getCursor();
-      activeIds = nodeToRelated(posToToken(pos, elem.parse.lines), elem.parse);
-      console.log(activeIds);
+      activeIds = nodeToRelated(pos, posToToken(pos, elem.parse.lines), elem.parse);
       drawNodeGraph();
     });
     node.editor = editor;
@@ -382,6 +384,7 @@ function injectCodeMirror(node, elem) {
 
 function CodeMirrorNode(info) {
   info.postRender = injectCodeMirror;
+  info.c = "cm-container";
   return info;
 }
 
@@ -396,6 +399,10 @@ function indexParse(parse) {
   parse.lines = lines;
   let down = {};
   let up = {};
+  if(activeParse.edges) {
+    up = activeParse.edges.up;
+    down = activeParse.edges.down;
+  }
   for(let edge of parse.context.downEdges) {
     if(!down[edge[0]]) down[edge[0]] = [];
     if(!up[edge[1]]) up[edge[1]] = [];
@@ -403,12 +410,34 @@ function indexParse(parse) {
     up[edge[1]].push(edge[0]);
   }
   parse.edges = {down, up};
+
+  // if there isn't an active graph, then make the first query
+  // active
+  if(!activeIds["graph"]) {
+    console.log("setting", parse.children[0].id);
+    activeIds["graph"] = parse.children[0].id;
+  }
+
+  activeParse = parse;
 }
 
-function nodeToRelated(node, parse) {
-  if(!node.id) return {};
-  let {up, down} = parse.edges;
+function nodeToRelated(pos, node, parse) {
   let active = {};
+  // search for which query we're looking at
+  let prev;
+  for(let query of parse.children) {
+    if(query.line == pos.line + 1) {
+      prev = query;
+      break;
+    } else if (query.line > pos.line + 1) {
+      break;
+    }
+    prev = query;
+  }
+  active["graph"] = prev.id;
+
+  if(!node.id) return active;
+  let {up, down} = parse.edges;
   active[node.id] = true;
   let nodesUp = up[node.id] ? up[node.id].slice() : [];
   for(let ix = 0; ix < nodesUp.length; ix++) {
@@ -422,6 +451,8 @@ function nodeToRelated(node, parse) {
     active[cur] = true;
     for(let next of down[cur] || []) nodesDown.push(next);
   }
+
+
   return active;
 }
 
@@ -429,27 +460,43 @@ function activeClass(node, state) {
   return state.activeIds[node.id] ? "active" : "";
 }
 
+function toggleGraphs() {
+  showGraphs = !showGraphs;
+  drawNodeGraph();
+}
+
 function drawNodeGraph() {
-  let graphs = [];
+  let root;
+  let state = {activeIds};
   for(let headId in allNodeGraphs) {
+    console.log("CHECKING", headId, activeParse.edges.up[headId], activeIds["graph"]);
+    if(activeParse.edges.up[headId][0] != activeIds["graph"]) continue;
     let cur = allNodeGraphs[headId];
-    let tree = drawNode(headId, cur.nodes, {activeIds}, {});
-    // let ast = drawAST(cur.parse.ast, {activeIds});
-    // let parse = drawParse(cur.parse, {activeIds});
-    let ordered = drawOrdered(cur.parse.children, {activeIds});
-    graphs.push({c: "parse-info", children: [
+    let tree = drawNode(headId, cur, state, {});
+    // let ast = drawAST(activeParse.ast, state);
+    // let parse = drawParse(activeParse, state);
+    let ordered = drawOrdered(activeParse.children, state);
+    let graphs;
+    if(showGraphs) {
+      graphs = {c: "graphs", children: [
+        // ast,
+        // parse,
+        ordered,
+        tree,
+      ]}
+    }
+    root = {c: "parse-info", children: [
       {c: "run-info", children: [
-        CodeMirrorNode({value: cur.parse.context.code, parse: cur.parse}),
-        {text: `total time: ${cur.total_time}s`},
-        {text: `iterations: ${cur.iterations}`},
+        CodeMirrorNode({value: activeParse.context.code, parse: activeParse}),
+        {c: "toolbar", children: [
+          {c: "stats", text: `${activeParse.iterations} iterations took ${activeParse.total_time}s`},
+          {c: "show-graphs", text: "show compile", click: toggleGraphs}
+        ]},
       ]},
-      // ast,
-      // parse,
-      ordered,
-      tree,
-    ]});
+      graphs
+    ]};
   }
-  renderer.render([{c: "graph-root", children: graphs}]);
+  renderer.render([{c: "graph-root", children: [root]}]);
 }
 
 //---------------------------------------------------------
@@ -499,7 +546,7 @@ function drawParse(root, state) {
 function orderedNode(node, state) {
   let active = activeClass(node, state);
   if(node.type == "object" || node.type == "mutate") {
-    return {c: `ordered-object ${active}`, children: [
+    return {c: `ordered-node ordered-object ${active}`, children: [
       {text: node.type},
       {c: "eav", children: [orderedNode(node.entity, state), orderedNode(node.attribute, state), orderedNode(node.value, state)]}
     ]};
@@ -509,7 +556,7 @@ function orderedNode(node, state) {
       projections.push(orderedNode(proj, state));
     }
     projections.push({text: "]"});
-    return {c: `subproject ${active}`, children: [
+    return {c: `ordered-node subproject ${active}`, children: [
       {c: "row", children: [
         {text: node.type},
         {c: "subproject-projection", children: projections},
@@ -528,12 +575,12 @@ function orderedNode(node, state) {
 function drawOrdered(ordered, state) {
   let queries = [];
   for(let query of ordered) {
+    if(state.activeIds["graph"] != query.id) continue;
     var items = [];
     for(let node of query.unpacked) {
       items.push(orderedNode(node, state));
     }
-    queries.push({c: "ordered-query", children: [
-      {text: query.name},
+    queries.push({c: "ordered-node ordered-query", children: [
       {c: "ordered-query-children", children: items},
     ]});
   }
@@ -553,7 +600,9 @@ socket.onmessage = function(msg) {
   if(data.type == "result") {
     handleDOMUpdates(data);
   } else if(data.type == "node_graph") {
-    allNodeGraphs[data.head] = data;
+    allNodeGraphs[data.head] = data.nodes;
+    data.parse.iterations = data.iterations;
+    data.parse.total_time = data.total_time;
     indexParse(data.parse);
     drawNodeGraph();
   }

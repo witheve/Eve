@@ -144,8 +144,9 @@ void require_luajit(interpreter c, char *z)
     lua_setglobal(c->L, z);
 }
 
-node lua_compile_eve(interpreter c, buffer b, boolean tracing)
+vector lua_compile_eve(interpreter c, buffer b, boolean tracing)
 {
+    vector result = allocate_vector(c->h, 3);
     lua_pushcfunction(c->L, traceback);
     lua_getglobal(c->L, "compiler");
     lua_getfield(c->L, -1, "compileExec");
@@ -156,9 +157,11 @@ node lua_compile_eve(interpreter c, buffer b, boolean tracing)
         printf ("lua error\n");
         printf ("%s\n", lua_tostring(c->L, -1));
     }
-    void *z = (void *)lua_topointer(c->L, -1);
+    foreach_lua_table(c->L, -1, k, v) {
+        vector_insert(result, (void *)lua_topointer(c->L, v));
+    }
     lua_pop(c->L, 1);
-    return((node)z);
+    return(result);
 }
 
 void lua_run_module_func(interpreter c, buffer b, char *module, char *func)
@@ -250,7 +253,7 @@ interpreter build_lua()
     return c;
 }
 
-node compile_eve(buffer b, boolean tracing)
+vector compile_eve(buffer b, boolean tracing)
 {
     interpreter c;
         // FIXME - CAS threading
@@ -260,8 +263,8 @@ node compile_eve(buffer b, boolean tracing)
     } else {
         c = build_lua();
     }
-    node n = lua_compile_eve(c, b, tracing);
+    vector v = lua_compile_eve(c, b, tracing);
     c->next = freelist;
     freelist = c;
-    return n;
+    return v;
 }

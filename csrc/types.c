@@ -136,3 +136,34 @@ values_diff diff_value_vector_tables(heap h, table old, table neue) {
   diff->remove = remove;
   return diff;
 }
+
+boolean order_values(value a, value b)
+{
+    // just use the type ordering to distringuish between types
+    unsigned long ta = type_of(a);
+    unsigned long tb = type_of(b);
+
+    if (a !=b) return a<b;
+
+    switch(ta){
+    case uuid_space:
+        return memcmp(a, b, UUID_LENGTH);
+    case float_space:
+        return *(double *)a < *(double *)b;
+    case estring_space:
+        {
+            // i dont even know where to begin to start here
+            estring sa = (estring)a;
+            estring sb = (estring)b;
+            if (sa->length != sb->length) return (sa->length < sb->length);
+            return memcmp(sa->body, sb->body, sa->length);
+        }
+        break;
+    case register_space:
+        return ((unsigned long)a) < ((unsigned long)b);
+    default:
+        prf("unsupported type in compare\n");
+        return false;
+    }
+}
+

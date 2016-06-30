@@ -1,8 +1,8 @@
 #include <runtime.h>
 
 
-static CONTINUATION_1_4(inserty, solver, uuid, value, value, value);
-static void inserty(solver s, uuid u, value e, value a, value v)
+static CONTINUATION_1_4(inserty, evaluation, uuid, value, value, value);
+static void inserty(evaluation s, uuid u, value e, value a, value v)
 {
     s->pass = true;
     bag b;
@@ -11,8 +11,8 @@ static void inserty(solver s, uuid u, value e, value a, value v)
     edb_insert(b, e, a, v);
 }
 
-static CONTINUATION_1_4(removey, solver,uuid, value, value, value);
-static void removey(solver s, uuid u, value e, value a, value v)
+static CONTINUATION_1_4(removey, evaluation,uuid, value, value, value);
+static void removey(evaluation s, uuid u, value e, value a, value v)
 {
     s->pass = true;
     bag b;
@@ -21,8 +21,8 @@ static void removey(solver s, uuid u, value e, value a, value v)
     edb_remove(b, e, a, v);
 }
 
-static CONTINUATION_1_4(setty, solver, uuid, value, value, value);
-static void setty(solver s, uuid u, value e, value a, value v)
+static CONTINUATION_1_4(setty, evaluation, uuid, value, value, value);
+static void setty(evaluation s, uuid u, value e, value a, value v)
 {
     s->pass = true;
     bag b;
@@ -39,17 +39,47 @@ static void merge_scan(table t, int sig, void *listen, value e, value a, value v
     }
 }
 
-evaluation solver_build(solver s, node n)
+static CONTINUATION_1_2(evaluation_complete, evaluation, operator, value *);
+static void evaluation_complete(evaluation s, operator op, value *r)
 {
-    return (build(n, s->scopes,
-                  cont(s->h, merge_scan, s->solution),
-                  s->insert, s->remove, s->set, s->counters,
-                  // missing mail
-                  0));
+    s->non_empty = true;
+}
+
+// need to handle removes also...mr value bool
+static CONTINUATION_1_4(each_merge, bag, value, value, value, value)
+static void each_merge(bag b, value e, value a, value v, value bool)
+{
+    edb_insert(b, e, a, v);
+}
+
+static void merge_multibags(heap h, table d, table s)
+{
+    table_foreach(s, u, bs) {
+        bag bd;
+        if (!(bd = table_find(d, u))) {
+            table_set(d, u, bd = create_bag(u));
+        }
+        edb_scan(bs, s_eav, cont(h, each_merge, bd), 0, 0, 0);
+    }
 }
 
 
-void run_solver(solver s)
+static void run_execf(evaluation e, execf f) 
+{
+    // busted
+    table old = e->solution;
+    e->solution = create_value_table(e->h);
+    e->pass = false;
+    apply(f, op_insert, 0);
+    apply(f, op_flush, 0);
+    if (e->pass) {
+        // xxx - transient
+        merge_multibags(e->h, old, e->solution);
+    }
+   e->solution = old;
+}
+
+void run_solver(evaluation s)
 {
     long iterations = 0;
     s->pass = true;
@@ -57,16 +87,9 @@ void run_solver(solver s)
     ticks start_time = now();
     while (s->pass) {
         iterations++;
-        s->pass = false;
-        vector_foreach(s->handlers, k) {
-            execute(k);
-        }
+        vector_foreach(s->handlers, k) run_execf(s, k);
     }
     ticks end_time = now();
-
-    // FIXME: this seems sketch, can something bad happen as a result of this casting?
-    // (EAH) - not really, i mean we should probably abstract it, and maybe
-    // do something a little more polymorphic with tables...
     table_set(s->counters, intern_cstring("time"), (void *)(end_time - start_time));
     table_set(s->counters, intern_cstring("iterations"), (void *)iterations);
     prf ("fixedpoint in %t seconds, %d rules, %d iterations, %d input bags, %d output bags\n", 
@@ -75,36 +98,39 @@ void run_solver(solver s)
 }
 
 
-void inject_event(solver s, node n)
+void inject_event(evaluation s, vector n)
 {
-    evaluation nb = solver_build(s, n);
-    execute(nb);
-    vector_foreach(s->handlers, k) {
-        execute(k);
-    }
+    bag event = create_bag(generate_uuid());
+    table_set(s->scopes, intern_cstring("event"), event);
+    
+    vector_foreach(n, i) run_execf(s, build(s, i));
+    vector_foreach(s->handlers, k) run_execf(s, k);
 }
 
-solver build_solver(heap h, table scopes, table persisted, table counts)
+evaluation build_evaluation(heap h, table scopes, table persisted, table counts)
 {
-    solver s = allocate(h, sizeof(struct solver));
-    s->h = h;
-    s->scopes = scopes;
-    s->solution =  create_value_table(h);
-    s->counters = counts;
-    s->insert = cont(h, inserty, s);
-    s->remove = cont(h, removey, s);
-    s->set = cont(h, setty, s);
-    s->handlers = allocate_vector(h,10);
+    evaluation e = allocate(h, sizeof(struct evaluation));
+    e->h = h;
+    e->scopes = scopes;
+    e->solution =  create_value_table(h);
+    e->counters = counts;
+    e->insert = cont(h, inserty, e);
+    e->remove = cont(h, removey, e);
+    e->set = cont(h, setty, e);
+    e->handlers = allocate_vector(h,10);
+    // this is only used during building
+    e->nmap = allocate_table(e->h, key_from_pointer, compare_pointer);
+    e->s = cont(e->h, merge_scan, e->solution);
     
     table_foreach(persisted, bag_id, bag) {
-        table_set(s->solution, bag_id, bag);
+        table_set(e->solution, bag_id, bag);
     }
         
-    table_foreach(s->scopes, name, b) {
+    table_foreach(e->scopes, name, b) {
         table_foreach(edb_implications(b), n, v){
-            vector_insert(s->handlers, solver_build(s, n));
+            vector_insert(e->handlers, build(e, n));
         }
     }
 
-    return s;
+    return e;
 }
