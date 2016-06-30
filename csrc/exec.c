@@ -294,8 +294,11 @@ static execf build_regfile(evaluation e, node n, execf *arms)
 
 static table builders;
 
-extern  void register_exec_expression(table builders);
-extern  void register_edb_builders(table builders);
+extern void register_exec_expression(table builders);
+extern void register_string_builders(table builders);
+extern void register_aggregate_builders(table builders);
+extern void register_edb_builders(table builders);
+
 
 table builders_table()
 {
@@ -313,6 +316,8 @@ table builders_table()
         table_set(builders, intern_cstring("regfile"), build_regfile);
         table_set(builders, intern_cstring("not"), build_not);
         register_exec_expression(builders);
+        register_string_builders(builders);
+        register_aggregate_builders(builders);
         register_edb_builders(builders);
     }
     return builders;

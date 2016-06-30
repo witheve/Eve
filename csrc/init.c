@@ -26,6 +26,7 @@ void init_runtime()
     init_string();
     init_uuid();
     select_init();
+    init_processes();
     float_heap = init_fixed_page_region(init, float_space, float_space + region_size, pages->pagesize);
 }
 
