@@ -289,12 +289,13 @@ function DependencyGraph:new(obj)
   obj.unsorted = obj.unsorted or Set:new() -- set of nodes that need to be ordered
   obj.sorted = obj.sorted or {} -- append-only set of ordered nodes
 
-  obj.unsatisfied = obj.unsatisfied or {} -- Number of terms required but not bound per node
   obj.dependents = obj.dependents or {} -- Sets of nodes depending on a term
-  obj.strongDependents = obj.strongDependents or {} -- Sets of nodes strongly depending on (requiring stabilization of) a term
   obj.bound = obj.bound or Set:new() -- Set of terms bound by the currently ordered set of nodes
   obj.terms = obj.terms or Set:new() -- Set of all terms provided by any node in the graph
+  obj.cardinalTerms = obj.cardinalTerms or {}
+
   obj.termGroups = obj.termGroups or Set:new() -- Set of sets of terms that are in some way joined
+  obj.groupDepends = obj.groupDepends or Set:new() -- Set of nodes that must be ordered for a group to be satisfiable.
 
   setmetatable(obj, self)
   self.__index = self
@@ -306,10 +307,10 @@ function DependencyGraph:depends()
   self:order(true)
   local depends = Set:new()
   for node in pairs(self.unprepared + self.unsorted) do
-    depends:union(node.deps.depends + node.deps.anyDepends + node.deps.maybeDepends + node.deps.strongDepends, true)
+    depends:union(node.deps.depends + node.deps.anyDepends + node.deps.maybeDepends, true)
   end
   for _, node in ipairs(self.sorted) do
-    depends:union(node.deps.depends + node.deps.anyDepends + node.deps.maybeDepends + node.deps.strongDepends, true)
+    depends:union(node.deps.depends, true)
   end
   return depends
 end
@@ -324,8 +325,26 @@ function DependencyGraph:requires()
 end
 
 function DependencyGraph:isOrdered()
-  return self.unsorted:length() == 0
+  return self.unsorted:length() == 0 and self.unprepared:length() == 0
 end
+
+function DependencyGraph:cardinal(term)
+  if self.cardinalTerms[term] then
+    return self.cardinalTerms[term]
+  end
+  self.cardinalTerms[term] = util.shallowCopy(term)
+  self.cardinalTerms[term].name = "$$|" .. term.name .. "|"
+  return self.cardinalTerms[term]
+end
+
+function DependencyGraph:group(termOrNode) -- Retrieve the group (if any) associated with the given term or node
+  for group, depends in pairs(self.groupDepends) do
+    if group[termOrNode] or depends[termOrNode] then
+      return group
+    end
+  end
+end
+
 
 function DependencyGraph:addObjectNode(node)
   local deps = {provides = Set:new()}
@@ -342,8 +361,7 @@ function DependencyGraph:addMutateNode(node)
   local deps = {
     maybeProvides = Set:new(),
     depends = Set:new(),
-    maybeDepends = Set:new(),
-    strongDepends = Set:new()
+    maybeDepends = Set:new()
   }
   node.deps = deps
   for _, binding in ipairs(node.bindings or nothing) do
@@ -352,9 +370,9 @@ function DependencyGraph:addMutateNode(node)
     if binding.variable then
       if binding.field == ENTITY_FIELD then
         deps.maybeProvides:add(binding.variable)
-        deps.maybeDepends:add(binding.variable)
+        deps.maybeDepends:add(self:cardinal(binding.variable))
       else
-        deps.strongDepends:add(binding.variable)
+        deps.depends:add(self:cardinal(binding.variable))
       end
 
     end
@@ -368,10 +386,9 @@ function DependencyGraph:addExpressionNode(node)
   local deps = {
     provides = Set:new(),
     maybeProvides = Set:new(),
+    contributes = Set:new(),
     depends = Set:new(),
     anyDepends = Set:new(),
-    strongDepends = Set:new(),
-    weakDepends = Set:new()
   }
   node.deps = deps
 
@@ -408,13 +425,14 @@ function DependencyGraph:addExpressionNode(node)
       if args[field] and args[field].type ~= "constant" then
         if pattern[field] == db.IN then
           deps.depends:add(args[field])
+          deps.contributes:add(self:cardinal(args[field]))
         elseif pattern[field] == db.STRONG_IN then
-          deps.strongDepends:add(args[field])
+          deps.depends:add(self:cardinal(args[field]))
         elseif pattern[field] == db.OUT then
           deps.provides:add(args[field])
         else
           deps.maybeProvides:add(args[field])
-          deps.weakDepends:add(args[field])
+          deps.maybeDepends:add(args[field])
         end
       end
     end
@@ -491,31 +509,36 @@ function DependencyGraph:fromQueryGraph(query, isSubquery)
   return dgraph
 end
 -- provides are the set of terms provided after this node has been scheduled
--- maybeProvides are the set of terms that, IFF provided in this query, become dependencies of this node
+-- maybeProvides are the set of terms that, IFF not provided in this query, will be provided by this node
+-- contributes are the set of terms will be provided when all nodes contributing to them and their group have been scheduled
 -- depends are the set of terms that must be provided prior to scheduling this node
 -- maybeDepends are the set of terms that, IFF provided in this query, become dependencies of this node
--- strongDepends are the set of terms that must be completely settled (cardinality-stable) prior to scheduling this node
 -- anyDepends are the set of terms that, if any single term is satisfied, are all satisfied as a set
--- @NOTE: that, in order to permit stable scheduling, maybe and strong depends will not be treated as joining term groups
 function DependencyGraph:add(node)
   node.deps = node.deps or {}
   local deps = node.deps
   deps.provides = deps.provides or Set:new()
   deps.maybeProvides = deps.maybeProvides or Set:new()
+  deps.contributes = deps.contributes or Set:new()
   deps.depends = deps.depends or Set:new()
-  deps.weakDepends = deps.weakDepends or Set:new()
   deps.maybeDepends = deps.maybeDepends or Set:new()
-  deps.strongDepends = deps.strongDepends or Set:new()
   deps.anyDepends = deps.anyDepends or Set:new()
 
   self.unprepared:add(node)
 end
 
 function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for ordering
+  -- Ensure that all nodes which provide a term contribute to that terms cardinality
+  for node in pairs(self.unprepared) do
+    for term in pairs(node.deps.provides) do
+      node.deps.contributes:add(self:cardinal(term))
+    end
+  end
+
   -- Add newly provided terms to the DG's terms
   local neueTerms = Set:new()
   for node in pairs(self.unprepared) do
-    neueTerms:union(node.deps.provides, true)
+    neueTerms:union(node.deps.provides + node.deps.contributes, true)
   end
   self.terms:union(neueTerms, true)
 
@@ -524,8 +547,11 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
     for term in pairs(node.deps.maybeProvides) do
       if not self.terms[term] then
         node.deps.provides:add(term)
+        node.deps.contributes:add(self:cardinal(term))
         neueTerms:add(term)
+        neueTerms:add(self:cardinal(term))
         self.terms:add(term)
+        self.terms:add(self:cardinal(term))
       end
     end
   end
@@ -533,13 +559,7 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
   -- Link new maybe dependencies to existing terms
   for node in pairs(self.unprepared) do
     for term in pairs(node.deps.maybeDepends) do
-      if self.terms[term] and not node.deps.provides[term] then
-        node.deps.strongDepends:add(term)
-      end
-    end
-
-    for term in pairs(node.deps.weakDepends) do
-      if self.terms[term] and not node.deps.provides[term] then
+      if self.terms[term] and not (node.deps.provides[term] or node.deps.contributes[term]) then
         node.deps.depends:add(term)
       end
     end
@@ -547,21 +567,10 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
 
   -- Link existing maybe dependencies to new terms
   for term in std.pairs(neueTerms) do
-    if self.strongDependents[term] == nil then
-      self.strongDependents[term] = Set:new()
-      for node in pairs(self.unsorted) do
-        if node.deps.maybeDepends[term] then
-          self.strongDependents[term]:add(node)
-          node.deps.strongDepends:add(term)
-          node.deps.unsatisfied = node.deps.unsatisfied + 1
-        end
-      end
-    end
-
     if self.dependents[term] == nil then
       self.dependents[term] = Set:new()
       for node in pairs(self.unsorted) do
-        if node.deps.weakDepends[term] then
+        if node.deps.maybeDepends[term] then
           self.dependents[term]:add(node)
           node.deps.depends:add(term)
           node.deps.unsatisfied = node.deps.unsatisfied + 1
@@ -574,7 +583,6 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
   for node in pairs(self.unprepared) do
     local deps = node.deps
     deps.depends:difference(deps.provides, true)
-    deps.strongDepends:difference(deps.provides, true)
     deps.maybeDepends = Set:new()
     deps.maybeProvides = Set:new()
   end
@@ -587,7 +595,7 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
       local required = node.deps.graph:requires()
       for term in pairs(required) do
         node.deps.graph:satisfy(term)
-        node.deps.strongDepends:add(term)
+        node.deps.depends:add(term)
       end
     elseif node.queries then
       for _, query in ipairs(node.queries) do
@@ -595,20 +603,21 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
         local required = query.deps.graph:requires()
         for term in pairs(required) do
           query.deps.graph:satisfy(term)
-          node.deps.strongDepends:add(term)
+          node.deps.depends:add(term)
         end
       end
     end
   end
 
-  -- Group terms and consolidate with existing term groups
+  -- Group contributed terms and consolidate with existing term groups
   -- These are grouped into "cardinality islands", in which cardinality can be guaranteed to be stable
   -- once all terms in the group have been maximally joined/filtered
+  -- @NOTE: groups are unique in that they depend on nodes rather than terms
   for node in pairs(self.unprepared) do
-    local deps = node.deps
-    local terms = deps.provides + deps.depends + deps.anyDepends
+    local terms = node.deps.contributes
     local groups = Set:new()
     local neueGroup = Set:new()
+    local depends = Set:new{node}
     for term in pairs(terms) do
       local grouped = false
       for group in pairs(self.termGroups) do
@@ -625,16 +634,21 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
     if groups:length() == 1 then
       for group in pairs(groups) do
         self.termGroups:add(group)
+        depends:union(self.groupDepends[group] or nothing, true)
+        neueGroup = group
       end
     elseif groups:length() > 1 then
       for group in pairs(groups) do
+        depends:union(self.groupDepends[group] or nothing, true)
         for term in pairs(group) do
           neueGroup:add(term)
         end
         self.termGroups:remove(group)
+        self.groupDepends[group] = nil
       end
       self.termGroups:add(neueGroup)
     end
+    self.groupDepends[neueGroup] = depends
   end
 
   -- Register new nodes as a dependent on all the terms they require but cannot provide
@@ -651,17 +665,6 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
           self.dependents[term]:add(node)
         else
           self.dependents[term] = Set:new{node}
-        end
-        deps.unsatisfied = deps.unsatisfied + 1
-      end
-    end
-
-    for term in pairs(deps.strongDepends) do
-      if not self.bound[term] then
-        if self.strongDependents[term] then
-          self.strongDependents[term]:add(node)
-        else
-          self.strongDependents[term] = Set:new{node}
         end
         deps.unsatisfied = deps.unsatisfied + 1
       end
@@ -690,42 +693,6 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
   end
 end
 
-function DependencyGraph:group(term) -- get the termGroup of the given term
-  for group in pairs(self.termGroups) do
-    if group[term] then
-      return group
-    end
-  end
-end
-
-function DependencyGraph:groupUnsatisfied(group) -- get the number of  outstanding nodes that must be ordered before the group stabilizes
-  local unsatisfied = 0
-  for term in pairs(group) do
-    if self.dependents[term] then
-      unsatisfied = unsatisfied + self.dependents[term]:length()
-    end
-    for node in pairs(self.unsorted) do
-      if node.deps.provides[term] then
-        unsatisfied = unsatisfied + 1
-      end
-    end
-  end
-  return unsatisfied
-end
-
-function DependencyGraph:satisfyGroup(group)
-  for term in pairs(group) do
-    if self.strongDependents[term] then
-      for dependent in pairs(self.strongDependents[term]) do
-        local deps = dependent.deps
-        if deps.unsatisfied > 0 then
-          deps.unsatisfied = deps.unsatisfied - 1
-        end
-      end
-    end
-  end
-end
-
 function DependencyGraph:satisfy(term)
   -- Decrement the unsatisfied term count for nodes depending on this term if it hasn't been provided already
   if self.dependents[term] and not self.bound[term] then
@@ -735,14 +702,15 @@ function DependencyGraph:satisfy(term)
       if deps.unsatisfied > 0 then
         deps.unsatisfied = deps.unsatisfied - 1
       end
-    end
-  end
 
-  -- Determine if the group containing the term is stabilized by satisfying this term
-  -- If so, satisfy the strong dependencies of every term in the group
-  local group = self:group(term)
-  if group and self:groupUnsatisfied(group) == 0 then
-    self:satisfyGroup(group)
+      if dependent.deps.anyDepends[term] then
+        dependent.deps.depends:add(term)
+        dependent.deps.provides:remove(term)
+        for anyTerm in pairs(dependent.deps.anyDepends) do
+          self.dependents[anyTerm]:remove(dependent)
+        end
+      end
+    end
   end
 end
 
@@ -785,20 +753,19 @@ function DependencyGraph:order(allowPartial)
           self:satisfy(term)
         end
 
-        -- If the node doesn't provide any terms, it's dependencies may still mean it satisfies a group (e.g. a filter)
-        if deps.provides:length() == 0 then
-          local someTerm
-          for term in pairs(deps.depends) do
-            someTerm = term
-            break
-          end
-
-          local group = self:group(someTerm)
-          if group and self:groupUnsatisfied(group) == 0 then
-            self:satisfyGroup(group)
+        -- Determine if the group containing this node is stabilized by its satisfaction
+        -- If so, provide every term in the group
+        local group = self:group(node)
+        if group then
+          local depends = self.groupDepends[group]
+          depends:remove(node)
+          if depends:length() == 0 then
+            for term in pairs(group) do
+              deps.provides:add(term)
+              self:satisfy(term)
+            end
           end
         end
-
         scheduled = true
         break
       end
@@ -806,6 +773,13 @@ function DependencyGraph:order(allowPartial)
     if not scheduled and not allowPartial then
       print("-----ERROR----")
       print(tostring(self))
+      if self.termGroups:length() > 0 then
+        result = result .. "\n  -- term groups -- "
+        for group in pairs(self.termGroups) do
+          local depends = self.groupDepends[group]
+          result = result .. "\n  " .. tostring(group) .. ": " .. (depends and depends:length() or 0)
+        end
+      end
       print("--------------")
       error("Unable to find a valid dependency ordering for the given graph, aborting")
     elseif not scheduled then
@@ -819,9 +793,6 @@ function fmtDepNode(node)
   if not node.deps then error(std.debug.traceback()) end
   local deps = node.deps
   local result = tostring(deps.depends)
-  if deps.strongDepends:length() > 0 then
-    result = result .. "|STRONG:" .. tostring(deps.strongDepends)
-  end
   if deps.maybeDepends:length() > 0 then
     result = result .. "|MAYBE:" .. tostring(deps.maybeDepends)
   end
@@ -833,6 +804,10 @@ function fmtDepNode(node)
   if deps.maybeProvides:length() > 0 then
     result = result .. "|MAYBE:" .. tostring(deps.maybeProvides)
   end
+  if deps.contributes:length() > 0 and (deps.provides * deps.contributes):length() == 0 then
+    result = result .. "|CONTRIBUTES:" .. tostring(deps.contributes)
+  end
+
   result = result .. "\n  " .. util.indentString(1, tostring(node))
   return result
 end
@@ -852,12 +827,6 @@ function DependencyGraph.__tostring(dg)
   if dg.unsorted:length() > 0 then
     for node in pairs(dg.unsorted) do
       result = string.format("%s\n   ?: %s", result, util.indentString(2, fmtDepNode(node)))
-    end
-  end
-  if dg.termGroups:length() > 0 then
-    result = result .. "\n  -- term groups -- "
-    for group in pairs(dg.termGroups) do
-      result = result .. "\n  " .. tostring(group) .. ": " .. dg:groupUnsatisfied(group)
     end
   end
   return result .. "\n}"
@@ -918,12 +887,7 @@ function ScanNode.__tostring(obj)
   if obj.scope then
     operator = operator .. "scope: " .. tostring(obj.scope) .. ", "
   end
-  -- FIXME: I couldn't figure out how to get constants to print correctly
-  -- through whatever magical printing mechanism is going on here
   local value = obj.value
-  if value.type == "constant" then
-    value = value.constant
-  end
   return "ScanNode{type: " .. tostring(obj.type) .. ", " .. operator ..
     "entity: " .. tostring(obj.entity) ..
     ", attribute: " .. tostring(obj.attribute) ..
@@ -977,13 +941,25 @@ function unpackObjects(dg, context)
       local subproject
       if node.type == "mutate" then
         local projection = Set:new()
-        for _, binding in ipairs(node.bindings or nothing) do
-          if binding.field == ENTITY_FIELD and not node.deps.provides[binding.variable] then
-            projection:add(binding.variable)
-            break
+        for term in pairs(node.deps.depends) do
+          local variable = term
+          for var, cardinal in pairs(dg.cardinalTerms) do
+            if term == cardinal then
+              variable = var
+              break
+            end
           end
+          projection:add(variable)
         end
-        projection:union(node.projection or nothing, true)
+
+        -- @FIXME: current projection is poisoned in the case of parent-child relations
+        -- for _, binding in ipairs(node.bindings or nothing) do
+        --   if binding.field == ENTITY_FIELD and not node.deps.provides[binding.variable] then
+        --     projection:add(binding.variable)
+        --     break
+        --   end
+        -- end
+        -- projection:union(node.projection or nothing, true)
 
         subproject = SubprojectNode:new({projection = projection, provides = node.deps.provides}, node, context)
         unpackList = subproject.nodes
@@ -1034,6 +1010,10 @@ function compileExec(contents, tracing)
   for ix, queryGraph in ipairs(parseGraph.children) do
     local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph)
     local unpacked = unpackObjects(dependencyGraph, parseGraph.context)
+    print(queryGraph)
+    print(queryGraph.deps.graph)
+    print("")
+    print("")
     set[#set+1] = unpacked
   end
   return build.build(set, tracing, parseGraph)
