@@ -12,6 +12,7 @@
       .parse-info + .parse-info { margin-top:50px; }
 
       .node-text { padding: 3px 6px; background: rgb(44,72,97); flex:none; }
+      .node-type { color: rgb(73, 158, 211); }
 
 
       .node { display: flex; flex-direction:column; margin:1px 0; }
@@ -34,8 +35,8 @@
 
       .subproject-children { display:flex; flex-direction:column; margin-left:20px; }
 
-      .subproject-projection { display: flex; flex-direction: row; }
-      .subproject-projection > * { margin-left: 10px; }
+      .subproject-projection, .expression-bindings { display: flex; flex-direction: row; }
+      .subproject-projection > *, .expression-bindings > * { margin-left: 10px; }
 
       .active { background: #84CBFF; color: #202930; }
       .active * { background: #84CBFF !important; color: #202930; }
