@@ -203,12 +203,10 @@ function translate_subproject(n, bound, down, tracing, context)
 
    c = build_node("sub", {rest, fill},
                           {set_to_read_array(env, n.projection),
-                          outregs,
---                           set_to_read_array(env, n.provides),
-                          -- leak
-                          {read_lookup(env, pass)},
-                          },
-                          id)
+                           outregs,
+                           {write_lookup(env, pass)},
+                           env.ids},                  
+                        id)
 
    if tracing then
       local map = {"proj", ""}
@@ -307,12 +305,7 @@ function translate_mutate(n, bound, down, tracing, context)
                          id)
 
    if gen then
-      env.ids[read_lookup(env, e)] = true
-     -- create an edge between the c node and the parse node
-     local id = util.generateId()
-     context.downEdges[#context.downEdges + 1] = {n.id, id}
-
-      c = build_node("generate", {c}, {{read_lookup(env, e)}}, id)
+     env.ids[read_lookup(env, e)] = true
    end
    return env, c
 end
