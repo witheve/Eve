@@ -543,6 +543,9 @@ function drawParse(root, state) {
 // Draw ordered
 //---------------------------------------------------------
 
+let positionals = {"a": 0, "b": 1, "c": 2, "d": 3, "e": 4, "f": 5, "g": 6, "h": 7, "i": 8, "j": 9, "k": 10};
+let infix = {"+": true, "-": true, "*": true, "/": true, "=": true, ">": true, "<": true, ">=": true, "<=": true, "!=": true};
+
 function orderedNode(node, state) {
   let active = activeClass(node, state);
   if(node.type == "object" || node.type == "mutate") {
@@ -564,15 +567,24 @@ function orderedNode(node, state) {
       {c: "subproject-children", children: node.nodes.map(function(cur) { return orderedNode(cur, state); })}
     ]};
   } else if(node.type == "expression") {
-    let bindings = [{text: `${node.operator}(`}]
+    let bindings = []
+    let startIx = 0;
+    let isInfix = infix[node.operator];
+    if(!isInfix) {
+      bindings.push({text: `${node.operator}(`})
+      startIx++;
+    }
     for(let binding of node.bindings) {
-      if(binding.field !== "return") {
-        bindings.push({text: `${binding.field}: `})
-        bindings.push(orderedNode(binding.variable || binding.constant, state));
+      if(binding.field !== "return" && positionals[binding.field] !== undefined) {
+        bindings[startIx + positionals[binding.field]] = orderedNode(binding.variable || binding.constant, state);
       } else { 
         bindings.unshift({text: `=`})
         bindings.unshift(orderedNode(binding.variable || binding.constant, state));
+        startIx += 2;
       }
+    }
+    if(isInfix) {
+      bindings.splice(bindings.length - 1, 0, {text: node.operator});
     }
     if(node.projection.length) {
       bindings.push({text: `given`})
@@ -586,7 +598,9 @@ function orderedNode(node, state) {
         bindings.push(orderedNode(group, state));
       }
     }
-    bindings.push({text: ")"});
+    if(!isInfix) {
+      bindings.push({text: ")"});
+    }
     return {c: `ordered-node expression ${active}`, children: [
       {c: "row", children: [
         {c: "node-type", text: node.type},
@@ -594,11 +608,15 @@ function orderedNode(node, state) {
       ]},
     ]};
   } else if(node.type == "variable") {
-    return {text: `variable<${node.name}>`};
+    return {c: "value", text: `${node.name}`};
   } else if(node.type == "constant") {
-    return {text: node.constant};
+    if(node.constantType == "string") {
+      return {c: "value", text: `"${node.constant}"`};
+    } else {
+      return {c: "value", text: node.constant};
+    }
   } else if(typeof node == "string") {
-    return {text: node};
+    return {c: "value", text: `"${node}"`};
   }
 }
 

@@ -20,7 +20,7 @@
       .fork-node-children { flex-direction:row; justify-content: center; }
       .sub-node-children { margin-left: 0px; }
 
-      .graphs { background: rgba(0,0,0,0.4); display:flex; flex-direction:row; overflow:auto; margin-left:5px; padding:20px; border-radius:3px; }
+      .graphs { font-size:10pt; background: rgba(0,0,0,0.4); display:flex; flex-direction:row; overflow:auto; margin-left:5px; padding:20px; border-radius:3px; }
       .graphs > * + * { margin-left:40px; }
 
       .ordered-node.ordered-query { background:none; padding: 0; }
@@ -36,10 +36,11 @@
       .subproject-children { display:flex; flex-direction:column; margin-left:20px; }
 
       .subproject-projection, .expression-bindings { display: flex; flex-direction: row; }
-      .subproject-projection > *, .expression-bindings > * { margin-left: 10px; }
+      .subproject-projection > *, .expression-bindings > * { margin-left: 5px }
 
-      .active { background: #84CBFF; color: #202930; }
-      .active * { background: #84CBFF !important; color: #202930; }
+      .value + .value { margin-left: 5px; padding-left: 5px; border-left: 1px solid #202930; }
+
+      .active, .active * { background: #4D7598 !important; color: rgb(156,192,214);}
       .row {display:flex; flex-direction:row; }
 
       .run-info { display:flex; flex-direction: column; flex:1; }
