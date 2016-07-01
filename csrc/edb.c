@@ -169,7 +169,6 @@ void edb_insert(bag b, value e, value a, value v, long multiplicity)
         table al = level_fetch(b->h, el, a);
         long cur = (long)table_find(al, v);
         table_set(al, v, (void *)(cur + multiplicity));
-        prf("insert %d %d %d\n",(void *)(cur + multiplicity), multiplicity, count_of(b, e, a, v));
     }
 
     // AVE
@@ -225,6 +224,7 @@ void edb_remove(bag b, value e, value a, value v)
             if(al) {
                 long cur = (long)table_find(al, v);
                 table_set(al, v, (void *)(cur - 1));
+                if (cur < 0) b->count--;
             }
         }
     }
@@ -240,17 +240,14 @@ void edb_remove(bag b, value e, value a, value v)
             }
         }
     }
-    b->count++;
 }
 
 void edb_set(bag b, value e, value a, value v)
 {
     // remove all the current values
     table el = level_fetch(b->h, b->eav, e);
-    table al = level_fetch(b->h, el, a);
-    table_foreach(al, v, _) {
-        edb_remove(b, e, a, v);
-    }
+    // sketch, doesn't preserve multiplicity accounting
+    table_set(el, a, 0);
     // insert the new value
     edb_insert(b, e, a, v, 1);
 }

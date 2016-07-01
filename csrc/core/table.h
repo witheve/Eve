@@ -31,7 +31,9 @@ void table_set (table t, void *c, void *v);
 // much threadsafe...think about start
 #define table_foreach(__t, __k, __v)\
     for (void **__i = eK((__t), contents); __i<(void **)(eK((__t),contents) + eK((__t),end)); __i += 1) \
-        for (void * __k, *__v, **__cache, **__j = __i; *__j && (__cache = __j, __k = eZ(__j, c), __v = eZ(__j, v), 1); __j = (void **)&eZ((__cache),next))
+        for (void * __k, *__v, **__j = __i, **__next;\
+             *__j && ((__next =  (void **)&eZ((__j),next)) , __k = eZ(__j, c), __v = eZ(__j, v), 1);\
+             __j = __next)
                  
 
 

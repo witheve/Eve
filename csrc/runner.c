@@ -55,9 +55,16 @@ static void merge_multibags(heap h, table d, table s)
         if (!(bd = table_find(d, u))) {
             table_set(d, u, bd = create_bag(u));
         }
+        
+        printf ("%d %d\n", edb_size(bs), edb_size(bd));
+        
         bag_foreach((bag)bs, e, a, v, c) {
-            prf("merge %v %v %v %d %d\n", e, a, v, c, count_of(bs, e, a, v)) ;
             edb_insert(bd, e, a, v, c);
+        }
+        bag_foreach((bag)bd, e, a, v, c) {
+            if (!count_of(bs, e, a, v)) {
+                edb_remove(bd, e, a, v);
+            }
         }
     }
 }
