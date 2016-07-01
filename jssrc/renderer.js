@@ -608,15 +608,15 @@ function orderedNode(node, state) {
       ]},
     ]};
   } else if(node.type == "variable") {
-    return {text: `${node.name}`};
+    return {c: "value", text: `${node.name}`};
   } else if(node.type == "constant") {
     if(node.constantType == "string") {
-      return {text: `"${node.constant}"`};
+      return {c: "value", text: `"${node.constant}"`};
     } else {
-      return {text: node.constant};
+      return {c: "value", text: node.constant};
     }
   } else if(typeof node == "string") {
-    return {text: `"${node}"`};
+    return {c: "value", text: `"${node}"`};
   }
 }
 
