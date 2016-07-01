@@ -155,9 +155,9 @@ static execf build_set(evaluation e, node n)
     return cont(e->h, do_set,  e, register_counter(e, n),
                 resolve_cfg(e, n, 0),
                 edb_uuid(x),
-                vector_get(n->arguments, 1),
-                vector_get(n->arguments, 2),
-                vector_get(n->arguments, 3));
+                vector_get(a, 1),
+                vector_get(a, 2),
+                vector_get(a, 3));
 }
 
 
