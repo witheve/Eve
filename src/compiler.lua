@@ -955,6 +955,7 @@ function unpackObjects(dg, context)
           end
           projection:add(variable)
         end
+        node.projection = projection
 
         -- @FIXME: current projection is poisoned in the case of parent-child relations
         -- for _, binding in ipairs(node.bindings or nothing) do
