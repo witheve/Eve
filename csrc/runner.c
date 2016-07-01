@@ -8,6 +8,7 @@ static void inserty(evaluation s, uuid u, value e, value a, value v)
     bag b;
     if (!(b = table_find(s->solution, u)))
         table_set(s->solution, u, b = create_bag(u));
+    prf ("insert %v %v %v %v\n", u, e, a, v);
     edb_insert(b, e, a, v, 1);
 }
 
@@ -16,6 +17,7 @@ static void removey(evaluation s, uuid u, value e, value a, value v)
 {
     s->pass = true;
     bag b;
+    prf ("remove %v %v %v %v\n", u, e, a, v);
     if (!(b = table_find(s->solution, u)))
         table_set(s->solution, u, b = create_bag(u));
     edb_remove(b, e, a, v);
@@ -26,6 +28,7 @@ static void setty(evaluation s, uuid u, value e, value a, value v)
 {
     s->pass = true;
     bag b;
+    prf ("set %v %v %v %v\n", u, e, a, v);
     if (!(b = table_find(s->solution, u)))
         table_set(s->solution, u, b = create_bag(u));
     edb_set(b, e, a, v);
@@ -47,13 +50,13 @@ static void evaluation_complete(evaluation s, operator op, value *r)
 
 static void merge_multibags(heap h, table d, table s)
 {
-
     table_foreach(s, u, bs) {
         bag bd;
         if (!(bd = table_find(d, u))) {
             table_set(d, u, bd = create_bag(u));
         }
         bag_foreach((bag)bs, e, a, v, c) {
+            prf("merge %v %v %v %d %d\n", e, a, v, c, count_of(bs, e, a, v)) ;
             edb_insert(bd, e, a, v, c);
         }
     }

@@ -25,12 +25,12 @@ int edb_size(bag b);
 
 
 #define bag_foreach(__b, __e, __a, __v, __c)\
-    table_foreach((__b)->eav, __e, __avl)      \
-      table_foreach((table)__avl, __a, __vl)\
-      table_foreach((table)__vl, __v, __cv)\
-      for(int __c = (int)__cv , __z; __z == 0; __z++)
+    table_foreach((__b)->eav, __e, __avl) \
+    table_foreach((table)__avl, __a, __vl)\
+    table_foreach((table)__vl, __v, __cv)\
+    for(long __c = (long)__cv , __z = 0; __z == 0; __z++)
 
-int count_of(bag b, value e, value a, value v);
+long count_of(bag b, value e, value a, value v);
 void edb_insert(bag b, value e, value a, value v, long multiplicity);
 bag create_bag(uuid);
 void edb_remove(bag b, value e, value a, value v);
