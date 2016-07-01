@@ -388,6 +388,7 @@ function DependencyGraph:addExpressionNode(node)
     maybeProvides = Set:new(),
     contributes = Set:new(),
     depends = Set:new(),
+    maybeDepends = Set:new(),
     anyDepends = Set:new(),
   }
   node.deps = deps
@@ -444,7 +445,8 @@ end
 function DependencyGraph:addSubqueryNode(node)
   local deps = {
     maybeProvides = Set:new(),
-    maybeDepends = Set:new()
+    maybeDepends = Set:new(),
+    contributes = Set:new()
   }
   node.deps = deps
 
@@ -452,6 +454,7 @@ function DependencyGraph:addSubqueryNode(node)
     for _, var in ipairs(node.outputs) do
       deps.maybeDepends:add(var)
       deps.maybeProvides:add(var)
+      deps.contributes:add(self:cardinal(var))
     end
   end
 
@@ -709,6 +712,7 @@ function DependencyGraph:satisfy(term)
         for anyTerm in pairs(dependent.deps.anyDepends) do
           self.dependents[anyTerm]:remove(dependent)
         end
+        dependent.deps.anyDepends:intersection(nothing, {})
       end
     end
   end
@@ -774,10 +778,10 @@ function DependencyGraph:order(allowPartial)
       print("-----ERROR----")
       print(tostring(self))
       if self.termGroups:length() > 0 then
-        result = result .. "\n  -- term groups -- "
+        print("-- term groups --")
         for group in pairs(self.termGroups) do
           local depends = self.groupDepends[group]
-          result = result .. "\n  " .. tostring(group) .. ": " .. (depends and depends:length() or 0)
+          print("  " .. tostring(group) .. ": " .. (depends and depends:length() or 0) .. "\n")
         end
       end
       print("--------------")
