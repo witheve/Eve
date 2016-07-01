@@ -28,6 +28,7 @@ static execf build_sub_tail(evaluation e, node n)
                 vector_get(n->arguments, 0));
 }
 
+boolean incremental_delete = false;
 static CONTINUATION_9_2(do_sub,
                         int *, execf, execf, value, table *, table *, vector, vector, vector,
                         operator, value *);
@@ -37,11 +38,13 @@ static void do_sub(int *count, execf next, execf leg, value resreg,
 {
     heap h = (*results)->h;
     if (op == op_flush) {
-        if (*previous) {
-            table_foreach(*previous, k, v) {
-                table_foreach((table)v, n, _) {
-                    copyout(r, outputs, n);
-                    apply(next, op_remove, r);
+        if (incremental_delete) {
+            if (*previous) {
+                table_foreach(*previous, k, v) {
+                    table_foreach((table)v, n, _) {
+                        copyout(r, outputs, n);
+                        apply(next, op_remove, r);
+                    }
                 }
             }
         }

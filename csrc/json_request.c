@@ -176,9 +176,12 @@ static evaluation start_guy(json_session js)
     
     if (session_bag) {
         edb_scan(session_bag, 0, cont(js->h, collect_results, js->h, results), 0, 0, 0);
+        bag ev = table_find(js->s->solution, js->s->event_uuid);
+        if (ev)
+            edb_scan(ev, 0, cont(js->h, collect_results, js->h, results), 0, 0, 0);
     }
 
-    table_foreach(js->scopes, k, scopeBag) {
+    table_foreach(js->s->persisted, k, scopeBag) {
         table_foreach(edb_implications(scopeBag), k, impl) {
             send_node_graph(js->write, impl, js->s->counters);
         }
@@ -256,20 +259,21 @@ void new_json_session(bag root, boolean tracing, buffer_handler write, table hea
     heap h = allocate_rolling(pages);
     // ok, now counts just accrete forever
     table counts = allocate_table(h, key_from_pointer, compare_pointer);
-
+    uuid su = generate_uuid();
     json_session js = allocate(h, sizeof(struct json_session));
     js->h = h;
     js->root = root;
     js->tracing = tracing;
     js->evaluations = allocate_table(h, string_hash, string_equal);
     js->scopes = create_value_table(js->h);
-    js->session = create_bag(generate_uuid());
+    js->session = create_bag(su);
     js->current_delta = create_value_vector_table(js->h);
 
     table persisted = create_value_table(h);
-    table_set(persisted, edb_uuid(js->root), js->root);
-    table_set(js->scopes, intern_cstring("session"), js->session);
-    table_set(js->scopes, intern_cstring("all"), root);
+    uuid ru = edb_uuid(root);
+    table_set(persisted, ru, js->root);
+    table_set(js->scopes, intern_cstring("session"), su);
+    table_set(js->scopes, intern_cstring("all"), ru);
     js->s = build_evaluation(h, js->scopes, persisted, counts);
     
     *handler = websocket_send_upgrade(h, headers, write, cont(h, handle_json_query, js), &js->write);

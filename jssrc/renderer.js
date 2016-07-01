@@ -235,7 +235,7 @@ function formatObjects(objs) {
 function sendEvent(objs) {
   if(!objs.length) return;
   let query = `handle some event
-  maintain event
+  maintain
     ${formatObjects(objs).join("\n    ")}
   `
   console.log("QUERY", query);
