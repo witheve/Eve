@@ -17,6 +17,7 @@ local parser = require("parser")
 local color = require("color")
 local db = require("db")
 local build = require("build")
+local errors = require("error")
 setfenv(1, Pkg)
 
 local ENTITY_FIELD = parser.ENTITY_FIELD
@@ -335,6 +336,7 @@ function DependencyGraph:cardinal(term)
   end
   self.cardinalTerms[term] = util.shallowCopy(term)
   self.cardinalTerms[term].name = "$$|" .. term.name .. "|"
+  self.cardinalTerms[term].cardinal = true
   return self.cardinalTerms[term]
 end
 
@@ -446,7 +448,7 @@ function DependencyGraph:addExpressionNode(node)
   return self:add(node)
 end
 
-function DependencyGraph:addSubqueryNode(node)
+function DependencyGraph:addSubqueryNode(node, context)
   local deps = {
     maybeProvides = Set:new(),
     maybeDepends = Set:new(),
@@ -463,19 +465,20 @@ function DependencyGraph:addSubqueryNode(node)
   end
 
   for _, body in ipairs(node.queries) do
-    local subgraph = DependencyGraph:fromQueryGraph(body, true)
+    local subgraph = DependencyGraph:fromQueryGraph(body, context, true)
     deps.maybeDepends:union(subgraph:depends() + subgraph:provides(), true)
   end
   return self:add(node)
 end
 
-function DependencyGraph:fromQueryGraph(query, isSubquery)
+function DependencyGraph:fromQueryGraph(query, context, isSubquery)
   local uniqueCounter = 0
   local dgraph = self
   if getmetatable(dgraph) ~= DependencyGraph then
     dgraph = self:new()
   end
   dgraph.query = query;
+  dgraph.context = context
   if not isSubquery then
     util.walk(query, applyDefaultMeta)
     unify(query)
@@ -494,17 +497,17 @@ function DependencyGraph:fromQueryGraph(query, isSubquery)
   end
   for _, node in ipairs(query.nots or nothing) do
     if not node.ignore then
-      dgraph:addSubqueryNode(node)
+      dgraph:addSubqueryNode(node, context)
     end
   end
   for _, node in ipairs(query.unions or nothing) do
     if not node.ignore then
-      dgraph:addSubqueryNode(node)
+      dgraph:addSubqueryNode(node, context)
     end
   end
   for _, node in ipairs(query.chooses or nothing) do
     if not node.ignore then
-      dgraph:addSubqueryNode(node)
+      dgraph:addSubqueryNode(node, context)
     end
   end
   for _, node in ipairs(query.mutates or nothing) do
@@ -515,6 +518,16 @@ function DependencyGraph:fromQueryGraph(query, isSubquery)
 
   return dgraph
 end
+
+function DependencyGraph:unsatisfied(node)
+  local depends = node.deps.depends / self.bound
+  local anyDepends = node.deps.anyDepends
+  if anyDepends:length() > 0 then
+    depends:add(anyDepends)
+  end
+  return depends
+end
+
 -- provides are the set of terms provided after this node has been scheduled
 -- maybeProvides are the set of terms that, IFF not provided in this query, will be provided by this node
 -- contributes are the set of terms will be provided when all nodes contributing to them and their group have been scheduled
@@ -814,16 +827,24 @@ function DependencyGraph:order(allowPartial)
       end
     end
     if not scheduled and not allowPartial then
-      print("-----ERROR----")
-      print(tostring(self))
-      if self.termGroups:length() > 0 then
-        print("-- term groups --")
-        for group in pairs(self.termGroups) do
-          local depends = self.groupDepends[group]
-          print("  " .. tostring(group) .. ": " .. (depends and depends:length() or 0) .. "\n")
+      local requires = self:requires()
+      if requires:length() > 0 then
+        for term in pairs(requires) do
+          errors.unknownVariable(self.context, term, self.terms)
         end
+      else
+        errors.unorderableGraph(self.context, self.query)
       end
-      print("--------------")
+      -- print("-----ERROR----")
+      -- print(tostring(self))
+      -- if self.termGroups:length() > 0 then
+      --   print("-- term groups --")
+      --   for group in pairs(self.termGroups) do
+      --     local depends = self.groupDepends[group]
+      --     print("  " .. tostring(group) .. ": " .. (depends and depends:length() or 0) .. "\n")
+      --   end
+      -- end
+      -- print("--------------")
       error("Unable to find a valid dependency ordering for the given graph, aborting")
     elseif not scheduled then
       break
@@ -1050,11 +1071,12 @@ end
 
 function compileExec(contents, tracing)
   local parseGraph = parser.parseString(contents)
+  local context = parseGraph.context
   local set = {}
 
   for ix, queryGraph in ipairs(parseGraph.children) do
-    local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph)
-    local unpacked = unpackObjects(dependencyGraph, parseGraph.context)
+    local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph, context)
+    local unpacked = unpackObjects(dependencyGraph, context)
     set[#set+1] = queryGraph
   end
   return build.build(set, tracing, parseGraph)
@@ -1062,9 +1084,11 @@ end
 
 function analyze(content, quiet)
   local parseGraph = parser.parseString(content)
+  local context = parseGraph.context
+
   for ix, queryGraph in std.ipairs(parseGraph.children) do
     print("----- Query Graph (" .. ix .. ") " .. queryGraph.name .. " -----")
-    local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph)
+    local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph, context)
     if not quiet then
       print("--- Unprepared DGraph ---")
       print("  " .. util.indentString(1, tostring(dependencyGraph)))
@@ -1080,7 +1104,7 @@ function analyze(content, quiet)
     print("--- Sorted DGraph ---")
     print("  " .. util.indentString(1, tostring(dependencyGraph)))
 
-    local unpacked = unpackObjects(dependencyGraph, parseGraph.context)
+    local unpacked = unpackObjects(dependencyGraph, context)
     print("--- Unpacked Objects / Mutates ---")
     print("  {")
     for ix, node in ipairs(unpacked) do
