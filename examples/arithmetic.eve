@@ -4,5 +4,5 @@ simple constant addition
   c = b - 1
   d = c / 2
   e = d * 3
-  update
+  maintain
     [#div #num text: e]

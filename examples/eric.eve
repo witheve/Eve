@@ -1,5 +1,5 @@
 Add some fruits to the system
-  update
+  maintain
     me = [@me favorite-show:"rick-and-morty" hobby:"competitive delicing"]
     [#tv-nerd favorite-show:"golden girls" location:"party" conversing-with:me]
     [#tv-nerd favorite-show:"rick-and-morty" location:"party" conversing-with:me]

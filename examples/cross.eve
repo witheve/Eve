@@ -1,5 +1,5 @@
 Simple cross produce example
   [#person name]
   [#farm potatos]
-  update
+  maintain
     [#div text: name]
