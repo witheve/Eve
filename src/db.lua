@@ -114,8 +114,15 @@ local expressions = {
   sum = {schema({"return", STRONG_IN, "a"}, "sum", "aggregate"), schema({IN, "return", STRONG_IN, "a"}, "sum", "aggregate")}
 }
 
+function getExpressions()
+  local exprs = Set:new()
+  for expr in pairs(expressions) do
+    exprs:add(expr)
+  end
+  return exprs
+end
+
 function getSchemas(name)
-  if not expressions[name] then error("Unknown expression '" .. name .. "'") end
   return expressions[name]
 end
 

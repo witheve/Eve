@@ -419,6 +419,10 @@ function DependencyGraph:addExpressionNode(node)
     end
   else
     local schemas = db.getSchemas(node.operator)
+    if not schemas then
+      errors.unknownExpression(self.context, node, db.getExpressions())
+      return
+    end
     local pattern = util.shallowCopy(schemas[1].signature)
     for _, schema in ipairs(schemas) do
       for field in pairs(schema.signature) do

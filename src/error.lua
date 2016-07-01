@@ -465,30 +465,6 @@ function formatUnsatisfied(unsatisfied)
   return reason
 end
 
-function errors.unknownVariable(context, variable, terms)
-  local name = variable.name
-  local best
-  local bestDist = 4 -- threshold at which recommendations are ignored for being too distant
-  for term in pairs(terms) do
-    local dist = util.levenshtein(name, term.name)
-    if dist < bestDist then
-      best = term
-      bestDist = dist
-    end
-  end
-  local recommendation = ""
-  if best then
-    recommendation = "Did you mean: " .. best.name .. "?"
-  end
-  printError{type = "Unknown variables", context = context, token = variable, content = string.format([[
-  Variable "%s" was never defined in query
-
-  <LINE>
-
-  %s
-  ]], variable.name, recommendation)}
-end
-
 function errors.unorderableGraph(context, query)
   local dg = query.deps.graph
   local file, code = context.file, context.code
@@ -518,6 +494,55 @@ function errors.unorderableGraph(context, query)
   %s
   ]], unsorted)}
 end
+
+function errors.unknownVariable(context, variable, terms)
+  local name = variable.name
+  local best
+  local bestDist = 4 -- threshold at which recommendations are ignored for being too distant
+  for term in pairs(terms) do
+    local dist = util.levenshtein(name, term.name)
+    if dist < bestDist then
+      best = term
+      bestDist = dist
+    end
+  end
+  local recommendation = ""
+  if best then
+    recommendation = "Did you mean: " .. best.name .. "?"
+  end
+  printError{type = "Unknown variable", context = context, token = variable, content = string.format([[
+  Variable "%s" was never defined in query
+
+  <LINE>
+
+  %s
+  ]], variable.name, recommendation)}
+end
+
+function errors.unknownExpression(context, expression, expressions)
+  local name = expression.operator
+  local best
+  local bestDist = 4 -- threshold at which recommendations are ignored for being too distant
+  for expr in pairs(expressions) do
+    local dist = util.levenshtein(name, expr)
+    if dist < bestDist then
+      best = expr
+      bestDist = dist
+    end
+  end
+  local recommendation = ""
+  if best then
+    recommendation = "Did you mean: " .. best .. "?"
+  end
+  printError{type = "Unknown expression", context = context, token = expression, content = string.format([[
+  Unknown expression "%s"
+
+  <LINE>
+
+  %s
+  ]], expression.operator, recommendation)}
+end
+
 
 ------------------------------------------------------------
 -- Package
