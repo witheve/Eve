@@ -193,7 +193,7 @@ local keywords = {
   [":="] = "SET",
 }
 
-local whitespace = { [" "] = true, ["\n"] = true, ["\t"] = true }
+local whitespace = { [" "] = true, ["\n"] = true, ["\t"] = true, ["\r"] = true }
 
 local function isIdentifierChar(char)
   return not specials[char] and not whitespace[char]
