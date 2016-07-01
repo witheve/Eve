@@ -110,8 +110,8 @@ local expressions = {
   time = {schema({"return", OPT, "seconds", "minutes", "hours"}, "time")},
 
   -- Aggregates
-  count = {schema({"return", STRONG_IN, "a"}, "count", "aggregate")},
-  sum = {schema({"return", STRONG_IN, "a"}, "sum", "aggregate")}
+  count = {schema({"return"}, "count", "aggregate"), schema({IN, "return"}, "count", "aggregate")},
+  sum = {schema({"return", STRONG_IN, "a"}, "sum", "aggregate"), schema({IN, "return", STRONG_IN, "a"}, "sum", "aggregate")}
 }
 
 function getSchemas(name)
@@ -134,7 +134,8 @@ function getSchema(name, signature)
     end
     for arg, mode in pairs(signature) do
       required:remove(arg)
-      if schema.signature[arg] ~= mode and schema.signature[arg] ~= OPT then
+      local schemaMode = schema.signature[arg]
+      if schemaMode ~= mode and schemaMode ~= OPT and (schemaMode ~= IN and mode ~= STRONG_IN) and (schemaMode ~= STRONG_IN and mode ~= IN) then
         match = false
         break
       end
