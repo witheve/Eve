@@ -1072,7 +1072,9 @@ generateObjectNode = function(root, context)
       if lastAttribute then
         local variable = resolveExpression(child, context)
         local binding = generateBindingNode(context, {field = lastAttribute.value, variable = variable}, lastAttribute, object)
-        dependencies:add(variable)
+        -- we don't want to depend on our children since they would multiply
+        -- the number of parent elements by the number of children when we really
+        -- mean for their to be one parent per child.
       else
         -- error
         errors.bareSubObject(context, child)
