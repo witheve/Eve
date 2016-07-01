@@ -550,12 +550,10 @@ local function parse(tokens, context)
       end
 
     elseif type == "SAVE" or type == "MAINTAIN" then
-      local lifetime = "now"
+      local update = makeNode(context, "update", token, {scope = "session", children = {}})
       if type == "MAINTAIN" then
-        lifetime = "forever"
-      end
-      local update = makeNode(context, "update", token, {scope = "session", lifetime = lifetime, children = {}})
-      if next.value == "all" or next.value == "event" then
+        update.scope = "event"
+      elseif next.value == "all" or next.value == "event" then
         update.scope = next.value
         -- eat that token
         scanner:read()
