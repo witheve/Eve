@@ -1,5 +1,6 @@
 local color = require("color")
 local util = require("util")
+local fixPad = util.fixPad
 local errors = {}
 
 ------------------------------------------------------------
@@ -386,7 +387,7 @@ function errors.invalidUnionOutputsType(context, token)
 end
 
 function errors.outputNumberMismatch(context, block, outputs)
-  printError({type = "If ... then return mismatch", context = context, token = token, content = string.format([[
+  printError({type = "If ... then return mismatch", context = context, token = block, content = string.format([[
   The number of values returned after a then has to match the left hand side of the equivalence.
 
   <LINE>
@@ -394,7 +395,7 @@ function errors.outputNumberMismatch(context, block, outputs)
 end
 
 function errors.outputTypeMismatch(context, node, outputs)
-  printError({type = "If ... then return mismatch", context = context, token = token, content = string.format([[
+  printError({type = "If ... then return mismatch", context = context, token = node, content = string.format([[
   There's a mismatch between the type being returned and the expected outputs.
 
   <LINE>
@@ -428,7 +429,7 @@ function errors.updatingNonMutate(context, token)
   INTERNAL: somehow we got an object in an update that didn't result in a mutate node.
 
   <LINE>
-  ]])})
+    ]])})
 end
 
 ------------------------------------------------------------
@@ -441,6 +442,81 @@ function errors.invalidQueryChild(context, token)
 
   <LINE>
   ]])})
+end
+
+------------------------------------------------------------
+-- Dependency Graph Errors
+------------------------------------------------------------
+
+function formatUnsatisfied(unsatisfied)
+  local reason = color.dim("Unable to provide: ")
+  local multi = false
+  for term in pairs(unsatisfied) do
+    if multi then reason = reason .. ", " end
+    if term.type == "variable" and not term.cardinal then
+      reason = reason .. term.name
+    elseif term.type == "variable" then
+      reason = reason .. string.sub(term.name, 3)
+    else
+      reason = reason .. "any of " .. tostring(term)
+    end
+    multi = true
+  end
+  return reason
+end
+
+function errors.unknownVariable(context, variable, terms)
+  local name = variable.name
+  local best
+  local bestDist = 4 -- threshold at which recommendations are ignored for being too distant
+  for term in pairs(terms) do
+    local dist = util.levenshtein(name, term.name)
+    if dist < bestDist then
+      best = term
+      bestDist = dist
+    end
+  end
+  local recommendation = ""
+  if best then
+    recommendation = "Did you mean: " .. best.name .. "?"
+  end
+  printError{type = "Unknown variables", context = context, token = variable, content = string.format([[
+  Variable "%s" was never defined in query
+
+  <LINE>
+
+  %s
+  ]], variable.name, recommendation)}
+end
+
+function errors.unorderableGraph(context, query)
+  local dg = query.deps.graph
+  local file, code = context.file, context.code
+
+  local unsorted = ""
+  local multi = false
+  for node in pairs(dg.unsorted) do
+    local offset = node.offset
+    local length = node.value and #node.value or 1
+    local lineNumber = node.line
+    local line = util.split(code, "\n")[lineNumber]
+    local errorLine = util.indentString(3, formatErrorLine(line, lineNumber, offset, length))
+
+    unsorted = string.format(fixPad [[
+      %s
+      %s
+        %s
+    ]], unsorted, errorLine, formatUnsatisfied(dg:unsatisfied(node)))
+    multi = true
+  end
+  printError{type = "Unorderable query", context = context, token = query, content = string.format([[
+  No valid execution order found for query
+
+  <LINE>
+
+  The following nodes could not be ordered:
+  %s
+  ]], unsorted)}
 end
 
 ------------------------------------------------------------
