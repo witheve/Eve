@@ -168,7 +168,8 @@ local numeric = {["0"] = true, ["1"] = true, ["2"] = true, ["3"] = true,
                  ["8"] = true, ["9"] = true}
 
 local keywords = {
-  update = "UPDATE",
+  save = "SAVE",
+  maintain = "MAINTAIN",
   ["if"] = "IF",
   ["then"] = "THEN",
   ["else"] = "ELSE",
@@ -548,8 +549,12 @@ local function parse(tokens, context)
         stackTop.closed = true
       end
 
-    elseif type == "UPDATE" then
-      local update = makeNode(context, "update", token, {scope = "session", children = {}})
+    elseif type == "SAVE" or type == "MAINTAIN" then
+      local lifetime = "now"
+      if type == "MAINTAIN" then
+        lifetime = "forever"
+      end
+      local update = makeNode(context, "update", token, {scope = "session", lifetime = lifetime, children = {}})
       if next.value == "all" or next.value == "event" then
         update.scope = next.value
         -- eat that token

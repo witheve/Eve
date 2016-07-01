@@ -1,5 +1,5 @@
 Add some fruits to the system
-  update
+  save
     me = [@me favorite-show:"rick-and-morty" hobby:"competitive delousing"]
     [#tv-nerd favorite-show:"golden girls" location:"party" conversing-with:me]
     [#tv-nerd favorite-show:"rick-and-morty" location:"party" conversing-with:me]
@@ -14,5 +14,5 @@ choose test
     if me.favorite-show = show then (show, "high")
     else if me.favorite-hobby = hobby then (hobby, "ok")
     else ("weather", "shitty")
-  update
+  maintain
     [#conversation between: me, between: person, about, quality]

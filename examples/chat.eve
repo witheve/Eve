@@ -1,6 +1,6 @@
 build the chat pane
   [#chat-pane channel]
-  update
+  maintain
     [#div class: "chat-pane" children:
       [#div#chat-messages class: "chat-messages" id: "{channel}-chat-messages"]
       [#input #channel-input channel]]
@@ -8,7 +8,7 @@ build the chat pane
 draw messages
   parent = [#chat-messages channel]
   [#message name time message channel]
-  update
+  maintain
     parent.children += [#div class: "chat-message", children:
                          [#div class: "chat-user", text: name]
                          [#div class: "chat-time", text: time]
@@ -19,7 +19,7 @@ handle chat keydowns
   element = [#channel-input value, channel]
   [#user name]
   [#time hours minutes]
-  update
+  save
     element.value := ""
-  update all
+  save all
     [#message name, time: "{hours}:{minutes}", message: value, channel]
