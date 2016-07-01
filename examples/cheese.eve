@@ -7,7 +7,7 @@ choose
     [#cheese @wensleydale]
 
 zikky
-  [#cheese color name]
+  [#cheese name]
   color = if length(name) > 6 then "orange" else "black"
   update
     [#div #foo ix: name, text: name, style: [color]]
