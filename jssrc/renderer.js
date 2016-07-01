@@ -547,7 +547,7 @@ function orderedNode(node, state) {
   let active = activeClass(node, state);
   if(node.type == "object" || node.type == "mutate") {
     return {c: `ordered-node ordered-object ${active}`, children: [
-      {text: node.type},
+      {c: "node-type", text: node.type},
       {c: "eav", children: [orderedNode(node.entity, state), orderedNode(node.attribute, state), orderedNode(node.value, state)]}
     ]};
   } else if(node.type == "subproject") {
@@ -558,10 +558,40 @@ function orderedNode(node, state) {
     projections.push({text: "]"});
     return {c: `ordered-node subproject ${active}`, children: [
       {c: "row", children: [
-        {text: node.type},
+        {c: "node-type", text: node.type},
         {c: "subproject-projection", children: projections},
       ]},
       {c: "subproject-children", children: node.nodes.map(function(cur) { return orderedNode(cur, state); })}
+    ]};
+  } else if(node.type == "expression") {
+    let bindings = [{text: `${node.operator}(`}]
+    for(let binding of node.bindings) {
+      if(binding.field !== "return") {
+        bindings.push({text: `${binding.field}: `})
+        bindings.push(orderedNode(binding.variable || binding.constant, state));
+      } else { 
+        bindings.unshift({text: `=`})
+        bindings.unshift(orderedNode(binding.variable || binding.constant, state));
+      }
+    }
+    if(node.projection.length) {
+      bindings.push({text: `given`})
+      for(let proj of node.projection) {
+        bindings.push(orderedNode(proj, state));
+      }
+    }
+    if(node.groupings.length) {
+      bindings.push({text: `per`})
+      for(let group of node.groupings) {
+        bindings.push(orderedNode(group, state));
+      }
+    }
+    bindings.push({text: ")"});
+    return {c: `ordered-node expression ${active}`, children: [
+      {c: "row", children: [
+        {c: "node-type", text: node.type},
+        {c: "expression-bindings", children: bindings},
+      ]},
     ]};
   } else if(node.type == "variable") {
     return {text: `variable<${node.name}>`};
