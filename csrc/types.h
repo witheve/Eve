@@ -72,3 +72,14 @@ boolean value_vector_equals(void *, void *);
 
 values_diff diff_value_vector_tables(heap, table, table);
 boolean order_values(void *, void *);
+
+static inline table create_value_table(heap h)
+{
+    return  allocate_table(h, value_as_key, value_equals);
+}
+
+static inline table create_value_vector_table(heap h)
+{
+    return  allocate_table(h, value_vector_as_key, value_vector_equals);
+}
+

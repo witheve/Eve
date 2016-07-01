@@ -35,3 +35,10 @@ void edb_insert(bag b, value e, value a, value v, long multiplicity);
 bag create_bag(uuid);
 void edb_remove(bag b, value e, value a, value v);
 void edb_set(bag b, value e, value a, value v);
+
+
+typedef closure(three_listener, value, value, value, eboolean);
+typedef closure(two_listener, value, value, eboolean);
+typedef closure(one_listener, value, eboolean);
+typedef closure(zero_listener, eboolean);
+

@@ -20,7 +20,7 @@ static void removey(evaluation s, uuid u, value e, value a, value v)
     prf ("remove %v %v %v %v\n", u, e, a, v);
     if (!(b = table_find(s->solution, u)))
         table_set(s->solution, u, b = create_bag(u));
-    edb_remove(b, e, a, v);
+    edb_insert(b, e, a, v, -1);
 }
 
 static CONTINUATION_1_4(setty, evaluation, uuid, value, value, value);
@@ -56,15 +56,10 @@ static void merge_multibags(heap h, table d, table s)
             table_set(d, u, bd = create_bag(u));
         }
         
-        printf ("%d %d\n", edb_size(bs), edb_size(bd));
+        prf ("%d %d\n", edb_size(bs), edb_size(bd));
         
         bag_foreach((bag)bs, e, a, v, c) {
             edb_insert(bd, e, a, v, c);
-        }
-        bag_foreach((bag)bd, e, a, v, c) {
-            if (!count_of(bs, e, a, v)) {
-                edb_remove(bd, e, a, v);
-            }
         }
     }
 }
@@ -95,9 +90,20 @@ void run_solver(evaluation s)
         iterations++;
         vector_foreach(s->handlers, k) run_execf(s, k);
     }
+    
+    // merge persists
+    table_foreach(s->persisted, u, b) {
+        bag z = table_find(s->solution, u);
+        if (z) {
+            bag_foreach(z, e, a, v, c)
+                edb_insert(b, e, a, v, c);
+        }
+    }
+    
     ticks end_time = now();
     table_set(s->counters, intern_cstring("time"), (void *)(end_time - start_time));
     table_set(s->counters, intern_cstring("iterations"), (void *)iterations);
+
     prf ("fixedpoint in %t seconds, %d rules, %d iterations, %d input bags, %d output bags\n", 
          end_time-start_time, vector_length(s->handlers),
          iterations, table_elements(s->scopes), table_elements(s->solution));
@@ -126,6 +132,7 @@ evaluation build_evaluation(heap h, table scopes, table persisted, table counts)
     e->remove = cont(h, removey, e);
     e->set = cont(h, setty, e);
     e->handlers = allocate_vector(h,10);
+    e->persisted = persisted;
     // this is only used during building
     e->nmap = allocate_table(e->h, key_from_pointer, compare_pointer);
     e->s = cont(e->h, merge_scan, e->solution);

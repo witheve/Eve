@@ -246,8 +246,11 @@ void edb_set(bag b, value e, value a, value v)
 {
     // remove all the current values
     table el = level_fetch(b->h, b->eav, e);
-    // sketch, doesn't preserve multiplicity accounting
-    table_set(el, a, 0);
+    table al = level_fetch(b->h, el, a);
+    table_foreach(al, v, c) {
+        long k  = (long)c;
+        table_set(al, a, (void *)k-1);
+    }
     // insert the new value
     edb_insert(b, e, a, v, 1);
 }

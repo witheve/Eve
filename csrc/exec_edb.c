@@ -111,6 +111,7 @@ static void do_insert(evaluation ex, int *count, execf n, value uuid, value e, v
 static execf build_insert(evaluation e, node n)
 {
     vector a = vector_get(n->arguments, 0);
+    prf("build insert: %v\n",vector_get(a, 0));
     bag x = table_find(e->scopes, vector_get(a, 0));
     return cont(e->h, do_insert,  e, register_counter(e, n),
                 resolve_cfg(e, n, 0),
