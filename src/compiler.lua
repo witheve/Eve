@@ -378,6 +378,9 @@ function DependencyGraph:addMutateNode(node)
 
     end
   end
+  for term in pairs(node.projection or nothing) do
+    deps.depends:add(self:cardinal(term))
+  end
   return self:add(node)
 end
 
@@ -980,27 +983,28 @@ function unpackObjects(dg, context)
       local unpackList = unpacked
       local subproject
       if node.type == "mutate" then
-        local projection = Set:new()
-        for term in pairs(node.deps.depends) do
-          local variable = term
-          for var, cardinal in pairs(dg.cardinalTerms) do
-            if term == cardinal then
-              variable = var
-              break
-            end
-          end
-          projection:add(variable)
-        end
-        node.projection = projection
+        -- local projection = Set:new()
+        -- for term in pairs(node.deps.depends) do
+        --   local variable = term
+        --   for var, cardinal in pairs(dg.cardinalTerms) do
+        --     if term == cardinal then
+        --       variable = var
+        --       break
+        --     end
+        --   end
+        --   projection:add(variable)
+        -- end
+        -- node.projection = projection
 
         -- @FIXME: current projection is poisoned in the case of parent-child relations
-        -- for _, binding in ipairs(node.bindings or nothing) do
-        --   if binding.field == ENTITY_FIELD and not node.deps.provides[binding.variable] then
-        --     projection:add(binding.variable)
-        --     break
-        --   end
-        -- end
-        -- projection:union(node.projection or nothing, true)
+        local projection = node.projection
+        for _, binding in ipairs(node.bindings or nothing) do
+          if binding.field == ENTITY_FIELD and not node.deps.provides[binding.variable] then
+            projection:add(binding.variable)
+            break
+          end
+        end
+        projection:union(node.projection or nothing, true)
 
         subproject = SubprojectNode:new({projection = projection, provides = node.deps.provides}, node, context)
         unpackList = subproject.nodes
