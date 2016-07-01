@@ -10,6 +10,7 @@ local tostring = tostring
 local getmetatable = getmetatable
 local setmetatable = setmetatable
 local string = string
+local table = table
 local util = require("util")
 local Set = require("set").Set
 local parser = require("parser")
@@ -730,13 +731,34 @@ function DependencyGraph:order(allowPartial)
   --   ii.  b -> a
   --   iii. a, b -> f
   self:prepare()
+
+  -- Pre-sort the unsorted list in rough order of cost
+  -- this makes ordering more deterministic and potentially improves performance
+  local unsorted = self.unsorted:clone()
+  local presorted = {}
+  local typeCost = {mutate = 0, expression = 100, ["not"] = 200, choose = 300, union = 400, object = 500}
+  while unsorted:length() > 0 do
+    local cheapest
+    local cheapestCost = 2^52
+    for node in pairs(unsorted) do
+      local cost = (typeCost[node.type] or 600) + node.deps.provides:length() * 10 - node.deps.depends:length()
+      if cost < cheapestCost then
+        cheapest = node
+        cheapestCost = cost
+      end
+    end
+    presorted[#presorted + 1] = cheapest
+    unsorted:remove(cheapest)
+  end
+
   while self.unsorted:length() > 0 do
     local scheduled = false
-    for node in pairs(self.unsorted) do
+    for ix, node in ipairs(presorted) do
       local deps = node.deps
       if deps.unsatisfied == 0 then
         self.sorted[#self.sorted + 1] = node
         self.unsorted:remove(node)
+        table.remove(presorted, ix)
 
         -- order child graphs, if any
         if node.queries then
