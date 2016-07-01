@@ -72,6 +72,9 @@ typedef struct evaluation  {
     table nmap;
     ticks t;
     boolean non_empty;
+    uuid event_uuid;
+    // not really right
+    bag event;
 } *evaluation;
 
 typedef struct node *node;

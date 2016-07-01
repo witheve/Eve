@@ -112,13 +112,10 @@ void run_solver(evaluation s)
 
 void inject_event(evaluation s, vector n)
 {
-    uuid eu = generate_uuid();
-    bag event = create_bag(eu);
-    table_set(s->scopes, intern_cstring("event"), event);
-    
+    bag event = create_bag(s->event);
     vector_foreach(n, i) run_execf(s, build(s, i));
     vector_foreach(s->handlers, k) run_execf(s, k);
-    table_set(s->solution, eu, 0);
+    table_set(s->solution, s->event_uuid, 0);
 }
 
 evaluation build_evaluation(heap h, table scopes, table persisted, table counts)
@@ -133,6 +130,8 @@ evaluation build_evaluation(heap h, table scopes, table persisted, table counts)
     e->set = cont(h, setty, e);
     e->handlers = allocate_vector(h,10);
     e->persisted = persisted;
+
+    e->event_uuid = generate_uuid();
     // this is only used during building
     e->nmap = allocate_table(e->h, key_from_pointer, compare_pointer);
     e->s = cont(e->h, merge_scan, e->solution);
@@ -140,8 +139,9 @@ evaluation build_evaluation(heap h, table scopes, table persisted, table counts)
     table_foreach(persisted, bag_id, bag) {
         table_set(e->solution, bag_id, bag);
     }
-        
-    table_foreach(e->scopes, name, b) {
+    table_set(e->scopes, intern_cstring("event"), e->event_uuid);
+
+    table_foreach(e->persisted, uuid, b) {
         table_foreach(edb_implications(b), n, v){
             vector_insert(e->handlers, build(e, n));
         }
