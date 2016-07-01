@@ -8,7 +8,7 @@ static void inserty(evaluation s, uuid u, value e, value a, value v)
     bag b;
     if (!(b = table_find(s->solution, u)))
         table_set(s->solution, u, b = create_bag(u));
-    edb_insert(b, e, a, v);
+    edb_insert(b, e, a, v, 1);
 }
 
 static CONTINUATION_1_4(removey, evaluation,uuid, value, value, value);
@@ -18,7 +18,7 @@ static void removey(evaluation s, uuid u, value e, value a, value v)
     bag b;
     if (!(b = table_find(s->solution, u)))
         table_set(s->solution, u, b = create_bag(u));
-    edb_remove(b, e, a, v);
+    edb_insert(b, e, a, v, -1);
 }
 
 static CONTINUATION_1_4(setty, evaluation, uuid, value, value, value);
@@ -45,13 +45,6 @@ static void evaluation_complete(evaluation s, operator op, value *r)
     s->non_empty = true;
 }
 
-// need to handle removes also...mr value bool
-static CONTINUATION_1_4(each_merge, bag, value, value, value, value)
-static void each_merge(bag b, value e, value a, value v, value bool)
-{
-    edb_insert(b, e, a, v);
-}
-
 static void merge_multibags(heap h, table d, table s)
 {
     table_foreach(s, u, bs) {
@@ -59,7 +52,10 @@ static void merge_multibags(heap h, table d, table s)
         if (!(bd = table_find(d, u))) {
             table_set(d, u, bd = create_bag(u));
         }
-        edb_scan(bs, s_eav, cont(h, each_merge, bd), 0, 0, 0);
+        
+        bag_foreach((bag)bs, e, a, v, c) {
+            edb_insert(bd, e, a, v, c);
+        }
     }
 }
 
@@ -89,9 +85,20 @@ void run_solver(evaluation s)
         iterations++;
         vector_foreach(s->handlers, k) run_execf(s, k);
     }
+    
+    // merge persists
+    table_foreach(s->persisted, u, b) {
+        bag z = table_find(s->solution, u);
+        if (z) {
+            bag_foreach(z, e, a, v, c)
+                edb_insert(b, e, a, v, c);
+        }
+    }
+    
     ticks end_time = now();
     table_set(s->counters, intern_cstring("time"), (void *)(end_time - start_time));
     table_set(s->counters, intern_cstring("iterations"), (void *)iterations);
+
     prf ("fixedpoint in %t seconds, %d rules, %d iterations, %d input bags, %d output bags\n", 
          end_time-start_time, vector_length(s->handlers),
          iterations, table_elements(s->scopes), table_elements(s->solution));
@@ -100,11 +107,10 @@ void run_solver(evaluation s)
 
 void inject_event(evaluation s, vector n)
 {
-    bag event = create_bag(generate_uuid());
-    table_set(s->scopes, intern_cstring("event"), event);
-    
+    bag event = create_bag(s->event);
     vector_foreach(n, i) run_execf(s, build(s, i));
     vector_foreach(s->handlers, k) run_execf(s, k);
+    table_set(s->solution, s->event_uuid, 0);
 }
 
 evaluation build_evaluation(heap h, table scopes, table persisted, table counts)
@@ -118,6 +124,9 @@ evaluation build_evaluation(heap h, table scopes, table persisted, table counts)
     e->remove = cont(h, removey, e);
     e->set = cont(h, setty, e);
     e->handlers = allocate_vector(h,10);
+    e->persisted = persisted;
+
+    e->event_uuid = generate_uuid();
     // this is only used during building
     e->nmap = allocate_table(e->h, key_from_pointer, compare_pointer);
     e->s = cont(e->h, merge_scan, e->solution);
@@ -125,8 +134,9 @@ evaluation build_evaluation(heap h, table scopes, table persisted, table counts)
     table_foreach(persisted, bag_id, bag) {
         table_set(e->solution, bag_id, bag);
     }
-        
-    table_foreach(e->scopes, name, b) {
+    table_set(e->scopes, intern_cstring("event"), e->event_uuid);
+
+    table_foreach(e->persisted, uuid, b) {
         table_foreach(edb_implications(b), n, v){
             vector_insert(e->handlers, build(e, n));
         }
