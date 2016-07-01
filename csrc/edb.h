@@ -31,6 +31,7 @@ int edb_size(bag b);
       for(int __c = (int)__cv , __z; __z == 0; __z++)
 
 int count_of(bag b, value e, value a, value v);
-void edb_insert(bag b, value e, value a, value v, int multiplicity);
-
-
+void edb_insert(bag b, value e, value a, value v, long multiplicity);
+bag create_bag(uuid);
+void edb_remove(bag b, value e, value a, value v);
+void edb_set(bag b, value e, value a, value v);

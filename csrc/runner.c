@@ -8,7 +8,7 @@ static void inserty(evaluation s, uuid u, value e, value a, value v)
     bag b;
     if (!(b = table_find(s->solution, u)))
         table_set(s->solution, u, b = create_bag(u));
-    edb_insert(b, e, a, v);
+    edb_insert(b, e, a, v, 1);
 }
 
 static CONTINUATION_1_4(removey, evaluation,uuid, value, value, value);
@@ -45,21 +45,17 @@ static void evaluation_complete(evaluation s, operator op, value *r)
     s->non_empty = true;
 }
 
-// need to handle removes also...mr value bool
-static CONTINUATION_1_4(each_merge, bag, value, value, value, value)
-static void each_merge(bag b, value e, value a, value v, value bool)
-{
-    edb_insert(b, e, a, v);
-}
-
 static void merge_multibags(heap h, table d, table s)
 {
+
     table_foreach(s, u, bs) {
         bag bd;
         if (!(bd = table_find(d, u))) {
             table_set(d, u, bd = create_bag(u));
         }
-        edb_scan(bs, s_eav, cont(h, each_merge, bd), 0, 0, 0);
+        bag_foreach((bag)bs, e, a, v, c) {
+            edb_insert(bd, e, a, v, c);
+        }
     }
 }
 
@@ -100,11 +96,13 @@ void run_solver(evaluation s)
 
 void inject_event(evaluation s, vector n)
 {
-    bag event = create_bag(generate_uuid());
+    uuid eu = generate_uuid();
+    bag event = create_bag(eu);
     table_set(s->scopes, intern_cstring("event"), event);
     
     vector_foreach(n, i) run_execf(s, build(s, i));
     vector_foreach(s->handlers, k) run_execf(s, k);
+    table_set(s->solution, eu, 0);
 }
 
 evaluation build_evaluation(heap h, table scopes, table persisted, table counts)

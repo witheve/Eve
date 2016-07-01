@@ -2,16 +2,6 @@
 #include <unistd.h>
 #include <stdio.h>
 
-struct bag {
-    table listeners;
-    table eav;
-    table ave;
-    uuid u;
-    int count;
-    table implications;
-    heap h;
-};
-
 table level_fetch(heap h, table current, value key) {
     table next_level = table_find(current, key);
     if(!next_level) {
@@ -19,6 +9,19 @@ table level_fetch(heap h, table current, value key) {
         table_set(current, key, next_level);
     }
     return next_level;
+}
+
+int count_of(bag b, value e, value a, value v)
+{
+    table al = table_find(b->eav, e);
+    if(al) {
+        table vl = table_find(al, a);
+        if(vl) {
+            void *c = table_find(vl, v);
+            return (int) c;
+        }
+    }
+    return 0;
 }
 
 int edb_size(bag b)
@@ -170,7 +173,7 @@ bag create_bag(uuid u)
     return b;
 }
 
-void edb_insert(bag b, value e, value a, value v)
+void edb_insert(bag b, value e, value a, value v, long multiplicity)
 {
     // EAV
     {
@@ -179,9 +182,9 @@ void edb_insert(bag b, value e, value a, value v)
         table tail = level_fetch(b->h, al, v);
         long cur = (long)table_find(tail, v);
         if(!cur) {
-            table_set(tail, v, (void *)1);
+            table_set(tail, v, (void *)multiplicity);
         } else {
-            table_set(tail, v, (void *)(cur + 1));
+            table_set(tail, v, (void *)(cur + multiplicity));
         }
     }
 
@@ -192,9 +195,9 @@ void edb_insert(bag b, value e, value a, value v)
         table tail = level_fetch(b->h, vl, e);
         long cur = (long)table_find(tail, v);
         if(!cur) {
-            table_set(tail, v, (void *)1);
+            table_set(tail, v, (void *)multiplicity);
         } else {
-            table_set(tail, v, (void *)(cur + 1));
+            table_set(tail, v, (void *)(cur + multiplicity));
         }
     }
     b->count++;
@@ -285,5 +288,5 @@ void edb_set(bag b, value e, value a, value v)
         edb_remove(b, e, a, v);
     }
     // insert the new value
-    edb_insert(b, e, a, v);
+    edb_insert(b, e, a, v, 1);
 }
