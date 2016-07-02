@@ -85,12 +85,29 @@ end
 local DefaultNodeMeta = {}
 DefaultNodeMeta.__tostring = formatQueryNode
 
-local function applyDefaultMeta(_, node)
-  if type(node) == "table" and node.type and getmetatable(node) == nil then
-    setmetatable(node, DefaultNodeMeta)
+function flattenProjection(node)
+  if not node or not node.projection then
+    return node and node.projection
   end
+  local projection = Set:new()
+  for ix, layerOrVar in ipairs(node.projection) do
+    if layerOrVar.type == "variable" then
+      projection:add(layerOrVar)
+    else
+      projection:union(layerOrVar, true)
+    end
+  end
+  return projection
 end
 
+local function prepareQueryGraph(_, node)
+  if type(node) == "table" and node.type and getmetatable(node) == nil then
+    setmetatable(node, DefaultNodeMeta)
+    if node.projection then
+      node.projection = flattenProjection(node)
+    end
+  end
+end
 
 -- The unifier fixes a few edge-cases by pre-collapsing a subset of variables that can be statically proven to be equivalent
 function unify(query, mapping, projection)
@@ -252,15 +269,7 @@ function unify(query, mapping, projection)
   function remapNodes(nodes)
     for _, node in ipairs(nodes) do
       if node.projection then
-        local nodeProj = Set:new()
-        for ix, layerOrVar in ipairs(node.projection) do
-          if layerOrVar.type == "variable" then
-            nodeProj:add(layerOrVar)
-          else
-            nodeProj:union(layerOrVar, true)
-          end
-        end
-
+        local nodeProj = node.projection or Set:new()
         local mappedProj = Set:new()
         node.projection = mappedProj
         for var in pairs(nodeProj) do
@@ -420,6 +429,7 @@ function DependencyGraph:addExpressionNode(node)
   else
     local schemas = db.getSchemas(node.operator)
     if not schemas then
+      -- self.ignore = true
       errors.unknownExpression(self.context, node, db.getExpressions())
       return
     end
@@ -484,7 +494,7 @@ function DependencyGraph:fromQueryGraph(query, context, isSubquery)
   dgraph.query = query;
   dgraph.context = context
   if not isSubquery then
-    util.walk(query, applyDefaultMeta)
+    util.walk(query, prepareQueryGraph)
     unify(query)
   end
   query.deps = {graph = dgraph}
@@ -839,6 +849,7 @@ function DependencyGraph:order(allowPartial)
       else
         errors.unorderableGraph(self.context, self.query)
       end
+      --self.ignore = true
       -- print("-----ERROR----")
       -- print(tostring(self))
       -- if self.termGroups:length() > 0 then
@@ -1080,6 +1091,11 @@ function compileExec(contents, tracing)
 
   for ix, queryGraph in ipairs(parseGraph.children) do
     local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph, context)
+    -- !!!!
+    -- !!!!
+    -- @FIXME: We cannot allow dead DGs to still try and run, they may be missing filtering hunks and fire all sorts of missiles
+    -- !!!!
+    -- !!!!
     local unpacked = unpackObjects(dependencyGraph, context)
     set[#set+1] = queryGraph
   end
