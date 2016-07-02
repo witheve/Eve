@@ -173,7 +173,9 @@ static evaluation send_response(json_session js)
 
     table_foreach(js->s->persisted, k, scopeBag) {
         table_foreach(edb_implications(scopeBag), k, impl) {
-            send_node_graph(js->write, impl, js->s->counters);
+            if(impl) {
+                send_node_graph(js->write, impl, js->s->counters);
+            }
         }
     }
 

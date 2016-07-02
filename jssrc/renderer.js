@@ -367,7 +367,6 @@ function drawNode(nodeId, graph, state, seen) {
 function posToToken(pos, lines) {
   let tokens = lines[pos.line + 1] || [];
   for(let token of tokens) {
-    console.log(pos, token);
     if(token.offset <= pos.ch && token.offset + token.value.length >= pos.ch) {
       return token;
     }
@@ -390,7 +389,7 @@ function injectCodeMirror(node, elem) {
     editor.setValue(elem.value);
     editor.on("cursorActivity", function() {
       let pos = editor.getCursor();
-      activeIds = nodeToRelated(pos, posToToken(pos, elem.parse.lines), elem.parse);
+      activeIds = nodeToRelated(pos, posToToken(pos, renderer.tree[elem.id].parse.lines), renderer.tree[elem.id].parse);
       drawNodeGraph();
     });
     node.editor = editor;
@@ -484,7 +483,6 @@ function drawNodeGraph() {
   let root;
   let state = {activeIds};
   for(let headId in allNodeGraphs) {
-    console.log("CHECKING", headId, activeParse.edges.up[headId], activeIds["graph"]);
     if(activeParse.edges.up[headId][0] != activeIds["graph"]) continue;
     let cur = allNodeGraphs[headId];
     let tree = drawNode(headId, cur, state, {});
