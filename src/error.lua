@@ -507,11 +507,12 @@ function errors.unorderableGraph(context, query)
 end
 
 function errors.unknownVariable(context, variable, terms)
+  if variable.generated then return end
   local name = variable.name
   local best
-  local bestDist = 4 -- threshold at which recommendations are ignored for being too distant
+  local bestDist = #name / 3 + 1 -- threshold at which recommendations are ignored for being too distant
   for term in pairs(terms) do
-    local dist = util.levenshtein(name, term.name)
+    local dist = util.levenshtein(name, formatVariable(term))
     if dist < bestDist then
       best = term
       bestDist = dist
@@ -519,21 +520,19 @@ function errors.unknownVariable(context, variable, terms)
   end
   local recommendation = ""
   if best then
-    recommendation = "Did you mean: " .. best.name .. "?"
+    recommendation = "\n  Did you mean: " .. formatVariable(best) .. "?"
   end
   printError{type = "Unknown variable", context = context, token = variable, content = string.format([[
   Variable "%s" was never defined in query
 
-  <LINE>
-
-  %s
+  <LINE>%s
   ]], variable.name, recommendation)}
 end
 
 function errors.unknownExpression(context, expression, expressions)
   local name = expression.operator
   local best
-  local bestDist = 4 -- threshold at which recommendations are ignored for being too distant
+  local bestDist = #name / 3 + 1 -- threshold at which recommendations are ignored for being too distant
   for expr in pairs(expressions) do
     local dist = util.levenshtein(name, expr)
     if dist < bestDist then
@@ -543,14 +542,12 @@ function errors.unknownExpression(context, expression, expressions)
   end
   local recommendation = ""
   if best then
-    recommendation = "Did you mean: " .. best .. "?"
+    recommendation = "\n  Did you mean: " .. best .. "?"
   end
   printError{type = "Unknown expression", context = context, token = expression, content = string.format([[
   Unknown expression "%s"
 
-  <LINE>
-
-  %s
+  <LINE>%s
   ]], expression.operator, recommendation)}
 end
 
