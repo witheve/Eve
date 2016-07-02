@@ -448,17 +448,28 @@ end
 -- Dependency Graph Errors
 ------------------------------------------------------------
 
+function formatVariable(variable)
+  if variable.type ~= "variable" then return "????" end
+  if  variable.cardinal then
+    return string.sub(variable.name, 3)
+  else
+    return variable.name
+  end
+end
+
 function formatUnsatisfied(unsatisfied)
   local reason = color.dim("Unable to provide: ")
   local multi = false
   for term in pairs(unsatisfied) do
     if multi then reason = reason .. ", " end
-    if term.type == "variable" and not term.cardinal then
-      reason = reason .. term.name
-    elseif term.type == "variable" then
-      reason = reason .. string.sub(term.name, 3)
+    if term.type == "variable" then
+      reason = reason .. formatVariable(term)
     else
-      reason = reason .. "any of " .. tostring(term)
+      local anyList = ""
+      for term in pairs(term) do
+        anyList = anyList .. (#anyList > 0 and ", " or "") .. formatVariable(term)
+      end
+      reason = string.format("%s %s%s%s",reason, color.dim("any of {"), anyList, color.dim("}"))
     end
     multi = true
   end
