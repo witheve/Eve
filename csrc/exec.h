@@ -37,24 +37,24 @@ static inline void extract(vector dest, vector keys, value *r)
     }
 }
 
-static inline void copyout(value *dest, vector keys, vector source)
+
+static inline void store(value *r, value reg, value v)
 {
-    for (int i = 0; i< vector_length(keys); i ++) {
-        dest[toreg(vector_get(keys, i))] = vector_get(source, i);
-    }
+    if ((unsigned long)reg != register_ignore)
+        r[toreg(reg)] = v;
+}
+
+
+static inline void copyout(value *r, vector keys, vector source)
+{
+    for (int i = 0; i< vector_length(keys); i++) 
+        store(r, vector_get(keys, i), vector_get(source, i));
 }
 
 // should try to throw an error here for writing into a non-reg
 static inline int reg(value n)
 {
     return ((unsigned long) n - register_base);
-}
-
-
-static inline void store(value *r, value reg, value v)
-{
-    if ((unsigned long)reg != register_ignore)
-        r[toreg(reg)] = v;
 }
 
 

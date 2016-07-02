@@ -59,13 +59,15 @@ static void delete_missing(sub s, value *r)
 static void set_ids(sub s, vector key, value *r)
 {
     vector k;
+
     if (!(k = table_find(s->ids_cache, key))) {
         int len = vector_length(s->ids);
         k = allocate_vector(s->h, len);
         for (int i= 0; i < len; i++)
             vector_set(k, i, generate_uuid());
+        table_set(s->ids_cache, key, k);
     }
-    extract(k, s->ids, r);
+    copyout(r, s->ids, k);
 }
 
 static CONTINUATION_2_2(do_sub, int *, sub, operator, value *);
