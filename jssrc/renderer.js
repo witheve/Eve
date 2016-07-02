@@ -245,6 +245,12 @@ function sendEvent(objs) {
   return query;
 }
 
+function sendSwap(query) {
+  if(socket && socket.readyState == 1) {
+    socket.send(JSON.stringify({scope: "root", type: "swap", query}))
+  }
+}
+
 //---------------------------------------------------------
 // Event bindings to forward events to the server
 //---------------------------------------------------------
@@ -371,7 +377,16 @@ function posToToken(pos, lines) {
 
 function injectCodeMirror(node, elem) {
   if(!node.editor) {
-    let editor = new CodeMirror(node);
+    let editor = new CodeMirror(node, {
+      extraKeys: {
+        "Cmd-Enter": function(cm) {
+          sendSwap(cm.getValue());
+        },
+        "Ctrl-Enter": function(cm) {
+          sendSwap(cm.getValue());
+        }
+      }
+    });
     editor.setValue(elem.value);
     editor.on("cursorActivity", function() {
       let pos = editor.getCursor();

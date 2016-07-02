@@ -223,6 +223,16 @@ void handle_json_query(json_session j, buffer in, thunk c)
                 inject_event(j->s, nodes);
                 send_response(j);
             }
+            if (string_equal(type, sstring("swap"))) {
+                edb_clear_implications(j->root);
+                vector nodes = compile_eve(query, j->tracing);
+                vector_foreach(nodes, node) {
+                    edb_register_implication(j->root, node);
+                }
+                j->s = build_evaluation(j->h, j->scopes, j->s->persisted, j->s->counters);
+                run_solver(j->s);
+                send_response(j);
+            }
         }
 
         if ((c == separator[s]) && !backslash) {
