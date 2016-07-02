@@ -20,6 +20,7 @@ void edb_scan(bag b, int sig, void *f, value e, value a, value v);
 table edb_implications();
 void edb_register_implication(bag b, node n);
 void edb_remove_implication(bag b, node n);
+void edb_clear_implications(bag b);
 uuid edb_uuid(bag b);
 int edb_size(bag b);
 
