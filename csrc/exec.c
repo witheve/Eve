@@ -28,74 +28,114 @@ static execf build_sub_tail(evaluation e, node n)
                 vector_get(n->arguments, 0));
 }
 
+typedef struct sub {
+    vector v;
+    vector inputs;
+    vector outputs;
+    vector ids; 
+    table ids_cache; //these persist for all time
+    table previous;
+    table results;
+    execf leg, next;
+    value resreg;
+    heap h;
+    evaluation e;
+    ticks t;
+} *sub;
 boolean incremental_delete = false;
-static CONTINUATION_9_2(do_sub,
-                        int *, execf, execf, value, table *, table *, vector, vector, vector,
-                        operator, value *);
-static void do_sub(int *count, execf next, execf leg, value resreg,
-                   table *previous, table *results, vector v, vector inputs, vector outputs,
-                   operator op, value *r)
+
+static void delete_missing(sub s, value *r)
 {
-    heap h = (*results)->h;
-    if (op == op_flush) {
-        if (incremental_delete) {
-            if (*previous) {
-                table_foreach(*previous, k, v) {
-                    table_foreach((table)v, n, _) {
-                        copyout(r, outputs, n);
-                        apply(next, op_remove, r);
-                    }
-                }
+    if (s->previous) {
+        table_foreach(s->previous, k, v) {
+            table_foreach((table)v, n, _) {
+                copyout(r, s->outputs, n);
+                apply(s->next, op_remove, r);
             }
         }
+    }
+}
+
+static void set_ids(sub s, vector key, value *r)
+{
+    vector k;
+
+    if (!(k = table_find(s->ids_cache, key))) {
+        int len = vector_length(s->ids);
+        k = allocate_vector(s->h, len);
+        for (int i= 0; i < len; i++)
+            vector_set(k, i, generate_uuid());
+        table_set(s->ids_cache, key, k);
+    }
+    copyout(r, s->ids, k);
+}
+
+static CONTINUATION_2_2(do_sub, int *, sub, operator, value *);
+static void do_sub(int *count, sub s, operator op, value *r)
+{
+    // dont manage deletions across fixed point
+    if (s->t != s->e->t) {
+        s->previous = 0;
+        s->t = s->e->t;
+        s->results = create_value_vector_table(s->h);
+    }
+    
+    if (op == op_flush) {
+        delete_missing(s, r);
         // we could conceivably double buffer these
-        *previous = *results;
-        *results = create_value_vector_table(h);
-        apply(next, op, r);
+        s->previous = s->results;
+        s->results = create_value_vector_table(s->h);
+        apply(s->next, op, r);
         return;
     }
 
     table res;
     *count = *count + 1;
-    extract(v, inputs, r);
+    extract(s->v, s->inputs, r);
     vector key;
-    if (!(res = table_find(*results, v))){
-        if (*previous && (res = table_find_key(*previous, v, (void **)&key))) {
-            table_set(*previous, key, NULL);
+    if (!(res = table_find(s->results, s->v))){
+        // table_find_key only exists because we want to reuse the key allocation
+        if (s->previous && (res = table_find_key(s->previous, s->v, (void **)&key))) {
+            table_set(s->previous, key, NULL);
         } else {
-            res = create_value_vector_table(h);
-            key = allocate_vector(h, vector_length(inputs));
-            extract(key, inputs, r);
-            r[toreg(resreg)] = res;
-            apply(leg, op, r);
+            res = create_value_vector_table(s->h);
+            key = allocate_vector(s->h, vector_length(s->inputs));
+            extract(key, s->inputs, r);
+            store(r, s->resreg, res);
+            set_ids(s, key, r);
+            apply(s->leg, op, r);
         }
-        table_set(*results, key, res);
+        table_set(s->results, key, res);
     }
+    // cross
     table_foreach(res, n, _) {
-        copyout(r, outputs, n);
-        apply(next, op, r);
+        copyout(r, s->outputs, n);
+        apply(s->next, op, r);
     }
 }
 
 
 static execf build_sub(evaluation e, node n)
 {
-    table results = create_value_vector_table(e->h);
-    table *rp = allocate(e->h, sizeof(table));
-    table *pp = allocate(e->h, sizeof(table));
-    vector v = allocate_vector(e->h, vector_length(n->arguments));
-    *rp = results;
+    sub s = allocate(e->h, sizeof(struct sub));
+    s->results = create_value_vector_table(e->h);
+    s->ids_cache = create_value_vector_table(e->h);
+    s->v = allocate_vector(e->h, vector_length(n->arguments));
+    s->leg = resolve_cfg(e, n, 1);
+    s->inputs = vector_get(n->arguments, 0);
+    s->outputs = vector_get(n->arguments, 1);
+    s->resreg = vector_get(vector_get(n->arguments, 2), 0);
+    s->ids = vector_get(n->arguments, 3);
+    s->h = e->h;
+    s->next = resolve_cfg(e, n, 0);
+    s->e = e;
+    s->t = e->t;
     return cont(e->h,
                 do_sub,
                 register_counter(e, n),
-                resolve_cfg(e, n, 0),
-                resolve_cfg(e, n, 1),
-                vector_get(vector_get(n->arguments, 2), 0),
-                pp,
-                rp,
-                v,
-                vector_get(n->arguments, 0),
-                vector_get(n->arguments, 1));
+
+                s);
+
 }
 
 

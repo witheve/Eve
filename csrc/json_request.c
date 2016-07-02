@@ -30,12 +30,6 @@ typedef struct json_session {
 extern bag my_awesome_bag;
 extern thunk ignore;
 
-static CONTINUATION_2_4(collect_results, heap, table, value, value, value, eboolean)
-static void collect_results(heap h, table out, value e, value a,  value v, eboolean nothing)
-{
-    table_set(out, build_vector(h, e, a, v), etrue);
-}
-
 static void print_value_json(buffer out, value v)
 {
     switch(type_of(v)) {
@@ -163,22 +157,18 @@ static void send_node_graph(buffer_handler output, node head, table counts)
 }
 
 
-static evaluation start_guy(json_session js)
+static evaluation send_response(json_session js)
 {
     heap h = allocate_rolling(pages);
     table results = create_value_vector_table(js->h);
     
-    // UPDATE FIXPOINT
-    run_solver(js->s);
+    bag_foreach(js->session, e, a, v, c)
+        table_set(results, build_vector(h, e, a, v), etrue);
 
-    bag session_bag = table_find(js->s->solution, edb_uuid(js->session));
-    prf("session bag facts: %d\n", session_bag?edb_size(session_bag): 0);
-    
-    if (session_bag) {
-        edb_scan(session_bag, 0, cont(js->h, collect_results, js->h, results), 0, 0, 0);
-        bag ev = table_find(js->s->solution, js->s->event_uuid);
-        if (ev)
-            edb_scan(ev, 0, cont(js->h, collect_results, js->h, results), 0, 0, 0);
+    bag ev = table_find(js->s->solution, js->s->event_uuid);
+    if (ev){
+        bag_foreach(ev, e, a, v, c)
+            table_set(results, build_vector(h, e, a, v), etrue);
     }
 
     table_foreach(js->s->persisted, k, scopeBag) {
@@ -231,7 +221,7 @@ void handle_json_query(json_session j, buffer in, thunk c)
             if (string_equal(type, sstring("query"))) {
                 vector nodes = compile_eve(query, j->tracing);
                 inject_event(j->s, nodes);
-                start_guy(j);
+                send_response(j);
             }
         }
 
@@ -272,12 +262,14 @@ void new_json_session(bag root, boolean tracing, buffer_handler write, table hea
     table persisted = create_value_table(h);
     uuid ru = edb_uuid(root);
     table_set(persisted, ru, js->root);
+    table_set(persisted, su, js->session);
     table_set(js->scopes, intern_cstring("session"), su);
     table_set(js->scopes, intern_cstring("all"), ru);
     js->s = build_evaluation(h, js->scopes, persisted, counts);
     
     *handler = websocket_send_upgrade(h, headers, write, cont(h, handle_json_query, js), &js->write);
-    start_guy(js);
+    run_solver(js->s);
+    send_response(js);
 }
 
 void init_json_service(http_server h, bag root, boolean tracing)
