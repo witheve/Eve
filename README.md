@@ -20,4 +20,10 @@ make && ./lueve
 
 ### Windows
 
-A Docker container is forthcoming.
+We have a Docker container that runs lueve. You just provide a .eve file to compile and run:
+```
+docker run -p 8080:8080 witheve/eve [eve_file]
+```
+
+Now just point your browser to `http://docker.local:8080/`
+

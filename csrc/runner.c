@@ -31,10 +31,18 @@ static void setty(evaluation s, uuid u, value e, value a, value v)
     edb_set(b, e, a, v);
 }
 
-static CONTINUATION_1_5(merge_scan, table, int, void *, value, value, value);
-static void merge_scan(table t, int sig, void *listen, value e, value a, value v)
+static CONTINUATION_1_5(merge_scan, evaluation, int, void *, value, value, value);
+static void merge_scan(evaluation ev, int sig, void *listen, value e, value a, value v)
 {
-    table_foreach(t, u, b) {
+    // FIXME - we should see our dianes but not our bobbies
+    // this also* needs to merge multiplitices between the old bobbies and the new dianes
+    table_foreach(ev->persisted, u, b) {
+        edb_scan(b, sig, listen, e, a, v);
+    }
+    table_foreach(ev->solution, u, b) {
+        edb_scan(b, sig, listen, e, a, v);
+    }
+    table_foreach(ev->block_solution, u, b) {
         edb_scan(b, sig, listen, e, a, v);
     }
 }
@@ -62,20 +70,17 @@ static void merge_multibags(heap h, table d, table s)
 
 static void run_execf(evaluation e, execf f) 
 {
-    // busted
-    table old = e->solution;
-    e->solution = create_value_table(e->h);
+    e->block_solution = create_value_table(e->h);
     e->pass = false;
     apply(f, op_insert, 0);
     apply(f, op_flush, 0);
     if (e->pass) {
         // xxx - transient
-        merge_multibags(e->h, old, e->solution);
+        merge_multibags(e->h, e->solution, e->block_solution);
     }
-   e->solution = old;
 }
 
-void run_solver(evaluation s)
+static void fixedpoint(evaluation s)
 {
     long iterations = 0;
     s->pass = true;
@@ -90,8 +95,9 @@ void run_solver(evaluation s)
     table_foreach(s->persisted, u, b) {
         bag z = table_find(s->solution, u);
         if (z) {
-            bag_foreach(z, e, a, v, c)
+            bag_foreach(z, e, a, v, c) {
                 edb_insert(b, e, a, v, c);
+            }
         }
     }
     
@@ -107,18 +113,23 @@ void run_solver(evaluation s)
 
 void inject_event(evaluation s, vector n)
 {
-    bag event = create_bag(s->event);
+    s->t++;
+    s->solution =  create_value_table(s->h);
     vector_foreach(n, i) run_execf(s, build(s, i));
-    vector_foreach(s->handlers, k) run_execf(s, k);
-    table_set(s->solution, s->event_uuid, 0);
+    fixedpoint(s);
 }
 
+void run_solver(evaluation s)
+{
+    s->solution =  create_value_table(s->h);
+    fixedpoint(s);
+}
+    
 evaluation build_evaluation(heap h, table scopes, table persisted, table counts)
 {
     evaluation e = allocate(h, sizeof(struct evaluation));
     e->h = h;
     e->scopes = scopes;
-    e->solution =  create_value_table(h);
     e->counters = counts;
     e->insert = cont(h, inserty, e);
     e->remove = cont(h, removey, e);
@@ -129,11 +140,8 @@ evaluation build_evaluation(heap h, table scopes, table persisted, table counts)
     e->event_uuid = generate_uuid();
     // this is only used during building
     e->nmap = allocate_table(e->h, key_from_pointer, compare_pointer);
-    e->s = cont(e->h, merge_scan, e->solution);
+    e->s = cont(e->h, merge_scan, e);
     
-    table_foreach(persisted, bag_id, bag) {
-        table_set(e->solution, bag_id, bag);
-    }
     table_set(e->scopes, intern_cstring("event"), e->event_uuid);
 
     table_foreach(e->persisted, uuid, b) {

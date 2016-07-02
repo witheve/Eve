@@ -64,6 +64,7 @@ typedef struct evaluation  {
     insertron set;
     table counters;
     table solution;
+    table block_solution;
     table persisted;
     table scopes;
     vector handlers;
