@@ -175,8 +175,8 @@ void edb_insert(bag b, value e, value a, value v, long multiplicity)
     {
         table al = level_fetch(b->h, b->ave, a);
         table vl = level_fetch(b->h, al, v);
-        long cur = (long)level_fetch(b->h, vl, e);
-        table_set(vl, v, (void *)(cur + multiplicity));
+        long cur = (long)table_find(vl, e);
+        table_set(vl, e, (void *)(cur + multiplicity));
     }
     b->count++;
 }
