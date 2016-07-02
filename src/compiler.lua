@@ -429,7 +429,7 @@ function DependencyGraph:addExpressionNode(node)
   else
     local schemas = db.getSchemas(node.operator)
     if not schemas then
-      -- self.ignore = true
+      self.ignore = true
       errors.unknownExpression(self.context, node, db.getExpressions())
       return
     end
@@ -840,28 +840,19 @@ function DependencyGraph:order(allowPartial)
         break
       end
     end
-    if not scheduled and not allowPartial then
-      local requires = self:requires()
-      if requires:length() > 0 then
-        for term in pairs(requires) do
-          errors.unknownVariable(self.context, term, self.terms)
+    if not scheduled then
+      if not allowPartial then
+        local requires = self:requires()
+        if requires:length() > 0 then
+          for term in pairs(requires) do
+            errors.unknownVariable(self.context, term, self.terms)
+          end
+        else
+          errors.unorderableGraph(self.context, self.query)
         end
-      else
-        errors.unorderableGraph(self.context, self.query)
+        self.ignore = true
       end
-      --self.ignore = true
-      -- print("-----ERROR----")
-      -- print(tostring(self))
-      -- if self.termGroups:length() > 0 then
-      --   print("-- term groups --")
-      --   for group in pairs(self.termGroups) do
-      --     local depends = self.groupDepends[group]
-      --     print("  " .. tostring(group) .. ": " .. (depends and depends:length() or 0) .. "\n")
-      --   end
-      -- end
-      -- print("--------------")
-      error("Unable to find a valid dependency ordering for the given graph, aborting")
-    elseif not scheduled then
+
       break
     end
   end
@@ -1091,13 +1082,11 @@ function compileExec(contents, tracing)
 
   for ix, queryGraph in ipairs(parseGraph.children) do
     local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph, context)
-    -- !!!!
-    -- !!!!
-    -- @FIXME: We cannot allow dead DGs to still try and run, they may be missing filtering hunks and fire all sorts of missiles
-    -- !!!!
-    -- !!!!
     local unpacked = unpackObjects(dependencyGraph, context)
-    set[#set+1] = queryGraph
+    -- @NOTE: We cannot allow dead DGs to still try and run, they may be missing filtering hunks and fire all sorts of missiles
+    if not dependencyGraph.ignore then
+      set[#set+1] = queryGraph
+    end
   end
   return build.build(set, tracing, parseGraph)
 end
