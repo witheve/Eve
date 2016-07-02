@@ -1,5 +1,5 @@
 Add some fruits to the system
-  update
+  save
     [#fruit @lemon color: "yellow"]
     [#fruit @cherry color: "red"]
     [#fruit @orange color: "orange"]
@@ -11,19 +11,19 @@ Add some fruits to the system
 
 Draw a list of fruits
   [#fruit color name]
-  update
+  maintain
     [#div ix: name, text: name, style: [color]]
 
 make yo
   [#click element]
   element = [not(children)]
-  update
+  save
      element.children += [#div element text:"yo"]
 
 trash yo
   [#click element]
   element = [children]
-  update
+  save
      element.children -= children
 
 

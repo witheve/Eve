@@ -58,16 +58,6 @@ end
 if ... == nil then
 end
 
-function indentString(indent, str)
-   local sep = "\n" .. string.rep("  ", indent)
-   local result = ""
-   for line in string.gmatch(str, "[^\n]+") do
-      result = result .. (#result > 0 and sep or "") .. line
-   end
-
-   return result
-end
-
 function shallowCopy(obj)
    if type(obj) ~= "table" then return obj end
    local meta = getmetatable(obj)
@@ -195,6 +185,76 @@ function indent(str, by)
       final[#final + 1] = "\n"
     end
     return table.concat(final)
+end
+
+function indentString(indent, str)
+   local sep = "\n" .. string.rep("  ", indent)
+   local result = ""
+   for line in string.gmatch(str, "[^\n]+") do
+      result = result .. (#result > 0 and sep or "") .. line
+   end
+
+   return result
+end
+
+function fixPad(str)
+  local indent = 0
+  for ix=1,#str do
+    if str[ix] ~= " " then
+      indent = ix - 1
+      break
+    end
+  end
+  local sep = "\n"
+  local result = ""
+  for line in string.gmatch(str, "[^\n]+") do
+    result = result .. (#result > 0 and sep or "") .. string.sub(line, indent)
+  end
+
+  return result
+end
+
+-- Courtesy of <https://gist.github.com/Badgerati/3261142>
+-- Returns the Levenshtein distance between the two given strings
+function levenshtein(str1, str2)
+  local len1 = string.len(str1)
+  local len2 = string.len(str2)
+  local matrix = {}
+  local cost = 0
+
+  -- quick cut-offs to save time
+  if (len1 == 0) then
+    return len2
+  elseif (len2 == 0) then
+    return len1
+  elseif (str1 == str2) then
+    return 0
+  end
+
+  -- initialise the base matrix values
+  for i = 0, len1, 1 do
+    matrix[i] = {}
+    matrix[i][0] = i
+  end
+  for j = 0, len2, 1 do
+    matrix[0][j] = j
+  end
+
+  -- actual Levenshtein algorithm
+  for i = 1, len1, 1 do
+    for j = 1, len2, 1 do
+      if (str1:byte(i) == str2:byte(j)) then
+        cost = 0
+      else
+        cost = 1
+      end
+
+      matrix[i][j] = math.min(matrix[i-1][j] + 1, matrix[i][j-1] + 1, matrix[i-1][j-1] + cost)
+    end
+  end
+
+  -- return the last value - this is the Levenshtein distance
+  return matrix[len1][len2]
 end
 
 ------------------------------------------------------------

@@ -168,7 +168,8 @@ local numeric = {["0"] = true, ["1"] = true, ["2"] = true, ["3"] = true,
                  ["8"] = true, ["9"] = true}
 
 local keywords = {
-  update = "UPDATE",
+  save = "SAVE",
+  maintain = "MAINTAIN",
   ["if"] = "IF",
   ["then"] = "THEN",
   ["else"] = "ELSE",
@@ -192,7 +193,7 @@ local keywords = {
   [":="] = "SET",
 }
 
-local whitespace = { [" "] = true, ["\n"] = true, ["\t"] = true }
+local whitespace = { [" "] = true, ["\n"] = true, ["\t"] = true, ["\r"] = true }
 
 local function isIdentifierChar(char)
   return not specials[char] and not whitespace[char]
@@ -548,9 +549,11 @@ local function parse(tokens, context)
         stackTop.closed = true
       end
 
-    elseif type == "UPDATE" then
+    elseif type == "SAVE" or type == "MAINTAIN" then
       local update = makeNode(context, "update", token, {scope = "session", children = {}})
-      if next.value == "all" or next.value == "event" then
+      if type == "MAINTAIN" then
+        update.scope = "event"
+      elseif next.value == "all" or next.value == "event" then
         update.scope = next.value
         -- eat that token
         scanner:read()
@@ -1072,7 +1075,9 @@ generateObjectNode = function(root, context)
       if lastAttribute then
         local variable = resolveExpression(child, context)
         local binding = generateBindingNode(context, {field = lastAttribute.value, variable = variable}, lastAttribute, object)
-        dependencies:add(variable)
+        -- we don't want to depend on our children since they would multiply
+        -- the number of parent elements by the number of children when we really
+        -- mean for their to be one parent per child.
       else
         -- error
         errors.bareSubObject(context, child)
@@ -1433,6 +1438,7 @@ end
 local function parseFile(path)
   local content = fs.read(path)
   content = content:gsub("\t", "  ")
+  content = content:gsub("\r", "")
   local context = {code = content, downEdges = {}, file = path}
   local tokens = lex(content)
   context.tokens = tokens
@@ -1443,6 +1449,7 @@ end
 
 local function parseString(str)
   str = str:gsub("\t", "  ")
+  str = str:gsub("\r", "")
   local context = {code = str, downEdges = {}}
   local tokens = lex(str)
   context.tokens = tokens
@@ -1453,6 +1460,7 @@ end
 
 local function printParse(content)
   content = content:gsub("\t", "  ")
+  content = content:gsub("\r", "")
   local context = {code = content, downEdges = {}}
   local tokens = lex(content)
   context.tokens = tokens

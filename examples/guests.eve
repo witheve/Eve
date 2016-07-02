@@ -3,7 +3,7 @@ count guests coming to the party
   guest = if p = [#person] then p
           if [#person spouse] then spouse
   total = count(given guest)
-  update
+  maintain
     party.guest-count := total
     party.guest += guest
 
@@ -13,5 +13,5 @@ how many burgers do I need?
             else if guest = [@arthur] then 3
             else 1
   total = sum(burgers given burgers, guest)
-  update
+  maintain
     party.burgers := total

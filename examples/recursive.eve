@@ -1,5 +1,5 @@
 add some people to the organization
-  update
+  save
     karen = [#employee @karen]
     jill = [#employee @jill boss: karen]
     deena = [#employee @joe boss: jill]
@@ -10,11 +10,11 @@ add some people to the organization
 get the people at the top
   top = [#employee]
   not(top.boss)
-  update
+  maintain
     top.level := 0
 
 figure out org chart depth
   employee = [#employee boss: [level]]
-  update
+  maintain
     employee.level := level + 1
 

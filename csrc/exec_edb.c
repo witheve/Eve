@@ -111,10 +111,11 @@ static void do_insert(evaluation ex, int *count, execf n, value uuid, value e, v
 static execf build_insert(evaluation e, node n)
 {
     vector a = vector_get(n->arguments, 0);
-    bag x = table_find(e->scopes, vector_get(a, 0));
+    uuid x = table_find(e->scopes, vector_get(a, 0));
+        
     return cont(e->h, do_insert,  e, register_counter(e, n),
                 resolve_cfg(e, n, 0),
-                edb_uuid(x),
+                x,
                 vector_get(a, 1),
                 vector_get(a, 2),
                 vector_get(a, 3));
@@ -131,10 +132,10 @@ static void do_remove(evaluation ex, int *count, execf n, value uuid, value e, v
 static execf build_remove(evaluation e, node n)
 {
     vector a = vector_get(n->arguments, 0);
-    bag x = table_find(e->scopes, vector_get(a, 0));
+    uuid x = table_find(e->scopes, vector_get(a, 0));
     return cont(e->h, do_remove,  e, register_counter(e, n),
                 resolve_cfg(e, n, 0),
-                edb_uuid(x),
+                x,
                 vector_get(a, 1),
                 vector_get(a, 2),
                 vector_get(a, 3));
@@ -151,10 +152,10 @@ static void do_set(evaluation ex, int *count, execf n, value uuid, value e, valu
 static execf build_set(evaluation e, node n)
 {
     vector a = vector_get(n->arguments, 0);
-    bag x = table_find(e->scopes, vector_get(a, 0));
+    uuid x = table_find(e->scopes, vector_get(a, 0));
     return cont(e->h, do_set,  e, register_counter(e, n),
                 resolve_cfg(e, n, 0),
-                edb_uuid(x),
+                x,
                 vector_get(a, 1),
                 vector_get(a, 2),
                 vector_get(a, 3));

@@ -6,14 +6,14 @@ click on a restaurant or pin, show a restaurant
   app = [@app]
   restaurant = if [#click element: [#yelp-restaurant-list-element restaurant]] then restaurant
                else if [#click element: [#yelp-restaurant-pin restaurant]] then restaurant
-  update
+  save
     app.selected := restaurant
     app.content := "restaurant"
 
 click on yelp logo, show map
   app = [@app]
   [#click element: [#yelp-logo]]
-  update
+  save
     app.content := "map"
 
 -----------------
@@ -24,7 +24,7 @@ draw the selected restaurant
   root = [@yelp-root]
   restaurant = [#restaurant name image]
   [@app content: "restaurant", selected: restaurant]
-  update
+  maintain
     root.children += [#div class: "restaurant-info", children:
                         [#div class: "info-header", children:
                           [#h2 text: name]
@@ -36,14 +36,14 @@ draw the map pane
   [@app content: "map"]
   [#restaurant street city state zip]
   [#address-to-latlon street city state zip lat long]
-  update
+  maintain
     root.children += [#map class: "map", pins: [#yelp-restaurant-pin lat lon]]
 
 draw the restaurant list
   restaurant = [#restaurant name rating]
   root = [@yelp-root]
   star-image = "star{rating}.png"
-  update
+  maintain
     root.children += [#div class: "restaurant-list-container" children:
                       [#div class: "restaurant-list-header" children: [#h1 text: "Restaurants"]]
                       [#div class: "restaurant-list-elements" children:
@@ -53,6 +53,6 @@ draw the restaurant list
                           [#img src: star-image]]]]
 
 draw the main page
-  update
+  maintain
     [#div @yelp-root class: "yelp-root", children:
       [#div class: "header", children: [#h1 #yelp-logo text: "Yelp"]]]
