@@ -2,6 +2,7 @@
 #include <unix/unix.h>
 #include <http/http.h>
 #include <unistd.h>
+#include <luanne.h>
 
 static char separator[] = {'{', '"', '"', ':', '"', '"', ','};
 
@@ -188,6 +189,18 @@ static evaluation send_response(json_session js)
     return 0;
 }
 
+void send_parse(json_session js, buffer query)
+{
+    string out = allocate_string(js->h);
+    interpreter lua = get_lua();
+    value json = lua_run_module_func(lua, query, "parser", "parseJSON");
+    estring json_estring = json;
+    buffer_append(out, json_estring->body, json_estring->length);
+    free_lua(lua);
+    // send the json message
+    apply(js->write, out, cont(js->h, send_destroy, js->h));
+}
+
 CONTINUATION_1_2(handle_json_query, json_session, buffer, thunk);
 void handle_json_query(json_session j, buffer in, thunk c)
 {
@@ -234,6 +247,9 @@ void handle_json_query(json_session j, buffer in, thunk c)
                 j->s = build_evaluation(j->h, j->scopes, j->s->persisted, j->s->counters);
                 run_solver(j->s);
                 send_response(j);
+            }
+            if (string_equal(type, sstring("parse"))) {
+                send_parse(j, query);
             }
         }
 

@@ -164,7 +164,7 @@ vector lua_compile_eve(interpreter c, buffer b, boolean tracing)
     return(result);
 }
 
-void lua_run_module_func(interpreter c, buffer b, char *module, char *func)
+value lua_run_module_func(interpreter c, buffer b, char *module, char *func)
 {
     lua_pushcfunction(c->L, traceback);
     require_luajit(c, module);
@@ -175,6 +175,7 @@ void lua_run_module_func(interpreter c, buffer b, char *module, char *func)
         printf ("lua error\n");
         printf ("%s\n", lua_tostring(c->L, -1));
     }
+    return lua_tovalue(c->L, -1);
 }
 
 void lua_run(interpreter c, buffer b)
@@ -253,18 +254,29 @@ interpreter build_lua()
     return c;
 }
 
-vector compile_eve(buffer b, boolean tracing)
+interpreter get_lua()
 {
-    interpreter c;
+    interpreter lua;
         // FIXME - CAS threading
     if (freelist) {
-        c = freelist;
-        freelist = c->next;
+        lua = freelist;
+        freelist = lua->next;
     } else {
-        c = build_lua();
+        lua = build_lua();
     }
-    vector v = lua_compile_eve(c, b, tracing);
-    c->next = freelist;
-    freelist = c;
+    return lua;
+}
+
+void free_lua(interpreter lua)
+{
+    lua->next = freelist;
+    freelist = lua;
+}
+
+vector compile_eve(buffer b, boolean tracing)
+{
+    interpreter lua = get_lua();
+    vector v = lua_compile_eve(lua, b, tracing);
+    free_lua(lua);
     return v;
 }

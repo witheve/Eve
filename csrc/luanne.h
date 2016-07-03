@@ -11,11 +11,13 @@ typedef struct interpreter  {
 
 
 interpreter build_lua();
+interpreter get_lua();
+void free_lua(interpreter);
 void lua_load_bytecode(interpreter, void *, bytes);
 void lua_run(interpreter c, buffer b);
 void eve_run(interpreter c, buffer b);
 void require_luajit(interpreter c, char *z);
-void lua_run_module_func(interpreter c, buffer b, char *module, char *func);
+value lua_run_module_func(interpreter c, buffer b, char *module, char *func);
 
 
 static inline interpreter lua_context(lua_State *L)

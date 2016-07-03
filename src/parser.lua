@@ -1458,6 +1458,12 @@ local function parseString(str)
   return graph
 end
 
+local function parseJSON(str)
+  local parse = parseString(str)
+  local message = {type = "parse", parse = parse}
+  return util.toJSON(message)
+end
+
 local function printParse(content)
   content = content:gsub("\t", "  ")
   content = content:gsub("\r", "")
@@ -1489,6 +1495,7 @@ end
 return {
   parseFile = parseFile,
   parseString = parseString,
+  parseJSON = parseJSON,
   printParse = printParse,
   formatGraph = formatGraph,
   formatQueryGraph = formatQueryGraph,
