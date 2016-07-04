@@ -1439,7 +1439,7 @@ local function parseFile(path)
   local content = fs.read(path)
   content = content:gsub("\t", "  ")
   content = content:gsub("\r", "")
-  local context = {code = content, downEdges = {}, file = path}
+  local context = {code = content, downEdges = {}, file = path, errors = {}}
   local tokens = lex(content)
   context.tokens = tokens
   local tree = {type="expression tree", children = parse(tokens, context)}
@@ -1450,7 +1450,7 @@ end
 local function parseString(str)
   str = str:gsub("\t", "  ")
   str = str:gsub("\r", "")
-  local context = {code = str, downEdges = {}}
+  local context = {code = str, downEdges = {}, errors = {}}
   local tokens = lex(str)
   context.tokens = tokens
   local tree = {type="expression tree", children = parse(tokens, context)}
@@ -1467,7 +1467,7 @@ end
 local function printParse(content)
   content = content:gsub("\t", "  ")
   content = content:gsub("\r", "")
-  local context = {code = content, downEdges = {}}
+  local context = {code = content, downEdges = {}, errors = {}}
   local tokens = lex(content)
   context.tokens = tokens
   local tree = {type="expression tree", children = parse(tokens, context)}

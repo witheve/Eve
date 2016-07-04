@@ -50,6 +50,9 @@ local function printError(errorInfo)
   print(color.dim(string.format(" %s", file or "(passed string)")))
   print("")
   print(finalContent)
+
+  local storedError = {type = type, pos = {offest = offset, line = lineNumber, length = length, file = file}, rawContent = color.toHTML(util.dedent(content)), final = color.toHTML(finalContent)}
+  context.errors[#context.errors + 1] = storedError
 end
 
 ------------------------------------------------------------
@@ -438,7 +441,7 @@ end
 
 function errors.invalidQueryChild(context, token)
   printError({type = "Invalid query child", context = context, token = token, content = string.format([[
-  There's a node at the type level that I don't know how to deal with here:
+  There's a node at the top level that I don't know how to deal with here:
 
   <LINE>
   ]])})
