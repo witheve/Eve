@@ -4,7 +4,7 @@
 
 (def basic-register-frame 40)
 (def op-register [0])
-(def qid-register [1])
+(def dead-qid-register [1])
 (def taxi-register [2])
 (def temp-register [3])
 (def initial-register 4)
@@ -90,14 +90,14 @@
 
 ;; flushes just roll on by
 (defn simple [f]
-  (fn [d terms build c]
+  (fn [id d terms build c]
     (fn [r]
       (when (process? r) (f r terms))
       (c r))))
 
 
 
-(defn donot [d terms build c]
+(defn donot [id d terms build c]
   (let [[_ projection body] terms
         evaluations (atom {})
 
@@ -136,7 +136,7 @@
 
 
 
-(defn tuple [d terms build c]
+(defn tuple [id d terms build c]
   (fn [r]
     (when (and (not= (rget r op-register) 'flush)  (not= (rget r op-register) 'close))
       (let [a (rest (rest terms))
@@ -192,7 +192,7 @@
 ;; staties
 
 
-(defn dorange [d terms build c]
+(defn dorange [id d terms build c]
   (fn [r]
     (let [low  (rget r (nth terms 2))
           high (rget r (nth terms 3))]
@@ -201,7 +201,7 @@
         (c (rset r (second terms) i))))))
 
 
-(defn dofilter [d terms build c]
+(defn dofilter [id d terms build c]
   (fn [r]
     (if (process? r)
       (when (rget r (second terms))
@@ -214,7 +214,7 @@
 ;; there are multiple flushes in the pipe
 ;; i.e. identifiying the flushes, or the upstream
 ;; legs and doing a merge-like thing
-(defn dojoin [d terms build c]
+(defn dojoin [id d terms build c]
   (let [total (second terms)
         flushes (atom 0)
         closes (atom 0)
@@ -232,7 +232,7 @@
         (c r)))))
 
 
-(defn sum [d terms build c]
+(defn sum [id d terms build c]
   (let [totals (atom {})
         prevs (atom {})]
     (fn [r]
@@ -313,7 +313,7 @@
            %1)
         (range (count coll))))
 
-(defn dosort [d terms build c]
+(defn dosort [id d terms build c]
   (let [ordinals (atom {})
         prevs (atom {})]
     (fn [r]
@@ -363,7 +363,7 @@
                              (concat prefix suffix))
                            cur))))))))))
 
-(defn delta-c [d terms build c]
+(defn delta-c [id d terms build c]
   (let [[_ & proj] terms
         proj (if proj proj [])
         assertions (atom {})]
@@ -402,7 +402,7 @@
 ;; down is towards the base facts, up is along the removal chain
 ;; use stm..figure out a way to throw down..i guess since r
 ;; is mutating now
-(defn delta-e [d terms build c]
+(defn delta-e [id d terms build c]
   (let [[delto out in] terms
         assertions (atom {})
         record (fn [m k] (if-let [r (@m key)] r
@@ -444,7 +444,7 @@
                 (c r)))))
         (c r)))))
 
-(defn delta-s [d terms build c]
+(defn delta-s [id d terms build c]
   (let [state (ref {})
         handler (fn [r]
                   (let [t (rget r (first r))]
@@ -463,7 +463,7 @@
       (c (rset r (second terms) (handler r))))))
 
 
-(defn dosend [d terms build c]
+(defn dosend [id d terms build c]
   (fn [r]
     (let [channel (rget r (second terms))
           nregs (rget r (third terms))]
@@ -475,16 +475,16 @@
 
 
 
-(defn doinsert [d terms build c]
+(defn doinsert [id d terms build c]
   (let [[_ dest tup] terms]
     (fn [r]
       (condp = (rget r op-register)
-        'insert (edb/insert d (rget r tup) (rget r qid-register) (fn [t]
-                                                                   (rset r dest t)
-                                                                   (c r)))
+        'insert (edb/insert d (rget r tup)  (fn [t]
+                                              (rset r dest t)
+                                              (c r)))
         'remove (c r) ;; wait until we have commit frames to remove from
         'close (c r)
-        'flush (do (edb/flush-bag d (rget r qid-register))
+        'flush (do (edb/flush-bag d id)
                    (c r))))))
 
 ;; this needs to send an error message down the pipe
@@ -492,21 +492,21 @@
   (throw (ex-info comment {:registers reg :type "exec"})))
 
 
-(defn doscan [d terms build c]
+(defn doscan [id d terms build c]
   (let [[scan dest key] terms
         opened (atom ())
+        flistener (edb/add-flush-listener d id c)
         scan (fn [r]
                (let [dr (object-array (vec r))
                      ;; handle needs to be moved to the top level
                      handle (edb/full-scan d
-                                           (rget r qid-register)
-                                           (fn [op t qid]
+                                           (fn [op t]
                                              (rset dr op-register op)
-                                             (rset dr qid-register qid)
                                              (when (= op 'insert)
                                                (rset dr dest t))
                                              (c dr)))]
                  (swap! opened conj handle)))]
+
 
 
     (fn [r]
@@ -515,6 +515,7 @@
         'remove (scan r)
         'close (do
                  (doseq [i @opened] (i))
+                 (flistener)
                  (c r))
         'flush (c r)))))
 
@@ -552,7 +553,7 @@
                   })
 
 
-(defn build [name names built d t wrap final]
+(defn build [name names built d t wrap final id]
   (if (= name 'out) final
       (let [doterms (fn doterms [t down]
                       (if (empty? t) down
@@ -561,12 +562,12 @@
                                     (let [target (second (first t))]
                                       (list 'send
                                             (if-let [c (@built target)] c
-                                                    (build target names built d (@names target) wrap final))
+                                                    (build target names built d (@names target) wrap final id))
                                             (third (first t))))
                                     (first t))
                                 k (first z)]
                             (if-let [p (command-map (first z))]
-                              (wrap (first t) m (p d z doterms (doterms (rest t) down)))
+                              (wrap (first t) m (p id d z doterms (doterms (rest t) down)))
                               (exec-error [] (str "bad command" k))))))
             trans (doterms t (fn [r] ()))]
         (swap! built assoc name trans)
@@ -582,11 +583,10 @@
         _ (doseq [i program]
             (swap! blocks assoc (second i) (nth i 2)))
         e (build 'main blocks built d (@blocks 'main) trace-function
-                 callback)]
+                 callback id)]
 
     (fn [op]
       (rset reg op-register op)
-      (rset reg qid-register id)
       (e reg))))
 
 
