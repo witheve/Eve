@@ -331,6 +331,7 @@ let activeIds = {};
 let activeParse = {};
 let allNodeGraphs = {};
 let showGraphs = false;
+let codeEditor;
 
 function drawNode(nodeId, graph, state, seen) {
   let node = graph[nodeId];
@@ -374,16 +375,16 @@ function posToToken(pos, lines) {
   return false;
 }
 
+function doSwap(editor) {
+  sendSwap(editor.getValue());
+}
+
 function injectCodeMirror(node, elem) {
   if(!node.editor) {
     let editor = new CodeMirror(node, {
       extraKeys: {
-        "Cmd-Enter": function(cm) {
-          sendSwap(cm.getValue());
-        },
-        "Ctrl-Enter": function(cm) {
-          sendSwap(cm.getValue());
-        }
+        "Cmd-Enter": doSwap,
+        "Ctrl-Enter": doSwap,
       }
     });
     editor.setValue(elem.value);
@@ -392,6 +393,7 @@ function injectCodeMirror(node, elem) {
       activeIds = nodeToRelated(pos, posToToken(pos, renderer.tree[elem.id].parse.lines), renderer.tree[elem.id].parse);
       drawNodeGraph();
     });
+    codeEditor = editor;
     node.editor = editor;
   }
 }
@@ -479,8 +481,12 @@ function toggleGraphs() {
   drawNodeGraph();
 }
 
+function compileAndRun() {
+  doSwap(codeEditor);
+}
+
 function drawNodeGraph() {
-  let root;
+  let graphs;
   let state = {activeIds};
   for(let headId in allNodeGraphs) {
     if(activeParse.edges.up[headId][0] != activeIds["graph"]) continue;
@@ -489,7 +495,6 @@ function drawNodeGraph() {
     // let ast = drawAST(activeParse.ast, state);
     // let parse = drawParse(activeParse, state);
     let ordered = drawOrdered(activeParse.children, state);
-    let graphs;
     if(showGraphs) {
       graphs = {c: "graphs", children: [
         // ast,
@@ -498,17 +503,31 @@ function drawNodeGraph() {
         tree,
       ]}
     }
-    root = {c: "parse-info", children: [
-      {c: "run-info", children: [
-        CodeMirrorNode({value: activeParse.context.code, parse: activeParse}),
-        {c: "toolbar", children: [
-          {c: "stats", text: `${activeParse.iterations} iterations took ${activeParse.total_time}s`},
-          {c: "show-graphs", text: "show compile", click: toggleGraphs}
-        ]},
-      ]},
-      graphs
-    ]};
   }
+  let errors;
+  if(activeParse.context.errors.length) {
+    console.log("UH OH", activeParse.context.errors);
+    let items = activeParse.context.errors.map(function(errorInfo) {
+      return {c: "error", children: [
+        {c: "error-title", text: errorInfo.type},
+        {c: "error-context", text: errorInfo.pos.file || "(passed string)"},
+        {t: "pre", dangerouslySetInnerHTML: errorInfo.final.trim()}
+      ]};
+    });
+    errors = {c: "errors", children: items};
+  }
+  let root = {c: "parse-info", children: [
+    {c: "run-info", children: [
+      CodeMirrorNode({value: activeParse.context.code, parse: activeParse}),
+      {c: "toolbar", children: [
+        {c: "stats", text: `${activeParse.iterations} iterations took ${activeParse.total_time}s`},
+        {c: "show-graphs", text: "compile and run", click: compileAndRun},
+        {c: "show-graphs", text: "show compile", click: toggleGraphs}
+      ]},
+    ]},
+    graphs,
+    errors,
+  ]};
   renderer.render([{c: "graph-root", children: [root]}]);
 }
 
