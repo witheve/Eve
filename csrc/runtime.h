@@ -75,12 +75,14 @@ typedef closure(evaluation_result, table, table);
 struct evaluation  {
     heap h;
     bag b;
-    thunk terminal;
     insertron insert;
     table counters;
-    table working_solution;
-    table next_solution;
+
     table block_solution;
+    table f_solution;
+    table next_f_solution;
+    table x_solution;
+
     table persisted;
     table scopes;
     vector blocks;

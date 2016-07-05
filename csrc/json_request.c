@@ -159,6 +159,8 @@ static void send_node_graph(buffer_handler output, node head, table counts)
 }
 
 
+
+// solution should already contain the diffs against persisted...except missing support (diane)
 static CONTINUATION_1_2(send_response, json_session, table, table);
 static void send_response(json_session js, table solution, table counters)
 {

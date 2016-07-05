@@ -13,10 +13,10 @@ static void scan_listener(execf n,  operator op, value *r,
     store(r, er, e);
     store(r, ar, a);
     store(r, vr, v);
-    apply(n, 0, r);
+    apply(n, op, r);
 }
 
-#define sigbit(__sig, __p, __r) ((sig&(1<<__p))?__r:register_ignore)
+#define sigbit(__sig, __p, __r) ((sig&(1<<__p))? register_ignore: __r)
 
 static CONTINUATION_7_2(do_scan, evaluation, int *, execf, int, value, value, value, operator, value *);
 static void do_scan(evaluation ex, int *count, execf n, int sig, value e, value a, value v, operator op, value *r)
@@ -26,9 +26,10 @@ static void do_scan(evaluation ex, int *count, execf n, int sig, value e, value 
         return;
     }
     *count = *count + 1;
+    
     apply(ex->reader, sig,
           cont(ex->h, scan_listener, n, op, r,
-               sigbit(sig, 0, e), sigbit(sig, 1, a), sigbit(sig, 2, v)),
+               sigbit(sig, 2, e), sigbit(sig, 1, a), sigbit(sig, 0, v)),
           lookup(e, r), lookup(a, r), lookup(v, r));
 }
 

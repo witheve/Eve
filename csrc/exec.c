@@ -79,7 +79,8 @@ static void do_sub(int *count, sub s, operator op, value *r)
         s->t = s->e->t;
         s->results = create_value_vector_table(s->h);
     }
-    
+
+        
     if (op == op_flush) {
         delete_missing(s, r);
         // we could conceivably double buffer these
