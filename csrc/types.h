@@ -37,7 +37,7 @@
 //maybe give this guy an unpopulated region
 #define register_space 0x00000000000ull
 #define register_base 0x100ull
-#define register_ignore 0xffull
+#define register_ignore ((void *)0xffull)
 
 
 typedef struct type {
