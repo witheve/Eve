@@ -13,6 +13,8 @@ document.body.appendChild(renderer.content);
 
 // TODO: queue updates to be applied during requestAnimationFrame
 
+// root will get added to the dom by the program microReact element in
+// drawNodeGraph
 var activeElements = {"root": document.createElement("div")};
 activeElements["root"].className = "program";
 var activeStyles = {};
@@ -200,9 +202,6 @@ function handleDOMUpdates(result) {
   }
 }
 
-// add our root to the body so that we update appropriately
-document.body.appendChild(activeElements["root"])
-
 //---------------------------------------------------------
 // Helpers to send event update queries
 //---------------------------------------------------------
@@ -243,6 +242,12 @@ function sendEvent(objs) {
     socket.send(JSON.stringify({scope: "event", type: "query", query}))
   }
   return query;
+}
+
+function sendSwap(query) {
+  if(socket && socket.readyState == 1) {
+    socket.send(JSON.stringify({scope: "root", type: "swap", query}))
+  }
 }
 
 //---------------------------------------------------------
@@ -325,6 +330,7 @@ let activeIds = {};
 let activeParse = {};
 let allNodeGraphs = {};
 let showGraphs = false;
+let codeEditor;
 
 function drawNode(nodeId, graph, state, seen) {
   let node = graph[nodeId];
@@ -361,7 +367,6 @@ function drawNode(nodeId, graph, state, seen) {
 function posToToken(pos, lines) {
   let tokens = lines[pos.line + 1] || [];
   for(let token of tokens) {
-    console.log(pos, token);
     if(token.offset <= pos.ch && token.offset + token.value.length >= pos.ch) {
       return token;
     }
@@ -369,15 +374,25 @@ function posToToken(pos, lines) {
   return false;
 }
 
+function doSwap(editor) {
+  sendSwap(editor.getValue());
+}
+
 function injectCodeMirror(node, elem) {
   if(!node.editor) {
-    let editor = new CodeMirror(node);
+    let editor = new CodeMirror(node, {
+      extraKeys: {
+        "Cmd-Enter": doSwap,
+        "Ctrl-Enter": doSwap,
+      }
+    });
     editor.setValue(elem.value);
     editor.on("cursorActivity", function() {
       let pos = editor.getCursor();
-      activeIds = nodeToRelated(pos, posToToken(pos, elem.parse.lines), elem.parse);
+      activeIds = nodeToRelated(pos, posToToken(pos, renderer.tree[elem.id].parse.lines), renderer.tree[elem.id].parse);
       drawNodeGraph();
     });
+    codeEditor = editor;
     node.editor = editor;
   }
 }
@@ -465,18 +480,24 @@ function toggleGraphs() {
   drawNodeGraph();
 }
 
+function compileAndRun() {
+  doSwap(codeEditor);
+}
+
+function injectProgram(node, elem) {
+  node.appendChild(activeElements["root"]);
+}
+
 function drawNodeGraph() {
-  let root;
+  let graphs;
   let state = {activeIds};
   for(let headId in allNodeGraphs) {
-    console.log("CHECKING", headId, activeParse.edges.up[headId], activeIds["graph"]);
     if(activeParse.edges.up[headId][0] != activeIds["graph"]) continue;
     let cur = allNodeGraphs[headId];
     let tree = drawNode(headId, cur, state, {});
     // let ast = drawAST(activeParse.ast, state);
     // let parse = drawParse(activeParse, state);
     let ordered = drawOrdered(activeParse.children, state);
-    let graphs;
     if(showGraphs) {
       graphs = {c: "graphs", children: [
         // ast,
@@ -485,17 +506,35 @@ function drawNodeGraph() {
         tree,
       ]}
     }
-    root = {c: "parse-info", children: [
-      {c: "run-info", children: [
-        CodeMirrorNode({value: activeParse.context.code, parse: activeParse}),
-        {c: "toolbar", children: [
-          {c: "stats", text: `${activeParse.iterations} iterations took ${activeParse.total_time}s`},
-          {c: "show-graphs", text: "show compile", click: toggleGraphs}
-        ]},
-      ]},
-      graphs
-    ]};
   }
+  let program;
+  let errors;
+  if(activeParse.context.errors.length) {
+    activeParse.context.errors.sort((a, b) => { return a.pos.line - b.pos.line; })
+    let items = activeParse.context.errors.map(function(errorInfo) {
+      return {c: "error", children: [
+        {c: "error-title", text: errorInfo.type},
+        {c: "error-context", text: errorInfo.pos.file || "(passed string)"},
+        {t: "pre", dangerouslySetInnerHTML: errorInfo.final.trim()}
+      ]};
+    });
+    errors = {c: "errors", children: items};
+  } else {
+    program = {c: "program-container", postRender: injectProgram}
+  }
+  let root = {c: "parse-info", children: [
+    {c: "run-info", children: [
+      CodeMirrorNode({value: activeParse.context.code, parse: activeParse}),
+      {c: "toolbar", children: [
+        {c: "stats", text: `${activeParse.iterations} iterations took ${activeParse.total_time}s`},
+        {c: "show-graphs", text: "compile and run", click: compileAndRun},
+        {c: "show-graphs", text: "show compile", click: toggleGraphs}
+      ]},
+    ]},
+    graphs,
+    errors,
+    program,
+  ]};
   renderer.render([{c: "graph-root", children: [root]}]);
 }
 

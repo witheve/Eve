@@ -49,7 +49,17 @@ void edb_remove_implication(bag b, node n)
     table_set(b->implications, n, 0);
 }
 
-void edb_scan(bag b, int sig, listener f, value e, value a, value v)
+void edb_clear_implications(bag b)
+{
+    // TODO: Is this safe? I assume it is since all I'm doing
+    // is zeroing the values out which means the table shouldn't
+    // resize or anything. Is there some better way of doing this?
+    table_foreach(b->implications, node, v) {
+        edb_remove_implication(b, node);
+    }
+}
+
+void edb_scan(bag b, int sig, void *f, value e, value a, value v)
 {
     switch (sig) {
     case s_eav:

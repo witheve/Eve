@@ -946,6 +946,7 @@ function ScanNode:fromBinding(source, binding, entity, context)
   obj.entity = entity
   obj.attribute = binding.field
   obj.value = binding.variable or binding.constant
+  context.downEdges[#context.downEdges + 1] = {obj.value.id, obj.id}
   return obj
 end
 

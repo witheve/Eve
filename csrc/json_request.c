@@ -2,6 +2,7 @@
 #include <unix/unix.h>
 #include <http/http.h>
 #include <unistd.h>
+#include <luanne.h>
 
 static char separator[] = {'{', '"', '"', ':', '"', '"', ','};
 
@@ -175,7 +176,9 @@ static void send_response(json_session js, table solution, table counters)
 
     table_foreach(js->persisted, k, scopeBag) {
         table_foreach(edb_implications(scopeBag), k, impl) {
-            send_node_graph(js->write, impl, counters);
+            if(impl) {
+                send_node_graph(js->write, impl, counters);
+            }
         }
     }
 
@@ -185,6 +188,18 @@ static void send_response(json_session js, table solution, table counters)
     // FIXME: we need to clean up the old delta, we're currently just leaking it
     // this has to be a copy
     js->current_delta = results;
+}
+
+void send_parse(json_session js, buffer query)
+{
+    string out = allocate_string(js->h);
+    interpreter lua = get_lua();
+    value json = lua_run_module_func(lua, query, "parser", "parseJSON");
+    estring json_estring = json;
+    buffer_append(out, json_estring->body, json_estring->length);
+    free_lua(lua);
+    // send the json message
+    apply(js->write, out, cont(js->h, send_destroy, js->h));
 }
 
 CONTINUATION_1_2(handle_json_query, json_session, buffer, thunk);
@@ -222,6 +237,19 @@ void handle_json_query(json_session j, buffer in, thunk c)
             if (string_equal(type, sstring("query"))) {
                 vector nodes = compile_eve(query, j->tracing);
                 inject_event(j->s, nodes);
+            }
+            if (string_equal(type, sstring("swap"))) {
+                edb_clear_implications(j->root);
+                vector nodes = compile_eve(query, j->tracing);
+                vector_foreach(nodes, node) {
+                    edb_register_implication(j->root, node);
+                }
+                j->s = build_evaluation(j->h, j->scopes, j->s->persisted, j->s->counters);
+                run_solver(j->s);
+                send_response(j);
+            }
+            if (string_equal(type, sstring("parse"))) {
+                send_parse(j, query);
             }
         }
 
