@@ -27,6 +27,15 @@ static buffer read_file_or_exit(heap, char *);
 
 extern void *ignore;
 
+static CONTINUATION_1_2(test_result, heap, table, table);
+static void test_result(heap h, table s, table c)
+{
+    table_foreach(s, n, v) {
+        prf("%v %b\n", n, bag_dump(h, v));
+    }
+    destroy(h);
+}
+
 static void run_test(bag root, buffer b, boolean tracing)
 {
     heap h = allocate_rolling(pages);
@@ -41,13 +50,8 @@ static void run_test(bag root, buffer b, boolean tracing)
     vector_foreach(n, i)
         edb_register_implication(event, i);
     table persisted = create_value_table(h);
-    table counts = allocate_table(h, key_from_pointer, compare_pointer);
-    evaluation s = build_evaluation(h, scopes, persisted, counts);
+    evaluation s = build_evaluation(h, scopes, persisted, cont(h, test_result, h));
     run_solver(s);
-    
-    table_foreach(s->solution, n, v) {
-        prf("%v %b\n", n, bag_dump(h, v));
-    }
     destroy(h);
 }
 

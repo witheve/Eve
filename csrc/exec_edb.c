@@ -26,7 +26,7 @@ static void do_scan(evaluation ex, int *count, execf n, int sig, value e, value 
         return;
     }
     *count = *count + 1;
-    apply(ex->s, sig,
+    apply(ex->reader, sig,
           cont(ex->h, scan_listener, n, op, r,
                sigbit(sig, 0, e), sigbit(sig, 1, a), sigbit(sig, 2, v)),
           lookup(e, r), lookup(a, r), lookup(v, r));
@@ -94,20 +94,21 @@ static execf build_remove(evaluation e, node n)
                 vector_get(a, 3));
 }
 
-static CONTINUATION_4_2(each_set_remove, evaluation, value, value, uuid, value, boolean);
-static void each_set_remove(evaluation ex, uuid u, value e, value a, value v, boolean x)
+static CONTINUATION_4_4(each_set_remove, evaluation, value, value, uuid, value, value, value, multiplicity);
+static void each_set_remove(evaluation ex, uuid u, value e, value a, value etrash, value atrash, value v, multiplicity m)
 {
     apply(ex->insert, u, e, a, v, -1);
 }
 
 static CONTINUATION_7_2(do_set, evaluation, int *, execf, value, value, value, value, operator, value *) ;
-static void do_set(evaluation ex, int *count, execf n, value uuid, value e, value a, value v, operator op, value *r)
+static void do_set(evaluation ex, int *count, execf n, value u, value e, value a, value v, operator op, value *r)
 {
+    u = lookup(r, u);
     *count = *count + 1;
     value ev = lookup(e, r);
     value av=  lookup(a, r);
-    ex->scan(s_EAv, cont(ex->h, each_set_remove, ev, av), ev, av, 0);
-    ex->insert(uuid, e, a, v, 1);
+    apply(ex->reader, s_EAv, cont(ex->h, each_set_remove, ex, u, ev, av), ev, av, 0);
+    apply(ex->insert, u, e, a, v, 1);
     apply(n, op, r);
 }
 

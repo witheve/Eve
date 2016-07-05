@@ -59,7 +59,7 @@ void edb_clear_implications(bag b)
     }
 }
 
-void edb_scan(bag b, int sig, void *f, value e, value a, value v)
+void edb_scan(bag b, int sig, listener f, value e, value a, value v)
 {
     switch (sig) {
     case s_eav:

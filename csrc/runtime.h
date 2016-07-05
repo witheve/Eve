@@ -31,6 +31,7 @@ void init_runtime();
 
 void error(char *);
 
+typedef long multiplicity;
 
 #define UUID_LENGTH 12
 
@@ -41,7 +42,7 @@ string aprintf(heap h, char *fmt, ...);
 void bbprintf(string b, string fmt, ...);
 
 typedef closure(execf, operator, value *);
-typedef closure(insertron, value, value, value, value, int);
+typedef closure(insertron, value, value, value, value, multiplicity);
 
 #define def(__s, __v, __i)  table_set(__s, intern_string((unsigned char *)__v, cstring_length((char *)__v)), __i);
 
@@ -52,7 +53,7 @@ void print_value(buffer, value);
 
 void prf(char *, ...);
 
-typedef closure(listener, value, value, value, long);
+typedef closure(listener, value, value, value, multiplicity);
 typedef closure(scan, int, listener, value, value, value);
 
 typedef struct node *node;
@@ -83,15 +84,13 @@ struct evaluation  {
     table persisted;
     table scopes;
     vector blocks;
-    scan s;
+    scan reader;
     table nmap;
     ticks t;
     boolean non_empty, pass;
     evaluation_result complete;
 };
 
-
-typedef long multiplicity;
 
 void execute(evaluation);
 

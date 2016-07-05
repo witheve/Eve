@@ -10,8 +10,8 @@ static void insert(evaluation s, uuid u, value e, value a, value v, multiplicity
     edb_insert(b, e, a, v, m);
 }
 
-static CONTINUATION_2_4(shadow, table, listener, value, value, value, int);
-static void shadow(table compare, listener result, value e, value a, value v, int m)
+static CONTINUATION_2_4(shadow, table, listener, value, value, value, multiplicity);
+static void shadow(table compare, listener result, value e, value a, value v, multiplicity m)
 {
     boolean s = false;
     table_foreach(compare, u, b) {
@@ -128,7 +128,7 @@ evaluation build_evaluation(heap h, table scopes, table persisted, evaluation_re
 
     // this is only used during building
     e->nmap = allocate_table(e->h, key_from_pointer, compare_pointer);
-    e->s = cont(e->h, merge_scan, e);
+    e->reader = cont(e->h, merge_scan, e);
 
     table_foreach(e->persisted, uuid, b) {
         table_foreach(edb_implications(b), n, v){

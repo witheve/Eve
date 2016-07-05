@@ -244,9 +244,8 @@ void handle_json_query(json_session j, buffer in, thunk c)
                 vector_foreach(nodes, node) {
                     edb_register_implication(j->root, node);
                 }
-                j->s = build_evaluation(j->h, j->scopes, j->s->persisted, j->s->counters);
+                j->s = build_evaluation(j->h, j->scopes, j->persisted, cont(j->h, send_response, j));
                 run_solver(j->s);
-                send_response(j);
             }
             if (string_equal(type, sstring("parse"))) {
                 send_parse(j, query);
@@ -285,16 +284,16 @@ void new_json_session(bag root, boolean tracing, buffer_handler write, table hea
     j->current_delta = create_value_vector_table(j->h);
     j->event_uuid = generate_uuid();
 
-    table persisted = create_value_table(h);
+    j->persisted = create_value_table(h);
     uuid ru = edb_uuid(root);
-    table_set(persisted, ru, j->root);
-    table_set(persisted, su, j->session);
+    table_set(j->persisted, ru, j->root);
+    table_set(j->persisted, su, j->session);
     
-    table scopes = create_value_table(j->h);
-    table_set(scopes, intern_cstring("session"), su);
-    table_set(scopes, intern_cstring("all"), ru);
-    table_set(scopes, intern_cstring("event"), j->event_uuid);
-    j->s = build_evaluation(h, scopes, persisted, cont(j->h, send_response, j));
+    j->scopes = create_value_table(j->h);
+    table_set(j->scopes, intern_cstring("session"), su);
+    table_set(j->scopes, intern_cstring("all"), ru);
+    table_set(j->scopes, intern_cstring("event"), j->event_uuid);
+    j->s = build_evaluation(h, j->scopes, j->persisted, cont(j->h, send_response, j));
     
     *handler = websocket_send_upgrade(h, headers, write, cont(h, handle_json_query, j), &j->write);
     run_solver(j->s);
