@@ -658,7 +658,7 @@ local function parse(tokens, context)
 
     elseif type == "DOT" then
       local prev = stackTop.children[#stackTop.children]
-      if prev and (prev.type == "equality" or prev.type == "mutate" or prev.type == "inequality") then
+      if prev and (prev.type == "equality" or prev.type == "mutate" or prev.type == "inequality" or prev.type == "function" or prev.type == "infix") then
         local right = prev.children[2]
         if right and right.type == "IDENTIFIER" then
           stackTop.children[#stackTop.children] = nil

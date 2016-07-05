@@ -1,6 +1,7 @@
 local color = require("color")
 local util = require("util")
 local fixPad = util.fixPad
+local Set = require("set").Set
 local errors = {}
 
 ------------------------------------------------------------
@@ -10,7 +11,7 @@ local errors = {}
 local function formatErrorLine(line, number, offset, length)
   local lineString = color.dim(number .. "|") .. line
   if offset and length then
-    lineString = lineString .. "\n" .. util.makeWhitespace(offset + 2) .. color.error(string.format("^%s", util.makeWhitespace(length - 2, "-")))
+    lineString = lineString .. "\n" .. util.makeWhitespace(offset + 1) .. color.error(string.format("^%s", util.makeWhitespace(length - 2, "-")))
   end
   return lineString
 end
@@ -23,7 +24,7 @@ end
 -- content = array
 --    the content array can contain a placeholder sting of "<LINE>" to embed the offending line
 local function printError(errorInfo)
-  local type, context, token, lineNumber, offset, length, content = errorInfo.type, errorInfo.context, errorInfo.token, errorInfo.line, errorInfo.offset, errorInfo.length, errorInfo.content
+  local type, context, token, lineNumber, offset, length, content, fixes = errorInfo.type, errorInfo.context, errorInfo.token, errorInfo.line, errorInfo.offset, errorInfo.length, errorInfo.content, errorInfo.fixes
   if not offset then
     offset = token.offset
   end
@@ -51,7 +52,8 @@ local function printError(errorInfo)
   print("")
   print(finalContent)
 
-  local storedError = {type = type, pos = {offest = offset, line = lineNumber, length = length, file = file}, rawContent = color.toHTML(util.dedent(content)), final = color.toHTML(finalContent)}
+  local storedError = {type = type, pos = {offest = offset, line = lineNumber, length = length, file = file}, 
+                       rawContent = color.toHTML(util.dedent(content)), final = color.toHTML(finalContent), fixes = fixes}
   context.errors[#context.errors + 1] = storedError
 end
 
@@ -229,12 +231,36 @@ function errors.invalidTag(context, token, next)
       ]]})
 end
 
-function errors.bareTagOrName(context, token)
-  printError({type = "Non-object Tag", context = context, token = token, content = string.format([[
-  `#tag` and `@name` must be in an object, e.g. [#foo]
+function errors.bareTagOrName(context, node)
+  local type = node.children[1].type == "TAG" and "Tag" or "Name"
+  local valueNode = node.children[2]
+  local value;
+  if valueNode.type == "IDENTIFIER" then
+    value = string.format("%s%s", node.children[1].value, valueNode.value)
+  elseif valueNode.type == "STRING" then
+    value = string.format("%s\"%s\"", node.children[1].value, valueNode.value)
+  end
+
+  local content = string.format([[
+  %s is only valid in an object
 
   <LINE>
-  ]])})
+
+  This line says I should search for a %s with the value "%s", 
+  but since it's not in an object, I don't know what it applies to. 
+  
+  If you wrap it in square brackets, that tells me you're looking
+  for an object with that %s:
+
+    // search for objects with %s = "%s"
+    [%s]
+
+  ]], value, type:lower(), valueNode.value, type:lower(), type:lower(), valueNode.value, value)
+
+  local fixes = {changes = {
+    {from = {line = node.line, offset = node.offset}, to = {line = valueNode.line, offset = valueNode.offset + #valueNode.value}, value = string.format("[%s]", value)},
+  }} 
+  printError({type = string.format("%s outside of an object", type), context = context, token = node, content = content, length = 1 + #valueNode.value, fixes = fixes})
 end
 
 ------------------------------------------------------------
@@ -454,10 +480,43 @@ end
 function formatVariable(variable)
   if variable.type ~= "variable" then return "????" end
   if  variable.cardinal then
-    return string.sub(variable.name, 3)
+    return string.sub(variable.name, 2, -2)
   else
     return variable.name
   end
+end
+
+function filterGenerated(variables)
+  local filtered = Set:new()
+  for variable in pairs(variables) do
+    if not variable.generated then
+      filtered:add(variable)
+    elseif variable.cardinal and not variable.cardinal.generated then
+      filtered:add(variable.cardinal)
+    end
+  end
+  return filtered
+end
+
+function identity(x)
+  return x
+end
+
+function chooseNearest(needle, haystack, stringify, threshold)
+  stringify = stringify or identity
+  print("HAI", #stringify(needle) / 3 + 1, #stringify(needle), stringify(needle))
+  threshold = threshold or (#stringify(needle) / 3 + 1)
+  local name = stringify(needle)
+  local best
+  local bestDist = threshold
+  for term in pairs(haystack) do
+    local dist = util.levenshtein(name, stringify(term))
+    if dist < bestDist then
+      best = term
+      bestDist = dist
+    end
+  end
+  return best, bestDist
 end
 
 function formatUnsatisfied(unsatisfied)
@@ -496,7 +555,7 @@ function errors.unorderableGraph(context, query)
       %s
       %s
         %s
-    ]], unsorted, errorLine, formatUnsatisfied(dg:unsatisfied(node)))
+    ]], unsorted, errorLine, formatUnsatisfied(filterGenerated(dg:unsatisfied(node))))
     multi = true
   end
   printError{type = "Unorderable query", context = context, token = query, content = string.format([[
@@ -511,41 +570,23 @@ end
 
 function errors.unknownVariable(context, variable, terms)
   if variable.generated then return end
-  local name = variable.name
-  local best
-  local bestDist = #name / 3 + 1 -- threshold at which recommendations are ignored for being too distant
-  for term in pairs(terms) do
-    local dist = util.levenshtein(name, formatVariable(term))
-    if dist < bestDist then
-      best = term
-      bestDist = dist
-    end
-  end
+  local best = chooseNearest(variable, filterGenerated(terms), formatVariable)
   local recommendation = ""
   if best then
-    recommendation = "\n  Did you mean: " .. formatVariable(best) .. "?"
+    recommendation = "\n  Did you mean: \"" .. formatVariable(best) .. "\"?"
   end
   printError{type = "Unknown variable", context = context, token = variable, content = string.format([[
   Variable "%s" was never defined in query
 
   <LINE>%s
-  ]], variable.name, recommendation)}
+  ]], formatVariable(variable), recommendation)}
 end
 
 function errors.unknownExpression(context, expression, expressions)
-  local name = expression.operator
-  local best
-  local bestDist = #name / 3 + 1 -- threshold at which recommendations are ignored for being too distant
-  for expr in pairs(expressions) do
-    local dist = util.levenshtein(name, expr)
-    if dist < bestDist then
-      best = expr
-      bestDist = dist
-    end
-  end
+  local best = chooseNearest(expression.operator, expressions, function(x) return x.operator end)
   local recommendation = ""
   if best then
-    recommendation = "\n  Did you mean: " .. best .. "?"
+    recommendation = "\n  Did you mean: \"" .. best .. "\"?"
   end
   printError{type = "Unknown expression", context = context, token = expression, content = string.format([[
   Unknown expression "%s"

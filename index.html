@@ -54,11 +54,14 @@
       .CodeMirror-cursor { background: white; border-color:white; }
 
       .errors { margin-left: 5px; font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:10pt; }
-      .error { background: rgba(0,0,0,0.4); border-radius:3px; padding:15px; }
+      .error { background: rgba(0,0,0,0.4); border-radius:3px; padding:15px; display:flex; flex-direction:column; align-items:flex-start; }
       .error + .error { margin-top: 5px; }
       .error-title { color: rgb(73, 158, 211); }
       .error-context { color: rgb(83, 117, 137); }
-      .error pre { font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:10pt; margin:0; margin-top:20px; }
+      .error pre { font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:10pt; margin:0; margin-top:20px; margin-left:3px; }
+
+      .fix-it { padding:8px 12px; border-radius:3px; margin-top:17px; background: rgb(54, 62, 85); color: #c2e6ff; align-self:flex-end; cursor: pointer; }
+      .fix-it:hover { background: rgb(79, 92, 129); }
 
       .ansi-gray { color: rgb(83, 117, 137); }
       .ansi-red { color: red; }
