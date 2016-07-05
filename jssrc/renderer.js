@@ -13,6 +13,8 @@ document.body.appendChild(renderer.content);
 
 // TODO: queue updates to be applied during requestAnimationFrame
 
+// root will get added to the dom by the program microReact element in
+// drawNodeGraph
 var activeElements = {"root": document.createElement("div")};
 activeElements["root"].className = "program";
 var activeStyles = {};
@@ -199,9 +201,6 @@ function handleDOMUpdates(result) {
     }
   }
 }
-
-// add our root to the body so that we update appropriately
-document.body.appendChild(activeElements["root"])
 
 //---------------------------------------------------------
 // Helpers to send event update queries
@@ -485,6 +484,10 @@ function compileAndRun() {
   doSwap(codeEditor);
 }
 
+function injectProgram(node, elem) {
+  node.appendChild(activeElements["root"]);
+}
+
 function drawNodeGraph() {
   let graphs;
   let state = {activeIds};
@@ -504,9 +507,10 @@ function drawNodeGraph() {
       ]}
     }
   }
+  let program;
   let errors;
   if(activeParse.context.errors.length) {
-    console.log("UH OH", activeParse.context.errors);
+    activeParse.context.errors.sort((a, b) => { return a.pos.line - b.pos.line; })
     let items = activeParse.context.errors.map(function(errorInfo) {
       return {c: "error", children: [
         {c: "error-title", text: errorInfo.type},
@@ -515,6 +519,8 @@ function drawNodeGraph() {
       ]};
     });
     errors = {c: "errors", children: items};
+  } else {
+    program = {c: "program-container", postRender: injectProgram}
   }
   let root = {c: "parse-info", children: [
     {c: "run-info", children: [
@@ -527,6 +533,7 @@ function drawNodeGraph() {
     ]},
     graphs,
     errors,
+    program,
   ]};
   renderer.render([{c: "graph-root", children: [root]}]);
 }
