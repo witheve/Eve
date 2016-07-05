@@ -10,7 +10,7 @@ local errors = {}
 local function formatErrorLine(line, number, offset, length)
   local lineString = color.dim(number .. "|") .. line
   if offset and length then
-    lineString = lineString .. "\n" .. util.makeWhitespace(offset + 2) .. color.error(string.format("^%s", util.makeWhitespace(length - 2, "-")))
+    lineString = lineString .. "\n" .. util.makeWhitespace(offset + 1) .. color.error(string.format("^%s", util.makeWhitespace(length - 2, "-")))
   end
   return lineString
 end
@@ -23,7 +23,7 @@ end
 -- content = array
 --    the content array can contain a placeholder sting of "<LINE>" to embed the offending line
 local function printError(errorInfo)
-  local type, context, token, lineNumber, offset, length, content = errorInfo.type, errorInfo.context, errorInfo.token, errorInfo.line, errorInfo.offset, errorInfo.length, errorInfo.content
+  local type, context, token, lineNumber, offset, length, content, fixes = errorInfo.type, errorInfo.context, errorInfo.token, errorInfo.line, errorInfo.offset, errorInfo.length, errorInfo.content, errorInfo.fixes
   if not offset then
     offset = token.offset
   end
@@ -51,7 +51,8 @@ local function printError(errorInfo)
   print("")
   print(finalContent)
 
-  local storedError = {type = type, pos = {offest = offset, line = lineNumber, length = length, file = file}, rawContent = color.toHTML(util.dedent(content)), final = color.toHTML(finalContent)}
+  local storedError = {type = type, pos = {offest = offset, line = lineNumber, length = length, file = file}, 
+                       rawContent = color.toHTML(util.dedent(content)), final = color.toHTML(finalContent), fixes = fixes}
   context.errors[#context.errors + 1] = storedError
 end
 
@@ -229,12 +230,36 @@ function errors.invalidTag(context, token, next)
       ]]})
 end
 
-function errors.bareTagOrName(context, token)
-  printError({type = "Non-object Tag", context = context, token = token, content = string.format([[
-  `#tag` and `@name` must be in an object, e.g. [#foo]
+function errors.bareTagOrName(context, node)
+  local type = node.children[1].type == "TAG" and "Tag" or "Name"
+  local valueNode = node.children[2]
+  local value;
+  if valueNode.type == "IDENTIFIER" then
+    value = string.format("%s%s", node.children[1].value, valueNode.value)
+  elseif valueNode.type == "STRING" then
+    value = string.format("%s\"%s\"", node.children[1].value, valueNode.value)
+  end
+
+  local content = string.format([[
+  %s is only valid in an object
 
   <LINE>
-  ]])})
+
+  This line says I should search for a %s with the value "%s", 
+  but since it's not in an object, I don't know what it applies to. 
+  
+  If you wrap it in square brackets, that tells me you're looking
+  for an object with that %s:
+
+    // search for objects with %s = "%s"
+    [%s]
+
+  ]], value, type:lower(), valueNode.value, type:lower(), type:lower(), valueNode.value, value)
+
+  local fixes = {changes = {
+    {from = {line = node.line, offset = node.offset}, to = {line = valueNode.line, offset = valueNode.offset + #valueNode.value}, value = string.format("[%s]", value)},
+  }} 
+  printError({type = string.format("%s outside of an object", type), context = context, token = node, content = content, length = 1 + #valueNode.value, fixes = fixes})
 end
 
 ------------------------------------------------------------

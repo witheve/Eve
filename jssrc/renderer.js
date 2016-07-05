@@ -488,6 +488,23 @@ function injectProgram(node, elem) {
   node.appendChild(activeElements["root"]);
 }
 
+function applyFix(event, elem) {
+  //we need to do the changes in reverse order to ensure
+  //the positions remain the same?
+  let changes = elem.fix.changes.slice();
+  changes.sort((a, b) => {
+    let line = b.to.line - a.to.line;
+    if(line == 0) {
+      return b.to.offset - a.to.offset;
+    }
+    return line;
+  });
+  for(let change of changes) {
+    codeEditor.replaceRange(change.value, {line: change.from.line - 1, ch: change.from.offset}, {line: change.to.line - 1, ch: change.to.offset});
+  }
+  doSwap(codeEditor);
+}
+
 function drawNodeGraph() {
   let graphs;
   let state = {activeIds};
@@ -512,10 +529,15 @@ function drawNodeGraph() {
   if(activeParse.context.errors.length) {
     activeParse.context.errors.sort((a, b) => { return a.pos.line - b.pos.line; })
     let items = activeParse.context.errors.map(function(errorInfo) {
+      let fix;
+      if(errorInfo.fixes) {
+        fix = {c: "fix-it", text: "Fix it for me", fix: errorInfo.fixes, click: applyFix}
+      } 
       return {c: "error", children: [
         {c: "error-title", text: errorInfo.type},
         {c: "error-context", text: errorInfo.pos.file || "(passed string)"},
-        {t: "pre", dangerouslySetInnerHTML: errorInfo.final.trim()}
+        {t: "pre", dangerouslySetInnerHTML: errorInfo.final.trim().replace(/\n /gi, "\n")},
+        fix,
       ]};
     });
     errors = {c: "errors", children: items};
