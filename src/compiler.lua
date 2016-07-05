@@ -344,8 +344,9 @@ function DependencyGraph:cardinal(term)
     return self.cardinalTerms[term]
   end
   self.cardinalTerms[term] = util.shallowCopy(term)
-  self.cardinalTerms[term].name = "$$|" .. term.name .. "|"
-  self.cardinalTerms[term].cardinal = true
+  self.cardinalTerms[term].name = "|" .. term.name .. "|"
+  self.cardinalTerms[term].cardinal = term
+  self.cardinalTerms[term].generated = true
   return self.cardinalTerms[term]
 end
 
