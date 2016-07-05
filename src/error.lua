@@ -1,6 +1,7 @@
 local color = require("color")
 local util = require("util")
 local fixPad = util.fixPad
+local Set = require("set").Set
 local errors = {}
 
 ------------------------------------------------------------
@@ -454,10 +455,43 @@ end
 function formatVariable(variable)
   if variable.type ~= "variable" then return "????" end
   if  variable.cardinal then
-    return string.sub(variable.name, 3)
+    return string.sub(variable.name, 2, -2)
   else
     return variable.name
   end
+end
+
+function filterGenerated(variables)
+  local filtered = Set:new()
+  for variable in pairs(variables) do
+    if not variable.generated then
+      filtered:add(variable)
+    elseif variable.cardinal and not variable.cardinal.generated then
+      filtered:add(variable.cardinal)
+    end
+  end
+  return filtered
+end
+
+function identity(x)
+  return x
+end
+
+function chooseNearest(needle, haystack, stringify, threshold)
+  stringify = stringify or identity
+  print("HAI", #stringify(needle) / 3 + 1, #stringify(needle), stringify(needle))
+  threshold = threshold or (#stringify(needle) / 3 + 1)
+  local name = stringify(needle)
+  local best
+  local bestDist = threshold
+  for term in pairs(haystack) do
+    local dist = util.levenshtein(name, stringify(term))
+    if dist < bestDist then
+      best = term
+      bestDist = dist
+    end
+  end
+  return best, bestDist
 end
 
 function formatUnsatisfied(unsatisfied)
@@ -496,7 +530,7 @@ function errors.unorderableGraph(context, query)
       %s
       %s
         %s
-    ]], unsorted, errorLine, formatUnsatisfied(dg:unsatisfied(node)))
+    ]], unsorted, errorLine, formatUnsatisfied(filterGenerated(dg:unsatisfied(node))))
     multi = true
   end
   printError{type = "Unorderable query", context = context, token = query, content = string.format([[
@@ -511,41 +545,23 @@ end
 
 function errors.unknownVariable(context, variable, terms)
   if variable.generated then return end
-  local name = variable.name
-  local best
-  local bestDist = #name / 3 + 1 -- threshold at which recommendations are ignored for being too distant
-  for term in pairs(terms) do
-    local dist = util.levenshtein(name, formatVariable(term))
-    if dist < bestDist then
-      best = term
-      bestDist = dist
-    end
-  end
+  local best = chooseNearest(variable, filterGenerated(terms), formatVariable)
   local recommendation = ""
   if best then
-    recommendation = "\n  Did you mean: " .. formatVariable(best) .. "?"
+    recommendation = "\n  Did you mean: \"" .. formatVariable(best) .. "\"?"
   end
   printError{type = "Unknown variable", context = context, token = variable, content = string.format([[
   Variable "%s" was never defined in query
 
   <LINE>%s
-  ]], variable.name, recommendation)}
+  ]], formatVariable(variable), recommendation)}
 end
 
 function errors.unknownExpression(context, expression, expressions)
-  local name = expression.operator
-  local best
-  local bestDist = #name / 3 + 1 -- threshold at which recommendations are ignored for being too distant
-  for expr in pairs(expressions) do
-    local dist = util.levenshtein(name, expr)
-    if dist < bestDist then
-      best = expr
-      bestDist = dist
-    end
-  end
+  local best = chooseNearest(expression.operator, expressions, function(x) return x.operator end)
   local recommendation = ""
   if best then
-    recommendation = "\n  Did you mean: " .. best .. "?"
+    recommendation = "\n  Did you mean: \"" .. best .. "\"?"
   end
   printError{type = "Unknown expression", context = context, token = expression, content = string.format([[
   Unknown expression "%s"
