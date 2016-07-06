@@ -20,10 +20,11 @@ make && ./lueve
 
 ### Windows
 
-We have a Docker container that runs lueve. You just provide a .eve file to compile and run:
+We have a Docker container that runs lueve. Docker for Windows requires Microsoft Hyper-V, so you'll need Windows 10 to run this. You just provide a port on your machine and a .eve file to compile and run:
+
 ```
-docker run -p 8080:8080 witheve/eve [eve_file]
+docker run -p [port]:8080 witheve/eve [eve_file]
 ```
 
-Now just point your browser to `http://docker.local:8080/`
+Now just point your browser to `http://localhost:[port]/`
 
