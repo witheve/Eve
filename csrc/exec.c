@@ -192,10 +192,16 @@ static execf build_choose(evaluation e, node n)
 static CONTINUATION_4_2(do_not, int *, execf, execf, value, operator, value *);
 static void do_not(int *count, execf next, execf leg, value flag, operator op, value *r)
 {
+    // should also flush down the leg
+    if (op == op_flush) {
+        apply(next, op, r);
+        return;
+    }
     *count = *count + 1;
-    r[toreg(flag)] = efalse;
-
+    store(r, flag, efalse);
+    
     apply(leg, op, r);
+    prf ("leggy: %p %p %d %p\n", lookup(r, flag), efalse, lookup(r, flag) == efalse, etrue);
     if (lookup(r, flag) == efalse)
         apply(next, op, r);
 }
@@ -272,6 +278,7 @@ static execf build_join(evaluation e, node n)
 static CONTINUATION_1_2(do_terminal, evaluation, operator, value *);
 static void do_terminal(evaluation e, operator op, value *r)
 {
+    if (op == op_insert) prf ("terminal\n");
     // not actually what we wanted, but meh
     if (op == op_insert) apply(e->terminal);
 }
