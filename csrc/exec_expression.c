@@ -9,8 +9,8 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
 {
     *count = *count + 1;                        
     if (op != op_flush) {
-        value ar = lookup(a, r);                    
-        value br = lookup(b, r);                
+        value ar = lookup(r, a);                    
+        value br = lookup(r, b);                
         if (!value_equals(ar, br)) return;
     }
     apply(n, op, r);
@@ -25,7 +25,7 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
             apply(n, op, r);                                                                         \
             return;                                                                                  \
         }                                                                                            \
-        value ar = lookup(a, r);                                                                     \
+        value ar = lookup(r, a);                                                                     \
         *count = *count + 1;                                                                         \
         if ((type_of(ar) != float_space )) {                                                         \
             exec_error(ex, "attempt to do math on non-number", a);                                   \
@@ -43,7 +43,7 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
             apply(n, op, r);                                                                         \
             return;                                                                                  \
         }                                                                                            \
-        value ar = lookup(a, r);                                                                     \
+        value ar = lookup(r, a);                                                                     \
         *count = *count + 1;                                                                         \
         if ((type_of(ar) != float_space )) {                                                         \
             exec_error(ex, "attempt to do math on non-number", a);                                   \
@@ -74,8 +74,8 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
             apply(n, op, r);                                                                         \
             return;                                                                                  \
         }       \
-        value ar = lookup(a, r);                                                                     \
-        value br = lookup(b, r);                                                                     \
+        value ar = lookup(r, a);                                                                     \
+        value br = lookup(r, b);                                                                     \
         *count = *count + 1;                                                                         \
         if ((type_of(ar) != float_space ) || (type_of(br) != float_space)) {                         \
             exec_error(ex, "attempt to " #__name" non-numbers", a, b);                               \
@@ -94,8 +94,8 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
             apply(n, op, r);                                                                         \
             return;                                                                                  \
         }                                                                                            \
-        value ar = lookup(a, r);                                                                       \
-        value br = lookup(b, r);                                                                       \
+        value ar = lookup(r, a);                                                                       \
+        value br = lookup(r, b);                                                                       \
         *count = *count + 1;                                                                           \
         if ((type_of(ar) != float_space ) || (type_of(br) != float_space)) {                           \
             exec_error(ex, "attempt to __op non-numbers", a, b);                                       \
@@ -128,8 +128,8 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
         if (op == op_flush)  {                                                                       \
             apply(n, op, r);                                                                         \
         }                                                                                            \
-        value ar = lookup(a, r);                                                                     \
-        value br = lookup(b, r);                                                                     \
+        value ar = lookup(r, a);                                                                     \
+        value br = lookup(r, b);                                                                     \
         *count = *count + 1;                                                                         \
         if ((type_of(ar) == float_space ) && (type_of(br) == float_space)) {                         \
             if (*(double *)ar __op *(double *)br)                                                    \
@@ -214,7 +214,7 @@ static CONTINUATION_5_2(do_is, evaluation, int *, execf, value, value, operator,
 static void do_is (evaluation ex, int *count, execf n, value dest, value a, operator op, value *r)
 {
   *count = *count + 1;
-  r[reg(dest)] = lookup(a, r);
+  r[reg(dest)] = lookup(r, a);
   apply(n, op, r);
 }
 

@@ -11,7 +11,7 @@ static void do_sub_tail(int *count,
     // just drop flush and remove on the floor
     if ( op == op_insert) {
         *count = *count + 1;
-        table results = lookup(resreg, r);
+        table results = lookup(r, resreg);
         vector result = allocate_vector(results->h, vector_length(outputs));
         extract(result, outputs, r);
         table_set(results, result, etrue);
@@ -196,7 +196,7 @@ static void do_not(int *count, execf next, execf leg, value flag, operator op, v
     r[toreg(flag)] = efalse;
 
     apply(leg, op, r);
-    if (lookup(flag, r) == efalse)
+    if (lookup(r, flag) == efalse)
         apply(next, op, r);
 }
 
@@ -217,7 +217,7 @@ static void do_move(int *count, execf n, value dest, value src, operator op, val
 {
     if (op == op_insert) {
         *count = *count+1;
-        r[reg(dest)] = lookup(src, r);
+        r[reg(dest)] = lookup(r, src);
     }
     apply(n, op, r);
 }
@@ -240,7 +240,7 @@ static void do_concat(int *count, execf n, value dest, vector terms, operator op
     *count = *count+1;
 
     vector_foreach(terms, i) {
-        bprintf(b, "%v", lookup(i, r));
+        bprintf(b, "%v", lookup(r, i));
     }
 
     r[reg(dest)] = intern_string(bref(b, 0), buffer_length(b));
@@ -269,14 +269,15 @@ static execf build_join(evaluation e, node n)
     return cont(e->h, do_join,resolve_cfg(e, n, 0), 0, c);
 }
 
-static CONTINUATION_0_2(do_terminal, operator, value *);
-static void do_terminal(operator op, value *r)
+static CONTINUATION_1_2(do_terminal, evaluation, operator, value *);
+static void do_terminal(evaluation e, operator op, value *r)
 {
+    if (op == op_flush) apply(e->terminal);
 }
 
 static execf build_terminal(evaluation e, node n)
 {
-    return cont(e->h, do_terminal);
+    return cont(e->h, do_terminal, e);
 }
 
 static CONTINUATION_3_2(do_fork, int *, int, execf *, operator, value *) ;
@@ -300,7 +301,7 @@ static CONTINUATION_2_2(do_trace, execf, vector, operator, value *);
 static void do_trace(execf n, vector terms, operator op, value *r)
 {
     for (int i=0; i<vector_length(terms); i+=2) {
-        prf(" %v %v", lookup(vector_get(terms, i), r), lookup(vector_get(terms, i+1), r));
+        prf(" %v %v", lookup(r, vector_get(terms, i)), lookup(r, vector_get(terms, i+1)));
     }
     write(1, "\n", 1);
     apply(n, op, r);

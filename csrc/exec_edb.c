@@ -30,7 +30,7 @@ static void do_scan(evaluation ex, int *count, execf n, int sig, value e, value 
     apply(ex->reader, sig,
           cont(ex->h, scan_listener, n, op, r,
                sigbit(sig, 2, e), sigbit(sig, 1, a), sigbit(sig, 0, v)),
-          lookup(e, r), lookup(a, r), lookup(v, r));
+          lookup(r, e), lookup(r, a), lookup(r, v));
 }
 
 static inline boolean is_cap(unsigned char x) {return (x >= 'A') && (x <= 'Z');}
@@ -60,10 +60,10 @@ static void do_insert(evaluation ex, int *count, execf n, int deltam,
 {
     if (op == op_insert) {
         *count = *count + 1;
-        apply(ex->insert, uuid, lookup(e, r), lookup(a, r), lookup(v, r), 1);
+        apply(ex->insert, uuid, lookup(r, e), lookup(r, a), lookup(r, v), 1);
     }
     if (op == op_remove) {
-        apply(ex->insert, uuid, lookup(e, r), lookup(a, r), lookup(v, r), -1);
+        apply(ex->insert, uuid, lookup(r, e), lookup(r, a), lookup(r, v), -1);
     }
     apply(n, op, r);
 }
@@ -98,6 +98,8 @@ static execf build_remove(evaluation e, node n)
 static CONTINUATION_4_4(each_set_remove, evaluation, value, value, uuid, value, value, value, multiplicity);
 static void each_set_remove(evaluation ex, uuid u, value e, value a, value etrash, value atrash, value v, multiplicity m)
 {
+    prf("set remove %v %v %v %v\n", u, e, a, v);
+
     apply(ex->insert, u, e, a, v, -1);
 }
 
@@ -106,10 +108,11 @@ static void do_set(evaluation ex, int *count, execf n, value u, value e, value a
 {
     u = lookup(r, u);
     *count = *count + 1;
-    value ev = lookup(e, r);
-    value av=  lookup(a, r);
+    value ev = lookup(r, e);
+    value av=  lookup(r, a);
     apply(ex->reader, s_EAv, cont(ex->h, each_set_remove, ex, u, ev, av), ev, av, 0);
-    apply(ex->insert, u, e, a, v, 1);
+    prf("set insert %v %v %v %v\n", u, e, a, v);
+    apply(ex->insert, u, ev, av, lookup(r, v), 1);
     apply(n, op, r);
 }
 

@@ -10,7 +10,7 @@ static void do_concat(int *count, execf n, value dest, vector terms, operator op
     *count = *count+1;
     
     vector_foreach(terms, i) {
-        bprintf(b, "%v", lookup(i, r));
+        bprintf(b, "%v", lookup(r, i));
     }
     
     store(r, dest, intern_string(bref(b, 0), buffer_length(b)));
@@ -36,8 +36,8 @@ static void do_split(heap h, int *count, execf n, value dest, value source, valu
         *count = *count+1;
         buffer out = allocate_string(h);
         int j;
-        estring s = lookup(source, r);
-        estring k = lookup(key, r);
+        estring s = lookup(r, source);
+        estring k = lookup(r, key);
         for (int i = 0; i < s->length; i++) {
             for (j = 0; (j < k->length) && ((i+j) < s->length); j++) {
                 if (k->body[j] != s->body[i+j]) break; 
@@ -71,7 +71,7 @@ static void do_length(int *count, execf n, value dest, value src, operator op, v
 {
     if (op == op_insert) {
         *count = *count+1;
-        store(r, dest, lookup(src, r));
+        store(r, dest, lookup(r, src));
     }
     apply(n, op, r);
 }

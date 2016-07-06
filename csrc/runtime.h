@@ -78,10 +78,12 @@ struct evaluation  {
     insertron insert;
     table counters;
 
+    // uhh...wow, there are alot of versions
     table block_solution;
     table f_solution;
     table next_f_solution;
-    table x_solution;
+    table t_solution;
+    table ev_solution;
 
     table persisted;
     table scopes;
@@ -91,6 +93,8 @@ struct evaluation  {
     ticks t;
     boolean non_empty, pass;
     evaluation_result complete;
+    
+    thunk terminal;
 };
 
 
