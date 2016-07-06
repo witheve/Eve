@@ -719,3 +719,6 @@ socket.onmessage = function(msg) {
 socket.onopen = function() {
   console.log("Connected to eve server!");
 }
+socket.onclose = function() {
+  console.log("Disconnected from eve server!");
+}
