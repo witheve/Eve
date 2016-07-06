@@ -83,6 +83,7 @@ struct evaluation  {
     table f_solution;
     table next_f_solution;
     table t_solution;
+    table next_t_solution;
     table ev_solution;
 
     table persisted;

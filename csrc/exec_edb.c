@@ -10,10 +10,14 @@ static void scan_listener(execf n,  operator op, value *r,
                           value er, value ar, value vr,
                           value e, value a, value v, multiplicity count)
 {
-    store(r, er, e);
-    store(r, ar, a);
-    store(r, vr, v);
-    apply(n, op, r);
+    prf ("result %v %v %v %d\n", e, a, v, count);
+
+    if (count > 0) {
+        store(r, er, e);
+        store(r, ar, a);
+        store(r, vr, v);
+        apply(n, op, r);
+    }
 }
 
 #define sigbit(__sig, __p, __r) ((sig&(1<<__p))? register_ignore: __r)
@@ -60,10 +64,10 @@ static void do_insert(evaluation ex, int *count, execf n, int deltam,
 {
     if (op == op_insert) {
         *count = *count + 1;
-        apply(ex->insert, uuid, lookup(r, e), lookup(r, a), lookup(r, v), 1);
+        apply(ex->insert, uuid, lookup(r, e), lookup(r, a), lookup(r, v), deltam);
     }
     if (op == op_remove) {
-        apply(ex->insert, uuid, lookup(r, e), lookup(r, a), lookup(r, v), -1);
+        apply(ex->insert, uuid, lookup(r, e), lookup(r, a), lookup(r, v), -deltam);
     }
     apply(n, op, r);
 }
@@ -98,8 +102,6 @@ static execf build_remove(evaluation e, node n)
 static CONTINUATION_4_4(each_set_remove, evaluation, value, value, uuid, value, value, value, multiplicity);
 static void each_set_remove(evaluation ex, uuid u, value e, value a, value etrash, value atrash, value v, multiplicity m)
 {
-    prf("set remove %v %v %v %v\n", u, e, a, v);
-
     apply(ex->insert, u, e, a, v, -1);
 }
 
@@ -111,7 +113,6 @@ static void do_set(evaluation ex, int *count, execf n, value u, value e, value a
     value ev = lookup(r, e);
     value av=  lookup(r, a);
     apply(ex->reader, s_EAv, cont(ex->h, each_set_remove, ex, u, ev, av), ev, av, 0);
-    prf("set insert %v %v %v %v\n", u, e, a, v);
     apply(ex->insert, u, ev, av, lookup(r, v), 1);
     apply(n, op, r);
 }
