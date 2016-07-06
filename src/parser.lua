@@ -834,6 +834,175 @@ local function generateBindingNode(context, node, related, parent)
   return node
 end
 
+local function resolveMutate(context, node)
+  local left = resolveExpression(node.children[1], context)
+  local rightNode = node.children[2]
+  -- we have to distinguish between objects and any other kind
+  -- of expression on the right here. Objects should still be
+  -- mutating, but other expressions should not. If we don't do
+  -- this then attribute lookups with . syntax will incorrectly
+  -- end up being mutates
+  local right
+  if rightNode.type == "object" then
+    -- if our left is an attribute call then we need to add the
+    -- attribute's parent to our projection to make sure that
+    -- the generated object is per each parent not just potentially
+    -- one global one
+    if left.attributeLeft then
+      context.projections:push(Set:new({left.attributeLeft}))
+    end
+    right = resolveExpression(rightNode, context)
+    -- cleanup our projection
+    if left.attributeLeft then
+      context.projections:pop()
+    end
+  else
+    local prevMutating = context.mutating;
+    context.mutating = nil
+    right = resolveExpression(rightNode, context)
+    context.mutating = prevMutating
+  end
+  -- we need to create an equality between whatever the left resolved to
+  -- and whatever the right resolved to
+  resolveExpression(makeNode(context, "equality", node, {operator = "=", children = {left, right}}), context);
+  return left
+end
+
+local function resolveEqualityLike(context, node)
+  local left = resolveExpression(node.children[1], context)
+  if not left then
+    -- error
+    errors.invalidEqualityLeft(context, node, left)
+    return
+  end
+  -- set that when I try to resolve this expression,
+  -- I'm looking to resolve it to this specific variable
+  local right = resolveExpression(node.children[2], context)
+  local expression = makeNode(context, "expression", node, {operator = node.operator, projection = {}, groupings = {}, bindings = {}})
+  local leftBinding = {field = "a"}
+  if left.type == "variable" then
+    leftBinding.variable = left
+  elseif left.type == "constant" then
+    leftBinding.constant = left
+  else
+    error("Inequality with invalid left")
+  end
+  local rightBinding = {field = "b"}
+  if right.type == "variable" then
+    rightBinding.variable = right
+  elseif right.type == "constant" then
+    rightBinding.constant = right
+  else
+    error("Inequality with invalid right")
+  end
+  if context.nonFilteringInequality then
+    resultVar = resolveVariable(context, string.format("%s-%s-%s", node.type, node.line, node.offset), node, true)
+    generateBindingNode(context, {field = "return", variable = resultVar}, node, expression)
+  end
+  generateBindingNode(context, leftBinding, left, expression)
+  generateBindingNode(context, rightBinding, right, expression)
+  local query = context.queryStack:peek()
+  query.expressions[#query.expressions + 1] = expression
+  return resultVar
+end
+
+local function resolveAttribute(context, node)
+  local left = resolveExpression(node.children[1], context)
+  local right = node.children[2]
+  if right and right.type == "IDENTIFIER" then
+    -- generate a temporary variable to hold this attribute binding
+    local attributeRef = resolveVariable(context, string.format("%s-%s-%s", right.value, right.line, right.offset), right, true)
+    -- store the left on the attribute as we may need it for adding
+    -- to the projection in the case of a mutate
+    attributeRef.attributeLeft = left;
+    -- generate a temporary object that we can attach this attribute to by adding
+    -- an equality from the attribute name to our temp variable
+    local tempObject = makeNode(context, "object", right, {children = {makeNode(context, "equality", right, {operator = "=", children = {right, makeNode(context, "IDENTIFIER", node.children[1], {value = attributeRef.name})}})}})
+    -- create the object
+    local objectNode = generateObjectNode(tempObject, context)
+    -- create an equality between the entity fields
+    resolveExpression(makeNode(context, "equality", right, {operator = "=", children = {left, objectNode.entityVariable}}), context);
+    -- add it to the query
+    local query = context.queryStack:peek()
+    local queryKey = objectNode.type == "object" and "objects" or "mutates"
+    query[queryKey][#query[queryKey] + 1] = objectNode
+    return attributeRef
+
+  else
+    -- error
+    errors.invalidAttributeRight(context, right)
+  end
+end
+
+local function resolveFunctionLike(context, node)
+  local resultVar = resolveVariable(context, string.format("result-%s-%s", node.line, node.offset), node, true)
+  local prevNonfiltering = context.nonFilteringInequality
+  if node.func == "is" then
+    context.nonFilteringInequality = true
+  end
+  local expression = makeNode(context, "expression", node, {operator = node.func, projection = {}, groupings = {}, bindings = {}})
+  -- bind the return
+  generateBindingNode(context, {field = "return", variable = resultVar}, resultVar, expression)
+  -- create bindings
+  for ix, child in ipairs(node.children) do
+    local field = alphaFields[ix]
+    local resolved = resolveExpression(child, context)
+    if not resolved then
+      -- error
+      errors.invalidFunctionArgument(context, child, node.type)
+
+    elseif resolved.type == "variable" then
+      generateBindingNode(context, {field = field, variable = resolved}, resolved, expression)
+
+    elseif resolved.type == "constant" then
+      generateBindingNode(context, {field = field, constant = resolved}, resolved, expression)
+
+    elseif resolved.type == "grouping" then
+      for ix, grouping in ipairs(resolved.children) do
+        local groupingVar = resolveExpression(grouping, context)
+        if groupingVar.type == "variable" then
+          expression.groupings[#expression.groupings + 1] = makeNode(context, "grouping", grouping, {expression = expression, variable = groupingVar, ix = ix})
+        else
+          -- error
+          errors.invalidGrouping(context, grouping)
+        end
+      end
+
+    elseif resolved.type == "projection" then
+      for _, project in ipairs(resolved.children) do
+        local projectVar = resolveExpression(project, context)
+        if projectVar.type == "variable" then
+          expression.projection[#expression.projection + 1] = makeNode(context, "projection", project, {expression = expression, variable = projectVar})
+        else
+          -- error
+          errors.invalidProjection(context, grouping)
+        end
+      end
+    else
+      -- error?
+      errors.invalidFunctionArgument(context, child, node.type)
+    end
+  end
+  if node.func == "is" then
+    context.nonFilteringInequality = prevNonfiltering
+  end
+  local query = context.queryStack:peek()
+  query.expressions[#query.expressions + 1] = expression
+  return resultVar
+end
+
+local function resolveObject(context, node)
+  local query = context.queryStack:peek()
+  local objectNode = generateObjectNode(node, context)
+  if objectNode.type == "object" or objectNode.type == "mutate" then
+    local queryKey = objectNode.type == "object" and "objects" or "mutates"
+    query[queryKey][#query[queryKey] + 1] = objectNode
+  elseif objectNode.type == "expression" then
+    query.expressions[#query.expressions + 1] = objectNode
+  end
+  return objectNode.entityVariable
+end
+
 local function resolveExpression(node, context)
   if not node then return end
 
@@ -847,168 +1016,19 @@ local function resolveExpression(node, context)
     return resolveVariable(context, node.value, node)
 
   elseif node.type == "mutate" then
-    local left = resolveExpression(node.children[1], context)
-    local rightNode = node.children[2]
-    -- we have to distinguish between objects and any other kind
-    -- of expression on the right here. Objects should still be
-    -- mutating, but other expressions should not. If we don't do
-    -- this then attribute lookups with . syntax will incorrectly
-    -- end up being mutates
-    local right
-    if rightNode.type == "object" then
-      -- if our left is an attribute call then we need to add the
-      -- attribute's parent to our projection to make sure that
-      -- the generated object is per each parent not just potentially
-      -- one global one
-      if left.attributeLeft then
-        context.projections:push(Set:new({left.attributeLeft}))
-      end
-      right = resolveExpression(rightNode, context)
-      -- cleanup our projection
-      if left.attributeLeft then
-        context.projections:pop()
-      end
-    else
-      local prevMutating = context.mutating;
-      context.mutating = nil
-      right = resolveExpression(rightNode, context)
-      context.mutating = prevMutating
-    end
-    -- we need to create an equality between whatever the left resolved to
-    -- and whatever the right resolved to
-    resolveExpression(makeNode(context, "equality", node, {operator = "=", children = {left, right}}), context);
-    return left
+    return resolveMutate(context, node)
 
   elseif node.type == "inequality" or node.type == "equality" then
-    local left = resolveExpression(node.children[1], context)
-    if not left then
-      -- error
-      errors.invalidEqualityLeft(context, node, left)
-      return
-    end
-    -- set that when I try to resolve this expression,
-    -- I'm looking to resolve it to this specific variable
-    local right = resolveExpression(node.children[2], context)
-    local expression = makeNode(context, "expression", node, {operator = node.operator, projection = {}, groupings = {}, bindings = {}})
-    local leftBinding = {field = "a"}
-    if left.type == "variable" then
-      leftBinding.variable = left
-    elseif left.type == "constant" then
-      leftBinding.constant = left
-    else
-      error("Inequality with invalid left")
-    end
-    local rightBinding = {field = "b"}
-    if right.type == "variable" then
-      rightBinding.variable = right
-    elseif right.type == "constant" then
-      rightBinding.constant = right
-    else
-      error("Inequality with invalid right")
-    end
-    if context.nonFilteringInequality then
-      resultVar = resolveVariable(context, string.format("%s-%s-%s", node.type, node.line, node.offset), node, true)
-      generateBindingNode(context, {field = "return", variable = resultVar}, node, expression)
-    end
-    generateBindingNode(context, leftBinding, left, expression)
-    generateBindingNode(context, rightBinding, right, expression)
-    local query = context.queryStack:peek()
-    query.expressions[#query.expressions + 1] = expression
-    return resultVar
+    return resolveEqualityLike(context, node)
 
   elseif node.type == "attribute" then
-    local left = resolveExpression(node.children[1], context)
-    local right = node.children[2]
-    if right and right.type == "IDENTIFIER" then
-      -- generate a temporary variable to hold this attribute binding
-      local attributeRef = resolveVariable(context, string.format("%s-%s-%s", right.value, right.line, right.offset), right, true)
-      -- store the left on the attribute as we may need it for adding
-      -- to the projection in the case of a mutate
-      attributeRef.attributeLeft = left;
-      -- generate a temporary object that we can attach this attribute to by adding
-      -- an equality from the attribute name to our temp variable
-      local tempObject = makeNode(context, "object", right, {children = {makeNode(context, "equality", right, {operator = "=", children = {right, makeNode(context, "IDENTIFIER", node.children[1], {value = attributeRef.name})}})}})
-      -- create the object
-      local objectNode = generateObjectNode(tempObject, context)
-      -- create an equality between the entity fields
-      resolveExpression(makeNode(context, "equality", right, {operator = "=", children = {left, objectNode.entityVariable}}), context);
-      -- add it to the query
-      local query = context.queryStack:peek()
-      local queryKey = objectNode.type == "object" and "objects" or "mutates"
-      query[queryKey][#query[queryKey] + 1] = objectNode
-      return attributeRef
-
-    else
-      -- error
-      errors.invalidAttributeRight(context, right)
-    end
+    return resolveAttribute(context, node)
 
   elseif node.type == "object" then
-    local query = context.queryStack:peek()
-    local objectNode = generateObjectNode(node, context)
-    if objectNode.type == "object" or objectNode.type == "mutate" then
-      local queryKey = objectNode.type == "object" and "objects" or "mutates"
-      query[queryKey][#query[queryKey] + 1] = objectNode
-    elseif objectNode.type == "expression" then
-      query.expressions[#query.expressions + 1] = objectNode
-    end
-    return objectNode.entityVariable
+    return resolveObject(context, node)
 
   elseif node.type == "infix" or node.type == "function" then
-    local resultVar = resolveVariable(context, string.format("result-%s-%s", node.line, node.offset), node, true)
-    local prevNonfiltering = context.nonFilteringInequality
-    if node.func == "is" then
-      context.nonFilteringInequality = true
-    end
-    local expression = makeNode(context, "expression", node, {operator = node.func, projection = {}, groupings = {}, bindings = {}})
-    -- bind the return
-    generateBindingNode(context, {field = "return", variable = resultVar}, resultVar, expression)
-    -- create bindings
-    for ix, child in ipairs(node.children) do
-      local field = alphaFields[ix]
-      local resolved = resolveExpression(child, context)
-      if not resolved then
-        -- error
-        errors.invalidFunctionArgument(context, child, node.type)
-
-      elseif resolved.type == "variable" then
-        generateBindingNode(context, {field = field, variable = resolved}, resolved, expression)
-
-      elseif resolved.type == "constant" then
-        generateBindingNode(context, {field = field, constant = resolved}, resolved, expression)
-
-      elseif resolved.type == "grouping" then
-        for ix, grouping in ipairs(resolved.children) do
-          local groupingVar = resolveExpression(grouping, context)
-          if groupingVar.type == "variable" then
-            expression.groupings[#expression.groupings + 1] = makeNode(context, "grouping", grouping, {expression = expression, variable = groupingVar, ix = ix})
-          else
-            -- error
-            errors.invalidGrouping(context, grouping)
-          end
-        end
-
-      elseif resolved.type == "projection" then
-        for _, project in ipairs(resolved.children) do
-          local projectVar = resolveExpression(project, context)
-          if projectVar.type == "variable" then
-            expression.projection[#expression.projection + 1] = makeNode(context, "projection", project, {expression = expression, variable = projectVar})
-          else
-            -- error
-            errors.invalidProjection(context, grouping)
-          end
-        end
-      else
-        -- error?
-        errors.invalidFunctionArgument(context, child, node.type)
-      end
-    end
-    if node.func == "is" then
-      context.nonFilteringInequality = prevNonfiltering
-    end
-    local query = context.queryStack:peek()
-    query.expressions[#query.expressions + 1] = expression
-    return resultVar
+    return resolveFunctionLike(context, node)
 
   elseif node.type == "grouping" or node.type == "projection" then
     return node
