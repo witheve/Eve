@@ -298,7 +298,7 @@ void new_json_session(bag root, boolean tracing, buffer_handler write, table hea
     j->s = build_evaluation(h, j->scopes, j->persisted, cont(j->h, send_response, j));
     
     *handler = websocket_send_upgrade(h, headers, write, cont(h, handle_json_query, j), &j->write);
-    run_solver(j->s);
+    inject_event(j->s, compile_eve(aprintf(j->h,"init!\n   maintain\n      [#session-connect]\n"), j->tracing));
 }
 
 void init_json_service(http_server h, bag root, boolean tracing)

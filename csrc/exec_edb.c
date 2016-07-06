@@ -10,8 +10,6 @@ static void scan_listener(execf n,  operator op, value *r,
                           value er, value ar, value vr,
                           value e, value a, value v, multiplicity count)
 {
-    prf ("result %v %v %v %d\n", e, a, v, count);
-
     if (count > 0) {
         store(r, er, e);
         store(r, ar, a);

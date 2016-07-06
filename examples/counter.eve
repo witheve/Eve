@@ -12,6 +12,7 @@ increment the counter
     counter.count := counter.count + diff
 
 go!
+  [#session-connect]
   save
     [#counter count: 0]
 

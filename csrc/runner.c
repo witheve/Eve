@@ -16,8 +16,6 @@ static void insert_f(evaluation s, uuid u, value e, value a, value v, multiplici
     bag b;
     s->pass = true;
 
-    prf("insert %v %v %v %v %d\n", bagname(s, u), e, a, v, m);
-
     if (!(b = table_find(s->block_solution, u))) {
         table_set(s->block_solution, u, b = create_bag(u));
     }
@@ -50,8 +48,6 @@ static void merge_scan(evaluation ev, int sig, listener result, value e, value a
     listener f_filter = cont(ev->h, shadow, ev->f_solution, result);
     listener x_filter = cont(ev->h, shadow, ev->t_solution, f_filter);
 
-    prf("read %d %v %v %v\n", sig, e, a, v);
-
     // xxx - currently precluding removes in the event set
     if (ev->ev_solution) {
         table_foreach(ev->ev_solution, u, b) 
@@ -83,10 +79,8 @@ static void merge_multibag_bag(table d, uuid u, bag s)
         table_set(d, u, bd = create_bag(u));
     }
     
-    bag_foreach(s, e, a, v, c) {
-        prf("mb merge: %v %v %v\n", e, a, v, c);
+    bag_foreach(s, e, a, v, c) 
         edb_insert(bd, e, a, v, c);
-    }
 }
 
 static void run_execf(evaluation e, execf f) 
@@ -110,41 +104,35 @@ static void fixedpoint(evaluation s)
 
     ticks start_time = now();
     s->t_solution =  create_value_table(s->h);
-    s->next_t_solution =  create_value_table(s->h);
-    // gonna accrete this guy for a second
-    s->f_solution =  create_value_table(s->h);
+
 
     // double iteration
     while (t_continue) {
         s->pass = true;
         t_continue = false;
+        s->next_t_solution =  create_value_table(s->h);
+        s->f_solution =  create_value_table(s->h);
         while (s->pass) {
             s->pass = false;
             iterations++;
             s->next_f_solution =  create_value_table(s->h);
-            prf ("run blocks\n");
             vector_foreach(s->blocks, k) run_execf(s, k);
             table_foreach(s->next_f_solution, u, b) {
                 if (table_find(s->persisted, u)) {
-                    prf("merge next t %v\n", bagname(s, u));
+                    t_continue = true;
                     merge_multibag_bag(s->next_t_solution, u, b);
                 } else {
-                    prf("merge next f %v\n", bagname(s, u));
                     merge_multibag_bag(s->f_solution, u, b);
                 }
             }
-            t_continue |= s->pass;
         }
-        prf ("f completes\n");
         table_foreach(s->next_t_solution, u, b) {
-            prf("merge next t into t\n");
             merge_multibag_bag(s->t_solution, u, b);
         }
+        s->t++;
         s->ev_solution = 0;
     }
-    prf ("x completes\n");
     table_foreach(s->t_solution, u, b) {
-        prf("merge t into p\n");
         merge_multibag_bag(s->persisted, u, b);
     }
 

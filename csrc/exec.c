@@ -272,7 +272,8 @@ static execf build_join(evaluation e, node n)
 static CONTINUATION_1_2(do_terminal, evaluation, operator, value *);
 static void do_terminal(evaluation e, operator op, value *r)
 {
-    if (op == op_flush) apply(e->terminal);
+    // not actually what we wanted, but meh
+    if (op == op_insert) apply(e->terminal);
 }
 
 static execf build_terminal(evaluation e, node n)
