@@ -19,7 +19,7 @@ typedef struct rolling {
 static void rolling_advance_page(rolling l, bytes len)
 {
     pageheader old = l->buffer;
-    bytes plen = pad(len, l->parent->pagesize);
+    bytes plen = pad(len + sizeof(struct pageheader), l->parent->pagesize);
     pageheader p =  allocate(l->parent, plen);
     l->buffer = p;
     l->offset = sizeof(struct pageheader);
