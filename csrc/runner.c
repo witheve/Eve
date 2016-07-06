@@ -116,9 +116,7 @@ static void fixedpoint(evaluation s)
             s->next_f_solution =  create_value_table(s->h);
             vector_foreach(s->blocks, k) run_execf(s, k);
 
-            print_multibag(s, s->next_f_solution);
             merge_multibags(s->h, s->f_solution, s->next_f_solution);
-            print_multibag(s, s->f_solution);
             x_continue |= s->pass;
         }
         merge_multibags(s->h, s->x_solution, s->f_solution);
@@ -139,9 +137,12 @@ static void fixedpoint(evaluation s)
 void inject_event(evaluation s, vector n)
 {
     s->t++;
-    s->f_solution = create_value_table(s->h);
     s->x_solution = create_value_table(s->h);
+    s->f_solution = create_value_table(s->h);
+    s->next_f_solution = create_value_table(s->h);
     vector_foreach(n, i) run_execf(s, build(s, i));
+    s->f_solution = s->next_f_solution;
+    s->next_f_solution = create_value_table(s->h);
     fixedpoint(s);
 }
 
