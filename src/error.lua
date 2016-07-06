@@ -504,9 +504,8 @@ end
 
 function chooseNearest(needle, haystack, stringify, threshold)
   stringify = stringify or identity
-  print("HAI", #stringify(needle) / 3 + 1, #stringify(needle), stringify(needle))
-  threshold = threshold or (#stringify(needle) / 3 + 1)
   local name = stringify(needle)
+  threshold = threshold or (#stringify(needle) / 3 + 1)
   local best
   local bestDist = threshold
   for term in pairs(haystack) do
@@ -583,7 +582,7 @@ function errors.unknownVariable(context, variable, terms)
 end
 
 function errors.unknownExpression(context, expression, expressions)
-  local best = chooseNearest(expression.operator, expressions, function(x) return x.operator end)
+  local best = chooseNearest(expression.operator, expressions)
   local recommendation = ""
   if best then
     recommendation = "\n  Did you mean: \"" .. best .. "\"?"
