@@ -962,10 +962,11 @@ local function resolveExpression(node, context)
       context.nonFilteringInequality = true
     end
     local expression = makeNode(context, "expression", node, {operator = node.func, projection = {}, groupings = {}, bindings = {}})
+    -- bind the return
     generateBindingNode(context, {field = "return", variable = resultVar}, resultVar, expression)
     -- create bindings
     for ix, child in ipairs(node.children) do
-      field = alphaFields[ix]
+      local field = alphaFields[ix]
       local resolved = resolveExpression(child, context)
       if not resolved then
         -- error
@@ -1006,7 +1007,6 @@ local function resolveExpression(node, context)
     if node.func == "is" then
       context.nonFilteringInequality = prevNonfiltering
     end
-    -- bind the return
     local query = context.queryStack:peek()
     query.expressions[#query.expressions + 1] = expression
     return resultVar
