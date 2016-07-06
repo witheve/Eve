@@ -322,7 +322,7 @@ function translate_not(n, bound, down, tracing, context)
    local env, c = down(tail_bound)
    local orig_perm = shallowcopy(env.permanent)
    local bot = build_node("choosetail",
-                          {c},
+                          {},
                           {{read_lookup(env, flag)}}, tail_id)
 
    local arm_bottom = function (bound)

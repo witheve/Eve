@@ -2,6 +2,7 @@
 
 typedef struct pageheader *pageheader;
 
+// pageheader should store the number of pages so we can send them back
 struct pageheader {
     iu32 refcnt;
     pageheader next;

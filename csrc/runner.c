@@ -15,7 +15,6 @@ static void insert_f(evaluation s, uuid u, value e, value a, value v, multiplici
 {
     bag b;
     s->pass = true;
-    prf("insert %v %v %v %d\n", e, a, v, m);
 
     if (!(b = table_find(s->block_solution, u))) {
         table_set(s->block_solution, u, b = create_bag(u));
@@ -92,11 +91,10 @@ static void run_execf(evaluation e, execf f)
     apply(f, op_flush, 0);
              
     if (e->non_empty) {
-        prf("flushing inserts\n");
         table_foreach(e->block_solution, u, b) {
             merge_multibag_bag(e->next_f_solution, u, b);
         }
-    } else prf("not flushing inserts\n");
+    }
 }
 
 static void fixedpoint(evaluation s)

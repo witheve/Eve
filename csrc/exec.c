@@ -146,7 +146,8 @@ static void do_choose_tail(int *count, execf next, value flag, operator op, valu
     if (op != op_flush) {
         *count = *count + 1;
         r[toreg(flag)] = etrue;
-        apply(next, op, r);
+        if (next)
+            apply(next, op, r);
     }
 }
 
@@ -158,7 +159,7 @@ static execf build_choose_tail(evaluation e, node n)
     return cont(e->h,
                 do_choose_tail,
                 register_counter(e, n),
-                resolve_cfg(e, n, 0),
+                (vector_length(n->arms) > 0)? resolve_cfg(e, n, 0):0,
                 vector_get(vector_get(n->arguments, 0), 0));
 }
 
@@ -201,7 +202,7 @@ static void do_not(int *count, execf next, execf leg, value flag, operator op, v
     store(r, flag, efalse);
     
     apply(leg, op, r);
-    prf ("leggy: %p %p %d %p\n", lookup(r, flag), efalse, lookup(r, flag) == efalse, etrue);
+
     if (lookup(r, flag) == efalse)
         apply(next, op, r);
 }
@@ -278,7 +279,6 @@ static execf build_join(evaluation e, node n)
 static CONTINUATION_1_2(do_terminal, evaluation, operator, value *);
 static void do_terminal(evaluation e, operator op, value *r)
 {
-    if (op == op_insert) prf ("terminal\n");
     // not actually what we wanted, but meh
     if (op == op_insert) apply(e->terminal);
 }
