@@ -821,6 +821,7 @@ end
 local generateObjectNode
 local generateQueryNode
 local generateNotNode
+local resolveExpression
 
 local function generateBindingNode(context, node, related, parent)
   node = makeNode(context, "binding", related, node);
@@ -1003,7 +1004,7 @@ local function resolveObject(context, node)
   return objectNode.entityVariable
 end
 
-local function resolveExpression(node, context)
+resolveExpression = function(node, context)
   if not node then return end
 
   if node.type == "NUMBER" or node.type == "STRING" or node.type == "UUID" then
