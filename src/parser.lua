@@ -57,13 +57,13 @@ end
 local StringScanner = {}
 
 function StringScanner:new(str)
-  newObj = {pos = 0, str = str}
+  newObj = {pos = 0, bytes = 0, bytePos = 0, str = str}
   self.__index = self
   return setmetatable(newObj, self)
 end
 
 function StringScanner:peek()
-  _, char = utf8.next(self.str, self.pos)
+  local _, char = utf8.charpos(self.str, self.bytes, self.pos - self.bytePos)
   if char then
     return utf8.char(char)
   end
@@ -71,14 +71,16 @@ function StringScanner:peek()
 end
 
 function StringScanner:read()
-  local char
+  local char, bytes
   if self.pos == 0 then
-    _, char = utf8.next(self.str)
+    bytes, char = utf8.charpos(self.str, 0)
   else
-    _, char = utf8.next(self.str, self.pos)
+    bytes, char = utf8.charpos(self.str, self.bytes, self.pos - self.bytePos)
   end
   if char then
+    self.bytePos = self.pos
     self.pos = self.pos + 1
+    self.bytes = bytes
     return utf8.char(char)
   end
   return nil
@@ -90,6 +92,8 @@ end
 
 function StringScanner:setPos(pos)
   self.pos = pos
+  self.bytePos = 0
+  self.bytes = 0
 end
 
 function StringScanner:eatWhile(func)
@@ -236,12 +240,8 @@ local function lex(str)
       -- FIXME: why are these extra reads necessary? it seems like
       -- the utf8 stuff isn't getting handled correctly for whatever
       -- reason
-      scanner:read()
-      scanner:read()
       local UUID = scanner:eatWhile(isUUID)
       -- skip the end bracket
-      scanner:read()
-      scanner:read()
       scanner:read()
       tokens[#tokens+1] = Token:new("UUID", UUID, line, offset)
       offset = offset + #UUID + 3
