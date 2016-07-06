@@ -125,28 +125,6 @@ function Token:print(token)
   io.write(Token:format(token))
 end
 
-function Token:printLines(lines)
-  for lineNum, line in pairs(lines) do
-    io.write(lineNum, " ")
-    for _, token in pairs(line) do
-      Token:print(token)
-      io.write(" ")
-    end
-    io.write("\n")
-  end
-end
-
-function Token:tokensToLine(tokens)
-  local final = {}
-  local prevOffset = tokens[1].offset + 1
-  for _, token in ipairs(tokens) do
-    final[#final + 1] = makeWhitespace(token.offset - prevOffset)
-    final[#final + 1] = token.value
-    prevOffset = token.offset + #token.value + 1
-  end
-  return table.concat(final)
-end
-
 local specials = {
   ["@"] = "NAME",
   ["#"] = "TAG",
@@ -195,8 +173,8 @@ local keywords = {
 
 local whitespace = { [" "] = true, ["\n"] = true, ["\t"] = true, ["\r"] = true }
 
-local function isIdentifierChar(char)
-  return not specials[char] and not whitespace[char]
+local function isIdentifierChar(char, prev)
+  return not specials[char] and not whitespace[char] and not (prev == "/" and char == "/")
 end
 
 local function inString(char, prev, prev2)
@@ -296,6 +274,13 @@ local function lex(str)
     else
       scanner:unread()
       local identifier = scanner:eatWhile(isIdentifierChar)
+      -- handle the special case of identifier//some comment, given how isIdentifierChar is
+      -- written the only way we the next char can be a / is if the previous char was also
+      -- a slash. We need to unread one char, and adjust the identifier.
+      if scanner:peek() == "/" then
+        scanner:unread()
+        identifier = identifier:sub(1, -2)
+      end
       local keyword = keywords[identifier]
       local type = keyword or "IDENTIFIER"
       tokens[#tokens+1] = Token:new(type, identifier, line, offset)
@@ -390,7 +375,7 @@ end
 local function formatGraph(root, seen, depth)
   local seen = seen or {}
   local depth = depth or 0
-  if not root or seen[root] then return "" end
+  if not root or seen[root] then return root and string.format("%s %s", depth, root.type) or "" end
   string = formatNode(root, depth)
   seen[root] = true
   if root.children then
@@ -469,6 +454,24 @@ local function parse(tokens, context)
   local token = scanner:read()
   local final = {}
   local info = {errors = {}, comments = {}}
+
+  local function getPrevRight(unwind, allowInfix)
+    local stackTop = stack:peek()
+    local parent = stackTop
+    local right = stackTop.children[#stackTop.children]
+    while right and (right.type == "equality" or right.type == "mutate" or right.type == "inequality" or (allowInfix and right.type == "infix")) do
+      if unwind then
+        parent.children[#parent.children] = nil
+        stack:push(right)
+      end
+      parent = right
+      right = parent.children[#parent.children]
+    end
+    if parent == stackTop then
+      return right
+    end
+    return parent
+  end
 
   local function tryFinishExpression(force)
     local stackTop = stack:peek()
@@ -657,15 +660,13 @@ local function parse(tokens, context)
       end
 
     elseif type == "DOT" then
-      local prev = stackTop.children[#stackTop.children]
-      if prev and (prev.type == "equality" or prev.type == "mutate" or prev.type == "inequality" or prev.type == "function" or prev.type == "infix") then
-        local right = prev.children[2]
+      local prev = getPrevRight(false, true)
+      if prev and (prev.type == "equality" or prev.type == "mutate" or prev.type == "inequality" or prev.type == "infix") then
+        local right = prev.children[#prev.children]
         if right and right.type == "IDENTIFIER" then
-          stackTop.children[#stackTop.children] = nil
-          -- remove the right hand side of the equality and put it back on the
-          -- stack
-          prev.children[2] = nil
-          stack:push(prev)
+          getPrevRight(true, true)
+          -- remove the right as we're going to eat it for the attribute call
+          prev.children[#prev.children] = nil
           -- now push this expression on the stack as well
           stack:push(makeNode(context, "attribute", token, {children = {right}}))
         else
@@ -684,15 +685,13 @@ local function parse(tokens, context)
 
     elseif type == "INFIX" then
       -- get the previous child
-      local prev = stackTop.children[#stackTop.children]
+      local prev = getPrevRight(false)
       if prev and (prev.type == "equality" or prev.type == "mutate" or prev.type == "inequality") then
-        local right = prev.children[2]
+        local right = prev.children[#prev.children]
         if right and valueTypes[right.type] then
-          stackTop.children[#stackTop.children] = nil
-          -- remove the right hand side of the equality and put it back on the
-          -- stack
+          getPrevRight(true, false)
+          -- remove the right hand side
           prev.children[2] = nil
-          stack:push(prev)
           -- now push this expression on the stack as well
           stack:push(makeNode(context, "infix", token, {func = token.value, children = {right}}))
         else

@@ -343,10 +343,13 @@ function DependencyGraph:cardinal(term)
   if self.cardinalTerms[term] then
     return self.cardinalTerms[term]
   end
-  self.cardinalTerms[term] = util.shallowCopy(term)
-  self.cardinalTerms[term].name = "|" .. term.name .. "|"
-  self.cardinalTerms[term].cardinal = term
-  self.cardinalTerms[term].generated = true
+  local neue = util.shallowCopy(term)
+  self.cardinalTerms[term] = neue
+  neue.name = "|" .. term.name .. "|"
+  neue.id = util.generateId()
+  neue.cardinal = term
+  neue.generated = true
+
   return self.cardinalTerms[term]
 end
 
@@ -357,7 +360,6 @@ function DependencyGraph:group(termOrNode) -- Retrieve the group (if any) associ
     end
   end
 end
-
 
 function DependencyGraph:addObjectNode(node)
   local deps = {provides = Set:new()}
@@ -434,7 +436,17 @@ function DependencyGraph:addExpressionNode(node)
       errors.unknownExpression(self.context, node, db.getExpressions())
       return
     end
+
+    local rest
+    for _, schema in ipairs(schemas) do
+      rest = schema.rest
+    end
     local pattern = util.shallowCopy(schemas[1].signature)
+    for field in pairs(args) do
+      if not pattern[field] then
+        pattern[field] = rest
+      end
+    end
     for _, schema in ipairs(schemas) do
       for field in pairs(schema.signature) do
         if pattern[field] ~= schema.signature[field] then
@@ -459,7 +471,6 @@ function DependencyGraph:addExpressionNode(node)
       end
     end
   end
-
   return self:add(node)
 end
 
@@ -814,6 +825,13 @@ function DependencyGraph:order(allowPartial)
           deps.graph:order()
         end
 
+        -- Strip terms that have already been provided
+        for term in pairs(deps.provides) do
+          if self.bound[term] then
+            deps.provides:remove(term)
+          end
+        end
+
         -- clean dependency hooks
         for term in pairs(deps.depends + deps.anyDepends) do
           self.dependents[term]:remove(node)
@@ -1123,6 +1141,7 @@ function analyze(content, quiet)
     end
     print("  }")
   end
+  return 0
 end
 
 function analyzeQuiet(content)

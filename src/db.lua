@@ -53,7 +53,9 @@ function getSignature(bindings, bound)
 end
 local Schema = {}
 function Schema.__tostring(schema)
-  return "Schema<" .. (schema.name or "UNNAMED") .. ", (" .. fmtSignature(schema.args, schema.signature) .. ")>"
+  local signature = fmtSignature(schema.args, schema.signature)
+  local rest = schema.rest and (", ...: " .. sigSymbols[schema.rest]) or ""
+  return string.format("Schema<%s, (%s%s)>", schema.name or "UNNAMED", signature, rest)
 end
 
 local function schema(args, name, kind)
@@ -63,9 +65,12 @@ local function schema(args, name, kind)
     schema.name = args.name
   end
   local mode = OUT
-  for _, arg in ipairs(args) do
+  for ix, arg in ipairs(args) do
     if arg == OUT or arg == IN or arg == STRONG_IN or arg == OPT then
       mode = arg
+      if ix == #args then -- a mode token in the final slot signifies a variadic expression that takes any number of vars matching the given mode
+        schema.rest = arg
+      end
     else
       schema.args[#schema.args + 1] = arg
       schema.signature[arg] = mode
@@ -81,12 +86,13 @@ local function rename(name, schema)
 end
 local schemas = {
   unary = schema{"return", IN, "a"},
+  unaryBound = schema{IN, "return", "a"},
   unaryFilter = schema{IN, "a"},
   binary = schema{"return", IN, "a", "b"},
+  binaryBound = schema{IN, "return", "a", "b"},
   binaryFilter = schema{IN, "a", "b"},
   moveIn = schema{"a", IN, "b"},
   moveOut = schema{"b", IN, "a"}
-
 }
 
 local expressions = {
@@ -102,11 +108,15 @@ local expressions = {
   ["="] = {rename("equal", schemas.binary), rename("is_equal", schemas.binaryFilter), rename("move", schemas.moveIn), rename("move", schemas.moveOut)},
   ["!="] = {rename("not_equal", schemas.binary), rename("is_not_equal", schemas.binaryFilter)},
 
+  concat = {schema({"return", IN}, "concat")},
+  length = {rename("length", schemas.unary)},
   is = {rename("is", schemas.unary)},
+
+  abs = {rename("abs", schemas.unary)},
   sin = {rename("sin", schemas.unary)},
   cos = {rename("cos", schemas.unary)},
   tan = {rename("tan", schemas.unary)},
-  length = {rename("length", schemas.unary)},
+
   time = {schema({"return", OPT, "seconds", "minutes", "hours"}, "time")},
 
   -- Aggregates
@@ -141,7 +151,7 @@ function getSchema(name, signature)
     end
     for arg, mode in pairs(signature) do
       required:remove(arg)
-      local schemaMode = schema.signature[arg]
+      local schemaMode = schema.signature[arg] or schema.rest
       if schemaMode ~= mode and schemaMode ~= OPT and (schemaMode ~= IN and mode ~= STRONG_IN) and (schemaMode ~= STRONG_IN and mode ~= IN) then
         match = false
         break
