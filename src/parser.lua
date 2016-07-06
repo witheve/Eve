@@ -125,28 +125,6 @@ function Token:print(token)
   io.write(Token:format(token))
 end
 
-function Token:printLines(lines)
-  for lineNum, line in pairs(lines) do
-    io.write(lineNum, " ")
-    for _, token in pairs(line) do
-      Token:print(token)
-      io.write(" ")
-    end
-    io.write("\n")
-  end
-end
-
-function Token:tokensToLine(tokens)
-  local final = {}
-  local prevOffset = tokens[1].offset + 1
-  for _, token in ipairs(tokens) do
-    final[#final + 1] = makeWhitespace(token.offset - prevOffset)
-    final[#final + 1] = token.value
-    prevOffset = token.offset + #token.value + 1
-  end
-  return table.concat(final)
-end
-
 local specials = {
   ["@"] = "NAME",
   ["#"] = "TAG",
@@ -195,8 +173,8 @@ local keywords = {
 
 local whitespace = { [" "] = true, ["\n"] = true, ["\t"] = true, ["\r"] = true }
 
-local function isIdentifierChar(char)
-  return not specials[char] and not whitespace[char]
+local function isIdentifierChar(char, prev)
+  return not specials[char] and not whitespace[char] and not (prev == "/" and char == "/")
 end
 
 local function inString(char, prev, prev2)
@@ -296,6 +274,13 @@ local function lex(str)
     else
       scanner:unread()
       local identifier = scanner:eatWhile(isIdentifierChar)
+      -- handle the special case of identifier//some comment, given how isIdentifierChar is
+      -- written the only way we the next char can be a / is if the previous char was also
+      -- a slash. We need to unread one char, and adjust the identifier.
+      if scanner:peek() == "/" then
+        scanner:unread()
+        identifier = identifier:sub(1, -2)
+      end
       local keyword = keywords[identifier]
       local type = keyword or "IDENTIFIER"
       tokens[#tokens+1] = Token:new(type, identifier, line, offset)
