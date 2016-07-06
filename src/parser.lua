@@ -453,7 +453,6 @@ local function parse(tokens, context)
   local scanner = ArrayScanner:new(tokens)
   local token = scanner:read()
   local final = {}
-  local info = {errors = {}, comments = {}}
 
   local function getPrevRight(unwind, allowInfix)
     local stackTop = stack:peek()
@@ -517,7 +516,7 @@ local function parse(tokens, context)
       -- we treat commas as whitespace
 
     elseif type == "COMMENT" then
-      info.comments[#info.comments + 1] = token
+      context.comments[#context.comments + 1] = token
 
     elseif type == "STRING_OPEN" then
       stack:push(makeNode(context, "function", token, {func = "concat", children = {right}}))
@@ -1455,11 +1454,15 @@ end
 -- ParseFile
 ------------------------------------------------------------
 
+local function makeContext(code, file)
+  return {code = code, downEdges = {}, file = file, errors = {}, comments = {}}
+end
+
 local function parseFile(path)
   local content = fs.read(path)
   content = content:gsub("\t", "  ")
   content = content:gsub("\r", "")
-  local context = {code = content, downEdges = {}, file = path, errors = {}}
+  local context = makeContext(content, path)
   local tokens = lex(content)
   context.tokens = tokens
   local tree = {type="expression tree", children = parse(tokens, context)}
@@ -1470,7 +1473,7 @@ end
 local function parseString(str)
   str = str:gsub("\t", "  ")
   str = str:gsub("\r", "")
-  local context = {code = str, downEdges = {}, errors = {}}
+  local context = makeContext(str)
   local tokens = lex(str)
   context.tokens = tokens
   local tree = {type="expression tree", children = parse(tokens, context)}
@@ -1487,7 +1490,7 @@ end
 local function printParse(content)
   content = content:gsub("\t", "  ")
   content = content:gsub("\r", "")
-  local context = {code = content, downEdges = {}, errors = {}}
+  local context = makeContext(content)
   local tokens = lex(content)
   context.tokens = tokens
   local tree = {type="expression tree", children = parse(tokens, context)}
