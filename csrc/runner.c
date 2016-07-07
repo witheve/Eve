@@ -134,8 +134,14 @@ static void fixedpoint(evaluation s)
         s->t++;
         s->ev_solution = 0;
     }
+
+    // merge but ignore bags not in persisted
     table_foreach(s->t_solution, u, b) {
-        merge_multibag_bag(s->persisted, u, b);
+        bag bd;
+        if ((bd = table_find(s->persisted, u))) {
+            bag_foreach((bag)b, e, a, v, c) 
+                edb_insert(bd, e, a, v, c);
+        }
     }
 
     // this is a bit strange, we really only care about the
