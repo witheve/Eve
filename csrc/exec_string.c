@@ -8,11 +8,11 @@ static void do_concat(int *count, execf n, value dest, vector terms, operator op
     // XXX not init
     buffer b = allocate_string(init);
     *count = *count+1;
-    
+
     vector_foreach(terms, i) {
-        bprintf(b, "%v", lookup(i, r));
+        print_value_raw(b, lookup(i, r));
     }
-    
+
     store(r, dest, intern_string(bref(b, 0), buffer_length(b)));
     apply(n, op, r);
 }
@@ -29,7 +29,7 @@ static execf build_concat(evaluation e, node n)
 
 static CONTINUATION_6_2(do_split, heap, int *, execf, value, value, value,
                         operator, value *);
-static void do_split(heap h, int *count, execf n, value dest, value source, value key, 
+static void do_split(heap h, int *count, execf n, value dest, value source, value key,
                      operator op, value *r)
 {
     if (op == op_flush) {
@@ -40,7 +40,7 @@ static void do_split(heap h, int *count, execf n, value dest, value source, valu
         estring k = lookup(key, r);
         for (int i = 0; i < s->length; i++) {
             for (j = 0; (j < k->length) && ((i+j) < s->length); j++) {
-                if (k->body[j] != s->body[i+j]) break; 
+                if (k->body[j] != s->body[i+j]) break;
             }
             if (j == k->length) {
                 store(r, dest, intern_buffer(out));
@@ -93,5 +93,3 @@ void register_string_builders(table builders)
     table_set(builders, intern_cstring("split"), build_split);
     table_set(builders, intern_cstring("length"), build_length);
 }
-
-
