@@ -141,7 +141,8 @@ void error(char *x)
 void unix_wait()
 {
     while (1) {
-        ticks next = timer_check(0);
+        ticks next = timer_check();
+        prf("block: %p\n", next);
         select_timer_block(next);
     }
 }
