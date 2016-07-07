@@ -532,7 +532,7 @@ function drawNodeGraph() {
       let fix;
       if(errorInfo.fixes) {
         fix = {c: "fix-it", text: "Fix it for me", fix: errorInfo.fixes, click: applyFix}
-      } 
+      }
       return {c: "error", children: [
         {c: "error-title", text: errorInfo.type},
         {c: "error-context", text: errorInfo.pos.file || "(passed string)"},
@@ -638,7 +638,7 @@ function orderedNode(node, state) {
     for(let binding of node.bindings) {
       if(binding.field !== "return" && positionals[binding.field] !== undefined) {
         bindings[startIx + positionals[binding.field]] = orderedNode(binding.variable || binding.constant, state);
-      } else { 
+      } else {
         bindings.unshift({text: `=`})
         bindings.unshift(orderedNode(binding.variable || binding.constant, state));
         startIx += 2;
@@ -647,13 +647,13 @@ function orderedNode(node, state) {
     if(isInfix) {
       bindings.splice(bindings.length - 1, 0, {text: node.operator});
     }
-    if(node.projection.length) {
+    if(node.projection && node.projection.length) {
       bindings.push({text: `given`})
       for(let proj of node.projection) {
         bindings.push(orderedNode(proj, state));
       }
     }
-    if(node.groupings.length) {
+    if(node.groupings && node.groupings.length) {
       bindings.push({text: `per`})
       for(let group of node.groupings) {
         bindings.push(orderedNode(group, state));
