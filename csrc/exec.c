@@ -146,6 +146,7 @@ static void do_subagg(int *count, execf next, execf leg, value resreg,
                       operator op, value *r)
 {
     if (op == op_flush) {
+        apply(leg, op, r);
         table_foreach(results, v, rset) {
             copyout(r, inputs, v);
             table_foreach((table)rset, o, _) {
