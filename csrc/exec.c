@@ -276,9 +276,12 @@ static void do_time(evaluation e, int *count, execf n, value s, value m, value h
         unsigned int seconds, minutes,  hours;
         *count = *count +1;
         clocktime(e->t, &hours, &minutes, &seconds);
-        store(r, s, box_float((double)seconds));
-        store(r, m, box_float((double)minutes));
-        store(r, h, box_float((double)hours));
+        value sv = box_float((double)seconds);
+        value mv = box_float((double)minutes);
+        value hv = box_float((double)hours);
+        store(r, s, sv);
+        store(r, m, mv);
+        store(r, h, hv);
     }
     apply(n, op, r);
 }
@@ -299,9 +302,9 @@ static execf build_time(evaluation e, node n, execf *arms)
                 e,
                 register_counter(e, n),
                 resolve_cfg(e, n, 0),
-                vector_get(a, 0),
                 vector_get(a, 1),
-                vector_get(a, 2));
+                vector_get(a, 2),
+                vector_get(a, 3));
 }
 
 

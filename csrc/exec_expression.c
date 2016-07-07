@@ -17,6 +17,26 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
 }
 
 
+#define DO_UNARY_TRIG(__name, __op)                                                               \
+    static CONTINUATION_5_2(__name, evaluation, int *, execf, value, value, operator, value *);      \
+    static void __name (evaluation ex, int *count, execf n, value dest, value a, operator op, value *r) \
+    {                                                                                                \
+        if (op == op_flush)  {                                                                       \
+            apply(n, op, r);                                                                         \
+            return;                                                                                  \
+        }                                                                                            \
+        value ar = lookup(r, a);                                                                     \
+        *count = *count + 1;                                                                         \
+        if ((type_of(ar) != float_space )) {                                                         \
+            exec_error(ex, "attempt to do math on non-number", a);                                   \
+        } else {                                                                                     \
+            double deg = *(double *)ar;                                                              \
+            double rad = deg * M_PI/180.0;                                                           \
+            r[reg(dest)] = box_float(__op(rad));                                                     \
+            apply(n, op, r);                                                                         \
+        }                                                                                            \
+    }
+
 #define DO_UNARY_NUMERIC(__name, __op)                                                               \
     static CONTINUATION_5_2(__name, evaluation, int *, execf, value, value, operator, value *);      \
     static void __name (evaluation ex, int *count, execf n, value dest, value a, operator op, value *r) \
@@ -56,13 +76,14 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
 #define BUILD_UNARY(__name, __do_op)   \
     static execf __name (evaluation e, node n)  \
     {                                           \
+        vector a = vector_get(n->arguments, 0); \
         return cont(e->h,                       \
                 __do_op,                        \
                 e,                              \
                 register_counter(e, n),         \
                 resolve_cfg(e, n, 0),           \
-                vector_get(n->arguments, 0),    \
-                vector_get(n->arguments, 1));   \
+                vector_get(a, 0),    \
+                vector_get(a, 1));   \
     }
 
 
@@ -158,13 +179,14 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
     }
 
 
-DO_UNARY_NUMERIC(do_sin, sin)
+
+DO_UNARY_TRIG(do_sin, sin)
 BUILD_UNARY(build_sin, do_sin)
 
-DO_UNARY_NUMERIC(do_cos, cos)
+DO_UNARY_TRIG(do_cos, cos)
 BUILD_UNARY(build_cos, do_cos)
 
-DO_UNARY_NUMERIC(do_tan, tan)
+DO_UNARY_TRIG(do_tan, tan)
 BUILD_UNARY(build_tan, do_tan)
 
 DO_BINARY_NUMERIC(do_plus, +)

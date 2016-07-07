@@ -103,6 +103,7 @@ static void fixedpoint(evaluation s)
     boolean t_continue = true;
 
     ticks start_time = now();
+    s->t = start_time;
     s->t_solution =  create_value_table(s->h);
 
 
