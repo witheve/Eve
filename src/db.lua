@@ -122,7 +122,7 @@ local expressions = {
   time = {schema({"return", OPT, "seconds", "minutes", "hours"}, "time")},
 
   -- Aggregates
-  count = {schema({"return"}, "count", "aggregate"), schema({IN, "return"}, "count", "aggregate")},
+  count = {schema({"return"}, "sum", "aggregate"), schema({IN, "return"}, "sum", "aggregate")},
   sum = {schema({"return", STRONG_IN, "a"}, "sum", "aggregate"), schema({IN, "return", STRONG_IN, "a"}, "sum", "aggregate")}
 }
 
