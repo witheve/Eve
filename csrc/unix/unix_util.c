@@ -145,3 +145,16 @@ void unix_wait()
         select_timer_block(next);
     }
 }
+
+void clocktime(ticks t, unsigned int *hours, unsigned int *minutes, unsigned int *seconds)
+{
+    struct timeval tv;
+    time_t z = t >> 32;
+    // not threadsafe
+    struct tm *tm = localtime(&z);
+    *hours = tm->tm_hour;
+    *minutes = tm->tm_min;
+    *seconds = tm->tm_sec;
+}
+
+

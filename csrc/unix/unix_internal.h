@@ -80,3 +80,5 @@ static int encode_sockaddrin(struct sockaddr_in *out, station in)
     memcpy (&out->sin_port, in + 4, 2);
     return(sizeof(struct sockaddr_in));
 }
+
+

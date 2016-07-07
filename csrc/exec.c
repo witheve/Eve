@@ -1,6 +1,7 @@
 #include <runtime.h>
 #include <unistd.h>
 #include <exec.h>
+#include <unix.h>
 
 static CONTINUATION_3_2(do_sub_tail, int *, value, vector, operator, value *);
 static void do_sub_tail(int *count,
@@ -264,6 +265,46 @@ static execf build_terminal(evaluation e, node n)
     return cont(e->h, do_terminal, e);
 }
 
+
+
+static CONTINUATION_6_2(do_time,
+                        evaluation, int *, execf, value, value, value,
+                        operator, value *);
+static void do_time(evaluation e, int *count, execf n, value s, value m, value h, operator op, value *r)
+{
+    if (op == op_insert) {
+        unsigned int seconds, minutes,  hours;
+        *count = *count +1;
+        clocktime(e->t, &hours, &minutes, &seconds);
+        store(r, s, box_float((double)seconds));
+        store(r, m, box_float((double)minutes));
+        store(r, h, box_float((double)hours));
+    }
+    apply(n, op, r);
+}
+
+static CONTINUATION_1_0(time_expire, evaluation);
+static void time_expire(evaluation e)
+{
+    run_solver(e);
+}
+
+// xxx  - handle the bound case
+static execf build_time(evaluation e, node n, execf *arms)
+{
+    vector a = vector_get(n->arguments, 0);
+    register_periodic_timer(seconds(1), cont(e->h, time_expire, e));
+    return cont(e->h,
+                do_time,
+                e,
+                register_counter(e, n),
+                resolve_cfg(e, n, 0),
+                vector_get(a, 0),
+                vector_get(a, 1),
+                vector_get(a, 2));
+}
+
+
 static CONTINUATION_3_2(do_fork, int *, int, execf *, operator, value *) ;
 static void do_fork(int *count, int legs, execf *b, operator op, value *r)
 {
@@ -343,6 +384,8 @@ table builders_table()
         table_set(builders, intern_cstring("move"), build_move);
         table_set(builders, intern_cstring("regfile"), build_regfile);
         table_set(builders, intern_cstring("not"), build_not);
+        table_set(builders, intern_cstring("time"), build_time);
+        
         register_exec_expression(builders);
         register_string_builders(builders);
         register_aggregate_builders(builders);

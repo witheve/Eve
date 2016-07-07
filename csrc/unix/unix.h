@@ -56,3 +56,5 @@ void tcp_create_server(heap h,
 void unix_wait();
 void select_init();
 void init_processes();
+
+void clocktime(ticks t, unsigned int *hours, unsigned int *minutes, unsigned int *seconds);
