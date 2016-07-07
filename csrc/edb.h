@@ -1,5 +1,4 @@
 struct bag {
-    table listeners;
     table eav;
     table ave;
     uuid u;
@@ -15,7 +14,7 @@ struct bag {
 #define s_EAv 0x6
 #define s_EAV 0x7
 
-void edb_scan(bag b, int sig, void *f, value e, value a, value v);
+void edb_scan(bag b, int sig, listener f, value e, value a, value v);
 
 table edb_implications();
 void edb_register_implication(bag b, node n);
@@ -32,14 +31,11 @@ int edb_size(bag b);
     for(long __c = (long)__cv , __z = 0; __z == 0; __z++)
 
 long count_of(bag b, value e, value a, value v);
-void edb_insert(bag b, value e, value a, value v, long multiplicity);
+void edb_insert(bag b, value e, value a, value v, multiplicity m);
 bag create_bag(uuid);
 void edb_remove(bag b, value e, value a, value v);
 void edb_set(bag b, value e, value a, value v);
 
 
-typedef closure(three_listener, value, value, value, eboolean);
-typedef closure(two_listener, value, value, eboolean);
-typedef closure(one_listener, value, eboolean);
-typedef closure(zero_listener, eboolean);
+
 

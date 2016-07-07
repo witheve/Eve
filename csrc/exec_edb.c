@@ -1,40 +1,24 @@
 #include <runtime.h>
 #include <exec.h>
 
-// break this out...also copy r now that its well-formed how to do that
-static CONTINUATION_6_4(scan_listener_3, execf, operator, value *, int, int, int,
-                        value, value, value, eboolean);
-static void scan_listener_3(execf n,  operator op, value *r, int a, int b, int c,
-                            value av, value bv, value cv, eboolean present)
+
+static CONTINUATION_6_4(scan_listener,
+                        execf, operator, value *,
+                        value, value, value,
+                        value, value, value, multiplicity);
+static void scan_listener(execf n,  operator op, value *r,
+                          value er, value ar, value vr,
+                          value e, value a, value v, multiplicity count)
 {
-    r[a] = av;
-    r[b] = bv;
-    r[c] = cv;
-    apply(n, 0, r);
+    if (count > 0) {
+        store(r, er, e);
+        store(r, ar, a);
+        store(r, vr, v);
+        apply(n, op, r);
+    }
 }
 
-static CONTINUATION_5_3(scan_listener_2, execf, operator, value *, int, int, value, value, eboolean);
-static void scan_listener_2(execf n, operator op, value *r, int a, int b,
-                            value av, value bv, eboolean present)
-{
-    r[a] = av;
-    r[b] = bv;
-    apply(n, 0, r);
-}
-
-static CONTINUATION_4_2(scan_listener_1, execf, operator, value *, int, value, eboolean);
-static void scan_listener_1(execf n, operator op, value *r, int a, value av, eboolean present)
-{
-    r[a] = av;
-    apply(n, op, r);
-}
-
-static CONTINUATION_3_1(scan_listener_0, execf, operator, value *, eboolean);
-static void scan_listener_0(execf n, operator op, value *r, eboolean present)
-{
-    apply(n, op, r);
-}
-
+#define sigbit(__sig, __p, __r) ((sig&(1<<__p))? register_ignore: __r)
 
 static CONTINUATION_7_2(do_scan, evaluation, int *, execf, int, value, value, value, operator, value *);
 static void do_scan(evaluation ex, int *count, execf n, int sig, value e, value a, value v, operator op, value *r)
@@ -43,35 +27,12 @@ static void do_scan(evaluation ex, int *count, execf n, int sig, value e, value 
         apply(n, op, r);
         return;
     }
-
-    void *listen;
-
     *count = *count + 1;
-    // generify this too
-    switch(sig) {
-    case s_eav:
-        listen = cont(ex->h, scan_listener_3, n, op, r, reg(e), reg(a), reg(v));
-        break;
-    case s_eAv:
-        listen = cont(ex->h, scan_listener_2, n, op, r, reg(e), reg(v));
-        break;
-    case s_eAV:
-        listen = cont(ex->h, scan_listener_1, n, op, r, reg(e));
-        break;
-    case s_Eav:
-        listen = cont(ex->h, scan_listener_2, n, op, r, reg(a), reg(v));
-        break;
-    case s_EAv:
-        listen = cont(ex->h, scan_listener_1, n, op, r, reg(v));
-        break;
-    case s_EAV:
-        listen = cont(ex->h, scan_listener_0, n, op, r);
-        break;
-    default:
-        exec_error(ex, "unknown scan");
-    }
-
-    apply(ex->s, sig, listen, lookup(e, r), lookup(a, r), lookup(v, r));
+    
+    apply(ex->reader, sig,
+          cont(ex->h, scan_listener, n, op, r,
+               sigbit(sig, 2, e), sigbit(sig, 1, a), sigbit(sig, 0, v)),
+          lookup(r, e), lookup(r, a), lookup(r, v));
 }
 
 static inline boolean is_cap(unsigned char x) {return (x >= 'A') && (x <= 'Z');}
@@ -95,15 +56,16 @@ static execf build_scan(evaluation ex, node n)
 
 }
 
-static CONTINUATION_7_2(do_insert, evaluation, int *, execf, value, value, value, value, operator, value *) ;
-static void do_insert(evaluation ex, int *count, execf n, value uuid, value e, value a, value v, operator op, value *r)
+static CONTINUATION_8_2(do_insert, evaluation, int *, execf, int, value, value, value, value, operator, value *) ;
+static void do_insert(evaluation ex, int *count, execf n, int deltam,
+                      value uuid, value e, value a, value v, operator op, value *r)
 {
     if (op == op_insert) {
         *count = *count + 1;
-        apply(ex->insert, uuid, lookup(e, r), lookup(a, r), lookup(v, r));
+        apply(ex->insert, uuid, lookup(r, e), lookup(r, a), lookup(r, v), deltam);
     }
     if (op == op_remove) {
-        apply(ex->remove, uuid, lookup(e, r), lookup(a, r), lookup(v, r));
+        apply(ex->insert, uuid, lookup(r, e), lookup(r, a), lookup(r, v), -deltam);
     }
     apply(n, op, r);
 }
@@ -115,37 +77,41 @@ static execf build_insert(evaluation e, node n)
         
     return cont(e->h, do_insert,  e, register_counter(e, n),
                 resolve_cfg(e, n, 0),
+                1,
                 x,
                 vector_get(a, 1),
                 vector_get(a, 2),
                 vector_get(a, 3));
-}
-
-static CONTINUATION_7_2(do_remove, evaluation, int *, execf, value, value, value, value, operator, value *) ;
-static void do_remove(evaluation ex, int *count, execf n, value uuid, value e, value a, value v, operator op, value *r)
-{
-    *count = *count + 1;
-    apply(ex->remove, uuid, lookup(e, r), lookup(a, r), lookup(v, r));
-    apply(n, op, r);
 }
 
 static execf build_remove(evaluation e, node n)
 {
     vector a = vector_get(n->arguments, 0);
     uuid x = table_find(e->scopes, vector_get(a, 0));
-    return cont(e->h, do_remove,  e, register_counter(e, n),
+    return cont(e->h, do_insert,  e, register_counter(e, n),
                 resolve_cfg(e, n, 0),
+                -1,
                 x,
                 vector_get(a, 1),
                 vector_get(a, 2),
                 vector_get(a, 3));
 }
 
-static CONTINUATION_7_2(do_set, evaluation, int *, execf, value, value, value, value, operator, value *) ;
-static void do_set(evaluation ex, int *count, execf n, value uuid, value e, value a, value v, operator op, value *r)
+static CONTINUATION_4_4(each_set_remove, evaluation, value, value, uuid, value, value, value, multiplicity);
+static void each_set_remove(evaluation ex, uuid u, value e, value a, value etrash, value atrash, value v, multiplicity m)
 {
+    apply(ex->insert, u, e, a, v, -1);
+}
+
+static CONTINUATION_7_2(do_set, evaluation, int *, execf, value, value, value, value, operator, value *) ;
+static void do_set(evaluation ex, int *count, execf n, value u, value e, value a, value v, operator op, value *r)
+{
+    u = lookup(r, u);
     *count = *count + 1;
-    apply(ex->set, uuid, lookup(e, r), lookup(a, r), lookup(v, r));
+    value ev = lookup(r, e);
+    value av=  lookup(r, a);
+    apply(ex->reader, s_EAv, cont(ex->h, each_set_remove, ex, u, ev, av), ev, av, 0);
+    apply(ex->insert, u, ev, av, lookup(r, v), 1);
     apply(n, op, r);
 }
 

@@ -19,9 +19,10 @@ typedef enum {
 
 typedef struct json_session {
     heap h;
-    table evaluations;
     table current_delta;
+    table persisted;
     buffer_handler write; // to weboscket
+    uuid event_uuid;
     table scopes;
     bag root, session;
     boolean tracing;
@@ -158,7 +159,10 @@ static void send_node_graph(buffer_handler output, node head, table counts)
 }
 
 
-static evaluation send_response(json_session js)
+
+// solution should already contain the diffs against persisted...except missing support (diane)
+static CONTINUATION_1_2(send_response, json_session, table, table);
+static void send_response(json_session js, table solution, table counters)
 {
     heap h = allocate_rolling(pages);
     table results = create_value_vector_table(js->h);
@@ -166,16 +170,16 @@ static evaluation send_response(json_session js)
     bag_foreach(js->session, e, a, v, c)
         table_set(results, build_vector(h, e, a, v), etrue);
 
-    bag ev = table_find(js->s->solution, js->s->event_uuid);
+    bag ev = table_find(solution, js->event_uuid);
     if (ev){
         bag_foreach(ev, e, a, v, c)
             table_set(results, build_vector(h, e, a, v), etrue);
     }
 
-    table_foreach(js->s->persisted, k, scopeBag) {
+    table_foreach(js->persisted, k, scopeBag) {
         table_foreach(edb_implications(scopeBag), k, impl) {
             if(impl) {
-                send_node_graph(js->write, impl, js->s->counters);
+                send_node_graph(js->write, impl, counters);
             }
         }
     }
@@ -186,7 +190,6 @@ static evaluation send_response(json_session js)
     // FIXME: we need to clean up the old delta, we're currently just leaking it
     // this has to be a copy
     js->current_delta = results;
-    return 0;
 }
 
 void send_parse(json_session js, buffer query)
@@ -236,7 +239,6 @@ void handle_json_query(json_session j, buffer in, thunk c)
             if (string_equal(type, sstring("query"))) {
                 vector nodes = compile_eve(query, j->tracing);
                 inject_event(j->s, nodes);
-                send_response(j);
             }
             if (string_equal(type, sstring("swap"))) {
                 edb_clear_implications(j->root);
@@ -244,9 +246,8 @@ void handle_json_query(json_session j, buffer in, thunk c)
                 vector_foreach(nodes, node) {
                     edb_register_implication(j->root, node);
                 }
-                j->s = build_evaluation(j->h, j->scopes, j->s->persisted, j->s->counters);
+                j->s = build_evaluation(j->h, j->scopes, j->persisted, cont(j->h, send_response, j));
                 run_solver(j->s);
-                send_response(j);
             }
             if (string_equal(type, sstring("parse"))) {
                 send_parse(j, query);
@@ -275,29 +276,29 @@ CONTINUATION_2_3(new_json_session, bag, boolean, buffer_handler, table, buffer_h
 void new_json_session(bag root, boolean tracing, buffer_handler write, table headers, buffer_handler *handler)
 {
     heap h = allocate_rolling(pages);
-    // ok, now counts just accrete forever
-    table counts = allocate_table(h, key_from_pointer, compare_pointer);
     uuid su = generate_uuid();
-    json_session js = allocate(h, sizeof(struct json_session));
-    js->h = h;
-    js->root = root;
-    js->tracing = tracing;
-    js->evaluations = allocate_table(h, string_hash, string_equal);
-    js->scopes = create_value_table(js->h);
-    js->session = create_bag(su);
-    js->current_delta = create_value_vector_table(js->h);
-
-    table persisted = create_value_table(h);
-    uuid ru = edb_uuid(root);
-    table_set(persisted, ru, js->root);
-    table_set(persisted, su, js->session);
-    table_set(js->scopes, intern_cstring("session"), su);
-    table_set(js->scopes, intern_cstring("all"), ru);
-    js->s = build_evaluation(h, js->scopes, persisted, counts);
+    json_session j = allocate(h, sizeof(struct json_session));
+    j->h = h;
+    j->root = root;
+    j->tracing = tracing;
     
-    *handler = websocket_send_upgrade(h, headers, write, cont(h, handle_json_query, js), &js->write);
-    run_solver(js->s);
-    send_response(js);
+    j->session = create_bag(su);
+    j->current_delta = create_value_vector_table(j->h);
+    j->event_uuid = generate_uuid();
+
+    j->persisted = create_value_table(h);
+    uuid ru = edb_uuid(root);
+    table_set(j->persisted, ru, j->root);
+    table_set(j->persisted, su, j->session);
+    
+    j->scopes = create_value_table(j->h);
+    table_set(j->scopes, intern_cstring("session"), su);
+    table_set(j->scopes, intern_cstring("all"), ru);
+    table_set(j->scopes, intern_cstring("event"), j->event_uuid);
+    j->s = build_evaluation(h, j->scopes, j->persisted, cont(j->h, send_response, j));
+    
+    *handler = websocket_send_upgrade(h, headers, write, cont(h, handle_json_query, j), &j->write);
+    inject_event(j->s, compile_eve(aprintf(j->h,"init!\n   maintain\n      [#session-connect]\n"), j->tracing));
 }
 
 void init_json_service(http_server h, bag root, boolean tracing)

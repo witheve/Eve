@@ -31,6 +31,7 @@ void init_runtime();
 
 void error(char *);
 
+typedef long multiplicity;
 
 #define UUID_LENGTH 12
 
@@ -41,7 +42,7 @@ string aprintf(heap h, char *fmt, ...);
 void bbprintf(string b, string fmt, ...);
 
 typedef closure(execf, operator, value *);
-typedef closure(insertron, value, value, value, value);
+typedef closure(insertron, value, value, value, value, multiplicity);
 
 #define def(__s, __v, __i)  table_set(__s, intern_string((unsigned char *)__v, cstring_length((char *)__v)), __i);
 
@@ -52,33 +53,11 @@ void print_value(buffer, value);
 
 void prf(char *, ...);
 
-// turn off all the typesafety, sig, listener, values as matched by the position
-typedef closure(scan, int, void *, value, value, value);
-
-typedef struct evaluation  {
-    heap h;
-    bag b;
-    thunk terminal;
-    insertron insert;
-    insertron remove;
-    insertron set;
-    table counters;
-    table solution;
-    table block_solution;
-    table persisted;
-    table scopes;
-    vector handlers;
-    boolean pass;
-    scan s;
-    table nmap;
-    ticks t;
-    boolean non_empty;
-    uuid event_uuid;
-    // not really right
-    bag event;
-} *evaluation;
+typedef closure(listener, value, value, value, multiplicity);
+typedef closure(scan, int, listener, value, value, value);
 
 typedef struct node *node;
+typedef struct evaluation *evaluation;
 
 typedef execf (*buildf)(evaluation, node);
 
@@ -91,6 +70,35 @@ struct node {
 };
 
 
+typedef closure(evaluation_result, table, table);
+
+struct evaluation  {
+    heap h;
+    bag b;
+    insertron insert;
+    table counters;
+
+    // uhh...wow, there are alot of versions
+    table block_solution;
+    table f_solution;
+    table next_f_solution;
+    table t_solution;
+    table next_t_solution;
+    table ev_solution;
+
+    table persisted;
+    table scopes;
+    vector blocks;
+    scan reader;
+    table nmap;
+    ticks t;
+    boolean non_empty, pass;
+    evaluation_result complete;
+    
+    thunk terminal;
+};
+
+
 void execute(evaluation);
 
 table builders_table();
@@ -99,7 +107,7 @@ execf build(evaluation e, node n);
 table start_fixedpoint(heap, table, table, table);
 
 vector compile_eve(buffer b, boolean tracing);
-evaluation build_evaluation(heap h, table scopes, table persisted, table counts);
+evaluation build_evaluation(heap h, table scopes, table persisted, evaluation_result e);
 void run_solver(evaluation s);
 void inject_event(evaluation, vector node);
 
