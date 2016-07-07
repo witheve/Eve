@@ -18,7 +18,8 @@ document.body.appendChild(renderer.content);
 var activeElements = {"root": document.createElement("div")};
 activeElements["root"].className = "program";
 var activeStyles = {};
-var supportedTags = {"div": true, "span": true, "input": true};
+var supportedTags = {"div": true, "span": true, "input": true, "svg": true, "circle": true, "line": true};
+var svgs = {"svg": true, "circle": true, "line": true};
 
 function insertSorted(parent, child) {
   let current;
@@ -146,7 +147,11 @@ function handleDOMUpdates(result) {
     if(!elem && !ent.tag)  continue;
     if(!elem) {
       //TODO: support finding the correct tag
-      elem = document.createElement(ent.tag || "div")
+      if(svgs[ent.tag]) {
+        elem = document.createElementNS("http://www.w3.org/2000/svg", ent.tag);
+      } else {
+        elem = document.createElement(ent.tag || "div")
+      }
       elem.entity = entId;
       activeElements[entId] = elem;
       elem.sort = ent.sort || "";
