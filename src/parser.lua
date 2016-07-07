@@ -160,6 +160,8 @@ local keywords = {
   none = "NONE",
   given = "GIVEN",
   per = "PER",
+  ["true"] = "BOOLEAN",
+  ["false"] = "BOOLEAN",
   ["="] = "EQUALITY",
   [">"] = "INEQUALITY",
   ["<"] = "INEQUALITY",
@@ -768,7 +770,7 @@ local function parse(tokens, context)
         errors.invalidAggregateModifier(context, token, stackTop)
       end
 
-    elseif type == "IDENTIFIER" or type == "NUMBER" or type == "STRING" or type == "UUID" then
+    elseif type == "IDENTIFIER" or type == "NUMBER" or type == "STRING" or type == "UUID" or type == "BOOLEAN" then
       stackTop.children[#stackTop.children + 1] = token
 
     else
@@ -1008,7 +1010,7 @@ end
 resolveExpression = function(node, context)
   if not node then return end
 
-  if node.type == "NUMBER" or node.type == "STRING" or node.type == "UUID" then
+  if node.type == "NUMBER" or node.type == "STRING" or node.type == "UUID" or node.type == "BOOLEAN" then
     return makeNode(context, "constant", node, {constant = node.value, constantType = node.type:lower()})
 
   elseif node.type == "variable" then

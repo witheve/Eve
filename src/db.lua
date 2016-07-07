@@ -117,6 +117,8 @@ local expressions = {
   cos = {rename("cos", schemas.unary)},
   tan = {rename("tan", schemas.unary)},
 
+  toggle = {rename("toggle", schemas.unary)},
+
   time = {schema({"return", OPT, "seconds", "minutes", "hours"}, "time")},
 
   -- Aggregates

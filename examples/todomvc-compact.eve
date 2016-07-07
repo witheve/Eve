@@ -23,7 +23,7 @@ handle removes
   todo = if [#click element: [#remove-todo todo]] then todo
          else if [#click element: [@clear-completed]] then [#todo completed: true]
   save
-    todo := none
+    todo -= [#todo]
 
 draw todomvc
   [@app filter]
