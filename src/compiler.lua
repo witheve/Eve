@@ -74,10 +74,38 @@ function formatQueryNode(node, indent)
     return result .. "}"
   elseif node.type == "expression" then
     result = result .. " " .. node.operator .. "("
+    local multi = false
     for _, binding in std.ipairs(node.bindings) do
-      result = result .. binding.field .. " = " .. formatQueryNode(binding.variable or binding.constant) .. ", "
+      if multi then
+        result = result .. ", "
+      end
+      result = result .. binding.field .. " = " .. formatQueryNode(binding.variable or binding.constant)
+      multi = true
     end
-    result = string.sub(result, 1, -3) .. ")"
+    if node.projection then
+      result = result .. " given "
+      local multi = false
+      for var in pairs(node.projection) do
+        if multi then
+          result = result .. ", "
+        end
+        result = result .. formatQueryNode(var)
+        multi = true
+      end
+    end
+    if node.groupings then
+      result = result .. " per "
+      local multi = false
+      for var in pairs(node.groupings) do
+        if multi then
+          result = result .. ", "
+        end
+        result = result .. formatQueryNode(var)
+        multi = true
+      end
+    end
+
+    result = result .. ")"
   end
   return result
 end
