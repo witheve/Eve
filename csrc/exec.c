@@ -43,7 +43,6 @@ typedef struct sub {
     evaluation e;
     ticks t;
 } *sub;
-boolean incremental_delete = false;
 
 static void delete_missing(sub s, value *r)
 {
@@ -137,6 +136,55 @@ static execf build_sub(evaluation e, node n)
 
                 s);
 
+}
+
+
+static CONTINUATION_8_2(do_subagg, int *, execf, execf, value, table, vector, vector, vector,
+                        operator, value *);
+static void do_subagg(int *count, execf next, execf leg, value resreg,
+                      table results, vector v, vector inputs, vector outputs,
+                      operator op, value *r)
+{
+    if (op == op_flush) {
+        table_foreach(results, v, rset) {
+            copyout(r, inputs, v);
+            table_foreach((table)rset, o, _) {
+                copyout(r, outputs, o);
+                apply(next, op_insert, r);
+            }
+        }
+        apply(next, op, r);
+        return;
+    }
+
+    table res;
+    *count = *count + 1;
+    extract(v, inputs, r);
+    if (!(res = table_find(results, v))){
+        res = create_value_vector_table(results->h);
+        vector key = allocate_vector(results->h, vector_length(inputs));
+        extract(key, inputs, r);
+        table_set(results, key, res);
+        r[toreg(resreg)] = res;
+        apply(leg, op, r);
+    }
+}
+
+
+static execf build_subagg(evaluation e, node n)
+{
+    table results = create_value_vector_table(e->h);
+    vector v = allocate_vector(e->h, vector_length(n->arguments));
+    return cont(e->h,
+                do_subagg,
+                register_counter(e, n),
+                resolve_cfg(e, n, 0),
+                resolve_cfg(e, n, 1),
+                vector_get(vector_get(n->arguments, 2), 0),
+                results,
+                v,
+                vector_get(n->arguments, 0),
+                vector_get(n->arguments, 1));
 }
 
 
@@ -381,6 +429,9 @@ table builders_table()
         table_set(builders, intern_cstring("trace"), build_trace);
         table_set(builders, intern_cstring("sub"), build_sub);
         table_set(builders, intern_cstring("subtail"), build_sub_tail);
+        table_set(builders, intern_cstring("subagg"), build_subagg);
+        table_set(builders, intern_cstring("subaggtail"), build_sub_tail);
+
         table_set(builders, intern_cstring("terminal"), build_terminal);
         table_set(builders, intern_cstring("choose"), build_choose);
         table_set(builders, intern_cstring("choosetail"), build_choose_tail);
