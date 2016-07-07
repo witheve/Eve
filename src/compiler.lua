@@ -85,26 +85,30 @@ end
 local DefaultNodeMeta = {}
 DefaultNodeMeta.__tostring = formatQueryNode
 
-function flattenProjection(node)
-  if not node or not node.projection then
-    return node and node.projection
-  end
-  local projection = Set:new()
-  for ix, layerOrVar in ipairs(node.projection) do
+function flattenProjection(projection)
+  local neue = Set:new()
+  for ix, layerOrVar in ipairs(projection) do
     if layerOrVar.type == "variable" then
-      projection:add(layerOrVar)
+      neue:add(layerOrVar)
+    elseif layerOrVar.type == "projection" then
+      neue:add(layerOrVar.variable)
+    elseif getmetatable(layerOrVar) == Set then
+      neue:union(layerOrVar, true)
     else
-      projection:union(layerOrVar, true)
+      error("I am sad because I do not know what this is: " .. tostring(layerOrVar))
     end
   end
-  return projection
+  return neue
 end
 
 local function prepareQueryGraph(_, node)
   if type(node) == "table" and node.type and getmetatable(node) == nil then
     setmetatable(node, DefaultNodeMeta)
     if node.projection then
-      node.projection = flattenProjection(node)
+      node.projection = flattenProjection(node.projection)
+    end
+    if node.groupings then
+      node.groupings = flattenProjection(node.groupings)
     end
   end
 end
@@ -1081,6 +1085,9 @@ function unpackObjects(dg, context)
           end
         end
       end
+    elseif node.type == "expression" and node.projection then
+      local subproject = SubprojectNode:new({projection = node.projection, provides = node.deps.provides, nodes = {node}}, node, context)
+      unpacked[#unpacked + 1] = subproject
     else
       if node.type == "union" or node.type == "choose" or node.type == "not" then
         for _, query in ipairs(node.queries) do
