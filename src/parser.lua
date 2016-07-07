@@ -878,7 +878,7 @@ local function resolveEqualityLike(context, node)
   -- set that when I try to resolve this expression,
   -- I'm looking to resolve it to this specific variable
   local right = resolveExpression(node.children[2], context)
-  local expression = makeNode(context, "expression", node, {operator = node.operator, projection = {}, groupings = {}, bindings = {}})
+  local expression = makeNode(context, "expression", node, {operator = node.operator, bindings = {}})
   local leftBinding = {field = "a"}
   if left.type == "variable" then
     leftBinding.variable = left
@@ -940,7 +940,7 @@ local function resolveFunctionLike(context, node)
   if node.func == "is" then
     context.nonFilteringInequality = true
   end
-  local expression = makeNode(context, "expression", node, {operator = node.func, projection = {}, groupings = {}, bindings = {}})
+  local expression = makeNode(context, "expression", node, {operator = node.func, bindings = {}})
   -- bind the return
   generateBindingNode(context, {field = "return", variable = resultVar}, resultVar, expression)
   -- create bindings
@@ -958,6 +958,7 @@ local function resolveFunctionLike(context, node)
       generateBindingNode(context, {field = field, constant = resolved}, resolved, expression)
 
     elseif resolved.type == "grouping" then
+      expression.groupings = {}
       for ix, grouping in ipairs(resolved.children) do
         local groupingVar = resolveExpression(grouping, context)
         if groupingVar.type == "variable" then
@@ -969,6 +970,7 @@ local function resolveFunctionLike(context, node)
       end
 
     elseif resolved.type == "projection" then
+      expression.projection = {}
       for _, project in ipairs(resolved.children) do
         local projectVar = resolveExpression(project, context)
         if projectVar.type == "variable" then
