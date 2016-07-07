@@ -1162,7 +1162,7 @@ function analyze(content, quiet)
 end
 
 function analyzeQuiet(content)
-  analyze(content, true)
+  return analyze(content, true)
 end
 
 if ... == nil then
