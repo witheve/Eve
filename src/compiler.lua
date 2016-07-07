@@ -1096,7 +1096,7 @@ function unpackObjects(dg, context)
         end
       end
     elseif node.type == "expression" and node.projection then
-      local subproject = SubprojectNode:new({projection = node.projection, provides = node.deps.provides, nodes = {node}}, node, context)
+      local subproject = SubprojectNode:new({kind = "aggregate", projection = node.projection, provides = node.deps.provides, nodes = {node}}, node, context)
       unpacked[#unpacked + 1] = subproject
     else
       if node.type == "union" or node.type == "choose" or node.type == "not" then

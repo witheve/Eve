@@ -44,7 +44,7 @@ function translate_value(x)
       if ct == "number" then
          return snumber(x.constant)
       end
-      
+
       if ct == "boolean" then
          if (x.constant == "true") then
            return sboolean(true)
@@ -53,7 +53,7 @@ function translate_value(x)
            return sboolean(false)
          end
       end
-      
+
       if ct == "uuid" then
          return suuid(x.constant)
       end
@@ -222,8 +222,11 @@ function translate_subproject(n, bound, down, tracing, context)
    -- create an edge between the c node and the parse node
    local id = util.generateId()
    context.downEdges[#context.downEdges + 1] = {n.id, id}
-
-   c = build_node("sub", {rest, fill},
+   local kind = "sub"
+   if n.kind == "aggregate" then
+     kind = "subagg"
+   end
+   c = build_node(kind, {rest, fill},
                           {set_to_read_array(env, n.projection),
                            outregs,
                            {write_lookup(env, pass)},
