@@ -11,6 +11,7 @@ typedef struct websocket {
     buffer reassembly;
     buffer_handler client;
     buffer_handler write;
+    timer keepalive;
 } *websocket;
 
 
@@ -35,6 +36,12 @@ void websocket_send(websocket w, int opcode, buffer b, thunk t)
     apply(w->write, b, t);
 }
 
+
+static CONTINUATION_2_0(send_keepalive, websocket, buffer);
+static void send_keepalive(websocket w, buffer b)
+{
+    websocket_send(w, 0x9, b, ignore); 
+}
 
 CONTINUATION_1_2(websocket_output_frame, websocket, buffer, thunk);
 void websocket_output_frame(websocket w, buffer b, thunk t)
@@ -74,6 +81,8 @@ static void websocket_input_frame(websocket w, buffer b, thunk t)
     }
     
 
+    // xxx - demultiplex on operand
+    
     iu32 mask = 0;
     // which should always be the case for client streams
     if (*(u8)bref(w->reassembly, 1) & 0x80) {
@@ -138,6 +147,7 @@ buffer_handler websocket_send_upgrade(heap h,
     outline(b, "Sec-WebSocket-Accept: %b", r);
     outline(b, "");
 
+    register_periodic_timer(seconds(5), cont(w->h, send_keepalive, w, allocate_buffer(w->h, 0)));
     apply(w->write, b, ignore);
     *from_above = cont(h, websocket_output_frame,w);
     return(cont(h, websocket_input_frame, w));

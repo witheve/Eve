@@ -22,9 +22,7 @@ timer register_timer(ticks interval, thunk n)
     timer t=(timer)allocate(theap, sizeof(struct timer));
 
     t->t= n;
-    t->interval = interval;
-    t->disable = 0;
-    t->w = 0;
+    t->interval = 0;
     t->w = now() + interval;
     pqueue_insert(timers, t);
     return(t);
@@ -35,6 +33,7 @@ timer register_periodic_timer(ticks interval, thunk n)
     timer t = allocate(theap, sizeof(struct timer));
 
     t->t = n;
+    t->interval = interval;
     t->disable = 0;
     t->w = now();
     pqueue_insert(timers, t);
@@ -47,20 +46,20 @@ ticks time_delta(heap h, ticks x, ticks n)
 }
 
 
-ticks timer_check(ticks d)
+ticks timer_check()
 {
     timer current = false;
-
+    
     while ((current = pqueue_peek(timers)) &&
-           (now(d), current->w < d)) {
+           (current->w < now())) {
         if (!current->disable) {
             pqueue_pop(timers);
+            if (current->interval) {
+                current->w += current->interval;
+                pqueue_insert(timers, current);
+            }
             apply(current->t);
         }
-    }
-    if (current) {
-        iu64 h = d;
-        d = current->w-h;
     }
     if ((current = pqueue_peek(timers)) != 0) {
         // presumably this can be negative

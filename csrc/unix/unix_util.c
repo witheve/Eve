@@ -144,5 +144,4 @@ void unix_wait()
         ticks next = timer_check(0);
         select_timer_block(next);
     }
-    
 }
