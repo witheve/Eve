@@ -124,8 +124,7 @@ function handleDOMUpdates(result) {
             break;
           default:
             if(!additions[entity] || !additions[entity][attribute]) {
-              //FIXME: some attributes don't like getting set to undefined...
-              elem[attribute] = undefined;
+              elem.removeAttribute(attribute);
             }
             break;
         }

@@ -1035,6 +1035,13 @@ resolveExpression = function(node, context)
   elseif node.type == "grouping" or node.type == "projection" then
     return node
 
+  elseif node.type == "block" then
+    if #node.children == 1 then
+      return resolveExpression(node.children[1], context)
+    else
+      -- error invalid block
+    end
+
   else
     -- TODO
   end
