@@ -54,11 +54,9 @@ static void do_sum(heap h, execf n, int *count,
                    table *targets, vector grouping, value src, value dst, vector pk,
                    operator op, value *r)
 {
-    prf("do sum! %d\n", op);
     if (op == op_insert) {
         *count = *count +1;
         extract(pk, grouping, r);
-        prf("%V src %v dest %v pk %V\n", grouping, src, dst, pk);
         double *x;
         if (!(x = table_find(*targets, pk))) {
             x = allocate(h, sizeof(double *));
@@ -71,14 +69,12 @@ static void do_sum(heap h, execf n, int *count,
     }
 
     if (op == op_flush) {
-        prf("flushing\n");
         table_foreach(*targets, pk, x) {
-            prf("hey flush %V %v\n", pk, x);
             copyout(r, grouping, pk);
             store(r, dst, box_float(*(double *)x));
             apply(n, op_insert, r);
         }
-        *targets = allocate_table((*targets)->h, key_from_pointer, compare_pointer);
+        *targets = create_value_vector_table((*targets)->h);
         apply(n, op_flush, r);
     }
 }

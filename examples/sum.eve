@@ -1,4 +1,5 @@
 Add some people
+  [#session-connect]
   save
     [#person @josh age: 22]
     [#person @chris age: 29]

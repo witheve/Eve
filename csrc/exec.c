@@ -161,6 +161,7 @@ static void do_subagg(int *count, execf next, execf leg, value resreg,
     table res;
     *count = *count + 1;
     extract(v, inputs, r);
+
     if (!(res = table_find(results, v))){
         res = create_value_vector_table(results->h);
         vector key = allocate_vector(results->h, vector_length(inputs));
