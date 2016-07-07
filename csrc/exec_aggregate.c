@@ -67,7 +67,7 @@ static void do_sum(heap h, execf n, int *count,
             extract(key, grouping, r);
             table_set(*targets, key, x);
         }
-        *x = *x + *(double *)lookup(src, r);
+        *x = *x + *(double *)lookup(r, src);
     }
 
     if (op == op_flush) {
