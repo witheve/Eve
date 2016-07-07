@@ -32,7 +32,7 @@ typedef struct sub {
     vector v;
     vector inputs;
     vector outputs;
-    vector ids; 
+    vector ids;
     table ids_cache; //these persist for all time
     table previous;
     table results;
@@ -80,7 +80,6 @@ static void do_sub(int *count, sub s, operator op, value *r)
         s->results = create_value_vector_table(s->h);
     }
 
-        
     if (op == op_flush) {
         delete_missing(s, r);
         // we could conceivably double buffer these
@@ -121,7 +120,7 @@ static execf build_sub(evaluation e, node n)
     sub s = allocate(e->h, sizeof(struct sub));
     s->results = create_value_vector_table(e->h);
     s->ids_cache = create_value_vector_table(e->h);
-    s->v = allocate_vector(e->h, vector_length(n->arguments));
+    s->v = allocate_vector(e->h, vector_length(n->arguments)); // @FIXME this should be the size of inputs (not arguments) xxx
     s->leg = resolve_cfg(e, n, 1);
     s->inputs = vector_get(n->arguments, 0);
     s->outputs = vector_get(n->arguments, 1);
@@ -240,29 +239,6 @@ static execf build_move(evaluation e, node n)
                 vector_get(a, 1));
 }
 
-static CONTINUATION_4_2(do_concat, int *, execf, value, vector,  operator, value *);
-static void do_concat(int *count, execf n, value dest, vector terms, operator op, value *r)
-{
-    buffer b = allocate_string(init);
-    *count = *count+1;
-
-    vector_foreach(terms, i) {
-        bprintf(b, "%v", lookup(r, i));
-    }
-
-    r[reg(dest)] = intern_string(bref(b, 0), buffer_length(b));
-    apply(n, op, r);
-}
-
-
-static execf build_concat(evaluation e, node n)
-{
-    return cont(e->h, do_concat,
-                register_counter(e, n),
-                resolve_cfg(e, n, 0),
-                vector_get(vector_get(n->arguments, 0), 0),
-                (vector)vector_get(n->arguments, 1));
-}
 
 static CONTINUATION_3_2(do_join, execf, int, u32, operator, value *);
 static void do_join(execf n, int count, u32 total, operator op, value *r)
@@ -364,7 +340,6 @@ table builders_table()
         table_set(builders, intern_cstring("terminal"), build_terminal);
         table_set(builders, intern_cstring("choose"), build_choose);
         table_set(builders, intern_cstring("choosetail"), build_choose_tail);
-        table_set(builders, intern_cstring("concat"), build_concat);
         table_set(builders, intern_cstring("move"), build_move);
         table_set(builders, intern_cstring("regfile"), build_regfile);
         table_set(builders, intern_cstring("not"), build_not);

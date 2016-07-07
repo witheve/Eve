@@ -64,6 +64,7 @@ uuid intern_uuid(unsigned char *x);
 void init_uuid();
 
 void print_value(buffer, value);
+void print_value_raw(buffer, value);
 iu64 value_as_key(value);
 boolean value_equals(value, value);
 

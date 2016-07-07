@@ -161,6 +161,22 @@ function set_to_write_array(env, x)
    return out
 end
 
+function list_to_read_array(env, x)
+   local out = {}
+   for _, v in ipairs(x) do
+      out[#out+1] = read_lookup(env, v)
+   end
+   return out
+end
+
+function list_to_write_array(env, x)
+   local out = {}
+   for _, v in ipairs(x) do
+      out[#out+1] = write_lookup(env, v)
+   end
+   return out
+end
+
 
 function translate_subproject(n, bound, down, tracing, context)
    local p = n.projection
@@ -427,11 +443,21 @@ function translate_expression(n, bound, down, tracing, context)
   local signature = db.getSignature(n.bindings, bound)
   local schema = db.getSchema(n.operator, signature)
   local args, fields = db.getArgs(schema, n.bindings)
-
   for _, term in ipairs(args) do
     bound[term] = true
   end
   local env, c = down(bound)
+
+   -- Tack variadic arg vector onto the end
+   local variadic
+   if args["..."] then
+     variadic = list_to_read_array(env, args["..."])
+   end
+
+   local groupings
+   if n.groupings then
+     groupings = set_to_read_array(env, n.groupings)
+   end
 
    if tracing then
       local traceArgs = {schema.name or n.operator, ""}
@@ -439,10 +465,11 @@ function translate_expression(n, bound, down, tracing, context)
          traceArgs[#traceArgs + 1] = field
          traceArgs[#traceArgs + 1] = read_lookup(env, args[ix])
       end
+
       -- create an edge between the c node and the parse node
       local id = util.generateId()
       context.downEdges[#context.downEdges + 1] = {n.id, id}
-      c = build_node("trace", {c}, {traceArgs}, id)
+      c = build_node("trace", {c}, {traceArgs, variadic or groupings or {}}, id)
    end
 
    local nodeArgs = {}
@@ -457,8 +484,7 @@ function translate_expression(n, bound, down, tracing, context)
    -- create an edge between the c node and the parse node
    local id = util.generateId()
    context.downEdges[#context.downEdges + 1] = {n.id, id}
-
-   return env, build_node(schema.name or n.operator, {c}, {nodeArgs}, id)
+   return env, build_node(schema.name or n.operator, {c}, {nodeArgs, variadic or groupings or {}}, id)
 end
 
 -- this doesn't really need to be disjoint from read lookup, except for concerns about

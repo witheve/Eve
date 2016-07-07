@@ -47,6 +47,16 @@ void print_value(buffer b, value v)
     }
 }
 
+void print_value_raw(buffer b, value v)
+{
+    if (type_of(v) == estring_space){
+        estring si = v;
+        buffer_append(b, si->body, si->length);
+    } else {
+        print_value(b, v);
+    }
+}
+
 void print_value_vector(buffer out, vector vec) {
   bprintf(out, "[ ");
   vector_foreach(vec, current) {
