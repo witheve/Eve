@@ -340,7 +340,7 @@ function drawNode(nodeId, graph, state, seen) {
   let node = graph[nodeId];
   if(seen[nodeId]) {
     return {text: `seen ${node.type}`};
-  } else if(node.type == "terminal" || node.type == "subtail" || node.type == "choosetail") {
+  } else if(node.type == "terminal" || node.type == "subtail") {
     return undefined;
   }
   seen[nodeId] = true;
