@@ -18,7 +18,7 @@ document.body.appendChild(renderer.content);
 var activeElements = {"root": document.createElement("div")};
 activeElements["root"].className = "program";
 var activeStyles = {};
-var supportedTags = {"div": true, "span": true, "input": true, "svg": true, "circle": true, "line": true};
+var supportedTags = {"div": true, "span": true, "input": true, "ul": true, "li": true, "button": true, "svg": true, "circle": true, "line": true};
 var svgs = {"svg": true, "circle": true, "line": true};
 
 function insertSorted(parent, child) {
