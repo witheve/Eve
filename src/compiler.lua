@@ -540,6 +540,17 @@ function DependencyGraph:addExpressionNode(node)
         end
       end
     end
+
+    if node.projection then
+      for term in pairs(node.projection) do
+        deps.depends:add(self:cardinal(term))
+      end
+    end
+    if node.groupings then
+      for term in pairs(node.groupings) do
+        deps.depends:add(self:cardinal(term))
+      end
+    end
   end
   return self:add(node)
 end
@@ -1125,6 +1136,11 @@ function unpackObjects(dg, context)
       end
     elseif node.type == "expression" and node.projection then
       local subproject = SubprojectNode:new({kind = "aggregate", projection = node.projection, provides = node.deps.provides, nodes = {node}}, node, context)
+      if node.operator == "count" then
+        local constant = {type = "constant", generated = true, constant = 1, constantType = "number"}
+        node.bindings[#node.bindings + 1] = {type = "binding", generated = true, field = "a", constant = constant}
+        node.operator = "sum"
+      end
       unpacked[#unpacked + 1] = subproject
     else
       if node.type == "union" or node.type == "choose" or node.type == "not" then
