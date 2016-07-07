@@ -1,0 +1,13 @@
+An interesting sampling of dependencies
+Find disparity in height and salary for age cohorts separated by gender
+  self = [#person name age salary height gender]
+  other = [#person gender]
+  other != self
+  abs(age - other.age) < 10
+  ∂_salary = salary - other.salary
+  ∂_height = height - other.height
+  maintain
+    [#div sort: ∂_salary, children:
+      [#div text: "name: {name} age: {age}"]
+      [#div text: "∂ salary: {∂_salary}"]
+      [#div text: "∂ height: {∂_height}"]]
