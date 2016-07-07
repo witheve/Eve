@@ -44,6 +44,16 @@ function translate_value(x)
       if ct == "number" then
          return snumber(x.constant)
       end
+      
+      if ct == "boolean" then
+         if (x.constant == "true") then
+           return sboolean(true)
+         end
+         if (x.constant == "false") then
+           return sboolean(false)
+         end
+      end
+      
       if ct == "uuid" then
          return suuid(x.constant)
       end
