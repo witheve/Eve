@@ -1,0 +1,5 @@
+test concat
+  greeting = "Hello"
+  target = "World"
+  save
+    [#div text: "{greeting}, {target}!"]
