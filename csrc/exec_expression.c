@@ -3,6 +3,13 @@
 #include <exec.h>
 
 
+static value toggle (value x)
+{
+    if (x == efalse) return etrue;
+    return efalse;
+}
+    
+    
 
 static CONTINUATION_5_2(do_equal, evaluation, int *, execf, value, value,  operator, value *); \
 static void do_equal(evaluation e, int *count, execf n, value a, value b, operator op, value *r) 
@@ -37,6 +44,25 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
         }                                                                                            \
     }
 
+#define DO_UNARY_BOOLEAN(__name, __op)                                                               \
+    static CONTINUATION_5_2(__name, evaluation, int *, execf, value, value, operator, value *);      \
+    static void __name (evaluation ex, int *count, execf n, value dest, value a, operator op, value *r) \
+    {                                                                                                \
+        if (op == op_flush)  {                                                                       \
+            apply(n, op, r);                                                                         \
+            return;                                                                                  \
+        }                                                                                            \
+        value ar = lookup(r, a);                                                                     \
+        *count = *count + 1;                                                                         \
+        if ((type_of(ar) != float_space )) {                                                         \
+            exec_error(ex, "attempt to do math on non-number", a);                                   \
+        } else {                                                                                     \
+            r[reg(dest)] = __op(ar);                                                                 \
+            apply(n, op, r);                                                                         \
+        }                                                                                            \
+    }
+
+
 #define DO_UNARY_NUMERIC(__name, __op)                                                               \
     static CONTINUATION_5_2(__name, evaluation, int *, execf, value, value, operator, value *);      \
     static void __name (evaluation ex, int *count, execf n, value dest, value a, operator op, value *r) \
@@ -51,24 +77,6 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
             exec_error(ex, "attempt to do math on non-number", a);                                   \
         } else {                                                                                     \
             r[reg(dest)] = box_float(__op(*(double *)ar));                                           \
-            apply(n, op, r);                                                                         \
-        }                                                                                            \
-    }
-
-#define DO_UNARY_BOOLEAN(__name, __op)                                                               \
-    static CONTINUATION_5_2(__name, evaluation, int *, execf, value, value, operator, value *);      \
-    static void __name (evaluation ex, int *count, execf n, value dest, value a, operator op, value *r) \
-    {                                                                                                \
-        if (op == op_flush)  {                                                                       \
-            apply(n, op, r);                                                                         \
-            return;                                                                                  \
-        }                                                                                            \
-        value ar = lookup(r, a);                                                                     \
-        *count = *count + 1;                                                                         \
-        if ((type_of(ar) != float_space )) {                                                         \
-            exec_error(ex, "attempt to do math on non-number", a);                                   \
-        } else {                                                                                     \
-          r[reg(dest)] = __op(*ar == etrue ? true : false) ? etrue : efalse;                         \
             apply(n, op, r);                                                                         \
         }                                                                                            \
     }
@@ -189,6 +197,9 @@ BUILD_UNARY(build_cos, do_cos)
 DO_UNARY_TRIG(do_tan, tan)
 BUILD_UNARY(build_tan, do_tan)
 
+DO_UNARY_BOOLEAN(do_toggle, toggle)
+BUILD_UNARY(build_toggle, do_toggle)
+
 DO_BINARY_NUMERIC(do_plus, +)
 BUILD_BINARY(build_plus, do_plus)
 
@@ -265,5 +276,6 @@ void register_exec_expression(table builders)
     table_set(builders, intern_cstring("sin"), build_sin);
     table_set(builders, intern_cstring("cos"), build_cos);
     table_set(builders, intern_cstring("tan"), build_tan);
+    table_set(builders, intern_cstring("toggle"), build_toggle);
 }
 
