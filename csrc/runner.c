@@ -16,8 +16,6 @@ static void insert_f(evaluation s, uuid u, value e, value a, value v, multiplici
     bag b;
     s->pass = true;
 
-    prf("insert %v %v %v %d\n", e, a, v, m);
-
     if (!(b = table_find(s->block_solution, u))) {
         table_set(s->block_solution, u, b = create_bag(u));
     }
@@ -139,8 +137,9 @@ static void fixedpoint(evaluation s)
     table_foreach(s->t_solution, u, b) {
         bag bd;
         if ((bd = table_find(s->persisted, u))) {
-            bag_foreach((bag)b, e, a, v, c) 
+            bag_foreach((bag)b, e, a, v, c) {
                 edb_insert(bd, e, a, v, c);
+            }
         }
     }
 
