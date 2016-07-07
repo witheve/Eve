@@ -232,30 +232,6 @@ static execf build_move(evaluation e, node n)
                 vector_get(a, 1));
 }
 
-static CONTINUATION_4_2(do_concat, int *, execf, value, vector,  operator, value *);
-static void do_concat(int *count, execf n, value dest, vector terms, operator op, value *r)
-{
-    buffer b = allocate_string(init);
-    *count = *count+1;
-
-    vector_foreach(terms, i) {
-        bprintf(b, "%v", lookup(i, r));
-    }
-
-    r[reg(dest)] = intern_string(bref(b, 0), buffer_length(b));
-    apply(n, op, r);
-}
-
-
-static execf build_concat(evaluation e, node n)
-{
-    return cont(e->h, do_concat,
-                register_counter(e, n),
-                resolve_cfg(e, n, 0),
-                vector_get(vector_get(n->arguments, 0), 0),
-                (vector)vector_get(n->arguments, 1));
-}
-
 static CONTINUATION_3_2(do_join, execf, int, u32, operator, value *);
 static void do_join(execf n, int count, u32 total, operator op, value *r)
 {
@@ -354,7 +330,6 @@ table builders_table()
         table_set(builders, intern_cstring("terminal"), build_terminal);
         table_set(builders, intern_cstring("choose"), build_choose);
         table_set(builders, intern_cstring("choosetail"), build_choose_tail);
-        table_set(builders, intern_cstring("concat"), build_concat);
         table_set(builders, intern_cstring("move"), build_move);
         table_set(builders, intern_cstring("regfile"), build_regfile);
         table_set(builders, intern_cstring("not"), build_not);
