@@ -139,7 +139,6 @@ end
 function getSchema(name, signature)
   if not expressions[name] then error("Unknown expression '" .. name .. "'") end
   if not signature then error("Must specify signature to disambiguate expression alternatives") end
-
   local result
   for _, schema in ipairs(expressions[name]) do
     local match = true
@@ -152,7 +151,10 @@ function getSchema(name, signature)
     for arg, mode in pairs(signature) do
       required:remove(arg)
       local schemaMode = schema.signature[arg] or schema.rest
-      if schemaMode ~= mode and schemaMode ~= OPT and (schemaMode ~= IN and mode ~= STRONG_IN) and (schemaMode ~= STRONG_IN and mode ~= IN) then
+      if schemaMode == STRONG_IN then
+        schemaMode = IN
+      end
+      if schemaMode ~= mode and schemaMode ~= OPT then
         match = false
         break
       end
@@ -162,7 +164,6 @@ function getSchema(name, signature)
       break
     end
   end
-
   if not result then
     local available = {}
     for _, schema in ipairs(expressions[name]) do
@@ -176,8 +177,10 @@ end
 
 function getArgs(schema, bindings)
   local map = {}
+  local positions = {}
   for _, binding in ipairs(bindings) do
     map[binding.field] = binding.variable or binding.constant
+    positions[#positions + 1] = binding.field
   end
 
   local args = {}
@@ -186,6 +189,15 @@ function getArgs(schema, bindings)
     if map[arg] then
       args[#args + 1] = map[arg]
       fields[#fields + 1] = arg
+    end
+  end
+  if schema.rest then
+    fields[#fields + 1] = "..."
+    args["..."] = {}
+    for _, field in ipairs(positions) do
+      if not schema.signature[field] then
+        args["..."][#args["..."] + 1] = map[field]
+      end
     end
   end
 
