@@ -32,7 +32,7 @@ typedef struct sub {
     vector v;
     vector inputs;
     vector outputs;
-    vector ids; 
+    vector ids;
     table ids_cache; //these persist for all time
     table previous;
     table results;
@@ -79,7 +79,7 @@ static void do_sub(int *count, sub s, operator op, value *r)
         s->t = s->e->t;
         s->results = create_value_vector_table(s->h);
     }
-    
+
     if (op == op_flush) {
         delete_missing(s, r);
         // we could conceivably double buffer these
@@ -120,7 +120,7 @@ static execf build_sub(evaluation e, node n)
     sub s = allocate(e->h, sizeof(struct sub));
     s->results = create_value_vector_table(e->h);
     s->ids_cache = create_value_vector_table(e->h);
-    s->v = allocate_vector(e->h, vector_length(n->arguments));
+    s->v = allocate_vector(e->h, vector_length(n->arguments)); // @FIXME this should be the size of inputs (not arguments) xxx
     s->leg = resolve_cfg(e, n, 1);
     s->inputs = vector_get(n->arguments, 0);
     s->outputs = vector_get(n->arguments, 1);
