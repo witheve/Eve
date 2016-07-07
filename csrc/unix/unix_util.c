@@ -4,6 +4,7 @@
 
 #include <unix_internal.h>
 #include <sys/time.h>
+#include <time.h>
 
 decsriptor standardinput = 0;
 decsriptor standardoutput = 1;
