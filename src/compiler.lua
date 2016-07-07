@@ -294,6 +294,44 @@ function unify(query, mapping, projection)
   return query
 end
 
+function idSort(unsorted)
+  local nodes = {}
+  for node in pairs(unsorted) do
+    nodes[#nodes + 1] = node
+  end
+
+  table.sort(nodes, function(a, b)
+               return a.id < b.id
+  end)
+  return nodes
+end
+
+-- Pre-sort the unsorted list in rough order of cost
+-- this makes ordering more deterministic and potentially improves performance
+function presort(nodes, typeCost)
+  local idSorted = idSort(nodes)
+  local presorted = {}
+
+  typeCost = typeCost or {mutate = 0, expression = 100, ["not"] = 200, choose = 300, union = 400, object = 500}
+  while #idSorted > 0 do
+    local cheapest
+    local cheapestCost = 2^52
+    local cheapestIx
+    for ix, node in ipairs(idSorted) do
+      local cost = (typeCost[node.type] or 600) + node.deps.provides:length() * 10 - node.deps.depends:length()
+      if cost < cheapestCost then
+        cheapest = node
+        cheapestCost = cost
+        cheapestIx = ix
+      end
+    end
+    presorted[#presorted + 1] = cheapest
+    table.remove(idSorted, cheapestIx)
+  end
+
+  return presorted
+end
+
 -- Dependency Graph
 DependencyGraph = {}
 
@@ -578,8 +616,10 @@ function DependencyGraph:add(node)
 end
 
 function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for ordering
+  local presorted = presort(self.unprepared, {mutate = 1000, expression = 100, ["not"] = 200, choose = 300, union = 400, object = 500})
+
   -- Ensure that all nodes which provide a term contribute to that terms cardinality
-  for node in pairs(self.unprepared) do
+  for _, node in ipairs(presorted) do
     for term in pairs(node.deps.provides) do
       node.deps.contributes:add(self:cardinal(term))
     end
@@ -587,13 +627,13 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
 
   -- Add newly provided terms to the DG's terms
   local neueTerms = Set:new()
-  for node in pairs(self.unprepared) do
+  for _, node in ipairs(presorted) do
     neueTerms:union(node.deps.provides + node.deps.contributes, true)
   end
   self.terms:union(neueTerms, true)
 
   -- Link new maybe provides if no other nodes provide them
-  for node in pairs(self.unprepared) do
+  for _, node in ipairs(presorted) do
     for term in pairs(node.deps.maybeProvides) do
       if not self.terms[term] then
         node.deps.provides:add(term)
@@ -607,7 +647,7 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
   end
 
   -- Link new maybe dependencies to existing terms
-  for node in pairs(self.unprepared) do
+  for _, node in ipairs(presorted) do
     for term in pairs(node.deps.maybeDepends) do
       if self.terms[term] and not (node.deps.provides[term] or node.deps.contributes[term]) then
         node.deps.depends:add(term)
@@ -630,7 +670,7 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
   end
 
   -- Trim dependencies on terms the node expects to provide and unused maybes
-  for node in pairs(self.unprepared) do
+  for _, node in ipairs(presorted) do
     local deps = node.deps
     deps.depends:difference(deps.provides, true)
     deps.maybeDepends = Set:new()
@@ -638,7 +678,7 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
   end
 
   -- Recursively prepare any child graphs
-  for node in pairs(self.unprepared) do
+  for _, node in ipairs(presorted) do
     local deps = node.deps
     if node.deps.graph then
       node.deps.graph:prepare()
@@ -663,7 +703,7 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
   -- These are grouped into "cardinality islands", in which cardinality can be guaranteed to be stable
   -- once all terms in the group have been maximally joined/filtered
   -- @NOTE: groups are unique in that they depend on nodes rather than terms
-  for node in pairs(self.unprepared) do
+  for _, node in ipairs(presorted) do
     local terms = node.deps.contributes
     local groups = Set:new()
     local neueGroup = Set:new()
@@ -703,7 +743,7 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
 
   -- Register new nodes as a dependent on all the terms they require but cannot provide
   -- Move new nodes into unsorted
-  for node in pairs(self.unprepared) do
+  for _, node in ipairs(presorted) do
     node.deps.unsatisfied = 0
     self.unprepared:remove(node)
     self.unsorted:add(node)
@@ -765,18 +805,6 @@ function DependencyGraph:satisfy(term)
   end
 end
 
-function idSort(unsorted)
-  local nodes = {}
-  for node in pairs(unsorted) do
-    nodes[#nodes + 1] = node
-  end
-
-  table.sort(nodes, function(a, b)
-               return a.id < b.id
-  end)
-  return nodes
-end
-
 function DependencyGraph:order(allowPartial)
   -- The is naive ordering rules out a subset of valid subgraph embeddings that depend upon parent term production.
   -- The easy solution to fix this is to iteratively fix point the parent and child graphs until ordering is finished or
@@ -792,25 +820,7 @@ function DependencyGraph:order(allowPartial)
 
   -- Pre-sort the unsorted list in rough order of cost
   -- this makes ordering more deterministic and potentially improves performance
-  local unsorted = idSort(self.unsorted)
-  local presorted = {}
-  local typeCost = {mutate = 0, expression = 100, ["not"] = 200, choose = 300, union = 400, object = 500}
-  while #unsorted > 0 do
-    local cheapest
-    local cheapestCost = 2^52
-    local cheapestIx
-    for ix, node in ipairs(unsorted) do
-      local cost = (typeCost[node.type] or 600) + node.deps.provides:length() * 10 - node.deps.depends:length()
-      if cost < cheapestCost then
-        cheapest = node
-        cheapestCost = cost
-        cheapestIx = ix
-      end
-    end
-    presorted[#presorted + 1] = cheapest
-    table.remove(unsorted, cheapestIx)
-  end
-
+  local presorted = presort(self.unsorted)
   while self.unsorted:length() > 0 do
     local scheduled = false
     for ix, node in ipairs(presorted) do
