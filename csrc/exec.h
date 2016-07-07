@@ -16,7 +16,7 @@ static int toreg(value k)
 
 static inline value lookup(value *r, value k)
 {
-    if (type_of(k) == register_space)  {
+    if ((type_of(k) == register_space) && (k != etrue) && (k != efalse)) {
         // good look keeping your sanity if this is a non-register value in this space
         return(r[toreg(k)]);
     }
