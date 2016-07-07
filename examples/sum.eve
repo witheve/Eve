@@ -1,0 +1,11 @@
+Add some people
+  save
+    [#person @josh age: 22]
+    [#person @chris age: 29]
+    [#person @justin age: 28]
+
+Sum the ages of people
+  [#person age]
+  total = sum(age given age)
+  maintain
+    [#div text: total]
