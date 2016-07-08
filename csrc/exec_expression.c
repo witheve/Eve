@@ -54,8 +54,8 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
         }                                                                                            \
         value ar = lookup(r, a);                                                                     \
         *count = *count + 1;                                                                         \
-        if ((type_of(ar) != float_space )) {                                                         \
-            exec_error(ex, "attempt to do math on non-number", a);                                   \
+        if ((ar != etrue) && (ar != efalse)) {                                                       \
+            exec_error(ex, "attempt to flip non boolean", a);                                        \
         } else {                                                                                     \
             r[reg(dest)] = __op(ar);                                                                 \
             apply(n, op, r);                                                                         \
@@ -126,11 +126,20 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
         value ar = lookup(r, a);                                                                       \
         value br = lookup(r, b);                                                                       \
         *count = *count + 1;                                                                           \
-        if ((type_of(ar) != float_space ) || (type_of(br) != float_space)) {                           \
-            exec_error(ex, "attempt to " #__name" non-numbers", a, b);                                 \
-        } else {                                                                                       \
-          r[reg(dest)] = (*(double *)ar __op *(double *)br) ? etrue : efalse;                          \
+        if ((type_of(ar) == float_space ) && (type_of(br) == float_space)) {                           \
+            r[reg(dest)] = (*(double *)ar __op *(double *)br) ? etrue : efalse;                          \
             apply(n, op, r);                                                                           \
+        } else if ((type_of(ar) == estring_space ) && (type_of(br) == estring_space)) {                           \
+            r[reg(dest)] = (ar __op br) ? etrue : efalse;                          \
+            apply(n, op, r);                                                                           \
+        } else if ((type_of(ar) == uuid_space ) && (type_of(br) == uuid_space)) {                           \
+            r[reg(dest)] = (ar __op br) ? etrue : efalse;                          \
+            apply(n, op, r);                                                                           \
+        } else if ((ar == etrue || ar == efalse ) && (br == etrue || br == efalse)) {                           \
+            r[reg(dest)] = (ar __op br) ? etrue : efalse;                          \
+            apply(n, op, r);                                                                           \
+        } else {                                                                                       \
+            exec_error(ex, "attempt to __op different types", a, b);                                   \
         }                                                                                              \
     }
 

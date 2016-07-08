@@ -101,12 +101,12 @@ local expressions = {
   ["*"] = {rename("multiply", schemas.binary)},
   ["/"] = {rename("divide", schemas.binary)},
 
-  ["<"] = {rename("less_than", schemas.binary), rename("is_less_than", schemas.binaryFilter)},
-  ["<="] = {rename("less_than_or_equal", schemas.binary), rename("is_less_than_or_equal", schemas.binaryFilter)},
-  [">"] = {rename("greater_than", schemas.binary), rename("is_greater_than", schemas.binaryFilter)},
-  [">="] = {rename("greater_than_or_equal", schemas.binary), rename("is_greater_than_or_equal", schemas.binaryFilter)},
-  ["="] = {rename("equal", schemas.binary), rename("is_equal", schemas.binaryFilter), rename("move", schemas.moveIn), rename("move", schemas.moveOut)},
-  ["!="] = {rename("not_equal", schemas.binary), rename("is_not_equal", schemas.binaryFilter)},
+  ["<"] = {rename("less_than", schemas.binaryFilter), rename("is_less_than", schemas.binary)},
+  ["<="] = {rename("less_than_or_equal", schemas.binaryFilter), rename("is_less_than_or_equal", schemas.binary)},
+  [">"] = {rename("greater_than", schemas.binaryFilter), rename("is_greater_than", schemas.binary)},
+  [">="] = {rename("greater_than_or_equal", schemas.binaryFilter), rename("is_greater_than_or_equal", schemas.binary)},
+  ["="] = {rename("equal", schemas.binaryFilter), rename("is_equal", schemas.binary), rename("move", schemas.moveIn), rename("move", schemas.moveOut)},
+  ["!="] = {rename("not_equal", schemas.binaryFilter), rename("is_not_equal", schemas.binary)},
 
   concat = {schema({"return", IN}, "concat")},
   length = {rename("length", schemas.unary)},
