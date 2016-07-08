@@ -93,6 +93,7 @@ static void do_sub(int *count, sub s, operator op, value *r)
     *count = *count + 1;
     extract(s->v, s->inputs, r);
     vector key;
+
     if (!(res = table_find(s->results, s->v))){
         // table_find_key only exists because we want to reuse the key allocation
         if (s->previous && (res = table_find_key(s->previous, s->v, (void **)&key))) {
@@ -195,10 +196,10 @@ static void do_choose_tail(int *count, execf next, value flag, operator op, valu
 {
     if (op != op_flush) {
         *count = *count + 1;
-        r[toreg(flag)] = etrue;
-        if (next)
-            apply(next, op, r);
+        store(r, flag, etrue);
     }
+    if (next)
+        apply(next, op, r);
 }
 
 static execf build_choose_tail(evaluation e, node n)
@@ -216,11 +217,17 @@ static execf build_choose_tail(evaluation e, node n)
 static CONTINUATION_3_2(do_choose, int *, vector, value, operator, value *);
 static void do_choose(int *count, vector legs, value flag, operator op, value *r)
 {
-    *count = *count + 1;
-    r[toreg(flag)] = efalse;
-    vector_foreach (legs, i){
-        apply((execf) i, op, r);
-        if (r[toreg(flag)] == etrue) return;
+    if (op == op_flush) {
+        vector_foreach (legs, i){
+            apply((execf) i, op, r);
+        }
+    } else {
+        *count = *count + 1;
+        r[toreg(flag)] = efalse;
+        vector_foreach (legs, i){
+            apply((execf) i, op, r);
+            if (r[toreg(flag)] == etrue) return;
+        }
     }
 }
 
@@ -291,16 +298,25 @@ static execf build_move(evaluation e, node n)
 }
 
 
-static CONTINUATION_3_2(do_join, execf, int, u32, operator, value *);
-static void do_join(execf n, int count, u32 total, operator op, value *r)
+static CONTINUATION_3_2(do_merge, execf, int, u32, operator, value *);
+static void do_merge(execf n, int count, u32 total, operator op, value *r)
 {
+    if (op == op_flush) {
+        *total = *total +1;
+        if (*total == count) {
+            *total = 0;
+        } else return;
+    }
     apply(n, op, r);
 }
 
-static execf build_join(evaluation e, node n)
+static execf build_merge(evaluation e, node n)
 {
     u32 c = allocate(e->h, sizeof(iu32));
-    return cont(e->h, do_join,resolve_cfg(e, n, 0), 0, c);
+    *c = 0;
+    return cont(e->h, do_merge, resolve_cfg(e, n, 0),
+                (int)*(double *)vector_get(vector_get(n->arguments, 0), 0),
+                c);
 }
 
 static CONTINUATION_1_2(do_terminal, evaluation, operator, value *);
@@ -441,6 +457,7 @@ table builders_table()
         table_set(builders, intern_cstring("regfile"), build_regfile);
         table_set(builders, intern_cstring("not"), build_not);
         table_set(builders, intern_cstring("time"), build_time);
+        table_set(builders, intern_cstring("merge"), build_merge);
         
         register_exec_expression(builders);
         register_string_builders(builders);
