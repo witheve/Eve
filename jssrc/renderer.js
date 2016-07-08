@@ -169,7 +169,7 @@ function handleDOMUpdates(result) {
       }
       elem.entity = entId;
       activeElements[entId] = elem;
-      elem.sort = ent.sort || "";
+      elem.sort = ent.sort || ent["eve-auto-index"] || "";
       insertSorted(activeElements.root, elem)
     }
     let attributes = Object.keys(ent);
@@ -733,8 +733,8 @@ function drawOrdered(ordered, state) {
 var socket = new WebSocket("ws://" + window.location.host +"/ws");
 socket.onmessage = function(msg) {
   let data = JSON.parse(msg.data);
-  console.log(data)
   if(data.type == "result") {
+    console.log(data)
     handleDOMUpdates(data);
   } else if(data.type == "node_graph") {
     allNodeGraphs[data.head] = data.nodes;

@@ -1088,9 +1088,11 @@ generateObjectNode = function(root, context)
   -- e.g. [#div children: [#span] [#span]], both spans should be hooked
   -- to the children attribute
   local lastAttribute
+  local lastAttributeIndex = 0
 
-  for _, child in ipairs(root.children) do
+  for childIx, child in ipairs(root.children) do
     local type = child.type
+    local next = root.children[childIx + 1]
     if type == "IDENTIFIER" then
       -- generate a variable
       local variable = resolveVariable(context, child.value, child)
@@ -1103,11 +1105,16 @@ generateObjectNode = function(root, context)
       -- this node should be added as another binding to that field
       -- if it's not, then this is an error
       if lastAttribute then
+        lastAttributeIndex = lastAttributeIndex + 1
+        if mutating then
+          local indexIdentifier = makeNode(context, "IDENTIFIER", child, {value = "eve-auto-index"})
+          local indexConstant = makeNode(context, "NUMBER", child, {value = tostring(lastAttributeIndex)})
+          local equalityNode = makeNode(context, "equality", child, {operator = "=", children = {indexIdentifier, indexConstant}})
+          child.children[#child.children + 1] = equalityNode
+        end
         local variable = resolveExpression(child, context)
         local binding = generateBindingNode(context, {field = lastAttribute.value, variable = variable}, lastAttribute, object)
-        -- we don't want to depend on our children since they would multiply
-        -- the number of parent elements by the number of children when we really
-        -- mean for their to be one parent per child.
+        -- if we're mutating we also need to bind eve-auto-index here
       else
         -- error
         errors.bareSubObject(context, child)
@@ -1120,6 +1127,7 @@ generateObjectNode = function(root, context)
         local binding = generateBindingNode(context, {field = left.value, variable = variable}, child, object)
         resolveExpression(child, context)
         lastAttribute = nil
+        lastAttributeIndex = 0
       else
         -- error
         errors.unboundAttributeInequality(context, child)
@@ -1151,6 +1159,16 @@ generateObjectNode = function(root, context)
         related = left
         binding.field = left.value
         lastAttribute = left
+        lastAttributeIndex = 0
+        -- if this is an object and we're mutating then we need to
+        -- assign an eve-auto-index if there are several objects in
+        -- a row
+        if mutating and next and next.type == "object" then
+          local indexIdentifier = makeNode(context, "IDENTIFIER", right, {value = "eve-auto-index"})
+          local indexConstant = makeNode(context, "NUMBER", right, {value = tostring(lastAttributeIndex)})
+          local equalityNode = makeNode(context, "equality", right, {operator = "=", children = {indexIdentifier, indexConstant}})
+          right.children[#right.children + 1] = equalityNode
+        end
         local resolved = resolveExpression(right, context)
         if not resolved then
           -- error
