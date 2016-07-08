@@ -57,7 +57,6 @@ static void actually_write(tcpsock t)
             buffer b = t->q->b;
             int transfer = buffer_length(t->q->b);
 
-            // this should handle EWOULDBLOCK 
             int result = write(t->d, 
                                bref(b, 0),
                                transfer);
@@ -70,6 +69,7 @@ static void actually_write(tcpsock t)
                     tcppop(t);
                 }
             } else {
+                if  ((errno == EAGAIN) || (errno == EWOULDBLOCK)) break;
                 while(t->q) {
                     apply(t->q->finished, false); 
                     tcppop(t);
