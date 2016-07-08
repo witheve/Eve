@@ -9,8 +9,8 @@ static void do_concat(int *count, execf n, value dest, vector terms, operator op
     buffer b = allocate_string(init);
     *count = *count+1;
 
-    vector_foreach(terms, i) 
-        print_value_raw(b, lookup(i, r));
+    vector_foreach(terms, i)
+        print_value_raw(b, lookup(r, i));
 
     store(r, dest, intern_string(bref(b, 0), buffer_length(b)));
     apply(n, op, r);
