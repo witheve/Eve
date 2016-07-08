@@ -56,6 +56,10 @@ static void actually_write(tcpsock t)
         } else {
             buffer b = t->q->b;
             int transfer = buffer_length(t->q->b);
+            if (transfer == 0) {
+                tcppop(t);
+                break;
+            }
 
             int result = write(t->d, 
                                bref(b, 0),
@@ -69,7 +73,10 @@ static void actually_write(tcpsock t)
                     tcppop(t);
                 }
             } else {
-                if  ((errno == EAGAIN) || (errno == EWOULDBLOCK)) break;
+                if  ((result == -1) && ((errno == EAGAIN) || (errno == EWOULDBLOCK))) {
+                    break;
+                }
+                
                 while(t->q) {
                     apply(t->q->finished, false); 
                     tcppop(t);
