@@ -527,10 +527,10 @@ local function parse(tokens, context)
       if stackTop.type == "function" and stackTop.func == "concat" then
         -- if there's zero or one children, then this concat isn't needed
         if #stackTop.children == 0 or (#stackTop.children == 1 and stackTop.children[1].type == "STRING") then
-          local string = stackTop.children[1] or makeNode(context, "STRING", token, {value = ""})
+          local str = stackTop.children[1] or makeNode(context, "STRING", token, {value = ""})
           stack:pop()
           stackTop = stack:peek()
-          stackTop.children[#stackTop.children + 1] = string
+          stackTop.children[#stackTop.children + 1] = str
         else
           stackTop.closed = true
         end
@@ -1013,7 +1013,7 @@ resolveExpression = function(node, context)
   if node.type == "NUMBER" or node.type == "STRING" or node.type == "UUID" or node.type == "BOOLEAN" then
     return makeNode(context, "constant", node, {constant = node.value, constantType = node.type:lower()})
 
-  elseif node.type == "variable" then
+  elseif node.type == "variable" or node.type == "constant" then
     return node
 
   elseif node.type == "IDENTIFIER" then
