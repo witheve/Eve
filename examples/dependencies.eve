@@ -1,13 +1,22 @@
+Add some sample data
+  [#session-connect]
+  save
+    [#person name: "josh" age: 22 salary: 10 height: 5.8 gender: "M"]
+    [#person name: "corey" age: 29 salary: 10 height: 5.12 gender: "M"]
+    [#person name: "chris" age: 28 salary: 7 height: 5.7 gender: "M"]
+    [#person name: "jen" age: 23 salary: 9 height: 5.8 gender: "F"]
+
 An interesting sampling of dependencies
 Find disparity in height and salary for age cohorts separated by gender
   self = [#person name age salary height gender]
   other = [#person gender]
   other != self
-  abs(age - other.age) < 10
+  age - other.age < 10 // @TODO: abs
   ∂_salary = salary - other.salary
   ∂_height = height - other.height
   maintain
-    [#div sort: ∂_salary, children:
-      [#div text: "name: {name} age: {age}"]
-      [#div text: "∂ salary: {∂_salary}"]
-      [#div text: "∂ height: {∂_height}"]]
+    style = [padding-left: "4px" padding-right: "4px"]
+    [#div self class: "row" sort: ∂_salary, children:
+      [#div text: "name: {name} age: {age}" style]
+      [#div text: "∂ salary: {∂_salary}" style]
+      [#div text: "∂ height: {∂_height}" style]]
