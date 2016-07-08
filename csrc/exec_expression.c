@@ -8,16 +8,16 @@ static value toggle (value x)
     if (x == efalse) return etrue;
     return efalse;
 }
-    
-    
+
+
 
 static CONTINUATION_5_2(do_equal, evaluation, int *, execf, value, value,  operator, value *); \
-static void do_equal(evaluation e, int *count, execf n, value a, value b, operator op, value *r) 
+static void do_equal(evaluation e, int *count, execf n, value a, value b, operator op, value *r)
 {
-    *count = *count + 1;                        
+    *count = *count + 1;
     if (op != op_flush) {
-        value ar = lookup(r, a);                    
-        value br = lookup(r, b);                
+        value ar = lookup(r, a);
+        value br = lookup(r, b);
         if (!value_equals(ar, br)) return;
     }
     apply(n, op, r);
@@ -123,24 +123,24 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
             apply(n, op, r);                                                                         \
             return;                                                                                  \
         }                                                                                            \
-        value ar = lookup(r, a);                                                                       \
-        value br = lookup(r, b);                                                                       \
-        *count = *count + 1;                                                                           \
-        if ((type_of(ar) == float_space ) && (type_of(br) == float_space)) {                           \
-            r[reg(dest)] = (*(double *)ar __op *(double *)br) ? etrue : efalse;                          \
-            apply(n, op, r);                                                                           \
-        } else if ((type_of(ar) == estring_space ) && (type_of(br) == estring_space)) {                           \
-            r[reg(dest)] = (ar __op br) ? etrue : efalse;                          \
-            apply(n, op, r);                                                                           \
-        } else if ((type_of(ar) == uuid_space ) && (type_of(br) == uuid_space)) {                           \
-            r[reg(dest)] = (ar __op br) ? etrue : efalse;                          \
-            apply(n, op, r);                                                                           \
-        } else if ((ar == etrue || ar == efalse ) && (br == etrue || br == efalse)) {                           \
-            r[reg(dest)] = (ar __op br) ? etrue : efalse;                          \
-            apply(n, op, r);                                                                           \
-        } else {                                                                                       \
-            exec_error(ex, "attempt to __op different types", a, b);                                   \
-        }                                                                                              \
+        value ar = lookup(r, a);                                                                     \
+        value br = lookup(r, b);                                                                     \
+        *count = *count + 1;                                                                         \
+        if ((type_of(ar) == float_space ) && (type_of(br) == float_space)) {                         \
+            r[reg(dest)] = (*(double *)ar __op *(double *)br) ? etrue : efalse;                      \
+            apply(n, op, r);                                                                         \
+        } else if ((type_of(ar) == estring_space ) && (type_of(br) == estring_space)) {              \
+            r[reg(dest)] = (ar __op br) ? etrue : efalse;                                            \
+            apply(n, op, r);                                                                         \
+        } else if ((type_of(ar) == uuid_space ) && (type_of(br) == uuid_space)) {                    \
+            r[reg(dest)] = (ar __op br) ? etrue : efalse;                                            \
+            apply(n, op, r);                                                                         \
+        } else if ((ar == etrue || ar == efalse ) && (br == etrue || br == efalse)) {                \
+            r[reg(dest)] = (ar __op br) ? etrue : efalse;                                            \
+            apply(n, op, r);                                                                         \
+        } else {                                                                                     \
+            exec_error(ex, "attempt to __op different types", a, b);                                 \
+        }                                                                                            \
     }
 
 
@@ -169,16 +169,22 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
         value ar = lookup(r, a);                                                                     \
         value br = lookup(r, b);                                                                     \
         *count = *count + 1;                                                                         \
+                                                                                                     \
         if ((type_of(ar) == float_space ) && (type_of(br) == float_space)) {                         \
             if (*(double *)ar __op *(double *)br)                                                    \
-            {                                                                                        \
                 apply(n, op, r);                                                                     \
-            }                                                                                        \
+        } else if ((type_of(ar) == estring_space ) && (type_of(br) == estring_space)) {              \
+            if (ar __op br)                                                                          \
+                apply(n, op, r);                                                                     \
+        } else if ((type_of(ar) == uuid_space ) && (type_of(br) == uuid_space)) {                    \
+            if (ar __op br)                                                                          \
+                apply(n, op, r);                                                                     \
+        } else if ((ar == etrue || ar == efalse ) && (br == etrue || br == efalse)) {                \
+            if (ar __op br)                                                                          \
+                apply(n, op, r);                                                                     \
+        } else {                                                                                     \
+            exec_error(ex, "attempt to __op different types", a, b);                                 \
         }                                                                                            \
-        else                                                                                         \
-          {                                                                                          \
-            exec_error(ex, "@FIXME filter non-numbers", a, b);                                       \
-          }                                                                                          \
     }
 
 
@@ -287,4 +293,3 @@ void register_exec_expression(table builders)
     table_set(builders, intern_cstring("tan"), build_tan);
     table_set(builders, intern_cstring("toggle"), build_toggle);
 }
-
