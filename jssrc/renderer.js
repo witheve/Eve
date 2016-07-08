@@ -88,7 +88,7 @@ function handleDOMUpdates(result) {
     // we clean up styles after the fact so that in the case where
     // the style object is being removed, but the element is sticking
     // around, we remove any styles that may have been applied
-    let stylesToGC = [];
+    let stylesToMaybeGC = [];
     for(let rem of remove) {
       let [entity, attribute, value] = safeEav(rem);
       if(activeStyles[entity]) {
@@ -107,10 +107,19 @@ function handleDOMUpdates(result) {
               //nuke the whole element
               elem.parentNode.removeChild(elem);
               activeElements[entity] = null;
+              if(elem.styleId) {
+                let ix = activeStyles[elem.styleId].indexOf(elem);
+                activeStyles[elem.styleId].splice(ix, 1);
+                stylesToMaybeGC.push(value);
+              }
             }
             break;
           case "style":
-            stylesToGC.push(value);
+            stylesToMaybeGC.push(value);
+            let ix = activeStyles[value].indexOf(elem);
+            if(ix > -1) {
+              activeStyles[value].splice(ix, 1);
+            }
             break;
           case "children":
             let child = activeElements[value];
@@ -133,8 +142,10 @@ function handleDOMUpdates(result) {
       }
     }
     // clean up any styles that need to go
-    for(let styleId of stylesToGC) {
-      activeStyles[styleId] = null;
+    for(let styleId of stylesToMaybeGC) {
+      if(activeStyles[styleId] && activeStyles[styleId].length === 0) {
+        activeStyles[styleId] = null;
+      }
     }
   }
 
@@ -181,7 +192,10 @@ function handleDOMUpdates(result) {
         if(!activeStyles[value]) {
           activeStyles[value] = [];
         }
-        activeStyles[value].push(elem);
+        if(activeStyles[value].indexOf(elem) == -1) {
+          elem.styleId = value;
+          activeStyles[value].push(elem);
+        }
       } else if(attr == "textContent") {
         elem.textContent = value;
       } else if(attr == "tag" || attr == "ix") {
