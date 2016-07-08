@@ -93,9 +93,11 @@ function handleDOMUpdates(result) {
       let [entity, attribute, value] = safeEav(rem);
       if(activeStyles[entity]) {
         // do style stuff
-        let style = activeStyles[entity].style;
-        if(!additions[entity] || !additions[entity][attribute]) {
-          style[attribute] = "";
+        for(let elem of activeStyles[entity]) {
+          let style = elem.style;
+          if(!additions[entity] || !additions[entity][attribute]) {
+            style[attribute] = "";
+          }
         }
       } else if(activeElements[entity]) {
         let elem = activeElements[entity];
@@ -176,7 +178,10 @@ function handleDOMUpdates(result) {
         }
       } else if(attr == "style") {
         styles.push(value);
-        activeStyles[value] = elem;
+        if(!activeStyles[value]) {
+          activeStyles[value] = [];
+        }
+        activeStyles[value].push(elem);
       } else if(attr == "textContent") {
         elem.textContent = value;
       } else if(attr == "tag" || attr == "ix") {
@@ -193,15 +198,17 @@ function handleDOMUpdates(result) {
   for(let styleId of styles) {
     let style = additions[styleId];
     if(!style) continue;
-    let elem = activeStyles[styleId];
-    if(!elem) {
-      console.error("Got a style for an element that doesn't exist.");
-      continue;
-    }
-    let elemStyle = elem.style;
-    let styleAttributes = Object.keys(style);
-    for(let attr of styleAttributes) {
-      elemStyle[attr] = style[attr];
+    let elems = activeStyles[styleId];
+    for(let elem of elems || []) {
+      if(!elem) {
+        console.error("Got a style for an element that doesn't exist.");
+        continue;
+      }
+      let elemStyle = elem.style;
+      let styleAttributes = Object.keys(style);
+      for(let attr of styleAttributes) {
+        elemStyle[attr] = style[attr];
+      }
     }
   }
 }
