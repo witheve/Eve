@@ -389,8 +389,11 @@ function translate_choose(n, bound, down, tracing, context)
                           {{read_lookup(env, flag)}},
                           id)
 
+   local id = util.generateId()
+   local merge = build_node("merge", {bot}, {{#n.queries}}, id)
+   
    local arm_bottom = function (bound)
-        return env, bot
+        return env, merge
    end
 
    for n, _ in pairs(env.registers) do

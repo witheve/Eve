@@ -127,7 +127,7 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
         value br = lookup(r, b);                                                                       \
         *count = *count + 1;                                                                           \
         if ((type_of(ar) != float_space ) || (type_of(br) != float_space)) {                           \
-            exec_error(ex, "attempt to __op non-numbers", a, b);                                       \
+            exec_error(ex, "attempt to " #__name" non-numbers", a, b);                                 \
         } else {                                                                                       \
           r[reg(dest)] = (*(double *)ar __op *(double *)br) ? etrue : efalse;                          \
             apply(n, op, r);                                                                           \
