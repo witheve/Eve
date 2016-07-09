@@ -6,7 +6,7 @@ static void allocate_buckets(table t)
     memset(t->entries->contents, 0, t->entries->end = t->buckets * sizeof(void *));
 }
 
-table allocate_table(heap h, iu64 (*key_function)(void *x), boolean (*equals_function)(void *x, void *y))
+table allocate_table(heap h, u64 (*key_function)(void *x), boolean (*equals_function)(void *x, void *y))
 {
     table new = allocate(h, sizeof(struct table));
     new->h = h;

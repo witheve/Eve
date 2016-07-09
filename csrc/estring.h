@@ -4,6 +4,8 @@ typedef struct estring {
     unsigned char *body;
 } *estring;
 
+void init_estring();
+
 estring intern_string(unsigned char *, int);
 
 static inline boolean si_compare(void *a, void *b) 
@@ -13,7 +15,7 @@ static inline boolean si_compare(void *a, void *b)
     return !memcmp(sia->body, sib->body, sia->length);
 }
 
-static inline iu64 si_hash(void *z)
+static inline u64 si_hash(void *z)
 {
     estring si = z;
     return shash(si->body, si->length);

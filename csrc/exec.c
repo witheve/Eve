@@ -141,6 +141,7 @@ static execf build_sub(block bk, node n)
     s->leg = resolve_cfg(bk, n, 1);
     s->inputs = vector_get(n->arguments, 0);
     s->outputs = vector_get(n->arguments, 1);
+    s->previous = 0;
     s->resreg = vector_get(vector_get(n->arguments, 2), 0);
     s->ids = vector_get(n->arguments, 3);
     s->h = bk->h;
@@ -314,8 +315,8 @@ static execf build_move(block bk, node n)
 }
 
 
-static CONTINUATION_3_2(do_merge, execf, int, u32, operator, value *);
-static void do_merge(execf n, int count, u32 total, operator op, value *r)
+static CONTINUATION_3_2(do_merge, execf, int, u32 *, operator, value *);
+static void do_merge(execf n, int count, u32 *total, operator op, value *r)
 {
     if (op == op_flush) {
         *total = *total +1;
@@ -328,7 +329,7 @@ static void do_merge(execf n, int count, u32 total, operator op, value *r)
 
 static execf build_merge(block bk, node n)
 {
-    u32 c = allocate(bk->h, sizeof(iu32));
+    u32 *c = allocate(bk->h, sizeof(u32));
     *c = 0;
     return cont(bk->h, do_merge, resolve_cfg(bk, n, 0),
                 (int)*(double *)vector_get(vector_get(n->arguments, 0), 0),

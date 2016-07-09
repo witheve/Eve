@@ -1,7 +1,7 @@
 #include <runtime.h>
 #include <unix/unix.h>
 
-static iu64 estring_length(void *x) {
+static u64 estring_length(void *x) {
     return 12;
 }
 
@@ -22,7 +22,7 @@ estring intern_string(unsigned char* content, int length) {
     return x;
 }
 
-void init_string()
+void init_estring()
 {
     interned_string = allocate_table(init, si_hash, si_compare);
     heap string_region = init_fixed_page_region(init,

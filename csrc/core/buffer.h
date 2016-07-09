@@ -82,12 +82,12 @@ void buffer_read_field(buffer b,
                        bytes length);
 
 #define WRITE_BE(bits)\
-  static inline void buffer_write_be##bits(buffer b, iu64 x)\
+  static inline void buffer_write_be##bits(buffer b, u64 x)\
   {                                                            \
-      iu64 k = x;                                              \
+      u64 k = x;                                              \
       int len = bits>>3;                                       \
       buffer_extend(b, len);                                  \
-      iu8 *n = bref(b, b->end);                                \
+      u8 *n = bref(b, b->end);                                \
       for (int i = len-1; i >= 0; i--) {                 \
           n[i] = k & 0xff;                                     \
           k >>= 8;                                             \
@@ -96,11 +96,11 @@ void buffer_read_field(buffer b,
   }
 
 #define READ_BE(bits)                                   \
-    static inline iu64 buffer_read_be##bits(buffer b)        \
+    static inline u64 buffer_read_be##bits(buffer b)        \
     {                                                           \
-        iu64 k = 0;                                          \
+        u64 k = 0;                                          \
         int len = bits>>3;                                       \
-        iu8 *n = bref(b, b->start);                             \
+        u8 *n = bref(b, b->start);                             \
         for (int i = 0; i < len; i++) {                    \
             k = (k << 8) | (*n++);                              \
         }                                                       \
@@ -115,17 +115,17 @@ READ_BE(64)
 READ_BE(32)
 READ_BE(16)
 
-static inline iu64 buffer_read_byte(buffer b)
+static inline u64 buffer_read_byte(buffer b)
 {
-    iu64 r = *(u8)bref(b, 0);
+    u64 r = *(u8 *)bref(b, 0);
     b->start += 1;
     return(r);
 }
 
-static inline void buffer_write_byte(buffer b, iu8 x)
+static inline void buffer_write_byte(buffer b, u8 x)
 {
     buffer_extend(b, 1);                                  
-    *(u8)bref(b, buffer_length(b)) = x;
+    *(u8 *)bref(b, buffer_length(b)) = x;
     b->end += 1;
 }
 
@@ -145,4 +145,11 @@ static inline void buffer_clear(buffer b)
 
 void print_hex_buffer(buffer s, buffer b);
 
-void print_byte(buffer b, iu8 f);
+void print_byte(buffer b, u8 f);
+
+static inline void deallocate_buffer(buffer b)
+{
+    deallocate(b->h, b->contents, b->length);
+    deallocate(b->h, b, sizeof(struct buffer));
+}
+

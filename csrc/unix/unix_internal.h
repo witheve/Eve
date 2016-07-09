@@ -20,7 +20,7 @@ static inline buffer system_read(heap h,
                                  descriptor d,
                                  bytes length)
 {
-    iu64 len = length;
+    u64 len = length;
     buffer b = allocate_buffer(h, length);
     void *dest = bref(b, 0);
     // error handling
@@ -62,7 +62,7 @@ void select_timer_block(ticks interval);
 
 static station digest_sockaddrin(heap h, struct sockaddr_in *a)
 {
-    iu32 t;
+    u32 t;
     unsigned char *new = allocate(h, 6);
     memcpy (new, &a->sin_addr, 4);
     memcpy (new + 4, &a->sin_port, 2);

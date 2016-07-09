@@ -4,7 +4,7 @@
 static table symbol_table;
 
 
-iu64 shash(unsigned char *content, int length)
+u64 shash(unsigned char *content, int length)
 {
     unsigned h = 0;
     
@@ -22,7 +22,7 @@ iu64 shash(unsigned char *content, int length)
 
 
 
-iu64 string_hash(void *x)
+u64 string_hash(void *x)
 {
     buffer b = x;
     return shash(bref(b, 0), buffer_length(b));

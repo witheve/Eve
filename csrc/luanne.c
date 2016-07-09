@@ -269,6 +269,7 @@ interpreter get_lua()
 
 void free_lua(interpreter lua)
 {
+    // luc_gc(lua->l, LUA_GCCOLLECT, 0);
     lua->next = freelist;
     freelist = lua;
 }

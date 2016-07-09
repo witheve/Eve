@@ -2,9 +2,9 @@
 
 typedef struct pageheader *pageheader;
 
-// pageheader should store the number of pages so we can send them back
 struct pageheader {
-    iu32 refcnt;
+    u32 refcnt;
+    u32 length;
     pageheader next;
     pageheader *last;
 };
@@ -13,7 +13,6 @@ typedef struct rolling {
     struct heap h;
     heap   parent;
     bytes    offset;
-    bytes    length;
     pageheader buffer;
 } *rolling;
 
@@ -24,36 +23,44 @@ static void rolling_advance_page(rolling l, bytes len)
     pageheader p =  allocate(l->parent, plen);
     l->buffer = p;
     l->offset = sizeof(struct pageheader);
-    l->length = plen;
+    p->length = plen;
     p->last = &old->next;
     p->next = 0;
     *p->last = p;
 }
 
-static void *rolling_alloc(rolling c, bytes len)
+static void *rolling_alloc(heap h, bytes len)
 {
-    if ((c->offset + len) > c->length)
+    rolling c = (void *)h;
+
+    if ((c->offset + len) > c->buffer->length){
         rolling_advance_page(c, len);
+    }
     c->buffer->refcnt++;
     void *r = ((void *)c->buffer) + c->offset;
     c->offset += len;
+    // we can't use the last part of a multipage allocation,
+    // because we wont be able to find the page header
+    if (c->buffer->length > c->parent->pagesize)
+        rolling_advance_page(c, c->parent->pagesize);
     return(r);
 }
 
-static void rolling_free(rolling c, void *x)
+static void rolling_free(heap h, void *x, bytes b)
 {
+    rolling c = (void *)h;
     pageheader p = (pageheader)page_of(x, c->parent->pagesize);
     if (!--p->refcnt) {
-        //        *p->last = p->next;
-        //        deallocate(c->parent, p);
+        *p->last = p->next;
+        deallocate(c->parent, p, p->length);
     }
 }
 
-static void rolling_destroy(rolling c)
+static void rolling_destroy(heap h)
 {
-
+    rolling c = (void *)h;
     for (pageheader i = c->buffer, j;
-         i && (j = i->next, deallocate(c->parent, i), 1);
+         i && (j = i->next, deallocate(c->parent, i, i->length), 1);
          i = j);
 }
 
@@ -70,7 +77,6 @@ heap allocate_rolling(heap p)
     l->buffer = ph;
     l->parent = p;
     l->offset = off;
-    l->length = p->pagesize;
     ph->last = 0;
     ph->refcnt = 1;
     ph->next = 0;

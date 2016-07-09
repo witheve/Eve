@@ -63,14 +63,14 @@ static void print_value_json(buffer out, value v)
 static CONTINUATION_1_0(send_destroy, heap);
 static void send_destroy(heap h)
 {
-    //    destroy(h);
+    destroy(h);
 }
 
 // always call this guy independent of commit so that we get an update,
-// even on empty, after the first evaluation
-static void send_guy(buffer_handler output, values_diff diff)
+// even on empty, after the first evaluation. warning, destroys
+// his heap
+static void send_guy(heap h, buffer_handler output, values_diff diff)
 {
-    heap h = allocate_rolling(pages);
     string out = allocate_string(h);
     bprintf(out, "{\"type\":\"result\", \"insert\":[");
 
@@ -111,11 +111,10 @@ static void send_guy(buffer_handler output, values_diff diff)
 
 // for tracing we want to be able to send the structure of the machines
 // that we build as a json message
-static void send_node_graph(buffer_handler output, node head, table counts)
+static void send_node_graph(heap h, buffer_handler output, node head, table counts)
 {
-    heap h = allocate_rolling(pages);
     string out = allocate_string(h);
-    iu64 time = (iu64)table_find(counts, intern_cstring("time"));
+    u64 time = (u64)table_find(counts, intern_cstring("time"));
     long iterations = (long)table_find(counts, intern_cstring("iterations"));
     bprintf(out, "{\"type\":\"node_graph\", \"total_time\": %t, \"iterations\": %d, \"head\": \"%v\", \"nodes\":{", time, iterations, head->id);
 
@@ -154,8 +153,7 @@ static void send_node_graph(buffer_handler output, node head, table counts)
     estring parse = vector_get(vector_get(head->arguments, 1), 0);
     buffer_append(out, parse->body, parse->length);
     bprintf(out, "}");
-    // reclaim
-    apply(output, out, cont(h, send_destroy, h));
+    apply(output, out, ignore);
 }
 
 
@@ -179,13 +177,14 @@ static void send_response(json_session js, table solution, table counters)
     table_foreach(js->persisted, k, scopeBag) {
         table_foreach(edb_implications(scopeBag), k, impl) {
             if(impl) {
-                send_node_graph(js->write, impl, counters);
+                send_node_graph(h, js->write, impl, counters);
             }
         }
     }
 
     values_diff diff = diff_value_vector_tables(h, js->current_delta, results);
-    send_guy(js->write, diff);
+    // destructs h
+    send_guy(h, js->write, diff);
     
     // FIXME: we need to clean up the old delta, we're currently just leaking it
     // this has to be a copy

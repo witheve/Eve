@@ -64,18 +64,18 @@ static void websocket_input_frame(websocket w, buffer b, thunk t)
     int rlen = buffer_length(w->reassembly);
     if (rlen < offset) return;
 
-    iu64 length = *(u8)bref(w->reassembly, 1) & 0x7f;
+    u64 length = *(u8 *)bref(w->reassembly, 1) & 0x7f;
 
     if (length == 126) {
         if (rlen < 4) return;
-        length = htons(*(u16)bref(w->reassembly, 2));
+        length = htons(*(u16 *)bref(w->reassembly, 2));
         offset += 2;
     } else {
         if (length == 127) {
             // ok, we are throwing away the top byte, who the hell thought
             // that 1TB wasn't enough per object
             if (rlen< 10) return;
-            length = htonll(*(u64)bref(w->reassembly, 2));
+            length = htonll(*(u64 *)bref(w->reassembly, 2));
             offset += 8;
         }
     }
@@ -83,10 +83,10 @@ static void websocket_input_frame(websocket w, buffer b, thunk t)
 
     // xxx - demultiplex on operand
     
-    iu32 mask = 0;
+    u32 mask = 0;
     // which should always be the case for client streams
-    if (*(u8)bref(w->reassembly, 1) & 0x80) {
-        mask = *(u32)bref(b, offset);
+    if (*(u8 *)bref(w->reassembly, 1) & 0x80) {
+        mask = *(u32 *)bref(b, offset);
         offset += 4;
     }
 
@@ -94,7 +94,7 @@ static void websocket_input_frame(websocket w, buffer b, thunk t)
         if (mask) {
             for (int i=0;i<((length +3)/4); i++) {
                 // xxx - fallin off the end 
-                *(u32)bref(w->reassembly, offset + i * 4) ^= mask;
+                *(u32 *)bref(w->reassembly, offset + i * 4) ^= mask;
             }
         }
         // xxx - only deliver this message

@@ -6,11 +6,10 @@
  
 typedef struct region_heap {
     struct heap h;
-    iu64 base, max, fill;
+    u64 base, max, fill;
 } *region_heap;
 
 
-// ok, this needs to have a fill pointer..this is why we are allocating so many damn pages
 static void *allocate_pages(heap h, bytes s)
 {
     region_heap r = (void *)h;
@@ -26,10 +25,9 @@ static void *allocate_pages(heap h, bytes s)
     return(p);
 }
 
-static void free_pages(heap h, void *x)
+static void free_pages(heap h, void *x, bytes size)
 {
-    // xxx - this doesn't free the whole page if its a multipage allocation
-    munmap(x, h->pagesize);
+    munmap(x, size);
 }
 
 boolean in_region(region_heap r, void *p) {
@@ -39,8 +37,8 @@ boolean in_region(region_heap r, void *p) {
 
      
 heap init_fixed_page_region(heap meta,
-                            iu64 base_address,
-                            iu64 max_address,
+                            u64 base_address,
+                            u64 max_address,
                             bytes pagesize)
 {
     region_heap r = allocate(meta, sizeof(struct region_heap));

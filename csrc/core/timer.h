@@ -12,12 +12,12 @@ ticks now();
 
 static inline ticks seconds(int n)
 {
-    return(((iu64)n)<<32);
+    return(((u64)n)<<32);
 }
 
 static inline ticks milliseconds(int n)
 {
-    return((((iu64)n)<<32)/1000ull);
+    return((((u64)n)<<32)/1000ull);
 }
 
 

@@ -26,7 +26,7 @@ Still 100% public domain
 #include "sha1.h"
 
 
-void SHA1_Transform(iu32 state[5], iu8 buffer[64]);
+void SHA1_Transform(u32 state[5], u8 buffer[64]);
 
 #define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
 
@@ -60,12 +60,12 @@ SHAPrintContext(SHA1_CTX *context, char *msg)
 
 /* Hash a single 512-bit block. This is the core of the algorithm. */
 void
-SHA1_Transform(iu32 state[5], iu8 buffer[64])
+SHA1_Transform(u32 state[5], u8 buffer[64])
 {
-    iu32 a, b, c, d, e;
+    u32 a, b, c, d, e;
     typedef union {
-        iu8 c[64];
-        iu32 l[16];
+        u8 c[64];
+        u32 l[16];
     } CHAR64LONG16;
     CHAR64LONG16 *block;
 
@@ -133,7 +133,7 @@ SHA1_Init(SHA1_CTX *context)
 
 /* Run your data through this. */
 void
-SHA1_Update(SHA1_CTX *context, u8 data, const size_t len)
+SHA1_Update(SHA1_CTX *context, u8 *data, const size_t len)
 {
     size_t i, j;
 
@@ -163,22 +163,22 @@ SHA1_Update(SHA1_CTX *context, u8 data, const size_t len)
 
 /* Add padding and return the message digest. */
 void
-SHA1_Final(SHA1_CTX *context, iu8 digest[SHA1_DIGEST_SIZE])
+SHA1_Final(SHA1_CTX *context, u8 digest[SHA1_DIGEST_SIZE])
 {
-    iu32 i;
-    iu8 finalcount[8];
+    u32 i;
+    u8 finalcount[8];
 
     for (i = 0; i < 8; i++) {
         finalcount[i] = (unsigned char)((context->count[(i >= 4 ? 0 : 1)]
                                          >> ((3 - (i & 3)) * 8)) & 255);        /* Endian independent */
     }
-    SHA1_Update(context, (iu8 *) "\200", 1);
+    SHA1_Update(context, (u8 *) "\200", 1);
     while ((context->count[0] & 504) != 448) {
-        SHA1_Update(context, (iu8 *) "\0", 1);
+        SHA1_Update(context, (u8 *) "\0", 1);
     }
     SHA1_Update(context, finalcount, 8);        /* Should cause a SHA1_Transform() */
     for (i = 0; i < SHA1_DIGEST_SIZE; i++) {
-        digest[i] = (iu8)
+        digest[i] = (u8)
                     ((context->state[i >> 2] >> ((3 - (i & 3)) * 8)) & 255);
     }
 

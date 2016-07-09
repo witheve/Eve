@@ -11,15 +11,13 @@ typedef enum {
 } operator;
     
 
-iu64 key_of(value);
+u64 key_of(value);
 boolean equals(value, value);
 
 #include <number.h>
 #include <estring.h>
 
 typedef value eboolean;
-extern eboolean etrue;
-extern eboolean efalse;
 extern heap efence;
 
 void print(buffer, value);

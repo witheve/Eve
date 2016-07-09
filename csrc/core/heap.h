@@ -1,12 +1,12 @@
-
-// should consider a drain function
-typedef struct heap {
-    void *(*alloc)();
-    void (*dealloc)();
-    void (*destroy)();
+typedef struct heap *heap;
+struct heap {
+    void *(*alloc)(heap, bytes);
+    void (*dealloc)(heap, void *, bytes);
+    void (*destroy)(heap);
+    void (*drain)(heap);
     bytes pagesize;
     bytes allocated;
-} *heap;
+};
 
 
 static inline void *page_of(void *x, bytes pagesize)
@@ -35,5 +35,5 @@ static inline int subdivide(int quantum, int per, int s, int o)
 }
 
 #define allocate(h, size) ((h)->alloc)(h, size)
-#define deallocate(h, x) ((h)->dealloc)(h, x)
+#define deallocate(h, x, s) ((h)->dealloc)(h, x, s)
 #define destroy(h) ((h)->destroy)(h)

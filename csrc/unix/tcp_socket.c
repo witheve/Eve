@@ -41,7 +41,7 @@ static inline void tcppop(tcpsock t)
 {
     write_buffer w = t->q;
     if (!(t->q = t->q->next)) t->last = &t->q;
-    deallocate(t->h, w);
+    deallocate(t->h, w, sizeof(*w));
 }
 
 static CONTINUATION_1_0(actually_write, tcpsock);

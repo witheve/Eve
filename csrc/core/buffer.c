@@ -1,7 +1,7 @@
 #include <core.h>
 
 static char *hex_digit="0123456789abcdef";
-void print_byte(buffer s, iu8 f)
+void print_byte(buffer s, u8 f)
 {
     string_insert(s, hex_digit[f >> 4]);
     string_insert(s, hex_digit[f & 15]);
@@ -25,7 +25,7 @@ void print_hex_buffer(buffer s, buffer b)
             bprintf(s, ":");
         }
         if (!(i % wlen)) bprintf (s, " ");
-        print_byte(s, *(u8)bref(b, i));
+        print_byte(s, *(u8 *)bref(b, i));
     }
     // better handling of empty buffer
     bprintf(s, "\n");
