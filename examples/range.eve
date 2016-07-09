@@ -1,0 +1,6 @@
+Generate the range of all numbers from some start to some end
+  value = if true then from
+          if [#range value: some-val from to]
+            some-val <= to then some-val + 1
+   maintain
+     [#range value from? to?]
