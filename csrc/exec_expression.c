@@ -11,8 +11,8 @@ static value toggle (value x)
 
 
 
-static CONTINUATION_5_2(do_equal, evaluation, int *, execf, value, value,  operator, value *); \
-static void do_equal(evaluation e, int *count, execf n, value a, value b, operator op, value *r)
+static CONTINUATION_5_2(do_equal, block, int *, execf, value, value,  operator, value *); \
+static void do_equal(block bk, int *count, execf n, value a, value b, operator op, value *r)
 {
     *count = *count + 1;
     if (op != op_flush) {
@@ -25,8 +25,8 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
 
 
 #define DO_UNARY_TRIG(__name, __op)                                                               \
-    static CONTINUATION_5_2(__name, evaluation, int *, execf, value, value, operator, value *);      \
-    static void __name (evaluation ex, int *count, execf n, value dest, value a, operator op, value *r) \
+    static CONTINUATION_5_2(__name, block, int *, execf, value, value, operator, value *);      \
+    static void __name (block b, int *count, execf n, value dest, value a, operator op, value *r) \
     {                                                                                                \
         if (op == op_flush)  {                                                                       \
             apply(n, op, r);                                                                         \
@@ -35,7 +35,7 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
         value ar = lookup(r, a);                                                                     \
         *count = *count + 1;                                                                         \
         if ((type_of(ar) != float_space )) {                                                         \
-            exec_error(ex, "attempt to do math on non-number", a);                                   \
+            exec_error(b->e, "attempt to do math on non-number", a);                                   \
         } else {                                                                                     \
             double deg = *(double *)ar;                                                              \
             double rad = deg * M_PI/180.0;                                                           \
@@ -45,8 +45,8 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
     }
 
 #define DO_UNARY_BOOLEAN(__name, __op)                                                               \
-    static CONTINUATION_5_2(__name, evaluation, int *, execf, value, value, operator, value *);      \
-    static void __name (evaluation ex, int *count, execf n, value dest, value a, operator op, value *r) \
+    static CONTINUATION_5_2(__name, block, int *, execf, value, value, operator, value *);      \
+    static void __name (block b, int *count, execf n, value dest, value a, operator op, value *r) \
     {                                                                                                \
         if (op == op_flush)  {                                                                       \
             apply(n, op, r);                                                                         \
@@ -55,7 +55,7 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
         value ar = lookup(r, a);                                                                     \
         *count = *count + 1;                                                                         \
         if ((ar != etrue) && (ar != efalse)) {                                                       \
-            exec_error(ex, "attempt to flip non boolean", a);                                        \
+            exec_error(b->e, "attempt to flip non boolean", a);                                        \
         } else {                                                                                     \
             r[reg(dest)] = __op(ar);                                                                 \
             apply(n, op, r);                                                                         \
@@ -64,8 +64,8 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
 
 
 #define DO_UNARY_NUMERIC(__name, __op)                                                               \
-    static CONTINUATION_5_2(__name, evaluation, int *, execf, value, value, operator, value *);      \
-    static void __name (evaluation ex, int *count, execf n, value dest, value a, operator op, value *r) \
+    static CONTINUATION_5_2(__name, block, int *, execf, value, value, operator, value *);      \
+    static void __name (block b, int *count, execf n, value dest, value a, operator op, value *r) \
     {                                                                                                \
         if (op == op_flush)  {                                                                       \
             apply(n, op, r);                                                                         \
@@ -74,7 +74,7 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
         value ar = lookup(r, a);                                                                     \
         *count = *count + 1;                                                                         \
         if ((type_of(ar) != float_space )) {                                                         \
-            exec_error(ex, "attempt to do math on non-number", a);                                   \
+            exec_error(b->e, "attempt to do math on non-number", a);                                   \
         } else {                                                                                     \
             r[reg(dest)] = box_float(__op(*(double *)ar));                                           \
             apply(n, op, r);                                                                         \
@@ -82,22 +82,22 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
     }
 
 #define BUILD_UNARY(__name, __do_op)   \
-    static execf __name (evaluation e, node n)  \
+    static execf __name (block bk, node n)  \
     {                                           \
         vector a = vector_get(n->arguments, 0); \
-        return cont(e->h,                       \
+        return cont(bk->e->h,                       \
                 __do_op,                        \
-                e,                              \
-                register_counter(e, n),         \
-                resolve_cfg(e, n, 0),           \
+                bk,                              \
+                register_counter(bk->e, n),         \
+                resolve_cfg(bk, n, 0),          \
                 vector_get(a, 0),    \
                 vector_get(a, 1));   \
     }
 
 
 #define DO_BINARY_NUMERIC(__name, __op)                                                              \
-    static CONTINUATION_6_2(__name, evaluation, int *, execf, value, value, value,  operator, value *);\
-    static void __name (evaluation ex, int *count, execf n, value dest, value a, value b, operator op, value *r) \
+    static CONTINUATION_6_2(__name, block, int *, execf, value, value, value,  operator, value *);\
+    static void __name (block bk, int *count, execf n, value dest, value a, value b, operator op, value *r) \
     {                                                                                                \
         if (op == op_flush)  {                                                                       \
             apply(n, op, r);                                                                         \
@@ -107,7 +107,7 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
         value br = lookup(r, b);                                                                     \
         *count = *count + 1;                                                                         \
         if ((type_of(ar) != float_space ) || (type_of(br) != float_space)) {                         \
-            exec_error(ex, "attempt to " #__name" non-numbers", a, b);                               \
+            exec_error(bk->e, "attempt to " #__name" non-numbers", a, b);                            \
             prf("UHOH %v, %v\n", ar, br);                                                            \
         } else {                                                                                     \
             r[reg(dest)] = box_float(*(double *)ar __op *(double *)br);                              \
@@ -116,8 +116,8 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
     }
 
 #define DO_BINARY_BOOLEAN(__name, __op)                                                                \
-    static CONTINUATION_6_2(__name, evaluation, int *, execf, value, value, value,  operator, value *);\
-    static void __name (evaluation ex, int *count, execf n, value dest, value a, value b, operator op, value *r) \
+    static CONTINUATION_6_2(__name, block, int *, execf, value, value, value,  operator, value *);\
+    static void __name (block bk, int *count, execf n, value dest, value a, value b, operator op, value *r) \
     {                                                                                                  \
         if (op == op_flush)  {                                                                       \
             apply(n, op, r);                                                                         \
@@ -139,20 +139,20 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
             r[reg(dest)] = (ar __op br) ? etrue : efalse;                                            \
             apply(n, op, r);                                                                         \
         } else {                                                                                     \
-            exec_error(ex, "attempt to __op different types", a, b);                                 \
+            exec_error(bk->e, "attempt to __op different types", a, b);                              \
         }                                                                                            \
     }
 
 
 #define BUILD_BINARY(__name, __do_op)   \
-    static execf __name (evaluation e, node n)  \
+    static execf __name (block bk, node n)  \
     {                                           \
         vector a = vector_get(n->arguments, 0); \
-        return cont(e->h,                       \
+        return cont(bk->e->h,                   \
                 __do_op,                        \
-                e,                              \
-                register_counter(e, n),         \
-                resolve_cfg(e, n, 0),           \
+                bk,                             \
+                register_counter(bk->e, n),     \
+                resolve_cfg(bk, n, 0),           \
                 vector_get(a, 0),    \
                 vector_get(a, 1),    \
                 vector_get(a, 2));   \
@@ -160,8 +160,8 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
 
 
 #define DO_BINARY_FILTER(__name, __op)                                                               \
-    static CONTINUATION_5_2(__name, evaluation, int *, execf, value, value,  operator, value *);     \
-    static void __name (evaluation ex, int *count, execf n, value a, value b, operator op, value *r) \
+    static CONTINUATION_5_2(__name, block, int *, execf, value, value,  operator, value *);     \
+    static void __name (block bk, int *count, execf n, value a, value b, operator op, value *r) \
     {                                                                                                \
         if (op == op_flush)  {                                                                       \
             apply(n, op, r);                                                                         \
@@ -183,20 +183,20 @@ static void do_equal(evaluation e, int *count, execf n, value a, value b, operat
             if (ar __op br)                                                                          \
                 apply(n, op, r);                                                                     \
         } else {                                                                                     \
-            exec_error(ex, "attempt to __op different types", a, b);                                 \
+            exec_error(bk->e, "attempt to __op different types", a, b);                                 \
         }                                                                                            \
     }
 
 
 #define BUILD_BINARY_FILTER(__name, __do_op)   \
-    static execf __name (evaluation e, node n)  \
+    static execf __name (block bk, node n)  \
     {                                           \
         vector a = vector_get(n->arguments, 0); \
-        return cont(e->h,                       \
+        return cont(bk->e->h,                       \
                 __do_op,                        \
-                e,                              \
-                register_counter(e, n),         \
-                resolve_cfg(e, n, 0),           \
+                bk,                              \
+                register_counter(bk->e, n),         \
+                resolve_cfg(bk, n, 0),           \
                 vector_get(a, 0),    \
                 vector_get(a, 1));   \
     }
@@ -258,8 +258,8 @@ BUILD_BINARY_FILTER(build_not_equal, do_not_equal)
 DO_BINARY_BOOLEAN(do_is_not_equal, !=)
 BUILD_BINARY(build_is_not_equal, do_is_not_equal)
 
-static CONTINUATION_5_2(do_is, evaluation, int *, execf, value, value, operator, value *);
-static void do_is (evaluation ex, int *count, execf n, value dest, value a, operator op, value *r)
+static CONTINUATION_5_2(do_is, block, int *, execf, value, value, operator, value *);
+static void do_is (block bk, int *count, execf n, value dest, value a, operator op, value *r)
 {
   *count = *count + 1;
   r[reg(dest)] = lookup(r, a);

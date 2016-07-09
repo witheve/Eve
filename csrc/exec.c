@@ -19,12 +19,12 @@ static void do_sub_tail(int *count,
     }
 }
 
-static execf build_sub_tail(evaluation e, node n)
+static execf build_sub_tail(block bk, node n)
 {
     value resreg = vector_get(vector_get(n->arguments, 1), 0);
-    return cont(e->h,
+    return cont(bk->h,
                 do_sub_tail,
-                register_counter(e, n),
+                register_counter(bk->e, n),
                 resreg,
                 vector_get(n->arguments, 0));
 }
@@ -116,25 +116,24 @@ static void do_sub(int *count, sub s, operator op, value *r)
 }
 
 
-static execf build_sub(evaluation e, node n)
+static execf build_sub(block bk, node n)
 {
-    sub s = allocate(e->h, sizeof(struct sub));
-    s->results = create_value_vector_table(e->h);
-    s->ids_cache = create_value_vector_table(e->h);
-    s->v = allocate_vector(e->h, vector_length(n->arguments)); // @FIXME this should be the size of inputs (not arguments) xxx
-    s->leg = resolve_cfg(e, n, 1);
+    sub s = allocate(bk->h, sizeof(struct sub));
+    s->results = create_value_vector_table(bk->h);
+    s->ids_cache = create_value_vector_table(bk->h);
+    s->v = allocate_vector(bk->h, vector_length(n->arguments)); // @FIXME this should be the size of inputs (not arguments) xxx
+    s->leg = resolve_cfg(bk, n, 1);
     s->inputs = vector_get(n->arguments, 0);
     s->outputs = vector_get(n->arguments, 1);
     s->resreg = vector_get(vector_get(n->arguments, 2), 0);
     s->ids = vector_get(n->arguments, 3);
-    s->h = e->h;
-    s->next = resolve_cfg(e, n, 0);
-    s->e = e;
-    s->t = e->t;
-    return cont(e->h,
+    s->h = bk->h;
+    s->next = resolve_cfg(bk, n, 0);
+    s->e = bk->e;
+    s->t = bk->e->t;
+    return cont(bk->h,
                 do_sub,
-                register_counter(e, n),
-
+                register_counter(bk->e, n),
                 s);
 
 }
@@ -174,15 +173,15 @@ static void do_subagg(int *count, execf next, execf leg, value resreg,
 }
 
 
-static execf build_subagg(evaluation e, node n)
+static execf build_subagg(block bk, node n)
 {
-    table results = create_value_vector_table(e->h);
-    vector v = allocate_vector(e->h, vector_length(n->arguments));
-    return cont(e->h,
+    table results = create_value_vector_table(bk->h);
+    vector v = allocate_vector(bk->h, vector_length(n->arguments));
+    return cont(bk->h,
                 do_subagg,
-                register_counter(e, n),
-                resolve_cfg(e, n, 0),
-                resolve_cfg(e, n, 1),
+                register_counter(bk->e, n),
+                resolve_cfg(bk, n, 0),
+                resolve_cfg(bk, n, 1),
                 vector_get(vector_get(n->arguments, 2), 0),
                 results,
                 v,
@@ -202,15 +201,15 @@ static void do_choose_tail(int *count, execf next, value flag, operator op, valu
         apply(next, op, r);
 }
 
-static execf build_choose_tail(evaluation e, node n)
+static execf build_choose_tail(block bk, node n)
 {
-    table results = create_value_vector_table(e->h);
+    table results = create_value_vector_table(bk->h);
     // gonna share this one today
-    vector v = allocate_vector(e->h, vector_length(n->arguments));
-    return cont(e->h,
+    vector v = allocate_vector(bk->h, vector_length(n->arguments));
+    return cont(bk->h,
                 do_choose_tail,
-                register_counter(e, n),
-                (vector_length(n->arms) > 0)? resolve_cfg(e, n, 0):0,
+                register_counter(bk->e, n),
+                (vector_length(n->arms) > 0)? resolve_cfg(bk, n, 0):0,
                 vector_get(vector_get(n->arguments, 0), 0));
 }
 
@@ -232,16 +231,16 @@ static void do_choose(int *count, vector legs, value flag, operator op, value *r
 }
 
 
-static execf build_choose(evaluation e, node n)
+static execf build_choose(block bk, node n)
 {
     int arms = vector_length(n->arms);
-    vector v = allocate_vector(e->h, arms);
+    vector v = allocate_vector(bk->h, arms);
     for (int i = 0 ; i < arms; i++ )
-        vector_set(v, i, resolve_cfg(e, n, i));
+        vector_set(v, i, resolve_cfg(bk, n, i));
 
-    return cont(e->h,
+    return cont(bk->h,
                 do_choose,
-                register_counter(e, n),
+                register_counter(bk->e, n),
                 v,
                 vector_get(vector_get(n->arguments, 0), 0));
 }
@@ -265,13 +264,13 @@ static void do_not(int *count, execf next, execf leg, value flag, operator op, v
 }
 
 
-static execf build_not(evaluation e, node n)
+static execf build_not(block bk, node n)
 {
-    return cont(e->h,
+    return cont(bk->h,
                 do_not,
-                register_counter(e, n),
-                resolve_cfg(e, n, 0),
-                resolve_cfg(e, n, 1),
+                register_counter(bk->e, n),
+                resolve_cfg(bk, n, 0),
+                resolve_cfg(bk, n, 1),
                 vector_get(vector_get(n->arguments, 0), 0));
 }
 
@@ -287,12 +286,12 @@ static void do_move(int *count, execf n, value dest, value src, operator op, val
 }
 
 
-static execf build_move(evaluation e, node n)
+static execf build_move(block bk, node n)
 {
     vector a = vector_get(n->arguments, 0);
-    return cont(e->h, do_move,
-                register_counter(e, n),
-                resolve_cfg(e, n, 0),
+    return cont(bk->h, do_move,
+                register_counter(bk->e, n),
+                resolve_cfg(bk, n, 0),
                 vector_get(a, 0),
                 vector_get(a, 1));
 }
@@ -310,38 +309,38 @@ static void do_merge(execf n, int count, u32 total, operator op, value *r)
     apply(n, op, r);
 }
 
-static execf build_merge(evaluation e, node n)
+static execf build_merge(block bk, node n)
 {
-    u32 c = allocate(e->h, sizeof(iu32));
+    u32 c = allocate(bk->h, sizeof(iu32));
     *c = 0;
-    return cont(e->h, do_merge, resolve_cfg(e, n, 0),
+    return cont(bk->h, do_merge, resolve_cfg(bk, n, 0),
                 (int)*(double *)vector_get(vector_get(n->arguments, 0), 0),
                 c);
 }
 
-static CONTINUATION_1_2(do_terminal, evaluation, operator, value *);
-static void do_terminal(evaluation e, operator op, value *r)
+static CONTINUATION_1_2(do_terminal, block, operator, value *);
+static void do_terminal(block bk, operator op, value *r)
 {
     // not actually what we wanted, but meh
-    if (op == op_insert) apply(e->terminal);
+    if (op == op_insert) apply(bk->e->terminal);
 }
 
-static execf build_terminal(evaluation e, node n)
+static execf build_terminal(block bk, node n)
 {
-    return cont(e->h, do_terminal, e);
+    return cont(bk->h, do_terminal, bk);
 }
 
 
 
 static CONTINUATION_6_2(do_time,
-                        evaluation, int *, execf, value, value, value,
+                        block, int *, execf, value, value, value,
                         operator, value *);
-static void do_time(evaluation e, int *count, execf n, value s, value m, value h, operator op, value *r)
+static void do_time(block bk, int *count, execf n, value s, value m, value h, operator op, value *r)
 {
     if (op == op_insert) {
         unsigned int seconds, minutes,  hours;
         *count = *count +1;
-        clocktime(e->t, &hours, &minutes, &seconds);
+        clocktime(bk->e->t, &hours, &minutes, &seconds);
         value sv = box_float((double)seconds);
         value mv = box_float((double)minutes);
         value hv = box_float((double)hours);
@@ -352,22 +351,22 @@ static void do_time(evaluation e, int *count, execf n, value s, value m, value h
     apply(n, op, r);
 }
 
-static CONTINUATION_1_0(time_expire, evaluation);
-static void time_expire(evaluation e)
+static CONTINUATION_1_0(time_expire, block);
+static void time_expire(block bk)
 {
-    run_solver(e);
+    run_solver(bk->e);
 }
 
 // xxx  - handle the bound case
-static execf build_time(evaluation e, node n, execf *arms)
+static execf build_time(block bk, node n, execf *arms)
 {
     vector a = vector_get(n->arguments, 0);
-    register_periodic_timer(seconds(1), cont(e->h, time_expire, e));
-    return cont(e->h,
+    register_periodic_timer(seconds(1), cont(bk->h, time_expire, bk));
+    return cont(bk->h,
                 do_time,
-                e,
-                register_counter(e, n),
-                resolve_cfg(e, n, 0),
+                bk,
+                register_counter(bk->e, n),
+                resolve_cfg(bk, n, 0),
                 vector_get(a, 1),
                 vector_get(a, 2),
                 vector_get(a, 3));
@@ -381,14 +380,14 @@ static void do_fork(int *count, int legs, execf *b, operator op, value *r)
     for (int i =0; i<legs ;i ++) apply(b[i], op, r);
 }
 
-static execf build_fork(evaluation e, node n)
+static execf build_fork(block bk, node n)
 {
     int count = vector_length(n->arms);
-    execf *a = allocate(e->h, sizeof(execf) * count);
+    execf *a = allocate(bk->h, sizeof(execf) * count);
 
     for (int i=0; i < count; i++)
-        a[i] = resolve_cfg(e, n, i);
-    return cont(e->h, do_fork, register_counter(e, n), count, a);
+        a[i] = resolve_cfg(bk, n, i);
+    return cont(bk->h, do_fork, register_counter(bk->e, n), count, a);
 }
 
 static CONTINUATION_2_2(do_trace, execf, vector, operator, value *);
@@ -401,11 +400,11 @@ static void do_trace(execf n, vector terms, operator op, value *r)
     apply(n, op, r);
 }
 
-static execf build_trace(evaluation ex, node n, execf *arms)
+static execf build_trace(block bk, node n, execf *arms)
 {
-    return cont(ex->h,
+    return cont(bk->h,
                 do_trace,
-                resolve_cfg(ex, n, 0),
+                resolve_cfg(bk, n, 0),
                 vector_get(n->arguments, 0));
 }
 
@@ -421,13 +420,13 @@ static void do_regfile(heap h, execf n, int *count, int size, operator op, value
     apply(n, op, r);
 }
 
-static execf build_regfile(evaluation e, node n, execf *arms)
+static execf build_regfile(block bk, node n, execf *arms)
 {
-    return cont(e->h,
+    return cont(bk->h,
                 do_regfile,
-                e->h,
-                resolve_cfg(e, n, 0),
-                register_counter(e, n),
+                bk->h,
+                resolve_cfg(bk, n, 0),
+                register_counter(bk->e, n),
                 (int)*(double *)vector_get(vector_get(n->arguments, 0), 0));
 }
 
@@ -467,18 +466,26 @@ table builders_table()
     return builders;
 }
 
-static void force_node(evaluation e, node n)
+static void force_node(block bk, node n)
 {
-    if (!table_find(e->nmap, n)){
-        execf *x = allocate(e->h, sizeof(execf *));
-        table_set(e->nmap, n, x);
-        vector_foreach(n->arms, i) force_node(e, i);
-        *x = n->builder(e, n);
+    if (!table_find(bk->nmap, n)){
+        execf *x = allocate(bk->h, sizeof(execf *));
+        table_set(bk->nmap, n, x);
+        vector_foreach(n->arms, i) force_node(bk, i);
+        *x = n->builder(bk, n);
     }
 }
 
-execf build(evaluation e, node n)
+block build(evaluation e, node n)
 {
-    force_node(e, n);
-    return *(execf *)table_find(e->nmap, n);
+    block bk = allocate(e->h, sizeof(struct block));
+    bk->e = e;
+    // this is only used during building
+    bk->nmap = allocate_table(bk->h, key_from_pointer, compare_pointer);
+    bk->h = bk->h;
+
+    bk->finish = allocate_vector(bk->h, 10);
+    force_node(bk, n);
+    bk->head = *(execf *)table_find(bk->nmap, n);
+    return bk;
 }

@@ -1,0 +1,31 @@
+fake it
+  [#session-connect]
+    save
+        [#url segment: [index: 1, value: "all"]]
+
+routing
+  [#url segment: [index: 1, value]]
+    maintain
+        [@app filter: value]
+
+draw todomvc
+  [@app filter]
+  count = 0
+  all-checked = false
+  hide-clear-completed = true
+
+  maintain
+      [#div @todoapp children:
+            [#header children:
+                    [#h1 text: "todos"]
+                    [#input @new-todo, autofocus: true, placeholder: "What needs to be done?"]]
+            [#div children:
+                    [#input @toggle-all, type: "checkbox", checked: all-checked]
+                    [#ul @todo-list]]
+            [#footer children:
+                    [#span @todo-count children: [#strong text: count] [#span text: "items left"]]
+                    [#ul @filters children:
+                            [#li children: [#a href: "#/all" class: [selected: true] text: "all"]]
+                            [#li children: [#a href: "#/active" class: [selected: filter] text: "active"]]
+                            [#li children: [#a href: "#/completed" class: [selected: filter] text: "completed"]]]
+                    [#button @clear-completed, style: [display: true], text: "Clear completed"]]]

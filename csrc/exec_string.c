@@ -17,11 +17,11 @@ static void do_concat(int *count, execf n, value dest, vector terms, operator op
 }
 
 
-static execf build_concat(evaluation e, node n)
+static execf build_concat(block bk, node n)
 {
-    return cont(e->h, do_concat,
-                register_counter(e, n),
-                resolve_cfg(e, n, 0),
+    return cont(bk->h, do_concat,
+                register_counter(bk->e, n),
+                resolve_cfg(bk, n, 0),
                 vector_get(vector_get(n->arguments, 0), 0),
                 (vector)vector_get(n->arguments, 1));
 }
@@ -52,13 +52,13 @@ static void do_split(heap h, int *count, execf n, value dest, value source, valu
 }
 
 
-static execf build_split(evaluation e, node n)
+static execf build_split(block bk, node n)
 {
     vector a = vector_get(n->arguments, 0);
-    return cont(e->h, do_split,
-                e->h,
-                register_counter(e, n),
-                resolve_cfg(e, n, 0),
+    return cont(bk->h, do_split,
+                bk->h,
+                register_counter(bk->e, n),
+                resolve_cfg(bk, n, 0),
                 vector_get(a, 0),
                 vector_get(a, 1),
                 vector_get(a, 2));
@@ -76,12 +76,12 @@ static void do_length(int *count, execf n, value dest, value src, operator op, v
 }
 
 
-static execf build_length(evaluation e, node n)
+static execf build_length(block bk, node n)
 {
     vector a = vector_get(n->arguments, 0);
-    return cont(e->h, do_length,
-                register_counter(e, n),
-                resolve_cfg(e, n, 0),
+    return cont(bk->h, do_length,
+                register_counter(bk->e, n),
+                resolve_cfg(bk, n, 0),
                 vector_get(a, 0),
                 vector_get(a, 1));
 }
