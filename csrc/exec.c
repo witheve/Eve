@@ -29,6 +29,7 @@ static execf build_sub_tail(block bk, node n)
                 vector_get(n->arguments, 0));
 }
 
+
 typedef struct sub {
     vector v;
     vector inputs;
@@ -36,6 +37,7 @@ typedef struct sub {
     vector ids;
     table ids_cache; //these persist for all time
     table previous;
+    table moved;
     table results;
     execf leg, next;
     value resreg;
@@ -44,17 +46,33 @@ typedef struct sub {
     ticks t;
 } *sub;
 
+                 
 static void delete_missing(sub s, value *r)
 {
     if (s->previous) {
         table_foreach(s->previous, k, v) {
-            table_foreach((table)v, n, _) {
-                copyout(r, s->outputs, n);
-                apply(s->next, op_remove, r);
+            if (!table_find(s->moved, k)) {
+                table_foreach((table)v, n, _) {
+                    copyout(r, s->outputs, n);
+                    apply(s->next, op_remove, r);
+                }
             }
         }
     }
 }
+
+
+static CONTINUATION_1_1(end_o_sub, sub, boolean);
+static void end_o_sub(sub s, boolean finished)
+{
+    prf("eos: %s\n", finished?"true":"false");
+    if (finished) {
+        s->previous = s->results;
+    }
+    s->results = create_value_vector_table(s->h);
+    s->moved = create_value_vector_table(s->h);
+}
+
 
 static void set_ids(sub s, vector key, value *r)
 {
@@ -82,12 +100,10 @@ static void do_sub(int *count, sub s, operator op, value *r)
 
     if (op == op_flush) {
         delete_missing(s, r);
-        // we could conceivably double buffer these
-        s->previous = s->results;
-        s->results = create_value_vector_table(s->h);
         apply(s->next, op, r);
         return;
     }
+
 
     table res;
     *count = *count + 1;
@@ -97,7 +113,7 @@ static void do_sub(int *count, sub s, operator op, value *r)
     if (!(res = table_find(s->results, s->v))){
         // table_find_key only exists because we want to reuse the key allocation
         if (s->previous && (res = table_find_key(s->previous, s->v, (void **)&key))) {
-            table_set(s->previous, key, NULL);
+            table_set(s->moved, key, etrue);
         } else {
             res = create_value_vector_table(s->h);
             key = allocate_vector(s->h, vector_length(s->inputs));
@@ -120,6 +136,7 @@ static execf build_sub(block bk, node n)
 {
     sub s = allocate(bk->h, sizeof(struct sub));
     s->results = create_value_vector_table(bk->h);
+    s->moved = create_value_vector_table(bk->h);
     s->ids_cache = create_value_vector_table(bk->h);
     s->v = allocate_vector(bk->h, vector_length(n->arguments)); // @FIXME this should be the size of inputs (not arguments) xxx
     s->leg = resolve_cfg(bk, n, 1);
@@ -131,6 +148,7 @@ static execf build_sub(block bk, node n)
     s->next = resolve_cfg(bk, n, 0);
     s->e = bk->e;
     s->t = bk->e->t;
+    vector_insert(bk->finish, cont(bk->h, end_o_sub, s)); 
     return cont(bk->h,
                 do_sub,
                 register_counter(bk->e, n),
@@ -480,9 +498,9 @@ block build(evaluation e, node n)
 {
     block bk = allocate(e->h, sizeof(struct block));
     bk->e = e;
+    bk->h = e->h;
     // this is only used during building
     bk->nmap = allocate_table(bk->h, key_from_pointer, compare_pointer);
-    bk->h = bk->h;
 
     bk->finish = allocate_vector(bk->h, 10);
     force_node(bk, n);
