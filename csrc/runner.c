@@ -14,8 +14,8 @@ static CONTINUATION_1_5(insert_f, evaluation, uuid, value, value, value, multipl
 static void insert_f(evaluation s, uuid u, value e, value a, value v, multiplicity m)
 {
     bag b;
-    s->pass = true;
 
+    s->inserted = true;
     if (!(b = table_find(s->block_solution, u))) {
         table_set(s->block_solution, u, b = create_bag(u));
     }
@@ -67,6 +67,8 @@ static void merge_scan(evaluation ev, int sig, listener result, value e, value a
 static CONTINUATION_1_0(evaluation_complete, evaluation);
 static void evaluation_complete(evaluation s)
 {
+    if (s->inserted)
+        s->pass = true;
     s->non_empty = true;
 }
 
@@ -83,17 +85,24 @@ static void merge_multibag_bag(table d, uuid u, bag s)
         edb_insert(bd, e, a, v, c);
 }
 
-static void run_execf(evaluation e, execf f) 
+static void run_block(block bk) 
 {
-    e->block_solution = create_value_table(e->h);
-    e->non_empty = false;
-    apply(f, op_insert, 0);
-    apply(f, op_flush, 0);
+    bk->e->block_solution = create_value_table(bk->e->h);
+    bk->e->non_empty = false;
+    bk->e->inserted = false;
+                
+    apply(bk->head, op_insert, 0);
+    apply(bk->head, op_flush, 0);
              
-    if (e->non_empty) {
-        table_foreach(e->block_solution, u, b) {
-            merge_multibag_bag(e->next_f_solution, u, b);
-        }
+    if (bk->e->non_empty) {
+        vector_foreach(bk->finish, i) 
+            apply((block_completion)i, true);
+
+        table_foreach(bk->e->block_solution, u, bg) 
+            merge_multibag_bag(bk->e->next_f_solution, u, bg);
+    } else {
+        vector_foreach(bk->finish, i) 
+            apply((block_completion)i, false);
     }
 }
 
@@ -101,6 +110,7 @@ static void fixedpoint(evaluation s)
 {
     long iterations = 0;
     boolean t_continue = true;
+    vector counts = allocate_vector(s->h, 10);
 
     ticks start_time = now();
     s->t = start_time;
@@ -117,7 +127,7 @@ static void fixedpoint(evaluation s)
             s->pass = false;
             iterations++;
             s->next_f_solution =  create_value_table(s->h);
-            vector_foreach(s->blocks, k) run_execf(s, k);
+            vector_foreach(s->blocks, b) run_block(b);
             table_foreach(s->next_f_solution, u, b) {
                 if (table_find(s->persisted, u)) {
                     t_continue = true;
@@ -130,10 +140,11 @@ static void fixedpoint(evaluation s)
         table_foreach(s->next_t_solution, u, b) {
             merge_multibag_bag(s->t_solution, u, b);
         }
+        vector_insert(counts, box_float((double)iterations));
+        iterations = 0;
         s->t++;
         s->ev_solution = 0;
     }
-
     // merge but ignore bags not in persisted
     table_foreach(s->t_solution, u, b) {
         bag bd;
@@ -152,9 +163,9 @@ static void fixedpoint(evaluation s)
     table_set(s->counters, intern_cstring("time"), (void *)(end_time - start_time));
     table_set(s->counters, intern_cstring("iterations"), (void *)iterations);
 
-    prf ("fixedpoint in %t seconds, %d blocks, %d iterations, %d input bags, %d output bags\n", 
+    prf ("fixedpoint in %t seconds, %d blocks, %V iterations, %d input bags, %d output bags\n", 
          end_time-start_time, vector_length(s->blocks),
-         iterations, table_elements(s->scopes), table_elements(s->t_solution));
+         counts, table_elements(s->scopes), table_elements(s->t_solution));
 }
 
 void inject_event(evaluation s, vector n)
@@ -162,7 +173,8 @@ void inject_event(evaluation s, vector n)
     s->t++;
     s->ev_solution = 0;
     s->next_f_solution = create_value_table(s->h);
-    vector_foreach(n, i) run_execf(s, build(s, i));
+    vector_foreach(n, i)
+        run_block(build(s, i));
     s->ev_solution = s->next_f_solution;
     fixedpoint(s);
 }
@@ -184,8 +196,6 @@ evaluation build_evaluation(heap h, table scopes, table persisted, evaluation_re
     e->blocks = allocate_vector(h, 10);
     e->persisted = persisted;
 
-    // this is only used during building
-    e->nmap = allocate_table(e->h, key_from_pointer, compare_pointer);
     e->reader = cont(e->h, merge_scan, e);
     e->complete = r;
     e->terminal = cont(e->h, evaluation_complete, e);

@@ -38,13 +38,13 @@ static void do_sort(heap h, execf n, int *count,
     }
 }
 
-static execf build_sort(evaluation e, node n, execf *arms)
+static execf build_sort(block bk, node n, execf *arms)
 {
-    return cont(e->h,
+    return cont(bk->h,
                 do_sort,
-                e->h,
-                resolve_cfg(e, n, 0),
-                register_counter(e, n),
+                bk->h,
+                resolve_cfg(bk, n, 0),
+                register_counter(bk->e, n),
                 0, 0, 0, 0, 0);
 }
 
@@ -79,20 +79,20 @@ static void do_sum(heap h, execf n, int *count,
     }
 }
 
-static execf build_sum(evaluation e, node n, execf *arms)
+static execf build_sum(block bk, node n, execf *arms)
 {
     // vector targets, grouping, value src, value dst, vector pk
     vector args = vector_get(n->arguments, 0);
     vector groupings = vector_get(n->arguments, 1);
 
-    vector pk = allocate_vector(e->h, vector_length(groupings));
-    table *targets = allocate(e->h, sizeof(table));
-    *targets = create_value_vector_table(e->h);
-    return cont(e->h,
+    vector pk = allocate_vector(bk->h, vector_length(groupings));
+    table *targets = allocate(bk->h, sizeof(table));
+    *targets = create_value_vector_table(bk->h);
+    return cont(bk->h,
                 do_sum,
-                e->h,
-                resolve_cfg(e, n, 0),
-                register_counter(e, n),
+                bk->h,
+                resolve_cfg(bk, n, 0),
+                register_counter(bk->e, n),
                 targets,
                 groupings,
                 vector_get(args, 1),

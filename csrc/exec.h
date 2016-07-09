@@ -4,9 +4,9 @@ static void exec_error(evaluation e, char *format, ...)
     prf ("error %s\n", format);
 }
 
-static inline execf resolve_cfg(evaluation e, node n, int index)
+static inline execf resolve_cfg(block bk, node n, int index)
 {
-    return (*(execf *)table_find(e->nmap, vector_get(n->arms, index)));
+    return (*(execf *)table_find(bk->nmap, vector_get(n->arms, index)));
 }
 
 static int toreg(value k)

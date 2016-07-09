@@ -58,8 +58,8 @@ typedef closure(scan, int, listener, value, value, value);
 
 typedef struct node *node;
 typedef struct evaluation *evaluation;
-
-typedef execf (*buildf)(evaluation, node);
+typedef struct block *block;
+typedef execf (*buildf)(block, node);
 
 struct node {
     value id;
@@ -72,9 +72,19 @@ struct node {
 
 typedef closure(evaluation_result, table, table);
 
+typedef closure(block_completion, boolean);
+
+
+struct block {
+    heap h;
+    vector finish;
+    execf head;
+    evaluation e;
+    table nmap;
+};
+    
 struct evaluation  {
     heap h;
-    bag b;
     insertron insert;
     table counters;
 
@@ -90,9 +100,8 @@ struct evaluation  {
     table scopes;
     vector blocks;
     scan reader;
-    table nmap;
     ticks t;
-    boolean non_empty, pass;
+    boolean non_empty, pass, inserted;
     evaluation_result complete;
     
     thunk terminal;
@@ -103,7 +112,7 @@ void execute(evaluation);
 
 table builders_table();
 void register_implication(node n);
-execf build(evaluation e, node n);
+block build(evaluation e, node n);
 table start_fixedpoint(heap, table, table, table);
 
 vector compile_eve(buffer b, boolean tracing);
