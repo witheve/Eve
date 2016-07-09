@@ -101,7 +101,7 @@ struct evaluation  {
     vector blocks;
     scan reader;
     ticks t;
-    boolean non_empty, pass;
+    boolean non_empty, pass, inserted;
     evaluation_result complete;
     
     thunk terminal;

@@ -65,7 +65,6 @@ static void delete_missing(sub s, value *r)
 static CONTINUATION_1_1(end_o_sub, sub, boolean);
 static void end_o_sub(sub s, boolean finished)
 {
-    prf("eos: %s\n", finished?"true":"false");
     if (finished) {
         s->previous = s->results;
     }
@@ -339,7 +338,6 @@ static execf build_merge(block bk, node n)
 static CONTINUATION_1_2(do_terminal, block, operator, value *);
 static void do_terminal(block bk, operator op, value *r)
 {
-    // not actually what we wanted, but meh
     if (op == op_insert) apply(bk->e->terminal);
 }
 
@@ -347,8 +345,6 @@ static execf build_terminal(block bk, node n)
 {
     return cont(bk->h, do_terminal, bk);
 }
-
-
 
 static CONTINUATION_6_2(do_time,
                         block, int *, execf, value, value, value,

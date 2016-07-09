@@ -14,8 +14,8 @@ static CONTINUATION_1_5(insert_f, evaluation, uuid, value, value, value, multipl
 static void insert_f(evaluation s, uuid u, value e, value a, value v, multiplicity m)
 {
     bag b;
-    s->pass = true;
 
+    s->inserted = true;
     if (!(b = table_find(s->block_solution, u))) {
         table_set(s->block_solution, u, b = create_bag(u));
     }
@@ -67,6 +67,8 @@ static void merge_scan(evaluation ev, int sig, listener result, value e, value a
 static CONTINUATION_1_0(evaluation_complete, evaluation);
 static void evaluation_complete(evaluation s)
 {
+    if (s->inserted)
+        s->pass = true;
     s->non_empty = true;
 }
 
@@ -83,21 +85,23 @@ static void merge_multibag_bag(table d, uuid u, bag s)
         edb_insert(bd, e, a, v, c);
 }
 
-static void run_block(block b) 
+static void run_block(block bk) 
 {
-    b->e->block_solution = create_value_table(b->e->h);
-    b->e->non_empty = false;
-    apply(b->head, op_insert, 0);
-    apply(b->head, op_flush, 0);
+    bk->e->block_solution = create_value_table(bk->e->h);
+    bk->e->non_empty = false;
+    bk->e->inserted = false;
+                
+    apply(bk->head, op_insert, 0);
+    apply(bk->head, op_flush, 0);
              
-    if (b->e->non_empty) {
-        vector_foreach(b->finish, i) 
+    if (bk->e->non_empty) {
+        vector_foreach(bk->finish, i) 
             apply((block_completion)i, true);
 
-        table_foreach(b->e->block_solution, u, bg) 
-            merge_multibag_bag(b->e->next_f_solution, u, bg);
+        table_foreach(bk->e->block_solution, u, bg) 
+            merge_multibag_bag(bk->e->next_f_solution, u, bg);
     } else {
-        vector_foreach(b->finish, i) 
+        vector_foreach(bk->finish, i) 
             apply((block_completion)i, false);
     }
 }
@@ -141,7 +145,6 @@ static void fixedpoint(evaluation s)
         s->t++;
         s->ev_solution = 0;
     }
-
     // merge but ignore bags not in persisted
     table_foreach(s->t_solution, u, b) {
         bag bd;
