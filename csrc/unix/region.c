@@ -10,7 +10,7 @@ typedef struct region_heap {
 } *region_heap;
 
 
-static void *allocate_pages(heap h, bytes s)
+static void *region_pages(heap h, bytes s)
 {
     region_heap r = (void *)h;
     unsigned int length =  pad(s, h->pagesize);
@@ -25,9 +25,9 @@ static void *allocate_pages(heap h, bytes s)
     return(p);
 }
 
-static void free_pages(heap h, void *x, bytes size)
+static void region_free(heap h, void *x, bytes size)
 {
-    munmap(x, size);
+    munmap(x, pad(size, h->pagesize));
 }
 
 boolean in_region(region_heap r, void *p) {
@@ -42,8 +42,8 @@ heap init_fixed_page_region(heap meta,
                             bytes pagesize)
 {
     region_heap r = allocate(meta, sizeof(struct region_heap));
-    r->h.alloc = allocate_pages;
-    r->h.dealloc = free_pages;
+    r->h.alloc = region_pages;
+    r->h.dealloc = region_free;
     r->h.pagesize = pagesize;
     r->base = base_address;
     r->fill = r->base;

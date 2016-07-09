@@ -21,12 +21,10 @@ static void rolling_advance_page(rolling l, bytes len)
     pageheader old = l->buffer;
     bytes plen = pad(len + sizeof(struct pageheader), l->parent->pagesize);
     pageheader p =  allocate(l->parent, plen);
-    l->buffer = p;
+    (p->next = l->buffer)->last = &p->next;
+    *((p->last = &l->buffer)) = p;
     l->offset = sizeof(struct pageheader);
     p->length = plen;
-    p->last = &old->next;
-    p->next = 0;
-    *p->last = p;
 }
 
 static void *rolling_alloc(heap h, bytes len)
