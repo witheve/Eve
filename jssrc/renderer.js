@@ -237,24 +237,45 @@ function handleDOMUpdates(result) {
 function formatObjects(objs) {
   let rows = [];
   for(let obj of objs) {
-    let fields = []
+    let id;
+    let kvs = {};
+    let fields = [];
     for(let key in obj) {
       let value = obj[key];
       if(key == "tags") {
         for(let tag of value) {
-          fields.push("#" + tag)
+          fields.push("#" + tag);
         }
+        kvs["tag"] = value
+      } else if(key == "id") {
+        id = obj[key];
       } else {
         let stringValue;
         if(typeof value == "string" && value[0] == "⦑") {
-          stringValue = value
+          stringValue = value;
         } else {
           stringValue = JSON.stringify(value);
         }
         fields.push(key + ": " + stringValue);
+        kvs[key] = stringValue;
       }
     }
-    rows.push("[" + fields.join(", ") + "]")
+    if(id) {
+        console.log(kvs);
+      for(let key in kvs) {
+        let value = kvs[key];
+        if(value.prototype !== Array) {
+          rows.push(`[#eav entity: ${id}, attribute: "${key}", value: ${value}]`);
+        } else {
+          for(let elem of value) {
+            rows.push(`[#eav entity: ${id}, attribute: "${key}", value: ${elem}]`);
+          }
+        }
+      }
+    } else {
+      let final = "[" + fields.join(", ") + "]";
+      rows.push(final)
+    }
   }
   return rows;
 }
@@ -300,7 +321,7 @@ window.addEventListener("input", function(event) {
   let {target} = event;
   if(target.entity) {
     let objs = [{tags: ["input"], element: target.entity, value: target.value}];
-    sendEvent(objs);
+    // sendEvent(objs);
   }
 });
 
@@ -308,7 +329,7 @@ window.addEventListener("focus", function(event) {
   let {target} = event;
   if(target.entity) {
     let objs = [{tags: ["focus"], element: target.entity}];
-    console.log(sendEvent(objs));
+    // console.log(sendEvent(objs));
   }
 }, true);
 
@@ -316,23 +337,28 @@ window.addEventListener("blur", function(event) {
   let {target} = event;
   if(target.entity) {
     let objs = [{tags: ["blur"], element: target.entity}];
-    console.log(sendEvent(objs));
+    // console.log(sendEvent(objs));
   }
 }, true);
 
+
+let keyMap = {13: "enter"}
 window.addEventListener("keydown", function(event) {
   let {target} = event;
   let current = target;
   let objs = [];
   let key = event.keyCode;
   while(current) {
-    if(current.entity) {
-      objs.push({tags: ["keydown"], element: current.entity, key});
+    if(current.entity && current.value !== undefined) {
+      objs.push({tags: ["keydown"], element: current.entity, key: keyMap[key] || key});
+      if(current.value !== undefined) {
+        objs.push({id: current.entity, value: current.value});
+      }
     }
     current = current.parentNode
   }
-  objs.push({tags: ["keydown"], element: "window", key});
-  // sendEvent(objs);
+  // objs.push({tags: ["keydown"], element: "window", key});
+  sendEvent(objs);
 });
 
 window.addEventListener("keyup", function(event) {
