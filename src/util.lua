@@ -138,6 +138,54 @@ function toJSON(obj, seen)
   return "uh oh"
 end
 
+function toFlatJSONRecurse(obj, results, seen)
+  seen = seen or {}
+  local objType = type(obj)
+  if objType == "table" and obj.toFlatJSON then
+    return obj:toFlatJSON(results, seen)
+  elseif objType == "table" and isArray(obj) then
+    seen[obj] = true
+    local temp = {}
+    for ix, child in ipairs(obj) do
+      temp[#temp + 1] = toFlatJSONRecurse(child, results, seen)
+    end
+    return string.format("[%s]", table.concat(temp, ", "))
+  elseif objType == "table"then
+    if seen[obj] and obj.id then
+      return obj.id
+    end
+    seen[obj] = true
+    local temp = {}
+    for key, value in pairs(obj) do
+      if not seen[value] or not value.id then
+        local jsond = toFlatJSONRecurse(value, results, seen)
+        temp[#temp + 1] = string.format("\"%s\": %s", key, jsond)
+      elseif seen[value] and value.id then
+        temp[#temp + 1] = string.format("\"%s\": %s", key, value.id)
+      end
+    end
+    if obj.id then
+      results[#results + 1] = string.format("\"%s\": {%s}", obj.id, table.concat(temp, ", "))
+      return obj.id
+    else
+      return string.format("{%s}", table.concat(temp, ", "))
+    end
+  elseif objType == "string" then
+    return string.format("\"%s\"", obj:gsub("\"", "\\\""):gsub("\n", "\\n"))
+  elseif objType == "number" then
+    return tostring(obj)
+  elseif objType == "boolean" then
+    return tostring(obj)
+  end
+  return "uh oh"
+end
+
+function toFlatJSON(obj)
+  local results = {}
+  toFlatJSONRecurse(obj, results, {})
+  return string.format("{%s}", table.concat(results, ","))
+end
+
 ------------------------------------------------------------
 -- String helpers
 ------------------------------------------------------------

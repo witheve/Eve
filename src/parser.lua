@@ -1476,7 +1476,7 @@ local function generateNodes(root, extraContext)
       errors.invalidTopLevel(context, child)
     end
   end
-  return {type = "code", children = nodes, ast = root, context = extraContext}
+  return {id = "root", type = "code", children = nodes, ast = root, context = extraContext}
 end
 
 ------------------------------------------------------------

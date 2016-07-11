@@ -571,7 +571,7 @@ function build(graphs, tracing, parseGraph)
       regs = math.max(regs, env.maxregs + 1)
       local id = util.generateId()
       parseGraph.context.downEdges[#parseGraph.context.downEdges + 1] = {queryGraph.id, id}
-      heads[#heads+1] = build_node("regfile", {program}, {{regs}, {util.toJSON(parseGraph)}}, id)
+      heads[#heads+1] = build_node("regfile", {program}, {{regs}, {util.toFlatJSON(parseGraph)}}, id)
    end
 
    return heads
