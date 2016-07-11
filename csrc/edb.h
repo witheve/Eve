@@ -14,6 +14,7 @@ struct bag {
 #define s_EAv 0x6
 #define s_EAV 0x7
 
+value lookupv(bag b, uuid e, estring a);
 void edb_scan(bag b, int sig, listener f, value e, value a, value v);
 
 table edb_implications();

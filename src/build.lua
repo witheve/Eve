@@ -568,13 +568,13 @@ function build(graphs, tracing, parseGraph)
            end
    for _, queryGraph in pairs(graphs) do
       local env, program = walk(queryGraph.unpacked, nil, {}, tailf, tracing, parseGraph.context)
-      regs = math.max(regs, env.maxregs + 1)
+      regs =  math.max(regs, env.maxregs + 1)
       local id = util.generateId()
       parseGraph.context.downEdges[#parseGraph.context.downEdges + 1] = {queryGraph.id, id}
-      heads[#heads+1] = build_node("regfile", {program}, {{regs}, {util.toJSON(parseGraph)}}, id)
+      heads[#heads+1] = build_node("regfile", {program}, {{regs}}, id)
    end
 
-   return heads
+   return heads 
 end
 
 ------------------------------------------------------------

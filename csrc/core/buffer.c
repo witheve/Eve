@@ -72,16 +72,14 @@ void buffer_zero(buffer b)
 
 buffer allocate_buffer(heap h, bytes s)
 {
-    int len = sizeof(struct buffer) + s;
-    buffer b = allocate(h, len);
-    b->length = s;
+    buffer b = allocate(h, sizeof(struct buffer));
     b->start = 0;
     b->end = 0;
     b->length = s;
     b->h = h;
-    b->contents = (void *)(b+1);
-    // optional?
-    buffer_zero(b);
+    // two allocations to remove the deallocate ambiguity, otherwise
+    // we'd prefer to do it in one
+    b->contents = allocate(h, s);
     return(b);
 }
 

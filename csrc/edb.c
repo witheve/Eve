@@ -24,6 +24,16 @@ multiplicity count_of(bag b, value e, value a, value v)
     return 0;
 }
 
+value lookupv(bag b, uuid e, estring a)
+{
+    table al = table_find(b->eav, e);
+    if(!al) return 0;
+    table vl = table_find(al, a);
+    if(!vl) return 0;
+    table_foreach(vl, v, count) if(count != 0) return v;
+    return(0);
+}
+
 int edb_size(bag b)
 {
     return b->count;

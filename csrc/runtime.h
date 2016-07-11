@@ -112,8 +112,9 @@ table builders_table();
 void register_implication(node n);
 block build(evaluation e, node n);
 table start_fixedpoint(heap, table, table, table);
+void close_evaluation(evaluation);
 
-vector compile_eve(buffer b, boolean tracing);
+vector compile_eve(heap h, buffer b, boolean tracing, buffer *desc);
 evaluation build_evaluation(heap h, table scopes, table persisted, evaluation_result e);
 void run_solver(evaluation s);
 void inject_event(evaluation, vector node);

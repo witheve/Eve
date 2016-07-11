@@ -149,7 +149,8 @@ void print_byte(buffer b, u8 f);
 
 static inline void deallocate_buffer(buffer b)
 {
-    deallocate(b->h, b->contents, b->length);
-    deallocate(b->h, b, sizeof(struct buffer));
+    heap h = b->h;
+    deallocate(h, b->contents, b->length);
+    deallocate(h, b, sizeof(struct buffer));
 }
 

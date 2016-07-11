@@ -14,6 +14,15 @@ typedef struct websocket {
     timer keepalive;
 } *websocket;
 
+typedef enum {
+    ws_continuation = 0,
+    ws_text = 1,
+    ws_binary = 2,
+    ws_close = 8,
+    ws_ping = 9,
+    ws_pong = 10,
+} opcodes;
+
 
 // implement close
 void websocket_send(websocket w, int opcode, buffer b, thunk t)
@@ -53,7 +62,7 @@ static CONTINUATION_1_2(websocket_input_frame, websocket, buffer, thunk);
 static void websocket_input_frame(websocket w, buffer b, thunk t)
 {
     int offset = 2;
-    
+
     if (!b) {
         apply(w->client, 0, ignore);
         return;
@@ -80,8 +89,7 @@ static void websocket_input_frame(websocket w, buffer b, thunk t)
         }
     }
     
-
-    // xxx - demultiplex on operand
+    int opcode = *(u8 *)bref(w->reassembly, 0) & 0xf;
     
     u32 mask = 0;
     // which should always be the case for client streams
@@ -101,8 +109,19 @@ static void websocket_input_frame(websocket w, buffer b, thunk t)
         // compress reassembly buffer
 
         w->reassembly->start += offset;
-        apply(w->client,  w->reassembly, t);
-        // compress
+        switch(opcode) {
+        case ws_text:
+        case ws_binary:
+            apply(w->client,  w->reassembly, t);
+            break;
+        case ws_ping:
+            websocket_send(w, ws_pong, w->reassembly, t);
+            break;
+        case ws_pong:
+            break;
+        default:
+            prf("invalid ws frame\n");
+        }
         w->reassembly->start += length;
     }
     apply(t);

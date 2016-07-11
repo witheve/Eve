@@ -151,9 +151,9 @@ void vbprintf(string s, string fmt, va_list ap)
 
 string aprintf(heap h, char *fmt, ...)
 {
-    string b = alloca_string(fmt);
+    string b = allocate_string(h);
     va_list ap;
-    string f = string_from_cstring(h, fmt);
+    string f = alloca_string(fmt);
     va_start(ap, fmt);
     vbprintf(b, f, ap);
     va_end(ap);
