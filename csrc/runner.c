@@ -170,7 +170,6 @@ static void fixedpoint(evaluation s)
 
 void inject_event(evaluation s, vector n)
 {
-    prf ("inject event %d\n", vector_length(n));
     s->t++;
     s->ev_solution = 0;
     s->next_f_solution = create_value_table(s->h);
@@ -178,7 +177,6 @@ void inject_event(evaluation s, vector n)
     vector_foreach(n, i)
         run_block(build(s, i));
     s->ev_solution = s->next_f_solution;
-    print_multibag(s, s->ev_solution);
     fixedpoint(s);
 }
 

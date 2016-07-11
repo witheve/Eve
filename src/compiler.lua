@@ -1169,7 +1169,7 @@ function compileExec(contents, tracing)
       set[#set+1] = queryGraph
     end
   end
-  return build.build(set, tracing, parseGraph), util.toJSON(parseGraph)
+  return build.build(set, tracing, parseGraph), util.toFlatJSON(parseGraph)
 end
 
 function analyze(content, quiet)

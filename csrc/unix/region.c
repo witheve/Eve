@@ -22,11 +22,13 @@ static void *region_pages(heap h, bytes s)
     if (p == MAP_FAILED) return 0;
     // atomic increment
     r->fill += length;
+    h->allocated += length;
     return(p);
 }
 
 static void region_free(heap h, void *x, bytes size)
 {
+    h->allocated -= pad(size, h->pagesize);
     munmap(x, pad(size, h->pagesize));
 }
 

@@ -25,6 +25,7 @@ static void rolling_advance_page(rolling l, bytes len)
     *((p->last = &l->buffer)) = p;
     l->offset = sizeof(struct pageheader);
     p->length = plen;
+    l->h.allocated += plen;
 }
 
 static void *rolling_alloc(heap h, bytes len)
@@ -50,6 +51,7 @@ static void rolling_free(heap h, void *x, bytes b)
     pageheader p = (pageheader)page_of(x, c->parent->pagesize);
     if (!--p->refcnt) {
         *p->last = p->next;
+        h->allocated -= p->length;
         deallocate(c->parent, p, p->length);
     }
 }

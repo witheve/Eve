@@ -123,8 +123,6 @@ static void send_response(json_session js, table solution, table counters)
             table_set(results, build_vector(js->h, e, a, v), etrue);
     }
 
-    prf("res: %d\n %d\n", table_elements(js->current_delta), table_elements(results));
-
     table_foreach(js->persisted, k, scopeBag) {
         table_foreach(edb_implications(scopeBag), k, impl) {
             if(impl) {
@@ -176,7 +174,6 @@ void handle_json_query(json_session j, bag in, uuid root, thunk c)
     }
     if (t == sym(query)) {
         vector nodes = compile_eve(j->h, x, j->tracing, &desc);
-        prf("queryton %v %b %d\n", q, x, vector_length(nodes)); 
         inject_event(j->s, nodes);
     }
     if (t == sym(swap)) {
@@ -191,6 +188,7 @@ void handle_json_query(json_session j, bag in, uuid root, thunk c)
     if (t == sym(parse)) {
         send_parse(j, alloca_buffer_from_estring(q));
     }
+    prf("total general memory: %dk session: %d\n", pages->allocated/1024, j->h->allocated/1024);
 }
 
 
@@ -225,8 +223,6 @@ void new_json_session(bag root, boolean tracing, buffer graph, buffer_handler wr
     *handler = websocket_send_upgrade(h, headers, write,
                                       parse_json(j->h, j->session, cont(h, handle_json_query, j)), 
                                       &j->write);
-    //    send_node_graph(h, write, graph);
-
     buffer desc;
     inject_event(j->s,
                  compile_eve(j->h, aprintf(j->h,"init!\n   maintain\n      [#session-connect]\n"), j->tracing, &desc));

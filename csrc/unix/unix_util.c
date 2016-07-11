@@ -5,6 +5,7 @@
 #include <unix_internal.h>
 #include <sys/time.h>
 #include <time.h>
+#include <signal.h>
 
 decsriptor standardinput = 0;
 decsriptor standardoutput = 1;
@@ -94,6 +95,7 @@ void clocktime(ticks t, unsigned int *hours, unsigned int *minutes, unsigned int
 
 void init_unix()
 {
+    signal(SIGPIPE, SIG_IGN);
     prf_heap = allocate_rolling(pages);
     select_init();
     init_processes();

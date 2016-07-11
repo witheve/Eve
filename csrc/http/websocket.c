@@ -117,10 +117,11 @@ static void websocket_input_frame(websocket w, buffer b, thunk t)
         case ws_ping:
             websocket_send(w, ws_pong, w->reassembly, t);
             break;
+        case ws_close:
         case ws_pong:
             break;
         default:
-            prf("invalid ws frame\n");
+            prf("invalid ws frame %d\n", opcode);
         }
         w->reassembly->start += length;
     }
