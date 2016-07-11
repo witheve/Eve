@@ -73,6 +73,18 @@ function Set:toJSON(seen)
   return string.format("[%s]", table.concat(temp, ", "))
 end
 
+function Set:toFlatJSON(results, seen)
+  local temp = {}
+  seen = seen or {}
+  seen[self] = true
+  for key, value in pairs(self) do
+    if not seen[value] then
+      temp[#temp + 1] = util.toFlatJSONRecurse(key, results, seen)
+    end
+  end
+  return string.format("[%s]", table.concat(temp, ", "))
+end
+
 function Set.union(lhs, rhs, mutate)
    local result = lhs
    local count = lhs:length()
