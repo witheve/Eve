@@ -34,6 +34,6 @@ static inline value intern_cstring(char *x)
 
 #define sym(__x) ({\
   static estring __s = 0;\
-  if (!__s) __s = intern_string(#__x, sizeof(#__x)-1);\
+  if (!__s) __s = intern_string((unsigned char *)#__x, sizeof(#__x)-1); \
   __s;\
 })

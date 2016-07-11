@@ -112,7 +112,3 @@ buffer_handler parse_json(heap h, uuid pu, json_handler j)
 }
 
 
-buffer print_json(heap h, uuid root, bag b)
-{
-}
-
