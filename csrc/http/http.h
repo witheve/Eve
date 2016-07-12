@@ -1,13 +1,11 @@
 typedef struct http_server *http_server;
 http_server create_http_server(heap h, station p);
-/*void start_multipart_http_response(buffer_handler write);
-void send_multipart_http_response(buffer_handler write,
-                                  buffer b);
-*/
+
 void send_http_response(heap h,
                         buffer_handler write,
                         string type, 
                         buffer b);
+
 void register_http_service(http_server s,
                            string url,
                            thunk apply);
@@ -43,3 +41,7 @@ buffer_handler websocket_send_upgrade(heap h,
 // should be asynch...but you know
 typedef  closure(http_service, buffer_handler, table, buffer_handler *);
 void http_register_service(http_server, http_service, string);
+
+typedef closure(json_handler, bag, uuid, thunk);
+buffer_handler parse_json(heap h, uuid pu, json_handler j);
+void print_value_json(buffer out, value v);

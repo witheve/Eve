@@ -3,12 +3,13 @@
 
 // we're suposed to have multiple keys and multiple sort orders, ideally
 // just generate a comparator over r
-static CONTINUATION_8_2(do_sort, heap, execf, int*,
+static CONTINUATION_7_3(do_sort, 
+                        execf, int*,
                         table *, value, value, vector,vector,
-                        operator, value *);
-static void do_sort(heap h, execf n, int *count,
+                        heap,operator, value *);
+static void do_sort(execf n, int *count,
                     table *targets, value key, value out, vector proj, vector pk,
-                    operator op, value *r)
+                    heap h, operator op, value *r)
 {
     if (op == op_insert) {
         *count = *count +1;
@@ -30,11 +31,14 @@ static void do_sort(heap h, execf n, int *count,
             vector_foreach(p->v, i) {
                 // if we dont do the denorm trick, these should at least be findable and resuable
                 store(out, out, box_float(count++));
-                apply(n, op_insert, r);
+                apply(n, h, op_insert, r);
             }
         }
-        apply(n, op_flush, r);
+        apply(n, h, op_flush, r);
         *targets = allocate_table((*targets)->h, key_from_pointer, compare_pointer);
+    }
+    if (op == op_close) {
+        apply(n, h, op_close, r);
     }
 }
 
@@ -42,17 +46,16 @@ static execf build_sort(block bk, node n, execf *arms)
 {
     return cont(bk->h,
                 do_sort,
-                bk->h,
                 resolve_cfg(bk, n, 0),
-                register_counter(bk->e, n),
+                register_counter(bk->ev, n),
                 0, 0, 0, 0, 0);
 }
 
 
-static CONTINUATION_8_2(do_sum, heap, execf, int*, table*, vector, value, value, vector, operator, value *);
-static void do_sum(heap h, execf n, int *count,
+static CONTINUATION_7_3(do_sum, execf, int*, table*, vector, value, value, vector, heap, operator, value *);
+static void do_sum(execf n, int *count,
                    table *targets, vector grouping, value src, value dst, vector pk,
-                   operator op, value *r)
+                   heap h, operator op, value *r)
 {
     if (op == op_insert) {
         *count = *count +1;
@@ -72,10 +75,14 @@ static void do_sum(heap h, execf n, int *count,
         table_foreach(*targets, pk, x) {
             copyout(r, grouping, pk);
             store(r, dst, box_float(*(double *)x));
-            apply(n, op_insert, r);
+            apply(n, h, op_insert, r);
         }
         *targets = create_value_vector_table((*targets)->h);
-        apply(n, op_flush, r);
+        apply(n, h, op_flush, r);
+    }
+
+    if (op == op_close) {
+        apply(n, h, op_close, r);
     }
 }
 
@@ -90,9 +97,8 @@ static execf build_sum(block bk, node n, execf *arms)
     *targets = create_value_vector_table(bk->h);
     return cont(bk->h,
                 do_sum,
-                bk->h,
                 resolve_cfg(bk, n, 0),
-                register_counter(bk->e, n),
+                register_counter(bk->ev, n),
                 targets,
                 groupings,
                 vector_get(args, 1),

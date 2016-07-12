@@ -70,7 +70,7 @@ void print_value_vector(buffer out, vector vec) {
 // Value hash/equals
 //-------------------------------------------------------
 
-iu64 fold_key(iu64 key)
+static inline u64 fold_key(u64 key)
 {
     key ^= key >> 32;
     key ^= key>>16;
@@ -78,12 +78,12 @@ iu64 fold_key(iu64 key)
     return key;
 }
 
-iu64 value_as_key(value v)
+u64 value_as_key(value v)
 {
     if (type_of(v) == float_space) {
-        return fold_key(*(iu64 *)v);
+        return fold_key(*(u64 *)v);
     }
-    return fold_key((iu64)v);
+    return fold_key((u64)v);
 }
 
 // assumes bibop and interned strings and uuids
@@ -100,9 +100,9 @@ boolean value_equals(value a, value b)
 // Value vector hash/equals
 //-------------------------------------------------------
 
-iu64 value_vector_as_key(void * v)
+u64 value_vector_as_key(void * v)
 {
-  iu64 key = 0;
+  u64 key = 0;
   vector_foreach(v, current) {
      key ^= value_as_key(current);;
   }

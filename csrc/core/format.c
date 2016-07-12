@@ -4,7 +4,7 @@ char *hex_digits="0123456789abcdef";
 
 #define MAX(a, b) ((a)>(b)?(a):(b))
 
-void format_number(string s, iu64 x, int base, int pad)
+void format_number(string s, u64 x, int base, int pad)
 {
     if ((x > 0) || (pad > 0)) {
         format_number(s, x/base, base, pad - 1);
@@ -153,11 +153,10 @@ string aprintf(heap h, char *fmt, ...)
 {
     string b = allocate_string(h);
     va_list ap;
-    string f = string_from_cstring(h, fmt);
+    string f = alloca_string(fmt);
     va_start(ap, fmt);
     vbprintf(b, f, ap);
     va_end(ap);
-    deallocate(h, f);
     return(b);
 }
 

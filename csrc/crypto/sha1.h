@@ -3,11 +3,11 @@
 
 
 typedef struct {
-    iu32 state[5];
-    iu32 count[2];
-    iu8 buf[64];
+    u32 state[5];
+    u32 count[2];
+    u8 buf[64];
 } SHA1_CTX;
 
-void SHA1_Transform(iu32 state[5], iu8 buffer[64]);
+void SHA1_Transform(u32 state[5], u8 buffer[64]);
 
 

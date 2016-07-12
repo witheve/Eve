@@ -1,12 +1,12 @@
 #include <runtime.h>
 #include <unix/unix.h>
 
-static iu64 estring_length(void *x) {
+static u64 estring_length(void *x) {
     return 12;
 }
 
 static table interned_string;
-static heap estring_heap;
+heap estring_heap;
 
 estring intern_string(unsigned char* content, int length) {
     struct estring si = {length, content};
@@ -22,12 +22,12 @@ estring intern_string(unsigned char* content, int length) {
     return x;
 }
 
-void init_string()
+void init_estring()
 {
-    interned_string = allocate_table(init, si_hash, si_compare);
     heap string_region = init_fixed_page_region(init,
                                                 estring_space, 
                                                 estring_space + region_size,
                                                 pages->pagesize);
-    estring_heap = allocate_rolling(string_region);
+    estring_heap = allocate_rolling(string_region, sstring("estring"));
+    interned_string = allocate_table(estring_heap, si_hash, si_compare);
 }

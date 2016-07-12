@@ -14,6 +14,15 @@ typedef struct websocket {
     timer keepalive;
 } *websocket;
 
+typedef enum {
+    ws_continuation = 0,
+    ws_text = 1,
+    ws_binary = 2,
+    ws_close = 8,
+    ws_ping = 9,
+    ws_pong = 10,
+} opcodes;
+
 
 // implement close
 void websocket_send(websocket w, int opcode, buffer b, thunk t)
@@ -53,7 +62,7 @@ static CONTINUATION_1_2(websocket_input_frame, websocket, buffer, thunk);
 static void websocket_input_frame(websocket w, buffer b, thunk t)
 {
     int offset = 2;
-    
+
     if (!b) {
         apply(w->client, 0, ignore);
         return;
@@ -64,29 +73,28 @@ static void websocket_input_frame(websocket w, buffer b, thunk t)
     int rlen = buffer_length(w->reassembly);
     if (rlen < offset) return;
 
-    iu64 length = *(u8)bref(w->reassembly, 1) & 0x7f;
+    u64 length = *(u8 *)bref(w->reassembly, 1) & 0x7f;
 
     if (length == 126) {
         if (rlen < 4) return;
-        length = htons(*(u16)bref(w->reassembly, 2));
+        length = htons(*(u16 *)bref(w->reassembly, 2));
         offset += 2;
     } else {
         if (length == 127) {
             // ok, we are throwing away the top byte, who the hell thought
             // that 1TB wasn't enough per object
             if (rlen< 10) return;
-            length = htonll(*(u64)bref(w->reassembly, 2));
+            length = htonll(*(u64 *)bref(w->reassembly, 2));
             offset += 8;
         }
     }
     
-
-    // xxx - demultiplex on operand
+    int opcode = *(u8 *)bref(w->reassembly, 0) & 0xf;
     
-    iu32 mask = 0;
+    u32 mask = 0;
     // which should always be the case for client streams
-    if (*(u8)bref(w->reassembly, 1) & 0x80) {
-        mask = *(u32)bref(b, offset);
+    if (*(u8 *)bref(w->reassembly, 1) & 0x80) {
+        mask = *(u32 *)bref(b, offset);
         offset += 4;
     }
 
@@ -94,16 +102,32 @@ static void websocket_input_frame(websocket w, buffer b, thunk t)
         if (mask) {
             for (int i=0;i<((length +3)/4); i++) {
                 // xxx - fallin off the end 
-                *(u32)bref(w->reassembly, offset + i * 4) ^= mask;
+                *(u32 *)bref(w->reassembly, offset + i * 4) ^= mask;
             }
         }
         // xxx - only deliver this message
         // compress reassembly buffer
 
         w->reassembly->start += offset;
-        apply(w->client,  w->reassembly, t);
-        // compress
+        switch(opcode) {
+        case ws_text:
+        case ws_binary:
+            apply(w->client,  w->reassembly, t);
+            break;
+        case ws_ping:
+            websocket_send(w, ws_pong, w->reassembly, t);
+            break;
+        case ws_close:
+        case ws_pong:
+            break;
+        default:
+            prf("invalid ws frame %d\n", opcode);
+        }
         w->reassembly->start += length;
+
+        if((w->reassembly->start = w->reassembly->end)) {
+            buffer_clear(w->reassembly);
+        }
     }
     apply(t);
 }

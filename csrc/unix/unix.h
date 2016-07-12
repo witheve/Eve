@@ -3,7 +3,7 @@ typedef u64 offset;
 void initialize_timers(heap);
 typedef closure(buffer_handler, buffer, thunk);
 typedef closure(buffer_handler_handler, buffer_handler);
-thunk init_unix();
+void init_unix();
 
 string tree_root_path();
 
@@ -41,8 +41,8 @@ extern void unix_shutdown();
     
 
 heap init_fixed_page_region(heap meta,
-                            iu64 base_address,
-                            iu64 max_address,
+                            u64 base_address,
+                            u64 max_address,
                             bytes pagesize);
 ticks now();
 

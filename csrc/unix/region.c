@@ -6,12 +6,11 @@
  
 typedef struct region_heap {
     struct heap h;
-    iu64 base, max, fill;
+    u64 base, max, fill;
 } *region_heap;
 
 
-// ok, this needs to have a fill pointer..this is why we are allocating so many damn pages
-static void *allocate_pages(heap h, bytes s)
+static void *region_pages(heap h, bytes s)
 {
     region_heap r = (void *)h;
     unsigned int length =  pad(s, h->pagesize);
@@ -23,13 +22,14 @@ static void *allocate_pages(heap h, bytes s)
     if (p == MAP_FAILED) return 0;
     // atomic increment
     r->fill += length;
+    h->allocated += length;
     return(p);
 }
 
-static void free_pages(heap h, void *x)
+static void region_free(heap h, void *x, bytes size)
 {
-    // xxx - this doesn't free the whole page if its a multipage allocation
-    munmap(x, h->pagesize);
+    h->allocated -= pad(size, h->pagesize);
+    munmap(x, pad(size, h->pagesize));
 }
 
 boolean in_region(region_heap r, void *p) {
@@ -39,13 +39,13 @@ boolean in_region(region_heap r, void *p) {
 
      
 heap init_fixed_page_region(heap meta,
-                            iu64 base_address,
-                            iu64 max_address,
+                            u64 base_address,
+                            u64 max_address,
                             bytes pagesize)
 {
     region_heap r = allocate(meta, sizeof(struct region_heap));
-    r->h.alloc = allocate_pages;
-    r->h.dealloc = free_pages;
+    r->h.alloc = region_pages;
+    r->h.dealloc = region_free;
     r->h.pagesize = pagesize;
     r->base = base_address;
     r->fill = r->base;

@@ -34,17 +34,21 @@
 #define uuid_space 0x10000000000ull
 #define float_space 0x20000000000ull
 #define estring_space 0x30000000000ull
-//maybe give this guy an unpopulated region
-#define register_space 0x00000000000ull
-#define register_base 0x100ull
-#define register_ignore ((void *)0xffull)
+// not actually used
+#define register_space 0x40000000000ull
+#define register_base register_space
 
+#define efalse ((void *)(register_space + 0x1000000000))
+#define etrue ((void *)(register_space + 0x1000000001))
+#define register_ignore ((void *)(register_space + 0x1000000002))
+
+#define allocation_space 0xa0000000000ull
 
 typedef struct type {
     void (*print)(buffer, void *, heap);
-    iu64 (*hash)(void *);
+    u64 (*hash)(void *);
     // serialization length
-    iu64 (*length)(void *);
+    u64 (*length)(void *);
     int (*serialize)(buffer b, void *);
     void *(*deserialize)(buffer b);
 } *type;
@@ -65,10 +69,10 @@ void init_uuid();
 
 void print_value(buffer, value);
 void print_value_raw(buffer, value);
-iu64 value_as_key(value);
+u64 value_as_key(value);
 boolean value_equals(value, value);
 
-iu64 value_vector_as_key(void *);
+u64 value_vector_as_key(void *);
 boolean value_vector_equals(void *, void *);
 
 values_diff diff_value_vector_tables(heap, table, table);

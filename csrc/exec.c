@@ -3,11 +3,11 @@
 #include <exec.h>
 #include <unix.h>
 
-static CONTINUATION_3_2(do_sub_tail, int *, value, vector, operator, value *);
+static CONTINUATION_3_3(do_sub_tail, int *, value, vector, heap, operator, value *);
 static void do_sub_tail(int *count,
                         value resreg,
                         vector outputs,
-                        operator op, value *r)
+                        heap h, operator op, value *r)
 {
     // just drop flush and remove on the floor
     if ( op == op_insert) {
@@ -24,7 +24,7 @@ static execf build_sub_tail(block bk, node n)
     value resreg = vector_get(vector_get(n->arguments, 1), 0);
     return cont(bk->h,
                 do_sub_tail,
-                register_counter(bk->e, n),
+                register_counter(bk->ev, n),
                 resreg,
                 vector_get(n->arguments, 0));
 }
@@ -47,14 +47,14 @@ typedef struct sub {
 } *sub;
 
                  
-static void delete_missing(sub s, value *r)
+static void delete_missing(heap h, sub s, value *r)
 {
     if (s->previous) {
         table_foreach(s->previous, k, v) {
             if (!table_find(s->moved, k)) {
                 table_foreach((table)v, n, _) {
                     copyout(r, s->outputs, n);
-                    apply(s->next, op_remove, r);
+                    apply(s->next, h, op_remove, r);
                 }
             }
         }
@@ -87,8 +87,8 @@ static void set_ids(sub s, vector key, value *r)
     copyout(r, s->ids, k);
 }
 
-static CONTINUATION_2_2(do_sub, int *, sub, operator, value *);
-static void do_sub(int *count, sub s, operator op, value *r)
+static CONTINUATION_2_3(do_sub, int *, sub, heap, operator, value *);
+static void do_sub(int *count, sub s, heap h, operator op, value *r)
 {
     // dont manage deletions across fixed point
     if (s->t != s->e->t) {
@@ -97,9 +97,14 @@ static void do_sub(int *count, sub s, operator op, value *r)
         s->results = create_value_vector_table(s->h);
     }
 
+    if (op == op_close) {
+        destroy(s->h);
+        return;
+    }
+
     if (op == op_flush) {
-        delete_missing(s, r);
-        apply(s->next, op, r);
+        delete_missing(h, s, r);
+        apply(s->next, h, op, r);
         return;
     }
 
@@ -119,14 +124,14 @@ static void do_sub(int *count, sub s, operator op, value *r)
             extract(key, s->inputs, r);
             store(r, s->resreg, res);
             set_ids(s, key, r);
-            apply(s->leg, op, r);
+            apply(s->leg, h, op, r);
         }
         table_set(s->results, key, res);
     }
     // cross
     table_foreach(res, n, _) {
         copyout(r, s->outputs, n);
-        apply(s->next, op, r);
+        apply(s->next, h, op, r);
     }
 }
 
@@ -134,44 +139,47 @@ static void do_sub(int *count, sub s, operator op, value *r)
 static execf build_sub(block bk, node n)
 {
     sub s = allocate(bk->h, sizeof(struct sub));
-    s->results = create_value_vector_table(bk->h);
-    s->moved = create_value_vector_table(bk->h);
-    s->ids_cache = create_value_vector_table(bk->h);
-    s->v = allocate_vector(bk->h, vector_length(n->arguments)); // @FIXME this should be the size of inputs (not arguments) xxx
-    s->leg = resolve_cfg(bk, n, 1);
+    s->h = bk->h;
+    s->results = create_value_vector_table(s->h);
+    s->moved = create_value_vector_table(s->h);
+    s->ids_cache = create_value_vector_table(s->h);
     s->inputs = vector_get(n->arguments, 0);
+    s->v = allocate_vector(s->h, vector_length(s->inputs));
+    s->leg = resolve_cfg(bk, n, 1);
     s->outputs = vector_get(n->arguments, 1);
+    s->previous = 0;
     s->resreg = vector_get(vector_get(n->arguments, 2), 0);
     s->ids = vector_get(n->arguments, 3);
-    s->h = bk->h;
+    s->h = s->h;
     s->next = resolve_cfg(bk, n, 0);
-    s->e = bk->e;
-    s->t = bk->e->t;
-    vector_insert(bk->finish, cont(bk->h, end_o_sub, s)); 
-    return cont(bk->h,
+    s->e = bk->ev;
+    s->t = bk->ev->t;
+    vector_insert(bk->finish, cont(s->h, end_o_sub, s)); 
+    return cont(s->h,
                 do_sub,
-                register_counter(bk->e, n),
+                register_counter(bk->ev, n),
                 s);
 
 }
 
 
-static CONTINUATION_8_2(do_subagg, int *, execf, execf, value, table, vector, vector, vector,
-                        operator, value *);
+static CONTINUATION_8_3(do_subagg,
+                        int *, execf, execf, value, table, vector, vector, vector,
+                        heap, operator, value *);
 static void do_subagg(int *count, execf next, execf leg, value resreg,
                       table results, vector v, vector inputs, vector outputs,
-                      operator op, value *r)
+                      heap h, operator op, value *r)
 {
     if (op == op_flush) {
-        apply(leg, op, r);
+        apply(leg, h,op, r);
         table_foreach(results, v, rset) {
             copyout(r, inputs, v);
             table_foreach((table)rset, o, _) {
                 copyout(r, outputs, o);
-                apply(next, op_insert, r);
+                apply(next, h, op_insert, r);
             }
         }
-        apply(next, op, r);
+        apply(next, h, op, r);
         return;
     }
 
@@ -185,7 +193,7 @@ static void do_subagg(int *count, execf next, execf leg, value resreg,
         extract(key, inputs, r);
         table_set(results, key, res);
         r[toreg(resreg)] = res;
-        apply(leg, op, r);
+        apply(leg, h, op, r);
     }
 }
 
@@ -196,7 +204,7 @@ static execf build_subagg(block bk, node n)
     vector v = allocate_vector(bk->h, vector_length(n->arguments));
     return cont(bk->h,
                 do_subagg,
-                register_counter(bk->e, n),
+                register_counter(bk->ev, n),
                 resolve_cfg(bk, n, 0),
                 resolve_cfg(bk, n, 1),
                 vector_get(vector_get(n->arguments, 2), 0),
@@ -207,15 +215,15 @@ static execf build_subagg(block bk, node n)
 }
 
 
-static CONTINUATION_3_2(do_choose_tail, int *, execf, value, operator, value *);
-static void do_choose_tail(int *count, execf next, value flag, operator op, value *r)
+static CONTINUATION_3_3(do_choose_tail, int *, execf, value, heap, operator, value *);
+static void do_choose_tail(int *count, execf next, value flag, heap h, operator op, value *r)
 {
     if (op != op_flush) {
         *count = *count + 1;
         store(r, flag, etrue);
     }
     if (next)
-        apply(next, op, r);
+        apply(next, h, op, r);
 }
 
 static execf build_choose_tail(block bk, node n)
@@ -225,23 +233,23 @@ static execf build_choose_tail(block bk, node n)
     vector v = allocate_vector(bk->h, vector_length(n->arguments));
     return cont(bk->h,
                 do_choose_tail,
-                register_counter(bk->e, n),
+                register_counter(bk->ev, n),
                 (vector_length(n->arms) > 0)? resolve_cfg(bk, n, 0):0,
                 vector_get(vector_get(n->arguments, 0), 0));
 }
 
-static CONTINUATION_3_2(do_choose, int *, vector, value, operator, value *);
-static void do_choose(int *count, vector legs, value flag, operator op, value *r)
+static CONTINUATION_3_3(do_choose, int *, vector, value, heap, operator, value *);
+static void do_choose(int *count, vector legs, value flag, heap h, operator op, value *r)
 {
     if (op == op_flush) {
         vector_foreach (legs, i){
-            apply((execf) i, op, r);
+            apply((execf) i, h, op, r);
         }
     } else {
         *count = *count + 1;
         r[toreg(flag)] = efalse;
         vector_foreach (legs, i){
-            apply((execf) i, op, r);
+            apply((execf) i, h, op, r);
             if (r[toreg(flag)] == etrue) return;
         }
     }
@@ -257,27 +265,27 @@ static execf build_choose(block bk, node n)
 
     return cont(bk->h,
                 do_choose,
-                register_counter(bk->e, n),
+                register_counter(bk->ev, n),
                 v,
                 vector_get(vector_get(n->arguments, 0), 0));
 }
 
 
-static CONTINUATION_4_2(do_not, int *, execf, execf, value, operator, value *);
-static void do_not(int *count, execf next, execf leg, value flag, operator op, value *r)
+static CONTINUATION_4_3(do_not, int *, execf, execf, value, heap, operator, value *);
+static void do_not(int *count, execf next, execf leg, value flag, heap h, operator op, value *r)
 {
     // should also flush down the leg
     if (op == op_flush) {
-        apply(next, op, r);
+        apply(next, h, op, r);
         return;
     }
     *count = *count + 1;
     store(r, flag, efalse);
     
-    apply(leg, op, r);
+    apply(leg, h,op, r);
 
     if (lookup(r, flag) == efalse)
-        apply(next, op, r);
+        apply(next, h, op, r);
 }
 
 
@@ -285,21 +293,21 @@ static execf build_not(block bk, node n)
 {
     return cont(bk->h,
                 do_not,
-                register_counter(bk->e, n),
+                register_counter(bk->ev, n),
                 resolve_cfg(bk, n, 0),
                 resolve_cfg(bk, n, 1),
                 vector_get(vector_get(n->arguments, 0), 0));
 }
 
 
-static CONTINUATION_4_2(do_move, int *, execf, value,  value, operator, value *);
-static void do_move(int *count, execf n, value dest, value src, operator op, value *r)
+static CONTINUATION_4_3(do_move, int *, execf, value,  value, heap, operator, value *);
+static void do_move(int *count, execf n, value dest, value src, heap h, operator op, value *r)
 {
     if (op == op_insert) {
         *count = *count+1;
-        r[reg(dest)] = lookup(r, src);
+        store(r, dest, lookup(r, src));
     }
-    apply(n, op, r);
+    apply(n, h, op, r);
 }
 
 
@@ -307,15 +315,15 @@ static execf build_move(block bk, node n)
 {
     vector a = vector_get(n->arguments, 0);
     return cont(bk->h, do_move,
-                register_counter(bk->e, n),
+                register_counter(bk->ev, n),
                 resolve_cfg(bk, n, 0),
                 vector_get(a, 0),
                 vector_get(a, 1));
 }
 
 
-static CONTINUATION_3_2(do_merge, execf, int, u32, operator, value *);
-static void do_merge(execf n, int count, u32 total, operator op, value *r)
+static CONTINUATION_3_3(do_merge, execf, int, u32 *, heap, operator, value *);
+static void do_merge(execf n, int count, u32 *total, heap h, operator op, value *r)
 {
     if (op == op_flush) {
         *total = *total +1;
@@ -323,22 +331,24 @@ static void do_merge(execf n, int count, u32 total, operator op, value *r)
             *total = 0;
         } else return;
     }
-    apply(n, op, r);
+    apply(n, h, op, r);
 }
 
 static execf build_merge(block bk, node n)
 {
-    u32 c = allocate(bk->h, sizeof(iu32));
+    u32 *c = allocate(bk->h, sizeof(u32));
     *c = 0;
     return cont(bk->h, do_merge, resolve_cfg(bk, n, 0),
                 (int)*(double *)vector_get(vector_get(n->arguments, 0), 0),
                 c);
 }
 
-static CONTINUATION_1_2(do_terminal, block, operator, value *);
-static void do_terminal(block bk, operator op, value *r)
+static CONTINUATION_1_3(do_terminal, block, heap, operator, value *);
+static void do_terminal(block bk, heap h, operator op, value *r)
 {
-    if (op == op_insert) apply(bk->e->terminal);
+    if (op == op_insert) apply(bk->ev->terminal);
+
+    if (op == op_close) destroy(bk->h);
 }
 
 static execf build_terminal(block bk, node n)
@@ -346,52 +356,57 @@ static execf build_terminal(block bk, node n)
     return cont(bk->h, do_terminal, bk);
 }
 
-static CONTINUATION_6_2(do_time,
-                        block, int *, execf, value, value, value,
-                        operator, value *);
-static void do_time(block bk, int *count, execf n, value s, value m, value h, operator op, value *r)
+static CONTINUATION_7_3(do_time,
+                        block, int *, execf, value, value, value, timer,
+                        heap, operator, value *);
+static void do_time(block bk, int *count, execf n, value s, value m, value hour, timer t, heap h, operator op, value *r)
 {
+    if (op == op_close) {
+        remove_timer(t);
+    }
     if (op == op_insert) {
         unsigned int seconds, minutes,  hours;
         *count = *count +1;
-        clocktime(bk->e->t, &hours, &minutes, &seconds);
+        clocktime(bk->ev->t, &hours, &minutes, &seconds);
         value sv = box_float((double)seconds);
         value mv = box_float((double)minutes);
         value hv = box_float((double)hours);
         store(r, s, sv);
         store(r, m, mv);
-        store(r, h, hv);
+        store(r, hour, hv);
     }
-    apply(n, op, r);
+    apply(n, h, op, r);
 }
 
 static CONTINUATION_1_0(time_expire, block);
 static void time_expire(block bk)
 {
-    run_solver(bk->e);
+    run_solver(bk->ev);
 }
 
 // xxx  - handle the bound case
 static execf build_time(block bk, node n, execf *arms)
 {
     vector a = vector_get(n->arguments, 0);
-    register_periodic_timer(seconds(1), cont(bk->h, time_expire, bk));
+    timer t =register_periodic_timer(seconds(1), cont(bk->h, time_expire, bk));
     return cont(bk->h,
                 do_time,
                 bk,
-                register_counter(bk->e, n),
+                register_counter(bk->ev, n),
                 resolve_cfg(bk, n, 0),
                 vector_get(a, 1),
                 vector_get(a, 2),
-                vector_get(a, 3));
+                vector_get(a, 3),
+                t);
 }
 
 
-static CONTINUATION_3_2(do_fork, int *, int, execf *, operator, value *) ;
-static void do_fork(int *count, int legs, execf *b, operator op, value *r)
+static CONTINUATION_3_3(do_fork, int *, int, execf *, heap, operator, value *) ;
+static void do_fork(int *count, int legs, execf *b, heap h, operator op, value *r)
 {
-    if (op != op_flush) *count = *count+1;
-    for (int i =0; i<legs ;i ++) apply(b[i], op, r);
+    if ((op != op_flush) && (op != op_close))
+        *count = *count+1;
+    for (int i =0; i<legs ;i ++) apply(b[i], h, op, r);
 }
 
 static execf build_fork(block bk, node n)
@@ -401,17 +416,17 @@ static execf build_fork(block bk, node n)
 
     for (int i=0; i < count; i++)
         a[i] = resolve_cfg(bk, n, i);
-    return cont(bk->h, do_fork, register_counter(bk->e, n), count, a);
+    return cont(bk->h, do_fork, register_counter(bk->ev, n), count, a);
 }
 
-static CONTINUATION_2_2(do_trace, execf, vector, operator, value *);
-static void do_trace(execf n, vector terms, operator op, value *r)
+static CONTINUATION_2_3(do_trace, execf, vector, heap, operator, value *);
+static void do_trace(execf n, vector terms, heap h, operator op, value *r)
 {
     for (int i=0; i<vector_length(terms); i+=2) {
         prf(" %v %v", lookup(r, vector_get(terms, i)), lookup(r, vector_get(terms, i+1)));
     }
     write(1, "\n", 1);
-    apply(n, op, r);
+    apply(n, h, op, r);
 }
 
 static execf build_trace(block bk, node n, execf *arms)
@@ -423,24 +438,23 @@ static execf build_trace(block bk, node n, execf *arms)
 }
 
 
-static CONTINUATION_4_2(do_regfile, heap, execf, int*, int, operator, value *);
-static void do_regfile(heap h, execf n, int *count, int size, operator op, value *ignore)
+static CONTINUATION_3_3(do_regfile, execf, int*, int, heap, operator, value *);
+static void do_regfile(execf n, int *count, int size, heap h, operator op, value *ignore)
 {
     value *r;
     if (op == op_insert) {
         *count = *count +1;
         r = allocate(h, size * sizeof(value));
     }
-    apply(n, op, r);
+    apply(n, h, op, r);
 }
 
 static execf build_regfile(block bk, node n, execf *arms)
 {
     return cont(bk->h,
                 do_regfile,
-                bk->h,
                 resolve_cfg(bk, n, 0),
-                register_counter(bk->e, n),
+                register_counter(bk->ev, n),
                 (int)*(double *)vector_get(vector_get(n->arguments, 0), 0));
 }
 
@@ -490,11 +504,12 @@ static void force_node(block bk, node n)
     }
 }
 
-block build(evaluation e, node n)
+block build(evaluation ev, node n)
 {
-    block bk = allocate(e->h, sizeof(struct block));
-    bk->e = e;
-    bk->h = e->h;
+    heap h = allocate_rolling(pages, sstring("build"));
+    block bk = allocate(h, sizeof(struct block));
+    bk->ev = ev;
+    bk->h = h;
     // this is only used during building
     bk->nmap = allocate_table(bk->h, key_from_pointer, compare_pointer);
 

@@ -1,6 +1,6 @@
 #include <core.h>
      
-typedef iu32 index; //indices are off by 1 from vector references
+typedef u32 index; //indices are off by 1 from vector references
 
 static inline void swap(pqueue q, index x, index y)
 {

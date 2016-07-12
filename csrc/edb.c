@@ -24,6 +24,26 @@ multiplicity count_of(bag b, value e, value a, value v)
     return 0;
 }
 
+value lookupv(bag b, uuid e, estring a)
+{
+    table al = table_find(b->eav, e);
+    if(!al) return 0;
+    table vl = table_find(al, a);
+    if(!vl) return 0;
+    table_foreach(vl, v, count) if(count != 0) return v;
+    return(0);
+}
+
+void register_listener(bag e, thunk t)
+{
+    table_set(e->listeners, t, (void *)0x1);
+}
+
+void deregister_listener(bag e, thunk t)
+{
+    table_set(e->listeners, t, 0);
+}
+
 int edb_size(bag b)
 {
     return b->count;
@@ -150,17 +170,14 @@ void edb_scan(bag b, int sig, listener f, value e, value a, value v)
     }
 }
 
-// its probably going to be better to keep a global guy with
-// reference counts because of the object sharing, but this is
-// ok for today
-bag create_bag(uuid u)
+bag create_bag(heap h, uuid u)
 {
-    heap h = allocate_rolling(pages);
     bag b = allocate(h, sizeof(struct bag));
     b->h = h;
     b->u = u;
     b->eav = create_value_table(h);
     b->ave = create_value_table(h);
+    b->listeners = allocate_table(h, key_from_pointer, compare_pointer);
     b->implications = allocate_table(h, key_from_pointer, compare_pointer);
     return b;
 }
