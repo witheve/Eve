@@ -5,7 +5,7 @@
 // rfc 2616
 
 struct http_server {
-    heap h, p;
+    heap h;
     table content;
     table services;
 };
@@ -127,6 +127,7 @@ static void session_buffer(session s,
         }
         apply(rereg);
     }
+    deallocate_buffer(b);
 }
 
 CONTINUATION_1_3(new_connection, http_server, buffer_handler, buffer_handler_handler, station);
@@ -135,7 +136,7 @@ void new_connection(http_server s,
                     buffer_handler_handler read,
                     station peer)
 {
-    heap h = allocate_rolling(pages);
+    heap h = allocate_rolling(pages, sstring("connection"));
     session hs = allocate(h, sizeof(struct session));
     apply(read, cont(h, session_buffer, hs));
     hs->child = 0;
@@ -174,8 +175,7 @@ http_server create_http_server(heap h, station p)
     http_server s = allocate(h, sizeof(struct http_server));
     s->content = allocate_table(h, string_hash, string_equal);
     s->services = allocate_table(h, string_hash, string_equal);
-    s->p = h;
-    s->h = h;
+    s->h = allocate_rolling(pages, sstring("server"));
     tcp_create_server(h,
                       p,
                       cont(h, new_connection, s),

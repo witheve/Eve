@@ -1,9 +1,9 @@
 typedef struct table *table;
 
-table allocate_table(heap h, iu64 (*key_function)(void *x), boolean (*equal_function)(void *x, void *y));
+table allocate_table(heap h, u64 (*key_function)(void *x), boolean (*equal_function)(void *x, void *y));
 int table_elements(table t);
 
-typedef iu64 key;
+typedef u64 key;
 
 typedef struct entry {
     void *v;
@@ -17,7 +17,7 @@ struct table {
     int buckets;
     int count;
     vector entries;
-    iu64 (*key_function)(void *x);
+    u64 (*key_function)(void *x);
     boolean (*equals_function)(void *x, void *y);
 };
 

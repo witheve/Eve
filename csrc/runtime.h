@@ -11,15 +11,13 @@ typedef enum {
 } operator;
     
 
-iu64 key_of(value);
+u64 key_of(value);
 boolean equals(value, value);
 
 #include <number.h>
 #include <estring.h>
 
 typedef value eboolean;
-extern eboolean etrue;
-extern eboolean efalse;
 extern heap efence;
 
 void print(buffer, value);
@@ -41,7 +39,7 @@ void uuid_base_print(char *, void *);
 string aprintf(heap h, char *fmt, ...);
 void bbprintf(string b, string fmt, ...);
 
-typedef closure(execf, operator, value *);
+typedef closure(execf, heap, operator, value *);
 typedef closure(insertron, value, value, value, value, multiplicity);
 
 #define def(__s, __v, __i)  table_set(__s, intern_string((unsigned char *)__v, cstring_length((char *)__v)), __i);
@@ -79,12 +77,13 @@ struct block {
     heap h;
     vector finish;
     execf head;
-    evaluation e;
+    evaluation ev;
     table nmap;
 };
     
 struct evaluation  {
     heap h;
+    heap working;
     insertron insert;
     table counters;
 
@@ -114,10 +113,11 @@ table builders_table();
 void register_implication(node n);
 block build(evaluation e, node n);
 table start_fixedpoint(heap, table, table, table);
+void close_evaluation(evaluation);
 
-vector compile_eve(buffer b, boolean tracing);
-evaluation build_evaluation(heap h, table scopes, table persisted, evaluation_result e);
+vector compile_eve(heap h, buffer b, boolean tracing, buffer *desc);
+evaluation build_evaluation(table scopes, table persisted, evaluation_result e);
 void run_solver(evaluation s);
-void inject_event(evaluation, vector node);
+void inject_event(evaluation, buffer b, boolean);
 
 #include <edb.h>

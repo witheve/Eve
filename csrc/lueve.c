@@ -21,7 +21,7 @@ station create_station(unsigned int address, unsigned short port) {
 }
 
 
-extern void init_json_service(http_server, bag, boolean);
+extern void init_json_service(http_server, uuid, boolean, buffer);
 extern int strcmp(const char *, const char *);
 static buffer read_file_or_exit(heap, char *);
 
@@ -38,27 +38,28 @@ static void test_result(heap h, table s, table c)
 
 static void run_test(bag root, buffer b, boolean tracing)
 {
-    heap h = allocate_rolling(pages);
-    bag event = create_bag(generate_uuid());
+    heap h = allocate_rolling(pages, sstring("command line"));
+    bag event = create_bag(h, generate_uuid());
     table scopes = create_value_table(h);
     table results = create_value_vector_table(h);
     table_set(scopes, intern_cstring("all"), root);
     table_set(scopes, intern_cstring("session"), event);
     table_set(scopes, intern_cstring("transient"), event);
 
-    vector n = compile_eve(b, tracing);
+    buffer desc;
+    vector n = compile_eve(h, b, tracing, &desc);
     vector_foreach(n, i)
         edb_register_implication(event, i);
     table persisted = create_value_table(h);
-    evaluation s = build_evaluation(h, scopes, persisted, cont(h, test_result, h));
-    run_solver(s);
+    evaluation ev = build_evaluation(scopes, persisted, cont(h, test_result, h));
+    run_solver(ev);
     destroy(h);
 }
 
 int main(int argc, char **argv)
 {
     init_runtime();
-    bag root = create_bag(generate_uuid());
+    bag root = create_bag(init, generate_uuid());
     boolean enable_tracing = false;
     interpreter c = build_lua();
 
@@ -70,6 +71,8 @@ int main(int argc, char **argv)
     boolean consumeFile = false;
     boolean dynamicReload = true;
     boolean has_non_exec_action = false;
+    buffer desc = 0;
+
     
     char * file = "";
     for (int i = 1; i <argc ; i++) {
@@ -136,7 +139,7 @@ int main(int argc, char **argv)
     }
     if (doExec) {
         buffer b = read_file_or_exit(init, file);
-        vector v = compile_eve(b, enable_tracing);
+        vector v = compile_eve(init, b, enable_tracing, &desc);
         vector_foreach(v, i) {
             edb_register_implication(root, i);
         }
@@ -152,7 +155,8 @@ int main(int argc, char **argv)
     register(h, "/jssrc/codemirror.js", "application/javascript", codemirror);
     register(h, "/jssrc/codemirror.css", "text/css", codemirrorCss);
 
-    init_json_service(h, root, enable_tracing);
+    // TODO: figure out a better way to manage multiple graphs
+    init_json_service(h, root, enable_tracing, desc);
 
     prf("\n----------------------------------------------\n\nEve started. Running at http://localhost:8080\n\n");
     unix_wait();

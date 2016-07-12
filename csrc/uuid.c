@@ -1,8 +1,9 @@
 #include <runtime.h>
 #include <unix/unix.h>
+#include <bswap.h>
 
 
-static heap uuid_heap;
+heap uuid_heap;
 
 // uuid - mix these around 
 // 1 | 37 *time | 10 * node | 16* batch
@@ -10,7 +11,7 @@ static void uuid_print(buffer b, void *x, heap h) {
 }
 
 // serialization length
-static iu64 uuid_length(void *x) {
+static u64 uuid_length(void *x) {
     return UUID_LENGTH;
 }
 
@@ -19,9 +20,9 @@ static boolean uuid_compare(void *x, void *y)
     return memcmp(x, y, UUID_LENGTH) == 0;
 }
 
-static iu64 uuid_hash(void *x)
+static u64 uuid_hash(void *x)
 {
-    return (*(iu64 *)x) ^ (*(iu32 *)(x+8));
+    return (*(u64 *)x) ^ (*(u32 *)(x+8));
 }
 
 
@@ -60,6 +61,7 @@ uuid generate_uuid()
     // top bit has to be clear for serialization
     void *result = allocate(uuid_heap, UUID_LENGTH);
     ticks z = now();
+    z = htonl(z);
     memcpy(result, &z, 8);
     *((unsigned short *)result + 4) = count++;
     unsigned char *y = result;
@@ -69,8 +71,9 @@ uuid generate_uuid()
 
 void init_uuid()
 {
-    uuid_heap = init_fixed_page_region(init, uuid_space, uuid_space + region_size, pages->pagesize);
-    interned_uuid = allocate_table(efence, uuid_hash, uuid_compare);
+    uuid_heap = allocate_rolling(init_fixed_page_region(init, uuid_space, uuid_space + region_size, pages->pagesize),
+                                 sstring("uuid"));
+    interned_uuid = allocate_table(uuid_heap, uuid_hash, uuid_compare);
 }
 
 

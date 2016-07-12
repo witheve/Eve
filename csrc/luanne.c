@@ -12,6 +12,15 @@ static char *luat(lua_State *L, int index)
     for (int __k = -2, __v = - 1; (lua_next(__L, __ind<0?__ind-1:__ind) != 0) ; lua_pop(__L, 1))
 
 
+buffer lua_to_buffer(lua_State *L, int index, heap h)
+{
+    int len = lua_strlen(L, index);
+    buffer b = allocate_buffer(h, len);
+    memcpy(bref(b, 0), (void *)lua_tostring(L, index), len);
+    b->end = len;
+    return b;
+}
+
 value lua_tovalue(lua_State *L, int index)
 {
     switch(lua_type(L, index)){
@@ -144,22 +153,23 @@ void require_luajit(interpreter c, char *z)
     lua_setglobal(c->L, z);
 }
 
-vector lua_compile_eve(interpreter c, buffer b, boolean tracing)
+vector lua_compile_eve(interpreter c, heap h, buffer b, boolean tracing, buffer *out)
 {
-    vector result = allocate_vector(c->h, 3);
+    vector result = allocate_vector(h, 3);
     lua_pushcfunction(c->L, traceback);
     lua_getglobal(c->L, "compiler");
     lua_getfield(c->L, -1, "compileExec");
     lua_pushlstring(c->L, bref(b, 0), buffer_length(b));
     lua_pushboolean(c->L, tracing);
 
-    if (lua_pcall(c->L, 2, 1, lua_gettop(c->L)-4)) {
+    if (lua_pcall(c->L, 2, 2, lua_gettop(c->L)-4)) {
         printf ("lua error\n");
         printf ("%s\n", lua_tostring(c->L, -1));
     }
-    foreach_lua_table(c->L, -1, k, v) {
+    foreach_lua_table(c->L, -2, k, v) {
         vector_insert(result, (void *)lua_topointer(c->L, v));
     }
+    *out = lua_to_buffer(c->L, -1, h);
     lua_pop(c->L, 1);
     return(result);
 }
@@ -234,7 +244,7 @@ static interpreter freelist = 0;
 
 interpreter build_lua()
 {
-    heap h = allocate_rolling(pages);
+    heap h = allocate_rolling(pages, sstring("lua"));
     interpreter c = allocate(h, sizeof(struct interpreter));
     c->L = luaL_newstate();
     c->h = h;
@@ -269,14 +279,16 @@ interpreter get_lua()
 
 void free_lua(interpreter lua)
 {
+    // luc_gc(lua->l, LUA_GCCOLLECT, 0);
     lua->next = freelist;
     freelist = lua;
 }
 
-vector compile_eve(buffer b, boolean tracing)
+vector compile_eve(heap h, buffer b, boolean tracing, buffer *desc)
 {
     interpreter lua = get_lua();
-    vector v = lua_compile_eve(lua, b, tracing);
+    lua->h = h;
+    vector v = lua_compile_eve(lua, h, b, tracing, desc);
     free_lua(lua);
     return v;
 }

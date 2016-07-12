@@ -32,11 +32,6 @@ void vector_set(vector t, int index, void *n)
     *((void **)bref(t, b)) = n;
 }
 
-static void vector_elements(vector v, u32 i)
-{
-    *i = vector_length(v);
-}
-
 void vector_insert(vector t, void *n)
 {
     buffer_append(t, &n, sizeof(void *));

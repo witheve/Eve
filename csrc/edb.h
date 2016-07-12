@@ -14,6 +14,7 @@ struct bag {
 #define s_EAv 0x6
 #define s_EAV 0x7
 
+value lookupv(bag b, uuid e, estring a);
 void edb_scan(bag b, int sig, listener f, value e, value a, value v);
 
 table edb_implications();
@@ -22,7 +23,7 @@ void edb_remove_implication(bag b, node n);
 void edb_clear_implications(bag b);
 uuid edb_uuid(bag b);
 int edb_size(bag b);
-
+void destroy_bag(bag b);
 
 #define bag_foreach(__b, __e, __a, __v, __c)\
     table_foreach((__b)->eav, __e, __avl) \
@@ -32,7 +33,7 @@ int edb_size(bag b);
 
 long count_of(bag b, value e, value a, value v);
 void edb_insert(bag b, value e, value a, value v, multiplicity m);
-bag create_bag(uuid);
+bag create_bag(heap, uuid);
 void edb_remove(bag b, value e, value a, value v);
 void edb_set(bag b, value e, value a, value v);
 

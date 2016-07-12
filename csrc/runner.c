@@ -17,7 +17,7 @@ static void insert_f(evaluation s, uuid u, value e, value a, value v, multiplici
 
     s->inserted = true;
     if (!(b = table_find(s->block_solution, u))) {
-        table_set(s->block_solution, u, b = create_bag(u));
+        table_set(s->block_solution, u, b = create_bag(s->working, u));
     }
     edb_insert(b, e, a, v, m);
 }
@@ -45,8 +45,8 @@ static void print_multibag(evaluation s, table m)
 static CONTINUATION_1_5(merge_scan, evaluation, int, listener, value, value, value);
 static void merge_scan(evaluation ev, int sig, listener result, value e, value a, value v)
 {
-    listener f_filter = cont(ev->h, shadow, ev->f_solution, result);
-    listener x_filter = cont(ev->h, shadow, ev->t_solution, f_filter);
+    listener f_filter = cont(ev->working, shadow, ev->f_solution, result);
+    listener x_filter = cont(ev->working, shadow, ev->t_solution, f_filter);
 
     // xxx - currently precluding removes in the event set
     if (ev->ev_solution) {
@@ -72,83 +72,83 @@ static void evaluation_complete(evaluation s)
     s->non_empty = true;
 }
 
-static void merge_multibag_bag(table d, uuid u, bag s)
+static void merge_multibag_bag(heap h, table d, uuid u, bag s)
 {
     bag bd;
 
     if (!(bd = table_find(d, u))) {
-        // what heap?
-        table_set(d, u, bd = create_bag(u));
+        table_set(d, u, bd = create_bag(h, u));
     }
     
     bag_foreach(s, e, a, v, c) 
         edb_insert(bd, e, a, v, c);
 }
 
-static void run_block(block bk) 
+static void run_block(heap h, block bk) 
 {
-    bk->e->block_solution = create_value_table(bk->e->h);
-    bk->e->non_empty = false;
-    bk->e->inserted = false;
-                
-    apply(bk->head, op_insert, 0);
-    apply(bk->head, op_flush, 0);
-             
-    if (bk->e->non_empty) {
+    heap bh = allocate_rolling(pages, sstring("block run"));
+    bk->ev->block_solution = create_value_table(bh);
+    bk->ev->non_empty = false;
+    bk->ev->inserted = false;
+    u64 z = pages->allocated;
+    u64 zb = bk->h->allocated;
+    apply(bk->head, h, op_insert, 0);
+    apply(bk->head, h, op_flush, 0);
+
+    if (bk->ev->non_empty) {
         vector_foreach(bk->finish, i) 
             apply((block_completion)i, true);
 
-        table_foreach(bk->e->block_solution, u, bg) 
-            merge_multibag_bag(bk->e->next_f_solution, u, bg);
+        table_foreach(bk->ev->block_solution, u, bg) 
+            merge_multibag_bag(h, bk->ev->next_f_solution, u, bg);
     } else {
         vector_foreach(bk->finish, i) 
             apply((block_completion)i, false);
     }
+    destroy(bh);
 }
 
-static void fixedpoint(evaluation s)
+static void fixedpoint(evaluation ev)
 {
     long iterations = 0;
     boolean t_continue = true;
-    vector counts = allocate_vector(s->h, 10);
+    vector counts = allocate_vector(ev->working, 10);
 
     ticks start_time = now();
-    s->t = start_time;
-    s->t_solution =  create_value_table(s->h);
-
+    ev->t = start_time;
+    ev->t_solution =  create_value_table(ev->working);
 
     // double iteration
     while (t_continue) {
-        s->pass = true;
+        ev->pass = true;
         t_continue = false;
-        s->next_t_solution =  create_value_table(s->h);
-        s->f_solution =  create_value_table(s->h);
-        while (s->pass) {
-            s->pass = false;
+        ev->next_t_solution =  create_value_table(ev->working);
+        ev->f_solution =  create_value_table(ev->working);
+        while (ev->pass) {
+            ev->pass = false;
             iterations++;
-            s->next_f_solution =  create_value_table(s->h);
-            vector_foreach(s->blocks, b) run_block(b);
-            table_foreach(s->next_f_solution, u, b) {
-                if (table_find(s->persisted, u)) {
+            ev->next_f_solution =  create_value_table(ev->working);
+            vector_foreach(ev->blocks, b) run_block(ev->working, b);
+            table_foreach(ev->next_f_solution, u, b) {
+                if (table_find(ev->persisted, u)) {
                     t_continue = true;
-                    merge_multibag_bag(s->next_t_solution, u, b);
+                    merge_multibag_bag(ev->working, ev->next_t_solution, u, b);
                 } else {
-                    merge_multibag_bag(s->f_solution, u, b);
+                    merge_multibag_bag(ev->working, ev->f_solution, u, b);
                 }
             }
         }
-        table_foreach(s->next_t_solution, u, b) {
-            merge_multibag_bag(s->t_solution, u, b);
-        }
+        table_foreach(ev->next_t_solution, u, b) 
+            merge_multibag_bag(ev->working, ev->t_solution, u, b);
         vector_insert(counts, box_float((double)iterations));
         iterations = 0;
-        s->t++;
-        s->ev_solution = 0;
+        ev->t++;
+        ev->ev_solution = 0;
     }
     // merge but ignore bags not in persisted
-    table_foreach(s->t_solution, u, b) {
+    table_foreach(ev->t_solution, u, b) {
         bag bd;
-        if ((bd = table_find(s->persisted, u))) {
+        if ((bd = table_find(ev->persisted, u))) {
             bag_foreach((bag)b, e, a, v, c) {
                 edb_insert(bd, e, a, v, c);
             }
@@ -157,54 +157,75 @@ static void fixedpoint(evaluation s)
 
     // this is a bit strange, we really only care about the
     // non-persisted final state here
-    apply(s->complete, s->f_solution, s->counters);
+    apply(ev->complete, ev->f_solution, ev->counters);
 
     ticks end_time = now();
-    table_set(s->counters, intern_cstring("time"), (void *)(end_time - start_time));
-    table_set(s->counters, intern_cstring("iterations"), (void *)iterations);
+    table_set(ev->counters, intern_cstring("time"), (void *)(end_time - start_time));
+    table_set(ev->counters, intern_cstring("iterations"), (void *)iterations);
 
     prf ("fixedpoint in %t seconds, %d blocks, %V iterations, %d input bags, %d output bags\n", 
-         end_time-start_time, vector_length(s->blocks),
-         counts, table_elements(s->scopes), table_elements(s->t_solution));
+         end_time-start_time, vector_length(ev->blocks),
+         counts, table_elements(ev->scopes), table_elements(ev->t_solution));
 }
 
-void inject_event(evaluation s, vector n)
+void inject_event(evaluation ev, buffer b, boolean tracing)
 {
-    s->t++;
-    s->ev_solution = 0;
-    s->next_f_solution = create_value_table(s->h);
-    vector_foreach(n, i)
-        run_block(build(s, i));
-    s->ev_solution = s->next_f_solution;
-    fixedpoint(s);
+    heap h = allocate_rolling(pages, sstring("event"));
+    buffer desc;
+    vector n = compile_eve(h, b, tracing, &desc);
+    ev->working = h;
+    ev->t++;
+    ev->ev_solution = 0;
+    ev->next_f_solution = create_value_table(ev->working);
+    // close this block
+    vector_foreach(n, i) {
+        block b = build(ev, i);
+        run_block(ev->working, b);
+        apply(b->head, ev->h, op_close, 0);
+    }
+    table k;
+    k = ev->ev_solution = ev->next_f_solution;
+    fixedpoint(ev);
+    destroy(h);
 }
 
-void run_solver(evaluation s)
+void run_solver(evaluation ev)
 {
-    s->ev_solution = 0;
-    fixedpoint(s);
+    heap h = allocate_rolling(pages, sstring("working"));
+    ev->ev_solution = 0;
+    ev->working = h;
+    fixedpoint(ev);
+    destroy(h);
+}
+
+void close_evaluation(evaluation ev) 
+{
+    vector_foreach(ev->blocks, b)
+        apply(((block)b)->head, ev->working, op_close, 0);
+    destroy(ev->h);
 }
     
-evaluation build_evaluation(heap h, table scopes, table persisted, evaluation_result r)
+evaluation build_evaluation(table scopes, table persisted, evaluation_result r)
 {
-    evaluation e = allocate(h, sizeof(struct evaluation));
-    e->h = h;
-    e->scopes = scopes;
+    heap h = allocate_rolling(pages, sstring("eval"));
+    evaluation ev = allocate(h, sizeof(struct evaluation));
+    ev->h = h;
+    ev->scopes = scopes;
     // ok, now counts just accrete forever
-    e->counters =  allocate_table(h, key_from_pointer, compare_pointer);
-    e->insert = cont(h, insert_f, e);
-    e->blocks = allocate_vector(h, 10);
-    e->persisted = persisted;
+    ev->counters =  allocate_table(h, key_from_pointer, compare_pointer);
+    ev->insert = cont(h, insert_f, ev);
+    ev->blocks = allocate_vector(h, 10);
+    ev->persisted = persisted;
 
-    e->reader = cont(e->h, merge_scan, e);
-    e->complete = r;
-    e->terminal = cont(e->h, evaluation_complete, e);
+    ev->reader = cont(ev->h, merge_scan, ev);
+    ev->complete = r;
+    ev->terminal = cont(ev->h, evaluation_complete, ev);
 
-    table_foreach(e->persisted, uuid, b) {
+    table_foreach(ev->persisted, uuid, b) {
         table_foreach(edb_implications(b), n, v){
-            vector_insert(e->blocks, build(e, n));
+            vector_insert(ev->blocks, build(ev, n));
         }
     }
 
-    return e;
+    return ev;
 }

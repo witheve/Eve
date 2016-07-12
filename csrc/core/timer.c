@@ -73,7 +73,7 @@ ticks timer_check()
 ticks parse_time(string b)
 {
     character c;
-    iu64 s = 0, frac = 0, fracnorm = 0;
+    u64 s = 0, frac = 0, fracnorm = 0;
     ticks result;
 
     string_foreach (b, c) {
@@ -96,7 +96,7 @@ ticks parse_time(string b)
 void print_time(string b, ticks f)
 {
     unsigned int seconds = f>>32;
-    iu64 fraction = f&0xfffffffful;
+    u64 fraction = f&0xfffffffful;
 
     bprintf(b, "%u", seconds);
     if (fraction) {
@@ -106,9 +106,9 @@ void print_time(string b, ticks f)
         
         /* should round or something */
         while ((fraction *= 10) && (count++ < 6)) {
-            iu32 d = (fraction>>32);
+            u32 d = (fraction>>32);
             bprintf (b, "%d", d);
-            fraction -= ((iu64)d)<<32;
+            fraction -= ((u64)d)<<32;
         }
     }
 }

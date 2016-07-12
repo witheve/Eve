@@ -1,13 +1,19 @@
 
-// should consider a drain function
-typedef struct heap {
-    void *(*alloc)();
-    void (*dealloc)();
-    void (*destroy)();
+typedef struct heap *heap;
+struct heap {
+    void *(*alloc)(heap, bytes);
+    void (*dealloc)(heap, void *, bytes);
+    void (*destroy)(heap);
+    void (*drain)(heap);
     bytes pagesize;
     bytes allocated;
-} *heap;
+    heap *last;
+    heap next;
+    buffer name;
+};
 
+extern heap heap_list;
+void heap_report();
 
 static inline void *page_of(void *x, bytes pagesize)
 {
@@ -18,9 +24,7 @@ heap init_memory(bytes pagesize);// unix specific
 heap allocate_leaky_heap(heap parent);
 heap allocate_pagechunk(heap h, bytes s);
 heap allocate_pagecache(heap h);
-heap allocate_rolling(heap h);
-
-// really internals
+heap allocate_rolling(heap h, buffer b);
 
 static inline bytes pad(bytes a, bytes to)
 {
@@ -35,5 +39,5 @@ static inline int subdivide(int quantum, int per, int s, int o)
 }
 
 #define allocate(h, size) ((h)->alloc)(h, size)
-#define deallocate(h, x) ((h)->dealloc)(h, x)
+#define deallocate(h, x, s) ((h)->dealloc)(h, x, s)
 #define destroy(h) ((h)->destroy)(h)
