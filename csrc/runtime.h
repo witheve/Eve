@@ -104,6 +104,7 @@ struct evaluation  {
     evaluation_result complete;
     
     thunk terminal;
+    thunk run;
 };
 
 

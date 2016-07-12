@@ -1,4 +1,5 @@
 struct bag {
+    table listeners;
     table eav;
     table ave;
     uuid u;
@@ -24,6 +25,8 @@ void edb_clear_implications(bag b);
 uuid edb_uuid(bag b);
 int edb_size(bag b);
 void destroy_bag(bag b);
+void register_listener(bag e, thunk t);
+void deregister_listener(bag e, thunk t);
 
 #define bag_foreach(__b, __e, __a, __v, __c)\
     table_foreach((__b)->eav, __e, __avl) \

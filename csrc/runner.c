@@ -145,16 +145,26 @@ static void fixedpoint(evaluation ev)
         ev->t++;
         ev->ev_solution = 0;
     }
+
+    boolean changed_persistent = false;
     // merge but ignore bags not in persisted
     table_foreach(ev->t_solution, u, b) {
         bag bd;
         if ((bd = table_find(ev->persisted, u))) {
             bag_foreach((bag)b, e, a, v, c) {
+                changed_persistent = true;
                 edb_insert(bd, e, a, v, c);
             }
         }
     }
 
+    if (changed_persistent)
+         table_foreach(ev->persisted, _, b) 
+             table_foreach(((bag)b)->listeners, t, _)
+               if (t != ev->run)
+                   apply((thunk)t);
+
+    
     // this is a bit strange, we really only care about the
     // non-persisted final state here
     apply(ev->complete, ev->f_solution, ev->counters);
@@ -189,6 +199,7 @@ void inject_event(evaluation ev, buffer b, boolean tracing)
     destroy(h);
 }
 
+CONTINUATION_1_0(run_solver, evaluation);
 void run_solver(evaluation ev)
 {
     heap h = allocate_rolling(pages, sstring("working"));
@@ -200,6 +211,9 @@ void run_solver(evaluation ev)
 
 void close_evaluation(evaluation ev) 
 {
+    table_foreach(ev->persisted, uuid, b) 
+        deregister_listener(b, ev->run);
+
     vector_foreach(ev->blocks, b)
         apply(((block)b)->head, ev->working, op_close, 0);
     destroy(ev->h);
@@ -221,7 +235,9 @@ evaluation build_evaluation(table scopes, table persisted, evaluation_result r)
     ev->complete = r;
     ev->terminal = cont(ev->h, evaluation_complete, ev);
 
+    ev->run = cont(h, run_solver, ev);
     table_foreach(ev->persisted, uuid, b) {
+        register_listener(b, ev->run);
         table_foreach(edb_implications(b), n, v){
             vector_insert(ev->blocks, build(ev, n));
         }
