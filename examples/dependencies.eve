@@ -16,7 +16,7 @@ Find disparity in height and salary for age cohorts separated by gender
   ∂_height = height - other.height
   maintain
     style = [padding-left: "4px" padding-right: "4px"]
-    [#div self class: "row" sort: ∂_salary, children:
-      [#div text: "name: {name} age: {age}" style]
-      [#div text: "∂ salary: {∂_salary}" style]
-      [#div text: "∂ height: {∂_height}" style]]
+    [#div self class: "row" sort: ∂_salary + (∂_height / 1000), children:
+      [#div sort: 1 text: "name: {name} age: {age}" style]
+      [#div sort: 2 text: "∂ salary: {∂_salary}" style]
+      [#div sort: 3 text: "∂ height: {∂_height}" style]]
