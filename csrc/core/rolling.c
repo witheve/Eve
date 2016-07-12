@@ -5,6 +5,7 @@ typedef struct pageheader *pageheader;
 struct pageheader {
     u32 refcnt;
     u32 length;
+    u32 offset;
     pageheader next;
     pageheader *last;
 };
@@ -12,18 +13,17 @@ struct pageheader {
 typedef struct rolling {
     struct heap h;
     heap   parent;
-    bytes  offset;
-    pageheader buffer;
+    pageheader p;
 } *rolling;
 
 static void rolling_advance_page(rolling l, bytes len)
 {
-    pageheader old = l->buffer;
+    pageheader old = l->p;
     bytes plen = pad(len + sizeof(struct pageheader), l->parent->pagesize);
     pageheader p =  allocate(l->parent, plen);
-    (p->next = l->buffer)->last = &p->next;
-    *((p->last = &l->buffer)) = p;
-    l->offset = sizeof(struct pageheader);
+    (p->next = l->p)->last = &p->next;
+    *((p->last = &l->p)) = p;
+    p->offset = sizeof(struct pageheader);
     p->length = plen;
     l->h.allocated += plen;
 }
@@ -32,15 +32,15 @@ static void *rolling_alloc(heap h, bytes len)
 {
     rolling c = (void *)h;
 
-    if ((c->offset + len) > c->buffer->length){
+    if ((c->p->offset + len) > c->p->length){
         rolling_advance_page(c, len);
     }
-    c->buffer->refcnt++;
-    void *r = ((void *)c->buffer) + c->offset;
-    c->offset += len;
+    c->p->refcnt++;
+    void *r = ((void *)c->p) + c->p->offset;
+    c->p->offset += len;
     // we can't use the last part of a multipage allocation,
     // because we wont be able to find the page header
-    if (c->buffer->length > c->parent->pagesize)
+    if (c->p->length > c->parent->pagesize)
         rolling_advance_page(c, c->parent->pagesize);
     return(r);
 }
@@ -61,7 +61,7 @@ static void rolling_destroy(heap h)
     rolling c = (void *)h;
     *h->last = h->next;
     h->next->last = h->last;
-    for (pageheader i = c->buffer, j;
+    for (pageheader i = c->p, j;
          i && (j = i->next, deallocate(c->parent, i, i->length), 1);
          i = j);
 
@@ -81,9 +81,9 @@ heap allocate_rolling(heap p, buffer name)
     l->h.name = name;
     if ((l->h.next = heap_list)) l->h.next->last = &l->h.next;
     *(l->h.last = &heap_list) = &l->h;
-    l->buffer = ph;
+    l->p = ph;
     l->parent = p;
-    l->offset = off;
+    ph->offset = off;
     ph->length = p->pagesize;
     ph->last = 0;
     ph->refcnt = 1;
