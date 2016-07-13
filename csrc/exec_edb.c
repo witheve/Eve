@@ -10,13 +10,11 @@ static void scan_listener(execf n, heap h, operator op, value *r,
                           value er, value ar, value vr,
                           value e, value a, value v, multiplicity count)
 {
-    prf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!SCAN LISTENER!!!!!!!!!!!!!!!!!!!!!!!!\n");
     if (count > 0) {
         store(r, er, e);
         store(r, ar, a);
         store(r, vr, v);
         apply(n, h, op, r);
-        prf("#### E{%v <- %v} A{%v <- %v} V{%v <- %v} ####\n\n", er, e, ar, a, vr, v);
     }
 }
 
