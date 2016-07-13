@@ -12,7 +12,8 @@ typedef struct udp {
     unsigned int current_ttl;
     heap h;
     int mtu;
-    buffer_handler handler;
+    udp_receiver r;
+
 } *udp;
 
 static CONTINUATION_1_2(udp_write, udp, station, buffer);
@@ -32,9 +33,9 @@ static void input(udp u)
     buffer b = (void *)allocate_buffer(u->h, u->mtu);
     fromsize = sizeof(struct sockaddr);
     if ((count = recvfrom(u->receive, bref(b, 0), u->mtu, 0,
-                          (struct sockaddr *)&from, fromsize)) > 0) {
+                          (struct sockaddr *)&from, &fromsize)) > 0) {
         //translate a
-        apply(u->handler, b, a);
+        apply(u->r, a, b);
     } else return;
     // use self
     register_read_handler(u->receive, cont(u->h, input, u));
@@ -63,8 +64,8 @@ void udp_subscribe (udp u, v4addr group)
 #endif
 // add list of subscriptions
 udp create_udp(heap h,
-                 station local,
-                 buffer_handler handler)
+               station local,
+               udp_receiver r)
 {
     udp u;
     struct ip_mreq mreq;
@@ -72,7 +73,7 @@ udp create_udp(heap h,
     
     u =(udp)allocate(h, sizeof(struct udp));
     memset(u,0,sizeof(struct udp));
-    u->handler = handler;
+    u->r = r;
     u->h = h;
     
     u->receive = u->send = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -102,10 +103,10 @@ udp create_udp(heap h,
         prf("SO_SNDBUF");
     
     struct sockaddr s;
-    if (bind (u->receive, s, sizeof(struct sockaddr_in))) {
+    if (bind (u->receive, &s, (socklen_t)sizeof(struct sockaddr_in))) {
         prf("error bind\n");
         return(0);
     }
     register_read_handler(u->receive, cont(h, input, u));
-    return(cont(h, udp_write, u));
+    return u;
 }

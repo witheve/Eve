@@ -66,7 +66,9 @@ void init_processes();
 
 void clocktime(ticks t, unsigned int *hours, unsigned int *minutes, unsigned int *seconds);
 
+typedef closure(udp_receiver, station, buffer);
 typedef struct udp *udp;
-udp create_udp(heap h,
-               station local,
-               closure(handler, buffer));
+udp create_udp(heap h, station local, udp_receiver);
+
+void prf(char *, ...);
+

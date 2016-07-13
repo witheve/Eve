@@ -1,5 +1,4 @@
 #include <runtime.h>
-#include <unix.h>
 #include <http/http.h>
 #include <bswap.h>
 #include <luanne.h>

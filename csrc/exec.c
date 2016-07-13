@@ -1,7 +1,6 @@
 #include <runtime.h>
-#include <unistd.h>
 #include <exec.h>
-#include <unix.h>
+
 
 static CONTINUATION_3_3(do_sub_tail, int *, value, vector, heap, operator, value *);
 static void do_sub_tail(int *count,
@@ -425,7 +424,7 @@ static void do_trace(execf n, vector terms, heap h, operator op, value *r)
     for (int i=0; i<vector_length(terms); i+=2) {
         prf(" %v %v", lookup(r, vector_get(terms, i)), lookup(r, vector_get(terms, i+1)));
     }
-    write(1, "\n", 1);
+    prf("\n");
     apply(n, h, op, r);
 }
 

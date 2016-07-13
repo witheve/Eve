@@ -34,9 +34,8 @@ static string scan_label(heap h, buffer b)
             return(sstring("[offset]"));
         }
         int i;
-        if (count++) buffer_write_char(out, '.');
-        for (i = 0; i<len; i++) 
-            buffer_write_char(out, buffer_read_byte(b));
+        if (count++) buffer_write_byte(out, '.');
+        buffer_copy(out, b, len);
     }
     return(out);
 }
@@ -77,7 +76,7 @@ static void dns_input(resolver r, buffer input)
     request x = table_find(r->request_map, (void *)id);
     if (!x) return;
 
-    table_set(r->request_map, id, 0);
+    table_set(r->request_map, (void *)id, (void *)0);
     u16 control = buffer_read_be16(input);
 
     if (control & 0xf) {

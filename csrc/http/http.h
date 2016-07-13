@@ -33,10 +33,11 @@ void register_static_content(http_server h, char *url, char *content_type, buffe
 typedef closure(http_handler, bag, uuid, station, buffer_handler);
 
 buffer_handler websocket_send_upgrade(heap h,
-                                      table headers,
+                                      bag b, 
+                                      uuid n,
                                       buffer_handler down,
                                       buffer_handler up,
-                                      buffer_handler *from_above);
+                                      register_read reg);
 
 // should be asynch...but you know
 typedef closure(http_service, buffer_handler, bag, uuid, register_read);

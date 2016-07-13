@@ -18,8 +18,8 @@
 #define DNS_TYPE_TXT             16 // text strings
 #define DNS_TYPE_AAAA            28 // v6 addresses
 
-
-static inline void inverse_resolve(closure(r, buffer), station a, closure name_handler)
+#if 0
+static inline void inverse_resolve(closure(r, buffer), station a, closure(name_handler, buffer))
 {
     unsigned char *b = (void *)a;
     string x = aprintf(transient, "%d.%d.%d.%d.in-addr.arpa",
@@ -27,3 +27,4 @@ static inline void inverse_resolve(closure(r, buffer), station a, closure name_h
     apply(r, DNS_TYPE_PTR, x, name_handler);
 }
 
+#endif

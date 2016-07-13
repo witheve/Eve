@@ -135,21 +135,21 @@ static void websocket_input_frame(websocket w, buffer b, thunk t)
 void sha1(buffer d, buffer s);
 
 buffer_handler websocket_send_upgrade(heap h,
-                                      table headers,
+                                      bag b, 
+                                      uuid n,
                                       buffer_handler down,
                                       buffer_handler up,
-                                      buffer_handler *from_above)
+                                      register_read reg)
 {
     websocket w = allocate(h, sizeof(struct websocket));
     estring ekey;
     string key;
 
-    if (!(ekey=table_find(headers, intern_buffer(sstring("Sec-WebSocket-Key"))))) {
+    if (!(ekey=lookupv(b, n, sym("Sec-WebSocket-Key")))) {
         // something tasier
         return 0;
     } 
 
-    // sad
     key = allocate_buffer(h, ekey->length);
     buffer_append(key, ekey->body, ekey->length);
     
@@ -163,17 +163,17 @@ buffer_handler websocket_send_upgrade(heap h,
     buffer sh = allocate_buffer(h, 20);
     sha1(sh, key);
     string r = base64_encode(h, sh);
-    buffer b = allocate_buffer(h, 200);
+    buffer upgrade = allocate_buffer(h, 200);
 
-    outline(b, "HTTP/1.1 101 Switching Protocols");
-    outline(b, "Upgrade: websocket");
-    outline(b, "Connection: Upgrade");
-    outline(b, "Sec-WebSocket-Accept: %b", r);
-    outline(b, "");
+    outline(upgrade, "HTTP/1.1 101 Switching Protocols");
+    outline(upgrade, "Upgrade: websocket");
+    outline(upgrade, "Connection: Upgrade");
+    outline(upgrade, "Sec-WebSocket-Accept: %b", r);
+    outline(upgrade, "");
 
     register_periodic_timer(seconds(5), cont(w->h, send_keepalive, w, allocate_buffer(w->h, 0)));
-    apply(w->write, b, ignore);
-    *from_above = cont(h, websocket_output_frame,w);
-    return(cont(h, websocket_input_frame, w));
+    apply(w->write, upgrade, ignore);
+    apply(reg, cont(h, websocket_input_frame, w));
+    return(cont(h, websocket_output_frame, w));
 }
 
