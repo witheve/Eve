@@ -221,7 +221,6 @@ static void do_choose_tail(int *count, execf next, value flag, heap h, operator 
     if ((op != op_flush) && (op != op_close)) {
         *count = *count + 1;
         store(r, flag, etrue);
-        apply(next, h, op, r);
     }
 }
 
@@ -264,7 +263,7 @@ static execf build_choose(block bk, node n)
     int arms = vector_length(n->arms);
     vector v = allocate_vector(bk->h, arms);
     for (int i = 1 ; i < arms; i++ )
-        vector_set(v, i, resolve_cfg(bk, n, i));
+        vector_set(v, i - 1, resolve_cfg(bk, n, i));
 
     return cont(bk->h,
                 do_choose,
