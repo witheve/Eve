@@ -218,12 +218,11 @@ static execf build_subagg(block bk, node n)
 static CONTINUATION_3_3(do_choose_tail, int *, execf, value, heap, operator, value *);
 static void do_choose_tail(int *count, execf next, value flag, heap h, operator op, value *r)
 {
-    if (op != op_flush) {
+    if ((op != op_flush) && (op != op_close)) {
         *count = *count + 1;
         store(r, flag, etrue);
-    }
-    if (next)
         apply(next, h, op, r);
+    }
 }
 
 static execf build_choose_tail(block bk, node n)
@@ -238,10 +237,10 @@ static execf build_choose_tail(block bk, node n)
                 vector_get(vector_get(n->arguments, 0), 0));
 }
 
-static CONTINUATION_3_3(do_choose, int *, vector, value, heap, operator, value *);
-static void do_choose(int *count, vector legs, value flag, heap h, operator op, value *r)
+static CONTINUATION_4_3(do_choose, int *, execf, vector, value, heap, operator, value *);
+static void do_choose(int *count, execf n, vector legs, value flag, heap h, operator op, value *r)
 {
-    if (op == op_flush) {
+    if ((op == op_flush) || (op == op_close)) {
         vector_foreach (legs, i){
             apply((execf) i, h, op, r);
         }
@@ -250,7 +249,11 @@ static void do_choose(int *count, vector legs, value flag, heap h, operator op, 
         r[toreg(flag)] = efalse;
         vector_foreach (legs, i){
             apply((execf) i, h, op, r);
-            if (r[toreg(flag)] == etrue) return;
+            apply((execf) i, h, op_flush, r);
+            if (r[toreg(flag)] == etrue) {
+                apply(n, h, op, r);
+                return;
+            }
         }
     }
 }
@@ -260,12 +263,13 @@ static execf build_choose(block bk, node n)
 {
     int arms = vector_length(n->arms);
     vector v = allocate_vector(bk->h, arms);
-    for (int i = 0 ; i < arms; i++ )
+    for (int i = 1 ; i < arms; i++ )
         vector_set(v, i, resolve_cfg(bk, n, i));
 
     return cont(bk->h,
                 do_choose,
                 register_counter(bk->ev, n),
+                resolve_cfg(bk, n, 0),
                 v,
                 vector_get(vector_get(n->arguments, 0), 0));
 }
