@@ -21,13 +21,14 @@ VPATH += ../csrc/http
 VPATH += ../csrc/crypto
 VPATH += ../csrc/luautf8
 VPATH += ../csrc/luapower
+VPATH += ../csrc/dns
 VPATH += ../src
 VPATH += ../csrc
 
 LUAPOWER = bundle.o
 UTF = lutf8lib.o
 COMPILER = compiler.o error.o fs.o parser.o util.o set.o color.o build.o implicationResolver.o db.o
-UNIX =  unix_util.o region.o select.o tcp_socket.o process.o page.o
+UNIX =  unix_util.o region.o select.o tcp_socket.o process.o page.o udp.o
 UNIX_H = unix_internal.h unix.h
 CORE = buffer.o table.o vector.o format.o rolling.o string.o pqueue.o timer.o
 CORE_H = bswap.h pqueue.h vector.h buffer.h heap.h timer.h continuation.h core.h string.h table.h

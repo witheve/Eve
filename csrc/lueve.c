@@ -148,7 +148,7 @@ int main(int argc, char **argv)
         return 0;
     }
     
-    http_server h = create_http_server(init, create_station(0, 8080));
+    http_server h = create_http_server(create_station(0, 8080));
     register(h, "/", "text/html", index);
     register(h, "/jssrc/renderer.js", "application/javascript", renderer);
     register(h, "/jssrc/microReact.js", "application/javascript", microReact);

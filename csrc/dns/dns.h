@@ -16,13 +16,10 @@
 #define DNS_TYPE_MINFO           14 // mailbox or mail list information
 #define DNS_TYPE_MX              15 // mail exchange
 #define DNS_TYPE_TXT             16 // text strings
+#define DNS_TYPE_AAAA            28 // v6 addresses
 
-closure allocate_resolver(heap, v4service);
 
-// well, by avoiding passing a struct around now we have
-// a utlity function that eats a closure instead...whee
-
-static inline void inverse_resolve(closure r, v4addr a, closure name_handler)
+static inline void inverse_resolve(closure(r, buffer), station a, closure name_handler)
 {
     unsigned char *b = (void *)a;
     string x = aprintf(transient, "%d.%d.%d.%d.in-addr.arpa",

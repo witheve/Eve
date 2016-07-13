@@ -22,18 +22,16 @@ void http_request(table headers, string uri, buffer body, buffer_handler respose
 }
 
 
-static CONTINUATION_1_1(connected, client, register_read r);
-static void connected(client c, register_read r)
+static CONTINUATION_1_2(client_connected, client, buffer_handler, register_read);
+static void client_connected(client c, buffer_handler h, register_read r)
 {
-    apply(r, response_header_parser(c->h, cont(c->h, response_body)));
+    apply(r, response_header_parser(c->h, cont(c->h, response_body, c)));
 }
 
 client open_http_client(heap h, bag s, uuid request, http_handler response)
 {
-    
+    station a;
     client c = allocate(h, sizeof(struct client));
-    tcp_create_client (h, s,
-                       cont(h, client_input, c),
-                       cont(h, connected));
+    tcp_create_client (h, a, cont(h, client_connected, c));
 }
 

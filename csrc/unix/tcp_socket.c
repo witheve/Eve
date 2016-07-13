@@ -12,13 +12,21 @@ static heap write_buffers = 0;
 typedef struct tcpsock {
     heap h;
     descriptor d;
-    buffer_handler each;
-    thunk connect;
+    reader each;
+    connected c;
     write_buffer q;
     write_buffer *last;
-    table addr;
+    station addr;
     thunk writer;
+    register_read r;
 } *tcpsock;
+
+typedef struct tcp_server {
+    heap h;
+    thunk connected;
+    descriptor d;
+    station addr;
+} *tcp_server;
 
 
 struct write_buffer {
@@ -119,12 +127,10 @@ static void connect_finish(tcpsock t)
 
     if (getpeername(t->d, (struct sockaddr *)&foo, &size) == -1) {
         // error 
-        apply(t->connect, false);
+        apply(t->c, false, false);
         close(t->d);
     } else {
-        // this 0 is the handler
-        register_read_handler(t->d, cont(t->h, read_nonblocking_desc, t->h, t->d, 0));
-        apply(t->connect, t);
+        apply(t->c, cont(t->h, tcp_write, t), t->r);
     }
 }
 
@@ -154,8 +160,8 @@ static void regtcp(tcpsock t, reader r)
 }
 
     
-static CONTINUATION_2_0(new_connection, tcpsock, new_client);
-static void new_connection(tcpsock t, new_client n)
+static CONTINUATION_2_0(new_connection, tcp_server, new_client);
+static void new_connection(tcp_server t, new_client n)
 {
     tcpsock new = allocate_tcpsock(t->h);
     struct sockaddr_in from;
@@ -198,8 +204,8 @@ static void new_connection(tcpsock t, new_client n)
 }
 
 
-static CONTINUATION_2_0(bind_try, tcpsock, new_client);
-static void bind_try(tcpsock t, new_client n)
+static CONTINUATION_2_0(bind_try, tcp_server, new_client);
+static void bind_try(tcp_server t, new_client n)
 {
     struct sockaddr_in a;
 
@@ -208,7 +214,7 @@ static void bind_try(tcpsock t, new_client n)
     if (bind(t->d, (struct sockaddr *)&a, sizeof(struct sockaddr_in)) == 0) {
         listen(t->d, 5);
 
-        apply(t->connect, true);
+        apply(t->connected);
         register_read_handler(t->d, cont(t->h, new_connection, t, n));
     } else {
         register_timer(seconds(5),
@@ -217,15 +223,11 @@ static void bind_try(tcpsock t, new_client n)
 }
 
 
-void tcp_create_client (heap h,
-                        table addr,
-                        buffer_handler each,
-                        thunk connected)
+void tcp_create_client (heap h, station a, connected c)
 {
     tcpsock new = allocate_tcpsock(h);
-    new->addr = addr;
-    new->each = each;
-    new->connect = connected;
+    new->addr = a;
+    new->c = c;
     connect_try(new);
     /*fix this someday*/
     /*  register_timer(CONNECT_RETRY_INTERVAL,connect_try,new);*/
@@ -238,36 +240,36 @@ void tcp_create_server(heap h,
                        new_client n,
                        thunk bound)
 {
-    tcpsock new = allocate_tcpsock(h);
+    tcp_server t = allocate(h, sizeof(struct tcp_server));
     
-    new->h = h;
-    new->connect = bound;
-    new->d = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    new->addr = addr;
+    t->h = h;
+    t->connected = bound;
+    t->d = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    t->addr = addr;
 
-    int flags = fcntl(new->d, F_GETFD);
+    int flags = fcntl(t->d, F_GETFD);
     flags |= FD_CLOEXEC;
-    fcntl(new->d, F_SETFD, flags);
+    fcntl(t->d, F_SETFD, flags);
     
     
 #ifdef SO_REUSEPORT
     {
         int on=1;
-        setsockopt(new->d, SOL_SOCKET, SO_REUSEPORT, 
+        setsockopt(t->d, SOL_SOCKET, SO_REUSEPORT, 
                    (char *)&on, sizeof(on));
     }
 #endif
 #ifdef SO_REUSEADDR
     {
         int on=1;
-        setsockopt(new->d, SOL_SOCKET, SO_REUSEADDR, 
+        setsockopt(t->d, SOL_SOCKET, SO_REUSEADDR, 
                    (char *)&on, sizeof(on));
     }
 #endif
 
     unsigned char on = 1;        
-    ioctl(new->d, FIONBIO, &on);
-    bind_try(new, n);
+    ioctl(t->d, FIONBIO, &on);
+    bind_try(t, n);
 }
 
 

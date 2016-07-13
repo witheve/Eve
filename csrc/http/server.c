@@ -14,7 +14,6 @@ typedef struct session {
     heap h;
     http_server parent;
     buffer_handler write;
-    buffer_handler child;
 } *session; 
 
 thunk ignore;
@@ -36,22 +35,16 @@ void send_http_response(heap h,
 }
 
 
-static void dispatch_request(session s, bag b, uuid i, buffer body);
 
-static CONTINUATION_1_4(consume_body, session, bag, uuid, buffer, register_read);
-static void consume_body(session s, bag b, uuid n, buffer rest, register_read reg)
-{
-    apply(reg, request_header_parser(s->h, cont(s->h, consume_body, s)));
-}
-
-static void dispatch_request(session s, bag b, uuid i, buffer body)
+static CONTINUATION_1_4(dispatch_request, session, bag, uuid, buffer, register_read);
+static void dispatch_request(session s, bag b, uuid i, buffer body, register_read reg)
 {
     buffer *c;
     estring url = lookupv(b, i, sym(url));
     
     if ((c = table_find(s->parent->services, url))) {
         // stash the method and the url in the headers - actually turn this into a bag
-        apply((http_service)c, s->write, s->headers, &s->child);
+        apply((http_service)c, s->write, b, i, reg);
     } else {
         if ((c = table_find(s->parent->content, url))) {
             buffer k;
@@ -73,13 +66,11 @@ void new_connection(http_server s,
 {
     heap h = allocate_rolling(pages, sstring("connection"));
     session hs = allocate(h, sizeof(struct session));
-    apply(read, cont(h, session_buffer, hs));
-    hs->child = 0;
     hs->write = write;
     hs->parent = s;
     hs->h = h;
     // this needs to be a parse header wired up to a body handler
-    apply(reg);
+    apply(reg, request_header_parser(h, cont(h, dispatch_request, hs)));
 }
 
 static CONTINUATION_0_0(ignoro);

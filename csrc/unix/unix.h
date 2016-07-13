@@ -50,7 +50,10 @@ heap init_fixed_page_region(heap meta,
                             bytes pagesize);
 ticks now();
 
-typedef closure(new_client, buffer_handler, register_read, station);
+typedef closure(new_client, buffer_handler, station, register_read);
+typedef closure(connected, buffer_handler, register_read);
+
+void tcp_create_client (heap, station, connected); 
 
 void tcp_create_server(heap h,
                        table addr,
@@ -62,3 +65,8 @@ void select_init();
 void init_processes();
 
 void clocktime(ticks t, unsigned int *hours, unsigned int *minutes, unsigned int *seconds);
+
+typedef struct udp *udp;
+udp create_udp(heap h,
+               station local,
+               closure(handler, buffer));
