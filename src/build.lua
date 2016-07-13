@@ -384,8 +384,10 @@ function translate_choose(n, bound, down, tracing, context)
    local id = util.generateId()
    context.downEdges[#context.downEdges + 1] = {n.id, id}
 
+   arms[1] = c
+   
    local bot = build_node("choosetail",
-                          {c},
+                          {},
                           {{read_lookup(env, flag)}},
                           id)
 
