@@ -19,7 +19,7 @@ var activeElements = {"root": document.createElement("div")};
 activeElements["root"].className = "program";
 var activeStyles = {};
 var supportedTags = {
-  "div": true, "span": true, "input": true, "ul": true, "li": true, "button": true, "header": true, "footer": true, "a": true, "strong": true,
+  "div": true, "span": true, "input": true, "ul": true, "li": true, "label": true, "button": true, "header": true, "footer": true, "a": true, "strong": true,
   "svg": true, "circle": true, "line": true
 };
 var svgs = {"svg": true, "circle": true, "line": true};
