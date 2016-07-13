@@ -196,28 +196,23 @@ void new_json_session(bag root, boolean tracing, buffer graph,
     j->h = h;
     j->root = root;
     j->tracing = tracing;
-    
     j->session = create_bag(h, su);
     j->current_delta = create_value_vector_table(allocate_rolling(pages, sstring("trash")));
     j->event_uuid = generate_uuid();
     j->graph = graph;
-
     j->persisted = create_value_table(h);
     uuid ru = edb_uuid(root);
     table_set(j->persisted, ru, j->root);
     table_set(j->persisted, su, j->session);
-    
     j->scopes = create_value_table(j->h);
     table_set(j->scopes, intern_cstring("session"), su);
     table_set(j->scopes, intern_cstring("all"), ru);
     table_set(j->scopes, intern_cstring("event"), j->event_uuid);
     j->eh = allocate_rolling(pages, sstring("eval"));
     j->s = build_evaluation(j->scopes, j->persisted, cont(j->h, send_response, j));
-    
-    websocket_send_upgrade(j->eh, b, u, write,
-                           parse_json(j->eh, j->session, cont(h, handle_json_query, j)), 
-                           reg);
-    buffer desc;
+    j->write = websocket_send_upgrade(j->eh, b, u, write,
+                                      parse_json(j->eh, j->session, cont(h, handle_json_query, j)), 
+                                      reg);
     inject_event(j->s, aprintf(j->h,"init!\n   maintain\n      [#session-connect]\n"), j->tracing);
 }
 

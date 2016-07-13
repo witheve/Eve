@@ -140,8 +140,7 @@ static void connect_try (tcpsock t)
     struct sockaddr_in a;
 
     t->d = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-
-    //system_nonblocking(t->d);
+    nonblocking(t->d);
     register_write_handler(t->d, cont(t->h, connect_finish, t));
     // error status
     // fill a from t->addr
@@ -193,8 +192,8 @@ static void new_connection(tcp_server t, new_client n)
         
         apply(n,
               cont(new->h, tcp_write, new),
-              cont(new->h, regtcp, new),
-              peer);
+              peer,
+              cont(new->h, regtcp, new));
     } else {
         close(t->d);
     }
@@ -210,7 +209,6 @@ static void bind_try(tcp_server t, new_client n)
     struct sockaddr_in a;
 
     encode_sockaddrin(&a, t->addr);
-    // fill
     if (bind(t->d, (struct sockaddr *)&a, sizeof(struct sockaddr_in)) == 0) {
         listen(t->d, 5);
 
@@ -267,8 +265,7 @@ void tcp_create_server(heap h,
     }
 #endif
 
-    unsigned char on = 1;        
-    ioctl(t->d, FIONBIO, &on);
+    nonblocking(t->d);
     bind_try(t, n);
 }
 

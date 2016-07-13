@@ -145,7 +145,7 @@ buffer_handler websocket_send_upgrade(heap h,
     estring ekey;
     string key;
 
-    if (!(ekey=lookupv(b, n, sym("Sec-WebSocket-Key")))) {
+    if (!(ekey=lookupv(b, n, sym(Sec-WebSocket-Key)))) {
         // something tasier
         return 0;
     } 

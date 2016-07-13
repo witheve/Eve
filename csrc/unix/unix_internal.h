@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <sys/ioctl.h>
 
 void ticks_to_timeval(struct timeval *a, ticks b);
 ticks timeval_to_ticks(struct timeval *a);
@@ -82,3 +83,8 @@ static int encode_sockaddrin(struct sockaddr_in *out, station in)
 }
 
 
+static inline void nonblocking(decsriptor d)
+{
+    unsigned char on = 1;        
+    ioctl(d, FIONBIO, &on);
+}

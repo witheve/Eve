@@ -1,10 +1,8 @@
 #include <unix/unix_internal.h>
 #include <sys/ioctl.h>
+#include <netinet/in.h>
 
-/* unix semantics for sockets after bind will cause multicast packets
-   sent on the input sockets to have the multicast address as the
-   source.....should be able to share output sockets, modulo the ttl
-   issue*/
+/*TODO: put back in multicast support */
 
 typedef struct udp {
     buffer_handler read;
@@ -13,11 +11,14 @@ typedef struct udp {
     heap h;
     int mtu;
     udp_receiver r;
-
 } *udp;
 
 void udp_write(udp u, station a, buffer b) 
 {
+    struct sockaddr_in to;
+    socklen_t k = sizeof(struct sockaddr_in);
+    encode_sockaddrin(&to, a);
+    sendto(u->send, bref(b, 0), buffer_length(b), 0, (struct sockaddr *)&to, k);
 }
 
 static CONTINUATION_1_0(input, udp);
@@ -40,28 +41,6 @@ static void input(udp u)
     register_read_handler(u->receive, cont(u->h, input, u));
 }
 
-#if 0
-void udp_subscribe (udp u, v4addr group)
-{
-    struct ip_mreq mreq;
-
-    unsigned int loop=1;
-
-
-    memset(&mreq,0,sizeof(mreq));
-    mreq.imr_multiaddr = *((struct in_addr *)&group->address);
-    if ((system_setsockopt(u->fd, IPPROTO_IP,IP_ADD_MEMBERSHIP, 
-                           (const char *)&mreq,sizeof(mreq))<0)){
-        perror("ip subscribe");
-    }
-
-    if (system_setsockopt(u->ofd, IPPROTO_IP,IP_MULTICAST_LOOP,
-                          &loop,sizeof(loop))<0){
-        perror("ip loopback"); 
-    } 
-}
-#endif
-// add list of subscriptions
 udp create_udp(heap h,
                station local,
                udp_receiver r)
@@ -76,15 +55,13 @@ udp create_udp(heap h,
     u->h = h;
     
     u->receive = u->send = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-#if 0
-    memset(&mreq,0,sizeof(mreq));
-    mreq.imr_multiaddr = *((struct in_addr *)&local->address);
-#endif
-    ioctl(u->receive, FIONBIO, &on);
-    
+    nonblocking(u->receive);
+
+#ifdef SO_REUSEADDR    
     if (setsockopt(u->receive, SOL_SOCKET, SO_REUSEADDR,
                    (char *)&on,sizeof(on)) < 0)
         prf("SO_REUSEADDR");
+#endif
     
 #ifdef SO_REUSEPORT
     if (setsockopt(u->receive, SOL_SOCKET, SO_REUSEPORT,

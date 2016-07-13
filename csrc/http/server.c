@@ -40,21 +40,35 @@ static CONTINUATION_1_4(dispatch_request, session, bag, uuid, buffer, register_r
 static void dispatch_request(session s, bag b, uuid i, buffer body, register_read reg)
 {
     buffer *c;
-    estring url = lookupv(b, i, sym(url));
     
+    if (b  == 0){
+        prf ("http server connection fail\n");
+        // xxx - shut it all down
+        return;
+    }
+
+    estring url = lookupv(b, i, sym(url));
+    prf("dispatch: %v\n", url);
     if ((c = table_find(s->parent->services, url))) {
+        prf("servicon its all yours now babe\n");
         // stash the method and the url in the headers - actually turn this into a bag
         apply((http_service)c, s->write, b, i, reg);
+        return;
     } else {
         if ((c = table_find(s->parent->content, url))) {
             buffer k;
             if (c[2] && !(k = read_file(s->h, (char *)c[2]))) k = c[1];
             // reset connection state
+            prf("send response %s %d\n", c[0], buffer_length(k));
             send_http_response(s->h, s->write, c[0], k);
         } else {
+            prf("not found\n");
             apply(s->write, sstring("HTTP/1.1 404 Not found\r\n"), ignore);
         }
     }
+    // reuse conts
+    prf("leftover obber %d\n", buffer_length(body));
+    apply(request_header_parser(s->h, cont(s->h, dispatch_request, s)), body, reg);
 }
 
 
@@ -79,6 +93,8 @@ static void ignoro(){}
     
 void register_static_content(http_server h, char *url, char *content_type, buffer b, char *backing)
 {
+    prf("register: %s %s\n", url, content_type);
+
     buffer *x = allocate(h->h, 3*sizeof(buffer));
     x[0] = string_from_cstring(h->h,content_type);
     x[1] = b;
@@ -97,7 +113,7 @@ http_server create_http_server(station p)
     if (!ignore) ignore = cont(init, ignoro);
     heap h = allocate_rolling(pages, sstring("server"));
     http_server s = allocate(h, sizeof(struct http_server));
-    s->content = allocate_table(h, string_hash, string_equal);
+    s->content = create_value_table(h);
     s->services = create_value_table(h);
     s->h = allocate_rolling(pages, sstring("server"));
     tcp_create_server(h,
