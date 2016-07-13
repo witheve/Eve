@@ -53,7 +53,9 @@ function getSignature(bindings, bound)
 end
 local Schema = {}
 function Schema.__tostring(schema)
-  return "Schema<" .. (schema.name or "UNNAMED") .. ", (" .. fmtSignature(schema.args, schema.signature) .. ")>"
+  local signature = fmtSignature(schema.args, schema.signature)
+  local rest = schema.rest and (", ...: " .. sigSymbols[schema.rest]) or ""
+  return string.format("Schema<%s, (%s%s)>", schema.name or "UNNAMED", signature, rest)
 end
 
 local function schema(args, name, kind)
@@ -63,9 +65,12 @@ local function schema(args, name, kind)
     schema.name = args.name
   end
   local mode = OUT
-  for _, arg in ipairs(args) do
+  for ix, arg in ipairs(args) do
     if arg == OUT or arg == IN or arg == STRONG_IN or arg == OPT then
       mode = arg
+      if ix == #args then -- a mode token in the final slot signifies a variadic expression that takes any number of vars matching the given mode
+        schema.rest = arg
+      end
     else
       schema.args[#schema.args + 1] = arg
       schema.signature[arg] = mode
@@ -81,12 +86,13 @@ local function rename(name, schema)
 end
 local schemas = {
   unary = schema{"return", IN, "a"},
+  unaryBound = schema{IN, "return", "a"},
   unaryFilter = schema{IN, "a"},
   binary = schema{"return", IN, "a", "b"},
+  binaryBound = schema{IN, "return", "a", "b"},
   binaryFilter = schema{IN, "a", "b"},
   moveIn = schema{"a", IN, "b"},
   moveOut = schema{"b", IN, "a"}
-
 }
 
 local expressions = {
@@ -95,34 +101,46 @@ local expressions = {
   ["*"] = {rename("multiply", schemas.binary)},
   ["/"] = {rename("divide", schemas.binary)},
 
-  ["<"] = {rename("less_than", schemas.binary), rename("is_less_than", schemas.binaryFilter)},
-  ["<="] = {rename("less_than_or_equal", schemas.binary), rename("is_less_than_or_equal", schemas.binaryFilter)},
-  [">"] = {rename("greater_than", schemas.binary), rename("is_greater_than", schemas.binaryFilter)},
-  [">="] = {rename("greater_than_or_equal", schemas.binary), rename("is_greater_than_or_equal", schemas.binaryFilter)},
-  ["="] = {rename("equal", schemas.binary), rename("is_equal", schemas.binaryFilter), rename("move", schemas.moveIn), rename("move", schemas.moveOut)},
-  ["!="] = {rename("not_equal", schemas.binary), rename("is_not_equal", schemas.binaryFilter)},
+  ["<"] = {rename("less_than", schemas.binaryFilter), rename("is_less_than", schemas.binary)},
+  ["<="] = {rename("less_than_or_equal", schemas.binaryFilter), rename("is_less_than_or_equal", schemas.binary)},
+  [">"] = {rename("greater_than", schemas.binaryFilter), rename("is_greater_than", schemas.binary)},
+  [">="] = {rename("greater_than_or_equal", schemas.binaryFilter), rename("is_greater_than_or_equal", schemas.binary)},
+  ["="] = {rename("equal", schemas.binaryFilter), rename("is_equal", schemas.binary), rename("move", schemas.moveIn), rename("move", schemas.moveOut)},
+  ["!="] = {rename("not_equal", schemas.binaryFilter), rename("is_not_equal", schemas.binary)},
 
+  concat = {schema({"return", IN}, "concat")},
+  length = {rename("length", schemas.unary)},
   is = {rename("is", schemas.unary)},
+
+  abs = {rename("abs", schemas.unary)},
   sin = {rename("sin", schemas.unary)},
   cos = {rename("cos", schemas.unary)},
   tan = {rename("tan", schemas.unary)},
-  length = {rename("length", schemas.unary)},
+
+  toggle = {rename("toggle", schemas.unary)},
+
   time = {schema({"return", OPT, "seconds", "minutes", "hours"}, "time")},
 
   -- Aggregates
-  count = {schema({"return"}, "count", "aggregate"), schema({IN, "return"}, "count", "aggregate")},
+  count = {schema({"return"}, "sum", "aggregate"), schema({IN, "return"}, "sum", "aggregate")},
   sum = {schema({"return", STRONG_IN, "a"}, "sum", "aggregate"), schema({IN, "return", STRONG_IN, "a"}, "sum", "aggregate")}
 }
 
+function getExpressions()
+  local exprs = Set:new()
+  for expr in pairs(expressions) do
+    exprs:add(expr)
+  end
+  return exprs
+end
+
 function getSchemas(name)
-  if not expressions[name] then error("Unknown expression '" .. name .. "'") end
   return expressions[name]
 end
 
 function getSchema(name, signature)
   if not expressions[name] then error("Unknown expression '" .. name .. "'") end
   if not signature then error("Must specify signature to disambiguate expression alternatives") end
-
   local result
   for _, schema in ipairs(expressions[name]) do
     local match = true
@@ -134,8 +152,11 @@ function getSchema(name, signature)
     end
     for arg, mode in pairs(signature) do
       required:remove(arg)
-      local schemaMode = schema.signature[arg]
-      if schemaMode ~= mode and schemaMode ~= OPT and (schemaMode ~= IN and mode ~= STRONG_IN) and (schemaMode ~= STRONG_IN and mode ~= IN) then
+      local schemaMode = schema.signature[arg] or schema.rest
+      if schemaMode == STRONG_IN then
+        schemaMode = IN
+      end
+      if schemaMode ~= mode and schemaMode ~= OPT then
         match = false
         break
       end
@@ -145,7 +166,6 @@ function getSchema(name, signature)
       break
     end
   end
-
   if not result then
     local available = {}
     for _, schema in ipairs(expressions[name]) do
@@ -159,8 +179,10 @@ end
 
 function getArgs(schema, bindings)
   local map = {}
+  local positions = {}
   for _, binding in ipairs(bindings) do
     map[binding.field] = binding.variable or binding.constant
+    positions[#positions + 1] = binding.field
   end
 
   local args = {}
@@ -169,6 +191,15 @@ function getArgs(schema, bindings)
     if map[arg] then
       args[#args + 1] = map[arg]
       fields[#fields + 1] = arg
+    end
+  end
+  if schema.rest then
+    fields[#fields + 1] = "..."
+    args["..."] = {}
+    for _, field in ipairs(positions) do
+      if not schema.signature[field] then
+        args["..."][#args["..."] + 1] = map[field]
+      end
     end
   end
 

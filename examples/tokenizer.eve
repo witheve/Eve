@@ -3,12 +3,12 @@ it into characters and then aggregates those into tokens of various types. Befor
 that, we'll first create some #char-type and #keyword objects to match against
 
   type = "whitespace"
-  update
+  maintain
     [#char-type type char: " "] [#char-type type char: "\n"] [#char-type type char: "\t"]
 
 numeric character types
   type = "numeric"
-  update
+  maintain
     [#char-type type char: "0"] [#char-type type char: "1"] [#char-type type char: "2"]
     [#char-type type char: "3"] [#char-type type char: "4"] [#char-type type char: "5"]
     [#char-type type char: "6"] [#char-type type char: "7"] [#char-type type char: "8"]
@@ -16,14 +16,14 @@ numeric character types
 
 special character types
   type = "special"
-  update
+  maintain
     [#char-type type char: "@"] [#char-type type char: "("] [#char-type type char: ":"]
     [#char-type type char: "#"] [#char-type type char: ")"] [#char-type type char: "⦑"]
     [#char-type type char: "."] [#char-type type char: "["] [#char-type type char: "⦒"]
     [#char-type type char: ","] [#char-type type char: "]"] [#char-type type char: "\""]
 
 keywords
-  update
+  maintain
     [#keyword string: "update"] [#keyword string: "if"] [#keyword string: "then"]
     [#keyword string: "else"] [#keyword string: "end"] [#keyword string: "or"]
     [#keyword string: "not"] [#keyword string: "none"] [#keyword string: "given"]
@@ -42,7 +42,7 @@ we're dealing with by matching with the #char-type objects we added
   [#split text: code, by: "", token, index]
   type = if [#char-type type char: token] then type
          else "identifier"
-  update
+  maintain
     block.char += [#char char: token, index, type, block]
 
 To start making tokens, we'll look at characters that immediately follow
@@ -52,7 +52,7 @@ then this is a new token
   prev = [#char block, type: "whitespace", not(mode)]
   char = [#char block index: prev.index + 1, type]
   type != "whitespace"
-  update
+  maintain
     token = [#token block char, start: char.index]
     char := [token]
 
@@ -62,7 +62,7 @@ also creates a new token
   prev = [#char block not(mode) token]
   char = [#char block, index: prev.index + 1, type != prev.type]
   char.type != "whitespace"
-  update
+  maintain
     token = [#token block char, start: char.index]
     char := [token]
 
@@ -76,7 +76,7 @@ can have numbers in them.
   prev = if prev.type = type then prev
          else if prev.type = "identifier"
                  type = "numeric" then prev
-  update
+  maintain
     token += [char]
     char := [token]
 
@@ -86,7 +86,7 @@ we get to the end delimiter
 
   [#char char: "⦑" block, index, not(mode)]
   next = [#char block index: index + 1]
-  update
+  maintain
     token = [#token block char: next, start: next.index, type: "uuid"]
     next := [token mode: "uuid"]
 
@@ -95,7 +95,7 @@ the closing ⦒. If we are, we just don't set the mode.
 
   prev = [#char block, index, mode: "uuid" token]
   next = [#char block, index: index + 1, char != "⦒"]
-  update
+  maintain
     token.char += next
     next := [token mode: "uuid"]
 
@@ -106,7 +106,7 @@ next char is part of the token.
 
   [#char char: "\"" block, index, not(mode)]
   next = [#char block index: index + 1]
-  update
+  maintain
     token = [#token block char: next, start: next.index, type: "string"]
     next := [token mode: "string"]
 
@@ -117,7 +117,7 @@ the current character is not a quote or the previous character is a \
   next = [#char block, index: index + 1]
   next = if next.char != "\"" then next
          else if prev.char = "\\" then next
-  update
+  maintain
     token.char += next
     next := [token mode: "string"]
 
@@ -128,7 +128,7 @@ or we're at index 0 and it's not whitespace.
   next = if [#char char: "\n" block, index, not(mode)]
             char = [#char block index: index + 1, type != "whitespace"] then char
          else if char = [#char block, index: 0, not(mode), type != "whitespace"] then char
-  update
+  maintain
     token = [#token block char: next, start: next.index, type: "doc"]
     next := [token mode: "doc"]
 
@@ -136,7 +136,7 @@ We consume doc mode characters until we hit a new line
 
   prev = [#char block, index, mode: "doc" token]
   next = [#char block, index: index + 1, char != "\n"]
-  update
+  maintain
     token.char += next
     next := [token mode: "doc"]
 
@@ -146,7 +146,7 @@ is just the type of the first character.
 
   token = [#token block char start not(type)]
   [#char block token, index: start, type]
-  update
+  maintain
     token.type := type
     token.value := concat(char.char, char.index given char)
     token.length := count(given char)
@@ -156,7 +156,7 @@ the keyword with them if they are.
 
   token = [#token value]
   keyword = [#keyword string: value]
-  update
+  maintain
     token.keyword := keyword
     token.type := "keyword"
 
@@ -165,6 +165,6 @@ parse them in order
   
   token = [#token block start]
   index = index(given start increasing per block)
-  update
+  maintain
     token.index := index
 

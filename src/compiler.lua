@@ -17,6 +17,7 @@ local parser = require("parser")
 local color = require("color")
 local db = require("db")
 local build = require("build")
+local errors = require("error")
 setfenv(1, Pkg)
 
 local ENTITY_FIELD = parser.ENTITY_FIELD
@@ -73,10 +74,38 @@ function formatQueryNode(node, indent)
     return result .. "}"
   elseif node.type == "expression" then
     result = result .. " " .. node.operator .. "("
+    local multi = false
     for _, binding in std.ipairs(node.bindings) do
-      result = result .. binding.field .. " = " .. formatQueryNode(binding.variable or binding.constant) .. ", "
+      if multi then
+        result = result .. ", "
+      end
+      result = result .. binding.field .. " = " .. formatQueryNode(binding.variable or binding.constant)
+      multi = true
     end
-    result = string.sub(result, 1, -3) .. ")"
+    if node.projection then
+      result = result .. " given "
+      local multi = false
+      for var in pairs(node.projection) do
+        if multi then
+          result = result .. ", "
+        end
+        result = result .. formatQueryNode(var)
+        multi = true
+      end
+    end
+    if node.groupings then
+      result = result .. " per "
+      local multi = false
+      for var in pairs(node.groupings) do
+        if multi then
+          result = result .. ", "
+        end
+        result = result .. formatQueryNode(var)
+        multi = true
+      end
+    end
+
+    result = result .. ")"
   end
   return result
 end
@@ -84,12 +113,33 @@ end
 local DefaultNodeMeta = {}
 DefaultNodeMeta.__tostring = formatQueryNode
 
-local function applyDefaultMeta(_, node)
-  if type(node) == "table" and node.type and getmetatable(node) == nil then
-    setmetatable(node, DefaultNodeMeta)
+function flattenProjection(projection)
+  local neue = Set:new()
+  for ix, layerOrVar in ipairs(projection) do
+    if layerOrVar.type == "variable" then
+      neue:add(layerOrVar)
+    elseif layerOrVar.type == "projection" then
+      neue:add(layerOrVar.variable)
+    elseif getmetatable(layerOrVar) == Set then
+      neue:union(layerOrVar, true)
+    else
+      error("I am sad because I do not know what this is: " .. tostring(layerOrVar))
+    end
   end
+  return neue
 end
 
+local function prepareQueryGraph(_, node)
+  if type(node) == "table" and node.type and getmetatable(node) == nil then
+    setmetatable(node, DefaultNodeMeta)
+    if node.projection then
+      node.projection = flattenProjection(node.projection)
+    end
+    if node.groupings then
+      node.groupings = flattenProjection(node.groupings)
+    end
+  end
+end
 
 -- The unifier fixes a few edge-cases by pre-collapsing a subset of variables that can be statically proven to be equivalent
 function unify(query, mapping, projection)
@@ -251,15 +301,7 @@ function unify(query, mapping, projection)
   function remapNodes(nodes)
     for _, node in ipairs(nodes) do
       if node.projection then
-        local nodeProj = Set:new()
-        for ix, layerOrVar in ipairs(node.projection) do
-          if layerOrVar.type == "variable" then
-            nodeProj:add(layerOrVar)
-          else
-            nodeProj:union(layerOrVar, true)
-          end
-        end
-
+        local nodeProj = node.projection or Set:new()
         local mappedProj = Set:new()
         node.projection = mappedProj
         for var in pairs(nodeProj) do
@@ -278,6 +320,44 @@ function unify(query, mapping, projection)
   remapNodes(query.mutates)
 
   return query
+end
+
+function idSort(unsorted)
+  local nodes = {}
+  for node in pairs(unsorted) do
+    nodes[#nodes + 1] = node
+  end
+
+  table.sort(nodes, function(a, b)
+               return a.id < b.id
+  end)
+  return nodes
+end
+
+-- Pre-sort the unsorted list in rough order of cost
+-- this makes ordering more deterministic and potentially improves performance
+function presort(nodes, typeCost)
+  local idSorted = idSort(nodes)
+  local presorted = {}
+
+  typeCost = typeCost or {mutate = 0, expression = 100, ["not"] = 200, choose = 300, union = 400, object = 500}
+  while #idSorted > 0 do
+    local cheapest
+    local cheapestCost = 2^52
+    local cheapestIx
+    for ix, node in ipairs(idSorted) do
+      local cost = (typeCost[node.type] or 600) + node.deps.provides:length() * 10 - node.deps.depends:length()
+      if cost < cheapestCost then
+        cheapest = node
+        cheapestCost = cost
+        cheapestIx = ix
+      end
+    end
+    presorted[#presorted + 1] = cheapest
+    table.remove(idSorted, cheapestIx)
+  end
+
+  return presorted
 end
 
 -- Dependency Graph
@@ -333,8 +413,13 @@ function DependencyGraph:cardinal(term)
   if self.cardinalTerms[term] then
     return self.cardinalTerms[term]
   end
-  self.cardinalTerms[term] = util.shallowCopy(term)
-  self.cardinalTerms[term].name = "$$|" .. term.name .. "|"
+  local neue = util.shallowCopy(term)
+  self.cardinalTerms[term] = neue
+  neue.name = "|" .. term.name .. "|"
+  neue.id = util.generateId()
+  neue.cardinal = term
+  neue.generated = true
+
   return self.cardinalTerms[term]
 end
 
@@ -345,7 +430,6 @@ function DependencyGraph:group(termOrNode) -- Retrieve the group (if any) associ
     end
   end
 end
-
 
 function DependencyGraph:addObjectNode(node)
   local deps = {provides = Set:new()}
@@ -377,6 +461,9 @@ function DependencyGraph:addMutateNode(node)
       end
 
     end
+  end
+  for term in pairs(node.projection or nothing) do
+    deps.depends:add(self:cardinal(term))
   end
   return self:add(node)
 end
@@ -414,7 +501,22 @@ function DependencyGraph:addExpressionNode(node)
     end
   else
     local schemas = db.getSchemas(node.operator)
+    if not schemas then
+      self.ignore = true
+      errors.unknownExpression(self.context, node, db.getExpressions())
+      return
+    end
+
+    local rest
+    for _, schema in ipairs(schemas) do
+      rest = schema.rest
+    end
     local pattern = util.shallowCopy(schemas[1].signature)
+    for field in pairs(args) do
+      if not pattern[field] then
+        pattern[field] = rest
+      end
+    end
     for _, schema in ipairs(schemas) do
       for field in pairs(schema.signature) do
         if pattern[field] ~= schema.signature[field] then
@@ -438,12 +540,22 @@ function DependencyGraph:addExpressionNode(node)
         end
       end
     end
-  end
 
+    if node.projection then
+      for term in pairs(node.projection) do
+        deps.depends:add(self:cardinal(term))
+      end
+    end
+    if node.groupings then
+      for term in pairs(node.groupings) do
+        deps.depends:add(self:cardinal(term))
+      end
+    end
+  end
   return self:add(node)
 end
 
-function DependencyGraph:addSubqueryNode(node)
+function DependencyGraph:addSubqueryNode(node, context)
   local deps = {
     maybeProvides = Set:new(),
     maybeDepends = Set:new(),
@@ -460,21 +572,22 @@ function DependencyGraph:addSubqueryNode(node)
   end
 
   for _, body in ipairs(node.queries) do
-    local subgraph = DependencyGraph:fromQueryGraph(body, true)
+    local subgraph = DependencyGraph:fromQueryGraph(body, context, true)
     deps.maybeDepends:union(subgraph:depends() + subgraph:provides(), true)
   end
   return self:add(node)
 end
 
-function DependencyGraph:fromQueryGraph(query, isSubquery)
+function DependencyGraph:fromQueryGraph(query, context, isSubquery)
   local uniqueCounter = 0
   local dgraph = self
   if getmetatable(dgraph) ~= DependencyGraph then
     dgraph = self:new()
   end
   dgraph.query = query;
+  dgraph.context = context
   if not isSubquery then
-    util.walk(query, applyDefaultMeta)
+    util.walk(query, prepareQueryGraph)
     unify(query)
   end
   query.deps = {graph = dgraph}
@@ -491,17 +604,17 @@ function DependencyGraph:fromQueryGraph(query, isSubquery)
   end
   for _, node in ipairs(query.nots or nothing) do
     if not node.ignore then
-      dgraph:addSubqueryNode(node)
+      dgraph:addSubqueryNode(node, context)
     end
   end
   for _, node in ipairs(query.unions or nothing) do
     if not node.ignore then
-      dgraph:addSubqueryNode(node)
+      dgraph:addSubqueryNode(node, context)
     end
   end
   for _, node in ipairs(query.chooses or nothing) do
     if not node.ignore then
-      dgraph:addSubqueryNode(node)
+      dgraph:addSubqueryNode(node, context)
     end
   end
   for _, node in ipairs(query.mutates or nothing) do
@@ -512,6 +625,16 @@ function DependencyGraph:fromQueryGraph(query, isSubquery)
 
   return dgraph
 end
+
+function DependencyGraph:unsatisfied(node)
+  local depends = node.deps.depends / self.bound
+  local anyDepends = node.deps.anyDepends
+  if anyDepends:length() > 0 then
+    depends:add(anyDepends)
+  end
+  return depends
+end
+
 -- provides are the set of terms provided after this node has been scheduled
 -- maybeProvides are the set of terms that, IFF not provided in this query, will be provided by this node
 -- contributes are the set of terms will be provided when all nodes contributing to them and their group have been scheduled
@@ -532,8 +655,10 @@ function DependencyGraph:add(node)
 end
 
 function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for ordering
+  local presorted = presort(self.unprepared, {mutate = 1000, expression = 100, ["not"] = 200, choose = 300, union = 400, object = 500})
+
   -- Ensure that all nodes which provide a term contribute to that terms cardinality
-  for node in pairs(self.unprepared) do
+  for _, node in ipairs(presorted) do
     for term in pairs(node.deps.provides) do
       node.deps.contributes:add(self:cardinal(term))
     end
@@ -541,13 +666,13 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
 
   -- Add newly provided terms to the DG's terms
   local neueTerms = Set:new()
-  for node in pairs(self.unprepared) do
+  for _, node in ipairs(presorted) do
     neueTerms:union(node.deps.provides + node.deps.contributes, true)
   end
   self.terms:union(neueTerms, true)
 
   -- Link new maybe provides if no other nodes provide them
-  for node in pairs(self.unprepared) do
+  for _, node in ipairs(presorted) do
     for term in pairs(node.deps.maybeProvides) do
       if not self.terms[term] then
         node.deps.provides:add(term)
@@ -561,7 +686,7 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
   end
 
   -- Link new maybe dependencies to existing terms
-  for node in pairs(self.unprepared) do
+  for _, node in ipairs(presorted) do
     for term in pairs(node.deps.maybeDepends) do
       if self.terms[term] and not (node.deps.provides[term] or node.deps.contributes[term]) then
         node.deps.depends:add(term)
@@ -584,7 +709,7 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
   end
 
   -- Trim dependencies on terms the node expects to provide and unused maybes
-  for node in pairs(self.unprepared) do
+  for _, node in ipairs(presorted) do
     local deps = node.deps
     deps.depends:difference(deps.provides, true)
     deps.maybeDepends = Set:new()
@@ -592,7 +717,7 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
   end
 
   -- Recursively prepare any child graphs
-  for node in pairs(self.unprepared) do
+  for _, node in ipairs(presorted) do
     local deps = node.deps
     if node.deps.graph then
       node.deps.graph:prepare()
@@ -617,7 +742,7 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
   -- These are grouped into "cardinality islands", in which cardinality can be guaranteed to be stable
   -- once all terms in the group have been maximally joined/filtered
   -- @NOTE: groups are unique in that they depend on nodes rather than terms
-  for node in pairs(self.unprepared) do
+  for _, node in ipairs(presorted) do
     local terms = node.deps.contributes
     local groups = Set:new()
     local neueGroup = Set:new()
@@ -657,7 +782,7 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
 
   -- Register new nodes as a dependent on all the terms they require but cannot provide
   -- Move new nodes into unsorted
-  for node in pairs(self.unprepared) do
+  for _, node in ipairs(presorted) do
     node.deps.unsatisfied = 0
     self.unprepared:remove(node)
     self.unsorted:add(node)
@@ -719,18 +844,6 @@ function DependencyGraph:satisfy(term)
   end
 end
 
-function idSort(unsorted)
-  local nodes = {}
-  for node in pairs(unsorted) do
-    nodes[#nodes + 1] = node
-  end
-
-  table.sort(nodes, function(a, b)
-               return a.id < b.id
-  end)
-  return nodes
-end
-
 function DependencyGraph:order(allowPartial)
   -- The is naive ordering rules out a subset of valid subgraph embeddings that depend upon parent term production.
   -- The easy solution to fix this is to iteratively fix point the parent and child graphs until ordering is finished or
@@ -746,25 +859,7 @@ function DependencyGraph:order(allowPartial)
 
   -- Pre-sort the unsorted list in rough order of cost
   -- this makes ordering more deterministic and potentially improves performance
-  local unsorted = idSort(self.unsorted)
-  local presorted = {}
-  local typeCost = {mutate = 0, expression = 100, ["not"] = 200, choose = 300, union = 400, object = 500}
-  while #unsorted > 0 do
-    local cheapest
-    local cheapestCost = 2^52
-    local cheapestIx
-    for ix, node in ipairs(unsorted) do
-      local cost = (typeCost[node.type] or 600) + node.deps.provides:length() * 10 - node.deps.depends:length()
-      if cost < cheapestCost then
-        cheapest = node
-        cheapestCost = cost
-        cheapestIx = ix
-      end
-    end
-    presorted[#presorted + 1] = cheapest
-    table.remove(unsorted, cheapestIx)
-  end
-
+  local presorted = presort(self.unsorted)
   while self.unsorted:length() > 0 do
     local scheduled = false
     for ix, node in ipairs(presorted) do
@@ -781,6 +876,13 @@ function DependencyGraph:order(allowPartial)
           end
         elseif deps.graph then
           deps.graph:order()
+        end
+
+        -- Strip terms that have already been provided
+        for term in pairs(deps.provides) do
+          if self.bound[term] then
+            deps.provides:remove(term)
+          end
         end
 
         -- clean dependency hooks
@@ -810,19 +912,19 @@ function DependencyGraph:order(allowPartial)
         break
       end
     end
-    if not scheduled and not allowPartial then
-      print("-----ERROR----")
-      print(tostring(self))
-      if self.termGroups:length() > 0 then
-        print("-- term groups --")
-        for group in pairs(self.termGroups) do
-          local depends = self.groupDepends[group]
-          print("  " .. tostring(group) .. ": " .. (depends and depends:length() or 0) .. "\n")
+    if not scheduled then
+      if not allowPartial then
+        local requires = self:requires()
+        if requires:length() > 0 then
+          for term in pairs(requires) do
+            errors.unknownVariable(self.context, term, self.terms)
+          end
+        else
+          errors.unorderableGraph(self.context, self.query)
         end
+        self.ignore = true
       end
-      print("--------------")
-      error("Unable to find a valid dependency ordering for the given graph, aborting")
-    elseif not scheduled then
+
       break
     end
   end
@@ -916,6 +1018,7 @@ function ScanNode:fromBinding(source, binding, entity, context)
   obj.entity = entity
   obj.attribute = binding.field
   obj.value = binding.variable or binding.constant
+  context.downEdges[#context.downEdges + 1] = {obj.value.id, obj.id}
   return obj
 end
 
@@ -980,27 +1083,28 @@ function unpackObjects(dg, context)
       local unpackList = unpacked
       local subproject
       if node.type == "mutate" then
-        local projection = Set:new()
-        for term in pairs(node.deps.depends) do
-          local variable = term
-          for var, cardinal in pairs(dg.cardinalTerms) do
-            if term == cardinal then
-              variable = var
-              break
-            end
-          end
-          projection:add(variable)
-        end
-        node.projection = projection
+        -- local projection = Set:new()
+        -- for term in pairs(node.deps.depends) do
+        --   local variable = term
+        --   for var, cardinal in pairs(dg.cardinalTerms) do
+        --     if term == cardinal then
+        --       variable = var
+        --       break
+        --     end
+        --   end
+        --   projection:add(variable)
+        -- end
+        -- node.projection = projection
 
         -- @FIXME: current projection is poisoned in the case of parent-child relations
-        -- for _, binding in ipairs(node.bindings or nothing) do
-        --   if binding.field == ENTITY_FIELD and not node.deps.provides[binding.variable] then
-        --     projection:add(binding.variable)
-        --     break
-        --   end
-        -- end
-        -- projection:union(node.projection or nothing, true)
+        local projection = node.projection
+        for _, binding in ipairs(node.bindings or nothing) do
+          if binding.field == ENTITY_FIELD and not node.deps.provides[binding.variable] then
+            projection:add(binding.variable)
+            break
+          end
+        end
+        projection:union(node.projection or nothing, true)
 
         subproject = SubprojectNode:new({projection = projection, provides = node.deps.provides}, node, context)
         unpackList = subproject.nodes
@@ -1030,6 +1134,14 @@ function unpackObjects(dg, context)
           end
         end
       end
+    elseif node.type == "expression" and node.projection then
+      local subproject = SubprojectNode:new({kind = "aggregate", projection = node.projection, provides = node.deps.provides, nodes = {node}}, node, context)
+      if node.operator == "count" then
+        local constant = {type = "constant", generated = true, constant = 1, constantType = "number"}
+        node.bindings[#node.bindings + 1] = {type = "binding", generated = true, field = "a", constant = constant}
+        node.operator = "sum"
+      end
+      unpacked[#unpacked + 1] = subproject
     else
       if node.type == "union" or node.type == "choose" or node.type == "not" then
         for _, query in ipairs(node.queries) do
@@ -1046,21 +1158,27 @@ end
 
 function compileExec(contents, tracing)
   local parseGraph = parser.parseString(contents)
+  local context = parseGraph.context
   local set = {}
 
   for ix, queryGraph in ipairs(parseGraph.children) do
-    local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph)
-    local unpacked = unpackObjects(dependencyGraph, parseGraph.context)
-    set[#set+1] = queryGraph
+    local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph, context)
+    local unpacked = unpackObjects(dependencyGraph, context)
+    -- @NOTE: We cannot allow dead DGs to still try and run, they may be missing filtering hunks and fire all sorts of missiles
+    if not dependencyGraph.ignore then
+      set[#set+1] = queryGraph
+    end
   end
-  return build.build(set, tracing, parseGraph)
+  return build.build(set, tracing, parseGraph), util.toFlatJSON(parseGraph)
 end
 
 function analyze(content, quiet)
   local parseGraph = parser.parseString(content)
+  local context = parseGraph.context
+
   for ix, queryGraph in std.ipairs(parseGraph.children) do
     print("----- Query Graph (" .. ix .. ") " .. queryGraph.name .. " -----")
-    local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph)
+    local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph, context)
     if not quiet then
       print("--- Unprepared DGraph ---")
       print("  " .. util.indentString(1, tostring(dependencyGraph)))
@@ -1076,7 +1194,7 @@ function analyze(content, quiet)
     print("--- Sorted DGraph ---")
     print("  " .. util.indentString(1, tostring(dependencyGraph)))
 
-    local unpacked = unpackObjects(dependencyGraph, parseGraph.context)
+    local unpacked = unpackObjects(dependencyGraph, context)
     print("--- Unpacked Objects / Mutates ---")
     print("  {")
     for ix, node in ipairs(unpacked) do
@@ -1084,10 +1202,11 @@ function analyze(content, quiet)
     end
     print("  }")
   end
+  return 0
 end
 
 function analyzeQuiet(content)
-  analyze(content, true)
+  return analyze(content, true)
 end
 
 if ... == nil then

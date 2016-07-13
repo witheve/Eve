@@ -17,6 +17,7 @@ typedef struct tcpsock {
     write_buffer q;
     write_buffer *last;
     table addr;
+    thunk writer;
 } *tcpsock;
 
 
@@ -40,8 +41,11 @@ static tcpsock allocate_tcpsock(heap h)
 static inline void tcppop(tcpsock t) 
 {
     write_buffer w = t->q;
-    if (!(t->q = t->q->next)) t->last = &t->q;
-    deallocate(t->h, w);
+    if (!(t->q = t->q->next)) {
+        t->last = &t->q;
+    } else {
+        deallocate(t->h, w, sizeof(*w));
+    }
 }
 
 static CONTINUATION_1_0(actually_write, tcpsock);
@@ -56,8 +60,11 @@ static void actually_write(tcpsock t)
         } else {
             buffer b = t->q->b;
             int transfer = buffer_length(t->q->b);
+            if (transfer == 0) {
+                tcppop(t);
+                break;
+            }
 
-            // this should handle EWOULDBLOCK 
             int result = write(t->d, 
                                bref(b, 0),
                                transfer);
@@ -70,6 +77,10 @@ static void actually_write(tcpsock t)
                     tcppop(t);
                 }
             } else {
+                if  ((result == -1) && ((errno == EAGAIN) || (errno == EWOULDBLOCK))) {
+                    break;
+                }
+                
                 while(t->q) {
                     apply(t->q->finished, false); 
                     tcppop(t);
@@ -77,9 +88,9 @@ static void actually_write(tcpsock t)
             }
         }
     }
-    // myself
+
     if (t->q)
-        register_write_handler(t->d, cont(t->h, actually_write, t));
+        register_write_handler(t->d, t->writer);
 }
 
 // thunk needs to be bound up in the buffer
@@ -89,9 +100,9 @@ void tcp_write(tcpsock t, buffer b, thunk n)
 {
     // track socket buffer occupancy and fast path this guy
     if (!t->q)
-        register_write_handler(t->d, cont(t->h, actually_write, t));
+        register_write_handler(t->d, t->writer);
 
-    if (!write_buffers) write_buffers  = allocate_rolling(pages);
+    if (!write_buffers) write_buffers  = allocate_rolling(pages, sstring("tcp write"));
     write_buffer w = allocate(write_buffers, sizeof(struct write_buffer));
     w->next = 0;
     w->b = b;
@@ -151,6 +162,7 @@ static void new_connection(tcpsock t, new_client n)
     unsigned int addrsize = sizeof(struct sockaddr_in);
     int fd;
 
+    new->writer = cont(t->h, actually_write, new);
     if ((fd = accept(t->d, 
                      (struct sockaddr *)&from,
                      &flen)) >= 0) {

@@ -10,7 +10,7 @@ string base64_encode(heap h, buffer x)
     int bcount = 0;
 
     while(length > 0) {
-        iu32 triple = 0;
+        u32 triple = 0;
         memcpy(&triple, bref(x, bcount), (length<3?length:3));
         triple = htonl(triple);
         triple >>= 8;

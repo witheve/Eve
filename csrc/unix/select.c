@@ -21,7 +21,7 @@ extern int ffsll(long long value);
 
 static void scan_table(fd_set *t, table f)
 {
-    u64 b = (void *)t;
+    u64 *b = (void *)t;
     unsigned int i;
     for (i = 0 ; i <(FDSIZE/64); i++) {
         descriptor d;
@@ -61,7 +61,7 @@ void select_timer_block(ticks interval)
     }
 }
 
-static iu64 key_from_fd(void *x) {return((unsigned long) x);}
+static u64 key_from_fd(void *x) {return((unsigned long) x);}
 // uhh, if the key is iu64 then we are prefiltering on this anyways...so...
 // but maybe we can mix up key a little bit for better distribution?
 static boolean compare_fd(void *x, void *y) {return((unsigned long)x==(unsigned long)y);}

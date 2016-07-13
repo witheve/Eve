@@ -44,6 +44,16 @@ function translate_value(x)
       if ct == "number" then
          return snumber(x.constant)
       end
+
+      if ct == "boolean" then
+         if (x.constant == "true") then
+           return sboolean(true)
+         end
+         if (x.constant == "false") then
+           return sboolean(false)
+         end
+      end
+
       if ct == "uuid" then
          return suuid(x.constant)
       end
@@ -161,6 +171,22 @@ function set_to_write_array(env, x)
    return out
 end
 
+function list_to_read_array(env, x)
+   local out = {}
+   for _, v in ipairs(x) do
+      out[#out+1] = read_lookup(env, v)
+   end
+   return out
+end
+
+function list_to_write_array(env, x)
+   local out = {}
+   for _, v in ipairs(x) do
+      out[#out+1] = write_lookup(env, v)
+   end
+   return out
+end
+
 
 function translate_subproject(n, bound, down, tracing, context)
    local p = n.projection
@@ -176,6 +202,8 @@ function translate_subproject(n, bound, down, tracing, context)
 
    env, rest = down(db)
 
+   local saveids = env.ids
+   env.ids = {}
    function tail (bound)
      -- create an edge between the c node and the parse node
      local id = util.generateId()
@@ -194,21 +222,16 @@ function translate_subproject(n, bound, down, tracing, context)
    -- create an edge between the c node and the parse node
    local id = util.generateId()
    context.downEdges[#context.downEdges + 1] = {n.id, id}
-
-
-   -- just extend the lifetime here for a sec
-   for i, _ in pairs(env.ids) do
-          write_lookup(env, i)
+   local kind = "sub"
+   if n.kind == "aggregate" then
+     kind = "subagg"
    end
-
-   c = build_node("sub", {rest, fill},
+   c = build_node(kind, {rest, fill},
                           {set_to_read_array(env, n.projection),
-                          outregs,
---                           set_to_read_array(env, n.provides),
-                          -- leak
-                          {read_lookup(env, pass)},
-                          },
-                          id)
+                           outregs,
+                           {write_lookup(env, pass)},
+                           set_to_write_array(env, env.ids)},
+                        id)
 
    if tracing then
       local map = {"proj", ""}
@@ -220,7 +243,7 @@ function translate_subproject(n, bound, down, tracing, context)
       context.downEdges[#context.downEdges + 1] = {n.id, id}
       c = build_node("trace", {c}, {map}, id)
    end
-
+   env.ids = saveids
    return env, c
 end
 
@@ -307,12 +330,7 @@ function translate_mutate(n, bound, down, tracing, context)
                          id)
 
    if gen then
-      env.ids[read_lookup(env, e)] = true
-     -- create an edge between the c node and the parse node
-     local id = util.generateId()
-     context.downEdges[#context.downEdges + 1] = {n.id, id}
-
-      c = build_node("generate", {c}, {{read_lookup(env, e)}}, id)
+     env.ids[e] = read_lookup(env, e)
    end
    return env, c
 end
@@ -333,7 +351,7 @@ function translate_not(n, bound, down, tracing, context)
    local env, c = down(tail_bound)
    local orig_perm = shallowcopy(env.permanent)
    local bot = build_node("choosetail",
-                          {c},
+                          {},
                           {{read_lookup(env, flag)}}, tail_id)
 
    local arm_bottom = function (bound)
@@ -371,8 +389,11 @@ function translate_choose(n, bound, down, tracing, context)
                           {{read_lookup(env, flag)}},
                           id)
 
+   local id = util.generateId()
+   local merge = build_node("merge", {bot}, {{#n.queries}}, id)
+   
    local arm_bottom = function (bound)
-        return env, bot
+        return env, merge
    end
 
    for n, _ in pairs(env.registers) do
@@ -438,11 +459,21 @@ function translate_expression(n, bound, down, tracing, context)
   local signature = db.getSignature(n.bindings, bound)
   local schema = db.getSchema(n.operator, signature)
   local args, fields = db.getArgs(schema, n.bindings)
-
   for _, term in ipairs(args) do
     bound[term] = true
   end
   local env, c = down(bound)
+
+   -- Tack variadic arg vector onto the end
+   local variadic
+   if args["..."] then
+     variadic = list_to_read_array(env, args["..."])
+   end
+
+   local groupings
+   if n.groupings then
+     groupings = set_to_read_array(env, n.groupings)
+   end
 
    if tracing then
       local traceArgs = {schema.name or n.operator, ""}
@@ -450,10 +481,11 @@ function translate_expression(n, bound, down, tracing, context)
          traceArgs[#traceArgs + 1] = field
          traceArgs[#traceArgs + 1] = read_lookup(env, args[ix])
       end
+
       -- create an edge between the c node and the parse node
       local id = util.generateId()
       context.downEdges[#context.downEdges + 1] = {n.id, id}
-      c = build_node("trace", {c}, {traceArgs}, id)
+      c = build_node("trace", {c}, {traceArgs, variadic or groupings or {}}, id)
    end
 
    local nodeArgs = {}
@@ -468,8 +500,7 @@ function translate_expression(n, bound, down, tracing, context)
    -- create an edge between the c node and the parse node
    local id = util.generateId()
    context.downEdges[#context.downEdges + 1] = {n.id, id}
-
-   return env, build_node(schema.name or n.operator, {c}, {nodeArgs}, id)
+   return env, build_node(schema.name or n.operator, {c}, {nodeArgs, variadic or groupings or {}}, id)
 end
 
 -- this doesn't really need to be disjoint from read lookup, except for concerns about
@@ -537,13 +568,13 @@ function build(graphs, tracing, parseGraph)
            end
    for _, queryGraph in pairs(graphs) do
       local env, program = walk(queryGraph.unpacked, nil, {}, tailf, tracing, parseGraph.context)
-      regs = math.max(regs, env.maxregs + 1)
+      regs =  math.max(regs, env.maxregs + 1)
       local id = util.generateId()
       parseGraph.context.downEdges[#parseGraph.context.downEdges + 1] = {queryGraph.id, id}
-      heads[#heads+1] = build_node("regfile", {program}, {{regs}, {util.toJSON(parseGraph)}}, id)
+      heads[#heads+1] = build_node("regfile", {program}, {{regs}}, id)
    end
 
-   return heads
+   return heads 
 end
 
 ------------------------------------------------------------

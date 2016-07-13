@@ -1,25 +1,30 @@
+add a user for this sesion on connect
+  [#session-connect]
+  save
+    [#user @me]
+
 build the chat pane
-  [#chat-pane channel]
-  update
+  channel = "woot"
+  maintain
     [#div class: "chat-pane" children:
-      [#div#chat-messages class: "chat-messages" id: "{channel}-chat-messages"]
+      [#div #chat-messages class: "chat-messages" channel]
       [#input #channel-input channel]]
 
 draw messages
   parent = [#chat-messages channel]
-  [#message name time message channel]
-  update
-    parent.children += [#div class: "chat-message", children:
+  id = [#message name time message channel]
+  maintain
+    parent.children += [#div id, class: "chat-message", children:
                          [#div class: "chat-user", text: name]
                          [#div class: "chat-time", text: time]
                          [#div class: "chat-message", text: message]]
 
 handle chat keydowns
-  [#keydown element, key: "enter"]
-  element = [#channel-input value, channel]
+  event = [#keydown element, key: "enter"]
+  element = [#channel-input channel value]
   [#user name]
-  [#time hours minutes]
-  update
-    element.value := ""
-  update all
-    [#message name, time: "{hours}:{minutes}", message: value, channel]
+  [#time hours minutes seconds]
+  //save
+  //  element.value := ""
+  save all
+    [#message event name, time: "{hours}:{minutes}", message: value, channel]

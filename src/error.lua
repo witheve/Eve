@@ -1,5 +1,7 @@
 local color = require("color")
 local util = require("util")
+local fixPad = util.fixPad
+local Set = require("set").Set
 local errors = {}
 
 ------------------------------------------------------------
@@ -9,7 +11,7 @@ local errors = {}
 local function formatErrorLine(line, number, offset, length)
   local lineString = color.dim(number .. "|") .. line
   if offset and length then
-    lineString = lineString .. "\n" .. util.makeWhitespace(offset + 2) .. color.error(string.format("^%s", util.makeWhitespace(length - 2, "-")))
+    lineString = lineString .. "\n" .. util.makeWhitespace(offset + 1) .. color.error(string.format("^%s", util.makeWhitespace(length - 2, "-")))
   end
   return lineString
 end
@@ -22,7 +24,7 @@ end
 -- content = array
 --    the content array can contain a placeholder sting of "<LINE>" to embed the offending line
 local function printError(errorInfo)
-  local type, context, token, lineNumber, offset, length, content = errorInfo.type, errorInfo.context, errorInfo.token, errorInfo.line, errorInfo.offset, errorInfo.length, errorInfo.content
+  local type, context, token, lineNumber, offset, length, content, fixes = errorInfo.type, errorInfo.context, errorInfo.token, errorInfo.line, errorInfo.offset, errorInfo.length, errorInfo.content, errorInfo.fixes
   if not offset then
     offset = token.offset
   end
@@ -49,6 +51,10 @@ local function printError(errorInfo)
   print(color.dim(string.format(" %s", file or "(passed string)")))
   print("")
   print(finalContent)
+
+  local storedError = {type = type, pos = {offest = offset, line = lineNumber, length = length, file = file}, 
+                       rawContent = color.toHTML(util.dedent(content)), final = color.toHTML(finalContent), fixes = fixes}
+  context.errors[#context.errors + 1] = storedError
 end
 
 ------------------------------------------------------------
@@ -225,12 +231,36 @@ function errors.invalidTag(context, token, next)
       ]]})
 end
 
-function errors.bareTagOrName(context, token)
-  printError({type = "Non-object Tag", context = context, token = token, content = string.format([[
-  `#tag` and `@name` must be in an object, e.g. [#foo]
+function errors.bareTagOrName(context, node)
+  local type = node.children[1].type == "TAG" and "Tag" or "Name"
+  local valueNode = node.children[2]
+  local value;
+  if valueNode.type == "IDENTIFIER" then
+    value = string.format("%s%s", node.children[1].value, valueNode.value)
+  elseif valueNode.type == "STRING" then
+    value = string.format("%s\"%s\"", node.children[1].value, valueNode.value)
+  end
+
+  local content = string.format([[
+  %s is only valid in an object
 
   <LINE>
-  ]])})
+
+  This line says I should search for a %s with the value "%s", 
+  but since it's not in an object, I don't know what it applies to. 
+  
+  If you wrap it in square brackets, that tells me you're looking
+  for an object with that %s:
+
+    // search for objects with %s = "%s"
+    [%s]
+
+  ]], value, type:lower(), valueNode.value, type:lower(), type:lower(), valueNode.value, value)
+
+  local fixes = {changes = {
+    {from = {line = node.line, offset = node.offset}, to = {line = valueNode.line, offset = valueNode.offset + #valueNode.value}, value = string.format("[%s]", value)},
+  }} 
+  printError({type = string.format("%s outside of an object", type), context = context, token = node, content = content, length = 1 + #valueNode.value, fixes = fixes})
 end
 
 ------------------------------------------------------------
@@ -386,7 +416,7 @@ function errors.invalidUnionOutputsType(context, token)
 end
 
 function errors.outputNumberMismatch(context, block, outputs)
-  printError({type = "If ... then return mismatch", context = context, token = token, content = string.format([[
+  printError({type = "If ... then return mismatch", context = context, token = block, content = string.format([[
   The number of values returned after a then has to match the left hand side of the equivalence.
 
   <LINE>
@@ -394,7 +424,7 @@ function errors.outputNumberMismatch(context, block, outputs)
 end
 
 function errors.outputTypeMismatch(context, node, outputs)
-  printError({type = "If ... then return mismatch", context = context, token = token, content = string.format([[
+  printError({type = "If ... then return mismatch", context = context, token = node, content = string.format([[
   There's a mismatch between the type being returned and the expected outputs.
 
   <LINE>
@@ -428,7 +458,7 @@ function errors.updatingNonMutate(context, token)
   INTERNAL: somehow we got an object in an update that didn't result in a mutate node.
 
   <LINE>
-  ]])})
+    ]])})
 end
 
 ------------------------------------------------------------
@@ -437,11 +467,133 @@ end
 
 function errors.invalidQueryChild(context, token)
   printError({type = "Invalid query child", context = context, token = token, content = string.format([[
-  There's a node at the type level that I don't know how to deal with here:
+  There's a node at the top level that I don't know how to deal with here:
 
   <LINE>
   ]])})
 end
+
+------------------------------------------------------------
+-- Dependency Graph Errors
+------------------------------------------------------------
+
+function formatVariable(variable)
+  if variable.type ~= "variable" then return "????" end
+  if  variable.cardinal then
+    return string.sub(variable.name, 2, -2)
+  else
+    return variable.name
+  end
+end
+
+function filterGenerated(variables)
+  local filtered = Set:new()
+  for variable in pairs(variables) do
+    if not variable.generated then
+      filtered:add(variable)
+    elseif variable.cardinal and not variable.cardinal.generated then
+      filtered:add(variable.cardinal)
+    end
+  end
+  return filtered
+end
+
+function identity(x)
+  return x
+end
+
+function chooseNearest(needle, haystack, stringify, threshold)
+  stringify = stringify or identity
+  local name = stringify(needle)
+  threshold = threshold or (#stringify(needle) / 3 + 1)
+  local best
+  local bestDist = threshold
+  for term in pairs(haystack) do
+    local dist = util.levenshtein(name, stringify(term))
+    if dist < bestDist then
+      best = term
+      bestDist = dist
+    end
+  end
+  return best, bestDist
+end
+
+function formatUnsatisfied(unsatisfied)
+  local reason = color.dim("Unable to provide: ")
+  local multi = false
+  for term in pairs(unsatisfied) do
+    if multi then reason = reason .. ", " end
+    if term.type == "variable" then
+      reason = reason .. formatVariable(term)
+    else
+      local anyList = ""
+      for term in pairs(term) do
+        anyList = anyList .. (#anyList > 0 and ", " or "") .. formatVariable(term)
+      end
+      reason = string.format("%s %s%s%s",reason, color.dim("any of {"), anyList, color.dim("}"))
+    end
+    multi = true
+  end
+  return reason
+end
+
+function errors.unorderableGraph(context, query)
+  local dg = query.deps.graph
+  local file, code = context.file, context.code
+
+  local unsorted = ""
+  local multi = false
+  for node in pairs(dg.unsorted) do
+    local offset = node.offset
+    local length = node.value and #node.value or 1
+    local lineNumber = node.line
+    local line = util.split(code, "\n")[lineNumber]
+    local errorLine = util.indentString(3, formatErrorLine(line, lineNumber, offset, length))
+
+    unsorted = string.format(fixPad [[
+      %s
+      %s
+        %s
+    ]], unsorted, errorLine, formatUnsatisfied(filterGenerated(dg:unsatisfied(node))))
+    multi = true
+  end
+  printError{type = "Unorderable query", context = context, token = query, content = string.format([[
+  No valid execution order found for query
+
+  <LINE>
+
+  The following nodes could not be ordered:
+  %s
+  ]], unsorted)}
+end
+
+function errors.unknownVariable(context, variable, terms)
+  if variable.generated then return end
+  local best = chooseNearest(variable, filterGenerated(terms), formatVariable)
+  local recommendation = ""
+  if best then
+    recommendation = "\n  Did you mean: \"" .. formatVariable(best) .. "\"?"
+  end
+  printError{type = "Unknown variable", context = context, token = variable, content = string.format([[
+  Variable "%s" was never defined in query
+
+  <LINE>%s
+  ]], formatVariable(variable), recommendation)}
+end
+
+function errors.unknownExpression(context, expression, expressions)
+  local best = chooseNearest(expression.operator, expressions)
+  local recommendation = ""
+  if best then
+    recommendation = "\n  Did you mean: \"" .. best .. "\"?"
+  end
+  printError{type = "Unknown expression", context = context, token = expression, content = string.format([[
+  Unknown expression "%s"
+
+  <LINE>%s
+  ]], expression.operator, recommendation)}
+end
+
 
 ------------------------------------------------------------
 -- Package

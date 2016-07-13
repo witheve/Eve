@@ -22,9 +22,8 @@ timer register_timer(ticks interval, thunk n)
     timer t=(timer)allocate(theap, sizeof(struct timer));
 
     t->t= n;
-    t->interval = interval;
-    t->disable = 0;
-    t->w = 0;
+    t->disable = false;
+    t->interval = 0;
     t->w = now() + interval;
     pqueue_insert(timers, t);
     return(t);
@@ -33,9 +32,9 @@ timer register_timer(ticks interval, thunk n)
 timer register_periodic_timer(ticks interval, thunk n)
 {
     timer t = allocate(theap, sizeof(struct timer));
-
     t->t = n;
-    t->disable = 0;
+    t->disable = false;
+    t->interval = interval;
     t->w = now();
     pqueue_insert(timers, t);
     return(t);
@@ -47,24 +46,25 @@ ticks time_delta(heap h, ticks x, ticks n)
 }
 
 
-ticks timer_check(ticks d)
+ticks timer_check()
 {
-    timer current = false;
-
+    timer current;
+    
     while ((current = pqueue_peek(timers)) &&
-           (now(d), current->w < d)) {
+           (current->w < now())) {
+        pqueue_pop(timers);
         if (!current->disable) {
-            pqueue_pop(timers);
+            if (current->interval) {
+                current->w += current->interval;
+                pqueue_insert(timers, current);
+            }
             apply(current->t);
         }
     }
-    if (current) {
-        iu64 h = d;
-        d = current->w-h;
-    }
+
     if ((current = pqueue_peek(timers)) != 0) {
         // presumably this can be negative
-        return (current->w < now());
+        return (current->w - now());
     }
     return(0);
 }
@@ -73,7 +73,7 @@ ticks timer_check(ticks d)
 ticks parse_time(string b)
 {
     character c;
-    iu64 s = 0, frac = 0, fracnorm = 0;
+    u64 s = 0, frac = 0, fracnorm = 0;
     ticks result;
 
     string_foreach (b, c) {
@@ -96,7 +96,7 @@ ticks parse_time(string b)
 void print_time(string b, ticks f)
 {
     unsigned int seconds = f>>32;
-    iu64 fraction = f&0xfffffffful;
+    u64 fraction = f&0xfffffffful;
 
     bprintf(b, "%u", seconds);
     if (fraction) {
@@ -106,9 +106,9 @@ void print_time(string b, ticks f)
         
         /* should round or something */
         while ((fraction *= 10) && (count++ < 6)) {
-            iu32 d = (fraction>>32);
+            u32 d = (fraction>>32);
             bprintf (b, "%d", d);
-            fraction -= ((iu64)d)<<32;
+            fraction -= ((u64)d)<<32;
         }
     }
 }

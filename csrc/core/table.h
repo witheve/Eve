@@ -1,9 +1,9 @@
 typedef struct table *table;
 
-table allocate_table(heap h, iu64 (*key_function)(void *x), boolean (*equal_function)(void *x, void *y));
+table allocate_table(heap h, u64 (*key_function)(void *x), boolean (*equal_function)(void *x, void *y));
 int table_elements(table t);
 
-typedef iu64 key;
+typedef u64 key;
 
 typedef struct entry {
     void *v;
@@ -17,7 +17,7 @@ struct table {
     int buckets;
     int count;
     vector entries;
-    iu64 (*key_function)(void *x);
+    u64 (*key_function)(void *x);
     boolean (*equals_function)(void *x, void *y);
 };
 
@@ -31,7 +31,9 @@ void table_set (table t, void *c, void *v);
 // much threadsafe...think about start
 #define table_foreach(__t, __k, __v)\
     for (void **__i = eK((__t), contents); __i<(void **)(eK((__t),contents) + eK((__t),end)); __i += 1) \
-        for (void * __k, *__v, **__cache, **__j = __i; *__j && (__cache = __j, __k = eZ(__j, c), __v = eZ(__j, v), 1); __j = (void **)&eZ((__cache),next))
+        for (void * __k, *__v, **__j = __i, **__next;\
+             *__j && ((__next =  (void **)&eZ((__j),next)) , __k = eZ(__j, c), __v = eZ(__j, v), 1);\
+             __j = __next)
                  
 
 

@@ -1,22 +1,23 @@
 
 typedef struct timer *timer;
 timer register_timer(ticks, thunk n);
+timer register_periodic_timer(ticks, thunk n);
 void remove_timer();
 void initialize_timer();
 ticks parse_time();
 void print_time(string b, ticks t);
-ticks timer_check(ticks d);
+ticks timer_check();
 ticks now();
 
 
 static inline ticks seconds(int n)
 {
-    return(((iu64)n)<<32);
+    return(((u64)n)<<32);
 }
 
 static inline ticks milliseconds(int n)
 {
-    return((((iu64)n)<<32)/1000ull);
+    return((((u64)n)<<32)/1000ull);
 }
 
 

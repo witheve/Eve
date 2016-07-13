@@ -1,5 +1,6 @@
 Add some fruits to the system
-  update
+  [#session-connect]
+  save
     [#fruit @lemon color: "yellow"]
     [#fruit @cherry color: "red"]
     [#fruit @orange color: "orange"]
@@ -11,19 +12,19 @@ Add some fruits to the system
 
 Draw a list of fruits
   [#fruit color name]
-  update
+  maintain
     [#div ix: name, text: name, style: [color]]
 
 make yo
-  [#click element]
+  v = [#click element]
   element = [not(children)]
-  update
-     element.children += [#div element text:"yo"]
+  save
+     element.children += [#div element zig:v text:"yo"]
 
 trash yo
   [#click element]
   element = [children]
-  update
+  save
      element.children -= children
 
 

@@ -43,7 +43,7 @@ def generate_cont(left, right, variant):
     call = '_name' + list(set('n->l', left) + set('r', right))
 
     if (variant == 'free'):
-        apply_body +=  ['if (' + call + ') deallocate(n->h, n)']
+        apply_body +=  ['if (' + call + ') deallocate(n->h, n, sizeof(struct _continuation_##_name))']
     else:
         apply_body += [call]
 

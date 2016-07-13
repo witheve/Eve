@@ -6,7 +6,7 @@ static void allocate_buckets(table t)
     memset(t->entries->contents, 0, t->entries->end = t->buckets * sizeof(void *));
 }
 
-table allocate_table(heap h, iu64 (*key_function)(void *x), boolean (*equals_function)(void *x, void *y))
+table allocate_table(heap h, u64 (*key_function)(void *x), boolean (*equals_function)(void *x, void *y))
 {
     table new = allocate(h, sizeof(struct table));
     new->h = h;
@@ -77,14 +77,15 @@ void table_set (table t, void *c, void *v)
 {
     key k = t->key_function(c);
     key p = position(t, k);
-    // xxx - opacity
     entry *e = bref(t->entries, p * sizeof(void *));
 
     for (; *e; e = &(*e)->next)
         if (((*e)->k == k) && t->equals_function((*e)->c, c)) {
             if (v == EMPTY) {
                 t->count--;
+                entry z = *e;
                 *e = (*e)->next;
+                deallocate(t->h, z, sizeof(struct entry));
             } else (*e)->v = v;
             return;
         }

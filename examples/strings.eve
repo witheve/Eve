@@ -2,6 +2,6 @@ string tests even with multi-line
 query names
   [#person name: "hello dude\"aodoijasdofij" age]
   blah = "{age}{age}"
-  update
+  maintain
     [#dude name: "cool {age} \"asdofij\" {age} asodijf"]
 

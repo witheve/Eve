@@ -4,15 +4,13 @@
 
 #include <unix_internal.h>
 #include <sys/time.h>
+#include <time.h>
+#include <signal.h>
 
 decsriptor standardinput = 0;
 decsriptor standardoutput = 1;
 decsriptor standarderror = 2;
 
-typedef struct page_heap {
-    struct heap h;
-    void **freelist;
-} *page_heap;
     
 void ticks_to_timeval(struct timeval *a, ticks b)
 {
@@ -56,82 +54,19 @@ buffer read_file(heap h, char *path)
     return 0;
 }
 
-static void *allocate_pages(heap h, bytes s)
-{
-    page_heap p = (page_heap)h;
-    int baselen = pad(s, h->pagesize);
-    void *r;
-    
-    if ((baselen == h->pagesize)  && p->freelist) {
-        r = p->freelist;
-        p->freelist = *p->freelist;
-    } else {
-        r = mmap(0, baselen,
-                 PROT_READ|PROT_WRITE,
-                 MAP_PRIVATE|MAP_ANON,
-                 -1,0);
-    }
-    return(r);
-}
-
-static void *allocate_pages_fence(heap h, bytes s)
-{
-    int baselen = pad(s, h->pagesize);
-    void *p = mmap(0,  baselen + h->pagesize,
-                   PROT_READ|PROT_WRITE,
-                   MAP_PRIVATE|MAP_ANON,
-                   -1,0);
-    mprotect(p + baselen, h->pagesize, 0);
-
-    return(p);
-}
-
+static heap prf_heap;
 void prf(char *format, ...)
 {
-    string b = allocate_string(init);
+    string b = allocate_string(prf_heap);
     va_list ap;
-    string f = string_from_cstring(init, format);
+    string f = alloca_string(format);
     va_start(ap, format);
     vbprintf(b, f, ap);
     va_end(ap);
-    deallocate(init, f);
     write(1, bref(b, 0), buffer_length(b));
+    //    deallocate_buffer(b);
 }
 
-static void free_pages(heap h, void *x)
-{
-    page_heap p = (page_heap)h;
-    *(void **) x = p->freelist;
-    p->freelist = x;
-    // xxx - this leaks later pages in a a multipage allocation
-    // should have a policy to return pages to the OS
-    // for redistribution between threads and defragmentation
-    // if we have such a thing
-    // munmap(x, h->pagesize);
-}
-    
-heap init_memory(bytes pagesize)
-{
-    page_heap p = mmap(0, sizeof(struct heap) + 1,
-                       PROT_READ|PROT_WRITE,
-                       MAP_PRIVATE|MAP_ANON,-1,0);
-    p->h.alloc = allocate_pages;
-    p->h.dealloc = free_pages;
-    p->h.pagesize = 4096; //dont forget we're promising pagesize alignment
-    p->freelist = 0;
-    return(&p->h);
-}
-
-heap efence_heap(bytes pagesize)
-{
-    heap h = (heap)mmap(0, sizeof(struct heap) + 1,
-                           PROT_READ|PROT_WRITE,
-                           MAP_PRIVATE|MAP_ANON,-1,0);
-    h->alloc = allocate_pages_fence;
-    h->dealloc = free_pages;
-    h->pagesize = 4096; //dont forget we're promising pagesize alignment
-    return(h);
-}
 
 void error(char *x)
 {
@@ -141,8 +76,27 @@ void error(char *x)
 void unix_wait()
 {
     while (1) {
-        ticks next = timer_check(0);
+        ticks next = timer_check();
         select_timer_block(next);
     }
-    
+}
+
+void clocktime(ticks t, unsigned int *hours, unsigned int *minutes, unsigned int *seconds)
+{
+    struct timeval tv;
+    time_t z = t >> 32;
+    // not threadsafe
+    struct tm *tm = localtime(&z);
+    *hours = tm->tm_hour;
+    *minutes = tm->tm_min;
+    *seconds = tm->tm_sec;
+}
+
+
+void init_unix()
+{
+    signal(SIGPIPE, SIG_IGN);
+    prf_heap = allocate_rolling(pages, sstring("prf"));
+    select_init();
+    init_processes();
 }

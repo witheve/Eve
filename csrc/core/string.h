@@ -2,7 +2,7 @@ typedef buffer string;
 
 void init_string();
 
-typedef iu32 character;
+typedef u32 character;
 
 static inline string allocate_string(heap h)
 {
@@ -34,8 +34,8 @@ static int inline string_rune_length(char *s) {
 
 // the ascii subset
 #define string_foreach(__s, __i)                          \
-    for (iu32 __x = 0, __i, __limit = buffer_length(__s);   \
-         __i = *(u8)bref(__s, __x), __x<__limit;    \
+    for (u32 __x = 0, __i, __limit = buffer_length(__s);   \
+         __i = *(u8 *)bref(__s, __x), __x<__limit;    \
          __x++)
 
 // other defines and prototypes make it difficult to use someone else's
@@ -43,8 +43,8 @@ static int inline string_rune_length(char *s) {
                     (((_x)<<8) & 0xff0000L) | (((_x)<<24) & 0xff000000L))
 
 #define rune_foreach(__s, __i)                                        \
-    for (iu32 __x = 0, *__t, __q, __i, __limit = buffer_length(__s);  \
-         __i = 0, __t = (u32)bref(__s, __x), __q = utf8_length(*__t), \
+    for (u32 __x = 0, *__t, __q, __i, __limit = buffer_length(__s);  \
+         __i = 0, __t = (u32 *)bref(__s, __x), __q = utf8_length(*__t), \
          memcpy(&__i, __t, __q),                                      \
          __i = swap32(__i),                                           \
          __i = __i >> 8 * (4 - __q),                                  \
@@ -87,9 +87,9 @@ static inline void bprintf(string s, char *cf, ...)
 }
 
 
-static inline iu32 cstring_length(char *s)
+static inline u32 cstring_length(char *s)
 {
-    iu32 r = 0;
+    u32 r = 0;
     for (char *i = s; *i; i++, r++);
     return r;
 }
@@ -107,7 +107,7 @@ static inline string string_from_cstring(heap h, char *s)
 }
 
 
-static inline iu8 digit_of(character x)
+static inline u8 digit_of(character x)
 {
     if ((x <= 'f') && (x >= 'a')) return(x - 'a' + 10);
     if ((x <= 'F') && (x >= 'f')) return(x - 'f' + 10);
@@ -123,7 +123,7 @@ extern char *hex_digits;
   __s;\
 })
 
-iu64 string_hash(void *x);
+u64 string_hash(void *x);
 boolean string_equal(void *a, void *b);
 
-iu64 shash(unsigned char *content, int length);
+u64 shash(unsigned char *content, int length);

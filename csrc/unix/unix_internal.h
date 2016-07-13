@@ -1,4 +1,4 @@
-#include <runtime.h>
+#include <core/core.h>
 #include <unix.h>
 #include <sys/types.h>
 #include <stdlib.h>
@@ -20,7 +20,7 @@ static inline buffer system_read(heap h,
                                  descriptor d,
                                  bytes length)
 {
-    iu64 len = length;
+    u64 len = length;
     buffer b = allocate_buffer(h, length);
     void *dest = bref(b, 0);
     // error handling
@@ -62,7 +62,7 @@ void select_timer_block(ticks interval);
 
 static station digest_sockaddrin(heap h, struct sockaddr_in *a)
 {
-    iu32 t;
+    u32 t;
     unsigned char *new = allocate(h, 6);
     memcpy (new, &a->sin_addr, 4);
     memcpy (new + 4, &a->sin_port, 2);
@@ -80,3 +80,5 @@ static int encode_sockaddrin(struct sockaddr_in *out, station in)
     memcpy (&out->sin_port, in + 4, 2);
     return(sizeof(struct sockaddr_in));
 }
+
+
