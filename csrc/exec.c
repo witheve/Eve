@@ -46,7 +46,7 @@ typedef struct sub {
     ticks t;
 } *sub;
 
-                 
+
 static void delete_missing(heap h, sub s, value *r)
 {
     if (s->previous) {
@@ -154,7 +154,7 @@ static execf build_sub(block bk, node n)
     s->next = resolve_cfg(bk, n, 0);
     s->e = bk->ev;
     s->t = bk->ev->t;
-    vector_insert(bk->finish, cont(s->h, end_o_sub, s)); 
+    vector_insert(bk->finish, cont(s->h, end_o_sub, s));
     return cont(s->h,
                 do_sub,
                 register_counter(bk->ev, n),
@@ -281,7 +281,7 @@ static void do_not(int *count, execf next, execf leg, value flag, heap h, operat
     }
     *count = *count + 1;
     store(r, flag, efalse);
-    
+
     apply(leg, h,op, r);
 
     if (lookup(r, flag) == efalse)
@@ -422,8 +422,9 @@ static execf build_fork(block bk, node n)
 static CONTINUATION_2_3(do_trace, execf, vector, heap, operator, value *);
 static void do_trace(execf n, vector terms, heap h, operator op, value *r)
 {
+    prf("%s|", (op == op_insert ? "insert" : (op == op_flush) ? "flush " : "close "));
     for (int i=0; i<vector_length(terms); i+=2) {
-        prf(" %v %v", lookup(r, vector_get(terms, i)), lookup(r, vector_get(terms, i+1)));
+      prf(" %v %v", lookup(r, vector_get(terms, i)), lookup(r, vector_get(terms, i+1)));
     }
     write(1, "\n", 1);
     apply(n, h, op, r);
@@ -485,7 +486,7 @@ table builders_table()
         table_set(builders, intern_cstring("not"), build_not);
         table_set(builders, intern_cstring("time"), build_time);
         table_set(builders, intern_cstring("merge"), build_merge);
-        
+
         register_exec_expression(builders);
         register_string_builders(builders);
         register_aggregate_builders(builders);
