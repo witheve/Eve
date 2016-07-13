@@ -10,18 +10,20 @@ static void scan_listener(execf n, heap h, operator op, value *r,
                           value er, value ar, value vr,
                           value e, value a, value v, multiplicity count)
 {
+    prf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!SCAN LISTENER!!!!!!!!!!!!!!!!!!!!!!!!\n");
     if (count > 0) {
         store(r, er, e);
         store(r, ar, a);
         store(r, vr, v);
         apply(n, h, op, r);
+        prf("#### E{%v <- %v} A{%v <- %v} V{%v <- %v} ####\n\n", er, e, ar, a, vr, v);
     }
 }
 
 #define sigbit(__sig, __p, __r) ((sig&(1<<__p))? register_ignore: __r)
 
 static CONTINUATION_7_3(do_scan, block, int *, execf, int, value, value, value, heap, operator, value *);
-static void do_scan(block bk, int *count, execf n, int sig, value e, value a, value v, 
+static void do_scan(block bk, int *count, execf n, int sig, value e, value a, value v,
                     heap h, operator op, value *r)
 {
     if (op == op_flush) {
@@ -29,7 +31,6 @@ static void do_scan(block bk, int *count, execf n, int sig, value e, value a, va
         return;
     }
     *count = *count + 1;
-    
     apply(bk->ev->reader, sig,
           cont(h, scan_listener, n, h, op, r,
                sigbit(sig, 2, e), sigbit(sig, 1, a), sigbit(sig, 0, v)),
@@ -59,7 +60,7 @@ static execf build_scan(block bk, node n)
 
 static CONTINUATION_8_3(do_insert, block, int *, execf, int, value, value, value, value, heap, operator, value *) ;
 static void do_insert(block bk, int *count, execf n, int deltam,
-                      value uuid, value e, value a, value v, 
+                      value uuid, value e, value a, value v,
                       heap h, operator op, value *r)
 {
     if (op == op_insert) {
@@ -76,7 +77,7 @@ static execf build_insert(block bk, node n)
 {
     vector a = vector_get(n->arguments, 0);
     uuid x = table_find(bk->ev->scopes, vector_get(a, 0));
-        
+
     return cont(bk->h, do_insert, bk, register_counter(bk->ev, n),
                 resolve_cfg(bk, n, 0),
                 1,
@@ -106,7 +107,7 @@ static void each_set_remove(block bk, uuid u, value e, value a, value etrash, va
 }
 
 static CONTINUATION_7_3(do_set, block, int *, execf, value, value, value, value, heap, operator, value *) ;
-static void do_set(block bk, int *count, execf n, value u, value e, value a, value v, 
+static void do_set(block bk, int *count, execf n, value u, value e, value a, value v,
                    heap h, operator op, value *r)
 {
     u = lookup(r, u);
@@ -137,5 +138,3 @@ extern void register_edb_builders(table builders)
     table_set(builders, intern_cstring("set"), build_set);
     table_set(builders, intern_cstring("scan"), build_scan);
 }
-
-

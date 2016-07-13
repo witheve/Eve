@@ -655,7 +655,10 @@ function DependencyGraph:add(node)
 end
 
 function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for ordering
-  local presorted = presort(self.unprepared, {mutate = 1000, expression = 100, ["not"] = 200, choose = 300, union = 400, object = 500})
+  if self.unprepared:length() == 0 then
+    return
+  end
+  local presorted = presort(self.unprepared, {mutate = 500, expression = 400, ["not"] = 300, choose = 200, union = 100, object = 0})
 
   -- Ensure that all nodes which provide a term contribute to that terms cardinality
   for _, node in ipairs(presorted) do
@@ -856,6 +859,9 @@ function DependencyGraph:order(allowPartial)
   --   ii.  b -> a
   --   iii. a, b -> f
   self:prepare()
+  if self.unsorted:length() == 0 then
+    return
+  end
 
   -- Pre-sort the unsorted list in rough order of cost
   -- this makes ordering more deterministic and potentially improves performance
