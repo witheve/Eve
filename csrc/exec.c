@@ -261,7 +261,7 @@ static void do_choose(int *count, execf n, vector legs, value flag, heap h, oper
 static execf build_choose(block bk, node n)
 {
     int arms = vector_length(n->arms);
-    vector v = allocate_vector(bk->h, arms);
+    vector v = allocate_vector(bk->h, arms - 1);
     for (int i = 1 ; i < arms; i++ )
         vector_set(v, i - 1, resolve_cfg(bk, n, i));
 
