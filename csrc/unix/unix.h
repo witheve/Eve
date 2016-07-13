@@ -1,4 +1,5 @@
-typedef u64 offset;
+
+typedef void *station;
 
 void initialize_timers(heap);
 typedef closure(buffer_handler, buffer, thunk);
@@ -69,6 +70,8 @@ void clocktime(ticks t, unsigned int *hours, unsigned int *minutes, unsigned int
 typedef closure(udp_receiver, station, buffer);
 typedef struct udp *udp;
 udp create_udp(heap h, station local, udp_receiver);
+void udp_write(udp, station, buffer); 
 
 void prf(char *, ...);
 
+extern station ip_wildcard_service;

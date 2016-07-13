@@ -24,8 +24,6 @@ static inline u64 key_from_pointer(void *x) {return((unsigned long) x);}
 // but maybe we can mix up key a little bit for better distribution?
 static inline boolean compare_pointer(void *x, void *y) {return(x==y);}
 
-
-typedef void *station;
 typedef struct buffer *buffer;
 
 #include <heap.h>

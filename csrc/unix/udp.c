@@ -16,8 +16,7 @@ typedef struct udp {
 
 } *udp;
 
-static CONTINUATION_1_2(udp_write, udp, station, buffer);
-static void udp_write(udp u, station a, buffer b) 
+void udp_write(udp u, station a, buffer b) 
 {
 }
 

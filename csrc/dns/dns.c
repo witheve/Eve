@@ -21,6 +21,7 @@ typedef struct resolver {
     unsigned int correlator;
     station server;
     heap h;
+    udp u;
 } *resolver;
 
 static string scan_label(heap h, buffer b)
@@ -35,7 +36,8 @@ static string scan_label(heap h, buffer b)
         }
         int i;
         if (count++) buffer_write_byte(out, '.');
-        buffer_copy(out, b, len);
+        buffer_write(out, bref(b,0), len);
+        buffer_consume(b, len);
     }
     return(out);
 }
@@ -69,8 +71,8 @@ static boolean scan_rr(heap h, buffer b, request r)
     return(false);
 }
 
-static CONTINUATION_1_1(dns_input, resolver, buffer);
-static void dns_input(resolver r, buffer input)
+static CONTINUATION_1_2(dns_input, resolver, station, buffer);
+static void dns_input(resolver r, station a, buffer input)
 {
     u64 id = buffer_read_be16(input);
     request x = table_find(r->request_map, (void *)id);
@@ -109,7 +111,7 @@ static void dns_input(resolver r, buffer input)
     if (!ret) apply(x->result, false);
 }
 
-CONTINUATION_2_0(timeout, resolver, request);
+static CONTINUATION_2_0(timeout, resolver, request);
 static void timeout(resolver r, request rq)
 {
     if (table_find(r->request_map, (void *)rq->id)) {
@@ -125,7 +127,7 @@ static void dns_resolve(resolver r,
                         closure(complete, buffer))
 {
     buffer b = allocate_buffer(r->h, 1024);
-    u16 id = r->correlator++;
+    u64 id = r->correlator++;
     request rq = allocate(r->h, sizeof(struct request));
     rq->result = complete;
     rq->id = id;
@@ -134,7 +136,7 @@ static void dns_resolve(resolver r,
     if (kind == DNS_TYPE_A) rq->type = DNS_TYPE_A;
     if (kind == DNS_TYPE_PTR) rq->type = DNS_TYPE_PTR;
     
-    set(r->request_map, id, rq);
+    table_set(r->request_map, (void *)id, rq);
 
     // we really want to use the binary templates
     buffer_write_be16(b, id);
@@ -145,15 +147,15 @@ static void dns_resolve(resolver r,
     buffer_write_be16(b, 0);
     buffer_write_be16(b, 0);
 
-    string i;
-    string_foreach(i, split(hostname, tchar('.')))
-        push_string(b, i);
+    //    string i;
+    //    string_foreach(i, split(hostname, '.'))
+    //        push_string(b, i);
 
-    push_string(b, sstring(""));
+    //push_string(b, sstring(""));
     buffer_write_be16(b, kind);
     buffer_write_be16(b, IN_CLASS);
 
-    apply(r->write, b, r->server);
+    udp_write(r->u, r->server, b);
     register_timer(seconds(5), cont(r->h, timeout, r, rq));
 }
 
@@ -164,9 +166,9 @@ resolver allocate_resolver(heap h, station server)
     r->correlator = 10;
     r->h = h;
     r->server = server;
-    r->write = create_udp(init, 
-                          IP_WILDCARD_SERVICE,
-                          cont(h, dns_input, r));
+    r->u = create_udp(init, 
+                      ip_wildcard_service,
+                      cont(h, dns_input, r));
     return r;
 }
 
