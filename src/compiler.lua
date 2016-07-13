@@ -1165,6 +1165,12 @@ end
 function compileExec(contents, tracing)
   local parseGraph = parser.parseString(contents)
   local context = parseGraph.context
+
+  if context.errors and #context.errors ~= 0 then
+    print("Bailing due to errors.")
+    return 0
+  end
+
   local set = {}
 
   for ix, queryGraph in ipairs(parseGraph.children) do
@@ -1175,12 +1181,21 @@ function compileExec(contents, tracing)
       set[#set+1] = queryGraph
     end
   end
+
+  if context.errors and #context.errors ~= 0 then
+    print("Bailing due to errors.")
+    return 0
+  end
   return build.build(set, tracing, parseGraph), util.toFlatJSON(parseGraph)
 end
 
 function analyze(content, quiet)
   local parseGraph = parser.parseString(content)
   local context = parseGraph.context
+  if context.errors and #context.errors ~= 0 then
+    print("Bailing due to errors.")
+    return 0
+  end
 
   for ix, queryGraph in std.ipairs(parseGraph.children) do
     print("----- Query Graph (" .. ix .. ") " .. queryGraph.name .. " -----")
@@ -1208,6 +1223,12 @@ function analyze(content, quiet)
     end
     print("  }")
   end
+
+  if context.errors and #context.errors ~= 0 then
+    print("Bailing due to errors.")
+    return 0
+  end
+
   return 0
 end
 
