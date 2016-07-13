@@ -36,6 +36,15 @@ void send_http_response(heap h,
 
 
 
+// put a letover buffer fragment in sequence before a stream
+static CONTINUATION_2_1(regbounce, register_read, buffer, reader)
+static void regbounce(register_read reg, buffer b, reader r)
+{
+    apply(r, b, reg);
+}
+
+
+
 static CONTINUATION_1_4(dispatch_request, session, bag, uuid, buffer, register_read);
 static void dispatch_request(session s, bag b, uuid i, buffer body, register_read reg)
 {
@@ -48,26 +57,22 @@ static void dispatch_request(session s, bag b, uuid i, buffer body, register_rea
     }
 
     estring url = lookupv(b, i, sym(url));
-    prf("dispatch: %v\n", url);
     if ((c = table_find(s->parent->services, url))) {
-        prf("servicon its all yours now babe\n");
-        // stash the method and the url in the headers - actually turn this into a bag
-        apply((http_service)c, s->write, b, i, reg);
+        register_read  z = reg;
+        if (buffer_length(body)) z = cont(s->h, regbounce, reg, body);
+        apply((http_service)c, s->write, b, i, z); 
         return;
     } else {
         if ((c = table_find(s->parent->content, url))) {
             buffer k;
             if (c[2] && !(k = read_file(s->h, (char *)c[2]))) k = c[1];
             // reset connection state
-            prf("send response %s %d\n", c[0], buffer_length(k));
             send_http_response(s->h, s->write, c[0], k);
         } else {
             prf("not found\n");
             apply(s->write, sstring("HTTP/1.1 404 Not found\r\n"), ignore);
         }
     }
-    // reuse conts
-    prf("leftover obber %d\n", buffer_length(body));
     apply(request_header_parser(s->h, cont(s->h, dispatch_request, s)), body, reg);
 }
 
@@ -93,8 +98,6 @@ static void ignoro(){}
     
 void register_static_content(http_server h, char *url, char *content_type, buffer b, char *backing)
 {
-    prf("register: %s %s\n", url, content_type);
-
     buffer *x = allocate(h->h, 3*sizeof(buffer));
     x[0] = string_from_cstring(h->h,content_type);
     x[1] = b;

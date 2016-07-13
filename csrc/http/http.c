@@ -47,7 +47,7 @@ static void parse_http_header(header_parser p, buffer b, register_read reg)
     // xxx - make a consuming rune variant
     string_foreach(b, c) {
         count++;
-        prf("%c %d %d %d\n", c, p->s, (long)c ,(long)separators[p->s]);
+
         if ((p->s == name) && (c == '\r')) {
             p->s = header_end;
         }

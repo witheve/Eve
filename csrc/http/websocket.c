@@ -12,6 +12,7 @@ typedef struct websocket {
     buffer_handler client;
     buffer_handler write;
     timer keepalive;
+    reader self;
 } *websocket;
 
 typedef enum {
@@ -58,8 +59,8 @@ void websocket_output_frame(websocket w, buffer b, thunk t)
     websocket_send(w, 1, b, t);
 }
 
-static CONTINUATION_1_2(websocket_input_frame, websocket, buffer, thunk);
-static void websocket_input_frame(websocket w, buffer b, thunk t)
+static CONTINUATION_1_2(websocket_input_frame, websocket, buffer, register_read);
+static void websocket_input_frame(websocket w, buffer b, register_read reg)
 {
     int offset = 2;
 
@@ -112,10 +113,10 @@ static void websocket_input_frame(websocket w, buffer b, thunk t)
         switch(opcode) {
         case ws_text:
         case ws_binary:
-            apply(w->client,  w->reassembly, t);
+            apply(w->client, w->reassembly, ignore);
             break;
         case ws_ping:
-            websocket_send(w, ws_pong, w->reassembly, t);
+            websocket_send(w, ws_pong, w->reassembly, ignore);
             break;
         case ws_close:
         case ws_pong:
@@ -129,7 +130,7 @@ static void websocket_input_frame(websocket w, buffer b, thunk t)
             buffer_clear(w->reassembly);
         }
     }
-    apply(t);
+    apply(reg, w->self);
 }
 
 void sha1(buffer d, buffer s);
@@ -173,7 +174,8 @@ buffer_handler websocket_send_upgrade(heap h,
 
     register_periodic_timer(seconds(5), cont(w->h, send_keepalive, w, allocate_buffer(w->h, 0)));
     apply(w->write, upgrade, ignore);
-    apply(reg, cont(h, websocket_input_frame, w));
+    w->self = cont(h, websocket_input_frame, w);
+    apply(reg, w->self);
     return(cont(h, websocket_output_frame, w));
 }
 

@@ -25,6 +25,7 @@ static void send_destroy(heap h)
     destroy(h);
 }
 
+
 static void format_vector(buffer out, vector v)
 {
     int start = 0;

@@ -18,7 +18,9 @@ typedef struct tcpsock {
     write_buffer *last;
     station addr;
     thunk writer;
+    thunk read_handler;
     register_read r;
+    reader client_reader;
 } *tcpsock;
 
 typedef struct tcp_server {
@@ -34,14 +36,6 @@ struct write_buffer {
     thunk finished;
     write_buffer next;
 };
-
-static tcpsock allocate_tcpsock(heap h)
-{
-    tcpsock t = allocate(h, sizeof(struct tcpsock));
-    t->h = h;
-    t->last = &t->q;
-    return(t);
-}
 
 /*
  * calls to actually_write and tcp_write are assumed serialized
@@ -149,15 +143,36 @@ static void connect_try (tcpsock t)
             sizeof(struct sockaddr_in));
 }
 
+
+static CONTINUATION_1_0(tcp_read_nonblocking_desc, tcpsock);
+static void tcp_read_nonblocking_desc(tcpsock t)
+{
+    buffer b;
+    if ((b = system_read(t->h, t->d, 1500))) {
+        apply(t->client_reader, b, t->r);
+    } else {
+        // consider having a seperate termination closure
+        apply(t->client_reader, false, false);
+    }
+}
+
 static CONTINUATION_1_1(regtcp, tcpsock, reader);
 static void regtcp(tcpsock t, reader r)
 {
-    // we can cache the cont(?) by using a double application 
-    register_read_handler(t->d,
-                          cont(t->h, read_nonblocking_desc, 
-                               t->h, t->d, r));
+    t->client_reader = r;
+    register_read_handler(t->d, t->read_handler);
 }
 
+
+static tcpsock allocate_tcpsock(heap h)
+{
+    tcpsock t = allocate(h, sizeof(struct tcpsock));
+    t->h = h;
+    t->last = &t->q;
+    t->r = cont(h, regtcp, t);
+    t->read_handler = cont(h, tcp_read_nonblocking_desc, t);
+    return(t);
+}
     
 static CONTINUATION_2_0(new_connection, tcp_server, new_client);
 static void new_connection(tcp_server t, new_client n)
@@ -198,8 +213,7 @@ static void new_connection(tcp_server t, new_client n)
         close(t->d);
     }
 
-    register_read_handler(t->d, 
-                          cont(t->h, new_connection, t, n));
+    register_read_handler(t->d, cont(t->h, new_connection, t, n));
 }
 
 
