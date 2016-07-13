@@ -144,9 +144,10 @@ static void connect_try (tcpsock t)
             sizeof(struct sockaddr_in));
 }
 
-static CONTINUATION_1_1(register_read, tcpsock, buffer_handler);
-static void register_read(tcpsock t, buffer_handler r)
+static CONTINUATION_1_1(regtcp, tcpsock, reader);
+static void regtcp(tcpsock t, reader r)
 {
+    // we can cache the cont(?) by using a double application 
     register_read_handler(t->d,
                           cont(t->h, read_nonblocking_desc, 
                                t->h, t->d, r));
@@ -186,7 +187,7 @@ static void new_connection(tcpsock t, new_client n)
         
         apply(n,
               cont(new->h, tcp_write, new),
-              cont(new->h, register_read, new),
+              cont(new->h, regtcp, new),
               peer);
     } else {
         close(t->d);

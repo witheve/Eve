@@ -45,3 +45,8 @@ void http_register_service(http_server, http_service, string);
 typedef closure(json_handler, bag, uuid, thunk);
 buffer_handler parse_json(heap h, uuid pu, json_handler j);
 void print_value_json(buffer out, value v);
+
+typedef closure(header_handler, bag, uuid, buffer, register_read);
+
+reader response_header_parser(heap h, header_handler result_handler);
+reader request_header_parser(heap h, header_handler result_handler);

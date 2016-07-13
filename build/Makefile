@@ -34,8 +34,10 @@ CORE_H = bswap.h pqueue.h vector.h buffer.h heap.h timer.h continuation.h core.h
 EXEC = exec_expression.o exec_edb.o exec_string.o exec_aggregate.o exec.o
 RUNTIME =  edb.o init.o uuid.o estring.o types.o luanne.o json_request.o runner.o $(EXEC)
 RUNTIME_H = luanne.h runtime.h estring.h number.h types.h exec.h
-HTTP = server.o websocket.o base64.o sha1.o json.o
+HTTP = server.o websocket.o base64.o sha1.o json.o client.o
+DNS = dns.o
 HTTP_H = http.h
+CONTENT = index.o renderer.o microReact.o codemirror.o codemirrorCss.o 
 
 continuation_templates.h: continuations.py
 	python $^ 9 9 continuation_templates.h
@@ -71,7 +73,7 @@ codemirrorCss.o: ../jssrc/codemirror.css
 # the executable out of the way for the moment
 #macosx
 #linux  -Wl,-E
-lueve: $(CORE) $(UNIX) $(COMPILER) $(UTF) $(LUAPOWER) $(HTTP) $(RUNTIME) index.o renderer.o microReact.o codemirror.o codemirrorCss.o lueve.o
+lueve: $(CORE) $(UNIX) $(COMPILER) $(UTF) $(LUAPOWER) $(HTTP) $(RUNTIME) $(DNS) $(CONTENT) lueve.o
 	cc $(LINK) $^ $(LIBLUAJIT) -lm -ldl  -o $@
 
 clean:
