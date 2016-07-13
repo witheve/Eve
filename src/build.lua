@@ -234,7 +234,7 @@ function translate_subproject(n, bound, down, tracing, context)
                         id)
 
    if tracing then
-      local map = {"proj", ""}
+      local map = {kind, ""}
       for k, v in pairs(n.projection) do
          push(map, k.name,  read_lookup(env, k))
       end
@@ -391,7 +391,7 @@ function translate_choose(n, bound, down, tracing, context)
 
    local id = util.generateId()
    local merge = build_node("merge", {bot}, {{#n.queries}}, id)
-   
+
    local arm_bottom = function (bound)
         return env, merge
    end
@@ -574,7 +574,7 @@ function build(graphs, tracing, parseGraph)
       heads[#heads+1] = build_node("regfile", {program}, {{regs}}, id)
    end
 
-   return heads 
+   return heads
 end
 
 ------------------------------------------------------------
