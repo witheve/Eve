@@ -10,9 +10,9 @@
 #define register_space 0x40000000000ull
 #define register_base register_space
 
-#define efalse ((void *)(register_space + 0x1000000000))
-#define etrue ((void *)(register_space + 0x1000000001))
-#define register_ignore ((void *)(register_space + 0x1000000002))
+#define efalse ((void *)(register_space + 0x100000000))
+#define etrue ((void *)(register_space + 0x100000001))
+#define register_ignore ((void *)(register_space + 0x100000002))
 
 #define allocation_space 0xa0000000000ull
 
