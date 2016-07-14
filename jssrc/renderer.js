@@ -810,23 +810,32 @@ socket.onmessage = function(msg) {
   if(data.type == "result") {
     handleDOMUpdates(data);
 
+    let diffEntities = 0;
     if(__entities) {
       for(let [e, a, v] of data.remove) {
         if(!__entities[e]) continue;
         let entity = __entities[e];
         let set = entity[a];
         if(!set) continue;
-        if(set.constructor !== Array || set.constructor.length <= 1) {
+        if(set.constructor !== Array || set.length <= 1) {
           delete entity[a];
         } else {
           let ix = entity[a].indexOf(v);
           if(ix === -1) continue;
           entity[a].splice(ix, 1);
         }
+
+        if(Object.keys(entity).length === 0) {
+          delete __entities[e];
+          diffEntities--;
+        }
       }
 
       for(let [e, a, v] of data.insert) {
-        if(!__entities[e]) __entities[e] = {};
+        if(!__entities[e]) {
+          __entities[e] = {};
+          diffEntities++;
+        }
         let entity = __entities[e];
         if(!entity[a]) {
           entity[a] = v;
@@ -838,7 +847,7 @@ socket.onmessage = function(msg) {
       }
     }
 
-    console.groupCollapsed("Received Result +" + data.insert.length + "/-" + data.remove.length);
+    console.groupCollapsed(`Received Result +${data.insert.length}/-${data.remove.length} (∂Entities: ${diffEntities})`);
     console.table(data.insert);
     console.table(data.remove);
     if(__entities) console.log(clone(__entities));
