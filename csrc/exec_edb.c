@@ -20,16 +20,16 @@ static void scan_listener(execf n, heap h, operator op, value *r,
 
 #define sigbit(__sig, __p, __r) ((sig&(1<<__p))? register_ignore: __r)
 
-static CONTINUATION_7_3(do_scan, block, int *, execf, int, value, value, value, heap, operator, value *);
-static void do_scan(block bk, int *count, execf n, int sig, value e, value a, value v, 
+static CONTINUATION_7_3(do_scan, block, perf, execf, int, value, value, value, heap, operator, value *);
+static void do_scan(block bk, perf p, execf n, int sig, value e, value a, value v, 
                     heap h, operator op, value *r)
 {
     if (op == op_flush) {
         apply(n, h, op, r);
         return;
     }
-    *count = *count + 1;
-    
+    start_perf(p);
+    stop_perf(p);
     apply(bk->ev->reader, sig,
           cont(h, scan_listener, n, h, op, r,
                sigbit(sig, 2, e), sigbit(sig, 1, a), sigbit(sig, 0, v)),
@@ -48,7 +48,7 @@ static execf build_scan(block bk, node n)
         sig |= is_cap(description->body[i]);
     }
     return cont(bk->h, do_scan, bk,
-                register_counter(bk->ev, n),
+                register_perf(bk->ev, n),
                 resolve_cfg(bk, n, 0),
                 sig,
                 vector_get(ar, 1),
@@ -57,17 +57,20 @@ static execf build_scan(block bk, node n)
 
 }
 
-static CONTINUATION_8_3(do_insert, block, int *, execf, int, value, value, value, value, heap, operator, value *) ;
-static void do_insert(block bk, int *count, execf n, int deltam,
+static CONTINUATION_8_3(do_insert, block, perf, execf, int, value, value, value, value, heap, operator, value *) ;
+static void do_insert(block bk, perf p, execf n, int deltam,
                       value uuid, value e, value a, value v, 
                       heap h, operator op, value *r)
 {
     if (op == op_insert) {
-        *count = *count + 1;
+        start_perf(p);
         apply(bk->ev->insert, uuid, lookup(r, e), lookup(r, a), lookup(r, v), deltam);
+        stop_perf(p);
     }
     if (op == op_remove) {
+        start_perf(p);
         apply(bk->ev->insert, uuid, lookup(r, e), lookup(r, a), lookup(r, v), -deltam);
+        stop_perf(p);
     }
     apply(n, h, op, r);
 }
@@ -77,7 +80,7 @@ static execf build_insert(block bk, node n)
     vector a = vector_get(n->arguments, 0);
     uuid x = table_find(bk->ev->scopes, vector_get(a, 0));
         
-    return cont(bk->h, do_insert, bk, register_counter(bk->ev, n),
+    return cont(bk->h, do_insert, bk, register_perf(bk->ev, n),
                 resolve_cfg(bk, n, 0),
                 1,
                 x,
@@ -90,7 +93,7 @@ static execf build_remove(block bk, node n)
 {
     vector a = vector_get(n->arguments, 0);
     uuid x = table_find(bk->ev->scopes, vector_get(a, 0));
-    return cont(bk->h, do_insert,  bk, register_counter(bk->ev, n),
+    return cont(bk->h, do_insert,  bk, register_perf(bk->ev, n),
                 resolve_cfg(bk, n, 0),
                 -1,
                 x,
@@ -105,16 +108,17 @@ static void each_set_remove(block bk, uuid u, value e, value a, value etrash, va
     apply(bk->ev->insert, u, e, a, v, -1);
 }
 
-static CONTINUATION_7_3(do_set, block, int *, execf, value, value, value, value, heap, operator, value *) ;
-static void do_set(block bk, int *count, execf n, value u, value e, value a, value v, 
+static CONTINUATION_7_3(do_set, block, perf, execf, value, value, value, value, heap, operator, value *) ;
+static void do_set(block bk, perf p, execf n, value u, value e, value a, value v, 
                    heap h, operator op, value *r)
 {
     u = lookup(r, u);
-    *count = *count + 1;
+    start_perf(p);
     value ev = lookup(r, e);
     value av=  lookup(r, a);
     apply(bk->ev->reader, s_EAv, cont(h, each_set_remove, bk, u, ev, av), ev, av, 0);
     apply(bk->ev->insert, u, ev, av, lookup(r, v), 1);
+    stop_perf(p);
     apply(n, h, op, r);
 }
 
@@ -122,7 +126,7 @@ static execf build_set(block bk, node n)
 {
     vector a = vector_get(n->arguments, 0);
     uuid x = table_find(bk->ev->scopes, vector_get(a, 0));
-    return cont(bk->h, do_set,  bk, register_counter(bk->ev, n),
+    return cont(bk->h, do_set,  bk, register_perf(bk->ev, n),
                 resolve_cfg(bk, n, 0),
                 x,
                 vector_get(a, 1),

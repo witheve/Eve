@@ -86,6 +86,24 @@ struct block {
     evaluation ev;
     table nmap;
 };
+
+typedef struct perf {
+    int count;
+    ticks start;
+    ticks time;
+} *perf;
+
+static inline void start_perf(perf p)
+{
+    p->count++;
+    p->start = rdtsc();
+}
+
+static inline void stop_perf(perf p)
+{
+    p->time += p->start - rdtsc();
+}
+
     
 struct evaluation  {
     heap h;

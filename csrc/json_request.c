@@ -87,9 +87,9 @@ static void send_node_graph(heap h, buffer_handler output, node head, table coun
         }
         bprintf(out, "]");
 
-        int* count = table_find(counts, current);
-        if(count) {
-            bprintf(out, ", \"count\": %u", *count);
+        perf p = table_find(counts, current);
+        if(p) {
+            bprintf(out, ", \"count\": %u", p->count);
         }
 
         if(current->type == intern_cstring("scan")) {

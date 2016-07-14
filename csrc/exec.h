@@ -23,11 +23,11 @@ static inline value lookup(value *r, value k)
     return k;
 }
 
-static int *register_counter(evaluation e, node n)
+static perf register_perf(evaluation e, node n)
 {
-    int *c = allocate(e->h, sizeof(int));
-    table_set(e->counters, n, c);
-    return c;
+    perf p = allocate(e->h, sizeof(struct perf));
+    table_set(e->counters, n, p);
+    return p;
 }
 
 static inline void extract(vector dest, vector keys, value *r)
