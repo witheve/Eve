@@ -1044,7 +1044,7 @@ function ScanNode.__tostring(obj)
 end
 
 SubprojectNode = {}
-function SubprojectNode:new(obj, source, context)
+function SubprojectNode:new(obj, source, context, scope)
   obj = obj or {}
   obj.id = util.generateId()
   if source.id then
@@ -1054,6 +1054,7 @@ function SubprojectNode:new(obj, source, context)
   obj.projection = obj.projection or Set:new()
   obj.provides = obj.provides or Set:new()
   obj.nodes = obj.nodes or {}
+  obj.scope = scope
   setmetatable(obj, self)
   self.__index = self
   return obj
@@ -1112,7 +1113,7 @@ function unpackObjects(dg, context)
         end
         projection:union(node.projection or nothing, true)
 
-        subproject = SubprojectNode:new({projection = projection, provides = node.deps.provides}, node, context)
+        subproject = SubprojectNode:new({projection = projection, provides = node.deps.provides}, node, context, node.scope)
         unpackList = subproject.nodes
         unpacked[#unpacked + 1] = subproject
       end
@@ -1131,7 +1132,7 @@ function unpackObjects(dg, context)
           if binding.field ~= ENTITY_FIELD then
             if subproject and binding.variable and not subproject.projection[binding.variable] then
               subproject.provides:add(entity)
-              unpacked[#unpacked + 1] = SubprojectNode:new({projection = subproject.projection + Set:new{entity, binding.variable}, nodes = {ScanNode:fromBinding(node, binding, entity, context)}}, binding, context)
+              unpacked[#unpacked + 1] = SubprojectNode:new({projection = subproject.projection + Set:new{entity, binding.variable}, nodes = {ScanNode:fromBinding(node, binding, entity, context)}}, binding, context, node.scope)
             else
               unpackList[#unpackList + 1] = ScanNode:fromBinding(node, binding, entity, context)
             end
