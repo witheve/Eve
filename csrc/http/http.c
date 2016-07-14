@@ -35,6 +35,27 @@ typedef struct header_parser {
    reader self;
 } *header_parser;
 
+void http_send_header(buffer_handler w, bag b, uuid n, value a, value b, value c)
+{
+    buffer b = allocate_buffer(init);
+    bprintf(b, "%v %v %v\r\n", a, b, c);
+    bag_foreach_av(b, n, a, v) 
+        bprintf(b, "%v: %v\r\n", a, v);
+    bprintf(b, "\r\n");
+    apply(w, b, ignore);
+    //    buffer_deallocate(b);
+}
+
+void http_send_request_header(buffer_handler w, bag b, uuid n)
+{
+}
+
+void http_send_response_header(buffer_handler w, bag b, uuid n)
+{
+}
+
+
+
 static CONTINUATION_1_2(parse_http_header, header_parser, buffer, register_read);
 static void parse_http_header(header_parser p, buffer b, register_read reg)
 {
