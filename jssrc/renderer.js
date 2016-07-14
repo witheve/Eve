@@ -446,7 +446,10 @@ function drawNode(nodeId, graph, state, seen) {
   }
   seen[nodeId] = true;
 
-  let childrenTime = node.arms.map(function(id) { return graph[id].time }).reduce(function(cur, v) { return cur + v; }, 0);
+  let childrenTime = 0;
+  if(node.type != "choosetail") {
+    childrenTime = node.arms.map(function(id) { return graph[id].time }).reduce(function(cur, v) { return cur + v; }, 0);
+  }
   let myTime = (((node.time - childrenTime) / state.rootTime) * 100).toFixed(1);
   myTime = isNaN(myTime) ? 0 : myTime;
 
