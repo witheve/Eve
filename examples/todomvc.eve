@@ -39,7 +39,8 @@ draw todomvc
                 else false
   count = if c = count(given [#todo completed: false]) then c
           else 0
-  hide-clear-completed = is(count > 0)
+  any-checked = if [#todo completed: true] then true
+                else false
   maintain
     [#div @todoapp children:
       [#header children:
@@ -50,4 +51,4 @@ draw todomvc
         [#ul @todo-list]]
      [#footer children:
         [#span @todo-count children: [#strong text: count] [#span text: " items left"]]
-        [#button @clear-completed, style: [display: hide-clear-completed] text: "Clear completed"]]]
+        [#button @clear-completed, style: [display: any-checked] text: "Clear completed"]]]
