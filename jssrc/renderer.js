@@ -21,7 +21,7 @@ var activeStyles = {};
 var supportedTags = {
   "div": true, "span": true, "input": true, "ul": true, "li": true, "label": true, "button": true, "header": true, "footer": true, "a": true, "strong": true,
   "h1": true, "h2": true, "h3": true, "h4": true, "h5": true, "h6": true,
-  "ol": true, "p": true, "pre": true, "em": true, "img": true, "canvas": true, "script": true, "style": true, "video": true, 
+  "ol": true, "p": true, "pre": true, "em": true, "img": true, "canvas": true, "script": true, "style": true, "video": true,
   "table": true, "tbody": true, "thead": true, "tr": true, "th": true, "td": true,
   "form": true, "optgroup": true, "option": true, "select": true, "textarea": true,
   "title": true, "meta": true, "link": true,
@@ -366,6 +366,9 @@ window.addEventListener("blur", function(event) {
   let {target} = event;
   if(target.entity) {
     let objs = [{tags: ["blur"], element: target.entity}];
+    if(target.value !== undefined) {
+      objs.push({id: target.entity, value: target.value});
+    }
     sendEventObjs(objs);
   }
 }, true);
@@ -411,7 +414,7 @@ window.addEventListener("hashchange", function(event) {
   let segments = hash.split("/").map(function(seg, ix) {
     return `[index: ${ix + 1}, segment: "${seg}"]`;
   });
-  let query = 
+  let query =
   `hash changed remove any current url segments
     url = [#url hash-segment]
     save
