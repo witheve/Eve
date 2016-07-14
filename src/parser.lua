@@ -597,7 +597,7 @@ local function parse(tokens, context)
         end
         local node = makeNode(context, "union", token, {outputs = outputs, children = {}})
         stack:push(node)
-        local childQuery = makeNode(context, "query", token, {outputs = outputs, parent = stackTop, children = {}}) 
+        local childQuery = makeNode(context, "query", token, {outputs = outputs, parent = stackTop, children = {}})
         stack:push(childQuery)
       elseif stackTop.type == "union" or stackTop.type == "choose" then
         local childQuery = makeNode(context, "query", token, {children = {}, outputs = stackTop.outputs, parent = stackTop})
@@ -621,7 +621,7 @@ local function parse(tokens, context)
         if next and next.type ~= "IF" then
           local childQuery = makeNode(context, "query", token, {outputs = stackTop.outputs, parent = stackTop, closed = true, children = {}})
           stack:push(childQuery)
-          local childQuery = makeNode(context, "outputs", token, {children = {}}) 
+          local childQuery = makeNode(context, "outputs", token, {children = {}})
           stack:push(childQuery)
         end
       end
@@ -711,7 +711,7 @@ local function parse(tokens, context)
           errors.invalidInfixLeft(context, token, prev)
         end
       -- it needs to either be an expression, an identifier, or a constant
-      elseif prev and valueTypes[prev.type] then 
+      elseif prev and valueTypes[prev.type] then
         stackTop.children[#stackTop.children] = nil
         stack:push(makeNode(context, "infix", token, {func = token.value, children = {prev}}))
       else
@@ -722,7 +722,7 @@ local function parse(tokens, context)
     elseif type == "EQUALITY" or type == "ALIAS" or type == "INEQUALITY" then
       -- get the previous child
       local prev = stackTop.children[#stackTop.children]
-      if not prev or prev.type == "equality" or prev.type == "inequality" or 
+      if not prev or prev.type == "equality" or prev.type == "inequality" or
          stackTop.type == "equality" or stackTop.type == "inequality" then
         -- error
         errors.invalidEqualityLeft(context, token, prev)
@@ -1210,7 +1210,7 @@ generateObjectNode = function(root, context)
 
     elseif type == "not" and object.type == "object" then
       -- this needs to translate into a regular not that references this object
-      -- via a constructed attribute call. we'll need the entityVariable as an identifier 
+      -- via a constructed attribute call. we'll need the entityVariable as an identifier
       -- for that node
       local objectIdentifier = makeNode(context, "IDENTIFIER", child, {value = entityVariable.name})
       -- construct the not
@@ -1411,7 +1411,7 @@ generateQueryNode = function(root, context)
       else
         local left = resolveExpression(child, context)
       end
-        
+
 
     elseif type == "inequality" then
       resolveExpression(child, context)
@@ -1562,5 +1562,6 @@ return {
   printParse = printParse,
   formatGraph = formatGraph,
   formatQueryGraph = formatQueryGraph,
+  makeNode = makeNode,
   ENTITY_FIELD = MAGIC_ENTITY_FIELD
 }
