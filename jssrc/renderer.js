@@ -18,6 +18,7 @@ document.body.appendChild(renderer.content);
 var activeElements = {"root": document.createElement("div")};
 activeElements["root"].className = "program";
 var activeStyles = {};
+var activeClasses = {};
 var supportedTags = {
   "div": true, "span": true, "input": true, "ul": true, "li": true, "label": true, "button": true, "header": true, "footer": true, "a": true, "strong": true,
   "h1": true, "h2": true, "h3": true, "h4": true, "h5": true, "h6": true,
@@ -97,6 +98,7 @@ function handleDOMUpdates(result) {
     // the style object is being removed, but the element is sticking
     // around, we remove any styles that may have been applied
     let stylesToMaybeGC = [];
+    let classesToMaybeGC = [];
     for(let rem of remove) {
       let [entity, attribute, value] = safeEav(rem);
       if(activeStyles[entity]) {
@@ -105,6 +107,13 @@ function handleDOMUpdates(result) {
           let style = elem.style;
           if(!additions[entity] || !additions[entity][attribute]) {
             style[attribute] = "";
+          }
+        }
+      } else if(activeClasses[entity]) {
+        if(!additions[entity]  || !additions[entity][attribute]) {
+          for(let elem of activeClasses[entity]) {
+            elem.className = "";
+            elem.classId = undefined;
           }
         }
       } else if(activeElements[entity]) {
@@ -127,6 +136,13 @@ function handleDOMUpdates(result) {
             let ix = activeStyles[value].indexOf(elem);
             if(ix > -1) {
               activeStyles[value].splice(ix, 1);
+            }
+            break;
+          case "class":
+            classesToMaybeGC.push(value);
+            let classIx = activeClasses[value].indexOf(elem);
+            if(classIx > -1) {
+              activeClasses[value].splice(classIx, 1);
             }
             break;
           case "children":
@@ -155,9 +171,15 @@ function handleDOMUpdates(result) {
         activeStyles[styleId] = null;
       }
     }
+    for(let classId of classesToMaybeGC) {
+      if(activeClasses[classId] && activeClasses[classId].length === 0) {
+        activeClasses[classId] = null;
+      }
+    }
   }
 
   let styles = [];
+  let classes = [];
   let entities = Object.keys(additions)
   for(let entId of entities) {
     let ent = additions[entId];
@@ -204,6 +226,15 @@ function handleDOMUpdates(result) {
           elem.styleId = value;
           activeStyles[value].push(elem);
         }
+      } else if(attr == "class" && value[0] == "⦑" && value[value.length - 1] == "⦒") {
+        classes.push(value);
+        if(!activeClasses[value]) {
+          activeClasses[value] = [];
+        }
+        if(activeClasses[value].indexOf(elem) == -1) {
+          elem.classId = value;
+          activeClasses[value].push(elem);
+        }
       } else if(attr == "textContent") {
         elem.textContent = value;
       } else if(attr == "tag" || attr == "ix") {
@@ -238,6 +269,29 @@ function handleDOMUpdates(result) {
           elemStyle[attr] = style[attr];
         }
       }
+    }
+  }
+
+  for(let classId of classes) {
+    let classSet = additions[classId];
+    if(!classSet) continue;
+    let elems = activeClasses[classId];
+    for(let elem of elems || []) {
+      if(!elem) {
+        console.error("Got a class for an element that doesn't exist.");
+        continue;
+      }
+      let elemClasses = elem.className.split(" ");
+      let classNames = Object.keys(classSet);
+      for(let klass of classNames) {
+        let existingIx = elemClasses.indexOf(klass)
+        if(classSet[klass] && existingIx == -1) {
+          elemClasses.push(klass);
+        } else if(!classSet[klass] && existingIx != -1) {
+          elemClasses.splice(existingIx, 1);
+        }
+      }
+      elem.className = elemClasses.join(" ");
     }
   }
 }
@@ -450,7 +504,7 @@ function drawNode(nodeId, graph, state, seen) {
   let myTime = (((node.time - childrenTime) / state.rootTime) * 100).toFixed(1);
   myTime = isNaN(myTime) ? 0 : myTime;
 
-  let active = activeClass(node, state);
+  let active = currentClass(node, state);
   let children = [];
   let childrenContainer = {c: "node-children", children};
   let me = {c: `node`, children: [
@@ -580,7 +634,7 @@ function nodeToRelated(pos, node, parse) {
   return active;
 }
 
-function activeClass(node, state) {
+function currentClass(node, state) {
   return state.activeIds[node.id] ? "active" : "";
 }
 
@@ -722,7 +776,7 @@ function orderedNode(nodeId, state) {
   if(!node && typeof nodeId == "string") {
     return {c: "value", text: `"${nodeId}"`};
   }
-  let active = activeClass(node, state);
+  let active = currentClass(node, state);
   if(node.type == "object" || node.type == "mutate") {
     return {c: `ordered-node ordered-object ${active}`, children: [
       {c: "node-type", text: node.type},
