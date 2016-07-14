@@ -24,11 +24,13 @@ static CONTINUATION_7_3(do_scan, block, perf, execf, int, value, value, value, h
 static void do_scan(block bk, perf p, execf n, int sig, value e, value a, value v,
                     heap h, operator op, value *r)
 {
+    start_perf(p);
     if ((op == op_flush) || (op == op_close)) {
         apply(n, h, op, r);
+        stop_perf(p);
         return;
     }
-    start_perf(p);
+
     apply(bk->ev->reader, sig,
           cont(h, scan_listener, n, h, op, r,
                sigbit(sig, 2, e), sigbit(sig, 1, a), sigbit(sig, 0, v)),
@@ -110,14 +112,14 @@ static CONTINUATION_7_3(do_set, block, perf, execf, value, value, value, value, 
 static void do_set(block bk, perf p, execf n, value u, value e, value a, value v,
                    heap h, operator op, value *r)
 {
-    u = lookup(r, u);
     start_perf(p);
+    u = lookup(r, u);
     value ev = lookup(r, e);
     value av=  lookup(r, a);
     apply(bk->ev->reader, s_EAv, cont(h, each_set_remove, bk, u, ev, av), ev, av, 0);
     apply(bk->ev->insert, u, ev, av, lookup(r, v), 1);
-    stop_perf(p);
     apply(n, h, op, r);
+    stop_perf(p);
 }
 
 static execf build_set(block bk, node n)
