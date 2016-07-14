@@ -49,19 +49,20 @@ static void merge_scan(evaluation ev, int sig, listener result, value e, value a
     listener x_filter = cont(ev->working, shadow, ev->t_solution, f_filter);
 
     // xxx - currently precluding removes in the event set
-    if (ev->ev_solution) {
+    if (ev->ev_solution) 
         table_foreach(ev->ev_solution, u, b) 
             edb_scan(b, sig, result, e, a, v);
-    }
 
     table_foreach(ev->persisted, u, b) 
         edb_scan(b, sig, x_filter, e, a, v);
 
-    table_foreach(ev->t_solution, u, b) 
-        edb_scan(b, sig, f_filter, e, a, v);
+    if (ev->t_solution) 
+        table_foreach(ev->t_solution, u, b) 
+            edb_scan(b, sig, f_filter, e, a, v);
 
-    table_foreach(ev->f_solution, u, b) 
-        edb_scan(b, sig, result, e, a, v);
+    if (ev->f_solution) 
+        table_foreach(ev->f_solution, u, b) 
+            edb_scan(b, sig, result, e, a, v);
 }
 
 static CONTINUATION_1_0(evaluation_complete, evaluation);
@@ -176,37 +177,41 @@ static void fixedpoint(evaluation ev)
     prf ("fixedpoint in %t seconds, %d blocks, %V iterations, %d input bags, %d output bags\n", 
          end_time-start_time, vector_length(ev->blocks),
          counts, table_elements(ev->scopes), table_elements(ev->t_solution));
+    destroy(ev->working);
+}
+
+static void clear_evaluation(evaluation ev)
+{
+    ev->working = allocate_rolling(pages, sstring("event"));
+    ev->t++;
+    ev->ev_solution = 0;
+    ev->t_solution = 0;
+    ev->f_solution =  create_value_table(ev->working);
+    ev->next_f_solution = create_value_table(ev->working);
+    ev->next_t_solution = create_value_table(ev->working);
 }
 
 void inject_event(evaluation ev, buffer b, boolean tracing)
 {
-    heap h = allocate_rolling(pages, sstring("event"));
     buffer desc;
-    vector n = compile_eve(h, b, tracing, &desc);
-    ev->working = h;
-    ev->t++;
-    ev->ev_solution = 0;
-    ev->next_f_solution = create_value_table(ev->working);
+    clear_evaluation(ev);
+    vector n = compile_eve(ev->working, b, tracing, &desc);
+
     // close this block
     vector_foreach(n, i) {
         block b = build(ev, i);
         run_block(ev->working, b);
         apply(b->head, ev->h, op_close, 0);
     }
-    table k;
-    k = ev->ev_solution = ev->next_f_solution;
+    ev->ev_solution = ev->next_f_solution;
     fixedpoint(ev);
-    destroy(h);
 }
 
 CONTINUATION_1_0(run_solver, evaluation);
 void run_solver(evaluation ev)
 {
-    heap h = allocate_rolling(pages, sstring("working"));
-    ev->ev_solution = 0;
-    ev->working = h;
+    clear_evaluation(ev);
     fixedpoint(ev);
-    destroy(h);
 }
 
 void close_evaluation(evaluation ev) 
@@ -216,6 +221,7 @@ void close_evaluation(evaluation ev)
 
     vector_foreach(ev->blocks, b)
         apply(((block)b)->head, ev->working, op_close, 0);
+    
     destroy(ev->h);
 }
     

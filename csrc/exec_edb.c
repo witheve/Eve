@@ -24,7 +24,7 @@ static CONTINUATION_7_3(do_scan, block, int *, execf, int, value, value, value, 
 static void do_scan(block bk, int *count, execf n, int sig, value e, value a, value v,
                     heap h, operator op, value *r)
 {
-    if (op == op_flush) {
+    if ((op == op_flush) || (op == op_close)) {
         apply(n, h, op, r);
         return;
     }
