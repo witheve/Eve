@@ -11,8 +11,9 @@ static void do_sort(execf n, perf p,
                     table *targets, value key, value out, vector proj, vector pk,
                     heap h, operator op, value *r)
 {
+    start_perf(p);
     if (op == op_insert) {
-        start_perf(p);
+
         extract(pk, proj, r);
         pqueue x;
         if (!(x = table_find(*targets, pk))) {
@@ -21,7 +22,6 @@ static void do_sort(execf n, perf p,
             table_set(*targets,pk, x);
         }
         pqueue_insert(x, lookup(r, key));
-        stop_perf(p);
     }
 
     if (op == op_flush) {
@@ -41,6 +41,7 @@ static void do_sort(execf n, perf p,
     if (op == op_close) {
         apply(n, h, op_close, r);
     }
+    stop_perf(p);
 }
 
 static execf build_sort(block bk, node n, execf *arms)
@@ -58,8 +59,8 @@ static void do_sum(execf n, perf p,
                    table *targets, vector grouping, value src, value dst, vector pk,
                    heap h, operator op, value *r)
 {
+    start_perf(p);
     if (op == op_insert) {
-        start_perf(p);
         extract(pk, grouping, r);
         double *x;
         if (!(x = table_find(*targets, pk))) {
@@ -70,7 +71,6 @@ static void do_sum(execf n, perf p,
             table_set(*targets, key, x);
         }
         *x = *x + *(double *)lookup(r, src);
-        stop_perf(p);
     }
 
     if (op == op_flush) {
@@ -86,6 +86,7 @@ static void do_sum(execf n, perf p,
     if (op == op_close) {
         apply(n, h, op_close, r);
     }
+    stop_perf(p);
 }
 
 static execf build_sum(block bk, node n, execf *arms)

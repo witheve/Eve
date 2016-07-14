@@ -10,14 +10,14 @@ static void do_sub_tail(perf p,
                         heap h, operator op, value *r)
 {
     // just drop flush and remove on the floor
+    start_perf(p);
     if ( op == op_insert) {
-        start_perf(p);
         table results = lookup(r, resreg);
         vector result = allocate_vector(results->h, vector_length(outputs));
         extract(result, outputs, r);
         table_set(results, result, etrue);
-        stop_perf(p);
     }
+    stop_perf(p);
 }
 
 static execf build_sub_tail(block bk, node n)
@@ -110,12 +110,14 @@ static void do_sub(perf p, sub s, heap h, operator op, value *r)
 
     if (op == op_close) {
         destroy(s->h);
+        stop_perf(p);
         return;
     }
 
     if (op == op_flush) {
         delete_missing(h, s, r);
         apply(s->next, h, op, r);
+        stop_perf(p);
         return;
     }
 
@@ -189,6 +191,7 @@ static void do_subagg(perf p, execf next, table *proj_seen, vector v, vector inp
     if (op == op_flush) {
         apply(next, h, op, r);
         *proj_seen = create_value_vector_table((*proj_seen)->h);
+        stop_perf(p);
         return;
     }
 
@@ -254,6 +257,7 @@ static void do_choose(perf p, execf n, vector legs, value flag, heap h, operator
             apply((execf) i, h, op, r);
             apply((execf) i, h, op_flush, r);
             if (r[toreg(flag)] == etrue) {
+                stop_perf(p);
                 return;
             }
         }
@@ -285,6 +289,7 @@ static void do_not(perf p, execf next, execf leg, value flag, heap h, operator o
     // should also flush down the leg
     if (op == op_flush) {
         apply(next, h, op, r);
+        stop_perf(p);
         return;
     }
     store(r, flag, efalse);
@@ -414,11 +419,9 @@ static execf build_time(block bk, node n, execf *arms)
 static CONTINUATION_3_3(do_fork, perf, int, execf *, heap, operator, value *) ;
 static void do_fork(perf p, int legs, execf *b, heap h, operator op, value *r)
 {
-    if ((op != op_flush) && (op != op_close)) {
-        start_perf(p);
-        stop_perf(p);
-    }
+    start_perf(p);
     for (int i =0; i<legs ;i ++) apply(b[i], h, op, r);
+    stop_perf(p);
 }
 
 static execf build_fork(block bk, node n)
@@ -457,9 +460,7 @@ static void do_regfile(execf n, perf p, int size, heap h, operator op, value *ig
     start_perf(p);
     value *r;
     if (op == op_insert) {
-        start_perf(p);
         r = allocate(h, size * sizeof(value));
-        stop_perf(p);
     }
     apply(n, h, op, r);
     stop_perf(p);
