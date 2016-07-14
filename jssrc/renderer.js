@@ -323,6 +323,19 @@ window.addEventListener("click", function(event) {
   // objs.push({tags: ["click"], element: "window"});
   sendEvent(objs);
 });
+window.addEventListener("dblclick", function(event) {
+  let {target} = event;
+  let current = target;
+  let objs = [];
+  while(current) {
+    if(current.entity) {
+      objs.push({tags: ["double-click"], element: current.entity});
+    }
+    current = current.parentNode
+  }
+  // objs.push({tags: ["click"], element: "window"});
+  sendEvent(objs);
+});
 
 window.addEventListener("input", function(event) {
   let {target} = event;
@@ -336,7 +349,7 @@ window.addEventListener("focus", function(event) {
   let {target} = event;
   if(target.entity) {
     let objs = [{tags: ["focus"], element: target.entity}];
-    // console.log(sendEvent(objs));
+    sendEvent(objs);
   }
 }, true);
 
@@ -344,7 +357,7 @@ window.addEventListener("blur", function(event) {
   let {target} = event;
   if(target.entity) {
     let objs = [{tags: ["blur"], element: target.entity}];
-    // console.log(sendEvent(objs));
+    sendEvent(objs);
   }
 }, true);
 
