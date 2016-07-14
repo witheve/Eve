@@ -206,6 +206,9 @@ function handleDOMUpdates(result) {
       } else if(attr == "_parent") {
         let parent = activeElements[value];
         insertSorted(parent, elem);
+      } else if(attr == "checked") {
+        if(value) elem.setAttribute("checked", true);
+        else elem.removeAttribute("checked");
       } else {
         elem.setAttribute(attr, value);
       }
