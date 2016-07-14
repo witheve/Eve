@@ -4,15 +4,15 @@
 // we're suposed to have multiple keys and multiple sort orders, ideally
 // just generate a comparator over r
 static CONTINUATION_7_3(do_sort,
-                        execf, int*,
+                        execf, perf,
                         table *, value, value, vector,vector,
                         heap,operator, value *);
-static void do_sort(execf n, int *count,
+static void do_sort(execf n, perf p,
                     table *targets, value key, value out, vector proj, vector pk,
                     heap h, operator op, value *r)
 {
     if (op == op_insert) {
-        *count = *count +1;
+        start_perf(p);
         extract(pk, proj, r);
         pqueue x;
         if (!(x = table_find(*targets, pk))) {
@@ -21,6 +21,7 @@ static void do_sort(execf n, int *count,
             table_set(*targets,pk, x);
         }
         pqueue_insert(x, lookup(r, key));
+        stop_perf(p);
     }
 
     if (op == op_flush) {
@@ -47,18 +48,18 @@ static execf build_sort(block bk, node n, execf *arms)
     return cont(bk->h,
                 do_sort,
                 resolve_cfg(bk, n, 0),
-                register_counter(bk->ev, n),
+                register_perf(bk->ev, n),
                 0, 0, 0, 0, 0);
 }
 
 
-static CONTINUATION_7_3(do_sum, execf, int*, table*, vector, value, value, vector, heap, operator, value *);
-static void do_sum(execf n, int *count,
+static CONTINUATION_7_3(do_sum, execf, perf, table*, vector, value, value, vector, heap, operator, value *);
+static void do_sum(execf n, perf p,
                    table *targets, vector grouping, value src, value dst, vector pk,
                    heap h, operator op, value *r)
 {
     if (op == op_insert) {
-        *count = *count +1;
+        start_perf(p);
         extract(pk, grouping, r);
         double *x;
         if (!(x = table_find(*targets, pk))) {
@@ -69,6 +70,7 @@ static void do_sum(execf n, int *count,
             table_set(*targets, key, x);
         }
         *x = *x + *(double *)lookup(r, src);
+        stop_perf(p);
     }
 
     if (op == op_flush) {
@@ -98,7 +100,7 @@ static execf build_sum(block bk, node n, execf *arms)
     return cont(bk->h,
                 do_sum,
                 resolve_cfg(bk, n, 0),
-                register_counter(bk->ev, n),
+                register_perf(bk->ev, n),
                 targets,
                 groupings,
                 vector_get(args, 1),

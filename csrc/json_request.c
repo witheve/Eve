@@ -87,9 +87,9 @@ static void send_node_graph(heap h, buffer_handler output, node head, table coun
         }
         bprintf(out, "]");
 
-        int* count = table_find(counts, current);
-        if(count) {
-            bprintf(out, ", \"count\": %u", *count);
+        perf p = table_find(counts, current);
+        if(p) {
+            bprintf(out, ", \"count\": %u", p->count);
         }
 
         if(current->type == intern_cstring("scan")) {
@@ -128,7 +128,7 @@ static void send_response(json_session js, table solution, table counters)
     table_foreach(js->persisted, k, scopeBag) {
         table_foreach(edb_implications(scopeBag), k, impl) {
             if(impl) {
-                send_node_graph(h, js->write, impl, counters, js->graph);
+                send_node_graph(h, js->write, ((compiled)impl)->head, counters, js->graph);
             }
         }
     }
