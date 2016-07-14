@@ -3,7 +3,7 @@
 
 // we're suposed to have multiple keys and multiple sort orders, ideally
 // just generate a comparator over r
-static CONTINUATION_7_3(do_sort, 
+static CONTINUATION_7_3(do_sort,
                         execf, int*,
                         table *, value, value, vector,vector,
                         heap,operator, value *);
@@ -62,9 +62,9 @@ static void do_sum(execf n, int *count,
         extract(pk, grouping, r);
         double *x;
         if (!(x = table_find(*targets, pk))) {
-            x = allocate(h, sizeof(double *));
+            x = allocate((*targets)->h, sizeof(double *));
             *x = 0.0;
-            vector key = allocate_vector(h, vector_length(grouping));
+            vector key = allocate_vector((*targets)->h, vector_length(grouping));
             extract(key, grouping, r);
             table_set(*targets, key, x);
         }
