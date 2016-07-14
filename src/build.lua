@@ -187,6 +187,28 @@ function list_to_write_array(env, x)
    return out
 end
 
+function translate_subagg(n, bound, down, tracing, context)
+  env, rest = walk(n.nodes, nil, bound, down, tracing, context)
+  local id = util.generateId()
+  context.downEdges[#context.downEdges + 1] = {n.id, id}
+
+  c = build_node("subagg", {rest},
+                 {set_to_read_array(env, n.projection)},
+                 id)
+
+  if tracing then
+    local map = {"subagg", ""}
+    for k, v in pairs(n.projection) do
+      push(map, k.name,  read_lookup(env, k))
+    end
+    -- create an edge between the c node and the parse node
+    local id = util.generateId()
+    context.downEdges[#context.downEdges + 1] = {n.id, id}
+    c = build_node("trace", {c}, {map}, id)
+  end
+
+  return env, c
+end
 
 function translate_subproject(n, bound, down, tracing, context)
    local p = n.projection
@@ -216,25 +238,20 @@ function translate_subproject(n, bound, down, tracing, context)
                              id)
    end
 
-   local outregs =  set_to_read_array(env, n.provides)
    env, fill = walk(n.nodes, nil, bound, tail, tracing, context)
 
    -- create an edge between the c node and the parse node
    local id = util.generateId()
    context.downEdges[#context.downEdges + 1] = {n.id, id}
-   local kind = "sub"
-   if n.kind == "aggregate" then
-     kind = "subagg"
-   end
-   c = build_node(kind, {rest, fill},
+   c = build_node("sub", {rest, fill},
                           {set_to_read_array(env, n.projection),
-                           outregs,
+                           set_to_read_array(env, n.provides),
                            {write_lookup(env, pass)},
                            set_to_write_array(env, env.ids)},
                         id)
 
    if tracing then
-      local map = {kind, ""}
+      local map = {"sub", ""}
       for k, v in pairs(n.projection) do
          push(map, k.name,  read_lookup(env, k))
       end
@@ -385,17 +402,16 @@ function translate_choose(n, bound, down, tracing, context)
    context.downEdges[#context.downEdges + 1] = {n.id, id}
 
    arms[1] = c
-   
+
    local bot = build_node("choosetail",
                           {},
                           {{read_lookup(env, flag)}},
                           id)
 
    local id = util.generateId()
-   local merge = build_node("merge", {bot}, {{#n.queries}}, id)
 
    local arm_bottom = function (bound)
-        return env, merge
+        return env, bot
    end
 
    for n, _ in pairs(env.registers) do
@@ -537,7 +553,11 @@ function walk(graph, key, bound, tail, tracing, context)
       return translate_object(n, bound, d, tracing, context)
    end
    if (n.type == "subproject") then
-      return translate_subproject(n, bound, d, tracing, context)
+     if n.kind == "aggregate" then
+       return translate_subagg(n, bound, d, tracing, context)
+     else
+       return translate_subproject(n, bound, d, tracing, context)
+     end
    end
    if (n.type == "choose") then
       return translate_choose(n, bound, d, tracing, context)

@@ -163,57 +163,43 @@ static execf build_sub(block bk, node n)
 }
 
 
-static CONTINUATION_8_3(do_subagg,
-                        int *, execf, execf, value, table, vector, vector, vector,
+static CONTINUATION_5_3(do_subagg,
+                        int *, execf, table *, vector, vector,
                         heap, operator, value *);
-static void do_subagg(int *count, execf next, execf leg, value resreg,
-                      table results, vector v, vector inputs, vector outputs,
+static void do_subagg(int *count, execf next, table *proj_seen, vector v, vector inputs,
                       heap h, operator op, value *r)
 {
     if (op == op_flush) {
-        apply(leg, h,op, r);
-        table_foreach(results, v, rset) {
-            copyout(r, inputs, v);
-            table_foreach((table)rset, o, _) {
-                copyout(r, outputs, o);
-                apply(next, h, op_insert, r);
-            }
-        }
         apply(next, h, op, r);
+        *proj_seen = create_value_vector_table((*proj_seen)->h);
         return;
     }
 
-    table res;
     *count = *count + 1;
     extract(v, inputs, r);
 
-    if (!(res = table_find(results, v))){
-        res = create_value_vector_table(results->h);
-        vector key = allocate_vector(results->h, vector_length(inputs));
+    if (! table_find(*proj_seen, v)){
+        vector key = allocate_vector((*proj_seen)->h, vector_length(inputs));
         extract(key, inputs, r);
-        table_set(results, key, res);
-        r[toreg(resreg)] = res;
-        apply(leg, h, op, r);
+        table_set(*proj_seen, key, (void*)1);
+        apply(next, h, op, r);
     }
 }
 
 
 static execf build_subagg(block bk, node n)
 {
-    table results = create_value_vector_table(bk->h);
-    vector v = allocate_vector(bk->h, vector_length(n->arguments));
+    table* proj_seen = allocate(bk->h, sizeof(table));
+    *proj_seen = create_value_vector_table(bk->h);
+    vector v = allocate_vector(bk->h, vector_length(vector_get(n->arguments, 0)));
     return cont(bk->h,
                 do_subagg,
                 register_counter(bk->ev, n),
                 resolve_cfg(bk, n, 0),
-                resolve_cfg(bk, n, 1),
-                vector_get(vector_get(n->arguments, 2), 0),
-                results,
+                proj_seen,
                 v,
-                vector_get(n->arguments, 0),
-                vector_get(n->arguments, 1));
+                vector_get(n->arguments, 0));
 }
-
 
 static CONTINUATION_3_3(do_choose_tail, int *, execf, value, heap, operator, value *);
 static void do_choose_tail(int *count, execf next, value flag, heap h, operator op, value *r)
@@ -240,9 +226,7 @@ static CONTINUATION_4_3(do_choose, int *, execf, vector, value, heap, operator, 
 static void do_choose(int *count, execf n, vector legs, value flag, heap h, operator op, value *r)
 {
     if ((op == op_flush) || (op == op_close)) {
-        vector_foreach (legs, i){
-            apply((execf) i, h, op, r);
-        }
+      apply(n, h, op, r);
     } else {
         *count = *count + 1;
         r[toreg(flag)] = efalse;
