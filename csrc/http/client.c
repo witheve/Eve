@@ -1,5 +1,4 @@
 #include <runtime.h>
-#include <unix.h>
 #include <http/http.h>
 
 
@@ -33,5 +32,6 @@ client open_http_client(heap h, bag s, uuid request, http_handler response)
     station a;
     client c = allocate(h, sizeof(struct client));
     tcp_create_client (h, a, cont(h, client_connected, c));
+    return c;
 }
 

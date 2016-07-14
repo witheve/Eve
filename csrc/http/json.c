@@ -1,5 +1,4 @@
 #include <runtime.h>
-#include <unix/unix.h>
 #include <http/http.h>
 
 void print_value_json(buffer out, value v)

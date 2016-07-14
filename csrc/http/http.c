@@ -1,5 +1,4 @@
 #include <runtime.h>
-#include <unix/unix.h>
 #include <http/http.h>
     
 static char separators[] = {' ',
@@ -35,14 +34,16 @@ typedef struct header_parser {
    reader self;
 } *header_parser;
 
-void http_send_header(buffer_handler w, bag b, uuid n, value a, value b, value c)
+extern void *ignore;
+
+void http_send_header(buffer_handler w, bag b, uuid n, value first, value second, value third)
 {
-    buffer b = allocate_buffer(init);
-    bprintf(b, "%v %v %v\r\n", a, b, c);
-    bag_foreach_av(b, n, a, v) 
-        bprintf(b, "%v: %v\r\n", a, v);
-    bprintf(b, "\r\n");
-    apply(w, b, ignore);
+    buffer out = allocate_buffer(init, 64);
+    bprintf(out, "%v %v %v\r\n", first, second, third);
+    bag_foreach_av(b, n, a, v, c) 
+        bprintf(out, "%v: %v\r\n", a, v);
+    bprintf(out, "\r\n");
+    apply(w, out, ignore);
     //    buffer_deallocate(b);
 }
 

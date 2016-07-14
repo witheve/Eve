@@ -42,7 +42,7 @@ void edb_set(bag b, value e, value a, value v);
 
 
 #define bag_foreach_av(__b, __e, __a, __v, __c)\
-    for(table __av = (table)table_find(__b->eav, e); __av; __av = 0)
+    for(table __av = (table)table_find(__b->eav, e); __av; __av = 0)\
     table_foreach((table)__avl, __a, __vl)\
     table_foreach((table)__vl, __v, __cv)\
     for(long __c = (long)__cv , __z = 0; __z == 0; __z++)

@@ -4,14 +4,14 @@
 
 /*TODO: put back in multicast support */
 
-typedef struct udp {
+struct udp {
     buffer_handler read;
     descriptor send, receive;
     unsigned int current_ttl;
     heap h;
     int mtu;
     udp_receiver r;
-} *udp;
+};
 
 void udp_write(udp u, station a, buffer b) 
 {

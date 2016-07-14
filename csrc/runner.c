@@ -68,8 +68,8 @@ static CONTINUATION_1_0(evaluation_complete, evaluation);
 static void evaluation_complete(evaluation s)
 {
     if (s->inserted)
-        s->pass = true;
-    s->non_empty = true;
+        s->f_continue = true;
+    s->b_continue = true;
 }
 
 static void merge_multibag_bag(heap h, table d, uuid u, bag s)
@@ -124,7 +124,8 @@ static void fixedpoint(evaluation ev)
         t_continue = false;
         ev->next_t_solution =  create_value_table(ev->working);
         ev->f_solution =  create_value_table(ev->working);
-        while (ev->pass) {
+        
+        while (f_continue) {
             ev->pass = false;
             iterations++;
             ev->next_f_solution =  create_value_table(ev->working);
@@ -138,6 +139,7 @@ static void fixedpoint(evaluation ev)
                 }
             }
         }
+        
         table_foreach(ev->next_t_solution, u, b) 
             merge_multibag_bag(ev->working, ev->t_solution, u, b);
         vector_insert(counts, box_float((double)iterations));
@@ -161,8 +163,8 @@ static void fixedpoint(evaluation ev)
     if (changed_persistent)
          table_foreach(ev->persisted, _, b) 
              table_foreach(((bag)b)->listeners, t, _)
-               if (t != ev->run)
-                   apply((thunk)t);
+                 if (t != ev->run)
+                     apply((thunk)t);
 
     
     // this is a bit strange, we really only care about the
