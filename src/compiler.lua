@@ -20,6 +20,7 @@ local build = require("build")
 local errors = require("error")
 setfenv(1, Pkg)
 
+local makeNode = parser.makeNode
 local ENTITY_FIELD = parser.ENTITY_FIELD
 local TAG_FIELD = "tag"
 local EAV_TAG = "eav"
@@ -1144,8 +1145,8 @@ function unpackObjects(dg, context)
     elseif node.type == "expression" and node.projection then
       local subproject = SubprojectNode:new({kind = "aggregate", projection = node.projection, provides = node.deps.provides, nodes = {node}}, node, context)
       if node.operator == "count" then
-        local constant = {type = "constant", generated = true, constant = 1, constantType = "number"}
-        node.bindings[#node.bindings + 1] = {type = "binding", generated = true, field = "a", constant = constant}
+        local constant = makeNode(context, "constant", node, {generated = true, constant = 1, constantType = "number"})
+        node.bindings[#node.bindings + 1] = makeNode(context, "binding", node, {generated = true, field = "a", constant = constant})
         node.operator = "sum"
       end
       unpacked[#unpacked + 1] = subproject

@@ -1,4 +1,5 @@
 test concat
+  [#session-connect]
   greeting = "Hello"
   target = "World"
   freeze
