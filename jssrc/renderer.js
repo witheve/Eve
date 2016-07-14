@@ -445,11 +445,16 @@ function drawNode(nodeId, graph, state, seen) {
     return undefined;
   }
   seen[nodeId] = true;
+
+  let childrenTime = node.arms.map(function(id) { return graph[id].time }).reduce(function(cur, v) { return cur + v; }, 0);
+  let myTime = (((node.time - childrenTime) / state.rootTime) * 100).toFixed(1);
+  myTime = isNaN(myTime) ? 0 : myTime;
+
   let active = activeClass(node, state);
   let children = [];
   let childrenContainer = {c: "node-children", children};
   let me = {c: `node`, children: [
-    {c: `${node.type} node-text ${active}`, text: `${node.type} ${node.scan_type || ""} (${node.count || 0} | ${node.time || 0})`},
+    {c: `${node.type} node-text ${active}`, text: `${node.type} ${node.scan_type || ""} (${node.count || 0} | ${myTime}%)`},
     childrenContainer
   ]};
   if((node.type == "fork") || (node.type == "choose")) {
@@ -615,6 +620,7 @@ function drawNodeGraph() {
   for(let headId in allNodeGraphs) {
     if(activeParse.edges.up[headId][0] != activeIds["graph"]) continue;
     let cur = allNodeGraphs[headId];
+    state.rootTime = cur[headId].time;
     let tree = drawNode(headId, cur, state, {});
     // let ast = drawAST(activeParse.ast, state);
     // let parse = drawParse(activeParse, state);
