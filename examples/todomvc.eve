@@ -1,65 +1,45 @@
-//fake it
-//  [#session-connect]
-//  save
-//    [#url segment: [index: 1, value: "all"]]
-
-//routing
-//  [#url segment: [index: 1, value]]
-//  maintain
-//    [@app filter: value]
-
 handle insert
   [#keydown element: [@new-todo value] key: "enter"]
   save
-    [#todo body: value, completed: false, editing: false]
+    [#todo body: value, editing: false, completed: false]
 
 handle edit
-  //[#todo-editor todo]
   (todo, body, editing, completed) =
-    //if [#double-click element: [#todo-item todo]] then (todo, todo.body, true, todo.completed)
-    //else if [#keydown element: [#todo-editor todo] key: "escape"] then (todo, todo.body, false, todo.completed)
-
-    if [#keydown element: [#todo-editor todo] key: "escape"] then (todo, todo.body, false, todo.completed)
-    else if [#keydown element: [#todo-editor todo value] key: "enter"] then (todo, value, false, false)
+    if [#click element: [#todo-checkbox todo]] then (todo, todo.body, todo.editing, toggle(todo.completed))
+    else if [#click element: [@toggle-all checked]] then ([#todo body], body, todo.editing, toggle(checked))
+    else if [#double-click element: [#todo-item todo]] then (todo, todo.body, true, todo.completed)
     else if [#blur element: [#todo-editor todo value]] then (todo, value, false, todo.completed)
-    //else if [#click element: [#todo-checkbox todo]] then (todo, todo.body, false, toggle(todo.completed))
-    //else if [#click element: [@toggle-all checked]] then ([#todo editing, body], body, editing, checked)
-  save
-    todo := [editing, body, completed]
+    else if [#keydown element: [#todo-editor todo] key: "escape"] then (todo, todo.body, false, todo.completed)
+    else if [#keydown element: [#todo-editor todo value] key: "enter"] then (todo, value, false, todo.completed)
 
-//handle removes
-//  todo = if [#click element: [#remove-todo todo]] then todo
-//         else if [#click element: [@clear-completed]] then [#todo completed: true]
-//  save
-//    todo -= [#todo]
+  save
+    todo := [body, completed, editing]
+
+handle removes
+  todo = if [#click element: [#remove-todo todo]] then todo
+         else if [#click element: [@clear-completed]] then [#todo completed: true]
+  save
+    todo -= [#todo]
 
 draw the children
-  //[@app filter]
   filter = "all"
   parent = [@todo-list]
-  (todo, body, completed, editing) =
-    if filter = "completed" then ([#todo, body, completed: true, editing], body, true, editing)
-    else if filter = "active" then ([#todo, body, completed: false, editing], body, false, editing)
-    else ([#todo, body, completed, editing], body, completed, editing)
+  todo = [#todo, body, editing, completed]
+
   maintain
     parent.children += [#li, class: [todo: true, completed, editing], todo, children:
-                         [#input #todo-check, class: "toggle", type: "checkbox", checked: completed]
-                         [#label #todo-item, text: body, todo]
-                         [#button #remove-todo todo]
-                         [#input #todo-editor, style: [display: editing], todo, value: body]]
+                         [#input #todo-checkbox, todo, class: "toggle", type: "checkbox", checked: completed]
+                         [#label #todo-item, todo, text: body, style: [display: toggle(editing)]]
+                         [#input #todo-editor, todo, value: body, autofocus: true, style: [display: editing]]
+                         [#button #remove-todo todo text: "X"]]
 
 draw todomvc
-  //[@app filter]
   filter = "all"
-  //all-checked = if not([#todo completed: false]) then true
-  //              else false
-  all-checked = false
-  //count = if c = count(given [#todo completed: false]) then c
-  //        else 0
-  count = 0
-  // [#pluralize number: count, singular: "item left", plural: "items left" text: count-text]
-  hide-clear-completed = true
-
+  all-checked = if not([#todo completed: false]) then true
+                else false
+  count = if c = count(given [#todo completed: false]) then c
+          else 0
+  hide-clear-completed = is(count > 0)
   maintain
     [#div @todoapp children:
       [#header children:
@@ -69,9 +49,5 @@ draw todomvc
         [#input @toggle-all, type: "checkbox", checked: all-checked]
         [#ul @todo-list]]
      [#footer children:
-        [#span @todo-count children: [#strong text: count] [#span text: "items left"]]
-        [#ul @filters children:
-          [#li children: [#a href: "#/all" class: [selected: is(filter = "all")] text: "all"]]
-          [#li children: [#a href: "#/active" class: [selected: is(filter = "active")] text: "active"]]
-          [#li children: [#a href: "#/completed" class: [selected: is(filter = "completed")] text: "completed"]]]
-        [#button @clear-completed, style: [display: toggle(hide-clear-completed)] text: "Clear completed"]]]
+        [#span @todo-count children: [#strong text: count] [#span text: " items left"]]
+        [#button @clear-completed, style: [display: hide-clear-completed] text: "Clear completed"]]]
