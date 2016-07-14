@@ -227,10 +227,11 @@ static void do_choose_tail(perf p, execf next, value flag, heap h, operator op, 
     start_perf(p);
     if (op != op_flush) {
         store(r, flag, etrue);
-        if (next)
+        if (next) {
+            stop_perf(p);
             apply(next, h, op, r);
-    }
-    stop_perf(p);
+        } else stop_perf(p);
+    } else stop_perf(p);        
 }
 
 static execf build_choose_tail(block bk, node n)

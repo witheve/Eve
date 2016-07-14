@@ -26,6 +26,8 @@ static inline value lookup(value *r, value k)
 static perf register_perf(evaluation e, node n)
 {
     perf p = allocate(e->h, sizeof(struct perf));
+    p->time = 0;
+    p->count = 0;
     table_set(e->counters, n, p);
     return p;
 }
