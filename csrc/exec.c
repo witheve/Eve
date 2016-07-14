@@ -44,6 +44,7 @@ typedef struct sub {
     heap h;
     evaluation e;
     ticks t;
+    boolean id_collapse;
 } *sub;
 
 
@@ -70,6 +71,13 @@ static void end_o_sub(sub s, boolean finished)
     }
     s->results = create_value_vector_table(s->h);
     s->moved = create_value_vector_table(s->h);
+}
+
+
+static void set_ids_each(sub s, vector key, value *r)
+{
+    vector_foreach(s->ids, i)
+        store(r, i, generate_uuid());
 }
 
 
@@ -123,7 +131,12 @@ static void do_sub(int *count, sub s, heap h, operator op, value *r)
             key = allocate_vector(s->h, vector_length(s->inputs));
             extract(key, s->inputs, r);
             store(r, s->resreg, res);
-            set_ids(s, key, r);
+            if (s->id_collapse) {
+                set_ids(s, key, r);
+            } else{
+                vector_foreach(s->ids, i)
+                    store(r, i, generate_uuid());
+            }
             apply(s->leg, h, op, r);
         }
         table_set(s->results, key, res);
@@ -152,6 +165,7 @@ static execf build_sub(block bk, node n)
     s->ids = vector_get(n->arguments, 3);
     s->h = s->h;
     s->next = resolve_cfg(bk, n, 0);
+    s->id_collapse = vector_get(vector_get(n->arguments, 4), 0) == etrue?true:false;
     s->e = bk->ev;
     s->t = bk->ev->t;
     vector_insert(bk->finish, cont(s->h, end_o_sub, s));

@@ -247,7 +247,9 @@ function translate_subproject(n, bound, down, tracing, context)
                           {set_to_read_array(env, n.projection),
                            set_to_read_array(env, n.provides),
                            {write_lookup(env, pass)},
-                           set_to_write_array(env, env.ids)},
+                           set_to_write_array(env, env.ids),
+                           {n.scope == "event"}
+                           },
                         id)
 
    if tracing then
