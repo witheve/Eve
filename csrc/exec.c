@@ -207,7 +207,8 @@ static void do_choose_tail(int *count, execf next, value flag, heap h, operator 
     if ((op != op_flush) && (op != op_close)) {
         *count = *count + 1;
         store(r, flag, etrue);
-        apply(next, h, op, r);
+        if (next)
+            apply(next, h, op, r);
     }
 }
 
