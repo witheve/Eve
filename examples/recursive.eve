@@ -1,5 +1,5 @@
 add some people to the organization
-  save
+  freeze
     karen = [#employee @karen]
     jill = [#employee @jill boss: karen]
     deena = [#employee @joe boss: jill]

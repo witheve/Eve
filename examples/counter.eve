@@ -8,11 +8,11 @@ build the counter
 
 increment the counter
   [#click element: [#count-button diff counter]]
-  save
+  freeze
     counter.count := counter.count + diff
 
 go!
   [#session-connect]
-  save
+  freeze
     [#counter count: 0]
 

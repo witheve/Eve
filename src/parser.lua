@@ -150,7 +150,7 @@ local numeric = {["0"] = true, ["1"] = true, ["2"] = true, ["3"] = true,
                  ["8"] = true, ["9"] = true}
 
 local keywords = {
-  save = "SAVE",
+  freeze = "FREEZE",
   maintain = "MAINTAIN",
   ["if"] = "IF",
   ["then"] = "THEN",
@@ -564,7 +564,7 @@ local function parse(tokens, context)
         stackTop.closed = true
       end
 
-    elseif type == "SAVE" or type == "MAINTAIN" then
+    elseif type == "FREEZE" or type == "MAINTAIN" then
       local update = makeNode(context, "update", token, {scope = "session", children = {}})
       if type == "MAINTAIN" then
         update.scope = "event"

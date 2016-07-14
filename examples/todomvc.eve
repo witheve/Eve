@@ -1,6 +1,6 @@
 handle insert
   [#keydown element: [@new-todo value] key: "enter"]
-  save
+  freeze
     [#todo body: value, editing: false, completed: false]
 
 handle edit
@@ -12,13 +12,13 @@ handle edit
     else if [#keydown element: [#todo-editor todo] key: "escape"] then (todo, todo.body, false, todo.completed)
     else if [#keydown element: [#todo-editor todo value] key: "enter"] then (todo, value, false, todo.completed)
 
-  save
+  freeze
     todo := [body, completed, editing]
 
 handle removes
   todo = if [#click element: [#remove-todo todo]] then todo
          else if [#click element: [@clear-completed]] then [#todo completed: true]
-  save
+  freeze
     todo -= [#todo]
 
 draw the children

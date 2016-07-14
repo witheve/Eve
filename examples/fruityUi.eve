@@ -1,6 +1,6 @@
 Add some fruits to the system
   [#session-connect]
-  save
+  freeze
     [#fruit @lemon color: "yellow"]
     [#fruit @cherry color: "red"]
     [#fruit @orange color: "orange"]
@@ -15,5 +15,5 @@ Draw a list of fruits
 
 draw clicks
   click = [#click element]
-  save
+  freeze
     [#div sort: "zzz", click, text: "yo"]

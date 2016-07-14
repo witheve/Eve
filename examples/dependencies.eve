@@ -1,6 +1,6 @@
 Add some sample data
   [#session-connect]
-  save
+  freeze
     [#person name: "josh" age: 22 salary: 10 height: 5.8 gender: "M"]
     [#person name: "corey" age: 29 salary: 10 height: 5.12 gender: "M"]
     [#person name: "chris" age: 28 salary: 7 height: 5.7 gender: "M"]
