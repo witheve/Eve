@@ -227,7 +227,11 @@ function handleDOMUpdates(result) {
       let elemStyle = elem.style;
       let styleAttributes = Object.keys(style);
       for(let attr of styleAttributes) {
-        elemStyle[attr] = style[attr];
+        if(attr === "display" && typeof style[attr] === "boolean") {
+          elemStyle[attr] = style[attr] ? "initial": "none";
+        } else {
+          elemStyle[attr] = style[attr];
+        }
       }
     }
   }
