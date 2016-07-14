@@ -450,6 +450,17 @@ local infixTypes = {equality = true, infix = true, attribute = true, mutate = tr
 local singletonTypes = {outputs = true}
 local alphaFields = {"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o"}
 
+local function nextNonComment(scanner, context)
+  local next = scanner:peek()
+  while next and next.type == "COMMENT" do
+    -- store the comment and move on
+    context.comments[#context.comments + 1] = next
+    scanner:read()
+    next = scanner:peek()
+  end
+  return next
+end
+
 local function parse(tokens, context)
   local stack = Stack:new()
   local scanner = ArrayScanner:new(tokens)
@@ -498,7 +509,7 @@ local function parse(tokens, context)
   while token do
     local stackTop = stack:peek() or {}
     local type = token.type
-    local next = scanner:peek()
+    local next = nextNonComment(scanner, context)
 
     if type == "DOC" then
       -- if there's already a query on the stack and this line is directly following
