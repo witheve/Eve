@@ -101,7 +101,7 @@ static inline void start_perf(perf p)
 
 static inline void stop_perf(perf p)
 {
-    p->time += p->start - rdtsc();
+    p->time += rdtsc() - p->start;
 }
 
     
