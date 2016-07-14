@@ -20,6 +20,11 @@ activeElements["root"].className = "program";
 var activeStyles = {};
 var supportedTags = {
   "div": true, "span": true, "input": true, "ul": true, "li": true, "label": true, "button": true, "header": true, "footer": true, "a": true, "strong": true,
+  "h1": true, "h2": true, "h3": true, "h4": true, "h5": true, "h6": true,
+  "ol": true, "p": true, "pre": true, "em": true, "img": true, "canvas": true, "script": true, "style": true, "video": true, 
+  "table": true, "tbody": true, "thead": true, "tr": true, "th": true, "td": true,
+  "form": true, "optgroup": true, "option": true, "select": true, "textarea": true,
+  "title": true, "meta": true, "link": true,
   "svg": true, "circle": true, "line": true
 };
 var svgs = {"svg": true, "circle": true, "line": true};
@@ -287,12 +292,16 @@ function formatObjects(objs) {
   return rows;
 }
 
-function sendEvent(objs) {
+function sendEventObjs(objs) {
   if(!objs.length) return;
   let query = `handle some event
   maintain
     ${formatObjects(objs).join("\n    ")}
   `
+  return sendEvent(query);
+}
+
+function sendEvent(query) {
   console.log("QUERY", query);
   if(socket && socket.readyState == 1) {
     socket.send(JSON.stringify({scope: "event", type: "query", query}))
@@ -321,7 +330,7 @@ window.addEventListener("click", function(event) {
     current = current.parentNode
   }
   // objs.push({tags: ["click"], element: "window"});
-  sendEvent(objs);
+  sendEventObjs(objs);
 });
 window.addEventListener("dblclick", function(event) {
   let {target} = event;
@@ -334,14 +343,14 @@ window.addEventListener("dblclick", function(event) {
     current = current.parentNode
   }
   // objs.push({tags: ["click"], element: "window"});
-  sendEvent(objs);
+  sendEventObjs(objs);
 });
 
 window.addEventListener("input", function(event) {
   let {target} = event;
   if(target.entity) {
     let objs = [{tags: ["input"], element: target.entity, value: target.value}];
-    // sendEvent(objs);
+    // sendEventObjs(objs);
   }
 });
 
@@ -349,7 +358,7 @@ window.addEventListener("focus", function(event) {
   let {target} = event;
   if(target.entity) {
     let objs = [{tags: ["focus"], element: target.entity}];
-    sendEvent(objs);
+    sendEventObjs(objs);
   }
 }, true);
 
@@ -357,7 +366,7 @@ window.addEventListener("blur", function(event) {
   let {target} = event;
   if(target.entity) {
     let objs = [{tags: ["blur"], element: target.entity}];
-    sendEvent(objs);
+    sendEventObjs(objs);
   }
 }, true);
 
@@ -378,7 +387,7 @@ window.addEventListener("keydown", function(event) {
     current = current.parentNode
   }
   // objs.push({tags: ["keydown"], element: "window", key});
-  sendEvent(objs);
+  sendEventObjs(objs);
 });
 
 window.addEventListener("keyup", function(event) {
@@ -393,7 +402,26 @@ window.addEventListener("keyup", function(event) {
     current = current.parentNode
   }
   objs.push({tags: ["keyup"], element: "window", key});
-  // sendEvent(objs);
+  // sendEventObjs(objs);
+});
+
+window.addEventListener("hashchange", function(event) {
+  let hash = window.location.hash.substr(1);
+  if(hash[0] == "/") hash = hash.substr(1);
+  let segments = hash.split("/").map(function(seg, ix) {
+    return `[index: ${ix + 1}, segment: "${seg}"]`;
+  });
+  let query = 
+  `hash changed remove any current url segments
+    url = [#url hash-segment]
+    save
+      url -= [hash-segment]\n\n` +
+  `add the new hash-segments
+    url = [#url]
+    save
+      url := [hash-segment: ${segments.join(" ")}]
+  `
+  sendEvent(query);
 });
 
 //---------------------------------------------------------
