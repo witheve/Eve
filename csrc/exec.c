@@ -504,17 +504,18 @@ static void force_node(block bk, node n)
     }
 }
 
-block build(evaluation ev, node n)
+block build(evaluation ev, compiled c)
 {
     heap h = allocate_rolling(pages, sstring("build"));
     block bk = allocate(h, sizeof(struct block));
     bk->ev = ev;
     bk->h = h;
+    bk->name = c->name;
     // this is only used during building
     bk->nmap = allocate_table(bk->h, key_from_pointer, compare_pointer);
 
     bk->finish = allocate_vector(bk->h, 10);
-    force_node(bk, n);
-    bk->head = *(execf *)table_find(bk->nmap, n);
+    force_node(bk, c->head);
+    bk->head = *(execf *)table_find(bk->nmap, c->head);
     return bk;
 }

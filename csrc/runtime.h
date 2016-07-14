@@ -73,8 +73,14 @@ typedef closure(evaluation_result, table, table);
 typedef closure(block_completion, boolean);
 
 
+typedef struct compiled {
+    string name;
+    node head;
+} *compiled;
+    
 struct block {
     heap h;
+    string name;
     vector finish;
     execf head;
     evaluation ev;
@@ -105,14 +111,15 @@ struct evaluation  {
     
     thunk terminal;
     thunk run;
+    long intermediates;
 };
 
 
 void execute(evaluation);
 
 table builders_table();
-void register_implication(node n);
-block build(evaluation e, node n);
+void register_implication(compiled c);
+block build(evaluation e, compiled c);
 table start_fixedpoint(heap, table, table, table);
 void close_evaluation(evaluation);
 

@@ -1160,6 +1160,7 @@ function compileExec(contents, tracing)
   local parseGraph = parser.parseString(contents)
   local context = parseGraph.context
   local set = {}
+  local nameset = {}
 
   for ix, queryGraph in ipairs(parseGraph.children) do
     local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph, context)
@@ -1167,9 +1168,10 @@ function compileExec(contents, tracing)
     -- @NOTE: We cannot allow dead DGs to still try and run, they may be missing filtering hunks and fire all sorts of missiles
     if not dependencyGraph.ignore then
       set[#set+1] = queryGraph
+      nameset[#nameset+1] = queryGraph.name
     end
   end
-  return build.build(set, tracing, parseGraph), util.toFlatJSON(parseGraph)
+  return build.build(set, tracing, parseGraph), util.toFlatJSON(parseGraph), nameset
 end
 
 function analyze(content, quiet)

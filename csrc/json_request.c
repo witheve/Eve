@@ -128,7 +128,7 @@ static void send_response(json_session js, table solution, table counters)
     table_foreach(js->persisted, k, scopeBag) {
         table_foreach(edb_implications(scopeBag), k, impl) {
             if(impl) {
-                send_node_graph(h, js->write, impl, counters, js->graph);
+                send_node_graph(h, js->write, ((compiled)impl)->head, counters, js->graph);
             }
         }
     }
