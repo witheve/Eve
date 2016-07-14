@@ -404,7 +404,7 @@ function translate_choose(n, bound, down, tracing, context)
    arms[1] = c
 
    local bot = build_node("choosetail",
-                          {},
+                          {c},
                           {{read_lookup(env, flag)}},
                           id)
 

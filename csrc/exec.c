@@ -207,6 +207,7 @@ static void do_choose_tail(int *count, execf next, value flag, heap h, operator 
     if ((op != op_flush) && (op != op_close)) {
         *count = *count + 1;
         store(r, flag, etrue);
+        apply(next, h, op, r);
     }
 }
 
@@ -234,7 +235,6 @@ static void do_choose(int *count, execf n, vector legs, value flag, heap h, oper
             apply((execf) i, h, op, r);
             apply((execf) i, h, op_flush, r);
             if (r[toreg(flag)] == etrue) {
-                apply(n, h, op, r);
                 return;
             }
         }
