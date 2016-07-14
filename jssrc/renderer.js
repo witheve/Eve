@@ -449,7 +449,7 @@ function drawNode(nodeId, graph, state, seen) {
   let children = [];
   let childrenContainer = {c: "node-children", children};
   let me = {c: `node`, children: [
-    {c: `${node.type} node-text ${active}`, text: `${node.type} ${node.scan_type || ""} (${node.count || 0})`},
+    {c: `${node.type} node-text ${active}`, text: `${node.type} ${node.scan_type || ""} (${node.count || 0} | ${node.time || 0})`},
     childrenContainer
   ]};
   if((node.type == "fork") || (node.type == "choose")) {
@@ -521,10 +521,6 @@ function indexParse(parse) {
   parse.lines = lines;
   let down = {};
   let up = {};
-  if(activeParse.edges) {
-    up = activeParse.edges.up;
-    down = activeParse.edges.down;
-  }
   for(let edge of parse.root.context.downEdges) {
     if(!down[edge[0]]) down[edge[0]] = [];
     if(!up[edge[1]]) up[edge[1]] = [];
