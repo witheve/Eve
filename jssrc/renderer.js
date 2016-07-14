@@ -762,9 +762,28 @@ function drawOrdered(ordered, state) {
   ]}
 }
 
+function clone(obj) {
+  if(typeof obj !== "object") return obj;
+  if(obj.constructor === Array) {
+    let neue = [];
+    for(let ix of obj) {
+      neue[ix] = clone(obj[ix]);
+    }
+    return neue;
+  } else {
+    let neue = {};
+    for(let key in obj) {
+      neue[key] = clone(obj[key]);
+    }
+    return neue;
+  }
+}
+
 //---------------------------------------------------------
 // Connect the websocket, send the ui code
 //---------------------------------------------------------
+
+let __entities = {}; // DEBUG
 
 var socket = new WebSocket("ws://" + window.location.host +"/ws");
 socket.onmessage = function(msg) {
@@ -772,8 +791,42 @@ socket.onmessage = function(msg) {
   let data = JSON.parse(msg.data);
   console.timeEnd("PARSE");
   if(data.type == "result") {
-    console.log(data)
     handleDOMUpdates(data);
+
+    if(__entities) {
+      for(let [e, a, v] of data.remove) {
+        if(!__entities[e]) continue;
+        let entity = __entities[e];
+        let set = entity[a];
+        if(!set) continue;
+        if(set.constructor !== Array || set.constructor.length <= 1) {
+          delete entity[a];
+        } else {
+          let ix = entity[a].indexOf(v);
+          if(ix === -1) continue;
+          entity[a].splice(ix, 1);
+        }
+      }
+
+      for(let [e, a, v] of data.insert) {
+        if(!__entities[e]) __entities[e] = {};
+        let entity = __entities[e];
+        if(!entity[a]) {
+          entity[a] = v;
+        } else if(entity[a].constructor !== Array) {
+          entity[a] = [entity[a], v];
+        } else {
+          entity[a].push(v);
+        }
+      }
+    }
+
+    console.groupCollapsed("Received Result +" + data.insert.length + "/-" + data.remove.length);
+    console.table(data.insert);
+    console.table(data.remove);
+    if(__entities) console.log(clone(__entities));
+    console.groupEnd();
+
   } else if(data.type == "node_graph") {
     allNodeGraphs[data.head] = data.nodes;
     data.parse.iterations = data.iterations;
