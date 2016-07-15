@@ -1,5 +1,7 @@
 #include <runtime.h>
 
+#define multibag_foreach(__m, __u, __b)  if(__m) table_foreach(__m, __u, __b)
+                         
 // debuggin
 static estring bagname(evaluation e, uuid u)
 {
@@ -36,7 +38,7 @@ static void shadow(table multibag, listener result, value e, value a, value v, m
 
 static void print_multibag(evaluation s, table m)
 { 
-    table_foreach(m, u, b) {
+    multibag_foreach(m, u, b) {
         prf("%v %d %v %p\n%b\n", bagname(s, u), edb_size(b), u, b, bag_dump(s->h, b));
     }
 }
@@ -45,24 +47,21 @@ static void print_multibag(evaluation s, table m)
 static CONTINUATION_1_5(merge_scan, evaluation, int, listener, value, value, value);
 static void merge_scan(evaluation ev, int sig, listener result, value e, value a, value v)
 {
-    listener f_filter = cont(ev->working, shadow, ev->f_solution, result);
-    listener x_filter = cont(ev->working, shadow, ev->t_solution, f_filter);
+    listener f_filter = ev->f_solution?cont(ev->working, shadow, ev->f_solution, result):result;
+    listener x_filter = ev->t_solution?cont(ev->working, shadow, ev->t_solution, f_filter):f_filter;
 
     // xxx - currently precluding removes in the event set
-    if (ev->ev_solution) 
-        table_foreach(ev->ev_solution, u, b) 
-            edb_scan(b, sig, result, e, a, v);
+    multibag_foreach(ev->ev_solution, u, b) 
+        edb_scan(b, sig, result, e, a, v);
 
-    table_foreach(ev->persisted, u, b) 
+    multibag_foreach(ev->persisted, u, b) 
         edb_scan(b, sig, x_filter, e, a, v);
 
-    if (ev->t_solution) 
-        table_foreach(ev->t_solution, u, b) 
-            edb_scan(b, sig, f_filter, e, a, v);
+    multibag_foreach(ev->t_solution, u, b) 
+        edb_scan(b, sig, f_filter, e, a, v);
 
-    if (ev->f_solution) 
-        table_foreach(ev->f_solution, u, b) 
-            edb_scan(b, sig, result, e, a, v);
+    multibag_foreach(ev->f_solution, u, b) 
+        edb_scan(b, sig, result, e, a, v);
 }
 
 static CONTINUATION_1_0(evaluation_complete, evaluation);
@@ -73,22 +72,37 @@ static void evaluation_complete(evaluation s)
     s->non_empty = true;
 }
 
-static void merge_multibag_bag(heap h, table d, uuid u, bag s)
+
+static void merge_multibag_bag(evaluation ev, table *d, uuid u, bag s)
 {
     bag bd;
-
-    if (!(bd = table_find(d, u))) {
-        table_set(d, u, bd = create_bag(h, u));
+    if (!*d) {
+        *d = create_value_table(ev->working);
     }
-    
-    bag_foreach(s, e, a, v, c) 
-        edb_insert(bd, e, a, v, c);
+
+    if (!(bd = table_find(*d, u))) {
+        table_set(*d, u, s); 
+    } else {
+        bag_foreach(s, e, a, v, c) 
+            edb_insert(bd, e, a, v, c);
+    }
+}
+
+static void merge_bags(evaluation ev, table *d, table s)
+{
+    if (!s) return;
+    if (!*d) {
+        *d = s;
+        return;
+    }
+    table_foreach(s, u , b)
+        merge_multibag_bag(ev, d, u, b);
 }
 
 static void run_block(evaluation ev, heap h, block bk) 
 {
     heap bh = allocate_rolling(pages, sstring("block run"));
-    bk->ev->block_solution = create_value_table(bh);
+    bk->ev->block_solution = create_value_table(ev->working);
     bk->ev->non_empty = false;
     bk->ev->inserted = false;
     u64 z = pages->allocated;
@@ -99,12 +113,9 @@ static void run_block(evaluation ev, heap h, block bk)
     ev->cycle_time += rdtsc() - start;
 
     if (bk->ev->non_empty) {
-
         vector_foreach(bk->finish, i) 
             apply((block_completion)i, true);
-                    
-        table_foreach(bk->ev->block_solution, u, bg) 
-            merge_multibag_bag(h, bk->ev->next_f_solution, u, bg);
+        merge_bags(ev, &bk->ev->next_f_solution, bk->ev->block_solution);
     } else {
         vector_foreach(bk->finish, i) 
             apply((block_completion)i, false);
@@ -120,30 +131,29 @@ static void fixedpoint(evaluation ev)
 
     ticks start_time = now();
     ev->t = start_time;
-    ev->t_solution =  create_value_table(ev->working);
+    ev->t_solution =  0;
 
     // double iteration
     while (t_continue) {
         ev->pass = true;
         t_continue = false;
-        ev->next_t_solution =  create_value_table(ev->working);
-        ev->f_solution =  create_value_table(ev->working);
+        ev->next_t_solution =  0;
+        ev->f_solution =  0;
         while (ev->pass) {
             ev->pass = false;
             iterations++;
-            ev->next_f_solution =  create_value_table(ev->working);
+            ev->next_f_solution =  0;
             vector_foreach(ev->blocks, b) run_block(ev, ev->working, b);
-            table_foreach(ev->next_f_solution, u, b) {
+            multibag_foreach(ev->next_f_solution, u, b) {
                 if (table_find(ev->persisted, u)) {
                     t_continue = true;
-                    merge_multibag_bag(ev->working, ev->next_t_solution, u, b);
+                    merge_multibag_bag(ev, &ev->next_t_solution, u, b);
                 } else {
-                    merge_multibag_bag(ev->working, ev->f_solution, u, b);
+                    merge_multibag_bag(ev, &ev->f_solution, u, b);
                 }
             }
         }
-        table_foreach(ev->next_t_solution, u, b) 
-            merge_multibag_bag(ev->working, ev->t_solution, u, b);
+        merge_bags(ev, &ev->t_solution, ev->next_t_solution);
         vector_insert(counts, box_float((double)iterations));
         iterations = 0;
         ev->t++;
@@ -152,7 +162,7 @@ static void fixedpoint(evaluation ev)
 
     boolean changed_persistent = false;
     // merge but ignore bags not in persisted
-    table_foreach(ev->t_solution, u, b) {
+    multibag_foreach(ev->t_solution, u, b) {
         bag bd;
         if ((bd = table_find(ev->persisted, u))) {
             bag_foreach((bag)b, e, a, v, c) {
@@ -179,7 +189,8 @@ static void fixedpoint(evaluation ev)
 
     prf ("fixedpoint in %t seconds, %d blocks, %V iterations, %d input bags, %d output bags\n", 
          end_time-start_time, vector_length(ev->blocks),
-         counts, table_elements(ev->scopes), table_elements(ev->t_solution));
+         counts, table_elements(ev->scopes),
+         ev->t_solution?table_elements(ev->t_solution):0);
     destroy(ev->working);
 }
 
