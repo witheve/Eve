@@ -1,0 +1,12 @@
+build/* linguist-vendored
+csrc/core/* linguist-vendored
+csrc/crypto/* linguist-vendored
+csrc/http/* linguist-vendored
+csrc/luapower/* linguist-vendored
+csrc/luautf8/* linguist-vendored
+csrc/unix/* linguist-vendored
+examples/* linguist-vendored
+jssrc/codemirror.js linguist-vendored
+index.html linguist-vendored
+readme.md linguist-vendored
+*.css linguist-vendored

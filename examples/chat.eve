@@ -4,7 +4,7 @@ add a user for this sesion on connect
     [#user @me]
 
 build the chat pane
-  channel = "woot"
+  channel = "general"
   maintain
     [#div class: "chat-pane" children:
       [#div #chat-messages class: "chat-messages" channel]
