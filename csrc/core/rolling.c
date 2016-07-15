@@ -40,7 +40,7 @@ static void *rolling_alloc(heap h, bytes len)
     c->p->offset += len;
     // we can't use the last part of a multipage allocation,
     // because we wont be able to find the page header
-    if (c->p->length > c->parent->pagesize)
+    if (c->p->offset > c->parent->pagesize)
         rolling_advance_page(c, c->parent->pagesize);
     return(r);
 }
