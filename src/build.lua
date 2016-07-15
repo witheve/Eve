@@ -113,7 +113,7 @@ end
 
 function allocate_register(n, env, e)
    if not variable(e) or env.registers[e] then return end
-   slot = env.alloc
+   local slot = env.alloc
    for index,value in ipairs(env.freelist) do
       slot = math.min(slot, index)
    end
@@ -128,8 +128,10 @@ end
 head_to_tail_counter = 0
 
 function allocate_temp(context, node)
-   head_to_tail_counter =  head_to_tail_counter + 1
-   return setmetatable(makeNode(context, "variable", node, {generated = true, name = "temp_" .. head_to_tail_counter}), DefaultNodeMeta)
+  head_to_tail_counter =  head_to_tail_counter + 1
+  local variable = setmetatable(makeNode(context, "variable", node, {generated = true, name = "temp_" .. head_to_tail_counter}), DefaultNodeMeta)
+  node.query.variables[#node.query.variables + 1] = variable
+  return variable
 end
 
 function read_lookup(n, env, x)
@@ -140,7 +142,7 @@ function read_lookup(n, env, x)
          env.registers[x] = r
       end
       if not n.registers then n.registers = {} end
-      if x then n.registers[x.id] = slot end
+      if x then n.registers[x.id] = "r" .. (r or "NIL") end
       return sregister(r)
    end
    return translate_value(x)
@@ -148,10 +150,10 @@ end
 
 function write_lookup(n, env, x)
    -- can't be a constant or unbound
-   r = env.registers[x]
+   local r = env.registers[x]
    free_register(n, env, x)
    if not n.registers then n.registers = {} end
-   if x then n.registers[x.id] = slot end
+   if x then n.registers[x.id] = "w" .. (r or "NIL") end
    return sregister(r)
 end
 
