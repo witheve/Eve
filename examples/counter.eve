@@ -15,4 +15,3 @@ go!
   [#session-connect]
   freeze
     [#counter count: 0]
-
