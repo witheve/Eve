@@ -13,8 +13,8 @@
 
 .todoapp {
     flex: 0 0 auto;
-    min-width: 350px;
-    max-width: 550px;
+    min-width: 450px;
+    max-width: 650px;
     height: auto;
     margin: 130px auto 40px auto;
 
@@ -267,4 +267,36 @@ html .todoapp .clear-completed:active {
 
 .todoapp .clear-completed:hover {
     text-decoration: underline;
+}
+
+
+.todoapp .filters {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    position: absolute;
+    right: 0;
+    left: 0;
+}
+
+.todoapp .filters li {
+    display: inline;
+}
+
+.todoapp .filters li a {
+    color: inherit;
+    margin: 3px;
+    padding: 3px 7px;
+    text-decoration: none;
+    border: 1px solid transparent;
+    border-radius: 3px;
+}
+
+.todoapp .filters li a.selected,
+.todoapp .filters li a:hover {
+    border-color: rgba(175, 47, 47, 0.1);
+}
+
+.todoapp .filters li a.selected {
+    border-color: rgba(175, 47, 47, 0.2);
 }
