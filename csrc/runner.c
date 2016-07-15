@@ -160,12 +160,23 @@ static void fixedpoint(evaluation ev)
         }
     }
 
-    if (changed_persistent)
-         table_foreach(ev->persisted, _, b) 
+    if (changed_persistent) {
+        table_foreach(ev->persisted, _, b)  {
              table_foreach(((bag)b)->listeners, t, _)
                  if (t != ev->run)
                      apply((thunk)t);
+        }
+    }
 
+    // allow the deltas to also see the updated base by applying
+    // them after
+    table_foreach(ev->t_solution, u, b) {
+        bag bd;
+        if ((bd = table_find(ev->persisted, u))) {
+            table_foreach(bd->delta_listeners, t, _)
+                apply((bag_handler)b);
+        }
+    }
     
     // this is a bit strange, we really only care about the
     // non-persisted final state here

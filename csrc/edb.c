@@ -44,6 +44,16 @@ void deregister_listener(bag e, thunk t)
     table_set(e->listeners, t, 0);
 }
 
+void register_delta_listener(bag e, thunk t)
+{
+    table_set(e->delta_listeners, t, (void *)0x1);
+}
+
+void deregister_delta_listener(bag e, thunk t)
+{
+    table_set(e->delta_listeners, t, 0);
+}
+
 int edb_size(bag b)
 {
     return b->count;
