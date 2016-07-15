@@ -53,7 +53,7 @@ To run the Docker container, execute `docker run -p [port]:8080 witheve/eve [pat
 
 The easiest way to use Eve is the web-REPL, which by default is accessible at `http://localhost:8080`. Read our [quickstart guide](TODO) for a brief introduction to Eve, and a tutorial for your first Eve program.
 
-The (Syntax RFC)[TODO] also acts as an interim tutorial while we work on something more complete.
+The [Syntax RFC](TODO) also acts as an interim tutorial while we work on something more complete.
 
 Finally, you can communicate with Eve using websockets and a very simple [JSON protocol](TODO). For now, the web-REPL is the only tool that implements this protocol. 
 
