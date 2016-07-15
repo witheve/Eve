@@ -109,6 +109,33 @@ static void send_node_graph(heap h, buffer_handler output, node head, table coun
 }
 
 
+static void send_node_times(heap h, buffer_handler output, node head, table counts)
+{
+    string out = allocate_string(h);
+    u64 time = (u64)table_find(counts, sym(time));
+    u64 cycle_time = (u64)table_find(counts, sym(cycle-time));
+    u64 iterations = (u64)table_find(counts, sym(iterations));
+
+    bprintf(out, "{\"type\":\"node_times\", \"total_time\": %t, \"cycle_time\": %u, \"iterations\": %d, \"head\": \"%v\", \"nodes\":{", time, cycle_time, iterations, head->id);
+    vector to_scan = allocate_vector(h, 10);
+    vector_insert(to_scan, head);
+    int nodeComma = 0;
+    vector_foreach(to_scan, n){
+        node current = (node) n;
+        if(nodeComma) {
+            bprintf(out, ",");
+        }
+        perf p = table_find(counts, current);
+        if(p) {
+            bprintf(out, "\"%v\": {\"count\": %u, \"time\": %l}", p->count, p->time);
+            nodeComma = 1;
+        }
+    }
+
+    bprintf(out, "}");
+    bprintf(out, "}");
+    apply(output, out, ignore);
+}
 
 // solution should already contain the diffs against persisted...except missing support (diane)
 static CONTINUATION_1_2(send_response, json_session, table, table);

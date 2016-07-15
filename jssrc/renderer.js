@@ -836,9 +836,9 @@ let __entities = {}; // DEBUG
 
 var socket = new WebSocket("ws://" + window.location.host +"/ws");
 socket.onmessage = function(msg) {
-  console.time("PARSE");
+  // console.time("PARSE");
   let data = JSON.parse(msg.data);
-  console.timeEnd("PARSE");
+  // console.timeEnd("PARSE");
   if(data.type == "result") {
     handleDOMUpdates(data);
 
