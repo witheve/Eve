@@ -2,6 +2,10 @@
 
 Eve is a set of tools to help us think. Currently, these tools include: a temporal query language, a database, and a lightweight web-REPL.
 
+## Status
+
+Eve is currently at a very early, "pre-alpha" stage of development. This means the language, tools, and docs are largely incomplete, but undergoing rapid and continuous development. 
+
 ## Installation
 
 ### From Source
@@ -53,13 +57,26 @@ Finally, you can communicate with Eve using websockets and a very simple [JSON p
 
 *Please let us know what kind of documents would be the most helpful as you begin your journey with Eve*. We want our documentation to be a highlight of the Eve experience, so any suggestions are greatly appreciated.
 
-## How to contribute
+## Learn More
+
+## Get Involved
+
+### Join the Community
+
+The Eve community is small but constantly growing, and everyone is welcome!
+
+- Join our [mailing list](https://groups.google.com/forum/#!forum/eve-talk) and get involved with the latest discussions on Eve.
+- Impact the future of Eve by getting involved with our [Request for Comments](https://github.com/witheve/rfcs) process.
+- Read our [development diary](http://incidentalcomplexity.com/).
+- Follow us on [twitter](https://twitter.com/with_eve).
+
+### How to Contribute
 
 The best way to contribute right now is to write Eve code and report your experiences. Let us know what kind of programs you’re trying to write, what barriers your are facing in writing code (both mental and technological), and any errors you encounter along the way. Also, let us know what you love! What features are your favorite?
 
 Another way to really help us is to host your `*.eve` files on Github, so we can get Eve recognized as an official language in the eyes of Github. This will “put Eve on the map” as it were.
 
-## How to file an issue
+### How to File an Issue
 
 Please file any issues in this repository. Before you file an issue, please take a look to see if the issue already exists. When you file an issue, please include:
 
@@ -67,7 +84,7 @@ Please file any issues in this repository. Before you file an issue, please take
 2. Your operating system and browser.
 3. If applicable, the .*eve file that causes the bug.
 
-## Here Be Dragons
+## Disclaimer: Here Be Dragons
 
 The “pre-alpha” moniker indicates that this software is in an early stage, and the Eve language is not fully implemented. If something goes wrong, please don’t assume it’s your fault, and [bring it to our attention](https://github.com/witheve/Eve/issues).
 
