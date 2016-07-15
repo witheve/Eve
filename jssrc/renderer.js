@@ -446,19 +446,15 @@ function drawNode(nodeId, graph, state, seen) {
   }
   seen[nodeId] = true;
 
-  let childrenTime = 0;
-  if(node.type != "choosetail") {
-    childrenTime = node.arms.map(function(id) { return graph[id].time }).reduce(function(cur, v) { return cur + v; }, 0);
-  }
-  let myTime = (((node.time - childrenTime) / state.rootTime) * 100).toFixed(1);
-  myTime = isNaN(myTime) ? 0 : myTime;
+  let myTime = node.time || 0;
 
   let active = activeClass(node, state);
   let children = [];
   let childrenContainer = {c: "node-children", children};
   let me = {c: `node`, children: [
-    {c: `${node.type} node-text ${active}`, text: `${node.type} ${node.scan_type || ""} (${node.count || 0} | ${myTime}%)`},
+    {c: `${node.type} node-text ${active}`, text: `${node.type} ${node.scan_type || ""} (${node.count || 0} | ${myTime})`},
     childrenContainer
+
   ]};
   if((node.type == "fork") || (node.type == "choose")) {
     childrenContainer.c += ` fork-node-children`;
