@@ -26,5 +26,3 @@ of those
     container.children += [#div children:
                             [#div text: "Tags:"]
                             [#div tag text: "{tag} ({per-tag})"]]
-
-
