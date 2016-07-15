@@ -3,6 +3,9 @@ math = require("math")
 parser = require("parser")
 db = require("db")
 
+local makeNode = parser.makeNode
+local DefaultNodeMeta = parser.DefaultNodeMeta
+
 function recurse_print_table(t)
    if t == nil then return nil end
    local result = ""
@@ -105,6 +108,13 @@ function free_register(n, env, e)
         env.alloc = env.alloc - 1
         env.freelist[env.alloc] = nil
      end
+
+     if not n.registers then
+       n.registers = {}
+     end
+     if e then
+       n.registers[e.id] = slot
+     end
    end
 end
 
@@ -119,15 +129,21 @@ function allocate_register(n, env, e)
    env.registers[e] = slot
    env.maxregs = math.max(env.maxregs, slot)
    print("allocate", n.type, slot)
+   if not n.registers then
+     n.registers = {}
+   end
+   if e then
+     n.registers[e.id] = slot
+   end
+
    return slot
 end
 
 head_to_tail_counter = 0
 
-function allocate_temp()
-   local n = "temp_" .. head_to_tail_counter
+function allocate_temp(context, node)
    head_to_tail_counter =  head_to_tail_counter + 1
-   return {name = n, type = "variable"}
+   return setmetatable(makeNode(context, "variable", node, {generated = true, name = "temp_" .. head_to_tail_counter}), DefaultNodeMeta)
 end
 
 function read_lookup(n, env, x)
@@ -216,7 +232,7 @@ function translate_subproject(n, bound, down, tracing, context)
    local p = n.projection
    local t = n.nodes
    local env, rest, fill, c
-   local pass = allocate_temp()
+   local pass = allocate_temp(context, n)
    local db = shallowcopy(bound)
    bound[pass] = true
 
@@ -359,7 +375,7 @@ end
 function translate_not(n, bound, down, tracing, context)
    local env
    local arms = {}
-   local flag = allocate_temp()
+   local flag = allocate_temp(context, n)
    tail_bound = shallowcopy(bound)
 
    -- create an edge between the c node and the parse node
@@ -391,7 +407,7 @@ end
 function translate_choose(n, bound, down, tracing, context)
    local env
    local arms = {}
-   local flag = allocate_temp()
+   local flag = allocate_temp(context, n)
 
    local tail_bound = shallowcopy(bound)
    for _, v in pairs(n.outputs) do

@@ -18,7 +18,7 @@ local SPECIAL_TAGS = {
 ------------------------------------------------------------
 -- Utils
 ------------------------------------------------------------
-
+local DefaultNodeMeta = util.DefaultNodeMeta
 local makeWhitespace = util.makeWhitespace;
 local split = util.split;
 local dedent = util.dedent;
@@ -435,7 +435,7 @@ end
 ------------------------------------------------------------
 
 local function makeNode(context, type, token, rest)
-  local node = {type = type, line = token.line, offset = token.offset, id = util.generateId()}
+  local node = setmetatable({type = type, line = token.line, offset = token.offset, id = util.generateId()}, DefaultNodeMeta)
   if token.id then
     context.downEdges[#context.downEdges + 1] = {token.id, node.id}
   end
