@@ -1,4 +1,4 @@
-<div style="margin: 0 auto;"><img src="http://www.witheve.com/logo.png" width="10%"></div>
+<img src="http://www.witheve.com/logo.png" width="10%">
 
 Eve is a set of tools to help us think. Currently, these tools include: a temporal query language, a database, and a lightweight web-REPL.
 
