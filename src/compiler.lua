@@ -1033,7 +1033,7 @@ function unpackObjects(dg, context)
         end
         projection:union(node.projection or nothing, true)
 
-        subproject = SubprojectNode:new({projection = projection, provides = node.deps.provides}, node, context, node.scope)
+        subproject = SubprojectNode:new({query = dg.query, projection = projection, provides = node.deps.provides}, node, context, node.scope)
         unpackList = subproject.nodes
         unpacked[#unpacked + 1] = subproject
       end
@@ -1052,7 +1052,7 @@ function unpackObjects(dg, context)
           if binding.field ~= ENTITY_FIELD then
             if subproject and binding.variable and not subproject.projection[binding.variable] then
               subproject.provides:add(entity)
-              unpacked[#unpacked + 1] = SubprojectNode:new({projection = subproject.projection + Set:new{entity, binding.variable}, nodes = {ScanNode:fromBinding(node, binding, entity, context)}}, binding, context, node.scope)
+              unpacked[#unpacked + 1] = SubprojectNode:new({query = dg.query, projection = subproject.projection + Set:new{entity, binding.variable}, nodes = {ScanNode:fromBinding(node, binding, entity, context)}}, binding, context, node.scope)
             else
               unpackList[#unpackList + 1] = ScanNode:fromBinding(node, binding, entity, context)
             end
@@ -1062,7 +1062,7 @@ function unpackObjects(dg, context)
         end
       end
     elseif node.type == "expression" and node.projection then
-      local subproject = SubprojectNode:new({kind = "aggregate", projection = node.projection, provides = node.deps.provides, nodes = {node}}, node, context)
+      local subproject = SubprojectNode:new({query = dg.query, kind = "aggregate", projection = node.projection, provides = node.deps.provides, nodes = {node}}, node, context)
       if node.operator == "count" then
         local constant = makeNode(context, "constant", node, {generated = true, constant = 1, constantType = "number"})
         node.bindings[#node.bindings + 1] = makeNode(context, "binding", node, {generated = true, field = "a", constant = constant})
