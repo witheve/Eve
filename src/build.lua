@@ -1,4 +1,5 @@
 util = require("util")
+Set = require("set").Set
 math = require("math")
 parser = require("parser")
 db = require("db")
@@ -228,8 +229,12 @@ function translate_subproject(n, bound, down, tracing, context)
    local db = shallowcopy(bound)
    bound[pass] = true
 
+   local provides = Set:new()
    for k, _ in pairs(n.provides) do
-     db[k] = true
+     if not k.cardinal then
+       provides:add(k)
+       db[k] = true
+     end
    end
 
    env, rest = down(db)
@@ -243,7 +248,7 @@ function translate_subproject(n, bound, down, tracing, context)
      context.downEdges[#context.downEdges + 1] = {n.id, id}
      context.downEdges[#context.downEdges + 1] = {n.id, id2}
       return env, build_node("subtail", {},
-                             {set_to_read_array(n, env, n.provides),
+                             {set_to_read_array(n, env, provides),
                              {read_lookup(n, env, pass)}},
                              id)
    end
@@ -255,7 +260,7 @@ function translate_subproject(n, bound, down, tracing, context)
    context.downEdges[#context.downEdges + 1] = {n.id, id}
    c = build_node("sub", {rest, fill},
                           {set_to_read_array(n, env, n.projection),
-                           set_to_read_array(n, env, n.provides),
+                           set_to_read_array(n, env, provides),
                            {write_lookup(n, env, pass)},
                            set_to_write_array(n, env, env.ids),
                            {n.scope == "event"}
