@@ -452,7 +452,7 @@ function drawNode(nodeId, graph, state, seen) {
   let children = [];
   let childrenContainer = {c: "node-children", children};
   let me = {c: `node`, children: [
-    {c: `${node.type} node-text ${active}`, text: `${node.type} ${node.scan_type || ""} (${node.count || 0} | ${myTime})`},
+    {c: `${node.type} node-text ${active}`, text: `${node.type} ${node.scan_type || ""} (${node.count || 0} | ${myTime}%)`},
     childrenContainer
 
   ]};
