@@ -117,18 +117,14 @@ static void send_node_times(heap h, buffer_handler output, node head, table coun
     int nodeComma = 0;
     vector_foreach(to_scan, n){
         node current = (node) n;
-        if(nodeComma) {
-            bprintf(out, ",");
-        }
         vector_foreach(current->arms, arm) {
             vector_insert(to_scan, arm);
         }
         perf p = table_find(counts, current);
         if(p) {
+            if(nodeComma) bprintf(out, ",");
             bprintf(out, "\"%v\": {\"count\": %u, \"time\": %l}", current->id, p->count, p->time);
             nodeComma = 1;
-        } else {
-            nodeComma = 0;
         }
     }
 

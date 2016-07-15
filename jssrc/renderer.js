@@ -491,7 +491,7 @@ window.addEventListener("hashchange", function(event) {
 //---------------------------------------------------------
 // Draw node graph
 //---------------------------------------------------------
-
+let activeLayers = {registers: true};
 let activeIds = {};
 let activeParse = {};
 let allNodeGraphs = {};
@@ -783,10 +783,26 @@ function orderedNode(nodeId, state) {
     return {c: "value", text: `"${nodeId}"`};
   }
   let active = currentClass(node, state);
+
+  let overlays = [];
+  let overlay = {c: "node-overlay", children: overlays};
+  if(activeLayers.registers && node.registers) {
+    console.log("NODEREG", node.registers);
+    let registers = {c: "registers-overlay row", children: [{t: "label", text: "Registers"}]};
+    overlays.push(registers);
+    for(let variable in node.registers) {
+      console.log("REGVAR", variable);
+      registers.children.push({c: "register-pair row", children: [orderedNode(variable, state), {text: `: ${node.registers[variable]}`}]});
+    }
+  }
+
   if(node.type == "object" || node.type == "mutate") {
     return {c: `ordered-node ordered-object ${active}`, children: [
-      {c: "node-type", text: node.type},
-      {c: "eav", children: [orderedNode(node.entity, state), orderedNode(node.attribute, state), orderedNode(node.value, state)]}
+      {c: "row", children: [
+        {c: "node-type", text: node.type},
+        {c: "eav", children: [orderedNode(node.entity, state), orderedNode(node.attribute, state), orderedNode(node.value, state)]},
+      ]},
+      overlay
     ]};
   } else if(node.type == "subproject") {
     let projections = [{text: "["}]
@@ -795,10 +811,11 @@ function orderedNode(nodeId, state) {
     }
     projections.push({text: "]"});
     return {c: `ordered-node subproject ${active}`, children: [
-      {c: "row", children: [
+      {c: "row sub-node", children: [
         {c: "node-type", text: node.type},
         {c: "subproject-projection", children: projections},
       ]},
+      overlay,
       {c: "subproject-children", children: node.nodes.map(function(cur) { return orderedNode(cur, state); })}
     ]};
   } else if(node.type == "expression") {

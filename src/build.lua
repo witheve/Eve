@@ -1,7 +1,11 @@
 util = require("util")
+Set = require("set").Set
 math = require("math")
 parser = require("parser")
 db = require("db")
+
+local makeNode = parser.makeNode
+local DefaultNodeMeta = parser.DefaultNodeMeta
 
 function recurse_print_table(t)
    if t == nil then return nil end
@@ -110,7 +114,7 @@ end
 
 function allocate_register(n, env, e)
    if not variable(e) or env.registers[e] then return end
-   slot = env.alloc
+   local slot = env.alloc
    for index,value in ipairs(env.freelist) do
       slot = math.min(slot, index)
    end
@@ -124,10 +128,11 @@ end
 
 head_to_tail_counter = 0
 
-function allocate_temp()
-   local n = "temp_" .. head_to_tail_counter
-   head_to_tail_counter =  head_to_tail_counter + 1
-   return {name = n, type = "variable"}
+function allocate_temp(context, node)
+  head_to_tail_counter =  head_to_tail_counter + 1
+  local variable = setmetatable(makeNode(context, "variable", node, {generated = true, name = "temp_" .. head_to_tail_counter}), DefaultNodeMeta)
+  node.query.variables[#node.query.variables + 1] = variable
+  return variable
 end
 
 function read_lookup(n, env, x)
@@ -136,7 +141,9 @@ function read_lookup(n, env, x)
       if not r then
          r = allocate_register(n, env, x)
          env.registers[x] = r
-       end
+      end
+      if not n.registers then n.registers = {} end
+      if x then n.registers[x.id] = "r" .. (r or "NIL") end
       return sregister(r)
    end
    return translate_value(x)
@@ -144,8 +151,10 @@ end
 
 function write_lookup(n, env, x)
    -- can't be a constant or unbound
-   r = env.registers[x]
+   local r = env.registers[x]
    free_register(n, env, x)
+   if not n.registers then n.registers = {} end
+   if x then n.registers[x.id] = "w" .. (r or "NIL") end
    return sregister(r)
 end
 
@@ -216,12 +225,16 @@ function translate_subproject(n, bound, down, tracing, context)
    local p = n.projection
    local t = n.nodes
    local env, rest, fill, c
-   local pass = allocate_temp()
+   local pass = allocate_temp(context, n)
    local db = shallowcopy(bound)
    bound[pass] = true
 
+   local provides = Set:new()
    for k, _ in pairs(n.provides) do
-     db[k] = true
+     if not k.cardinal then
+       provides:add(k)
+       db[k] = true
+     end
    end
 
    env, rest = down(db)
@@ -235,7 +248,7 @@ function translate_subproject(n, bound, down, tracing, context)
      context.downEdges[#context.downEdges + 1] = {n.id, id}
      context.downEdges[#context.downEdges + 1] = {n.id, id2}
       return env, build_node("subtail", {},
-                             {set_to_read_array(n, env, n.provides),
+                             {set_to_read_array(n, env, provides),
                              {read_lookup(n, env, pass)}},
                              id)
    end
@@ -247,7 +260,7 @@ function translate_subproject(n, bound, down, tracing, context)
    context.downEdges[#context.downEdges + 1] = {n.id, id}
    c = build_node("sub", {rest, fill},
                           {set_to_read_array(n, env, n.projection),
-                           set_to_read_array(n, env, n.provides),
+                           set_to_read_array(n, env, provides),
                            {write_lookup(n, env, pass)},
                            set_to_write_array(n, env, env.ids),
                            {n.scope == "event"}
@@ -359,7 +372,7 @@ end
 function translate_not(n, bound, down, tracing, context)
    local env
    local arms = {}
-   local flag = allocate_temp()
+   local flag = allocate_temp(context, n)
    tail_bound = shallowcopy(bound)
 
    -- create an edge between the c node and the parse node
@@ -391,7 +404,7 @@ end
 function translate_choose(n, bound, down, tracing, context)
    local env
    local arms = {}
-   local flag = allocate_temp()
+   local flag = allocate_temp(context, n)
 
    local tail_bound = shallowcopy(bound)
    for _, v in pairs(n.outputs) do
