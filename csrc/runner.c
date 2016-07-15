@@ -193,6 +193,7 @@ static void clear_evaluation(evaluation ev)
 
 void inject_event(evaluation ev, buffer b, boolean tracing)
 {
+    ticks start = rdtsc();
     buffer desc;
     clear_evaluation(ev);
     vector n = compile_eve(ev->working, b, tracing, &desc);
@@ -205,13 +206,18 @@ void inject_event(evaluation ev, buffer b, boolean tracing)
     }
     ev->ev_solution = ev->next_f_solution;
     fixedpoint(ev);
+    ev->cycle_time += rdtsc() - start;
+    table_set(ev->counters, intern_cstring("cycle-time"), (void *)ev->cycle_time);
 }
 
 CONTINUATION_1_0(run_solver, evaluation);
 void run_solver(evaluation ev)
 {
+    ticks start = rdtsc();
     clear_evaluation(ev);
     fixedpoint(ev);
+    ev->cycle_time += rdtsc() - start;
+    table_set(ev->counters, intern_cstring("cycle-time"), (void *)ev->cycle_time);
 }
 
 void close_evaluation(evaluation ev) 
@@ -236,7 +242,7 @@ evaluation build_evaluation(table scopes, table persisted, evaluation_result r)
     ev->insert = cont(h, insert_f, ev);
     ev->blocks = allocate_vector(h, 10);
     ev->persisted = persisted;
-
+    ev->cycle_time = 0;
     ev->reader = cont(ev->h, merge_scan, ev);
     ev->complete = r;
     ev->terminal = cont(ev->h, evaluation_complete, ev);

@@ -134,6 +134,7 @@ struct evaluation  {
     thunk terminal;
     thunk run;
     long intermediates;
+    ticks cycle_time;
 };
 
 
