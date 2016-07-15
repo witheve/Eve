@@ -65,8 +65,11 @@ static void do_insert(block bk, perf p, execf n, int deltam,
                       heap h, perf pp, operator op, value *r)
 {
     start_perf(p);
+    if ((unsigned long)type_of(lookup(r, v)) == allocation_space) {
+        prf("bad guy: %v\n", v);
+    }
+    
     if (op == op_insert) {
-
         apply(bk->ev->insert, uuid, lookup(r, e), lookup(r, a), lookup(r, v), deltam);
     }
     if (op == op_remove) {
