@@ -139,10 +139,12 @@ function handleDOMUpdates(result) {
             }
             break;
           case "class":
-            classesToMaybeGC.push(value);
-            let classIx = activeClasses[value].indexOf(elem);
-            if(classIx > -1) {
-              activeClasses[value].splice(classIx, 1);
+            if(value[0] == "⦑" && value[value.length - 1] == "⦒") {
+              classesToMaybeGC.push(value);
+              let classIx = activeClasses[value].indexOf(elem);
+              if(classIx > -1) {
+                activeClasses[value].splice(classIx, 1);
+              }
             }
             break;
           case "children":
@@ -264,7 +266,7 @@ function handleDOMUpdates(result) {
       let styleAttributes = Object.keys(style);
       for(let attr of styleAttributes) {
         if(attr === "display" && typeof style[attr] === "boolean") {
-          elemStyle[attr] = style[attr] ? "initial": "none";
+          elemStyle[attr] = style[attr] ? undefined : "none";
         } else {
           elemStyle[attr] = style[attr];
         }
