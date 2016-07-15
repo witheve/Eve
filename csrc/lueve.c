@@ -4,6 +4,9 @@
 #include <bswap.h>
 #include <luanne.h>
 
+static boolean enable_tracing = false;
+static buffer loadedParse;
+static int port = 8080;
 #define register(__h, __url, __content, __name)\
  {\
     extern unsigned char __name##_start, __name##_end;\
@@ -57,113 +60,98 @@ static void run_test(bag root, buffer b, boolean tracing)
     destroy(h);
 }
 
+
+
+typedef struct command {
+    char *single, *extended, *help;
+    boolean argument;
+    void (*f)(interpreter, char *, bag);
+} *command;
+
+static struct command *commands;
+
+static void do_tracing(interpreter c, char *x, bag b)
+{
+    enable_tracing = true;
+}
+
+static void do_parse(interpreter c, char *x, bag b)
+{
+    lua_run_module_func(c, read_file_or_exit(init, x), "parser", "printParse");
+}
+
+static void do_analyze_help(interpreter c, char *x, bag b)
+{
+    lua_run_module_func(c, read_file_or_exit(init, x), "compiler", "analyzeQuiet");
+}
+
+static void do_run_test(interpreter c, char *x, bag b)
+{
+    buffer f = read_file_or_exit(init, x);
+    run_test(b, f, enable_tracing);
+}
+
+static void do_exec(interpreter c, char *x, bag b)
+{
+    buffer desc;
+    buffer f = read_file_or_exit(init, x);
+    vector v = compile_eve(init, f, enable_tracing, &loadedParse);
+    vector_foreach(v, i) {
+        edb_register_implication(b, i);
+    }
+}
+
+static void print_help(interpreter c, char *x, bag b)
+{
+    for (command c = commands; *c->single; c++) {
+        prf("-%s --%s %s\n", c->single, c->extended, c->help);
+    }
+}
+
+static struct command command_body [] = {
+    {"p", "parse", "parse and print structure", true, 0},
+    {"a", "analyze", "parse order print structure", true, 0},
+    {"r", "run", "execute eve", true, 0},
+    {"s", "serve", "serve urls from the given root path", true, 0},
+    {"e", "exec", "use eve as default path", true, 0},
+    {"p", "port", "serve http on passed port", true, 0},
+    {"h", "help", "print help", false, print_help},
+    {"t", "tracing", "enable per-statement tracing", false, do_tracing},
+    {"R", "resolve", "implication resolver", false, 0},
+    {"", "", "", false},
+};
+
 int main(int argc, char **argv)
 {
     init_runtime();
     bag root = create_bag(init, generate_uuid());
     boolean enable_tracing = false;
-    interpreter c = build_lua();
-    boolean doParse = false;
-    boolean doAnalyze = false;
-    boolean doAnalyzeQuiet = false;
-    boolean doExec = false;
-    boolean doRead = false;
-    boolean consumeFile = false;
+    interpreter interp = build_lua();
+    commands = command_body;
     boolean dynamicReload = true;
-    boolean has_non_exec_action = false;
-    buffer desc = 0;
-    int port = 8080;
-
     
     char * file = "";
     for (int i = 1; i < argc ; i++) {
-        if (!strcmp(argv[i], "--parse") || !strcmp(argv[i], "-p")) {
-            doParse = true;
-            consumeFile = true;
-            has_non_exec_action = true;
-        }
-        else if (!strcmp(argv[i], "--analyze") || !strcmp(argv[i], "-a")) {
-            doAnalyze = true;
-            consumeFile = true;
-            has_non_exec_action = true;
-        }
-        else if (!strcmp(argv[i], "--analyze-quiet") || !strcmp(argv[i], "-A")) {
-          doAnalyzeQuiet = true;
-          consumeFile = true;
-          has_non_exec_action = true;
-        }
-        else if (!strcmp(argv[i], "-r")) {
-            doRead = true;
-            consumeFile = true;
-            has_non_exec_action = true;
-        }
-        else if (!strcmp(argv[i], "--exec") || !strcmp(argv[i], "-e")) {
-            doExec = true;
-            consumeFile = true;
-        }
-        else if (!strcmp(argv[i], "--port") || !strcmp(argv[i], "-P")) {
-            // TODO Some sort of type checking here?
-            port = atoi(argv[++i]);
-        }
-        else if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) {
-            printf("\nUsage: eve [OPTIONS] [arg ...]\n\n"
-            "Starts the Eve server.\n\n" 
-            "Options:\n\n" 
-            "  -h, --help \t\t Prints what you are reading now.\n"
-            "  -p, --parse \t\t Does something.\n"
-            "  -a, --analyze \t Does something.\n"
-            "  -A, --analyze-quiet \t Does something, but quietly\n"
-            "  -r, --TODO \t\t Does something.\n"
-            "  -e, --exec \t\t Does something.\n"
-            "  -P, --port \t\t Sets the port on which Eve is hosted.\n"
-            "\n");
-        }
-        else {
-            if (!strcmp(argv[i], "--resolve")) {
-                lua_run_module_func(c, read_file_or_exit(init, argv[++i]), "implicationResolver", "testCollect");
-                return 0;
+        command c;
+        for (c = commands; *c->single; c++) {
+            if (argv[i][0] == '-') {
+                if (argv[i][2] == '-') {
+                    if (!strcmp(argv[i]+2, c->extended)) {
+                        break;
+                    } else {
+                        if (!strcmp(argv[i]+1, c->single))
+                            break;
+                    }
+                }
             }
-            else if (!strcmp(argv[i],"-l")) {
-                lua_run(c, read_file_or_exit(init, argv[++i]));
-            }
-            else if (!strcmp(argv[i],"-t")) {
-                enable_tracing = true;
-            } else if(!has_non_exec_action) {
-                doExec = true;
-                file = argv[i];
-            }
-            else if (consumeFile) {
-                file = argv[i];
-            }
-            else {
-                prf("\nUnknown flag %s, aborting", argv[i]);
-                return -1;
-            }
-            consumeFile = false;
         }
-    }
-
-    if (doParse) {
-        lua_run_module_func(c, read_file_or_exit(init, file), "parser", "printParse");
-    }
-    if (doAnalyze) {
-        lua_run_module_func(c, read_file_or_exit(init, file), "compiler", "analyze");
-    } else if (doAnalyzeQuiet) {
-        lua_run_module_func(c, read_file_or_exit(init, file), "compiler", "analyzeQuiet");
-    }
-    if (doRead) {
-        buffer b = read_file_or_exit(init, file);
-        run_test(root, b, enable_tracing);
-    }
-    if (doExec) {
-        buffer b = read_file_or_exit(init, file);
-        vector v = compile_eve(init, b, enable_tracing, &desc);
-        vector_foreach(v, i) {
-            edb_register_implication(root, i);
+        if (*c->single) {
+            c->f(interp, argv[i+1], root);
+            if (c->argument) i++;
+        } else {
+            prf("\nUnknown flag %s, aborting", argv[i]);
+            exit(-1);
         }
-    }
-    else {
-        return 0;
     }
     
     http_server h = create_http_server(init, create_station(0, port));
@@ -174,7 +162,7 @@ int main(int argc, char **argv)
     register(h, "/jssrc/codemirror.css", "text/css", codemirrorCss);
 
     // TODO: figure out a better way to manage multiple graphs
-    init_json_service(h, root, enable_tracing, desc);
+    init_json_service(h, root, enable_tracing, loadedParse);
 
     prf("\n----------------------------------------------\n\nEve started. Running at http://localhost:%d\n\n",port);
     unix_wait();
