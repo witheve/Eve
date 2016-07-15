@@ -96,8 +96,9 @@ function variable(x)
 end
 
 
-function free_register(env, e)
+function free_register(n, env, e)
    if env.permanent[e] == nil and env.registers[e] then
+     print("free", n.type, env.registers[e])
      env.freelist[env.registers[e]] = true
      env.registers[e] = nil
      while(env.freelist[env.alloc-1]) do
@@ -107,7 +108,7 @@ function free_register(env, e)
    end
 end
 
-function allocate_register(env, e)
+function allocate_register(n, env, e)
    if not variable(e) or env.registers[e] then return end
    slot = env.alloc
    for index,value in ipairs(env.freelist) do
@@ -117,6 +118,7 @@ function allocate_register(env, e)
    else env.freelist[slot] = nil end
    env.registers[e] = slot
    env.maxregs = math.max(env.maxregs, slot)
+   print("allocate", n.type, slot)
    return slot
 end
 
@@ -128,11 +130,11 @@ function allocate_temp()
    return {name = n, type = "variable"}
 end
 
-function read_lookup(env, x)
+function read_lookup(n, env, x)
    if variable(x) then
       local r = env.registers[x]
       if not r then
-         r = allocate_register(env, x)
+         r = allocate_register(n, env, x)
          env.registers[x] = r
        end
       return sregister(r)
@@ -140,10 +142,10 @@ function read_lookup(env, x)
    return translate_value(x)
 end
 
-function write_lookup(env, x)
+function write_lookup(n, env, x)
    -- can't be a constant or unbound
    r = env.registers[x]
-   free_register(env, x)
+   free_register(n, env, x)
    return sregister(r)
 end
 
@@ -155,26 +157,26 @@ function bound_lookup(bindings, x)
    return x
 end
 
-function set_to_read_array(env, x)
+function set_to_read_array(n, env, x)
    local out = {}
    for k, v in pairs(x) do
-      out[#out+1] = read_lookup(env, k)
+      out[#out+1] = read_lookup(n, env, k)
    end
    return out
 end
 
-function set_to_write_array(env, x)
+function set_to_write_array(n, env, x)
    local out = {}
    for k, v in pairs(x) do
-      out[#out+1] = write_lookup(env, k)
+      out[#out+1] = write_lookup(n, env, k)
    end
    return out
 end
 
-function list_to_read_array(env, x)
+function list_to_read_array(n, env, x)
    local out = {}
    for _, v in ipairs(x) do
-      out[#out+1] = read_lookup(env, v)
+      out[#out+1] = read_lookup(n, env, v)
    end
    return out
 end
@@ -182,7 +184,7 @@ end
 function list_to_write_array(env, x)
    local out = {}
    for _, v in ipairs(x) do
-      out[#out+1] = write_lookup(env, v)
+      out[#out+1] = write_lookup(n, env, v)
    end
    return out
 end
@@ -193,13 +195,13 @@ function translate_subagg(n, bound, down, tracing, context)
   context.downEdges[#context.downEdges + 1] = {n.id, id}
 
   c = build_node("subagg", {rest},
-                 {set_to_read_array(env, n.projection)},
+                 {set_to_read_array(n, env, n.projection)},
                  id)
 
   if tracing then
     local map = {"subagg", ""}
     for k, v in pairs(n.projection) do
-      push(map, k.name,  read_lookup(env, k))
+      push(map, k.name,  read_lookup(n, env, k))
     end
     -- create an edge between the c node and the parse node
     local id = util.generateId()
@@ -233,8 +235,8 @@ function translate_subproject(n, bound, down, tracing, context)
      context.downEdges[#context.downEdges + 1] = {n.id, id}
      context.downEdges[#context.downEdges + 1] = {n.id, id2}
       return env, build_node("subtail", {},
-                             {set_to_read_array(env, n.provides),
-                             {read_lookup(env, pass)}},
+                             {set_to_read_array(n, env, n.provides),
+                             {read_lookup(n, env, pass)}},
                              id)
    end
 
@@ -244,10 +246,10 @@ function translate_subproject(n, bound, down, tracing, context)
    local id = util.generateId()
    context.downEdges[#context.downEdges + 1] = {n.id, id}
    c = build_node("sub", {rest, fill},
-                          {set_to_read_array(env, n.projection),
-                           set_to_read_array(env, n.provides),
-                           {write_lookup(env, pass)},
-                           set_to_write_array(env, env.ids),
+                          {set_to_read_array(n, env, n.projection),
+                           set_to_read_array(n, env, n.provides),
+                           {write_lookup(n, env, pass)},
+                           set_to_write_array(n, env, env.ids),
                            {n.scope == "event"}
                            },
                         id)
@@ -255,7 +257,7 @@ function translate_subproject(n, bound, down, tracing, context)
    if tracing then
       local map = {"sub", ""}
       for k, v in pairs(n.projection) do
-         push(map, k.name,  read_lookup(env, k))
+         push(map, k.name,  read_lookup(n, env, k))
       end
       -- create an edge between the c node and the parse node
       local id = util.generateId()
@@ -300,9 +302,9 @@ function translate_object(n, bound, down, tracing, context)
       c = build_node("trace", {c},
                       {{"scan", "" ,
                        "sig", sig,
-                       "entity", read_lookup(env,e),
-                       "attribute", read_lookup(env, a),
-                       "value", read_lookup(env, v)}},
+                       "entity", read_lookup(n, env,e),
+                       "attribute", read_lookup(n, env, a),
+                       "value", read_lookup(n,env, v)}},
                        id)
    end
 
@@ -310,7 +312,7 @@ function translate_object(n, bound, down, tracing, context)
    local id = util.generateId()
    context.downEdges[#context.downEdges + 1] = {n.id, id}
 
-   return env, build_node("scan", {c}, {{sig, ef(env, e), af(env, a), vf(env, v)}}, id)
+   return env, build_node("scan", {c}, {{sig, ef(n, env, e), af(n, env, a), vf(n, env, v)}}, id)
  end
 
 
@@ -331,9 +333,9 @@ function translate_mutate(n, bound, down, tracing, context)
       c = build_node("trace", {c},
                   {{operator, "" ,
                    "scope", n.scope,
-                   "entity", read_lookup(env,e),
-                   "attribute", read_lookup(env, a),
-                   "value", read_lookup(env, v)}},
+                   "entity", read_lookup(n, env,e),
+                   "attribute", read_lookup(n,env, a),
+                   "value", read_lookup(n, env, v)}},
                    id)
    end
 
@@ -343,13 +345,13 @@ function translate_mutate(n, bound, down, tracing, context)
 
    local c = build_node(operator, {c},
                         {{n.scope,
-                         read_lookup(env,e),
-                         read_lookup(env,a),
-                         read_lookup(env,v)}},
+                         read_lookup(n, env,e),
+                         read_lookup(n, env,a),
+                         read_lookup(n, env,v)}},
                          id)
 
    if gen then
-     env.ids[e] = read_lookup(env, e)
+     env.ids[e] = read_lookup(n, env, e)
    end
    return env, c
 end
@@ -371,7 +373,7 @@ function translate_not(n, bound, down, tracing, context)
    local orig_perm = shallowcopy(env.permanent)
    local bot = build_node("choosetail",
                           {},
-                          {{read_lookup(env, flag)}}, tail_id)
+                          {{read_lookup(n, env, flag)}}, tail_id)
 
    local arm_bottom = function (bound)
         return env, bot
@@ -381,7 +383,7 @@ function translate_not(n, bound, down, tracing, context)
          env.permanent[n] = true
    end
    env, arm = walk(n.queries[1].unpacked, nil, shallowcopy(bound), arm_bottom, tracing, context)
-   return env, build_node("not", {c, arm}, {{read_lookup(env, flag)}}, id)
+   return env, build_node("not", {c, arm}, {{read_lookup(n, env, flag)}}, id)
 end
 
 
@@ -407,7 +409,7 @@ function translate_choose(n, bound, down, tracing, context)
 
    local bot = build_node("choosetail",
                           {c},
-                          {{read_lookup(env, flag)}},
+                          {{read_lookup(n, env, flag)}},
                           id)
 
    local id = util.generateId()
@@ -431,7 +433,7 @@ function translate_choose(n, bound, down, tracing, context)
 
    env.permanent = orig_perm
    -- currently leaking the perms
-   return env, build_node("choose", arms, {{read_lookup(env, flag)}}, id)
+   return env, build_node("choose", arms, {{read_lookup(n, env, flag)}}, id)
 end
 
 function translate_concat(n, bound, down, tracing, context)
@@ -492,14 +494,14 @@ function translate_expression(n, bound, down, tracing, context)
 
    local groupings
    if n.groupings then
-     groupings = set_to_read_array(env, n.groupings)
+     groupings = set_to_read_array(n, env, n.groupings)
    end
 
    if tracing then
       local traceArgs = {schema.name or n.operator, ""}
       for ix, field in ipairs(fields) do
          traceArgs[#traceArgs + 1] = field
-         traceArgs[#traceArgs + 1] = read_lookup(env, args[ix])
+         traceArgs[#traceArgs + 1] = read_lookup(n, env, args[ix])
       end
 
       -- create an edge between the c node and the parse node
@@ -511,9 +513,9 @@ function translate_expression(n, bound, down, tracing, context)
    local nodeArgs = {}
    for ix, field in ipairs(fields) do
      if schema.signature[field] == db.OUT then
-       nodeArgs[#nodeArgs + 1] = write_lookup(env, args[ix])
+       nodeArgs[#nodeArgs + 1] = write_lookup(n, env, args[ix])
      else
-       nodeArgs[#nodeArgs + 1] = read_lookup(env, args[ix])
+       nodeArgs[#nodeArgs + 1] = read_lookup(n, env, args[ix])
      end
    end
 
