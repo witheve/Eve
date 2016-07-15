@@ -61,6 +61,8 @@ Finally, you can communicate with Eve using websockets and a very simple [JSON p
 
 ## Learn More
 
+*Coming Soon...*
+
 ## Get Involved
 
 ### Join the Community
