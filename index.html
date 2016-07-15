@@ -4,11 +4,13 @@
     <link rel="stylesheet" type="text/css" href="jssrc/codemirror.css">
     <style>
       * { box-sizing:border-box; }
-      body { background: #202930; color: rgb(156,192,214); font-family: Avenir; display: flex; margin:0; }
-      .program { padding:20px; }
-      .graph-root { position:relative; display:flex; flex-direction:column; align-items:flex-start; margin-right:10px; padding:20px 40px; height:100%; overflow:hidden;  }
+      body { background: #202930; color: rgb(156,192,214); font-family: Avenir; display: flex; flex-direction: column; margin:0; }
+      .__root { display: flex; flex-direction: column; align-self: stretch; }
+      .program-container { display: flex; flex: 1; }
+      .program { display: flex; flex: 1; flex-direction: column; align-self: stretch; padding:20px; }
+      .graph-root { position:relative; display:flex; flex-direction:column; align-self: stretch; align-items:flex-start; margin-right:10px; padding:20px 40px; height:100%; overflow:hidden;  }
 
-      .parse-info { display:flex; flex-direction: row; height:100%; overflow: hidden; }
+      .parse-info { display:flex; flex-direction: row; align-self: stretch; height:100%; overflow: hidden; }
       .parse-info + .parse-info { margin-top:50px; }
 
       .node-text { padding: 3px 6px; background: rgb(44,72,97); flex:none; white-space:nowrap; }
@@ -42,7 +44,7 @@
       .active, .active * { background: #4D7598 !important; color: rgb(156,192,214);}
       .row {display:flex; flex-direction:row; }
 
-      .run-info { display:flex; flex-direction: column; flex:1; }
+      .run-info { display:flex; flex-direction: column; max-width: 800px; flex: 0 0 auto; }
 
       .toolbar { display:flex; align-items:center; padding:10px; background:rgba(0,0,0,0.6); flex-direction:row; display:flex; border-radius: 0 0 3px 3px; }
       .stats { flex:1; }
@@ -74,4 +76,3 @@
     <script type="text/javascript" src="jssrc/renderer.js"></script>
   </body>
 </html>
-
