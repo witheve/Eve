@@ -786,7 +786,8 @@ function orderedNode(nodeId, state) {
   if(node.type == "object" || node.type == "mutate") {
     return {c: `ordered-node ordered-object ${active}`, children: [
       {c: "node-type", text: node.type},
-      {c: "eav", children: [orderedNode(node.entity, state), orderedNode(node.attribute, state), orderedNode(node.value, state)]}
+      {c: "eav", children: [orderedNode(node.entity, state), orderedNode(node.attribute, state), orderedNode(node.value, state)]},
+      {c: "entity-reg", text: ` E reg: ${node.ereg}`}
     ]};
   } else if(node.type == "subproject") {
     let projections = [{text: "["}]
@@ -798,6 +799,7 @@ function orderedNode(nodeId, state) {
       {c: "row", children: [
         {c: "node-type", text: node.type},
         {c: "subproject-projection", children: projections},
+        {c: "pass-reg", text: ` reg: ${node.passreg}`}
       ]},
       {c: "subproject-children", children: node.nodes.map(function(cur) { return orderedNode(cur, state); })}
     ]};
