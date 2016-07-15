@@ -28,10 +28,10 @@ draw the children
 
   maintain
     parent.children += [#li, class: [todo: true, completed, editing], todo, children:
-                         [#input #todo-checkbox, todo, class: "toggle", type: "checkbox", checked: completed]
-                         [#label #todo-item, todo, text: body, style: [display: toggle(editing)]]
-                         [#input #todo-editor, todo, value: body, autofocus: true, style: [display: editing]]
-                         [#button #remove-todo todo text: "X"]]
+                         [#input #todo-checkbox, todo, class: [toggle: true, hidden: editing], type: "checkbox", checked: completed]
+                         [#label #todo-item, class: [hidden: editing], todo, text: body]
+                         [#input #todo-editor, class: [edit: true, hidden: toggle(editing)], todo, value: body, autofocus: true]
+                         [#button #remove-todo, class: [destroy: true, hidden: editing], todo]
 
 draw todomvc
   filter = "all"
@@ -39,16 +39,17 @@ draw todomvc
                 else false
   count = if c = count(given [#todo completed: false]) then c
           else 0
-  any-checked = if [#todo completed: true] then true
-                else false
+  none-checked = if [#todo completed: true] then false
+                else true
   maintain
-    [#div @todoapp children:
+    [#link rel: "stylesheet" href: "http://localhost:8081/todomvc.css?1"]
+    [#div class: "todoapp" @todoapp children:
       [#header children:
         [#h1 text: "todos"]
-        [#input @new-todo, autofocus: true, placeholder: "What needs to be done?"]]
-      [#div children:
-        [#input @toggle-all, type: "checkbox", checked: all-checked]
-        [#ul @todo-list]]
+        [#input @new-todo, class: "new-todo", autofocus: true, placeholder: "What needs to be done?"]
+        [#input @toggle-all, class: "toggle-all", type: "checkbox", checked: all-checked]]
+      [#div class: "main" children:
+        [#ul @todo-list, class: "todo-list"]]
      [#footer children:
-        [#span @todo-count children: [#strong text: count] [#span text: " items left"]]
-        [#button @clear-completed, style: [display: any-checked] text: "Clear completed"]]]
+        [#span @todo-count, class: "todo-count", children: [#strong text: count] [#span text: " items left"]]
+        [#span @clear-completed, class: [clear-completed: true, hidden: none-checked], text: "Clear completed"]]]
