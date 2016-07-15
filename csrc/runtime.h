@@ -39,7 +39,13 @@ void uuid_base_print(char *, void *);
 string aprintf(heap h, char *fmt, ...);
 void bbprintf(string b, string fmt, ...);
 
-typedef closure(execf, heap, operator, value *);
+typedef struct perf {
+    int count;
+    ticks start;
+    ticks time;
+} *perf;
+
+typedef closure(execf, heap, perf, operator, value *);
 typedef closure(insertron, value, value, value, value, multiplicity);
 
 #define def(__s, __v, __i)  table_set(__s, intern_string((unsigned char *)__v, cstring_length((char *)__v)), __i);
@@ -87,11 +93,6 @@ struct block {
     table nmap;
 };
 
-typedef struct perf {
-    int count;
-    ticks start;
-    ticks time;
-} *perf;
 
 static inline void start_perf(perf p)
 {
@@ -99,9 +100,12 @@ static inline void start_perf(perf p)
     p->start = rdtsc();
 }
 
-static inline void stop_perf(perf p)
+static inline void stop_perf(perf p, perf pp)
 {
-    p->time += rdtsc() - p->start;
+    ticks delta = rdtsc() - p->start;
+    if (pp)
+        pp->time -= delta;
+    p->time += delta;
 }
 
     

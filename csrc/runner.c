@@ -93,8 +93,8 @@ static void run_block(heap h, block bk)
     bk->ev->inserted = false;
     u64 z = pages->allocated;
     u64 zb = bk->h->allocated;
-    apply(bk->head, h, op_insert, 0);
-    apply(bk->head, h, op_flush, 0);
+    apply(bk->head, h, 0, op_insert, 0);
+    apply(bk->head, h, 0, op_flush, 0);
 
     if (bk->ev->non_empty) {
         vector_foreach(bk->finish, i) 
@@ -201,7 +201,7 @@ void inject_event(evaluation ev, buffer b, boolean tracing)
     vector_foreach(n, i) {
         block b = build(ev, i);
         run_block(ev->working, b);
-        apply(b->head, ev->h, op_close, 0);
+        apply(b->head, ev->h, 0, op_close, 0);
     }
     ev->ev_solution = ev->next_f_solution;
     fixedpoint(ev);
@@ -220,7 +220,7 @@ void close_evaluation(evaluation ev)
         deregister_listener(b, ev->run);
 
     vector_foreach(ev->blocks, b)
-        apply(((block)b)->head, ev->working, op_close, 0);
+        apply(((block)b)->head, ev->working, 0, op_close, 0);
     
     destroy(ev->h);
 }

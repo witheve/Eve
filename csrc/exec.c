@@ -3,11 +3,11 @@
 #include <exec.h>
 #include <unix.h>
 
-static CONTINUATION_3_3(do_sub_tail, perf, value, vector, heap, operator, value *);
+static CONTINUATION_3_4(do_sub_tail, perf, value, vector, heap, perf, operator, value *);
 static void do_sub_tail(perf p,
                         value resreg,
                         vector outputs,
-                        heap h, operator op, value *r)
+                        heap h, perf pp, operator op, value *r)
 {
     // just drop flush and remove on the floor
     start_perf(p);
@@ -17,7 +17,7 @@ static void do_sub_tail(perf p,
         extract(result, outputs, r);
         table_set(results, result, etrue);
     }
-    stop_perf(p);
+    stop_perf(p, pp);
 }
 
 static execf build_sub_tail(block bk, node n)
@@ -49,14 +49,14 @@ typedef struct sub {
 } *sub;
 
 
-static void delete_missing(heap h, sub s, value *r)
+static void delete_missing(heap h, perf p, sub s, value *r)
 {
     if (s->previous) {
         table_foreach(s->previous, k, v) {
             if (!table_find(s->moved, k)) {
                 table_foreach((table)v, n, _) {
                     copyout(r, s->outputs, n);
-                    apply(s->next, h, op_remove, r);
+                    apply(s->next, h, p, op_remove, r);
                 }
             }
         }
@@ -96,8 +96,8 @@ static void set_ids(sub s, vector key, value *r)
     copyout(r, s->ids, k);
 }
 
-static CONTINUATION_2_3(do_sub, perf, sub, heap, operator, value *);
-static void do_sub(perf p, sub s, heap h, operator op, value *r)
+static CONTINUATION_2_4(do_sub, perf, sub, heap, perf, operator, value *);
+static void do_sub(perf p, sub s, heap h, perf pp, operator op, value *r)
 {
     start_perf(p);
 
@@ -110,14 +110,14 @@ static void do_sub(perf p, sub s, heap h, operator op, value *r)
 
     if (op == op_close) {
         destroy(s->h);
-        stop_perf(p);
+        stop_perf(p, pp);
         return;
     }
 
     if (op == op_flush) {
-        delete_missing(h, s, r);
-        apply(s->next, h, op, r);
-        stop_perf(p);
+        delete_missing(h, p, s, r);
+        apply(s->next, h, p, op, r);
+        stop_perf(p, pp);
         return;
     }
 
@@ -140,7 +140,7 @@ static void do_sub(perf p, sub s, heap h, operator op, value *r)
                 vector_foreach(s->ids, i)
                     store(r, i, generate_uuid());
             }
-            apply(s->leg, h, op, r);
+            apply(s->leg, h, p, op, r);
         }
         table_set(s->results, key, res);
     }
@@ -148,9 +148,9 @@ static void do_sub(perf p, sub s, heap h, operator op, value *r)
     // cross
     table_foreach(res, n, _) {
         copyout(r, s->outputs, n);
-        apply(s->next, h, op, r);
+        apply(s->next, h, p, op, r);
     }
-    stop_perf(p);
+    stop_perf(p, pp);
 }
 
 
@@ -181,17 +181,17 @@ static execf build_sub(block bk, node n)
 
 }
 
-static CONTINUATION_5_3(do_subagg,
+static CONTINUATION_5_4(do_subagg,
                         perf, execf, table *, vector, vector,
-                        heap, operator, value *);
+                        heap, perf, operator, value *);
 static void do_subagg(perf p, execf next, table *proj_seen, vector v, vector inputs,
-                      heap h, operator op, value *r)
+                      heap h, perf pp, operator op, value *r)
 {
     start_perf(p);
     if (op == op_flush) {
-        apply(next, h, op, r);
+        apply(next, h, p, op, r);
         *proj_seen = create_value_vector_table((*proj_seen)->h);
-        stop_perf(p);
+        stop_perf(p, pp);
         return;
     }
 
@@ -201,9 +201,9 @@ static void do_subagg(perf p, execf next, table *proj_seen, vector v, vector inp
         vector key = allocate_vector((*proj_seen)->h, vector_length(inputs));
         extract(key, inputs, r);
         table_set(*proj_seen, key, (void*)1);
-        apply(next, h, op, r);
+        apply(next, h, p, op, r);
     }
-    stop_perf(p);
+    stop_perf(p, pp);
 }
 
 
@@ -221,17 +221,18 @@ static execf build_subagg(block bk, node n)
                 vector_get(n->arguments, 0));
 }
 
-static CONTINUATION_3_3(do_choose_tail, perf, execf, value, heap, operator, value *);
-static void do_choose_tail(perf p, execf next, value flag, heap h, operator op, value *r)
+static CONTINUATION_3_4(do_choose_tail, perf, execf, value, heap, perf, operator, value *);
+static void do_choose_tail(perf p, execf next, value flag, heap h, perf pp, operator op, value *r)
 {
     start_perf(p);
     if (op != op_flush) {
         store(r, flag, etrue);
         if (next) {
-            stop_perf(p);
-            apply(next, h, op, r);
-        } else stop_perf(p);
-    } else stop_perf(p);        
+            stop_perf(p, pp);
+            apply(next, h, p, op, r);
+        } 
+    }
+    stop_perf(p, pp);        
 }
 
 static execf build_choose_tail(block bk, node n)
@@ -246,24 +247,24 @@ static execf build_choose_tail(block bk, node n)
                 vector_get(vector_get(n->arguments, 0), 0));
 }
 
-static CONTINUATION_4_3(do_choose, perf, execf, vector, value, heap, operator, value *);
-static void do_choose(perf p, execf n, vector legs, value flag, heap h, operator op, value *r)
+static CONTINUATION_4_4(do_choose, perf, execf, vector, value, heap, perf, operator, value *);
+static void do_choose(perf p, execf n, vector legs, value flag, heap h, perf pp, operator op, value *r)
 {
     start_perf(p);
     if ((op == op_flush) || (op == op_close)) {
-      apply(n, h, op, r);
+        apply(n, h, p, op, r);
     } else {
         r[toreg(flag)] = efalse;
         vector_foreach (legs, i){
-            apply((execf) i, h, op, r);
-            apply((execf) i, h, op_flush, r);
+            apply((execf) i, h, p, op, r);
+            apply((execf) i, h, p, op_flush, r);
             if (r[toreg(flag)] == etrue) {
-                stop_perf(p);
+                stop_perf(p, pp);
                 return;
             }
         }
     }
-    stop_perf(p);
+    stop_perf(p, pp);
 }
 
 
@@ -283,23 +284,23 @@ static execf build_choose(block bk, node n)
 }
 
 
-static CONTINUATION_4_3(do_not, perf, execf, execf, value, heap, operator, value *);
-static void do_not(perf p, execf next, execf leg, value flag, heap h, operator op, value *r)
+static CONTINUATION_4_4(do_not, perf, execf, execf, value, heap, perf, operator, value *);
+static void do_not(perf p, execf next, execf leg, value flag, heap h, perf pp, operator op, value *r)
 {
     start_perf(p);
     // should also flush down the leg
     if (op == op_flush) {
-        apply(next, h, op, r);
-        stop_perf(p);
+        apply(next, h, p, op, r);
+        stop_perf(p, pp);
         return;
     }
     store(r, flag, efalse);
 
-    apply(leg, h,op, r);
+    apply(leg, h, p, op, r);
 
     if (lookup(r, flag) == efalse)
-        apply(next, h, op, r);
-    stop_perf(p);
+        apply(next, h, p, op, r);
+    stop_perf(p, pp);
 }
 
 
@@ -314,15 +315,15 @@ static execf build_not(block bk, node n)
 }
 
 
-static CONTINUATION_4_3(do_move, perf, execf, value,  value, heap, operator, value *);
-static void do_move(perf p, execf n, value dest, value src, heap h, operator op, value *r)
+static CONTINUATION_4_4(do_move, perf, execf, value,  value, heap, perf, operator, value *);
+static void do_move(perf p, execf n, value dest, value src, heap h, perf pp, operator op, value *r)
 {
     start_perf(p);
     if (op == op_insert) {
         store(r, dest, lookup(r, src));
     }
-    apply(n, h, op, r);
-    stop_perf(p);
+    apply(n, h, p, op, r);
+    stop_perf(p, pp);
 }
 
 
@@ -337,8 +338,8 @@ static execf build_move(block bk, node n)
 }
 
 
-static CONTINUATION_3_3(do_merge, execf, int, u32 *, heap, operator, value *);
-static void do_merge(execf n, int count, u32 *total, heap h, operator op, value *r)
+static CONTINUATION_3_4(do_merge, execf, int, u32 *, heap, perf, operator, value *);
+static void do_merge(execf n, int count, u32 *total, heap h, perf pp, operator op, value *r)
 {
     if (op == op_flush) {
         *total = *total +1;
@@ -346,7 +347,7 @@ static void do_merge(execf n, int count, u32 *total, heap h, operator op, value 
             *total = 0;
         } else return;
     }
-    apply(n, h, op, r);
+    apply(n, h, pp, op, r);
 }
 
 static execf build_merge(block bk, node n)
@@ -358,8 +359,8 @@ static execf build_merge(block bk, node n)
                 c);
 }
 
-static CONTINUATION_1_3(do_terminal, block, heap, operator, value *);
-static void do_terminal(block bk, heap h, operator op, value *r)
+static CONTINUATION_1_4(do_terminal, block, heap, perf, operator, value *);
+static void do_terminal(block bk, heap h, perf pp, operator op, value *r)
 {
     if (op == op_insert) apply(bk->ev->terminal);
 
@@ -371,10 +372,11 @@ static execf build_terminal(block bk, node n)
     return cont(bk->h, do_terminal, bk);
 }
 
-static CONTINUATION_7_3(do_time,
+static CONTINUATION_7_4(do_time,
                         block, perf, execf, value, value, value, timer,
-                        heap, operator, value *);
-static void do_time(block bk, perf p, execf n, value s, value m, value hour, timer t, heap h, operator op, value *r)
+                        heap, perf, operator, value *);
+static void do_time(block bk, perf p, execf n, value s, value m, value hour, timer t, heap h,
+                    perf pp, operator op, value *r)
 {
     start_perf(p);
     if (op == op_close) {
@@ -390,8 +392,8 @@ static void do_time(block bk, perf p, execf n, value s, value m, value hour, tim
         store(r, m, mv);
         store(r, hour, hv);
     }
-    apply(n, h, op, r);
-    stop_perf(p);
+    apply(n, h, p, op, r);
+    stop_perf(p, pp);
 }
 
 static CONTINUATION_1_0(time_expire, block);
@@ -417,12 +419,12 @@ static execf build_time(block bk, node n, execf *arms)
 }
 
 
-static CONTINUATION_3_3(do_fork, perf, int, execf *, heap, operator, value *) ;
-static void do_fork(perf p, int legs, execf *b, heap h, operator op, value *r)
+static CONTINUATION_3_4(do_fork, perf, int, execf *, heap, perf, operator, value *) ;
+static void do_fork(perf p, int legs, execf *b, heap h, perf pp, operator op, value *r)
 {
     start_perf(p);
-    for (int i =0; i<legs ;i ++) apply(b[i], h, op, r);
-    stop_perf(p);
+    for (int i =0; i<legs ;i ++) apply(b[i], h, p, op, r);
+    stop_perf(p, pp);
 }
 
 static execf build_fork(block bk, node n)
@@ -435,15 +437,15 @@ static execf build_fork(block bk, node n)
     return cont(bk->h, do_fork, register_perf(bk->ev, n), count, a);
 }
 
-static CONTINUATION_2_3(do_trace, execf, vector, heap, operator, value *);
-static void do_trace(execf n, vector terms, heap h, operator op, value *r)
+static CONTINUATION_2_4(do_trace, execf, vector, heap, perf, operator, value *);
+static void do_trace(execf n, vector terms, heap h, perf pp, operator op, value *r)
 {
     prf("%s|", (op == op_insert ? "insert" : (op == op_flush) ? "flush " : "close "));
     for (int i=0; i<vector_length(terms); i+=2) {
       prf(" %v %v", lookup(r, vector_get(terms, i)), lookup(r, vector_get(terms, i+1)));
     }
     write(1, "\n", 1);
-    apply(n, h, op, r);
+    apply(n, h, pp, op, r);
 }
 
 static execf build_trace(block bk, node n, execf *arms)
@@ -455,16 +457,16 @@ static execf build_trace(block bk, node n, execf *arms)
 }
 
 
-static CONTINUATION_3_3(do_regfile, execf, perf, int, heap, operator, value *);
-static void do_regfile(execf n, perf p, int size, heap h, operator op, value *ignore)
+static CONTINUATION_3_4(do_regfile, execf, perf, int, heap, perf, operator, value *);
+static void do_regfile(execf n, perf p, int size, heap h, perf pp, operator op, value *ignore)
 {
     start_perf(p);
     value *r;
     if (op == op_insert) {
         r = allocate(h, size * sizeof(value));
     }
-    apply(n, h, op, r);
-    stop_perf(p);
+    apply(n, h, p, op, r);
+    stop_perf(p, pp);
 }
 
 static execf build_regfile(block bk, node n, execf *arms)

@@ -2,8 +2,8 @@
 #include <exec.h>
 
 
-static CONTINUATION_4_3(do_concat, perf, execf, value, vector, heap, operator, value *);
-static void do_concat(perf p, execf n, value dest, vector terms, heap h, operator op, value *r)
+static CONTINUATION_4_4(do_concat, perf, execf, value, vector, heap, perf, operator, value *);
+static void do_concat(perf p, execf n, value dest, vector terms, heap h, perf pp, operator op, value *r)
 {
     // XXX not init
     start_perf(p);
@@ -13,8 +13,8 @@ static void do_concat(perf p, execf n, value dest, vector terms, heap h, operato
         print_value_raw(b, lookup(r, i));
 
     store(r, dest, intern_string(bref(b, 0), buffer_length(b)));
-    apply(n, h, op, r);
-    stop_perf(p);
+    apply(n, h, p, op, r);
+    stop_perf(p, pp);
 }
 
 
@@ -27,10 +27,10 @@ static execf build_concat(block bk, node n)
                 (vector)vector_get(n->arguments, 1));
 }
 
-static CONTINUATION_5_3(do_split, perf, execf, value, value, value,
-                        heap, operator, value *);
+static CONTINUATION_5_4(do_split, perf, execf, value, value, value,
+                        heap, perf, operator, value *);
 static void do_split(perf p, execf n, value dest, value source, value key,
-                     heap h, operator op, value *r)
+                     heap h, perf pp, operator op, value *r)
 {
     start_perf(p);
     if (op != op_flush) {
@@ -46,11 +46,11 @@ static void do_split(perf p, execf n, value dest, value source, value key,
                 store(r, dest, intern_buffer(out));
                 i+= j-1;
                 buffer_clear(out);
-                apply(n, h, op, r);
+                apply(n, h, p, op, r);
             }
         }
     }
-    stop_perf(p);
+    stop_perf(p, pp);
 }
 
 
@@ -66,15 +66,15 @@ static execf build_split(block bk, node n)
 }
 
 
-static CONTINUATION_4_3(do_length, perf, execf, value,  value, heap, operator, value *);
-static void do_length(perf p, execf n, value dest, value src, heap h, operator op, value *r)
+static CONTINUATION_4_4(do_length, perf, execf, value,  value, heap, perf, operator, value *);
+static void do_length(perf p, execf n, value dest, value src, heap h, perf pp, operator op, value *r)
 {
     start_perf(p);
     if (op == op_insert) {
         store(r, dest, lookup(r, src));
     }
-    apply(n, h, op, r);
-    stop_perf(p);
+    apply(n, h, p, op, r);
+    stop_perf(p, pp);
 }
 
 
