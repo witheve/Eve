@@ -135,9 +135,9 @@ function read_lookup(env, x)
          r = allocate_register(env, x)
          env.registers[x] = r
        end
-      return sregister(r)
+      return sregister(r), r
    end
-   return translate_value(x)
+   return translate_value(x), x
 end
 
 function write_lookup(env, x)
@@ -232,10 +232,12 @@ function translate_subproject(n, bound, down, tracing, context)
      local id2 = util.generateId()
      context.downEdges[#context.downEdges + 1] = {n.id, id}
      context.downEdges[#context.downEdges + 1] = {n.id, id2}
+     passreg, passint = read_lookup(env, pass)
       return env, build_node("subtail", {},
                              {set_to_read_array(env, n.provides),
-                             {read_lookup(env, pass)}},
+                             {passreg}},
                              id)
+     n.passreg = passint                            
    end
 
    env, fill = walk(n.nodes, nil, bound, tail, tracing, context)
@@ -341,9 +343,11 @@ function translate_mutate(n, bound, down, tracing, context)
    local id = util.generateId()
    context.downEdges[#context.downEdges + 1] = {n.id, id}
 
+   ereg, eint = read_lookup(env,e);
+   n.ereg = eint
    local c = build_node(operator, {c},
                         {{n.scope,
-                         read_lookup(env,e),
+                        ereg,
                          read_lookup(env,a),
                          read_lookup(env,v)}},
                          id)
