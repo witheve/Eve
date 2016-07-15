@@ -89,3 +89,7 @@ Please file any issues in this repository. Before you file an issue, please take
 The “pre-alpha” moniker indicates that this software is in an early stage, and the Eve language is not fully implemented. If something goes wrong, please don’t assume it’s your fault, and [bring it to our attention](https://github.com/witheve/Eve/issues).
 
 As always, with pre-release software, don’t use this for anything important. We are continuously pushing to this codebase, so you can expect very rapid changes. At this time, we’re not prepared make the commitment that our changes will not break your code, but we’ll do our best to update you on the biggest changes.
+
+## License
+
+Eve is licensed under the Apache 2.0 license, see [LICENSE](https://github.com/witheve/eve/blob/master/LICENSE) for details.
