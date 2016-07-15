@@ -45,9 +45,9 @@ Now just point your browser to `http://localhost:[port]/`
 
 ## Running
 
-To run Eve, execute `./eve` Then you can point your browser to `http://localhost:8080` to access the web-REPL. You can execute a `.eve` file by adding its path as an argument. e.g. `./eve [path]`.
+To run Eve, execute `./eve` in the `eve/build` directory. This launches a server at `http://localhost:8080`. You can point your browser there to access the web-REPL. To execute an `*.eve` file, add its path as an argument. e.g. `./eve [path]`. You can configure the port with the `--port` flag. e.g. `./eve --port 1234`.
 
-To run the Docker container, execute `docker run -p [port]:8080 witheve/eve [path]`. Here, `[port]` is a port on your local machine. It can be `8080` or any other port you would like. Then direct your browser to `http://localhost:[port]` to access the web-REPL.
+To run the Docker container, execute `docker run -p [port]:8080 witheve/eve [path]`. Here, `[port]` is an available port on your local machine. It can be `8080` or any other port you would like. Then direct your browser to `http://localhost:[port]` to access the web-REPL.
 
 ## How to use Eve
 
