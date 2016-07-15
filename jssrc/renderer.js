@@ -468,16 +468,21 @@ window.addEventListener("hashchange", function(event) {
   let hash = window.location.hash.substr(1);
   if(hash[0] == "/") hash = hash.substr(1);
   let segments = hash.split("/").map(function(seg, ix) {
-    return `[index: ${ix + 1}, segment: "${seg}"]`;
+    return `[index: ${ix + 1}, value: "${seg}"]`;
   });
   let query =
   `hash changed remove any current url segments
     url = [#url hash-segment]
-    save
+    freeze
       url -= [hash-segment]\n\n` +
-  `add the new hash-segments
+  `hash changed if there isn't already a url, make one
+    not([#url])
+    freeze
+      [#div text: "CHANGED! ${hash}"]
+      [#url hash-segment: ${segments.join(" ")}]\n\n` +
+  `add the new hash-segments if there is
     url = [#url]
-    save
+    freeze
       url := [hash-segment: ${segments.join(" ")}]
   `
   sendEvent(query);
