@@ -892,9 +892,9 @@ let __entities = {}; // DEBUG
 
 var socket = new WebSocket("ws://" + window.location.host +"/ws");
 socket.onmessage = function(msg) {
-  // console.time("PARSE");
+  console.time("PARSE");
   let data = JSON.parse(msg.data);
-  // console.timeEnd("PARSE");
+  console.timeEnd("PARSE");
   if(data.type == "result") {
     handleDOMUpdates(data);
 
@@ -940,14 +940,26 @@ socket.onmessage = function(msg) {
     console.table(data.remove);
     if(__entities) console.log(clone(__entities));
     console.groupEnd();
+    drawNodeGraph();
 
   } else if(data.type == "node_graph") {
     allNodeGraphs[data.head] = data.nodes;
-    data.parse.iterations = data.iterations;
-    data.parse.total_time = data.total_time;
-    data.parse.cycle_time = data.cycle_time;
+  } else if(data.type == "full_parse") {
     indexParse(data.parse);
     drawNodeGraph();
+
+  } else if(data.type == "node_times") {
+    activeParse.iterations = data.iterations;
+    activeParse.total_time = data.total_time;
+    activeParse.cycle_time = data.cycle_time;
+    let graph = allNodeGraphs[data.head];
+    if(!graph) return;
+    for(let nodeId in data.nodes) {
+      let cur = graph[nodeId];
+      let info = data.nodes[nodeId];
+      cur.time = info.time;
+      cur.count = info.count;
+    }
   }
 }
 socket.onopen = function() {
