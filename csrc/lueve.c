@@ -75,7 +75,7 @@ int main(int argc, char **argv)
 
     
     char * file = "";
-    for (int i = 1; i <argc ; i++) {
+    for (int i = 1; i < argc ; i++) {
         if (!strcmp(argv[i], "--parse") || !strcmp(argv[i], "-p")) {
             doParse = true;
             consumeFile = true;
@@ -99,6 +99,19 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--exec") || !strcmp(argv[i], "-e")) {
             doExec = true;
             consumeFile = true;
+        }
+        else if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) {
+            printf("\nUsage: eve [OPTIONS] [arg ...]\n\n"
+            "Starts the Eve server.\n\n" 
+            "Options:\n\n" 
+            "  -h, --help \t\t Prints what you are reading now.\n"
+            "  -p, --parse \t\t Does something.\n"
+            "  -a, --analyze \t Does something.\n"
+            "  -A, --analyze-quiet \t Does something, but quietly\n"
+            "  -r, --TODO \t\t Does something.\n"
+            "  -e, --exec \t\t Does something.\n"
+            "  -P, --port \t\t Sets the port on which Eve is hosted.\n"
+            "\n");
         }
         else {
             if (!strcmp(argv[i], "--resolve")) {
