@@ -446,7 +446,7 @@ function drawNode(nodeId, graph, state, seen) {
   }
   seen[nodeId] = true;
 
-  let myTime = node.time || 0;
+  let myTime = ((node.time * 100) / state.rootTime).toFixed(1);
 
   let active = activeClass(node, state);
   let children = [];
@@ -619,7 +619,7 @@ function drawNodeGraph() {
   for(let headId in allNodeGraphs) {
     if(activeParse.edges.up[headId][0] != activeIds["graph"]) continue;
     let cur = allNodeGraphs[headId];
-    state.rootTime = cur[headId].time;
+    state.rootTime = activeParse.cycle_time;
     let tree = drawNode(headId, cur, state, {});
     // let ast = drawAST(activeParse.ast, state);
     // let parse = drawParse(activeParse, state);
@@ -889,6 +889,7 @@ socket.onmessage = function(msg) {
     allNodeGraphs[data.head] = data.nodes;
     data.parse.iterations = data.iterations;
     data.parse.total_time = data.total_time;
+    data.parse.cycle_time = data.cycle_time;
     indexParse(data.parse);
     drawNodeGraph();
   }

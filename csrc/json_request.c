@@ -64,9 +64,10 @@ static void send_node_graph(heap h, buffer_handler output, node head, table coun
 {
     string out = allocate_string(h);
     u64 time = (u64)table_find(counts, sym(time));
+    u64 cycle_time = (u64)table_find(counts, sym(cycle-time));
     u64 iterations = (u64)table_find(counts, sym(iterations));
 
-    bprintf(out, "{\"type\":\"node_graph\", \"total_time\": %t, \"iterations\": %d, \"head\": \"%v\", \"nodes\":{", time, iterations, head->id);
+    bprintf(out, "{\"type\":\"node_graph\", \"total_time\": %t, \"cycle_time\": %l, \"iterations\": %d, \"head\": \"%v\", \"nodes\":{", time, cycle_time, iterations, head->id);
     vector to_scan = allocate_vector(h, 10);
     vector_insert(to_scan, head);
     int nodeComma = 0;
