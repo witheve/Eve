@@ -233,11 +233,11 @@ function translate_subproject(n, bound, down, tracing, context)
      context.downEdges[#context.downEdges + 1] = {n.id, id}
      context.downEdges[#context.downEdges + 1] = {n.id, id2}
      passreg, passint = read_lookup(env, pass)
-      return env, build_node("subtail", {},
-                             {set_to_read_array(env, n.provides),
+     n.passreg = passint
+     return env, build_node("subtail", {},
+                            {set_to_read_array(env, n.provides),
                              {passreg}},
-                             id)
-     n.passreg = passint                            
+                            id)
    end
 
    env, fill = walk(n.nodes, nil, bound, tail, tracing, context)
