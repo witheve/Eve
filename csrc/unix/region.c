@@ -44,6 +44,7 @@ static void region_free(heap h, void *x, bytes size)
     } else {
         munmap(x, pad(size, h->pagesize));
     }
+    h->allocated -= size;
 }
 
 boolean in_region(region_heap r, void *p) {

@@ -1,4 +1,4 @@
-Add some fruits to the system
+Add some favorite shows, locations, and hobbies for @me and #tv-nerds
   [#session-connect]
   freeze
     me = [@me favorite-show:"rick-and-morty" hobby:"competitive delousing"]

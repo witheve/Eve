@@ -1,3 +1,9 @@
+routing
+ value = if [#url hash-segment: [index: 1, value]] then value
+         else "active"
+  maintain
+    [@app filter: value]
+
 handle insert
   [#keydown element: [@new-todo value] key: "enter"]
   freeze
@@ -11,7 +17,6 @@ handle edit
     else if [#blur element: [#todo-editor todo value]] then (todo, value, false, todo.completed)
     else if [#keydown element: [#todo-editor todo] key: "escape"] then (todo, todo.body, false, todo.completed)
     else if [#keydown element: [#todo-editor todo value] key: "enter"] then (todo, value, false, todo.completed)
-
   freeze
     todo := [body, completed, editing]
 
@@ -22,10 +27,12 @@ handle removes
     todo -= [#todo]
 
 draw the children
-  filter = "all"
+  [@app filter]
+  (todo, body, completed, editing) =
+    if filter = "completed" then ([#todo, body, completed: true, editing], body, true, editing)
+    else if filter = "active" then ([#todo, body, completed: false, editing], body, false, editing)
+    else ([#todo, body, completed, editing], body, completed, editing)
   parent = [@todo-list]
-  todo = [#todo, body, editing, completed]
-
   maintain
     parent.children += [#li, class: [todo: true, completed, editing], todo, children:
                          [#input #todo-checkbox, todo, class: [toggle: true, hidden: editing], type: "checkbox", checked: completed]
@@ -34,7 +41,7 @@ draw the children
                          [#button #remove-todo, class: [destroy: true, hidden: editing], todo]
 
 draw todomvc
-  filter = "all"
+  [@app filter]
   all-checked = if not([#todo completed: false]) then true
                 else false
   count = if c = count(given [#todo completed: false]) then c
@@ -45,11 +52,15 @@ draw todomvc
     [#link rel: "stylesheet" href: "http://localhost:8081/todomvc.css?1"]
     [#div class: "todoapp" @todoapp children:
       [#header children:
-        [#h1 text: "todos"]
+        [#h1 text: "todos ({filter})"]
         [#input @new-todo, class: "new-todo", autofocus: true, placeholder: "What needs to be done?"]
         [#input @toggle-all, class: "toggle-all", type: "checkbox", checked: all-checked]]
       [#div class: "main" children:
         [#ul @todo-list, class: "todo-list"]]
      [#footer children:
         [#span @todo-count, class: "todo-count", children: [#strong text: count] [#span text: " items left"]]
+        [#ul @filters children:
+          [#li children: [#a href: "#/all" class: [selected: is(filter = "all")] text: "all"]]
+          [#li children: [#a href: "#/active" class: [selected: is(filter = "active")] text: "active"]]
+          [#li children: [#a href: "#/completed" class: [selected: is(filter = "completed")] text: "completed"]]]
         [#span @clear-completed, class: [clear-completed: true, hidden: none-checked], text: "Clear completed"]]]
