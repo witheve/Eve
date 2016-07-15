@@ -11,6 +11,7 @@
     register_static_content(__h, __url, __content, wrap_buffer(init, s, e-s), dynamicReload?(char *)e:0); \
  }
 
+int atoi( const char *str );
 
 station create_station(unsigned int address, unsigned short port) {
     void *a = allocate(init,6);
@@ -62,7 +63,6 @@ int main(int argc, char **argv)
     bag root = create_bag(init, generate_uuid());
     boolean enable_tracing = false;
     interpreter c = build_lua();
-
     boolean doParse = false;
     boolean doAnalyze = false;
     boolean doAnalyzeQuiet = false;
@@ -72,10 +72,11 @@ int main(int argc, char **argv)
     boolean dynamicReload = true;
     boolean has_non_exec_action = false;
     buffer desc = 0;
+    int port = 8080;
 
     
     char * file = "";
-    for (int i = 1; i <argc ; i++) {
+    for (int i = 1; i < argc ; i++) {
         if (!strcmp(argv[i], "--parse") || !strcmp(argv[i], "-p")) {
             doParse = true;
             consumeFile = true;
@@ -99,6 +100,23 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--exec") || !strcmp(argv[i], "-e")) {
             doExec = true;
             consumeFile = true;
+        }
+        else if (!strcmp(argv[i], "--port") || !strcmp(argv[i], "-P")) {
+            // TODO Some sort of type checking here?
+            port = atoi(argv[++i]);
+        }
+        else if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) {
+            printf("\nUsage: eve [OPTIONS] [arg ...]\n\n"
+            "Starts the Eve server.\n\n" 
+            "Options:\n\n" 
+            "  -h, --help \t\t Prints what you are reading now.\n"
+            "  -p, --parse \t\t Does something.\n"
+            "  -a, --analyze \t Does something.\n"
+            "  -A, --analyze-quiet \t Does something, but quietly\n"
+            "  -r, --TODO \t\t Does something.\n"
+            "  -e, --exec \t\t Does something.\n"
+            "  -P, --port \t\t Sets the port on which Eve is hosted.\n"
+            "\n");
         }
         else {
             if (!strcmp(argv[i], "--resolve")) {
@@ -148,7 +166,7 @@ int main(int argc, char **argv)
         return 0;
     }
     
-    http_server h = create_http_server(init, create_station(0, 8080));
+    http_server h = create_http_server(init, create_station(0, port));
     register(h, "/", "text/html", index);
     register(h, "/jssrc/renderer.js", "application/javascript", renderer);
     register(h, "/jssrc/microReact.js", "application/javascript", microReact);
@@ -158,7 +176,7 @@ int main(int argc, char **argv)
     // TODO: figure out a better way to manage multiple graphs
     init_json_service(h, root, enable_tracing, desc);
 
-    prf("\n----------------------------------------------\n\nEve started. Running at http://localhost:8080\n\n");
+    prf("\n----------------------------------------------\n\nEve started. Running at http://localhost:%d\n\n",port);
     unix_wait();
 }
 

@@ -2,11 +2,11 @@
 #include <exec.h>
 
 
-static CONTINUATION_7_4(scan_listener,
-                        execf, heap, operator, value *,
+static CONTINUATION_8_4(scan_listener,
+                        execf, heap, operator, value *, perf,
                         value, value, value,
                         value, value, value, multiplicity);
-static void scan_listener(execf n, heap h, operator op, value *r,
+static void scan_listener(execf n, heap h, operator op, value *r, perf p,
                           value er, value ar, value vr,
                           value e, value a, value v, multiplicity count)
 {
@@ -14,28 +14,28 @@ static void scan_listener(execf n, heap h, operator op, value *r,
         store(r, er, e);
         store(r, ar, a);
         store(r, vr, v);
-        apply(n, h, op, r);
+        apply(n, h, p, op, r);
     }
 }
 
 #define sigbit(__sig, __p, __r) ((sig&(1<<__p))? register_ignore: __r)
 
-static CONTINUATION_7_3(do_scan, block, perf, execf, int, value, value, value, heap, operator, value *);
+static CONTINUATION_7_4(do_scan, block, perf, execf, int, value, value, value, heap, perf, operator, value *);
 static void do_scan(block bk, perf p, execf n, int sig, value e, value a, value v,
-                    heap h, operator op, value *r)
+                    heap h, perf pp, operator op, value *r)
 {
     start_perf(p);
     if ((op == op_flush) || (op == op_close)) {
-        apply(n, h, op, r);
-        stop_perf(p);
+        apply(n, h, p, op, r);
+        stop_perf(p, pp);
         return;
     }
 
     apply(bk->ev->reader, sig,
-          cont(h, scan_listener, n, h, op, r,
+          cont(h, scan_listener, n, h, op, r, p,
                sigbit(sig, 2, e), sigbit(sig, 1, a), sigbit(sig, 0, v)),
           lookup(r, e), lookup(r, a), lookup(r, v));
-    stop_perf(p);
+    stop_perf(p, pp);
 }
 
 static inline boolean is_cap(unsigned char x) {return (x >= 'A') && (x <= 'Z');}
@@ -59,10 +59,10 @@ static execf build_scan(block bk, node n)
 
 }
 
-static CONTINUATION_8_3(do_insert, block, perf, execf, int, value, value, value, value, heap, operator, value *) ;
+static CONTINUATION_8_4(do_insert, block, perf, execf, int, value, value, value, value, heap, perf, operator, value *) ;
 static void do_insert(block bk, perf p, execf n, int deltam,
                       value uuid, value e, value a, value v,
-                      heap h, operator op, value *r)
+                      heap h, perf pp, operator op, value *r)
 {
     start_perf(p);
     if (op == op_insert) {
@@ -72,8 +72,8 @@ static void do_insert(block bk, perf p, execf n, int deltam,
     if (op == op_remove) {
         apply(bk->ev->insert, uuid, lookup(r, e), lookup(r, a), lookup(r, v), -deltam);
     }
-    apply(n, h, op, r);
-    stop_perf(p);
+    apply(n, h, p, op, r);
+    stop_perf(p, pp);
 }
 
 static execf build_insert(block bk, node n)
@@ -108,9 +108,9 @@ static void each_set_remove(block bk, uuid u, value e, value a, value etrash, va
     apply(bk->ev->insert, u, e, a, v, -1);
 }
 
-static CONTINUATION_7_3(do_set, block, perf, execf, value, value, value, value, heap, operator, value *) ;
+static CONTINUATION_7_4(do_set, block, perf, execf, value, value, value, value, heap, perf, operator, value *) ;
 static void do_set(block bk, perf p, execf n, value u, value e, value a, value v,
-                   heap h, operator op, value *r)
+                   heap h, perf pp, operator op, value *r)
 {
     start_perf(p);
     u = lookup(r, u);
@@ -118,8 +118,8 @@ static void do_set(block bk, perf p, execf n, value u, value e, value a, value v
     value av=  lookup(r, a);
     apply(bk->ev->reader, s_EAv, cont(h, each_set_remove, bk, u, ev, av), ev, av, 0);
     apply(bk->ev->insert, u, ev, av, lookup(r, v), 1);
-    apply(n, h, op, r);
-    stop_perf(p);
+    apply(n, h, p, op, r);
+    stop_perf(p, pp);
 }
 
 static execf build_set(block bk, node n)
