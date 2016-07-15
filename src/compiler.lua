@@ -332,7 +332,6 @@ function DependencyGraph:cardinal(term)
     return self.cardinalTerms[term]
   end
   local neue = util.shallowCopy(term)
-  print("NEUE", neue)
   self.cardinalTerms[term] = neue
   neue.name = "|" .. term.name .. "|"
   neue.id = util.generateId()
