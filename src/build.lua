@@ -108,13 +108,6 @@ function free_register(n, env, e)
         env.alloc = env.alloc - 1
         env.freelist[env.alloc] = nil
      end
-
-     if not n.registers then
-       n.registers = {}
-     end
-     if e then
-       n.registers[e.id] = slot
-     end
    end
 end
 
@@ -129,13 +122,6 @@ function allocate_register(n, env, e)
    env.registers[e] = slot
    env.maxregs = math.max(env.maxregs, slot)
    print("allocate", n.type, slot)
-   if not n.registers then
-     n.registers = {}
-   end
-   if e then
-     n.registers[e.id] = slot
-   end
-
    return slot
 end
 
@@ -152,7 +138,9 @@ function read_lookup(n, env, x)
       if not r then
          r = allocate_register(n, env, x)
          env.registers[x] = r
-       end
+      end
+      if not n.registers then n.registers = {} end
+      if x then n.registers[x.id] = slot end
       return sregister(r)
    end
    return translate_value(x)
@@ -162,6 +150,8 @@ function write_lookup(n, env, x)
    -- can't be a constant or unbound
    r = env.registers[x]
    free_register(n, env, x)
+   if not n.registers then n.registers = {} end
+   if x then n.registers[x.id] = slot end
    return sregister(r)
 end
 
