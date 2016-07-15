@@ -85,7 +85,7 @@ static void merge_multibag_bag(heap h, table d, uuid u, bag s)
         edb_insert(bd, e, a, v, c);
 }
 
-static void run_block(heap h, block bk) 
+static void run_block(evaluation ev, heap h, block bk) 
 {
     heap bh = allocate_rolling(pages, sstring("block run"));
     bk->ev->block_solution = create_value_table(bh);
@@ -93,13 +93,16 @@ static void run_block(heap h, block bk)
     bk->ev->inserted = false;
     u64 z = pages->allocated;
     u64 zb = bk->h->allocated;
+    ticks start = rdtsc();
     apply(bk->head, h, 0, op_insert, 0);
     apply(bk->head, h, 0, op_flush, 0);
+    ev->cycle_time += rdtsc() - start;
 
     if (bk->ev->non_empty) {
+
         vector_foreach(bk->finish, i) 
             apply((block_completion)i, true);
-
+                    
         table_foreach(bk->ev->block_solution, u, bg) 
             merge_multibag_bag(h, bk->ev->next_f_solution, u, bg);
     } else {
@@ -129,7 +132,7 @@ static void fixedpoint(evaluation ev)
             ev->pass = false;
             iterations++;
             ev->next_f_solution =  create_value_table(ev->working);
-            vector_foreach(ev->blocks, b) run_block(ev->working, b);
+            vector_foreach(ev->blocks, b) run_block(ev, ev->working, b);
             table_foreach(ev->next_f_solution, u, b) {
                 if (table_find(ev->persisted, u)) {
                     t_continue = true;
@@ -193,7 +196,6 @@ static void clear_evaluation(evaluation ev)
 
 void inject_event(evaluation ev, buffer b, boolean tracing)
 {
-    ticks start = rdtsc();
     buffer desc;
     clear_evaluation(ev);
     vector n = compile_eve(ev->working, b, tracing, &desc);
@@ -201,22 +203,19 @@ void inject_event(evaluation ev, buffer b, boolean tracing)
     // close this block
     vector_foreach(n, i) {
         block b = build(ev, i);
-        run_block(ev->working, b);
+        run_block(ev, ev->working, b);
         apply(b->head, ev->h, 0, op_close, 0);
     }
     ev->ev_solution = ev->next_f_solution;
     fixedpoint(ev);
-    ev->cycle_time += rdtsc() - start;
     table_set(ev->counters, intern_cstring("cycle-time"), (void *)ev->cycle_time);
 }
 
 CONTINUATION_1_0(run_solver, evaluation);
 void run_solver(evaluation ev)
 {
-    ticks start = rdtsc();
     clear_evaluation(ev);
     fixedpoint(ev);
-    ev->cycle_time += rdtsc() - start;
     table_set(ev->counters, intern_cstring("cycle-time"), (void *)ev->cycle_time);
 }
 
