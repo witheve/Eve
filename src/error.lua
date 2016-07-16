@@ -52,7 +52,7 @@ local function printError(errorInfo)
   print("")
   print(finalContent)
 
-  local storedError = {type = type, pos = {offest = offset, line = lineNumber, length = length, file = file}, 
+  local storedError = {type = type, pos = {offest = offset, line = lineNumber, length = length, file = file},
                        rawContent = color.toHTML(util.dedent(content)), final = color.toHTML(finalContent), fixes = fixes}
   context.errors[#context.errors + 1] = storedError
 end
@@ -246,9 +246,9 @@ function errors.bareTagOrName(context, node)
 
   <LINE>
 
-  This line says I should search for a %s with the value "%s", 
-  but since it's not in an object, I don't know what it applies to. 
-  
+  This line says I should search for a %s with the value "%s",
+  but since it's not in an object, I don't know what it applies to.
+
   If you wrap it in square brackets, that tells me you're looking
   for an object with that %s:
 
@@ -259,7 +259,7 @@ function errors.bareTagOrName(context, node)
 
   local fixes = {changes = {
     {from = {line = node.line, offset = node.offset}, to = {line = valueNode.line, offset = valueNode.offset + #valueNode.value}, value = string.format("[%s]", value)},
-  }} 
+  }}
   printError({type = string.format("%s outside of an object", type), context = context, token = node, content = content, length = 1 + #valueNode.value, fixes = fixes})
 end
 
@@ -567,8 +567,18 @@ function errors.unorderableGraph(context, query)
   ]], unsorted)}
 end
 
+function errors.unknownGeneratedVariable(context, variable, terms)
+  printError{type = "Unknown generated variable", context = context, token = variable, content = string.format([[
+    Generated variable "%s" was never provided in query
+
+    <LINE>
+
+    This is almost certainly an implementation issue. Please send your full query and this error to Eve's maintainers for assistance.
+  ]], formatVariable(variable))}
+end
+
 function errors.unknownVariable(context, variable, terms)
-  if variable.generated then return end
+  if variable.generated then return errors.unknownGeneratedVariable(context, variable, terms) end
   local best = chooseNearest(variable, filterGenerated(terms), formatVariable)
   local recommendation = ""
   if best then

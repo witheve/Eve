@@ -24,7 +24,7 @@ void print_value_json(buffer out, value v)
         else if( v == efalse)
             bprintf(out, "false");
         else
-            prf ("wth!@\n");
+          prf ("wth!@ %v\n", v);
     }
 
 }
@@ -67,7 +67,7 @@ static void json_input(json_parser p, buffer b, thunk t)
             p->b = create_bag(p->h, p->pu);
             p->n = generate_uuid();
         }
-        
+
         if ((p->s == sep) && (buffer_length(p->tag) > 0)){
             estring tes= intern_buffer(p->tag);
             estring ves= intern_buffer(p->value);
@@ -98,7 +98,7 @@ static void json_input(json_parser p, buffer b, thunk t)
     }
 }
 
-buffer_handler parse_json(heap h, uuid pu, json_handler j) 
+buffer_handler parse_json(heap h, uuid pu, json_handler j)
 {
     json_parser p= allocate(h, sizeof(struct json_parser));
     p->h = h;
@@ -109,5 +109,3 @@ buffer_handler parse_json(heap h, uuid pu, json_handler j)
     p->out = j;
     return(cont(h, json_input, p));
 }
-
-

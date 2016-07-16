@@ -4,17 +4,19 @@
     <link rel="stylesheet" type="text/css" href="jssrc/codemirror.css">
     <style>
       * { box-sizing:border-box; }
-      body { background: #202930; color: rgb(156,192,214); font-family: Avenir; display: flex; margin:0; }
-      .program { padding:20px; }
-      .graph-root { position:relative; display:flex; flex-direction:column; align-items:flex-start; margin-right:10px; padding:20px 40px; height:100%; overflow:hidden;  }
+      body { background: #202930; color: rgb(156,192,214); font-family: Avenir; display: flex; flex-direction: column; margin:0; }
+      .__root { display: flex; flex-direction: column; align-self: stretch; }
+      .program-container { display: flex; flex: 1; }
+      .program { display: flex; flex: 1; flex-direction: column; align-self: stretch; padding:20px; }
+      .graph-root { position:relative; display:flex; flex-direction:column; align-self: stretch; align-items:flex-start; margin-right:10px; padding:20px 40px; height:100%; overflow:hidden;  }
 
-      .parse-info { display:flex; flex-direction: row; height:100%; overflow: hidden; }
+      .parse-info { display:flex; flex-direction: row; align-self: stretch; height:100%; overflow: hidden; }
       .parse-info + .parse-info { margin-top:50px; }
 
-      .node-text { padding: 3px 6px; background: rgb(44,72,97); flex:none; }
+      .node-text { padding: 3px 6px; background: rgb(44,72,97); flex:none; white-space:nowrap; }
       .node-type { color: rgb(73, 158, 211); }
 
-      .node { display: flex; flex-direction:column; margin:1px 0; }
+      .node { display: flex; flex-direction:column; flex: 0 0 auto; margin:1px 0; }
       .node-children { display: flex; flex-direction:column; align-items:stretch;  }
       .fork-node-children { flex-direction:row; justify-content: center; }
       .sub-node-children { margin-left: 0px; }
@@ -26,9 +28,9 @@
 
       .ordered-node { padding:5px; background: rgba(0,0,0,0.3); background: rgb(44,72,97); margin-bottom:1px; }
       .ordered-node.subproject { background:none; padding:5px 0; }
-      .ordered-node.subproject .row { padding:5px; background: rgb(44,72,97); margin-bottom:1px; }
+      .ordered-node.subproject > .row { padding:5px; margin-bottom: 1px; background: rgb(44,72,97); }
 
-      .ordered-object { display:flex; flex-direction:row; }
+      .ordered-object { display:flex; flex-direction: column; }
       .ordered-object .eav { display:flex; flex-direction:row; }
       .ordered-object .eav > * { margin-left: 10px; }
 
@@ -42,7 +44,7 @@
       .active, .active * { background: #4D7598 !important; color: rgb(156,192,214);}
       .row {display:flex; flex-direction:row; }
 
-      .run-info { display:flex; flex-direction: column; flex:1; }
+      .run-info { display:flex; flex-direction: column; max-width: 800px; flex: 0 0 auto; }
 
       .toolbar { display:flex; align-items:center; padding:10px; background:rgba(0,0,0,0.6); flex-direction:row; display:flex; border-radius: 0 0 3px 3px; }
       .stats { flex:1; }
@@ -66,6 +68,12 @@
       .ansi-gray { color: rgb(83, 117, 137); }
       .ansi-red { color: red; }
 
+      .node-overlay { display: flex; flex-direction: column; font-size: 0.9em; }
+      .ordered-node > .node-overlay { padding: 1px 5px; }
+      .ordered-node.subproject > .node-overlay { margin-bottom: 1px; margin-top: -1px; background: rgb(44,72,97); }
+
+      .node-overlay .registers-overlay label { padding-right: 4px; color: #A0A0A0; align-self: center; }
+      .node-overlay .registers-overlay .register-pair { padding: 0 4px; border-left: 1px solid #202930 }
     </style>
   </head>
   <body>
@@ -74,4 +82,3 @@
     <script type="text/javascript" src="jssrc/renderer.js"></script>
   </body>
 </html>
-

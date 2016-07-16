@@ -40,7 +40,13 @@ void uuid_base_print(char *, void *);
 string aprintf(heap h, char *fmt, ...);
 void bbprintf(string b, string fmt, ...);
 
-typedef closure(execf, heap, operator, value *);
+typedef struct perf {
+    int count;
+    ticks start;
+    ticks time;
+} *perf;
+
+typedef closure(execf, heap, perf, operator, value *);
 typedef closure(insertron, value, value, value, value, multiplicity);
 
 #define def(__s, __v, __i)  table_set(__s, intern_string((unsigned char *)__v, cstring_length((char *)__v)), __i);
@@ -72,13 +78,35 @@ typedef closure(evaluation_result, table, table);
 typedef closure(block_completion, boolean);
 
 
+typedef struct compiled {
+    string name;
+    node head;
+} *compiled;
+    
 struct block {
     heap h;
+    string name;
     vector finish;
     execf head;
     evaluation ev;
     table nmap;
 };
+
+
+static inline void start_perf(perf p)
+{
+    p->count++;
+    p->start = rdtsc();
+}
+
+static inline void stop_perf(perf p, perf pp)
+{
+    ticks delta = rdtsc() - p->start;
+    if (pp)
+        pp->time -= delta;
+    p->time += delta;
+}
+
     
 struct evaluation  {
     heap h;
@@ -99,19 +127,21 @@ struct evaluation  {
     vector blocks;
     scan reader;
     ticks t;
-    boolean b_continue, f_continue, inserted;
+    boolean pass, non_empty;
     evaluation_result complete;
     
     thunk terminal;
     thunk run;
+    long intermediates;
+    ticks cycle_time;
 };
 
 
 void execute(evaluation);
 
 table builders_table();
-void register_implication(node n);
-block build(evaluation e, node n);
+void register_implication(compiled c);
+block build(evaluation e, compiled c);
 table start_fixedpoint(heap, table, table, table);
 void close_evaluation(evaluation);
 

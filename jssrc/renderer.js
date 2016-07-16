@@ -18,8 +18,14 @@ document.body.appendChild(renderer.content);
 var activeElements = {"root": document.createElement("div")};
 activeElements["root"].className = "program";
 var activeStyles = {};
+var activeClasses = {};
 var supportedTags = {
-  "div": true, "span": true, "input": true, "ul": true, "li": true, "button": true, "header": true, "footer": true, "a": true, "strong": true,
+  "div": true, "span": true, "input": true, "ul": true, "li": true, "label": true, "button": true, "header": true, "footer": true, "a": true, "strong": true,
+  "h1": true, "h2": true, "h3": true, "h4": true, "h5": true, "h6": true,
+  "ol": true, "p": true, "pre": true, "em": true, "img": true, "canvas": true, "script": true, "style": true, "video": true,
+  "table": true, "tbody": true, "thead": true, "tr": true, "th": true, "td": true,
+  "form": true, "optgroup": true, "option": true, "select": true, "textarea": true,
+  "title": true, "meta": true, "link": true,
   "svg": true, "circle": true, "line": true
 };
 var svgs = {"svg": true, "circle": true, "line": true};
@@ -92,6 +98,7 @@ function handleDOMUpdates(result) {
     // the style object is being removed, but the element is sticking
     // around, we remove any styles that may have been applied
     let stylesToMaybeGC = [];
+    let classesToMaybeGC = [];
     for(let rem of remove) {
       let [entity, attribute, value] = safeEav(rem);
       if(activeStyles[entity]) {
@@ -100,6 +107,13 @@ function handleDOMUpdates(result) {
           let style = elem.style;
           if(!additions[entity] || !additions[entity][attribute]) {
             style[attribute] = "";
+          }
+        }
+      } else if(activeClasses[entity]) {
+        if(!additions[entity]  || !additions[entity][attribute]) {
+          for(let elem of activeClasses[entity]) {
+            elem.className = "";
+            elem.classId = undefined;
           }
         }
       } else if(activeElements[entity]) {
@@ -122,6 +136,15 @@ function handleDOMUpdates(result) {
             let ix = activeStyles[value].indexOf(elem);
             if(ix > -1) {
               activeStyles[value].splice(ix, 1);
+            }
+            break;
+          case "class":
+            if(value[0] == "⦑" && value[value.length - 1] == "⦒") {
+              classesToMaybeGC.push(value);
+              let classIx = activeClasses[value].indexOf(elem);
+              if(classIx > -1) {
+                activeClasses[value].splice(classIx, 1);
+              }
             }
             break;
           case "children":
@@ -150,9 +173,15 @@ function handleDOMUpdates(result) {
         activeStyles[styleId] = null;
       }
     }
+    for(let classId of classesToMaybeGC) {
+      if(activeClasses[classId] && activeClasses[classId].length === 0) {
+        activeClasses[classId] = null;
+      }
+    }
   }
 
   let styles = [];
+  let classes = [];
   let entities = Object.keys(additions)
   for(let entId of entities) {
     let ent = additions[entId];
@@ -199,6 +228,15 @@ function handleDOMUpdates(result) {
           elem.styleId = value;
           activeStyles[value].push(elem);
         }
+      } else if(attr == "class" && value[0] == "⦑" && value[value.length - 1] == "⦒") {
+        classes.push(value);
+        if(!activeClasses[value]) {
+          activeClasses[value] = [];
+        }
+        if(activeClasses[value].indexOf(elem) == -1) {
+          elem.classId = value;
+          activeClasses[value].push(elem);
+        }
       } else if(attr == "textContent") {
         elem.textContent = value;
       } else if(attr == "tag" || attr == "ix") {
@@ -206,6 +244,9 @@ function handleDOMUpdates(result) {
       } else if(attr == "_parent") {
         let parent = activeElements[value];
         insertSorted(parent, elem);
+      } else if(attr == "checked") {
+        if(value) elem.setAttribute("checked", true);
+        else elem.removeAttribute("checked");
       } else {
         elem.setAttribute(attr, value);
       }
@@ -224,8 +265,35 @@ function handleDOMUpdates(result) {
       let elemStyle = elem.style;
       let styleAttributes = Object.keys(style);
       for(let attr of styleAttributes) {
-        elemStyle[attr] = style[attr];
+        if(attr === "display" && typeof style[attr] === "boolean") {
+          elemStyle[attr] = style[attr] ? undefined : "none";
+        } else {
+          elemStyle[attr] = style[attr];
+        }
       }
+    }
+  }
+
+  for(let classId of classes) {
+    let classSet = additions[classId];
+    if(!classSet) continue;
+    let elems = activeClasses[classId];
+    for(let elem of elems || []) {
+      if(!elem) {
+        console.error("Got a class for an element that doesn't exist.");
+        continue;
+      }
+      let elemClasses = elem.className.split(" ");
+      let classNames = Object.keys(classSet);
+      for(let klass of classNames) {
+        let existingIx = elemClasses.indexOf(klass)
+        if(classSet[klass] && existingIx == -1) {
+          elemClasses.push(klass);
+        } else if(!classSet[klass] && existingIx != -1) {
+          elemClasses.splice(existingIx, 1);
+        }
+      }
+      elem.className = elemClasses.join(" ");
     }
   }
 }
@@ -280,12 +348,16 @@ function formatObjects(objs) {
   return rows;
 }
 
-function sendEvent(objs) {
+function sendEventObjs(objs) {
   if(!objs.length) return;
   let query = `handle some event
   maintain
     ${formatObjects(objs).join("\n    ")}
   `
+  return sendEvent(query);
+}
+
+function sendEvent(query) {
   console.log("QUERY", query);
   if(socket && socket.readyState == 1) {
     socket.send(JSON.stringify({scope: "event", type: "query", query}))
@@ -314,14 +386,27 @@ window.addEventListener("click", function(event) {
     current = current.parentNode
   }
   // objs.push({tags: ["click"], element: "window"});
-  sendEvent(objs);
+  sendEventObjs(objs);
+});
+window.addEventListener("dblclick", function(event) {
+  let {target} = event;
+  let current = target;
+  let objs = [];
+  while(current) {
+    if(current.entity) {
+      objs.push({tags: ["double-click"], element: current.entity});
+    }
+    current = current.parentNode
+  }
+  // objs.push({tags: ["click"], element: "window"});
+  sendEventObjs(objs);
 });
 
 window.addEventListener("input", function(event) {
   let {target} = event;
   if(target.entity) {
     let objs = [{tags: ["input"], element: target.entity, value: target.value}];
-    // sendEvent(objs);
+    // sendEventObjs(objs);
   }
 });
 
@@ -329,7 +414,7 @@ window.addEventListener("focus", function(event) {
   let {target} = event;
   if(target.entity) {
     let objs = [{tags: ["focus"], element: target.entity}];
-    // console.log(sendEvent(objs));
+    sendEventObjs(objs);
   }
 }, true);
 
@@ -337,7 +422,10 @@ window.addEventListener("blur", function(event) {
   let {target} = event;
   if(target.entity) {
     let objs = [{tags: ["blur"], element: target.entity}];
-    // console.log(sendEvent(objs));
+    if(target.value !== undefined) {
+      objs.push({id: target.entity, value: target.value});
+    }
+    sendEventObjs(objs);
   }
 }, true);
 
@@ -358,7 +446,7 @@ window.addEventListener("keydown", function(event) {
     current = current.parentNode
   }
   // objs.push({tags: ["keydown"], element: "window", key});
-  sendEvent(objs);
+  sendEventObjs(objs);
 });
 
 window.addEventListener("keyup", function(event) {
@@ -373,13 +461,37 @@ window.addEventListener("keyup", function(event) {
     current = current.parentNode
   }
   objs.push({tags: ["keyup"], element: "window", key});
-  // sendEvent(objs);
+  // sendEventObjs(objs);
+});
+
+window.addEventListener("hashchange", function(event) {
+  let hash = window.location.hash.substr(1);
+  if(hash[0] == "/") hash = hash.substr(1);
+  let segments = hash.split("/").map(function(seg, ix) {
+    return `[index: ${ix + 1}, value: "${seg}"]`;
+  });
+  let query =
+  `hash changed remove any current url segments
+    url = [#url hash-segment]
+    freeze
+      url -= [hash-segment]\n\n` +
+  `hash changed if there isn't already a url, make one
+    not([#url])
+    freeze
+      [#div text: "CHANGED! ${hash}"]
+      [#url hash-segment: ${segments.join(" ")}]\n\n` +
+  `add the new hash-segments if there is
+    url = [#url]
+    freeze
+      url := [hash-segment: ${segments.join(" ")}]
+  `
+  sendEvent(query);
 });
 
 //---------------------------------------------------------
 // Draw node graph
 //---------------------------------------------------------
-
+let activeLayers = {ids: true, registers: true};
 let activeIds = {};
 let activeParse = {};
 let allNodeGraphs = {};
@@ -388,18 +500,31 @@ let codeEditor;
 
 function drawNode(nodeId, graph, state, seen) {
   let node = graph[nodeId];
+
   if(seen[nodeId]) {
     return {text: `seen ${node.type}`};
   } else if(node.type == "terminal" || node.type == "subtail") {
     return undefined;
   }
   seen[nodeId] = true;
-  let active = activeClass(node, state);
+
+  let overlays = [];
+  let overlay = {c: "node-overlay", children: overlays};
+  if(activeLayers.ids) {
+    let idOverlay = {c: "id-overlay", style: "flex: 0 0 auto", text: `id: ${nodeId}`};
+    overlays.push(idOverlay);
+  }
+
+  let myTime = ((node.time * 100) / state.rootTime).toFixed(1);
+
+  let active = currentClass(node, state);
   let children = [];
   let childrenContainer = {c: "node-children", children};
   let me = {c: `node`, children: [
-    {c: `${node.type} node-text ${active}`, text: `${node.type} ${node.scan_type || ""} (${node.count || 0})`},
+    {c: `${node.type} node-text ${active}`, text: `${node.type} ${node.scan_type || ""} (${node.count || 0} | ${myTime}%)`},
+    overlay,
     childrenContainer
+
   ]};
   if((node.type == "fork") || (node.type == "choose")) {
     childrenContainer.c += ` fork-node-children`;
@@ -470,10 +595,6 @@ function indexParse(parse) {
   parse.lines = lines;
   let down = {};
   let up = {};
-  if(activeParse.edges) {
-    up = activeParse.edges.up;
-    down = activeParse.edges.down;
-  }
   for(let edge of parse.root.context.downEdges) {
     if(!down[edge[0]]) down[edge[0]] = [];
     if(!up[edge[1]]) up[edge[1]] = [];
@@ -528,7 +649,7 @@ function nodeToRelated(pos, node, parse) {
   return active;
 }
 
-function activeClass(node, state) {
+function currentClass(node, state) {
   return state.activeIds[node.id] ? "active" : "";
 }
 
@@ -568,6 +689,7 @@ function drawNodeGraph() {
   for(let headId in allNodeGraphs) {
     if(activeParse.edges.up[headId][0] != activeIds["graph"]) continue;
     let cur = allNodeGraphs[headId];
+    state.rootTime = activeParse.cycle_time;
     let tree = drawNode(headId, cur, state, {});
     // let ast = drawAST(activeParse.ast, state);
     // let parse = drawParse(activeParse, state);
@@ -669,11 +791,29 @@ function orderedNode(nodeId, state) {
   if(!node && typeof nodeId == "string") {
     return {c: "value", text: `"${nodeId}"`};
   }
-  let active = activeClass(node, state);
+  let active = currentClass(node, state);
+
+  let overlays = [];
+  let overlay = {c: "node-overlay", children: overlays};
+  if(activeLayers.registers && node.registers) {
+    let registers = {c: "registers-overlay row", children: [{t: "label", text: "Registers"}]};
+    overlays.push(registers);
+    for(let variable in node.registers) {
+      registers.children.push({c: "register-pair row", children: [orderedNode(variable, state), {text: `: ${node.registers[variable]}`}]});
+    }
+  }
+  if(activeLayers.ids) {
+    let idOverlay = {c: "id-overlay", text: `id: ${nodeId}`};
+    overlays.push(idOverlay);
+  }
+
   if(node.type == "object" || node.type == "mutate") {
     return {c: `ordered-node ordered-object ${active}`, children: [
-      {c: "node-type", text: node.type},
-      {c: "eav", children: [orderedNode(node.entity, state), orderedNode(node.attribute, state), orderedNode(node.value, state)]}
+      {c: "row", children: [
+        {c: "node-type", text: node.type},
+        {c: "eav", children: [orderedNode(node.entity, state), orderedNode(node.attribute, state), orderedNode(node.value, state)]},
+      ]},
+      overlay
     ]};
   } else if(node.type == "subproject") {
     let projections = [{text: "["}]
@@ -682,10 +822,11 @@ function orderedNode(nodeId, state) {
     }
     projections.push({text: "]"});
     return {c: `ordered-node subproject ${active}`, children: [
-      {c: "row", children: [
+      {c: "row sub-node", children: [
         {c: "node-type", text: node.type},
         {c: "subproject-projection", children: projections},
       ]},
+      overlay,
       {c: "subproject-children", children: node.nodes.map(function(cur) { return orderedNode(cur, state); })}
     ]};
   } else if(node.type == "expression") {
@@ -759,9 +900,28 @@ function drawOrdered(ordered, state) {
   ]}
 }
 
+function clone(obj) {
+  if(typeof obj !== "object") return obj;
+  if(obj.constructor === Array) {
+    let neue = [];
+    for(let ix of obj) {
+      neue[ix] = clone(obj[ix]);
+    }
+    return neue;
+  } else {
+    let neue = {};
+    for(let key in obj) {
+      neue[key] = clone(obj[key]);
+    }
+    return neue;
+  }
+}
+
 //---------------------------------------------------------
 // Connect the websocket, send the ui code
 //---------------------------------------------------------
+
+let __entities = {}; // DEBUG
 
 var socket = new WebSocket("ws://" + window.location.host +"/ws");
 socket.onmessage = function(msg) {
@@ -769,14 +929,70 @@ socket.onmessage = function(msg) {
   let data = JSON.parse(msg.data);
   console.timeEnd("PARSE");
   if(data.type == "result") {
-    console.log(data)
     handleDOMUpdates(data);
+
+    let diffEntities = 0;
+    if(__entities) {
+      for(let [e, a, v] of data.remove) {
+        if(!__entities[e]) continue;
+        let entity = __entities[e];
+        let set = entity[a];
+        if(!set) continue;
+        if(set.constructor !== Array || set.length <= 1) {
+          delete entity[a];
+        } else {
+          let ix = entity[a].indexOf(v);
+          if(ix === -1) continue;
+          entity[a].splice(ix, 1);
+        }
+
+        if(Object.keys(entity).length === 0) {
+          delete __entities[e];
+          diffEntities--;
+        }
+      }
+
+      for(let [e, a, v] of data.insert) {
+        if(!__entities[e]) {
+          __entities[e] = {};
+          diffEntities++;
+        }
+        let entity = __entities[e];
+        if(!entity[a]) {
+          entity[a] = v;
+        } else if(entity[a].constructor !== Array) {
+          entity[a] = [entity[a], v];
+        } else {
+          entity[a].push(v);
+        }
+      }
+    }
+
+    console.groupCollapsed(`Received Result +${data.insert.length}/-${data.remove.length} (∂Entities: ${diffEntities})`);
+    console.table(data.insert);
+    console.table(data.remove);
+    if(__entities) console.log(clone(__entities));
+    console.groupEnd();
+    drawNodeGraph();
+
   } else if(data.type == "node_graph") {
     allNodeGraphs[data.head] = data.nodes;
-    data.parse.iterations = data.iterations;
-    data.parse.total_time = data.total_time;
+  } else if(data.type == "full_parse") {
     indexParse(data.parse);
     drawNodeGraph();
+
+  } else if(data.type == "node_times") {
+    activeParse.iterations = data.iterations;
+    activeParse.total_time = data.total_time;
+    activeParse.cycle_time = data.cycle_time;
+    let graph = allNodeGraphs[data.head];
+    if(!graph) return;
+    for(let nodeId in data.nodes) {
+      let cur = graph[nodeId];
+      let info = data.nodes[nodeId];
+      cur.time = info.time;
+      cur.count = info.count;
+    }
   }
 }
 socket.onopen = function() {

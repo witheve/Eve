@@ -4,4 +4,3 @@ query names
   blah = "{age}{age}"
   maintain
     [#dude name: "cool {age} \"asdofij\" {age} asodijf"]
-

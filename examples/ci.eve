@@ -6,24 +6,24 @@ receive the webhook from github on a pull request
     pull_request: [body title additions deletions
                    state: "open"
                    head: [ref: branch, sha]]]
-  save
+  freeze
     [#pull-request number, github-url, body, title, additions, deletions, branch, sha]
 
 checkout the git repository
   [#pull-request github-url, branch, sha]
   path = "/tmp/{branch}/{sha}"
-  save all
+  freeze all
     [#git-repository #eve-repo source: github-url, branch, sha, path]
 
 once checked out build eve
   [#success of: [#eve-repo path]]
-  save all
+  freeze all
     [#process #eve-build shell: "make", cwd: path]
 
 once built, run eve
   [#success of: [#eve-build path]]
   [#eve-repo path sha]
-  save all
+  freeze all
     [#process #eve-run shell: "./eve -b {sha}", cwd: path, sha]
 
 send facts over to that bag

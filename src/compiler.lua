@@ -20,98 +20,15 @@ local build = require("build")
 local errors = require("error")
 setfenv(1, Pkg)
 
+local makeNode = parser.makeNode
 local ENTITY_FIELD = parser.ENTITY_FIELD
 local TAG_FIELD = "tag"
 local EAV_TAG = "eav"
 
 -- Utilities
 local nothing = {}
-
-function formatQueryNode(node, indent)
-  indent = indent or 0
-  local padding = string.rep("  ", indent)
-  local result = padding .. node.type
-  if node.type == "query" then
-    result = result .. "<" .. (node.name or "unnamed") .. ">"
-    if node.unpacked then
-      result = result .. "{\n"
-      for ix, guy in std.ipairs(node.unpacked) do
-        result = result .. padding .. "  " .. ix .. ". " .. util.indentString(2, tostring(guy)) .. ",\n"
-      end
-      result = result .. padding .. "}"
-    elseif node.deps and node.deps.graph then
-      result = result .. tostring(node.deps.graph)
-    end
-  elseif node.type == "constant" then
-    result = result .. "<" .. node.constant .. ">"
-  elseif node.type == "variable" then
-    result = result .. "<" .. (node.name or "unnamed") .. ">"
-  elseif node.type == "binding" then
-    result = result .. "{" .. tostring(node.field) .. " -> "
-    if node.constant then
-      result = result .. tostring(node.constant.constant)
-    elseif node.variable then
-      result = result .. formatQueryNode(node.variable)
-    end
-    return result .. "}"
-  elseif node.type == "object" then
-    result = result .. "{"
-    for _, binding in std.ipairs(node.bindings) do
-      result = result .. formatQueryNode(binding) .. ", "
-    end
-    return result .. "}"
-  elseif node.type == "mutate" then
-    result = result .. "<" .. node.operator .. ">{"
-    for _, binding in std.ipairs(node.bindings) do
-      result = result .. formatQueryNode(binding) .. ", "
-    end
-    return result .. "}"
-  elseif node.type == "union" or node.type == "choose" or node.type == "not" then
-    result = result .. "{\n"
-    for _, query in std.ipairs(node.queries) do
-      result = result .. formatQueryNode(query, 1) .. ",\n"
-    end
-    return result .. "}"
-  elseif node.type == "expression" then
-    result = result .. " " .. node.operator .. "("
-    local multi = false
-    for _, binding in std.ipairs(node.bindings) do
-      if multi then
-        result = result .. ", "
-      end
-      result = result .. binding.field .. " = " .. formatQueryNode(binding.variable or binding.constant)
-      multi = true
-    end
-    if node.projection then
-      result = result .. " given "
-      local multi = false
-      for var in pairs(node.projection) do
-        if multi then
-          result = result .. ", "
-        end
-        result = result .. formatQueryNode(var)
-        multi = true
-      end
-    end
-    if node.groupings then
-      result = result .. " per "
-      local multi = false
-      for var in pairs(node.groupings) do
-        if multi then
-          result = result .. ", "
-        end
-        result = result .. formatQueryNode(var)
-        multi = true
-      end
-    end
-
-    result = result .. ")"
-  end
-  return result
-end
-
-local DefaultNodeMeta = {}
-DefaultNodeMeta.__tostring = formatQueryNode
+local DefaultNodeMeta = util.DefaultNodeMeta
+local formatQueryNode = util.formatQueryNode
 
 function flattenProjection(projection)
   local neue = Set:new()
@@ -130,7 +47,7 @@ function flattenProjection(projection)
 end
 
 local function prepareQueryGraph(_, node)
-  if type(node) == "table" and node.type and getmetatable(node) == nil then
+  if type(node) == "table" and node.type and not node._sanitized then
     setmetatable(node, DefaultNodeMeta)
     if node.projection then
       node.projection = flattenProjection(node.projection)
@@ -138,6 +55,7 @@ local function prepareQueryGraph(_, node)
     if node.groupings then
       node.groupings = flattenProjection(node.groupings)
     end
+    node._sanitized = true
   end
 end
 
@@ -655,7 +573,10 @@ function DependencyGraph:add(node)
 end
 
 function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for ordering
-  local presorted = presort(self.unprepared, {mutate = 1000, expression = 100, ["not"] = 200, choose = 300, union = 400, object = 500})
+  if self.unprepared:length() == 0 then
+    return
+  end
+  local presorted = presort(self.unprepared, {mutate = 500, expression = 400, ["not"] = 300, choose = 200, union = 100, object = 0})
 
   -- Ensure that all nodes which provide a term contribute to that terms cardinality
   for _, node in ipairs(presorted) do
@@ -856,6 +777,9 @@ function DependencyGraph:order(allowPartial)
   --   ii.  b -> a
   --   iii. a, b -> f
   self:prepare()
+  if self.unsorted:length() == 0 then
+    return
+  end
 
   -- Pre-sort the unsorted list in rough order of cost
   -- this makes ordering more deterministic and potentially improves performance
@@ -1038,7 +962,7 @@ function ScanNode.__tostring(obj)
 end
 
 SubprojectNode = {}
-function SubprojectNode:new(obj, source, context)
+function SubprojectNode:new(obj, source, context, scope)
   obj = obj or {}
   obj.id = util.generateId()
   if source.id then
@@ -1048,6 +972,7 @@ function SubprojectNode:new(obj, source, context)
   obj.projection = obj.projection or Set:new()
   obj.provides = obj.provides or Set:new()
   obj.nodes = obj.nodes or {}
+  obj.scope = scope
   setmetatable(obj, self)
   self.__index = self
   return obj
@@ -1106,7 +1031,7 @@ function unpackObjects(dg, context)
         end
         projection:union(node.projection or nothing, true)
 
-        subproject = SubprojectNode:new({projection = projection, provides = node.deps.provides}, node, context)
+        subproject = SubprojectNode:new({query = dg.query, projection = projection, provides = node.deps.provides}, node, context, node.scope)
         unpackList = subproject.nodes
         unpacked[#unpacked + 1] = subproject
       end
@@ -1125,7 +1050,7 @@ function unpackObjects(dg, context)
           if binding.field ~= ENTITY_FIELD then
             if subproject and binding.variable and not subproject.projection[binding.variable] then
               subproject.provides:add(entity)
-              unpacked[#unpacked + 1] = SubprojectNode:new({projection = subproject.projection + Set:new{entity, binding.variable}, nodes = {ScanNode:fromBinding(node, binding, entity, context)}}, binding, context)
+              unpacked[#unpacked + 1] = SubprojectNode:new({query = dg.query, projection = subproject.projection + Set:new{entity, binding.variable}, nodes = {ScanNode:fromBinding(node, binding, entity, context)}}, binding, context, node.scope)
             else
               unpackList[#unpackList + 1] = ScanNode:fromBinding(node, binding, entity, context)
             end
@@ -1135,10 +1060,10 @@ function unpackObjects(dg, context)
         end
       end
     elseif node.type == "expression" and node.projection then
-      local subproject = SubprojectNode:new({kind = "aggregate", projection = node.projection, provides = node.deps.provides, nodes = {node}}, node, context)
+      local subproject = SubprojectNode:new({query = dg.query, kind = "aggregate", projection = node.projection, provides = node.deps.provides, nodes = {node}}, node, context)
       if node.operator == "count" then
-        local constant = {type = "constant", generated = true, constant = 1, constantType = "number"}
-        node.bindings[#node.bindings + 1] = {type = "binding", generated = true, field = "a", constant = constant}
+        local constant = makeNode(context, "constant", node, {generated = true, constant = 1, constantType = "number"})
+        node.bindings[#node.bindings + 1] = makeNode(context, "binding", node, {generated = true, field = "a", constant = constant})
         node.operator = "sum"
       end
       unpacked[#unpacked + 1] = subproject
@@ -1159,7 +1084,14 @@ end
 function compileExec(contents, tracing)
   local parseGraph = parser.parseString(contents)
   local context = parseGraph.context
+
+  if context.errors and #context.errors ~= 0 then
+    print("Bailing due to errors.")
+    return 0
+  end
+
   local set = {}
+  local nameset = {}
 
   for ix, queryGraph in ipairs(parseGraph.children) do
     local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph, context)
@@ -1167,14 +1099,23 @@ function compileExec(contents, tracing)
     -- @NOTE: We cannot allow dead DGs to still try and run, they may be missing filtering hunks and fire all sorts of missiles
     if not dependencyGraph.ignore then
       set[#set+1] = queryGraph
+      nameset[#nameset+1] = queryGraph.name
     end
   end
-  return build.build(set, tracing, parseGraph), util.toFlatJSON(parseGraph)
+  if context.errors and #context.errors ~= 0 then
+    print("Bailing due to errors.")
+    return 0
+  end
+  return build.build(set, tracing, parseGraph), util.toFlatJSON(parseGraph), nameset
 end
 
 function analyze(content, quiet)
   local parseGraph = parser.parseString(content)
   local context = parseGraph.context
+  if context.errors and #context.errors ~= 0 then
+    print("Bailing due to errors.")
+    return 0
+  end
 
   for ix, queryGraph in std.ipairs(parseGraph.children) do
     print("----- Query Graph (" .. ix .. ") " .. queryGraph.name .. " -----")
@@ -1202,6 +1143,12 @@ function analyze(content, quiet)
     end
     print("  }")
   end
+
+  if context.errors and #context.errors ~= 0 then
+    print("Bailing due to errors.")
+    return 0
+  end
+
   return 0
 end
 

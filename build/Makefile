@@ -38,7 +38,7 @@ RUNTIME_H = luanne.h runtime.h estring.h number.h types.h exec.h
 HTTP = server.o websocket.o base64.o sha1.o json.o client.o http.o
 DNS = dns.o
 HTTP_H = http.h
-CONTENT = index.o renderer.o microReact.o codemirror.o codemirrorCss.o 
+CONTENT = index.o renderer.o microReact.o codemirror.o codemirrorCss.o exampleTodomvcCss.o 
 
 continuation_templates.h: continuations.py
 	python $^ 9 9 continuation_templates.h
@@ -62,6 +62,9 @@ codemirror.o: ../jssrc/codemirror.js
 	cc wrap.S -DSTART=$(S)codemirror_start -DEND=$(S)codemirror_end -DFILE='"$<"' -c -o $@
 codemirrorCss.o: ../jssrc/codemirror.css
 	cc wrap.S -DSTART=$(S)codemirrorCss_start -DEND=$(S)codemirrorCss_end -DFILE='"$<"' -c -o $@
+
+exampleTodomvcCss.o: ../examples/todomvc.css
+	cc wrap.S -DSTART=$(S)exampleTodomvcCss_start -DEND=$(S)exampleTodomvcCss_end -DFILE='"$<"' -c -o $@
 
 %.o: %.c continuation_templates.h $(UNIX_H) $(CORE_H) $(RUNTIME_H) $(HTTP_H)
 	cc -std=gnu99 -I../csrc/unix -I../csrc/core -I../csrc -I. -I$(LUAJIT_INCLUDES) -g -c $<

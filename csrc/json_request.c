@@ -57,15 +57,20 @@ static void send_guy(heap h, buffer_handler output, values_diff diff)
     apply(output, out, cont(h, send_destroy, h));
 }
 
-// for tracing we want to be able to send the structure of the machines
-// that we build as a json message
-static void send_node_graph(heap h, buffer_handler output, node head, table counts, string parse)
+static void send_full_parse(heap h, buffer_handler output, string parse)
 {
     string out = allocate_string(h);
-    u64 time = (u64)table_find(counts, sym(time));
-    u64 iterations = (u64)table_find(counts, sym(iterations));
+    bprintf(out, "{\"type\":\"full_parse\", \"parse\": ");
+    buffer_append(out, bref(parse, 0), buffer_length(parse));
+    bprintf(out, "}");
+    apply(output, out, cont(h, send_destroy, h));
+}
 
-    bprintf(out, "{\"type\":\"node_graph\", \"total_time\": %t, \"iterations\": %d, \"head\": \"%v\", \"nodes\":{", time, iterations, head->id);
+static void send_cnode_graph(heap h, buffer_handler output, node head)
+{
+    string out = allocate_string(h);
+
+    bprintf(out, "{\"type\":\"node_graph\", \"head\": \"%v\", \"nodes\":{", head->id);
     vector to_scan = allocate_vector(h, 10);
     vector_insert(to_scan, head);
     int nodeComma = 0;
@@ -86,11 +91,6 @@ static void send_node_graph(heap h, buffer_handler output, node head, table coun
         }
         bprintf(out, "]");
 
-        int* count = table_find(counts, current);
-        if(count) {
-            bprintf(out, ", \"count\": %u", *count);
-        }
-
         if(current->type == intern_cstring("scan")) {
             bprintf(out, ", \"scan_type\": %v", vector_get(vector_get(current->arguments, 0), 0));
         }
@@ -98,14 +98,39 @@ static void send_node_graph(heap h, buffer_handler output, node head, table coun
         nodeComma = 1;
     }
 
-    bprintf(out, "}, \"parse\": ");
-
-    buffer_append(out, bref(parse, 0), buffer_length(parse));
+    bprintf(out, "}");
     bprintf(out, "}");
     apply(output, out, ignore);
 }
 
+static void send_node_times(heap h, buffer_handler output, node head, table counts)
+{
+    string out = allocate_string(h);
+    u64 time = (u64)table_find(counts, sym(time));
+    u64 cycle_time = (u64)table_find(counts, sym(cycle-time));
+    u64 iterations = (u64)table_find(counts, sym(iterations));
 
+    bprintf(out, "{\"type\":\"node_times\", \"total_time\": %t, \"cycle_time\": %u, \"iterations\": %d, \"head\": \"%v\", \"nodes\":{", time, cycle_time, iterations, head->id);
+    vector to_scan = allocate_vector(h, 10);
+    vector_insert(to_scan, head);
+    int nodeComma = 0;
+    vector_foreach(to_scan, n){
+        node current = (node) n;
+        vector_foreach(current->arms, arm) {
+            vector_insert(to_scan, arm);
+        }
+        perf p = table_find(counts, current);
+        if(p) {
+            if(nodeComma) bprintf(out, ",");
+            bprintf(out, "\"%v\": {\"count\": %u, \"time\": %l}", current->id, p->count, p->time);
+            nodeComma = 1;
+        }
+    }
+
+    bprintf(out, "}");
+    bprintf(out, "}");
+    apply(output, out, ignore);
+}
 
 // solution should already contain the diffs against persisted...except missing support (diane)
 static CONTINUATION_1_2(send_response, json_session, table, table);
@@ -114,20 +139,22 @@ static void send_response(json_session js, table solution, table counters)
     heap h = allocate_rolling(pages, sstring("response"));
     heap p = allocate_rolling(pages, sstring("response delta"));
     table results = create_value_vector_table(p);
-    
+
     bag_foreach(js->session, e, a, v, c)
         table_set(results, build_vector(p, e, a, v), etrue);
 
-    bag ev = table_find(solution, js->event_uuid);
-    if (ev){
-        bag_foreach(ev, e, a, v, c) 
+    if(solution) {
+        bag ev = table_find(solution, js->event_uuid);
+        if (ev){
+            bag_foreach(ev, e, a, v, c)
             table_set(results, build_vector(p, e, a, v), etrue);
+        }
     }
 
     table_foreach(js->persisted, k, scopeBag) {
         table_foreach(edb_implications(scopeBag), k, impl) {
             if(impl) {
-                send_node_graph(h, js->write, impl, counters, js->graph);
+                send_node_times(h, js->write, ((compiled)impl)->head, counters);
             }
         }
     }
@@ -214,6 +241,19 @@ void new_json_session(bag root, boolean tracing, buffer graph,
     j->write = websocket_send_upgrade(j->eh, b, u, write,
                                       parse_json(j->eh, j->session, cont(h, handle_json_query, j)), 
                                       reg);
+
+    // send the graphs
+    heap graph_heap = allocate_rolling(pages, sstring("initial graphs"));
+    table_foreach(j->persisted, k, scopeBag) {
+        table_foreach(edb_implications(scopeBag), k, impl) {
+            if(impl) {
+                send_cnode_graph(graph_heap, j->write, ((compiled)impl)->head);
+            }
+        }
+    }
+    // send full parse destroys the heap
+    send_full_parse(graph_heap, j->write, j->graph);
+
     inject_event(j->s, aprintf(j->h,"init!\n   maintain\n      [#session-connect]\n"), j->tracing);
 }
 
