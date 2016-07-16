@@ -1,6 +1,6 @@
 routing
  value = if [#url hash-segment: [index: 1, value]] then value
-         else "active"
+         else "all"
   maintain
     [@app filter: value]
 
