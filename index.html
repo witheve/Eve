@@ -16,7 +16,7 @@
       .node-text { padding: 3px 6px; background: rgb(44,72,97); flex:none; white-space:nowrap; }
       .node-type { color: rgb(73, 158, 211); }
 
-      .node { display: flex; flex-direction:column; margin:1px 0; }
+      .node { display: flex; flex-direction:column; flex: 0 0 auto; margin:1px 0; }
       .node-children { display: flex; flex-direction:column; align-items:stretch;  }
       .fork-node-children { flex-direction:row; justify-content: center; }
       .sub-node-children { margin-left: 0px; }
@@ -69,8 +69,8 @@
       .ansi-red { color: red; }
 
       .node-overlay { display: flex; flex-direction: column; font-size: 0.9em; }
-
-      .ordered-node.subproject > .node-overlay { padding:5px; margin-bottom: 1px; margin-top: -1px; background: rgb(44,72,97); }
+      .ordered-node > .node-overlay { padding: 1px 5px; }
+      .ordered-node.subproject > .node-overlay { margin-bottom: 1px; margin-top: -1px; background: rgb(44,72,97); }
 
       .node-overlay .registers-overlay label { padding-right: 4px; color: #A0A0A0; align-self: center; }
       .node-overlay .registers-overlay .register-pair { padding: 0 4px; border-left: 1px solid #202930 }

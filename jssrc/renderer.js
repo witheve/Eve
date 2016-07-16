@@ -491,7 +491,7 @@ window.addEventListener("hashchange", function(event) {
 //---------------------------------------------------------
 // Draw node graph
 //---------------------------------------------------------
-let activeLayers = {registers: true};
+let activeLayers = {ids: true, registers: true};
 let activeIds = {};
 let activeParse = {};
 let allNodeGraphs = {};
@@ -500,12 +500,20 @@ let codeEditor;
 
 function drawNode(nodeId, graph, state, seen) {
   let node = graph[nodeId];
+
   if(seen[nodeId]) {
     return {text: `seen ${node.type}`};
   } else if(node.type == "terminal" || node.type == "subtail") {
     return undefined;
   }
   seen[nodeId] = true;
+
+  let overlays = [];
+  let overlay = {c: "node-overlay", children: overlays};
+  if(activeLayers.ids) {
+    let idOverlay = {c: "id-overlay", style: "flex: 0 0 auto", text: `id: ${nodeId}`};
+    overlays.push(idOverlay);
+  }
 
   let myTime = ((node.time * 100) / state.rootTime).toFixed(1);
 
@@ -514,6 +522,7 @@ function drawNode(nodeId, graph, state, seen) {
   let childrenContainer = {c: "node-children", children};
   let me = {c: `node`, children: [
     {c: `${node.type} node-text ${active}`, text: `${node.type} ${node.scan_type || ""} (${node.count || 0} | ${myTime}%)`},
+    overlay,
     childrenContainer
 
   ]};
@@ -794,6 +803,10 @@ function orderedNode(nodeId, state) {
       console.log("REGVAR", variable);
       registers.children.push({c: "register-pair row", children: [orderedNode(variable, state), {text: `: ${node.registers[variable]}`}]});
     }
+  }
+  if(activeLayers.ids) {
+    let idOverlay = {c: "id-overlay", text: `id: ${nodeId}`};
+    overlays.push(idOverlay);
   }
 
   if(node.type == "object" || node.type == "mutate") {
