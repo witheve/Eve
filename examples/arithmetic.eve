@@ -1,4 +1,4 @@
-simple constant addition
+simple constant math
   a = 1 + 2
   b = a + 2
   c = b - 1

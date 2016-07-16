@@ -21,7 +21,7 @@ void init_runtime()
     // bootstrap
     heap trash = init_memory(4096);
     
-    pages = init_fixed_page_region(trash, allocation_space, allocation_space + region_size, 4096);
+    pages = init_fixed_page_region(trash, allocation_space, allocation_space + region_size, 65536);
     efence = efence_heap(4096);
 
     init = allocate_rolling(pages, 0);

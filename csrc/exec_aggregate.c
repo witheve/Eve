@@ -3,16 +3,17 @@
 
 // we're suposed to have multiple keys and multiple sort orders, ideally
 // just generate a comparator over r
-static CONTINUATION_7_3(do_sort, 
-                        execf, int*,
+static CONTINUATION_7_4(do_sort,
+                        execf, perf,
                         table *, value, value, vector,vector,
-                        heap,operator, value *);
-static void do_sort(execf n, int *count,
+                        heap, perf, operator, value *);
+static void do_sort(execf n, perf p,
                     table *targets, value key, value out, vector proj, vector pk,
-                    heap h, operator op, value *r)
+                    heap h, perf pp, operator op, value *r)
 {
+    start_perf(p);
     if (op == op_insert) {
-        *count = *count +1;
+
         extract(pk, proj, r);
         pqueue x;
         if (!(x = table_find(*targets, pk))) {
@@ -25,21 +26,22 @@ static void do_sort(execf n, int *count,
 
     if (op == op_flush) {
         table_foreach(*targets, pk, x) {
-            pqueue p = x;
+            pqueue q = x;
             int count;
             copyout(r, proj, x);
-            vector_foreach(p->v, i) {
+            vector_foreach(q->v, i) {
                 // if we dont do the denorm trick, these should at least be findable and resuable
                 store(out, out, box_float(count++));
-                apply(n, h, op_insert, r);
+                apply(n, h, p, op_insert, r);
             }
         }
-        apply(n, h, op_flush, r);
+        apply(n, h, p, op_flush, r);
         *targets = allocate_table((*targets)->h, key_from_pointer, compare_pointer);
     }
     if (op == op_close) {
-        apply(n, h, op_close, r);
+        apply(n, h, p, op_close, r);
     }
+    stop_perf(p, pp);
 }
 
 static execf build_sort(block bk, node n, execf *arms)
@@ -47,24 +49,24 @@ static execf build_sort(block bk, node n, execf *arms)
     return cont(bk->h,
                 do_sort,
                 resolve_cfg(bk, n, 0),
-                register_counter(bk->ev, n),
+                register_perf(bk->ev, n),
                 0, 0, 0, 0, 0);
 }
 
 
-static CONTINUATION_7_3(do_sum, execf, int*, table*, vector, value, value, vector, heap, operator, value *);
-static void do_sum(execf n, int *count,
+static CONTINUATION_7_4(do_sum, execf, perf, table*, vector, value, value, vector, heap, perf, operator, value *);
+static void do_sum(execf n, perf p,
                    table *targets, vector grouping, value src, value dst, vector pk,
-                   heap h, operator op, value *r)
+                   heap h, perf pp, operator op, value *r)
 {
+    start_perf(p);
     if (op == op_insert) {
-        *count = *count +1;
         extract(pk, grouping, r);
         double *x;
         if (!(x = table_find(*targets, pk))) {
-            x = allocate(h, sizeof(double *));
+            x = allocate((*targets)->h, sizeof(double *));
             *x = 0.0;
-            vector key = allocate_vector(h, vector_length(grouping));
+            vector key = allocate_vector((*targets)->h, vector_length(grouping));
             extract(key, grouping, r);
             table_set(*targets, key, x);
         }
@@ -75,15 +77,16 @@ static void do_sum(execf n, int *count,
         table_foreach(*targets, pk, x) {
             copyout(r, grouping, pk);
             store(r, dst, box_float(*(double *)x));
-            apply(n, h, op_insert, r);
+            apply(n, h, p, op_insert, r);
         }
         *targets = create_value_vector_table((*targets)->h);
-        apply(n, h, op_flush, r);
+        apply(n, h, p, op_flush, r);
     }
 
     if (op == op_close) {
-        apply(n, h, op_close, r);
+        apply(n, h, p, op_close, r);
     }
+    stop_perf(p, pp);
 }
 
 static execf build_sum(block bk, node n, execf *arms)
@@ -98,7 +101,7 @@ static execf build_sum(block bk, node n, execf *arms)
     return cont(bk->h,
                 do_sum,
                 resolve_cfg(bk, n, 0),
-                register_counter(bk->ev, n),
+                register_perf(bk->ev, n),
                 targets,
                 groupings,
                 vector_get(args, 1),

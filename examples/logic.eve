@@ -1,4 +1,4 @@
 simple logic filters
   5 != 5
   maintain
-    [#div #num text: "hello!"]
+    [#div #num text: "If you see this, it's an error."]

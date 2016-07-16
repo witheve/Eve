@@ -1,10 +1,10 @@
 add a user for this sesion on connect
   [#session-connect]
-  save
+  freeze
     [#user @me]
 
 build the chat pane
-  channel = "woot"
+  channel = "general"
   maintain
     [#div class: "chat-pane" children:
       [#div #chat-messages class: "chat-messages" channel]
@@ -24,7 +24,7 @@ handle chat keydowns
   element = [#channel-input channel value]
   [#user name]
   [#time hours minutes seconds]
-  //save
+  //freeze
   //  element.value := ""
-  save all
+  freeze all
     [#message event name, time: "{hours}:{minutes}", message: value, channel]

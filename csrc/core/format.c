@@ -95,6 +95,12 @@ void vbprintf(string s, string fmt, va_list ap)
                 unsigned long x = va_arg(ap, unsigned long);
                 format_number(s, x, 16, pad?pad:1);
                 break;
+
+            case 'l':
+                pad = 0;
+                unsigned long z = va_arg(ap, unsigned long);
+                format_number(s, z, 10, pad?pad:1);
+                break;
                 
             case 'x':
                 base=16;

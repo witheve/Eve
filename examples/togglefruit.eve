@@ -1,6 +1,6 @@
 Add some fruits to the system
   [#session-connect]
-  save
+  freeze
     [#fruit @lemon color: "yellow"]
     [#fruit @cherry color: "red"]
     [#fruit @orange color: "orange"]
@@ -18,13 +18,13 @@ Draw a list of fruits
 make yo
   v = [#click element]
   element = [not(children)]
-  save
+  freeze
      element.children += [#div element zig:v text:"yo"]
 
 trash yo
   [#click element]
   element = [children]
-  save
+  freeze
      element.children -= children
 
 

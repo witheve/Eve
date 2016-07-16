@@ -1,5 +1,6 @@
 test concat
+  [#session-connect]
   greeting = "Hello"
   target = "World"
-  save
+  freeze
     [#div text: "{greeting}, {target}!"]

@@ -162,14 +162,21 @@ vector lua_compile_eve(interpreter c, heap h, buffer b, boolean tracing, buffer 
     lua_pushlstring(c->L, bref(b, 0), buffer_length(b));
     lua_pushboolean(c->L, tracing);
 
-    if (lua_pcall(c->L, 2, 2, lua_gettop(c->L)-4)) {
+    if (lua_pcall(c->L, 2, 3, lua_gettop(c->L)-4)) {
         printf ("lua error\n");
         printf ("%s\n", lua_tostring(c->L, -1));
     }
-    foreach_lua_table(c->L, -2, k, v) {
-        vector_insert(result, (void *)lua_topointer(c->L, v));
+    foreach_lua_table(c->L, -3, k, v) {
+        compiled n = allocate(h, sizeof(struct compiled));
+        n->head = (void *)lua_topointer(c->L, v);
+        vector_insert(result, n);
     }
-    *out = lua_to_buffer(c->L, -1, h);
+    *out = lua_to_buffer(c->L, -2, h);
+    int count = 0;
+    foreach_lua_table(c->L, -1, k, v) {
+        compiled n = vector_get(result, count++);
+        n->name = lua_to_buffer(c->L, v, h);
+    }
     lua_pop(c->L, 1);
     return(result);
 }
