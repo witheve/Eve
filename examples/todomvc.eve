@@ -31,7 +31,7 @@ draw the children
   (todo, body, completed, editing) =
     if filter = "completed" then ([#todo, body, completed: true, editing], body, true, editing)
     else if filter = "active" then ([#todo, body, completed: false, editing], body, false, editing)
-    else ([#todo, body, completed, editing], body, completed, editing)
+    else if filter = "all" then ([#todo, body, completed, editing], body, completed, editing)
   parent = [@todo-list]
   maintain
     parent.children += [#li, class: [todo: true, completed, editing], todo, children:
