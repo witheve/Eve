@@ -238,7 +238,7 @@ void inject_event(evaluation ev, buffer b, boolean tracing)
     vector_foreach(n, i) {
         block b = build(ev, i);
         run_block(ev, b);
-        apply(b->head, ev->working, 0, op_close, 0);
+        block_close(b);
     }
     bag_fork(ev, &ev->ev_solution);
     fixedpoint(ev);
@@ -259,7 +259,7 @@ void close_evaluation(evaluation ev)
         deregister_listener(b, ev->run);
 
     vector_foreach(ev->blocks, b)
-        apply(((block)b)->head, ev->working, 0, op_close, 0);
+        block_close(b);
     
     destroy(ev->h);
 }

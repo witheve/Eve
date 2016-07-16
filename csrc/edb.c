@@ -188,6 +188,7 @@ bag create_bag(heap h, uuid u)
     b->eav = create_value_table(h);
     b->ave = create_value_table(h);
     b->listeners = allocate_table(h, key_from_pointer, compare_pointer);
+    b->delta_listeners = allocate_table(h, key_from_pointer, compare_pointer);
     b->implications = allocate_table(h, key_from_pointer, compare_pointer);
     return b;
 }

@@ -149,5 +149,6 @@ vector compile_eve(heap h, buffer b, boolean tracing, buffer *desc);
 evaluation build_evaluation(table scopes, table persisted, evaluation_result e);
 void run_solver(evaluation s);
 void inject_event(evaluation, buffer b, boolean);
+void block_close(block);
 
 #include <edb.h>

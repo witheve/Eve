@@ -108,9 +108,9 @@ static void do_sub(perf p, sub s, heap h, perf pp, operator op, value *r)
     }
 
     if (op == op_close) {
-        destroy(s->h);
-        stop_perf(p, pp);
         apply(s->next, h, p, op, r);
+        stop_perf(p, pp);
+        destroy(s->h);
         return;
     }
 
@@ -158,7 +158,7 @@ static execf build_sub(block bk, node n)
 {
     sub s = allocate(bk->h, sizeof(struct sub));
     s->id = n->id;
-    s->h = bk->h;
+    s->h = allocate_rolling(pages, sstring("sub"));
     s->results = create_value_vector_table(s->h);
     s->moved = create_value_vector_table(s->h);
     s->ids_cache = create_value_vector_table(s->h);
@@ -342,7 +342,7 @@ static execf build_move(block bk, node n)
 static CONTINUATION_3_4(do_merge, execf, int, u32 *, heap, perf, operator, value *);
 static void do_merge(execf n, int count, u32 *total, heap h, perf pp, operator op, value *r)
 {
-    if (op == op_flush) {
+    if ((op == op_flush) || (op == op_close)){
         *total = *total +1;
         if (*total == count) {
             *total = 0;
@@ -364,8 +364,6 @@ static CONTINUATION_1_4(do_terminal, block, heap, perf, operator, value *);
 static void do_terminal(block bk, heap h, perf pp, operator op, value *r)
 {
     if (op == op_insert) apply(bk->ev->terminal);
-
-    if (op == op_close) destroy(bk->h);
 }
 
 static execf build_terminal(block bk, node n)
@@ -523,6 +521,12 @@ static void force_node(block bk, node n)
         vector_foreach(n->arms, i) force_node(bk, i);
         *x = n->builder(bk, n);
     }
+}
+
+void block_close(block bk)
+{
+    apply(bk->head, 0, 0, op_close, 0);
+    destroy(bk->h);
 }
 
 block build(evaluation ev, compiled c)
