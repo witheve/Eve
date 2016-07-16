@@ -150,7 +150,7 @@ function read_lookup(n, env, x)
       end
       if not n.registers then n.registers = {} end
       if x and not r then error("AHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH read " .. tostring(x)) end
-      if x then n.registers[x.id] = "r" .. (r or "NIL") end
+      if x then n.registers[x.id] = "r" .. r end
       return sregister(r)
    end
    return translate_value(x)
@@ -160,14 +160,14 @@ function write_lookup(n, env, x)
    -- can't be a constant or unbound
    local r = env.registers[x]
    if r then
-     free_register(n, env, x)
+     --free_register(n, env, x)
    else
      r = allocate_register(n, env, x)
      env.registers[x] = r
      print("LEAKING", r, "for", x, "in", n)
    end
    if not n.registers then n.registers = {} end
-   if x then n.registers[x.id] = "w" .. (r or "NIL") end
+   if x then n.registers[x.id] = "w" .. r end
    return sregister(r)
 end
 
