@@ -144,10 +144,12 @@ static void send_response(json_session js, table solution, table counters)
     bag_foreach(js->session, e, a, v, c)
         table_set(results, build_vector(p, e, a, v), etrue);
 
-    bag ev = table_find(solution, js->event_uuid);
-    if (ev){
-        bag_foreach(ev, e, a, v, c)
+    if(solution) {
+        bag ev = table_find(solution, js->event_uuid);
+        if (ev){
+            bag_foreach(ev, e, a, v, c)
             table_set(results, build_vector(p, e, a, v), etrue);
+        }
     }
 
     table_foreach(js->persisted, k, scopeBag) {
