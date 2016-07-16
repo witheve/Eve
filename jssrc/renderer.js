@@ -796,11 +796,9 @@ function orderedNode(nodeId, state) {
   let overlays = [];
   let overlay = {c: "node-overlay", children: overlays};
   if(activeLayers.registers && node.registers) {
-    console.log("NODEREG", node.registers);
     let registers = {c: "registers-overlay row", children: [{t: "label", text: "Registers"}]};
     overlays.push(registers);
     for(let variable in node.registers) {
-      console.log("REGVAR", variable);
       registers.children.push({c: "register-pair row", children: [orderedNode(variable, state), {text: `: ${node.registers[variable]}`}]});
     }
   }
