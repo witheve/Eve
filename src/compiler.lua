@@ -380,7 +380,6 @@ function DependencyGraph:addMutateNode(node)
 
     end
   end
-  print(node.projection)
   for term in pairs(node.projection or nothing) do
     deps.depends:add(self:cardinal(term))
   end

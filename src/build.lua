@@ -102,7 +102,6 @@ end
 
 function free_register(n, env, e)
    if env.permanent[e] == nil and env.registers[e] then
-     print("free", n.type, env.registers[e])
      if env.freelist[env.registers[e]] then
        error(string.format("Attempt to double-free register: %s for variable %s", env.registers[e], e))
      end
@@ -128,7 +127,6 @@ function allocate_register(n, env, e)
    else env.freelist[slot] = nil end
    env.registers[e] = slot
    env.maxregs = math.max(env.maxregs, slot)
-   print("allocate", n.type, slot)
    return slot
 end
 
