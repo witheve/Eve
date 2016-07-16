@@ -201,7 +201,7 @@ function list_to_read_array(n, env, x)
    return out
 end
 
-function list_to_write_array(env, x)
+function list_to_write_array(n, env, x)
    local out = {}
    for _, v in ipairs(x) do
       out[#out+1] = write_lookup(n, env, v)
@@ -513,7 +513,7 @@ function translate_expression(n, bound, down, tracing, context)
    -- Tack variadic arg vector onto the end
    local variadic
    if args["..."] then
-     variadic = list_to_read_array(env, args["..."])
+     variadic = list_to_read_array(n, env, args["..."])
    end
 
    local groupings
