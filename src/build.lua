@@ -103,6 +103,9 @@ end
 function free_register(n, env, e)
    if env.permanent[e] == nil and env.registers[e] then
      print("free", n.type, env.registers[e])
+     if env.freelist[env.registers[e]] then
+       error(string.format("Attempt to double-free register: %s for variable %s", env.registers[e], e))
+     end
      env.freelist[env.registers[e]] = true
      env.registers[e] = nil
      while(env.freelist[env.alloc-1]) do
@@ -113,7 +116,10 @@ function free_register(n, env, e)
 end
 
 function allocate_register(n, env, e)
-   if not variable(e) or env.registers[e] then return end
+   -- if not variable(e) or env.registers[e] then  return end
+   if env.registers[e] then
+      error(string.format("Attempt to double-allocate register for: %s in register %s", e, env.registers[e]))
+   end
    local slot = env.alloc
    for index,value in ipairs(env.freelist) do
       slot = math.min(slot, index)
@@ -153,9 +159,14 @@ end
 function write_lookup(n, env, x)
    -- can't be a constant or unbound
    local r = env.registers[x]
-   free_register(n, env, x)
+   if r then
+     free_register(n, env, x)
+   else
+     r = allocate_register(n, env, x)
+     env.registers[x] = r
+     print("LEAKING", r, "for", x, "in", n)
+   end
    if not n.registers then n.registers = {} end
-   if x and not r then error("AHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH write " .. tostring(x)) end
    if x then n.registers[x.id] = "w" .. (r or "NIL") end
    return sregister(r)
 end
