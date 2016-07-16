@@ -94,7 +94,7 @@ static void websocket_input_frame(websocket w, buffer b, thunk t)
     u32 mask = 0;
     // which should always be the case for client streams
     if (*(u8 *)bref(w->reassembly, 1) & 0x80) {
-        mask = *(u32 *)bref(b, offset);
+        mask = *(u32 *)bref(w->reassembly, offset);
         offset += 4;
     }
 

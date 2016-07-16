@@ -74,7 +74,7 @@ int main(int argc, char **argv)
     buffer desc = 0;
     int port = 8080;
 
-    
+
     char * file = "";
     for (int i = 1; i < argc ; i++) {
         if (!strcmp(argv[i], "--parse") || !strcmp(argv[i], "-p")) {
@@ -107,8 +107,8 @@ int main(int argc, char **argv)
         }
         else if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) {
             printf("\nUsage: eve [OPTIONS] [arg ...]\n\n"
-            "Starts the Eve server.\n\n" 
-            "Options:\n\n" 
+            "Starts the Eve server.\n\n"
+            "Options:\n\n"
             "  -h, --help \t\t Prints what you are reading now.\n"
             "  -p, --parse \t\t Does something.\n"
             "  -a, --analyze \t Does something.\n"
@@ -165,13 +165,14 @@ int main(int argc, char **argv)
     else {
         return 0;
     }
-    
+
     http_server h = create_http_server(init, create_station(0, port));
     register(h, "/", "text/html", index);
     register(h, "/jssrc/renderer.js", "application/javascript", renderer);
     register(h, "/jssrc/microReact.js", "application/javascript", microReact);
     register(h, "/jssrc/codemirror.js", "application/javascript", codemirror);
     register(h, "/jssrc/codemirror.css", "text/css", codemirrorCss);
+    register(h, "/example/todomvc.css", "text/css", exampleTodomvcCss);
 
     // TODO: figure out a better way to manage multiple graphs
     init_json_service(h, root, enable_tracing, desc);

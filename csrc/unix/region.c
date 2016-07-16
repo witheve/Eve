@@ -37,11 +37,11 @@ static void region_free(heap h, void *x, bytes size)
 {
     region_heap r = (region_heap)h;
     h->allocated -= pad(size, h->pagesize);
-    if (size == h->pagesize) {
+    /*    if (size == h->pagesize) {
         // multipage
         *(void **)x = r->freelist;
         r->freelist = x;
-    } else {
+        } else*/ {
         munmap(x, pad(size, h->pagesize));
     }
     h->allocated -= size;

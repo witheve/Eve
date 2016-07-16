@@ -27,92 +27,8 @@ local EAV_TAG = "eav"
 
 -- Utilities
 local nothing = {}
-
-function formatQueryNode(node, indent)
-  indent = indent or 0
-  local padding = string.rep("  ", indent)
-  local result = padding .. node.type
-  if node.type == "query" then
-    result = result .. "<" .. (node.name or "unnamed") .. ">"
-    if node.unpacked then
-      result = result .. "{\n"
-      for ix, guy in std.ipairs(node.unpacked) do
-        result = result .. padding .. "  " .. ix .. ". " .. util.indentString(2, tostring(guy)) .. ",\n"
-      end
-      result = result .. padding .. "}"
-    elseif node.deps and node.deps.graph then
-      result = result .. tostring(node.deps.graph)
-    end
-  elseif node.type == "constant" then
-    result = result .. "<" .. node.constant .. ">"
-  elseif node.type == "variable" then
-    result = result .. "<" .. (node.name or "unnamed") .. ">"
-  elseif node.type == "binding" then
-    result = result .. "{" .. tostring(node.field) .. " -> "
-    if node.constant then
-      result = result .. tostring(node.constant.constant)
-    elseif node.variable then
-      result = result .. formatQueryNode(node.variable)
-    end
-    return result .. "}"
-  elseif node.type == "object" then
-    result = result .. "{"
-    for _, binding in std.ipairs(node.bindings) do
-      result = result .. formatQueryNode(binding) .. ", "
-    end
-    return result .. "}"
-  elseif node.type == "mutate" then
-    result = result .. "<" .. node.operator .. ">{"
-    for _, binding in std.ipairs(node.bindings) do
-      result = result .. formatQueryNode(binding) .. ", "
-    end
-    return result .. "}"
-  elseif node.type == "union" or node.type == "choose" or node.type == "not" then
-    result = result .. "{\n"
-    for _, query in std.ipairs(node.queries) do
-      result = result .. formatQueryNode(query, 1) .. ",\n"
-    end
-    return result .. "}"
-  elseif node.type == "expression" then
-    result = result .. " " .. node.operator .. "("
-    local multi = false
-    for _, binding in std.ipairs(node.bindings) do
-      if multi then
-        result = result .. ", "
-      end
-      result = result .. binding.field .. " = " .. formatQueryNode(binding.variable or binding.constant)
-      multi = true
-    end
-    if node.projection then
-      result = result .. " given "
-      local multi = false
-      for var in pairs(node.projection) do
-        if multi then
-          result = result .. ", "
-        end
-        result = result .. formatQueryNode(var)
-        multi = true
-      end
-    end
-    if node.groupings then
-      result = result .. " per "
-      local multi = false
-      for var in pairs(node.groupings) do
-        if multi then
-          result = result .. ", "
-        end
-        result = result .. formatQueryNode(var)
-        multi = true
-      end
-    end
-
-    result = result .. ")"
-  end
-  return result
-end
-
-local DefaultNodeMeta = {}
-DefaultNodeMeta.__tostring = formatQueryNode
+local DefaultNodeMeta = util.DefaultNodeMeta
+local formatQueryNode = util.formatQueryNode
 
 function flattenProjection(projection)
   local neue = Set:new()
@@ -131,7 +47,7 @@ function flattenProjection(projection)
 end
 
 local function prepareQueryGraph(_, node)
-  if type(node) == "table" and node.type and getmetatable(node) == nil then
+  if type(node) == "table" and node.type and not node._sanitized then
     setmetatable(node, DefaultNodeMeta)
     if node.projection then
       node.projection = flattenProjection(node.projection)
@@ -139,6 +55,7 @@ local function prepareQueryGraph(_, node)
     if node.groupings then
       node.groupings = flattenProjection(node.groupings)
     end
+    node._sanitized = true
   end
 end
 
@@ -1114,7 +1031,7 @@ function unpackObjects(dg, context)
         end
         projection:union(node.projection or nothing, true)
 
-        subproject = SubprojectNode:new({projection = projection, provides = node.deps.provides}, node, context, node.scope)
+        subproject = SubprojectNode:new({query = dg.query, projection = projection, provides = node.deps.provides}, node, context, node.scope)
         unpackList = subproject.nodes
         unpacked[#unpacked + 1] = subproject
       end
@@ -1133,7 +1050,7 @@ function unpackObjects(dg, context)
           if binding.field ~= ENTITY_FIELD then
             if subproject and binding.variable and not subproject.projection[binding.variable] then
               subproject.provides:add(entity)
-              unpacked[#unpacked + 1] = SubprojectNode:new({projection = subproject.projection + Set:new{entity, binding.variable}, nodes = {ScanNode:fromBinding(node, binding, entity, context)}}, binding, context, node.scope)
+              unpacked[#unpacked + 1] = SubprojectNode:new({query = dg.query, projection = subproject.projection + Set:new{entity, binding.variable}, nodes = {ScanNode:fromBinding(node, binding, entity, context)}}, binding, context, node.scope)
             else
               unpackList[#unpackList + 1] = ScanNode:fromBinding(node, binding, entity, context)
             end
@@ -1143,7 +1060,7 @@ function unpackObjects(dg, context)
         end
       end
     elseif node.type == "expression" and node.projection then
-      local subproject = SubprojectNode:new({kind = "aggregate", projection = node.projection, provides = node.deps.provides, nodes = {node}}, node, context)
+      local subproject = SubprojectNode:new({query = dg.query, kind = "aggregate", projection = node.projection, provides = node.deps.provides, nodes = {node}}, node, context)
       if node.operator == "count" then
         local constant = makeNode(context, "constant", node, {generated = true, constant = 1, constantType = "number"})
         node.bindings[#node.bindings + 1] = makeNode(context, "binding", node, {generated = true, field = "a", constant = constant})

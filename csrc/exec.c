@@ -32,6 +32,7 @@ static execf build_sub_tail(block bk, node n)
 
 
 typedef struct sub {
+    value id;
     vector v;
     vector inputs;
     vector outputs;
@@ -100,7 +101,6 @@ static CONTINUATION_2_4(do_sub, perf, sub, heap, perf, operator, value *);
 static void do_sub(perf p, sub s, heap h, perf pp, operator op, value *r)
 {
     start_perf(p);
-
     // dont manage deletions across fixed point
     if (s->t != s->e->t) {
         s->previous = 0;
@@ -157,6 +157,7 @@ static void do_sub(perf p, sub s, heap h, perf pp, operator op, value *r)
 static execf build_sub(block bk, node n)
 {
     sub s = allocate(bk->h, sizeof(struct sub));
+    s->id = n->id;
     s->h = bk->h;
     s->results = create_value_vector_table(s->h);
     s->moved = create_value_vector_table(s->h);
@@ -230,9 +231,9 @@ static void do_choose_tail(perf p, execf next, value flag, heap h, perf pp, oper
         if (next) {
             stop_perf(p, pp);
             apply(next, h, p, op, r);
-        } 
+        }
     }
-    stop_perf(p, pp);        
+    stop_perf(p, pp);
 }
 
 static execf build_choose_tail(block bk, node n)

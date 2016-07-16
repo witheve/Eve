@@ -1,6 +1,6 @@
 routing
  value = if [#url hash-segment: [index: 1, value]] then value
-         else "active"
+         else "all"
   maintain
     [@app filter: value]
 
@@ -49,17 +49,17 @@ draw todomvc
   none-checked = if [#todo completed: true] then false
                 else true
   maintain
-    [#link rel: "stylesheet" href: "http://localhost:8081/todomvc.css?1"]
+    [#link rel: "stylesheet" href: "http://localhost:8080/example/todomvc.css"]
     [#div class: "todoapp" @todoapp children:
       [#header children:
-        [#h1 text: "todos ({filter})"]
+        [#h1 text: "todos"]
         [#input @new-todo, class: "new-todo", autofocus: true, placeholder: "What needs to be done?"]
         [#input @toggle-all, class: "toggle-all", type: "checkbox", checked: all-checked]]
       [#div class: "main" children:
         [#ul @todo-list, class: "todo-list"]]
      [#footer children:
         [#span @todo-count, class: "todo-count", children: [#strong text: count] [#span text: " items left"]]
-        [#ul @filters children:
+        [#ul @filters, class: "filters", children:
           [#li children: [#a href: "#/all" class: [selected: is(filter = "all")] text: "all"]]
           [#li children: [#a href: "#/active" class: [selected: is(filter = "active")] text: "active"]]
           [#li children: [#a href: "#/completed" class: [selected: is(filter = "completed")] text: "completed"]]]

@@ -491,7 +491,7 @@ window.addEventListener("hashchange", function(event) {
 //---------------------------------------------------------
 // Draw node graph
 //---------------------------------------------------------
-
+let activeLayers = {ids: true, registers: true};
 let activeIds = {};
 let activeParse = {};
 let allNodeGraphs = {};
@@ -500,12 +500,20 @@ let codeEditor;
 
 function drawNode(nodeId, graph, state, seen) {
   let node = graph[nodeId];
+
   if(seen[nodeId]) {
     return {text: `seen ${node.type}`};
   } else if(node.type == "terminal" || node.type == "subtail") {
     return undefined;
   }
   seen[nodeId] = true;
+
+  let overlays = [];
+  let overlay = {c: "node-overlay", children: overlays};
+  if(activeLayers.ids) {
+    let idOverlay = {c: "id-overlay", style: "flex: 0 0 auto", text: `id: ${nodeId}`};
+    overlays.push(idOverlay);
+  }
 
   let myTime = ((node.time * 100) / state.rootTime).toFixed(1);
 
@@ -514,6 +522,7 @@ function drawNode(nodeId, graph, state, seen) {
   let childrenContainer = {c: "node-children", children};
   let me = {c: `node`, children: [
     {c: `${node.type} node-text ${active}`, text: `${node.type} ${node.scan_type || ""} (${node.count || 0} | ${myTime}%)`},
+    overlay,
     childrenContainer
 
   ]};
@@ -783,10 +792,30 @@ function orderedNode(nodeId, state) {
     return {c: "value", text: `"${nodeId}"`};
   }
   let active = currentClass(node, state);
+
+  let overlays = [];
+  let overlay = {c: "node-overlay", children: overlays};
+  if(activeLayers.registers && node.registers) {
+    console.log("NODEREG", node.registers);
+    let registers = {c: "registers-overlay row", children: [{t: "label", text: "Registers"}]};
+    overlays.push(registers);
+    for(let variable in node.registers) {
+      console.log("REGVAR", variable);
+      registers.children.push({c: "register-pair row", children: [orderedNode(variable, state), {text: `: ${node.registers[variable]}`}]});
+    }
+  }
+  if(activeLayers.ids) {
+    let idOverlay = {c: "id-overlay", text: `id: ${nodeId}`};
+    overlays.push(idOverlay);
+  }
+
   if(node.type == "object" || node.type == "mutate") {
     return {c: `ordered-node ordered-object ${active}`, children: [
-      {c: "node-type", text: node.type},
-      {c: "eav", children: [orderedNode(node.entity, state), orderedNode(node.attribute, state), orderedNode(node.value, state)]}
+      {c: "row", children: [
+        {c: "node-type", text: node.type},
+        {c: "eav", children: [orderedNode(node.entity, state), orderedNode(node.attribute, state), orderedNode(node.value, state)]},
+      ]},
+      overlay
     ]};
   } else if(node.type == "subproject") {
     let projections = [{text: "["}]
@@ -795,10 +824,11 @@ function orderedNode(nodeId, state) {
     }
     projections.push({text: "]"});
     return {c: `ordered-node subproject ${active}`, children: [
-      {c: "row", children: [
+      {c: "row sub-node", children: [
         {c: "node-type", text: node.type},
         {c: "subproject-projection", children: projections},
       ]},
+      overlay,
       {c: "subproject-children", children: node.nodes.map(function(cur) { return orderedNode(cur, state); })}
     ]};
   } else if(node.type == "expression") {
