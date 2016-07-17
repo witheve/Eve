@@ -1,5 +1,8 @@
-LIBLUAJIT = /usr/local/lib/libluajit-5.1.a
-LUAJIT_INCLUDES = /usr/local/include/luajit-2.1
+LUAJIT_INSTALL = ./lua
+LUAJIT = $(LUAJIT_INSTALL)/bin/luajit-2.1.0-beta2
+LIBLUAJIT = $(LUAJIT_INSTALL)/lib/libluajit-5.1.a
+LUAJIT_INCLUDES = $(LUAJIT_INSTALL)/include/luajit-2.1
+BUILD = $(CURDIR)
 
 PLATFORM = $(shell uname)
 
@@ -40,6 +43,12 @@ DNS = dns.o
 HTTP_H = http.h
 CONTENT = index.o renderer.o microReact.o codemirror.o codemirrorCss.o exampleTodomvcCss.o 
 
+luajit-2.0:
+	git clone http://luajit.org/git/luajit-2.0.git
+
+./lua/bin/luajit-2.1.0-beta2: luajit-2.0
+	(cd luajit-2.0 ; git checkout v2.1.0-beta2 ; make PREFIX=$(BUILD)/lua; make install PREFIX=$(BUILD)/lua)
+
 continuation_templates.h: continuations.py
 	python $^ 9 9 continuation_templates.h
 
@@ -69,8 +78,8 @@ exampleTodomvcCss.o: ../examples/todomvc.css
 %.o: %.c continuation_templates.h $(UNIX_H) $(CORE_H) $(RUNTIME_H) $(HTTP_H)
 	cc -std=gnu99 -I../csrc/unix -I../csrc/core -I../csrc -I. -I$(LUAJIT_INCLUDES) -g -c $<
 
-%.o: %.lua %.lua
-	luajit -b -g $< $@
+%.o: %.lua $(LUAJIT)
+	$(LUAJIT) -b -g $< $@
 
 # luajit has decided that they really need to use the specific part of the
 # address space where other people normally live..no idea why, but move
@@ -82,3 +91,7 @@ lueve: $(CORE) $(UNIX) $(COMPILER) $(UTF) $(LUAPOWER) $(HTTP) $(RUNTIME) $(DNS) 
 
 clean:
 	rm -f *.o lueve continuation_templates.h
+
+distclean:
+	make clean ; rm -rf lua luajit-2.0
+
