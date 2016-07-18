@@ -258,7 +258,7 @@ function presort(nodes, typeCost)
   local idSorted = idSort(nodes)
   local presorted = {}
 
-  typeCost = typeCost or {mutate = 0, expression = 100, ["not"] = 200, choose = 300, union = 400, object = 500}
+  typeCost = typeCost or {mutate = 1000, expression = 100, ["not"] = 200, choose = 300, union = 400, object = 500}
   while #idSorted > 0 do
     local cheapest
     local cheapestCost = 2^52
