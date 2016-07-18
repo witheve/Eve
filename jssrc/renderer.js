@@ -478,7 +478,6 @@ window.addEventListener("hashchange", function(event) {
   `hash changed if there isn't already a url, make one
     not([#url])
     freeze
-      [#div text: "CHANGED! ${hash}"]
       [#url hash-segment: ${segments.join(" ")}]\n\n` +
   `add the new hash-segments if there is
     url = [#url]
