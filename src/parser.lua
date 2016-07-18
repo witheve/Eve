@@ -230,7 +230,7 @@ local function lex(str)
       if #string > 0 then
         -- single slashes are only escape codes and shouldn't make it to the
         -- actual string
-        string = string:gsub("\\([^\\])", "%1")
+        string = string:gsub("\\n", "\n"):gsub("\\([^\\])", "%1")
         tokens[#tokens+1] = Token:new("STRING", string, line, offset)
       end
       -- skip the end quote

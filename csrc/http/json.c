@@ -14,9 +14,18 @@ void print_value_json(buffer out, value v)
     case estring_space:
         {
             estring si = v;
-            bprintf(out , "\"");
-            buffer_append(out, si->body, si->length);
-            bprintf(out , "\"");
+            buffer current = alloca_wrap_buffer(si->body, si->length);
+            buffer_write_byte(out , '"');
+            rune_foreach(current, rune) {
+                if(rune == '\\' || rune == '"') {
+                    bprintf(out , "\\");
+                } else if(rune == '\n') {
+                    bprintf(out , "\\n");
+                    continue;
+                }
+                buffer_write_byte(out , rune);
+            }
+            buffer_write_byte(out , '"');
         }
         break;
     default:
