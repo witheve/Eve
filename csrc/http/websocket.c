@@ -139,7 +139,7 @@ static void websocket_input_frame(websocket w, buffer b, register_read reg)
             prf("invalid ws frame %d\n", opcode);
         }
         w->reassembly->start += length;
-        if((w->reassembly->start == w->reassembly->end)) {
+        if (w->reassembly->start == w->reassembly->end) {
             buffer_clear(w->reassembly);
         }
     }
