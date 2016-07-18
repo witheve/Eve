@@ -464,7 +464,7 @@ window.addEventListener("keyup", function(event) {
   // sendEventObjs(objs);
 });
 
-window.addEventListener("hashchange", function(event) {
+function onHashChange(event) {
   let hash = window.location.hash.substr(1);
   if(hash[0] == "/") hash = hash.substr(1);
   let segments = hash.split("/").map(function(seg, ix) {
@@ -474,19 +474,23 @@ window.addEventListener("hashchange", function(event) {
   `hash changed remove any current url segments
     url = [#url hash-segment]
     freeze
-      url -= [hash-segment]\n\n` +
-  `hash changed if there isn't already a url, make one
-    not([#url])
-    freeze
-      [#div text: "CHANGED! ${hash}"]
-      [#url hash-segment: ${segments.join(" ")}]\n\n` +
-  `add the new hash-segments if there is
-    url = [#url]
-    freeze
-      url := [hash-segment: ${segments.join(" ")}]
-  `
+      url -= [hash-segment]\n\n`;
+  if(hash !== "") {
+    query +=
+    `hash changed if there isn't already a url, make one
+      not([#url])
+      freeze
+        [#url hash-segment: ${segments.join(" ")}]\n\n` +
+    `add the new hash-segments if there is
+      url = [#url]
+      freeze
+        url := [hash-segment: ${segments.join(" ")}]
+    `;
+  }
   sendEvent(query);
-});
+}
+
+window.addEventListener("hashchange", onHashChange);
 
 //---------------------------------------------------------
 // Draw node graph
@@ -997,6 +1001,7 @@ socket.onmessage = function(msg) {
 }
 socket.onopen = function() {
   console.log("Connected to eve server!");
+  onHashChange({});
 }
 socket.onclose = function() {
   console.log("Disconnected from eve server!");
