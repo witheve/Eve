@@ -276,7 +276,8 @@ static CONTINUATION_5_4(do_is, block, perf, execf, value, value, heap, perf, ope
 static void do_is (block bk, perf p, execf n, value dest, value a, heap h, perf pp, operator op, value *r)
 {
     start_perf(p);
-    r[reg(dest)] = lookup(r, a);
+    if (op == op_insert)
+        r[reg(dest)] = lookup(r, a);
     apply(n, h, p, op, r);
     stop_perf(p, pp);
 }

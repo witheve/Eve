@@ -61,7 +61,7 @@ void websocket_output_frame(websocket w, buffer b, thunk t)
 static CONTINUATION_1_2(websocket_input_frame, websocket, buffer, register_read);
 static void websocket_input_frame(websocket w, buffer b, register_read reg)
 {
-    int offset = 2;
+    int rlen;
 
     if (!b) {
         prf ("websocket close\n");
@@ -69,57 +69,66 @@ static void websocket_input_frame(websocket w, buffer b, register_read reg)
         return;
     }
 
-    // there is a better approach here, chained buffers, or at least assuming it will fit
+    // there is a better approach here, chained buffers, incremental delivery, etc
     buffer_append(w->reassembly, bref(b, 0), buffer_length(b));
-    int rlen = buffer_length(w->reassembly);
-    if (rlen < offset) return;
-
-    u64 length = *(u8 *)bref(w->reassembly, 1) & 0x7f;
-
-    if (length == 126) {
-        if (rlen < 4) return;
-        length = htons(*(u16 *)bref(w->reassembly, 2));
-        offset += 2;
-    } else {
-        if (length == 127) {
-            // ok, we are throwing away the top byte, who the hell thought
-            // that 1TB wasn't enough per object
-            if (rlen< 10) return;
-            length = htonll(*(u64 *)bref(w->reassembly, 2));
-            offset += 8;
-        }
-    }
-    
-    int opcode = *(u8 *)bref(w->reassembly, 0) & 0xf;
-
-    if (opcode == ws_close) { 
-        apply(w->client, 0, ignore);
-        return;
-    }
-    
-    u32 mask = 0;
-    // which should always be the case for client streams
-    if (*(u8 *)bref(w->reassembly, 1) & 0x80) {
-        mask = *(u32 *)bref(w->reassembly, offset);
-        offset += 4;
-    }
-
-    if ((rlen - offset) >= length) {
-        if (mask) {
-            for (int i=0;i<((length +3)/4); i++) {
-                // xxx - fallin off the end 
-                *(u32 *)bref(w->reassembly, offset + i * 4) ^= mask;
+    while ((rlen = buffer_length(w->reassembly)) > 0) {
+        int offset = 2;
+        if (rlen < offset) goto end;
+        u64 length = *(u8 *)bref(w->reassembly, 1) & 0x7f;
+        
+        if (length == 126) {
+            if (rlen < 4) goto end;
+            length = htons(*(u16 *)bref(w->reassembly, 2));
+            offset += 2;
+        } else {
+            if (length == 127) {
+                // ok, we are throwing away the top byte, who the hell thought
+                // that 1TB wasn't enough per object
+                if (rlen< 10) goto end;
+                length = htonll(*(u64 *)bref(w->reassembly, 2));
+                offset += 8;
             }
         }
-        // xxx - only deliver this message
-        // compress reassembly buffer
+        
+        int opcode = *(u8 *)bref(w->reassembly, 0) & 0xf;
+        if (opcode == ws_close) { 
+            apply(w->client, 0, ignore);
+            return;
+        }
+        
+        u32 mask = 0;
+        // which should always be the case for client streams
+        if (*(u8 *)bref(w->reassembly, 1) & 0x80) {
+            mask = *(u32 *)bref(w->reassembly, offset);
+            offset += 4;
+        }
+
+        if ((rlen - offset) < length) goto end;
 
         w->reassembly->start += offset;
+
+        if (mask) {
+            for (int i=0; i<length; i++) {
+                // xxx -figure out how to apply this a word at a time
+                *(u8 *)bref(w->reassembly, i) ^= (mask>>((i&3)*8)) & 0xff;
+            }
+        }
+
         switch(opcode) {
+        case ws_continuation:
+            prf("wth continuation\n");
+            break;
         case ws_text:
         case ws_binary:
-            apply(w->client, w->reassembly, ignore);
-            break;
+            {
+                buffer out = w->reassembly;
+                if (buffer_length(w->reassembly) > length) {
+                    // leak?
+                    out = wrap_buffer(w->h, bref(w->reassembly, 0), length);
+                }
+                apply(w->client, out, ignore);
+                break;
+            }
         case ws_ping:
             websocket_send(w, ws_pong, w->reassembly, ignore);
             break;
@@ -130,11 +139,12 @@ static void websocket_input_frame(websocket w, buffer b, register_read reg)
             prf("invalid ws frame %d\n", opcode);
         }
         w->reassembly->start += length;
-
-        if((w->reassembly->start = w->reassembly->end)) {
+        if((w->reassembly->start == w->reassembly->end)) {
             buffer_clear(w->reassembly);
         }
     }
+ end:
+    // i think we're responsible for freeing this buffer
     apply(reg, w->self);
 }
 
