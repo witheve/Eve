@@ -351,6 +351,14 @@ local function formatNode(node, depth)
       -- do nothing
     elseif k == "op" and type(v) == "table" then
       string = string .. childIndent .. color.dim("op: ") .. v.value .. "\n"
+    elseif k == "projection" then
+      string = string .. childIndent .. color.dim("projection: ")
+      for _, proj in pairs(v) do
+        for var in pairs(proj) do
+          string = string .. var.name .. ", "
+        end
+      end
+       string = string .. "\n"
     elseif k == "variable" then
       string = string .. childIndent .. color.dim("variable: ") .. v.name .. "\n"
     elseif k == "variableMap" then
@@ -407,6 +415,14 @@ local function formatQueryGraph(root, seen, depth)
   for k, v in pairs(root) do
     if k == "type" or k == "context" or k == "ast" then
       -- ignore
+    elseif k == "projection" then
+      string = string .. childIndent .. color.dim("projection: ")
+      for _, proj in pairs(v) do
+        for var in pairs(proj) do
+          string = string .. var.name .. ", "
+        end
+      end
+      string = string .. "\n"
     elseif type(v) == "table" then
       if type(k) == "string" and k ~= "children" then
         string = string .. indent .. color.dim(" |  ") .. color.dim(k) .. ": "
@@ -866,12 +882,13 @@ local function resolveMutate(context, node)
     -- one global one
     if left.attributeLeft then
       context.projections:push(Set:new({left.attributeLeft}))
+    else
+      -- either way we need to mutate per each thing on the left
+      context.projections:push(Set:new({left}))
     end
     right = resolveExpression(rightNode, context)
     -- cleanup our projection
-    if left.attributeLeft then
-      context.projections:pop()
-    end
+    context.projections:pop()
   else
     local prevMutating = context.mutating;
     context.mutating = nil
@@ -1085,7 +1102,7 @@ generateObjectNode = function(root, context)
     object.operator = context.mutateOperator
     object.scope = context.mutateScope
     -- store all our parents' projections to reconcile later
-    object.projection = {dependencies}
+    object.projection = {}
     for _, projection in ipairs(context.projections) do
       object.projection[#object.projection + 1] = projection
     end
