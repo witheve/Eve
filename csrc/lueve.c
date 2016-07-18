@@ -150,8 +150,9 @@ int main(int argc, char **argv)
             c->f(interp, argv[i+1], root);
             if (c->argument) i++;
         } else {
-            prf("\nUnknown flag %s, aborting\n", argv[i]);
-            exit(-1);
+            do_exec(interp, argv[i], root);
+            // prf("\nUnknown flag %s, aborting\n", argv[i]);
+            // exit(-1);
         }
     }
     
