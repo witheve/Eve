@@ -67,7 +67,10 @@ typedef struct command {
     void (*f)(interpreter, char *, bag);
 } *command;
 
-static struct command *commands;
+static void do_port(interpreter c, char *x, bag b)
+{
+    port = atoi(x);
+}
 
 static void do_tracing(interpreter c, char *x, bag b)
 {
@@ -79,7 +82,7 @@ static void do_parse(interpreter c, char *x, bag b)
     lua_run_module_func(c, read_file_or_exit(init, x), "parser", "printParse");
 }
 
-static void do_analyze_help(interpreter c, char *x, bag b)
+static void do_analyze(interpreter c, char *x, bag b)
 {
     lua_run_module_func(c, read_file_or_exit(init, x), "compiler", "analyzeQuiet");
 }
@@ -100,6 +103,8 @@ static void do_exec(interpreter c, char *x, bag b)
     }
 }
 
+static command commands;
+
 static void print_help(interpreter c, char *x, bag b)
 {
     for (command c = commands; *c->single; c++) {
@@ -107,17 +112,16 @@ static void print_help(interpreter c, char *x, bag b)
     }
 }
 
-static struct command command_body [] = {
-    {"p", "parse", "parse and print structure", true, 0},
-    {"a", "analyze", "parse order print structure", true, 0},
-    {"r", "run", "execute eve", true, 0},
-    {"s", "serve", "serve urls from the given root path", true, 0},
-    {"e", "exec", "use eve as default path", true, 0},
-    {"p", "port", "serve http on passed port", true, 0},
+static struct command command_body[] = {
+    {"p", "parse", "parse and print structure", true, do_parse},
+    {"a", "analyze", "parse order print structure", true, do_analyze},
+    //    {"r", "run", "execute eve", true, do_run_test},
+    //    {"s", "serve", "serve urls from the given root path", true, 0},
+    {"e", "exec", "use eve as default path", true, do_exec},
+    {"P", "port", "serve http on passed port", true, do_port},
     {"h", "help", "print help", false, print_help},
     {"t", "tracing", "enable per-statement tracing", false, do_tracing},
-    {"R", "resolve", "implication resolver", false, 0},
-    {"", "", "", false},
+    //    {"R", "resolve", "implication resolver", false, 0},
 };
 
 int main(int argc, char **argv)
@@ -131,24 +135,22 @@ int main(int argc, char **argv)
     
     char * file = "";
     for (int i = 1; i < argc ; i++) {
-        command c;
-        for (c = commands; *c->single; c++) {
+        command c = 0;
+        for (int j = 0; !c &&(j < sizeof(command_body)/sizeof(struct command)); j++) {
+            command d = &commands[j];
             if (argv[i][0] == '-') {
-                if (argv[i][2] == '-') {
-                    if (!strcmp(argv[i]+2, c->extended)) {
-                        break;
-                    } else {
-                        if (!strcmp(argv[i]+1, c->single))
-                            break;
-                    }
+                if (argv[i][1] == '-') {
+                    if (!strcmp(argv[i]+2, d->extended)) c = d;
+                } else {
+                    if (!strcmp(argv[i]+1, d->single)) c = d;
                 }
             }
         }
-        if (*c->single) {
+        if (c) {
             c->f(interp, argv[i+1], root);
             if (c->argument) i++;
         } else {
-            prf("\nUnknown flag %s, aborting", argv[i]);
+            prf("\nUnknown flag %s, aborting\n", argv[i]);
             exit(-1);
         }
     }
