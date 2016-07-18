@@ -5,6 +5,7 @@ csrc/http/* linguist-vendored
 csrc/luapower/* linguist-vendored
 csrc/luautf8/* linguist-vendored
 csrc/unix/* linguist-vendored
+csrc/dns/* linguist-vendored
 examples/* linguist-vendored
 jssrc/codemirror.js linguist-vendored
 index.html linguist-vendored
