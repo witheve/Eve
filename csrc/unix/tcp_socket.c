@@ -148,7 +148,7 @@ static CONTINUATION_1_0(tcp_read_nonblocking_desc, tcpsock);
 static void tcp_read_nonblocking_desc(tcpsock t)
 {
     buffer b;
-    if ((b = system_read(t->h, t->d, 1500))) {
+    if ((b = system_read(t->h, t->d, 1500)) > 0) {
         apply(t->client_reader, b, t->r);
     } else {
         // consider having a seperate termination closure

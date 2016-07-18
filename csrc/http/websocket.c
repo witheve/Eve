@@ -64,6 +64,7 @@ static void websocket_input_frame(websocket w, buffer b, register_read reg)
     int offset = 2;
 
     if (!b) {
+        prf ("websocket close\n");
         apply(w->client, 0, ignore);
         return;
     }
@@ -90,6 +91,11 @@ static void websocket_input_frame(websocket w, buffer b, register_read reg)
     }
     
     int opcode = *(u8 *)bref(w->reassembly, 0) & 0xf;
+
+    if (opcode == ws_close) { 
+        apply(w->client, 0, ignore);
+        return;
+    }
     
     u32 mask = 0;
     // which should always be the case for client streams

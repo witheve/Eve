@@ -50,8 +50,8 @@ static void dispatch_request(session s, bag b, uuid i, buffer body, register_rea
     buffer *c;
     
     if (b  == 0){
-        prf ("http server connection fail\n");
-        // xxx - shut it all down
+        prf ("http server shutdown\n");
+        destroy(s->h);
         return;
     }
 
@@ -68,7 +68,7 @@ static void dispatch_request(session s, bag b, uuid i, buffer body, register_rea
             // reset connection state
             send_http_response(s->h, s->write, c[0], k);
         } else {
-            prf("not found\n");
+            prf("url not found %v\n", url);
             apply(s->write, sstring("HTTP/1.1 404 Not found\r\n"), ignore);
         }
     }

@@ -161,7 +161,7 @@ int main(int argc, char **argv)
     register(h, "/jssrc/microReact.js", "application/javascript", microReact);
     register(h, "/jssrc/codemirror.js", "application/javascript", codemirror);
     register(h, "/jssrc/codemirror.css", "text/css", codemirrorCss);
-    register(h, "/example/todomvc.css", "text/css", exampleTodomvcCss);
+    register(h, "/examples/todomvc.css", "text/css", exampleTodomvcCss);
 
     // TODO: figure out a better way to manage multiple graphs
     init_json_service(h, root, enable_tracing, loadedParse);

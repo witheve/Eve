@@ -183,16 +183,17 @@ extern heap uuid_heap;
 CONTINUATION_1_3(handle_json_query, json_session, bag, uuid, thunk);
 void handle_json_query(json_session j, bag in, uuid root, thunk c)
 {
-    estring t = lookupv(in, root, sym(type));
-    estring q = lookupv(in, root, sym(query));
-    buffer desc;
-    string x = q?alloca_wrap_buffer(q->body, q->length):0;
-
     if (in == 0) {
         close_evaluation(j->s);
         destroy(j->h);
         return;
     }
+    
+    estring t = lookupv(in, root, sym(type));
+    estring q = lookupv(in, root, sym(query));
+    buffer desc;
+    string x = q?alloca_wrap_buffer(q->body, q->length):0;
+
     if (t == sym(query)) {
         inject_event(j->s, x, j->tracing);
     }
