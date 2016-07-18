@@ -5,9 +5,11 @@ routing
     [@app filter: value]
 
 handle insert
-  [#keydown element: [@new-todo value] key: "enter"]
+  element = [@new-todo value]
+  [#keydown element: element, key: "enter"]
   freeze
     [#todo body: value, editing: false, completed: false]
+    element.value := ""
 
 handle edit
   (todo, body, editing, completed) =

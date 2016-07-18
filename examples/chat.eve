@@ -8,7 +8,7 @@ build the chat pane
   maintain
     [#div class: "chat-pane" children:
       [#div #chat-messages class: "chat-messages" channel]
-      [#input #channel-input channel]]
+      [#input #channel-input autofocus: true channel]]
 
 draw messages
   parent = [#chat-messages channel]
@@ -24,7 +24,7 @@ handle chat keydowns
   element = [#channel-input channel value]
   [#user name]
   [#time hours minutes seconds]
-  //freeze
-  //  element.value := ""
+  freeze
+    element.value := ""
   freeze all
     [#message event name, time: "{hours}:{minutes}", message: value, channel]
