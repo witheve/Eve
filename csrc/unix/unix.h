@@ -1,8 +1,13 @@
-typedef u64 offset;
+
+typedef void *station;
 
 void initialize_timers(heap);
 typedef closure(buffer_handler, buffer, thunk);
-typedef closure(buffer_handler_handler, buffer_handler);
+
+// xxx - recursive type declaration...maybe cheat and use compatible types
+typedef closure(register_read, void (**)(void *,buffer, void (**)()));
+typedef closure(reader, buffer, register_read);
+
 void init_unix();
 
 string tree_root_path();
@@ -46,7 +51,10 @@ heap init_fixed_page_region(heap meta,
                             bytes pagesize);
 ticks now();
 
-typedef closure(new_client, buffer_handler, buffer_handler_handler, station);
+typedef closure(new_client, buffer_handler, station, register_read);
+typedef closure(connected, buffer_handler, register_read);
+
+void tcp_create_client (heap, station, connected); 
 
 void tcp_create_server(heap h,
                        table addr,
@@ -58,3 +66,12 @@ void select_init();
 void init_processes();
 
 void clocktime(ticks t, unsigned int *hours, unsigned int *minutes, unsigned int *seconds);
+
+typedef closure(udp_receiver, station, buffer);
+typedef struct udp *udp;
+udp create_udp(heap h, station local, udp_receiver);
+void udp_write(udp, station, buffer); 
+
+void prf(char *, ...);
+
+extern station ip_wildcard_service;

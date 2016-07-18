@@ -1,5 +1,4 @@
 #include <runtime.h>
-#include <unix/unix.h>
 
 #include <http/http.h>
 // rfc 2616
@@ -10,33 +9,10 @@ struct http_server {
     table services;
 };
     
-static char separators[] = {' ',
-                            ' ',
-                            '\n',
-                            ':',
-                            ' ',
-                            '\r',
-                            '\n'};
-
-typedef enum {
-    method =0,
-    url =1,
-    version =2,
-    name,
-    skip,
-    property,
-    skip2,
-    total_states
-} header_state;
-    
 typedef struct session {
-    http_server parent;
     heap h;
+    http_server parent;
     buffer_handler write;
-    buffer_handler child;
-    string fields[total_states];
-    header_state s;
-    table headers;
 } *session; 
 
 thunk ignore;
@@ -57,26 +33,34 @@ void send_http_response(heap h,
     apply(write, b, ignore);
 }
 
-static void reset_session(session s)
+
+
+// put a letover buffer fragment in sequence before a stream
+static CONTINUATION_2_1(regbounce, register_read, buffer, reader)
+static void regbounce(register_read reg, buffer b, reader r)
 {
-    for (int i = 0; i<total_states ; i++) {
-        buffer_clear(s->fields[i]);
-    }
-    // xxx - reuse header table or some such...and* we should really
-    // make a table specifically using e-things
-    
-    s->headers = allocate_table(s->h, key_from_pointer, compare_pointer);
-    s->s = method;
+    apply(r, b, reg);
 }
 
-// in eav
-static void dispatch_url(session s, buffer url, table headers)
+
+
+static CONTINUATION_1_4(dispatch_request, session, bag, uuid, buffer, register_read);
+static void dispatch_request(session s, bag b, uuid i, buffer body, register_read reg)
 {
     buffer *c;
+    
+    if (b  == 0){
+        prf ("http server shutdown\n");
+        destroy(s->h);
+        return;
+    }
 
+    estring url = lookupv(b, i, sym(url));
     if ((c = table_find(s->parent->services, url))) {
-        // stash the method and the url in the headers - actually turn this into a bag
-        apply((http_service)c, s->write, s->headers, &s->child);
+        register_read  z = reg;
+        if (buffer_length(body)) z = cont(s->h, regbounce, reg, body);
+        apply((http_service)c, s->write, b, i, z); 
+        return;
     } else {
         if ((c = table_find(s->parent->content, url))) {
             buffer k;
@@ -84,69 +68,27 @@ static void dispatch_url(session s, buffer url, table headers)
             // reset connection state
             send_http_response(s->h, s->write, c[0], k);
         } else {
+            prf("url not found %v\n", url);
             apply(s->write, sstring("HTTP/1.1 404 Not found\r\n"), ignore);
         }
     }
+    apply(request_header_parser(s->h, cont(s->h, dispatch_request, s)), body, reg);
 }
 
-static CONTINUATION_1_2(session_buffer, session, buffer, thunk);
-static void session_buffer(session s,
-                           buffer b,
-                           thunk rereg)
-{
-    if (!b) {
-        prf("connection closed\n");
-        return;
-    }
 
-    if ((s->s == method) && s->child) {
-        apply(s->child, b, rereg);
-    } else {
-        string_foreach(b, c) {
-            if (c == separators[s->s]) {
-                if (++s->s == total_states)  {
-                    table_set(s->headers,
-                              intern_buffer(s->fields[name]),
-                              intern_buffer(s->fields[property]));
-                    // we're interning these because they should be visible in
-                    // eve-land, but is that really what we want?
-                    buffer_clear(s->fields[name]);
-                    buffer_clear(s->fields[property]);
-                    s->s = name;
-                }
-            } else {
-                if ((s->s == name) && (c == '\n')) {
-                    if (!s->child) { // sadness
-                        dispatch_url(s, s->fields[url], s->headers);
-                    }
-                    reset_session(s);
-                } else {
-                    buffer_write_byte(s->fields[s->s], c);
-                }
-            }
-        }
-        apply(rereg);
-    }
-    deallocate_buffer(b);
-}
-
-CONTINUATION_1_3(new_connection, http_server, buffer_handler, buffer_handler_handler, station);
+CONTINUATION_1_3(new_connection, http_server, buffer_handler, station, register_read);
 void new_connection(http_server s,
                     buffer_handler write,
-                    buffer_handler_handler read,
-                    station peer)
+                    station peer,
+                    register_read reg)
 {
     heap h = allocate_rolling(pages, sstring("connection"));
     session hs = allocate(h, sizeof(struct session));
-    apply(read, cont(h, session_buffer, hs));
-    hs->child = 0;
     hs->write = write;
     hs->parent = s;
     hs->h = h;
-    for (int i = 0; i < total_states ; i++ ){
-        hs->fields[i] = allocate_buffer(h, 20); 
-    }
-    reset_session(hs);
+    // this needs to be a parse header wired up to a body handler
+    apply(reg, request_header_parser(h, cont(h, dispatch_request, hs)));
 }
 
 static CONTINUATION_0_0(ignoro);
@@ -159,22 +101,22 @@ void register_static_content(http_server h, char *url, char *content_type, buffe
     x[0] = string_from_cstring(h->h,content_type);
     x[1] = b;
     x[2] = (buffer)backing;
-    table_set(h->content, string_from_cstring(h->h, url), x);
+    table_set(h->content, intern_cstring(url), x);
 }
 
 void http_register_service(http_server h, http_service r, string url)
 {
-    table_set(h->services, url, r);
+    table_set(h->services, intern_buffer(url), r);
 }
 
 
-http_server create_http_server(heap h, station p)
+http_server create_http_server(station p)
 {
     if (!ignore) ignore = cont(init, ignoro);
-    //    heap q = allocate_leaky_heap(h);
+    heap h = allocate_rolling(pages, sstring("server"));
     http_server s = allocate(h, sizeof(struct http_server));
-    s->content = allocate_table(h, string_hash, string_equal);
-    s->services = allocate_table(h, string_hash, string_equal);
+    s->content = create_value_table(h);
+    s->services = create_value_table(h);
     s->h = allocate_rolling(pages, sstring("server"));
     tcp_create_server(h,
                       p,

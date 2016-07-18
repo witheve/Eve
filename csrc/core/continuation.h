@@ -1,6 +1,5 @@
 
 
-// this sucks
 #define closure(__x, ...) void (**__x)(void *, ## __VA_ARGS__)
 #define outline_closure(...) void (**)(void *, ## __VA_ARGS__)
 

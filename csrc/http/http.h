@@ -1,5 +1,5 @@
 typedef struct http_server *http_server;
-http_server create_http_server(heap h, station p);
+http_server create_http_server(station p);
 
 void send_http_response(heap h,
                         buffer_handler write,
@@ -30,18 +30,24 @@ void register_static_content(http_server h, char *url, char *content_type, buffe
     buffer_append(__b, "\r\n", 2);
 
 // maybe deconstruct the headers across the interface instead of the raw business
-typedef closure(http_handler, table headers, station, buffer_handler);
+typedef closure(http_handler, bag, uuid, station, buffer_handler);
 
 buffer_handler websocket_send_upgrade(heap h,
-                                      table headers,
+                                      bag b, 
+                                      uuid n,
                                       buffer_handler down,
                                       buffer_handler up,
-                                      buffer_handler *from_above);
+                                      register_read reg);
 
 // should be asynch...but you know
-typedef  closure(http_service, buffer_handler, table, buffer_handler *);
+typedef closure(http_service, buffer_handler, bag, uuid, register_read);
 void http_register_service(http_server, http_service, string);
 
 typedef closure(json_handler, bag, uuid, thunk);
 buffer_handler parse_json(heap h, uuid pu, json_handler j);
 void print_value_json(buffer out, value v);
+
+typedef closure(header_handler, bag, uuid, buffer, register_read);
+
+reader response_header_parser(heap h, header_handler result_handler);
+reader request_header_parser(heap h, header_handler result_handler);

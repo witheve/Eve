@@ -185,12 +185,24 @@ static void fixedpoint(evaluation ev)
         }
     }
 
-    if (changed_persistent)
-         table_foreach(ev->persisted, _, b) 
+    if (changed_persistent) {
+        table_foreach(ev->persisted, _, b)  {
              table_foreach(((bag)b)->listeners, t, _)
-               if (t != ev->run)
-                   apply((thunk)t);
+                 if (t != ev->run)
+                     apply((thunk)t);
+        }
+    }
 
+    // allow the deltas to also see the updated base by applying
+    // them after
+    multibag_foreach(ev->t_solution, u, b) {
+        bag bd;
+        if ((bd = table_find(ev->persisted, u))) {
+            table_foreach(bd->delta_listeners, t, _)
+                apply((bag_handler)t, b);
+        }
+    }
+    
     // this is a bit strange, we really only care about the
     // non-persisted final state here
     apply(ev->complete, ev->f_solution, ev->counters);
@@ -226,7 +238,7 @@ void inject_event(evaluation ev, buffer b, boolean tracing)
     vector_foreach(n, i) {
         block b = build(ev, i);
         run_block(ev, b);
-        apply(b->head, ev->working, 0, op_close, 0);
+        block_close(b);
     }
     bag_fork(ev, &ev->ev_solution);
     fixedpoint(ev);
@@ -247,7 +259,7 @@ void close_evaluation(evaluation ev)
         deregister_listener(b, ev->run);
 
     vector_foreach(ev->blocks, b)
-        apply(((block)b)->head, ev->working, 0, op_close, 0);
+        block_close(b);
     
     destroy(ev->h);
 }

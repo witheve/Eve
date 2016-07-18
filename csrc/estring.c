@@ -1,5 +1,4 @@
 #include <runtime.h>
-#include <unix/unix.h>
 
 static u64 estring_length(void *x) {
     return 12;

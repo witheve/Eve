@@ -1,7 +1,5 @@
 #include <runtime.h>
-#include <unistd.h>
 #include <exec.h>
-#include <unix.h>
 
 static CONTINUATION_3_4(do_sub_tail, perf, value, vector, heap, perf, operator, value *);
 static void do_sub_tail(perf p,
@@ -47,6 +45,7 @@ typedef struct sub {
     evaluation e;
     ticks t;
     boolean id_collapse;
+    heap resh, prevh;
 } *sub;
 
 
@@ -54,7 +53,7 @@ static void delete_missing(heap h, perf p, sub s, value *r)
 {
     if (s->previous) {
         table_foreach(s->previous, k, v) {
-            if (!table_find(s->moved, k)) {
+            if ((!s->moved) || (!table_find(s->moved, k))) {
                 table_foreach((table)v, n, _) {
                     copyout(r, s->outputs, n);
                     apply(s->next, h, p, op_remove, r);
@@ -69,10 +68,12 @@ static CONTINUATION_1_1(end_o_sub, sub, boolean);
 static void end_o_sub(sub s, boolean finished)
 {
     if (finished) {
+        if (s->previous) destroy(s->prevh);
         s->previous = s->results;
+        s->prevh = s->resh;
     }
-    s->results = create_value_vector_table(s->h);
-    s->moved = create_value_vector_table(s->h);
+    s->results = 0;
+    s->moved = 0;
 }
 
 
@@ -103,13 +104,16 @@ static void do_sub(perf p, sub s, heap h, perf pp, operator op, value *r)
     start_perf(p);
     // dont manage deletions across fixed point
     if (s->t != s->e->t) {
+        if (s->previous) destroy(s->prevh);
         s->previous = 0;
         s->t = s->e->t;
-        s->results = create_value_vector_table(s->h);
+        s->results = 0;
     }
 
     if (op == op_close) {
-        destroy(s->h);
+        apply(s->next, h, p, op, r);
+        if (s->results) destroy(s->resh);
+        if (s->previous) destroy(s->prevh);
         stop_perf(p, pp);
         return;
     }
@@ -125,9 +129,16 @@ static void do_sub(perf p, sub s, heap h, perf pp, operator op, value *r)
     extract(s->v, s->inputs, r);
     vector key;
 
+    if (!s->results) {
+        s->resh = allocate_rolling(pages, sstring("sub-results"));
+        s->results = create_value_vector_table(s->resh);
+            
+    }
+    
     if (!(res = table_find(s->results, s->v))){
         // table_find_key only exists because we want to reuse the key allocation
         if (s->previous && (res = table_find_key(s->previous, s->v, (void **)&key))) {
+            if (!s->moved) s->moved = create_value_vector_table(s->resh);
             table_set(s->moved, key, etrue);
         } else {
             res = create_value_vector_table(s->h);
@@ -159,8 +170,8 @@ static execf build_sub(block bk, node n)
     sub s = allocate(bk->h, sizeof(struct sub));
     s->id = n->id;
     s->h = bk->h;
-    s->results = create_value_vector_table(s->h);
-    s->moved = create_value_vector_table(s->h);
+    s->results = 0;
+    s->moved = 0;
     s->ids_cache = create_value_vector_table(s->h);
     s->inputs = vector_get(n->arguments, 0);
     s->v = allocate_vector(s->h, vector_length(s->inputs));
@@ -290,7 +301,7 @@ static void do_not(perf p, execf next, execf leg, value flag, heap h, perf pp, o
 {
     start_perf(p);
     // should also flush down the leg
-    if (op == op_flush) {
+    if ((op == op_flush)  || (op == op_close)){
         apply(next, h, p, op, r);
         stop_perf(p, pp);
         return;
@@ -342,7 +353,7 @@ static execf build_move(block bk, node n)
 static CONTINUATION_3_4(do_merge, execf, int, u32 *, heap, perf, operator, value *);
 static void do_merge(execf n, int count, u32 *total, heap h, perf pp, operator op, value *r)
 {
-    if (op == op_flush) {
+    if ((op == op_flush) || (op == op_close)) {
         *total = *total +1;
         if (*total == count) {
             *total = 0;
@@ -364,8 +375,6 @@ static CONTINUATION_1_4(do_terminal, block, heap, perf, operator, value *);
 static void do_terminal(block bk, heap h, perf pp, operator op, value *r)
 {
     if (op == op_insert) apply(bk->ev->terminal);
-
-    if (op == op_close) destroy(bk->h);
 }
 
 static execf build_terminal(block bk, node n)
@@ -445,7 +454,7 @@ static void do_trace(execf n, vector terms, heap h, perf pp, operator op, value 
     for (int i=0; i<vector_length(terms); i+=2) {
       prf(" %v %v", lookup(r, vector_get(terms, i)), lookup(r, vector_get(terms, i+1)));
     }
-    write(1, "\n", 1);
+    prf("\n");
     apply(n, h, pp, op, r);
 }
 
@@ -525,6 +534,12 @@ static void force_node(block bk, node n)
     }
 }
 
+void block_close(block bk)
+{
+    apply(bk->head, 0, 0, op_close, 0);
+    destroy(bk->h);
+}
+
 block build(evaluation ev, compiled c)
 {
     heap h = allocate_rolling(pages, sstring("build"));
@@ -539,4 +554,5 @@ block build(evaluation ev, compiled c)
     force_node(bk, c->head);
     bk->head = *(execf *)table_find(bk->nmap, c->head);
     return bk;
+
 }

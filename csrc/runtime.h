@@ -1,6 +1,7 @@
 typedef void *value;
 
 #include <core/core.h>
+#include <unix/unix.h>
 #include <types.h>
 
 typedef enum {
@@ -54,8 +55,6 @@ typedef closure(insertron, value, value, value, value, multiplicity);
 string bag_dump(heap h, bag b);
 
 void print_value(buffer, value);
-
-void prf(char *, ...);
 
 typedef closure(listener, value, value, value, multiplicity);
 typedef closure(scan, int, listener, value, value, value);
@@ -150,5 +149,6 @@ vector compile_eve(heap h, buffer b, boolean tracing, buffer *desc);
 evaluation build_evaluation(table scopes, table persisted, evaluation_result e);
 void run_solver(evaluation s);
 void inject_event(evaluation, buffer b, boolean);
+void block_close(block);
 
 #include <edb.h>

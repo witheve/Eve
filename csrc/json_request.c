@@ -1,7 +1,5 @@
 #include <runtime.h>
-#include <unix/unix.h>
 #include <http/http.h>
-#include <unistd.h>
 #include <luanne.h>
 
 typedef struct json_session {
@@ -185,16 +183,17 @@ extern heap uuid_heap;
 CONTINUATION_1_3(handle_json_query, json_session, bag, uuid, thunk);
 void handle_json_query(json_session j, bag in, uuid root, thunk c)
 {
-    estring t = lookupv(in, root, sym(type));
-    estring q = lookupv(in, root, sym(query));
-    buffer desc;
-    string x = q?alloca_wrap_buffer(q->body, q->length):0;
-
     if (in == 0) {
         close_evaluation(j->s);
         destroy(j->h);
         return;
     }
+    
+    estring t = lookupv(in, root, sym(type));
+    estring q = lookupv(in, root, sym(query));
+    buffer desc;
+    string x = q?alloca_wrap_buffer(q->body, q->length):0;
+
     if (t == sym(query)) {
         inject_event(j->s, x, j->tracing);
     }
@@ -213,10 +212,11 @@ void handle_json_query(json_session j, bag in, uuid root, thunk c)
 }
 
 
-CONTINUATION_3_3(new_json_session,
-                 bag, boolean, buffer,
-                 buffer_handler, table, buffer_handler *)
-void new_json_session(bag root, boolean tracing, buffer graph, buffer_handler write, table headers, buffer_handler *handler)
+CONTINUATION_3_4(new_json_session,
+                 bag, boolean, buffer, 
+                 buffer_handler, bag, uuid, register_read)
+void new_json_session(bag root, boolean tracing, buffer graph, 
+                      buffer_handler write, bag b, uuid u, register_read reg)
 {
     heap h = allocate_rolling(pages, sstring("session"));
     uuid su = generate_uuid();
@@ -224,27 +224,23 @@ void new_json_session(bag root, boolean tracing, buffer graph, buffer_handler wr
     j->h = h;
     j->root = root;
     j->tracing = tracing;
-
     j->session = create_bag(h, su);
     j->current_delta = create_value_vector_table(allocate_rolling(pages, sstring("trash")));
     j->event_uuid = generate_uuid();
     j->graph = graph;
-
     j->persisted = create_value_table(h);
     uuid ru = edb_uuid(root);
     table_set(j->persisted, ru, j->root);
     table_set(j->persisted, su, j->session);
-
     j->scopes = create_value_table(j->h);
     table_set(j->scopes, intern_cstring("session"), su);
     table_set(j->scopes, intern_cstring("all"), ru);
     table_set(j->scopes, intern_cstring("event"), j->event_uuid);
     j->eh = allocate_rolling(pages, sstring("eval"));
     j->s = build_evaluation(j->scopes, j->persisted, cont(j->h, send_response, j));
-
-    *handler = websocket_send_upgrade(j->eh, headers, write,
-                                      parse_json(j->eh, j->session, cont(h, handle_json_query, j)),
-                                      &j->write);
+    j->write = websocket_send_upgrade(j->eh, b, u, write,
+                                      parse_json(j->eh, j->session, cont(h, handle_json_query, j)), 
+                                      reg);
 
     // send the graphs
     heap graph_heap = allocate_rolling(pages, sstring("initial graphs"));
