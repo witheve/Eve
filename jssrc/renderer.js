@@ -405,8 +405,12 @@ window.addEventListener("dblclick", function(event) {
 window.addEventListener("input", function(event) {
   let {target} = event;
   if(target.entity) {
-    let objs = [{tags: ["input"], element: target.entity, value: target.value}];
-    // sendEventObjs(objs);
+    let query =
+    `input value updated
+      input = ${target.entity}
+      freeze
+        input.value := "${target.value.replace("\"", "\\\"")}"`;
+    sendEvent(query);
   }
 });
 
@@ -422,9 +426,6 @@ window.addEventListener("blur", function(event) {
   let {target} = event;
   if(target.entity) {
     let objs = [{tags: ["blur"], element: target.entity}];
-    if(target.value !== undefined) {
-      objs.push({id: target.entity, value: target.value});
-    }
     sendEventObjs(objs);
   }
 }, true);
@@ -439,9 +440,6 @@ window.addEventListener("keydown", function(event) {
   while(current) {
     if(current.entity && current.value !== undefined) {
       objs.push({tags: ["keydown"], element: current.entity, key: keyMap[key] || key});
-      if(current.value !== undefined) {
-        objs.push({id: current.entity, value: current.value});
-      }
     }
     current = current.parentNode
   }
