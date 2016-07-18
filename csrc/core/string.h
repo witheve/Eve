@@ -65,10 +65,28 @@ static int inline string_rune_length(char *s) {
     })
 
 
-// assuming utf8 and the high bit isn't set
+static inline void string_insert_rune(string s, character c)
+{
+    if (c<0x80) {
+        buffer_write_byte(s, c);
+    } else if (c<0x800) {
+        buffer_write_byte(s, 0xc0 | (c>>6));
+        buffer_write_byte(s, 0x80 | (c&0x3f));
+    } else if (c<0x10000) {
+        buffer_write_byte(s, 0xe0 | (c>>12));
+        buffer_write_byte(s, 0x80 | ((c>>6) & 0x3f));
+        buffer_write_byte(s, 0x80 | (c&0x3f));
+    } else if (c<0x110000) {
+        buffer_write_byte(s, 0xf0 | (c>>18));
+        buffer_write_byte(s, 0x80 | ((c>>12)&0x3f));
+        buffer_write_byte(s, 0x80 | ((c>>6)&0x3f));
+        buffer_write_byte(s, 0x80 | (c&0x3f));
+    }
+    // i'm sorry, you didn't make it into the spec
+}
+
 static inline void string_insert(string s, character x)
 {
-    // xxx - convert from utf32 into utf8
     buffer_append(s, &x, 1);
 }
 
