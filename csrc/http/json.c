@@ -15,14 +15,14 @@ void print_value_json(buffer out, value v)
             estring si = v;
             buffer current = alloca_wrap_buffer(si->body, si->length);
             buffer_write_byte(out , '"');
-            rune_foreach(current, rune) {
-                if(rune == '\\' || rune == '"') {
+            string_foreach(current, ch) {
+                if(ch == '\\' || ch == '"') {
                     bprintf(out , "\\");
-                } else if(rune == '\n') {
+                } else if(ch == '\n') {
                     bprintf(out , "\\n");
                     continue;
                 }
-                buffer_write_byte(out , rune);
+                buffer_write_byte(out , ch);
             }
             buffer_write_byte(out , '"');
         }
