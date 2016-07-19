@@ -5,7 +5,7 @@
 Eve is a set of tools to help us think. Currently, these tools include: a temporal query language, a database, and a lightweight web-REPL.
 
 <p align="center">
-  <img src="images/eveclock.gif" alt="Eve Clock" width="80%"/>
+  <img src="https://github.com/witheve/assets/blob/master/images/eveclock.gif?raw=true" alt="Eve Clock" width="80%"/>
 </p>
 
 ## Disclaimer
