@@ -65,7 +65,7 @@ Here, `[port]` is an available port on your local machine. It can be `8080` or a
 
 The easiest way to use Eve is to write an Eve file in your favorite text editor, then compile it using the steps above.
 
-For now the [Syntax RFC](TODO) acts as an interim tutorial while we work on something more complete.
+For now the [Syntax RFC](https://github.com/cmontella/rfcs/blob/2be4462c8855325012a57b1359a4d41ba323e4c2/00001-syntax.md) acts as an interim tutorial while we work on something more complete.
 
 Finally, you can communicate with Eve using websockets and a very simple [JSON protocol](http://incidentalcomplexity.com/2016/06/22/mar2/). For now, the web interface is the only tool that implements this protocol. 
 
