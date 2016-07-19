@@ -37,11 +37,13 @@ then execute `make` in the `eve/build` directory.
 
 ### Docker
 
-We have a Docker container. Docker for Windows requires Microsoft Hyper-V, so you'll need Windows 10 to run this. You just provide a port on your machine and a `*.eve` file to compile and run:
+We have a Docker container:
 
 ```
 docker pull witheve/eve
 ```
+
+**Windows Users** - Docker for Windows requires Microsoft Hyper-V, so you'll need Windows 10 to run Eve on Windows.
 
 ## Running
 
