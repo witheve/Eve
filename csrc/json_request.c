@@ -263,7 +263,11 @@ void new_json_session(bag root, boolean tracing,
         }
     }
     // send full parse destroys the heap
-    send_full_parse(graph_heap, j->write, j->graph);
+    if(j->graph) {
+        send_full_parse(graph_heap, j->write, j->graph);
+    } else {
+        destroy(graph_heap);
+    }
 
     inject_event(j->s, aprintf(j->h,"init!\n   maintain\n      [#session-connect]\n"), j->tracing);
 }
