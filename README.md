@@ -43,7 +43,7 @@ We have a Docker container:
 docker pull witheve/eve
 ```
 
-**Windows Users** - Docker for Windows requires Microsoft Hyper-V, so you'll need Windows 10 to run Eve on Windows.
+**Windows Users** - Docker for Windows requires Microsoft Hyper-V, which requires Windows 10. For users of earlier Windows versions, binaries are forthcoming.
 
 ## Running
 
