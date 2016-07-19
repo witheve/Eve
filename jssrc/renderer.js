@@ -31,6 +31,9 @@ var supportedTags = {
 var svgs = {"svg": true, "circle": true, "line": true};
 // Map of input entities to a queue of their values which originated from the client and have not been received from the server yet.
 var sentInputValues = {};
+var lastFocusPath = null;
+var updatingDOM = null;
+var selectableTypes = {"": true, undefined: true, text: true, search: true, password: true, tel: true, url: true};
 
 function insertSorted(parent, child) {
   let current;
@@ -63,6 +66,13 @@ function safeEav(eav) {
 }
 
 function handleDOMUpdates(result) {
+
+  if(document.activeElement && document.activeElement.entity) {
+    updatingDOM = document.activeElement;
+  }
+  if(!updatingDOM) {
+    updatingDOM = true;
+  }
   let {insert, remove} = result;
   let additions = {};
   // build up a representation of the additions
@@ -312,6 +322,27 @@ function handleDOMUpdates(result) {
       elem.className = elemClasses.join(" ");
     }
   }
+
+  if(lastFocusPath) {
+    let current = activeElements.root;
+    let ix = 0;
+    for(let segment of lastFocusPath) {
+      current = current.children[segment];
+      if(!current) {
+        updatingDOM.blur();
+        lastFocusPath = null;
+        break;
+      }
+      ix++;
+    }
+    if(current && current.entity !== updatingDOM.entity) {
+      current.focus();
+      if(updatingDOM.tagName === current.tagName && current.tagName === "INPUT" && selectableTypes[updatingDOM.type] && selectableTypes[current.type]) {
+        current.setSelectionRange(updatingDOM.selectionStart, updatingDOM.selectionEnd);
+      }
+    }
+  }
+  updatingDOM = false;
 }
 
 //---------------------------------------------------------
@@ -435,19 +466,52 @@ window.addEventListener("input", function(event) {
   }
 });
 
+function getFocusPath(target) {
+  let root = activeElements.root;
+  let current = target;
+  let path = [];
+  while(current !== root && current) {
+    let parent = current.parentElement;
+    path.unshift(Array.prototype.indexOf.call(parent.children, current));
+    current = parent;
+  }
+  return path;
+}
+
 window.addEventListener("focus", function(event) {
   let {target} = event;
   if(target.entity) {
     let objs = [{tags: ["focus"], element: target.entity}];
     sendEventObjs(objs);
+    lastFocusPath = getFocusPath(target);
   }
 }, true);
 
 window.addEventListener("blur", function(event) {
+  if(updatingDOM) {
+    event.preventDefault();
+    return;
+  }
   let {target} = event;
   if(target.entity) {
     let objs = [{tags: ["blur"], element: target.entity}];
     sendEventObjs(objs);
+
+    if(lastFocusPath) {
+      let curFocusPath = getFocusPath(target);
+      if(curFocusPath.length === lastFocusPath.length) {
+        let match = true;
+        for(let ix = 0; ix < curFocusPath.length; ix++) {
+          if(curFocusPath[ix] !== lastFocusPath[ix]) {
+            match = false;
+            break;
+          }
+        }
+        if(match) {
+          lastFocusPath = null;
+        }
+      }
+    }
   }
 }, true);
 
