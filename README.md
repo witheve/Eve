@@ -2,7 +2,7 @@
   <img src="http://www.witheve.com/logo.png" alt="Eve logo" width="10%" />
 </p>
 
-Eve is a set of tools to help us think. Currently, these tools include: a temporal query language, a database, and a lightweight web-REPL.
+Eve is a set of tools to help us think. Currently, these tools include: a temporal query language, a compiler, and a database.
 
 <p align="center">
   <img src="https://github.com/witheve/assets/blob/master/images/eveclock.gif?raw=true" alt="Eve Clock" width="80%"/>
@@ -33,35 +33,29 @@ By default, LuaJIT is not added to your path, so you'll need to do that as well:
 ln -sf luajit-2.1.0-beta2 /usr/local/bin/luajit
 ```
 
-then in the `eve/build` directory:
-
-```
-make && ./eve
-```
+then execute `make` in the `eve/build` directory.
 
 ### Docker
 
-We have a Docker container. Docker for Windows requires Microsoft Hyper-V, so you'll need Windows 10 to run this. You just provide a port on your machine and a .eve file to compile and run:
+We have a Docker container. Docker for Windows requires Microsoft Hyper-V, so you'll need Windows 10 to run this. You just provide a port on your machine and a `*.eve` file to compile and run:
 
 ```
 docker run -p [port]:8080 witheve/eve [eve_file]
 ```
 
-Now just point your browser to `http://localhost:[port]/`
-
 ## Running
 
-To run Eve, execute `./eve` in the `eve/build` directory. This launches a server at `http://localhost:8080`. You can point your browser there to access the web-REPL. To execute an `*.eve` file, add its path as an argument. e.g. `./eve [path]`. You can configure the port with the `--port` flag. e.g. `./eve --port 1234`.
+To run Eve, execute `./eve -e [eve_file]` in the `eve/build` directory, where `[eve_file]` is the location of a `*.eve` file you want to execute. This process launches a server at `http://localhost:8080`. You can point your browser there to see the results of the compilation. To execute an `*.eve` file, add its path as an argument. e.g. `./eve [eve_file]`. You can configure the port with the `--port` flag. e.g. `./eve --port 1234`.
 
-To run the Docker container, execute `docker run -p [port]:8080 witheve/eve [path]`. Here, `[port]` is an available port on your local machine. It can be `8080` or any other port you would like. Then direct your browser to `http://localhost:[port]` to access the web-REPL.
+To run the Docker container, execute `docker run -p [port]:8080 witheve/eve [eve_file]`. Here, `[port]` is an available port on your local machine. It can be `8080` or any other port you would like. Then direct your browser to `http://localhost:[port]` to access the results. **Note**: To pass your own Eve files into the container, you'll need to mount a [docker volume](https://docs.docker.com/engine/tutorials/dockervolumes/).
 
 ## How to use Eve
 
-The easiest way to use Eve is the web-REPL, which by default is accessible at `http://localhost:8080`. Read our [quickstart guide](TODO) for a brief introduction to Eve, and a tutorial for your first Eve program.
+The easiest way to use Eve is to write an Eve file in your favorite text editor, then compile it using the steps above.
 
-The [Syntax RFC](TODO) also acts as an interim tutorial while we work on something more complete.
+For now the [Syntax RFC](TODO) acts as an interim tutorial while we work on something more complete.
 
-Finally, you can communicate with Eve using websockets and a very simple [JSON protocol](TODO). For now, the web-REPL is the only tool that implements this protocol. 
+Finally, you can communicate with Eve using websockets and a very simple [JSON protocol](http://incidentalcomplexity.com/2016/06/22/mar2/). For now, the web interface is the only tool that implements this protocol. 
 
 *Please let us know what kind of documents would be the most helpful as you begin your journey with Eve*. We want our documentation to be a highlight of the Eve experience, so any suggestions are greatly appreciated.
 
