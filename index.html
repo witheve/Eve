@@ -4,13 +4,14 @@
     <link rel="stylesheet" type="text/css" href="jssrc/codemirror.css">
     <style>
       * { box-sizing:border-box; }
-      body { background: #202930; color: rgb(156,192,214); font-family: Avenir; display: flex; flex-direction: column; margin:0; }
+      body { background: #202930; color: rgb(156,192,214); font-family: Avenir; display: flex; flex-direction: column; margin:0; width: 100%; }
       .__root { display: flex; flex-direction: column; align-self: stretch; }
       .program-container { display: flex; flex: 1; }
-      .program { display: flex; flex: 1; flex-direction: column; align-self: stretch; padding:20px; overflow: auto; }
+      .program { position: relative; flex: 1; flex-direction: column; align-self: stretch; padding:20px; overflow: auto; }
       .graph-root { position:relative; display:flex; flex-direction:column; align-self: stretch; align-items:flex-start; margin-right:10px; padding:20px 40px; height:100%; overflow:hidden;  }
 
-      .parse-info { display:flex; flex-direction: row; align-self: stretch; height:100%; overflow: hidden; }
+      .parse-info { display:flex; flex-direction: row; align-self: stretch; height:100%; }
+      .parse-info > div { overflow: hidden; }
       .parse-info + .parse-info { margin-top:50px; }
 
       .node-text { padding: 3px 6px; background: rgb(44,72,97); flex:none; white-space:nowrap; }
