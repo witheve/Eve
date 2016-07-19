@@ -40,14 +40,20 @@ then execute `make` in the `eve/build` directory.
 We have a Docker container. Docker for Windows requires Microsoft Hyper-V, so you'll need Windows 10 to run this. You just provide a port on your machine and a `*.eve` file to compile and run:
 
 ```
-docker run -p [port]:8080 witheve/eve [eve_file]
+docker pull witheve/eve
 ```
 
 ## Running
 
 To run Eve, execute `./eve -e [eve_file]` in the `eve/build` directory, where `[eve_file]` is the location of a `*.eve` file you want to execute. This process launches a server at `http://localhost:8080`. You can point your browser there to see the results of the compilation. To execute an `*.eve` file, add its path as an argument. e.g. `./eve [eve_file]`. You can configure the port with the `--port` flag. e.g. `./eve --port 1234`.
 
-To run the Docker container, execute `docker run -p [port]:8080 witheve/eve [eve_file]`. Here, `[port]` is an available port on your local machine. It can be `8080` or any other port you would like. Then direct your browser to `http://localhost:[port]` to access the results. **Note**: To pass your own Eve files into the container, you'll need to mount a [docker volume](https://docs.docker.com/engine/tutorials/dockervolumes/).
+To run the Docker container, execute:
+
+```
+docker run -p [port]:8080 witheve/eve [eve_file]
+```
+
+Here, `[port]` is an available port on your local machine. It can be `8080` or any other port you would like. Then direct your browser to `http://localhost:[port]` to access the results. **Note**: To pass your own Eve files into the container, you'll need to mount a [docker volume](https://docs.docker.com/engine/tutorials/dockervolumes/).
 
 ## How to use Eve
 
