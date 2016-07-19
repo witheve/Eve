@@ -428,7 +428,11 @@ window.addEventListener("click", function(event) {
   let objs = [];
   while(current) {
     if(current.entity) {
-      objs.push({tags: ["click"], element: current.entity});
+      let tags = ["click"];
+      if(current == target) {
+        tags.push("direct-target");
+      }
+      objs.push({tags, element: current.entity});
     }
     current = current.parentNode
   }
@@ -441,7 +445,11 @@ window.addEventListener("dblclick", function(event) {
   let objs = [];
   while(current) {
     if(current.entity) {
-      objs.push({tags: ["double-click"], element: current.entity});
+      let tags = ["double-click"];
+      if(current == target) {
+        tags.push("direct-target");
+      }
+      objs.push({tags, element: current.entity});
     }
     current = current.parentNode
   }
