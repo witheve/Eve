@@ -43,7 +43,7 @@ lua_modules/
 
 *~
 build/continuation_templates.h
-build/lueve
+build/eve
 
 build/Eve.xcodeproj/xcuserdata
 build/Eve.xcodeproj/*/xcuserdata
