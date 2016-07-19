@@ -29,6 +29,8 @@ var supportedTags = {
   "svg": true, "circle": true, "line": true
 };
 var svgs = {"svg": true, "circle": true, "line": true};
+// Map of input entities to a queue of their values which originated from the client and have not been received from the server yet.
+var sentInputValues = {};
 
 function insertSorted(parent, child) {
   let current;
@@ -158,7 +160,14 @@ function handleDOMUpdates(result) {
             if(!additions[entity] || !additions[entity]["text"]) {
               elem.textContent = "";
             }
+          break;
+          case "value":
+          if(!additions[entity] || !additions[entity][attribute]) {
+              sentInputValues[entity] = [];
+              elem.removeAttribute(attribute);
+            }
             break;
+
           default:
             if(!additions[entity] || !additions[entity][attribute]) {
               elem.removeAttribute(attribute);
@@ -247,6 +256,13 @@ function handleDOMUpdates(result) {
       } else if(attr == "checked") {
         if(value) elem.setAttribute("checked", true);
         else elem.removeAttribute("checked");
+      } else if(attr == "value") {
+        if(sentInputValues[entId] && sentInputValues[entId][0] === value) {
+          sentInputValues[entId].shift();
+        } else {
+          sentInputValues[entId] = [];
+          elem.value = value;
+        }
       } else {
         elem.setAttribute(attr, value);
       }
@@ -405,12 +421,17 @@ window.addEventListener("dblclick", function(event) {
 window.addEventListener("input", function(event) {
   let {target} = event;
   if(target.entity) {
+    if(!sentInputValues[target.entity]) {
+      sentInputValues[target.entity] = [];
+    }
+    sentInputValues[target.entity].push(target.value);
     let query =
     `input value updated
       input = ${target.entity}
       freeze
         input.value := "${target.value.replace("\"", "\\\"")}"`;
     sendEvent(query);
+    sendEventObjs([{tags: ["change"], element: target.entity}]);
   }
 });
 
