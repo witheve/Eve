@@ -6,7 +6,7 @@ routing
 
 handle insert
   element = [@new-todo value]
-  [#keydown element: element, key: "enter"]
+  [#keydown element, key: "enter"]
   freeze
     [#todo body: value, editing: false, completed: false]
     element.value := ""
