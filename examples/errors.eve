@@ -1,4 +1,4 @@
 Draw Signup Page
   maintain
-    [#style text: " .main-page { display: flex; flex-direction: column; background: #ccc; } "]
+    [#select @gender form: "sign up" children: [#option text: "female" [#option text: "male"] [#option text: "other"]]]
 

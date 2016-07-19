@@ -1202,7 +1202,7 @@ generateObjectNode = function(root, context)
         -- if this is an object and we're mutating then we need to
         -- assign an eve-auto-index if there are several objects in
         -- a row
-        if mutating and next and next.type == "object" then
+        if right.type == "object" and mutating and next and next.type == "object" then
           local indexIdentifier = makeNode(context, "IDENTIFIER", right, {value = "eve-auto-index"})
           local indexConstant = makeNode(context, "NUMBER", right, {value = tostring(lastAttributeIndex)})
           local equalityNode = makeNode(context, "equality", right, {operator = "=", children = {indexIdentifier, indexConstant}})
@@ -1215,12 +1215,14 @@ generateObjectNode = function(root, context)
           errors.invalidObjectAttributeBinding(context, right or child)
         elseif resolved.type == "constant" then
           binding.constant = resolved
+          lastAttribute = nil
         elseif resolved.type == "variable" then
           binding.variable = resolved
           -- we only add non-objects to dependencies since sub
           -- objects have their own cardinalities to deal with
           if right.type ~= "object" then
             dependencies:add(resolved)
+            lastAttribute = nil
           end
         else
           binding = nil
