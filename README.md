@@ -45,7 +45,11 @@ docker pull witheve/eve
 
 ## Running
 
-To run Eve, execute `./eve -e [eve_file]` in the `eve/build` directory, where `[eve_file]` is the location of a `*.eve` file you want to execute. This process launches a server at `http://localhost:8080`. You can point your browser there to see the results of the compilation. To execute an `*.eve` file, add its path as an argument. e.g. `./eve [eve_file]`. You can configure the port with the `--port` flag. e.g. `./eve --port 1234`.
+To run Eve, in the `eve/build` execute:
+
+`./eve -e [eve_file]` 
+
+where `[eve_file]` is the location of an `*.eve` file you want to compile. This process launches a server at `http://localhost:8080`. You can point your browser there to see the results of the compilation. You can configure the port with the `--port` flag. e.g. `./eve --port 1234`.
 
 To run the Docker container, execute:
 
