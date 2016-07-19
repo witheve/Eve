@@ -774,7 +774,7 @@ function drawNodeGraph() {
   let graphs;
   let state = {activeIds};
   for(let headId in allNodeGraphs) {
-    if(activeParse.edges.up[headId][0] != activeIds["graph"]) continue;
+    if(!activeParse.edges.up[headId] || activeParse.edges.up[headId][0] != activeIds["graph"]) continue;
     let cur = allNodeGraphs[headId];
     state.rootTime = activeParse.cycle_time;
     let tree = drawNode(headId, cur, state, {});

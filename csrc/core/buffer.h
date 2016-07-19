@@ -43,9 +43,9 @@ static inline void buffer_extend(buffer b, bytes len)
     if (b->length < (b->end + len)) {
         b->length = 2*((b->end-b->start)+len);
         void *new =  allocate(b->h, b->length);
+        memcpy(new, b->contents + b->start, (b->end-b->start));
         b->end = b->end - b->start;
         b->start = 0;
-        memcpy(new, bref(b, 0), (b->end-b->start));
         b->contents = new;
     }
 }
