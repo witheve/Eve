@@ -74,7 +74,7 @@ static void websocket_input_frame(websocket w, buffer b, register_read reg)
     while ((rlen = buffer_length(w->reassembly)) > 0) {
         int offset = 2;
         if (rlen < offset) goto end;
-        u64 length = *(u8 *)bref(w->reassembly, 1) & 0x7f;
+        long length = *(u8 *)bref(w->reassembly, 1) & 0x7f;
         
         if (length == 126) {
             if (rlen < 4) goto end;
