@@ -184,7 +184,7 @@ local function isIdentifierChar(char, prev)
 end
 
 local function inString(char, prev, prev2)
-  return (char ~= "\"" and char ~= "{") or (prev == "\\" and prev2 ~= "\\")
+  return (char ~= "\"" and (char ~= "{" or prev ~= "{")) or (prev == "\\" and prev2 ~= "\\")
 end
 
 local function isNumber(char)
@@ -225,8 +225,16 @@ local function lex(str)
       if char == "\"" then
         tokens[#tokens+1] = Token:new("STRING_OPEN", "\"", line, offset)
         offset = offset + 1
+      else
+        -- otherwise, go ahead and eat the }}
+        scanner:read()
       end
       local string = scanner:eatWhile(inString)
+      -- if we are stopping because of string interpolation, we have to remove
+      -- the previous { character that snuck in
+      if string:sub(#string, #string) == "{" and scanner:peek() == "{" then
+        string = string:sub(0, #string - 1)
+      end
       if #string > 0 then
         -- single slashes are only escape codes and shouldn't make it to the
         -- actual string

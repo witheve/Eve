@@ -1,2 +1,4 @@
-cool story
-  [foo: true]
+Draw Signup Page
+  maintain
+    [#style text: " .main-page { display: flex; flex-direction: column; background: #ccc; } "]
+

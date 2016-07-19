@@ -3,4 +3,4 @@ test concat
   greeting = "Hello"
   target = "World"
   freeze
-    [#div text: "{greeting}, {target}!"]
+    [#div text: "{{greeting}}, {{target}}!"]

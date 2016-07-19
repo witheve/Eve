@@ -1,6 +1,6 @@
 string tests even with multi-line
 query names
   [#person name: "hello dude\"aodoijasdofij" age]
-  blah = "{age}{age}"
+  blah = "{{age}}{{age}}"
   maintain
-    [#dude name: "cool {age} \"asdofij\" {age} asodijf"]
+    [#dude name: "cool {{age}} \"asdofij\" {{age}} asodijf"]
