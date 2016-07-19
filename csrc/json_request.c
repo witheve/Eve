@@ -17,6 +17,14 @@ typedef struct json_session {
     heap eh;
 } *json_session;
 
+
+// FIXME: because we allow you to swap the program out, we have to have
+// a way to swap out the root parse graph. For now, we're doing this as
+// a global, which locks us into having only one program running, but
+// we should figure out a way to close over this in some useful way, while
+// allowing updating the program.
+static buffer root_graph;
+
 extern thunk ignore;
 
 static CONTINUATION_1_0(send_destroy, heap);
@@ -198,8 +206,11 @@ void handle_json_query(json_session j, bag in, uuid root, thunk c)
         inject_event(j->s, x, j->tracing);
     }
     if (t == sym(swap)) {
+        close_evaluation(j->s);
         edb_clear_implications(j->root);
-        vector nodes = compile_eve(j->h, x, j->tracing,  &desc);
+        vector nodes = compile_eve(init, x, j->tracing,  &desc);
+        root_graph = desc;
+        j->graph = desc;
         vector_foreach(nodes, node) {
             edb_register_implication(j->root, node);
         }
@@ -212,10 +223,10 @@ void handle_json_query(json_session j, bag in, uuid root, thunk c)
 }
 
 
-CONTINUATION_3_4(new_json_session,
-                 bag, boolean, buffer, 
+CONTINUATION_2_4(new_json_session,
+                 bag, boolean,
                  buffer_handler, bag, uuid, register_read)
-void new_json_session(bag root, boolean tracing, buffer graph, 
+void new_json_session(bag root, boolean tracing,
                       buffer_handler write, bag b, uuid u, register_read reg)
 {
     heap h = allocate_rolling(pages, sstring("session"));
@@ -227,7 +238,7 @@ void new_json_session(bag root, boolean tracing, buffer graph,
     j->session = create_bag(h, su);
     j->current_delta = create_value_vector_table(allocate_rolling(pages, sstring("trash")));
     j->event_uuid = generate_uuid();
-    j->graph = graph;
+    j->graph = root_graph;
     j->persisted = create_value_table(h);
     uuid ru = edb_uuid(root);
     table_set(j->persisted, ru, j->root);
@@ -259,5 +270,6 @@ void new_json_session(bag root, boolean tracing, buffer graph,
 
 void init_json_service(http_server h, bag root, boolean tracing, buffer graph)
 {
-    http_register_service(h, cont(init, new_json_session, root, tracing, graph), sstring("/ws"));
+    root_graph = graph;
+    http_register_service(h, cont(init, new_json_session, root, tracing), sstring("/ws"));
 }

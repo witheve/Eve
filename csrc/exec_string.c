@@ -7,6 +7,11 @@ static void do_concat(perf p, execf n, value dest, vector terms, heap h, perf pp
 {
     // XXX not init
     start_perf(p);
+    if(op == op_close) {
+        apply(n, h, p, op, r);
+        stop_perf(p, pp);
+        return;
+    }
     buffer b = allocate_string(init);
 
     vector_foreach(terms, i)
