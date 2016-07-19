@@ -15,7 +15,7 @@ ifeq ($(PLATFORM), Linux)
   LINK += -Wl,-E
 endif
 
-all: lueve
+all: eve
 
 VPATH += ..
 VPATH += ../csrc/unix
@@ -86,11 +86,11 @@ exampleTodomvcCss.o: ../examples/todomvc.css
 # the executable out of the way for the moment
 #macosx
 #linux  -Wl,-E
-lueve: $(CORE) $(UNIX) $(COMPILER) $(UTF) $(LUAPOWER) $(HTTP) $(RUNTIME) $(DNS) $(CONTENT) lueve.o
+eve: $(CORE) $(UNIX) $(COMPILER) $(UTF) $(LUAPOWER) $(HTTP) $(RUNTIME) $(DNS) $(CONTENT) eve.o
 	cc $(LINK) $^ $(LIBLUAJIT) -lm -ldl  -o $@
 
 clean:
-	rm -f *.o lueve continuation_templates.h
+	rm -f *.o eve continuation_templates.h
 
 distclean:
 	make clean ; rm -rf lua luajit-2.0
