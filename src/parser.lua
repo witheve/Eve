@@ -228,12 +228,14 @@ local function lex(str)
       else
         -- otherwise, go ahead and eat the }}
         scanner:read()
+        offset = offset + 2
       end
       local string = scanner:eatWhile(inString)
       -- if we are stopping because of string interpolation, we have to remove
       -- the previous { character that snuck in
       if string:sub(#string, #string) == "{" and scanner:peek() == "{" then
         string = string:sub(0, #string - 1)
+        offset = offset + 1
       end
       if #string > 0 then
         -- single slashes are only escape codes and shouldn't make it to the
