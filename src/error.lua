@@ -320,7 +320,7 @@ function errors.invalidEqualityLeft(context, token, prev)
     `%s` should be inbetween two expressions
 
     <LINE>
-    ]], token.value)})
+    ]], token.value or token.type)})
   else
     printError({type = "Invalid equivalence", context = context, token = token, content = string.format([[
     `%s` can only be used between expressions

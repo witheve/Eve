@@ -1214,27 +1214,34 @@ generateObjectNode = function(root, context)
           local equalityNode = makeNode(context, "equality", right, {operator = "=", children = {indexIdentifier, indexConstant}})
           right.children[#right.children + 1] = equalityNode
         end
-        local resolved = resolveExpression(right, context)
-        if not resolved then
-          -- error
-          binding = nil
-          errors.invalidObjectAttributeBinding(context, right or child)
-        elseif resolved.type == "constant" then
-          binding.constant = resolved
-          lastAttribute = nil
-        elseif resolved.type == "variable" then
-          binding.variable = resolved
-          -- we only add non-objects to dependencies since sub
-          -- objects have their own cardinalities to deal with
-          if right.type ~= "object" then
-            dependencies:add(resolved)
-            lastAttribute = nil
-          end
+        if right.type == "equality" and (right.children[1].type == "NAME" or right.children[2].type == "TAG") then
+          -- error, two possible cases here, you either forgot [] or you meant for this to not be an equality
+          -- for now we'll just assume it's the former
+          errors.bareTagOrName(context, right)
         else
-          binding = nil
-          -- error
-          errors.invalidObjectAttributeBinding(context, right)
+          local resolved = resolveExpression(right, context)
+          if not resolved then
+            -- error
+            binding = nil
+            errors.invalidObjectAttributeBinding(context, right or child)
+          elseif resolved.type == "constant" then
+            binding.constant = resolved
+            lastAttribute = nil
+          elseif resolved.type == "variable" then
+            binding.variable = resolved
+            -- we only add non-objects to dependencies since sub
+            -- objects have their own cardinalities to deal with
+            if right.type ~= "object" then
+              dependencies:add(resolved)
+              lastAttribute = nil
+            end
+          else
+            binding = nil
+            -- error
+            errors.invalidObjectAttributeBinding(context, right)
+          end
         end
+
       else
         -- error
         errors.invalidObjectAttributeBinding(context, child)
