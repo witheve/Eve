@@ -1086,8 +1086,7 @@ function compileExec(contents, tracing)
   local context = parseGraph.context
 
   if context.errors and #context.errors ~= 0 then
-    print("Bailing due to errors.")
-    return 0
+    return {}, util.toFlatJSON(parseGraph), {}
   end
 
   local set = {}
@@ -1103,8 +1102,7 @@ function compileExec(contents, tracing)
     end
   end
   if context.errors and #context.errors ~= 0 then
-    print("Bailing due to errors.")
-    return 0
+    return {}, util.toFlatJSON(parseGraph), {}
   end
   return build.build(set, tracing, parseGraph), util.toFlatJSON(parseGraph), nameset
 end
