@@ -132,9 +132,9 @@ static void do_sub(perf p, sub s, heap h, perf pp, operator op, value *r)
     if (!s->results) {
         s->resh = allocate_rolling(pages, sstring("sub-results"));
         s->results = create_value_vector_table(s->resh);
-            
+
     }
-    
+
     if (!(res = table_find(s->results, s->v))){
         // table_find_key only exists because we want to reuse the key allocation
         if (s->previous && (res = table_find_key(s->previous, s->v, (void **)&key))) {
@@ -200,7 +200,7 @@ static void do_subagg(perf p, execf next, table *proj_seen, vector v, vector inp
                       heap h, perf pp, operator op, value *r)
 {
     start_perf(p);
-    if (op == op_flush) {
+    if (op == op_flush || op == op_close) {
         apply(next, h, p, op, r);
         *proj_seen = create_value_vector_table((*proj_seen)->h);
         stop_perf(p, pp);
