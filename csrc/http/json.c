@@ -96,6 +96,7 @@ static void json_input(json_parser p, buffer b, thunk t)
             else p->s++;
         } else {
             if (p->backslash && (c == 'n')) c = '\n';
+            if (p->backslash && (c == 't')) c = '\t';
             if (c == '\\') {
                 p->backslash = true;
             }  else {

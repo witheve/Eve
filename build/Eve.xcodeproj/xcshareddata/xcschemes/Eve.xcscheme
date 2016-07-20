@@ -44,7 +44,7 @@
       allowLocationSimulation = "YES">
       <PathRunnable
          runnableDebuggingMode = "0"
-         FilePath = "/Users/chris/repos/lueve/build/lueve">
+         FilePath = "/Users/ibdknox/Eve/build/eve">
       </PathRunnable>
       <MacroExpansion>
          <BuildableReference
@@ -57,7 +57,6 @@
       </MacroExpansion>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "-e ../examples/counter.eve"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>

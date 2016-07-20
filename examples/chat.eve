@@ -27,4 +27,4 @@ handle chat keydowns
   freeze
     element.value := ""
   freeze all
-    [#message event name, time: "{hours}:{minutes}", message: value, channel]
+    [#message event name, time: "{{hours}}:{{minutes}}", message: value, channel]

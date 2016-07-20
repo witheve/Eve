@@ -664,6 +664,7 @@ function drawNode(nodeId, graph, state, seen) {
 }
 
 function posToToken(pos, lines) {
+  if(!lines) return false;
   let tokens = lines[pos.line + 1] || [];
   for(let token of tokens) {
     if(token.offset <= pos.ch && token.offset + token.value.length >= pos.ch) {
@@ -735,6 +736,7 @@ function indexParse(parse) {
 
 function nodeToRelated(pos, node, parse) {
   let active = {};
+  if(!parse.root) return active;
   // search for which query we're looking at
   let prev;
   for(let queryId of parse.root.children) {
@@ -823,11 +825,12 @@ function drawNodeGraph() {
       ]}
     }
   }
+  let root = activeParse.root || {context: {errors: [], code: ""}};
   let program;
   let errors;
-  if(activeParse.root.context.errors.length) {
-    activeParse.root.context.errors.sort((a, b) => { return a.pos.line - b.pos.line; })
-    let items = activeParse.root.context.errors.map(function(errorInfo) {
+  if(root && root.context.errors.length) {
+    root.context.errors.sort((a, b) => { return a.pos.line - b.pos.line; })
+    let items = root.context.errors.map(function(errorInfo) {
       let fix;
       if(errorInfo.fixes) {
         fix = {c: "fix-it", text: "Fix it for me", fix: errorInfo.fixes, click: applyFix}
@@ -843,11 +846,11 @@ function drawNodeGraph() {
   } else {
     program = {c: "program-container", postRender: injectProgram}
   }
-  let root = {c: "parse-info", children: [
+  let rootUi = {c: "parse-info", children: [
     {c: "run-info", children: [
-      CodeMirrorNode({value: activeParse.root.context.code, parse: activeParse}),
+      CodeMirrorNode({value: root.context.code, parse: activeParse}),
       {c: "toolbar", children: [
-        {c: "stats", text: `${activeParse.iterations} iterations took ${activeParse.total_time}s`},
+        {c: "stats", text: `${activeParse.iterations || 0} iterations took ${activeParse.total_time || 0}s`},
         {c: "show-graphs", text: "compile and run", click: compileAndRun},
         {c: "show-graphs", text: "show compile", click: toggleGraphs}
       ]},
@@ -856,7 +859,7 @@ function drawNodeGraph() {
     errors,
     program,
   ]};
-  renderer.render([{c: "graph-root", children: [root]}]);
+  renderer.render([{c: "graph-root", children: [rootUi]}]);
 }
 
 //---------------------------------------------------------

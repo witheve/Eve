@@ -37,13 +37,13 @@ then execute `make` in the `eve/build` directory.
 
 ### Docker
 
-We have a Docker container:
+Eve is also on [Docker Hub](https://hub.docker.com/r/witheve/eve/). You can get our container with the following command:
 
 ```
 docker pull witheve/eve
 ```
 
-**Windows Users** - Docker for Windows requires Microsoft Hyper-V, which requires Windows 10. For users of earlier Windows versions, binaries are forthcoming.
+Windows Users - Docker for Windows requires Microsoft Hyper-V, which requires Windows 10. For users of earlier Windows versions, binaries are forthcoming.
 
 ## Running
 
@@ -65,7 +65,7 @@ Here, `[port]` is an available port on your local machine. It can be `8080` or a
 
 The easiest way to use Eve is to write an Eve file in your favorite text editor, then compile it using the steps above.
 
-For now the [Syntax RFC](TODO) acts as an interim tutorial while we work on something more complete.
+For now the [Syntax RFC](https://github.com/witheve/rfcs/blob/master/proposed/syntax.md) acts as an interim tutorial while we work on something more complete.
 
 Finally, you can communicate with Eve using websockets and a very simple [JSON protocol](http://incidentalcomplexity.com/2016/06/22/mar2/). For now, the web interface is the only tool that implements this protocol. 
 
@@ -90,7 +90,7 @@ The Eve community is small but constantly growing, and everyone is welcome!
 
 The best way to contribute right now is to write Eve code and report your experiences. Let us know what kind of programs you’re trying to write, what barriers your are facing in writing code (both mental and technological), and any errors you encounter along the way. Also, let us know what you love! What features are your favorite?
 
-Another way to really help us is to host your `*.eve` files on Github, so we can get Eve recognized as an official language in the eyes of Github.
+Another way to really help us is to host your `*.eve` files on Github, so we can get Eve recognized as an official language in the eyes of Github. Be sure to also send us a link to your repo!
 
 ### How to File an Issue
 

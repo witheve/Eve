@@ -11,7 +11,7 @@ receive the webhook from github on a pull request
 
 checkout the git repository
   [#pull-request github-url, branch, sha]
-  path = "/tmp/{branch}/{sha}"
+  path = "/tmp/{{branch}}/{{sha}}"
   freeze all
     [#git-repository #eve-repo source: github-url, branch, sha, path]
 
@@ -24,7 +24,7 @@ once built, run eve
   [#success of: [#eve-build path]]
   [#eve-repo path sha]
   freeze all
-    [#process #eve-run shell: "./eve -b {sha}", cwd: path, sha]
+    [#process #eve-run shell: "./eve -b {{sha}}", cwd: path, sha]
 
 send facts over to that bag
   [#eve-repo sha]
@@ -51,8 +51,8 @@ display pull requests
   [#pull-request number, github-url, body, title, additions, deletions, branch, sha]
   maintain
     [#div children:
-      [#header text: "{number}: {title}"]
-      [#div text: "{branch} :: + {additions} / - {deletions}"]
+      [#header text: "{{number}}: {{title}}"]
+      [#div text: "{{branch}} :: + {{additions}} / - {{deletions}}"]
       [#div text: body]
       [#div #result-display]]
 

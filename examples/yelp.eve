@@ -42,7 +42,7 @@ draw the map pane
 draw the restaurant list
   restaurant = [#restaurant name rating]
   root = [@yelp-root]
-  star-image = "star{rating}.png"
+  star-image = "star{{rating}}.png"
   maintain
     root.children += [#div class: "restaurant-list-container" children:
                       [#div class: "restaurant-list-header" children: [#h1 text: "Restaurants"]]
