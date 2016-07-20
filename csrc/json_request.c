@@ -211,8 +211,16 @@ void handle_json_query(json_session j, bag in, uuid root, thunk c)
         vector nodes = compile_eve(init, x, j->tracing,  &desc);
         root_graph = desc;
         j->graph = desc;
+        heap graph_heap = allocate_rolling(pages, sstring("initial graphs"));
         vector_foreach(nodes, node) {
             edb_register_implication(j->root, node);
+            send_cnode_graph(graph_heap, j->write, ((compiled)node)->head);
+        }
+        // send full parse destroys the heap
+        if(j->graph) {
+            send_full_parse(graph_heap, j->write, j->graph);
+        } else {
+            destroy(graph_heap);
         }
         j->s = build_evaluation(j->scopes, j->persisted, cont(j->h, send_response, j));
         run_solver(j->s);
