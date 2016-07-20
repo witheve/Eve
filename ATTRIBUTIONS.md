@@ -2,10 +2,10 @@ Eve is built using the following technologies generously supplied by their attri
 
 -------------------------------------------------------------------------------
  
-SHA-256 in C
-By Brad Conte (brad AT bradconte.com)
-This code is released into the public domain free of any restrictions.
-https://github.com/B-Con/crypto-algorithms
+- SHA-256 in C
+- By Brad Conte (brad AT bradconte.com)
+- This code is released into the public domain free of any restrictions.
+- https://github.com/B-Con/crypto-algorithms
 
 -------------------------------------------------------------------------------
 
