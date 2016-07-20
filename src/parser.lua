@@ -221,7 +221,7 @@ local function lex(str)
       tokens[#tokens+1] = Token:new("DOC", doc, line, offset)
       offset = offset + #doc
 
-    elseif char == "\"" or char == "}" then
+    elseif char == "\"" or (char == "}" and scanner:peek() == "}") then
       if char == "\"" then
         tokens[#tokens+1] = Token:new("STRING_OPEN", "\"", line, offset)
         offset = offset + 1
@@ -578,7 +578,12 @@ local function parse(tokens, context)
       end
 
     elseif type == "OPEN_CURLY" or type == "CLOSE_CURLY" then
-      -- we can just ignore these
+      -- we can just ignore these as long as we're in a concat
+      -- if we're not, it's an error
+      if stackTop.func ~= "concat" then
+        -- error
+        errors.curlyOutsideOfString(context, token, stackTop)
+      end
 
     elseif type == "OPEN_BRACKET" then
       stack:push(makeNode(context, "object", token, {children = {}}))
@@ -948,8 +953,6 @@ local function resolveEqualityLike(context, node)
 end
 
 local function resolveAttribute(context, node)
-  local prevMutating = context.mutating;
-  context.mutating = nil
   local left = resolveExpression(node.children[1], context)
   local right = node.children[2]
   if right and right.type == "IDENTIFIER" then
@@ -969,13 +972,11 @@ local function resolveAttribute(context, node)
     local query = context.queryStack:peek()
     local queryKey = objectNode.type == "object" and "objects" or "mutates"
     query[queryKey][#query[queryKey] + 1] = objectNode
-    context.mutating = prevMutating
     return attributeRef
   else
     -- error
     errors.invalidAttributeRight(context, right)
   end
-  context.mutating = prevMutating
 end
 
 local function resolveFunctionLike(context, node)
@@ -1170,7 +1171,11 @@ generateObjectNode = function(root, context)
       if left.type == "IDENTIFIER" then
         local variable = resolveVariable(context, left.value, left)
         local binding = generateBindingNode(context, {field = left.value, variable = variable}, child, object)
+
+        local prevMutating = context.mutating
+        context.mutating = nil
         resolveExpression(child, context)
+        context.mutating = prevMutating
         lastAttribute = nil
         lastAttributeIndex = 0
       else
@@ -1218,6 +1223,14 @@ generateObjectNode = function(root, context)
           -- error, two possible cases here, you either forgot [] or you meant for this to not be an equality
           -- for now we'll just assume it's the former
           errors.bareTagOrName(context, right)
+        elseif right.type == "attribute" then
+          local prevMutating = context.mutating
+          context.mutating = nil
+          local resolved = resolveExpression(right, context)
+          context.mutating = prevMutating
+          dependencies:add(resolved)
+          lastAttribute = nil
+          binding = generateBindingNode(context, binding, related, object)
         else
           local resolved = resolveExpression(right, context)
           if not resolved then

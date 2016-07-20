@@ -121,6 +121,19 @@ function errors.invalidCloseParen(context, token, stack)
   ]]})
 end
 
+function errors.curlyOutsideOfString(context, token, stack)
+  -- we can use the stack to determine what might have happened
+  local square = token.value == "{" and "[" or "]"
+  printError({type = "Curly brace outside of string", context = context, token = token, content = string.format([[
+  Double curly braces are used for embedding values in strings, but don't
+  apply anywhere else.
+
+  <LINE>
+
+  Did you mean to use `%s`?
+  ]], square)})
+end
+
 ------------------------------------------------------------
 -- If errors
 ------------------------------------------------------------
