@@ -100,6 +100,30 @@ static void merge_multibag_bag(evaluation ev, table *d, uuid u, bag s)
     }
 }
 
+static boolean merge_multibag_set(evaluation ev, table *d, uuid u, bag s)
+{
+    boolean result = false;
+    bag bd;
+    if (!*d) {
+        *d = create_value_table(ev->working);
+    }
+
+    if (!(bd = table_find(*d, u))) {
+        table_set(*d, u, s); 
+    } else {
+        // reconstruct set semantics for t in a very icky way
+        bag_foreach(s, e, a, v, count) {
+            int old_count = count_of(bd, e, a, v);
+            if (old_count != count) {
+                prf("merge %v %v %v %d %d\n", e, a, v, old_count, count);
+                edb_insert(bd, e, a, v, count + (-old_count));
+                result = true;
+            }
+        }
+    }
+    return result;
+}
+
 static void merge_bags(evaluation ev, table *d, table s)
 {
     if (!s) return;
@@ -109,6 +133,23 @@ static void merge_bags(evaluation ev, table *d, table s)
     }
     table_foreach(s, u , b)
         merge_multibag_bag(ev, d, u, b);
+}
+
+static boolean merge_sets(evaluation ev, table *d, table s)
+{
+    boolean result = false;
+    
+    if (s) {
+        if (!*d) {
+            *d = s;
+            result = true;
+        } else {
+            table_foreach(s, u , b)
+                result |= merge_multibag_set(ev, d, u, b);
+        }
+    }
+
+    return result;
 }
 
 static void run_block(evaluation ev, block bk) 
@@ -164,8 +205,7 @@ static void fixedpoint(evaluation ev)
             vector_foreach(ev->blocks, b) run_block(ev, b);
             bag_fork(ev, &ev->f_solution);
         }
-        was_a_next_t = ev->next_t_solution?true:false;
-        merge_bags(ev, &ev->t_solution, ev->next_t_solution);
+        was_a_next_t = merge_sets(ev, &ev->t_solution, ev->next_t_solution);
         ev->next_t_solution =  0;
         vector_insert(counts, box_float((double)iterations));
         iterations = 0;
