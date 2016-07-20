@@ -549,7 +549,7 @@ window.addEventListener("blur", function(event) {
 }, true);
 
 
-let keyMap = {13: "enter"}
+let keyMap = {13: "enter", 27: "escape"}
 window.addEventListener("keydown", function(event) {
   let {target} = event;
   let current = target;
