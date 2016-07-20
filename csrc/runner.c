@@ -102,6 +102,8 @@ static void merge_multibag_bag(evaluation ev, table *d, uuid u, bag s)
 
 static boolean merge_multibag_set(evaluation ev, table *d, uuid u, bag s)
 {
+    static int runcount = 0;
+    runcount++;
     boolean result = false;
     bag bd;
     if (!*d) {
@@ -115,7 +117,7 @@ static boolean merge_multibag_set(evaluation ev, table *d, uuid u, bag s)
         bag_foreach(s, e, a, v, count) {
             int old_count = count_of(bd, e, a, v);
             if (old_count != count) {
-                prf("merge %v %v %v %d %d\n", e, a, v, old_count, count);
+                prf("merge %v %v %v %v %d %d %d\n", u, e, a, v, old_count, count, runcount);
                 edb_insert(bd, e, a, v, count + (-old_count));
                 result = true;
             }
