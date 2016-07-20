@@ -987,7 +987,10 @@ local function resolveFunctionLike(context, node)
   -- create bindings
   for ix, child in ipairs(node.children) do
     local field = alphaFields[ix]
+    local prevMutating = context.mutating;
+    context.mutating = nil
     local resolved = resolveExpression(child, context)
+    context.mutating = prevMutating
     if not resolved then
       -- error
       errors.invalidFunctionArgument(context, child, node.type)
