@@ -37,13 +37,13 @@ then execute `make` in the `eve/build` directory.
 
 ### Docker
 
-We have a Docker container:
+Eve is also on [Docker Hub](https://hub.docker.com/r/witheve/eve/). You can get our container with the following command:
 
 ```
 docker pull witheve/eve
 ```
 
-**Windows Users** - Docker for Windows requires Microsoft Hyper-V, which requires Windows 10. For users of earlier Windows versions, binaries are forthcoming.
+Windows Users - Docker for Windows requires Microsoft Hyper-V, which requires Windows 10. For users of earlier Windows versions, binaries are forthcoming.
 
 ## Running
 
