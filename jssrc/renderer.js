@@ -473,6 +473,31 @@ window.addEventListener("input", function(event) {
     sendEventObjs([{tags: ["change"], element: target.entity}]);
   }
 });
+window.addEventListener("change", function(event) {
+  let {target} = event;
+  if(target.tagName == "INPUT" || target.tagName == "TEXTAREA") return;
+  if(target.entity) {
+    if(!sentInputValues[target.entity]) {
+      sentInputValues[target.entity] = [];
+    }
+    let value = target.value;
+    if(target.tagName == "SELECT") {
+      value = target.options[target.selectedIndex].value;
+    }
+    sentInputValues[target.entity].push(value);
+    let query =
+      `input value updated
+      input = ${target.entity}
+      freeze
+        input.value := "${value.replace("\"", "\\\"")}"`;
+    sendEvent(query);
+    let tags = ["change"];
+    if(target == target) {
+      tags.push("direct-target");
+    }
+    sendEventObjs([{tags, element: target.entity}]);
+  }
+});
 
 function getFocusPath(target) {
   let root = activeElements.root;
