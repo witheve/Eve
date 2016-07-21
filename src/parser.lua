@@ -948,6 +948,8 @@ local function resolveEqualityLike(context, node)
 end
 
 local function resolveAttribute(context, node)
+  local prevMutating = context.mutating;
+  context.mutating = nil
   local left = resolveExpression(node.children[1], context)
   local right = node.children[2]
   if right and right.type == "IDENTIFIER" then
@@ -967,12 +969,13 @@ local function resolveAttribute(context, node)
     local query = context.queryStack:peek()
     local queryKey = objectNode.type == "object" and "objects" or "mutates"
     query[queryKey][#query[queryKey] + 1] = objectNode
+    context.mutating = prevMutating
     return attributeRef
-
   else
     -- error
     errors.invalidAttributeRight(context, right)
   end
+  context.mutating = prevMutating
 end
 
 local function resolveFunctionLike(context, node)
