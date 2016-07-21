@@ -500,7 +500,9 @@ local function parse(tokens, context)
     local stackTop = stack:peek()
     local parent = stackTop
     local right = stackTop.children[#stackTop.children]
-    while right and (right.type == "equality" or right.type == "mutate" or right.type == "inequality" or (allowInfix and right.type == "infix")) do
+    while right and (right.type == "equality" or right.type == "mutate" or right.type == "inequality"
+                     or (allowInfix and right.type == "infix") or right.type == "choose" or right.type == "union"
+                     or right.type == "query" or right.type == "outputs") do
       if unwind then
         parent.children[#parent.children] = nil
         stack:push(right)
@@ -707,7 +709,8 @@ local function parse(tokens, context)
 
     elseif type == "DOT" then
       local prev = getPrevRight(false, true)
-      if prev and (prev.type == "equality" or prev.type == "mutate" or prev.type == "inequality" or prev.type == "infix") then
+      if prev and (prev.type == "equality" or prev.type == "mutate" or prev.type == "inequality"
+                   or prev.type == "infix" or prev.type == "outputs") then
         local right = prev.children[#prev.children]
         if right and right.type == "IDENTIFIER" then
           getPrevRight(true, true)
