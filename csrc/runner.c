@@ -17,9 +17,6 @@ static void insert_f(evaluation s, uuid u, value e, value a, value v, multiplici
 {
     bag b;
 
-    //    if (table_find(s->persisted, u))
-    //        prf("insert: %v %v %v %v %d\n", bagname(s, u), e, a, v, m);
-    
     if (!s->block_solution) 
         s->block_solution = create_value_table(s->working);
     
@@ -29,44 +26,52 @@ static void insert_f(evaluation s, uuid u, value e, value a, value v, multiplici
     edb_insert(b, e, a, v, m);
 }
 
-static CONTINUATION_2_4(shadow, table, listener, value, value, value, multiplicity);
-static void shadow(table multibag, listener result, value e, value a, value v, multiplicity m)
+static CONTINUATION_3_4(merge_scan_out, heap, vector, table, value, value, value, multiplicity);
+static void merge_scan_out(heap h, vector k, table f, value e, value a, value v, multiplicity m)
 {
-    boolean s = false;
-    if (m > 0) {
-        table_foreach(multibag, u, b) 
-            if (count_of(b, e, a, v) <0) s = true;
-        if (!s) apply(result, e, a, v, m);
+    u64 z;
+    vector_set(k, 0, e);
+    vector_set(k, 1, a);
+    vector_set(k, 2, v);
+    if ((z = (u64)table_find_key(f, k, (void **)&k))) {
+        table_set(f, k, (void *)z + m);
+    } else {
+        vector n = allocate_vector(h, 3);
+        vector_set(n, 0, e);
+        vector_set(n, 1, a);
+        vector_set(n, 2, v);
+        table_set(f, n, (void *)m);
     }
 }
-
-
-static void print_multibag(evaluation s, table m)
-{ 
-    multibag_foreach(m, u, b) {
-        prf("%v %d\n--------------\n%b\n", bagname(s, u), edb_size(b), bag_dump(s->h, b));
-    }
-}
- 
 
 static CONTINUATION_1_5(merge_scan, evaluation, int, listener, value, value, value);
 static void merge_scan(evaluation ev, int sig, listener result, value e, value a, value v)
 {
-    listener f_filter = ev->f_solution?cont(ev->working, shadow, ev->f_solution, result):result;
-    listener x_filter = ev->t_solution?cont(ev->working, shadow, ev->t_solution, f_filter):f_filter;
+    // creating this view really seems like wasted work
+    table f = create_value_vector_table(ev->working);
+    vector k = allocate_vector(ev->working, 3);
+    listener s = cont(ev->working, merge_scan_out, ev->working, k, f);
 
-    // xxx - currently precluding removes in the event set
     multibag_foreach(ev->ev_solution, u, b) 
-        edb_scan(b, sig, result, e, a, v);
+        edb_scan(b, sig, s, e, a, v);
 
     multibag_foreach(ev->persisted, u, b) 
-        edb_scan(b, sig, x_filter, e, a, v);
+        edb_scan(b, sig, s, e, a, v);
 
     multibag_foreach(ev->t_solution, u, b) 
-        edb_scan(b, sig, f_filter, e, a, v);
+        edb_scan(b, sig, s, e, a, v);
 
     multibag_foreach(ev->f_solution, u, b) 
-        edb_scan(b, sig, result, e, a, v);
+        edb_scan(b, sig, s, e, a, v);
+    
+    table_foreach(f, k, v) {
+        apply(result,
+              vector_get(k, 0),
+              vector_get(k, 1),
+              vector_get(k, 2),
+              (multiplicity)v);
+    }
+    
 }
 
 static CONTINUATION_1_0(evaluation_complete, evaluation);
@@ -95,8 +100,9 @@ static void merge_multibag_bag(evaluation ev, table *d, uuid u, bag s)
     if (!(bd = table_find(*d, u))) {
         table_set(*d, u, s); 
     } else {
-        bag_foreach(s, e, a, v, c) 
+        bag_foreach(s, e, a, v, c) {
             edb_insert(bd, e, a, v, c);
+        }
     }
 }
 
@@ -111,15 +117,14 @@ static boolean merge_multibag_set(evaluation ev, table *d, uuid u, bag s)
     }
 
     if (!(bd = table_find(*d, u))) {
-        table_set(*d, u, s); 
+        table_set(*d, u, s);
+        result = true;
     } else {
         // reconstruct set semantics for t in a very icky way
         bag_foreach(s, e, a, v, count) {
             int old_count = count_of(bd, e, a, v);
             if (old_count != count) {
-                prf("merge %v %v %v %v %d %d %d\n", u, e, a, v, old_count, count, runcount);
-                edb_insert(bd, e, a, v, count + (-old_count));
-                result = true;
+                edb_insert(bd, e, a, v, count==1?1:0);
             }
         }
     }

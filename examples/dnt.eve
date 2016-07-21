@@ -8,7 +8,7 @@ draw input
     maintain
         [#div children:
               [#div person text: name]
-                    [#input person value: name]]
+                    [#input person]]
 
 bind person name to input value
   [#input person value]
