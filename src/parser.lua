@@ -1362,7 +1362,9 @@ local function generateUnionNode(root, context, unionType)
   for _, child in ipairs(root.children) do
     local type = child.type
     if type == "query" then
+      context.unionNode = true
       union.queries[#union.queries + 1] = generateQueryNode(child, context)
+      context.unionNode = false
     else
       -- error
       errors.invalidUnionChild(context, child)
@@ -1515,6 +1517,12 @@ generateQueryNode = function(root, context)
         -- error mismatched outputs
         errors.outputTypeMismatch(context, child.children[1], outputs)
       end
+
+    elseif type == "variable" and context.unionNode then
+      -- in union/choose, it's ok to have a bare variable, e.g.
+      -- guest = if friend then friend
+      --         if friend.spouse then friend.spouse
+      -- there's nothing we actually need to do here, but it's not an error
 
     else
       -- error
