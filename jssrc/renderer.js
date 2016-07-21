@@ -151,7 +151,7 @@ function handleDOMUpdates(result) {
             }
             break;
           case "class":
-            if(value[0] == "⦑" && value[value.length - 1] == "⦒") {
+            if(value[0] == "⦑" && value[value.length - 1] == "⦒" && activeClasses[value]) {
               classesToMaybeGC.push(value);
               let classIx = activeClasses[value].indexOf(elem);
               if(classIx > -1) {
@@ -549,7 +549,7 @@ window.addEventListener("blur", function(event) {
 }, true);
 
 
-let keyMap = {13: "enter"}
+let keyMap = {13: "enter", 27: "escape"}
 window.addEventListener("keydown", function(event) {
   let {target} = event;
   let current = target;
@@ -1027,7 +1027,7 @@ function clone(obj) {
   if(typeof obj !== "object") return obj;
   if(obj.constructor === Array) {
     let neue = [];
-    for(let ix of obj) {
+    for(let ix = 0; ix < obj.length; ix++) {
       neue[ix] = clone(obj[ix]);
     }
     return neue;
@@ -1048,9 +1048,7 @@ let __entities = {}; // DEBUG
 
 var socket = new WebSocket("ws://" + window.location.host +"/ws");
 socket.onmessage = function(msg) {
-  console.time("PARSE");
   let data = JSON.parse(msg.data);
-  console.timeEnd("PARSE");
   if(data.type == "result") {
     handleDOMUpdates(data);
 
