@@ -165,16 +165,18 @@ vector lua_compile_eve(interpreter c, heap h, buffer b, boolean tracing, buffer 
         printf ("lua error\n");
         printf ("%s\n", lua_tostring(c->L, -1));
     }
-    foreach_lua_table(c->L, -3, k, v) {
-        compiled n = allocate(h, sizeof(struct compiled));
-        n->head = (void *)lua_topointer(c->L, v);
-        vector_insert(result, n);
-    }
-    *out = lua_to_buffer(c->L, -2, h);
+    
+    *out = lua_to_buffer(c->L, -1, h);
     int count = 0;
-    foreach_lua_table(c->L, -1, k, v) {
+    foreach_lua_table(c->L, -2, k, v) {
         compiled n = vector_get(result, count++);
-        n->name = lua_to_buffer(c->L, v, h);
+        foreach_lua_table(c->L, -2, k, v) {
+            // xxx - do we have a direct extract?
+            if (lua_tovalue(c->L, k) == sym(name)) n->name = lua_tovalue(c->L, v);
+            if (lua_tovalue(c->L, k) == sym(regs)) n->regs = (int)lua_tonumber(c->L, v);
+            if (lua_tovalue(c->L, k) == sym(head)) n->head = lua_tovalue(c->L, v);
+        }
+        vector_insert(result, n);
     }
     lua_pop(c->L, 1);
     return(result);

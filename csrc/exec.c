@@ -194,48 +194,6 @@ static execf build_sub(block bk, node n)
 
 }
 
-
-
-static CONTINUATION_5_4(do_subagg,
-                        perf, execf, table *, vector, vector,
-                        heap, perf, operator, value *);
-static void do_subagg(perf p, execf next, table *proj_seen, vector v, vector inputs,
-                      heap h, perf pp, operator op, value *r)
-{
-    start_perf(p, op);
-    if (op == op_flush) {
-        apply(next, h, p, op, r);
-        *proj_seen = create_value_vector_table((*proj_seen)->h);
-        stop_perf(p, pp);
-        return;
-    }
-
-    extract(v, inputs, r);
-
-    if (! table_find(*proj_seen, v)){
-        vector key = allocate_vector((*proj_seen)->h, vector_length(inputs));
-        extract(key, inputs, r);
-        table_set(*proj_seen, key, (void*)1);
-        apply(next, h, p, op, r);
-    }
-    stop_perf(p, pp);
-}
-
-
-static execf build_subagg(block bk, node n)
-{
-    vector projection = table_find(n->arguments, sym(projection));
-    table* proj_seen = allocate(bk->h, sizeof(table));
-    *proj_seen = create_value_vector_table(bk->h);
-    return cont(bk->h,
-                do_subagg,
-                register_perf(bk->ev, n),
-                resolve_cfg(bk, n, 0),
-                proj_seen,
-                allocate_vector(bk->h, vector_length(projection)),
-                projection);
-}
-
 static CONTINUATION_3_4(do_choose_tail, perf, execf, value, heap, perf, operator, value *);
 static void do_choose_tail(perf p, execf next, value flag, heap h, perf pp, operator op, value *r)
 {
@@ -267,11 +225,11 @@ static void do_choose(perf p, execf n, vector legs, value flag, heap h, perf pp,
     if ((op == op_flush) || (op == op_close)) {
         apply(n, h, p, op, r);
     } else {
-        r[toreg(flag)] = efalse;
+        store(r, flag, efalse);
         vector_foreach (legs, i){
             apply((execf) i, h, p, op, r);
             apply((execf) i, h, p, op_flush, r);
-            if (r[toreg(flag)] == etrue) {
+            if (lookup(r, flag) == etrue) {
                 stop_perf(p, pp);
                 return;
             }
@@ -512,7 +470,6 @@ table builders_table()
         table_set(builders, intern_cstring("trace"), build_trace);
         table_set(builders, intern_cstring("sub"), build_sub);
         table_set(builders, intern_cstring("subtail"), build_sub_tail);
-        table_set(builders, intern_cstring("subagg"), build_subagg);
 
         table_set(builders, intern_cstring("terminal"), build_terminal);
         table_set(builders, intern_cstring("choose"), build_choose);
@@ -552,6 +509,7 @@ block build(evaluation ev, compiled c)
     heap h = allocate_rolling(pages, sstring("build"));
     block bk = allocate(h, sizeof(struct block));
     bk->ev = ev;
+    bk->regs = c->regs;
     bk->h = h;
     bk->name = c->name;
     // this is only used during building
