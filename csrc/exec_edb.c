@@ -25,7 +25,7 @@ static CONTINUATION_8_4(do_scan, value, block, perf, execf, int, value, value, v
 static void do_scan(value id, block bk, perf p, execf n, int sig, value e, value a, value v,
                     heap h, perf pp, operator op, value *r)
 {
-    start_perf(p);
+    start_perf(p, op);
     if ((op == op_flush) || (op == op_close)) {
         apply(n, h, p, op, r);
         stop_perf(p, pp);
@@ -43,8 +43,7 @@ static inline boolean is_cap(unsigned char x) {return (x >= 'A') && (x <= 'Z');}
 
 static execf build_scan(block bk, node n)
 {
-    vector ar = vector_get(n->arguments, 0);
-    estring description = vector_get(ar, 0);
+    estring description = table_find(n->arguments, sym(sig));
     int sig = 0;
     for (int i=0; i< 3; i++) {
         sig <<= 1;
@@ -54,9 +53,9 @@ static execf build_scan(block bk, node n)
                 register_perf(bk->ev, n),
                 resolve_cfg(bk, n, 0),
                 sig,
-                vector_get(ar, 1),
-                vector_get(ar, 2),
-                vector_get(ar, 3));
+                table_find(n->arguments, sym(e)),
+                table_find(n->arguments, sym(a)),
+                table_find(n->arguments, sym(v)));
 
 }
 
@@ -65,7 +64,7 @@ static void do_insert(block bk, perf p, execf n, int deltam,
                       value uuid, value e, value a, value v,
                       heap h, perf pp, operator op, value *r)
 {
-    start_perf(p);
+    start_perf(p, op);
 
     if (op == op_insert) {
         apply(bk->ev->insert, uuid, lookup(r, e), lookup(r, a), lookup(r, v), deltam);
@@ -79,28 +78,27 @@ static void do_insert(block bk, perf p, execf n, int deltam,
 
 static execf build_insert(block bk, node n)
 {
-    vector a = vector_get(n->arguments, 0);
-    uuid x = table_find(bk->ev->scopes, vector_get(a, 0));
+    uuid x = table_find(bk->ev->scopes, table_find(n->arguments, sym(scope)));
     return cont(bk->h, do_insert, bk, register_perf(bk->ev, n),
                 resolve_cfg(bk, n, 0),
                 1,
                 x,
-                vector_get(a, 1),
-                vector_get(a, 2),
-                vector_get(a, 3));
+                table_find(n->arguments, sym(e)),
+                table_find(n->arguments, sym(a)),
+                table_find(n->arguments, sym(v)));
+
 }
 
 static execf build_remove(block bk, node n)
 {
-    vector a = vector_get(n->arguments, 0);
-    uuid x = table_find(bk->ev->scopes, vector_get(a, 0));
+    uuid x = table_find(bk->ev->scopes, table_find(n->arguments, sym(scope)));
     return cont(bk->h, do_insert,  bk, register_perf(bk->ev, n),
                 resolve_cfg(bk, n, 0),
                 -1,
                 x,
-                vector_get(a, 1),
-                vector_get(a, 2),
-                vector_get(a, 3));
+                table_find(n->arguments, sym(e)),
+                table_find(n->arguments, sym(a)),
+                table_find(n->arguments, sym(v)));
 }
 
 static CONTINUATION_4_4(each_set_remove, block, value, value, uuid, value, value, value, multiplicity);
@@ -115,7 +113,7 @@ static CONTINUATION_7_4(do_set, block, perf, execf, value, value, value, value, 
 static void do_set(block bk, perf p, execf n, value u, value e, value a, value v,
                    heap h, perf pp, operator op, value *r)
 {
-    start_perf(p);
+    start_perf(p, op);
     u = lookup(r, u);
     value ev = lookup(r, e);
     value av=  lookup(r, a);
@@ -127,14 +125,13 @@ static void do_set(block bk, perf p, execf n, value u, value e, value a, value v
 
 static execf build_set(block bk, node n)
 {
-    vector a = vector_get(n->arguments, 0);
-    uuid x = table_find(bk->ev->scopes, vector_get(a, 0));
+    uuid x = table_find(bk->ev->scopes, table_find(n->arguments, sym(scope)));
     return cont(bk->h, do_set,  bk, register_perf(bk->ev, n),
                 resolve_cfg(bk, n, 0),
                 x,
-                vector_get(a, 1),
-                vector_get(a, 2),
-                vector_get(a, 3));
+                table_find(n->arguments, sym(e)),
+                table_find(n->arguments, sym(a)),
+                table_find(n->arguments, sym(v)));
 }
 
 extern void register_edb_builders(table builders)

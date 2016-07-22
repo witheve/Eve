@@ -15,6 +15,7 @@ void format_number(string s, u64 x, int base, int pad)
 // should entertain a registration method with a type and a character and a function pointer
 // or maybe just float this up to runtime
 extern void print_value();
+extern void print_value_raw();
 extern void print_value_vector();
 
 void vbprintf(string s, string fmt, va_list ap)
@@ -78,6 +79,9 @@ void vbprintf(string s, string fmt, va_list ap)
                     char *c = va_arg(ap, char *);
                     if (!c) c = (char *)"(null)";
                     int len = cstring_length(c);
+                    for (int i =0 ; i < pad; i++)
+                        string_insert(s, ' ');
+                    pad = 0;
                     for (; *c; c++)
                         string_insert(s, *c);
                 }
@@ -114,9 +118,32 @@ void vbprintf(string s, string fmt, va_list ap)
                     break;
                 }
 
-             // layer violation..meh
+             // xxx - layer violation..meh
+             // also generalize string pad support
             case 'v':
-                print_value(s, va_arg(ap, void *));
+                if (pad) {
+                    // xxx  transient or resizable stack head
+                    buffer b = allocate_string(s->h);
+                    print_value(b, va_arg(ap, void *));
+                    // xxx utf token length
+                    for (int i =0 ; i < (pad-buffer_length(b)); i++) string_insert(s, ' ');
+                    buffer_append(s, bref(b, 0), buffer_length(b));
+                    pad = 0;
+                    state = 0;
+                } else print_value(s, va_arg(ap, void *));
+                break;
+                
+            case 'r':
+                if (pad) {
+                    // xxx  transient or resizable stack head
+                    buffer b = allocate_string(s->h);
+                    print_value_raw(b, va_arg(ap, void *));
+                    // xxx utf token length
+                    for (int i =0 ; i < (pad-buffer_length(b)); i++) string_insert(s, ' ');
+                    buffer_append(s, bref(b, 0), buffer_length(b));
+                    pad = 0;
+                    state = 0;
+                } else print_value_raw(s, va_arg(ap, void *));
                 break;
 
             case 'V':

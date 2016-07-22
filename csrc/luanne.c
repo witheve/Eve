@@ -211,33 +211,45 @@ void lua_run(interpreter c, buffer b)
 
 extern int luaopen_utf8(lua_State *L);
 
-
 extern void bundle_add_loaders(lua_State* L);
+
+vector vector_from_lua(heap h, lua_State *L, int index)
+{
+    vector res = allocate_vector(h, 5);
+    foreach_lua_table(L, index, _, v) 
+        vector_insert(res, lua_tovalue(L, v));
+    return res;
+}
+
 
 int lua_build_node(lua_State *L)
 {
     interpreter c = lua_context(L);
     node n = allocate(c->h, sizeof(struct node));
-    n->arms = allocate_vector(c->h, 5);
-    n->arguments = allocate_vector(c->h, 5);
     estring x = lua_tovalue(L, 1);
     n->type = x;
     n->builder = table_find(builders_table(),x) ;
+
     if (!n->builder) {
         prf ("no such node type: %v\n", x);
     }
 
-    foreach_lua_table(L, 2, _, v) {
-        vector_insert(n->arms, (void *)lua_topointer(L, v));
+    n->arms = vector_from_lua(c->h, L, 2);
+    n->arguments = create_value_table(c->h);
+    n->display = create_value_table(c->h);
+
+    foreach_lua_table(L, 3, k, v)  {
+        table_set(n->arguments, lua_tovalue(c->L, k),
+                     (lua_type(L, v) == LUA_TTABLE)?
+                  vector_from_lua(c->h, L, v):
+                  lua_tovalue(L, v));
+        
+        table_set(n->display,lua_tovalue(c->L, k),
+                  (lua_type(L, v) == LUA_TTABLE)?
+                  aprintf(c->h,"%V", vector_from_lua(c->h, L, v)):
+                  aprintf(c->h,"%r", lua_tovalue(L, v)));
     }
 
-    foreach_lua_table(L, 3, p, v) {
-        vector s = allocate_vector(c->h, 5);
-        vector_insert(n->arguments, s);
-        foreach_lua_table(L, v, z, a) {
-            vector_insert(s, lua_tovalue(L, a));
-        }
-    }
     value node_id = lua_tovalue(L, 4);
     n->id = node_id;
 

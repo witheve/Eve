@@ -14,7 +14,7 @@ static value toggle (value x)
 static CONTINUATION_5_4(do_equal, block, perf, execf, value, value,  heap, perf, operator, value *); \
 static void do_equal(block bk, perf p, execf n, value a, value b, heap h, perf pp, operator op, value *r)
 {
-    start_perf(p);
+    start_perf(p, op);
     if ((op != op_flush)  && (op != op_close)) {                                                 
         value ar = lookup(r, a);
         value br = lookup(r, b);
@@ -29,7 +29,7 @@ static void do_equal(block bk, perf p, execf n, value a, value b, heap h, perf p
     static CONTINUATION_5_4(__name, block, perf, execf, value, value, heap, perf, operator, value *); \
     static void __name (block b, perf p, execf n, value dest, value a, heap h, perf pp, operator op, value *r) \
     {                                                                                                \
-        start_perf(p);                                                     \
+        start_perf(p, op);                                                     \
         if ((op == op_flush)  || (op == op_close)) {                                                 \
             apply(n, h, p, op, r);                                       \
             stop_perf(p, pp);                                              \
@@ -51,7 +51,7 @@ static void do_equal(block bk, perf p, execf n, value a, value b, heap h, perf p
     static CONTINUATION_5_4(__name, block, perf, execf, value, value, heap, perf, operator, value *); \
     static void __name (block b, perf p, execf n, value dest, value a, heap h, perf pp, operator op, value *r) \
     {                                                                                                \
-        start_perf(p);\
+        start_perf(p, op);\
         if ((op == op_flush)  || (op == op_close)) {                                                 \
             apply(n, h, p, op, r);                                       \
             stop_perf(p, pp);                                              \
@@ -72,7 +72,7 @@ static void do_equal(block bk, perf p, execf n, value a, value b, heap h, perf p
     static CONTINUATION_5_4(__name, block, perf, execf, value, value, heap, perf, operator, value *); \
     static void __name (block b, perf p, execf n, value dest, value a, heap h, perf pp, operator op, value *r) \
     {                                                                                                \
-        start_perf(p);                                                     \
+        start_perf(p, op);                                                     \
         if ((op == op_flush)  || (op == op_close)) {                                                 \
             apply(n, h, p, op, r);                                       \
             stop_perf(p, pp);                                              \
@@ -91,14 +91,13 @@ static void do_equal(block bk, perf p, execf n, value a, value b, heap h, perf p
 #define BUILD_UNARY(__name, __do_op)   \
     static execf __name (block bk, node n)  \
     {                                           \
-        vector a = vector_get(n->arguments, 0); \
         return cont(bk->h,                       \
-                __do_op,                        \
-                bk,                              \
-                register_perf(bk->ev, n),         \
-                resolve_cfg(bk, n, 0),          \
-                vector_get(a, 0),    \
-                vector_get(a, 1));   \
+                    __do_op,                     \
+                    bk,                           \
+                    register_perf(bk->ev, n),     \
+                    resolve_cfg(bk, n, 0),                   \
+                    table_find(n->arguments, sym(return)), \
+                    table_find(n->arguments, sym(a)));          \
     }
 
 
@@ -106,7 +105,7 @@ static void do_equal(block bk, perf p, execf n, value a, value b, heap h, perf p
     static CONTINUATION_6_4(__name, block, perf, execf, value, value, value,  heap, perf, operator, value *); \
     static void __name (block bk, perf p, execf n, value dest, value a, value b, heap h, perf pp, operator op, value *r) \
     {                                                                                                \
-        start_perf(p);\
+        start_perf(p, op);\
         if ((op == op_flush)  || (op == op_close)) {                                                 \
             apply(n, h, p,op, r);                                       \
             stop_perf(p, pp);                                              \
@@ -128,7 +127,7 @@ static void do_equal(block bk, perf p, execf n, value a, value b, heap h, perf p
     static CONTINUATION_6_4(__name, block, perf, execf, value, value, value, heap, perf, operator, value *); \
     static void __name (block bk, perf p, execf n, value dest, value a, value b, heap h, perf pp, operator op, value *r) \
     {                                                                                                  \
-         start_perf(p);\
+         start_perf(p, op);\
         if ((op == op_flush) || (op == op_close)) {                                                 \
             apply(n, h, p, op, r);                                       \
             stop_perf(p, pp);                                           \
@@ -150,7 +149,7 @@ static void do_equal(block bk, perf p, execf n, value a, value b, heap h, perf p
             r[reg(dest)] = (ar __op br) ? etrue : efalse;                                            \
             apply(n, h, p, op, r);                                       \
         } else {                                                                                     \
-            exec_error(bk->ev, "attempt to __op different types", a, b);                              \
+            exec_error(bk->ev, "attempt to " #__op " different types", a, b);                              \
         }                                                                                            \
         stop_perf(p,pp);                                                  \
     }
@@ -159,23 +158,22 @@ static void do_equal(block bk, perf p, execf n, value a, value b, heap h, perf p
 #define BUILD_BINARY(__name, __do_op)   \
     static execf __name (block bk, node n)  \
     {                                           \
-        vector a = vector_get(n->arguments, 0); \
         return cont(bk->h,                   \
-                __do_op,                        \
-                bk,                             \
-                register_perf(bk->ev, n),     \
-                resolve_cfg(bk, n, 0),           \
-                vector_get(a, 0),    \
-                vector_get(a, 1),    \
-                vector_get(a, 2));   \
-    }
+                    __do_op,                    \
+                    bk,                         \
+                    register_perf(bk->ev, n),    \
+                    resolve_cfg(bk, n, 0),                   \
+                    table_find(n->arguments, sym(return)), \
+                    table_find(n->arguments, sym(a)),           \
+                    table_find(n->arguments, sym(b)));\
+     }
 
 
 #define DO_BINARY_FILTER(__name, __op)                                                               \
     static CONTINUATION_5_4(__name, block, perf, execf, value, value,  heap, perf, operator, value *); \
     static void __name (block bk, perf p, execf n, value a, value b, heap h, perf pp, operator op, value *r) \
     {                                                                                                \
-        start_perf(p);                                                     \
+        start_perf(p, op);                                                     \
         if ((op == op_flush)  || (op == op_close)) {                                                 \
             apply(n, h, p, op, r);                                       \
             stop_perf(p, pp);                                           \
@@ -205,14 +203,13 @@ static void do_equal(block bk, perf p, execf n, value a, value b, heap h, perf p
 #define BUILD_BINARY_FILTER(__name, __do_op)   \
     static execf __name (block bk, node n)  \
     {                                           \
-        vector a = vector_get(n->arguments, 0); \
         return cont(bk->h,                       \
                 __do_op,                        \
                 bk,                              \
                 register_perf(bk->ev, n),         \
                 resolve_cfg(bk, n, 0),           \
-                vector_get(a, 0),    \
-                vector_get(a, 1));   \
+                table_find(n->arguments, sym(a)),  \
+                table_find(n->arguments, sym(b)));\
     }
 
 
@@ -275,7 +272,7 @@ BUILD_BINARY(build_is_not_equal, do_is_not_equal)
 static CONTINUATION_5_4(do_is, block, perf, execf, value, value, heap, perf, operator, value *);
 static void do_is (block bk, perf p, execf n, value dest, value a, heap h, perf pp, operator op, value *r)
 {
-    start_perf(p);
+    start_perf(p, op);
     if (op == op_insert)
         r[reg(dest)] = lookup(r, a);
     apply(n, h, p, op, r);

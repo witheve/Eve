@@ -643,8 +643,8 @@ function drawNode(nodeId, graph, state, seen) {
   let me = {c: `node`, children: [
     {c: `${node.type} node-text ${active}`, text: `${node.type} ${node.scan_type || ""} (${node.count || 0} | ${myTime}%)`},
     overlay,
+    {t:"pre", text: JSON.stringify(node.display, undefined, 2)},
     childrenContainer
-
   ]};
   if((node.type == "fork") || (node.type == "choose")) {
     childrenContainer.c += ` fork-node-children`;
