@@ -474,7 +474,7 @@ local function makeNode(context, type, token, rest)
   return node
 end
 
-local valueTypes = {IDENTIFIER = true, infix = true, ["function"] = true, NUMBER = true, STRING = true, block = true, attribute = true}
+local valueTypes = {IDENTIFIER = true, infix = true, ["function"] = true, NUMBER = true, STRING = true, block = true, attribute = true, BOOLEAN = true}
 local infixTypes = {equality = true, infix = true, attribute = true, mutate = true, inequality = true, DOT = true, SET = true, REMOVE = true, INSERT = true, INFIX = true, EQUALITY = true, ALIAS = true, INEQUALITY = true}
 local infixPrecedents = {equality = 0, inequality = 0, mutate = 0, attribute = 4, block = 4, ["^"] = 3, ["*"] = 2, ["/"] = 2, ["+"] = 1, ["-"] = 1 }
 local singletonTypes = {outputs = true}
@@ -1468,7 +1468,7 @@ generateQueryNode = function(root, context)
         errors.invalidUnionOutputsType(context, outputs)
       elseif outputs.type == "IDENTIFIER" and #child.children == 1 then
         local output = child.children[1]
-        if not valueTypes[output.type] then
+        if not valueTypes[output.type] and output.type ~= "object" then
           -- error, invalid output type
           errors.invalidOutputType(context, output)
         else
@@ -1479,7 +1479,7 @@ generateQueryNode = function(root, context)
         local block = child.children[1]
         if #block.children == #outputs.children then
           for ix, output in ipairs(outputs.children) do
-            if not valueTypes[output.type] then
+            if not valueTypes[output.type] and output.type ~= "object" then
               -- error, invalid output type
               errors.invalidOutputType(context, output)
             else
