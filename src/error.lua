@@ -343,6 +343,18 @@ function errors.invalidEqualityLeft(context, token, prev)
   end
 end
 
+function errors.invalidEqualityRight(context, equality)
+  -- TODO: there should be some way for us to capture enough information to determine what
+  -- specific issue you're running into
+  printError({type = "Invalid equivalence", context = context, token = equality, content = string.format([[
+  I'm not sure what to do with `%s` here.
+
+  <LINE>
+
+  Chances are this is a an `%s` after another form of equality or after an else.
+  ]], equality.operator, equality.operator)})
+end
+
 ------------------------------------------------------------
 -- Object errors
 ------------------------------------------------------------
@@ -442,6 +454,15 @@ function errors.outputTypeMismatch(context, node, outputs)
 
   <LINE>
   ]])})
+end
+
+function errors.invalidOutputType(context, output)
+  printError({type = "If returns can only be values", context = context, token = output, content = string.format([[
+  The values returned from an `if ... then` or an `else` can only be
+  expressions or values.  Looks like you've got a `%s` here.
+
+  <LINE>
+  ]], output.type)})
 end
 
 ------------------------------------------------------------
