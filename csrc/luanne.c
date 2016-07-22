@@ -72,6 +72,13 @@ static int construct_register(lua_State *L)
     return 1;
 }
 
+static int node_id(lua_State *L)
+{
+    node n = lua_touserdata(L, 1);
+    lua_pushnumber(L, (int)*((double *)n->id));
+    return (1);
+}
+
 static int construct_number(lua_State *L)
 {
     interpreter c = lua_context(L);
@@ -253,6 +260,7 @@ int lua_build_node(lua_State *L)
                   aprintf(c->h,"%r", lua_tovalue(L, v)));
     }
 
+    // xxx - shouldn't really be a value
     value node_id = lua_tovalue(L, 4);
     n->id = node_id;
 
@@ -281,6 +289,7 @@ interpreter build_lua()
     define(c, "sstring", construct_string);
     define(c, "value_to_string", lua_print_value);
     define(c, "build_node", lua_build_node);
+    define(c, "node_id", node_id);
     require_luajit(c, "compiler");
     return c;
 }
