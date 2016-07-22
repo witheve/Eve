@@ -255,7 +255,8 @@ function translate_subagg(n, bound, down, context, tracing)
 
   c = cnode(n, "subagg", {rest},
                    {projection = set_to_read_array(n, env, n.projection),
-                    groupings = set_to_read_array(n, env, n.groupings or {})},
+                    groupings = set_to_read_array(n, env, n.groupings or {}),
+                    pass = write_lookup(n, env, pass)},
                  context, tracing)
 
   return env, c

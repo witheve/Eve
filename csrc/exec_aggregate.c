@@ -102,8 +102,8 @@ static execf build_sum(block bk, node n, execf *arms)
                 register_perf(bk->ev, n),
                 targets,
                 groupings,
-                table_find(n->arguments, sym(source)),
-                table_find(n->arguments, sym(destination)),
+                table_find(n->arguments, sym(a)),
+                table_find(n->arguments, sym(return)),
                 pk);
 }
 
@@ -123,7 +123,8 @@ static void do_subagg_tail(perf p, execf next, value pass,
     // the flush, we have the whole set
     if (op == op_insert) {
         vector crosses = lookup(r, pass);
-        vector_foreach(crosses, i) { 
+                    
+        vector_foreach(crosses, i) {
             copyto(i, r, produced);
             apply(next, h, p, op, i);
         }
@@ -160,9 +161,11 @@ static void do_subagg(perf p, execf next,
                       heap h, perf pp, operator op, value *r)
 {
     start_perf(p, op);
+    
+    
     if (op == op_flush || op == op_close) {
         apply(next, h, p, op, r);
-        destroy(*phase);
+        if (*phase) destroy(*phase);
         *phase = 0;
         stop_perf(p, pp);
         return;
@@ -183,6 +186,7 @@ static void do_subagg(perf p, execf next,
         vector key = allocate_vector(*phase, vector_length(inputs));
         extract(key, inputs, r);
         table_set(*proj, key, (void*)1);
+        store(r, pass, *cross);
         apply(next, h, p, op, r);
     }
     stop_perf(p, pp);
@@ -197,7 +201,7 @@ static execf build_subagg(block bk, node n)
     table *proj = allocate(bk->h, sizeof(table));
     vector *cross = allocate(bk->h, sizeof(vector));
     *phase = 0;
-    vector p = table_find(n->arguments, sym(proj));
+    vector p = table_find(n->arguments, sym(projection));
 
     return cont(bk->h,
                 do_subagg,
