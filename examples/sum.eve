@@ -1,6 +1,6 @@
 Add some people
   [#session-connect]
-  save
+  freeze
     [#person @josh age: 22]
     [#person @chris age: 29]
     [#person @justin age: 28]

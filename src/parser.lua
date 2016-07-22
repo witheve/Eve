@@ -474,8 +474,9 @@ local function makeNode(context, type, token, rest)
   return node
 end
 
-local valueTypes = {IDENTIFIER = true, infix = true, ["function"] = true, NUMBER = true, STRING = true, block = true, attribute = true}
-local infixTypes = {equality = true, infix = true, attribute = true, mutate = true, inequality = true}
+local valueTypes = {IDENTIFIER = true, infix = true, ["function"] = true, NUMBER = true, STRING = true, block = true, attribute = true, BOOLEAN = true}
+local infixTypes = {equality = true, infix = true, attribute = true, mutate = true, inequality = true, DOT = true, SET = true, REMOVE = true, INSERT = true, INFIX = true, EQUALITY = true, ALIAS = true, INEQUALITY = true}
+local infixPrecedents = {equality = 0, inequality = 0, mutate = 0, attribute = 4, block = 4, ["^"] = 3, ["*"] = 2, ["/"] = 2, ["+"] = 1, ["-"] = 1 }
 local singletonTypes = {outputs = true}
 local alphaFields = {"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o"}
 
@@ -495,26 +496,6 @@ local function parse(tokens, context)
   local scanner = ArrayScanner:new(tokens)
   local token = scanner:read()
   local final = {}
-
-  local function getPrevRight(unwind, allowInfix)
-    local stackTop = stack:peek()
-    local parent = stackTop
-    local right = stackTop.children[#stackTop.children]
-    while right and (right.type == "equality" or right.type == "mutate" or right.type == "inequality"
-                     or (allowInfix and right.type == "infix") or right.type == "choose" or right.type == "union"
-                     or right.type == "query" or right.type == "outputs") do
-      if unwind then
-        parent.children[#parent.children] = nil
-        stack:push(right)
-      end
-      parent = right
-      right = parent.children[#parent.children]
-    end
-    if parent == stackTop then
-      return right
-    end
-    return parent
-  end
 
   local function tryFinishExpression(force)
     local stackTop = stack:peek()
@@ -541,6 +522,57 @@ local function parse(tokens, context)
     local stackTop = stack:peek() or {}
     local type = token.type
     local next = nextNonComment(scanner, context)
+
+    -- if next is an infix, we potentially have some stack surgery to do
+    -- based on precedence, but at the very least we want the current token
+    -- to end up as a child of the infix node
+    if next and infixTypes[next.type] then
+      -- create the upcoming infix node
+      local nextInfix
+      if next.type == "DOT" then
+        nextInfix = makeNode(context, "attribute", next, {children = {}})
+      elseif next.type == "INFIX" then
+        nextInfix = makeNode(context, "infix", next, {func = next.value, children = {}})
+      elseif next.type == "EQUALITY" or next.type == "ALIAS" or next.type == "INEQUALITY" then
+        local nodeType = next.type == "INEQUALITY" and "inequality" or "equality"
+        nextInfix = makeNode(context, nodeType, next, {operator = next.value, children = {}})
+      elseif next.type == "INSERT" or next.type == "REMOVE" or next.type == "SET" then
+        nextInfix = makeNode(context, "mutate", next, {operator = next.type:lower(), children = {}})
+      else
+        -- error? how could we get here?
+        print("UMMM", formatNode(next))
+      end
+      -- if the current stacktop is also an infix, we need to figure out what order
+      -- we want to do the ops in, we use precedence numbers to implement operator
+      -- precedence
+      local topPrecedent = infixPrecedents[stackTop.func] or infixPrecedents[stackTop.type]
+      local nextPrecedent = infixPrecedents[nextInfix.func] or infixPrecedents[nextInfix.type]
+      if topPrecedent and nextPrecedent < topPrecedent then
+        -- we walk up the stack until we either find a non-infix
+        -- or we find someone with a precedent <= to us
+        local popped = Stack:new()
+        while topPrecedent and nextPrecedent < topPrecedent do
+          popped:push(stack:pop())
+          local nextStackTop = stack:peek()
+          topPrecedent = nextStackTop and (infixPrecedents[nextStackTop.func] or infixPrecedents[nextStackTop.type])
+        end
+        -- push ourselves on
+        stack:push(nextInfix)
+        -- now put everyone back on top of us
+        while popped:peek() do
+          local cur = popped:pop()
+          stack:push(cur)
+          stackTop = cur
+        end
+      else
+        -- if we're the right precedence already, we push ourselves onto the stack
+        stack:push(nextInfix)
+        stackTop = stack:peek()
+      end
+      -- eat next since we're taking care of it here
+      scanner:read()
+      next = nextNonComment(scanner, context)
+    end
 
     if type == "DOC" then
       -- if there's already a query on the stack and this line is directly following
@@ -665,7 +697,7 @@ local function parse(tokens, context)
     elseif type == "THEN" then
       -- TODO: this needs to check further up the stack to make
       -- sure that query is part of a choose or union...
-      if stackTop.type == "query" then
+      if stackTop.type == "query" and stackTop.parent then
         stackTop.closed = true
         local childQuery = makeNode(context, "outputs", token, {children = {}})
         stack:push(childQuery)
@@ -707,68 +739,6 @@ local function parse(tokens, context)
         errors.invalidTag(context, token, next)
       end
 
-    elseif type == "DOT" then
-      local prev = getPrevRight(false, true)
-      if prev and (prev.type == "equality" or prev.type == "mutate" or prev.type == "inequality"
-                   or prev.type == "infix" or prev.type == "outputs") then
-        local right = prev.children[#prev.children]
-        if right and right.type == "IDENTIFIER" then
-          getPrevRight(true, true)
-          -- remove the right as we're going to eat it for the attribute call
-          prev.children[#prev.children] = nil
-          -- now push this expression on the stack as well
-          stack:push(makeNode(context, "attribute", token, {children = {right}}))
-        else
-          -- error
-          errors.invalidAttributeLeft(context, token, right)
-        end
-
-      -- it needs to either be an expression, an identifier, or a constant
-      elseif prev and prev.type == "IDENTIFIER" then
-        stackTop.children[#stackTop.children] = nil
-        stack:push(makeNode(context, "attribute", token, {children = {prev}}))
-      else
-        -- error
-        errors.invalidAttributeLeft(context, token, prev)
-      end
-
-    elseif type == "INFIX" then
-      -- get the previous child
-      local prev = getPrevRight(false)
-      if prev and (prev.type == "equality" or prev.type == "mutate" or prev.type == "inequality") then
-        local right = prev.children[#prev.children]
-        if right and valueTypes[right.type] then
-          getPrevRight(true, false)
-          -- remove the right hand side
-          prev.children[2] = nil
-          -- now push this expression on the stack as well
-          stack:push(makeNode(context, "infix", token, {func = token.value, children = {right}}))
-        else
-          -- error
-          errors.invalidInfixLeft(context, token, prev)
-        end
-      -- it needs to either be an expression, an identifier, or a constant
-      elseif prev and valueTypes[prev.type] then
-        stackTop.children[#stackTop.children] = nil
-        stack:push(makeNode(context, "infix", token, {func = token.value, children = {prev}}))
-      else
-        -- error
-        errors.invalidInfixLeft(context, token, prev)
-      end
-
-    elseif type == "EQUALITY" or type == "ALIAS" or type == "INEQUALITY" then
-      -- get the previous child
-      local prev = stackTop.children[#stackTop.children]
-      if not prev or prev.type == "equality" or prev.type == "inequality" or
-         stackTop.type == "equality" or stackTop.type == "inequality" then
-        -- error
-        errors.invalidEqualityLeft(context, token, prev)
-      else
-        local nodeType = type == "INEQUALITY" and "inequality" or "equality"
-        stackTop.children[#stackTop.children] = nil
-        stack:push(makeNode(context, nodeType, token, {operator = token.value, children = {prev}}))
-      end
-
     elseif type == "OPEN_PAREN" then
       stack:push(makeNode(context, "block", token, {children = {}}))
 
@@ -785,17 +755,6 @@ local function parse(tokens, context)
       else
         -- error
         errors.invalidCloseParen(context, token, stack)
-      end
-
-    elseif type == "INSERT" or type == "REMOVE" or type == "SET" then
-      -- get the previous child since these ops are infix
-      local prev = stackTop.children[#stackTop.children]
-      if not prev or (prev.type ~= "IDENTIFIER" and prev.type ~= "attribute") then
-        -- error
-        errors.invalidInfixLeft(context, token, prev)
-      else
-        stackTop.children[#stackTop.children] = nil
-        stack:push(makeNode(context, "mutate", token, {operator = type:lower(), children = {prev}}))
       end
 
     elseif type == "IDENTIFIER" and next and next.type == "OPEN_PAREN" then
@@ -929,6 +888,11 @@ local function resolveEqualityLike(context, node)
   -- set that when I try to resolve this expression,
   -- I'm looking to resolve it to this specific variable
   local right = resolveExpression(node.children[2], context)
+  if not right then
+    -- error
+    errors.invalidEqualityRight(context, node)
+    return
+  end
   local expression = makeNode(context, "expression", node, {operator = node.operator, bindings = {}})
   local leftBinding = {field = "a"}
   if left.type == "variable" then
@@ -1365,7 +1329,9 @@ local function generateUnionNode(root, context, unionType)
   for _, child in ipairs(root.children) do
     local type = child.type
     if type == "query" then
+      context.unionNode = true
       union.queries[#union.queries + 1] = generateQueryNode(child, context)
+      context.unionNode = false
     else
       -- error
       errors.invalidUnionChild(context, child)
@@ -1501,14 +1467,25 @@ generateQueryNode = function(root, context)
         -- error
         errors.invalidUnionOutputsType(context, outputs)
       elseif outputs.type == "IDENTIFIER" and #child.children == 1 then
-        local equality = makeNode(context, "equality", child.children[1], {operator = "=", children = {outputs, child.children[1]}})
-        resolveExpression(equality, context)
+        local output = child.children[1]
+        if not valueTypes[output.type] and output.type ~= "object" then
+          -- error, invalid output type
+          errors.invalidOutputType(context, output)
+        else
+          local equality = makeNode(context, "equality", output, {operator = "=", children = {outputs, output}})
+          resolveExpression(equality, context)
+        end
       elseif outputs.type == "block" and child.children[1].type == "block" then
         local block = child.children[1]
         if #block.children == #outputs.children then
           for ix, output in ipairs(outputs.children) do
-            local equality = makeNode(context, "equality", block.children[ix], {operator = "=", children = {output, block.children[ix]}})
-            resolveExpression(equality, context)
+            if not valueTypes[output.type] and output.type ~= "object" then
+              -- error, invalid output type
+              errors.invalidOutputType(context, output)
+            else
+              local equality = makeNode(context, "equality", block.children[ix], {operator = "=", children = {output, block.children[ix]}})
+              resolveExpression(equality, context)
+            end
           end
         else
           -- error, output numbers don't match up
@@ -1518,6 +1495,12 @@ generateQueryNode = function(root, context)
         -- error mismatched outputs
         errors.outputTypeMismatch(context, child.children[1], outputs)
       end
+
+    elseif type == "variable" and context.unionNode then
+      -- in union/choose, it's ok to have a bare variable, e.g.
+      -- guest = if friend then friend
+      --         if friend.spouse then friend.spouse
+      -- there's nothing we actually need to do here, but it's not an error
 
     else
       -- error
@@ -1595,7 +1578,6 @@ local function printParse(content)
   local tokens = lex(content)
   context.tokens = tokens
   local tree = {type="expression tree", children = parse(tokens, context)}
-  local graph = generateNodes(tree, context)
   print()
   print(color.dim("---------------------------------------------------------"))
   print(color.dim("-- Parse tree"))
@@ -1607,6 +1589,7 @@ local function printParse(content)
   print(color.dim("-- Query graph"))
   print(color.dim("---------------------------------------------------------"))
   print()
+  local graph = generateNodes(tree, context)
   print(formatQueryGraph(graph))
   print()
   print(color.dim("---------------------------------------------------------"))

@@ -271,6 +271,7 @@ function handleDOMUpdates(result) {
           sentInputValues[entId].shift();
         } else {
           sentInputValues[entId] = [];
+          // @FIXME: handle select both here and when something tagged option is added.
           elem.value = value;
         }
       } else {
