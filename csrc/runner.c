@@ -165,8 +165,11 @@ static void run_block(evaluation ev, block bk)
     bk->ev->block_solution = 0;
     bk->ev->non_empty = false;
     ticks start = rdtsc();
-    apply(bk->head, bh, 0, op_insert, 0);
-    apply(bk->head, bh, 0, op_flush, 0);
+    value *r = allocate(ev->working, (bk->regs + 1)* sizeof(value));
+    apply(bk->head, bh, 0, op_insert, r);
+    // flush shouldn't need r
+    apply(bk->head, bh, 0, op_flush, r);
+    
     ev->cycle_time += rdtsc() - start;
     
     if (bk->ev->non_empty) {

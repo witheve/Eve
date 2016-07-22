@@ -550,9 +550,9 @@ end
 
 function build(queryGraph, tracing, context)
    local tailf = function(b)
-               return empty_env(), cnode(queryGraph, "terminal", {}, {}, parseGraph.context, tracing)
+               return empty_env(), cnode(queryGraph, "terminal", {}, {}, context, tracing)
            end
-   local env, program = walk(queryGraph.unpacked, nil, {}, tailf, parseGraph.context, tracing)
+   local env, program = walk(queryGraph.unpacked, nil, {}, tailf, context, tracing)
    return program, env.maxregs
 end
 

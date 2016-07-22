@@ -161,7 +161,7 @@ vector lua_compile_eve(interpreter c, heap h, buffer b, boolean tracing, buffer 
     lua_pushlstring(c->L, bref(b, 0), buffer_length(b));
     lua_pushboolean(c->L, tracing);
 
-    if (lua_pcall(c->L, 2, 3, lua_gettop(c->L)-4)) {
+    if (lua_pcall(c->L, 2, 2, lua_gettop(c->L)-4)) {
         printf ("lua error\n");
         printf ("%s\n", lua_tostring(c->L, -1));
     }
@@ -169,12 +169,13 @@ vector lua_compile_eve(interpreter c, heap h, buffer b, boolean tracing, buffer 
     *out = lua_to_buffer(c->L, -1, h);
     int count = 0;
     foreach_lua_table(c->L, -2, k, v) {
-        compiled n = vector_get(result, count++);
-        foreach_lua_table(c->L, -2, k, v) {
+        compiled n = allocate(c->h, sizeof(struct compiled));
+        foreach_lua_table(c->L, v, k0, v0) {
+            value kv = lua_tovalue(c->L, k0);
             // xxx - do we have a direct extract?
-            if (lua_tovalue(c->L, k) == sym(name)) n->name = lua_tovalue(c->L, v);
-            if (lua_tovalue(c->L, k) == sym(regs)) n->regs = (int)lua_tonumber(c->L, v);
-            if (lua_tovalue(c->L, k) == sym(head)) n->head = lua_tovalue(c->L, v);
+            if (kv == sym(name)) n->name = lua_tovalue(c->L, v0);
+            if (kv == sym(regs)) n->regs = (int)lua_tonumber(c->L, v0);
+            if (kv == sym(head)) n->head = lua_tovalue(c->L, v0);
         }
         vector_insert(result, n);
     }

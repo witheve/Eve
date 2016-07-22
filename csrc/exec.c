@@ -20,12 +20,10 @@ static void do_sub_tail(perf p,
 
 static execf build_sub_tail(block bk, node n)
 {
-
-    value resreg = table_find(n->arguments, sym(pass)); 
     return cont(bk->h,
                 do_sub_tail,
                 register_perf(bk->ev, n),
-                resreg,
+                table_find(n->arguments, sym(pass)),
                 table_find(n->arguments, sym(provides)));
 }
 
@@ -437,7 +435,7 @@ static void do_regfile(execf n, perf p, int size, heap h, perf pp, operator op, 
     start_perf(p, op);
     value *r;
     if (op == op_insert) {
-        r = allocate(h, size * sizeof(value));
+
         // xxx - shouldn't be necessary
         memset(r, 0, size * sizeof(value));
     }
@@ -475,7 +473,6 @@ table builders_table()
         table_set(builders, intern_cstring("choose"), build_choose);
         table_set(builders, intern_cstring("choosetail"), build_choose_tail);
         table_set(builders, intern_cstring("move"), build_move);
-        table_set(builders, intern_cstring("regfile"), build_regfile);
         table_set(builders, intern_cstring("not"), build_not);
         table_set(builders, intern_cstring("time"), build_time);
         table_set(builders, intern_cstring("merge"), build_merge);

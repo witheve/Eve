@@ -1097,7 +1097,7 @@ function compileExec(contents, tracing)
     local unpacked = unpackObjects(dependencyGraph, context)
     -- @NOTE: We cannot allow dead DGs to still try and run, they may be missing filtering hunks and fire all sorts of missiles
     if not dependencyGraph.ignore then
-      head, regs = build.build(graph, tracing, parseGraph.context)
+      head, regs = build.build(queryGraph, tracing, parseGraph.context)
       set[#set+1] = {head = head, regs = regs, name = queryGraph.name}
     end
   end
