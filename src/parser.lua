@@ -1199,6 +1199,7 @@ generateObjectNode = function(root, context)
           context.mutating = prevMutating
           dependencies:add(resolved)
           lastAttribute = nil
+          binding.variable = resolved
           binding = generateBindingNode(context, binding, related, object)
         else
           local resolved = resolveExpression(right, context)
