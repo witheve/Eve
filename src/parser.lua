@@ -636,7 +636,7 @@ local function parse(tokens, context)
       local update = makeNode(context, "update", token, {scope = "session", children = {}})
       if type == "MAINTAIN" then
         update.scope = "event"
-      elseif next.value == "all" or next.value == "event" then
+      elseif next and (next.value == "all" or next.value == "event") then
         update.scope = next.value
         -- eat that token
         scanner:read()
@@ -732,7 +732,7 @@ local function parse(tokens, context)
       end
 
     elseif type == "TAG" or type == "NAME" then
-      if next.type == "STRING_OPEN" or next.type == "IDENTIFIER" then
+      if next and (next.type == "STRING_OPEN" or next.type == "IDENTIFIER") then
         stack:push(makeNode(context, "equality", token, {operator = "=", children = {token}}))
       else
         -- error
