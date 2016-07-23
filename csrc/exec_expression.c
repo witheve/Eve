@@ -15,7 +15,7 @@ static CONTINUATION_5_4(do_equal, block, perf, execf, value, value,  heap, perf,
 static void do_equal(block bk, perf p, execf n, value a, value b, heap h, perf pp, operator op, value *r)
 {
     start_perf(p, op);
-    if ((op != op_flush)  && (op != op_close)) {                                                 
+    if ((op != op_flush)  && (op != op_close)) {
         value ar = lookup(r, a);
         value br = lookup(r, b);
         if (!value_equals(ar, br)) return;
@@ -281,6 +281,29 @@ static void do_is (block bk, perf p, execf n, value dest, value a, heap h, perf 
 
 BUILD_UNARY(build_is, do_is)
 
+static CONTINUATION_6_4(do_mod, block, perf, execf, value, value, value,  heap, perf, operator, value *);
+static void do_mod (block bk, perf p, execf n, value dest, value a, value b, heap h, perf pp, operator op, value *r)
+{
+    start_perf(p);
+    if ((op == op_flush)  || (op == op_close)) {
+        apply(n, h, p,op, r);
+        stop_perf(p, pp);
+        return;
+    }
+    value ar = lookup(r, a);
+    value br = lookup(r, b);
+    if ((type_of(ar) != float_space ) || (type_of(br) != float_space)) {
+        exec_error(bk->ev, "attempt to modulo non-numbers", a, b);
+        prf("UHOH %v, %v\n", ar, br);
+    } else {
+        r[reg(dest)] = box_float(fmod(*(double *)ar, *(double *)br));
+        apply(n, h, p, op, r);
+    }
+    stop_perf(p, pp);
+}
+
+BUILD_BINARY(build_mod, do_mod)
+
 
 void register_exec_expression(table builders)
 {
@@ -304,5 +327,6 @@ void register_exec_expression(table builders)
     table_set(builders, intern_cstring("sin"), build_sin);
     table_set(builders, intern_cstring("cos"), build_cos);
     table_set(builders, intern_cstring("tan"), build_tan);
+    table_set(builders, intern_cstring("mod"), build_mod);
     table_set(builders, intern_cstring("toggle"), build_toggle);
 }
