@@ -476,7 +476,7 @@ end
 
 local valueTypes = {IDENTIFIER = true, infix = true, ["function"] = true, NUMBER = true, STRING = true, block = true, attribute = true, BOOLEAN = true}
 local infixTypes = {equality = true, infix = true, attribute = true, mutate = true, inequality = true, DOT = true, SET = true, REMOVE = true, INSERT = true, INFIX = true, EQUALITY = true, ALIAS = true, INEQUALITY = true}
-local infixPrecedents = {equality = 0, inequality = 0, mutate = 0, attribute = 4, block = 4, ["^"] = 3, ["*"] = 2, ["/"] = 2, ["+"] = 1, ["-"] = 1 }
+local infixPrecedents = {equality = 0, inequality = 0, mutate = 0, attribute = 4, block = 4, ["function"] = 4, ["^"] = 3, ["*"] = 2, ["/"] = 2, ["+"] = 1, ["-"] = 1 }
 local singletonTypes = {outputs = true}
 local alphaFields = {"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o"}
 
@@ -523,6 +523,25 @@ local function parse(tokens, context)
     local type = token.type
     local next = nextNonComment(scanner, context)
 
+    -- we have to handle close parens before we do anything else, to make sure
+    -- that the top of the stack is properly closed *before* we might add new
+    -- infixes onto it.
+    if type == "CLOSE_PAREN" then
+      local stackType = stackTop.type
+      if (stackType == "block" or stackType == "function" or stackType == "grouping"
+                      or stackType == "projection" or (stackTop.parent and stackTop.parent.type == "not")) then
+        stackTop.closed = true
+        -- this also closes out the containing function in the case of aggregate
+        -- modifiers
+        if stackType == "projection" or stackType == "grouping" then
+          stack[#stack - 1].closed = true
+        end
+      else
+        -- error
+        errors.invalidCloseParen(context, token, stack)
+      end
+    end
+
     -- if next is an infix, we potentially have some stack surgery to do
     -- based on precedence, but at the very least we want the current token
     -- to end up as a child of the infix node
@@ -540,7 +559,7 @@ local function parse(tokens, context)
         nextInfix = makeNode(context, "mutate", next, {operator = next.type:lower(), children = {}})
       else
         -- error? how could we get here?
-        print("UMMM", formatNode(next))
+        error(string.format("Got an infix type that we don't know how to deal with: %s", next.type))
       end
       -- if the current stacktop is also an infix, we need to figure out what order
       -- we want to do the ops in, we use precedence numbers to implement operator
@@ -550,14 +569,21 @@ local function parse(tokens, context)
       if topPrecedent and nextPrecedent < topPrecedent then
         -- we walk up the stack until we either find a non-infix
         -- or we find someone with a precedent <= to us
+        local nextStackTop = stack:peek()
         local popped = Stack:new()
         while topPrecedent and nextPrecedent < topPrecedent do
-          popped:push(stack:pop())
-          local nextStackTop = stack:peek()
-          topPrecedent = nextStackTop and (infixPrecedents[nextStackTop.func] or infixPrecedents[nextStackTop.type])
+          -- we can't break out of parens that aren't finished yet
+          if (nextStackTop.type == "block" or nextStackTop.type == "function") and not nextStackTop.closed then
+            topPrecedent = false
+          else
+            popped:push(stack:pop())
+            nextStackTop = stack:peek()
+            topPrecedent = nextStackTop and (infixPrecedents[nextStackTop.func] or infixPrecedents[nextStackTop.type])
+          end
         end
         -- push ourselves on
         stack:push(nextInfix)
+        stackTop = nextInfix
         -- now put everyone back on top of us
         while popped:peek() do
           local cur = popped:pop()
@@ -571,7 +597,6 @@ local function parse(tokens, context)
       end
       -- eat next since we're taking care of it here
       scanner:read()
-      next = nextNonComment(scanner, context)
     end
 
     if type == "DOC" then
@@ -743,19 +768,7 @@ local function parse(tokens, context)
       stack:push(makeNode(context, "block", token, {children = {}}))
 
     elseif type == "CLOSE_PAREN" then
-      local stackType = stackTop.type
-      if (stackType == "block" or stackType == "function" or stackType == "grouping"
-                      or stackType == "projection" or (stackTop.parent and stackTop.parent.type == "not")) then
-        stackTop.closed = true
-        -- this also closes out the containing function in the case of aggregate
-        -- modifiers
-        if stackType == "projection" or stackType == "grouping" then
-          stack[#stack - 1].closed = true
-        end
-      else
-        -- error
-        errors.invalidCloseParen(context, token, stack)
-      end
+      -- handled above
 
     elseif type == "IDENTIFIER" and next and next.type == "OPEN_PAREN" then
       stack:push(makeNode(context, "function", token, {func = token.value, children = {}}))
