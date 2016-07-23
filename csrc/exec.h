@@ -28,6 +28,7 @@ static perf register_perf(evaluation e, node n)
     perf p = allocate(e->h, sizeof(struct perf));
     p->time = 0;
     p->count = 0;
+    p->trig = 0;
     table_set(e->counters, n, p);
     return p;
 }
@@ -52,6 +53,15 @@ static inline void copyout(value *r, vector keys, vector source)
     for (int i = 0; i< vector_length(keys); i++) 
         store(r, vector_get(keys, i), vector_get(source, i));
 }
+
+static inline void copyto(value *d, value *s, vector keys)
+{
+    for (int i = 0; i< vector_length(keys); i++) {
+        value k =  vector_get(keys, i);
+        store(d, k, lookup(s, k));
+    }
+}
+
 
 // should try to throw an error here for writing into a non-reg
 static inline int reg(value n)

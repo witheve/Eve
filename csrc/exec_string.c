@@ -5,14 +5,13 @@
 static CONTINUATION_4_4(do_concat, perf, execf, value, vector, heap, perf, operator, value *);
 static void do_concat(perf p, execf n, value dest, vector terms, heap h, perf pp, operator op, value *r)
 {
-    // XXX not init
-    start_perf(p);
+    start_perf(p, op);
     if(op == op_close) {
         apply(n, h, p, op, r);
         stop_perf(p, pp);
         return;
     }
-    buffer b = allocate_string(init);
+    buffer b = allocate_string(h);
 
     vector_foreach(terms, i)
         print_value_raw(b, lookup(r, i));
@@ -28,8 +27,8 @@ static execf build_concat(block bk, node n)
     return cont(bk->h, do_concat,
                 register_perf(bk->ev, n),
                 resolve_cfg(bk, n, 0),
-                vector_get(vector_get(n->arguments, 0), 0),
-                (vector)vector_get(n->arguments, 1));
+                table_find(n->arguments, sym(destination)),
+                table_find(n->arguments, sym(arguments)));
 }
 
 static CONTINUATION_5_4(do_split, perf, execf, value, value, value,
@@ -37,7 +36,7 @@ static CONTINUATION_5_4(do_split, perf, execf, value, value, value,
 static void do_split(perf p, execf n, value dest, value source, value key,
                      heap h, perf pp, operator op, value *r)
 {
-    start_perf(p);
+    start_perf(p, op);
     if (op != op_flush) {
         buffer out = allocate_string(h);
         int j;
@@ -61,20 +60,21 @@ static void do_split(perf p, execf n, value dest, value source, value key,
 
 static execf build_split(block bk, node n)
 {
-    vector a = vector_get(n->arguments, 0);
+    // need an index here
     return cont(bk->h, do_split,
                 register_perf(bk->ev, n),
                 resolve_cfg(bk, n, 0),
-                vector_get(a, 0),
-                vector_get(a, 1),
-                vector_get(a, 2));
+                table_find(n->arguments, sym(destination)),
+                table_find(n->arguments, sym(source)),
+                table_find(n->arguments, sym(key)));
+                
 }
 
 
 static CONTINUATION_4_4(do_length, perf, execf, value,  value, heap, perf, operator, value *);
 static void do_length(perf p, execf n, value dest, value src, heap h, perf pp, operator op, value *r)
 {
-    start_perf(p);
+    start_perf(p, op);
     if (op == op_insert) {
         store(r, dest, lookup(r, src));
     }
@@ -85,12 +85,11 @@ static void do_length(perf p, execf n, value dest, value src, heap h, perf pp, o
 
 static execf build_length(block bk, node n)
 {
-    vector a = vector_get(n->arguments, 0);
     return cont(bk->h, do_length,
                 register_perf(bk->ev, n),
                 resolve_cfg(bk, n, 0),
-                vector_get(a, 0),
-                vector_get(a, 1));
+                table_find(n->arguments, sym(destination)),
+                table_find(n->arguments, sym(source)));
 }
 
 void register_string_builders(table builders)

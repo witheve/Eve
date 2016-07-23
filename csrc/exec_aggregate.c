@@ -11,7 +11,7 @@ static void do_sort(execf n, perf p,
                     table *targets, value key, value out, vector proj, vector pk,
                     heap h, perf pp, operator op, value *r)
 {
-    start_perf(p);
+    start_perf(p, op);
     if (op == op_insert) {
 
         extract(pk, proj, r);
@@ -59,7 +59,7 @@ static void do_sum(execf n, perf p,
                    table *targets, vector grouping, value src, value dst, vector pk,
                    heap h, perf pp, operator op, value *r)
 {
-    start_perf(p);
+    start_perf(p, op);
     if (op == op_insert) {
         extract(pk, grouping, r);
         double *x;
@@ -91,10 +91,8 @@ static void do_sum(execf n, perf p,
 
 static execf build_sum(block bk, node n, execf *arms)
 {
-    // vector targets, grouping, value src, value dst, vector pk
-    vector args = vector_get(n->arguments, 0);
-    vector groupings = vector_get(n->arguments, 1);
-
+    vector groupings = table_find(n->arguments, sym(groupings));
+    if (!groupings) groupings = allocate_vector(bk->h, 0);
     vector pk = allocate_vector(bk->h, vector_length(groupings));
     table *targets = allocate(bk->h, sizeof(table));
     *targets = create_value_vector_table(bk->h);
@@ -104,8 +102,8 @@ static execf build_sum(block bk, node n, execf *arms)
                 register_perf(bk->ev, n),
                 targets,
                 groupings,
-                vector_get(args, 1),
-                vector_get(args, 0),
+                table_find(n->arguments, sym(source)),
+                table_find(n->arguments, sym(destination)),
                 pk);
 }
 

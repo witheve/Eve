@@ -44,6 +44,7 @@ typedef struct perf {
     int count;
     ticks start;
     ticks time;
+    int trig;
 } *perf;
 
 typedef closure(execf, heap, perf, operator, value *);
@@ -69,7 +70,8 @@ struct node {
     estring type;
     buildf builder;
     vector arms;
-    vector arguments; // always vectors of vectors
+    table arguments;
+    table display;
 };
 
 
@@ -93,10 +95,16 @@ struct block {
 };
 
 
-static inline void start_perf(perf p)
+static inline void start_perf(perf p, operator op)
 {
-    p->count++;
+    if (op== op_insert) {
+        if (p->trig == 1) p->count=0;
+        p->count++;
+    }
+    if (op == op_flush) p->trig = 1;
+        
     p->start = rdtsc();
+        
 }
 
 static inline void stop_perf(perf p, perf pp)

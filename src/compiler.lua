@@ -1060,7 +1060,7 @@ function unpackObjects(dg, context)
         end
       end
     elseif node.type == "expression" and node.projection then
-      local subproject = SubprojectNode:new({query = dg.query, kind = "aggregate", projection = node.projection, provides = node.deps.provides, nodes = {node}}, node, context)
+      local subproject = SubprojectNode:new({query = dg.query, kind = "aggregate", projection = node.projection, groupings = node.groupings, provides = node.deps.provides, nodes = {node}}, node, context)
       if node.operator == "count" then
         local constant = makeNode(context, "constant", node, {generated = true, constant = 1, constantType = "number"})
         node.bindings[#node.bindings + 1] = makeNode(context, "binding", node, {generated = true, field = "a", constant = constant})

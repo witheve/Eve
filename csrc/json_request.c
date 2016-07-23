@@ -73,6 +73,17 @@ static void send_full_parse(heap h, buffer_handler output, string parse)
     apply(output, out, cont(h, send_destroy, h));
 }
 
+static void dump_display(buffer dest, node source)
+{
+    boolean first=true;
+    bprintf(dest, "{");
+    table_foreach(source->display, k, v) {
+        bprintf(dest, "%s%v: \"%b\"", !first?",":"", k, v);
+        first = false;
+    }
+    bprintf(dest, "}");
+}
+
 static void send_cnode_graph(heap h, buffer_handler output, node head)
 {
     string out = allocate_string(h);
@@ -98,9 +109,13 @@ static void send_cnode_graph(heap h, buffer_handler output, node head)
         }
         bprintf(out, "]");
 
+        // xxx is in display props now
         if(current->type == intern_cstring("scan")) {
-            bprintf(out, ", \"scan_type\": %v", vector_get(vector_get(current->arguments, 0), 0));
+            bprintf(out, ", \"scan_type\": %v", table_find(current->arguments, sym(sig)));
         }
+        bprintf(out, ", \"display\":");
+        dump_display(out, current);
+        
         bprintf(out, "}");
         nodeComma = 1;
     }
