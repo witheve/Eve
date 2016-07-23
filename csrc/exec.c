@@ -21,7 +21,7 @@ static void do_sub_tail(perf p,
 static execf build_sub_tail(block bk, node n)
 {
 
-    value resreg = table_find(n->arguments, sym(pass)); 
+    value resreg = table_find(n->arguments, sym(pass));
     return cont(bk->h,
                 do_sub_tail,
                 register_perf(bk->ev, n),
@@ -383,10 +383,10 @@ static execf build_terminal(block bk, node n)
     return cont(bk->h, do_terminal, bk);
 }
 
-static CONTINUATION_7_4(do_time,
-                        block, perf, execf, value, value, value, timer,
+static CONTINUATION_8_4(do_time,
+                        block, perf, execf, value, value, value, value, timer,
                         heap, perf, operator, value *);
-static void do_time(block bk, perf p, execf n, value s, value m, value hour, timer t, heap h,
+static void do_time(block bk, perf p, execf n, value hour, value minute, value second, value frame, timer t, heap h,
                     perf pp, operator op, value *r)
 {
     start_perf(p, op);
@@ -399,8 +399,10 @@ static void do_time(block bk, perf p, execf n, value s, value m, value hour, tim
         value sv = box_float((double)seconds);
         value mv = box_float((double)minutes);
         value hv = box_float((double)hours);
-        store(r, s, sv);
-        store(r, m, mv);
+        u64 ms = ((((u64)bk->ev->t)>>32)*1000ull);
+        value fv = box_float((double)ms);
+        store(r, second, sv);
+        store(r, minute, mv);
         store(r, hour, hv);
     }
     apply(n, h, p, op, r);
@@ -416,15 +418,24 @@ static void time_expire(block bk)
 // xxx  - handle the bound case
 static execf build_time(block bk, node n, execf *arms)
 {
-    timer t =register_periodic_timer(seconds(1), cont(bk->h, time_expire, bk));
+    value hour = table_find(n->arguments, sym(hours));
+    value minute = table_find(n->arguments, sym(minutes));
+    value second = table_find(n->arguments, sym(seconds));
+    value frame = table_find(n->arguments, sym(frames));
+    ticks interval = seconds(60 * 60);
+    if(frame != 0) interval = milliseconds(1000 / 30);
+    else if(second != 0) interval = seconds(1);
+    else if(minute != 0) interval = seconds(60);
+    timer t = register_periodic_timer(interval, cont(bk->h, time_expire, bk));
     return cont(bk->h,
                 do_time,
                 bk,
                 register_perf(bk->ev, n),
                 resolve_cfg(bk, n, 0),
-                table_find(n->arguments, sym(hours)),
-                table_find(n->arguments, sym(minutes)),
-                table_find(n->arguments, sym(seconds)),
+                hour,
+                minute,
+                second,
+                frame,
                 t);
 }
 

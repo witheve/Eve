@@ -120,7 +120,7 @@ local expressions = {
 
   toggle = {rename("toggle", schemas.unary)},
 
-  time = {schema({"return", OPT, "seconds", "minutes", "hours"}, "time")},
+  time = {schema({"return", OPT, "frames", "seconds", "minutes", "hours"}, "time")},
 
   -- Aggregates
   count = {schema({"return"}, "sum", "aggregate"), schema({IN, "return"}, "sum", "aggregate")},
