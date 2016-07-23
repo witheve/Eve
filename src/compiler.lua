@@ -1090,11 +1090,11 @@ function compileExec(contents, tracing)
   end
 
   local set = {}
-  local nameset = {}
 
   for ix, queryGraph in ipairs(parseGraph.children) do
     local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph, context)
     local unpacked = unpackObjects(dependencyGraph, context)
+    local head, regs
     -- @NOTE: We cannot allow dead DGs to still try and run, they may be missing filtering hunks and fire all sorts of missiles
     if not dependencyGraph.ignore then
       head, regs = build.build(queryGraph, tracing, parseGraph.context)
