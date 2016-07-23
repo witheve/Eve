@@ -37,52 +37,13 @@ typedef struct sub {
     vector outputs;
     vector ids;
     table ids_cache; //these persist for all time
-    table previous;
-    table moved;
     table results;
     execf leg, next;
     value resreg;
+    heap resh;
     heap h;
-    evaluation e;
-    ticks t;
     boolean id_collapse;
-    heap resh, prevh;
 } *sub;
-
-
-static void delete_missing(heap h, perf p, sub s, value *r)
-{
-    if (s->previous) {
-        table_foreach(s->previous, k, v) {
-            if ((!s->moved) || (!table_find(s->moved, k))) {
-                table_foreach((table)v, n, _) {
-                    copyout(r, s->outputs, n);
-                    apply(s->next, h, p, op_remove, r);
-                }
-            }
-        }
-    }
-}
-
-
-static CONTINUATION_1_1(end_o_sub, sub, boolean);
-static void end_o_sub(sub s, boolean finished)
-{
-    if (finished) {
-        if (s->previous) destroy(s->prevh);
-        s->previous = s->results;
-        s->prevh = s->resh;
-    }
-    s->results = 0;
-    s->moved = 0;
-}
-
-
-static void set_ids_each(sub s, vector key, value *r)
-{
-    vector_foreach(s->ids, i)
-        store(r, i, generate_uuid());
-}
 
 
 static void set_ids(sub s, vector key, value *r)
@@ -103,24 +64,10 @@ static CONTINUATION_2_4(do_sub, perf, sub, heap, perf, operator, value *);
 static void do_sub(perf p, sub s, heap h, perf pp, operator op, value *r)
 {
     start_perf(p, op);
-    // dont manage deletions across fixed point
-    if (s->t != s->e->t) {
-        if (s->previous) destroy(s->prevh);
-        s->previous = 0;
-        s->t = s->e->t;
+
+    if ((op == op_flush) || (op = op_close)){
         s->results = 0;
-    }
-
-    if (op == op_close) {
-        apply(s->next, h, p, op, r);
-        if (s->results) destroy(s->resh);
-        if (s->previous) destroy(s->prevh);
-        stop_perf(p, pp);
-        return;
-    }
-
-    if (op == op_flush) {
-        delete_missing(h, p, s, r);
+        destroy(s->resh);
         apply(s->next, h, p, op, r);
         stop_perf(p, pp);
         return;
@@ -133,27 +80,20 @@ static void do_sub(perf p, sub s, heap h, perf pp, operator op, value *r)
     if (!s->results) {
         s->resh = allocate_rolling(pages, sstring("sub-results"));
         s->results = create_value_vector_table(s->resh);
-
     }
 
     if (!(res = table_find(s->results, s->v))){
-        // table_find_key only exists because we want to reuse the key allocation
-        if (s->previous && (res = table_find_key(s->previous, s->v, (void **)&key))) {
-            if (!s->moved) s->moved = create_value_vector_table(s->resh);
-            table_set(s->moved, key, etrue);
-        } else {
-            res = create_value_vector_table(s->h);
-            key = allocate_vector(s->h, vector_length(s->projection));
-            extract(key, s->projection, r);
-            store(r, s->resreg, res);
-            if (s->id_collapse) {
-                set_ids(s, key, r);
-            } else{
-                vector_foreach(s->ids, i)
-                    store(r, i, generate_uuid());
-            }
-            apply(s->leg, h, p, op, r);
+        res = create_value_vector_table(s->h);
+        key = allocate_vector(s->h, vector_length(s->projection));
+        extract(key, s->projection, r);
+        store(r, s->resreg, res);
+        if (s->id_collapse) {
+            set_ids(s, key, r);
+        } else{
+            vector_foreach(s->ids, i)
+                store(r, i, generate_uuid());
         }
+        apply(s->leg, h, p, op, r);
         table_set(s->results, key, res);
     }
 
@@ -172,21 +112,15 @@ static execf build_sub(block bk, node n)
     s->id = n->id;
     s->h = bk->h;
     s->results = 0;
-    s->moved = 0;
     s->ids_cache = create_value_vector_table(s->h);
     s->projection = table_find(n->arguments, sym(projection));
     s->v = allocate_vector(s->h, vector_length(s->projection));
     s->leg = resolve_cfg(bk, n, 1);
     s->outputs = table_find(n->arguments, sym(provides));
-    s->previous = 0;
     s->resreg =  table_find(n->arguments, sym(pass));
     s->ids = table_find(n->arguments, sym(ids));
-    s->h = s->h;
     s->next = resolve_cfg(bk, n, 0);
     s->id_collapse = (table_find(n->arguments, sym(id_collapse))==etrue)?true:false;
-    s->e = bk->ev;
-    s->t = bk->ev->t;
-    vector_insert(bk->finish, cont(s->h, end_o_sub, s));
     return cont(s->h,
                 do_sub,
                 register_perf(bk->ev, n),
@@ -556,8 +490,6 @@ block build(evaluation ev, compiled c)
     bk->name = c->name;
     // this is only used during building
     bk->nmap = allocate_table(bk->h, key_from_pointer, compare_pointer);
-
-    bk->finish = allocate_vector(bk->h, 10);
     force_node(bk, c->head);
     bk->head = *(execf *)table_find(bk->nmap, c->head);
     return bk;

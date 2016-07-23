@@ -52,9 +52,6 @@ static void merge_scan(evaluation ev, int sig, listener result, value e, value a
     vector k = allocate_vector(ev->working, 3);
     listener s = cont(ev->working, merge_scan_out, ev->working, k, f);
 
-    multibag_foreach(ev->ev_solution, u, b) 
-        edb_scan(b, sig, s, e, a, v);
-
     multibag_foreach(ev->persisted, u, b) 
         edb_scan(b, sig, s, e, a, v);
 
@@ -170,12 +167,7 @@ static void run_block(evaluation ev, block bk)
     ev->cycle_time += rdtsc() - start;
     
     if (bk->ev->non_empty) {
-        vector_foreach(bk->finish, i) 
-            apply((block_completion)i, true);
         merge_bags(ev, &bk->ev->next_f_solution, bk->ev->block_solution);
-    } else {
-        vector_foreach(bk->finish, i) 
-            apply((block_completion)i, false);
     }
     destroy(bh);
 }
@@ -204,20 +196,24 @@ static void fixedpoint(evaluation ev)
     // double iteration
     while (was_a_next_t) {
         ev->pass = true;
-        ev->f_solution =  0;
+        ev->t_solution = 0;
         while (ev->pass) {
             ev->pass = false;
             iterations++;
+            ev->next_t_solution =  0;
             ev->next_f_solution =  0;
+            if (ev->event_blocks)
+                vector_foreach(ev->event_blocks, b)
+                    run_block(ev, b);
             vector_foreach(ev->blocks, b) run_block(ev, b);
-            bag_fork(ev, &ev->f_solution);
+            // check difference of f and f_next
+            // if continue, then f_solution = f_next solution
         }
         was_a_next_t = merge_sets(ev, &ev->t_solution, ev->next_t_solution);
-        ev->next_t_solution =  0;
         vector_insert(counts, box_float((double)iterations));
         iterations = 0;
         ev->t++;
-        ev->ev_solution = 0;
+        ev->event_blocks = 0;
     }
 
     boolean changed_persistent = false;
@@ -263,13 +259,13 @@ static void fixedpoint(evaluation ev)
          counts, table_elements(ev->scopes),
          ev->t_solution?table_elements(ev->t_solution):0);
     destroy(ev->working);
+    table_set(ev->counters, intern_cstring("cycle-time"), (void *)ev->cycle_time);
 }
 
 static void clear_evaluation(evaluation ev)
 {
     ev->working = allocate_rolling(pages, sstring("working"));
     ev->t++;
-    ev->ev_solution = 0;
     ev->t_solution = 0;
     ev->f_solution = 0;
     ev->next_t_solution = 0;
@@ -279,17 +275,8 @@ void inject_event(evaluation ev, buffer b, boolean tracing)
 {
     buffer desc;
     clear_evaluation(ev);
-    vector n = compile_eve(ev->working, b, tracing, &desc);
-
-    // close this block
-    vector_foreach(n, i) {
-        block b = build(ev, i);
-        run_block(ev, b);
-        block_close(b);
-    }
-    bag_fork(ev, &ev->ev_solution);
+    ev->event_blocks = compile_eve(ev->working, b, tracing, &desc);
     fixedpoint(ev);
-    table_set(ev->counters, intern_cstring("cycle-time"), (void *)ev->cycle_time);
 }
 
 CONTINUATION_1_0(run_solver, evaluation);
@@ -297,7 +284,6 @@ void run_solver(evaluation ev)
 {
     clear_evaluation(ev);
     fixedpoint(ev);
-    table_set(ev->counters, intern_cstring("cycle-time"), (void *)ev->cycle_time);
 }
 
 void close_evaluation(evaluation ev) 

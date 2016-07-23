@@ -88,7 +88,6 @@ typedef struct compiled {
 struct block {
     heap h;
     string name;
-    vector finish;
     execf head;
     evaluation ev;
     table nmap;
@@ -128,11 +127,11 @@ struct evaluation  {
     table next_f_solution;
     table t_solution;
     table next_t_solution;
-    table ev_solution;
 
     table persisted;
     table scopes;
     vector blocks;
+    vector event_blocks;
     scan reader;
     ticks t;
     boolean pass, non_empty;
@@ -140,7 +139,6 @@ struct evaluation  {
     
     thunk terminal;
     thunk run;
-    long intermediates;
     ticks cycle_time;
 };
 
