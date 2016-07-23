@@ -284,7 +284,7 @@ BUILD_UNARY(build_is, do_is)
 static CONTINUATION_6_4(do_mod, block, perf, execf, value, value, value,  heap, perf, operator, value *);
 static void do_mod (block bk, perf p, execf n, value dest, value a, value b, heap h, perf pp, operator op, value *r)
 {
-    start_perf(p);
+  start_perf(p, op);
     if ((op == op_flush)  || (op == op_close)) {
         apply(n, h, p,op, r);
         stop_perf(p, pp);
