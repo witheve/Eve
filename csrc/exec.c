@@ -423,7 +423,7 @@ static execf build_time(block bk, node n, execf *arms)
     value second = table_find(n->arguments, sym(seconds));
     value frame = table_find(n->arguments, sym(frames));
     ticks interval = seconds(60 * 60);
-    if(frame != 0) interval = milliseconds(1000 / 30);
+    if(frame != 0) interval = milliseconds(1000 / 24);
     else if(second != 0) interval = seconds(1);
     else if(minute != 0) interval = seconds(60);
     timer t = register_periodic_timer(interval, cont(bk->h, time_expire, bk));
