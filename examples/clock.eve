@@ -1,4 +1,5 @@
 draw a clock hand
+
   hand = [#clock-hand angle length]
   maintain
     hand := [#line, x1: 50, y1: 50,
@@ -6,6 +7,7 @@ draw a clock hand
              y2: 50 - (length * cos(angle))]
 
 draw a clock
+
   [#time hours minutes seconds]
   maintain
     [#svg viewBox: "0 0 100 100", width: "300px", children:

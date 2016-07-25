@@ -1581,8 +1581,7 @@ end
 
 local function parseJSON(str)
   local parse = parseString(str)
-  local message = {type = "parse", parse = parse}
-  return util.toJSON(message)
+  return string.format("{\"type\": \"parse\", \"parse\": %s}", util.toFlatJSON(parse))
 end
 
 local function printParse(content)
