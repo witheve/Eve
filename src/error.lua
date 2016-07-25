@@ -513,11 +513,7 @@ end
 
 function formatVariable(variable)
   if variable.type ~= "variable" then return "????" end
-  if  variable.cardinal then
-    return string.sub(variable.name, 2, -2)
-  else
-    return variable.name
-  end
+  return variable.name
 end
 
 function filterGenerated(variables)
