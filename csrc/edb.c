@@ -182,6 +182,7 @@ bag create_bag(heap h, uuid u)
     bag b = allocate(h, sizeof(struct bag));
     b->h = h;
     b->u = u;
+    b->count = 0;
     b->eav = create_value_table(h);
     b->ave = create_value_table(h);
     b->listeners = allocate_table(h, key_from_pointer, compare_pointer);

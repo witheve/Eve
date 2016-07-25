@@ -554,7 +554,6 @@ function build(queryGraph, tracing, context)
                return empty_env(), cnode(queryGraph, "terminal", {}, {}, context, tracing)
            end
    local env, program = walk(queryGraph.unpacked, nil, {}, tailf, context, tracing)
-   print("root", queryGraph.id, node_id(program));
    context.downEdges[#context.downEdges + 1] = {queryGraph.id, node_id(program)}
    return program, env.maxregs
 end

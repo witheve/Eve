@@ -66,7 +66,6 @@ static void send_guy(heap h, buffer_handler output, values_diff diff)
 
 static void send_full_parse(heap h, buffer_handler output, string parse)
 {
-    prf("%b\n", parse);
     string out = allocate_string(h);
     bprintf(out, "{\"type\":\"full_parse\", \"parse\": ");
     buffer_append(out, bref(parse, 0), buffer_length(parse));

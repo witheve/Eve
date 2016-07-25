@@ -123,10 +123,10 @@ struct evaluation  {
     insertron insert;
     table counters;
 
-    table block_solution;    
-    table f_solution;
-    table next_f_solution;
-    table t_solution;
+    table block_solution;
+    table solution;
+    table last_f_solution;
+    table last_t_solution;
 
     table persisted;
     table scopes;
@@ -140,6 +140,7 @@ struct evaluation  {
     thunk terminal;
     thunk run;
     ticks cycle_time;
+    table f_bags;
 };
 
 

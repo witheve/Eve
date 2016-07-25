@@ -63,7 +63,7 @@ static void do_sub(perf p, sub s, heap h, perf pp, operator op, value *r)
 {
     start_perf(p, op);
 
-    if ((op == op_flush) || (op = op_close)){
+    if ((op == op_flush) || (op == op_close)){
         if (s->results){
             s->results = 0;
             destroy(s->resh);
