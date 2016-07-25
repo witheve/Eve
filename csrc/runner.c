@@ -23,6 +23,7 @@ static boolean destructive_compare_sets(table retain, table destroy)
 {
     bag d;
     if (!retain != !destroy) return false;
+    if (!retain) return true;
 
     multibag_foreach(retain, u, b) {
         if (!(d = table_find(destroy, u))) return false;
@@ -43,6 +44,7 @@ static void insert_f(evaluation s, uuid u, value e, value a, value v, multiplici
 {
     bag b;
 
+    prf("insert: %s %v %v %v %d\n", bagname(e, u), e, a, v, m);
     if (!s->block_solution) 
         s->block_solution = create_value_table(s->working);
     
@@ -124,6 +126,7 @@ static void merge_multibag_bag(evaluation ev, table *d, uuid u, bag s)
 static void run_block(evaluation ev, block bk) 
 {
     heap bh = allocate_rolling(pages, sstring("block run"));
+    prf("block %s\n", bk->name);
     bk->ev->block_solution = 0;
     bk->ev->non_empty = false;
     ticks start = rdtsc();
@@ -160,12 +163,14 @@ static void fixedpoint(evaluation ev)
                     run_block(ev, b);
             vector_foreach(ev->blocks, b)
                 run_block(ev, b);
-        } while(destructive_compare_sets(ev->next_f_solution, ev->f_solution));
+            prf("f step %d\n", multibag_count(ev->next_f_solution));
+        } while(!destructive_compare_sets(ev->next_f_solution, ev->f_solution));
         ev->t_solution = ev->f_solution;
         vector_insert(counts, box_float((double)iterations));
         iterations = 0;
         ev->event_blocks = 0;
-    } while(destructive_compare_sets(ev->t_solution, ev->f_solution));
+        prf("t step %d\n", multibag_count(ev->next_f_solution));
+    } while(!destructive_compare_sets(ev->t_solution, ev->f_solution));
 
 
     boolean changed_persistent = false;
@@ -223,7 +228,13 @@ void inject_event(evaluation ev, buffer b, boolean tracing)
 {
     buffer desc;
     clear_evaluation(ev);
-    ev->event_blocks = compile_eve(ev->working, b, tracing, &desc);
+    ev->event_blocks = 0;
+    vector c = compile_eve(ev->working, b, tracing, &desc);
+    vector_foreach(c, i) {
+        if (!ev->event_blocks)
+            ev->event_blocks = allocate_vector(ev->working, vector_length(c));
+        vector_insert(ev->event_blocks, build(ev, i));
+    }
     fixedpoint(ev);
 }
 
