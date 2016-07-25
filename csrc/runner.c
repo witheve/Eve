@@ -11,6 +11,32 @@ static estring bagname(evaluation e, uuid u)
     return(intern_cstring("missing bag?")); 
 }
 
+static inline int multibag_count(table m)
+{
+    int count = 0;
+    multibag_foreach(m, u, b)
+        count += edb_size(b);
+    return count;
+}
+
+static boolean destructive_compare_sets(table retain, table destroy)
+{
+    bag d;
+    if (!retain != !destroy) return false;
+
+    multibag_foreach(retain, u, b) {
+        if (!(d = table_find(destroy, u))) return false;
+        // xxx - should have a bag and table hash, maybe even special multibag
+        bag_foreach((bag)b, e, a, v, c) {
+            // xxx- should have a find and destroy
+            if (count_of(d, e, a, v) != c) return false;
+            edb_insert(d, e, a, v, 0);
+        }
+        if (edb_size(d)) return false;
+        table_set(destory, u, 0);
+    }
+    return !table_elements(destroy);
+}
 
 static CONTINUATION_1_5(insert_f, evaluation, uuid, value, value, value, multiplicity);
 static void insert_f(evaluation s, uuid u, value e, value a, value v, multiplicity m)
@@ -74,8 +100,6 @@ static void merge_scan(evaluation ev, int sig, listener result, value e, value a
 static CONTINUATION_1_0(evaluation_complete, evaluation);
 static void evaluation_complete(evaluation s)
 {
-    if (s->block_solution)
-        s->pass = true;
     s->non_empty = true;
 }
 
@@ -156,21 +180,6 @@ static boolean merge_sets(evaluation ev, table *d, table s)
     return result;
 }
 
-static void run_block(evaluation ev, block bk) 
-{
-    heap bh = allocate_rolling(pages, sstring("block run"));
-    bk->ev->block_solution = 0;
-    bk->ev->non_empty = false;
-    ticks start = rdtsc();
-    apply(bk->head, bh, 0, op_insert, 0);
-    apply(bk->head, bh, 0, op_flush, 0);
-    ev->cycle_time += rdtsc() - start;
-    
-    if (bk->ev->non_empty) {
-        merge_bags(ev, &bk->ev->next_f_solution, bk->ev->block_solution);
-    }
-    destroy(bh);
-}
 
 static void bag_fork(evaluation ev, table *f_target)
 {
@@ -181,6 +190,22 @@ static void bag_fork(evaluation ev, table *f_target)
             merge_multibag_bag(ev, f_target, u, b);
         }
     }
+}
+
+static void run_block(evaluation ev, block bk) 
+{
+    heap bh = allocate_rolling(pages, sstring("block run"));
+    bk->ev->block_solution = 0;
+    bk->ev->non_empty = false;
+    ticks start = rdtsc();
+    apply(bk->head, bh, 0, op_insert, 0);
+    apply(bk->head, bh, 0, op_flush, 0);
+    ev->cycle_time += rdtsc() - start;
+    
+    if (bk->ev->non_empty) 
+        bag_fork(ev, &bk->ev->next_f_solution);
+
+    destroy(bh);
 }
 
 static void fixedpoint(evaluation ev)
@@ -194,30 +219,28 @@ static void fixedpoint(evaluation ev)
     ev->t_solution =  0;
 
     // double iteration
-    while (was_a_next_t) {
-        ev->pass = true;
-        ev->t_solution = 0;
-        while (ev->pass) {
-            ev->pass = false;
+    ev->t_solution = 0;
+    do {
+        ev->f_solution =  0;
+        do {
             iterations++;
             ev->next_t_solution =  0;
-            ev->next_f_solution =  0;
+            ev->next_f_solution =  f_solution;
+            
             if (ev->event_blocks)
                 vector_foreach(ev->event_blocks, b)
                     run_block(ev, b);
-            vector_foreach(ev->blocks, b) run_block(ev, b);
-            // check difference of f and f_next
-            // if continue, then f_solution = f_next solution
-        }
-        was_a_next_t = merge_sets(ev, &ev->t_solution, ev->next_t_solution);
+            vector_foreach(ev->blocks, b)
+                run_block(ev, b);
+        } while(destructive_compare_sets(f_next_solution, f_solution));
+        ev->t_solution = ev->next_t_solution;
         vector_insert(counts, box_float((double)iterations));
         iterations = 0;
-        ev->t++;
         ev->event_blocks = 0;
-    }
+    } while(destructive_compare_sets(t_next_solution, t_solution));
+
 
     boolean changed_persistent = false;
-    // merge but ignore bags not in persisted
     multibag_foreach(ev->t_solution, u, b) {
         bag bd;
         if ((bd = table_find(ev->persisted, u))) {
@@ -246,8 +269,6 @@ static void fixedpoint(evaluation ev)
         }
     }
     
-    // this is a bit strange, we really only care about the
-    // non-persisted final state here
     apply(ev->complete, ev->f_solution, ev->counters);
 
     ticks end_time = now();

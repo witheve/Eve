@@ -134,7 +134,7 @@ struct evaluation  {
     vector event_blocks;
     scan reader;
     ticks t;
-    boolean pass, non_empty;
+    boolean non_empty;
     evaluation_result complete;
     
     thunk terminal;
