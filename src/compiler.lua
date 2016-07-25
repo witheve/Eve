@@ -1090,21 +1090,21 @@ function compileExec(contents, tracing)
   end
 
   local set = {}
-  local nameset = {}
 
   for ix, queryGraph in ipairs(parseGraph.children) do
     local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph, context)
     local unpacked = unpackObjects(dependencyGraph, context)
+    local head, regs
     -- @NOTE: We cannot allow dead DGs to still try and run, they may be missing filtering hunks and fire all sorts of missiles
     if not dependencyGraph.ignore then
-      set[#set+1] = queryGraph
-      nameset[#nameset+1] = queryGraph.name
+      head, regs = build.build(queryGraph, tracing, parseGraph.context)
+      set[#set+1] = {head = head, regs = regs, name = queryGraph.name}
     end
   end
   if context.errors and #context.errors ~= 0 then
-    return {}, util.toFlatJSON(parseGraph), {}
+    return {}, util.toFlatJSON(parseGraph)
   end
-  return build.build(set, tracing, parseGraph), util.toFlatJSON(parseGraph), nameset
+  return set, util.toFlatJSON(parseGraph)
 end
 
 function analyze(content, quiet)

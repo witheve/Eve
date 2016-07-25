@@ -128,7 +128,6 @@ int main(int argc, char **argv)
 {
     init_runtime();
     bag root = create_bag(init, generate_uuid());
-    boolean enable_tracing = false;
     interpreter interp = build_lua();
     commands = command_body;
     boolean dynamicReload = true;

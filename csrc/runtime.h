@@ -83,10 +83,12 @@ typedef closure(block_completion, boolean);
 typedef struct compiled {
     string name;
     node head;
+    int regs;
 } *compiled;
     
 struct block {
     heap h;
+    int regs;
     string name;
     execf head;
     evaluation ev;

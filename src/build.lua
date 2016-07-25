@@ -236,11 +236,29 @@ function list_to_write_array(n, env, x)
 end
 
 
+
 function translate_subagg(n, bound, down, context, tracing)
-  env, rest = walk(n.nodes, nil, bound, down, context, tracing)
+  local pass = allocate_temp(context, n)
+    bound[pass] = true
+      local db = shallowcopy(bound)
+        env, rest = down(db)
+
+  function tail (bound)
+       return env, cnode(n, "subaggtail", {rest},
+                          {groupings = set_to_read_array(n, env, n.groupings or {}),
+                           provides = set_to_read_array(n, env, n.provides),
+                           pass = read_lookup(n, env, pass)},
+                     context, tracing)
+  end
+
+  env, rest = walk(n.nodes, nil, bound, tail, context, tracing)
+
   c = cnode(n, "subagg", {rest},
-            {projection = set_to_read_array(n, env, n.projection)},
-            context, tracing)
+                   {projection = set_to_read_array(n, env, n.projection),
+                    groupings = set_to_read_array(n, env, n.groupings or {}),
+                    pass = write_lookup(n, env, pass)},
+                 context, tracing)
+
   return env, c
 end
 
@@ -531,22 +549,14 @@ function walk(graph, key, bound, tail, context, tracing)
 end
 
 
-function build(graphs, tracing, parseGraph)
-   local head
-   local heads ={}
-   local regs = 0
-
-   for _, queryGraph in pairs(graphs) do
-      local tailf = function(b)
-               return empty_env(), cnode(queryGraph, "terminal", {}, {}, parseGraph.context, tracing)
+function build(queryGraph, tracing, context)
+   local tailf = function(b)
+               return empty_env(), cnode(queryGraph, "terminal", {}, {}, context, tracing)
            end
-      local env, program = walk(queryGraph.unpacked, nil, {}, tailf, parseGraph.context, tracing)
-      regs =  math.max(regs, env.maxregs + 1)
-
-      heads[#heads+1] = cnode(queryGraph, "regfile", {program}, {count=regs}, parseGraph.context, tracing)
-   end
-
-   return heads
+   local env, program = walk(queryGraph.unpacked, nil, {}, tailf, context, tracing)
+   print("root", queryGraph.id, node_id(program));
+   context.downEdges[#context.downEdges + 1] = {queryGraph.id, node_id(program)}
+   return program, env.maxregs
 end
 
 ------------------------------------------------------------

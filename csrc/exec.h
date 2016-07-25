@@ -50,8 +50,9 @@ static inline void store(value *r, value reg, value v)
 
 static inline void copyout(value *r, vector keys, vector source)
 {
-    for (int i = 0; i< vector_length(keys); i++) 
+    for (int i = 0; i< vector_length(keys); i++) {
         store(r, vector_get(keys, i), vector_get(source, i));
+    }
 }
 
 static inline void copyto(value *d, value *s, vector keys)

@@ -727,7 +727,6 @@ function indexParse(parse) {
   // if there isn't an active graph, then make the first query
   // active
   if(!activeIds["graph"]) {
-    console.log("setting", parse.root.children[0]);
     activeIds["graph"] = parse.root.children[0];
   }
 
@@ -809,7 +808,7 @@ function drawNodeGraph() {
   let graphs;
   let state = {activeIds};
   for(let headId in allNodeGraphs) {
-    if(!activeParse.edges.up[headId] || activeParse.edges.up[headId][0] != activeIds["graph"]) continue;
+    if(!activeParse.edges.up[headId] || activeParse.edges.up[headId].indexOf(activeIds["graph"]) == -1) continue;
     let cur = allNodeGraphs[headId];
     state.rootTime = activeParse.cycle_time;
     let tree = drawNode(headId, cur, state, {});
