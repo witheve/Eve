@@ -83,8 +83,7 @@ Remove old click impulses
 
 Lose the game if the player hits the ground
   world = [@world screen: "game"]
-  [#player y]
-  y > 85 // ground height + player radius
+  [#player y > 85] // ground height + player radius
   freeze
     world.screen := "game over"
 
@@ -92,8 +91,8 @@ Lose the game if the player hits an obstacle
   world = [@world screen: "game"]
   [#player x y]
   [#obstacle x: obstacle-x y: obstacle-y height]
-  ∂x = abs(obstacle-x + 5 - x) - 10 // offset of 1/2 obstacle width because origin is on the left
-  ∂x < 0 // player radius + 1/2 obstacle width
+  ∂x = abs(obstacle-x + 5 - x) - 10 // distance between the edges of player and obstacle (offset of 1/2 obstacle width because origin is on the left)
+  ∂x < 0
   collision = if obstacle-y = 100
                  y > 100 - height then true
               else if obstacle-y = 0
