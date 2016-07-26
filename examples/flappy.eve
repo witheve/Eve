@@ -1,0 +1,105 @@
+Add a flappy eve and a world for it to flap in
+  [#session-connect]
+  freeze
+    [#player #self name: "eve" x: 25 y: 50 velocity: 0 acceleration: -0.029] // We're going to normalize our coordinates to [0...100]
+    [@world screen: "menu" frame: 0 distance: 0]
+
+Draw the game world!
+  [@world distance]
+  maintain
+    [#svg @game-window viewBox: "0 0 100 100", width: "640px" height: "640px" children:
+      [#rect x: 0 y: 0 width: 100 height: 100 fill: "rgb(112, 197, 206)" sort: 0]
+      [#rect x: 0 y: 90 width: 100 height: 10 fill: "rgb(222, 216, 149)" sort: 1]]
+
+
+## This handles the game's miscellaneous screens. It's currently pretty simple, but you could expand it to include changes to other purpose-specific screens.
+
+Draw the main menu
+  [@world screen: "menu"]
+  svg = [@game-window]
+  maintain
+    svg.children += [#text x: 50 y: 45 text-anchor: "middle" font-size: 8 text: "Click the screen to begin!" sort: 10]
+
+Draw the game over final score
+  [@world screen: "game over" distance]
+  score = distance - mod(distance, 1) // subtract the decimal remainder from the distance
+  svg = [@game-window]
+  maintain
+    svg += [children:
+      [#text x: 50 y: 30 text-anchor: "middle" font-size: 8 text: "Game Over :(" sort: 10]
+      [#text x: 50 y: 55 text-anchor: "middle" font-size: 6 text: "Score {{score}}" sort: 10]
+      [#text x: 50 y: 85 text-anchor: "middle" font-size: 4 text: "Click to play again!" sort: 10]]
+
+Start the game
+  [#click #direct-target]
+  world = if world = [@world screen: "menu"] then world
+          else [@world screen: "game over"]
+  player = [#player]
+  freeze
+    world := [screen: "game" frame: 0 distance: 0]
+    player := [x: 25 y: 50 velocity: 0 acceleration: -0.029]
+
+
+## Run the actual game
+
+Every 2 distance a wild obstacle appears
+  [@world distance]
+  maintain
+    [#obstacle x: 110 - (60 * mod(distance, 2))  y: 0 height: 50]
+
+Draw the player
+  [#player x y]
+  svg = [@game-window]
+  maintain
+    svg.children += [#circle cx: x cy: y r: 5 fill: "#0B79CE" sort: 2]
+
+Draw the obstacles
+  [#obstacle x y height]
+  svg = [@game-window]
+  maintain
+    svg.children += [#rect x y width: 10 height, fill: "rgb(115, 191, 46)" sort: 1]
+
+Flap the player
+  [#click #direct-target]
+  [@world screen: "game"]
+  player = [#player #self]
+  freeze
+    player.acceleration += 2.1
+
+As time moves gently forward, winter turns to spring
+  [#time frames]
+  world = [@world screen: "game" frame != frames]
+  player = [#player y velocity acceleration]
+  ∂v = sum(acceleration given acceleration) // this will do bad things if there are ever multiple impulses of identical magnitude
+  freeze
+    world.frame := frames
+    world.distance := world.distance + 1 / 60
+    player := [y: y - velocity - ∂v, velocity: velocity + ∂v]
+
+Remove old click impulses
+  player = [#player acceleration: 2.1]
+  freeze
+    player.acceleration -= 2.1
+
+Lose the game if the player hits the ground
+  world = [@world screen: "game"]
+  [#player y]
+  y > 85 // ground height + player radius
+  freeze
+    world.screen := "game over"
+
+Lose the game if the player hits an obstacle
+  world = [@world screen: "game"]
+  [#player x y]
+  [#obstacle x: obstacle-x y: obstacle-y height]
+  ∂x = abs(obstacle-x + 5 - x) - 10 // offset of 1/2 obstacle width because origin is on the left
+  ∂x < 0 // player radius + 1/2 obstacle width
+  collision = if obstacle-y = 100
+                 y > 100 - height then true
+              else if obstacle-y = 0
+                 y < height then true
+              else false
+
+  collision = true
+  freeze
+    world.screen := "game over"
