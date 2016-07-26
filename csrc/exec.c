@@ -203,7 +203,7 @@ static void do_subagg(perf p, execf next, table *proj_seen, vector v, vector inp
                       heap h, perf pp, operator op, value *r)
 {
     start_perf(p, op);
-    if (op == op_flush) {
+    if (op == op_flush || op == op_close) {
         apply(next, h, p, op, r);
         *proj_seen = create_value_vector_table((*proj_seen)->h);
         stop_perf(p, pp);
