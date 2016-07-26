@@ -420,11 +420,7 @@ function DependencyGraph:addExpressionNode(node)
     end
   else
     local signature = db.getSignature(node.bindings)
-    print("Getting possible schemas for", node.operator, signature)
     local schemas = db.getPossibleSchemas(node.operator, signature)
-    for schema in pairs(schemas) do
-      print("  - ", schema)
-    end
     if schemas:length() < 1 then
       self.ignore = true
       errors.unknownExpression(self.context, node, db.getExpressions())
