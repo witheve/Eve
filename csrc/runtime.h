@@ -1,5 +1,6 @@
 typedef void *value;
 
+#include <math.h>
 #include <core/core.h>
 #include <unix/unix.h>
 #include <types.h>
@@ -10,7 +11,7 @@ typedef enum {
     op_flush,
     op_close
 } operator;
-    
+
 
 u64 key_of(value);
 boolean equals(value, value);
@@ -85,7 +86,7 @@ typedef struct compiled {
     node head;
     int regs;
 } *compiled;
-    
+
 struct block {
     heap h;
     int regs;
@@ -116,7 +117,7 @@ static inline void stop_perf(perf p, perf pp)
     p->time += delta;
 }
 
-    
+
 struct evaluation  {
     heap h;
     heap working;
@@ -136,7 +137,7 @@ struct evaluation  {
     ticks t;
     boolean non_empty;
     evaluation_result complete;
-    
+
     thunk terminal;
     thunk run;
     ticks cycle_time;

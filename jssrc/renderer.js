@@ -26,9 +26,9 @@ var supportedTags = {
   "table": true, "tbody": true, "thead": true, "tr": true, "th": true, "td": true,
   "form": true, "optgroup": true, "option": true, "select": true, "textarea": true,
   "title": true, "meta": true, "link": true,
-  "svg": true, "circle": true, "line": true
+  "svg": true, "circle": true, "line": true, "rect": true
 };
-var svgs = {"svg": true, "circle": true, "line": true};
+var svgs = {"svg": true, "circle": true, "line": true, "rect": true};
 // Map of input entities to a queue of their values which originated from the client and have not been received from the server yet.
 var sentInputValues = {};
 var lastFocusPath = null;
@@ -271,6 +271,7 @@ function handleDOMUpdates(result) {
           sentInputValues[entId].shift();
         } else {
           sentInputValues[entId] = [];
+          // @FIXME: handle select both here and when something tagged option is added.
           elem.value = value;
         }
       } else {
@@ -415,6 +416,12 @@ function sendEvent(query) {
 function sendSwap(query) {
   if(socket && socket.readyState == 1) {
     socket.send(JSON.stringify({scope: "root", type: "swap", query}))
+  }
+}
+
+function sendParse(query) {
+  if(socket && socket.readyState == 1) {
+    socket.send(JSON.stringify({scope: "root", type: "parse", query}))
   }
 }
 
@@ -678,6 +685,39 @@ function doSwap(editor) {
   sendSwap(editor.getValue());
 }
 
+function handleEditorParse(parse) {
+  let parseLines = parse.lines;
+  let from = {};
+  let to = {};
+  codeEditor.operation(function() {
+    console.time("highlight");
+    for(let line of codeEditor.dirtyLines) {
+      // clear all the marks on that line?
+      for(let mark of codeEditor.findMarks({line, ch: 0}, {line, ch: 1000000})) {
+        mark.clear();
+      }
+      from.line = line;
+      to.line = line;
+      let tokens = parseLines[line + 1];
+      if(tokens) {
+        let state;
+        for(let token of tokens) {
+          from.ch = token.surrogateOffset;
+          to.ch = token.surrogateOffset + token.surrogateLength;
+          let className = token.type;
+          if(state == "TAG" || state == "NAME") {
+            className += " " + state;
+          }
+          codeEditor.markText(from, to, {className, inclusiveRight: true});
+          state = token.type
+        }
+      }
+    }
+    codeEditor.dirtyLines = [];
+    console.timeEnd("highlight");
+  });
+}
+
 function injectCodeMirror(node, elem) {
   if(!node.editor) {
     let editor = new CodeMirror(node, {
@@ -687,10 +727,26 @@ function injectCodeMirror(node, elem) {
       }
     });
     editor.setValue(elem.value);
+    let dirty = [];
+    for(let line = 0, count = editor.lineCount(); line < count; line++) {
+      dirty.push(line);
+    }
+    editor.dirtyLines = dirty;
     editor.on("cursorActivity", function() {
       let pos = editor.getCursor();
       activeIds = nodeToRelated(pos, posToToken(pos, renderer.tree[elem.id].parse.lines), renderer.tree[elem.id].parse);
       drawNodeGraph();
+    });
+    editor.on("changes", function(cm, changes) {
+      let value = cm.getValue();
+      sendParse(value);
+      for(let change of changes) {
+        let {from, to, text} = change;
+        let end = to.line > from.line + text.length ? to.line : from.line + text.length;
+        for(let start = from.line; start <= end; start++) {
+          cm.dirtyLines.push(start);
+        }
+      }
     });
     codeEditor = editor;
     node.editor = editor;
@@ -729,8 +785,7 @@ function indexParse(parse) {
   if(!activeIds["graph"]) {
     activeIds["graph"] = parse.root.children[0];
   }
-
-  activeParse = parse;
+  return parse;
 }
 
 function nodeToRelated(pos, node, parse) {
@@ -812,13 +867,9 @@ function drawNodeGraph() {
     let cur = allNodeGraphs[headId];
     state.rootTime = activeParse.cycle_time;
     let tree = drawNode(headId, cur, state, {});
-    // let ast = drawAST(activeParse.ast, state);
-    // let parse = drawParse(activeParse, state);
     let ordered = drawOrdered(activeParse.root.children, state);
     if(showGraphs) {
       graphs = {c: "graphs", children: [
-        // ast,
-        // parse,
         ordered,
         tree,
       ]}
@@ -859,46 +910,6 @@ function drawNodeGraph() {
     program,
   ]};
   renderer.render([{c: "graph-root", children: [rootUi]}]);
-}
-
-//---------------------------------------------------------
-// Draw AST
-//---------------------------------------------------------
-
-function drawAST(root, state) {
-  let children = [];
-  let node = {c: "ast-node", children: [
-    {c: "ast-type", text: root.type},
-    {c: "ast-children", children}
-  ]}
-  if(root.children) {
-    for(let child of root.children) {
-      children.push(drawAST(child, state));
-    }
-  }
-  return node;
-}
-
-//---------------------------------------------------------
-// Draw parse
-//---------------------------------------------------------
-
-function drawParse(root, state) {
-  let children = [];
-  let node = {c: "parse-node", children: [
-    {c: "parse-type", text: root.type},
-    {c: "parse-children", children}
-  ]}
-  if(root.type == "code") {
-    for(let child of root.children) {
-      children.push(drawParse(child, state));
-    }
-  } else if(root.type == "query") {
-    for(let object of root.objects) {
-      children.push(drawParse(object, state));
-    }
-  }
-  return node;
 }
 
 //---------------------------------------------------------
@@ -1098,8 +1109,11 @@ socket.onmessage = function(msg) {
   } else if(data.type == "node_graph") {
     allNodeGraphs[data.head] = data.nodes;
   } else if(data.type == "full_parse") {
-    indexParse(data.parse);
+    activeParse = indexParse(data.parse);
     drawNodeGraph();
+    handleEditorParse(activeParse);
+  } else if(data.type == "parse") {
+    handleEditorParse(indexParse(data.parse));
 
   } else if(data.type == "node_times") {
     activeParse.iterations = data.iterations;
