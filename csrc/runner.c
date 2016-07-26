@@ -28,12 +28,20 @@ static boolean compare_sets(table set, table retain, table destroy)
     table_foreach(set, u, _) {
         bag s = table_find(retain, u);
         bag d = table_find(destroy, u);
+        prf("compare: %d %d\n", edb_size(s), edb_size(d));
+
+        if (!s != !d) prf("disjoint bagset\n");
         if (!s != !d) return false;
         if (s) {
-            if (edb_size(d) != edb_size(s))
+            if (edb_size(d) != edb_size(s)){
+                prf("bad count\n");
                 return false;
+            }
             bag_foreach(s, e, a, v, c) {
-                if (count_of(d, e, a, v) != c) return false;
+                if (count_of(d, e, a, v) != c) {
+                    prf("bad term %d %d %v %v %v\n", count_of(d, e, a, v), c, e, a, v);
+                    return false;
+                }
             }
         }
     }
@@ -193,6 +201,7 @@ static void fixedpoint(evaluation ev)
         ev->solution =  0;
         ev->t_delta_count = 0;
         do {
+            printf("start f\n");
             iterations++;
             ev->last_f_solution = ev->solution;
             ev->solution = 0;
