@@ -195,7 +195,13 @@ static void do_equal(block bk, perf p, execf n, value a, value b, heap h, perf p
             if (ar __op br)                                                                                 \
                 apply(n, h, p, op, r);                                                                      \
         } else {                                                                                            \
-            exec_error(bk->ev, "attempt to " #__op " different types", a, b);                               \
+            /* Hacky solution to make = and != work for now, since they deal with this case often */        \
+            if (#__op == "!=")                                                                              \
+              apply(n, h, p, op, r);                                                                        \
+            else if(#__op == "=") {                                                                         \
+              /* do nothing */                                                                              \
+            } else                                                                                          \
+              exec_error(bk->ev, "attempt to " #__op " different types", a, b);                             \
         }                                                                                                   \
         stop_perf(p, pp);                                                                                   \
     }
