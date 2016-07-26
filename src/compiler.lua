@@ -3,6 +3,7 @@ local Pkg = {}
 local std = _G
 local error = error
 local print = print
+local next = next
 local pairs = pairs
 local ipairs = ipairs
 local type = type
@@ -418,24 +419,26 @@ function DependencyGraph:addExpressionNode(node)
       deps.anyDepends:add(args.b)
     end
   else
-    local schemas = db.getSchemas(node.operator)
-    if not schemas then
+    local signature = db.getSignature(node.bindings)
+    local schemas = db.getPossibleSchemas(node.operator, signature)
+    if schemas:length() < 1 then
       self.ignore = true
       errors.unknownExpression(self.context, node, db.getExpressions())
       return
     end
 
+    local pattern = util.shallowCopy(next(schemas, nil).signature)
     local rest
-    for _, schema in ipairs(schemas) do
+    for schema in pairs(schemas) do
       rest = schema.rest
     end
-    local pattern = util.shallowCopy(schemas[1].signature)
     for field in pairs(args) do
       if not pattern[field] then
         pattern[field] = rest
       end
     end
-    for _, schema in ipairs(schemas) do
+
+    for schema in pairs(schemas) do
       for field in pairs(schema.signature) do
         if pattern[field] ~= schema.signature[field] then
           pattern[field] = db.OPT
@@ -447,9 +450,11 @@ function DependencyGraph:addExpressionNode(node)
       if args[field] and args[field].type ~= "constant" then
         if pattern[field] == db.IN then
           deps.depends:add(args[field])
-          deps.contributes:add(self:cardinal(args[field]))
         elseif pattern[field] == db.STRONG_IN then
           deps.depends:add(self:cardinal(args[field]))
+        elseif pattern[field] == db.FILTER_IN then
+          deps.depends:add(args[field])
+          deps.contributes:add(self:cardinal(args[field]))
         elseif pattern[field] == db.OUT then
           deps.provides:add(args[field])
         else
@@ -847,6 +852,11 @@ function DependencyGraph:order(allowPartial)
           errors.unorderableGraph(self.context, self.query)
         end
         self.ignore = true
+
+        -- for group in pairs(self.termGroups) do
+        --   local depends = self.groupDepends[group]
+        --   print(group, depends:length(), depends)
+        -- end
       end
 
       break

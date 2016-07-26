@@ -78,8 +78,11 @@ static void dump_display(buffer dest, node source)
     boolean first=true;
     bprintf(dest, "{");
     table_foreach(source->display, k, v) {
-        bprintf(dest, "%s%v: \"%b\"", !first?",":"", k, v);
-        first = false;
+        // @FIXME: Correctly print variadic arguments
+        if(k != sym(variadic)) {
+            bprintf(dest, "%s%v: \"%b\"", !first?", ":"", k, v);
+            first = false;
+        }
     }
     bprintf(dest, "}");
 }
@@ -115,7 +118,7 @@ static void send_cnode_graph(heap h, buffer_handler output, node head)
         }
         bprintf(out, ", \"display\":");
         dump_display(out, current);
-        
+
         bprintf(out, "}");
         nodeComma = 1;
     }
@@ -212,6 +215,7 @@ void handle_json_query(json_session j, bag in, uuid root, thunk c)
         destroy(j->h);
         return;
     }
+
     estring t = lookupv(in, root, sym(type));
     estring q = lookupv(in, root, sym(query));
     buffer desc;
@@ -273,7 +277,7 @@ void new_json_session(bag root, boolean tracing,
     j->eh = allocate_rolling(pages, sstring("eval"));
     j->s = build_evaluation(j->scopes, j->persisted, cont(j->h, send_response, j));
     j->write = websocket_send_upgrade(j->eh, b, u, write,
-                                      parse_json(j->eh, j->session, cont(h, handle_json_query, j)), 
+                                      parse_json(j->eh, j->session, cont(h, handle_json_query, j)),
                                       reg);
 
     // send the graphs

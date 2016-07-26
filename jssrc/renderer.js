@@ -26,9 +26,9 @@ var supportedTags = {
   "table": true, "tbody": true, "thead": true, "tr": true, "th": true, "td": true,
   "form": true, "optgroup": true, "option": true, "select": true, "textarea": true,
   "title": true, "meta": true, "link": true,
-  "svg": true, "circle": true, "line": true, "rect": true
+  "svg": true, "circle": true, "line": true, "rect": true, "text": true, "image": true
 };
-var svgs = {"svg": true, "circle": true, "line": true, "rect": true};
+var svgs = {"svg": true, "circle": true, "line": true, "rect": true, "text": true, "image": true};
 // Map of input entities to a queue of their values which originated from the client and have not been received from the server yet.
 var sentInputValues = {};
 var lastFocusPath = null;
@@ -563,12 +563,15 @@ window.addEventListener("keydown", function(event) {
   let objs = [];
   let key = event.keyCode;
   while(current) {
-    if(current.entity && current.value !== undefined) {
-      objs.push({tags: ["keydown"], element: current.entity, key: keyMap[key] || key});
+    if(current.entity) {
+      let tags = ["keydown"];
+      if (current == target) {
+        tags.push("direct-target");
+      }
+      objs.push({tags, element: current.entity, key: keyMap[key] || key});
     }
-    current = current.parentNode
+    current = current.parentNode;
   }
-  // objs.push({tags: ["keydown"], element: "window", key});
   sendEventObjs(objs);
 });
 
@@ -579,12 +582,16 @@ window.addEventListener("keyup", function(event) {
   let key = event.keyCode;
   while(current) {
     if(current.entity) {
-      objs.push({tags: ["keyup"], element: current.entity, key});
+      let tags = ["keyup"];
+      if (current == target) {
+        tags.push("direct-target");
+      }
+      objs.push({tags, element: current.entity, key: keyMap[key] || key});
     }
-    current = current.parentNode
+    current = current.parentNode;
   }
   objs.push({tags: ["keyup"], element: "window", key});
-  // sendEventObjs(objs);
+  sendEventObjs(objs);
 });
 
 function onHashChange(event) {
@@ -1053,7 +1060,7 @@ function clone(obj) {
 //---------------------------------------------------------
 // Connect the websocket, send the ui code
 //---------------------------------------------------------
-
+let DEBUG = false;
 let __entities = {}; // DEBUG
 
 var socket = new WebSocket("ws://" + window.location.host +"/ws");
@@ -1063,7 +1070,7 @@ socket.onmessage = function(msg) {
     handleDOMUpdates(data);
 
     let diffEntities = 0;
-    if(__entities) {
+    if(DEBUG && __entities) {
       for(let [e, a, v] of data.remove) {
         if(!__entities[e]) continue;
         let entity = __entities[e];
@@ -1098,12 +1105,13 @@ socket.onmessage = function(msg) {
         }
       }
     }
-
-    console.groupCollapsed(`Received Result +${data.insert.length}/-${data.remove.length} (∂Entities: ${diffEntities})`);
-    console.table(data.insert);
-    console.table(data.remove);
-    if(__entities) console.log(clone(__entities));
-    console.groupEnd();
+    if(DEBUG) {
+      console.groupCollapsed(`Received Result +${data.insert.length}/-${data.remove.length} (∂Entities: ${diffEntities})`);
+      console.table(data.insert);
+      console.table(data.remove);
+      if(__entities) console.log(clone(__entities));
+      console.groupEnd();
+    }
     drawNodeGraph();
 
   } else if(data.type == "node_graph") {

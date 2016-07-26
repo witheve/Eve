@@ -18,9 +18,10 @@ setfenv(1, Pkg)
 OUT = "$$OUT"
 IN = "$$IN"
 STRONG_IN = "$$STRONG_IN"
+FILTER_IN = "$$FILTER_IN"
 OPT = "$$OPT"
-local sigSymbols = {[OUT] = "f", [IN] = "b", [STRONG_IN] = "B", [OPT] = "?"}
-local function fmtSignature(args, signature)
+local sigSymbols = {[OUT] = "f", [IN] = "b", [STRONG_IN] = "B", [FILTER_IN] = "v", [OPT] = "?"}
+function fmtSignature(args, signature)
   local result = ""
   local multi = false
   for _, arg in ipairs(args) do
@@ -43,8 +44,10 @@ end
 function getSignature(bindings, bound)
   local signature = setmetatable({}, Signature)
   for _, binding in ipairs(bindings) do
-    if bound[binding.variable] or binding.constant then
+    if binding.constant or bound and bound[binding.variable] then
       signature[binding.field] = IN
+    elseif not bound then
+      signature[binding.field] = OPT
     else
       signature[binding.field] = OUT
     end
@@ -66,7 +69,7 @@ local function schema(args, name, kind)
   end
   local mode = OUT
   for ix, arg in ipairs(args) do
-    if arg == OUT or arg == IN or arg == STRONG_IN or arg == OPT then
+    if arg == OUT or arg == IN or arg == STRONG_IN or arg == FILTER_IN or arg == OPT then
       mode = arg
       if ix == #args then -- a mode token in the final slot signifies a variadic expression that takes any number of vars matching the given mode
         schema.rest = arg
@@ -87,10 +90,10 @@ end
 local schemas = {
   unary = schema{"return", IN, "a"},
   unaryBound = schema{IN, "return", "a"},
-  unaryFilter = schema{IN, "a"},
+  unaryFilter = schema{FILTER_IN, "a"},
   binary = schema{"return", IN, "a", "b"},
   binaryBound = schema{IN, "return", "a", "b"},
-  binaryFilter = schema{IN, "a", "b"},
+  binaryFilter = schema{FILTER_IN, "a", "b"},
   moveIn = schema{"a", IN, "b"},
   moveOut = schema{"b", IN, "a"}
 }
@@ -116,15 +119,16 @@ local expressions = {
   sin = {rename("sin", schemas.unary)},
   cos = {rename("cos", schemas.unary)},
   tan = {rename("tan", schemas.unary)},
+  abs = {rename("abs", schemas.unary)},
   mod = {rename("mod", schemas.binary)},
 
   toggle = {rename("toggle", schemas.unary)},
 
-  time = {schema({"return", OPT, "seconds", "minutes", "hours"}, "time")},
+  time = {schema({"return", OPT, "frames", "seconds", "minutes", "hours"}, "time")},
 
   -- Aggregates
-  count = {schema({"return"}, "sum", "aggregate"), schema({IN, "return"}, "sum", "aggregate")},
-  sum = {schema({"return", STRONG_IN, "a"}, "sum", "aggregate"), schema({IN, "return", STRONG_IN, "a"}, "sum", "aggregate")}
+  count = {schema({"return"}, "sum", "aggregate")},
+  sum = {schema({"return", STRONG_IN, "a"}, "sum", "aggregate")}
 }
 
 function getExpressions()
@@ -139,22 +143,55 @@ function getSchemas(name)
   return expressions[name]
 end
 
-function getSchema(name, signature)
+-- Get the possible schemas for an unbound signature
+function getPossibleSchemas(name, signature)
   if not expressions[name] then error("Unknown expression '" .. name .. "'") end
-  if not signature then error("Must specify signature to disambiguate expression alternatives") end
-  local result
+  if not signature and #expressions[name] > 1 then error("Must specify signature to disambiguate expression alternatives") end
+  local results = Set:new()
+
   for _, schema in ipairs(expressions[name]) do
     local match = true
     local required = Set:new()
     for arg, mode in pairs(schema.signature) do
-      if mode == OUT or mode == IN or mode == STRONG_IN then
+      if mode == OUT or mode == IN or mode == STRONG_IN or mode == FILTER_IN then
         required:add(arg)
       end
     end
     for arg, mode in pairs(signature) do
       required:remove(arg)
       local schemaMode = schema.signature[arg] or schema.rest
-      if schemaMode == STRONG_IN then
+      if schemaMode == STRONG_IN or schemaMode == FILTER_IN then
+        schemaMode = IN
+      end
+      if schemaMode ~= mode and schemaMode ~= OPT and mode ~= OPT then
+        match = false
+        break
+      end
+    end
+    if match and required:length() == 0 then
+      results:add(schema)
+    end
+  end
+  return results
+end
+
+function getSchema(name, signature)
+  if not expressions[name] then error("Unknown expression '" .. name .. "'") end
+  if not signature and #expressions[name] > 1 then error("Must specify signature to disambiguate expression alternatives") end
+  local result
+
+  for _, schema in ipairs(expressions[name]) do
+    local match = true
+    local required = Set:new()
+    for arg, mode in pairs(schema.signature) do
+      if mode == OUT or mode == IN or mode == STRONG_IN or mode == FILTER_IN then
+        required:add(arg)
+      end
+    end
+    for arg, mode in pairs(signature) do
+      required:remove(arg)
+      local schemaMode = schema.signature[arg] or schema.rest
+      if schemaMode == STRONG_IN or schemaMode == FILTER_IN then
         schemaMode = IN
       end
       if schemaMode ~= mode and schemaMode ~= OPT then

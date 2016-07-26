@@ -15,7 +15,7 @@ static CONTINUATION_5_4(do_equal, block, perf, execf, value, value,  heap, perf,
 static void do_equal(block bk, perf p, execf n, value a, value b, heap h, perf pp, operator op, value *r)
 {
     start_perf(p, op);
-    if ((op != op_flush)  && (op != op_close)) {                                                 
+    if ((op != op_flush)  && (op != op_close)) {
         value ar = lookup(r, a);
         value br = lookup(r, b);
         if (!value_equals(ar, br)) return;
@@ -25,190 +25,197 @@ static void do_equal(block bk, perf p, execf n, value a, value b, heap h, perf p
 }
 
 
-#define DO_UNARY_TRIG(__name, __op)                                                               \
-    static CONTINUATION_5_4(__name, block, perf, execf, value, value, heap, perf, operator, value *); \
-    static void __name (block b, perf p, execf n, value dest, value a, heap h, perf pp, operator op, value *r) \
-    {                                                                                                \
-        start_perf(p, op);                                                     \
-        if ((op == op_flush)  || (op == op_close)) {                                                 \
-            apply(n, h, p, op, r);                                       \
-            stop_perf(p, pp);                                              \
-            return;                                                     \
-        }                                                                                            \
-        value ar = lookup(r, a);                                                                     \
-        if ((type_of(ar) != float_space )) {                                                         \
-            exec_error(b->ev, "attempt to do math on non-number", a);                                   \
-        } else {                                                                                     \
-            double deg = *(double *)ar;                                                              \
-            double rad = deg * M_PI/180.0;                                                           \
-            r[reg(dest)] = box_float(__op(rad));                                                     \
-            apply(n, h, p, op, r);                                       \
-        }                                                                                            \
-        stop_perf(p, pp);                                                \
+#define DO_UNARY_TRIG(__name, __op)                                                                           \
+    static CONTINUATION_5_4(__name, block, perf, execf, value, value, heap, perf, operator, value *);         \
+    static void __name (block b, perf p, execf n, value dest, value a, heap h, perf pp, operator op, value *r)\
+    {                                                                                                         \
+        start_perf(p, op);                                                                                    \
+        if ((op == op_flush)  || (op == op_close)) {                                                          \
+            apply(n, h, p, op, r);                                                                            \
+            stop_perf(p, pp);                                                                                 \
+            return;                                                                                           \
+        }                                                                                                     \
+        value ar = lookup(r, a);                                                                              \
+        if ((type_of(ar) != float_space )) {                                                                  \
+            exec_error(b->ev, "attempt to do math on non-number", a);                                         \
+        } else {                                                                                              \
+            double deg = *(double *)ar;                                                                       \
+            double rad = deg * M_PI/180.0;                                                                    \
+            r[reg(dest)] = box_float(__op(rad));                                                              \
+            apply(n, h, p, op, r);                                                                            \
+        }                                                                                                     \
+        stop_perf(p, pp);                                                                                     \
     }
 
-#define DO_UNARY_BOOLEAN(__name, __op)                                                               \
-    static CONTINUATION_5_4(__name, block, perf, execf, value, value, heap, perf, operator, value *); \
-    static void __name (block b, perf p, execf n, value dest, value a, heap h, perf pp, operator op, value *r) \
-    {                                                                                                \
-        start_perf(p, op);\
-        if ((op == op_flush)  || (op == op_close)) {                                                 \
-            apply(n, h, p, op, r);                                       \
-            stop_perf(p, pp);                                              \
-            return;                                                     \
-        }                                                                                            \
-        value ar = lookup(r, a);                                                                     \
-        if ((ar != etrue) && (ar != efalse)) {                                                       \
-            exec_error(b->ev, "attempt to flip non boolean", a);                                        \
-        } else {                                                                                     \
-            r[reg(dest)] = __op(ar);                                                                 \
-            apply(n, h, p, op, r);                                       \
-        }                                                                                            \
-        stop_perf(p, pp);                                                  \
-    }
-
-
-#define DO_UNARY_NUMERIC(__name, __op)                                                               \
-    static CONTINUATION_5_4(__name, block, perf, execf, value, value, heap, perf, operator, value *); \
-    static void __name (block b, perf p, execf n, value dest, value a, heap h, perf pp, operator op, value *r) \
-    {                                                                                                \
-        start_perf(p, op);                                                     \
-        if ((op == op_flush)  || (op == op_close)) {                                                 \
-            apply(n, h, p, op, r);                                       \
-            stop_perf(p, pp);                                              \
-            return;                                                     \
-        }                                                                                            \
-        value ar = lookup(r, a);                                                                     \
-        if ((type_of(ar) != float_space )) {                                                         \
-            exec_error(b->e, "attempt to do math on non-number", a);                                   \
-        } else {                                                                                     \
-            r[reg(dest)] = box_float(__op(*(double *)ar));                                           \
-            apply(n, h, p, op, r);                                       \
-        }                                                                                            \
-        stop_perf(p, pp);                                                  \
-    }
-
-#define BUILD_UNARY(__name, __do_op)   \
-    static execf __name (block bk, node n)  \
-    {                                           \
-        return cont(bk->h,                       \
-                    __do_op,                     \
-                    bk,                           \
-                    register_perf(bk->ev, n),     \
-                    resolve_cfg(bk, n, 0),                   \
-                    table_find(n->arguments, sym(return)), \
-                    table_find(n->arguments, sym(a)));          \
+#define DO_UNARY_BOOLEAN(__name, __op)                                                                        \
+    static CONTINUATION_5_4(__name, block, perf, execf, value, value, heap, perf, operator, value *);         \
+    static void __name (block b, perf p, execf n, value dest, value a, heap h, perf pp, operator op, value *r)\
+    {                                                                                                         \
+        start_perf(p, op);                                                                                    \
+        if ((op == op_flush)  || (op == op_close)) {                                                          \
+            apply(n, h, p, op, r);                                                                            \
+            stop_perf(p, pp);                                                                                 \
+            return;                                                                                           \
+        }                                                                                                     \
+        value ar = lookup(r, a);                                                                              \
+        if ((ar != etrue) && (ar != efalse)) {                                                                \
+            exec_error(b->ev, "attempt to flip non boolean", a);                                              \
+        } else {                                                                                              \
+            r[reg(dest)] = __op(ar);                                                                          \
+            apply(n, h, p, op, r);                                                                            \
+        }                                                                                                     \
+        stop_perf(p, pp);                                                                                     \
     }
 
 
-#define DO_BINARY_NUMERIC(__name, __op)                                                              \
-    static CONTINUATION_6_4(__name, block, perf, execf, value, value, value,  heap, perf, operator, value *); \
-    static void __name (block bk, perf p, execf n, value dest, value a, value b, heap h, perf pp, operator op, value *r) \
-    {                                                                                                \
-        start_perf(p, op);\
-        if ((op == op_flush)  || (op == op_close)) {                                                 \
-            apply(n, h, p,op, r);                                       \
-            stop_perf(p, pp);                                              \
-            return;                                                    \
-        }       \
-        value ar = lookup(r, a);                                                                     \
-        value br = lookup(r, b);                                                                     \
-        if ((type_of(ar) != float_space ) || (type_of(br) != float_space)) {                         \
-            exec_error(bk->ev, "attempt to " #__name" non-numbers", a, b);                            \
-            prf("UHOH %v, %v\n", ar, br);                                                            \
-        } else {                                                                                     \
-            r[reg(dest)] = box_float(*(double *)ar __op *(double *)br);                              \
-            apply(n, h, p, op, r);                                       \
-        }                                                                                            \
-        stop_perf(p, pp);                                                  \
+#define DO_UNARY_NUMERIC(__name, __op)                                                                        \
+    static CONTINUATION_5_4(__name, block, perf, execf, value, value, heap, perf, operator, value *);         \
+    static void __name (block b, perf p, execf n, value dest, value a, heap h, perf pp, operator op, value *r)\
+    {                                                                                                         \
+        start_perf(p, op);                                                                                    \
+        if ((op == op_flush)  || (op == op_close)) {                                                          \
+            apply(n, h, p, op, r);                                                                            \
+            stop_perf(p, pp);                                                                                 \
+            return;                                                                                           \
+        }                                                                                                     \
+        value ar = lookup(r, a);                                                                              \
+        if ((type_of(ar) != float_space )) {                                                                  \
+            exec_error(b->e, "attempt to do math on non-number", a);                                          \
+        } else {                                                                                              \
+            r[reg(dest)] = box_float(__op(*(double *)ar));                                                    \
+            apply(n, h, p, op, r);                                                                            \
+        }                                                                                                     \
+        stop_perf(p, pp);                                                                                     \
     }
 
-#define DO_BINARY_BOOLEAN(__name, __op)                                                                \
-    static CONTINUATION_6_4(__name, block, perf, execf, value, value, value, heap, perf, operator, value *); \
-    static void __name (block bk, perf p, execf n, value dest, value a, value b, heap h, perf pp, operator op, value *r) \
-    {                                                                                                  \
-         start_perf(p, op);\
-        if ((op == op_flush) || (op == op_close)) {                                                 \
-            apply(n, h, p, op, r);                                       \
-            stop_perf(p, pp);                                           \
-            return;                                                     \
-        }                                                                                            \
-        value ar = lookup(r, a);                                                                     \
-        value br = lookup(r, b);                                                                     \
-        \
-        if ((type_of(ar) == float_space ) && (type_of(br) == float_space)) {                         \
-            r[reg(dest)] = (*(double *)ar __op *(double *)br) ? etrue : efalse;                      \
-            apply(n, h, p, op, r);                                       \
-        } else if ((type_of(ar) == estring_space ) && (type_of(br) == estring_space)) {              \
-            r[reg(dest)] = (ar __op br) ? etrue : efalse;                                            \
-            apply(n, h, p, op, r);                                       \
-        } else if ((type_of(ar) == uuid_space ) && (type_of(br) == uuid_space)) {                    \
-            r[reg(dest)] = (ar __op br) ? etrue : efalse;                                            \
-            apply(n, h, p, op, r);                                       \
-        } else if ((ar == etrue || ar == efalse ) && (br == etrue || br == efalse)) {                \
-            r[reg(dest)] = (ar __op br) ? etrue : efalse;                                            \
-            apply(n, h, p, op, r);                                       \
-        } else {                                                                                     \
-            exec_error(bk->ev, "attempt to " #__op " different types", a, b);                              \
-        }                                                                                            \
-        stop_perf(p,pp);                                                  \
+#define BUILD_UNARY(__name, __do_op)                      \
+    static execf __name (block bk, node n)                \
+    {                                                     \
+        return cont(bk->h,                                \
+                    __do_op,                              \
+                    bk,                                   \
+                    register_perf(bk->ev, n),             \
+                    resolve_cfg(bk, n, 0),                \
+                    table_find(n->arguments, sym(return)),\
+                    table_find(n->arguments, sym(a)));    \
     }
 
 
-#define BUILD_BINARY(__name, __do_op)   \
-    static execf __name (block bk, node n)  \
-    {                                           \
-        return cont(bk->h,                   \
-                    __do_op,                    \
-                    bk,                         \
-                    register_perf(bk->ev, n),    \
-                    resolve_cfg(bk, n, 0),                   \
-                    table_find(n->arguments, sym(return)), \
-                    table_find(n->arguments, sym(a)),           \
-                    table_find(n->arguments, sym(b)));\
+#define DO_BINARY_NUMERIC(__name, __op)                                                                                 \
+    static CONTINUATION_6_4(__name, block, perf, execf, value, value, value,  heap, perf, operator, value *);           \
+    static void __name (block bk, perf p, execf n, value dest, value a, value b, heap h, perf pp, operator op, value *r)\
+    {                                                                                                                   \
+        start_perf(p, op);                                                                                              \
+        if ((op == op_flush)  || (op == op_close)) {                                                                    \
+            apply(n, h, p,op, r);                                                                                       \
+            stop_perf(p, pp);                                                                                           \
+            return;                                                                                                     \
+        }                                                                                                               \
+        value ar = lookup(r, a);                                                                                        \
+        value br = lookup(r, b);                                                                                        \
+        if ((type_of(ar) != float_space ) || (type_of(br) != float_space)) {                                            \
+            exec_error(bk->ev, "attempt to " #__name " non-numbers", a, b);                                             \
+            prf("UHOH %v, %v\n", ar, br);                                                                               \
+        } else {                                                                                                        \
+            r[reg(dest)] = box_float(*(double *)ar __op *(double *)br);                                                 \
+            apply(n, h, p, op, r);                                                                                      \
+        }                                                                                                               \
+        stop_perf(p, pp);                                                                                               \
+    }
+
+#define DO_BINARY_BOOLEAN(__name, __op)                                                                                 \
+    static CONTINUATION_6_4(__name, block, perf, execf, value, value, value, heap, perf, operator, value *);            \
+    static void __name (block bk, perf p, execf n, value dest, value a, value b, heap h, perf pp, operator op, value *r)\
+    {                                                                                                                   \
+                                                                                                                        \
+         start_perf(p, op);                                                                                             \
+        if ((op == op_flush) || (op == op_close)) {                                                                     \
+            apply(n, h, p, op, r);                                                                                      \
+            stop_perf(p, pp);                                                                                           \
+            return;                                                                                                     \
+        }                                                                                                               \
+        value ar = lookup(r, a);                                                                                        \
+        value br = lookup(r, b);                                                                                        \
+                                                                                                                        \
+        if ((type_of(ar) == float_space ) && (type_of(br) == float_space)) {                                            \
+            r[reg(dest)] = (*(double *)ar __op *(double *)br) ? etrue : efalse;                                         \
+            apply(n, h, p, op, r);                                                                                      \
+        } else if ((type_of(ar) == estring_space ) && (type_of(br) == estring_space)) {                                 \
+            r[reg(dest)] = (ar __op br) ? etrue : efalse;                                                               \
+            apply(n, h, p, op, r);                                                                                      \
+        } else if ((type_of(ar) == uuid_space ) && (type_of(br) == uuid_space)) {                                       \
+            r[reg(dest)] = (ar __op br) ? etrue : efalse;                                                               \
+            apply(n, h, p, op, r);                                                                                      \
+        } else if ((ar == etrue || ar == efalse ) && (br == etrue || br == efalse)) {                                   \
+            r[reg(dest)] = (ar __op br) ? etrue : efalse;                                                               \
+            apply(n, h, p, op, r);                                                                                      \
+        } else {                                                                                                        \
+            exec_error(bk->ev, "attempt to " #__op " different types", a, b);                                           \
+        }                                                                                                               \
+        stop_perf(p,pp);                                                                                                \
+    }
+
+
+#define BUILD_BINARY(__name, __do_op)                     \
+    static execf __name (block bk, node n)                \
+    {                                                     \
+        return cont(bk->h,                                \
+                    __do_op,                              \
+                    bk,                                   \
+                    register_perf(bk->ev, n),             \
+                    resolve_cfg(bk, n, 0),                \
+                    table_find(n->arguments, sym(return)),\
+                    table_find(n->arguments, sym(a)),     \
+                    table_find(n->arguments, sym(b)));    \
      }
 
 
-#define DO_BINARY_FILTER(__name, __op)                                                               \
-    static CONTINUATION_5_4(__name, block, perf, execf, value, value,  heap, perf, operator, value *); \
-    static void __name (block bk, perf p, execf n, value a, value b, heap h, perf pp, operator op, value *r) \
-    {                                                                                                \
-        start_perf(p, op);                                                     \
-        if ((op == op_flush)  || (op == op_close)) {                                                 \
-            apply(n, h, p, op, r);                                       \
-            stop_perf(p, pp);                                           \
-            return;                                                                                  \
-        }                                                                                            \
-        value ar = lookup(r, a);                                                                     \
-        value br = lookup(r, b);                                                                     \
-        if ((type_of(ar) == float_space ) && (type_of(br) == float_space)) {                         \
-            if (*(double *)ar __op *(double *)br)                                                    \
-                apply(n, h, p, op, r);                                   \
-        } else if ((type_of(ar) == estring_space ) && (type_of(br) == estring_space)) {              \
-            if (ar __op br)                                                                          \
-                apply(n, h, p, op, r);                                   \
-        } else if ((type_of(ar) == uuid_space ) && (type_of(br) == uuid_space)) {                    \
-            if (ar __op br)                                                                          \
-                apply(n, h, p, op, r);                                   \
-        } else if ((ar == etrue || ar == efalse ) && (br == etrue || br == efalse)) {                \
-            if (ar __op br)                                                                          \
-                apply(n, h, p, op, r);                                  \
-        } else {                                                                                     \
-            exec_error(bk->ev, "attempt to __op different types", a, b);                                 \
-        }                                                                                            \
-        stop_perf(p, pp);                                                \
+#define DO_BINARY_FILTER(__name, __op)                                                                      \
+    static CONTINUATION_5_4(__name, block, perf, execf, value, value,  heap, perf, operator, value *);      \
+    static void __name (block bk, perf p, execf n, value a, value b, heap h, perf pp, operator op, value *r)\
+    {                                                                                                       \
+        start_perf(p, op);                                                                                  \
+        if ((op == op_flush)  || (op == op_close)) {                                                        \
+            apply(n, h, p, op, r);                                                                          \
+            stop_perf(p, pp);                                                                               \
+            return;                                                                                         \
+        }                                                                                                   \
+        value ar = lookup(r, a);                                                                            \
+        value br = lookup(r, b);                                                                            \
+        if ((type_of(ar) == float_space ) && (type_of(br) == float_space)) {                                \
+            if (*(double *)ar __op *(double *)br)                                                           \
+                apply(n, h, p, op, r);                                                                      \
+        } else if ((type_of(ar) == estring_space ) && (type_of(br) == estring_space)) {                     \
+            if (ar __op br)                                                                                 \
+                apply(n, h, p, op, r);                                                                      \
+        } else if ((type_of(ar) == uuid_space ) && (type_of(br) == uuid_space)) {                           \
+            if (ar __op br)                                                                                 \
+                apply(n, h, p, op, r);                                                                      \
+        } else if ((ar == etrue || ar == efalse ) && (br == etrue || br == efalse)) {                       \
+            if (ar __op br)                                                                                 \
+                apply(n, h, p, op, r);                                                                      \
+        } else {                                                                                            \
+            /* Hacky solution to make = and != work for now, since they deal with this case often */        \
+            if (#__op == "!=")                                                                              \
+              apply(n, h, p, op, r);                                                                        \
+            else if(#__op == "=") {                                                                         \
+              /* do nothing */                                                                              \
+            } else                                                                                          \
+              exec_error(bk->ev, "attempt to " #__op " different types", a, b);                             \
+        }                                                                                                   \
+        stop_perf(p, pp);                                                                                   \
     }
 
 
-#define BUILD_BINARY_FILTER(__name, __do_op)   \
-    static execf __name (block bk, node n)  \
-    {                                           \
-        return cont(bk->h,                       \
-                __do_op,                        \
-                bk,                              \
+#define BUILD_BINARY_FILTER(__name, __do_op)      \
+    static execf __name (block bk, node n)        \
+    {                                             \
+        return cont(bk->h,                        \
+                __do_op,                          \
+                bk,                               \
                 register_perf(bk->ev, n),         \
-                resolve_cfg(bk, n, 0),           \
-                table_find(n->arguments, sym(a)),  \
+                resolve_cfg(bk, n, 0),            \
+                table_find(n->arguments, sym(a)), \
                 table_find(n->arguments, sym(b)));\
     }
 
@@ -284,7 +291,7 @@ BUILD_UNARY(build_is, do_is)
 static CONTINUATION_6_4(do_mod, block, perf, execf, value, value, value,  heap, perf, operator, value *);
 static void do_mod (block bk, perf p, execf n, value dest, value a, value b, heap h, perf pp, operator op, value *r)
 {
-    start_perf(p);
+  start_perf(p, op);
     if ((op == op_flush)  || (op == op_close)) {
         apply(n, h, p,op, r);
         stop_perf(p, pp);
@@ -303,6 +310,29 @@ static void do_mod (block bk, perf p, execf n, value dest, value a, value b, hea
 }
 
 BUILD_BINARY(build_mod, do_mod)
+
+static CONTINUATION_5_4(do_abs, block, perf, execf, value, value,  heap, perf, operator, value *);
+static void do_abs (block bk, perf p, execf n, value dest, value a, heap h, perf pp, operator op, value *r)
+{
+  start_perf(p, op);
+    if ((op == op_flush)  || (op == op_close)) {
+        apply(n, h, p,op, r);
+        stop_perf(p, pp);
+        return;
+    }
+    value ar = lookup(r, a);
+    if (type_of(ar) != float_space) {
+        exec_error(bk->ev, "attempt to abs non-number", a);
+        prf("UHOH %v\n", ar);
+    } else {
+        double val = *(double *)ar;
+        r[reg(dest)] = box_float(val < 0 ? -val : val);
+        apply(n, h, p, op, r);
+    }
+    stop_perf(p, pp);
+}
+
+BUILD_UNARY(build_abs, do_abs)
 
 
 void register_exec_expression(table builders)
@@ -328,5 +358,6 @@ void register_exec_expression(table builders)
     table_set(builders, intern_cstring("cos"), build_cos);
     table_set(builders, intern_cstring("tan"), build_tan);
     table_set(builders, intern_cstring("mod"), build_mod);
+    table_set(builders, intern_cstring("abs"), build_abs);
     table_set(builders, intern_cstring("toggle"), build_toggle);
 }
