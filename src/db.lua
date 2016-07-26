@@ -119,6 +119,7 @@ local expressions = {
   sin = {rename("sin", schemas.unary)},
   cos = {rename("cos", schemas.unary)},
   tan = {rename("tan", schemas.unary)},
+  abs = {rename("abs", schemas.unary)},
   mod = {rename("mod", schemas.binary)},
 
   toggle = {rename("toggle", schemas.unary)},

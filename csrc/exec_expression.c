@@ -311,6 +311,29 @@ static void do_mod (block bk, perf p, execf n, value dest, value a, value b, hea
 
 BUILD_BINARY(build_mod, do_mod)
 
+static CONTINUATION_5_4(do_abs, block, perf, execf, value, value,  heap, perf, operator, value *);
+static void do_abs (block bk, perf p, execf n, value dest, value a, heap h, perf pp, operator op, value *r)
+{
+  start_perf(p, op);
+    if ((op == op_flush)  || (op == op_close)) {
+        apply(n, h, p,op, r);
+        stop_perf(p, pp);
+        return;
+    }
+    value ar = lookup(r, a);
+    if (type_of(ar) != float_space) {
+        exec_error(bk->ev, "attempt to abs non-number", a);
+        prf("UHOH %v\n", ar);
+    } else {
+        double val = *(double *)ar;
+        r[reg(dest)] = box_float(val < 0 ? -val : val);
+        apply(n, h, p, op, r);
+    }
+    stop_perf(p, pp);
+}
+
+BUILD_UNARY(build_abs, do_abs)
+
 
 void register_exec_expression(table builders)
 {
@@ -335,5 +358,6 @@ void register_exec_expression(table builders)
     table_set(builders, intern_cstring("cos"), build_cos);
     table_set(builders, intern_cstring("tan"), build_tan);
     table_set(builders, intern_cstring("mod"), build_mod);
+    table_set(builders, intern_cstring("abs"), build_abs);
     table_set(builders, intern_cstring("toggle"), build_toggle);
 }
