@@ -27,8 +27,8 @@ static execf build_concat(block bk, node n)
     return cont(bk->h, do_concat,
                 register_perf(bk->ev, n),
                 resolve_cfg(bk, n, 0),
-                table_find(n->arguments, sym(destination)),
-                table_find(n->arguments, sym(arguments)));
+                table_find(n->arguments, sym(return)),
+                table_find(n->arguments, sym(variadic)));
 }
 
 static CONTINUATION_5_4(do_split, perf, execf, value, value, value,
@@ -67,7 +67,7 @@ static execf build_split(block bk, node n)
                 table_find(n->arguments, sym(destination)),
                 table_find(n->arguments, sym(source)),
                 table_find(n->arguments, sym(key)));
-                
+
 }
 
 
