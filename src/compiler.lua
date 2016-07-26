@@ -307,6 +307,7 @@ function DependencyGraph:depends()
   self:order(true)
   local depends = Set:new()
   for node in pairs(self.unprepared + self.unsorted) do
+    --print("DEPS", fmtDepNode(node))
     depends:union(node.deps.depends + node.deps.anyDepends + node.deps.maybeDepends, true)
   end
   for _, node in ipairs(self.sorted) do
@@ -413,9 +414,9 @@ function DependencyGraph:addExpressionNode(node)
     elseif args.b.type == "constant" then
       deps.provides:add(args.a)
     else
-      deps.provides:add(args.a)
+      deps.contributes:add(self:cardinal(args.a))
       deps.anyDepends:add(args.a)
-      deps.provides:add(args.b)
+      deps.contributes:add(self:cardinal(args.b))
       deps.anyDepends:add(args.b)
     end
   else
@@ -498,6 +499,16 @@ function DependencyGraph:addSubqueryNode(node, context)
     local subgraph = DependencyGraph:fromQueryGraph(body, context, true)
     deps.maybeDepends:union(subgraph:depends() + subgraph:provides(), true)
   end
+
+
+  deps.depends = Set:new()
+  deps.depends.add = function(self, val)
+    if val.name == "neue" then
+      error("OH GOD WHY")
+    end
+    return Set.add(self, val)
+  end
+
   return self:add(node)
 end
 
@@ -582,7 +593,6 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
     return
   end
   local presorted = presort(self.unprepared, {mutate = 500, expression = 400, ["not"] = 300, choose = 200, union = 100, object = 0})
-
   -- Ensure that all nodes which provide a term contribute to that terms cardinality
   for _, node in ipairs(presorted) do
     for term in pairs(node.deps.provides) do
@@ -602,6 +612,7 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
     for term in pairs(node.deps.maybeProvides) do
       if not self.terms[term] then
         node.deps.provides:add(term)
+        node.deps.maybeDepends:remove(term)
         node.deps.contributes:add(self:cardinal(term))
         neueTerms:add(term)
         neueTerms:add(self:cardinal(term))
@@ -611,21 +622,12 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
     end
   end
 
-  -- Link new maybe dependencies to existing terms
-  for _, node in ipairs(presorted) do
-    for term in pairs(node.deps.maybeDepends) do
-      if self.terms[term] and not (node.deps.provides[term] or node.deps.contributes[term]) then
-        node.deps.depends:add(term)
-      end
-    end
-  end
-
   -- Link existing maybe dependencies to new terms
   for term in std.pairs(neueTerms) do
     if self.dependents[term] == nil then
       self.dependents[term] = Set:new()
       for node in pairs(self.unsorted) do
-        if node.deps.maybeDepends[term] then
+        if node.deps.maybeDepends[term] and not (node.deps.provides[term] or node.deps.contributes[term]) then
           self.dependents[term]:add(node)
           node.deps.depends:add(term)
           node.deps.unsatisfied = node.deps.unsatisfied + 1
@@ -655,11 +657,23 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
     elseif node.queries then
       for _, query in ipairs(node.queries) do
         query.deps.graph:prepare()
+        --print("PREPARING", query.name or query)
         local required = query.deps.graph:requires()
+        --print("  REQUIRED", required)
         for term in pairs(required) do
-          query.deps.graph:satisfy(term)
-          node.deps.depends:add(term)
+          if self.terms[term] then
+            node.deps.maybeDepends:add(term)
+          end
         end
+      end
+    end
+  end
+
+  -- Link new maybe dependencies to existing terms
+  for _, node in ipairs(presorted) do
+    for term in pairs(node.deps.maybeDepends) do
+      if self.terms[term] and not (node.deps.provides[term] or node.deps.contributes[term]) then
+        node.deps.depends:add(term)
       end
     end
   end
@@ -817,6 +831,21 @@ function DependencyGraph:order(allowPartial)
         -- clean dependency hooks
         for term in pairs(deps.depends + deps.anyDepends) do
           self.dependents[term]:remove(node)
+        end
+
+        -- provide unbound terms of anyDepends, depend on bound term(s)
+        for term in pairs(deps.anyDepends) do
+          if self.bound[term] then
+            deps.depends:add(term)
+          else
+            deps.provides:add(term)
+            if deps.graph then
+              deps.graph:satisfy(term)
+            elseif node.queries then
+              for _, query in ipairs(node.queries) do
+                query.deps.graph:satisfy(term)
+              end
+          end
         end
 
         -- Decrement the unsatisfied term count for nodes depending on terms this node provides that haven't been provided
