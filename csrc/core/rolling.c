@@ -49,11 +49,11 @@ static void rolling_free(heap h, void *x, bytes b)
 {
     rolling c = (void *)h;
     pageheader p = (pageheader)page_of(x, c->parent->pagesize);
-    if (!--p->refcnt) {
-        if ((*p->last = p->next)) p->next->last = p->last;
-        h->allocated -= p->length;
-        deallocate(c->parent, p, p->length);
-    }
+    /* if (!--p->refcnt) { */
+    /*     if ((*p->last = p->next)) p->next->last = p->last; */
+    /*     h->allocated -= p->length; */
+    /*     deallocate(c->parent, p, p->length); */
+    /* } */
 }
 
 static void rolling_destroy(heap h)
@@ -90,4 +90,3 @@ heap allocate_rolling(heap p, buffer name)
     ph->next = 0;
     return(&l->h);
 }
-
