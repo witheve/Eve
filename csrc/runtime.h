@@ -126,7 +126,7 @@ struct evaluation  {
     table block_solution;
     table solution;
     table last_f_solution;
-    table last_t_solution;
+    table t_solution;
 
     table persisted;
     table scopes;
@@ -141,6 +141,8 @@ struct evaluation  {
     thunk run;
     ticks cycle_time;
     table f_bags;
+    int t_delta_count;
+    value bkname;
 };
 
 
