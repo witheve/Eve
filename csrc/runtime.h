@@ -57,7 +57,7 @@ string bag_dump(heap h, bag b);
 
 void print_value(buffer, value);
 
-typedef closure(listener, value, value, value, multiplicity);
+typedef closure(listener, value, value, value, multiplicity, uuid);
 typedef closure(scan, int, listener, value, value, value);
 
 typedef struct node *node;

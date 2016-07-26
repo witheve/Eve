@@ -88,14 +88,15 @@ void edb_clear_implications(bag b)
     b->implications = allocate_table(b->h, key_from_pointer, compare_pointer);
 }
 
-void edb_scan(bag b, int sig, listener f, value e, value a, value v)
+void edb_scan(bag b, int sig, listener out, value e, value a, value v)
 {
     switch (sig) {
     case s_eav:
         table_foreach(b->eav, e, al) {
             table_foreach((table)al, a, vl) {
-                table_foreach((table)vl, v, final) {
-                    apply(f, e, a, v, ((leaf)final)->m);
+                table_foreach((table)vl, v, f) {
+                    leaf final = f;
+                    apply(out, e, a, v, final->m, final->bku);
                 }
             }
         }
@@ -109,7 +110,7 @@ void edb_scan(bag b, int sig, listener f, value e, value a, value v)
                 if(vl) {
                     leaf final;
                     if ((final = table_find(vl, v)) != 0){
-                        apply(f, e, a, v, final->m);
+                        apply(out, e, a, v, final->m, final->bku);
                     }
                 }
             }
@@ -122,10 +123,10 @@ void edb_scan(bag b, int sig, listener f, value e, value a, value v)
             if(al) {
                 table vl = table_find(al, a);
                 if(vl) {
-                    table_foreach(vl, v, final) {
-                        if(final) {
-                            apply(f, e, a, v, ((leaf)final)->m);
-                        }
+                    table_foreach(vl, v, f) {
+                        leaf final = f;
+                        if(final) 
+                            apply(out, e, a, v, final->m, final->bku);
                     }
                 }
             }
@@ -137,10 +138,10 @@ void edb_scan(bag b, int sig, listener f, value e, value a, value v)
             table al = table_find(b->eav, e);
             if(al) {
                 table_foreach(al, a, vl) {
-                    table_foreach((table)vl, v, final){
-                        if(final) {
-                            apply(f, e, a, v, ((leaf)final)->m);
-                        }
+                    table_foreach((table)vl, v, f){
+                        leaf final = f;
+                        if(final) 
+                            apply(out, e, a, v, final->m, final->bku);
                     }
                 }
             }
@@ -153,8 +154,10 @@ void edb_scan(bag b, int sig, listener f, value e, value a, value v)
             if(al) {
                 table vl = table_find(al, v);
                 if(vl) {
-                    table_foreach(vl, e, final) {
-                        apply(f, e, a, v, ((leaf)final)->m);
+                    table_foreach(vl, e, f) {
+                        leaf final = f;
+                        if(final) 
+                            apply(out, e, a, v, final->m, final->bku);
                     }
                 }
             }
@@ -166,8 +169,10 @@ void edb_scan(bag b, int sig, listener f, value e, value a, value v)
             table al = table_find(b->ave, a);
             if(al) {
                 table_foreach(al, v, vl) {
-                    table_foreach((table)vl, e, final) {
-                        apply(f, e, a, v, ((leaf)final)->m);
+                    table_foreach((table)vl, e, f) {
+                        leaf final = f;
+                        if(final) 
+                            apply(out, e, a, v, final->m, final->bku);
                     }
                 }
             }
@@ -216,7 +221,6 @@ void edb_insert(bag b, value e, value a, value v, multiplicity m, uuid bku)
         b->count++;
     } else {
         // only keep the original bku..huh
-        prf("mergin: %v %v %v %d %d\n", e, a, v, final->m, m);
         final->m += m;
         // i dont know why this is really necessary, but things stop working
         if (!final->m)

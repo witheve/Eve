@@ -2,14 +2,15 @@
 #include <exec.h>
 
 
-static CONTINUATION_9_4(scan_listener,
+static CONTINUATION_9_5(scan_listener,
                         value,
                         execf, heap, operator, value *, perf,
                         value, value, value,
-                        value, value, value, multiplicity);
+                        value, value, value, multiplicity, uuid);
+
 static void scan_listener(value id, execf n, heap h, operator op, value *r, perf p,
                           value er, value ar, value vr,
-                          value e, value a, value v, multiplicity count)
+                          value e, value a, value v, multiplicity count, uuid bku)
 {
     if (count > 0) {
         store(r, er, e);
@@ -101,8 +102,8 @@ static execf build_remove(block bk, node n)
                 table_find(n->arguments, sym(v)));
 }
 
-static CONTINUATION_4_4(each_set_remove, block, value, value, uuid, value, value, value, multiplicity);
-static void each_set_remove(block bk, uuid u, value e, value a, value etrash, value atrash, value v, multiplicity m)
+static CONTINUATION_4_5(each_set_remove, block, value, value, uuid, value, value, value, multiplicity, uuid);
+static void each_set_remove(block bk, uuid u, value e, value a, value etrash, value atrash, value v, multiplicity m, uuid bku)
 {
     if (m > 0) {
         apply(bk->ev->insert, u, e, a, v, -1);

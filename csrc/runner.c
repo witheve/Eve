@@ -28,18 +28,14 @@ static boolean compare_sets(table set, table retain, table destroy)
     table_foreach(set, u, _) {
         bag s = table_find(retain, u);
         bag d = table_find(destroy, u);
-        prf("compare: %d %d\n", edb_size(s), edb_size(d));
 
-        if (!s != !d) prf("disjoint bagset\n");
         if (!s != !d) return false;
         if (s) {
             if (edb_size(d) != edb_size(s)){
-                prf("bad count\n");
                 return false;
             }
             bag_foreach(s, e, a, v, c, _) {
                 if (count_of(d, e, a, v) != c) {
-                    prf("bad term %d %d %v %v %v\n", count_of(d, e, a, v), c, e, a, v);
                     return false;
                 }
             }
@@ -53,7 +49,6 @@ static void insert_f(evaluation ev, uuid u, value e, value a, value v, multiplic
 {
     bag b;
 
-    prf("insert: %v %v %v %v %v %d\n", ev->bk->name, bagname(ev, u), e, a, v, m);
     if (!ev->block_solution) 
         ev->block_solution = create_value_table(ev->working);
 
@@ -64,12 +59,11 @@ static void insert_f(evaluation ev, uuid u, value e, value a, value v, multiplic
     if (!(b = table_find(ev->block_solution, u))) {
         table_set(ev->block_solution, u, b = create_bag(ev->working, u));
     }
-    edb_insert(b, e, a, v, m, ev->bk);
+    edb_insert(b, e, a, v, m, ev->bk->name);
 }
 
-// xxx - these are all bag-like combinatio
-static CONTINUATION_3_4(merge_scan_out, heap, vector, table, value, value, value, multiplicity);
-static void merge_scan_out(heap h, vector k, table f, value e, value a, value v, multiplicity m)
+static CONTINUATION_3_5(merge_scan_out, heap, vector, table, value, value, value, multiplicity, uuid);
+static void merge_scan_out(heap h, vector k, table f, value e, value a, value v, multiplicity m, uuid bku)
 {
     u64 z;
     vector_set(k, 0, e);
@@ -95,22 +89,28 @@ static void merge_scan(evaluation ev, int sig, listener result, value e, value a
     vector k = allocate_vector(ev->working, 3);
     listener s = cont(ev->working, merge_scan_out, ev->working, k, f);
 
-    multibag_foreach(ev->persisted, u, b) {
+    table_foreach(ev->persisted, u, b) {
         bag proposed;
         edb_scan(b, sig, s, e, a, v);
         if (ev->t_solution && (proposed = table_find(ev->t_solution, u))) {
             edb_scan(proposed, sig, s, e, a, v);
         }
     }
-    multibag_foreach(ev->last_f_solution, u, b) 
-        edb_scan(b, sig, s, e, a, v);
+    
+    table_foreach(ev->f_bags, u, _) {
+        bag last;
+        if (ev->last_f_solution && (last = table_find(ev->last_f_solution, u))){
+            edb_scan(last, sig, s, e, a, v);
+        }
+    }
 
     table_foreach(f, k, v) {
         apply(result,
               vector_get(k, 0),
               vector_get(k, 1),
               vector_get(k, 2),
-              (multiplicity)v);
+              (multiplicity)v,
+              0);
     }
     
 }
@@ -202,7 +202,6 @@ static void fixedpoint(evaluation ev)
         ev->solution =  0;
         ev->t_delta_count = 0;
         do {
-            prf("start f\n");
             iterations++;
             ev->last_f_solution = ev->solution;
             ev->solution = 0;
