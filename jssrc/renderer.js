@@ -1051,7 +1051,7 @@ function clone(obj) {
 //---------------------------------------------------------
 // Connect the websocket, send the ui code
 //---------------------------------------------------------
-let DEBUG = true;
+let DEBUG = false;
 let __entities = {}; // DEBUG
 
 var socket = new WebSocket("ws://" + window.location.host +"/ws");
