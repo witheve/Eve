@@ -81,7 +81,6 @@ function errors.crazySyntax(context, token)
 
   <LINE>
   ]])})
-  error("Parse failure")
 end
 
 function errors.invalidTopLevel(context, token)

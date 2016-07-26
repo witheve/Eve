@@ -702,8 +702,8 @@ function handleEditorParse(parse) {
       if(tokens) {
         let state;
         for(let token of tokens) {
-          from.ch = token.offset;
-          to.ch = token.offset + token.value.length;
+          from.ch = token.surrogateOffset;
+          to.ch = token.surrogateOffset + token.surrogateLength;
           let className = token.type;
           if(state == "TAG" || state == "NAME") {
             className += " " + state;

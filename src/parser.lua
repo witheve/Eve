@@ -114,11 +114,22 @@ end
 ------------------------------------------------------------
 -- Lexer
 ------------------------------------------------------------
+--
+local function surrogateLength(string)
+  local length = 0
+  local scanner = StringScanner:new(string)
+  local char = scanner:read()
+  while char do
+    length = length + math.ceil(#char / 2)
+    char = scanner:read()
+  end
+  return length
+end
 
 local Token = {}
 
-function Token:new(type, value, line, offset)
-  return {id = util.generateId(), type = type, value = value, line = line, offset = offset}
+function Token:new(type, value, line, offset, byteOffset, surrogateOffset)
+  return {id = util.generateId(), type = type, value = value, line = line, offset = offset, byteOffset = byteOffset, length = utf8.len(value), byteLength = #value, surrogateOffset = surrogateOffset, surrogateLength = surrogateLength(value)}
 end
 
 function Token:format(token)
@@ -204,52 +215,69 @@ local function lex(str)
   local char = scanner:read()
   local line = 1
   local offset = 0
+  local byteOffset = 0
+  local surrogateOffset = 0
   local tokens = {}
+
+  local function adjustOffset(num)
+      offset = offset + num
+      byteOffset = byteOffset + num
+      surrogateOffset = surrogateOffset + num
+  end
+
+  local function adjustOffsetByString(string)
+      offset = offset + utf8.len(string)
+      byteOffset = byteOffset + #string
+      surrogateOffset = surrogateOffset + surrogateLength(string)
+  end
+
   while char do
     if whitespace[char] then
       if char == "\n" then
         line = line + 1
         offset = 0
+        byteOffset = 0
+        surrogateOffset = 0
       else
-        offset = offset + 1
+        adjustOffset(1)
       end
 
     -- anything at root level is just documentation
     elseif offset == 0 then
       scanner:unread()
       local doc = scanner:eatWhile(notNewline)
-      tokens[#tokens+1] = Token:new("DOC", doc, line, offset)
-      offset = offset + #doc
+      tokens[#tokens+1] = Token:new("DOC", doc, line, offset, byteOffset, surrogateOffset)
+      adjustOffsetByString(doc)
 
     elseif char == "\"" or (char == "}" and scanner:peek() == "}") then
       if char == "\"" then
-        tokens[#tokens+1] = Token:new("STRING_OPEN", "\"", line, offset)
-        offset = offset + 1
+        tokens[#tokens+1] = Token:new("STRING_OPEN", "\"", line, offset, byteOffset, surrogateOffset)
+        adjustOffset(1)
       else
         -- otherwise, go ahead and eat the }}
         scanner:read()
-        offset = offset + 2
+        adjustOffset(2)
       end
       local string = scanner:eatWhile(inString)
       -- if we are stopping because of string interpolation, we have to remove
       -- the previous { character that snuck in
       if string:sub(#string, #string) == "{" and scanner:peek() == "{" then
         string = string:sub(0, #string - 1)
-        offset = offset + 1
+        adjustOffset(1)
       end
       if #string > 0 then
         -- single slashes are only escape codes and shouldn't make it to the
         -- actual string
         string = string:gsub("\\n", "\n"):gsub("\\([^\\])", "%1")
-        tokens[#tokens+1] = Token:new("STRING", string, line, offset)
+        tokens[#tokens+1] = Token:new("STRING", string, line, offset, byteOffset, surrogateOffset)
       end
+      adjustOffsetByString(string)
       -- skip the end quote
       if scanner:peek() == "\"" then
         scanner:read()
-        tokens[#tokens+1] = Token:new("STRING_CLOSE", "\"", line, offset + #string)
-        offset = offset + 1
+        tokens[#tokens+1] = Token:new("STRING_CLOSE", "\"", line, offset, byteOffset, surrogateOffset)
+        adjustOffset(1)
       end
-      offset = offset + #string
 
     elseif char == "⦑" then
       -- FIXME: why are these extra reads necessary? it seems like
@@ -258,32 +286,34 @@ local function lex(str)
       local UUID = scanner:eatWhile(isUUID)
       -- skip the end bracket
       scanner:read()
-      tokens[#tokens+1] = Token:new("UUID", UUID, line, offset)
-      offset = offset + #UUID + 3
+      tokens[#tokens+1] = Token:new("UUID", UUID, line, offset, byteOffset, surrogateOffset)
+      adjustOffsetByString(UUID)
+      adjustOffsetByString("⦒")
 
     elseif char == "/" and scanner:peek() == "/" then
       scanner:unread()
       local comment = scanner:eatWhile(notNewline)
-      tokens[#tokens+1] = Token:new("COMMENT", comment, line, offset)
-      offset = offset + #comment
+      tokens[#tokens+1] = Token:new("COMMENT", comment, line, offset, byteOffset, surrogateOffset)
+      adjustOffset(2)
+      adjustOffsetByString(comment)
 
     elseif (char == "-" and numeric[scanner:peek()]) or numeric[char] then
       scanner:unread()
       local number = scanner:eatWhile(isNumber)
-      tokens[#tokens+1] = Token:new("NUMBER", number, line, offset)
-      offset = offset + #number
+      tokens[#tokens+1] = Token:new("NUMBER", number, line, offset, byteOffset, surrogateOffset)
+      adjustOffsetByString(number)
 
     elseif specials[char] then
       local next = scanner:peek()
       -- FIXME: there's gotta be a better way to deal with this than special casing it
       if char == ":" and next == "=" then
-        tokens[#tokens+1] = Token:new(keywords[":="], ":=", line, offset)
+        tokens[#tokens+1] = Token:new(keywords[":="], ":=", line, offset, byteOffset, surrogateOffset)
         -- skip the =
         scanner:read()
-        offset = offset + 2
+        adjustOffset(2)
       else
-        tokens[#tokens+1] = Token:new(specials[char], char, line, offset)
-        offset = offset + 1
+        tokens[#tokens+1] = Token:new(specials[char], char, line, offset, byteOffset, surrogateOffset)
+        adjustOffset(1)
       end
 
     else
@@ -298,8 +328,8 @@ local function lex(str)
       end
       local keyword = keywords[identifier]
       local type = keyword or "IDENTIFIER"
-      tokens[#tokens+1] = Token:new(type, identifier, line, offset)
-      offset = offset + #identifier
+      tokens[#tokens+1] = Token:new(type, identifier, line, offset, byteOffset, surrogateOffset)
+      adjustOffsetByString(identifier)
     end
     char = scanner:read()
   end
@@ -681,7 +711,7 @@ local function parse(tokens, context)
         -- this union/choose
         local prev = stack:pop()
         local outputs = prev.children[1]
-        if outputs.type ~= "block" and outputs.type ~= "IDENTIFIER" then
+        if not outputs or (outputs.type ~= "block" and outputs.type ~= "IDENTIFIER") then
           -- error
           -- attempting to assign an if to something that isn't
           -- either a group or an identifier
