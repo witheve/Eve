@@ -37,7 +37,7 @@ static boolean compare_sets(table set, table retain, table destroy)
                 prf("bad count\n");
                 return false;
             }
-            bag_foreach(s, e, a, v, c) {
+            bag_foreach(s, e, a, v, c, _) {
                 if (count_of(d, e, a, v) != c) {
                     prf("bad term %d %d %v %v %v\n", count_of(d, e, a, v), c, e, a, v);
                     return false;
@@ -53,6 +53,7 @@ static void insert_f(evaluation ev, uuid u, value e, value a, value v, multiplic
 {
     bag b;
 
+    prf("insert: %v %v %v %v %v %d\n", ev->bk->name, bagname(ev, u), e, a, v, m);
     if (!ev->block_solution) 
         ev->block_solution = create_value_table(ev->working);
 
@@ -63,7 +64,7 @@ static void insert_f(evaluation ev, uuid u, value e, value a, value v, multiplic
     if (!(b = table_find(ev->block_solution, u))) {
         table_set(ev->block_solution, u, b = create_bag(ev->working, u));
     }
-    edb_insert(b, e, a, v, m);
+    edb_insert(b, e, a, v, m, ev->bk);
 }
 
 // xxx - these are all bag-like combinatio
@@ -135,10 +136,10 @@ static boolean merge_multibag_set(evaluation ev, table *d, uuid u, bag s)
         table_set(*d, u, s);
         result = true;
     } else {
-        bag_foreach(s, e, a, v, count) {
+        bag_foreach(s, e, a, v, count, bk) {
             int old_count = count_of(bd, e, a, v);
             if (old_count != count) {
-                edb_insert(bd, e, a, v, count==1?1:0);
+                edb_insert(bd, e, a, v, count==1?1:0, bk);
             }
         }
     }
@@ -155,8 +156,8 @@ static void merge_multibag_bag(evaluation ev, table *d, uuid u, bag s)
     if (!(bd = table_find(*d, u))) {
         table_set(*d, u, s); 
     } else {
-        bag_foreach(s, e, a, v, c) {
-            edb_insert(bd, e, a, v, c);
+        bag_foreach(s, e, a, v, m, bku) {
+            edb_insert(bd, e, a, v, m, bku);
         }
     }
 }
@@ -166,7 +167,7 @@ static void run_block(evaluation ev, block bk)
     heap bh = allocate_rolling(pages, sstring("block run"));
     bk->ev->block_solution = 0;
     bk->ev->non_empty = false;
-    ev->bkname = bk->name;
+    ev->bk = bk;
     ticks start = rdtsc();
     value *r = allocate(ev->working, (bk->regs + 1)* sizeof(value));
         
@@ -201,7 +202,7 @@ static void fixedpoint(evaluation ev)
         ev->solution =  0;
         ev->t_delta_count = 0;
         do {
-            printf("start f\n");
+            prf("start f\n");
             iterations++;
             ev->last_f_solution = ev->solution;
             ev->solution = 0;
@@ -223,9 +224,9 @@ static void fixedpoint(evaluation ev)
         bag bd;
         // xx - these should be all persisted at this point
         if ((bd = table_find(ev->persisted, u))) {
-            bag_foreach((bag)b, e, a, v, c) {
+            bag_foreach((bag)b, e, a, v, c, bku) {
                 changed_persistent = true;
-                edb_insert(bd, e, a, v, c);
+                edb_insert(bd, e, a, v, c, bku);
             }
         }
     }

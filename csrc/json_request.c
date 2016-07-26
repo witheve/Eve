@@ -162,13 +162,13 @@ static void send_response(json_session js, table solution, table counters)
     heap p = allocate_rolling(pages, sstring("response delta"));
     table results = create_value_vector_table(p);
 
-    bag_foreach(js->session, e, a, v, c)
+    bag_foreach(js->session, e, a, v, c, _)
         table_set(results, build_vector(p, e, a, v), etrue);
 
     if(solution) {
         bag ev = table_find(solution, js->event_uuid);
         if (ev){
-            bag_foreach(ev, e, a, v, c)
+            bag_foreach(ev, e, a, v, c, _)
             table_set(results, build_vector(p, e, a, v), etrue);
         }
     }

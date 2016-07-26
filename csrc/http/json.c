@@ -81,7 +81,8 @@ static void json_input(json_parser p, buffer b, thunk t)
             estring tes= intern_buffer(p->tag);
             estring ves= intern_buffer(p->value);
 
-            edb_insert(p->b, p->n, tes, ves, 1);
+            // xxx - should have some interesting source id here
+            edb_insert(p->b, p->n, tes, ves, 1, 0);
             buffer_clear(p->tag);
             buffer_clear(p->value);
         }

@@ -142,7 +142,7 @@ struct evaluation  {
     ticks cycle_time;
     table f_bags;
     int t_delta_count;
-    value bkname;
+    block bk;
 };
 
 

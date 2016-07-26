@@ -17,8 +17,8 @@ multiplicity count_of(bag b, value e, value a, value v)
     if(al) {
         table vl = table_find(al, a);
         if(vl) {
-            void *c = table_find(vl, v);
-            return (multiplicity) c;
+            leaf c = table_find(vl, v);
+            return c->m;
         }
     }
     return 0;
@@ -30,7 +30,9 @@ value lookupv(bag b, uuid e, estring a)
     if(!al) return 0;
     table vl = table_find(al, a);
     if(!vl) return 0;
-    table_foreach(vl, v, count) if(count != 0) return v;
+    table_foreach(vl, v, terminal)
+        if(((leaf)terminal)->m != 0)
+            return v;
     return(0);
 }
 
@@ -92,8 +94,8 @@ void edb_scan(bag b, int sig, listener f, value e, value a, value v)
     case s_eav:
         table_foreach(b->eav, e, al) {
             table_foreach((table)al, a, vl) {
-                table_foreach((table)vl, v, count) {
-                    apply(f, e, a, v, (multiplicity)count);
+                table_foreach((table)vl, v, final) {
+                    apply(f, e, a, v, ((leaf)final)->m);
                 }
             }
         }
@@ -105,9 +107,9 @@ void edb_scan(bag b, int sig, listener f, value e, value a, value v)
             if(al) {
                 table vl = table_find(al, a);
                 if(vl) {
-                    multiplicity count;
-                    if ((count = (multiplicity)table_find(vl, v)) != 0){
-                        apply(f, e, a, v, count);
+                    leaf final;
+                    if ((final = table_find(vl, v)) != 0){
+                        apply(f, e, a, v, final->m);
                     }
                 }
             }
@@ -120,9 +122,9 @@ void edb_scan(bag b, int sig, listener f, value e, value a, value v)
             if(al) {
                 table vl = table_find(al, a);
                 if(vl) {
-                    table_foreach(vl, v, count) {
-                        if(count != 0) {
-                            apply(f, e, a, v, (multiplicity)count);
+                    table_foreach(vl, v, final) {
+                        if(final) {
+                            apply(f, e, a, v, ((leaf)final)->m);
                         }
                     }
                 }
@@ -135,9 +137,9 @@ void edb_scan(bag b, int sig, listener f, value e, value a, value v)
             table al = table_find(b->eav, e);
             if(al) {
                 table_foreach(al, a, vl) {
-                    table_foreach((table)vl, v, count) {
-                        if(count) {
-                            apply(f, e, a, v, (multiplicity)count);
+                    table_foreach((table)vl, v, final){
+                        if(final) {
+                            apply(f, e, a, v, ((leaf)final)->m);
                         }
                     }
                 }
@@ -151,8 +153,8 @@ void edb_scan(bag b, int sig, listener f, value e, value a, value v)
             if(al) {
                 table vl = table_find(al, v);
                 if(vl) {
-                    table_foreach(vl, e, count) {
-                        apply(f, e, a, v, (multiplicity)count);
+                    table_foreach(vl, e, final) {
+                        apply(f, e, a, v, ((leaf)final)->m);
                     }
                 }
             }
@@ -164,8 +166,8 @@ void edb_scan(bag b, int sig, listener f, value e, value a, value v)
             table al = table_find(b->ave, a);
             if(al) {
                 table_foreach(al, v, vl) {
-                    table_foreach((table)vl, e, count) {
-                        apply(f, e, a, v,  (multiplicity)count);       
+                    table_foreach((table)vl, e, final) {
+                        apply(f, e, a, v, ((leaf)final)->m);
                     }
                 }
             }
@@ -191,24 +193,36 @@ bag create_bag(heap h, uuid u)
     return b;
 }
 
-void edb_insert(bag b, value e, value a, value v, long multiplicity)
+void edb_insert(bag b, value e, value a, value v, multiplicity m, uuid bku)
 {
-    // EAV
-    {
-        table el = level_fetch(b->h, b->eav, e);
-        table al = level_fetch(b->h, el, a);
-        long cur = (long)table_find(al, v);
-        table_set(al, v, (void *)(cur + multiplicity));
-    }
+    leaf final;
 
-    // AVE
-    {
+    // EAV
+    table el = level_fetch(b->h, b->eav, e);
+    table al = level_fetch(b->h, el, a);
+    
+    if (!(final = table_find(al, v))){
+        final = allocate(b->h, sizeof(struct leaf));
+        final->m = 0;
+        final->bku = bku;
+        final->m = m;
+        table_set(al, v, final);
+
+        
+        // AVE
         table al = level_fetch(b->h, b->ave, a);
         table vl = level_fetch(b->h, al, v);
-        long cur = (long)table_find(vl, e);
-        table_set(vl, e, (void *)(cur + multiplicity));
+        table_set(vl, e, final);
+        b->count++;
+    } else {
+        // only keep the original bku..huh
+        prf("mergin: %v %v %v %d %d\n", e, a, v, final->m, m);
+        final->m += m;
+        // i dont know why this is really necessary, but things stop working
+        if (!final->m)
+            table_set(al, v, 0);
+            
     }
-    b->count++;
 }
 
 int buffer_unicode_length(buffer buf)
