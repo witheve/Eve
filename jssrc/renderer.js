@@ -740,10 +740,10 @@ function injectCodeMirror(node, elem) {
     editor.on("changes", function(cm, changes) {
       let value = cm.getValue();
       sendParse(value);
-      // TODO: mark lines as dirty
       for(let change of changes) {
-        let {from, to} = change;
-        for(let start = from.line, end = to.line; start <= end; start++) {
+        let {from, to, text} = change;
+        let end = to.line > from.line + text.length ? to.line : from.line + text.length;
+        for(let start = from.line; start <= end; start++) {
           cm.dirtyLines.push(start);
         }
       }

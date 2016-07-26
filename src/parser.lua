@@ -114,13 +114,14 @@ end
 ------------------------------------------------------------
 -- Lexer
 ------------------------------------------------------------
---
+
+local surrogateSize = {1, 1, 1, 2}
 local function surrogateLength(string)
   local length = 0
   local scanner = StringScanner:new(string)
   local char = scanner:read()
   while char do
-    length = length + math.ceil(#char / 2)
+    length = length + surrogateSize[#char]
     char = scanner:read()
   end
   return length
