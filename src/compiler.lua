@@ -453,7 +453,6 @@ function DependencyGraph:addExpressionNode(node)
         elseif pattern[field] == db.STRONG_IN then
           deps.depends:add(self:cardinal(args[field]))
         elseif pattern[field] == db.FILTER_IN then
-          print(node, field, args[field])
           deps.depends:add(args[field])
           deps.contributes:add(self:cardinal(args[field]))
         elseif pattern[field] == db.OUT then
