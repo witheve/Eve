@@ -194,14 +194,15 @@ static void send_response(json_session js, table solution, table counters)
 
 void send_parse(json_session js, buffer query)
 {
-    string out = allocate_string(js->h);
+    heap h = allocate_rolling(pages, sstring("parse response"));
+    string out = allocate_string(h);
     interpreter lua = get_lua();
     value json = lua_run_module_func(lua, query, "parser", "parseJSON");
     estring json_estring = json;
     buffer_append(out, json_estring->body, json_estring->length);
     free_lua(lua);
     // send the json message
-    apply(js->write, out, ignore);
+    apply(js->write, out, cont(h, send_destroy, h));
 }
 
 
