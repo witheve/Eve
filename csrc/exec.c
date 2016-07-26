@@ -399,8 +399,9 @@ static void do_time(block bk, perf p, execf n, value hour, value minute, value s
         value sv = box_float((double)seconds);
         value mv = box_float((double)minutes);
         value hv = box_float((double)hours);
-        u64 ms = ((((u64)bk->ev->t)>>32)*1000ull);
+        u64 ms = ((((u64)bk->ev->t)*1000ull)>>32) % 1000;
         value fv = box_float((double)ms);
+        store(r, frame, fv);
         store(r, second, sv);
         store(r, minute, mv);
         store(r, hour, hv);
@@ -423,7 +424,7 @@ static execf build_time(block bk, node n, execf *arms)
     value second = table_find(n->arguments, sym(seconds));
     value frame = table_find(n->arguments, sym(frames));
     ticks interval = seconds(60 * 60);
-    if(frame != 0) interval = milliseconds(1000 / 30);
+    if(frame != 0) interval = milliseconds(1000 / 60);
     else if(second != 0) interval = seconds(1);
     else if(minute != 0) interval = seconds(60);
     timer t = register_periodic_timer(interval, cont(bk->h, time_expire, bk));
