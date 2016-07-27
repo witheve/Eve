@@ -62,8 +62,28 @@ static CONTINUATION_2_4(do_sub, perf, sub, heap, perf, operator, value *);
 static void do_sub(perf p, sub s, heap h, perf pp, operator op, value *r)
 {
     start_perf(p, op);
+    boolean ziggy = false;
+
+        
+    if (vector_length(s->projection) == 3){
+        value p0 = vector_get(s->projection, 0);
+        value p1 = vector_get(s->projection, 1);
+        value p2 = vector_get(s->projection, 2);
+        value r6 = (void *)(register_base) + 6;
+        value r7 = (void *)(register_base) + 7;
+        value r8 = (void *)(register_base) + 8;
+                        
+        if (((p0 == r6) || (p0 == r7) || (p0 == r8))  &&
+            ((p1 == r6) || (p1 == r7) || (p1 == r8))  &&
+            ((p2 == r6) || (p2 == r7) || (p2 == r8))) {
+            ziggy = true;
+        }
+    }
+
 
     if ((op == op_flush) || (op == op_close)){
+        if(ziggy) prf("ziggy flush!\n");
+
         if (s->results){
             s->results = 0;
             destroy(s->resh);
@@ -82,7 +102,11 @@ static void do_sub(perf p, sub s, heap h, perf pp, operator op, value *r)
         s->results = create_value_vector_table(s->resh);
     }
 
+    
     if (!(res = table_find(s->results, s->v))){
+        if(ziggy) prf("ziggy new key %V!\n", s->v);   
+        
+
         res = create_value_vector_table(s->h);
         key = allocate_vector(s->h, vector_length(s->projection));
         extract(key, s->projection, r);
@@ -293,6 +317,7 @@ static void do_time(block bk, perf p, execf n, value hour, value minute, value s
         value hv = box_float((double)hours);
         u64 ms = ((((u64)bk->ev->t)*1000ull)>>32) % 1000;
         value fv = box_float((double)ms);
+        prf("frames: %v\n", fv);
         store(r, frame, fv);
         store(r, second, sv);
         store(r, minute, mv);
@@ -316,7 +341,7 @@ static execf build_time(block bk, node n, execf *arms)
     value second = table_find(n->arguments, sym(seconds));
     value frame = table_find(n->arguments, sym(frames));
     ticks interval = seconds(60 * 60);
-    if(frame != 0) interval = milliseconds(1000 / 60);
+    if(frame != 0) interval = seconds(1)/2; //milliseconds(1000 / 60);
     else if(second != 0) interval = seconds(1);
     else if(minute != 0) interval = seconds(60);
     timer t = register_periodic_timer(interval, cont(bk->h, time_expire, bk));

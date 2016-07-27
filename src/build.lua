@@ -239,11 +239,10 @@ end
 
 function translate_subagg(n, bound, down, context, tracing)
   local pass = allocate_temp(context, n)
-    bound[pass] = true
-      local db = shallowcopy(bound)
-        env, rest = down(db)
+  bound[pass] = true
 
   function tail (bound)
+       env, rest = down(bound)
        return env, cnode(n, "subaggtail", {rest},
                           {groupings = set_to_read_array(n, env, n.groupings or {}),
                            provides = set_to_read_array(n, env, n.provides),
@@ -253,6 +252,7 @@ function translate_subagg(n, bound, down, context, tracing)
 
   env, rest = walk(n.nodes, nil, bound, tail, context, tracing)
 
+  
   c = cnode(n, "subagg", {rest},
                    {projection = set_to_read_array(n, env, n.projection),
                     groupings = set_to_read_array(n, env, n.groupings or {}),
@@ -466,6 +466,7 @@ end
 function translate_expression(n, bound, down, context, tracing)
   local signature = db.getSignature(n.bindings, bound)
   local schema = db.getSchema(n.operator, signature)
+
   local args, fields = db.getArgs(schema, n.bindings)
   for _, term in ipairs(args) do
     bound[term] = true

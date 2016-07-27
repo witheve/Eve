@@ -60,13 +60,13 @@ void edb_set(bag b, value e, value a, value v);
     for(table __av = (table)table_find((__b)->eav, __e); __av; __av = 0)  \
     table_foreach((table)__av, __a, __vl)\
     table_foreach((table)__vl, __v, __cv)\
-    for(long __c = ((leaf)__cv)->m , __z = 0; __z == 0; __z++)
+    for(multiplicity __c = ((leaf)__cv)->m , __z = 0; __z == 0; __z++)
 
 #define bag_foreach_e(__b, __e, __a, __v, __c)\
     for(table __avt = (table)table_find((__b)->ave, __a),\
                __et = __avt?(table)table_find(__avt, __a):0; __vt; __vt = 0)   \
     table_foreach((table)__et, __e, __cv)\
-    for(long __c = ((leaf)__cv)->m , __z = 0; __z == 0; __z++)        
+    for(multiplicity __c = ((leaf)__cv)->m , __z = 0; __z == 0; __z++)        
 
 
 

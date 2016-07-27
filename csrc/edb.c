@@ -18,7 +18,7 @@ multiplicity count_of(bag b, value e, value a, value v)
         table vl = table_find(al, a);
         if(vl) {
             leaf c = table_find(vl, v);
-            return c->m;
+            if (c) return c->m;
         }
     }
     return 0;
@@ -208,12 +208,10 @@ void edb_insert(bag b, value e, value a, value v, multiplicity m, uuid bku)
     
     if (!(final = table_find(al, v))){
         final = allocate(b->h, sizeof(struct leaf));
-        final->m = 0;
         final->bku = bku;
         final->m = m;
         table_set(al, v, final);
 
-        
         // AVE
         table al = level_fetch(b->h, b->ave, a);
         table vl = level_fetch(b->h, al, v);
@@ -222,10 +220,6 @@ void edb_insert(bag b, value e, value a, value v, multiplicity m, uuid bku)
     } else {
         // only keep the original bku..huh
         final->m += m;
-        // i dont know why this is really necessary, but things stop working
-        if (!final->m)
-            table_set(al, v, 0);
-            
     }
 }
 

@@ -32,10 +32,12 @@ static boolean compare_sets(table set, table retain, table destroy)
         if (!s != !d) return false;
         if (s) {
             if (edb_size(d) != edb_size(s)){
+                prf("fax: %d %d\n", edb_size(d), edb_size(s));
                 return false;
             }
             bag_foreach(s, e, a, v, c, _) {
                 if (count_of(d, e, a, v) != c) {
+                    prf("bad value: %v %v %v %d %d\n", e, a, v, c, count_of(d, e, a, v));
                     return false;
                 }
             }
@@ -48,7 +50,10 @@ static CONTINUATION_1_5(insert_f, evaluation, uuid, value, value, value, multipl
 static void insert_f(evaluation ev, uuid u, value e, value a, value v, multiplicity m)
 {
     bag b;
-
+    
+    if (a == sym(frame))
+        prf("insert: %v %v %v %v %v %d\n", ev->bk->name, bagname(ev,u), e, a, v, m);
+    
     if (!ev->block_solution) 
         ev->block_solution = create_value_table(ev->working);
 
@@ -70,6 +75,9 @@ static void merge_scan_out(heap h, vector k, table f, value e, value a, value v,
     vector_set(k, 1, a);
     vector_set(k, 2, v);
 
+    if (vector_get(k, 1) == sym(frame)) {
+        prf("kranko! %v %v %v %d\n", e, a, v, m);
+    }
     if ((z = (u64)table_find_key(f, k, (void **)&k))) {
         table_set(f, k, (void *)z + m);
     } else {
@@ -105,6 +113,15 @@ static void merge_scan(evaluation ev, int sig, listener result, value e, value a
     }
 
     table_foreach(f, k, v) {
+        if (vector_get(k, 1) == sym(frame)) {
+            prf("dogo! %v %v %v %d\n",
+                vector_get(k, 0),
+                vector_get(k, 1),
+                vector_get(k, 2),
+                (multiplicity)v);
+
+        }
+
         apply(result,
               vector_get(k, 0),
               vector_get(k, 1),
@@ -138,8 +155,14 @@ static boolean merge_multibag_set(evaluation ev, table *d, uuid u, bag s)
     } else {
         bag_foreach(s, e, a, v, count, bk) {
             int old_count = count_of(bd, e, a, v);
-            if (old_count != count) {
-                edb_insert(bd, e, a, v, count==1?1:0, bk);
+            if (a == sym(frame)) {
+                prf("merge multibag set %v %v %v %d %d\n", e, a, v, count, old_count);
+            }
+            if ((count > 0) && (old_count == 0)) {
+                edb_insert(bd, e, a, v, 1, bk);
+            }
+            if (count < 0) {
+                edb_insert(bd, e, a, v, -1, bk);
             }
         }
     }
@@ -195,6 +218,7 @@ static void fixedpoint(evaluation ev)
     ev->solution = 0;
 
     do {
+        prf("start t\n");
         multibag_foreach(ev->solution, u, b)
             if (table_find(ev->persisted, u)) 
                 merge_multibag_set(ev, &ev->t_solution, u, b);
@@ -202,6 +226,7 @@ static void fixedpoint(evaluation ev)
         ev->solution =  0;
         ev->t_delta_count = 0;
         do {
+            prf("start f\n");
             iterations++;
             ev->last_f_solution = ev->solution;
             ev->solution = 0;
@@ -223,9 +248,9 @@ static void fixedpoint(evaluation ev)
         bag bd;
         // xx - these should be all persisted at this point
         if ((bd = table_find(ev->persisted, u))) {
-            bag_foreach((bag)b, e, a, v, c, bku) {
+            bag_foreach((bag)b, e, a, v, m, bku) {
                 changed_persistent = true;
-                edb_insert(bd, e, a, v, c, bku);
+                edb_insert(bd, e, a, v, m, bku);
             }
         }
     }
@@ -266,7 +291,7 @@ static void clear_evaluation(evaluation ev)
 {
     ev->working = allocate_rolling(pages, sstring("working"));
     ev->t_solution = 0;
-    ev->t++;
+    ev->t = now();
 }
 
 void inject_event(evaluation ev, buffer b, boolean tracing)

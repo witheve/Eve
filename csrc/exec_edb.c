@@ -102,14 +102,23 @@ static execf build_remove(block bk, node n)
                 table_find(n->arguments, sym(v)));
 }
 
-static CONTINUATION_4_5(each_set_remove, block, value, value, uuid, value, value, value, multiplicity, uuid);
-static void each_set_remove(block bk, uuid u, value e, value a, value etrash, value atrash, value v, multiplicity m, uuid bku)
+
+static CONTINUATION_6_5(each_set_remove,
+                        block, uuid, value, value, value, boolean *,
+                        value, value, value, multiplicity, uuid);
+static void each_set_remove(block bk, uuid u, value e, value a, value newv, boolean *existing, 
+                            value etrash, value atrash, value v, multiplicity m, uuid bku)
 {
-    if (m > 0) {
-        apply(bk->ev->insert, u, e, a, v, -1);
+     if (m > 0) {
+        if (value_equals(newv, v)) {
+            *existing = true; 
+        } else {
+            apply(bk->ev->insert, u, e, a, v, -1);
+        }
     }
 }
 
+// kill me, i dont exist
 static CONTINUATION_7_4(do_set, block, perf, execf, value, value, value, value, heap, perf, operator, value *) ;
 static void do_set(block bk, perf p, execf n, value u, value e, value a, value v,
                    heap h, perf pp, operator op, value *r)
@@ -118,8 +127,16 @@ static void do_set(block bk, perf p, execf n, value u, value e, value a, value v
     u = lookup(r, u);
     value ev = lookup(r, e);
     value av=  lookup(r, a);
-    apply(bk->ev->reader, s_EAv, cont(h, each_set_remove, bk, u, ev, av), ev, av, 0);
-    apply(bk->ev->insert, u, ev, av, lookup(r, v), 1);
+    value vv=  lookup(r, v);
+
+    boolean existing = false;
+    apply(bk->ev->reader, s_EAv,
+          cont(h, each_set_remove, bk, u, ev, av, vv, &existing),
+          ev, av, 0);
+    
+    apply(bk->ev->insert, u, ev, av, vv, 1);
+
+    
     apply(n, h, p, op, r);
     stop_perf(p, pp);
 }

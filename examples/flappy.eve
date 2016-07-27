@@ -43,8 +43,8 @@ Start the game
          else if world = [@world best] then best
   player = [#player]
   freeze
-    world := [screen: "game" frame: 0 distance: 0 best: neue]
-    player := [x: 25 y: 50 velocity: 0 acceleration: -0.029]
+    world := [screen: "game" distance: 0 best: neue]
+    player := [x: 25 y: 50 velocity: 0.003 acceleration: -0.029]
 
 
 ## Run the actual game
@@ -79,7 +79,7 @@ As time moves gently forward, winter turns to spring
   player = [#player y velocity acceleration]
   ∂v = sum(acceleration given acceleration) // this will do bad things if there are ever multiple impulses of identical magnitude
   freeze
-    world.frame := frames
+    world.frame := frames  
     world.distance := world.distance + 1 / 60
     player := [y: y - velocity - ∂v, velocity: velocity + ∂v]
 
