@@ -76,7 +76,6 @@ static void do_sum(execf n, perf p,
     if (op == op_flush) {
         table_foreach(*targets, pk, x) {
             copyout(r, grouping, pk);
-            prf("sum output: %V %v\n", pk,  box_float(*(double *)x));
             store(r, dst, box_float(*(double *)x));
             apply(n, h, p, op_insert, r);
         }

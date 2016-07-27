@@ -89,47 +89,37 @@ static void merge_scan_out(heap h, vector k, table f, value e, value a, value v,
     }
 }
 
+static CONTINUATION_2_5(shadow, table, listener, value, value, value, multiplicity, uuid);
+static void shadow(table multibag, listener result, value e, value a, value v, multiplicity m, uuid bku)
+{
+    boolean s = false;
+    if (m > 0) {
+        table_foreach(multibag, u, b)
+            if (count_of(b, e, a, v) <0) s = true;
+        if (!s) apply(result, e, a, v, m, bku);
+    }
+}
+
 static CONTINUATION_1_5(merge_scan, evaluation, int, listener, value, value, value);
 static void merge_scan(evaluation ev, int sig, listener result, value e, value a, value v)
 {
-    // creating this view really seems like wasted work
-    table f = create_value_vector_table(ev->working);
-    vector k = allocate_vector(ev->working, 3);
-    listener s = cont(ev->working, merge_scan_out, ev->working, k, f);
+    listener f_filter = ev->last_f_solution?cont(ev->working, shadow, ev->last_f_solution, result):result;
+    listener tf_filter = ev->t_solution?cont(ev->working, shadow, ev->t_solution, f_filter):f_filter;
 
     table_foreach(ev->persisted, u, b) {
         bag proposed;
-        edb_scan(b, sig, s, e, a, v);
+        edb_scan(b, sig, tf_filter, e, a, v);
         if (ev->t_solution && (proposed = table_find(ev->t_solution, u))) {
-            edb_scan(proposed, sig, s, e, a, v);
+            edb_scan(proposed, sig, f_filter, e, a, v);
         }
     }
     
     table_foreach(ev->f_bags, u, _) {
         bag last;
         if (ev->last_f_solution && (last = table_find(ev->last_f_solution, u))){
-            edb_scan(last, sig, s, e, a, v);
+            edb_scan(last, sig, result, e, a, v);
         }
     }
-
-    table_foreach(f, k, v) {
-        if (vector_get(k, 1) == sym(frame)) {
-            prf("dogo! %v %v %v %d\n",
-                vector_get(k, 0),
-                vector_get(k, 1),
-                vector_get(k, 2),
-                (multiplicity)v);
-
-        }
-
-        apply(result,
-              vector_get(k, 0),
-              vector_get(k, 1),
-              vector_get(k, 2),
-              (multiplicity)v,
-              0);
-    }
-    
 }
 
 static CONTINUATION_1_0(evaluation_complete, evaluation);

@@ -156,12 +156,14 @@ static CONTINUATION_3_4(do_choose_tail, perf, execf, value, heap, perf, operator
 static void do_choose_tail(perf p, execf next, value flag, heap h, perf pp, operator op, value *r)
 {
     start_perf(p, op);
-    if (op != op_flush) {
+    // terminate flush and close along this leg, the head will inject it into the
+    // tail
+    if ((op != op_flush) && (op != op_close)) {
+        prf("choose tail success %v\n", flag);
+        boolean *x = lookup(r, flag);
         store(r, flag, etrue);
-        if (next) {
-            stop_perf(p, pp);
-            apply(next, h, p, op, r);
-        }
+        stop_perf(p, pp);
+        if (next) apply(next, h, p, op, r);
     }
     stop_perf(p, pp);
 }
@@ -176,18 +178,22 @@ static execf build_choose_tail(block bk, node n)
                 table_find(n->arguments, sym(pass)));
 }
 
-static CONTINUATION_4_4(do_choose, perf, execf, vector, value, heap, perf, operator, value *);
-static void do_choose(perf p, execf n, vector legs, value flag, heap h, perf pp, operator op, value *r)
+static CONTINUATION_5_4(do_choose, perf, execf, vector, value, boolean *,
+                        heap, perf, operator, value *);
+static void do_choose(perf p, execf n, vector legs, value flag, boolean *flagstore,
+                      heap h, perf pp, operator op, value *r)
 {
     start_perf(p, op);
     if ((op == op_flush) || (op == op_close)) {
         apply(n, h, p, op, r);
     } else {
-        store(r, flag, efalse);
+        *flagstore = false;
+        store(r, flag, flagstore);
         vector_foreach (legs, i){
             apply((execf) i, h, p, op, r);
             apply((execf) i, h, p, op_flush, r);
-            if (lookup(r, flag) == etrue) {
+            prf("choose head after: %v %v\n", flag, lookup(r, flag));
+            if (*flagstore) {
                 stop_perf(p, pp);
                 return;
             }
@@ -209,7 +215,8 @@ static execf build_choose(block bk, node n)
                 register_perf(bk->ev, n),
                 resolve_cfg(bk, n, 0),
                 v,
-                table_find(n->arguments, sym(pass)));
+                table_find(n->arguments, sym(pass)),
+                allocate(bk->h, sizeof(boolean)));
 }
 
 
