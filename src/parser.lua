@@ -257,14 +257,13 @@ local function lex(str)
       else
         -- otherwise, go ahead and eat the }}
         scanner:read()
-        adjustOffset(2)
+        adjustOffset(3)
       end
       local string = scanner:eatWhile(inString)
       -- if we are stopping because of string interpolation, we have to remove
       -- the previous { character that snuck in
       if string:sub(#string, #string) == "{" and scanner:peek() == "{" then
         string = string:sub(0, #string - 1)
-        adjustOffset(1)
       end
       if #string > 0 then
         -- single slashes are only escape codes and shouldn't make it to the
@@ -1589,7 +1588,7 @@ end
 
 local function parseFile(path)
   local content = fs.read(path)
-  content = content:gsub("\t", "  ")
+  content = content:gsub("\t", " ")
   content = content:gsub("\r", "")
   local context = makeContext(content, path)
   local tokens = lex(content)
@@ -1600,7 +1599,7 @@ local function parseFile(path)
 end
 
 local function parseString(str)
-  str = str:gsub("\t", "  ")
+  str = str:gsub("\t", " ")
   str = str:gsub("\r", "")
   local context = makeContext(str)
   local tokens = lex(str)
@@ -1616,7 +1615,7 @@ local function parseJSON(str)
 end
 
 local function printParse(content)
-  content = content:gsub("\t", "  ")
+  content = content:gsub("\t", " ")
   content = content:gsub("\r", "")
   local context = makeContext(content)
   local tokens = lex(content)

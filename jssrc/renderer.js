@@ -628,6 +628,7 @@ window.addEventListener("hashchange", onHashChange);
 let activeLayers = {ids: true, registers: true};
 let activeIds = {};
 let activeParse = {};
+let editorParse = {};
 let allNodeGraphs = {};
 let showGraphs = false;
 let codeEditor;
@@ -707,6 +708,9 @@ function handleEditorParse(parse) {
       to.line = line;
       let tokens = parseLines[line + 1];
       if(tokens) {
+        let firstToken = tokens[0];
+        // figure out what type of line this is and set the appropriate
+        // line classes
         let state;
         for(let token of tokens) {
           from.ch = token.surrogateOffset;
@@ -728,33 +732,74 @@ function handleEditorParse(parse) {
 function injectCodeMirror(node, elem) {
   if(!node.editor) {
     let editor = new CodeMirror(node, {
+      tabSize: 2,
       extraKeys: {
         "Cmd-Enter": doSwap,
         "Ctrl-Enter": doSwap,
       }
     });
-    editor.setValue(elem.value);
-    let dirty = [];
-    for(let line = 0, count = editor.lineCount(); line < count; line++) {
-      dirty.push(line);
-    }
-    editor.dirtyLines = dirty;
+    editor.dirtyLines = [];
     editor.on("cursorActivity", function() {
       let pos = editor.getCursor();
       activeIds = nodeToRelated(pos, posToToken(pos, renderer.tree[elem.id].parse.lines), renderer.tree[elem.id].parse);
       drawNodeGraph();
     });
-    editor.on("changes", function(cm, changes) {
-      let value = cm.getValue();
-      sendParse(value);
-      for(let change of changes) {
-        let {from, to, text} = change;
-        let end = to.line > from.line + text.length ? to.line : from.line + text.length;
-        for(let start = from.line; start <= end; start++) {
-          cm.dirtyLines.push(start);
+    editor.on("change", function(cm, change) {
+      let {from, to, text} = change;
+      let end = to.line > from.line + text.length ? to.line : from.line + text.length;
+      for(let start = from.line; start <= end; start++) {
+        cm.dirtyLines.push(start);
+        let lineInfo = cm.lineInfo(start);
+        if(lineInfo) {
+          if(lineInfo.text.match(/^\s/)) {
+            cm.addLineClass(start, "background", "CODE");
+            // check the next line to see if it's indented. If it is then
+            // remove code-bottom from this guy if it has it. Otherwise,
+            // add code-bottom
+            let nextInfo = cm.lineInfo(start + 1);
+            let prevInfo = cm.lineInfo(start - 1);
+
+            let codeBelow = nextInfo && nextInfo.text.match(/^\s/);
+            let codeAbove = prevInfo && prevInfo.text.match(/^\s/);
+
+            if(codeBelow) {
+              cm.removeLineClass(start, "text", "CODE-BOTTOM");
+              cm.removeLineClass(start + 1, "text", "CODE-TOP");
+            } else if(nextInfo) {
+              //otherwise this line is the new CODE-BOTTOM
+              cm.addLineClass(start, "text", "CODE-BOTTOM");
+            }
+            if(codeAbove) {
+              cm.removeLineClass(start, "text", "CODE-TOP");
+              cm.removeLineClass(start - 1, "text", "CODE-BOTTOM");
+            } else if(prevInfo) {
+              //otherwise this line is the new CODE-TOP
+              cm.addLineClass(start, "text", "CODE-TOP");
+            }
+          } else {
+            cm.removeLineClass(start, "background", "CODE");
+            cm.removeLineClass(start, "text", "CODE-TOP");
+            cm.removeLineClass(start, "text", "CODE-BOTTOM");
+            cm.removeLineClass(start, "text", "HEADER");
+
+            // check if this is a header
+            if(lineInfo.text.match("^#+")) {
+              cm.addLineClass(start, "text", "HEADER");
+            }
+            // check above me to see if they need to be the new code bottom
+            let prevInfo = cm.lineInfo(start - 1);
+            if(prevInfo && prevInfo.text.match(/^\s/)) {
+              cm.addLineClass(start - 1, "text", "CODE-BOTTOM");
+            }
+          }
         }
       }
     });
+    editor.on("changes", function(cm, changes) {
+      let value = cm.getValue();
+      sendParse(value);
+    });
+    editor.setValue(elem.value);
     codeEditor = editor;
     node.editor = editor;
   }
@@ -767,7 +812,7 @@ function CodeMirrorNode(info) {
 }
 
 function indexParse(parse) {
-  let lines = {};
+  let lines = [];
   let tokens = parse.root.context.tokens
   for(let tokenId of tokens) {
     let token = parse[tokenId];
@@ -1122,7 +1167,8 @@ socket.onmessage = function(msg) {
     drawNodeGraph();
     handleEditorParse(activeParse);
   } else if(data.type == "parse") {
-    handleEditorParse(indexParse(data.parse));
+    editorParse = indexParse(data.parse);
+    handleEditorParse(editorParse);
 
   } else if(data.type == "node_times") {
     activeParse.iterations = data.iterations;
