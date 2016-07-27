@@ -64,7 +64,7 @@ static void do_sub(perf p, sub s, heap h, perf pp, operator op, value *r)
     start_perf(p, op);
     boolean ziggy = false;
 
-        
+
     if (vector_length(s->projection) == 3){
         value p0 = vector_get(s->projection, 0);
         value p1 = vector_get(s->projection, 1);
@@ -72,7 +72,7 @@ static void do_sub(perf p, sub s, heap h, perf pp, operator op, value *r)
         value r6 = (void *)(register_base) + 6;
         value r7 = (void *)(register_base) + 7;
         value r8 = (void *)(register_base) + 8;
-                        
+
         if (((p0 == r6) || (p0 == r7) || (p0 == r8))  &&
             ((p1 == r6) || (p1 == r7) || (p1 == r8))  &&
             ((p2 == r6) || (p2 == r7) || (p2 == r8))) {
@@ -102,10 +102,10 @@ static void do_sub(perf p, sub s, heap h, perf pp, operator op, value *r)
         s->results = create_value_vector_table(s->resh);
     }
 
-    
+
     if (!(res = table_find(s->results, s->v))){
-        if(ziggy) prf("ziggy new key %V!\n", s->v);   
-        
+        if(ziggy) prf("ziggy new key %V!\n", s->v);
+
 
         res = create_value_vector_table(s->h);
         key = allocate_vector(s->h, vector_length(s->projection));
@@ -159,7 +159,6 @@ static void do_choose_tail(perf p, execf next, value flag, heap h, perf pp, oper
     // terminate flush and close along this leg, the head will inject it into the
     // tail
     if ((op != op_flush) && (op != op_close)) {
-        prf("choose tail success %v\n", flag);
         boolean *x = lookup(r, flag);
         store(r, flag, etrue);
         stop_perf(p, pp);

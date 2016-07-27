@@ -7,7 +7,6 @@ typedef void *value;
 
 typedef enum {
     op_insert = 1,
-    op_remove,
     op_flush,
     op_close
 } operator;
@@ -104,9 +103,9 @@ static inline void start_perf(perf p, operator op)
         p->count++;
     }
     if (op == op_flush) p->trig = 1;
-        
+
     p->start = rdtsc();
-        
+
 }
 
 static inline void stop_perf(perf p, perf pp)

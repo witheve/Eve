@@ -125,7 +125,7 @@ void edb_scan(bag b, int sig, listener out, value e, value a, value v)
                 if(vl) {
                     table_foreach(vl, v, f) {
                         leaf final = f;
-                        if(final) 
+                        if(final)
                             apply(out, e, a, v, final->m, final->bku);
                     }
                 }
@@ -140,7 +140,7 @@ void edb_scan(bag b, int sig, listener out, value e, value a, value v)
                 table_foreach(al, a, vl) {
                     table_foreach((table)vl, v, f){
                         leaf final = f;
-                        if(final) 
+                        if(final)
                             apply(out, e, a, v, final->m, final->bku);
                     }
                 }
@@ -156,7 +156,7 @@ void edb_scan(bag b, int sig, listener out, value e, value a, value v)
                 if(vl) {
                     table_foreach(vl, e, f) {
                         leaf final = f;
-                        if(final) 
+                        if(final)
                             apply(out, e, a, v, final->m, final->bku);
                     }
                 }
@@ -171,7 +171,7 @@ void edb_scan(bag b, int sig, listener out, value e, value a, value v)
                 table_foreach(al, v, vl) {
                     table_foreach((table)vl, e, f) {
                         leaf final = f;
-                        if(final) 
+                        if(final)
                             apply(out, e, a, v, final->m, final->bku);
                     }
                 }
@@ -205,7 +205,7 @@ void edb_insert(bag b, value e, value a, value v, multiplicity m, uuid bku)
     // EAV
     table el = level_fetch(b->h, b->eav, e);
     table al = level_fetch(b->h, el, a);
-    
+
     if (!(final = table_find(al, v))){
         final = allocate(b->h, sizeof(struct leaf));
         final->bku = bku;
@@ -218,8 +218,13 @@ void edb_insert(bag b, value e, value a, value v, multiplicity m, uuid bku)
         table_set(vl, e, final);
         b->count++;
     } else {
-        // only keep the original bku..huh
         final->m += m;
+        if (!final->m){
+            table_set(al, v, 0);
+            table al = level_fetch(b->h, b->ave, a);
+            table vl = level_fetch(b->h, al, v);
+            table_set(vl, e, 0);
+        }
     }
 }
 
@@ -254,4 +259,3 @@ string bag_dump(heap h, bag b)
     }
     return out;
 }
-

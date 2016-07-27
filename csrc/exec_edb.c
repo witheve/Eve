@@ -10,9 +10,10 @@ static CONTINUATION_9_5(scan_listener,
 
 static void scan_listener(value id, execf n, heap h, operator op, value *r, perf p,
                           value er, value ar, value vr,
-                          value e, value a, value v, multiplicity count, uuid bku)
+                          value e, value a, value v, multiplicity m, uuid bku)
 {
-    if (count > 0) {
+    //    prf("scan: %v %v %v %v %d\n", bku, e, a, v, m);
+    if (m > 0) {
         store(r, er, e);
         store(r, ar, a);
         store(r, vr, v);
@@ -70,9 +71,7 @@ static void do_insert(block bk, perf p, execf n, int deltam,
     if (op == op_insert) {
         apply(bk->ev->insert, uuid, lookup(r, e), lookup(r, a), lookup(r, v), deltam);
     }
-    if (op == op_remove) {
-        apply(bk->ev->insert, uuid, lookup(r, e), lookup(r, a), lookup(r, v), -deltam);
-    }
+
     apply(n, h, p, op, r);
     stop_perf(p, pp);
 }
@@ -106,12 +105,12 @@ static execf build_remove(block bk, node n)
 static CONTINUATION_6_5(each_set_remove,
                         block, uuid, value, value, value, boolean *,
                         value, value, value, multiplicity, uuid);
-static void each_set_remove(block bk, uuid u, value e, value a, value newv, boolean *existing, 
+static void each_set_remove(block bk, uuid u, value e, value a, value newv, boolean *existing,
                             value etrash, value atrash, value v, multiplicity m, uuid bku)
 {
      if (m > 0) {
         if (value_equals(newv, v)) {
-            *existing = true; 
+            *existing = true;
         } else {
             apply(bk->ev->insert, u, e, a, v, -1);
         }
@@ -133,10 +132,10 @@ static void do_set(block bk, perf p, execf n, value u, value e, value a, value v
     apply(bk->ev->reader, s_EAv,
           cont(h, each_set_remove, bk, u, ev, av, vv, &existing),
           ev, av, 0);
-    
+
     apply(bk->ev->insert, u, ev, av, vv, 1);
 
-    
+
     apply(n, h, p, op, r);
     stop_perf(p, pp);
 }
