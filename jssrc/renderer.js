@@ -621,6 +621,7 @@ window.addEventListener("hashchange", onHashChange);
 let activeLayers = {ids: true, registers: true};
 let activeIds = {};
 let activeParse = {};
+let editorParse = {};
 let allNodeGraphs = {};
 let showGraphs = false;
 let codeEditor;
@@ -685,24 +686,6 @@ function doSwap(editor) {
   sendSwap(editor.getValue());
 }
 
-function findNextNonEmpty(lines, line, direction) {
-  let linesLen = lines.length;
-  let next = line + direction;
-  while(!lines[next] && next > 0 && next < linesLen) {
-    next += direction;
-  }
-  if(lines[next]) return next;
-  return false;
-}
-
-function lineType(tokens) {
-  if(!tokens) return;
-  if(tokens[0] && tokens[0].type != "DOC") {
-    return "CODE";
-  }
-  return "DOC";
-}
-
 function handleEditorParse(parse) {
   let parseLines = parse.lines;
   let from = {};
@@ -717,15 +700,7 @@ function handleEditorParse(parse) {
       from.line = line;
       to.line = line;
       let tokens = parseLines[line + 1];
-      if(!tokens) {
-        // if there aren't any tokens we want to see if we're sandwiched
-        // between two code lines
-        let above = findNextNonEmpty(parseLines, line + 1, -1);
-        let below = findNextNonEmpty(parseLines, line + 1, 1);
-        if(lineType(parseLines[above]) == "CODE" && lineType(parseLines[below]) == "CODE") {
-          codeEditor.addLineClass(line, "background", "CODE");
-        }
-      } else {
+      if(tokens) {
         let firstToken = tokens[0];
         // figure out what type of line this is and set the appropriate
         // line classes
@@ -743,39 +718,6 @@ function handleEditorParse(parse) {
       }
     }
     codeEditor.dirtyLines = [];
-    // FIXME: this is slow, but trying to maintain this just with dirty lines
-    // doesn't really seem to work.
-    // Run through all of the lines and set classes based on whether or not they're
-    // code blocks or doc blocks
-    let ix = -1;
-    for(let line of parseLines) {
-        let firstToken = (line && line[0]) || {type: "DOC", value: ""};
-        if(firstToken.type == "DOC") {
-          codeEditor.removeLineClass(ix, "background", "CODE");
-          codeEditor.removeLineClass(ix, "text", "CODE-BOTTOM");
-          codeEditor.removeLineClass(ix, "text", "CODE-TOP");
-          if(firstToken.value.match("^#+")) {
-            codeEditor.addLineClass(ix, "text", "HEADER");
-          }
-        } else {
-          codeEditor.addLineClass(ix, "background", "CODE");
-          // now if this is the first or last line of a code block, we need
-          // to add the line widgets that add our block caps
-          let above = findNextNonEmpty(parseLines, ix + 1, -1);
-          let below = findNextNonEmpty(parseLines, ix + 1, 1);
-          if(lineType(parseLines[above]) == "DOC") {
-            codeEditor.addLineClass(ix, "text", "CODE-TOP");
-          } else {
-            codeEditor.removeLineClass(ix, "text", "CODE-TOP");
-          }
-          if(lineType(parseLines[below]) != "CODE") {
-            codeEditor.addLineClass(ix, "text", "CODE-BOTTOM");
-          } else {
-            codeEditor.removeLineClass(ix, "text", "CODE-BOTTOM");
-          }
-        }
-        ix++;
-    }
     console.timeEnd("highlight");
   });
 }
@@ -783,33 +725,74 @@ function handleEditorParse(parse) {
 function injectCodeMirror(node, elem) {
   if(!node.editor) {
     let editor = new CodeMirror(node, {
+      tabSize: 2,
       extraKeys: {
         "Cmd-Enter": doSwap,
         "Ctrl-Enter": doSwap,
       }
     });
-    editor.setValue(elem.value);
-    let dirty = [];
-    for(let line = 0, count = editor.lineCount(); line < count; line++) {
-      dirty.push(line);
-    }
-    editor.dirtyLines = dirty;
+    editor.dirtyLines = [];
     editor.on("cursorActivity", function() {
       let pos = editor.getCursor();
       activeIds = nodeToRelated(pos, posToToken(pos, renderer.tree[elem.id].parse.lines), renderer.tree[elem.id].parse);
       drawNodeGraph();
     });
-    editor.on("changes", function(cm, changes) {
-      let value = cm.getValue();
-      sendParse(value);
-      for(let change of changes) {
-        let {from, to, text} = change;
-        let end = to.line > from.line + text.length ? to.line : from.line + text.length;
-        for(let start = from.line; start <= end; start++) {
-          cm.dirtyLines.push(start);
+    editor.on("change", function(cm, change) {
+      let {from, to, text} = change;
+      let end = to.line > from.line + text.length ? to.line : from.line + text.length;
+      for(let start = from.line; start <= end; start++) {
+        cm.dirtyLines.push(start);
+        let lineInfo = cm.lineInfo(start);
+        if(lineInfo) {
+          if(lineInfo.text.match(/^\s/)) {
+            cm.addLineClass(start, "background", "CODE");
+            // check the next line to see if it's indented. If it is then
+            // remove code-bottom from this guy if it has it. Otherwise,
+            // add code-bottom
+            let nextInfo = cm.lineInfo(start + 1);
+            let prevInfo = cm.lineInfo(start - 1);
+
+            let codeBelow = nextInfo && nextInfo.text.match(/^\s/);
+            let codeAbove = prevInfo && prevInfo.text.match(/^\s/);
+
+            if(codeBelow) {
+              cm.removeLineClass(start, "text", "CODE-BOTTOM");
+              cm.removeLineClass(start + 1, "text", "CODE-TOP");
+            } else if(nextInfo) {
+              //otherwise this line is the new CODE-BOTTOM
+              cm.addLineClass(start, "text", "CODE-BOTTOM");
+            }
+            if(codeAbove) {
+              cm.removeLineClass(start, "text", "CODE-TOP");
+              cm.removeLineClass(start - 1, "text", "CODE-BOTTOM");
+            } else if(prevInfo) {
+              //otherwise this line is the new CODE-TOP
+              cm.addLineClass(start, "text", "CODE-TOP");
+            }
+          } else {
+            cm.removeLineClass(start, "background", "CODE");
+            cm.removeLineClass(start, "text", "CODE-TOP");
+            cm.removeLineClass(start, "text", "CODE-BOTTOM");
+            cm.removeLineClass(start, "text", "HEADER");
+
+            // check if this is a header
+            if(lineInfo.text.match("^#+")) {
+              cm.addLineClass(start, "text", "HEADER");
+            }
+            // check above me to see if they need to be the new code bottom
+            let prevInfo = cm.lineInfo(start - 1);
+            if(prevInfo && prevInfo.text.match(/^\s/)) {
+              cm.addLineClass(start - 1, "text", "CODE-BOTTOM");
+            }
+          }
         }
       }
     });
+    editor.on("changes", function(cm, changes) {
+      let value = cm.getValue();
+      sendParse(value);
+    });
+    editor.setValue(elem.value);
     codeEditor = editor;
     node.editor = editor;
   }
@@ -1176,7 +1159,8 @@ socket.onmessage = function(msg) {
     drawNodeGraph();
     handleEditorParse(activeParse);
   } else if(data.type == "parse") {
-    handleEditorParse(indexParse(data.parse));
+    editorParse = indexParse(data.parse);
+    handleEditorParse(editorParse);
 
   } else if(data.type == "node_times") {
     activeParse.iterations = data.iterations;
