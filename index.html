@@ -4,10 +4,10 @@
     <link rel="stylesheet" type="text/css" href="jssrc/codemirror.css">
     <style>
       * { box-sizing:border-box; }
-      body { background: #202930; color: rgb(156,192,214); font-family: Avenir; display: flex; flex-direction: column; margin:0; width: 100%; }
+      body { background: rgb(47,47,49); color: #d8d8d8; font-family: Avenir; display: flex; flex-direction: column; margin:0; width: 100%; }
       .__root { display: flex; flex-direction: column; align-self: stretch; }
       .program-container { display: flex; flex: 1; }
-      .program { position: relative; flex: 1; flex-direction: column; align-self: stretch; padding:20px; overflow: auto; }
+      .program { position: relative; flex: 1; flex-direction: column; align-self: stretch; padding:20px; overflow: auto; margin-left:50px; }
       .graph-root { position:relative; display:flex; flex-direction:column; align-self: stretch; align-items:flex-start; margin-right:10px; padding:20px 40px; height:100%; overflow:hidden;  }
 
       .parse-info { display:flex; flex-direction: row; align-self: stretch; height:100%; }
@@ -47,11 +47,11 @@
 
       .run-info { display:flex; flex-direction: column; max-width: 800px; flex: 0 0 auto; }
 
-      .toolbar { display:flex; align-items:center; padding:10px; background:rgba(0,0,0,0.6); flex-direction:row; display:flex; border-radius: 0 0 3px 3px; }
+      .toolbar { display:flex; align-items:center; padding:10px; flex-direction:row; display:flex; border-radius: 0 0 3px 3px; }
       .stats { flex:1; width:180px; }
       .show-graphs { cursor: pointer; padding:3px 8px; border-radius:3px; background: rgba(255,255,255,0.1); margin-left:10px; }
 
-      .cm-container { position:relative; display:flex; flex-direction:column; flex:1; padding: 10px; background:rgba(0,0,0,0.4); border-radius:3px 3px 0 0; }
+      .cm-container { position:relative; display:flex; flex-direction:column; flex:1; padding: 10px; border-radius:3px 3px 0 0; }
       .CodeMirror { background:none; color: inherit; height:100%; font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:10pt;  }
       .CodeMirror-scroll { height:100%; }
       .CodeMirror-cursor { background: white; border-color:white; }
@@ -76,8 +76,13 @@
       .node-overlay .registers-overlay label { padding-right: 4px; color: #A0A0A0; align-self: center; }
       .node-overlay .registers-overlay .register-pair { padding: 0 4px; border-left: 1px solid #202930 }
 
-      .CodeMirror { color: #c4c4c4; }
-      .CodeMirror .DOC, .CodeMirror .COMMENT { color: #747474; }
+      .CodeMirror { color: #c4c4c4; line-height:20px; }
+      .CodeMirror .CODE { background: rgba(255,255,255,0.05); basckground: rgba(0,0,0,0.2); }
+      .CodeMirror .CODE-TOP { border-radius:3px 3px 0 0; padding-top:8px; }
+      .CodeMirror .CODE-BOTTOM { border-radius:0 0 3px 3px; padding-bottom:8px; }
+      .CodeMirror .DOC { color: #d8d8d8; }
+      .CodeMirror .HEADER { font-size:14pt; padding-top:10px; padding-bottom:20px; }
+      .CodeMirror .COMMENT { color: #747474; }
       .CodeMirror .TAG { color: #50edf6; color: #4bcbd3; }
       .CodeMirror .NAME { color: #50edf6; color: #4bcbd3; }
       .CodeMirror .IF, .ELSE, .GIVEN, .PER { color: gray; color: #63b6e7; }

@@ -685,6 +685,24 @@ function doSwap(editor) {
   sendSwap(editor.getValue());
 }
 
+function findNextNonEmpty(lines, line, direction) {
+  let linesLen = lines.length;
+  let next = line + direction;
+  while(!lines[next] && next > 0 && next < linesLen) {
+    next += direction;
+  }
+  if(lines[next]) return next;
+  return false;
+}
+
+function lineType(tokens) {
+  if(!tokens) return;
+  if(tokens[0] && tokens[0].type != "DOC") {
+    return "CODE";
+  }
+  return "DOC";
+}
+
 function handleEditorParse(parse) {
   let parseLines = parse.lines;
   let from = {};
@@ -699,7 +717,18 @@ function handleEditorParse(parse) {
       from.line = line;
       to.line = line;
       let tokens = parseLines[line + 1];
-      if(tokens) {
+      if(!tokens) {
+        // if there aren't any tokens we want to see if we're sandwiched
+        // between two code lines
+        let above = findNextNonEmpty(parseLines, line + 1, -1);
+        let below = findNextNonEmpty(parseLines, line + 1, 1);
+        if(lineType(parseLines[above]) == "CODE" && lineType(parseLines[below]) == "CODE") {
+          codeEditor.addLineClass(line, "background", "CODE");
+        }
+      } else {
+        let firstToken = tokens[0];
+        // figure out what type of line this is and set the appropriate
+        // line classes
         let state;
         for(let token of tokens) {
           from.ch = token.surrogateOffset;
@@ -714,6 +743,39 @@ function handleEditorParse(parse) {
       }
     }
     codeEditor.dirtyLines = [];
+    // FIXME: this is slow, but trying to maintain this just with dirty lines
+    // doesn't really seem to work.
+    // Run through all of the lines and set classes based on whether or not they're
+    // code blocks or doc blocks
+    let ix = -1;
+    for(let line of parseLines) {
+        let firstToken = (line && line[0]) || {type: "DOC", value: ""};
+        if(firstToken.type == "DOC") {
+          codeEditor.removeLineClass(ix, "background", "CODE");
+          codeEditor.removeLineClass(ix, "text", "CODE-BOTTOM");
+          codeEditor.removeLineClass(ix, "text", "CODE-TOP");
+          if(firstToken.value.match("^#+")) {
+            codeEditor.addLineClass(ix, "text", "HEADER");
+          }
+        } else {
+          codeEditor.addLineClass(ix, "background", "CODE");
+          // now if this is the first or last line of a code block, we need
+          // to add the line widgets that add our block caps
+          let above = findNextNonEmpty(parseLines, ix + 1, -1);
+          let below = findNextNonEmpty(parseLines, ix + 1, 1);
+          if(lineType(parseLines[above]) == "DOC") {
+            codeEditor.addLineClass(ix, "text", "CODE-TOP");
+          } else {
+            codeEditor.removeLineClass(ix, "text", "CODE-TOP");
+          }
+          if(lineType(parseLines[below]) != "CODE") {
+            codeEditor.addLineClass(ix, "text", "CODE-BOTTOM");
+          } else {
+            codeEditor.removeLineClass(ix, "text", "CODE-BOTTOM");
+          }
+        }
+        ix++;
+    }
     console.timeEnd("highlight");
   });
 }
@@ -760,7 +822,7 @@ function CodeMirrorNode(info) {
 }
 
 function indexParse(parse) {
-  let lines = {};
+  let lines = [];
   let tokens = parse.root.context.tokens
   for(let tokenId of tokens) {
     let token = parse[tokenId];
