@@ -726,6 +726,7 @@ function injectCodeMirror(node, elem) {
   if(!node.editor) {
     let editor = new CodeMirror(node, {
       tabSize: 2,
+      lineWrapping: true,
       extraKeys: {
         "Cmd-Enter": doSwap,
         "Ctrl-Enter": doSwap,
@@ -796,6 +797,10 @@ function injectCodeMirror(node, elem) {
     codeEditor = editor;
     node.editor = editor;
   }
+}
+
+function setKeyMap(event) {
+  codeEditor.setOption("keyMap", event.currentTarget.value);
 }
 
 function CodeMirrorNode(info) {
@@ -947,6 +952,11 @@ function drawNodeGraph() {
       CodeMirrorNode({value: root.context.code, parse: activeParse}),
       {c: "toolbar", children: [
         {c: "stats", text: `${activeParse.iterations || 0} iterations took ${activeParse.total_time || 0}s`},
+        {t: "select", c: "show-graphs", change: setKeyMap, children: [
+          {t: "option", value: "default", text: "default"},
+          {t: "option", value: "vim", text: "vim"},
+          {t: "option", value: "emacs", text: "emacs"},
+        ]},
         {c: "show-graphs", text: "compile and run", click: compileAndRun},
         {c: "show-graphs", text: "show compile", click: toggleGraphs}
       ]},
