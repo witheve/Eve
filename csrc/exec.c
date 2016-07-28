@@ -62,24 +62,6 @@ static CONTINUATION_2_4(do_sub, perf, sub, heap, perf, operator, value *);
 static void do_sub(perf p, sub s, heap h, perf pp, operator op, value *r)
 {
     start_perf(p, op);
-    boolean ziggy = false;
-
-
-    if (vector_length(s->projection) == 3){
-        value p0 = vector_get(s->projection, 0);
-        value p1 = vector_get(s->projection, 1);
-        value p2 = vector_get(s->projection, 2);
-        value r6 = (void *)(register_base) + 6;
-        value r7 = (void *)(register_base) + 7;
-        value r8 = (void *)(register_base) + 8;
-
-        if (((p0 == r6) || (p0 == r7) || (p0 == r8))  &&
-            ((p1 == r6) || (p1 == r7) || (p1 == r8))  &&
-            ((p2 == r6) || (p2 == r7) || (p2 == r8))) {
-            ziggy = true;
-        }
-    }
-
 
     if ((op == op_flush) || (op == op_close)){
         if (s->results){
