@@ -12,7 +12,6 @@ static void scan_listener(value id, execf n, heap h, operator op, value *r, perf
                           value er, value ar, value vr,
                           value e, value a, value v, multiplicity m, uuid bku)
 {
-    //    prf("scan: %v %v %v %v %d\n", bku, e, a, v, m);
     if (m > 0) {
         store(r, er, e);
         store(r, ar, a);
@@ -108,7 +107,6 @@ static CONTINUATION_6_5(each_set_remove,
 static void each_set_remove(block bk, uuid u, value e, value a, value newv, boolean *existing,
                             value etrash, value atrash, value v, multiplicity m, uuid bku)
 {
-    prf("set remove %v %v %v %v %d\n", e, a, v, newv, m);
      if (m > 0) {
         if (value_equals(newv, v)) {
             *existing = true;

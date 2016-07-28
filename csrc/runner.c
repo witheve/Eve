@@ -49,7 +49,8 @@ static void insert_f(evaluation ev, uuid u, value e, value a, value v, multiplic
 {
     bag b;
 
-    //    prf("insert %v %v %v %v %v %d\n", bagname(ev, u), ev->bk->name, e, a, v, m);
+    if (a == sym(acceleration))
+        prf("insert %v %v %v %v %v %d\n", bagname(ev, u), ev->bk->name, e, a, v, m);
 
     if (!ev->block_solution)
         ev->block_solution = create_value_table(ev->working);
