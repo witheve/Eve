@@ -24,6 +24,7 @@ typedef struct json_session {
 // we should figure out a way to close over this in some useful way, while
 // allowing updating the program.
 static buffer root_graph;
+static char *exec_path;
 
 extern thunk ignore;
 
@@ -247,6 +248,9 @@ void handle_json_query(json_session j, bag in, uuid root, thunk c)
     if (t == sym(parse)) {
         send_parse(j, alloca_wrap_buffer(q->body, q->length));
     }
+    if (t == sym(save)) {
+        write_file(exec_path, alloca_wrap_buffer(q->body, q->length));
+    }
 }
 
 
@@ -299,8 +303,9 @@ void new_json_session(bag root, boolean tracing,
     inject_event(j->s, aprintf(j->h,"init!\n   maintain\n      [#session-connect]\n"), j->tracing);
 }
 
-void init_json_service(http_server h, bag root, boolean tracing, buffer graph)
+void init_json_service(http_server h, bag root, boolean tracing, buffer graph, char *exec_file_path)
 {
     root_graph = graph;
+    exec_path = exec_file_path;
     http_register_service(h, cont(init, new_json_session, root, tracing), sstring("/ws"));
 }

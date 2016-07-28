@@ -5,6 +5,7 @@
 
 static boolean enable_tracing = false;
 static buffer loadedParse;
+static char *exec_path;
 static int port = 8080;
 #define register(__h, __url, __content, __name)\
  {\
@@ -24,7 +25,7 @@ station create_station(unsigned int address, unsigned short port) {
 }
 
 
-extern void init_json_service(http_server, uuid, boolean, buffer);
+extern void init_json_service(http_server, uuid, boolean, buffer, char*);
 extern int strcmp(const char *, const char *);
 static buffer read_file_or_exit(heap, char *);
 
@@ -97,6 +98,7 @@ static void do_exec(interpreter c, char *x, bag b)
 {
     buffer desc;
     buffer f = read_file_or_exit(init, x);
+    exec_path = x;
     vector v = compile_eve(init, f, enable_tracing, &loadedParse);
     vector_foreach(v, i) {
         edb_register_implication(b, i);
@@ -132,7 +134,7 @@ int main(int argc, char **argv)
     interpreter interp = build_lua();
     commands = command_body;
     boolean dynamicReload = true;
-    
+
     char * file = "";
     for (int i = 1; i < argc ; i++) {
         command c = 0;
@@ -155,7 +157,7 @@ int main(int argc, char **argv)
             // exit(-1);
         }
     }
-    
+
     http_server h = create_http_server(create_station(0, port));
     register(h, "/", "text/html", index);
     register(h, "/jssrc/renderer.js", "application/javascript", renderer);
@@ -165,7 +167,7 @@ int main(int argc, char **argv)
     register(h, "/examples/todomvc.css", "text/css", exampleTodomvcCss);
 
     // TODO: figure out a better way to manage multiple graphs
-    init_json_service(h, root, enable_tracing, loadedParse);
+    init_json_service(h, root, enable_tracing, loadedParse, exec_path);
 
     prf("\n----------------------------------------------\n\nEve started. Running at http://localhost:%d\n\n",port);
     unix_wait();

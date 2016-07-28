@@ -419,6 +419,12 @@ function sendSwap(query) {
   }
 }
 
+function sendSave(query) {
+  if(socket && socket.readyState == 1) {
+    socket.send(JSON.stringify({scope: "root", type: "save", query}))
+  }
+}
+
 function sendParse(query) {
   if(socket && socket.readyState == 1) {
     socket.send(JSON.stringify({scope: "root", type: "parse", query}))
@@ -693,6 +699,10 @@ function doSwap(editor) {
   sendSwap(editor.getValue());
 }
 
+function doSave() {
+  sendSave(codeEditor.getValue());
+}
+
 function handleEditorParse(parse) {
   let parseLines = parse.lines;
   let from = {};
@@ -733,6 +743,7 @@ function injectCodeMirror(node, elem) {
   if(!node.editor) {
     let editor = new CodeMirror(node, {
       tabSize: 2,
+      lineWrapping: true,
       extraKeys: {
         "Cmd-Enter": doSwap,
         "Ctrl-Enter": doSwap,
@@ -805,6 +816,10 @@ function injectCodeMirror(node, elem) {
   }
 }
 
+function setKeyMap(event) {
+  codeEditor.setOption("keyMap", event.currentTarget.value);
+}
+
 function CodeMirrorNode(info) {
   info.postRender = injectCodeMirror;
   info.c = "cm-container";
@@ -856,7 +871,7 @@ function nodeToRelated(pos, node, parse) {
     }
     prev = query;
   }
-  active["graph"] = prev.id;
+  if(prev) active["graph"] = prev.id;
 
   if(!node.id) return active;
   let {up, down} = parse.edges;
@@ -889,6 +904,10 @@ function toggleGraphs() {
 
 function compileAndRun() {
   doSwap(codeEditor);
+}
+
+function compileAndRun() {
+  doSave(codeEditor);
 }
 
 function injectProgram(node, elem) {
@@ -949,11 +968,27 @@ function drawNodeGraph() {
   } else {
     program = {c: "program-container", postRender: injectProgram}
   }
+  let outline = [];
+  if(root.ast) {
+    for(let childId of root.ast.children) {
+      let child = activeParse[childId];
+      for(let line of child.doc.split("\n")) {
+        outline.push({text: line});
+      }
+    }
+  }
   let rootUi = {c: "parse-info", children: [
+    // {c: "outline", children: outline},
     {c: "run-info", children: [
       CodeMirrorNode({value: root.context.code, parse: activeParse}),
       {c: "toolbar", children: [
-        {c: "stats", text: `${activeParse.iterations || 0} iterations took ${activeParse.total_time || 0}s`},
+        {c: "stats", text: `total time: ${activeParse.total_time || 0}s`},
+        {t: "select", c: "show-graphs", change: setKeyMap, children: [
+          {t: "option", value: "default", text: "default"},
+          {t: "option", value: "vim", text: "vim"},
+          {t: "option", value: "emacs", text: "emacs"},
+        ]},
+        {c: "show-graphs", text: "save", click: doSave},
         {c: "show-graphs", text: "compile and run", click: compileAndRun},
         {c: "show-graphs", text: "show compile", click: toggleGraphs}
       ]},
