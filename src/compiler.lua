@@ -36,7 +36,7 @@ function flattenProjection(projection)
   for ix, layerOrVar in ipairs(projection) do
     if layerOrVar.type == "variable" then
       neue:add(layerOrVar)
-    elseif layerOrVar.type == "projection" then
+    elseif layerOrVar.type == "projection" or layerOrVar.type == "grouping" then
       neue:add(layerOrVar.variable)
     elseif getmetatable(layerOrVar) == Set then
       neue:union(layerOrVar, true)
