@@ -36,6 +36,13 @@ ticks now()
 }
 
 
+void write_file(char *path, buffer b)
+{
+    descriptor d = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    write(d, bref(b, 0), buffer_length(b));
+    close(d);
+}
+
 buffer read_file(heap h, char *path)
 {
     int d;
