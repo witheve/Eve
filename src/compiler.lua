@@ -65,6 +65,7 @@ function unify(query, mapping, projection)
   mapping = mapping or {}
   query.mapping = {}
   local variableBindings = {}
+  local variableProjections = {}
 
   function flattify(nodes)
     for _, node in ipairs(nodes or nothing) do
@@ -76,6 +77,27 @@ function unify(query, mapping, projection)
             variableBindings[variable] = Set:new{binding}
           else
             variableBindings[variable]:add(binding)
+          end
+        end
+      end
+
+      if node.projection then
+        for variable in pairs(node.projection) do
+          query.mapping[variable] = variable
+          if not variableProjections[variable] then
+            variableProjections[variable] = Set:new{node.projection}
+          else
+            variableProjections[variable]:add(node.projection)
+          end
+        end
+      end
+      if node.groupings then
+        for variable in pairs(node.groupings) do
+          query.mapping[variable] = variable
+          if not variableProjections[variable] then
+            variableProjections[variable] = Set:new{node.groupings}
+          else
+            variableProjections[variable]:add(node.groupings)
           end
         end
       end
@@ -179,6 +201,16 @@ function unify(query, mapping, projection)
               binding.variable = variable
             else
               binding.variable = mapping[var]
+            end
+          end
+
+          for proj in pairs(variableProjections[var] or nothing) do
+            if not mapping[var] then
+              proj:remove(var)
+              proj:add(variable)
+            else
+              proj:remove(var)
+              proj:add(mapping[var])
             end
           end
         end
