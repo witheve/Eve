@@ -12,7 +12,7 @@ decsriptor standardoutput = 1;
 decsriptor standarderror = 2;
 
 station ip_wildcard_service;
-    
+
 void ticks_to_timeval(struct timeval *a, ticks b)
 {
     unsigned long long usec = (b*1000000)>>32;
@@ -30,17 +30,20 @@ ticks timeval_to_ticks(struct timeval *a)
 ticks now()
 {
     struct timeval result;
-    
+
     gettimeofday(&result,0);
     return timeval_to_ticks(&result);
 }
 
-
-void write_file(char *path, buffer b)
+int write_file(char *path, buffer b)
 {
     descriptor d = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
-    write(d, bref(b, 0), buffer_length(b));
-    close(d);
+    if(d >= 0) {
+        write(d, bref(b, 0), buffer_length(b));
+        close(d);
+        return 1;
+    }
+    return 0;
 }
 
 buffer read_file(heap h, char *path)

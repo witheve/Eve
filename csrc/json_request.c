@@ -24,6 +24,7 @@ typedef struct json_session {
 // we should figure out a way to close over this in some useful way, while
 // allowing updating the program.
 static buffer root_graph;
+static char *exec_path;
 
 extern thunk ignore;
 
@@ -229,7 +230,7 @@ void handle_json_query(json_session j, bag in, uuid root, thunk c)
         send_parse(j, alloca_wrap_buffer(q->body, q->length));
     }
     if (t == sym(save)) {
-        prf("TIME TO SAVE!");
+        write_file(exec_path, alloca_wrap_buffer(q->body, q->length));
     }
 }
 
@@ -261,7 +262,7 @@ void new_json_session(bag root, boolean tracing,
     j->eh = allocate_rolling(pages, sstring("eval"));
     j->s = build_evaluation(j->scopes, j->persisted, cont(j->h, send_response, j));
     j->write = websocket_send_upgrade(j->eh, b, u, write,
-                                      parse_json(j->eh, j->session, cont(h, handle_json_query, j)), 
+                                      parse_json(j->eh, j->session, cont(h, handle_json_query, j)),
                                       reg);
 
     // send the graphs
@@ -283,8 +284,9 @@ void new_json_session(bag root, boolean tracing,
     inject_event(j->s, aprintf(j->h,"init!\n   maintain\n      [#session-connect]\n"), j->tracing);
 }
 
-void init_json_service(http_server h, bag root, boolean tracing, buffer graph)
+void init_json_service(http_server h, bag root, boolean tracing, buffer graph, char *exec_file_path)
 {
     root_graph = graph;
+    exec_path = exec_file_path;
     http_register_service(h, cont(init, new_json_session, root, tracing), sstring("/ws"));
 }
