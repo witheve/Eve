@@ -70,7 +70,7 @@ static void do_equal(block bk, perf p, execf n, value a, value b, heap h, perf p
 
 #define DO_UNARY_NUMERIC(__name, __op)                                                                        \
     static CONTINUATION_5_4(__name, block, perf, execf, value, value, heap, perf, operator, value *);         \
-    static void __name (block b, perf p, execf n, value dest, value a, heap h, perf pp, operator op, value *r)\
+    static void __name (block bk, perf p, execf n, value dest, value a, heap h, perf pp, operator op, value *r)\
     {                                                                                                         \
         start_perf(p, op);                                                                                    \
         if ((op == op_flush)  || (op == op_close)) {                                                          \
@@ -80,7 +80,7 @@ static void do_equal(block bk, perf p, execf n, value a, value b, heap h, perf p
         }                                                                                                     \
         value ar = lookup(r, a);                                                                              \
         if ((type_of(ar) != float_space )) {                                                                  \
-            exec_error(b->e, "attempt to do math on non-number", a);                                          \
+            exec_error(bk->ev, "attempt to do math on non-number", a);                                          \
         } else {                                                                                              \
             r[reg(dest)] = box_float(__op(*(double *)ar));                                                    \
             apply(n, h, p, op, r);                                                                            \
@@ -233,6 +233,15 @@ BUILD_UNARY(build_tan, do_tan)
 DO_UNARY_BOOLEAN(do_toggle, toggle)
 BUILD_UNARY(build_toggle, do_toggle)
 
+DO_UNARY_NUMERIC(do_floor, floor)
+BUILD_UNARY(build_floor, do_floor)
+
+DO_UNARY_NUMERIC(do_ceil, ceil)
+BUILD_UNARY(build_ceil, do_ceil)
+
+DO_UNARY_NUMERIC(do_round, round)
+BUILD_UNARY(build_round, do_round)
+
 DO_BINARY_NUMERIC(do_plus, +)
 BUILD_BINARY(build_plus, do_plus)
 
@@ -334,6 +343,32 @@ static void do_abs (block bk, perf p, execf n, value dest, value a, heap h, perf
 
 BUILD_UNARY(build_abs, do_abs)
 
+static CONTINUATION_6_4(do_range,
+                        block, perf, execf, value, value, value,
+                        heap, perf, operator, value *);
+static void do_range(block bk, perf p, execf n, value dest, value min, value max, heap h, perf pp, operator op, value *r)
+{
+  start_perf(p, op);
+  if ((op == op_flush)  || (op == op_close)) {
+    apply(n, h, p, op, r);
+    stop_perf(p, pp);
+    return;
+  }
+  value min_r = lookup(r, min);
+  value max_r = lookup(r, max);
+  if ((type_of(min_r) != float_space) || (type_of(max_r) != float_space)) {
+    exec_error(bk->ev, "attempt to do range over non-number(s)", min, max);
+  } else {
+    for(double i = *(double *)min_r, final = *(double *)max_r; i < final; i++) {
+      r[reg(dest)] = box_float(i);
+      apply(n, h, p, op, r);
+    }
+
+  }
+  stop_perf(p, pp);
+}
+BUILD_BINARY(build_range, do_range);
+
 
 void register_exec_expression(table builders)
 {
@@ -359,5 +394,9 @@ void register_exec_expression(table builders)
     table_set(builders, intern_cstring("tan"), build_tan);
     table_set(builders, intern_cstring("mod"), build_mod);
     table_set(builders, intern_cstring("abs"), build_abs);
+    table_set(builders, intern_cstring("ceil"), build_ceil);
+    table_set(builders, intern_cstring("floor"), build_floor);
+    table_set(builders, intern_cstring("round"), build_round);
     table_set(builders, intern_cstring("toggle"), build_toggle);
+    table_set(builders, intern_cstring("range"), build_range);
 }
