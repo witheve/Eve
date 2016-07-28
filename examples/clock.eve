@@ -1,4 +1,6 @@
-draw a clock hands yo
+# Clock
+
+draw a clock hand
 
   hand = [#clock-hand angle length]
   maintain
