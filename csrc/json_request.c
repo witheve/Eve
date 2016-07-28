@@ -228,6 +228,9 @@ void handle_json_query(json_session j, bag in, uuid root, thunk c)
     if (t == sym(parse)) {
         send_parse(j, alloca_wrap_buffer(q->body, q->length));
     }
+    if (t == sym(save)) {
+        prf("TIME TO SAVE!");
+    }
 }
 
 

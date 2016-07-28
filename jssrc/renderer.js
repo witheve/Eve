@@ -419,6 +419,12 @@ function sendSwap(query) {
   }
 }
 
+function sendSave(query) {
+  if(socket && socket.readyState == 1) {
+    socket.send(JSON.stringify({scope: "root", type: "save", query}))
+  }
+}
+
 function sendParse(query) {
   if(socket && socket.readyState == 1) {
     socket.send(JSON.stringify({scope: "root", type: "parse", query}))
@@ -686,6 +692,10 @@ function doSwap(editor) {
   sendSwap(editor.getValue());
 }
 
+function doSave() {
+  sendSave(codeEditor.getValue());
+}
+
 function handleEditorParse(parse) {
   let parseLines = parse.lines;
   let from = {};
@@ -889,6 +899,10 @@ function compileAndRun() {
   doSwap(codeEditor);
 }
 
+function compileAndRun() {
+  doSave(codeEditor);
+}
+
 function injectProgram(node, elem) {
   node.appendChild(activeElements["root"]);
 }
@@ -951,12 +965,13 @@ function drawNodeGraph() {
     {c: "run-info", children: [
       CodeMirrorNode({value: root.context.code, parse: activeParse}),
       {c: "toolbar", children: [
-        {c: "stats", text: `${activeParse.iterations || 0} iterations took ${activeParse.total_time || 0}s`},
+        {c: "stats", text: `total time: ${activeParse.total_time || 0}s`},
         {t: "select", c: "show-graphs", change: setKeyMap, children: [
           {t: "option", value: "default", text: "default"},
           {t: "option", value: "vim", text: "vim"},
           {t: "option", value: "emacs", text: "emacs"},
         ]},
+        {c: "show-graphs", text: "save", click: doSave},
         {c: "show-graphs", text: "compile and run", click: compileAndRun},
         {c: "show-graphs", text: "show compile", click: toggleGraphs}
       ]},
