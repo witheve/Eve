@@ -38,7 +38,7 @@ function cnode(n, name, arms, args, context, tracing)
       c = build_node("trace", {c}, targs, id)
    end
    return c
-end   
+end
 
 function recurse_print_table(t)
    if t == nil then return nil end
@@ -252,7 +252,7 @@ function translate_subagg(n, bound, down, context, tracing)
 
   env, rest = walk(n.nodes, nil, bound, tail, context, tracing)
 
-  
+
   c = cnode(n, "subagg", {rest},
                    {projection = set_to_read_array(n, env, n.projection),
                     groupings = set_to_read_array(n, env, n.groupings or {}),
@@ -291,6 +291,9 @@ function translate_subproject(n, bound, down, context, tracing)
    end
 
    env, fill = walk(n.nodes, nil, bound, tail, context, tracing)
+   if #n.nodes == 0 then
+     env.ids = provides
+   end
 
    c = cnode(n, "sub", {rest, fill},
               {projection = set_to_read_array(n, env, n.projection),
@@ -376,7 +379,7 @@ function translate_not(n, bound, down, context, tracing)
    local bot = cnode(n, "choosetail",
                           {},
                           {pass = read_lookup(n, env, flag)},
-                          context, tracing)     
+                          context, tracing)
 
    local arm_bottom = function (bound)
         return env, bot
@@ -493,13 +496,13 @@ function translate_expression(n, bound, down, context, tracing)
      end
    end
 
-   if variadic then 
+   if variadic then
        nodeArgs.variadic = variadic
    end
-   if groupings then 
+   if groupings then
        nodeArgs.groupings = groupings
    end
-   
+
    return env, cnode(n, schema.name or n.operator, {c}, nodeArgs, context, tracing)
 end
 
