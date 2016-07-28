@@ -82,8 +82,6 @@ static void do_sub(perf p, sub s, heap h, perf pp, operator op, value *r)
 
 
     if ((op == op_flush) || (op == op_close)){
-        if(ziggy) prf("ziggy flush!\n");
-
         if (s->results){
             s->results = 0;
             destroy(s->resh);
@@ -104,9 +102,6 @@ static void do_sub(perf p, sub s, heap h, perf pp, operator op, value *r)
 
 
     if (!(res = table_find(s->results, s->v))){
-        if(ziggy) prf("ziggy new key %V!\n", s->v);
-
-
         res = create_value_vector_table(s->h);
         key = allocate_vector(s->h, vector_length(s->projection));
         extract(key, s->projection, r);
@@ -160,7 +155,7 @@ static void do_choose_tail(perf p, execf next, value flag, heap h, perf pp, oper
     // tail
     if ((op != op_flush) && (op != op_close)) {
         boolean *x = lookup(r, flag);
-        store(r, flag, etrue);
+        *x = true;
         stop_perf(p, pp);
         if (next) apply(next, h, p, op, r);
     }
@@ -191,7 +186,6 @@ static void do_choose(perf p, execf n, vector legs, value flag, boolean *flagsto
         vector_foreach (legs, i){
             apply((execf) i, h, p, op, r);
             apply((execf) i, h, p, op_flush, r);
-            prf("choose head after: %v %v\n", flag, lookup(r, flag));
             if (*flagstore) {
                 stop_perf(p, pp);
                 return;
@@ -219,8 +213,11 @@ static execf build_choose(block bk, node n)
 }
 
 
-static CONTINUATION_4_4(do_not, perf, execf, execf, value, heap, perf, operator, value *);
-static void do_not(perf p, execf next, execf leg, value flag, heap h, perf pp, operator op, value *r)
+static CONTINUATION_5_4(do_not,
+                        perf, execf, execf, value, boolean *,
+                        heap, perf, operator, value *);
+static void do_not(perf p, execf next, execf leg, value flag, boolean *flagstore,
+                   heap h, perf pp, operator op, value *r)
 {
     start_perf(p, op);
     // should also flush down the leg
@@ -229,11 +226,12 @@ static void do_not(perf p, execf next, execf leg, value flag, heap h, perf pp, o
         stop_perf(p, pp);
         return;
     }
-    store(r, flag, efalse);
+    *flagstore = false;
+    store(r, flag, flagstore);
 
     apply(leg, h, p, op, r);
 
-    if (lookup(r, flag) == efalse)
+    if (!*flagstore)
         apply(next, h, p, op, r);
     stop_perf(p, pp);
 }
@@ -246,7 +244,8 @@ static execf build_not(block bk, node n)
                 register_perf(bk->ev, n),
                 resolve_cfg(bk, n, 0),
                 resolve_cfg(bk, n, 1),
-                table_find(n->arguments, sym(pass)));
+                table_find(n->arguments, sym(pass)),
+                allocate(bk->h, sizeof(boolean)));
 }
 
 
@@ -323,7 +322,6 @@ static void do_time(block bk, perf p, execf n, value hour, value minute, value s
         value hv = box_float((double)hours);
         u64 ms = ((((u64)bk->ev->t)*1000ull)>>32) % 1000;
         value fv = box_float((double)ms);
-        prf("frames: %v\n", fv);
         store(r, frame, fv);
         store(r, second, sv);
         store(r, minute, mv);

@@ -108,6 +108,7 @@ static CONTINUATION_6_5(each_set_remove,
 static void each_set_remove(block bk, uuid u, value e, value a, value newv, boolean *existing,
                             value etrash, value atrash, value v, multiplicity m, uuid bku)
 {
+    prf("set remove %v %v %v %v %d\n", e, a, v, newv, m);
      if (m > 0) {
         if (value_equals(newv, v)) {
             *existing = true;
@@ -134,7 +135,6 @@ static void do_set(block bk, perf p, execf n, value u, value e, value a, value v
           ev, av, 0);
 
     apply(bk->ev->insert, u, ev, av, vv, 1);
-
 
     apply(n, h, p, op, r);
     stop_perf(p, pp);

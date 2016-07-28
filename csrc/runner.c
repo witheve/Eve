@@ -49,6 +49,8 @@ static void insert_f(evaluation ev, uuid u, value e, value a, value v, multiplic
 {
     bag b;
 
+    //    prf("insert %v %v %v %v %v %d\n", bagname(ev, u), ev->bk->name, e, a, v, m);
+
     if (!ev->block_solution)
         ev->block_solution = create_value_table(ev->working);
 
@@ -62,54 +64,84 @@ static void insert_f(evaluation ev, uuid u, value e, value a, value v, multiplic
     edb_insert(b, e, a, v, m, ev->bk->name);
 }
 
-static CONTINUATION_3_5(merge_scan_out, heap, vector, table, value, value, value, multiplicity, uuid);
-static void merge_scan_out(heap h, vector k, table f, value e, value a, value v, multiplicity m, uuid bku)
-{
-    u64 z;
-    vector_set(k, 0, e);
-    vector_set(k, 1, a);
-    vector_set(k, 2, v);
 
-    if ((z = (u64)table_find_key(f, k, (void **)&k))) {
-        table_set(f, k, (void *)z + m);
-    } else {
-        vector n = allocate_vector(h, 3);
-        vector_set(n, 0, e);
-        vector_set(n, 1, a);
-        vector_set(n, 2, v);
-        table_set(f, n, (void *)m);
+
+static CONTINUATION_2_5(shadow_f_by_p_and_t, evaluation, listener, value, value, value, multiplicity, uuid);
+static void shadow_f_by_p_and_t(evaluation ev, listener result, value e, value a, value v, multiplicity m, uuid bku)
+{
+    int total = 0;
+    if (m > 0) {
+        bag b;
+        multibag_foreach(ev->t_solution, u, b) {
+            total += count_of(b, e, a, v);
+        }
+        if (total <= 0) {
+            apply(result, e, a, v, m, bku);
+        }
     }
 }
 
-static CONTINUATION_2_5(shadow, table, listener, value, value, value, multiplicity, uuid);
-static void shadow(table multibag, listener result, value e, value a, value v, multiplicity m, uuid bku)
+static CONTINUATION_2_5( shadow_t_by_f, evaluation, listener, value, value, value, multiplicity, uuid);
+static void shadow_t_by_f(evaluation ev, listener result, value e, value a, value v, multiplicity m, uuid bku)
 {
-    boolean s = false;
+    int total = 0;
+
     if (m > 0) {
-        table_foreach(multibag, u, b)
-            if (count_of(b, e, a, v) <0) s = true;
-        if (!s) apply(result, e, a, v, m, bku);
+        bag b;
+        table_foreach(ev->f_bags, u, _) {
+            if (ev->last_f_solution && (b = table_find(ev->last_f_solution, u)))
+                total += count_of(b, e, a, v);
+        }
+        if (total >= 0)
+            apply(result, e, a, v, m, bku);
+    }
+}
+
+
+static CONTINUATION_2_5(shadow_p_by_t_and_f, evaluation, listener,
+                        value, value, value, multiplicity, uuid);
+static void shadow_p_by_t_and_f(evaluation ev, listener result,
+                                value e, value a, value v, multiplicity m, uuid bku)
+{
+    int total = 0;
+    if (m > 0) {
+        bag b;
+        multibag_foreach(ev->t_solution, u, b) {
+            total += count_of(b, e, a, v);
+        }
+        if (total >= 0) {
+            total = 0;
+            table_foreach(ev->f_bags, u, _) {
+                if (ev->last_f_solution && (b = table_find(ev->last_f_solution, u)))
+                    total += count_of(b, e, a, v);
+            }
+            if (total >= 0)
+                apply(result, e, a, v, m, bku);
+        }
     }
 }
 
 static CONTINUATION_1_5(merge_scan, evaluation, int, listener, value, value, value);
 static void merge_scan(evaluation ev, int sig, listener result, value e, value a, value v)
 {
-    listener f_filter = ev->last_f_solution?cont(ev->working, shadow, ev->last_f_solution, result):result;
-    listener tf_filter = ev->t_solution?cont(ev->working, shadow, ev->t_solution, f_filter):f_filter;
-
     table_foreach(ev->persisted, u, b) {
         bag proposed;
-        edb_scan(b, sig, tf_filter, e, a, v);
+        edb_scan(b, sig,
+                 cont(ev->working, shadow_p_by_t_and_f, ev, result),
+                 e, a, v);
         if (ev->t_solution && (proposed = table_find(ev->t_solution, u))) {
-            edb_scan(proposed, sig, f_filter, e, a, v);
+            edb_scan(proposed, sig,
+                     cont(ev->working, shadow_t_by_f, ev, result),
+                     e, a, v);
         }
     }
 
     table_foreach(ev->f_bags, u, _) {
         bag last;
         if (ev->last_f_solution && (last = table_find(ev->last_f_solution, u))){
-            edb_scan(last, sig, result, e, a, v);
+            edb_scan(last, sig,
+                     cont(ev->working, shadow_f_by_p_and_t, ev, result),
+                     e, a, v);
         }
     }
 }
