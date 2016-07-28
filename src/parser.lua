@@ -1588,7 +1588,7 @@ end
 
 local function parseFile(path)
   local content = fs.read(path)
-  content = content:gsub("\t", "  ")
+  content = content:gsub("\t", " ")
   content = content:gsub("\r", "")
   local context = makeContext(content, path)
   local tokens = lex(content)
@@ -1599,7 +1599,7 @@ local function parseFile(path)
 end
 
 local function parseString(str)
-  str = str:gsub("\t", "  ")
+  str = str:gsub("\t", " ")
   str = str:gsub("\r", "")
   local context = makeContext(str)
   local tokens = lex(str)
@@ -1615,7 +1615,7 @@ local function parseJSON(str)
 end
 
 local function printParse(content)
-  content = content:gsub("\t", "  ")
+  content = content:gsub("\t", " ")
   content = content:gsub("\r", "")
   local context = makeContext(content)
   local tokens = lex(content)

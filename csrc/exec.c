@@ -361,6 +361,52 @@ static execf build_time(block bk, node n, execf *arms)
                 t);
 }
 
+static CONTINUATION_6_4(do_random,
+                        block, perf, execf, value, value, timer,
+                        heap, perf, operator, value *);
+static void do_random(block bk, perf p, execf n, value dest, value seed, timer t, heap h, perf pp, operator op, value *r)
+{
+    start_perf(p, op);
+    if (op == op_close) {
+        remove_timer(t);
+    }
+
+    if (op == op_insert) {
+        // This is all very scientific.
+        u64 ub = value_as_key(lookup(r, seed));
+        u32 tb = (u64)bk->ev->t & 0x200000; // The 21 bottom tick bits are pretty random
+
+        // Fold the tick bits down into a u8
+        u8 ts = (tb >> 7 ^ tb) >> 7 ^ tb;
+
+        // Fold the user seed bits down into a u8
+        u8 us = (((((((((ub >> 7 ^ ub) >> 7 ^ ub) >> 7 ^ ub) >> 7 ^ ub) >> 7 ^ ub) >> 7 ^ ub) >> 7 ^ ub) >> 7 ^ ub) >> 7 ^ ub);
+
+        // We fold down to 7 bits to gain some semblance of actual entropy. This means the RNG only has 128 outputs for now.
+        u8 true_seed = us ^ ts;
+
+        // No actual rng for now.
+        store(r, dest, box_float((double)true_seed/128.0));
+    }
+    apply(n, h, p, op, r);
+    stop_perf(p, pp);
+}
+
+static execf build_random(block bk, node n)
+{
+    value dest = table_find(n->arguments, sym(return));
+    value seed = table_find(n->arguments, sym(a));
+    ticks interval = milliseconds(1000 / 60);
+    timer t = register_periodic_timer(interval, 0);
+    return cont(bk->h,
+                do_random,
+                bk,
+                register_perf(bk->ev, n),
+                resolve_cfg(bk, n, 0),
+                dest,
+                seed,
+                t);
+}
 
 static CONTINUATION_3_4(do_fork, perf, int, execf *, heap, perf, operator, value *) ;
 static void do_fork(perf p, int legs, execf *b, heap h, perf pp, operator op, value *r)
@@ -453,6 +499,7 @@ table builders_table()
         table_set(builders, intern_cstring("not"), build_not);
         table_set(builders, intern_cstring("time"), build_time);
         table_set(builders, intern_cstring("merge"), build_merge);
+        table_set(builders, intern_cstring("random"), build_random);
 
         register_exec_expression(builders);
         register_string_builders(builders);

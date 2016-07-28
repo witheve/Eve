@@ -49,7 +49,7 @@ ticks time_delta(heap h, ticks x, ticks n)
 ticks timer_check()
 {
     timer current;
-    
+
     while ((current = pqueue_peek(timers)) &&
            (current->w < now())) {
         pqueue_pop(timers);
@@ -58,7 +58,8 @@ ticks timer_check()
                 current->w += current->interval;
                 pqueue_insert(timers, current);
             }
-            apply(current->t);
+            if (current->t != 0)
+                apply(current->t);
         }
     }
 
@@ -87,12 +88,12 @@ ticks parse_time(string b)
         }
     }
     result = s << 32;
-    
+
     if (fracnorm) result |= (frac<<32)/fracnorm;
     return(result);
 }
 
-// this seems quite broken 
+// this seems quite broken
 void print_time(string b, ticks f)
 {
     unsigned int seconds = f>>32;
@@ -101,9 +102,9 @@ void print_time(string b, ticks f)
     bprintf(b, "%u", seconds);
     if (fraction) {
         int count=0;
-        
+
         bprintf(b,".");
-        
+
         /* should round or something */
         while ((fraction *= 10) && (count++ < 6)) {
             u32 d = (fraction>>32);
@@ -113,7 +114,7 @@ void print_time(string b, ticks f)
     }
 }
 
-static boolean compare_timer(void *za, void *zb) 
+static boolean compare_timer(void *za, void *zb)
 {
     timer a = za;
     timer b = zb;

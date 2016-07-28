@@ -12,7 +12,7 @@ void init_unix();
 
 string tree_root_path();
 
-extern heap pages; 
+extern heap pages;
 
 typedef closure(status_handler, int);
 
@@ -30,6 +30,7 @@ void register_write_handler(descriptor, thunk);
 heap efence_heap(bytes);
 
 buffer read_file(heap, char *);
+int write_file(char *, buffer);
 
 void register_console_input(heap h, buffer_handler bh);
 
@@ -43,7 +44,7 @@ extern void unix_shutdown();
 
 #define assert(__x)\
     if (!(__x)) unix_fail()
-    
+
 
 heap init_fixed_page_region(heap meta,
                             u64 base_address,
@@ -54,7 +55,7 @@ ticks now();
 typedef closure(new_client, buffer_handler, station, register_read);
 typedef closure(connected, buffer_handler, register_read);
 
-void tcp_create_client (heap, station, connected); 
+void tcp_create_client (heap, station, connected);
 
 void tcp_create_server(heap h,
                        table addr,
@@ -70,7 +71,7 @@ void clocktime(ticks t, unsigned int *hours, unsigned int *minutes, unsigned int
 typedef closure(udp_receiver, station, buffer);
 typedef struct udp *udp;
 udp create_udp(heap h, station local, udp_receiver);
-void udp_write(udp, station, buffer); 
+void udp_write(udp, station, buffer);
 
 void prf(char *, ...);
 
