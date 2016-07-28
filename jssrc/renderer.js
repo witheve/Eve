@@ -864,7 +864,7 @@ function nodeToRelated(pos, node, parse) {
     }
     prev = query;
   }
-  active["graph"] = prev.id;
+  if(prev) active["graph"] = prev.id;
 
   if(!node.id) return active;
   let {up, down} = parse.edges;
@@ -961,7 +961,17 @@ function drawNodeGraph() {
   } else {
     program = {c: "program-container", postRender: injectProgram}
   }
+  let outline = [];
+  if(root.ast) {
+    for(let childId of root.ast.children) {
+      let child = activeParse[childId];
+      for(let line of child.doc.split("\n")) {
+        outline.push({text: line});
+      }
+    }
+  }
   let rootUi = {c: "parse-info", children: [
+    // {c: "outline", children: outline},
     {c: "run-info", children: [
       CodeMirrorNode({value: root.context.code, parse: activeParse}),
       {c: "toolbar", children: [
