@@ -55,6 +55,9 @@ local function prepareQueryGraph(_, node)
     end
     if node.groupings then
       node.groupings = flattenProjection(node.groupings)
+      if node.projection then
+        node.projection:union(node.groupings, true)
+      end
     end
     node._sanitized = true
   end
