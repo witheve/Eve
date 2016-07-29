@@ -72,6 +72,8 @@ static void json_input(json_parser p, buffer b, thunk t)
 
     // xxx - use foreach rune
     string_foreach(b, c) {
+
+        // create a bag for this message if one doesn't exist
         if (!p->b) {
             p->b = create_bag(p->h, p->pu);
             p->n = generate_uuid();
@@ -81,7 +83,8 @@ static void json_input(json_parser p, buffer b, thunk t)
             estring tes= intern_buffer(p->tag);
             estring ves= intern_buffer(p->value);
 
-            edb_insert(p->b, p->n, tes, ves, 1);
+            // xxx - should have some interesting source id here
+            edb_insert(p->b, p->n, tes, ves, 1, 0);
             buffer_clear(p->tag);
             buffer_clear(p->value);
         }
@@ -89,6 +92,8 @@ static void json_input(json_parser p, buffer b, thunk t)
         if ((c == '}')  && (p->s == sep)) {
             apply(p->out, p->b, p->n, t);
             p->b = 0;
+            p->s = 0;
+            p->backslash = false;
         }
 
         if ((c == separator[p->s]) && !p->backslash) {

@@ -419,6 +419,18 @@ function sendSwap(query) {
   }
 }
 
+function sendSave(query) {
+  if(socket && socket.readyState == 1) {
+    socket.send(JSON.stringify({scope: "root", type: "save", query}))
+  }
+}
+
+function sendParse(query) {
+  if(socket && socket.readyState == 1) {
+    socket.send(JSON.stringify({scope: "root", type: "parse", query}))
+  }
+}
+
 //---------------------------------------------------------
 // Event bindings to forward events to the server
 //---------------------------------------------------------
@@ -622,6 +634,7 @@ window.addEventListener("hashchange", onHashChange);
 let activeLayers = {ids: true, registers: true};
 let activeIds = {};
 let activeParse = {};
+let editorParse = {};
 let allNodeGraphs = {};
 let showGraphs = false;
 let codeEditor;
@@ -686,23 +699,125 @@ function doSwap(editor) {
   sendSwap(editor.getValue());
 }
 
+function doSave() {
+  sendSave(codeEditor.getValue());
+}
+
+function handleEditorParse(parse) {
+  let parseLines = parse.lines;
+  let from = {};
+  let to = {};
+  codeEditor.operation(function() {
+    console.time("highlight");
+    for(let line of codeEditor.dirtyLines) {
+      // clear all the marks on that line?
+      for(let mark of codeEditor.findMarks({line, ch: 0}, {line, ch: 1000000})) {
+        mark.clear();
+      }
+      from.line = line;
+      to.line = line;
+      let tokens = parseLines[line + 1];
+      if(tokens) {
+        let firstToken = tokens[0];
+        // figure out what type of line this is and set the appropriate
+        // line classes
+        let state;
+        for(let token of tokens) {
+          from.ch = token.surrogateOffset;
+          to.ch = token.surrogateOffset + token.surrogateLength;
+          let className = token.type;
+          if(state == "TAG" || state == "NAME") {
+            className += " " + state;
+          }
+          codeEditor.markText(from, to, {className, inclusiveRight: true});
+          state = token.type
+        }
+      }
+    }
+    codeEditor.dirtyLines = [];
+    console.timeEnd("highlight");
+  });
+}
+
 function injectCodeMirror(node, elem) {
   if(!node.editor) {
     let editor = new CodeMirror(node, {
+      tabSize: 2,
+      lineWrapping: true,
       extraKeys: {
         "Cmd-Enter": doSwap,
         "Ctrl-Enter": doSwap,
       }
     });
-    editor.setValue(elem.value);
+    editor.dirtyLines = [];
     editor.on("cursorActivity", function() {
       let pos = editor.getCursor();
       activeIds = nodeToRelated(pos, posToToken(pos, renderer.tree[elem.id].parse.lines), renderer.tree[elem.id].parse);
       drawNodeGraph();
     });
+    editor.on("change", function(cm, change) {
+      let {from, to, text} = change;
+      let end = to.line > from.line + text.length ? to.line : from.line + text.length;
+      for(let start = from.line; start <= end; start++) {
+        cm.dirtyLines.push(start);
+        let lineInfo = cm.lineInfo(start);
+        if(lineInfo) {
+          if(lineInfo.text.match(/^\s/)) {
+            cm.addLineClass(start, "background", "CODE");
+            // check the next line to see if it's indented. If it is then
+            // remove code-bottom from this guy if it has it. Otherwise,
+            // add code-bottom
+            let nextInfo = cm.lineInfo(start + 1);
+            let prevInfo = cm.lineInfo(start - 1);
+
+            let codeBelow = nextInfo && nextInfo.text.match(/^\s/);
+            let codeAbove = prevInfo && prevInfo.text.match(/^\s/);
+
+            if(codeBelow) {
+              cm.removeLineClass(start, "text", "CODE-BOTTOM");
+              cm.removeLineClass(start + 1, "text", "CODE-TOP");
+            } else if(nextInfo) {
+              //otherwise this line is the new CODE-BOTTOM
+              cm.addLineClass(start, "text", "CODE-BOTTOM");
+            }
+            if(codeAbove) {
+              cm.removeLineClass(start, "text", "CODE-TOP");
+              cm.removeLineClass(start - 1, "text", "CODE-BOTTOM");
+            } else if(prevInfo) {
+              //otherwise this line is the new CODE-TOP
+              cm.addLineClass(start, "text", "CODE-TOP");
+            }
+          } else {
+            cm.removeLineClass(start, "background", "CODE");
+            cm.removeLineClass(start, "text", "CODE-TOP");
+            cm.removeLineClass(start, "text", "CODE-BOTTOM");
+            cm.removeLineClass(start, "text", "HEADER");
+
+            // check if this is a header
+            if(lineInfo.text.match("^#+")) {
+              cm.addLineClass(start, "text", "HEADER");
+            }
+            // check above me to see if they need to be the new code bottom
+            let prevInfo = cm.lineInfo(start - 1);
+            if(prevInfo && prevInfo.text.match(/^\s/)) {
+              cm.addLineClass(start - 1, "text", "CODE-BOTTOM");
+            }
+          }
+        }
+      }
+    });
+    editor.on("changes", function(cm, changes) {
+      let value = cm.getValue();
+      sendParse(value);
+    });
+    editor.setValue(elem.value);
     codeEditor = editor;
     node.editor = editor;
   }
+}
+
+function setKeyMap(event) {
+  codeEditor.setOption("keyMap", event.currentTarget.value);
 }
 
 function CodeMirrorNode(info) {
@@ -712,7 +827,7 @@ function CodeMirrorNode(info) {
 }
 
 function indexParse(parse) {
-  let lines = {};
+  let lines = [];
   let tokens = parse.root.context.tokens
   for(let tokenId of tokens) {
     let token = parse[tokenId];
@@ -735,11 +850,9 @@ function indexParse(parse) {
   // if there isn't an active graph, then make the first query
   // active
   if(!activeIds["graph"]) {
-    console.log("setting", parse.root.children[0]);
     activeIds["graph"] = parse.root.children[0];
   }
-
-  activeParse = parse;
+  return parse;
 }
 
 function nodeToRelated(pos, node, parse) {
@@ -757,7 +870,7 @@ function nodeToRelated(pos, node, parse) {
     }
     prev = query;
   }
-  active["graph"] = prev.id;
+  if(prev) active["graph"] = prev.id;
 
   if(!node.id) return active;
   let {up, down} = parse.edges;
@@ -792,6 +905,10 @@ function compileAndRun() {
   doSwap(codeEditor);
 }
 
+function compileAndRun() {
+  doSave(codeEditor);
+}
+
 function injectProgram(node, elem) {
   node.appendChild(activeElements["root"]);
 }
@@ -817,17 +934,13 @@ function drawNodeGraph() {
   let graphs;
   let state = {activeIds};
   for(let headId in allNodeGraphs) {
-    if(!activeParse.edges.up[headId] || activeParse.edges.up[headId][0] != activeIds["graph"]) continue;
+    if(!activeParse.edges.up[headId] || activeParse.edges.up[headId].indexOf(activeIds["graph"]) == -1) continue;
     let cur = allNodeGraphs[headId];
     state.rootTime = activeParse.cycle_time;
     let tree = drawNode(headId, cur, state, {});
-    // let ast = drawAST(activeParse.ast, state);
-    // let parse = drawParse(activeParse, state);
     let ordered = drawOrdered(activeParse.root.children, state);
     if(showGraphs) {
       graphs = {c: "graphs", children: [
-        // ast,
-        // parse,
         ordered,
         tree,
       ]}
@@ -854,11 +967,27 @@ function drawNodeGraph() {
   } else {
     program = {c: "program-container", postRender: injectProgram}
   }
+  let outline = [];
+  if(root.ast) {
+    for(let childId of root.ast.children) {
+      let child = activeParse[childId];
+      for(let line of child.doc.split("\n")) {
+        outline.push({text: line});
+      }
+    }
+  }
   let rootUi = {c: "parse-info", children: [
+    // {c: "outline", children: outline},
     {c: "run-info", children: [
       CodeMirrorNode({value: root.context.code, parse: activeParse}),
       {c: "toolbar", children: [
-        {c: "stats", text: `${activeParse.iterations || 0} iterations took ${activeParse.total_time || 0}s`},
+        {c: "stats", text: `total time: ${activeParse.total_time || 0}s`},
+        {t: "select", c: "show-graphs", change: setKeyMap, children: [
+          {t: "option", value: "default", text: "default"},
+          {t: "option", value: "vim", text: "vim"},
+          {t: "option", value: "emacs", text: "emacs"},
+        ]},
+        {c: "show-graphs", text: "save", click: doSave},
         {c: "show-graphs", text: "compile and run", click: compileAndRun},
         {c: "show-graphs", text: "show compile", click: toggleGraphs}
       ]},
@@ -868,46 +997,6 @@ function drawNodeGraph() {
     program,
   ]};
   renderer.render([{c: "graph-root", children: [rootUi]}]);
-}
-
-//---------------------------------------------------------
-// Draw AST
-//---------------------------------------------------------
-
-function drawAST(root, state) {
-  let children = [];
-  let node = {c: "ast-node", children: [
-    {c: "ast-type", text: root.type},
-    {c: "ast-children", children}
-  ]}
-  if(root.children) {
-    for(let child of root.children) {
-      children.push(drawAST(child, state));
-    }
-  }
-  return node;
-}
-
-//---------------------------------------------------------
-// Draw parse
-//---------------------------------------------------------
-
-function drawParse(root, state) {
-  let children = [];
-  let node = {c: "parse-node", children: [
-    {c: "parse-type", text: root.type},
-    {c: "parse-children", children}
-  ]}
-  if(root.type == "code") {
-    for(let child of root.children) {
-      children.push(drawParse(child, state));
-    }
-  } else if(root.type == "query") {
-    for(let object of root.objects) {
-      children.push(drawParse(object, state));
-    }
-  }
-  return node;
 }
 
 //---------------------------------------------------------
@@ -1108,8 +1197,12 @@ socket.onmessage = function(msg) {
   } else if(data.type == "node_graph") {
     allNodeGraphs[data.head] = data.nodes;
   } else if(data.type == "full_parse") {
-    indexParse(data.parse);
+    activeParse = indexParse(data.parse);
     drawNodeGraph();
+    handleEditorParse(activeParse);
+  } else if(data.type == "parse") {
+    editorParse = indexParse(data.parse);
+    handleEditorParse(editorParse);
 
   } else if(data.type == "node_times") {
     activeParse.iterations = data.iterations;

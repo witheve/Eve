@@ -72,6 +72,13 @@ static int construct_register(lua_State *L)
     return 1;
 }
 
+static int node_id(lua_State *L)
+{
+    node n = lua_touserdata(L, 1);
+    lua_pushnumber(L, (int)*((double *)n->id));
+    return (1);
+}
+
 static int construct_number(lua_State *L)
 {
     interpreter c = lua_context(L);
@@ -161,20 +168,23 @@ vector lua_compile_eve(interpreter c, heap h, buffer b, boolean tracing, buffer 
     lua_pushlstring(c->L, bref(b, 0), buffer_length(b));
     lua_pushboolean(c->L, tracing);
 
-    if (lua_pcall(c->L, 2, 3, lua_gettop(c->L)-4)) {
+    if (lua_pcall(c->L, 2, 2, lua_gettop(c->L)-4)) {
         printf ("lua error\n");
         printf ("%s\n", lua_tostring(c->L, -1));
     }
-    foreach_lua_table(c->L, -3, k, v) {
-        compiled n = allocate(h, sizeof(struct compiled));
-        n->head = (void *)lua_topointer(c->L, v);
-        vector_insert(result, n);
-    }
-    *out = lua_to_buffer(c->L, -2, h);
+    
+    *out = lua_to_buffer(c->L, -1, h);
     int count = 0;
-    foreach_lua_table(c->L, -1, k, v) {
-        compiled n = vector_get(result, count++);
-        n->name = lua_to_buffer(c->L, v, h);
+    foreach_lua_table(c->L, -2, k, v) {
+        compiled n = allocate(c->h, sizeof(struct compiled));
+        foreach_lua_table(c->L, v, k0, v0) {
+            value kv = lua_tovalue(c->L, k0);
+            // xxx - do we have a direct extract?
+            if (kv == sym(name)) n->name = lua_tovalue(c->L, v0);
+            if (kv == sym(regs)) n->regs = (int)lua_tonumber(c->L, v0);
+            if (kv == sym(head)) n->head = lua_tovalue(c->L, v0);
+        }
+        vector_insert(result, n);
     }
     lua_pop(c->L, 1);
     return(result);
@@ -250,6 +260,7 @@ int lua_build_node(lua_State *L)
                   aprintf(c->h,"%r", lua_tovalue(L, v)));
     }
 
+    // xxx - shouldn't really be a value
     value node_id = lua_tovalue(L, 4);
     n->id = node_id;
 
@@ -278,6 +289,7 @@ interpreter build_lua()
     define(c, "sstring", construct_string);
     define(c, "value_to_string", lua_print_value);
     define(c, "build_node", lua_build_node);
+    define(c, "node_id", node_id);
     require_luajit(c, "compiler");
     return c;
 }

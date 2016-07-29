@@ -36,7 +36,7 @@ function flattenProjection(projection)
   for ix, layerOrVar in ipairs(projection) do
     if layerOrVar.type == "variable" then
       neue:add(layerOrVar)
-    elseif layerOrVar.type == "projection" then
+    elseif layerOrVar.type == "projection" or layerOrVar.type == "grouping" then
       neue:add(layerOrVar.variable)
     elseif getmetatable(layerOrVar) == Set then
       neue:union(layerOrVar, true)
@@ -65,6 +65,7 @@ function unify(query, mapping, projection)
   mapping = mapping or {}
   query.mapping = {}
   local variableBindings = {}
+  local variableProjections = {}
 
   function flattify(nodes)
     for _, node in ipairs(nodes or nothing) do
@@ -76,6 +77,27 @@ function unify(query, mapping, projection)
             variableBindings[variable] = Set:new{binding}
           else
             variableBindings[variable]:add(binding)
+          end
+        end
+      end
+
+      if node.projection then
+        for variable in pairs(node.projection) do
+          query.mapping[variable] = variable
+          if not variableProjections[variable] then
+            variableProjections[variable] = Set:new{node.projection}
+          else
+            variableProjections[variable]:add(node.projection)
+          end
+        end
+      end
+      if node.groupings then
+        for variable in pairs(node.groupings) do
+          query.mapping[variable] = variable
+          if not variableProjections[variable] then
+            variableProjections[variable] = Set:new{node.groupings}
+          else
+            variableProjections[variable]:add(node.groupings)
           end
         end
       end
@@ -179,6 +201,16 @@ function unify(query, mapping, projection)
               binding.variable = variable
             else
               binding.variable = mapping[var]
+            end
+          end
+
+          for proj in pairs(variableProjections[var] or nothing) do
+            if not mapping[var] then
+              proj:remove(var)
+              proj:add(variable)
+            else
+              proj:remove(var)
+              proj:add(mapping[var])
             end
           end
         end
@@ -1129,21 +1161,21 @@ function compileExec(contents, tracing)
   end
 
   local set = {}
-  local nameset = {}
 
   for ix, queryGraph in ipairs(parseGraph.children) do
     local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph, context)
     local unpacked = unpackObjects(dependencyGraph, context)
+    local head, regs
     -- @NOTE: We cannot allow dead DGs to still try and run, they may be missing filtering hunks and fire all sorts of missiles
     if not dependencyGraph.ignore then
-      set[#set+1] = queryGraph
-      nameset[#nameset+1] = queryGraph.name
+      head, regs = build.build(queryGraph, tracing, parseGraph.context)
+      set[#set+1] = {head = head, regs = regs, name = queryGraph.name}
     end
   end
   if context.errors and #context.errors ~= 0 then
-    return {}, util.toFlatJSON(parseGraph), {}
+    return {}, util.toFlatJSON(parseGraph)
   end
-  return build.build(set, tracing, parseGraph), util.toFlatJSON(parseGraph), nameset
+  return set, util.toFlatJSON(parseGraph)
 end
 
 function analyze(content, quiet)

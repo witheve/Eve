@@ -20,12 +20,10 @@ static void do_sub_tail(perf p,
 
 static execf build_sub_tail(block bk, node n)
 {
-
-    value resreg = table_find(n->arguments, sym(pass));
     return cont(bk->h,
                 do_sub_tail,
                 register_perf(bk->ev, n),
-                resreg,
+                table_find(n->arguments, sym(pass)),
                 table_find(n->arguments, sym(provides)));
 }
 
@@ -37,52 +35,13 @@ typedef struct sub {
     vector outputs;
     vector ids;
     table ids_cache; //these persist for all time
-    table previous;
-    table moved;
     table results;
     execf leg, next;
     value resreg;
+    heap resh;
     heap h;
-    evaluation e;
-    ticks t;
     boolean id_collapse;
-    heap resh, prevh;
 } *sub;
-
-
-static void delete_missing(heap h, perf p, sub s, value *r)
-{
-    if (s->previous) {
-        table_foreach(s->previous, k, v) {
-            if ((!s->moved) || (!table_find(s->moved, k))) {
-                table_foreach((table)v, n, _) {
-                    copyout(r, s->outputs, n);
-                    apply(s->next, h, p, op_remove, r);
-                }
-            }
-        }
-    }
-}
-
-
-static CONTINUATION_1_1(end_o_sub, sub, boolean);
-static void end_o_sub(sub s, boolean finished)
-{
-    if (finished) {
-        if (s->previous) destroy(s->prevh);
-        s->previous = s->results;
-        s->prevh = s->resh;
-    }
-    s->results = 0;
-    s->moved = 0;
-}
-
-
-static void set_ids_each(sub s, vector key, value *r)
-{
-    vector_foreach(s->ids, i)
-        store(r, i, generate_uuid());
-}
 
 
 static void set_ids(sub s, vector key, value *r)
@@ -103,24 +62,12 @@ static CONTINUATION_2_4(do_sub, perf, sub, heap, perf, operator, value *);
 static void do_sub(perf p, sub s, heap h, perf pp, operator op, value *r)
 {
     start_perf(p, op);
-    // dont manage deletions across fixed point
-    if (s->t != s->e->t) {
-        if (s->previous) destroy(s->prevh);
-        s->previous = 0;
-        s->t = s->e->t;
-        s->results = 0;
-    }
 
-    if (op == op_close) {
-        apply(s->next, h, p, op, r);
-        if (s->results) destroy(s->resh);
-        if (s->previous) destroy(s->prevh);
-        stop_perf(p, pp);
-        return;
-    }
-
-    if (op == op_flush) {
-        delete_missing(h, p, s, r);
+    if ((op == op_flush) || (op == op_close)){
+        if (s->results){
+            s->results = 0;
+            destroy(s->resh);
+        }
         apply(s->next, h, p, op, r);
         stop_perf(p, pp);
         return;
@@ -133,27 +80,21 @@ static void do_sub(perf p, sub s, heap h, perf pp, operator op, value *r)
     if (!s->results) {
         s->resh = allocate_rolling(pages, sstring("sub-results"));
         s->results = create_value_vector_table(s->resh);
-
     }
 
+
     if (!(res = table_find(s->results, s->v))){
-        // table_find_key only exists because we want to reuse the key allocation
-        if (s->previous && (res = table_find_key(s->previous, s->v, (void **)&key))) {
-            if (!s->moved) s->moved = create_value_vector_table(s->resh);
-            table_set(s->moved, key, etrue);
-        } else {
-            res = create_value_vector_table(s->h);
-            key = allocate_vector(s->h, vector_length(s->projection));
-            extract(key, s->projection, r);
-            store(r, s->resreg, res);
-            if (s->id_collapse) {
-                set_ids(s, key, r);
-            } else{
-                vector_foreach(s->ids, i)
-                    store(r, i, generate_uuid());
-            }
-            apply(s->leg, h, p, op, r);
+        res = create_value_vector_table(s->h);
+        key = allocate_vector(s->h, vector_length(s->projection));
+        extract(key, s->projection, r);
+        store(r, s->resreg, res);
+        if (s->id_collapse) {
+            set_ids(s, key, r);
+        } else{
+            vector_foreach(s->ids, i)
+                store(r, i, generate_uuid());
         }
+        apply(s->leg, h, p, op, r);
         table_set(s->results, key, res);
     }
 
@@ -172,21 +113,15 @@ static execf build_sub(block bk, node n)
     s->id = n->id;
     s->h = bk->h;
     s->results = 0;
-    s->moved = 0;
     s->ids_cache = create_value_vector_table(s->h);
     s->projection = table_find(n->arguments, sym(projection));
     s->v = allocate_vector(s->h, vector_length(s->projection));
     s->leg = resolve_cfg(bk, n, 1);
     s->outputs = table_find(n->arguments, sym(provides));
-    s->previous = 0;
     s->resreg =  table_find(n->arguments, sym(pass));
     s->ids = table_find(n->arguments, sym(ids));
-    s->h = s->h;
     s->next = resolve_cfg(bk, n, 0);
     s->id_collapse = (table_find(n->arguments, sym(id_collapse))==etrue)?true:false;
-    s->e = bk->ev;
-    s->t = bk->ev->t;
-    vector_insert(bk->finish, cont(s->h, end_o_sub, s));
     return cont(s->h,
                 do_sub,
                 register_perf(bk->ev, n),
@@ -194,58 +129,17 @@ static execf build_sub(block bk, node n)
 
 }
 
-
-
-static CONTINUATION_5_4(do_subagg,
-                        perf, execf, table *, vector, vector,
-                        heap, perf, operator, value *);
-static void do_subagg(perf p, execf next, table *proj_seen, vector v, vector inputs,
-                      heap h, perf pp, operator op, value *r)
-{
-    start_perf(p, op);
-    if (op == op_flush) {
-        apply(next, h, p, op, r);
-        *proj_seen = create_value_vector_table((*proj_seen)->h);
-        stop_perf(p, pp);
-        return;
-    }
-
-    extract(v, inputs, r);
-
-    if (! table_find(*proj_seen, v)){
-        vector key = allocate_vector((*proj_seen)->h, vector_length(inputs));
-        extract(key, inputs, r);
-        table_set(*proj_seen, key, (void*)1);
-        apply(next, h, p, op, r);
-    }
-    stop_perf(p, pp);
-}
-
-
-static execf build_subagg(block bk, node n)
-{
-    vector projection = table_find(n->arguments, sym(projection));
-    table* proj_seen = allocate(bk->h, sizeof(table));
-    *proj_seen = create_value_vector_table(bk->h);
-    return cont(bk->h,
-                do_subagg,
-                register_perf(bk->ev, n),
-                resolve_cfg(bk, n, 0),
-                proj_seen,
-                allocate_vector(bk->h, vector_length(projection)),
-                projection);
-}
-
 static CONTINUATION_3_4(do_choose_tail, perf, execf, value, heap, perf, operator, value *);
 static void do_choose_tail(perf p, execf next, value flag, heap h, perf pp, operator op, value *r)
 {
     start_perf(p, op);
-    if (op != op_flush) {
-        store(r, flag, etrue);
-        if (next) {
-            stop_perf(p, pp);
-            apply(next, h, p, op, r);
-        }
+    // terminate flush and close along this leg, the head will inject it into the
+    // tail
+    if ((op != op_flush) && (op != op_close)) {
+        boolean *x = lookup(r, flag);
+        *x = true;
+        stop_perf(p, pp);
+        if (next) apply(next, h, p, op, r);
     }
     stop_perf(p, pp);
 }
@@ -260,18 +154,21 @@ static execf build_choose_tail(block bk, node n)
                 table_find(n->arguments, sym(pass)));
 }
 
-static CONTINUATION_4_4(do_choose, perf, execf, vector, value, heap, perf, operator, value *);
-static void do_choose(perf p, execf n, vector legs, value flag, heap h, perf pp, operator op, value *r)
+static CONTINUATION_5_4(do_choose, perf, execf, vector, value, boolean *,
+                        heap, perf, operator, value *);
+static void do_choose(perf p, execf n, vector legs, value flag, boolean *flagstore,
+                      heap h, perf pp, operator op, value *r)
 {
     start_perf(p, op);
     if ((op == op_flush) || (op == op_close)) {
         apply(n, h, p, op, r);
     } else {
-        r[toreg(flag)] = efalse;
+        *flagstore = false;
+        store(r, flag, flagstore);
         vector_foreach (legs, i){
             apply((execf) i, h, p, op, r);
             apply((execf) i, h, p, op_flush, r);
-            if (r[toreg(flag)] == etrue) {
+            if (*flagstore) {
                 stop_perf(p, pp);
                 return;
             }
@@ -293,12 +190,16 @@ static execf build_choose(block bk, node n)
                 register_perf(bk->ev, n),
                 resolve_cfg(bk, n, 0),
                 v,
-                table_find(n->arguments, sym(pass)));
+                table_find(n->arguments, sym(pass)),
+                allocate(bk->h, sizeof(boolean)));
 }
 
 
-static CONTINUATION_4_4(do_not, perf, execf, execf, value, heap, perf, operator, value *);
-static void do_not(perf p, execf next, execf leg, value flag, heap h, perf pp, operator op, value *r)
+static CONTINUATION_5_4(do_not,
+                        perf, execf, execf, value, boolean *,
+                        heap, perf, operator, value *);
+static void do_not(perf p, execf next, execf leg, value flag, boolean *flagstore,
+                   heap h, perf pp, operator op, value *r)
 {
     start_perf(p, op);
     // should also flush down the leg
@@ -307,11 +208,12 @@ static void do_not(perf p, execf next, execf leg, value flag, heap h, perf pp, o
         stop_perf(p, pp);
         return;
     }
-    store(r, flag, efalse);
+    *flagstore = false;
+    store(r, flag, flagstore);
 
     apply(leg, h, p, op, r);
 
-    if (lookup(r, flag) == efalse)
+    if (!*flagstore)
         apply(next, h, p, op, r);
     stop_perf(p, pp);
 }
@@ -324,7 +226,8 @@ static execf build_not(block bk, node n)
                 register_perf(bk->ev, n),
                 resolve_cfg(bk, n, 0),
                 resolve_cfg(bk, n, 1),
-                table_find(n->arguments, sym(pass)));
+                table_find(n->arguments, sym(pass)),
+                allocate(bk->h, sizeof(boolean)));
 }
 
 
@@ -440,6 +343,52 @@ static execf build_time(block bk, node n, execf *arms)
                 t);
 }
 
+static CONTINUATION_6_4(do_random,
+                        block, perf, execf, value, value, timer,
+                        heap, perf, operator, value *);
+static void do_random(block bk, perf p, execf n, value dest, value seed, timer t, heap h, perf pp, operator op, value *r)
+{
+    start_perf(p, op);
+    if (op == op_close) {
+        remove_timer(t);
+    }
+
+    if (op == op_insert) {
+        // This is all very scientific.
+        u64 ub = value_as_key(lookup(r, seed));
+        u32 tb = (u64)bk->ev->t & 0x200000; // The 21 bottom tick bits are pretty random
+
+        // Fold the tick bits down into a u8
+        u8 ts = (tb >> 7 ^ tb) >> 7 ^ tb;
+
+        // Fold the user seed bits down into a u8
+        u8 us = (((((((((ub >> 7 ^ ub) >> 7 ^ ub) >> 7 ^ ub) >> 7 ^ ub) >> 7 ^ ub) >> 7 ^ ub) >> 7 ^ ub) >> 7 ^ ub) >> 7 ^ ub);
+
+        // We fold down to 7 bits to gain some semblance of actual entropy. This means the RNG only has 128 outputs for now.
+        u8 true_seed = us ^ ts;
+
+        // No actual rng for now.
+        store(r, dest, box_float((double)true_seed/128.0));
+    }
+    apply(n, h, p, op, r);
+    stop_perf(p, pp);
+}
+
+static execf build_random(block bk, node n)
+{
+    value dest = table_find(n->arguments, sym(return));
+    value seed = table_find(n->arguments, sym(a));
+    ticks interval = milliseconds(1000 / 60);
+    timer t = register_periodic_timer(interval, 0);
+    return cont(bk->h,
+                do_random,
+                bk,
+                register_perf(bk->ev, n),
+                resolve_cfg(bk, n, 0),
+                dest,
+                seed,
+                t);
+}
 
 static CONTINUATION_3_4(do_fork, perf, int, execf *, heap, perf, operator, value *) ;
 static void do_fork(perf p, int legs, execf *b, heap h, perf pp, operator op, value *r)
@@ -491,7 +440,7 @@ static void do_regfile(execf n, perf p, int size, heap h, perf pp, operator op, 
     start_perf(p, op);
     value *r;
     if (op == op_insert) {
-        r = allocate(h, size * sizeof(value));
+
         // xxx - shouldn't be necessary
         memset(r, 0, size * sizeof(value));
     }
@@ -524,16 +473,15 @@ table builders_table()
         table_set(builders, intern_cstring("trace"), build_trace);
         table_set(builders, intern_cstring("sub"), build_sub);
         table_set(builders, intern_cstring("subtail"), build_sub_tail);
-        table_set(builders, intern_cstring("subagg"), build_subagg);
 
         table_set(builders, intern_cstring("terminal"), build_terminal);
         table_set(builders, intern_cstring("choose"), build_choose);
         table_set(builders, intern_cstring("choosetail"), build_choose_tail);
         table_set(builders, intern_cstring("move"), build_move);
-        table_set(builders, intern_cstring("regfile"), build_regfile);
         table_set(builders, intern_cstring("not"), build_not);
         table_set(builders, intern_cstring("time"), build_time);
         table_set(builders, intern_cstring("merge"), build_merge);
+        table_set(builders, intern_cstring("random"), build_random);
 
         register_exec_expression(builders);
         register_string_builders(builders);
@@ -564,12 +512,11 @@ block build(evaluation ev, compiled c)
     heap h = allocate_rolling(pages, sstring("build"));
     block bk = allocate(h, sizeof(struct block));
     bk->ev = ev;
+    bk->regs = c->regs;
     bk->h = h;
     bk->name = c->name;
     // this is only used during building
     bk->nmap = allocate_table(bk->h, key_from_pointer, compare_pointer);
-
-    bk->finish = allocate_vector(bk->h, 10);
     force_node(bk, c->head);
     bk->head = *(execf *)table_find(bk->nmap, c->head);
     return bk;

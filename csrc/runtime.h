@@ -7,7 +7,6 @@ typedef void *value;
 
 typedef enum {
     op_insert = 1,
-    op_remove,
     op_flush,
     op_close
 } operator;
@@ -58,7 +57,7 @@ string bag_dump(heap h, bag b);
 
 void print_value(buffer, value);
 
-typedef closure(listener, value, value, value, multiplicity);
+typedef closure(listener, value, value, value, multiplicity, uuid);
 typedef closure(scan, int, listener, value, value, value);
 
 typedef struct node *node;
@@ -84,12 +83,13 @@ typedef closure(block_completion, boolean);
 typedef struct compiled {
     string name;
     node head;
+    int regs;
 } *compiled;
 
 struct block {
     heap h;
+    int regs;
     string name;
-    vector finish;
     execf head;
     evaluation ev;
     table nmap;
@@ -103,9 +103,9 @@ static inline void start_perf(perf p, operator op)
         p->count++;
     }
     if (op == op_flush) p->trig = 1;
-        
+
     p->start = rdtsc();
-        
+
 }
 
 static inline void stop_perf(perf p, perf pp)
@@ -123,26 +123,26 @@ struct evaluation  {
     insertron insert;
     table counters;
 
-    // uhh...wow, there are alot of versions
     table block_solution;
-    table f_solution;
-    table next_f_solution;
+    table solution;
+    table last_f_solution;
     table t_solution;
-    table next_t_solution;
-    table ev_solution;
 
     table persisted;
     table scopes;
     vector blocks;
+    vector event_blocks;
     scan reader;
     ticks t;
-    boolean pass, non_empty;
+    boolean non_empty;
     evaluation_result complete;
 
     thunk terminal;
     thunk run;
-    long intermediates;
     ticks cycle_time;
+    table f_bags;
+    int t_delta_count;
+    block bk;
 };
 
 

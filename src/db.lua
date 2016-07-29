@@ -64,9 +64,6 @@ end
 local function schema(args, name, kind)
   local schema = {args = {}, signature = setmetatable({}, Signature), name = name, kind = kind}
   setmetatable(schema, Schema)
-  if args.name then
-    schema.name = args.name
-  end
   local mode = OUT
   for ix, arg in ipairs(args) do
     if arg == OUT or arg == IN or arg == STRONG_IN or arg == FILTER_IN or arg == OPT then
@@ -120,10 +117,13 @@ local expressions = {
   cos = {rename("cos", schemas.unary)},
   tan = {rename("tan", schemas.unary)},
   abs = {rename("abs", schemas.unary)},
+  ceil = {rename("ceil", schemas.unary)},
+  floor = {rename("floor", schemas.unary)},
+  round = {rename("round", schemas.unary)},
   mod = {rename("mod", schemas.binary)},
-
+  range = {rename("range", schemas.binary)},
   toggle = {rename("toggle", schemas.unary)},
-
+  random = {rename("random", schemas.unary)},
   time = {schema({"return", OPT, "frames", "seconds", "minutes", "hours"}, "time")},
 
   -- Aggregates

@@ -85,7 +85,7 @@ static void parse_http_header(header_parser p, buffer b, register_read reg)
             case method:
             case url:
             case version:
-                edb_insert(p->b, p->u, p->headers[p->s], intern_buffer(p->term), 1);
+                edb_insert(p->b, p->u, p->headers[p->s], intern_buffer(p->term), 1, 0);
                 p->s++;
                 break;
             case name:
@@ -94,7 +94,7 @@ static void parse_http_header(header_parser p, buffer b, register_read reg)
                 break;
             case property:
                 p->s = skipo;
-                edb_insert(p->b, p->u, p->name, intern_buffer(p->term), 1);
+                edb_insert(p->b, p->u, p->name, intern_buffer(p->term), 1, 0);
                 break;
             default:
                 p->s++;

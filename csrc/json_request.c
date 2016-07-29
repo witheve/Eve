@@ -24,6 +24,7 @@ typedef struct json_session {
 // we should figure out a way to close over this in some useful way, while
 // allowing updating the program.
 static buffer root_graph;
+static char *exec_path;
 
 extern thunk ignore;
 
@@ -165,14 +166,14 @@ static void send_response(json_session js, table solution, table counters)
     heap p = allocate_rolling(pages, sstring("response delta"));
     table results = create_value_vector_table(p);
 
-    bag_foreach(js->session, e, a, v, c)
+    bag_foreach(js->session, e, a, v, c, _)
         table_set(results, build_vector(p, e, a, v), etrue);
 
     if(solution) {
         bag ev = table_find(solution, js->event_uuid);
         if (ev){
-            bag_foreach(ev, e, a, v, c)
-            table_set(results, build_vector(p, e, a, v), etrue);
+            bag_foreach(ev, e, a, v, c, _)
+                table_set(results, build_vector(p, e, a, v), etrue);
         }
     }
 
@@ -194,14 +195,15 @@ static void send_response(json_session js, table solution, table counters)
 
 void send_parse(json_session js, buffer query)
 {
-    string out = allocate_string(js->h);
+    heap h = allocate_rolling(pages, sstring("parse response"));
+    string out = allocate_string(h);
     interpreter lua = get_lua();
     value json = lua_run_module_func(lua, query, "parser", "parseJSON");
     estring json_estring = json;
     buffer_append(out, json_estring->body, json_estring->length);
     free_lua(lua);
     // send the json message
-    apply(js->write, out, ignore);
+    apply(js->write, out, cont(h, send_destroy, h));
 }
 
 
@@ -245,6 +247,9 @@ void handle_json_query(json_session j, bag in, uuid root, thunk c)
     }
     if (t == sym(parse)) {
         send_parse(j, alloca_wrap_buffer(q->body, q->length));
+    }
+    if (t == sym(save)) {
+        write_file(exec_path, alloca_wrap_buffer(q->body, q->length));
     }
 }
 
@@ -298,8 +303,9 @@ void new_json_session(bag root, boolean tracing,
     inject_event(j->s, aprintf(j->h,"init!\n   maintain\n      [#session-connect]\n"), j->tracing);
 }
 
-void init_json_service(http_server h, bag root, boolean tracing, buffer graph)
+void init_json_service(http_server h, bag root, boolean tracing, buffer graph, char *exec_file_path)
 {
     root_graph = graph;
+    exec_path = exec_file_path;
     http_register_service(h, cont(init, new_json_session, root, tracing), sstring("/ws"));
 }

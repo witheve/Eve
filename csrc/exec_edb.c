@@ -2,16 +2,17 @@
 #include <exec.h>
 
 
-static CONTINUATION_9_4(scan_listener,
+static CONTINUATION_9_5(scan_listener,
                         value,
                         execf, heap, operator, value *, perf,
                         value, value, value,
-                        value, value, value, multiplicity);
+                        value, value, value, multiplicity, uuid);
+
 static void scan_listener(value id, execf n, heap h, operator op, value *r, perf p,
                           value er, value ar, value vr,
-                          value e, value a, value v, multiplicity count)
+                          value e, value a, value v, multiplicity m, uuid bku)
 {
-    if (count > 0) {
+    if (m > 0) {
         store(r, er, e);
         store(r, ar, a);
         store(r, vr, v);
@@ -69,9 +70,7 @@ static void do_insert(block bk, perf p, execf n, int deltam,
     if (op == op_insert) {
         apply(bk->ev->insert, uuid, lookup(r, e), lookup(r, a), lookup(r, v), deltam);
     }
-    if (op == op_remove) {
-        apply(bk->ev->insert, uuid, lookup(r, e), lookup(r, a), lookup(r, v), -deltam);
-    }
+
     apply(n, h, p, op, r);
     stop_perf(p, pp);
 }
@@ -101,14 +100,21 @@ static execf build_remove(block bk, node n)
                 table_find(n->arguments, sym(v)));
 }
 
-static CONTINUATION_4_4(each_set_remove, block, value, value, uuid, value, value, value, multiplicity);
-static void each_set_remove(block bk, uuid u, value e, value a, value etrash, value atrash, value v, multiplicity m)
+
+static CONTINUATION_6_5(each_set_remove,
+                        block, uuid, value, value, value, boolean,
+                        value, value, value, multiplicity, uuid);
+static void each_set_remove(block bk, uuid u, value e, value a, value newv, boolean remove_existing,
+                            value etrash, value atrash, value v, multiplicity m, uuid bku)
 {
     if (m > 0) {
-        apply(bk->ev->insert, u, e, a, v, -1);
+        if (!value_equals(newv, v) || remove_existing) {
+            apply(bk->ev->insert, u, e, a, v, -1);
+        }
     }
 }
 
+// kill me, i dont exist
 static CONTINUATION_7_4(do_set, block, perf, execf, value, value, value, value, heap, perf, operator, value *) ;
 static void do_set(block bk, perf p, execf n, value u, value e, value a, value v,
                    heap h, perf pp, operator op, value *r)
@@ -117,8 +123,19 @@ static void do_set(block bk, perf p, execf n, value u, value e, value a, value v
     u = lookup(r, u);
     value ev = lookup(r, e);
     value av=  lookup(r, a);
-    apply(bk->ev->reader, s_EAv, cont(h, each_set_remove, bk, u, ev, av), ev, av, 0);
-    apply(bk->ev->insert, u, ev, av, lookup(r, v), 1);
+    value vv=  lookup(r, v);
+    boolean remove_existing = false;
+
+    // xxx - we really shouldn't bother adding and removing existing, but meh
+    if (table_find(bk->ev->persisted, u))
+        remove_existing = true;
+        
+    apply(bk->ev->reader, s_EAv,
+          cont(h, each_set_remove, bk, u, ev, av, vv, remove_existing),
+          ev, av, 0);
+
+    apply(bk->ev->insert, u, ev, av, vv, 1);
+
     apply(n, h, p, op, r);
     stop_perf(p, pp);
 }
