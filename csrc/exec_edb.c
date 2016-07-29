@@ -102,15 +102,13 @@ static execf build_remove(block bk, node n)
 
 
 static CONTINUATION_6_5(each_set_remove,
-                        block, uuid, value, value, value, boolean *,
+                        block, uuid, value, value, value, boolean,
                         value, value, value, multiplicity, uuid);
-static void each_set_remove(block bk, uuid u, value e, value a, value newv, boolean *existing,
+static void each_set_remove(block bk, uuid u, value e, value a, value newv, boolean remove_existing,
                             value etrash, value atrash, value v, multiplicity m, uuid bku)
 {
-     if (m > 0) {
-        if (value_equals(newv, v)) {
-            *existing = true;
-        } else {
+    if (m > 0) {
+        if (!value_equals(newv, v) || remove_existing) {
             apply(bk->ev->insert, u, e, a, v, -1);
         }
     }
@@ -126,10 +124,14 @@ static void do_set(block bk, perf p, execf n, value u, value e, value a, value v
     value ev = lookup(r, e);
     value av=  lookup(r, a);
     value vv=  lookup(r, v);
+    boolean remove_existing = false;
 
-    boolean existing = false;
+    // xxx - we really shouldn't bother adding and removing existing, but meh
+    if (table_find(bk->ev->persisted, u))
+        remove_existing = true;
+        
     apply(bk->ev->reader, s_EAv,
-          cont(h, each_set_remove, bk, u, ev, av, vv, &existing),
+          cont(h, each_set_remove, bk, u, ev, av, vv, remove_existing),
           ev, av, 0);
 
     apply(bk->ev->insert, u, ev, av, vv, 1);

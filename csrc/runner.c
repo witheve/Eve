@@ -49,9 +49,6 @@ static void insert_f(evaluation ev, uuid u, value e, value a, value v, multiplic
 {
     bag b;
 
-    if (a == sym(acceleration))
-        prf("insert %v %v %v %v %v %d\n", bagname(ev, u), ev->bk->name, e, a, v, m);
-
     if (!ev->block_solution)
         ev->block_solution = create_value_table(ev->working);
 
@@ -71,6 +68,7 @@ static CONTINUATION_2_5(shadow_f_by_p_and_t, evaluation, listener, value, value,
 static void shadow_f_by_p_and_t(evaluation ev, listener result, value e, value a, value v, multiplicity m, uuid bku)
 {
     int total = 0;
+
     if (m > 0) {
         bag b;
         multibag_foreach(ev->t_solution, u, b) {
@@ -105,11 +103,13 @@ static void shadow_p_by_t_and_f(evaluation ev, listener result,
                                 value e, value a, value v, multiplicity m, uuid bku)
 {
     int total = 0;
+
     if (m > 0) {
         bag b;
         multibag_foreach(ev->t_solution, u, b) {
             total += count_of(b, e, a, v);
         }
+        
         if (total >= 0) {
             total = 0;
             table_foreach(ev->f_bags, u, _) {
@@ -256,13 +256,13 @@ static void fixedpoint(evaluation ev)
     boolean changed_persistent = false;
     multibag_foreach(ev->t_solution, u, b) {
         bag bd;
-        // xx - these should be all persisted at this point
         if ((bd = table_find(ev->persisted, u))) {
             bag_foreach((bag)b, e, a, v, m, bku) {
+                //                prf("persist from (delta p) %v %v %v %d\n", e, a, v, m);
                 changed_persistent = true;
                 edb_insert(bd, e, a, v, m, bku);
             }
-        }
+        } else prf("wtf!\n");
     }
 
     if (changed_persistent) {

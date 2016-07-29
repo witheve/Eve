@@ -219,6 +219,7 @@ void edb_insert(bag b, value e, value a, value v, multiplicity m, uuid bku)
         b->count++;
     } else {
         final->m += m;
+        
         if (!final->m){
             table_set(al, v, 0);
             table al = level_fetch(b->h, b->ave, a);
