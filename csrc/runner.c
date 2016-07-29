@@ -32,6 +32,12 @@ static boolean compare_sets(table set, table retain, table destroy)
         if (!s != !d) return false;
         if (s) {
             if (edb_size(d) != edb_size(s)){
+              /* prf("Mismatched sizes, outtie!\n"); */
+              /*   bag_foreach(s, e, a, v, c, _) { */
+              /*       if (count_of(d, e, a, v) != c) { */
+              /*         prf("EAV, %v %v %v %d --> %d\n", e, a, v, c, count_of(d, e, a, v)); */
+              /*       } */
+              /*   } */
                 return false;
             }
             bag_foreach(s, e, a, v, c, _) {
@@ -48,7 +54,6 @@ static CONTINUATION_1_5(insert_f, evaluation, uuid, value, value, value, multipl
 static void insert_f(evaluation ev, uuid u, value e, value a, value v, multiplicity m)
 {
     bag b;
-
     if (!ev->block_solution)
         ev->block_solution = create_value_table(ev->working);
 
@@ -105,7 +110,7 @@ static void shadow_p_by_t_and_f(evaluation ev, listener result,
         multibag_foreach(ev->t_solution, u, b) {
             total += count_of(b, e, a, v);
         }
-        
+
         if (total >= 0) {
             total = 0;
             table_foreach(ev->f_bags, u, _) {
@@ -154,12 +159,12 @@ static boolean merge_solution_into_t(evaluation ev, uuid u, bag s)
 {
     static int runcount = 0;
     runcount++;
-    boolean result = false;
     bag bd;
+    boolean result = false;
 
     if (!ev->t_solution) 
         ev->t_solution = create_value_table(ev->working);
-
+    
     if (!(bd = table_find(ev->t_solution, u))) {
         table_set(ev->t_solution, u, s);
         return true;
@@ -261,7 +266,7 @@ static void fixedpoint(evaluation ev)
                 changed_persistent = true;
                 edb_insert(bd, e, a, v, m, bku);
             }
-        } else prf("wtf!\n");
+        }
     }
 
     if (changed_persistent) {
