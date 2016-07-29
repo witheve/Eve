@@ -32,6 +32,12 @@ static boolean compare_sets(table set, table retain, table destroy)
         if (!s != !d) return false;
         if (s) {
             if (edb_size(d) != edb_size(s)){
+              /* prf("Mismatched sizes, outtie!\n"); */
+              /*   bag_foreach(s, e, a, v, c, _) { */
+              /*       if (count_of(d, e, a, v) != c) { */
+              /*         prf("EAV, %v %v %v %d --> %d\n", e, a, v, c, count_of(d, e, a, v)); */
+              /*       } */
+              /*   } */
                 return false;
             }
             bag_foreach(s, e, a, v, c, _) {
@@ -48,7 +54,6 @@ static CONTINUATION_1_5(insert_f, evaluation, uuid, value, value, value, multipl
 static void insert_f(evaluation ev, uuid u, value e, value a, value v, multiplicity m)
 {
     bag b;
-
     if (!ev->block_solution)
         ev->block_solution = create_value_table(ev->working);
 
@@ -109,7 +114,7 @@ static void shadow_p_by_t_and_f(evaluation ev, listener result,
         multibag_foreach(ev->t_solution, u, b) {
             total += count_of(b, e, a, v);
         }
-        
+
         if (total >= 0) {
             total = 0;
             table_foreach(ev->f_bags, u, _) {
@@ -154,11 +159,10 @@ static void evaluation_complete(evaluation s)
 }
 
 
-static boolean merge_multibag_set(evaluation ev, table *d, uuid u, bag s)
+static void merge_multibag_set(evaluation ev, table *d, uuid u, bag s)
 {
     static int runcount = 0;
     runcount++;
-    boolean result = false;
     bag bd;
     if (!*d) {
         *d = create_value_table(ev->working);
@@ -166,7 +170,6 @@ static boolean merge_multibag_set(evaluation ev, table *d, uuid u, bag s)
 
     if (!(bd = table_find(*d, u))) {
         table_set(*d, u, s);
-        result = true;
     } else {
         bag_foreach(s, e, a, v, count, bk) {
             int old_count = count_of(bd, e, a, v);
@@ -178,7 +181,6 @@ static boolean merge_multibag_set(evaluation ev, table *d, uuid u, bag s)
             }
         }
     }
-    return result;
 }
 
 static void merge_multibag_bag(evaluation ev, table *d, uuid u, bag s)
