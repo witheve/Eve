@@ -1,4 +1,5 @@
 add some people to the organization
+  [#session-connect]
   freeze
     karen = [#employee @karen]
     jill = [#employee @jill boss: karen]
@@ -18,3 +19,7 @@ figure out org chart depth
   maintain
     employee.level := level + 1
 
+show all the people and their level
+  [#employee name level]
+  maintain
+    [#div text: "{{name}} - {{level}}" sort: level]

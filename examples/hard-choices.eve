@@ -2,10 +2,10 @@ Add some favorite shows, locations, and hobbies for @me and #tv-nerds
   [#session-connect]
   freeze
     me = [@me favorite-show:"rick-and-morty" hobby:"competitive delousing"]
-    [#tv-nerd favorite-show:"golden girls" location:"party" conversing-with:me]
-    [#tv-nerd favorite-show:"rick-and-morty" location:"party" conversing-with:me]
-    [#tv-nerd favorite-show:"a-team" hobby:"competitive delousing" location:"party" conversing-with:me]
-    [#tv-nerd]
+    [#tv-nerd @ed favorite-show:"golden girls" location:"party" conversing-with:me]
+    [#tv-nerd @jane favorite-show:"rick-and-morty" location:"party" conversing-with:me]
+    [#tv-nerd @tim favorite-show:"a-team" hobby:"competitive delousing" location:"party" conversing-with:me]
+    [#tv-nerd @don]
 
 choose test
   me = [@me]
@@ -14,6 +14,6 @@ choose test
   (about, quality) =
     if me.favorite-show = show then (show, "high")
     else if me.hobby = person.hobby then (hobby, "ok")
-    else ("weather", "shitty")
+    else ("weather", "crappy")
   maintain
-    [#conversation between: me, between: person, about, quality]
+    [#div text: "conversation between me and {{person.name}}, about {{about}}, with quality {{quality}}"]
