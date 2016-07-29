@@ -23,7 +23,7 @@ Draw the main menu
 Keep score
   world = [@world distance]
   maintain
-    world.score := distance - mod(distance, 1) // subtract the decimal remainder from the distance
+    world.score := floor(distance)
 
 Draw the game over final score
   [@world screen: "game over" score best]
@@ -44,7 +44,7 @@ Start the game
   player = [#player]
   freeze
     world := [screen: "game" distance: 0 best: neue]
-    player := [x: 25 y: 50 velocity: 0.003 acceleration: -0.029]
+    player := [x: 25 y: 50 velocity: 0]
 
 
 ## Run the actual game
@@ -71,7 +71,7 @@ Flap the player
   [@world screen: "game"]
   player = [#player #self]
   maintain
-    player.acceleration += 2.1
+    player.acceleration += 2
 
 As time moves gently forward, winter turns to spring
   [#time frames]
@@ -81,8 +81,7 @@ As time moves gently forward, winter turns to spring
   freeze
     world.frame := frames
     world.distance := world.distance + 1 / 60
-    player := [y: y - velocity - ∂v, velocity: velocity + ∂v]
-
+    player := [y: y - velocity, velocity: velocity + ∂v]
 
 Lose the game if the player hits the ground
   world = [@world screen: "game"]
