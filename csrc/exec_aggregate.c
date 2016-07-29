@@ -112,7 +112,7 @@ static execf build_sum(block bk, node n, execf *arms)
 typedef struct subagg {
     heap phase;
     vector projection;
-    vector grouping;
+    vector groupings;
     table proj;
     table group;
     vector key;
@@ -132,7 +132,7 @@ static void do_subagg_tail(perf p, execf next, value pass,
     
     if (op == op_insert) {
         subagg sag =  lookup(r, pass);
-        extract(sag->key, sag->grouping, r);
+        extract(sag->key, sag->groupings, r);
         vector cross = table_find(sag->group, sag->key);
         // cannot be empty
         vector_foreach(cross, i) {
@@ -196,11 +196,11 @@ static void do_subagg(perf p, execf next, subagg sag,
     }
 
     vector cross;
-    extract(sag->key, sag->grouping, r);
+    extract(sag->key, sag->groupings, r);
     if (!(cross = table_find(sag->group, sag->key))) {
         cross = allocate_vector(sag->phase, 5);
-        vector key = allocate_vector(sag->phase, vector_length(sag->grouping));
-        extract(key, sag->grouping, r);
+        vector key = allocate_vector(sag->phase, vector_length(sag->groupings));
+        extract(key, sag->groupings, r);
         table_set(sag->group, key, cross);
     }
 
@@ -221,7 +221,7 @@ static execf build_subagg(block bk, node n)
     sag->proj = 0;
     sag->group = 0;
     sag->projection = table_find(n->arguments, sym(projection));
-    sag->grouping = table_find(n->arguments, sym(grouping));
+    sag->groupings = table_find(n->arguments, sym(groupings));
     sag->key = allocate_vector(bk->h, vector_length(sag->projection));
     sag->pass = table_find(n->arguments, sym(pass));
     sag->regs = bk->regs;
