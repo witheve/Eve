@@ -62,15 +62,14 @@ Draw the board
           [#div class: "cell" cell text: contents sort: column style:
             [display: "inline-block" width: "50px" height: "50px" border: "1px solid rgb(47, 47, 49)" color: "black" background: "white" font-size: "2em" line-height: "50px" text-align: "center"]]]]]
 
-
 Draw the current player
   status = [#status board]
   not(board.winner)
   maintain
-    status += [text: "{{board.player}}'s turn!"]
+    status.text += "{{board.player}}'s turn!"
 
 Draw the winner
   status = [#status board]
   winner = board.winner
   maintain
-    status += [text: "Player {{winner}} wins! Click anywhere to restart!"]
+    status.text += "Player {{winner}} wins! Click anywhere to restart!"
