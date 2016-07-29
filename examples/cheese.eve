@@ -1,4 +1,5 @@
 choose
+  [#session-connect]
   freeze
     [#cheese @mimolette]
     [#cheese @morbier]
@@ -8,6 +9,6 @@ choose
 
 zikky
   [#cheese name]
-  color = if length(name) > 6 then "orange" else "black"
+  color = if length(name) > 8 then "orange" else "white"
   maintain
-    [#div #foo ix: name, text: name, style: [color]]
+    [#div text: name, sort: name, style: [color]]

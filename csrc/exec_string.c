@@ -71,14 +71,21 @@ static execf build_split(block bk, node n)
 }
 
 
-static CONTINUATION_4_4(do_length, perf, execf, value,  value, heap, perf, operator, value *);
-static void do_length(perf p, execf n, value dest, value src, heap h, perf pp, operator op, value *r)
+static CONTINUATION_5_4(do_length, block, perf, execf, value,  value, heap, perf, operator, value *);
+static void do_length(block bk, perf p, execf n, value dest, value src, heap h, perf pp, operator op, value *r)
 {
     start_perf(p, op);
     if (op == op_insert) {
-        store(r, dest, lookup(r, src));
+        value str = lookup(r, src);
+        if((type_of(str) == estring_space)) {
+            store(r, dest, box_float(((estring)str)->length));
+            apply(n, h, p, op, r);
+        } else {
+            exec_error(bk->ev, "Attempt to get length of non-string", str);                                           \
+        }
+    } else {
+        apply(n, h, p, op, r);
     }
-    apply(n, h, p, op, r);
     stop_perf(p, pp);
 }
 
@@ -86,10 +93,11 @@ static void do_length(perf p, execf n, value dest, value src, heap h, perf pp, o
 static execf build_length(block bk, node n)
 {
     return cont(bk->h, do_length,
+                bk,
                 register_perf(bk->ev, n),
                 resolve_cfg(bk, n, 0),
-                table_find(n->arguments, sym(destination)),
-                table_find(n->arguments, sym(source)));
+                table_find(n->arguments, sym(return)),
+                table_find(n->arguments, sym(a)));
 }
 
 void register_string_builders(table builders)
