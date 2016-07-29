@@ -172,8 +172,8 @@ static void do_subagg(perf p, execf next, subagg sag,
 {
     start_perf(p, op);
     
-    if (op == op_flush || op == op_close) {
-        store(r, sag->pass, sag);
+    if ((op == op_flush) || (op == op_close)) {
+        if (op == op_flush) store(r, sag->pass, sag);
         apply(next, h, p, op, r);
         if (sag->phase) destroy(sag->phase);
         sag->phase = 0;
