@@ -141,7 +141,6 @@ struct evaluation  {
     thunk run;
     ticks cycle_time;
     table f_bags;
-    int t_delta_count;
     block bk;
 };
 

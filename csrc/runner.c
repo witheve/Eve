@@ -57,10 +57,6 @@ static void insert_f(evaluation ev, uuid u, value e, value a, value v, multiplic
     if (!ev->block_solution)
         ev->block_solution = create_value_table(ev->working);
 
-    if (table_find(ev->persisted, u)) {
-        ev->t_delta_count++;
-    }
-
     if (!(b = table_find(ev->block_solution, u))) {
         table_set(ev->block_solution, u, b = create_bag(ev->working, u));
     }
@@ -159,28 +155,33 @@ static void evaluation_complete(evaluation s)
 }
 
 
-static void merge_multibag_set(evaluation ev, table *d, uuid u, bag s)
+static boolean merge_solution_into_t(evaluation ev, uuid u, bag s)
 {
     static int runcount = 0;
     runcount++;
     bag bd;
-    if (!*d) {
-        *d = create_value_table(ev->working);
-    }
+    boolean result = false;
 
-    if (!(bd = table_find(*d, u))) {
-        table_set(*d, u, s);
+    if (!ev->t_solution) 
+        ev->t_solution = create_value_table(ev->working);
+    
+    if (!(bd = table_find(ev->t_solution, u))) {
+        table_set(ev->t_solution, u, s);
+        return true;
     } else {
         bag_foreach(s, e, a, v, count, bk) {
             int old_count = count_of(bd, e, a, v);
             if ((count > 0) && (old_count == 0)) {
+                result = true;
                 edb_insert(bd, e, a, v, 1, bk);
             }
             if (count < 0) {
+                result = true;
                 edb_insert(bd, e, a, v, -1, bk);
             }
         }
     }
+    return result;
 }
 
 static void merge_multibag_bag(evaluation ev, table *d, uuid u, bag s)
@@ -225,19 +226,15 @@ static void fixedpoint(evaluation ev)
 {
     long iterations = 0;
     vector counts = allocate_vector(ev->working, 10);
-    boolean was_a_next_t = true;
+    boolean again;
 
     ticks start_time = now();
     ev->t = start_time;
     ev->solution = 0;
 
     do {
-        multibag_foreach(ev->solution, u, b)
-            if (table_find(ev->persisted, u))
-                merge_multibag_set(ev, &ev->t_solution, u, b);
-
+        again = false;
         ev->solution =  0;
-        ev->t_delta_count = 0;
         do {
             iterations++;
             ev->last_f_solution = ev->solution;
@@ -249,10 +246,15 @@ static void fixedpoint(evaluation ev)
             vector_foreach(ev->blocks, b)
                 run_block(ev, b);
         } while(!compare_sets(ev->f_bags, ev->solution, ev->last_f_solution));
+        
+        multibag_foreach(ev->solution, u, b)
+            if (table_find(ev->persisted, u))
+                again |= merge_solution_into_t(ev, u, b);
+        
         vector_insert(counts, box_float((double)iterations));
         iterations = 0;
         ev->event_blocks = 0;
-    } while(ev->t_delta_count);
+    } while(again);
 
 
     boolean changed_persistent = false;
@@ -264,7 +266,7 @@ static void fixedpoint(evaluation ev)
                 changed_persistent = true;
                 edb_insert(bd, e, a, v, m, bku);
             }
-        } else prf("wtf!\n");
+        }
     }
 
     if (changed_persistent) {

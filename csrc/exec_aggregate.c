@@ -109,6 +109,19 @@ static execf build_sum(block bk, node n, execf *arms)
 
 
 
+typedef struct subagg {
+    heap phase;
+    vector projection;
+    vector groupings;
+    table proj;
+    table group;
+    vector key;
+    vector gkey;
+    value pass;
+    int regs;
+} *subagg;
+
+
 static CONTINUATION_4_4(do_subagg_tail,
                         perf, execf, value, vector,
                         heap, perf, operator, value *);
@@ -116,15 +129,14 @@ static void do_subagg_tail(perf p, execf next, value pass,
                            vector produced,
                            heap h, perf pp, operator op, value *r)
 {
-    vector v;
     start_perf(p, op);
     
-    // xxx - unlike the general cross, since we know that the agg will only issue on
-    // the flush, we have the whole set
     if (op == op_insert) {
-        vector crosses = lookup(r, pass);
-                    
-        vector_foreach(crosses, i) {
+        subagg sag =  lookup(r, pass);
+        extract(sag->gkey, sag->groupings, r);
+        vector cross = table_find(sag->group, sag->gkey);
+        // cannot be empty
+        vector_foreach(cross, i) {
             copyto(i, r, produced);
             apply(next, h, p, op, i);
         }
@@ -151,44 +163,52 @@ static execf build_subagg_tail(block bk, node n)
                 table_find(n->arguments, sym(provides)));
 }
 
-
-static CONTINUATION_9_4(do_subagg,
-                        perf, execf, int, heap *, table *, vector *, value, vector, vector,
+static CONTINUATION_3_4(do_subagg,
+                        perf, execf, subagg,
                         heap, perf, operator, value *);
 
-static void do_subagg(perf p, execf next,
-                      int regs, heap *phase, table *proj, vector *cross, value pass, vector v, vector inputs,
+static void do_subagg(perf p, execf next, subagg sag,
                       heap h, perf pp, operator op, value *r)
 {
     start_perf(p, op);
     
-    
-    if (op == op_flush || op == op_close) {
+    if ((op == op_flush) || (op == op_close)) {
+        if (op == op_flush) store(r, sag->pass, sag);
         apply(next, h, p, op, r);
-        if (*phase) destroy(*phase);
-        *phase = 0;
+        if (sag->phase) destroy(sag->phase);
+        sag->phase = 0;
         stop_perf(p, pp);
         return;
     }
     
-    if (!*phase) {
-        *phase = allocate_rolling(pages, sstring("subagg"));
-        *cross =  allocate_vector(*phase, 20);
-        *proj =  create_value_vector_table(*phase);
+    if (!sag->phase) {
+        sag->phase = allocate_rolling(pages, sstring("subagg"));
+        sag->proj =  create_value_vector_table(sag->phase);
+        sag->group =  create_value_vector_table(sag->phase);
     }
 
-    extract(v, inputs, r);
-    value *cr = allocate(*phase, regs * sizeof(value));
-    memcpy(cr, r,  regs * sizeof(value));
-    vector_insert(*cross, cr);
-
-    if (!table_find(*proj, v)){
-        vector key = allocate_vector(*phase, vector_length(inputs));
-        extract(key, inputs, r);
-        table_set(*proj, key, (void*)1);
-        store(r, pass, *cross);
+    extract(sag->key, sag->projection, r);
+    if (!table_find(sag->proj, sag->key)) {
+        vector key = allocate_vector(sag->phase, vector_length(sag->projection));
+        extract(key, sag->projection, r);
+        table_set(sag->proj, key, (void *)1);
+        store(r, sag->pass, sag);
         apply(next, h, p, op, r);
     }
+
+    vector cross;
+    extract(sag->gkey, sag->groupings, r);
+    if (!(cross = table_find(sag->group, sag->key))) {
+        cross = allocate_vector(sag->phase, 5);
+        vector key = allocate_vector(sag->phase, vector_length(sag->groupings));
+        extract(key, sag->groupings, r);
+        table_set(sag->group, key, cross);
+    }
+
+    value *cr = allocate(sag->phase, sag->regs * sizeof(value));
+    memcpy(cr, r,  sag->regs * sizeof(value));
+    vector_insert(cross, cr);
+    
     stop_perf(p, pp);
 }
 
@@ -197,23 +217,22 @@ static void do_subagg(perf p, execf next,
 // model which obviates the need for this
 static execf build_subagg(block bk, node n)
 {
-    heap *phase = allocate(bk->h, sizeof(heap));
-    table *proj = allocate(bk->h, sizeof(table));
-    vector *cross = allocate(bk->h, sizeof(vector));
-    *phase = 0;
-    vector p = table_find(n->arguments, sym(projection));
+    subagg sag = allocate(bk->h, sizeof(struct subagg));
+    sag->phase = 0;
+    sag->proj = 0;
+    sag->group = 0;
+    sag->projection = table_find(n->arguments, sym(projection));
+    sag->groupings = table_find(n->arguments, sym(groupings));
+    sag->key = allocate_vector(bk->h, vector_length(sag->projection));
+    sag->gkey = allocate_vector(bk->h, vector_length(sag->groupings));
+    sag->pass = table_find(n->arguments, sym(pass));
+    sag->regs = bk->regs;
 
     return cont(bk->h,
                 do_subagg,
                 register_perf(bk->ev, n),
                 resolve_cfg(bk, n, 0),
-                bk->regs,
-                phase,
-                proj,
-                cross,
-                table_find(n->arguments, sym(pass)),
-                allocate_vector(bk->h, vector_length(p)),
-                p);
+                sag);
 }
 
 
