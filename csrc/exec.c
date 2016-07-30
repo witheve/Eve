@@ -327,7 +327,7 @@ static execf build_time(block bk, node n, execf *arms)
     value second = table_find(n->arguments, sym(seconds));
     value frame = table_find(n->arguments, sym(frames));
     ticks interval = seconds(60 * 60);
-    if(frame != 0) interval = seconds(1)/30; //milliseconds(1000 / 60);
+    if(frame != 0) interval = milliseconds(1000 / 60);
     else if(second != 0) interval = seconds(1);
     else if(minute != 0) interval = seconds(60);
     timer t = register_periodic_timer(interval, cont(bk->h, time_expire, bk));
@@ -356,19 +356,28 @@ static void do_random(block bk, perf p, execf n, value dest, value seed, timer t
     if (op == op_insert) {
         // This is all very scientific.
         u64 ub = value_as_key(lookup(r, seed));
-        u32 tb = (u64)bk->ev->t & 0x200000; // The 21 bottom tick bits are pretty random
+        u32 tb = (u64)bk->ev->t & (0x200000 - 1); // The 21 bottom tick bits are pretty random
 
         // Fold the tick bits down into a u8
-        u8 ts = (tb >> 7 ^ tb) >> 7 ^ tb;
+        u8 ts = (tb ^ (tb >> 7)
+                    ^ (tb >> 14)) & (0x80 - 1);
 
         // Fold the user seed bits down into a u8
-        u8 us = (((((((((ub >> 7 ^ ub) >> 7 ^ ub) >> 7 ^ ub) >> 7 ^ ub) >> 7 ^ ub) >> 7 ^ ub) >> 7 ^ ub) >> 7 ^ ub) >> 7 ^ ub);
+        u8 us = (ub ^ (ub >> 7)
+                    ^ (ub >> 14)
+                    ^ (ub >> 21)
+                    ^ (ub >> 28)
+                    ^ (ub >> 35)
+                    ^ (ub >> 42)
+                    ^ (ub >> 49)
+                    ^ (ub >> 56)
+                    ^ (ub >> 63)) & (0x80 - 1);
 
         // We fold down to 7 bits to gain some semblance of actual entropy. This means the RNG only has 128 outputs for now.
         u8 true_seed = us ^ ts;
 
         // No actual rng for now.
-        store(r, dest, box_float((double)true_seed/128.0));
+        store(r, dest, box_float(((double)true_seed)/128.0));
     }
     apply(n, h, p, op, r);
     stop_perf(p, pp);

@@ -263,7 +263,6 @@ function translate_subagg(n, bound, down, context, tracing)
 end
 
 function translate_subproject(n, bound, down, context, tracing)
-   local p = n.projection
    local t = n.nodes
    local env, rest, fill, c
    local pass = allocate_temp(context, n)
@@ -271,10 +270,10 @@ function translate_subproject(n, bound, down, context, tracing)
    bound[pass] = true
 
    local provides = Set:new()
-   for k, _ in pairs(n.provides) do
-     if not k.cardinal then
-       provides:add(k)
-       db[k] = true
+   for term, _ in pairs(n.provides) do
+     if not term.cardinal and not bound[term] then
+       provides:add(term)
+       db[term] = true
      end
    end
 
@@ -292,8 +291,21 @@ function translate_subproject(n, bound, down, context, tracing)
 
    env, fill = walk(n.nodes, nil, bound, tail, context, tracing)
    if #n.nodes == 0 then
-     env.ids = provides
+     -- with no nodes in the subproject and no ids in need of generation, we just omit it entirely.
+     -- When the compiler is more intelligent and its second pass is less hacked together, we can move this there.
+     if provides:length() == 0 then
+       env.ids = saveids
+       return env, rest
+     end
+
+     for term in pairs(provides) do
+       if not bound[term] then
+         env.ids[term] = true
+       end
+     end
    end
+
+
 
    c = cnode(n, "sub", {rest, fill},
               {projection = set_to_read_array(n, env, n.projection),

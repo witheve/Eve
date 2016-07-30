@@ -55,6 +55,9 @@ local function prepareQueryGraph(_, node)
     end
     if node.groupings then
       node.groupings = flattenProjection(node.groupings)
+      if node.projection then
+        node.projection:union(node.groupings, true)
+      end
     end
     node._sanitized = true
   end
@@ -321,6 +324,7 @@ function DependencyGraph:new(obj)
   obj.unsorted = obj.unsorted or Set:new() -- set of nodes that need to be ordered
   obj.sorted = obj.sorted or {} -- append-only set of ordered nodes
 
+  obj.providers = obj.providers or {} -- Set of nodes capable of providing a term
   obj.dependents = obj.dependents or {} -- Sets of nodes depending on a term
   obj.bound = obj.bound or Set:new() -- Set of terms bound by the currently ordered set of nodes
   obj.terms = obj.terms or Set:new() -- Set of all terms provided by any node in the graph
@@ -336,13 +340,10 @@ end
 
 -- Get the variables this dgraph depends on for reification
 function DependencyGraph:depends()
-  self:order(true)
+  self:prepare()
   local depends = Set:new()
-  for node in pairs(self.unprepared + self.unsorted) do
-    depends:union(node.deps.depends + node.deps.anyDepends + node.deps.maybeDepends, true)
-  end
-  for _, node in ipairs(self.sorted) do
-    depends:union(node.deps.depends, true)
+  for term in pairs(self.dependents) do
+    depends:add(term)
   end
   return depends
 end
@@ -445,9 +446,9 @@ function DependencyGraph:addExpressionNode(node)
     elseif args.b.type == "constant" then
       deps.provides:add(args.a)
     else
-      deps.provides:add(args.a)
+      deps.contributes:add(self:cardinal(args.a))
       deps.anyDepends:add(args.a)
-      deps.provides:add(args.b)
+      deps.contributes:add(self:cardinal(args.b))
       deps.anyDepends:add(args.b)
     end
   else
@@ -528,8 +529,10 @@ function DependencyGraph:addSubqueryNode(node, context)
 
   for _, body in ipairs(node.queries) do
     local subgraph = DependencyGraph:fromQueryGraph(body, context, true)
-    deps.maybeDepends:union(subgraph:depends() + subgraph:provides(), true)
+    subgraph:prepare()
+    deps.maybeDepends:union(subgraph:depends() + subgraph.terms, true)
   end
+
   return self:add(node)
 end
 
@@ -614,11 +617,15 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
     return
   end
   local presorted = presort(self.unprepared, {mutate = 500, expression = 400, ["not"] = 300, choose = 200, union = 100, object = 0})
-
   -- Ensure that all nodes which provide a term contribute to that terms cardinality
   for _, node in ipairs(presorted) do
     for term in pairs(node.deps.provides) do
       node.deps.contributes:add(self:cardinal(term))
+      if not self.providers[term] then
+        self.providers[term] = Set:new{node}
+      else
+        self.providers[term]:add(node)
+      end
     end
   end
 
@@ -634,6 +641,7 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
     for term in pairs(node.deps.maybeProvides) do
       if not self.terms[term] then
         node.deps.provides:add(term)
+        node.deps.maybeDepends:remove(term)
         node.deps.contributes:add(self:cardinal(term))
         neueTerms:add(term)
         neueTerms:add(self:cardinal(term))
@@ -643,11 +651,20 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
     end
   end
 
-  -- Link new maybe dependencies to existing terms
+  -- Recursively prepare any child graphs
   for _, node in ipairs(presorted) do
-    for term in pairs(node.deps.maybeDepends) do
-      if self.terms[term] and not (node.deps.provides[term] or node.deps.contributes[term]) then
-        node.deps.depends:add(term)
+    local deps = node.deps
+    if node.queries then
+      for _, query in ipairs(node.queries) do
+        query.deps.graph:prepare()
+        --print("PREPARING", query.name or query)
+        local childTerms = query.deps.graph:depends() + query.deps.graph.terms
+        --print("  REQUIRED", required)
+        for term in pairs(childTerms) do
+          if self.terms[term] then
+            node.deps.depends:add(term)
+          end
+        end
       end
     end
   end
@@ -657,10 +674,21 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
     if self.dependents[term] == nil then
       self.dependents[term] = Set:new()
       for node in pairs(self.unsorted) do
-        if node.deps.maybeDepends[term] then
-          self.dependents[term]:add(node)
+        if node.deps.maybeDepends[term] and not (node.deps.provides[term] or node.deps.contributes[term]) then
+          if self.providers[term]:length() > 1 or not self.providers[term][node] then
+            node.deps.depends:add(term)
+          end
+        end
+      end
+    end
+  end
+
+  -- Link new maybe dependencies to existing terms
+  for _, node in ipairs(presorted) do
+    for term in pairs(node.deps.maybeDepends) do
+      if self.terms[term] and not (node.deps.provides[term] or node.deps.contributes[term]) then
+        if self.providers[term] and (self.providers[term]:length() > 1 or not self.providers[term][node]) then
           node.deps.depends:add(term)
-          node.deps.unsatisfied = node.deps.unsatisfied + 1
         end
       end
     end
@@ -672,28 +700,6 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
     deps.depends:difference(deps.provides, true)
     deps.maybeDepends = Set:new()
     deps.maybeProvides = Set:new()
-  end
-
-  -- Recursively prepare any child graphs
-  for _, node in ipairs(presorted) do
-    local deps = node.deps
-    if node.deps.graph then
-      node.deps.graph:prepare()
-      local required = node.deps.graph:requires()
-      for term in pairs(required) do
-        node.deps.graph:satisfy(term)
-        node.deps.depends:add(term)
-      end
-    elseif node.queries then
-      for _, query in ipairs(node.queries) do
-        query.deps.graph:prepare()
-        local required = query.deps.graph:requires()
-        for term in pairs(required) do
-          query.deps.graph:satisfy(term)
-          node.deps.depends:add(term)
-        end
-      end
-    end
   end
 
   -- Group contributed terms and consolidate with existing term groups
@@ -783,7 +789,6 @@ end
 function DependencyGraph:satisfy(term)
   -- Decrement the unsatisfied term count for nodes depending on this term if it hasn't been provided already
   if self.dependents[term] and not self.bound[term] then
-    self.bound:add(term)
     for dependent in pairs(self.dependents[term]) do
       local deps = dependent.deps
       if deps.unsatisfied > 0 then
@@ -799,6 +804,10 @@ function DependencyGraph:satisfy(term)
         dependent.deps.anyDepends:intersection(nothing, {})
       end
     end
+  end
+
+  if not self.bound[term] and self.dependents[term] or self.providers[term] then
+    self.bound:add(term)
   end
 end
 
@@ -830,15 +839,6 @@ function DependencyGraph:order(allowPartial)
         self.unsorted:remove(node)
         table.remove(presorted, ix)
 
-        -- order child graphs, if any
-        if node.queries then
-          for _, body in ipairs(node.queries) do
-            body.deps.graph:order()
-          end
-        elseif deps.graph then
-          deps.graph:order()
-        end
-
         -- Strip terms that have already been provided
         for term in pairs(deps.provides) do
           if self.bound[term] then
@@ -848,7 +848,28 @@ function DependencyGraph:order(allowPartial)
 
         -- clean dependency hooks
         for term in pairs(deps.depends + deps.anyDepends) do
-          self.dependents[term]:remove(node)
+          if self.dependents[term] then
+            self.dependents[term]:remove(node)
+          end
+        end
+
+        -- provide unbound terms of anyDepends, depend on bound term(s)
+        for term in pairs(deps.anyDepends) do
+          if self.bound[term] then
+            deps.depends:add(term)
+          else
+            deps.provides:add(term)
+          end
+        end
+
+        -- order child graphs, if any
+        if node.queries then
+          for _, body in ipairs(node.queries) do
+            for term in pairs(self.bound) do
+              body.deps.graph:satisfy(term)
+            end
+            body.deps.graph:order()
+          end
         end
 
         -- Decrement the unsatisfied term count for nodes depending on terms this node provides that haven't been provided
@@ -1101,14 +1122,44 @@ function unpackObjects(dg, context)
           end
         end
       end
-    elseif node.type == "expression" and node.projection then
-      local subproject = SubprojectNode:new({query = dg.query, kind = "aggregate", projection = node.projection, groupings = node.groupings, provides = node.deps.provides, nodes = {node}}, node, context)
-      if node.operator == "count" then
-        local constant = makeNode(context, "constant", node, {generated = true, constant = 1, constantType = "number"})
-        node.bindings[#node.bindings + 1] = makeNode(context, "binding", node, {generated = true, field = "a", constant = constant})
-        node.operator = "sum"
+    elseif node.type == "expression"  then
+      local generatedNodes = {}
+      local args = {}
+      local bindings = {}
+      for _, binding in ipairs(node.bindings) do
+        args[binding.field] = binding.variable or binding.constant
+        bindings[binding.field] = binding
       end
-      unpacked[#unpacked + 1] = subproject
+
+      -- Executor nodes don't understand the concept of filtering, so if their return value is bound we need to mediate that through a generated equality filter
+      if args["return"] and not node.deps.provides[args["return"]] then
+        local outVar = args["return"]
+        local tmpVar = makeNode(context, "variable", node, {generated = true, name = "$tmp-filter-" .. tmpCounter, constantType = "number"})
+        tmpCounter = tmpCounter + 1
+        bindingOut = makeNode(context, "binding", node, {generated = true, field = "a", variable = outVar})
+        bindingTmp = makeNode(context, "binding", node, {generated = true, field = "b", variable = tmpVar})
+        filter = makeNode(context, "expression", node, {generated = true, operator = "=", bindings = {bindingOut, bindingTmp}})
+        filter.deps = {depends = Set:new{outVar, tmpVar}, provides = Set:new()} -- @FIXME: This is probably dangerous, we don't reflect its impact on cardinality in ordering?
+        bindings["return"].variable = tmpVar
+        node.deps.provides:remove(outVar)
+        node.deps.provides:add(tmpVar)
+        generatedNodes[#generatedNodes + 1] = filter
+      end
+
+      if node.projection then
+        local subproject = SubprojectNode:new({query = dg.query, kind = "aggregate", projection = node.projection, groupings = node.groupings, provides = node.deps.provides, nodes = {node}}, node, context)
+        if node.operator == "count" then
+          local constant = makeNode(context, "constant", node, {generated = true, constant = 1, constantType = "number"})
+          node.bindings[#node.bindings + 1] = makeNode(context, "binding", node, {generated = true, field = "a", constant = constant})
+          node.operator = "sum"
+        end
+        unpacked[#unpacked + 1] = subproject
+      else
+        unpacked[#unpacked + 1] = node
+      end
+      for _, gen in ipairs(generatedNodes) do
+        unpacked[#unpacked + 1] = gen
+      end
     else
       if node.type == "union" or node.type == "choose" or node.type == "not" then
         for _, query in ipairs(node.queries) do
