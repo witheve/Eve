@@ -708,7 +708,6 @@ function handleEditorParse(parse) {
   let from = {};
   let to = {};
   codeEditor.operation(function() {
-    console.time("highlight");
     for(let line of codeEditor.dirtyLines) {
       // clear all the marks on that line?
       for(let mark of codeEditor.findMarks({line, ch: 0}, {line, ch: 1000000})) {
@@ -735,7 +734,6 @@ function handleEditorParse(parse) {
       }
     }
     codeEditor.dirtyLines = [];
-    console.timeEnd("highlight");
   });
 }
 
@@ -903,10 +901,6 @@ function toggleGraphs() {
 
 function compileAndRun() {
   doSwap(codeEditor);
-}
-
-function compileAndRun() {
-  doSave(codeEditor);
 }
 
 function injectProgram(node, elem) {
