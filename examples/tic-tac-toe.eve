@@ -29,7 +29,7 @@ Click on a cell to make your move
     cell.player := current
 
 Get N in a row to win the game!
-  board = [@board n-in-a-row not(winner)]
+  board = [@board n-in-a-row width height not(winner)]
   winner = if cell = [#cell row player]
               n-in-a-row = count(given cell per row, player) then player
            else if cell = [#cell column player]
@@ -38,6 +38,8 @@ Get N in a row to win the game!
               n-in-a-row = count(given cell per diag-left, player) then player
            else if cell = [#cell diag-right player]
               n-in-a-row = count(given cell per diag-right, player) then player
+           else if cell = [#cell player]
+                   width * height = count(given cell) then "nobody"
   freeze
     board.winner := winner
 
@@ -72,4 +74,4 @@ Draw the winner
   status = [#status board]
   winner = board.winner
   maintain
-    status.text += "Player {{winner}} wins! Click anywhere to restart!"
+    status.text += "{{winner}} wins! Click anywhere to restart!"
