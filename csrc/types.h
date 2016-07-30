@@ -30,9 +30,9 @@ typedef struct values_diff {
   vector remove;
 } *values_diff;
 
-static inline unsigned long type_of (void *x)
+static inline u64 type_of (void *x)
 {
-    return ((unsigned long)x) & region_mask;
+    return ((u64)x) & region_mask;
 }
 
 typedef void *uuid;

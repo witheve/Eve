@@ -9,15 +9,17 @@
 typedef unsigned char u8;
 typedef unsigned short u16;
 typedef unsigned int u32;
-typedef unsigned long u64;
+typedef unsigned long long u64;
 typedef u64 ticks;
 typedef u8 boolean;
 typedef u64 bytes;
 
+typedef unsigned long size_t;
+
 // sad but useful intrinsics tied up with libc
-void *memcpy(void *s1, const void *s2, u64 n);
-int memcmp(const void *s1, const void *s2, u64 n);
-void *memset(void *b, int c, u64 len);
+void *memcpy(void *s1, const void *s2, size_t n);
+int memcmp(const void *s1, const void *s2, size_t n);
+void *memset(void *b, int c, size_t len);
 
 static inline u64 key_from_pointer(void *x) {return((unsigned long) x);}
 // uhh, if the key is u64 then we are prefiltering on this anyways...so...

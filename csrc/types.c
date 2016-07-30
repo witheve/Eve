@@ -37,7 +37,7 @@ void print_value(buffer b, value v)
             break;
         }
 
-        if (((unsigned long)v & ~0xff) == register_base) {
+        if (((u64)v & ~0xff) == register_base) {
             bprintf (b, "r%d", (unsigned long)v - register_base);
             break;
         }
@@ -150,8 +150,8 @@ values_diff diff_value_vector_tables(heap h, table old, table neue) {
 boolean order_values(value a, value b)
 {
     // just use the type ordering to distringuish between types
-    unsigned long ta = type_of(a);
-    unsigned long tb = type_of(b);
+    u64 ta = type_of(a);
+    u64 tb = type_of(b);
 
     if (a !=b) return a<b;
 
