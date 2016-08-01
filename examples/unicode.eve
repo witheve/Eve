@@ -1,11 +1,12 @@
 calculate how many 🍔 we need
-  guest = [#invited name]
-  party = [@"my party"]
-  🍔 = if guest = [@Arthur] then 3
-       else if guest = [#hungry] then 2
-       else if guest = [#vegetarian] then 0
-       else 1
-  total-🍔 = sum(🍔 given 🍔, guest)
-  maintain
+  match
+    guest = [#invited name]
+    party = [@"my party"]
+    🍔 = if guest = [@Arthur] then 3
+        else if guest = [#hungry] then 2
+        else if guest = [#vegetarian] then 0
+        else 1
+    total-🍔 = sum(🍔 given 🍔, guest)
+  bind
     party.🍔 := total-🍔
     guest.🍔 := 🍔

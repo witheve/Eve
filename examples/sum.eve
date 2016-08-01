@@ -1,12 +1,14 @@
 Add some people
-  [#session-connect]
-  freeze
+  match
+    [#session-connect]
+  commit
     [#person @josh age: 22]
     [#person @chris age: 29]
     [#person @justin age: 28]
 
 Sum the ages of people
-  [#person age]
-  total = sum(age given age)
-  maintain
+  match
+    [#person age]
+    total = sum(age given age)
+  bind
     [#div text: total]

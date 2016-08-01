@@ -1,55 +1,62 @@
 receive the webhook from github on a pull request
-  [#webhook-message
-    source: "github.com"
-    number
-    repository: [git_url: github-url]
-    pull_request: [body title additions deletions
-                   state: "open"
-                   head: [ref: branch, sha]]]
-  freeze
+  match
+    [#webhook-message
+      source: "github.com"
+      number
+      repository: [git_url: github-url]
+      pull_request: [body title additions deletions
+                    state: "open"
+                    head: [ref: branch, sha]]]
+  commit
     [#pull-request number, github-url, body, title, additions, deletions, branch, sha]
 
 checkout the git repository
-  [#pull-request github-url, branch, sha]
-  path = "/tmp/{{branch}}/{{sha}}"
-  freeze all
+  match
+    [#pull-request github-url, branch, sha]
+    path = "/tmp/{{branch}}/{{sha}}"
+  commit global
     [#git-repository #eve-repo source: github-url, branch, sha, path]
 
 once checked out build eve
-  [#success of: [#eve-repo path]]
-  freeze all
+  match
+    [#success of: [#eve-repo path]]
+  commit global
     [#process #eve-build shell: "make", cwd: path]
 
 once built, run eve
-  [#success of: [#eve-build path]]
-  [#eve-repo path sha]
-  freeze all
+  match
+    [#success of: [#eve-build path]]
+    [#eve-repo path sha]
+  commit global
     [#process #eve-run shell: "./eve -b {{sha}}", cwd: path, sha]
 
 send facts over to that bag
-  [#eve-repo sha]
-  (entity, attribute, value) =
-    if entity = [#test-inputs]
-       [#eavs entity, attribute, value] then (entity, attribute, value)
-    if entity = [#test-expected]
-       [#eavs entity, attribute, value] then (entity, attribute, value)
-    if entity = [#test-views]
-       [#eavs entity, attribute, value] then (entity, attribute, value)
-  maintain sha
+  match
+    [#eve-repo sha]
+    (entity, attribute, value) =
+      if entity = [#test-inputs]
+        [#eavs entity, attribute, value] then (entity, attribute, value)
+      if entity = [#test-expected]
+        [#eavs entity, attribute, value] then (entity, attribute, value)
+      if entity = [#test-views]
+        [#eavs entity, attribute, value] then (entity, attribute, value)
+  commit sha
     [#eavs entity attribute value]
 
 check that bag for the results
-  [#eve-repo sha]
-  context bag: sha
-    [#test-result test result]
-  end
-  maintain all
+  match
+    [#eve-repo sha]
+    context bag: sha
+      [#test-result test result]
+    end
+  commit global
     [#run sha result:
       [#test-result test result]]
 
 display pull requests
-  [#pull-request number, github-url, body, title, additions, deletions, branch, sha]
-  maintain
+  match
+    [#pull-request number, github-url, body, title, additions, deletions, branch, sha]
+  bind
     [#div children:
       [#header text: "{{number}}: {{title}}"]
       [#div text: "{{branch}} :: + {{additions}} / - {{deletions}}"]
@@ -57,18 +64,20 @@ display pull requests
       [#div #result-display]]
 
 display pending execution
-  [#pull-request number, github-url, body, title, additions, deletions, branch, sha]
-  not([#run sha])
-  parent = [#result-display]
-  maintain
+  match
+    [#pull-request number, github-url, body, title, additions, deletions, branch, sha]
+    not([#run sha])
+    parent = [#result-display]
+  bind
     parent.children += [#div "running tests..."]
 
 display test results
-  [#pull-request number, github-url, body, title, additions, deletions, branch, sha]
-  [#run sha]
-  [#test-result test result]
-  parent = [#result-display]
-  maintain
+  match
+    [#pull-request number, github-url, body, title, additions, deletions, branch, sha]
+    [#run sha]
+    [#test-result test result]
+    parent = [#result-display]
+  bind
     parent.children += [#div class: [success: result], children: [#span: test]]
 
 

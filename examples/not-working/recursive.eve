@@ -1,6 +1,7 @@
 add some people to the organization
-  [#session-connect]
-  freeze
+  match
+    [#session-connect]
+  commit
     karen = [#employee @karen]
     jill = [#employee @jill boss: karen]
     deena = [#employee @joe boss: jill]
@@ -9,17 +10,20 @@ add some people to the organization
     gram = [#employee @gram boss: joe]
 
 get the people at the top
-  top = [#employee]
-  not(top.boss)
-  maintain
+  match
+    top = [#employee]
+    not(top.boss)
+  bind
     top.level := 0
 
 figure out org chart depth
-  employee = [#employee boss: [level]]
-  maintain
+  match
+    employee = [#employee boss: [level]]
+  bind
     employee.level := level + 1
 
 show all the people and their level
-  [#employee name level]
-  maintain
+  match
+    [#employee name level]
+  bind
     [#div text: "{{name}} - {{level}}" sort: level]

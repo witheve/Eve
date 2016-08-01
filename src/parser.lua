@@ -162,8 +162,9 @@ local numeric = {["0"] = true, ["1"] = true, ["2"] = true, ["3"] = true,
                  ["8"] = true, ["9"] = true}
 
 local keywords = {
-  freeze = "FREEZE",
-  maintain = "MAINTAIN",
+  commit = "COMMIT",
+  bind = "BIND",
+  match = "MATCH",
   ["if"] = "IF",
   ["then"] = "THEN",
   ["else"] = "ELSE",
@@ -187,9 +188,11 @@ local keywords = {
   ["+="] = "INSERT",
   ["-="] = "REMOVE",
   [":="] = "SET",
+  ["<-"] = "MERGE",
 }
 
 local whitespace = { [" "] = true, ["\n"] = true, ["\t"] = true, ["\r"] = true }
+local queryKeywords = {match = true, bind = true, commit = true}
 
 local function isIdentifierChar(char, prev)
   return not specials[char] and not whitespace[char] and not (prev == "/" and char == "/")
@@ -218,6 +221,7 @@ local function lex(str)
   local offset = 0
   local byteOffset = 0
   local surrogateOffset = 0
+  local blockOffset = nil
   local tokens = {}
 
   local function adjustOffset(num)
@@ -243,12 +247,34 @@ local function lex(str)
         adjustOffset(1)
       end
 
-    -- anything at root level is just documentation
-    elseif offset == 0 then
+    elseif blockOffset and offset <= blockOffset then
       scanner:unread()
-      local doc = scanner:eatWhile(notNewline)
-      tokens[#tokens+1] = Token:new("DOC", doc, line, offset, byteOffset, surrogateOffset)
-      adjustOffsetByString(doc)
+      local firstToken = scanner:eatWhile(isIdentifierChar)
+      -- check if this is a keyword that continues a query
+      if queryKeywords[firstToken] then
+        tokens[#tokens+1] = Token:new(keywords[firstToken], firstToken, line, offset, byteOffset, surrogateOffset)
+        adjustOffsetByString(firstToken)
+      else
+        blockOffset = nil
+        local doc = scanner:eatWhile(notNewline)
+        tokens[#tokens+1] = Token:new("DOC", firstToken .. doc, line, offset, byteOffset, surrogateOffset)
+        adjustOffsetByString(doc)
+      end
+
+    elseif not blockOffset then
+      scanner:unread()
+      local firstToken = scanner:eatWhile(isIdentifierChar)
+      -- check if this is one of the keywords that could start a query
+      if queryKeywords[firstToken] then
+        blockOffset = offset
+        tokens[#tokens+1] = Token:new(keywords[firstToken], firstToken, line, offset, byteOffset, surrogateOffset)
+        adjustOffsetByString(firstToken)
+      else
+        -- if it's not, just the eat line
+        local doc = scanner:eatWhile(notNewline)
+        tokens[#tokens+1] = Token:new("DOC", firstToken .. doc, line, offset, byteOffset, surrogateOffset)
+        adjustOffsetByString(doc)
+      end
 
     elseif char == "\"" or (char == "}" and scanner:peek() == "}") then
       if char == "\"" then
@@ -505,7 +531,7 @@ local function makeNode(context, type, token, rest)
 end
 
 local valueTypes = {IDENTIFIER = true, infix = true, ["function"] = true, NUMBER = true, STRING = true, block = true, attribute = true, BOOLEAN = true}
-local infixTypes = {equality = true, infix = true, attribute = true, mutate = true, inequality = true, DOT = true, SET = true, REMOVE = true, INSERT = true, INFIX = true, EQUALITY = true, ALIAS = true, INEQUALITY = true}
+local infixTypes = {equality = true, infix = true, attribute = true, mutate = true, inequality = true, DOT = true, SET = true, REMOVE = true, INSERT = true, MERGE = true, INFIX = true, EQUALITY = true, ALIAS = true, INEQUALITY = true}
 local infixPrecedents = {equality = 0, inequality = 0, mutate = 0, attribute = 4, block = 4, ["function"] = 4, ["^"] = 3, ["*"] = 2, ["/"] = 2, ["+"] = 1, ["-"] = 1 }
 local singletonTypes = {outputs = true}
 local alphaFields = {"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o"}
@@ -585,7 +611,7 @@ local function parse(tokens, context)
       elseif next.type == "EQUALITY" or next.type == "ALIAS" or next.type == "INEQUALITY" then
         local nodeType = next.type == "INEQUALITY" and "inequality" or "equality"
         nextInfix = makeNode(context, nodeType, next, {operator = next.value, children = {}})
-      elseif next.type == "INSERT" or next.type == "REMOVE" or next.type == "SET" then
+      elseif next.type == "INSERT" or next.type == "REMOVE" or next.type == "SET" or next.type == "MERGE" then
         nextInfix = makeNode(context, "mutate", next, {operator = next.type:lower(), children = {}})
       else
         -- error? how could we get here?
@@ -643,6 +669,16 @@ local function parse(tokens, context)
         stack:push(makeNode(context, "query", token, {doc = token.value, children = {}}))
       end
 
+    elseif type == "MATCH" then
+      -- TODO: we should only be looking at other token types if we've opened the
+      -- query..
+      if stackTop.type == "query" and #stackTop.children == 0 then
+        stackTop.opened = true;
+      else
+        -- error - match is only valid as the opening to a query
+        errors.misplacedMatch(context, token, stackTop)
+      end
+
     elseif type == "COMMA" then
       -- we treat commas as whitespace
 
@@ -687,11 +723,11 @@ local function parse(tokens, context)
         stackTop.closed = true
       end
 
-    elseif type == "FREEZE" or type == "MAINTAIN" then
+    elseif type == "COMMIT" or type == "BIND" then
       local update = makeNode(context, "update", token, {scope = "session", children = {}})
-      if type == "MAINTAIN" then
+      if type == "BIND" then
         update.scope = "event"
-      elseif next and (next.value == "all" or next.value == "event") then
+      elseif next and (next.value == "global" or next.value == "event") then
         update.scope = next.value
         -- eat that token
         scanner:read()

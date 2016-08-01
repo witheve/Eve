@@ -1,13 +1,12 @@
 Generate Fibonacci numbers
-  result = if n < 2 then n
-           else if            
-             f1 = [#fib n: n - 1]
-             f2 = [#fib n: n - 2]
-             then f1.result + f2.result
-  maintain
-    [#fib n? result]
+  match
+    return = if n < 2 then n
+            else fib[n: n - 1] + fib[n: n - 2]
+  bind
+    fib[n? result]
     
 Using Fibonacci
-  fib = [#fib n: 4, result]
+  match
+    fib = fib[n: 4]
   maintain
-    [#div text: fib.result]
+    [#div text: fib]

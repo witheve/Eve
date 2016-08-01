@@ -399,7 +399,7 @@ function formatObjects(objs) {
 function sendEventObjs(objs) {
   if(!objs.length) return;
   let query = `handle some event
-  maintain
+  bind
     ${formatObjects(objs).join("\n    ")}
   `
   return sendEvent(query);
@@ -479,8 +479,9 @@ window.addEventListener("input", function(event) {
     sentInputValues[target.entity].push(target.value);
     let query =
     `input value updated
-      input = ${target.entity}
-      freeze
+      match
+        input = ${target.entity}
+      commit
         input.value := "${target.value.replace("\"", "\\\"")}"`;
     sendEvent(query);
     sendEventObjs([{tags: ["change"], element: target.entity}]);
@@ -500,8 +501,9 @@ window.addEventListener("change", function(event) {
     sentInputValues[target.entity].push(value);
     let query =
       `input value updated
-      input = ${target.entity}
-      freeze
+      match
+        input = ${target.entity}
+      commit
         input.value := "${value.replace("\"", "\\\"")}"`;
     sendEvent(query);
     let tags = ["change"];
@@ -608,18 +610,21 @@ function onHashChange(event) {
   });
   let query =
   `hash changed remove any current url segments
-    url = [#url hash-segment]
-    freeze
+    match
+      url = [#url hash-segment]
+    commit
       url -= [hash-segment]\n\n`;
   if(hash !== "") {
     query +=
     `hash changed if there isn't already a url, make one
-      not([#url])
-      freeze
+      match
+        not([#url])
+      commit
         [#url hash-segment: ${segments.join(" ")}]\n\n` +
     `add the new hash-segments if there is
-      url = [#url]
-      freeze
+      match
+        url = [#url]
+      commit
         url := [hash-segment: ${segments.join(" ")}]
     `;
   }

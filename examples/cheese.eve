@@ -1,6 +1,7 @@
 choose
-  [#session-connect]
-  freeze
+  match
+    [#session-connect]
+  commit
     [#cheese @mimolette]
     [#cheese @morbier]
     [#cheese @manchego]
@@ -8,7 +9,8 @@ choose
     [#cheese @wensleydale]
 
 zikky
-  [#cheese name]
-  color = if length(name) > 8 then "orange" else "white"
-  maintain
+  match
+    [#cheese name]
+    color = if length(name) > 8 then "orange" else "white"
+  bindg
     [#div text: name, sort: name, style: [color]]

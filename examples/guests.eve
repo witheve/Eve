@@ -1,5 +1,5 @@
 get the party started...
-	maintain
+	bind
   	[@my-party]
     [#person @julia spouse: [@ed]]
     [#person @arthur]
@@ -7,27 +7,30 @@ get the party started...
     [#person @jenny]
 
 count guests coming to the party
-  party = [@my-party]
-  guest = if p = [#person] then p
-          if [#person spouse] then spouse
-  total = count(given guest)
-  maintain
+  match
+    party = [@my-party]
+    guest = if p = [#person] then p
+            if [#person spouse] then spouse
+    total = count(given guest)
+  bind
     party.guest-count := total
     party.guest += guest
 
 how many burgers do I need?
-  party = [@my-party guest]
-  burgers = if guest = [#growing-boy] then 2
-            else if guest = [@arthur] then 3
-            else 1
-  total = sum(burgers given burgers, guest)
-  maintain
+  match
+    party = [@my-party guest]
+    burgers = if guest = [#growing-boy] then 2
+              else if guest = [@arthur] then 3
+              else 1
+    total = sum(burgers given burgers, guest)
+  bind
     party.burgers := total
     guest.burgers := burgers
 
 draw out the guest list
-	[@my-party guest guest-count burgers]
-  maintain
+  match
+    [@my-party guest guest-count burgers]
+  bind
   	[#div children: 
     	[#h2 text: "My awesome party"]
       [#p text: "Guest count: {{guest-count}}, total burgers: {{burgers}}"]

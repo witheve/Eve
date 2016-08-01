@@ -1,8 +1,9 @@
 simple constant math
-  a = 1 + 2
-  b = a + 2
-  c = b - 1
-  d = c / 2
-  e = d * 3
-  maintain
+  match
+    a = 1 + 2
+    b = a + 2
+    c = b - 1
+    d = c / 2
+    e = d * 3
+  bind
     [#div #num text: e]

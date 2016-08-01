@@ -1,4 +1,5 @@
 simple logic filters
-  5 != 5
-  maintain
+  match
+    5 != 5
+  bind
     [#div #num text: "If you see this, it's an error."]

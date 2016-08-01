@@ -1,6 +1,7 @@
 Add some fruits to the system
-  [#session-connect]
-  freeze
+  match
+    [#session-connect]
+  commit
     [#fruit @lemon color: "yellow"]
     [#fruit @cherry color: "red"]
     [#fruit @orange color: "orange"]
@@ -11,20 +12,23 @@ Add some fruits to the system
     [#fruit @kiwi color: "green"]
 
 Draw a list of fruits
-  [#fruit color name]
-  maintain
+  match
+    [#fruit color name]
+  bind
     [#div ix: name, text: name, style: [color]]
 
 make yo
-  v = [#click element]
-  element = [not(children)]
-  freeze
+  match
+    v = [#click element]
+    element = [not(children)]
+  commit
      element.children += [#div element zig:v text:"yo"]
 
 trash yo
-  [#click element]
-  element = [children]
-  freeze
+  match
+    [#click element]
+    element = [children]
+  commit
      element.children -= children
 
 

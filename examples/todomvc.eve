@@ -1,41 +1,46 @@
 routing
- value = if [#url hash-segment: [index: 1, value]] then value
-         else "all"
-  maintain
+  match
+    value = if [#url hash-segment: [index: 1, value]] then value
+            else "all"
+  bind
     [@app filter: value]
 
 handle insert
-  element = [@new-todo value]
-  [#keydown element, key: "enter"]
-  freeze
+  match
+    element = [@new-todo value]
+    [#keydown element, key: "enter"]
+  commit
     [#todo body: value, editing: false, completed: false]
     element.value := ""
 
 handle edit
-  (todo, body, editing, completed) =
-    if [#click element: [#todo-checkbox todo]] then (todo, todo.body, todo.editing, toggle(todo.completed))
-    else if [#click element: [@toggle-all checked]] then ([#todo body], body, todo.editing, toggle(checked))
-    else if [#double-click element: [#todo-item todo]] then (todo, todo.body, true, todo.completed)
-    else if [#blur element: [#todo-editor todo value]] then (todo, value, false, todo.completed)
-    else if [#keydown element: [#todo-editor todo] key: "escape"] then (todo, todo.body, false, todo.completed)
-    else if [#keydown element: [#todo-editor todo value] key: "enter"] then (todo, value, false, todo.completed)
-  freeze
+  match
+    (todo, body, editing, completed) =
+      if [#click element: [#todo-checkbox todo]] then (todo, todo.body, todo.editing, toggle(todo.completed))
+      else if [#click element: [@toggle-all checked]] then ([#todo body], body, todo.editing, toggle(checked))
+      else if [#double-click element: [#todo-item todo]] then (todo, todo.body, true, todo.completed)
+      else if [#blur element: [#todo-editor todo value]] then (todo, value, false, todo.completed)
+      else if [#keydown element: [#todo-editor todo] key: "escape"] then (todo, todo.body, false, todo.completed)
+      else if [#keydown element: [#todo-editor todo value] key: "enter"] then (todo, value, false, todo.completed)
+  commit
     todo := [body, completed, editing]
 
 handle removes
-  todo = if [#click element: [#remove-todo todo]] then todo
-         else if [#click element: [@clear-completed]] then [#todo completed: true]
-  freeze
+  match
+    todo = if [#click element: [#remove-todo todo]] then todo
+          else if [#click element: [@clear-completed]] then [#todo completed: true]
+  commit
     todo -= [#todo]
 
 draw the children
-  [@app filter]
-  (todo, body, completed, editing) =
-    if filter = "completed" then ([#todo, body, completed: true, editing], body, true, editing)
-    else if filter = "active" then ([#todo, body, completed: false, editing], body, false, editing)
-    else if filter = "all" then ([#todo, body, completed, editing], body, completed, editing)
-  parent = [@todo-list]
-  maintain
+  match
+    [@app filter]
+    (todo, body, completed, editing) =
+      if filter = "completed" then ([#todo, body, completed: true, editing], body, true, editing)
+      else if filter = "active" then ([#todo, body, completed: false, editing], body, false, editing)
+      else if filter = "all" then ([#todo, body, completed, editing], body, completed, editing)
+    parent = [@todo-list]
+  bind
     parent.children += [#li, class: [todo: true, completed, editing], todo, children:
                          [#input #todo-checkbox, todo, class: [toggle: true, hidden: editing], type: "checkbox", checked: completed]
                          [#label #todo-item, class: [hidden: editing], todo, text: body]
@@ -43,14 +48,15 @@ draw the children
                          [#button #remove-todo, class: [destroy: true, hidden: editing], todo]
 
 draw todomvc
-  [@app filter]
-  all-checked = if not([#todo completed: false]) then true
-                else false
-  count = if c = count(given [#todo completed: false]) then c
-          else 0
-  none-checked = if [#todo completed: true] then false
-                else true
-  maintain
+  match
+    [@app filter]
+    all-checked = if not([#todo completed: false]) then true
+                  else false
+    count = if c = count(given [#todo completed: false]) then c
+            else 0
+    none-checked = if [#todo completed: true] then false
+                  else true
+  bind
     [#link rel: "stylesheet" href: "/examples/todomvc.css"]
     [#div class: "todoapp" @todoapp children:
       [#header children:

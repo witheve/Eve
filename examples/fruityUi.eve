@@ -1,6 +1,7 @@
 Add some fruits to the system
-  [#session-connect]
-  freeze
+  match
+    [#session-connect]
+  commit
     [#fruit @lemon color: "yellow"]
     [#fruit @cherry color: "red"]
     [#fruit @orange color: "orange"]
@@ -9,11 +10,13 @@ Add some fruits to the system
     [#fruit #exotic @lychee color: "white"]
 
 Draw a list of fruits
-  [#fruit color name]
-  maintain
+  match
+    [#fruit color name]
+  bind
     [#div #foo sort: name, text: name, style: [color]]
 
 draw clicks
-  click = [#click element]
-  freeze
+  match
+    click = [#click element]
+  commit
     [#div sort: "zzz", click, text: "yo"]

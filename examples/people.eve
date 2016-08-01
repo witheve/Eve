@@ -1,3 +1,4 @@
 get people!
-  [#person name age]
-  x = age * 10
+  match
+    [#person name age]
+    x = age * 10
