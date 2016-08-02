@@ -130,7 +130,7 @@ static void do_subagg_tail(perf p, execf next, value pass,
                            heap h, perf pp, operator op, value *r)
 {
     start_perf(p, op);
-    
+
     if (op == op_insert) {
         subagg sag =  lookup(r, pass);
         extract(sag->gkey, sag->groupings, r);
@@ -171,7 +171,7 @@ static void do_subagg(perf p, execf next, subagg sag,
                       heap h, perf pp, operator op, value *r)
 {
     start_perf(p, op);
-    
+
     if ((op == op_flush) || (op == op_close)) {
         if (op == op_flush) store(r, sag->pass, sag);
         apply(next, h, p, op, r);
@@ -180,7 +180,7 @@ static void do_subagg(perf p, execf next, subagg sag,
         stop_perf(p, pp);
         return;
     }
-    
+
     if (!sag->phase) {
         sag->phase = allocate_rolling(pages, sstring("subagg"));
         sag->proj =  create_value_vector_table(sag->phase);
@@ -198,17 +198,17 @@ static void do_subagg(perf p, execf next, subagg sag,
 
     vector cross;
     extract(sag->gkey, sag->groupings, r);
-    if (!(cross = table_find(sag->group, sag->key))) {
+    if (!(cross = table_find(sag->group, sag->gkey))) {
         cross = allocate_vector(sag->phase, 5);
         vector key = allocate_vector(sag->phase, vector_length(sag->groupings));
         extract(key, sag->groupings, r);
-        table_set(sag->group, key, cross);
+        table_set(sag->group, sag->gkey, cross);
     }
 
     value *cr = allocate(sag->phase, sag->regs * sizeof(value));
     memcpy(cr, r,  sag->regs * sizeof(value));
     vector_insert(cross, cr);
-    
+
     stop_perf(p, pp);
 }
 
