@@ -151,7 +151,7 @@ function unify(query, mapping, projection)
   end
 
   if projection and getmetatable(projection) ~= Set then
-    projection = Set:from(projection)
+    projection = Set:fromList(projection)
   end
 
   for equality in pairs(equalities) do

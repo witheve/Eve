@@ -29,7 +29,7 @@ function Set:new(args)
    return args
 end
 
-function Set:from(list)
+function Set:fromList(list)
   local args = setmetatable({}, self)
   self.__index = self
   local count = #list
