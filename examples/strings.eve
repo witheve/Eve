@@ -1,7 +1,6 @@
 string tests even with multi-line
 query names
   match
-    [#person name: "hello dude\"aodoijasdofij" age]
-    blah = "{{age}}{{age}}"
+    [#person age]
   bind
     [#dude name: "cool {{age}} \"asdofij\" {{age}} asodijf"]

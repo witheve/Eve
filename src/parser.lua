@@ -171,8 +171,6 @@ local keywords = {
   ["or"] = "OR",
   ["not"] = "NOT",
   none = "NONE",
-  given = "GIVEN",
-  per = "PER",
   ["true"] = "BOOLEAN",
   ["false"] = "BOOLEAN",
   ["="] = "EQUALITY",
@@ -421,7 +419,7 @@ local function formatNode(node, depth)
       string = string .. childIndent .. color.dim("projection: ")
       for _, proj in pairs(v) do
         for var in pairs(proj) do
-          string = string .. var.name .. ", "
+          string = string .. (var.name or "unnamed") .. ", "
         end
       end
        string = string .. "\n"
@@ -485,7 +483,7 @@ local function formatQueryGraph(root, seen, depth)
       string = string .. childIndent .. color.dim("projection: ")
       for _, proj in pairs(v) do
         for var in pairs(proj) do
-          string = string .. var.name .. ", "
+          string = string .. (var.name or "unnamed") .. ", "
         end
       end
       string = string .. "\n"
@@ -584,8 +582,7 @@ local function parse(tokens, context)
     -- infixes onto it.
     if type == "CLOSE_PAREN" then
       local stackType = stackTop.type
-      if (stackType == "block" or stackType == "function" or stackType == "grouping"
-                      or stackType == "projection" or (stackTop.parent and stackTop.parent.type == "not")) then
+      if (stackType == "block" or (stackTop.parent and stackTop.parent.type == "not")) then
         stackTop.closed = true
         -- this also closes out the containing function in the case of aggregate
         -- modifiers
@@ -686,13 +683,18 @@ local function parse(tokens, context)
       context.comments[#context.comments + 1] = token
 
     elseif type == "STRING_OPEN" then
-      stack:push(makeNode(context, "function", token, {func = "concat", children = {right}}))
+      stack:push(makeNode(context, "function", token, {func = "concat", children = {}, closed = true}))
+      local valueIdentifier = makeNode(context, "IDENTIFIER", token, {value = "value"})
+      stack:push(makeNode(context, "equality", token, {operator = "=", children = {valueIdentifier}}))
+      stack:push(makeNode(context, "block", token, {children = {}, concatBlock = true}))
 
     elseif type == "STRING_CLOSE" then
-      if stackTop.type == "function" and stackTop.func == "concat" then
+      if stackTop.concatBlock then
         -- if there's zero or one children, then this concat isn't needed
         if #stackTop.children == 0 or (#stackTop.children == 1 and stackTop.children[1].type == "STRING") then
           local str = stackTop.children[1] or makeNode(context, "STRING", token, {value = ""})
+          stack:pop()
+          stack:pop()
           stack:pop()
           stackTop = stack:peek()
           stackTop.children[#stackTop.children + 1] = str
@@ -707,7 +709,7 @@ local function parse(tokens, context)
     elseif type == "OPEN_CURLY" or type == "CLOSE_CURLY" then
       -- we can just ignore these as long as we're in a concat
       -- if we're not, it's an error
-      if stackTop.func ~= "concat" then
+      if not stackTop.concatBlock then
         -- error
         errors.curlyOutsideOfString(context, token, stackTop)
       end
@@ -716,7 +718,7 @@ local function parse(tokens, context)
       stack:push(makeNode(context, "object", token, {children = {}}))
 
     elseif type == "CLOSE_BRACKET" then
-      if stackTop.type ~= "object" then
+      if stackTop.type ~= "object" and stackTop.type ~= "function" then
         -- error
         errors.invalidCloseBracket(context, token, stack)
       else
@@ -836,25 +838,10 @@ local function parse(tokens, context)
     elseif type == "CLOSE_PAREN" then
       -- handled above
 
-    elseif type == "IDENTIFIER" and next and next.type == "OPEN_PAREN" then
+    elseif type == "IDENTIFIER" and next and next.type == "OPEN_BRACKET" and next.offset == token.offset + token.length then
       stack:push(makeNode(context, "function", token, {func = token.value, children = {}}))
       -- consume the paren
       scanner:read()
-
-    elseif type == "GIVEN" or type == "PER" then
-      if stackTop.type == "function" or stackTop.type == "grouping" or stackTop.type == "projection" then
-        -- if we are currently working on one of the other modifiers, we're
-        -- done with that one and should clean it out
-        if stackTop.type == "grouping" or stackTop.type == "projection" then
-          stackTop.closed = true
-          tryFinishExpression()
-        end
-        local modifier = type == "GIVEN" and "projection" or "grouping"
-        stack:push(makeNode(context, modifier, token, {children = {}}))
-      else
-        -- error
-        errors.invalidAggregateModifier(context, token, stackTop)
-      end
 
     elseif type == "IDENTIFIER" or type == "NUMBER" or type == "STRING" or type == "UUID" or type == "BOOLEAN" then
       stackTop.children[#stackTop.children + 1] = token
@@ -1037,48 +1024,77 @@ local function resolveFunctionLike(context, node)
   -- bind the return
   generateBindingNode(context, {field = "return", variable = resultVar}, resultVar, expression)
   -- create bindings
-  for ix, child in ipairs(node.children) do
-    local field = alphaFields[ix]
-    local prevMutating = context.mutating;
-    context.mutating = nil
-    local resolved = resolveExpression(child, context)
-    context.mutating = prevMutating
-    if not resolved then
+  for _, child in ipairs(node.children) do
+    -- only equalities make sense in a function
+    if child.type ~= "equality" then
       -- error
       errors.invalidFunctionArgument(context, child, node.type)
-
-    elseif resolved.type == "variable" then
-      generateBindingNode(context, {field = field, variable = resolved}, resolved, expression)
-
-    elseif resolved.type == "constant" then
-      generateBindingNode(context, {field = field, constant = resolved}, resolved, expression)
-
-    elseif resolved.type == "grouping" then
-      expression.groupings = {}
-      for ix, grouping in ipairs(resolved.children) do
-        local groupingVar = resolveExpression(grouping, context)
-        if groupingVar.type == "variable" then
-          expression.groupings[#expression.groupings + 1] = makeNode(context, "grouping", grouping, {expression = expression, variable = groupingVar, ix = ix})
-        else
-          -- error
-          errors.invalidGrouping(context, grouping)
-        end
-      end
-
-    elseif resolved.type == "projection" then
-      expression.projection = {}
-      for _, project in ipairs(resolved.children) do
-        local projectVar = resolveExpression(project, context)
-        if projectVar.type == "variable" then
-          expression.projection[#expression.projection + 1] = makeNode(context, "projection", project, {expression = expression, variable = projectVar})
-        else
-          -- error
-          errors.invalidProjection(context, grouping)
-        end
-      end
     else
-      -- error?
-      errors.invalidFunctionArgument(context, child, node.type)
+      if child.children[1].type == "IDENTIFIER" then
+        local field = child.children[1].value
+        local prevMutating = context.mutating;
+        context.mutating = nil
+        local resolved = resolveExpression(child.children[2], context)
+        if not resolved then
+          -- error
+          errors.invalidFunctionArgument(context, child, node.type)
+
+        elseif field == "per" then
+          local groupings = resolved.children or {resolved}
+          expression.groupings = expression.groupings or {}
+          for ix, grouping in ipairs(groupings) do
+            local groupingVar = resolveExpression(grouping, context)
+            if groupingVar.type == "variable" then
+              expression.groupings[#expression.groupings + 1] = makeNode(context, "grouping", grouping, {expression = expression, variable = groupingVar, ix = ix})
+            else
+              -- error
+              errors.invalidGrouping(context, grouping)
+            end
+          end
+
+        elseif field == "given" then
+          local projections = resolved.children or {resolved}
+          expression.projection = expression.projection or {}
+          for _, project in ipairs(projections) do
+            local projectVar = resolveExpression(project, context)
+            if projectVar.type == "variable" then
+              local foo = makeNode(context, "projection", project, {expression = expression, variable = projectVar})
+              expression.projection[#expression.projection + 1] = foo
+            else
+              -- error
+              errors.invalidProjection(context, project)
+            end
+          end
+
+        elseif resolved.type == "variable" then
+          generateBindingNode(context, {field = field, variable = resolved}, resolved, expression)
+
+        elseif resolved.type == "constant" then
+          generateBindingNode(context, {field = field, constant = resolved}, resolved, expression)
+
+        elseif resolved.type == "block" then
+          for _, rawValue in ipairs(resolved.children) do
+            local value = resolveExpression(rawValue, context)
+            if value.type == "variable" then
+              generateBindingNode(context, {field = field, variable = value}, value, expression)
+            elseif value.type == "constant" then
+              generateBindingNode(context, {field = field, constant = value}, value, expression)
+            else
+              errors.invalidFunctionArgument(context, value, node.type)
+            end
+          end
+
+        else
+          -- error?
+          errors.invalidFunctionArgument(context, child, node.type)
+        end
+      else
+        -- error - only identifiers are allowed as the left hand side of function
+        -- argument equalities
+        errors.invalidFunctionArgument(context, child, node.type)
+      end
+      -- set back to whatever prevMutating was
+      context.mutating = prevMutating
     end
   end
   if node.func == "is" then
@@ -1128,14 +1144,11 @@ resolveExpression = function(node, context)
   elseif node.type == "infix" or node.type == "function" then
     return resolveFunctionLike(context, node)
 
-  elseif node.type == "grouping" or node.type == "projection" then
-    return node
-
   elseif node.type == "block" then
     if #node.children == 1 then
       return resolveExpression(node.children[1], context)
     else
-      -- error invalid block
+      return node
     end
 
   else

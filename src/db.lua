@@ -128,7 +128,7 @@ local expressions = {
 
   -- Aggregates
   count = {schema({"return"}, "sum", "aggregate")},
-  sum = {schema({"return", STRONG_IN, "a"}, "sum", "aggregate")}
+  sum = {schema({"return", STRONG_IN, "value"}, "sum", "aggregate")}
 }
 
 function getExpressions()

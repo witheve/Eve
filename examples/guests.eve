@@ -11,7 +11,7 @@ count guests coming to the party
     party = [@my-party]
     guest = if p = [#person] then p
             if [#person spouse] then spouse
-    total = count(given guest)
+    total = count[given: guest]
   bind
     party.guest-count := total
     party.guest += guest
@@ -22,7 +22,7 @@ how many burgers do I need?
     burgers = if guest = [#growing-boy] then 2
               else if guest = [@arthur] then 3
               else 1
-    total = sum(burgers given burgers, guest)
+    total = sum[value: burgers, given: (burgers, guest)]
   bind
     party.burgers := total
     guest.burgers := burgers

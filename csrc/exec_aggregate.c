@@ -102,7 +102,7 @@ static execf build_sum(block bk, node n, execf *arms)
                 register_perf(bk->ev, n),
                 targets,
                 groupings,
-                table_find(n->arguments, sym(a)),
+                table_find(n->arguments, sym(value)),
                 table_find(n->arguments, sym(return)),
                 pk);
 }
