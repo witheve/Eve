@@ -482,7 +482,7 @@ function errors.invalidUpdateEquality(context, token, left, right)
 
   <LINE>
 
-  Did you mean to use `:=`, `+=`, or `-=`?
+  Did you mean to use `:=`, `+=`, `-=`, or `<-`?
   ]])})
 end
 
@@ -494,6 +494,50 @@ function errors.updatingNonMutate(context, token)
     ]])})
 end
 
+function errors.invalidMutateLeft(context, node, leftNode)
+  printError({type = "Invalid action", context = context, token = node, content = string.format([[
+  Action operators only allow names or name.attribute on the left hand side.
+
+  <LINE>
+  ]])})
+end
+
+function errors.mergeWithoutObject(context, node, rightNode)
+  printError({type = "Invalid merge", context = context, token = node, content = string.format([[
+  When merging, you have to provide an object on the right hand side.
+
+  <LINE>
+  ]])})
+end
+
+function errors.setWithoutNone(context, node, rightNode)
+  local left = node.children[1].value
+  printError({type = "Invalid set", context = context, token = node, content = string.format([[
+  When setting an object reference, the only thing you can do is set it
+  to `none`
+
+  <LINE>
+
+  If you're trying to merge a bunch of attributes into %s, try using the
+  merge operator `<-` instead.
+  ]], left)})
+end
+
+function errors.referenceMutateWithoutTagOrName(context, node, rightNode)
+  -- TODO: we can tailor this message really nicely based on the rightNode.
+  -- e.g. if right is an object suggest <-, if it's something else, suggest
+  -- dot syntax
+  local type = node.operator
+  printError({type = string.format("%s action without a tag or name", type), context = context, token = node, content = string.format([[
+  %s on an object can only be followed by tags (#foo) or names (@name).
+
+  <LINE>
+
+  If you meant to set an attribute, try `foo.bar` or if you're trying to
+  set several attributes, use the `<-` operator.
+  ]], type)})
+end
+
 ------------------------------------------------------------
 -- Query errors
 ------------------------------------------------------------
@@ -501,6 +545,14 @@ end
 function errors.invalidQueryChild(context, token)
   printError({type = "Invalid query child", context = context, token = token, content = string.format([[
   There's a node at the top level that I don't know how to deal with here:
+
+  <LINE>
+  ]])})
+end
+
+function errors.misplacedMatch(context, token)
+  printError({type = "Misplaced match", context = context, token = token, content = string.format([[
+  Matches should only be at the start of a new block
 
   <LINE>
   ]])})

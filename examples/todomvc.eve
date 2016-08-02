@@ -23,14 +23,14 @@ handle edit
       else if [#keydown element: [#todo-editor todo] key: "escape"] then (todo, todo.body, false, todo.completed)
       else if [#keydown element: [#todo-editor todo value] key: "enter"] then (todo, value, false, todo.completed)
   commit
-    todo := [body, completed, editing]
+    todo <- [body, completed, editing]
 
 handle removes
   match
     todo = if [#click element: [#remove-todo todo]] then todo
           else if [#click element: [@clear-completed]] then [#todo completed: true]
   commit
-    todo -= [#todo]
+    todo -= #todo
 
 draw the children
   match

@@ -613,7 +613,7 @@ function onHashChange(event) {
     match
       url = [#url hash-segment]
     commit
-      url -= [hash-segment]\n\n`;
+      url.hash-segment -= hash-segment\n\n`;
   if(hash !== "") {
     query +=
     `hash changed if there isn't already a url, make one
@@ -625,7 +625,7 @@ function onHashChange(event) {
       match
         url = [#url]
       commit
-        url := [hash-segment: ${segments.join(" ")}]
+        url <- [hash-segment: ${segments.join(" ")}]
     `;
   }
   sendEvent(query);

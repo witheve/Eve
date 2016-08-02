@@ -3,7 +3,7 @@ draw a clock hand
   match
     hand = [#clock-hand angle length]
   bind
-    hand += [#line, x1: 50, y1: 50,
+    hand <- [#line, x1: 50, y1: 50,
              x2: 50 + (length * sin[angle]),
              y2: 50 - (length * cos[angle])]
 

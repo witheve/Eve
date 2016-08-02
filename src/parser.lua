@@ -250,7 +250,7 @@ local function lex(str)
       scanner:unread()
       local firstToken = scanner:eatWhile(isIdentifierChar)
       -- check if this is a keyword that continues a query
-      if queryKeywords[firstToken] then
+      if queryKeywords[firstToken] and offset ~= 0 then
         tokens[#tokens+1] = Token:new(keywords[firstToken], firstToken, line, offset, byteOffset, surrogateOffset)
         adjustOffsetByString(firstToken)
       else
@@ -264,7 +264,7 @@ local function lex(str)
       scanner:unread()
       local firstToken = scanner:eatWhile(isIdentifierChar)
       -- check if this is one of the keywords that could start a query
-      if queryKeywords[firstToken] then
+      if queryKeywords[firstToken] and offset ~= 0 then
         blockOffset = offset
         tokens[#tokens+1] = Token:new(keywords[firstToken], firstToken, line, offset, byteOffset, surrogateOffset)
         adjustOffsetByString(firstToken)
@@ -725,7 +725,7 @@ local function parse(tokens, context)
       if type == "BIND" then
         update.scope = "event"
       elseif next and (next.value == "global" or next.value == "event") then
-        update.scope = next.value
+        update.scope = next.value == "event" and next.value or "all"
         -- eat that token
         scanner:read()
         -- @TODO: handle specifying a custom bag
@@ -832,7 +832,7 @@ local function parse(tokens, context)
 
     elseif type == "CLOSE_PAREN" then
       -- handled above
-      
+
     elseif type == "IS" and next and next.type == "OPEN_PAREN" and next.offset == token.offset + token.length then
       stack:push(makeNode(context, "function", token, {func = token.value, children = {}}))
       -- consume the paren
@@ -909,38 +909,128 @@ local function generateBindingNode(context, node, related, parent)
   return node
 end
 
-local function resolveMutate(context, node)
-  local left = resolveExpression(node.children[1], context)
-  local rightNode = node.children[2]
-  -- we have to distinguish between objects and any other kind
-  -- of expression on the right here. Objects should still be
-  -- mutating, but other expressions should not. If we don't do
-  -- this then attribute lookups with . syntax will incorrectly
-  -- end up being mutates
-  local right
-  if rightNode.type == "object" then
-    -- if our left is an attribute call then we need to add the
-    -- attribute's parent to our projection to make sure that
-    -- the generated object is per each parent not just potentially
-    -- one global one
-    if left.attributeLeft then
-      context.projections:push(Set:new({left.attributeLeft}))
+local function resolveMutateMerge(context, left, rightNode)
+  -- Merges generally just set all the attributes in the rightNode
+  -- on the entity represented by the left, but that leads to weird
+  -- behavior for tags and names, where you don't think that merging
+  -- in #foo would remove #bar. To fix this, we go through the rightNode
+  -- find all TAG and NAME children and remove them. We then add those
+  -- to an "insert" mutate that does the right thing.
+  local adds = {}
+  local safe = {}
+  for _, value in ipairs(rightNode.children) do
+    if value.type == "equality" and (value.children[1].type == "TAG" or value.children[1].type == "NAME") then
+      adds[#adds + 1] = value
     else
-      -- either way we need to mutate per each thing on the left
-      context.projections:push(Set:new({left}))
+      safe[#safe + 1] = value
     end
-    right = resolveExpression(rightNode, context)
-    -- cleanup our projection
-    context.projections:pop()
+  end
+  if #adds > 0 then
+    context.mutateOperator = "insert"
+    local rightAddMutate = makeNode(context, "object", rightNode, {children = adds})
+    resolveExpression(makeNode(context, "equality", rightNode, {operator = "=", children = {left, rightAddMutate}}), context);
+    context.mutateOperator = "merge"
+  end
+  rightNode.children = safe
+  right = resolveExpression(rightNode, context)
+  return right
+end
+
+local function resolveMutate(context, node)
+  local leftNode = node.children[1]
+  local rightNode = node.children[2]
+  local right, left
+
+  if leftNode.type == "attribute" then
+    -- valid constructions:
+    -- foo.zomg (+|-|:)= expression
+    -- foo.zomg <- [ ... ]
+    if node.operator == "merge" then
+      -- in the case of a merge with the left being an attribute
+      -- lookup, we need to find all the values of that attribute
+      -- and then attempt to merge the right object into them. As
+      -- such, we're not actually mutating the left side, we're just
+      -- doing a normal lookup
+      local prevMutating = context.mutating;
+      context.mutating = nil
+      left = resolveExpression(leftNode, context)
+      context.mutating = prevMutating
+      if rightNode.type == "object" then
+        context.projections:push(Set:new({left}))
+        right = resolveMutate(context, left, rightNode)
+        context.projections:pop()
+      else
+        -- error merge must be followed by an object
+        errors.mergeWithoutObject(context, node, rightNode)
+      end
+
+    else
+      left = resolveExpression(leftNode, context)
+      -- we have to distinguish between objects and any other kind
+      -- of expression on the right here. Objects should still be
+      -- mutating, but other expressions should not. If we don't do
+      -- this then attribute lookups with . syntax will incorrectly
+      -- end up being mutates
+      if rightNode.type == "object" then
+        -- if our left is an attribute call then we need to add the
+        -- attribute's parent to our projection to make sure that
+        -- the generated object is per each parent not just potentially
+        -- one global one
+        context.projections:push(Set:new({left.attributeLeft}))
+        right = resolveExpression(rightNode, context)
+        -- cleanup our projection
+        context.projections:pop()
+      else
+        local prevMutating = context.mutating;
+        context.mutating = nil
+        right = resolveExpression(rightNode, context)
+        context.mutating = prevMutating
+      end
+
+    end
+
+  elseif leftNode.type == "IDENTIFIER" then
+    left = resolveExpression(leftNode, context)
+    -- valid constructions:
+    -- foo (+|-)= (#|@)bar
+    -- foo := none
+    -- foo <- [ ... ]
+    if node.operator == "set" then
+      if rightNode.type == "NONE" then
+        -- TODO
+      else
+        -- error the only valid thing to set a reference to directly
+        -- is none
+        errors.setWithoutNone(context, node, rightNode)
+      end
+    elseif node.operator == "merge" then
+      if rightNode.type == "object" then
+        context.projections:push(Set:new({left}))
+        right = resolveMutateMerge(context, left, rightNode)
+        context.projections:pop()
+      else
+        -- error merge must be followed by an object
+        errors.mergeWithoutObject(context, node, rightNode)
+      end
+
+    elseif rightNode.type == "equality" and (rightNode.children[1].type == "NAME" or rightNode.children[1].type == "TAG") then
+      local object = makeNode(context, "object", node, {children = {rightNode}})
+      right = resolveExpression(object, context)
+    else
+      -- error, the only valid thing after +=/-= for a reference is tags or names
+      errors.referenceMutateWithoutTagOrName(context, node, rightNode)
+    end
+
   else
-    local prevMutating = context.mutating;
-    context.mutating = nil
-    right = resolveExpression(rightNode, context)
-    context.mutating = prevMutating
+    -- error, the only things we can have on the left of
+    -- a mutate are identifiers and attribute calls
+    errors.invalidMutateLeft(context, node, leftNode)
   end
   -- we need to create an equality between whatever the left resolved to
   -- and whatever the right resolved to
-  resolveExpression(makeNode(context, "equality", node, {operator = "=", children = {left, right}}), context);
+  if right then
+    resolveExpression(makeNode(context, "equality", node, {operator = "=", children = {left, right}}), context);
+  end
   return left
 end
 
@@ -1401,6 +1491,10 @@ generateObjectNode = function(root, context)
   -- our dependencies are no longer relevant to anyone else,
   -- so let's clean them up
   context.projections:pop()
+
+  if object.operator == "merge" then
+    object.operator = "set"
+  end
 
   return object
 end

@@ -11,6 +11,6 @@ choose
 zikky
   match
     [#cheese name]
-    color = if length(name) > 8 then "orange" else "white"
+    color = if length[string: name] > 8 then "orange" else "white"
   bind
     [#div text: name, sort: name, style: [color]]

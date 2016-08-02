@@ -4,23 +4,22 @@ add some people to the organization
   commit
     karen = [#employee @karen]
     jill = [#employee @jill boss: karen]
-    deena = [#employee @joe boss: jill]
+    deena = [#employee @deena boss: jill]
     ed = [#employee @ed boss: deena]
     joe = [#employee @joe boss: jill]
     gram = [#employee @gram boss: joe]
 
 get the people at the top
   match
-    top = [#employee]
-    not(top.boss)
+    top = [#employee not(boss)]
   bind
     top.level := 0
 
 figure out org chart depth
   match
-    employee = [#employee boss: [level]]
+    employee = [#employee boss]
   bind
-    employee.level := level + 1
+    employee.level := boss.level + 1
 
 show all the people and their level
   match
