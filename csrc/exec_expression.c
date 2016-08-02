@@ -100,6 +100,29 @@ static void do_equal(block bk, perf p, execf n, value a, value b, heap h, perf p
                     table_find(n->arguments, sym(a)));    \
     }
 
+#define BUILD_UNARY_TRIG(__name, __do_op)                 \
+    static execf __name (block bk, node n)                \
+    {                                                     \
+        return cont(bk->h,                                \
+                    __do_op,                              \
+                    bk,                                   \
+                    register_perf(bk->ev, n),             \
+                    resolve_cfg(bk, n, 0),                \
+                    table_find(n->arguments, sym(return)),\
+                    table_find(n->arguments, sym(angle)));\
+    }
+
+#define BUILD_UNARY_VALUE(__name, __do_op)                \
+    static execf __name (block bk, node n)                \
+    {                                                     \
+        return cont(bk->h,                                \
+                    __do_op,                              \
+                    bk,                                   \
+                    register_perf(bk->ev, n),             \
+                    resolve_cfg(bk, n, 0),                \
+                    table_find(n->arguments, sym(return)),\
+                    table_find(n->arguments, sym(value)));\
+    }
 
 #define DO_BINARY_NUMERIC(__name, __op)                                                                                 \
     static CONTINUATION_6_4(__name, block, perf, execf, value, value, value,  heap, perf, operator, value *);           \
@@ -222,25 +245,25 @@ static void do_equal(block bk, perf p, execf n, value a, value b, heap h, perf p
 
 
 DO_UNARY_TRIG(do_sin, sin)
-BUILD_UNARY(build_sin, do_sin)
+BUILD_UNARY_TRIG(build_sin, do_sin)
 
 DO_UNARY_TRIG(do_cos, cos)
-BUILD_UNARY(build_cos, do_cos)
+BUILD_UNARY_TRIG(build_cos, do_cos)
 
 DO_UNARY_TRIG(do_tan, tan)
-BUILD_UNARY(build_tan, do_tan)
+BUILD_UNARY_TRIG(build_tan, do_tan)
 
 DO_UNARY_BOOLEAN(do_toggle, toggle)
-BUILD_UNARY(build_toggle, do_toggle)
+BUILD_UNARY_VALUE(build_toggle, do_toggle)
 
 DO_UNARY_NUMERIC(do_floor, floor)
-BUILD_UNARY(build_floor, do_floor)
+BUILD_UNARY_VALUE(build_floor, do_floor)
 
 DO_UNARY_NUMERIC(do_ceil, ceil)
-BUILD_UNARY(build_ceil, do_ceil)
+BUILD_UNARY_VALUE(build_ceil, do_ceil)
 
 DO_UNARY_NUMERIC(do_round, round)
-BUILD_UNARY(build_round, do_round)
+BUILD_UNARY_VALUE(build_round, do_round)
 
 DO_BINARY_NUMERIC(do_plus, +)
 BUILD_BINARY(build_plus, do_plus)
@@ -318,7 +341,17 @@ static void do_mod (block bk, perf p, execf n, value dest, value a, value b, hea
     stop_perf(p, pp);
 }
 
-BUILD_BINARY(build_mod, do_mod)
+static execf build_mod (block bk, node n)
+{
+    return cont(bk->h,
+            do_mod,
+            bk,
+            register_perf(bk->ev, n),
+            resolve_cfg(bk, n, 0),
+            table_find(n->arguments, sym(return)),
+            table_find(n->arguments, sym(value)),
+            table_find(n->arguments, sym(by)));
+}
 
 static CONTINUATION_5_4(do_abs, block, perf, execf, value, value,  heap, perf, operator, value *);
 static void do_abs (block bk, perf p, execf n, value dest, value a, heap h, perf pp, operator op, value *r)
@@ -341,7 +374,7 @@ static void do_abs (block bk, perf p, execf n, value dest, value a, heap h, perf
     stop_perf(p, pp);
 }
 
-BUILD_UNARY(build_abs, do_abs)
+BUILD_UNARY_VALUE(build_abs, do_abs)
 
 static CONTINUATION_6_4(do_range,
                         block, perf, execf, value, value, value,
@@ -367,7 +400,18 @@ static void do_range(block bk, perf p, execf n, value dest, value min, value max
   }
   stop_perf(p, pp);
 }
-BUILD_BINARY(build_range, do_range);
+
+static execf build_range (block bk, node n)
+{
+    return cont(bk->h,
+            do_range,
+            bk,
+            register_perf(bk->ev, n),
+            resolve_cfg(bk, n, 0),
+            table_find(n->arguments, sym(return)),
+            table_find(n->arguments, sym(from)),
+            table_find(n->arguments, sym(to)));
+}
 
 
 void register_exec_expression(table builders)

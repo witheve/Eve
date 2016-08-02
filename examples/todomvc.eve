@@ -16,8 +16,8 @@ handle insert
 handle edit
   match
     (todo, body, editing, completed) =
-      if [#click element: [#todo-checkbox todo]] then (todo, todo.body, todo.editing, toggle(todo.completed))
-      else if [#click element: [@toggle-all checked]] then ([#todo body], body, todo.editing, toggle(checked))
+      if [#click element: [#todo-checkbox todo]] then (todo, todo.body, todo.editing, toggle[value: todo.completed])
+      else if [#click element: [@toggle-all checked]] then ([#todo body], body, todo.editing, toggle[value: checked])
       else if [#double-click element: [#todo-item todo]] then (todo, todo.body, true, todo.completed)
       else if [#blur element: [#todo-editor todo value]] then (todo, value, false, todo.completed)
       else if [#keydown element: [#todo-editor todo] key: "escape"] then (todo, todo.body, false, todo.completed)
@@ -44,7 +44,7 @@ draw the children
     parent.children += [#li, class: [todo: true, completed, editing], todo, children:
                          [#input #todo-checkbox, todo, class: [toggle: true, hidden: editing], type: "checkbox", checked: completed]
                          [#label #todo-item, class: [hidden: editing], todo, text: body]
-                         [#input #todo-editor, class: [edit: true, hidden: toggle(editing)], todo, value: body, autofocus: true]
+                         [#input #todo-editor, class: [edit: true, hidden: toggle[value: editing]], todo, value: body, autofocus: true]
                          [#button #remove-todo, class: [destroy: true, hidden: editing], todo]
 
 draw todomvc
@@ -52,7 +52,7 @@ draw todomvc
     [@app filter]
     all-checked = if not([#todo completed: false]) then true
                   else false
-    count = if c = count(given [#todo completed: false]) then c
+    count = if c = count[given: [#todo completed: false]] then c
             else 0
     none-checked = if [#todo completed: true] then false
                   else true

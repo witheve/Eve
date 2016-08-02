@@ -97,7 +97,7 @@ static execf build_length(block bk, node n)
                 register_perf(bk->ev, n),
                 resolve_cfg(bk, n, 0),
                 table_find(n->arguments, sym(return)),
-                table_find(n->arguments, sym(a)));
+                table_find(n->arguments, sym(string)));
 }
 
 void register_string_builders(table builders)

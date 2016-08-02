@@ -9,9 +9,9 @@ Initialize board
     starting-player = "x"
 
     // generate the cells
-    i = range(0, width * height)
-    column = mod(i, width)
-    row = floor(i / width)
+    i = range[from: 0, to: width * height]
+    column = mod[value: i, by: width]
+    row = floor[value: i / width]
     diag-left = column - row
     diag-right = (width - column) - row
 
@@ -34,15 +34,15 @@ Get N in a row to win the game!
   match
     board = [@board n-in-a-row width height not(winner)]
     winner = if cell = [#cell row player]
-                n-in-a-row = count(given cell per row, player) then player
+                n-in-a-row = count[given: cell, per: (row, player)] then player
             else if cell = [#cell column player]
-                n-in-a-row = count(given cell per column, player) then player
+                n-in-a-row = count[given: cell, per: (column, player)] then player
             else if cell = [#cell diag-left player]
-                n-in-a-row = count(given cell per diag-left, player) then player
+                n-in-a-row = count[given: cell, per: (diag-left, player)] then player
             else if cell = [#cell diag-right player]
-                n-in-a-row = count(given cell per diag-right, player) then player
+                n-in-a-row = count[given: cell, per: (diag-right, player)] then player
             else if cell = [#cell player]
-                    width * height = count(given cell) then "nobody"
+                    width * height = count[given: cell] then "nobody"
   commit
     board.winner := winner
 

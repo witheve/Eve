@@ -9,6 +9,6 @@ Add some people
 Sum the ages of people
   match
     [#person age]
-    total = sum(age given age)
+    total = sum[value: age, given: age]
   bind
     [#div text: total]

@@ -6,7 +6,7 @@ calculate how many 🍔 we need
         else if guest = [#hungry] then 2
         else if guest = [#vegetarian] then 0
         else 1
-    total-🍔 = sum(🍔 given 🍔, guest)
+    total-🍔 = sum[value: 🍔, given: (🍔, guest)]
   bind
     party.🍔 := total-🍔
     guest.🍔 := 🍔

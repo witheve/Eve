@@ -4,8 +4,8 @@ draw a clock hand
     hand = [#clock-hand angle length]
   bind
     hand += [#line, x1: 50, y1: 50,
-             x2: 50 + (length * sin(angle)),
-             y2: 50 - (length * cos(angle))]
+             x2: 50 + (length * sin[angle]),
+             y2: 50 - (length * cos[angle])]
 
 draw a clock
   match

@@ -162,8 +162,8 @@ is just the type of the first character.
     [#char block token, index: start, type]
   bind
     token.type := type
-    token.value := concat(char.char, char.index given char)
-    token.length := count(given char)
+    token.value := join[string: char.char, index: char.index, given: char]
+    token.length := count[given: char]
 
 We also need to check if any of the tokens are keywords and associate
 the keyword with them if they are.
@@ -180,7 +180,7 @@ parse them in order
   
   match
     token = [#token block start]
-    index = index(given start increasing per block)
+    index = sort[given: start, per: block]
   bind
     token.index := index
 

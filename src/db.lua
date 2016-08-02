@@ -86,11 +86,13 @@ local function rename(name, schema)
 end
 local schemas = {
   unary = schema{"return", IN, "a"},
+  unaryValue = schema{"return", IN, "value"},
   unaryBound = schema{IN, "return", "a"},
   unaryFilter = schema{FILTER_IN, "a"},
   binary = schema{"return", IN, "a", "b"},
   binaryBound = schema{IN, "return", "a", "b"},
   binaryFilter = schema{FILTER_IN, "a", "b"},
+  trig = schema{"return", IN, "angle"},
   moveIn = schema{"a", IN, "b"},
   moveOut = schema{"b", IN, "a"}
 }
@@ -109,21 +111,21 @@ local expressions = {
   ["!="] = {rename("not_equal", schemas.binaryFilter), rename("is_not_equal", schemas.binary)},
 
   concat = {schema({"return", IN}, "concat")},
-  length = {rename("length", schemas.unary)},
+  length = {schema({"return", IN, "string"}, "length")},
   is = {rename("is", schemas.unary)},
 
   abs = {rename("abs", schemas.unary)},
-  sin = {rename("sin", schemas.unary)},
-  cos = {rename("cos", schemas.unary)},
-  tan = {rename("tan", schemas.unary)},
-  abs = {rename("abs", schemas.unary)},
-  ceil = {rename("ceil", schemas.unary)},
-  floor = {rename("floor", schemas.unary)},
-  round = {rename("round", schemas.unary)},
-  mod = {rename("mod", schemas.binary)},
-  range = {rename("range", schemas.binary)},
-  toggle = {rename("toggle", schemas.unary)},
-  random = {rename("random", schemas.unary)},
+  sin = {rename("sin", schemas.trig)},
+  cos = {rename("cos", schemas.trig)},
+  tan = {rename("tan", schemas.trig)},
+  abs = {rename("abs", schemas.unaryValue)},
+  ceil = {rename("ceil", schemas.unaryValue)},
+  floor = {rename("floor", schemas.unaryValue)},
+  round = {rename("round", schemas.unaryValue)},
+  mod = {schema({"return", IN, "value", "by"}, "mod")},
+  range = {schema({"return", IN, "from", "to"}, "range")},
+  toggle = {rename("toggle", schemas.unaryValue)},
+  random = {schema({"return", IN, "seed"}, "random")},
   time = {schema({"return", OPT, "frames", "seconds", "minutes", "hours"}, "time")},
 
   -- Aggregates

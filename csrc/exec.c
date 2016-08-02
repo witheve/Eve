@@ -386,7 +386,7 @@ static void do_random(block bk, perf p, execf n, value dest, value seed, timer t
 static execf build_random(block bk, node n)
 {
     value dest = table_find(n->arguments, sym(return));
-    value seed = table_find(n->arguments, sym(a));
+    value seed = table_find(n->arguments, sym(seed));
     ticks interval = milliseconds(1000 / 60);
     timer t = register_periodic_timer(interval, 0);
     return cont(bk->h,
