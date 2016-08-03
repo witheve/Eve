@@ -151,8 +151,8 @@ function handleDOMUpdates(state) {
 
       if(attribute === "children") {
         if(!value) { // Remove all children
-          while(elem.lastChild) {
-            elem.removeChild(elem.lastChild);
+          while(elem.lastElementChild) {
+            elem.removeChild(elem.lastElementChild);
           }
         } else {
           let children = (value.constructor === Array) ? clone(value) : [value];
