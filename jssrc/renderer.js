@@ -258,6 +258,7 @@ function handleDOMUpdates(state) {
     let value = entity["style"];
     elem.removeAttribute("style"); // @FIXME: This could be optimized to care about the diff rather than blowing it all away
     if(value) {
+      value = (value.constructor === Array) ? value : [value];
       let neue = [];
       for(let styleId of value) {
         if(styleId[0] == "⦑" && styleId[styleId.length - 1] == "⦒" && activeStyles[styleId]) {
