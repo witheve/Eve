@@ -188,7 +188,7 @@ function handleDOMUpdates(state) {
       } else if(attribute === "value") {
         if(!value) {
           sentInputValues[entity] = [];
-          elem.removeAttribute(attribute);
+          elem.value = "";
         } else if(value.constructor === Array) {
           console.error("Unable to set 'value' multiple times on entity", entity, value);
         } else {
