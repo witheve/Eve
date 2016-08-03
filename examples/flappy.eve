@@ -75,25 +75,6 @@ Draw the player
   maintain
     sprite += [#image x: x - 5 y: y - 5 width: 10 height: 10 href: "http://i.imgur.com/sp68LtM.gif"]
 
-
-
-Make some obstacle sprites
-|  obstacle = [#obstacle]
-|  svg = [@game-window]
-|  maintain
-|    flarp = [#obstacle-sprite-top @ost obstacle sort: 2 zeeblie-blat: true]
-|    svg.children += flarp
-
-Draw the obstacles
-|  obstacle = [#obstacle x height gap]
-|  bottom-height = height + gap
-|  imgs = "https://cdn.rawgit.com/bhauman/flappy-bird-demo/master/resources/public/imgs"
-|  sprite-top = [#obstacle-sprite-top obstacle]
-|  maintain
-|    sprite-top += [#image x y: 0 width: 10 height, preserveAspectRatio: "none" href: "{{imgs}}/pillar-bkg.png"]
-
-
-
 Make some obstacle sprites
   obstacle = [#obstacle]
   svg = [@game-window]
