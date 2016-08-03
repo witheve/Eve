@@ -11,14 +11,13 @@ document.body.appendChild(renderer.content);
 // handle dom updates
 //---------------------------------------------------------
 
-// TODO: queue updates to be applied during requestAnimationFrame
-
 // root will get added to the dom by the program microReact element in
 // drawNodeGraph
 var activeElements = {"root": document.createElement("div")};
 activeElements["root"].className = "program";
 var activeStyles = {};
 var activeClasses = {};
+var activeChildren = {};
 var supportedTags = {
   "div": true, "span": true, "input": true, "ul": true, "li": true, "label": true, "button": true, "header": true, "footer": true, "a": true, "strong": true,
   "h1": true, "h2": true, "h3": true, "h4": true, "h5": true, "h6": true,
@@ -26,9 +25,9 @@ var supportedTags = {
   "table": true, "tbody": true, "thead": true, "tr": true, "th": true, "td": true,
   "form": true, "optgroup": true, "option": true, "select": true, "textarea": true,
   "title": true, "meta": true, "link": true,
-  "svg": true, "circle": true, "line": true, "rect": true, "text": true, "image": true
+  "svg": true, "circle": true, "line": true, "rect": true, "text": true, "image": true, "defs": true, "pattern": true, "linearGradient": true
 };
-var svgs = {"svg": true, "circle": true, "line": true, "rect": true, "text": true, "image": true};
+var svgs = {"svg": true, "circle": true, "line": true, "rect": true, "text": true, "image": true, "defs": true, "pattern": true, "linearGradient": true};
 // Map of input entities to a queue of their values which originated from the client and have not been received from the server yet.
 var sentInputValues = {};
 var lastFocusPath = null;
@@ -65,7 +64,12 @@ function safeEav(eav) {
   return eav;
 }
 
-function handleDOMUpdates(result) {
+function doRender() {
+  handleDOMUpdates(state);
+}
+
+function handleDOMUpdates(state) {
+  let diffEntities = 0;
 
   if(document.activeElement && document.activeElement.entity) {
     updatingDOM = document.activeElement;
@@ -73,256 +77,206 @@ function handleDOMUpdates(result) {
   if(!updatingDOM) {
     updatingDOM = true;
   }
-  let {insert, remove} = result;
-  let additions = {};
-  // build up a representation of the additions
-  if(insert.length) {
-    for(let ins of insert) {
-      let [entity, attribute, value] = safeEav(ins);
-      if(!additions[entity]) additions[entity] = {}
-      switch(attribute) {
-        case "tag":
-          // we don't care about tags on this guy unless they relate
-          // to dom tags
-          if(!supportedTags[value]) {
-            continue;
+
+  let regenClassesFor = [];
+  let regenStylesFor = [];
+  let {dirty, entities, parents} = state;
+  for(let entityId in dirty) {
+    let entity = entities[entityId];
+    let elem = activeElements[entityId];
+
+    if(dirty[entityId].indexOf("tag") !== -1) {
+      let value = entity.tag;
+      let tag;
+      if(value && value.constructor == Array) {
+        for(let t of value) {
+          if(supportedTags[t]) {
+            if(tag) console.error(`Received multiple supported tags for entity: ${entityId} (tags: ${tag}, ${t})`)
+            tag = t;
           }
-          break;
-        case "children":
-          let children = additions[entity][attribute];
-          if(!children) {
-            children = [];
-            additions[entity][attribute] = children;
-          }
-          children.push(value);
-          continue;
-        case "text":
-          attribute = "textContent"
-          break;
+        }
+      } else if(supportedTags[value]) {
+        tag = value;
       }
-      additions[entity][attribute] = value
+
+      if(!tag && elem) { // Nuke the element if it no longer has a supported tag
+        let parent = elem.parentNode;
+        if(parent) parent.removeChild(elem);
+        elem = activeElements[entityId] = null;
+
+      } else if(tag && elem && elem.tagName !== tag.toUpperCase()) { // Nuke and restore the element if its tag has changed
+        let parent = elem.parentNode;
+        if(parent) parent.removeChild(elem);
+        if(svgs[tag]) {
+          elem = document.createElementNS("http://www.w3.org/2000/svg", tag);
+        } else {
+          elem = document.createElement(tag || "div")
+        }
+        elem.entity = entityId;
+        activeElements[entityId] = elem;
+        elem.sort = entity.sort || entity["eve-auto-index"] || "";
+        if(parent) insertSorted(parent, elem)
+
+
+      } else if(tag && !elem) { // Create a new element and mark all its attributes dirty to restore it.
+        if(svgs[tag]) {
+          elem = document.createElementNS("http://www.w3.org/2000/svg", tag);
+        } else {
+          elem = document.createElement(tag || "div")
+        }
+        elem.entity = entityId;
+        activeElements[entityId] = elem;
+        elem.sort = entity.sort || entity["eve-auto-index"] || "";
+        let parent = activeElements[activeChildren[entityId] || "root"];
+        if(parent) {
+          insertSorted(parent, elem)
+        }
+      }
     }
-  }
-  // do removes that aren't just going to be overwritten by
-  // the adds
-  if(remove && remove.length) {
-    // we clean up styles after the fact so that in the case where
-    // the style object is being removed, but the element is sticking
-    // around, we remove any styles that may have been applied
-    let stylesToMaybeGC = [];
-    let classesToMaybeGC = [];
-    for(let rem of remove) {
-      let [entity, attribute, value] = safeEav(rem);
-      if(activeStyles[entity]) {
-        // do style stuff
-        for(let elem of activeStyles[entity]) {
-          let style = elem.style;
-          if(!additions[entity] || !additions[entity][attribute]) {
-            style[attribute] = "";
+
+    if(activeClasses[entityId]) {
+      for(let entId of activeClasses[entityId]) {
+        regenClassesFor.push(entId);
+      }
+    } else if(activeStyles[entityId]) {
+      for(let entId of activeStyles[entityId]) {
+        regenStylesFor.push(entId);
+      }
+    }
+
+    if(!elem) continue;
+
+    for(let attribute of dirty[entityId]) {
+      let value = entity[attribute];
+
+      if(attribute === "children") {
+        if(!value) { // Remove all children
+          while(elem.lastElementChild) {
+            elem.removeChild(elem.lastElementChild);
           }
-        }
-      } else if(activeClasses[entity]) {
-        if(!additions[entity]  || !additions[entity][attribute]) {
-          for(let elem of activeClasses[entity]) {
-            elem.className = "";
-            elem.classId = undefined;
-          }
-        }
-      } else if(activeElements[entity]) {
-        let elem = activeElements[entity];
-        switch(attribute) {
-          case "tag":
-            if(supportedTags[value]) {
-              //nuke the whole element
-              elem.parentNode.removeChild(elem);
-              activeElements[entity] = null;
-              if(elem.styleId) {
-                let ix = activeStyles[elem.styleId].indexOf(elem);
-                activeStyles[elem.styleId].splice(ix, 1);
-                stylesToMaybeGC.push(value);
-              }
-            }
-            break;
-          case "style":
-            stylesToMaybeGC.push(value);
-            let ix = activeStyles[value].indexOf(elem);
-            if(ix > -1) {
-              activeStyles[value].splice(ix, 1);
-            }
-            break;
-          case "class":
-            if(value[0] == "⦑" && value[value.length - 1] == "⦒" && activeClasses[value]) {
-              classesToMaybeGC.push(value);
-              let classIx = activeClasses[value].indexOf(elem);
-              if(classIx > -1) {
-                activeClasses[value].splice(classIx, 1);
-              }
-            }
-            break;
-          case "children":
-            let child = activeElements[value];
-            if(child) {
+        } else {
+          let children = (value.constructor === Array) ? clone(value) : [value];
+          // Remove any children that no longer belong
+          for(let ix = elem.children.length - 1; ix >= 0; ix--) {
+            let child = elem.children[ix];
+            let childIx = children.indexOf(child.entity);
+            if(childIx == -1) {
               elem.removeChild(child);
-              activeElements[value] = null;
+              child._parent = null;
+            } else {
+              children.splice(childIx, 1);
             }
-            break;
-          case "text":
-            if(!additions[entity] || !additions[entity]["text"]) {
-              elem.textContent = "";
-            }
-          break;
-          case "value":
-          if(!additions[entity] || !additions[entity][attribute]) {
-              sentInputValues[entity] = [];
-              elem.removeAttribute(attribute);
-            }
-            break;
-
-          default:
-            if(!additions[entity] || !additions[entity][attribute]) {
-              elem.removeAttribute(attribute);
-            }
-            break;
-        }
-      }
-    }
-    // clean up any styles that need to go
-    for(let styleId of stylesToMaybeGC) {
-      if(activeStyles[styleId] && activeStyles[styleId].length === 0) {
-        activeStyles[styleId] = null;
-      }
-    }
-    for(let classId of classesToMaybeGC) {
-      if(activeClasses[classId] && activeClasses[classId].length === 0) {
-        activeClasses[classId] = null;
-      }
-    }
-  }
-
-  let styles = [];
-  let classes = [];
-  let entities = Object.keys(additions)
-  for(let entId of entities) {
-    let ent = additions[entId];
-    let elem = activeElements[entId]
-    // if we don't have an element already and this one doesn't
-    // have a tag, then we just skip it (e.g. a style)
-    if(!elem && !ent.tag)  continue;
-    if(!elem) {
-      //TODO: support finding the correct tag
-      if(svgs[ent.tag]) {
-        elem = document.createElementNS("http://www.w3.org/2000/svg", ent.tag);
-      } else {
-        elem = document.createElement(ent.tag || "div")
-      }
-      elem.entity = entId;
-      activeElements[entId] = elem;
-      elem.sort = ent.sort || ent["eve-auto-index"] || "";
-      insertSorted(activeElements.root, elem)
-    }
-    let attributes = Object.keys(ent);
-    for(let attr of attributes) {
-      let value = ent[attr];
-      if(attr == "children") {
-        for(let child of value) {
-          let childElem = activeElements[child];
-          if(childElem) {
-            insertSorted(elem, childElem)
-          } else {
-            let childAddition = additions[child];
-            // FIXME: if somehow you get a child id, but that child
-            // has no facts provided, we'll just lose that information
-            // here..
-            if(childAddition) {
-              childAddition._parent = entId;
+          }
+          // Add any new children which already exist
+          for(let childId of children) {
+            let child = activeElements[childId];
+            if(child) {
+              insertSorted(elem, child);
             }
           }
         }
-      } else if(attr == "style") {
-        styles.push(value);
-        if(!activeStyles[value]) {
-          activeStyles[value] = [];
-        }
-        if(activeStyles[value].indexOf(elem) == -1) {
-          elem.styleId = value;
-          activeStyles[value].push(elem);
-        }
-      } else if(attr == "class" && value[0] == "⦑" && value[value.length - 1] == "⦒") {
-        classes.push(value);
-        if(!activeClasses[value]) {
-          activeClasses[value] = [];
-        }
-        if(activeClasses[value].indexOf(elem) == -1) {
-          elem.classId = value;
-          activeClasses[value].push(elem);
-        }
-      } else if(attr == "textContent") {
-        elem.textContent = value;
-      } else if(attr == "tag" || attr == "ix") {
-        //ignore
-      } else if(attr == "_parent") {
-        let parent = activeElements[value];
-        insertSorted(parent, elem);
-      } else if(attr == "checked") {
-        if(value) elem.setAttribute("checked", true);
-        else elem.removeAttribute("checked");
-      } else if(attr == "value") {
-        if(sentInputValues[entId] && sentInputValues[entId][0] === value) {
-          sentInputValues[entId].shift();
+      } else if(attribute === "class") {
+        regenClassesFor.push(entityId);
+
+      } else if(attribute === "style") {
+        regenStylesFor.push(entityId);
+
+      } else if(attribute === "text") {
+        let text = (value && value.constructor === Array) ? value.join(", ") : value;
+        elem.textContent = (value !== undefined) ? value : "";
+
+      } else if(attribute === "value") {
+        if(!value) {
+          sentInputValues[entity] = [];
+          elem.value = "";
+        } else if(value.constructor === Array) {
+          console.error("Unable to set 'value' multiple times on entity", entity, value);
         } else {
-          sentInputValues[entId] = [];
-          // @FIXME: handle select both here and when something tagged option is added.
-          elem.value = value;
+          let sent = sentInputValues[entityId];
+          if(sent && sent[0] === value) {
+            sent.shift();
+          } else {
+            sentInputValues[entityId] = [];
+            // @FIXME: handle select both here and when something tagged option is added.
+            elem.value = value; // @FIXME: Should this really be setAttribute?
+          }
         }
+
+      } else if(attribute === "checked") {
+        if(value && value.constructor === Array) {
+          console.error("Unable to set 'checked' multiple times on entity", entity, value);
+        } else {
+          if(value) elem.setAttribute("checked", true);
+          else elem.removeAttribute("checked");
+        }
+
       } else {
-        elem.setAttribute(attr, value);
-      }
-    }
-  }
-
-  for(let styleId of styles) {
-    let style = additions[styleId];
-    if(!style) continue;
-    let elems = activeStyles[styleId];
-    for(let elem of elems || []) {
-      if(!elem) {
-        console.error("Got a style for an element that doesn't exist.");
-        continue;
-      }
-      let elemStyle = elem.style;
-      let styleAttributes = Object.keys(style);
-      for(let attr of styleAttributes) {
-        if(attr === "display" && typeof style[attr] === "boolean") {
-          elemStyle[attr] = style[attr] ? undefined : "none";
+        value = (value && value.constructor === Array) ? value.join(", ") : value;
+        if(value === undefined) {
+          elem.removeAttribute(attribute);
         } else {
-          elemStyle[attr] = style[attr];
+          elem.setAttribute(attribute, value);
         }
+      }
+    }
+
+    let attrs = Object.keys(entity);
+    if(attrs.length == 0) {
+      diffEntities--;
+      delete entities[entityId];
+    }
+  }
+
+  for(let entityId of regenClassesFor) {
+    let entity = entities[entityId];
+    let elem = activeElements[entityId];
+    let value = entity["class"];
+    if(!value) {
+      elem.className = "";
+    } else {
+      value = (value.constructor === Array) ? value : [value];
+      let neue = [];
+      for(let klassId of value) {
+        if(klassId[0] == "⦑" && klassId[klassId.length - 1] == "⦒" && activeClasses[klassId]) {
+          let klass = entities[klassId];
+          for(let name in klass) {
+            if(klass[name] && neue.indexOf(name) === -1) {
+              neue.push(name);
+            }
+          }
+        } else {
+          neue.push(klassId);
+        }
+      }
+      elem.className = neue.join(" ");
+    }
+  }
+
+  for(let entityId of regenStylesFor) {
+    let entity = entities[entityId];
+    let elem = activeElements[entityId];
+    let value = entity["style"];
+    elem.removeAttribute("style"); // @FIXME: This could be optimized to care about the diff rather than blowing it all away
+    if(value) {
+      value = (value.constructor === Array) ? value : [value];
+      let neue = [];
+      for(let styleId of value) {
+        if(styleId[0] == "⦑" && styleId[styleId.length - 1] == "⦒" && activeStyles[styleId]) {
+          let style = entities[styleId];
+          for(let attr in style) {
+            elem.style[attr] = style[attr];
+          }
+        } else {
+          neue.push(styleId);
+        }
+      }
+      if(neue.length) {
+        elem.setAttribute("style", elem.getAttribute("style") + "; " + neue.join("; "));
       }
     }
   }
 
-  for(let classId of classes) {
-    let classSet = additions[classId];
-    if(!classSet) continue;
-    let elems = activeClasses[classId];
-    for(let elem of elems || []) {
-      if(!elem) {
-        console.error("Got a class for an element that doesn't exist.");
-        continue;
-      }
-      let elemClasses = elem.className.split(" ");
-      let classNames = Object.keys(classSet);
-      for(let klass of classNames) {
-        let existingIx = elemClasses.indexOf(klass)
-        if(classSet[klass] && existingIx == -1) {
-          elemClasses.push(klass);
-        } else if(!classSet[klass] && existingIx != -1) {
-          elemClasses.splice(existingIx, 1);
-        }
-      }
-      elem.className = elemClasses.join(" ");
-    }
-  }
+  //////
 
   if(lastFocusPath) {
     let current = activeElements.root;
@@ -344,6 +298,7 @@ function handleDOMUpdates(result) {
     }
   }
   updatingDOM = false;
+  state.dirty = {};
 }
 
 //---------------------------------------------------------
@@ -411,7 +366,7 @@ function sendEvent(query) {
     socket.send(JSON.stringify({scope: "event", type: "query", query}))
   }
   return query;
-}
+false}
 
 function sendSwap(query) {
   if(socket && socket.readyState == 1) {
@@ -1135,55 +1090,115 @@ function clone(obj) {
 // Connect the websocket, send the ui code
 //---------------------------------------------------------
 let DEBUG = false;
-let __entities = {}; // DEBUG
+
+let state = {entities: {}, dirty: {}};
+function handleDiff(state, diff) {
+  let diffEntities = 0;
+  let {entities, dirty} = state;
+
+  for(let remove of diff.remove) {
+    let [e, a, v] = safeEav(remove);
+    if(!entities[e]) {
+      console.error(`Attempting to remove an attribute of an entity that doesn't exist: ${e}`);
+      continue;
+    }
+    if(!dirty[e]) dirty[e] = [];
+    let entity = entities[e];
+    let values = entity[a];
+    if(!values) continue;
+    dirty[e].push(a);
+    if(values.constructor !== Array || values.length <= 1) {
+      delete entity[a];
+    } else {
+      let ix = values.indexOf(v);
+      if(ix === -1) continue;
+      values.splice(ix, 1);
+    }
+
+    // Update active*
+    if(a === "children" && activeChildren[v] === e) {
+      delete activeChildren[v];
+    }
+
+    if(a === "class" && activeClasses[v]) {
+      let classIx = activeClasses[v].indexOf(e);
+      if(classIx !== -1) {
+        activeClasses[v].splice(classIx, 1);
+      }
+    }
+
+    if(a === "style" && activeStyles[v]) {
+      let styleIx = activeStyles[v].indexOf(e);
+      if(styleIx !== -1) {
+        activeStyles[v].splice(styleIx, 1);
+      }
+    }
+  }
+
+  for(let insert of diff.insert) {
+    let [e, a, v] = safeEav(insert);
+    if(!entities[e]) {
+      entities[e] = {};
+      diffEntities++;
+    }
+    if(!dirty[e]) dirty[e] = [];
+    dirty[e].push(a);
+    let entity = entities[e];
+    if(!entity[a]) {
+      entity[a] = v;
+    } else if(entity[a] == v) {
+      // do nothing (this really shouldn't happen, our diff is weird then)
+      console.error(`Received a diff setting ${entity}["${a}"] = ${v} (the existing value)`);
+      continue;
+    } else if(entity[a].constructor !== Array) {
+      entity[a] = [entity[a], v];
+    } else {
+      entity[a].push(v);
+    }
+
+    // Update active*
+    if(a === "children") {
+      if(activeChildren[v]) console.error(`Unable to handle child element ${v} parented to two parents (${activeChildren[v]}, ${e}). Overwriting.`);
+      activeChildren[v] = e;
+    }
+
+    if(a === "class") {
+      if(!activeClasses[v]) activeClasses[v] = [e];
+      else activeClasses[v].push(e);
+    }
+
+    if(a === "style") {
+      if(!activeStyles[v]) activeStyles[v] = [e];
+      else activeStyles[v].push(e);
+    }
+  }
+}
+
 
 var socket = new WebSocket("ws://" + window.location.host +"/ws");
 socket.onmessage = function(msg) {
   let data = JSON.parse(msg.data);
   if(data.type == "result") {
-    handleDOMUpdates(data);
+    handleDiff(state, data);
+    window.requestAnimationFrame(doRender);
 
     let diffEntities = 0;
-    if(DEBUG && __entities) {
-      for(let [e, a, v] of data.remove) {
-        if(!__entities[e]) continue;
-        let entity = __entities[e];
-        let set = entity[a];
-        if(!set) continue;
-        if(set.constructor !== Array || set.length <= 1) {
-          delete entity[a];
-        } else {
-          let ix = entity[a].indexOf(v);
-          if(ix === -1) continue;
-          entity[a].splice(ix, 1);
-        }
-
-        if(Object.keys(entity).length === 0) {
-          delete __entities[e];
-          diffEntities--;
-        }
-      }
-
-      for(let [e, a, v] of data.insert) {
-        if(!__entities[e]) {
-          __entities[e] = {};
-          diffEntities++;
-        }
-        let entity = __entities[e];
-        if(!entity[a]) {
-          entity[a] = v;
-        } else if(entity[a].constructor !== Array) {
-          entity[a] = [entity[a], v];
-        } else {
-          entity[a].push(v);
-        }
-      }
-    }
     if(DEBUG) {
       console.groupCollapsed(`Received Result +${data.insert.length}/-${data.remove.length} (∂Entities: ${diffEntities})`);
       console.table(data.insert);
       console.table(data.remove);
-      if(__entities) console.log(clone(__entities));
+      if(state.entities) {
+        let copy = clone(state.entities);
+        console.log(copy);
+        let byName = {};
+        for(let entity in copy) {
+          if(copy[entity].name) {
+            copy[entity].entity = entity;
+            byName[copy[entity].name] = copy[entity];
+          }
+        }
+        console.log(byName);
+      }
       console.groupEnd();
     }
     drawNodeGraph();
