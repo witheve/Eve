@@ -1,6 +1,8 @@
 a pluralize "function" that can be reused
+```
   match
     text = if number = 1 then singular
           else then plural
   bind
     pluralize[singular? plural? number? text]
+```

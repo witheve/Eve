@@ -1,4 +1,5 @@
 Add some fruits to the system
+```
   match
     [#session-connect]
   commit
@@ -8,15 +9,20 @@ Add some fruits to the system
     [#fruit @apple color: "green"]
     [#fruit @banana color: "yellow"]
     [#fruit #exotic @lychee color: "white"]
+```
 
 Draw a list of fruits
+```
   match
     [#fruit color name]
   bind
     [#div #foo sort: name, text: name, style: [color]]
+```
 
 draw clicks
+```
   match
     click = [#click element]
   commit
     [#div sort: "zzz", click, text: "yo"]
+```

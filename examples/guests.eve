@@ -1,12 +1,15 @@
 get the party started...
+```
 	bind
   	[@my-party]
     [#person @julia spouse: [@ed]]
     [#person @arthur]
     [#person #growing-boy @jake]
     [#person @jenny]
+```
 
 count guests coming to the party
+```
   match
     party = [@my-party]
     guest = if p = [#person] then p
@@ -15,8 +18,10 @@ count guests coming to the party
   bind
     party.guest-count := total
     party.guest += guest
+```
 
 how many burgers do I need?
+```
   match
     party = [@my-party guest]
     burgers = if guest = [#growing-boy] then 2
@@ -26,14 +31,17 @@ how many burgers do I need?
   bind
     party.burgers := total
     guest.burgers := burgers
+```
 
 draw out the guest list
+```
   match
     [@my-party guest guest-count burgers]
   bind
-  	[#div children: 
+  	[#div children:
     	[#h2 text: "My awesome party"]
       [#p text: "Guest count: {{guest-count}}, total burgers: {{burgers}}"]
       [#ul children:
 	      [#li text: "{{guest.name}} - {{guest.burgers}}", sort: guest.name]]]
-  
+```
+

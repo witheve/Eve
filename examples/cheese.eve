@@ -1,4 +1,5 @@
 choose
+```
   match
     [#session-connect]
   commit
@@ -7,10 +8,13 @@ choose
     [#cheese @manchego]
     [#cheese @portsalut]
     [#cheese @wensleydale]
+```
 
 zikky
+```
   match
     [#cheese name]
     color = if length[string: name] > 8 then "orange" else "white"
   bind
     [#div text: name, sort: name, style: [color]]
+```

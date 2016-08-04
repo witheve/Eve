@@ -1,4 +1,5 @@
 add some people to the organization
+```
   match
     [#session-connect]
   commit
@@ -8,21 +9,28 @@ add some people to the organization
     ed = [#employee @ed boss: deena]
     joe = [#employee @joe boss: jill]
     gram = [#employee @gram boss: joe]
+```
 
 get the people at the top
+```
   match
     top = [#employee not(boss)]
   bind
     top.level := 0
+```
 
 figure out org chart depth
+```
   match
     employee = [#employee boss]
   bind
     employee.level := boss.level + 1
+```
 
 show all the people and their level
+```
   match
     [#employee name level]
   bind
     [#div text: "{{name}} - {{level}}" sort: level]
+```

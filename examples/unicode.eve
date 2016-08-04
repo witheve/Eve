@@ -1,4 +1,5 @@
 calculate how many 🍔 we need
+```
   match
     guest = [#invited name]
     party = [@"my party"]
@@ -10,3 +11,4 @@ calculate how many 🍔 we need
   bind
     party.🍔 := total-🍔
     guest.🍔 := 🍔
+```

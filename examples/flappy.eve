@@ -1,14 +1,17 @@
 # Flappy bird in Eve
 
 Add a flappy eve and a world for it to flap in
+```
   match
     [#session-connect]
   commit
     [#player #self name: "eve" x: 25 y: 50 velocity: 0 acceleration: -0.024] // We're going to normalize our coordinates to [0...100]
     [@world screen: "menu" frame: 0 distance: 0 best: 0]
     [#obstacle gap: 35]
+```
 
 Draw the game world!
+```
   match
     [#session-connect]
   commit
@@ -17,25 +20,31 @@ Draw the game world!
         [#rect x: 0 y: 0 width: 100 height: 53 fill: "rgb(112, 197, 206)" sort: 0]
         [#image x: 0 y: 52 width: 100 height: 43 preserveAspectRatio: "xMinYMin slice" href: "https://cdn.rawgit.com/bhauman/flappy-bird-demo/master/resources/public/imgs/background.png" sort: 1]
         [#rect x: 0 y: 95 width: 100 height: 5 fill: "rgb(222, 216, 149)" sort: 0]]]
+```
 
 
 ## Screens
 This handles the game's miscellaneous screens. It's currently pretty simple, but you could expand it to include changes to other purpose-specific screens.
 
 Draw the main menu
+```
   match
     [@world screen: "menu"]
     svg = [@game-window]
   bind
     svg.children += [#text x: 50 y: 45 text-anchor: "middle" font-size: 6 text: "Click the screen to begin!" sort: 10]
+```
 
 Keep score
+```
   match
     world = [@world distance]
   bind
     world.score := floor[value: distance / 2]
+```
 
 Draw the game over final score
+```
   match
     [@world screen: "game over" score best]
     svg = [@game-window]
@@ -44,8 +53,10 @@ Draw the game over final score
     svg.children += [#text x: 50 y: 55 text-anchor: "middle" font-size: 6 text: "Score {{score}}" sort: 10]
     svg.children += [#text x: 50 y: 65 text-anchor: "middle" font-size: 6 text: "Best {{best}}" sort: 10]
     svg.children += [#text x: 50 y: 85 text-anchor: "middle" font-size: 4 text: "Click to play again!" sort: 10]
+```
 
 Start the game
+```
   match
     [#click #direct-target]
     world = if world = [@world screen: "menu"] then world
@@ -56,38 +67,48 @@ Start the game
   commit
     world <- [screen: "game" distance: 0 best: neue]
     player <- [x: 25 y: 50 velocity: 0]
+```
 
 
 ## Run the actual game
 Every 2 distance a wild obstacle appears
+```
   match
     [@world distance]
     obstacle = [#obstacle]
   bind
     obstacle <- [x: 110 - (60 * mod[value: distance, by: 2])]
+```
 
 Readjust the height of the gap every time the obstacle resets
+```
   match
     [@world screen: "game"]
     obstacle = [#obstacle x > 100]
     height = random[seed: obstacle] * 30 + 5
   commit
     obstacle.height := height
+```
 
 Make a player sprite
+```
   match
     player = [#player]
     svg = [@game-window]
   bind
     svg.children += [#player-sprite player sort: 8]
+```
 
 Draw the player
+```
   match
     sprite = [#player-sprite player: [#player x y]]
   bind
     sprite <- [#image x: x - 5 y: y - 5 width: 10 height: 10 href: "http://i.imgur.com/sp68LtM.gif"]
+```
 
 Make some obstacle sprites
+```
   match
     obstacle = [#obstacle]
     svg = [@game-window]
@@ -96,8 +117,10 @@ Make some obstacle sprites
     svg.children += [#obstacle-sprite-top-head obstacle sort: 3]
     svg.children += [#obstacle-sprite-bottom obstacle sort: 2]
     svg.children += [#obstacle-sprite-bottom-head obstacle sort: 3]
+```
 
 Draw the obstacles
+```
   match
     obstacle = [#obstacle x height gap]
     bottom-height = height + gap
@@ -113,16 +136,20 @@ Draw the obstacles
     sprite-top-head <- [#image x: x - 1 y: height - 5 width: 12 height: 5 href: "{{imgs}}/lower-pillar-head.png"]
     sprite-bottom <- [#image x y: bottom-height width: 10 height: 90 - bottom-height, preserveAspectRatio: "none" href: "{{imgs}}/pillar-bkg.png"]
     sprite-bottom-head <- [#image x: x - 1 y: bottom-height width: 12 height: 5 href: "{{imgs}}/lower-pillar-head.png"]
+```
 
 Flap the player
+```
   match
     [#click #direct-target]
     [@world screen: "game"]
     player = [#player #self]
   bind
     player.acceleration += 1.4
+```
 
 As time moves gently forward, winter turns to spring
+```
   match
     [#time frames]
     world = [@world screen: "game" frame != frames]
@@ -132,15 +159,19 @@ As time moves gently forward, winter turns to spring
     world.frame := frames
     world.distance := world.distance + 1 / 60
     player <- [y: y - velocity, velocity: velocity + ∂v]
+```
 
 Lose the game if the player hits the ground
+```
   match
     world = [@world screen: "game"]
     [#player y > 85] // ground height + player radius
   commit
     world.screen := "game over"
+```
 
 Lose the game if the player hits an obstacle
+```
   match
     world = [@world screen: "game"]
     [#player x y]
@@ -151,3 +182,4 @@ Lose the game if the player hits an obstacle
                 else if y + 5 >= gap + height then true
   commit
     world.screen := "game over"
+```

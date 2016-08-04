@@ -165,6 +165,7 @@ local keywords = {
   commit = "COMMIT",
   bind = "BIND",
   match = "MATCH",
+  ["```"] = "BLOCK",
   ["if"] = "IF",
   ["then"] = "THEN",
   ["else"] = "ELSE",
@@ -220,7 +221,7 @@ local function lex(str)
   local offset = 0
   local byteOffset = 0
   local surrogateOffset = 0
-  local blockOffset = nil
+  local inBlock = nil
   local tokens = {}
 
   local function adjustOffset(num)
@@ -246,30 +247,15 @@ local function lex(str)
         adjustOffset(1)
       end
 
-    elseif blockOffset and offset <= blockOffset then
+    elseif not inBlock then
       scanner:unread()
       local firstToken = scanner:eatWhile(isIdentifierChar)
       -- check if this is a keyword that continues a query
-      if queryKeywords[firstToken] and offset ~= 0 then
-        tokens[#tokens+1] = Token:new(keywords[firstToken], firstToken, line, offset, byteOffset, surrogateOffset)
+      if firstToken == "```" then
+        inBlock = true
+        tokens[#tokens+1] = Token:new("BLOCK_OPEN", firstToken, line, offset, byteOffset, surrogateOffset)
         adjustOffsetByString(firstToken)
       else
-        blockOffset = nil
-        local doc = scanner:eatWhile(notNewline)
-        tokens[#tokens+1] = Token:new("DOC", firstToken .. doc, line, offset, byteOffset, surrogateOffset)
-        adjustOffsetByString(doc)
-      end
-
-    elseif not blockOffset then
-      scanner:unread()
-      local firstToken = scanner:eatWhile(isIdentifierChar)
-      -- check if this is one of the keywords that could start a query
-      if queryKeywords[firstToken] and offset ~= 0 then
-        blockOffset = offset
-        tokens[#tokens+1] = Token:new(keywords[firstToken], firstToken, line, offset, byteOffset, surrogateOffset)
-        adjustOffsetByString(firstToken)
-      else
-        -- if it's not, just the eat line
         local doc = scanner:eatWhile(notNewline)
         tokens[#tokens+1] = Token:new("DOC", firstToken .. doc, line, offset, byteOffset, surrogateOffset)
         adjustOffsetByString(doc)
@@ -351,8 +337,13 @@ local function lex(str)
         scanner:unread()
         identifier = identifier:sub(1, -2)
       end
+
       local keyword = keywords[identifier]
       local type = keyword or "IDENTIFIER"
+      if identifier == "```" then
+        inBlock = false
+        type = "BLOCK_CLOSE"
+      end
       tokens[#tokens+1] = Token:new(type, identifier, line, offset, byteOffset, surrogateOffset)
       adjustOffsetByString(identifier)
     end
@@ -667,6 +658,9 @@ local function parse(tokens, context)
         stackTop = tryFinishExpression(true)
         stack:push(makeNode(context, "query", token, {doc = token.value, children = {}}))
       end
+
+    elseif type == "BLOCK_OPEN" or type == "BLOCK_CLOSE" then
+      -- we don't really need to do anything with these
 
     elseif type == "MATCH" then
       -- TODO: we should only be looking at other token types if we've opened the

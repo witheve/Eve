@@ -1,4 +1,5 @@
 Initialize board
+```
   match
     [#session-connect]
 
@@ -18,6 +19,7 @@ Initialize board
   commit
     board = [@board width height n-in-a-row player: starting-player]
     [#cell board row column diag-left diag-right]
+```
 
 Click on a cell to make your move
 ```
@@ -33,6 +35,7 @@ Click on a cell to make your move
 ```
 
 Get N in a row to win the game!
+```
   match
     board = [@board n-in-a-row width height not(winner)]
     winner = if cell = [#cell row player]
@@ -47,8 +50,10 @@ Get N in a row to win the game!
                     width * height = count[given: cell] then "nobody"
   commit
     board.winner := winner
+```
 
 Reset the board state after a win
+```
   match
     [#click #direct-target]
     board = [@board winner]
@@ -56,8 +61,10 @@ Reset the board state after a win
   commit
     board.winner -= winner
     cell.player -= player
+```
 
 Draw the board
+```
   match
     board = [@board]
     cell = [#cell board row column]
@@ -70,17 +77,22 @@ Draw the board
         [#div class: "row" sort: row children:
           [#div class: "cell" cell text: contents sort: column style:
             [display: "inline-block" width: "50px" height: "50px" border: "1px solid rgb(47, 47, 49)" color: "black" background: "white" font-size: "2em" line-height: "50px" text-align: "center"]]]]]
+```
 
 Draw the current player
+```
   match
     status = [#status board]
     not(board.winner)
   bind
     status.text += "{{board.player}}'s turn!"
+```
 
 Draw the winner
+```
   match
     status = [#status board]
     winner = board.winner
   bind
     status.text += "{{winner}} wins! Click anywhere to restart!"
+```

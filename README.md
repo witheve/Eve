@@ -49,7 +49,7 @@ Windows Users - Docker for Windows requires Microsoft Hyper-V, which requires Wi
 
 To run Eve, in the `eve/build` execute:
 
-`./eve -e [eve_file]` 
+`./eve -e [eve_file]`
 
 where `[eve_file]` is the location of an `*.eve` file you want to compile. This process launches a server at `http://localhost:8080`. You can point your browser there to see the results of the compilation. You can configure the port with the `--port` flag. e.g. `./eve --port 1234`.
 
@@ -67,7 +67,7 @@ The easiest way to use Eve is to write an Eve file in your favorite text editor,
 
 For now the [Syntax RFC](https://github.com/witheve/rfcs/blob/master/proposed/syntax.md) acts as an interim tutorial while we work on something more complete.
 
-Finally, you can communicate with Eve using websockets and a very simple [JSON protocol](http://incidentalcomplexity.com/2016/06/22/mar2/). For now, the web interface is the only tool that implements this protocol. 
+Finally, you can communicate with Eve using websockets and a very simple [JSON protocol](http://incidentalcomplexity.com/2016/06/22/mar2/). For now, the web interface is the only tool that implements this protocol.
 
 *Please let us know what kind of documents would be the most helpful as you begin your journey with Eve*. We want our documentation to be a highlight of the Eve experience, so any suggestions are greatly appreciated.
 

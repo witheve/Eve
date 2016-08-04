@@ -1,13 +1,16 @@
 # Clock
 draw a clock hand
+```
   match
     hand = [#clock-hand angle length]
     x2 = 50 + (length * sin[angle])
     y2 = 50 - (length * cos[angle])
   bind
     hand <- [#line, x1: 50, y1: 50, x2, y2]
+```
 
 draw a clock
+```
   match
     [#time hours minutes seconds]
   bind
@@ -16,3 +19,4 @@ draw a clock
       [#clock-hand @hour-hand angle: 30 * hours, length: 30, stroke: "#023963"]
       [#clock-hand @minute-hand angle: 6 * minutes, length: 40, stroke: "#023963"]
       [#clock-hand @second-hand angle: 6 * seconds, length: 40, stroke: "#ce0b46"]]
+```

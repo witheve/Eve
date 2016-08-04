@@ -1,19 +1,25 @@
 add a person
+```
   match
     [#session-connect]
   commit
     [#person @joeoy]
+```
 
 draw input
+```
   match
     person = [#person name]
   bind
     [#div children:
       [#div person text: name]
       [#input person value: name]]
+```
 
 bind person name to input value
+```
   match
     [#change element: [#input person value]]
   commit
     person.name := value
+```

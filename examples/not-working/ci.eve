@@ -1,4 +1,5 @@
 receive the webhook from github on a pull request
+```
   match
     [#webhook-message
       source: "github.com"
@@ -9,28 +10,36 @@ receive the webhook from github on a pull request
                     head: [ref: branch, sha]]]
   commit
     [#pull-request number, github-url, body, title, additions, deletions, branch, sha]
+```
 
 checkout the git repository
+```
   match
     [#pull-request github-url, branch, sha]
     path = "/tmp/{{branch}}/{{sha}}"
   commit global
     [#git-repository #eve-repo source: github-url, branch, sha, path]
+```
 
 once checked out build eve
+```
   match
     [#success of: [#eve-repo path]]
   commit global
     [#process #eve-build shell: "make", cwd: path]
+```
 
 once built, run eve
+```
   match
     [#success of: [#eve-build path]]
     [#eve-repo path sha]
   commit global
     [#process #eve-run shell: "./eve -b {{sha}}", cwd: path, sha]
+```
 
 send facts over to that bag
+```
   match
     [#eve-repo sha]
     (entity, attribute, value) =
@@ -42,8 +51,10 @@ send facts over to that bag
         [#eavs entity, attribute, value] then (entity, attribute, value)
   commit sha
     [#eavs entity attribute value]
+```
 
 check that bag for the results
+```
   match
     [#eve-repo sha]
     context bag: sha
@@ -52,8 +63,10 @@ check that bag for the results
   commit global
     [#run sha result:
       [#test-result test result]]
+```
 
 display pull requests
+```
   match
     [#pull-request number, github-url, body, title, additions, deletions, branch, sha]
   bind
@@ -62,16 +75,20 @@ display pull requests
       [#div text: "{{branch}} :: + {{additions}} / - {{deletions}}"]
       [#div text: body]
       [#div #result-display]]
+```
 
 display pending execution
+```
   match
     [#pull-request number, github-url, body, title, additions, deletions, branch, sha]
     not([#run sha])
     parent = [#result-display]
   bind
     parent.children += [#div "running tests..."]
+```
 
 display test results
+```
   match
     [#pull-request number, github-url, body, title, additions, deletions, branch, sha]
     [#run sha]
@@ -79,6 +96,7 @@ display test results
     parent = [#result-display]
   bind
     parent.children += [#div class: [success: result], children: [#span: test]]
+```
 
 
 

@@ -1,4 +1,5 @@
 simple constant math
+```
   match
     a = 1 + 2
     b = a + 2
@@ -7,3 +8,4 @@ simple constant math
     e = d * 3
   bind
     [#div #num text: e]
+```

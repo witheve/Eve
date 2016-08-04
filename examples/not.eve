@@ -1,8 +1,12 @@
 people who are not employees
+```
   match
     person = [#person]
     not(person = [#employee])
+```
 
 inline people who are not employees
+```
   match
     person = [#person not(salary) not(#employee)]
+```

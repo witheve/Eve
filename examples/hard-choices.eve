@@ -1,4 +1,5 @@
 Add some favorite shows, locations, and hobbies for @me and #tv-nerds
+```
   match
     [#session-connect]
   commit
@@ -7,8 +8,10 @@ Add some favorite shows, locations, and hobbies for @me and #tv-nerds
     [#tv-nerd @jane favorite-show:"rick-and-morty" location:"party" conversing-with:me]
     [#tv-nerd @tim favorite-show:"a-team" hobby:"competitive delousing" location:"party" conversing-with:me]
     [#tv-nerd @don]
+```
 
 choose test
+```
   match
     me = [@me]
     person = [#tv-nerd location: "party" conversing-with:me,
@@ -19,3 +22,4 @@ choose test
       else ("weather", "crappy")
   bind
     [#div text: "conversation between me and {{person.name}}, about {{about}}, with quality {{quality}}"]
+```

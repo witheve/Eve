@@ -1,18 +1,28 @@
+# Chat
+
 add a user for this sesion on connect
+
+```
   match
     [#session-connect]
   commit
     [#user @me]
+```
 
 build the chat pane
+
+```
   match
     channel = "general"
   bind
     [#div class: "chat-pane" children:
       [#div #chat-messages class: "chat-messages" channel]
       [#input #channel-input autofocus: true channel]]
+```
 
 draw messages
+
+```
   match
     parent = [#chat-messages channel]
     id = [#message name time message channel]
@@ -21,8 +31,11 @@ draw messages
                          [#div class: "chat-user", text: name]
                          [#div class: "chat-time", text: time]
                          [#div class: "chat-message", text: message]]
+```
 
 handle chat keydowns
+
+```
   match
     event = [#keydown element, key: "enter"]
     element = [#channel-input channel value]
@@ -32,3 +45,4 @@ handle chat keydowns
     element.value := ""
   commit global
     [#message event name, time: "{{hours}}:{{minutes}}", message: value, channel]
+```

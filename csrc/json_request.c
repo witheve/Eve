@@ -300,7 +300,7 @@ void new_json_session(bag root, boolean tracing,
         destroy(graph_heap);
     }
 
-    inject_event(j->s, aprintf(j->h,"init!\n   bind\n      [#session-connect]\n"), j->tracing);
+    inject_event(j->s, aprintf(j->h,"init!\n```\nbind\n      [#session-connect]\n```"), j->tracing);
 }
 
 void init_json_service(http_server h, bag root, boolean tracing, buffer graph, char *exec_file_path)

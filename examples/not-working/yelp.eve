@@ -1,5 +1,6 @@
 # Handle Events
 click on a restaurant or pin, show a restaurant
+```
   match
     app = [@app]
     restaurant = if [#click element: [#yelp-restaurant-list-element restaurant]] then restaurant
@@ -7,16 +8,20 @@ click on a restaurant or pin, show a restaurant
   commit
     app.selected := restaurant
     app.content := "restaurant"
+```
 
 click on yelp logo, show map
+```
   match
     app = [@app]
     [#click element: [#yelp-logo]]
   commit
     app.content := "map"
+```
 
 # Draw the page
 draw the selected restaurant
+```
   match
     root = [@yelp-root]
     restaurant = [#restaurant name image]
@@ -27,8 +32,10 @@ draw the selected restaurant
                           [#h2 text: name]
                           [#div children:
                             [#img src: image]]]]
+```
 
 draw the map pane
+```
   match
     root = [@yelp-root]
     [@app content: "map"]
@@ -36,8 +43,10 @@ draw the map pane
     [#address-to-latlon street city state zip lat long]
   commit
     root.children += [#map class: "map", pins: [#yelp-restaurant-pin lat lon]]
+```
 
 draw the restaurant list
+```
   match
     restaurant = [#restaurant name rating]
     root = [@yelp-root]
@@ -50,8 +59,11 @@ draw the restaurant list
                           restaurant, name, star-image, children:
                           [#h1 text: name]
                           [#img src: star-image]]]]
+```
 
 draw the main page
+```
   bind
     [#div @yelp-root class: "yelp-root", children:
       [#div class: "header", children: [#h1 #yelp-logo text: "Yelp"]]]
+```

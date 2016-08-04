@@ -354,9 +354,10 @@ function formatObjects(objs) {
 function sendEventObjs(objs) {
   if(!objs.length) return;
   let query = `handle some event
+  \`\`\`
   bind
     ${formatObjects(objs).join("\n    ")}
-  `
+  \`\`\``
   return sendEvent(query);
 }
 
@@ -434,10 +435,12 @@ window.addEventListener("input", function(event) {
     sentInputValues[target.entity].push(target.value);
     let query =
     `input value updated
+      \`\`\`
       match
         input = ${target.entity}
       commit
-        input.value := "${target.value.replace("\"", "\\\"")}"`;
+        input.value := "${target.value.replace("\"", "\\\"")}"
+      \`\`\``;
     sendEvent(query);
     sendEventObjs([{tags: ["change"], element: target.entity}]);
   }
@@ -456,10 +459,12 @@ window.addEventListener("change", function(event) {
     sentInputValues[target.entity].push(value);
     let query =
       `input value updated
+      \`\`\`
       match
         input = ${target.entity}
       commit
-        input.value := "${value.replace("\"", "\\\"")}"`;
+        input.value := "${value.replace("\"", "\\\"")}"
+      \`\`\``;
     sendEvent(query);
     let tags = ["change"];
     if(target == target) {
@@ -565,22 +570,29 @@ function onHashChange(event) {
   });
   let query =
   `hash changed remove any current url segments
+    \`\`\`
     match
       url = [#url hash-segment]
     commit
-      url.hash-segment -= hash-segment\n\n`;
+      url.hash-segment -= hash-segment
+    \`\`\`\n\n`;
   if(hash !== "") {
     query +=
     `hash changed if there isn't already a url, make one
+      \`\`\`
       match
         not([#url])
       commit
-        [#url hash-segment: ${segments.join(" ")}]\n\n` +
+        [#url hash-segment: ${segments.join(" ")}]
+      \`\`\`
+        \n\n` +
     `add the new hash-segments if there is
+      \`\`\`
       match
         url = [#url]
       commit
         url <- [hash-segment: ${segments.join(" ")}]
+      \`\`\`
     `;
   }
   sendEvent(query);

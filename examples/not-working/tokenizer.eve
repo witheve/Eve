@@ -2,12 +2,15 @@ This is a tokenizer for Eve's current syntax, which takes code from a #code obje
 it into characters and then aggregates those into tokens of various types. Before we do
 that, we'll first create some #char-type and #keyword objects to match against
 
+```
   match
     type = "whitespace"
   bind
     [#char-type type char: " "] [#char-type type char: "\n"] [#char-type type char: "\t"]
+```
 
 numeric character types
+```
   match
     type = "numeric"
   bind
@@ -15,8 +18,10 @@ numeric character types
     [#char-type type char: "3"] [#char-type type char: "4"] [#char-type type char: "5"]
     [#char-type type char: "6"] [#char-type type char: "7"] [#char-type type char: "8"]
     [#char-type type char: "9"] [#char-type type char: "."]
+```
 
 special character types
+```
   match
     type = "special"
   bind
@@ -24,8 +29,10 @@ special character types
     [#char-type type char: "#"] [#char-type type char: ")"] [#char-type type char: "⦑"]
     [#char-type type char: "."] [#char-type type char: "["] [#char-type type char: "⦒"]
     [#char-type type char: ","] [#char-type type char: "]"] [#char-type type char: "\""]
+```
 
 keywords
+```
   bind
     [#keyword string: "update"] [#keyword string: "if"] [#keyword string: "then"]
     [#keyword string: "else"] [#keyword string: "end"] [#keyword string: "or"]
@@ -37,10 +44,12 @@ keywords
     [#keyword #infix string: "*"] [#keyword #infix string: "/"]
     [#keyword #mutate string: ":="] [#keyword #mutate string: "+="]
     [#keyword #mutate string: "-="]
+```
 
 Now we'll split our code into characters and determine the rough type of character
 we're dealing with by matching with the #char-type objects we added
 
+```
   match
     block = [#code code]
     [#split text: code, by: "", token, index]
@@ -48,11 +57,13 @@ we're dealing with by matching with the #char-type objects we added
           else "identifier"
   bind
     block.char += [#char char: token, index, type, block]
+```
 
 To start making tokens, we'll look at characters that immediately follow
 a whitespace character. Assuming we're not in some mode (like parsing a string)
 then this is a new token
 
+```
   match
     prev = [#char block, type: "whitespace", not(mode)]
     char = [#char block index: prev.index + 1, type]
@@ -60,10 +71,12 @@ then this is a new token
   bind
     token = [#token block char, start: char.index]
     char := [token]
+```
 
 A character that follows a char that already has a token and is of a different type
 also creates a new token
 
+```
   match
     prev = [#char block not(mode) token]
     char = [#char block, index: prev.index + 1, type != prev.type]
@@ -71,12 +84,14 @@ also creates a new token
   bind
     token = [#token block char, start: char.index]
     char := [token]
+```
 
 if we're not in a mode and the previous char is of the same type and has a token
 then we'll add this character to that token. We also want to handle the case
 where the previous char is an identifier and the next is numeric so that identifiers
 can have numbers in them.
 
+```
   match
     char = [#char block, index, type]
     prev = [#char block index: index - 1, token, not(mode)]
@@ -86,43 +101,51 @@ can have numbers in them.
   bind
     token += [char]
     char := [token]
+```
 
 uuids are defined by starting with ⦑ and ending with ⦒. To handle that we'll put
 the parser into uuid mode so that we know to just eat all the characters until
 we get to the end delimiter
 
+```
   match
     [#char char: "⦑" block, index, not(mode)]
     next = [#char block index: index + 1]
   bind
     token = [#token block char: next, start: next.index, type: "uuid"]
     next := [token mode: "uuid"]
+```
 
-Now we need handle adding chars to the uuid token so long as we're not at 
+Now we need handle adding chars to the uuid token so long as we're not at
 the closing ⦒. If we are, we just don't set the mode.
 
+```
   match
     prev = [#char block, index, mode: "uuid" token]
     next = [#char block, index: index + 1, char != "⦒"]
   bind
     token.char += next
     next := [token mode: "uuid"]
+```
 
 strings are similar to uuids in that they are delimited, the only problem
 is that we need to worry about escaped quotes in them. To start we just look
 for any quote character that isn't currently in a mode and we say that the
 next char is part of the token.
 
+```
   match
     [#char char: "\"" block, index, not(mode)]
     next = [#char block index: index + 1]
   bind
     token = [#token block char: next, start: next.index, type: "string"]
     next := [token mode: "string"]
+```
 
 Now we consume characters if the previous char is in string mode and either
 the current character is not a quote or the previous character is a \
 
+```
   match
     prev = [#char block, index, mode: "string", token]
     next = [#char block, index: index + 1]
@@ -131,11 +154,13 @@ the current character is not a quote or the previous character is a \
   bind
     token.char += next
     next := [token mode: "string"]
+```
 
 The last special case we need to deal with is for doc strings (any text at the top level),
 which we identify by looking for new line characters where the next char is not whitespace
-or we're at index 0 and it's not whitespace. 
+or we're at index 0 and it's not whitespace.
 
+```
   match
     next = if [#char char: "\n" block, index, not(mode)]
               char = [#char block index: index + 1, type != "whitespace"] then char
@@ -143,20 +168,24 @@ or we're at index 0 and it's not whitespace.
   bind
     token = [#token block char: next, start: next.index, type: "doc"]
     next := [token mode: "doc"]
+```
 
 We consume doc mode characters until we hit a new line
 
+```
   match
     prev = [#char block, index, mode: "doc" token]
     next = [#char block, index: index + 1, char != "\n"]
   bind
     token.char += next
     next := [token mode: "doc"]
+```
 
 Once we've gotten all the chars for a token we need to condense that into
 a single value, a token type, and a length. By default, the token type
 is just the type of the first character.
 
+```
   match
     token = [#token block char start not(type)]
     [#char block token, index: start, type]
@@ -164,23 +193,28 @@ is just the type of the first character.
     token.type := type
     token.value := join[string: char.char, index: char.index, given: char]
     token.length := count[given: char]
+```
 
 We also need to check if any of the tokens are keywords and associate
 the keyword with them if they are.
 
+```
   match
     token = [#token value]
     keyword = [#keyword string: value]
   bind
     token.keyword := keyword
     token.type := "keyword"
+```
 
 Let's also give an index to all of the tokens so we can later
 parse them in order
-  
+
+```
   match
     token = [#token block start]
     index = sort[given: start, per: block]
   bind
     token.index := index
+```
 
