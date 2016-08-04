@@ -732,46 +732,26 @@ function injectCodeMirror(node, elem) {
         cm.dirtyLines.push(start);
         let lineInfo = cm.lineInfo(start);
         if(lineInfo) {
-          if(lineInfo.text.match(/^\s/)) {
+          let prevInfo = cm.lineInfo(start - 1);
+          let codeAbove = prevInfo && prevInfo.bgClass && prevInfo.bgClass.indexOf("CODE") > -1;
+          if(lineInfo.text.match(/^\s*```/)) {
             cm.addLineClass(start, "background", "CODE");
-            // check the next line to see if it's indented. If it is then
-            // remove code-bottom from this guy if it has it. Otherwise,
-            // add code-bottom
-            let nextInfo = cm.lineInfo(start + 1);
-            let prevInfo = cm.lineInfo(start - 1);
-
-            let codeBelow = nextInfo && nextInfo.text.match(/^\s/);
-            let codeAbove = prevInfo && prevInfo.text.match(/^\s/);
-
-            if(codeBelow) {
-              cm.removeLineClass(start, "text", "CODE-BOTTOM");
-              cm.removeLineClass(start + 1, "text", "CODE-TOP");
-            } else if(nextInfo) {
-              //otherwise this line is the new CODE-BOTTOM
-              cm.addLineClass(start, "text", "CODE-BOTTOM");
-            }
+            // there are two possible cases, eight this line is the beginning
+            // of a code block, or it's the end of one we can determine that
+            // by checking if the line above us is marked CODE
             if(codeAbove) {
-              cm.removeLineClass(start, "text", "CODE-TOP");
-              cm.removeLineClass(start - 1, "text", "CODE-BOTTOM");
-            } else if(prevInfo) {
-              //otherwise this line is the new CODE-TOP
-              cm.addLineClass(start, "text", "CODE-TOP");
+              cm.addLineClass(start, "background", "BLOCK_END");
+            } else {
+              cm.removeLineClass(start, "background", "BLOCK_END");
             }
+          } else if(codeAbove && prevInfo.bgClass.indexOf("BLOCK_END") == -1) {
+            // if the thing above us is code and it's not the end of a block, then
+            // this is also code.
+            cm.addLineClass(start, "background", "CODE");
+            cm.removeLineClass(start, "background", "BLOCK_END");
           } else {
             cm.removeLineClass(start, "background", "CODE");
-            cm.removeLineClass(start, "text", "CODE-TOP");
-            cm.removeLineClass(start, "text", "CODE-BOTTOM");
-            cm.removeLineClass(start, "text", "HEADER");
-
-            // check if this is a header
-            if(lineInfo.text.match("^#+")) {
-              cm.addLineClass(start, "text", "HEADER");
-            }
-            // check above me to see if they need to be the new code bottom
-            let prevInfo = cm.lineInfo(start - 1);
-            if(prevInfo && prevInfo.text.match(/^\s/)) {
-              cm.addLineClass(start - 1, "text", "CODE-BOTTOM");
-            }
+            cm.removeLineClass(start, "background", "BLOCK_END");
           }
         }
       }
