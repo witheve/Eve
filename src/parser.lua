@@ -1273,6 +1273,7 @@ generateObjectNode = function(root, context)
     for _, projection in ipairs(context.projections) do
       object.projection[#object.projection + 1] = projection
     end
+    object.idProvider = context.idProvider
   end
 
   -- create a binding to this node's entity field
@@ -1572,7 +1573,9 @@ local function handleUpdateNode(root, query, context)
       local left = child.children[1]
       local right = child.children[2]
       if left.type == "IDENTIFIER" and right.type == "object" then
+        context.idProvider = true
         resolveExpression(child, context)
+        context.idProvider = false
       else
         -- error
         errors.invalidUpdateEquality(context, child, left, right)
