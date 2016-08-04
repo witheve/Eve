@@ -20,6 +20,7 @@ Initialize board
     [#cell board row column diag-left diag-right]
 
 Click on a cell to make your move
+```
   match
     [#click #direct-target element: [#div cell]]
     not(cell.player)
@@ -29,6 +30,7 @@ Click on a cell to make your move
   commit
     board.player := next_player
     cell.player := current
+```
 
 Get N in a row to win the game!
   match
