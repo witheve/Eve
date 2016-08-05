@@ -3,7 +3,6 @@
 //---------------------------------------------------------
 // MicroReact renderer
 //---------------------------------------------------------
-
 let renderer = new Renderer();
 document.body.appendChild(renderer.content);
 
@@ -66,6 +65,7 @@ function safeEav(eav) {
 
 function doRender() {
   handleDOMUpdates(state);
+  frameRequested = false;
 }
 
 function handleDOMUpdates(state) {
@@ -1173,11 +1173,15 @@ function handleDiff(state, diff) {
 
 
 var socket = new WebSocket("ws://" + window.location.host +"/ws");
+var frameRequested = false;
 socket.onmessage = function(msg) {
   let data = JSON.parse(msg.data);
   if(data.type == "result") {
     handleDiff(state, data);
-    window.requestAnimationFrame(doRender);
+    if(!frameRequested) {
+      window.requestAnimationFrame(doRender);
+      frameRequested = true;
+    }
 
     let diffEntities = 0;
     if(DEBUG) {
