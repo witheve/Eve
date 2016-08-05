@@ -396,6 +396,7 @@ end
 
 function DependencyGraph:addMutateNode(node)
   local deps = {
+    provides = Set:new(),
     maybeProvides = Set:new(),
     depends = Set:new(),
     maybeDepends = Set:new()
@@ -406,8 +407,12 @@ function DependencyGraph:addMutateNode(node)
     -- If the binding is bound on a variable that is provided in the query, it becomes a dependency of the variable.
     if binding.variable then
       if binding.field == ENTITY_FIELD then
-        deps.maybeProvides:add(binding.variable)
-        deps.maybeDepends:add(self:cardinal(binding.variable))
+        if node.idProvider then
+          deps.provides:add(binding.variable)
+        else
+          deps.maybeProvides:add(binding.variable)
+          deps.maybeDepends:add(self:cardinal(binding.variable))
+        end
       else
         deps.depends:add(self:cardinal(binding.variable))
       end
@@ -675,7 +680,7 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
       self.dependents[term] = Set:new()
       for node in pairs(self.unsorted) do
         if node.deps.maybeDepends[term] and not (node.deps.provides[term] or node.deps.contributes[term]) then
-          if self.providers[term]:length() > 1 or not self.providers[term][node] then
+          if term.cardinal or self.providers[term]:length() > 1 or not self.providers[term][node] then
             node.deps.depends:add(term)
           end
         end
@@ -687,7 +692,7 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
   for _, node in ipairs(presorted) do
     for term in pairs(node.deps.maybeDepends) do
       if self.terms[term] and not (node.deps.provides[term] or node.deps.contributes[term]) then
-        if self.providers[term] and (self.providers[term]:length() > 1 or not self.providers[term][node]) then
+        if term.cardinal or self.providers[term] and (self.providers[term]:length() > 1 or not self.providers[term][node]) then
           node.deps.depends:add(term)
         end
       end
