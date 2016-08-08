@@ -8,10 +8,11 @@ typedef struct websocket {
     heap h;
     heap buffer_heap;
     buffer reassembly;
-    buffer_handler client;
+    reader client;
     buffer_handler write;
     timer keepalive;
     reader self;
+    u32 output_mask;
 } *websocket;
 
 typedef enum {
@@ -49,7 +50,7 @@ void websocket_send(websocket w, int opcode, buffer b, thunk t)
 static CONTINUATION_2_0(send_keepalive, websocket, buffer);
 static void send_keepalive(websocket w, buffer b)
 {
-    websocket_send(w, 0x9, b, ignore); 
+    websocket_send(w, 0x9, b, ignore);
 }
 
 CONTINUATION_1_2(websocket_output_frame, websocket, buffer, thunk);
@@ -75,27 +76,24 @@ static void websocket_input_frame(websocket w, buffer b, register_read reg)
         int offset = 2;
         if (rlen < offset) goto end;
         long length = *(u8 *)bref(w->reassembly, 1) & 0x7f;
-        
+
         if (length == 126) {
             if (rlen < 4) goto end;
             length = htons(*(u16 *)bref(w->reassembly, 2));
             offset += 2;
         } else {
             if (length == 127) {
-                // ok, we are throwing away the top byte, who the hell thought
-                // that 1TB wasn't enough per object
                 if (rlen< 10) goto end;
                 length = htonll(*(u64 *)bref(w->reassembly, 2));
                 offset += 8;
             }
         }
-        
+
         int opcode = *(u8 *)bref(w->reassembly, 0) & 0xf;
-        if (opcode == ws_close) { 
+        if (opcode == ws_close) {
             apply(w->client, 0, ignore);
             return;
         }
-        
         u32 mask = 0;
         // which should always be the case for client streams
         if (*(u8 *)bref(w->reassembly, 1) & 0x80) {
@@ -116,16 +114,17 @@ static void websocket_input_frame(websocket w, buffer b, register_read reg)
 
         switch(opcode) {
         case ws_continuation:
-            prf("wth continuation\n");
+            prf("error - currently dont handle websocket continuation\n");
             break;
         case ws_text:
         case ws_binary:
             {
                 buffer out = w->reassembly;
-                if (buffer_length(w->reassembly) > length) {
-                    // leak?
-                    out = wrap_buffer(w->h, bref(w->reassembly, 0), length);
-                }
+                // we'd like to use this buffer if we can, but
+                // client is going to mess up our pointers
+                // if (buffer_length(w->reassembly) > length)
+                // leak?
+                out = wrap_buffer(w->h, bref(w->reassembly, 0), length);
                 apply(w->client, out, ignore);
                 break;
             }
@@ -150,31 +149,81 @@ static void websocket_input_frame(websocket w, buffer b, register_read reg)
 
 void sha1(buffer d, buffer s);
 
+websocket new_websocket(heap h, reader up)
+{
+    websocket w = allocate(h, sizeof(struct websocket));
+    w->reassembly = allocate_buffer(h, 1000);
+    w->h = h;
+    w->output_mask = 0;
+    w->client = up;
+    w->self = cont(h, websocket_input_frame, w);
+    return w;
+}
+
+
+
+static CONTINUATION_1_3(header_response, websocket, bag, uuid, register_read);
+static void header_response(websocket w, bag b, uuid n, register_read r)
+{
+    // xxx - should allow plumbing for simple bodies to just dump
+    // into the response body
+    apply(r, w->self);
+}
+
+
+static CONTINUATION_3_2(client_connected, websocket, bag, uuid,
+                        buffer_handler, register_read);
+static void client_connected(websocket w, bag request, uuid rid,
+                             buffer_handler wr, register_read r)
+{
+    bag shadow = create_bag(w->h, request->u);
+    vector_insert(shadow->includes, request);
+
+    value header = lookupv(request, rid, sym(headers));
+    // i guess we could vary this, but since it doesn't actually provide any security...
+    // umm, apparently its to stop a cache(?) from replaying an old session? i just
+    // dont get it. it would be kind of idiotic to do in the first place, and
+    // if they really wanted to...they..could handle this part as well
+    edb_insert(shadow, header, sym(Sec-WebSocket-Key), sym(dGhlIHNhbXBsZSBub25jZQ), 1, 0); /*bku*/
+    edb_insert(shadow, header, sym(Upgrade), sym(websocket), 1, 0);
+    http_send_request(wr, shadow, rid);
+    w->write = wr;
+    apply(r, response_header_parser(w->h, cont(w->h, header_response, w)));
+}
+
+// xxx - we're returning the write function before we're able to accept input on it
+buffer_handler websocket_client(heap h,
+                                bag request,
+                                uuid rid,
+                                reader up)
+{
+    websocket w = new_websocket(h, up);
+    estring host = lookupv(request, rid, sym(host));
+    tcp_create_client (h,
+                       station_from_string(h, alloca_wrap_buffer(host->body, host->length)),
+                       cont(h, client_connected, w, request, rid));
+    return(cont(h, websocket_output_frame, w));
+}
+
+
 buffer_handler websocket_send_upgrade(heap h,
-                                      bag b, 
+                                      bag b,
                                       uuid n,
                                       buffer_handler down,
                                       buffer_handler up,
                                       register_read reg)
 {
-    websocket w = allocate(h, sizeof(struct websocket));
+    websocket w = new_websocket(h, up);
     estring ekey;
     string key;
 
     if (!(ekey=lookupv(b, n, sym(Sec-WebSocket-Key)))) {
         // something tasier
         return 0;
-    } 
+    }
 
     key = allocate_buffer(h, ekey->length);
     buffer_append(key, ekey->body, ekey->length);
-    
-    // fix
-    w->reassembly = allocate_buffer(h, 1000);
-    w->write = down;
-    w->client = up;
-    w->h = h;
-
     string_concat(key, sstring("258EAFA5-E914-47DA-95CA-C5AB0DC85B11"));
     buffer sh = allocate_buffer(h, 20);
     sha1(sh, key);
@@ -188,9 +237,8 @@ buffer_handler websocket_send_upgrade(heap h,
     outline(upgrade, "");
 
     register_periodic_timer(seconds(5), cont(w->h, send_keepalive, w, allocate_buffer(w->h, 0)));
+    w->write = down;
     apply(w->write, upgrade, ignore);
-    w->self = cont(h, websocket_input_frame, w);
     apply(reg, w->self);
     return(cont(h, websocket_output_frame, w));
 }
-

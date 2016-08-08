@@ -8,19 +8,19 @@ struct http_server {
     table content;
     table services;
 };
-    
+
 typedef struct session {
     heap h;
     http_server parent;
     buffer_handler write;
-} *session; 
+} *session;
 
 thunk ignore;
 
 
 void send_http_response(heap h,
                         buffer_handler write,
-                        string type, 
+                        string type,
                         buffer b)
 {
     buffer o = allocate_buffer(h, 200);
@@ -34,21 +34,11 @@ void send_http_response(heap h,
 }
 
 
-
-// put a letover buffer fragment in sequence before a stream
-static CONTINUATION_2_1(regbounce, register_read, buffer, reader)
-static void regbounce(register_read reg, buffer b, reader r)
-{
-    apply(r, b, reg);
-}
-
-
-
-static CONTINUATION_1_4(dispatch_request, session, bag, uuid, buffer, register_read);
-static void dispatch_request(session s, bag b, uuid i, buffer body, register_read reg)
+static CONTINUATION_1_3(dispatch_request, session, bag, uuid, register_read);
+static void dispatch_request(session s, bag b, uuid i, register_read reg)
 {
     buffer *c;
-    
+
     if (b  == 0){
         prf ("http server shutdown\n");
         destroy(s->h);
@@ -57,9 +47,7 @@ static void dispatch_request(session s, bag b, uuid i, buffer body, register_rea
 
     estring url = lookupv(b, i, sym(url));
     if ((c = table_find(s->parent->services, url))) {
-        register_read  z = reg;
-        if (buffer_length(body)) z = cont(s->h, regbounce, reg, body);
-        apply((http_service)c, s->write, b, i, z); 
+        apply((http_service)c, s->write, b, i, reg);
         return;
     } else {
         if ((c = table_find(s->parent->content, url))) {
@@ -72,7 +60,9 @@ static void dispatch_request(session s, bag b, uuid i, buffer body, register_rea
             apply(s->write, sstring("HTTP/1.1 404 Not found\r\n"), ignore);
         }
     }
-    apply(request_header_parser(s->h, cont(s->h, dispatch_request, s)), body, reg);
+
+    // xxx - yeah, um there may have been a body here
+    apply(reg, request_header_parser(s->h, cont(s->h, dispatch_request, s)));
 }
 
 
@@ -94,7 +84,7 @@ void new_connection(http_server s,
 static CONTINUATION_0_0(ignoro);
 static void ignoro(){}
 
-    
+
 void register_static_content(http_server h, char *url, char *content_type, buffer b, char *backing)
 {
     buffer *x = allocate(h->h, 3*sizeof(buffer));

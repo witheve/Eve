@@ -1,4 +1,3 @@
-
 typedef void *station;
 
 void initialize_timers(heap);
@@ -76,3 +75,19 @@ void udp_write(udp, station, buffer);
 void prf(char *, ...);
 
 extern station ip_wildcard_service;
+// not really unix
+station station_from_string(heap h, buffer b);
+
+
+// put a letover buffer fragment in sequence before a stream
+static CONTINUATION_2_1(regbounce, register_read, buffer, reader)
+static void regbounce(register_read reg, buffer b, reader r)
+{
+    apply(r, b, reg);
+}
+
+static register_read requeue(heap h, buffer b, register_read reg)
+{
+    if (buffer_length(b) == 0) return reg;
+    return cont(h, regbounce, reg, b);
+}

@@ -3,7 +3,6 @@
 
 static table symbol_table;
 
-
 u64 shash(unsigned char *content, int length)
 {
     unsigned h = 0;
@@ -18,9 +17,6 @@ u64 shash(unsigned char *content, int length)
     h += (h << 15);
     return h;
 }
-
-
-
 
 u64 string_hash(void *x)
 {

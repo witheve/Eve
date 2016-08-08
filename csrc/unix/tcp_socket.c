@@ -37,6 +37,15 @@ struct write_buffer {
     write_buffer next;
 };
 
+
+static CONTINUATION_1_1(regtcp, tcpsock, reader);
+static void regtcp(tcpsock t, reader r)
+{
+    t->client_reader = r;
+    register_read_handler(t->d, t->read_handler);
+}
+
+
 /*
  * calls to actually_write and tcp_write are assumed serialized
  */
@@ -70,6 +79,7 @@ static void actually_write(tcpsock t)
             int result = write(t->d, 
                                bref(b, 0),
                                transfer);
+
             if (result > 0){
                 if (result < transfer) {
                     buffer_consume(b, result);
@@ -113,18 +123,24 @@ void tcp_write(tcpsock t, buffer b, thunk n)
     t->last = &w->next;
 }
 
+
+static CONTINUATION_1_0(connect_try, tcpsock);
+
 static CONTINUATION_1_0(connect_finish, tcpsock);
 static void connect_finish(tcpsock t)
 {
     struct sockaddr_in foo;
-    unsigned int size = sizeof(foo);
+    socklen_t size = sizeof(foo);
 
+    // really check to see if we succeeded
     if (getpeername(t->d, (struct sockaddr *)&foo, &size) == -1) {
-        // error 
-        apply(t->c, false, false);
-        close(t->d);
+        register_timer(seconds(1), cont(t->h, connect_try, t));
+        //        apply(t->c, false, false);
+        //        close(t->d);
     } else {
-        apply(t->c, cont(t->h, tcp_write, t), t->r);
+        apply(t->c,
+              cont(t->h, tcp_write, t),
+              cont(t->h, regtcp, t));
     }
 }
 
@@ -135,12 +151,13 @@ static void connect_try (tcpsock t)
 
     t->d = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     nonblocking(t->d);
-    register_write_handler(t->d, cont(t->h, connect_finish, t));
     // error status
+    encode_sockaddrin(&a, t->addr);
     // fill a from t->addr
-    connect(t->d, 
-            (struct sockaddr *)&a,
-            sizeof(struct sockaddr_in));
+    int r = connect(t->d, 
+                    (struct sockaddr *)&a,
+                    sizeof(struct sockaddr_in));
+    register_write_handler(t->d, cont(t->h, connect_finish, t));
 }
 
 
@@ -156,21 +173,15 @@ static void tcp_read_nonblocking_desc(tcpsock t)
     }
 }
 
-static CONTINUATION_1_1(regtcp, tcpsock, reader);
-static void regtcp(tcpsock t, reader r)
-{
-    t->client_reader = r;
-    register_read_handler(t->d, t->read_handler);
-}
-
-
 static tcpsock allocate_tcpsock(heap h)
 {
     tcpsock t = allocate(h, sizeof(struct tcpsock));
     t->h = h;
+    t->q = 0;
     t->last = &t->q;
     t->r = cont(h, regtcp, t);
     t->read_handler = cont(h, tcp_read_nonblocking_desc, t);
+    t->writer = cont(t->h, actually_write, t);
     return(t);
 }
     
@@ -183,7 +194,6 @@ static void new_connection(tcp_server t, new_client n)
     unsigned int addrsize = sizeof(struct sockaddr_in);
     int fd;
 
-    new->writer = cont(t->h, actually_write, new);
     if ((fd = accept(t->d, 
                      (struct sockaddr *)&from,
                      &flen)) >= 0) {
@@ -241,8 +251,6 @@ void tcp_create_client (heap h, station a, connected c)
     new->addr = a;
     new->c = c;
     connect_try(new);
-    /*fix this someday*/
-    /*  register_timer(CONNECT_RETRY_INTERVAL,connect_try,new);*/
 }
 
 

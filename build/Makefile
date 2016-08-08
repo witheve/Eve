@@ -8,6 +8,7 @@ PLATFORM = $(shell uname)
 
 ifeq ($(PLATFORM), Darwin)
   LINK += -pagezero_size 10000 -image_base 100000000
+  INCLUDES += --include ../csrc/unix/darwin.h
   S = _
 endif
 
@@ -36,7 +37,7 @@ UNIX_H = unix_internal.h unix.h
 CORE = buffer.o table.o vector.o format.o rolling.o string.o pqueue.o timer.o
 CORE_H = bswap.h pqueue.h vector.h buffer.h heap.h timer.h continuation.h core.h string.h table.h
 EXEC = exec_expression.o exec_edb.o exec_string.o exec_aggregate.o exec.o
-RUNTIME = edb.o init.o uuid.o estring.o types.o luanne.o json_request.o runner.o $(EXEC)
+RUNTIME = edb.o init.o uuid.o estring.o types.o luanne.o json_request.o runner.o request.o $(EXEC)
 RUNTIME_H = luanne.h runtime.h estring.h number.h types.h exec.h edb.h
 HTTP = server.o websocket.o base64.o sha1.o json.o client.o http.o
 DNS = dns.o
@@ -76,7 +77,7 @@ exampleTodomvcCss.o: ../examples/todomvc.css
 	cc wrap.S -DSTART=$(S)exampleTodomvcCss_start -DEND=$(S)exampleTodomvcCss_end -DFILE='"$<"' -c -o $@
 
 %.o: %.c continuation_templates.h $(UNIX_H) $(CORE_H) $(RUNTIME_H) $(HTTP_H)
-	cc -std=gnu99 -I../csrc/unix -I../csrc/core -I../csrc -I. -I$(LUAJIT_INCLUDES) -g -c $<
+	cc -std=gnu99 -I../csrc/unix -I../csrc/core -I../csrc -I. $(INCLUDES) -I$(LUAJIT_INCLUDES) -g -c $<
 
 %.o: %.lua $(LUAJIT)
 	$(LUAJIT) -b -g $< $@
