@@ -354,7 +354,7 @@ function sendEventObjs(objs) {
 }
 
 function sendEvent(query) {
-  console.log("QUERY", query);
+  //console.log("QUERY", query);
   if(socket && socket.readyState == 1) {
     socket.send(JSON.stringify({scope: "event", type: "query", query}))
   }
@@ -1083,6 +1083,7 @@ let DEBUG = false;
 let state = {entities: {}, dirty: {}};
 function handleDiff(state, diff) {
   let diffEntities = 0;
+  let entitiesWithUpdatedValues = {};
   let {entities, dirty} = state;
 
   for(let remove of diff.remove) {
@@ -1123,20 +1124,8 @@ function handleDiff(state, diff) {
       }
     }
 
-    // Update value syncing
     if(a === "value") {
-      if(!entity[a]) {
-        sentInputValues[e] = [];
-      } else {
-        if(entity[a].constructor === Array) console.error("Unable to set 'value' multiple times on entity", e, entity[a]);
-        let sent = sentInputValues[e];
-        if(sent && sent[0] === entity[a]) {
-          dirty[e].pop();
-          sent.shift();
-        } else {
-          sentInputValues[e] = [];
-        }
-      }
+      entitiesWithUpdatedValues[e] = true;
     }
   }
 
@@ -1177,19 +1166,28 @@ function handleDiff(state, diff) {
       else activeStyles[v].push(e);
     }
 
-    // Update value syncing
     if(a === "value") {
-      if(!entity[a]) {
-        sentInputValues[e] = [];
+      entitiesWithUpdatedValues[e] = true;
+    }
+  }
+
+  // Update value syncing
+  for(let e in entitiesWithUpdatedValues) {
+    let a = "value";
+    let entity = entities[e];
+    if(!entity[a]) {
+      sentInputValues[e] = [];
+    } else {
+      if(entity[a].constructor === Array) console.error("Unable to set 'value' multiple times on entity", e, entity[a]);
+      let sent = sentInputValues[e];
+      if(sent && sent[0] === entity[a]) {
+        let ix;
+        while((ix = dirty[e].indexOf(a)) !== -1) {
+          dirty[e].splice(ix, 1);
+        }
+        sent.shift();
       } else {
-        if(entity[a].constructor === Array) console.error("Unable to set 'value' multiple times on entity", e, entity[a]);
-        let sent = sentInputValues[e];
-        if(sent && sent[0] === entity[a]) {
-          dirty[e].pop();
-          sent.shift();
-        } else {
-          sentInputValues[e] = [];
-          }
+        sentInputValues[e] = [];
       }
     }
   }
