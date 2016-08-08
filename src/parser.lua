@@ -279,10 +279,11 @@ local function lex(str)
       if #string > 0 then
         -- single slashes are only escape codes and shouldn't make it to the
         -- actual string
+        original = string
         string = string:gsub("\\n", "\n"):gsub("\\([^\\])", "%1")
         tokens[#tokens+1] = Token:new("STRING", string, line, offset, byteOffset, surrogateOffset)
+        adjustOffsetByString(original)
       end
-      adjustOffsetByString(string)
       -- skip the end quote
       if scanner:peek() == "\"" then
         scanner:read()
