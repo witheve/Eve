@@ -285,6 +285,7 @@ local function lex(str)
             offset = 0
             byteOffset = 0
             surrogateOffset = 0
+            part = "\n" .. part
           end
           original = part
           part = part:gsub("\\n", "\n"):gsub("\\([^\\])", "%1")
