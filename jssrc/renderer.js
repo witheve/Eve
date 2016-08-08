@@ -1178,10 +1178,11 @@ socket.onmessage = function(msg) {
   let data = JSON.parse(msg.data);
   if(data.type == "result") {
     handleDiff(state, data);
-    if(!frameRequested) {
-      window.requestAnimationFrame(doRender);
-      frameRequested = true;
-    }
+    handleDOMUpdates(state); // Don't use requestAnimationFrame for now -- the batching plays hell with text input sync.
+    // if(!frameRequested) {
+    //   window.requestAnimationFrame(doRender);
+    //   frameRequested = true;
+    // }
 
     let diffEntities = 0;
     if(DEBUG) {
