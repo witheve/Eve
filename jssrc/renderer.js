@@ -187,19 +187,11 @@ function handleDOMUpdates(state) {
 
       } else if(attribute === "value") {
         if(!value) {
-          sentInputValues[entity] = [];
           elem.value = "";
         } else if(value.constructor === Array) {
           console.error("Unable to set 'value' multiple times on entity", entity, value);
         } else {
-          let sent = sentInputValues[entityId];
-          if(sent && sent[0] === value) {
-            sent.shift();
-          } else {
-            sentInputValues[entityId] = [];
-            // @FIXME: handle select both here and when something tagged option is added.
-            elem.value = value; // @FIXME: Should this really be setAttribute?
-          }
+          elem.value = value; // @FIXME: Should this really be setAttribute?
         }
 
       } else if(attribute === "checked") {
@@ -1130,6 +1122,22 @@ function handleDiff(state, diff) {
         activeStyles[v].splice(styleIx, 1);
       }
     }
+
+    // Update value syncing
+    if(a === "value") {
+      if(!entity[a]) {
+        sentInputValues[e] = [];
+      } else {
+        if(entity[a].constructor === Array) console.error("Unable to set 'value' multiple times on entity", e, entity[a]);
+        let sent = sentInputValues[e];
+        if(sent && sent[0] === entity[a]) {
+          dirty[e].pop();
+          sent.shift();
+        } else {
+          sentInputValues[e] = [];
+        }
+      }
+    }
   }
 
   for(let insert of diff.insert) {
@@ -1167,6 +1175,22 @@ function handleDiff(state, diff) {
     if(a === "style") {
       if(!activeStyles[v]) activeStyles[v] = [e];
       else activeStyles[v].push(e);
+    }
+
+    // Update value syncing
+    if(a === "value") {
+      if(!entity[a]) {
+        sentInputValues[e] = [];
+      } else {
+        if(entity[a].constructor === Array) console.error("Unable to set 'value' multiple times on entity", e, entity[a]);
+        let sent = sentInputValues[e];
+        if(sent && sent[0] === entity[a]) {
+          dirty[e].pop();
+          sent.shift();
+        } else {
+          sentInputValues[e] = [];
+          }
+      }
     }
   }
 }
