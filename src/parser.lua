@@ -279,10 +279,19 @@ local function lex(str)
       if #string > 0 then
         -- single slashes are only escape codes and shouldn't make it to the
         -- actual string
-        original = string
-        string = string:gsub("\\n", "\n"):gsub("\\([^\\])", "%1")
-        tokens[#tokens+1] = Token:new("STRING", string, line, offset, byteOffset, surrogateOffset)
-        adjustOffsetByString(original)
+        for ix, part in ipairs(split(string, "\n")) do
+          if ix ~= 1 then
+            line = line + 1
+            offset = 0
+            byteOffset = 0
+            surrogateOffset = 0
+            part = "\n" .. part
+          end
+          original = part
+          part = part:gsub("\\n", "\n"):gsub("\\([^\\])", "%1")
+          tokens[#tokens+1] = Token:new("STRING", part, line, offset, byteOffset, surrogateOffset)
+          adjustOffsetByString(original)
+        end
       end
       -- skip the end quote
       if scanner:peek() == "\"" then

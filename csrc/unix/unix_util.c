@@ -104,6 +104,35 @@ void clocktime(ticks t, unsigned int *hours, unsigned int *minutes, unsigned int
 }
 
 
+
+station station_from_string(heap h, buffer b)
+{
+    u32 final = 0;
+    unsigned int t = 0;
+    character i;
+    unsigned char *new = allocate(h, 6);
+    // mandatory colons
+    
+    string_foreach(b, i) {
+        switch(i) {
+        case '.':
+            final = (final << 8) | t;
+            t = 0;
+            break;
+        case ':':
+            final = htonl((final << 8) | t);
+            memcpy(new, &final, 4);
+            t = 0;
+            break;
+        default:
+            t = t * 10 + digit_of(i);
+        }
+    }
+    final = htons(t);
+    memcpy(new + 4, &final, 2);
+    return new;
+}
+
 void init_unix()
 {
     signal(SIGPIPE, SIG_IGN);

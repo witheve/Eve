@@ -65,6 +65,33 @@ static int inline string_rune_length(char *s) {
     })
 
 
+static inline character utf8_decode(u8 *x, int *count)
+{
+    if ((x[0] & 0xf0) == 0xf0) {
+        *count = 4;
+        return ((x[0] & 0xf) << 18)
+            | ((x[1]&0x3f)<< 12)
+            | ((x[2]&0x3f)<< 6)
+            | (x[3]&0x3f);
+    }
+    
+    if ((x[0] & 0xe0) == 0xe0) {
+        *count = 3;
+        return ((x[0] & 0x1f) << 12)
+            | ((x[1]&0x3f)<< 6)
+            | (x[2]&0x3f);
+    }
+    
+    if ((x[0] & 0xc0) == 0xc0) {
+        *count = 2;
+        return ((x[0] & 0x3f) << 6)
+            | (x[1]&0x3f);
+    }
+    
+    *count = 1;
+    return *x;
+}
+
 static inline void string_insert_rune(string s, character c)
 {
     if (c<0x80) {

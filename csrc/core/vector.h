@@ -1,4 +1,3 @@
-
 typedef buffer vector;
 
 vector allocate_vector(heap, int);
@@ -31,7 +30,7 @@ void vector_set(vector v, int element, void *x);
     for (void * __i, *__j = (void *)0; __i = vector_get(__s, (unsigned long)__j), (unsigned long)__j < vector_length(__s); __j = (void *)((unsigned long)__j + 1))
 
 
-static inline void *vector_peek(vector t)
+static inline void *peek(vector t)
 {
     int len = vector_length(t);
     if (len) {
@@ -40,7 +39,7 @@ static inline void *vector_peek(vector t)
     return(EMPTY);
 }
 
-static inline void *vector_pop(vector t)
+static inline void *pop(vector t)
 {
     int len = vector_length(t);
     if (len) {
@@ -55,4 +54,3 @@ static inline void push(vector t, void *n)
 {
     buffer_append(t, &n, sizeof(void *));
 }
-

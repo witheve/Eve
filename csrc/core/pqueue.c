@@ -55,8 +55,8 @@ void *pqueue_pop(pqueue q)
 
     if (vector_length(q->v) > 0) {
         result = vector_get(q->v, 0);
-        void *n = vector_pop(q->v);
-        if (vector_peek(q->v) != EMPTY) {
+        void *n = pop(q->v);
+        if (peek(q->v) != EMPTY) {
             vector_set(q->v, 0, n);
             heal(q, 1);
         }

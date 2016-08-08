@@ -27,12 +27,19 @@ multiplicity count_of(bag b, value e, value a, value v)
 value lookupv(bag b, uuid e, estring a)
 {
     table al = table_find(b->eav, e);
-    if(!al) return 0;
-    table vl = table_find(al, a);
-    if(!vl) return 0;
-    table_foreach(vl, v, terminal)
-        if(((leaf)terminal)->m != 0)
-            return v;
+    if(al) {
+        table vl = table_find(al, a);
+        if(vl)
+            table_foreach(vl, v, terminal)
+                if(((leaf)terminal)->m != 0)
+                    return v;
+    }
+
+    vector_foreach(b->includes, i) {
+        value x = lookupv(i, e, a);
+        if (x) return x;
+    }
+
     return(0);
 }
 
@@ -90,6 +97,9 @@ void edb_clear_implications(bag b)
 
 void edb_scan(bag b, int sig, listener out, value e, value a, value v)
 {
+    vector_foreach(b->includes, i)
+        edb_scan(i, sig, out, e, a, v);
+
     switch (sig) {
     case s_eav:
         table_foreach(b->eav, e, al) {
@@ -192,6 +202,7 @@ bag create_bag(heap h, uuid u)
     b->count = 0;
     b->eav = create_value_table(h);
     b->ave = create_value_table(h);
+    b->includes = allocate_vector(h, 1);
     b->listeners = allocate_table(h, key_from_pointer, compare_pointer);
     b->delta_listeners = allocate_table(h, key_from_pointer, compare_pointer);
     b->implications = allocate_table(h, key_from_pointer, compare_pointer);
@@ -219,7 +230,7 @@ void edb_insert(bag b, value e, value a, value v, multiplicity m, uuid bku)
         b->count++;
     } else {
         final->m += m;
-        
+
         if (!final->m){
             table_set(al, v, 0);
             table al = level_fetch(b->h, b->ave, a);

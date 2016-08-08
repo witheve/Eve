@@ -7,6 +7,7 @@ struct bag {
     int count;
     table implications;
     heap h;
+    vector includes; // an immutable set
 };
 
 typedef struct leaf {
@@ -34,13 +35,12 @@ uuid edb_uuid(bag b);
 int edb_size(bag b);
 void destroy_bag(bag b);
 
-typedef closure(bag_handler, bag);
-
 void register_listener(bag e, thunk t);
 void deregister_listener(bag e, thunk t);
 void register_delta_listener(bag e, thunk t);
 void deregister_delta_listener(bag e, thunk t);
 
+// xxx - these iterators dont account for shadowing
 #define bag_foreach(__b, __e, __a, __v, __c, __bku)   \
     table_foreach((__b)->eav, __e, __avl) \
     table_foreach((table)__avl, __a, __vl)\
@@ -64,10 +64,6 @@ void edb_set(bag b, value e, value a, value v);
 
 #define bag_foreach_e(__b, __e, __a, __v, __c)\
     for(table __avt = (table)table_find((__b)->ave, __a),\
-               __et = __avt?(table)table_find(__avt, __a):0; __vt; __vt = 0)   \
+               __et = __avt?(table)table_find(__avt, __v):0; __et; __et = 0)   \
     table_foreach((table)__et, __e, __cv)\
-    for(multiplicity __c = ((leaf)__cv)->m , __z = 0; __z == 0; __z++)        
-
-
-
-
+    for(multiplicity __c = ((leaf)__cv)->m , __z = 0; __z == 0; __z++)

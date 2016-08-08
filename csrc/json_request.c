@@ -207,9 +207,8 @@ void send_parse(json_session js, buffer query)
 }
 
 
-extern heap uuid_heap;
-CONTINUATION_1_3(handle_json_query, json_session, bag, uuid, thunk);
-void handle_json_query(json_session j, bag in, uuid root, thunk c)
+CONTINUATION_1_2(handle_json_query, json_session, bag, uuid);
+void handle_json_query(json_session j, bag in, uuid root)
 {
     if (in == 0) {
         close_evaluation(j->s);
@@ -280,8 +279,9 @@ void new_json_session(bag root, boolean tracing,
     table_set(j->scopes, intern_cstring("event"), j->event_uuid);
     j->eh = allocate_rolling(pages, sstring("eval"));
     j->s = build_evaluation(j->scopes, j->persisted, cont(j->h, send_response, j));
-    j->write = websocket_send_upgrade(j->eh, b, u, write,
-                                      parse_json(j->eh, j->session, cont(h, handle_json_query, j)),
+    j->write = websocket_send_upgrade(j->eh, b, u,
+                                      write,
+                                      parse_json(j->eh, cont(h, handle_json_query, j)),
                                       reg);
 
     // send the graphs

@@ -1,0 +1,27 @@
+Create an http connection to myself. try to create a correlator between
+request and response
+```
+  match [#session-connect]
+  commit global [#websocket-request host: "127.0.0.1:8080"
+                 #connection
+                  url: "/ws"
+                  method: "GET"]
+```
+
+handle the responses - it would be cool if we could express continuations
+  ```
+  match [#json-response body connection]
+  body.type
+  ```
+
+
+click on a guy - this is a maintain right?
+```
+  match
+    [#click entity session]
+  commit
+    [#json-request session
+           message: [scope:"event"
+                   type:"query"
+                   query:"```bind [#click #direct-target element:{{entity}}]```"]]
+```

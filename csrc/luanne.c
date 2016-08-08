@@ -280,7 +280,7 @@ interpreter build_lua()
     
     luaL_openlibs(c->L);
     bundle_add_loaders(c->L);
-    
+
     // make me a lua package ala utf8
     define(c, "suuid", construct_uuid);
     define(c, "snumber", construct_number);
