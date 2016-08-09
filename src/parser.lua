@@ -535,7 +535,7 @@ local infixTypes = {equality = true, infix = true, attribute = true, mutate = tr
 local infixPrecedents = {equality = 0, inequality = 0, mutate = 0, attribute = 4, block = 4, ["function"] = 4, ["^"] = 3, ["*"] = 2, ["/"] = 2, ["+"] = 1, ["-"] = 1 }
 local singletonTypes = {outputs = true}
 local positionalFunctions = { [">"] = true, ["<"] = true, [">="] = true, ["<="] = true, ["!="] = true, ["+"] = true, ["-"] = true, ["*"] = true, ["/"] = true, concat = true, is = true}
-local alphaFields = {"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o"}
+local alphaFields = {"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"}
 
 local function nextNonComment(scanner, context)
   local next = scanner:peek()
@@ -1123,7 +1123,11 @@ local function resolveFunctionLike(context, node)
     context.mutating = nil
     local field, right
     if positionalFunctions[node.func] then
-      field = alphaFields[ix]
+      local len = #alphaFields
+      field = ""
+      for i = 1, ix / len do
+        field = field .. alphaFields[(ix % len) + 1]
+      end
       right = child
     elseif child.type == "equality" and child.children[1].type == "IDENTIFIER" then
       field = child.children[1].value
