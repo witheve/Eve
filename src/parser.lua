@@ -1125,8 +1125,12 @@ local function resolveFunctionLike(context, node)
     if positionalFunctions[node.func] then
       local len = #alphaFields
       field = ""
-      for i = 1, ix / len do
-        field = field .. alphaFields[(ix % len) + 1]
+      char = ix % len
+      if char == 0 then
+        char = len
+      end
+      for i = 1, math.ceil(ix / len) do
+        field = field .. alphaFields[char]
       end
       right = child
     elseif child.type == "equality" and child.children[1].type == "IDENTIFIER" then
