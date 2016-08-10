@@ -1195,7 +1195,8 @@ function handleDiff(state, diff) {
 
 
 var socket = new WebSocket("ws://" + window.location.host +"/ws");
-var frameRequested = false;
+  var frameRequested = false;
+  var prerendering = false;
 socket.onmessage = function(msg) {
   let data = JSON.parse(msg.data);
   if(data.type == "result") {
@@ -1225,7 +1226,15 @@ socket.onmessage = function(msg) {
       }
       console.groupEnd();
     }
-    drawNodeGraph();
+
+    if(document.readyState === "complete") {
+      drawNodeGraph();
+    } else if(!prerenderering) {
+      prerenderering = true;
+      document.addEventListener("DOMContentLoaded", function() {
+        drawNodeGraph();
+      });
+    }
 
   } else if(data.type == "node_graph") {
     allNodeGraphs[data.head] = data.nodes;
