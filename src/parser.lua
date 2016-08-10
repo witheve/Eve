@@ -1093,7 +1093,8 @@ local function resolveAttribute(context, node)
     -- resolve that chain and capture the right-most var, as it's
     -- what we'll ultimately need to return
     rightVar, nextRight = resolveAttribute(context, right)
-    -- we also need to grab the left side of
+    -- we also need to grab the left side of the next attribute call
+    -- and use that as our immediate right
     local leftVar = nextRight.attributeLeft
     right = makeNode(context, "IDENTIFIER", leftVar, {value = leftVar.name})
   end
