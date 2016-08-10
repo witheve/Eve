@@ -52,7 +52,10 @@ static void dispatch_request(session s, bag b, uuid i, register_read reg)
     } else {
         if ((c = table_find(s->parent->content, url))) {
             buffer k;
-            if (c[2] && !(k = read_file(s->h, (char *)c[2]))) k = c[1];
+            if (c[2] && !(k = read_file(s->h, (char *)c[2])))
+                // we're going to leak this buffer descriptor, but tcp write
+                // expects that it
+                k = wrap_buffer(s->h, bref(c[1], 0), buffer_length(c[1]));
             // reset connection state
             send_http_response(s->h, s->write, c[0], k);
         } else {
