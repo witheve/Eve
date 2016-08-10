@@ -220,8 +220,9 @@ function handleDOMUpdates(state) {
   }
 
   for(let entityId of regenClassesFor) {
-    let entity = entities[entityId];
     let elem = activeElements[entityId];
+    if(!elem) continue;
+    let entity = entities[entityId];
     let value = entity["class"];
     if(!value) {
       elem.className = "";
@@ -245,8 +246,9 @@ function handleDOMUpdates(state) {
   }
 
   for(let entityId of regenStylesFor) {
-    let entity = entities[entityId];
     let elem = activeElements[entityId];
+    if(!elem) continue;
+    let entity = entities[entityId];
     let value = entity["style"];
     elem.removeAttribute("style"); // @FIXME: This could be optimized to care about the diff rather than blowing it all away
     if(value) {
