@@ -1084,6 +1084,20 @@ end
 local function resolveAttribute(context, node)
   local left = resolveExpression(node.children[1], context)
   local right = node.children[2]
+  local rightVar
+  if not right then
+    -- error
+    errors.invalidAttributeRight(context, node)
+  elseif right.type == "attribute" then
+    -- if the right is another attribute call, then we need to
+    -- resolve that chain and capture the right-most var, as it's
+    -- what we'll ultimately need to return
+    rightVar, nextRight = resolveAttribute(context, right)
+    -- we also need to grab the left side of
+    local leftVar = nextRight.attributeLeft
+    right = makeNode(context, "IDENTIFIER", leftVar, {value = leftVar.name})
+  end
+
   if right and right.type == "IDENTIFIER" then
     -- generate a temporary variable to hold this attribute binding
     local attributeRef = resolveVariable(context, string.format("%s-%s-%s", right.value, right.line, right.offset), right, true)
@@ -1101,7 +1115,7 @@ local function resolveAttribute(context, node)
     local query = context.queryStack:peek()
     local queryKey = objectNode.type == "object" and "objects" or "mutates"
     query[queryKey][#query[queryKey] + 1] = objectNode
-    return attributeRef
+    return rightVar or attributeRef, attributeRef
   else
     -- error
     errors.invalidAttributeRight(context, right)
@@ -1245,7 +1259,8 @@ resolveExpression = function(node, context)
     return resolveEqualityLike(context, node)
 
   elseif node.type == "attribute" then
-    return resolveAttribute(context, node)
+    local final, _ = resolveAttribute(context, node)
+    return final
 
   elseif node.type == "object" then
     return resolveObject(context, node)
