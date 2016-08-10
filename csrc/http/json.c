@@ -45,25 +45,57 @@ void print_value_json(buffer out, value v)
         else
           prf ("wth!@ %v\n", v);
     }
-
 }
 
+static void json_encode_internal(buffer dest, bag b, uuid n)
+{
+    boolean start = true;
+    if (type_of(n) == uuid_space) {
+        if (lookupv(b, n, sym(tag)) == sym(array)){
+            value t;
+            // grr, box float small int
+            for (int i = 0; (t = lookupv(b, n, box_float(i))); i++){
+                bprintf(dest, "%s", start?"":",");
+                json_encode_internal(dest, b, t);
+                start = false;
+            }
+        } else {
+            bprintf(dest, "{");
+            bag_foreach_av(b, n, a, v, _) {
+                bprintf(dest, "%s%v:", start?"":",", a);
+                print_value_json(dest, v);
+                start = false;
+            }
+            bprintf(dest, "}");
+        }
+    } else print_value_json(dest, n);
+}
+
+buffer json_encode(heap h, bag b, uuid n)
+{
+    buffer dest = allocate_buffer(h, 100);
+    json_encode_internal(dest, b, n);
+    return dest;
+}
 
 struct json_parser {
     heap h;
-    value tag, value;
+    value v;
     json_handler out;
     bag b;
 
     parser p;
-
-    vector completions;
     buffer string_result;
     buffer check;
     double float_result;
     u64 number;
+
+    // well, we replaced the comparatively expension continuation stack with
+    // all these different stacks...they could be unified, but meh
+    vector completions;
     vector ids;
     vector indices;
+    vector tags;
 
     closure(error, char *);
     reader self;
@@ -112,13 +144,13 @@ static void *parse_decimal_number(json_parser p, character c)
 //
 static void *finish_float(json_parser p)
 {
-    p->value = box_float(p->float_result);
+    p->v = box_float(p->float_result);
     return complete(p);
 }
 
 static void *negate(json_parser p)
 {
-    p->value = box_float(-p->float_result);
+    p->v = box_float(-p->float_result);
     return complete(p);
 }
 
@@ -152,8 +184,8 @@ static void *parse_fractional(json_parser p, character c)
 static void *parse_float(json_parser p, character c)
 {
     if (numeric(p, c, '0', '9', 0, 10)) return parse_float;
+    p->float_result = (double)p->number;
     if (c == '.') {
-        p->float_result = (double)p->number;
         p->number = 10;
         return parse_fractional;
     }
@@ -198,7 +230,7 @@ static void *parse_string(json_parser p, character c)
 {
     if (c == '\\') return parse_backslash;
     if (c == '"')  {
-        p->value = intern_buffer(p->string_result);
+        p->v = intern_buffer(p->string_result);
         return complete(p);
     }
     string_insert_rune(p->string_result, c);
@@ -210,7 +242,7 @@ static void *parse_string(json_parser p, character c)
 //
 static void *complete_array(json_parser p)
 {
-    p->value = pop(p->ids);
+    p->v = pop(p->ids);
     pop(p->indices);
     return complete(p);
 }
@@ -234,7 +266,7 @@ static parser value_complete_array(json_parser p)
 {
     u64 count = (u64)pop(p->indices);
     // block?
-    edb_insert(p->b, peek(p->ids), box_float(count), p->value, 1, 0);
+    edb_insert(p->b, peek(p->ids), box_float(count), p->v, 1, 0);
     count++;
     push(p->indices, (void *)count);
     return next_array;
@@ -264,7 +296,7 @@ static void *next_object(json_parser p, character c);
 static void *value_complete_object(json_parser p)
 {
     // block?
-    edb_insert(p->b, peek(p->ids), p->tag, p->value, 1, 0);
+    edb_insert(p->b, peek(p->ids), pop(p->tags), p->v, 1, 0);
     return next_object;
 }
 
@@ -280,7 +312,7 @@ static void *check_sep(json_parser p, character c)
 
 static void *complete_tag(json_parser p)
 {
-    p->tag = intern_buffer(p->string_result);
+    push(p->tags, intern_buffer(p->string_result));
     return check_sep;
 }
 
@@ -293,7 +325,7 @@ static void *parse_attribute(json_parser p, character c)
         return parse_string;
     // xxx - this allows ",}"
     case '}':
-        p->value = pop(p->ids);
+        p->v = pop(p->ids);
         return complete(p);
     default:
         if (whitespace(c)) return parse_attribute;
@@ -307,7 +339,7 @@ static void *next_object(json_parser p, character c)
     case ',':
         return parse_attribute;
     case '}':
-        p->value = pop(p->ids);
+        p->v = pop(p->ids);
         return complete(p);
     default:
         if (whitespace(c)) return next_object;
@@ -339,7 +371,7 @@ static void *start_immediate(json_parser p, buffer b, value v)
 {
     p->check = b;
     p->number = 1;
-    p->value = v;
+    p->v = v;
     return  parse_immediate;
 }
 
@@ -353,6 +385,7 @@ static void *parse_value(json_parser p, character c)
 
     if ((c >= '0') && (c <= '9')) {
         p->float_result = 0.0;
+        p->number = 0;
         push(p->completions, finish_float);
         return parse_float(p, c);
     }
@@ -376,7 +409,7 @@ static void *json_top(json_parser p, character c);
 static parser top_complete(json_parser p)
 {
     // no flow control
-    apply(p->out, p->b, p->value);
+    apply(p->out, p->b, p->v);
     push(p->completions, top_complete);
     return json_top;
 }
@@ -405,7 +438,6 @@ static void json_input(json_parser p, buffer b, register_read r)
         apply(p->out, 0, 0);
         return;
     }
-
     while(1) {
         int len, blen = buffer_length(b);
         if (!blen) {
@@ -434,6 +466,7 @@ reader parse_json(heap h, json_handler j)
     p->completions = allocate_vector(p->h, 10);
     p->ids = allocate_vector(p->h, 10);
     p->indices = allocate_vector(p->h, 10);
+    p->tags = allocate_vector(p->h, 10);
     p->out = j;
     p->string_result = allocate_buffer(p->h, 20);
     push(p->completions, top_complete);

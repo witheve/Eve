@@ -299,7 +299,6 @@ void new_json_session(bag root, boolean tracing,
     } else {
         destroy(graph_heap);
     }
-
     inject_event(j->s, aprintf(j->h,"init!\n```\nbind\n      [#session-connect]\n```"), j->tracing);
 }
 

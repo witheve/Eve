@@ -60,3 +60,5 @@ client open_http_client(heap h, bag s, uuid request, http_handler response);
 void http_send_header(buffer_handler w, bag b, uuid n, value first, value second, value third);
 
 buffer_handler websocket_client(heap h, bag request, uuid rid, reader up);
+
+buffer json_encode(heap, bag b, uuid n);

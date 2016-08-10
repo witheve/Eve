@@ -6,14 +6,55 @@ typedef struct request {
     bag b;
     uuid req;
     buffer_handler w;
+    evaluation ev;
 } *request;
 
-static CONTINUATION_1_2(json_input, request, bag, uuid);
-static void json_input(request r, bag from_server, uuid n)
+static CONTINUATION_1_2(eve_json_input, request, bag, uuid);
+
+// oh, small ints
+static value ek = 0;
+static value ak;
+static value vk;
+
+static value translate_eve_value(bag b, uuid v, value key)
+{
+    value x = lookupv(b, v, key);
+
+    if (lookupv(b, x, sym(type)) == sym(uuid)) {
+        estring e = lookupv(b, x, sym(value));
+        value u = parse_uuid(alloca_wrap_buffer(e->body, e->length));
+        return u;
+    }
+    return x;
+}
+
+static void merge_remote(bag d, bag s, uuid set, multiplicity m)
+{
+    // should have a block id
+    bag_foreach_av(s, set, a, fact, _) {
+        if (a != sym(tag)) {
+            value e = translate_eve_value(s, fact, ek);
+            value a = translate_eve_value(s, fact, ak);
+            value v = translate_eve_value(s, fact, vk);
+            prf("merge %v %v %v\n", e, a, v);
+            edb_insert(d, e, a, v, m, 0);
+        }
+    }
+}
+
+static void eve_json_input(request r, bag from_server, uuid n)
 {
     value type = lookupv(from_server, n, sym(type));
     if (type == sym(result)) {
-        prf("jsoninput: %b\n", bag_dump(init, from_server));
+        if (!ek) {
+            // sadness - make a json vectory thingy
+            ek = box_float((float)0);
+            ak = box_float((float)1);
+            vk = box_float((float)2);
+        }
+        merge_remote(r->b, from_server, lookupv(from_server, n, sym(insert)), 1);
+        merge_remote(r->b, from_server, lookupv(from_server, n, sym(remove)), -1);
+        inject_event(r->ev, aprintf(r->h,"init!\n```\nbind [#eve-response]\n```"), 0);
     }
 }
 
@@ -26,8 +67,9 @@ static void json_input(request r, bag from_server, uuid n)
 //   udp
 //   udp-json
 //   etc...
-static CONTINUATION_1_2(bag_update, bag, evaluation, bag);
-static void bag_update(bag root, evaluation ev, bag deltas)
+extern thunk ignore;
+static CONTINUATION_2_2(bag_update, table, bag, evaluation, bag);
+static void bag_update(table idmap, bag root, evaluation ev, bag deltas)
 {
     heap h = init;
 
@@ -35,18 +77,32 @@ static void bag_update(bag root, evaluation ev, bag deltas)
         //        open_http_client(h, root, e, cont(h, response, root, e));
     }
 
+    bag_foreach_e(deltas, e, sym(tag), sym(json-request), c) {
+        value k = lookupv(deltas, e, sym(connection));
+        request r = table_find(idmap, k);
+        value message = lookupv(deltas, e, sym(message));
+        buffer b = json_encode(r->h, root, message);
+        apply(r->w, b, ignore);
+    }
+
     bag_foreach_e(deltas, e, sym(tag), sym(eve-connection), c) {
         heap h = init;
         request r = allocate(h, sizeof(struct request));
         r->h = h;
-        // mututally recursive continuations :(
+        r->ev = ev;
+        // xxx - not super general
+        r->b = table_find(ev->persisted, table_find(ev->scopes, sym(remote)));
         r->w = websocket_client(h, root, e,
-                                parse_json(h, cont(h, json_input, r)));
+                                parse_json(h, cont(h, eve_json_input, r)));
+        table_set(idmap, e, r);
     }
 }
 
 
+// ok, this is more of an experiment to see if we can
+// manage state sympathetically with an eve program
 void init_request_service(bag b)
 {
-    register_delta_listener(b, cont(init, bag_update, b));
+    table idmap = create_value_table(init);
+    register_delta_listener(b, cont(init, bag_update, idmap, b));
 }

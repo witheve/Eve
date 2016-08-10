@@ -37,6 +37,7 @@ typedef long multiplicity;
 uuid generate_uuid();
 
 void uuid_base_print(char *, void *);
+uuid parse_uuid(string c);
 string aprintf(heap h, char *fmt, ...);
 void bbprintf(string b, string fmt, ...);
 

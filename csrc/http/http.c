@@ -44,7 +44,6 @@ void http_send_header(buffer_handler w, bag b, uuid n, value first, value second
     bag_foreach_av(b, n, a, v, c)
         bprintf(out, "%r: %r\r\n", a, v);
     bprintf(out, "\r\n");
-    prf("header: \n%b\n", out);
     apply(w, out, ignore);
 }
 
