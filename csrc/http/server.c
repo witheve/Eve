@@ -45,7 +45,7 @@ static void dispatch_request(session s, bag b, uuid i, register_read reg)
         return;
     }
 
-    estring url = lookupv(b, i, sym(url));
+    estring url = lookupv((edb)b, i, sym(url));
     if ((c = table_find(s->parent->services, url))) {
         apply((http_service)c, s->write, b, i, reg);
         return;

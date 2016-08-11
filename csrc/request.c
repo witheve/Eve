@@ -18,10 +18,10 @@ static value vk;
 
 static value translate_eve_value(bag b, uuid v, value key)
 {
-    value x = lookupv(b, v, key);
+    value x = lookupv((edb)b, v, key);
 
-    if (lookupv(b, x, sym(type)) == sym(uuid)) {
-        estring e = lookupv(b, x, sym(value));
+    if (lookupv((edb)b, x, sym(type)) == sym(uuid)) {
+        estring e = lookupv((edb)b, x, sym(value));
         value u = parse_uuid(alloca_wrap_buffer(e->body, e->length));
         return u;
     }
@@ -31,20 +31,20 @@ static value translate_eve_value(bag b, uuid v, value key)
 static void merge_remote(bag d, bag s, uuid set, multiplicity m)
 {
     // should have a block id
-    bag_foreach_av(s, set, a, fact, _) {
+    edb_foreach_av((edb)s, set, a, fact, _) {
         if (a != sym(tag)) {
             value e = translate_eve_value(s, fact, ek);
             value a = translate_eve_value(s, fact, ak);
             value v = translate_eve_value(s, fact, vk);
             prf("merge %v %v %v\n", e, a, v);
-            edb_insert(d, e, a, v, m, 0);
+            apply(d->insert, e, a, v, m, 0);
         }
     }
 }
 
 static void eve_json_input(request r, bag from_server, uuid n)
 {
-    value type = lookupv(from_server, n, sym(type));
+    value type = lookupv((edb)from_server, n, sym(type));
     if (type == sym(result)) {
         if (!ek) {
             // sadness - make a json vectory thingy
@@ -52,8 +52,8 @@ static void eve_json_input(request r, bag from_server, uuid n)
             ak = box_float((float)1);
             vk = box_float((float)2);
         }
-        merge_remote(r->b, from_server, lookupv(from_server, n, sym(insert)), 1);
-        merge_remote(r->b, from_server, lookupv(from_server, n, sym(remove)), -1);
+        merge_remote(r->b, from_server, lookupv((edb)from_server, n, sym(insert)), 1);
+        merge_remote(r->b, from_server, lookupv((edb)from_server, n, sym(remove)), -1);
         inject_event(r->ev, aprintf(r->h,"init!\n```\nbind [#eve-response]\n```"), 0);
     }
 }
@@ -73,19 +73,19 @@ static void bag_update(table idmap, bag root, evaluation ev, bag deltas)
 {
     heap h = init;
 
-    bag_foreach_e(deltas, e, sym(tag), sym(http-request), c) {
+    edb_foreach_e((edb)deltas, e, sym(tag), sym(http-request), c) {
         //        open_http_client(h, root, e, cont(h, response, root, e));
     }
 
-    bag_foreach_e(deltas, e, sym(tag), sym(json-request), c) {
-        value k = lookupv(deltas, e, sym(connection));
+    edb_foreach_e((edb)deltas, e, sym(tag), sym(json-request), c) {
+        value k = lookupv((edb)deltas, e, sym(connection));
         request r = table_find(idmap, k);
-        value message = lookupv(deltas, e, sym(message));
+        value message = lookupv((edb)deltas, e, sym(message));
         buffer b = json_encode(r->h, root, message);
         apply(r->w, b, ignore);
     }
 
-    bag_foreach_e(deltas, e, sym(tag), sym(eve-connection), c) {
+    edb_foreach_e((edb)deltas, e, sym(tag), sym(eve-connection), c) {
         heap h = init;
         request r = allocate(h, sizeof(struct request));
         r->h = h;
@@ -104,5 +104,6 @@ static void bag_update(table idmap, bag root, evaluation ev, bag deltas)
 void init_request_service(bag b)
 {
     table idmap = create_value_table(init);
-    register_delta_listener(b, cont(init, bag_update, idmap, b));
+    // temporary - going to be implemented just as a bag handler
+    table_set(b->delta_listeners, cont(init, bag_update, idmap, b), (void *)1);
 }

@@ -11,7 +11,7 @@ table level_fetch(heap h, table current, value key) {
     return next_level;
 }
 
-multiplicity count_of(bag b, value e, value a, value v)
+multiplicity count_of(edb b, value e, value a, value v)
 {
     table al = table_find(b->eav, e);
     if(al) {
@@ -24,7 +24,7 @@ multiplicity count_of(bag b, value e, value a, value v)
     return 0;
 }
 
-value lookupv(bag b, uuid e, estring a)
+value lookupv(edb b, uuid e, estring a)
 {
     table al = table_find(b->eav, e);
     if(al) {
@@ -43,59 +43,13 @@ value lookupv(bag b, uuid e, estring a)
     return(0);
 }
 
-void register_listener(bag e, thunk t)
-{
-    table_set(e->listeners, t, (void *)0x1);
-}
-
-void deregister_listener(bag e, thunk t)
-{
-    table_set(e->listeners, t, 0);
-}
-
-void register_delta_listener(bag e, thunk t)
-{
-    table_set(e->delta_listeners, t, (void *)0x1);
-}
-
-void deregister_delta_listener(bag e, thunk t)
-{
-    table_set(e->delta_listeners, t, 0);
-}
-
-int edb_size(bag b)
+int edb_size(edb b)
 {
     return b->count;
 }
 
-uuid edb_uuid(bag b)
-{
-    return b->u;
-}
-
-table edb_implications(bag b)
-{
-    return(b->implications);
-}
-
-void edb_register_implication(bag b, node n)
-{
-    table_set(b->implications, n, n);
-}
-
-void edb_remove_implication(bag b, node n)
-{
-    table_set(b->implications, n, 0);
-}
-
-void edb_clear_implications(bag b)
-{
-    //FIXME: we're leaking the old implications table here, how would we
-    //reclaim it?
-    b->implications = allocate_table(b->h, key_from_pointer, compare_pointer);
-}
-
-void edb_scan(bag b, int sig, listener out, value e, value a, value v)
+static CONTINUATION_1_5(edb_scan, edb, int, listener, value, value, value);
+static void edb_scan(edb b, int sig, listener out, value e, value a, value v)
 {
     vector_foreach(b->includes, i)
         edb_scan(i, sig, out, e, a, v);
@@ -194,22 +148,9 @@ void edb_scan(bag b, int sig, listener out, value e, value a, value v)
     }
 }
 
-bag create_bag(heap h, uuid u)
-{
-    bag b = allocate(h, sizeof(struct bag));
-    b->h = h;
-    b->u = u;
-    b->count = 0;
-    b->eav = create_value_table(h);
-    b->ave = create_value_table(h);
-    b->includes = allocate_vector(h, 1);
-    b->listeners = allocate_table(h, key_from_pointer, compare_pointer);
-    b->delta_listeners = allocate_table(h, key_from_pointer, compare_pointer);
-    b->implications = allocate_table(h, key_from_pointer, compare_pointer);
-    return b;
-}
 
-void edb_insert(bag b, value e, value a, value v, multiplicity m, uuid bku)
+static CONTINUATION_1_5(edb_insert, edb, value, value, value, multiplicity, uuid);
+static void edb_insert(edb b, value e, value a, value v, multiplicity m, uuid bku)
 {
     leaf final;
 
@@ -249,7 +190,28 @@ int buffer_unicode_length(buffer buf)
     return length;
 }
 
-string bag_dump(heap h, bag b)
+
+edb create_edb(heap h, uuid u, vector includes)
+{
+    edb b = allocate(h, sizeof(struct edb));
+    b->b.insert = cont(h, edb_insert, b);
+    b->b.scan = cont(h, edb_scan, b);
+    b->b.u = u;
+    b->h = h;
+    b->count = 0;
+    b->eav = create_value_table(h);
+    b->ave = create_value_table(h);
+    b->includes = allocate_vector(h, 1);
+
+    b->b.listeners = allocate_table(h, key_from_pointer, compare_pointer);
+    b->b.delta_listeners = allocate_table(h, key_from_pointer, compare_pointer);
+    b->b.implications = allocate_table(h, key_from_pointer, compare_pointer);
+
+    return b;
+}
+
+
+string edb_dump(heap h, edb b)
 {
 
     buffer out = allocate_string(h);

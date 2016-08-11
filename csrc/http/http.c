@@ -41,7 +41,7 @@ void http_send_header(buffer_handler w, bag b, uuid n, value first, value second
 {
     buffer out = allocate_buffer(init, 64);
     bprintf(out, "%r %r %r\r\n", first, second, third);
-    bag_foreach_av(b, n, a, v, c)
+    edb_foreach_av((edb)b, n, a, v, c)
         bprintf(out, "%r: %r\r\n", a, v);
     bprintf(out, "\r\n");
     apply(w, out, ignore);
@@ -51,9 +51,9 @@ void http_send_request(buffer_handler w, bag b, uuid n)
 {
     http_send_header(w,
                      b,
-                     lookupv(b, n, sym(headers)),
-                     lookupv(b, n, sym(method)),
-                     lookupv(b, n, sym(url)),
+                     lookupv((edb)b, n, sym(headers)),
+                     lookupv((edb)b, n, sym(method)),
+                     lookupv((edb)b, n, sym(url)),
                      sym(HTTP/1.1));
 }
 
@@ -86,7 +86,7 @@ static void parse_http_header(header_parser p, buffer b, register_read reg)
             case method:
             case url:
             case version:
-                edb_insert(p->b, p->u, p->headers[p->s], intern_buffer(p->term), 1, 0);
+                apply(p->b->insert, p->u, p->headers[p->s], intern_buffer(p->term), 1, 0);
                 p->s++;
                 break;
             case name:
@@ -95,7 +95,7 @@ static void parse_http_header(header_parser p, buffer b, register_read reg)
                 break;
             case property:
                 p->s = skipo;
-                edb_insert(p->b, p->u, p->name, intern_buffer(p->term), 1, 0);
+                apply(p->b->insert, p->u, p->name, intern_buffer(p->term), 1, 0);
                 break;
             default:
                 p->s++;
@@ -109,12 +109,12 @@ static void parse_http_header(header_parser p, buffer b, register_read reg)
 }
 
 
-reader new_guy(heap h, http_handler result, value a, value b, value c)
+reader new_parser(heap h, http_handler result, value a, value b, value c)
 {
     header_parser p = allocate(h, sizeof(struct header_parser));
     p->h = h;
     p->up = result;
-    p->b = create_bag(h, 0); //uuid? - take a bag?
+    p->b = (bag)create_edb(h, 0, 0); // uuid?
     p->u = generate_uuid();
     p->s = 0;
     p->headers[0] = a;
@@ -128,11 +128,11 @@ reader new_guy(heap h, http_handler result, value a, value b, value c)
 
 reader request_header_parser(heap h, http_handler result_handler)
 {
-    return new_guy(h, result_handler, sym(method), sym(url), sym(version));
+    return new_parser(h, result_handler, sym(method), sym(url), sym(version));
 }
 
 
 reader response_header_parser(heap h, http_handler result_handler)
 {
-    return new_guy(h, result_handler, sym(version), sym(status), sym(reason));
+    return new_parser(h, result_handler, sym(version), sym(status), sym(reason));
 }

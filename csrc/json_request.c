@@ -166,22 +166,20 @@ static void send_response(json_session js, table solution, table counters)
     heap p = allocate_rolling(pages, sstring("response delta"));
     table results = create_value_vector_table(p);
 
-    bag_foreach(js->session, e, a, v, c, _)
+    edb_foreach((edb)js->session, e, a, v, c, _)
         table_set(results, build_vector(p, e, a, v), etrue);
 
     if(solution) {
         bag ev = table_find(solution, js->event_uuid);
         if (ev){
-            bag_foreach(ev, e, a, v, c, _)
+            edb_foreach((edb)ev, e, a, v, c, _)
                 table_set(results, build_vector(p, e, a, v), etrue);
         }
     }
 
     table_foreach(js->persisted, k, scopeBag) {
-        table_foreach(edb_implications(scopeBag), k, impl) {
-            if(impl) {
-                send_node_times(h, js->write, ((compiled)impl)->head, counters);
-            }
+        table_foreach(((bag)scopeBag)->implications, impl, _) {
+            send_node_times(h, js->write, ((compiled)impl)->head, counters);
         }
     }
 
@@ -216,8 +214,8 @@ void handle_json_query(json_session j, bag in, uuid root)
         return;
     }
 
-    estring t = lookupv(in, root, sym(type));
-    estring q = lookupv(in, root, sym(query));
+    estring t = lookupv((edb)in, root, sym(type));
+    estring q = lookupv((edb)in, root, sym(query));
     buffer desc;
     string x = q?alloca_wrap_buffer(q->body, q->length):0;
 
@@ -226,13 +224,15 @@ void handle_json_query(json_session j, bag in, uuid root)
     }
     if (t == sym(swap)) {
         close_evaluation(j->s);
-        edb_clear_implications(j->root);
+        // xxx - reflection
+        j->root->implications =  allocate_table(j->h, key_from_pointer, compare_pointer);
         vector nodes = compile_eve(init, x, j->tracing,  &desc);
         root_graph = desc;
         j->graph = desc;
         heap graph_heap = allocate_rolling(pages, sstring("initial graphs"));
         vector_foreach(nodes, node) {
-            edb_register_implication(j->root, node);
+            // xxx - reflection
+            table_set(j->root->implications, node, (void *)1);
             send_cnode_graph(graph_heap, j->write, ((compiled)node)->head);
         }
         // send full parse destroys the heap
@@ -265,17 +265,16 @@ void new_json_session(bag root, boolean tracing,
     j->h = h;
     j->root = root;
     j->tracing = tracing;
-    j->session = create_bag(h, su);
+    j->session = (bag)create_edb(h, su, 0);
     j->current_delta = create_value_vector_table(allocate_rolling(pages, sstring("trash")));
     j->event_uuid = generate_uuid();
     j->graph = root_graph;
     j->persisted = create_value_table(h);
-    uuid ru = edb_uuid(root);
-    table_set(j->persisted, ru, j->root);
-    table_set(j->persisted, su, j->session);
+    table_set(j->persisted, j->root->u, j->root);
+    table_set(j->persisted, j->session->u, j->session);
     j->scopes = create_value_table(j->h);
-    table_set(j->scopes, intern_cstring("session"), su);
-    table_set(j->scopes, intern_cstring("all"), ru);
+    table_set(j->scopes, intern_cstring("session"), j->session->u);
+    table_set(j->scopes, intern_cstring("all"), j->root->u);
     table_set(j->scopes, intern_cstring("event"), j->event_uuid);
     j->eh = allocate_rolling(pages, sstring("eval"));
     j->s = build_evaluation(j->scopes, j->persisted, cont(j->h, send_response, j));
@@ -287,10 +286,8 @@ void new_json_session(bag root, boolean tracing,
     // send the graphs
     heap graph_heap = allocate_rolling(pages, sstring("initial graphs"));
     table_foreach(j->persisted, k, scopeBag) {
-        table_foreach(edb_implications(scopeBag), k, impl) {
-            if(impl) {
-                send_cnode_graph(graph_heap, j->write, ((compiled)impl)->head);
-            }
+        table_foreach(((bag)scopeBag)->implications, impl, _) {
+            send_cnode_graph(graph_heap, j->write, ((compiled)impl)->head);
         }
     }
     // send full parse destroys the heap

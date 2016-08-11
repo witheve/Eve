@@ -51,17 +51,17 @@ static void json_encode_internal(buffer dest, bag b, uuid n)
 {
     boolean start = true;
     if (type_of(n) == uuid_space) {
-        if (lookupv(b, n, sym(tag)) == sym(array)){
+        if (lookupv((edb)b, n, sym(tag)) == sym(array)){
             value t;
             // grr, box float small int
-            for (int i = 0; (t = lookupv(b, n, box_float(i))); i++){
+            for (int i = 0; (t = lookupv((edb)b, n, box_float(i))); i++){
                 bprintf(dest, "%s", start?"":",");
                 json_encode_internal(dest, b, t);
                 start = false;
             }
         } else {
             bprintf(dest, "{");
-            bag_foreach_av(b, n, a, v, _) {
+            edb_foreach_av((edb)b, n, a, v, _) {
                 bprintf(dest, "%s%v:", start?"":",", a);
                 print_value_json(dest, v);
                 start = false;
@@ -266,7 +266,7 @@ static parser value_complete_array(json_parser p)
 {
     u64 count = (u64)pop(p->indices);
     // block?
-    edb_insert(p->b, peek(p->ids), box_float(count), p->v, 1, 0);
+    apply(p->b->insert, peek(p->ids), box_float(count), p->v, 1, 0);
     count++;
     push(p->indices, (void *)count);
     return next_array;
@@ -283,7 +283,7 @@ static void *first_array_element(json_parser p, character c)
 static void *start_array(json_parser p)
 {
     push(p->ids, generate_uuid());
-    edb_insert(p->b, peek(p->ids), sym(tag), sym(array), 1, 0);
+    apply(p->b->insert, peek(p->ids), sym(tag), sym(array), 1, 0);
     push(p->indices, (void *)0);
     return first_array_element;
 }
@@ -296,7 +296,7 @@ static void *next_object(json_parser p, character c);
 static void *value_complete_object(json_parser p)
 {
     // block?
-    edb_insert(p->b, peek(p->ids), pop(p->tags), p->v, 1, 0);
+    apply(p->b->insert, peek(p->ids), pop(p->tags), p->v, 1, 0);
     return next_object;
 }
 
@@ -418,10 +418,10 @@ static void *json_top(json_parser p, character c)
 {
     switch(c) {
     case '{':
-        p->b = create_bag(p->h, 0);
+        p->b = (bag)create_edb(p->h, 0, 0);
         return start_object(p);
     case '[':
-        p->b = create_bag(p->h, 0);
+        p->b = (bag)create_edb(p->h, 0, 0);
         return start_array(p);
     default:
         if (whitespace(c)) return json_top;

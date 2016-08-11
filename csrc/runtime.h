@@ -49,17 +49,10 @@ typedef struct perf {
 } *perf;
 
 typedef closure(execf, heap, perf, operator, value *);
-typedef closure(insertron, value, value, value, value, multiplicity);
 
 #define def(__s, __v, __i)  table_set(__s, intern_string((unsigned char *)__v, cstring_length((char *)__v)), __i);
 
-
-string bag_dump(heap h, bag b);
-
 void print_value(buffer, value);
-
-typedef closure(listener, value, value, value, multiplicity, uuid);
-typedef closure(scan, int, listener, value, value, value);
 
 typedef struct node *node;
 typedef struct evaluation *evaluation;
@@ -97,31 +90,16 @@ struct block {
 };
 
 
-static inline void start_perf(perf p, operator op)
-{
-    if (op== op_insert) {
-        if (p->trig == 1) p->count=0;
-        p->count++;
-    }
-    if (op == op_flush) p->trig = 1;
+#include <edb.h>
 
-    p->start = rdtsc();
-
-}
-
-static inline void stop_perf(perf p, perf pp)
-{
-    ticks delta = rdtsc() - p->start;
-    if (pp)
-        pp->time -= delta;
-    p->time += delta;
-}
-
+typedef closure(insertron, value, value, value, value, multiplicity);
 
 struct evaluation  {
     heap h;
     heap working;
     insertron insert;
+    scanner reader;
+
     table counters;
 
     table block_solution;
@@ -133,7 +111,7 @@ struct evaluation  {
     table scopes;
     vector blocks;
     vector event_blocks;
-    scan reader;
+
     ticks t;
     boolean non_empty;
     evaluation_result complete;
@@ -142,14 +120,13 @@ struct evaluation  {
     thunk run;
     ticks cycle_time;
     table f_bags;
-    block bk;
+    block bk; //currently running block
 };
 
 
 void execute(evaluation);
 
 table builders_table();
-void register_implication(compiled c);
 block build(evaluation e, compiled c);
 table start_fixedpoint(heap, table, table, table);
 void close_evaluation(evaluation);
@@ -162,6 +139,5 @@ void block_close(block);
 
 void init_request_service(bag b);
 
-#include <edb.h>
 
 typedef closure(bag_handler, evaluation, bag);
