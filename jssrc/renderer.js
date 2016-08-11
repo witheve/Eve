@@ -385,7 +385,7 @@ function sendParse(query) {
 // Event bindings to forward events to the server
 //---------------------------------------------------------
 
-window.addEventListener("click", function(event) {
+function clickHandler(event) {
   let {target} = event;
   let current = target;
   let objs = [];
@@ -395,13 +395,16 @@ window.addEventListener("click", function(event) {
       if(current == target) {
         tags.push("direct-target");
       }
-      objs.push({tags, element: current.entity});
+      objs.push({tags, element: current.entity, button: event.button});
     }
     current = current.parentNode
   }
   // objs.push({tags: ["click"], element: "window"});
   sendEventObjs(objs);
-});
+}
+window.addEventListener("click", clickHandler);
+window.addEventListener("contextmenu", clickHandler);
+
 window.addEventListener("dblclick", function(event) {
   let {target} = event;
   let current = target;
