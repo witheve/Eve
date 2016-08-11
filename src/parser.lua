@@ -961,7 +961,7 @@ local function resolveMutate(context, node)
       context.mutating = prevMutating
       if rightNode.type == "object" then
         context.projections:push(Set:new({left}))
-        right = resolveMutate(context, left, rightNode)
+        right = resolveMutateMerge(context, left, rightNode)
         context.projections:pop()
       else
         -- error merge must be followed by an object
