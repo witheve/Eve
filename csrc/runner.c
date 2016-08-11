@@ -217,7 +217,10 @@ static void run_block(evaluation ev, block bk)
     destroy(bh);
 }
 
-static void fixedpoint(evaluation ev)
+const int MAX_F_ITERATIONS = 250;
+const int MAX_T_ITERATIONS = 50;
+
+static boolean fixedpoint(evaluation ev)
 {
     long iterations = 0;
     vector counts = allocate_vector(ev->working, 10);
@@ -240,6 +243,12 @@ static void fixedpoint(evaluation ev)
                     run_block(ev, b);
             vector_foreach(ev->blocks, b)
                 run_block(ev, b);
+
+            if(iterations > MAX_F_ITERATIONS) {
+              // @TODO: Hook me up to an error reporting system!
+              prf("Unable to converge in F\n");
+              return false;
+            }
         } while(!compare_sets(ev->f_bags, ev->solution, ev->last_f_solution));
 
         multibag_foreach(ev->solution, u, b)
@@ -249,6 +258,12 @@ static void fixedpoint(evaluation ev)
         vector_insert(counts, box_float((double)iterations));
         iterations = 0;
         ev->event_blocks = 0;
+
+        if(vector_length(counts) > MAX_T_ITERATIONS) {
+          // @TODO: Hook me up to an error reporting system!
+          prf("Unable to converge in T\n");
+          return false;
+        }
     } while(again);
 
 
@@ -307,6 +322,7 @@ static void fixedpoint(evaluation ev)
          now() - end_time);
     destroy(ev->working);
 
+    return true;
 }
 
 static void clear_evaluation(evaluation ev)
