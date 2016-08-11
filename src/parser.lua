@@ -1790,9 +1790,24 @@ local function parseString(str)
   return graph
 end
 
+function traceError(err)
+  local stack = tostring(debug.traceback())
+  local lines = {}
+  for line in string.gmatch(stack, "([^\n]+)") do
+    lines[#lines + 1] = line
+  end
+
+  return {message = err, stack = table.concat(lines, "\n", 3)}
+end
+
 local function parseJSON(str)
-  local parse = parseString(str)
-  return string.format("{\"type\": \"parse\", \"parse\": %s}", util.toFlatJSON(parse))
+  local ok, parseOrError = xpcall(function() return parseString(str) end, traceError)
+  if not ok then
+    return string.format("{\"type\": \"error\", \"stage\": \"parse\", \"message\": \"%s\", \"stack\": \"%s\"}", parseOrError.message, parseOrError.stack)
+  else
+    return string.format("{\"type\": \"parse\", \"parse\": %s}", util.toFlatJSON(parseOrError))
+  end
+
 end
 
 local function printParse(content)

@@ -176,16 +176,16 @@ static CONTINUATION_3_2(client_connected, websocket, bag, uuid,
 static void client_connected(websocket w, bag request, uuid rid,
                              buffer_handler wr, register_read r)
 {
-    bag shadow = create_bag(w->h, request->u);
-    vector_insert(shadow->includes, request);
+    
+    bag shadow = (bag)create_edb(w->h, request->u, build_vector(w->h, request));
 
-    value header = lookupv(request, rid, sym(headers));
+    value header = lookupv((edb)request, rid, sym(headers));
     // i guess we could vary this, but since it doesn't actually provide any security...
     // umm, apparently its to stop a cache(?) from replaying an old session? i just
     // dont get it. it would be kind of idiotic to do in the first place, and
     // if they really wanted to...they..could handle this part as well
-    edb_insert(shadow, header, sym(Sec-WebSocket-Key), sym(dGhlIHNhbXBsZSBub25jZQ), 1, 0); /*bku*/
-    edb_insert(shadow, header, sym(Upgrade), sym(websocket), 1, 0);
+    apply(shadow->insert, header, sym(Sec-WebSocket-Key), sym(dGhlIHNhbXBsZSBub25jZQ), 1, 0); /*bku*/
+    apply(shadow->insert, header, sym(Upgrade), sym(websocket), 1, 0);
     http_send_request(wr, shadow, rid);
     w->write = wr;
     apply(r, response_header_parser(w->h, cont(w->h, header_response, w)));
@@ -198,7 +198,7 @@ buffer_handler websocket_client(heap h,
                                 reader up)
 {
     websocket w = new_websocket(h, up);
-    estring host = lookupv(request, rid, sym(host));
+    estring host = lookupv((edb)request, rid, sym(host));
     tcp_create_client (h,
                        station_from_string(h, alloca_wrap_buffer(host->body, host->length)),
                        cont(h, client_connected, w, request, rid));
@@ -217,7 +217,7 @@ buffer_handler websocket_send_upgrade(heap h,
     estring ekey;
     string key;
 
-    if (!(ekey=lookupv(b, n, sym(Sec-WebSocket-Key)))) {
+    if (!(ekey=lookupv((edb)b, n, sym(Sec-WebSocket-Key)))) {
         // something tasier
         return 0;
     }

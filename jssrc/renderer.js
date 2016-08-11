@@ -220,8 +220,9 @@ function handleDOMUpdates(state) {
   }
 
   for(let entityId of regenClassesFor) {
-    let entity = entities[entityId];
     let elem = activeElements[entityId];
+    if(!elem) continue;
+    let entity = entities[entityId];
     let value = entity["class"];
     if(!value) {
       elem.className = "";
@@ -245,8 +246,9 @@ function handleDOMUpdates(state) {
   }
 
   for(let entityId of regenStylesFor) {
-    let entity = entities[entityId];
     let elem = activeElements[entityId];
+    if(!elem) continue;
+    let entity = entities[entityId];
     let value = entity["style"];
     elem.removeAttribute("style"); // @FIXME: This could be optimized to care about the diff rather than blowing it all away
     if(value) {
@@ -1195,7 +1197,8 @@ function handleDiff(state, diff) {
 
 
 var socket = new WebSocket("ws://" + window.location.host +"/ws");
-var frameRequested = false;
+  var frameRequested = false;
+  var prerendering = false;
 socket.onmessage = function(msg) {
   let data = JSON.parse(msg.data);
   if(data.type == "result") {
@@ -1225,7 +1228,15 @@ socket.onmessage = function(msg) {
       }
       console.groupEnd();
     }
-    drawNodeGraph();
+
+    if(document.readyState === "complete") {
+      drawNodeGraph();
+    } else if(!prerenderering) {
+      prerenderering = true;
+      document.addEventListener("DOMContentLoaded", function() {
+        drawNodeGraph();
+      });
+    }
 
   } else if(data.type == "node_graph") {
     allNodeGraphs[data.head] = data.nodes;

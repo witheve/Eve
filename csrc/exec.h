@@ -1,4 +1,3 @@
-
 static void exec_error(evaluation e, char *format, ...)
 {
     prf ("error %s\n", format);
@@ -71,3 +70,24 @@ static inline int reg(value n)
 }
 
 
+
+
+static inline void start_perf(perf p, operator op)
+{
+    if (op== op_insert) {
+        if (p->trig == 1) p->count=0;
+        p->count++;
+    }
+    if (op == op_flush) p->trig = 1;
+
+    p->start = rdtsc();
+
+}
+
+static inline void stop_perf(perf p, perf pp)
+{
+    ticks delta = rdtsc() - p->start;
+    if (pp)
+        pp->time -= delta;
+    p->time += delta;
+}

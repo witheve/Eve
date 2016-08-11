@@ -4,10 +4,7 @@
 
 heap uuid_heap;
 
-// uuid - mix these around 
 // 1 | 37 *time | 10 * node | 16* batch
-static void uuid_print(buffer b, void *x, heap h) {
-}
 
 // serialization length
 static u64 uuid_length(void *x) {
@@ -53,6 +50,22 @@ uuid intern_uuid(unsigned char *x)
     return result;
 }
 
+uuid parse_uuid(string c)
+{
+    unsigned char u[UUID_LENGTH];
+    int phase = 0;
+    int count = 0;
+    int result = 0;
+    rune_foreach(c, i) {
+        result = result<<4 | digit_of(i);
+        if (!(phase ^= 1)) {
+            u[count++] = result;
+            result =0;
+        }
+    }
+    return (intern_uuid(u));
+}
+
 
 uuid generate_uuid()
 {
@@ -84,4 +97,3 @@ void uuid_base_print(char *dest, void *source)
         dest[i*2+1] = hex_digits[x[i] & 0xf];
     }
 }
-

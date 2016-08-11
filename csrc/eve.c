@@ -39,7 +39,7 @@ static void test_result(heap h, table s, table c)
 {
     if (s) {
         table_foreach(s, n, v) {
-            prf("result: %v %b\n", n, bag_dump(h, v));
+            prf("result: %v %b\n", n, edb_dump(h, (edb)v));
         }
     } else prf("result: empty\n");
 }
@@ -47,27 +47,31 @@ static void test_result(heap h, table s, table c)
 static void run_test(bag root, buffer b, boolean tracing)
 {
     heap h = allocate_rolling(pages, sstring("command line"));
-
+    bag troot =  (bag)create_edb(h, generate_uuid(), 0);
+    bag remote = (bag)create_edb(h, generate_uuid(), 0);
     // todo - reduce the amount of setup required here
-    bag event = create_bag(h, generate_uuid());
-    bag session = create_bag(h, generate_uuid());
+    bag event = (bag)create_edb(h, generate_uuid(), 0);
+    bag session = (bag)create_edb(h, generate_uuid(), 0);
     table scopes = create_value_table(h);
-    table_set(scopes, intern_cstring("all"), edb_uuid(root));
-    table_set(scopes, intern_cstring("session"), edb_uuid(session));
-    table_set(scopes, intern_cstring("event"), edb_uuid(event));
-    
+    table_set(scopes, intern_cstring("all"), troot->u);
+    table_set(scopes, intern_cstring("session"), session->u);
+    table_set(scopes, intern_cstring("event"), event->u);
+    table_set(scopes, intern_cstring("remote"), remote->u);
+
     table persisted = create_value_table(h);
-    table_set(persisted, edb_uuid(root), root);
-    table_set(persisted, edb_uuid(session), session);
-    
+    table_set(persisted, troot->u, troot);
+    table_set(persisted, session->u, session);
+    table_set(persisted, remote->u, remote);
+
+    init_request_service(troot);
     buffer desc;
     vector n = compile_eve(h, b, tracing, &desc);
     vector_foreach(n, i)
-        edb_register_implication(session, i);
+        table_set(session->implications, i, (void *)1);
 
     evaluation ev = build_evaluation(scopes, persisted, cont(h, test_result, h));
-    inject_event(ev, aprintf(h,"init!\n```\nbind\n      [#session-connect]\n```"), tracing);
-    destroy(h);
+    inject_event(ev, aprintf(h,"init!\n```\nbind\n      [#test-start]\n```"), tracing);
+    //    destroy(h); everything asynch is running here!
 }
 
 
@@ -112,7 +116,7 @@ static void end_read(reader r)
 static CONTINUATION_0_2(dumpo, bag, uuid);
 static void dumpo(bag b, uuid u)
 {
-    if (b) prf("%b", bag_dump(init, b));
+    if (b) prf("%b", edb_dump(init, (edb)b));
 }
 
 // should actually merge into bag
@@ -129,9 +133,8 @@ static void do_exec(interpreter c, char *x, bag b)
     buffer f = read_file_or_exit(init, x);
     exec_path = x;
     vector v = compile_eve(init, f, enable_tracing, &loadedParse);
-    vector_foreach(v, i) {
-        edb_register_implication(b, i);
-    }
+    vector_foreach(v, i)
+        table_set(b->implications, i, (void *)1);
 }
 
 static command commands;
@@ -159,14 +162,14 @@ static struct command command_body[] = {
 int main(int argc, char **argv)
 {
     init_runtime();
-    bag root = create_bag(init, generate_uuid());
+    bag root = (bag)create_edb(init, generate_uuid(), 0);
     interpreter interp = build_lua();
     commands = command_body;
     boolean dynamicReload = true;
     tests = allocate_vector(init, 5);
 
-    init_request_service(root);
-        
+    //    init_request_service(root);
+
     for (int i = 1; i < argc ; i++) {
         command c = 0;
         for (int j = 0; !c &&(j < sizeof(command_body)/sizeof(struct command)); j++) {
@@ -202,9 +205,9 @@ int main(int argc, char **argv)
 
     prf("\n----------------------------------------------\n\nEve started. Running at http://localhost:%d\n\n",port);
 
-    vector_foreach(tests, t) 
+    vector_foreach(tests, t)
         run_test(root, read_file_or_exit(init, t), enable_tracing);
-        
+
     unix_wait();
 }
 
