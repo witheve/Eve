@@ -438,6 +438,10 @@ function DependencyGraph:addExpressionNode(node)
   }
   node.deps = deps
 
+  if node.operator == ":" then -- make : and = interchangeable by renaming : to =
+    node.operator = "="
+  end
+
   local args = {}
   for _, binding in ipairs(node.bindings) do
     args[binding.field] = binding.variable or binding.constant
