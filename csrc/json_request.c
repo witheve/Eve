@@ -225,7 +225,7 @@ void handle_json_query(json_session j, bag in, uuid root)
     if (t == sym(swap)) {
         close_evaluation(j->s);
         // xxx - reflection
-        j->root->implications =  allocate_table(j->h, key_from_pointer, compare_pointer);
+        j->root->implications =  allocate_table(((edb)j->root)->h, key_from_pointer, compare_pointer);
         vector nodes = compile_eve(init, x, j->tracing,  &desc);
         root_graph = desc;
         j->graph = desc;

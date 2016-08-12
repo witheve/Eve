@@ -341,7 +341,7 @@ void run_solver(evaluation ev)
 void close_evaluation(evaluation ev)
 {
     table_foreach(ev->persisted, uuid, b)
-        table_set(b, ev->run, 0);
+        table_set(((bag)b)->listeners, ev->run, 0);
 
     vector_foreach(ev->blocks, b)
         block_close(b);
