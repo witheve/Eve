@@ -7,7 +7,7 @@ BUILD = $(CURDIR)
 PLATFORM = $(shell uname)
 
 ifeq ($(PLATFORM), Darwin)
-  LINK += -pagezero_size 10000 -image_base 100000000
+  LINK += -pagezero_size 10000 -image_base 100000000 -Wl,-no_pie
   INCLUDES += --include ../csrc/unix/darwin.h
   S = _
 endif
@@ -42,7 +42,7 @@ RUNTIME_H = luanne.h runtime.h estring.h number.h types.h exec.h edb.h
 HTTP = server.o websocket.o base64.o sha1.o json.o client.o http.o
 DNS = dns.o
 HTTP_H = http.h
-CONTENT = index.o renderer.o microReact.o codemirror.o codemirrorCss.o exampleTodomvcCss.o 
+CONTENT = index.o renderer.o microReact.o codemirror.o codemirrorCss.o exampleTodomvcCss.o
 
 luajit-2.0:
 	git clone http://luajit.org/git/luajit-2.0.git
@@ -95,4 +95,3 @@ clean:
 
 distclean:
 	make clean ; rm -rf lua luajit-2.0
-
