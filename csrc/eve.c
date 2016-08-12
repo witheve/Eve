@@ -157,12 +157,7 @@ static void do_exec(interpreter c, char *x, bag b)
 
 static command commands;
 
-static void print_help(interpreter c, char *x, bag b)
-{
-    for (command c = commands; *c->single; c++) {
-        prf("-%s --%s %s\n", c->single, c->extended, c->help);
-    }
-}
+static void print_help(interpreter c, char *x, bag b);
 
 static struct command command_body[] = {
     {"p", "parse", "parse and print structure", true, do_parse},
@@ -176,6 +171,15 @@ static struct command command_body[] = {
     {"t", "tracing", "enable per-statement tracing", false, do_tracing},
     //    {"R", "resolve", "implication resolver", false, 0},
 };
+
+static void print_help(interpreter c, char *x, bag b)
+{
+    for (int j = 0; (j < sizeof(command_body)/sizeof(struct command)); j++) {
+        command c = &commands[j];
+        prf("-%s --%s %s\n", c->single, c->extended, c->help);
+    }
+    exit(0);
+}
 
 int main(int argc, char **argv)
 {
