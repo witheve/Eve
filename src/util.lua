@@ -129,7 +129,7 @@ function toJSON(obj, seen)
     end
     return string.format("{%s}", table.concat(temp, ", "))
   elseif objType == "string" then
-    return string.format("\"%s\"", obj:gsub("\\", "\\\\"):gsub("\"", "\\\""):gsub("\n", "\\n"))
+    return string.format("\"%s\"", obj:gsub("\\", "\\\\"):gsub("\"", "\\\""):gsub("\n", "\\n"):gsub("\t", "\\t"))
   elseif objType == "number" then
     return tostring(obj)
   elseif objType == "boolean" then
@@ -171,7 +171,7 @@ function toFlatJSONRecurse(obj, results, seen)
       return string.format("{%s}", table.concat(temp, ", "))
     end
   elseif objType == "string" then
-    return string.format("\"%s\"", obj:gsub("\\", "\\\\"):gsub("\"", "\\\""):gsub("\n", "\\n"))
+    return string.format("\"%s\"", obj:gsub("\\", "\\\\"):gsub("\"", "\\\""):gsub("\n", "\\n"):gsub("\t", "\\t"))
   elseif objType == "number" then
     return tostring(obj)
   elseif objType == "boolean" then
