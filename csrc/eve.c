@@ -34,6 +34,24 @@ static buffer read_file_or_exit(heap, char *);
 
 extern void *ignore;
 
+
+// @FIXME: Once we abstract the terminal behind a session, we no longer need a special-cased error handler.
+// See `send_error` in json_request.c
+static void send_error_terminal(heap h, char* message)
+{
+    void * address = __builtin_return_address(1);
+    string stack = allocate_string(h);
+    get_stack_trace(&stack);
+    prf("ERROR: %s\n  stage: executor\n  offsets:\n%b", message, stack);
+    destroy(h);
+}
+static CONTINUATION_0_1(handle_error_terminal, char *);
+static void handle_error_terminal(char * message) {
+    heap h = allocate_rolling(pages, sstring("error handler"));
+    send_error_terminal(h, message);
+}
+
+
 static CONTINUATION_1_2(test_result, heap, table, table);
 static void test_result(heap h, table s, table c)
 {
@@ -69,7 +87,7 @@ static void run_test(bag root, buffer b, boolean tracing)
     vector_foreach(n, i)
         table_set(session->implications, i, (void *)1);
 
-    evaluation ev = build_evaluation(scopes, persisted, cont(h, test_result, h));
+    evaluation ev = build_evaluation(scopes, persisted, cont(h, test_result, h), cont(h, handle_error_terminal));
     inject_event(ev, aprintf(h,"init!\n```\nbind\n      [#test-start]\n```"), tracing);
     //    destroy(h); everything asynch is running here!
 }

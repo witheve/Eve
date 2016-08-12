@@ -65,6 +65,22 @@ static void send_guy(heap h, buffer_handler output, values_diff diff)
     apply(output, out, cont(h, send_destroy, h));
 }
 
+static void send_error(heap h, buffer_handler output, char* message)
+{
+    void * address = __builtin_return_address(1);
+    string out = allocate_string(h);
+    string stack = allocate_string(h);
+    get_stack_trace(&stack);
+    bprintf(out, "{\"type\":\"error\", \"stage\": \"executor\", \"offsets\": \"%b\", \"message\": \"%s\"}", stack, message);
+    apply(output, out, cont(h, send_destroy, h));
+}
+
+static CONTINUATION_1_1(handle_error, json_session, char *);
+static void handle_error(json_session session, char * message) {
+    heap h = allocate_rolling(pages, sstring("error handler"));
+    send_error(h, session->write, message);
+}
+
 static void send_full_parse(heap h, buffer_handler output, string parse)
 {
     string out = allocate_string(h);
@@ -241,7 +257,7 @@ void handle_json_query(json_session session, bag in, uuid root)
         } else {
             destroy(graph_heap);
         }
-        session->ev = build_evaluation(session->scopes, session->persisted, cont(session->h, send_response, session));
+        session->ev = build_evaluation(session->scopes, session->persisted, cont(session->h, send_response, session), cont(session->h, handle_error, session));
         run_solver(session->ev);
     }
     if (t == sym(parse)) {
@@ -277,7 +293,7 @@ void new_json_session(bag root, boolean tracing,
     table_set(session->scopes, intern_cstring("all"), session->root->u);
     table_set(session->scopes, intern_cstring("event"), session->event_uuid);
     session->eh = allocate_rolling(pages, sstring("eval"));
-    session->ev = build_evaluation(session->scopes, session->persisted, cont(session->h, send_response, session));
+    session->ev = build_evaluation(session->scopes, session->persisted, cont(session->h, send_response, session), cont(session->h, handle_error, session));
     session->write = websocket_send_upgrade(session->eh, b, u,
                                       write,
                                       parse_json(session->eh, cont(h, handle_json_query, session)),

@@ -365,11 +365,12 @@ void close_evaluation(evaluation ev)
     destroy(ev->h);
 }
 
-evaluation build_evaluation(table scopes, table persisted, evaluation_result r)
+evaluation build_evaluation(table scopes, table persisted, evaluation_result r, error_handler error)
 {
     heap h = allocate_rolling(pages, sstring("eval"));
     evaluation ev = allocate(h, sizeof(struct evaluation));
     ev->h = h;
+    ev->error = error;
     ev->scopes = scopes;
     ev->f_bags = create_value_table(h);
     table_foreach(scopes, n, u){
