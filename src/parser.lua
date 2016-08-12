@@ -1797,13 +1797,13 @@ function traceError(err)
     lines[#lines + 1] = line
   end
 
-  return {message = err, stack = table.concat(lines, "\n", 3)}
+  return {message = err, stack = table.concat(lines, "\n", 3, #lines - 2)}
 end
 
 local function parseJSON(str)
   local ok, parseOrError = xpcall(function() return parseString(str) end, traceError)
   if not ok then
-    return string.format("{\"type\": \"error\", \"stage\": \"parse\", \"message\": \"%s\", \"stack\": \"%s\"}", parseOrError.message, parseOrError.stack)
+    return util.toJSON({type = "error", stage = "parse", message = parseOrError.message, stack = parseOrError.stack})
   else
     return string.format("{\"type\": \"parse\", \"parse\": %s}", util.toFlatJSON(parseOrError))
   end
