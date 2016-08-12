@@ -141,3 +141,15 @@ void init_request_service(bag b);
 
 
 typedef closure(bag_handler, evaluation, bag);
+
+static void get_stack_trace(string *out)
+{
+    void **stack = 0;
+    asm("mov %%rbp, %0": "=rm"(stack)::);
+    while (*stack) {
+        stack = *stack;
+        void * addr = *(void **)(stack - 1);
+        if(addr == 0) break;
+        bprintf(*out, "0x%016x\n", addr);
+    }
+}
