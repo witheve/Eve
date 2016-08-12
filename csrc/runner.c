@@ -31,11 +31,11 @@ static boolean compare_sets(table set, table retain, table destroy)
 
         if (!s != !d) return false;
         if (s) {
-            if (edb_size(d) != edb_size(s)){
+            if (edb_size((edb)d) != edb_size((edb)s)){
                 return false;
             }
-            bag_foreach(s, e, a, v, c, _) {
-                if (count_of(d, e, a, v) != c) {
+            edb_foreach((edb)s, e, a, v, c, _) {
+                if (count_of((edb)d, e, a, v) != c) {
                     return false;
                 }
             }
@@ -52,10 +52,10 @@ static void insert_f(evaluation ev, uuid u, value e, value a, value v, multiplic
     if (!ev->block_solution)
         ev->block_solution = create_value_table(ev->working);
 
-    if (!(b = table_find(ev->block_solution, u))) {
-        table_set(ev->block_solution, u, b = create_bag(ev->working, u));
-    }
-    edb_insert(b, e, a, v, m, ev->bk->name);
+    if (!(b = table_find(ev->block_solution, u)))
+        table_set(ev->block_solution, u, b = (bag)create_edb(ev->working, u, 0));
+
+    apply(b->insert, e, a, v, m, ev->bk->name);
 }
 
 
@@ -85,7 +85,7 @@ static void shadow_t_by_f(evaluation ev, listener result, value e, value a, valu
         bag b;
         table_foreach(ev->f_bags, u, _) {
             if (ev->last_f_solution && (b = table_find(ev->last_f_solution, u)))
-                total += count_of(b, e, a, v);
+                total += count_of((edb)b, e, a, v);
         }
         if (total >= 0)
             apply(result, e, a, v, m, bku);
@@ -110,7 +110,7 @@ static void shadow_p_by_t_and_f(evaluation ev, listener result,
             total = 0;
             table_foreach(ev->f_bags, u, _) {
                 if (ev->last_f_solution && (b = table_find(ev->last_f_solution, u)))
-                    total += count_of(b, e, a, v);
+                    total += count_of((edb)b, e, a, v);
             }
             if (total >= 0)
                 apply(result, e, a, v, m, bku);
@@ -123,22 +123,22 @@ static void merge_scan(evaluation ev, int sig, listener result, value e, value a
 {
     table_foreach(ev->persisted, u, b) {
         bag proposed;
-        edb_scan(b, sig,
-                 cont(ev->working, shadow_p_by_t_and_f, ev, result),
-                 e, a, v);
+        apply(((bag)b)->scan, sig,
+              cont(ev->working, shadow_p_by_t_and_f, ev, result),
+              e, a, v);
         if (ev->t_solution && (proposed = table_find(ev->t_solution, u))) {
-            edb_scan(proposed, sig,
-                     cont(ev->working, shadow_t_by_f, ev, result),
-                     e, a, v);
+            apply(proposed->scan, sig,
+                  cont(ev->working, shadow_t_by_f, ev, result),
+                  e, a, v);
         }
     }
 
     table_foreach(ev->f_bags, u, _) {
         bag last;
         if (ev->last_f_solution && (last = table_find(ev->last_f_solution, u))){
-            edb_scan(last, sig,
-                     cont(ev->working, shadow_f_by_p_and_t, ev, result),
-                     e, a, v);
+            apply(last->scan, sig,
+                  cont(ev->working, shadow_f_by_p_and_t, ev, result),
+                  e, a, v);
         }
     }
 }
@@ -164,15 +164,15 @@ static boolean merge_solution_into_t(evaluation ev, uuid u, bag s)
         table_set(ev->t_solution, u, s);
         return true;
     } else {
-        bag_foreach(s, e, a, v, count, bk) {
-            int old_count = count_of(bd, e, a, v);
+        edb_foreach((edb)s, e, a, v, count, bk) {
+            int old_count = count_of((edb)bd, e, a, v);
             if ((count > 0) && (old_count == 0)) {
                 result = true;
-                edb_insert(bd, e, a, v, 1, bk);
+                apply(bd->insert, e, a, v, 1, bk);
             }
             if (count < 0) {
                 result = true;
-                edb_insert(bd, e, a, v, -1, bk);
+                apply(bd->insert, e, a, v, -1, bk);
             }
         }
     }
@@ -189,8 +189,8 @@ static void merge_multibag_bag(evaluation ev, table *d, uuid u, bag s)
     if (!(bd = table_find(*d, u))) {
         table_set(*d, u, s);
     } else {
-        bag_foreach(s, e, a, v, m, bku) {
-            edb_insert(bd, e, a, v, m, bku);
+        edb_foreach((edb)s, e, a, v, m, bku) {
+            apply(bd->insert, e, a, v, m, bku);
         }
     }
 }
@@ -271,9 +271,9 @@ static boolean fixedpoint(evaluation ev)
     multibag_foreach(ev->t_solution, u, b) {
         bag bd;
         if ((bd = table_find(ev->persisted, u))) {
-            bag_foreach((bag)b, e, a, v, m, bku) {
+            edb_foreach((edb)b, e, a, v, m, bku) {
                 delta_t_count++;
-                edb_insert(bd, e, a, v, m, bku);
+                apply(bd->insert, e, a, v, m, bku);
             }
         }
     }
@@ -310,7 +310,7 @@ static boolean fixedpoint(evaluation ev)
     if (ev->solution) {
         table_foreach(ev->f_bags, u, _) {
             bag b = table_find(ev->solution, u);
-            if (b)  f_count += edb_size(b);
+            if (b)  f_count += edb_size((edb)b);
         }
     }
 
@@ -357,7 +357,7 @@ void run_solver(evaluation ev)
 void close_evaluation(evaluation ev)
 {
     table_foreach(ev->persisted, uuid, b)
-        deregister_listener(b, ev->run);
+        table_set(b, ev->run, 0);
 
     vector_foreach(ev->blocks, b)
         block_close(b);
@@ -389,9 +389,11 @@ evaluation build_evaluation(table scopes, table persisted, evaluation_result r)
     ev->terminal = cont(ev->h, evaluation_complete, ev);
 
     ev->run = cont(h, run_solver, ev);
-    table_foreach(ev->persisted, uuid, b) {
-        register_listener(b, ev->run);
-        table_foreach(edb_implications(b), n, v){
+    table_foreach(ev->persisted, uuid, z) {
+        bag b = z;
+
+        table_set(b->listeners, ev->run, (void *)1);
+        table_foreach(b->implications, n, v){
             vector_insert(ev->blocks, build(ev, n));
         }
     }
