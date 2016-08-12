@@ -246,7 +246,7 @@ static boolean fixedpoint(evaluation ev)
 
             if(iterations > MAX_F_ITERATIONS) {
               // @TODO: Hook me up to an error reporting system!
-              prf("Unable to converge in F\n");
+              apply(ev->error, "Unable to converge in F");
               return false;
             }
         } while(!compare_sets(ev->f_bags, ev->solution, ev->last_f_solution));
@@ -261,7 +261,7 @@ static boolean fixedpoint(evaluation ev)
 
         if(vector_length(counts) > MAX_T_ITERATIONS) {
           // @TODO: Hook me up to an error reporting system!
-          prf("Unable to converge in T\n");
+          apply(ev->error, "Unable to converge in T");
           return false;
         }
     } while(again);
