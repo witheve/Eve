@@ -67,11 +67,18 @@ static void send_guy(heap h, buffer_handler output, values_diff diff)
 
 static void send_error(heap h, buffer_handler output, char* message)
 {
-    void * address = __builtin_return_address(1);
-    string out = allocate_string(h);
     string stack = allocate_string(h);
     get_stack_trace(&stack);
-    bprintf(out, "{\"type\":\"error\", \"stage\": \"executor\", \"offsets\": \"%b\", \"message\": \"%s\"}", stack, message);
+
+    uuid id = generate_uuid();
+    bag response = (bag)create_edb(h, id, 0);
+    uuid root = generate_uuid();
+    apply(response->insert, root, sym(type), sym(error), 1, 0);
+    apply(response->insert, root, sym(stage), sym(executor), 1, 0);
+    apply(response->insert, root, sym(message), intern_cstring(message), 1, 0);
+    apply(response->insert, root, sym(offsets), intern_buffer(stack), 1, 0);
+    string out = json_encode(h, response, root);
+
     apply(output, out, cont(h, send_destroy, h));
 }
 
