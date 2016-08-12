@@ -9,7 +9,7 @@ void format_number(string s, u64 x, int base, int pad)
     if ((x > 0) || (pad > 0)) {
         format_number(s, x/base, base, pad - 1);
         string_insert(s, hex_digits[x%base]);
-    } 
+    }
 }
 
 // should entertain a registration method with a type and a character and a function pointer
@@ -45,7 +45,9 @@ void vbprintf(string s, string fmt, va_list ap)
             if ((i >= '0') && (i <= '9')) {
                 pad = pad * 10 + digit_of(i);
                 break;
-            } 
+            } else {
+                state = 3;
+            }
 
         case 3:
             switch (i) {
@@ -60,7 +62,7 @@ void vbprintf(string s, string fmt, va_list ap)
             case 't':
                 print_time(s, va_arg(ap, ticks));
                 break;
-                
+
             case 'b':
                 string_concat(s, (va_arg(ap, string)));
                 break;
@@ -69,7 +71,7 @@ void vbprintf(string s, string fmt, va_list ap)
                 count = va_arg(ap, unsigned int);
                 state = 2;
                 break;
-                
+
             case 'c':
                 string_insert(s, va_arg(ap, int));
                 break;
@@ -93,7 +95,7 @@ void vbprintf(string s, string fmt, va_list ap)
                     for (int i =0 ; i < x; i++) string_insert(s, ' ');
                     break;
                 }
-                
+
             case 'p':
                 pad = 16;
                 unsigned long x = va_arg(ap, unsigned long);
@@ -105,10 +107,10 @@ void vbprintf(string s, string fmt, va_list ap)
                 unsigned long z = va_arg(ap, unsigned long);
                 format_number(s, z, 10, pad?pad:1);
                 break;
-                
+
             case 'x':
                 base=16;
-                
+
             case 'o':
                 if (base == 10) base=8;
             case 'u':
@@ -132,7 +134,7 @@ void vbprintf(string s, string fmt, va_list ap)
                     state = 0;
                 } else print_value(s, va_arg(ap, void *));
                 break;
-                
+
             case 'r':
                 if (pad) {
                     // xxx  transient or resizable stack head
@@ -149,7 +151,7 @@ void vbprintf(string s, string fmt, va_list ap)
             case 'V':
                 print_value_vector(s, va_arg(ap, void *));
                 break;
-                
+
             case 'X':
                 // xxx - utf8 will break this
                  {
@@ -159,7 +161,7 @@ void vbprintf(string s, string fmt, va_list ap)
                   }
                  }
                 break;
-                
+
             case 'd': case 'i':
                 {
                     int x = va_arg(ap, int);
@@ -174,7 +176,7 @@ void vbprintf(string s, string fmt, va_list ap)
                 break;
             }
             // badness
-            if (state == 3) 
+            if (state == 3)
                 state = 0;
             break;
         }
@@ -200,6 +202,3 @@ void bbprintf(string b, string fmt, ...)
     vbprintf(b, fmt, ap);
     va_end(ap);
 }
-
-
-
