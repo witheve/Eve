@@ -37,18 +37,24 @@ extern void *ignore;
 
 // @FIXME: Once we abstract the terminal behind a session, we no longer need a special-cased error handler.
 // See `send_error` in json_request.c
-static void send_error_terminal(heap h, char* message)
+static void send_error_terminal(heap h, char* message, bag data, uuid data_id)
 {
     void * address = __builtin_return_address(1);
     string stack = allocate_string(h);
     get_stack_trace(&stack);
+
     prf("ERROR: %s\n  stage: executor\n  offsets:\n%b", message, stack);
+
+    if(data != 0) {
+      string data_string = edb_dump(h, (edb)data);
+      prf("  data: ⦑%v⦒\n%b", data_id, data);
+    }
     destroy(h);
 }
-static CONTINUATION_0_1(handle_error_terminal, char *);
-static void handle_error_terminal(char * message) {
+static CONTINUATION_0_3(handle_error_terminal, char *, bag, uuid);
+static void handle_error_terminal(char * message, bag data, uuid data_id) {
     heap h = allocate_rolling(pages, sstring("error handler"));
-    send_error_terminal(h, message);
+    send_error_terminal(h, message, data, data_id);
 }
 
 

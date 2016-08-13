@@ -93,7 +93,7 @@ struct block {
 #include <edb.h>
 
 typedef closure(insertron, value, value, value, value, multiplicity);
-typedef closure(error_handler, char *);
+typedef closure(error_handler, char *, bag, uuid);
 
 struct evaluation  {
     heap h;

@@ -65,27 +65,34 @@ static void send_guy(heap h, buffer_handler output, values_diff diff)
     apply(output, out, cont(h, send_destroy, h));
 }
 
-static void send_error(heap h, buffer_handler output, char* message)
+static void send_error(heap h, buffer_handler output, char* message, bag data, uuid data_id)
 {
     string stack = allocate_string(h);
     get_stack_trace(&stack);
 
     uuid id = generate_uuid();
-    bag response = (bag)create_edb(h, id, 0);
+    vector includes = allocate_vector(h, 1);
+    if(data != 0) {
+      vector_set(includes, 0, data);
+    }
+    bag response = (bag)create_edb(h, id, includes);
     uuid root = generate_uuid();
     apply(response->insert, root, sym(type), sym(error), 1, 0);
     apply(response->insert, root, sym(stage), sym(executor), 1, 0);
     apply(response->insert, root, sym(message), intern_cstring(message), 1, 0);
     apply(response->insert, root, sym(offsets), intern_buffer(stack), 1, 0);
+    if(data != 0) {
+      apply(response->insert, root, sym(data), data_id, 1, 0);
+    }
     string out = json_encode(h, response, root);
 
     apply(output, out, cont(h, send_destroy, h));
 }
 
-static CONTINUATION_1_1(handle_error, json_session, char *);
-static void handle_error(json_session session, char * message) {
+static CONTINUATION_1_3(handle_error, json_session, char *, bag, uuid);
+static void handle_error(json_session session, char * message, bag data, uuid data_id) {
     heap h = allocate_rolling(pages, sstring("error handler"));
-    send_error(h, session->write, message);
+    send_error(h, session->write, message, data, data_id);
 }
 
 static void send_full_parse(heap h, buffer_handler output, string parse)
