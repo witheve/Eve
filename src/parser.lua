@@ -1140,7 +1140,9 @@ local function resolveFunctionLike(context, node)
   end
   local expression = makeNode(context, "expression", node, {operator = node.func, bindings = {}})
   -- bind the return
-  generateBindingNode(context, {field = "return", variable = resultVar}, resultVar, expression)
+  if not context.noReturn then
+    generateBindingNode(context, {field = "return", variable = resultVar}, resultVar, expression)
+  end
   -- create bindings
   for ix, child in ipairs(node.children) do
     local prevMutating = context.mutating;
@@ -1674,9 +1676,13 @@ generateQueryNode = function(root, context)
         local left = resolveExpression(child, context)
       end
 
-
-    elseif type == "inequality" or type == "function" then
+    elseif type == "inequality"then
       resolveExpression(child, context)
+
+    elseif type == "function" then
+      context.noReturn = true
+      resolveExpression(child, context)
+      context.noReturn = false
 
     elseif type == "choose" then
       local node = generateUnionNode(child, context, "choose")
