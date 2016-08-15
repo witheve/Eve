@@ -1675,7 +1675,7 @@ generateQueryNode = function(root, context)
       end
 
 
-    elseif type == "inequality" then
+    elseif type == "inequality" or type == "function" then
       resolveExpression(child, context)
 
     elseif type == "choose" then
