@@ -1,0 +1,9 @@
+foo
+```
+  match
+     [#session-connect]
+     split[text: "/a/b/c/d/", by: "/", index, token]
+  commit
+     [#div text: "{{index}}: {{token}}"]
+// join[token, index, with: "%"]]
+```

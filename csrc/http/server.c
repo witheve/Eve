@@ -45,6 +45,9 @@ static void dispatch_request(session s, bag b, uuid i, register_read reg)
         return;
     }
 
+    // currently treat the pre-registered content urls
+    // at the highest priority, then refer to eve
+    // as a last report...thats not a good long term plan
     estring url = lookupv((edb)b, i, sym(url));
     if ((c = table_find(s->parent->services, url))) {
         apply((http_service)c, s->write, b, i, reg);
@@ -59,6 +62,10 @@ static void dispatch_request(session s, bag b, uuid i, register_read reg)
             // reset connection state
             send_http_response(s->h, s->write, c[0], k);
         } else {
+            // xxx it doesn't seem right to be tacking this
+            // bag onto an existing evaluator
+            //            table_set(ev->scope, "http-request", b);
+            //            inject_event(session->ev, aprintf(session->h,"init!\n```\nbind\n      [#session-connect]\n```"), session->tracing);
             prf("url not found %v\n", url);
             apply(s->write, sstring("HTTP/1.1 404 Not found\r\n"), ignore);
         }

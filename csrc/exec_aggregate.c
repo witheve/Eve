@@ -54,6 +54,88 @@ static execf build_sort(block bk, node n, execf *arms)
 }
 
 
+typedef struct join_key{
+    value k;
+    estring v;
+} *join_key;
+
+
+static boolean order_join_keys(void *a, void *b)
+{
+    join_key ak = a, bk = b;
+    return true;
+}
+
+// we're suposed to have multiple keys and multiple sort orders, ideally
+// just generate a comparator over r
+static CONTINUATION_9_4(do_join, execf, perf,
+                        table *, vector, value, vector, value, value, value,
+                        heap, perf, operator, value *);
+
+// we should really cross by with
+static void do_join(execf n, perf p, table *targets, vector pk,
+                    value out, vector proj, value token, value index, value with,
+                    heap h, perf pp, operator op, value *r)
+{
+    start_perf(p, op);
+
+    if (op == op_insert) {
+        extract(pk, proj, r);
+        pqueue x;
+        if (!(x = table_find(*targets, pk))) {
+            x = allocate_pqueue(h, order_join_keys);
+            table_set(*targets,pk, x);
+        }
+        join_key jk = allocate(h, sizeof(struct join_key));
+        jk->k = lookup(r, index);
+        // silently coerce to string? throw a runtime error?
+        jk->v = lookup(r, token);
+        pqueue_insert(x, jk);
+    }
+
+    if (op == op_flush) {
+        table_foreach(*targets, pk, x) {
+            pqueue q = x;
+            buffer composed = allocate_string(h);
+            copyout(r, proj, pk);
+            vector_foreach(q->v, i) {
+                join_key jk = i;
+                // xxx - should append with for skipped indices
+                buffer_append(out, jk->v->body,jk->v->length);
+                // xxx what about with!
+            }
+            // extract key
+            store(r, out, composed);
+            apply(n, h, p, op_insert, r);
+        }
+        apply(n, h, p, op_flush, r);
+        *targets = allocate_table((*targets)->h, key_from_pointer, compare_pointer);
+    }
+    if (op == op_close) {
+        apply(n, h, p, op_close, r);
+    }
+    stop_perf(p, pp);
+}
+
+static execf build_join(block bk, node n, execf *arms)
+{
+    vector proj = table_find(n->arguments, sym(proj));
+    vector pk = allocate_vector(bk->h, vector_length(proj));
+    table *projections = allocate(bk->h, sizeof(table));
+    return cont(bk->h,
+                do_join,
+                resolve_cfg(bk, n, 0),
+                register_perf(bk->ev, n),
+                projections,
+                pk,
+                table_find(n->arguments, sym(return)),
+                proj,
+                table_find(n->arguments, sym(token)),
+                table_find(n->arguments, sym(index)),
+                table_find(n->arguments, sym(with)));
+}
+
+
 static CONTINUATION_7_4(do_sum, execf, perf, table*, vector, value, value, vector, heap, perf, operator, value *);
 static void do_sum(execf n, perf p,
                    table *targets, vector grouping, value src, value dst, vector pk,
@@ -241,5 +323,6 @@ void register_aggregate_builders(table builders)
     table_set(builders, intern_cstring("subagg"), build_subagg);
     table_set(builders, intern_cstring("subaggtail"), build_subagg_tail);
     table_set(builders, intern_cstring("sum"), build_sum);
+    table_set(builders, intern_cstring("join"), build_join);
     table_set(builders, intern_cstring("sort"), build_sort);
 }
