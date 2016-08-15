@@ -11,9 +11,9 @@ handle insert
 ```
   match
     element = [@new-todo value]
-    [#keydown element, key: "enter"]
+    kd = [#keydown element, key: "enter"]
   commit
-    [#todo body: value, editing: false, completed: false]
+    [#todo body: value, editing: false, completed: false, kd]
     element.value := ""
 ```
 

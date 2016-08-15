@@ -312,7 +312,7 @@ function translate_subproject(n, bound, down, context, tracing)
                provides = set_to_read_array(n, env, provides),
                pass = write_lookup(n, env, pass),
                ids = set_to_write_array(n, env, env.ids),
-               id_collapse = n.scope == "event"},
+               id_collapse = true},
             context,
             tracing)
 
