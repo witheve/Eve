@@ -669,8 +669,17 @@ local function parse(tokens, context)
         stack:push(makeNode(context, "query", token, {doc = token.value, children = {}}))
       end
 
-    elseif type == "BLOCK_OPEN" or type == "BLOCK_CLOSE" then
-      -- we don't really need to do anything with these
+    elseif type == "BLOCK_OPEN" then
+      -- we may already be adding to a query because of doc blocks, but if we aren't
+      -- then this starts one
+      if stackTop.type ~= "query" then
+        stack:push(makeNode(context, "query", token, {doc = "Unnamed block", children = {}}))
+      end
+
+    elseif type == "BLOCK_CLOSE" then
+      -- clear everything currently on the stack as we're starting a totally new
+      -- query
+      stackTop = tryFinishExpression(true)
 
     elseif type == "MATCH" then
       -- TODO: we should only be looking at other token types if we've opened the
@@ -860,7 +869,7 @@ local function parse(tokens, context)
 
     -- choose and union get closed when they are the top of the stack
     -- and the next token is not either an if or an else
-    if (stackTop.type == "choose" or stackTop.type == "union") then
+    if stackTop and (stackTop.type == "choose" or stackTop.type == "union") then
       if not token or (token.type ~= "IF" and token.type ~= "ELSE") then
         stackTop.closed = true
         stackTop = tryFinishExpression()
