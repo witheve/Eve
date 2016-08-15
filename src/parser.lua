@@ -1401,7 +1401,7 @@ generateObjectNode = function(root, context)
           binding = nil;
         end
 
-      elseif left.type == "IDENTIFIER" then
+      elseif right and left.type == "IDENTIFIER" then
         related = left
         binding.field = left.value
         lastAttribute = left
@@ -1453,6 +1453,7 @@ generateObjectNode = function(root, context)
         end
 
       else
+        binding = nil
         -- error
         errors.invalidObjectAttributeBinding(context, child)
       end
