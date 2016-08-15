@@ -141,3 +141,5 @@ void init_request_service(bag b);
 
 
 typedef closure(bag_handler, evaluation, bag);
+bag filebag_init(buffer, uuid);
+

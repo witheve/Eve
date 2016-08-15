@@ -1,5 +1,4 @@
-#include <core/core.h>
-#include <unix.h>
+#include <runtime.h>
 #include <sys/types.h>
 #include <stdlib.h>
 #include <sys/select.h>
@@ -12,6 +11,7 @@
 #include <sys/ioctl.h>
 
 void ticks_to_timeval(struct timeval *a, ticks b);
+ticks timeval_to_ticks(struct timeval *a);
 ticks timeval_to_ticks(struct timeval *a);
 typedef int decsriptor;
 

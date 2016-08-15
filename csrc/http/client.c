@@ -16,14 +16,13 @@ static void response_body(client c, bag b, uuid n, buffer in, register_read r)
 {
     // xxx - should -  allow plumbing for simple bodies to just dump
     // into the response body
-    prf("response body %b\n", edb_dump(init, (edb)b));
+    //    prf("response body %b\n", edb_dump(init, (edb)b));
 }
 
 
 static CONTINUATION_1_2(client_connected, client, buffer_handler, register_read);
 static void client_connected(client c, buffer_handler w, register_read r)
 {
-    prf("connecton!\n");
     http_send_request(w, c->b, c->request);
     //    cont(c->h, response_body, c)));
     apply(r, response_header_parser(c->h, c->response));

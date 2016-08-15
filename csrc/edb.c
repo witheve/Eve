@@ -60,7 +60,7 @@ static void edb_scan(edb b, int sig, listener out, value e, value a, value v)
             table_foreach((table)al, a, vl) {
                 table_foreach((table)vl, v, f) {
                     leaf final = f;
-                    apply(out, e, a, v, final->m, final->bku);
+                    apply(out, e, a, v, final->m, final->block_id);
                 }
             }
         }
@@ -74,7 +74,7 @@ static void edb_scan(edb b, int sig, listener out, value e, value a, value v)
                 if(vl) {
                     leaf final;
                     if ((final = table_find(vl, v)) != 0){
-                        apply(out, e, a, v, final->m, final->bku);
+                        apply(out, e, a, v, final->m, final->block_id);
                     }
                 }
             }
@@ -90,7 +90,7 @@ static void edb_scan(edb b, int sig, listener out, value e, value a, value v)
                     table_foreach(vl, v, f) {
                         leaf final = f;
                         if(final)
-                            apply(out, e, a, v, final->m, final->bku);
+                            apply(out, e, a, v, final->m, final->block_id);
                     }
                 }
             }
@@ -105,7 +105,7 @@ static void edb_scan(edb b, int sig, listener out, value e, value a, value v)
                     table_foreach((table)vl, v, f){
                         leaf final = f;
                         if(final)
-                            apply(out, e, a, v, final->m, final->bku);
+                            apply(out, e, a, v, final->m, final->block_id);
                     }
                 }
             }
@@ -121,7 +121,7 @@ static void edb_scan(edb b, int sig, listener out, value e, value a, value v)
                     table_foreach(vl, e, f) {
                         leaf final = f;
                         if(final)
-                            apply(out, e, a, v, final->m, final->bku);
+                            apply(out, e, a, v, final->m, final->block_id);
                     }
                 }
             }
@@ -136,7 +136,7 @@ static void edb_scan(edb b, int sig, listener out, value e, value a, value v)
                     table_foreach((table)vl, e, f) {
                         leaf final = f;
                         if(final)
-                            apply(out, e, a, v, final->m, final->bku);
+                            apply(out, e, a, v, final->m, final->block_id);
                     }
                 }
             }
@@ -150,7 +150,7 @@ static void edb_scan(edb b, int sig, listener out, value e, value a, value v)
 
 
 static CONTINUATION_1_5(edb_insert, edb, value, value, value, multiplicity, uuid);
-static void edb_insert(edb b, value e, value a, value v, multiplicity m, uuid bku)
+static void edb_insert(edb b, value e, value a, value v, multiplicity m, uuid block_id)
 {
     leaf final;
 
@@ -160,7 +160,7 @@ static void edb_insert(edb b, value e, value a, value v, multiplicity m, uuid bk
 
     if (!(final = table_find(al, v))){
         final = allocate(b->h, sizeof(struct leaf));
-        final->bku = bku;
+        final->block_id = block_id;
         final->m = m;
         table_set(al, v, final);
 
@@ -181,6 +181,13 @@ static void edb_insert(edb b, value e, value a, value v, multiplicity m, uuid bk
     }
 }
 
+static CONTINUATION_1_1(edb_commit, edb, edb);
+static void edb_commit(edb b, edb source)
+{
+    edb_foreach(source, e, a, v, m, block_id) 
+        edb_insert(b, e, a, v, m, block_id);
+}
+
 int buffer_unicode_length(buffer buf)
 {
     int length = 0;
@@ -197,15 +204,16 @@ edb create_edb(heap h, uuid u, vector includes)
     b->b.insert = cont(h, edb_insert, b);
     b->b.scan = cont(h, edb_scan, b);
     b->b.u = u;
+    b->b.listeners = allocate_table(h, key_from_pointer, compare_pointer);
+    b->b.delta_listeners = allocate_table(h, key_from_pointer, compare_pointer);
+    b->b.implications = allocate_table(h, key_from_pointer, compare_pointer);
+    b->b.commit = cont(h, edb_commit, b);
     b->h = h;
     b->count = 0;
     b->eav = create_value_table(h);
     b->ave = create_value_table(h);
     b->includes = allocate_vector(h, 1);
 
-    b->b.listeners = allocate_table(h, key_from_pointer, compare_pointer);
-    b->b.delta_listeners = allocate_table(h, key_from_pointer, compare_pointer);
-    b->b.implications = allocate_table(h, key_from_pointer, compare_pointer);
 
     return b;
 }
