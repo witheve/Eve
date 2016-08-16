@@ -268,13 +268,15 @@ local function lex(str)
       else
         -- otherwise, go ahead and eat the }}
         scanner:read()
-        adjustOffset(3)
+        adjustOffset(2)
       end
       local string = scanner:eatWhile(inString)
       -- if we are stopping because of string interpolation, we have to remove
       -- the previous { character that snuck in
+      local ateCurly = false
       if string:sub(#string, #string) == "{" and scanner:peek() == "{" then
         string = string:sub(0, #string - 1)
+        ateCurly = true
       end
       if #string > 0 then
         -- single slashes are only escape codes and shouldn't make it to the
@@ -292,6 +294,11 @@ local function lex(str)
           tokens[#tokens+1] = Token:new("STRING", part, line, offset, byteOffset, surrogateOffset)
           adjustOffsetByString(original)
         end
+      end
+
+      if ateCurly then
+        -- we ate the { off the end of the string, so adjust the offset up one
+        adjustOffset(1)
       end
       -- skip the end quote
       if scanner:peek() == "\"" then
