@@ -659,7 +659,13 @@ function errors.unknownGeneratedVariable(context, variable, terms)
 end
 
 function errors.unknownVariable(context, variable, terms)
-  if variable.generated then return errors.unknownGeneratedVariable(context, variable, terms) end
+  if variable.generated then
+    if variable.cardinal and not terms[variable.cardinal] then
+      variable = variable.cardinal
+    else
+      return errors.unknownGeneratedVariable(context, variable, terms)
+    end
+  end
   local best = chooseNearest(variable, filterGenerated(terms), formatVariable)
   local recommendation = ""
   if best then
