@@ -191,7 +191,8 @@ local keywords = {
   ["<-"] = "MERGE",
 }
 
-local whitespace = { [" "] = true, ["\n"] = true, ["\t"] = true, ["\r"] = true }
+local utf8nbsp = utf8.char(160)
+local whitespace = { [" "] = true, ["\n"] = true, ["\t"] = true, ["\r"] = true, [utf8nbsp] = true }
 local queryKeywords = {match = true, bind = true, commit = true}
 
 local function isIdentifierChar(char, prev)
@@ -237,6 +238,7 @@ local function lex(str)
   end
 
   while char do
+
     if whitespace[char] then
       if char == "\n" then
         line = line + 1
