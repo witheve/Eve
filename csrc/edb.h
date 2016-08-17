@@ -9,6 +9,7 @@ typedef closure(committer, edb);
 struct bag {
     uuid u;
     scanner scan;
+    scanner scan_sync;
     inserter insert;
     committer commit;
     table listeners; // who is this again?

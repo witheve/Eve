@@ -1,5 +1,5 @@
 #include <runtime.h>
-
+#include <json_request.h>
 #include <http/http.h>
 // rfc 2616
 
@@ -23,17 +23,26 @@ typedef struct session {
 
 void send_http_response(heap h,
                         buffer_handler write,
+                        char * status,
                         string type,
                         buffer b)
 {
     buffer o = allocate_buffer(h, 200);
-    outline(o, "HTTP/1.1 200 OK");
+    outline(o, "HTTP/1.1 %s", status);
     outline(o, "Content-Type: %b; charset=utf-8", type);
     outline(o, "Cache-Control: no-cache");
     outline(o, "Content-Length: %d", buffer_length(b));
     outline(o, "");
     apply(write, o, ignore);
     apply(write, b, ignore);
+}
+
+static CONTINUATION_1_3(handle_error, session, char *, bag, uuid);
+static void handle_error(session session, char * message, bag data, uuid data_id) {
+    heap h = allocate_rolling(pages, sstring("error handler"));
+    buffer out = format_error_json(h, message, data, data_id);
+    send_http_response(h, session->write, "500 Internal Server Error", string_from_cstring(h, "application/json"), out);
+    destroy(h);
 }
 
 
@@ -92,7 +101,7 @@ static void dispatch_request(session s, bag b, uuid i, register_read reg)
                 // expects that it
                 k = wrap_buffer(s->h, bref(c[1], 0), buffer_length(c[1]));
             // reset connection state
-            send_http_response(s->h, s->write, c[0], k);
+            send_http_response(s->h, s->write, "200 OK", c[0], k);
         } else {
             if (s->ev) {
                 table_set(s->ev->persisted, s->event_id, b);
@@ -113,7 +122,6 @@ static void dispatch_request(session s, bag b, uuid i, register_read reg)
     // xxx - yeah, um there may have been a body here
     apply(reg, request_header_parser(s->h, cont(s->h, dispatch_request, s)));
 }
-
 
 CONTINUATION_1_3(new_connection, http_server, buffer_handler, station, register_read);
 void new_connection(http_server s,
@@ -146,7 +154,8 @@ void new_connection(http_server s,
         vector_foreach(s->implications, i)
             table_set(session->b.implications, i, (void *)1);
         hs->ev = build_evaluation(scopes, persisted,
-                                  cont(h, http_request_complete, hs));
+                                  cont(h, http_request_complete, hs),
+                                  cont(h, handle_error, hs));
     }
     apply(reg, request_header_parser(h, cont(h, dispatch_request, hs)));
 }

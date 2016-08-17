@@ -148,6 +148,10 @@ static void edb_scan(edb b, int sig, listener out, value e, value a, value v)
     }
 }
 
+static CONTINUATION_1_5(edb_scan_sync, edb, int, listener, value, value, value);
+static void edb_scan_sync(edb b, int sig, listener out, value e, value a, value v) {
+  edb_scan(b, sig, out, e, a, v);
+}
 
 static CONTINUATION_1_5(edb_insert, edb, value, value, value, multiplicity, uuid);
 static void edb_insert(edb b, value e, value a, value v, multiplicity m, uuid block_id)
@@ -203,6 +207,7 @@ edb create_edb(heap h, uuid u, vector includes)
     edb b = allocate(h, sizeof(struct edb));
     b->b.insert = cont(h, edb_insert, b);
     b->b.scan = cont(h, edb_scan, b);
+    b->b.scan_sync = cont(h, edb_scan_sync, b);
     b->b.u = u;
     b->b.listeners = allocate_table(h, key_from_pointer, compare_pointer);
     b->b.delta_listeners = allocate_table(h, key_from_pointer, compare_pointer);
@@ -212,7 +217,11 @@ edb create_edb(heap h, uuid u, vector includes)
     b->count = 0;
     b->eav = create_value_table(h);
     b->ave = create_value_table(h);
-    b->includes = allocate_vector(h, 1);
+    if(includes != 0 ) {
+      b->includes = includes;
+    } else {
+      b->includes = allocate_vector(h, 1);
+    }
 
 
     return b;
@@ -221,7 +230,6 @@ edb create_edb(heap h, uuid u, vector includes)
 
 string edb_dump(heap h, edb b)
 {
-
     buffer out = allocate_string(h);
     table_foreach(b->eav, e, avl) {
         int start = buffer_unicode_length(out);

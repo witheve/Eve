@@ -93,12 +93,14 @@ struct block {
 #include <edb.h>
 
 typedef closure(insertron, value, value, value, value, multiplicity);
+typedef closure(error_handler, char *, bag, uuid);
 
 struct evaluation  {
     heap h;
     heap working;
     insertron insert;
     scanner reader;
+    error_handler error;
 
     table counters;
 
@@ -132,7 +134,7 @@ table start_fixedpoint(heap, table, table, table);
 void close_evaluation(evaluation);
 
 vector compile_eve(heap h, buffer b, boolean tracing, buffer *desc);
-evaluation build_evaluation(table scopes, table persisted, evaluation_result e);
+evaluation build_evaluation(table scopes, table persisted, evaluation_result e, error_handler error);
 void run_solver(evaluation s);
 void inject_event(evaluation, buffer b, boolean);
 void block_close(block);
@@ -141,6 +143,18 @@ void init_request_service(bag b);
 
 
 typedef closure(bag_handler, evaluation, bag);
-bag filebag_init(buffer, uuid);
 
+bag filebag_init(buffer, uuid);
 extern thunk ignore;
+
+static void get_stack_trace(string *out)
+{
+    void **stack = 0;
+    asm("mov %%rbp, %0": "=rm"(stack)::);
+    while (*stack) {
+        stack = *stack;
+        void * addr = *(void **)(stack - 1);
+        if(addr == 0) break;
+        bprintf(*out, "0x%016x\n", addr);
+    }
+}

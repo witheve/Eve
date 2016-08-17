@@ -44,6 +44,49 @@ static boolean compare_sets(table set, table retain, table destroy)
     return true;
 }
 
+// @FIXME: This collapses multibag diffs into a single diff.
+static bag diff_sets(heap h, table set, table neue_bags, table old_bags)
+{
+    uuid diff_id = generate_uuid();
+    bag diff = (bag)create_edb(h, diff_id, 0);
+
+    table_foreach(set, u, _) {
+        bag neue = 0;
+        if(neue_bags) {
+            neue = table_find(neue_bags, u);
+        }
+        bag old = 0;
+        if(old_bags) {
+            old = table_find(old_bags, u);
+        }
+
+        if (!neue || !old) {
+            continue;
+        } else if (neue && !old) {
+            edb_foreach((edb)neue, e, a, v, c, bku) {
+                apply(diff->insert, e, a, v, c, bku);
+            }
+        } else if(!neue && old) {
+            edb_foreach((edb)old, e, a, v, c, bku) {
+                apply(diff->insert, e, a, v, 0, bku);
+            }
+        } else {
+            edb_foreach((edb)neue, e, a, v, c, bku) {
+                if (count_of((edb)old, e, a, v) != c) {
+                    apply(diff->insert, e, a, v, c, bku);
+                }
+            }
+            edb_foreach((edb)old, e, a, v, c, bku) {
+                multiplicity neue_c = count_of((edb)neue, e, a, v);
+                if (neue_c != c && neue_c == 0) {
+                    apply(diff->insert, e, a, v, 0, bku);
+                }
+            }
+        }
+    }
+    return diff;
+}
+
 static CONTINUATION_1_5(insert_f, evaluation, uuid, value, value, value, multiplicity);
 static void insert_f(evaluation ev, uuid u, value e, value a, value v, multiplicity m)
 {
@@ -217,7 +260,45 @@ static void run_block(evaluation ev, block bk)
     destroy(bh);
 }
 
-static void fixedpoint(evaluation ev)
+const int MAX_F_ITERATIONS = 250;
+const int MAX_T_ITERATIONS = 50;
+
+static void fixedpoint_error(evaluation ev, vector diffs, char * message) {
+    uuid error_data_id = generate_uuid();
+    bag edata = (bag)create_edb(ev->working, error_data_id, 0);
+    uuid error_diffs_id = generate_uuid();
+    apply(edata->insert, error_diffs_id, sym(tag), sym(array), 1, 0);
+
+    table eavs = create_value_table(ev->working);
+    int diff_ix = 1;
+    vector_foreach(diffs, diff) {
+        uuid diff_id = generate_uuid();
+        apply(edata->insert, error_diffs_id, box_float((float)(diff_ix++)), diff_id, 1, 0);
+
+        edb_foreach((edb)diff, e, a, v, c, bku) {
+            value key = box_float(value_as_key(e) ^ value_as_key(a) ^ value_as_key(v));
+            uuid eav_id = table_find(eavs, key);
+            if(!eav_id) {
+                eav_id = generate_uuid();
+                apply(edata->insert, eav_id, sym(entity), e, 1, bku);
+                apply(edata->insert, eav_id, sym(attribute), a, 1, bku);
+                apply(edata->insert, eav_id, sym(value), v, 1, bku);
+                table_set(eavs, key, eav_id);
+            }
+
+            if(c > 0) {
+                apply(edata->insert, diff_id, sym(insert), eav_id, 1, bku);
+            } else {
+                apply(edata->insert, diff_id, sym(remove), eav_id, 1, bku);
+            }
+        }
+    }
+
+    apply(ev->error, message, edata, error_diffs_id);
+    destroy(ev->working);
+}
+
+static boolean fixedpoint(evaluation ev)
 {
     long iterations = 0;
     vector counts = allocate_vector(ev->working, 10);
@@ -227,9 +308,11 @@ static void fixedpoint(evaluation ev)
     ev->t = start_time;
     ev->solution = 0;
 
+    vector t_diffs = allocate_vector(ev->working, 2);
     do {
         again = false;
         ev->solution =  0;
+        vector f_diffs = allocate_vector(ev->working, 2);
         do {
             iterations++;
             ev->last_f_solution = ev->solution;
@@ -240,7 +323,27 @@ static void fixedpoint(evaluation ev)
                     run_block(ev, b);
             vector_foreach(ev->blocks, b)
                 run_block(ev, b);
+
+            if(iterations > (MAX_F_ITERATIONS - 1)) { // super naive 2-cycle diff capturing
+                vector_insert(f_diffs, diff_sets(ev->working, ev->f_bags, ev->last_f_solution, ev->solution));
+            }
+            if(iterations > MAX_F_ITERATIONS) {
+                fixedpoint_error(ev, f_diffs, "Unable to converge in F");
+                return false;
+            }
         } while(!compare_sets(ev->f_bags, ev->solution, ev->last_f_solution));
+
+        if(vector_length(counts) > (MAX_T_ITERATIONS - 1)) {
+            bag diff = (bag)create_edb(ev->working, generate_uuid(), 0);
+            multibag_foreach(ev->solution, u, b) {
+                if (table_find(ev->persisted, u)) {
+                    edb_foreach((edb)b, e, a, v, c, bku) {
+                        apply(diff->insert, e, a, v, c, bku);
+                    }
+                }
+            }
+            vector_insert(t_diffs, diff);
+        }
 
         multibag_foreach(ev->solution, u, b)
             if (table_find(ev->persisted, u))
@@ -249,6 +352,11 @@ static void fixedpoint(evaluation ev)
         vector_insert(counts, box_float((double)iterations));
         iterations = 0;
         ev->event_blocks = 0;
+
+        if(vector_length(counts) > MAX_T_ITERATIONS) {
+            fixedpoint_error(ev, t_diffs, "Unable to converge in T");
+            return false;
+        }
     } while(again);
 
 
@@ -306,6 +414,7 @@ static void fixedpoint(evaluation ev)
          f_count,
          now() - end_time);
     destroy(ev->working);
+    return true;
 }
 
 static void clear_evaluation(evaluation ev)
@@ -348,11 +457,12 @@ void close_evaluation(evaluation ev)
     destroy(ev->h);
 }
 
-evaluation build_evaluation(table scopes, table persisted, evaluation_result r)
+evaluation build_evaluation(table scopes, table persisted, evaluation_result r, error_handler error)
 {
     heap h = allocate_rolling(pages, sstring("eval"));
     evaluation ev = allocate(h, sizeof(struct evaluation));
     ev->h = h;
+    ev->error = error;
     ev->scopes = scopes;
     ev->f_bags = create_value_table(h);
     table_foreach(scopes, n, u){

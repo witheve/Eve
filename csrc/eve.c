@@ -33,6 +33,29 @@ extern void init_json_service(http_server, uuid, boolean, buffer, char*);
 extern int strcmp(const char *, const char *);
 static buffer read_file_or_exit(heap, char *);
 
+// @FIXME: Once we abstract the terminal behind a session, we no longer need a special-cased error handler.
+// See `send_error` in json_request.c
+static void send_error_terminal(heap h, char* message, bag data, uuid data_id)
+{
+    void * address = __builtin_return_address(1);
+    string stack = allocate_string(h);
+    get_stack_trace(&stack);
+
+    prf("ERROR: %s\n  stage: executor\n  offsets:\n%b", message, stack);
+
+    if(data != 0) {
+      string data_string = edb_dump(h, (edb)data);
+      prf("  data: ⦑%v⦒\n%b", data_id, data);
+    }
+    destroy(h);
+}
+static CONTINUATION_0_3(handle_error_terminal, char *, bag, uuid);
+static void handle_error_terminal(char * message, bag data, uuid data_id) {
+    heap h = allocate_rolling(pages, sstring("error handler"));
+    send_error_terminal(h, message, data, data_id);
+}
+
+
 static CONTINUATION_1_2(test_result, heap, table, table);
 static void test_result(heap h, table s, table c)
 {
@@ -68,7 +91,7 @@ static void run_test(bag root, buffer b, boolean tracing)
     vector_foreach(n, i)
         table_set(session->implications, i, (void *)1);
 
-    evaluation ev = build_evaluation(scopes, persisted, cont(h, test_result, h));
+    evaluation ev = build_evaluation(scopes, persisted, cont(h, test_result, h), cont(h, handle_error_terminal));
     inject_event(ev, aprintf(h,"init!\n```\nbind\n      [#test-start]\n```"), tracing);
     //    destroy(h); everything asynch is running here!
 }

@@ -5,6 +5,7 @@ void http_send_request(buffer_handler w, bag b, uuid n);
 
 void send_http_response(heap h,
                         buffer_handler write,
+                        char * status,
                         string type,
                         buffer b);
 
