@@ -1608,7 +1608,7 @@ local function findAndSetScope(root, context)
 
   -- if we found a scope declaration, remove the child from
   -- the list so we don't consider it when filling out the section
-  if #scopes then
+  if #scopes > 0 then
     table.remove(root.children, 1)
   end
 
