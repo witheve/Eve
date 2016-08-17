@@ -92,7 +92,10 @@ static void bag_update(table idmap, bag root, evaluation ev, bag deltas)
         r->ev = ev;
         // xxx - not super general
         r->b = table_find(ev->persisted, table_find(ev->scopes, sym(remote)));
-        r->w = websocket_client(h, root, e,
+        bag shadow = (bag)create_edb(h, root->u, build_vector(h, root));
+        apply(shadow->insert, e, sym(url), sym(/ws), 1, 0);
+        apply(shadow->insert, e, sym(method), sym(GET), 1, 0);
+        r->w = websocket_client(h, shadow, e,
                                 parse_json(h, cont(h, eve_json_input, r)));
         table_set(idmap, e, r);
     }
