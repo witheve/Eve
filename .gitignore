@@ -44,7 +44,7 @@ lua_modules/
 *~
 build/continuation_templates.h
 build/eve
-
+build/path.c
 build/Eve.xcodeproj/xcuserdata
 build/Eve.xcodeproj/*/xcuserdata
 build/lua

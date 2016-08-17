@@ -34,7 +34,7 @@ UTF = lutf8lib.o
 COMPILER = compiler.o error.o fs.o parser.o util.o set.o color.o build.o implicationResolver.o db.o
 UNIX =  unix_util.o region.o select.o tcp_socket.o process.o page.o udp.o filebag.o
 UNIX_H = unix_internal.h unix.h
-CORE = buffer.o table.o vector.o format.o rolling.o string.o pqueue.o timer.o field.o
+CORE = buffer.o table.o vector.o format.o rolling.o string.o pqueue.o timer.o field.o path.o
 CORE_H = bswap.h pqueue.h vector.h buffer.h heap.h timer.h continuation.h core.h string.h table.h
 EXEC = exec_expression.o exec_edb.o exec_string.o exec_aggregate.o exec.o
 RUNTIME = edb.o init.o uuid.o estring.o types.o luanne.o json_request.o runner.o request.o $(EXEC)
@@ -75,6 +75,9 @@ codemirrorCss.o: ../jssrc/codemirror.css
 
 exampleTodomvcCss.o: ../examples/todomvc.css
 	cc wrap.S -DSTART=$(S)exampleTodomvcCss_start -DEND=$(S)exampleTodomvcCss_end -DFILE='"$<"' -c -o $@
+
+path.c: Makefile
+	echo 'char pathroot[] = "$(BUILD)";' > path.c
 
 %.o: %.c continuation_templates.h $(UNIX_H) $(CORE_H) $(RUNTIME_H) $(HTTP_H)
 	cc -std=gnu99 -I../csrc/unix -I../csrc/core -I../csrc -I. $(INCLUDES) -I$(LUAJIT_INCLUDES) -g -c $<

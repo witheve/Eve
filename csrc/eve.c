@@ -74,15 +74,19 @@ static void run_test(bag root, buffer b, boolean tracing)
     // todo - reduce the amount of setup required here
     bag event = (bag)create_edb(h, generate_uuid(), 0);
     bag session = (bag)create_edb(h, generate_uuid(), 0);
+    bag fb = filebag_init(sstring("."), generate_uuid());
+    
     table scopes = create_value_table(h);
     table_set(scopes, intern_cstring("all"), troot->u);
     table_set(scopes, intern_cstring("session"), session->u);
     table_set(scopes, intern_cstring("event"), event->u);
     table_set(scopes, intern_cstring("remote"), remote->u);
+    table_set(scopes, intern_cstring("file"), fb->u);
 
     table persisted = create_value_table(h);
     table_set(persisted, troot->u, troot);
     table_set(persisted, session->u, session);
+    table_set(persisted, fb->u, fb);
     table_set(persisted, remote->u, remote);
 
     init_request_service(troot);
