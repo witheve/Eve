@@ -127,7 +127,8 @@ local expressions = {
   toggle = {rename("toggle", schemas.unaryValue)},
   random = {schema({"return", IN, "seed"}, "random")},
   time = {schema({"return", OPT, "frames", "seconds", "minutes", "hours"}, "time")},
-  split = {schema({"token", "index", IN, "text", "by"}, "split")},
+  split = {schema({"token", IN, "index", "text", "by"}, "split-bound"),
+           schema({"token", "index", IN, "text", "by"}, "split")},
 
   -- Aggregates
   count = {schema({"return"}, "sum", "aggregate")},

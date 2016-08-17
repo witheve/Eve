@@ -7,6 +7,7 @@ static boolean enable_tracing = false;
 static buffer loadedParse;
 static char *exec_path;
 static int port = 8080;
+static buffer server_eve = 0;
 // defer these until after everything else has been set up
 static vector tests;
 
@@ -31,8 +32,6 @@ station create_station(unsigned int address, unsigned short port) {
 extern void init_json_service(http_server, uuid, boolean, buffer, char*);
 extern int strcmp(const char *, const char *);
 static buffer read_file_or_exit(heap, char *);
-
-extern void *ignore;
 
 static CONTINUATION_1_2(test_result, heap, table, table);
 static void test_result(heap h, table s, table c)
@@ -137,6 +136,11 @@ static void do_exec(interpreter c, char *x, bag b)
         table_set(b->implications, i, (void *)1);
 }
 
+static void do_server_eve(interpreter c, char *x, bag b)
+{
+    server_eve = read_file_or_exit(init, x);
+}
+
 static command commands;
 
 static void print_help(interpreter c, char *x, bag b);
@@ -146,6 +150,7 @@ static struct command command_body[] = {
     {"a", "analyze", "parse order print structure", true, do_analyze},
     {"r", "run", "execute eve", true, do_run_test},
     //    {"s", "serve", "serve urls from the given root path", true, 0},
+    {"S", "seve", "use the subsequent eve file to serve http requests", true, do_server_eve},
     {"e", "exec", "read eve file and serve", true, do_exec},
     {"P", "port", "serve http on passed port", true, do_port},
     {"h", "help", "print help", false, print_help},
@@ -196,7 +201,7 @@ int main(int argc, char **argv)
         }
     }
 
-    http_server h = create_http_server(create_station(0, port));
+    http_server h = create_http_server(create_station(0, port), server_eve);
     register(h, "/", "text/html", index);
     register(h, "/jssrc/renderer.js", "application/javascript", renderer);
     register(h, "/jssrc/microReact.js", "application/javascript", microReact);

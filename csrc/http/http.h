@@ -1,5 +1,5 @@
 typedef struct http_server *http_server;
-http_server create_http_server(station p);
+http_server create_http_server(station p, buffer eve);
 
 void http_send_request(buffer_handler w, bag b, uuid n);
 
