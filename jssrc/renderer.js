@@ -1260,6 +1260,8 @@ socket.onmessage = function(msg) {
       cur.time = info.time;
       cur.count = info.count;
     }
+  } else if(data.type == "error") {
+    console.error(data);
   }
 }
 socket.onopen = function() {
