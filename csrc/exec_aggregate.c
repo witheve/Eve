@@ -55,15 +55,17 @@ static execf build_sort(block bk, node n, execf *arms)
 
 
 typedef struct join_key{
-    value k;
-    estring v;
+    value index;
+    estring token;
+    estring with;
 } *join_key;
 
 
 static boolean order_join_keys(void *a, void *b)
 {
     join_key ak = a, bk = b;
-    return true;
+    // sort value?
+    return *(double*)ak->index < *(double*)bk->index;
 }
 
 // we're suposed to have multiple keys and multiple sort orders, ideally
@@ -73,43 +75,46 @@ static CONTINUATION_9_4(do_join, execf, perf,
                         heap, perf, operator, value *);
 
 // we should really cross by with
-static void do_join(execf n, perf p, table *targets, vector pk,
-                    value out, vector proj, value token, value index, value with,
+static void do_join(execf n, perf p, table *groups, vector pk,
+                    value out, vector groupings, value token, value index, value with,
                     heap h, perf pp, operator op, value *r)
 {
     start_perf(p, op);
 
     if (op == op_insert) {
-        extract(pk, proj, r);
+        extract(pk, groupings, r);
         pqueue x;
-        if (!(x = table_find(*targets, pk))) {
+
+        if (!*groups) 
+            *groups = allocate_table(h, key_from_pointer, compare_pointer);
+        
+        if (!(x = table_find(*groups, pk))) {
             x = allocate_pqueue(h, order_join_keys);
-            table_set(*targets,pk, x);
+            table_set(*groups, pk, x);
         }
         join_key jk = allocate(h, sizeof(struct join_key));
-        jk->k = lookup(r, index);
-        // silently coerce to string? throw a runtime error?
-        jk->v = lookup(r, token);
+        jk->index = lookup(r, index);
+        // xxx - coerce everything to a string
+        jk->token = lookup(r, token);
+        jk->with = lookup(r, with);
         pqueue_insert(x, jk);
     }
 
     if (op == op_flush) {
-        table_foreach(*targets, pk, x) {
+        table_foreach(*groups, pk, x) {
             pqueue q = x;
             buffer composed = allocate_string(h);
-            copyout(r, proj, pk);
+            copyout(r, groupings, pk);
             vector_foreach(q->v, i) {
                 join_key jk = i;
-                // xxx - should append with for skipped indices
-                buffer_append(out, jk->v->body,jk->v->length);
-                // xxx what about with!
+                buffer_append(composed, jk->token->body, jk->token->length);
+                buffer_append(composed, jk->with->body, jk->with->length);
             }
-            // extract key
-            store(r, out, composed);
+            store(r, out, intern_buffer(composed));
             apply(n, h, p, op_insert, r);
         }
         apply(n, h, p, op_flush, r);
-        *targets = allocate_table((*targets)->h, key_from_pointer, compare_pointer);
+        *groups = 0;
     }
     if (op == op_close) {
         apply(n, h, p, op_close, r);
@@ -119,17 +124,20 @@ static void do_join(execf n, perf p, table *targets, vector pk,
 
 static execf build_join(block bk, node n, execf *arms)
 {
-    vector proj = table_find(n->arguments, sym(proj));
-    vector pk = allocate_vector(bk->h, vector_length(proj));
-    table *projections = allocate(bk->h, sizeof(table));
+    vector groupings = table_find(n->arguments, sym(groupings));
+    // correct?
+    if (!groupings) groupings = allocate_vector(bk->h, 0);
+    vector pk = allocate_vector(bk->h, vector_length(groupings));
+    table *groups = allocate(bk->h, sizeof(table));
+
     return cont(bk->h,
                 do_join,
                 resolve_cfg(bk, n, 0),
                 register_perf(bk->ev, n),
-                projections,
+                groups,
                 pk,
                 table_find(n->arguments, sym(return)),
-                proj,
+                groupings,
                 table_find(n->arguments, sym(token)),
                 table_find(n->arguments, sym(index)),
                 table_find(n->arguments, sym(with)));

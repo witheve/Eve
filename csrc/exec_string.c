@@ -67,7 +67,7 @@ static void do_split(perf p, execf n,
                 apply(n, h, p, op, r);
             }
         }
-    }
+    } else apply(n, h, p, op, r);
     stop_perf(p, pp);
 }
 
