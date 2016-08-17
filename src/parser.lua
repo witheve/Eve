@@ -1615,7 +1615,7 @@ local function findAndSetScope(root, context)
   for _, scope in ipairs(scopes) do
     if scope.type == "equality" and scope.children[1].type == "NAME" then
       root.scopes:add(scope.children[2].value)
-    elseif scope.type == "string" then
+    elseif scope.type == "STRING" then
       root.scopes:add(scope.value)
     else
       -- error
