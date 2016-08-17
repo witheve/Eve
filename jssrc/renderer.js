@@ -1261,7 +1261,7 @@ socket.onmessage = function(msg) {
       cur.count = info.count;
     }
   } else if(data.type == "error") {
-    console.error(data);
+    console.error(data.message, data);
   }
 }
 socket.onopen = function() {
