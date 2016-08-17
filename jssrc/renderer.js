@@ -24,9 +24,9 @@ var supportedTags = {
   "table": true, "tbody": true, "thead": true, "tr": true, "th": true, "td": true,
   "form": true, "optgroup": true, "option": true, "select": true, "textarea": true,
   "title": true, "meta": true, "link": true,
-  "svg": true, "circle": true, "line": true, "rect": true, "polygon":true, "text": true, "image": true, "defs": true, "pattern": true, "linearGradient": true, "g": true
+  "svg": true, "circle": true, "line": true, "rect": true, "polygon":true, "text": true, "image": true, "defs": true, "pattern": true, "linearGradient": true, "g": true, "path": true
 };
-var svgs = {"svg": true, "circle": true, "line": true, "rect": true, "polygon":true, "text": true, "image": true, "defs": true, "pattern": true, "linearGradient": true, "g": true};
+var svgs = {"svg": true, "circle": true, "line": true, "rect": true, "polygon":true, "text": true, "image": true, "defs": true, "pattern": true, "linearGradient": true, "g": true, "path": true};
 // Map of input entities to a queue of their values which originated from the client and have not been received from the server yet.
 var sentInputValues = {};
 var lastFocusPath = null;

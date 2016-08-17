@@ -7,6 +7,10 @@ heap efence;
 
 heap heap_list = 0;
 
+thunk ignore;
+static CONTINUATION_0_0(ignoro);
+static void ignoro(){}
+
 void heap_report()
 {
     for ( heap i = heap_list; i ; i=i->next) {
@@ -19,12 +23,12 @@ void init_runtime()
 {
     // bootstrap
     heap trash = init_memory(4096);
-    
+
     pages = init_fixed_page_region(trash, allocation_space, allocation_space + region_size, 65536);
     efence = efence_heap(4096);
 
     init = allocate_rolling(pages, 0);
-
+    ignore = cont(init, ignoro);
     initialize_timers(allocate_rolling(pages, sstring("timers")));
     init_estring();
     init_uuid();
@@ -32,6 +36,3 @@ void init_runtime()
     float_heap = allocate_rolling(init_fixed_page_region(init, float_space, float_space + region_size, pages->pagesize),
                                   sstring("efloat"));
 }
-
-
-    

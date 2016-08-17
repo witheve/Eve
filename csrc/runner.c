@@ -364,13 +364,13 @@ static boolean fixedpoint(evaluation ev)
     multibag_foreach(ev->t_solution, u, b) {
         bag bd;
         if ((bd = table_find(ev->persisted, u))) {
-            edb_foreach((edb)b, e, a, v, m, bku) {
-                delta_t_count++;
-                apply(bd->insert, e, a, v, m, bku);
-            }
+            delta_t_count += edb_size(b);
+            apply(bd->commit, b);
         }
     }
 
+    // this should schedule each dependent at most once, regardless of the
+    // number of bags
     if (ev->t_solution) {
         table_foreach (ev->persisted, u, b){
             if (table_find(ev->t_solution, u)) {
@@ -414,7 +414,6 @@ static boolean fixedpoint(evaluation ev)
          f_count,
          now() - end_time);
     destroy(ev->working);
-
     return true;
 }
 
@@ -472,7 +471,6 @@ evaluation build_evaluation(table scopes, table persisted, evaluation_result r, 
         }
     }
 
-    // ok, now counts just accrete forever
     ev->counters =  allocate_table(h, key_from_pointer, compare_pointer);
     ev->insert = cont(h, insert_f, ev);
     ev->blocks = allocate_vector(h, 10);

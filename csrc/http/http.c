@@ -35,8 +35,6 @@ typedef struct header_parser {
     reader self;
 } *header_parser;
 
-extern void *ignore;
-
 void http_send_header(buffer_handler w, bag b, uuid n, value first, value second, value third)
 {
     buffer out = allocate_buffer(init, 64);

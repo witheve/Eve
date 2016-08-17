@@ -13,7 +13,7 @@ typedef struct process {
 static int cleanup_running=0;
 static table pid_table;
 
-/* this is signal context, which is to say we're 
+/* this is signal context, which is to say we're
  * not really sure where
  */
 
@@ -36,23 +36,21 @@ static void cleanup()
 
         if ((c = table_find(pid_table, (void*)(unsigned long)p))){
             apply(c->exit);
-        }   
+        }
     }
 }
 
 extern void _exit(int);
 extern int vfork();
 
-extern void* ignore;
-
 #define cstring_from_string(x)({\
         int f = buffer_length(x);\
         char *r = alloca(f+1);\
         memcpy(r, bref(x, 0), f);\
         r;})
-               
 
-buffer_handler allocate_process(heap h, 
+
+buffer_handler allocate_process(heap h,
                                 string name,
                                 vector arguments,
                                 buffer_handler output,
@@ -83,7 +81,7 @@ buffer_handler allocate_process(heap h,
         vector_foreach(arguments, i) {
             x[j++] = cstring_from_string(i);
         }
-                                
+
         // envp construction
         execve(cstring_from_string(name), x, 0);
         {
@@ -108,10 +106,10 @@ buffer_handler allocate_process(heap h,
     if (error != ignore)
         register_read_handler(errs[0],
                               cont(h, read_nonblocking_desc, h,
-                                      errs[0], 
+                                      errs[0],
                                       error));
     return cont(h, write_process, p);
-} 
+}
 
 void init_processes()
 {

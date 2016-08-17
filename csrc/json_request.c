@@ -1,21 +1,7 @@
 #include <runtime.h>
+#include <json_request.h>
 #include <http/http.h>
 #include <luanne.h>
-
-typedef struct json_session {
-    heap h;
-    table current_session;
-    table current_delta;
-    table persisted;
-    buffer_handler write; // to weboscket
-    uuid event_uuid;
-    buffer graph;
-    table scopes;
-    bag root, session;
-    boolean tracing;
-    evaluation ev;
-    heap eh;
-} *json_session;
 
 
 // FIXME: because we allow you to swap the program out, we have to have
@@ -51,21 +37,7 @@ static void format_vector(buffer out, vector v)
     }
 }
 
-// always call this guy independent of commit so that we get an update,
-// even on empty, after the first evaluation. warning, destroys
-// his heap
-static void send_guy(heap h, buffer_handler output, values_diff diff)
-{
-    string out = allocate_string(h);
-    bprintf(out, "{\"type\":\"result\", \"insert\":[");
-    format_vector(out, diff->insert);
-    bprintf(out, "], \"remove\": [");
-    format_vector(out, diff->remove);
-    bprintf(out, "]}");
-    apply(output, out, cont(h, send_destroy, h));
-}
-
-static void send_error(heap h, buffer_handler output, char* message, bag data, uuid data_id)
+buffer format_error_json(heap h, char* message, bag data, uuid data_id)
 {
     string stack = allocate_string(h);
     get_stack_trace(&stack);
@@ -84,16 +56,31 @@ static void send_error(heap h, buffer_handler output, char* message, bag data, u
     if(data != 0) {
       apply(response->insert, root, sym(data), data_id, 1, 0);
     }
-    string out = json_encode(h, response, root);
-
-    apply(output, out, cont(h, send_destroy, h));
+    return json_encode(h, response, root);
 }
 
 static CONTINUATION_1_3(handle_error, json_session, char *, bag, uuid);
 static void handle_error(json_session session, char * message, bag data, uuid data_id) {
     heap h = allocate_rolling(pages, sstring("error handler"));
-    send_error(h, session->write, message, data, data_id);
+    buffer out = format_error_json(h, message, data, data_id);
+    apply(session->write, out, cont(h, send_destroy, h));
 }
+
+
+// always call this guy independent of commit so that we get an update,
+// even on empty, after the first evaluation. warning, destroys
+// his heap
+static void send_guy(heap h, buffer_handler output, values_diff diff)
+{
+    string out = allocate_string(h);
+    bprintf(out, "{\"type\":\"result\", \"insert\":[");
+    format_vector(out, diff->insert);
+    bprintf(out, "], \"remove\": [");
+    format_vector(out, diff->remove);
+    bprintf(out, "]}");
+    apply(output, out, cont(h, send_destroy, h));
+}
+
 
 static void send_full_parse(heap h, buffer_handler output, string parse)
 {
@@ -292,6 +279,7 @@ void new_json_session(bag root, boolean tracing,
 {
     heap h = allocate_rolling(pages, sstring("session"));
     uuid su = generate_uuid();
+
     json_session session = allocate(h, sizeof(struct json_session));
     session->h = h;
     session->root = root;
@@ -301,8 +289,12 @@ void new_json_session(bag root, boolean tracing,
     session->event_uuid = generate_uuid();
     session->graph = root_graph;
     session->persisted = create_value_table(h);
+    bag fb = filebag_init(sstring("."), generate_uuid());
     table_set(session->persisted, session->root->u, session->root);
     table_set(session->persisted, session->session->u, session->session);
+    // this has to be in persisted, otherwise we will only read
+    // from the f version - something is very strangely structured here
+    table_set(session->persisted, fb->u, fb);
     session->scopes = create_value_table(session->h);
     table_set(session->scopes, intern_cstring("session"), session->session->u);
     table_set(session->scopes, intern_cstring("all"), session->root->u);
