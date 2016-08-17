@@ -289,7 +289,8 @@ void new_json_session(bag root, boolean tracing,
     session->event_uuid = generate_uuid();
     session->graph = root_graph;
     session->persisted = create_value_table(h);
-    bag fb = filebag_init(sstring("."), generate_uuid());
+    // xxx - parameterize file root path
+    bag fb = filebag_init(sstring(pathroot), generate_uuid());
     table_set(session->persisted, session->root->u, session->root);
     table_set(session->persisted, session->session->u, session->session);
     // this has to be in persisted, otherwise we will only read
