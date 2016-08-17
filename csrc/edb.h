@@ -5,6 +5,7 @@ typedef closure(inserter, value, value, value, multiplicity, uuid);
 struct bag {
     uuid u;
     scanner scan;
+    scanner scan_sync;
     inserter insert;
     table listeners; // who is this again?
     table delta_listeners; // goes away with batch updates
