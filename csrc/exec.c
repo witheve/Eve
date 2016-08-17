@@ -424,7 +424,7 @@ static void do_trace(execf next, node n, heap h, perf pp, operator op, value *r)
         (op == op_insert ? "insert" : (op == op_flush) ? "flush " : "close "),
         table_find(n->arguments, sym(name)),
         n->id);
-    if (op != op_flush)
+    if ((op != op_flush) && (op != op_close))
         table_foreach(n->arguments, k, v) {
             // xxx - what is name doing in there anyways?
             if ((k != sym(name)) && (k != sym(pass)))

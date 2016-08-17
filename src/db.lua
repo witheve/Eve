@@ -127,11 +127,13 @@ local expressions = {
   toggle = {rename("toggle", schemas.unaryValue)},
   random = {schema({"return", IN, "seed"}, "random")},
   time = {schema({"return", OPT, "frames", "seconds", "minutes", "hours"}, "time")},
+  split = {schema({"token", "index", IN, "text", "by"}, "split")},
 
   -- Aggregates
   count = {schema({"return"}, "sum", "aggregate")},
-  sum = {schema({"return", STRONG_IN, "value"}, "sum", "aggregate")}
-}
+  sum = {schema({"return", STRONG_IN, "value"}, "sum", "aggregate")},
+  join = {schema({"return", STRONG_IN, "token", "index", "with"}, "join", "aggregate")}}
+
 
 function getExpressions()
   local exprs = Set:new()

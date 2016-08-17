@@ -1,0 +1,12 @@
+foo
+```
+  match
+     r = [#http-request]
+     z = r.request
+  commit
+     [#http-response
+       body: "<html>{{r.request.url}}</html>"
+       status:"200"
+       reason:"OK"
+       header:[Content-Type:"text/html"]]
+```

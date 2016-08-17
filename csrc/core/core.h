@@ -13,6 +13,7 @@ typedef unsigned long long u64;
 typedef u64 ticks;
 typedef u8 boolean;
 typedef u64 bytes;
+typedef u64 bits;
 
 typedef unsigned long size_t;
 

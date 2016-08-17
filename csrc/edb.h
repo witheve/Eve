@@ -1,28 +1,33 @@
+
+typedef struct edb *edb;
+
 typedef closure(listener, value, value, value, multiplicity, uuid);
 typedef closure(scanner, int, listener, value, value, value);
 typedef closure(inserter, value, value, value, multiplicity, uuid);
+typedef closure(committer, edb);
 
 struct bag {
     uuid u;
     scanner scan;
     inserter insert;
+    committer commit;
     table listeners; // who is this again?
     table delta_listeners; // goes away with batch updates
     table implications; // goes away with reflection
 };
 
-typedef struct edb {
+struct edb {
     struct bag b;
     table eav;
     table ave;
     int count;
     heap h;
     vector includes; // an immutable set
-} *edb;
+};
 
 typedef struct leaf {
     uuid u;
-    uuid bku;
+    uuid block_id;
     ticks t;
     multiplicity m;
 } *leaf;
@@ -40,11 +45,11 @@ int edb_size(edb b);
 void destroy_bag(bag b);
 
 // xxx - these iterators dont account for shadowing
-#define edb_foreach(__b, __e, __a, __v, __c, __bku)   \
+#define edb_foreach(__b, __e, __a, __v, __c, __block_id)   \
     table_foreach((__b)->eav, __e, __avl) \
     table_foreach((table)__avl, __a, __vl)\
     table_foreach((table)__vl, __v, __cv)\
-    for(uuid __bku = ((leaf)__cv)->bku , __p = 0; !__p; __p++)    \
+    for(uuid __block_id = ((leaf)__cv)->block_id , __p = 0; !__p; __p++)    \
     for(multiplicity __c = ((leaf)__cv)->m, __z = 0; !__z; __z++)
 
 long count_of(edb b, value e, value a, value v);
@@ -54,6 +59,12 @@ edb create_edb(heap, uuid, vector inherits);
     for(table __av = (table)table_find((__b)->eav, __e); __av; __av = 0)  \
     table_foreach((table)__av, __a, __vl)\
     table_foreach((table)__vl, __v, __cv)\
+    for(multiplicity __c = ((leaf)__cv)->m , __z = 0; __z == 0; __z++)
+
+#define edb_foreach_a(__b, __e, __a, __v, __c)\
+    for(table __avt = (table)table_find((__b)->ave, __a); __avt; __avt = 0)  \
+    table_foreach((table)__avt, __v, __ect)\
+    table_foreach((table)__ect, __e, __cv)\
     for(multiplicity __c = ((leaf)__cv)->m , __z = 0; __z == 0; __z++)
 
 #define edb_foreach_e(__b, __e, __a, __v, __c)\

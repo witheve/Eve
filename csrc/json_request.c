@@ -261,6 +261,7 @@ void new_json_session(bag root, boolean tracing,
 {
     heap h = allocate_rolling(pages, sstring("session"));
     uuid su = generate_uuid();
+
     json_session session = allocate(h, sizeof(struct json_session));
     session->h = h;
     session->root = root;
@@ -270,8 +271,12 @@ void new_json_session(bag root, boolean tracing,
     session->event_uuid = generate_uuid();
     session->graph = root_graph;
     session->persisted = create_value_table(h);
+    bag fb = filebag_init(sstring("."), generate_uuid());
     table_set(session->persisted, session->root->u, session->root);
     table_set(session->persisted, session->session->u, session->session);
+    // this has to be in persisted, otherwise we will only read
+    // from the f version - something is very strangely structured here
+    table_set(session->persisted, fb->u, fb);
     session->scopes = create_value_table(session->h);
     table_set(session->scopes, intern_cstring("session"), session->session->u);
     table_set(session->scopes, intern_cstring("all"), session->root->u);
