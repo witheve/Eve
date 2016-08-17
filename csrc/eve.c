@@ -74,8 +74,8 @@ static void run_test(bag root, buffer b, boolean tracing)
     // todo - reduce the amount of setup required here
     bag event = (bag)create_edb(h, generate_uuid(), 0);
     bag session = (bag)create_edb(h, generate_uuid(), 0);
-    bag fb = filebag_init(sstring("."), generate_uuid());
-    
+    bag fb = filebag_init(sstring(pathroot), generate_uuid());
+
     table scopes = create_value_table(h);
     table_set(scopes, intern_cstring("all"), troot->u);
     table_set(scopes, intern_cstring("session"), session->u);
