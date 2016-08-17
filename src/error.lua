@@ -558,6 +558,14 @@ function errors.misplacedMatch(context, token)
   ]])})
 end
 
+function errors.invalidScopeDeclaration(context, node)
+  printError({type = "Invalid collection name", context = context, token = node, content = string.format([[
+  Collection names can only be names like `@global` or strings like "global"
+
+  <LINE>
+  ]])})
+end
+
 ------------------------------------------------------------
 -- Dependency Graph Errors
 ------------------------------------------------------------

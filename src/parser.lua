@@ -691,10 +691,13 @@ local function parse(tokens, context)
       stackTop = tryFinishExpression(true)
 
     elseif type == "MATCH" then
-      -- TODO: we should only be looking at other token types if we've opened the
-      -- query..
-      if stackTop.type == "query" and #stackTop.children == 0 then
-        stackTop.opened = true;
+      if stackTop.type == "match" then
+        stackTop.closed = true
+        stackTop = tryFinishExpression()
+      end
+
+      if stackTop.type == "query" then
+        stack:push(makeNode(context, "match", token, {scopes = Set:new(), children = {}}))
       else
         -- error - match is only valid as the opening to a query
         errors.misplacedMatch(context, token, stackTop)
@@ -743,18 +746,10 @@ local function parse(tokens, context)
       -- handled above
 
     elseif type == "COMMIT" or type == "BIND" then
-      local update = makeNode(context, "update", token, {scope = "session", children = {}})
-      if type == "BIND" then
-        update.scope = "event"
-      elseif next and (next.value == "global" or next.value == "event") then
-        update.scope = next.value == "event" and next.value or "all"
-        -- eat that token
-        scanner:read()
-        -- @TODO: handle specifying a custom bag
-      end
+      local update = makeNode(context, "update", token, {scopes = Set:new(), children = {}, mutateType = type:lower()})
       -- if we are already in an update node, then this update closes the old
       -- one and puts us into a new one
-      if stackTop.type == "update" then
+      if stackTop.type == "update" or stackTop.type == "match" then
         stackTop.closed = true
         stackTop = tryFinishExpression()
       end
@@ -1304,6 +1299,7 @@ end
 generateObjectNode = function(root, context)
   local object = makeNode(context, "object", root, {
                   bindings = {},
+                  scopes = context.mutateScopes or context.matchScopes,
                   query = context.queryStack:peek()
                 })
 
@@ -1320,8 +1316,8 @@ generateObjectNode = function(root, context)
   local mutating = context.mutating
   if mutating then
     object.type = "mutate"
+    object.mutateType = context.mutateType
     object.operator = context.mutateOperator
-    object.scope = context.mutateScope
     -- store all our parents' projections to reconcile later
     object.projection = {}
     for _, projection in ipairs(context.projections) do
@@ -1599,8 +1595,39 @@ generateNotNode = function(root, context)
   return notNode
 end
 
-local function handleUpdateNode(root, query, context)
+local function findAndSetScope(root, context)
+  local child = root.children[1]
+  if not child then return end
+
+  local scopes = {}
+  if child.type == "block" then
+    scopes = child.children
+  elseif (child.type == "equality" and child.children[1].type == "NAME") or child.type == "string" then
+    scopes[1] = child
+  end
+
+  -- if we found a scope declaration, remove the child from
+  -- the list so we don't consider it when filling out the section
+  if #scopes then
+    table.remove(root.children, 1)
+  end
+
+  for _, scope in ipairs(scopes) do
+    if scope.type == "equality" and scope.children[1].type == "NAME" then
+      root.scopes:add(scope.children[2].value)
+    elseif scope.type == "string" then
+      root.scopes:add(scope.value)
+    else
+      -- error
+      errors.invalidScopeDeclaration(context, scope)
+    end
+  end
+end
+
+local function handleUpdateNode(query, root, context)
   context.mutating = true
+
+  findAndSetScope(root, context)
 
   for _, child in ipairs(root.children) do
     local type = child.type
@@ -1608,7 +1635,8 @@ local function handleUpdateNode(root, query, context)
     -- most of the time we're just adding, so we'll default
     -- the operator to add
     context.mutateOperator = "insert"
-    context.mutateScope = root.scope
+    context.mutateScopes = root.scopes
+    context.mutateType = root.mutateType
     if type == "mutate" then
       -- the operator depends on the mutate's operator here
       context.mutateOperator = child.operator
@@ -1641,27 +1669,17 @@ local function handleUpdateNode(root, query, context)
     end
     -- clean up
     context.mutateOperator = nil
-    context.mutateScope = nil
+    context.mutateScopes = nil
+    context.mutateType = nil
   end
 
   context.mutating = false
 end
 
-generateQueryNode = function(root, context)
-  local query = makeNode(context, "query", root, {
-                 name = root.doc,
-                 variables = {},
-                 objects = {},
-                 mutates = {},
-                 expressions = {},
-                 nots = {},
-                 unions = {},
-                 chooses = {}
-               })
+local function handleMatchNode(query, root, context)
 
-  -- push this query on to the stack
-  context.queryStack:push(query)
-  context.nameMappings:push({})
+  findAndSetScope(root, context)
+  context.matchScopes = root.scopes
 
   for _, child in ipairs(root.children) do
     local type = child.type
@@ -1675,8 +1693,6 @@ generateQueryNode = function(root, context)
         -- error
         errors.invalidQueryChild(context, token)
       end
-    elseif type == "update" then
-      handleUpdateNode(child, query, context)
 
     elseif type == "equality" then
       if #child.children > 0 and (child.children[1].type == "TAG" or child.children[1].type == "NAME") then
@@ -1752,6 +1768,37 @@ generateQueryNode = function(root, context)
       --         if friend.spouse then friend.spouse
       -- there's nothing we actually need to do here, but it's not an error
 
+    else
+      -- error
+      errors.invalidQueryChild(context, child)
+    end
+  end
+
+  context.matchScopes = nil
+end
+
+generateQueryNode = function(root, context)
+  local query = makeNode(context, "query", root, {
+                 name = root.doc,
+                 variables = {},
+                 objects = {},
+                 mutates = {},
+                 expressions = {},
+                 nots = {},
+                 unions = {},
+                 chooses = {}
+               })
+
+  -- push this query on to the stack
+  context.queryStack:push(query)
+  context.nameMappings:push({})
+
+  for _, child in ipairs(root.children) do
+    local type = child.type
+    if type == "match" or context.notNode or context.unionNode then
+      handleMatchNode(query, child, context)
+    elseif type == "update" then
+      handleUpdateNode(query, child, context)
     else
       -- error
       errors.invalidQueryChild(context, child)
