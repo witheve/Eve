@@ -47,24 +47,34 @@ void print_value_json(buffer out, value v)
     }
 }
 
+static void json_encode_internal(buffer dest, bag b, uuid n);
+
+static CONTINUATION_3_5(json_encode_cont, buffer, bag, boolean *, value, value, value, multiplicity, uuid);
+static void json_encode_cont(buffer dest, bag b, boolean * start, value e, value a, value v, multiplicity m, uuid bku) {
+    bprintf(dest, "%s%v:", (*start ? "" : ","), a);
+    *start = false;
+    json_encode_internal(dest, b, v);
+}
+
 static void json_encode_internal(buffer dest, bag b, uuid n)
 {
     boolean start = true;
     if (type_of(n) == uuid_space) {
         if (lookupv((edb)b, n, sym(tag)) == sym(array)){
+            bprintf(dest, "[");
             value t;
             // grr, box float small int
-            for (int i = 0; (t = lookupv((edb)b, n, box_float(i))); i++){
+            for (int i = 1; (t = lookupv((edb)b, n, box_float(i))); i++){
                 bprintf(dest, "%s", start?"":",");
                 json_encode_internal(dest, b, t);
                 start = false;
             }
+            bprintf(dest, "]");
         } else {
             bprintf(dest, "{");
-            edb_foreach_av((edb)b, n, a, v, _) {
-                bprintf(dest, "%s%v:", start?"":",", a);
-                print_value_json(dest, v);
-                start = false;
+            apply(b->scan_sync, s_Eav, cont(dest->h, json_encode_cont, dest, b, &start), n, 0, 0);
+            if(start == true) { // unable to de-ref, so embed directly
+                bprintf(dest , "\"type\" : \"uuid\", \"value\" : \"%X\"", alloca_wrap_buffer(n, UUID_LENGTH));
             }
             bprintf(dest, "}");
         }
