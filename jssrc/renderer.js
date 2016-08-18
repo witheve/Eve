@@ -361,7 +361,7 @@ function sendEvent(query) {
     socket.send(JSON.stringify({scope: "event", type: "query", query}))
   }
   return query;
-false}
+}
 
 function sendSwap(query) {
   if(socket && socket.readyState == 1) {
