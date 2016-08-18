@@ -181,8 +181,8 @@ function getPossibleSchemas(name, signature)
 end
 
 function getSchema(name, signature)
-  if not expressions[name] then error("Unknown expression '" .. name .. "'") end
-  if not signature and #expressions[name] > 1 then error("Must specify signature to disambiguate expression alternatives") end
+  if not expressions[name] then return end
+  if not signature then error("Must specify signature to disambiguate expression alternatives") end
   local result
 
   for _, schema in ipairs(expressions[name]) do
@@ -209,13 +209,13 @@ function getSchema(name, signature)
       break
     end
   end
-  if not result then
-    local available = {}
-    for _, schema in ipairs(expressions[name]) do
-      available[#available + 1] = string.format("%s(%s)", name, fmtSignature(schema.args, schema.signature))
-    end
-    error(string.format("No matching signature for expression  %s(%s); Available signatures:\n  %s", name, signature, table.concat(available, "\n  ")))
-  end
+  -- if not result then
+  --   local available = {}
+  --   for _, schema in ipairs(expressions[name]) do
+  --     available[#available + 1] = string.format("%s(%s)", name, fmtSignature(schema.args, schema.signature))
+  --   end
+  --   error(string.format("No matching signature for expression  %s(%s); Available signatures:\n  %s", name, signature, table.concat(available, "\n  ")))
+  -- end
 
   return result
 end

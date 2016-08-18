@@ -1205,6 +1205,7 @@ function compileExec(contents, tracing)
     end
   end
   if context.errors and #context.errors ~= 0 then
+    print("Bailing due to errors.")
     return {}, util.toFlatJSON(parseGraph)
   end
   return set, util.toFlatJSON(parseGraph)
