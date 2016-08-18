@@ -691,6 +691,22 @@ function errors.unknownExpression(context, expression, expressions)
   ]], expression.operator, recommendation)}
 end
 
+function errors.unknownExpressionSignature(context, expression, signature, schemas)
+  local recommendations = ""
+  for _, schema in ipairs(schemas) do
+    recommendations = string.format("%s%s[%s]\n", recommendations, expression.operator, schema.signature)
+  end
+
+  printError{type = "Unknown expression signature", context = context, token = expression, content = string.format([[
+  Unknown expression signature "%s[%s]"
+
+  <LINE>
+
+  Valid signatures include:
+  %s
+  ]], expression.operator, signature, recommendations)}
+end
+
 
 ------------------------------------------------------------
 -- Package
