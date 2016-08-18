@@ -671,7 +671,7 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
         query.deps.graph:prepare()
         local childTerms = query.deps.graph:depends() + query.deps.graph.terms
         for term in pairs(childTerms) do
-          if self.terms[term] then
+          if self.terms[term] and not node.deps.provides[term] and not node.deps.contributes[term] then
             node.deps.depends:add(term)
           end
         end
