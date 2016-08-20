@@ -11,6 +11,7 @@ local pairs = pairs
 local ipairs = ipairs
 local string = string
 local table = table
+local utf8 = require("utf8")
 local util = require("util")
 local Set = require("set").Set
 setfenv(1, Pkg)
@@ -249,83 +250,116 @@ function getArgs(schema, bindings)
   return args, fields
 end
 
-function hashFact(fact)
-  local hash = string.format("%s ⦷ %s ⦷ %s", fact[1], fact[2], fact[3]);
+-- EDB bridge wrapper --
+
+UUID = {}
+UUID.__index = UUID
+function UUID:new()
+  local uuid = setmetatable({}, self)
+  -- "TODO: Generate me!
+  uuid.value = util.generateId()
+  return uuid
+end
+
+function UUID.__tostring(uuid)
+  return "⦑" .. uuid.value .. "⦒"
+end
+
+
+EAV = {}
+EAV.__index = EAV
+
+function EAV:new(args)
+  local eav = setmetatable(args or {}, self)
+  return eav
+end
+
+function EAV.__tostring(eav)
+  return string.format("[%s, %s, %s]", eav[1], eav[2], eav[3])
+end
+
+function EAV.hash(eav)
+  local hash = string.format("%s ⦷ %s ⦷ %s", eav[1], eav[2], eav[3]);
   return hash
 end
 
-local function patternSignature(pattern)
+function EAV.signature(eav)
   local sig = ""
-  if pattern[1] ~= nil then sig[1] = "E" else sig[1] = "e" end
-  if pattern[2] ~= nil then sig[2] = "A" else sig[2] = "a" end
-  if pattern[3] ~= nil then sig[3] = "V" else sig[3] = "v" end
+  if eav[1] ~= nil then sig[1] = "E" else sig[1] = "e" end
+  if eav[2] ~= nil then sig[2] = "A" else sig[2] = "a" end
+  if eav[3] ~= nil then sig[3] = "V" else sig[3] = "v" end
   return sig
 end
 
-local Bag = {}
+Bag = {}
 Bag.__index = Bag
 function Bag:new(args)
-  local instance = setmetatable({facts = {}, hashes = Set:new(), indexEAV = {}, indexAVE = {}}, self)
-
-  return instance
+  local bag = setmetatable({eavs = {}, hashes = Set:new(), indexEAV = {}, indexAVE = {}}, self)
+  bag.name = args and args.name or "Unnamed"
+  bag.id = args and args.id or UUID:new()
+  if args then
+    bag:addMany(args)
+  end
+  return bag
 end
 
 function Bag:size()
   return self.hashes:length()
 end
 
-function Bag:add(fact)
-  local hash = hashFact(fact)
+function Bag:add(eav)
+  setmetatable(eav, EAV)
+  local hash = EAV.hash(eav)
   if self.hashes:add(hash) then
-    self.facts[hash] = fact
-    self:_indexFact(fact)
+    self.eavs[hash] = eav
+    self:_indexEAV(eav)
     return true
   end
   return false
 end
 
-function Bag:remove(fact)
-  local hash = hashFact(fact)
+function Bag:remove(eav)
+  local hash = EAV.hash(eav)
   if self.hashes:remove(hash) then
-    self.facts[hash] = nil
-    self:_deindexFact(fact)
+    self.eavs[hash] = nil
+    self:_deindexEAV(eav)
   end
   return false
 end
 
-function Bag:addMany(facts)
+function Bag:addMany(eavs)
   local changed = false
-  for _, fact in ipairs(facts) do
-    changed = changed or self:add(fact)
+  for _, eav in ipairs(eavs) do
+    changed = self:add(eav) or changed
   end
   return changed
 end
 
-function Bag:removeMany(facts)
+function Bag:removeMany(eavs)
   local changed = false
-  for _, fact in ipairs(facts) do
-    changed = changed or self:remove(fact)
+  for _, eav in ipairs(eavs) do
+    changed = self:remove(eav) or changed
   end
   return changed
 end
 
-function Bag:has(fact)
-  local hash = hashFact(fact)
+function Bag:has(eav)
+  local hash = EAV.hash(eav)
   return self.hashes:has(hash)
 end
 
-function Bag:hasAny(facts)
-  for _, fact in ipairs(facts) do
-    if self:has(fact) then
+function Bag:hasAny(eavs)
+  for _, eav in ipairs(eavs) do
+    if self:has(eav) then
       return true
     end
   end
   return false
 end
 
-function Bag:hasAll(facts)
-  for _, fact in ipairs(facts) do
-    if not self:has(fact) then
+function Bag:hasAll(eavs)
+  for _, eav in ipairs(eavs) do
+    if not self:has(eav) then
       return false
     end
   end
@@ -334,11 +368,11 @@ end
 
 function Bag:union(other)
   local changed = false
-  for hash, fact in pairs(other.facts) do
+  for hash, eav in pairs(other.eavs) do
     if not self.hashes:has(hash) then
       changed = true
       self.hashes:add(hash)
-      self.facts[hash] = fact
+      self.eavs[hash] = eav
     end
   end
   return changed
@@ -346,34 +380,34 @@ end
 
 function Bag:difference(bag)
   local changed = false
-  for hash, fact in pairs(other.facts) do
+  for hash, eav in pairs(other.eavs) do
     if self.hashes:has(hash) then
       changed = true
       self.hashes:remove(hash)
-      self.facts[hash] = nil
+      self.eavs[hash] = nil
     end
   end
   return changed
 end
 
-function Bag:_indexFact(fact)
-  local hash = hashFact(fact)
-  local e, a, v = fact[1], fact[2], fact[3]
+function Bag:_indexEAV(eav)
+  local hash = EAV.hash(eav)
+  local e, a, v = eav[1], eav[2], eav[3]
 
   if not self.indexEAV[e] then self.indexEAV[e] = {} end
   if not self.indexEAV[e][a] then self.indexEAV[e][a] = {} end
-  self.indexEAV[e][a][v] = fact
+  self.indexEAV[e][a][v] = eav
 
   if not self.indexAVE[a] then self.indexAVE[a] = {} end
   if not self.indexAVE[a][v] then self.indexAVE[a][v] = {} end
-  self.indexAVE[a][v][e] = fact
+  self.indexAVE[a][v][e] = eav
 
   return true
 end
 
-function Bag:_deindexFact(fact)
-  local hash = hashFact(fact)
-  local e, a, v = fact[1], fact[2], fact[3]
+function Bag:_deindexEAV(eav)
+  local hash = EAV.hash(eav)
+  local e, a, v = eav[1], eav[2], eav[3]
 
   if self.indexEAV[e] and self.indexEAV[e][a] then
     self.indexEAV[e][a][v] = nil
@@ -407,23 +441,23 @@ function Bag:find(pattern)
   elseif sig == "EAv" then
     local idx = self.indexEAV[e]
     if idx and a and idx[a] then
-      for v, fact in pairs(idx[a]) do
-        result:add(fact)
+      for v, eav in pairs(idx[a]) do
+        result:add(eav)
       end
     end
   elseif sig == "eAV" then
     local idx = self.indexAVE[a]
     if idx and idx[v] then
-      for v, fact in pairs(idx[v]) do
-        result:add(fact)
+      for v, eav in pairs(idx[v]) do
+        result:add(eav)
       end
     end
   elseif sig == "Eav" then
     local idx = self.indexEAV[e]
     if idx then
       for a, vtable in pairs(idx) do
-        for v, fact in pairs(vtable) do
-          result:add(fact)
+        for v, eav in pairs(vtable) do
+          result:add(eav)
         end
       end
     end
@@ -431,15 +465,15 @@ function Bag:find(pattern)
     local idx = self.indexAVE[a]
     if idx then
       for v, etable in pairs(idx) do
-        for e, fact in pairs(etable) do
-          result:add(fact)
+        for e, eav in pairs(etable) do
+          result:add(eav)
         end
       end
     end
   else
-    for hash, fact in pairs(self.facts) do
-      if v ~= nil or fact[2] == v then
-        result:add(fact)
+    for hash, eav in pairs(self.eavs) do
+      if v == nil or eav[2] == v then
+        result:add(eav)
       end
     end
   end
@@ -456,15 +490,15 @@ function Bag:findRecords(record)
   if #eavs < 1 then return Set:new() end
 
   local entities = Set:new()
-  for fact in pairs(self:find(eavs[#eavs])) do
-    entities:add(fact[1])
+  for eav in pairs(self:find(eavs[#eavs])) do
+    entities:add(eav[1])
   end
   eavs[#eavs] = nil
 
   for eav in ipairs(eavs) do
     local matchedEntities = Set:new()
-    for fact in pairs(self:find(eav)) do
-      matchedEntities:add(fact[1])
+    for eav in pairs(self:find(eav)) do
+      matchedEntities:add(eav[1])
     end
     entities:intersection(matchedEntities, true)
 
@@ -481,16 +515,82 @@ function Bag:findRecords(record)
   return result
 end
 
-function Bag:addRecord(record, id)
-  if not id then
-    id = util.generateId() -- @FIXME: This really needs to be a C uuid...
+function Bag:appendEAVs(eavs, e, a, v, mapping)
+  if mapping[v] then -- if v is a record we've already added, use its id instead of creating a new one
+    v = mapping[v]
   end
-  local eavs = {}
-  for k, v in pairs(record) do
-    eavs[#eavs + 1] = {id, k, v}
+  if type(v) ~= "table" or getmetatable(v) == UUID then -- single value
+    eavs[#eavs + 1] = {e, a, v}
+  elseif getmetatable(v) == Set then -- set of values for an attribute
+    for subv in pairs(v) do
+      self:appendEAVs(eavs, e, a, subv, mapping)
+    end
+  else -- sub-record(s) or array of values
+    util.into(eavs, self:recordToEAVs(v, nil, mapping))
+  end
+end
+
+function Bag:recordToEAVs(record, id, mapping)
+  if not id then
+    id = UUID:new()
+  end
+  if not mapping then
+    mapping = {}
+  end
+  if not mapping[record] then
+    mapping[record] = id
+  else
+    id = mapping[record]
   end
 
+  local eavs = {}
+  for k, v in pairs(record) do
+    self:appendEAVs(eavs, id, k, v, mapping)
+  end
+
+  if #record > 0 then
+    eavs[#eavs + 1] = {id, "tag", "array"}
+  end
+
+  return eavs
+end
+
+function Bag:addRecord(record, id, mapping)
+
+  local eavs = self:recordToEAVs(record, id, mapping)
   self:addMany(eavs)
+end
+
+function Bag.__tostring(bag)
+  local entities = ""
+  for e, idxA in pairs(bag.indexEAV) do
+    local ePadding = string.rep(" ", utf8.len(tostring(e)) + 1)
+    entities = entities .. tostring(e)
+    if idxA.name then
+      local names = {}
+      for v, eavs in pairs(idxA.name) do
+        names[#names + 1] = v
+      end
+      entities = entities .. " (" .. table.concat(names, ", ") .. ")"
+    end
+    entities = entities .. "\n"
+
+    for a, idxV in pairs(idxA) do
+      local aHeader = string.format("%s%s: ", ePadding, a)
+      entities = entities .. aHeader
+      aPadding = string.rep(" ", utf8.len(aHeader))
+
+      local multi = false
+      for v, eav in pairs(idxV) do
+        entities = string.format("%s%s%s\n", entities, multi and aPadding or "", v)
+        multi = true
+      end
+    end
+
+    entities = entities .. "\n"
+  end
+  local header = string.format("%s (%s)", bag.id, bag.name)
+  return string.format("%s\n%s\n%s",  header, string.rep("-", #header), entities)
 end
 
 return Pkg
