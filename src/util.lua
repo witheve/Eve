@@ -58,6 +58,11 @@ end
 if ... == nil then
 end
 
+
+------------------------------------------------------------
+-- Collection helpers
+------------------------------------------------------------
+
 function shallowCopy(obj)
    if type(obj) ~= "table" then return obj end
    local meta = getmetatable(obj)
@@ -80,6 +85,15 @@ function walk(obj, fn, seen)
          walk(v, fn, seen)
       end
    end
+end
+
+-- @NOTE: only used for appending lists
+function into(dest, src)
+  if type(dest) ~= "table" or type(src) ~= "table" then return dest end
+  for _, v in ipairs(src) do
+    dest[#dest + 1] = v
+  end
+  return dest
 end
 
 ------------------------------------------------------------
@@ -394,8 +408,6 @@ end
 
 DefaultNodeMeta = {}
 DefaultNodeMeta.__tostring = formatQueryNode
-
-
 
 ------------------------------------------------------------
 -- Package
