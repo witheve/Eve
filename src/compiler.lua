@@ -971,6 +971,117 @@ function DependencyGraph.__tostring(dg)
   return result .. "\n}"
 end
 
+function DependencyGraph:addToBag(bag)
+  -- @TODO: Make a mapping of *all* variables to UUIDS
+  --        Resolve these in advance or they'll all end up being different!
+  --        You can store these in a bag and pass the bag around as your state
+  --        With a bunch of fns that take the thing to convert and a bag
+  -- @TODO: Handle subquery nodes
+  -- @TODO: Consider generating a textual query instead?
+
+  local nodeRecords = Set:new()
+
+  -- for node in pairs(self.unprepared or nothing) do
+  --   local nodeRecord = util.shallowCopy(node)
+  --   nodeRecord.tag = Set:new({"node", "unprepared"})
+  --   nodeRecord.bindings = bindingsToRecords(node.bindings)
+  --   nodeRecords:add(nodeRecord)
+  -- end
+  -- for node in pairs(self.unsorted or nothing) do
+  --   local nodeRecord = util.shallowCopy(node)
+  --   nodeRecord.tag = Set:new({"node", "unsorted"})
+  --   nodeRecord.bindings = bindingsToRecords(node.bindings)
+  --   nodeRecords:add(nodeRecord)
+  -- end
+  -- for ix, node in ipairs(self.sorted or nothing) do
+  --   local nodeRecord = util.shallowCopy(node)
+  --   nodeRecord.tag = Set:new({"node", "sorted"})
+  --   nodeRecord.sort = sort
+  --   nodeRecord.bindings = bindingsToRecords(node.bindings)
+  --   nodeRecords:add(nodeRecord)
+  -- end
+
+  local mapping = {}
+  for node in pairs(self.unprepared or nothing) do
+    local nodeRecord = sanitize(node, mapping)
+    nodeRecord.tag = Set:new({"node", "unprepared"})
+    nodeRecords:add(nodeRecord)
+  end
+  for node in pairs(self.unsorted or nothing) do
+    local nodeRecord = sanitize(node, mapping)
+    nodeRecord.tag = Set:new({"node", "unsorted"})
+    nodeRecords:add(nodeRecord)
+  end
+  for ix, node in ipairs(self.sorted or nothing) do
+    local nodeRecord = sanitize(node, mapping)
+    nodeRecord.tag = Set:new({"node", "sorted"})
+    nodeRecord.sort = ix
+    nodeRecords:add(nodeRecord)
+  end
+
+
+  local dgRecord = {
+    name = "blurbl",
+    tag = "dependency-graph",
+    nodes = nodeRecords,
+    terms = sanitize(self.terms, mapping),
+    groups = sanitize(self.termGroups, mapping)
+  }
+
+  bag:addRecord(dgRecord)
+  return bag
+end
+
+function sanitize(obj, mapping)
+  if not mapping then mapping = {} end
+  if not obj or type(obj) ~= "table" then return obj end
+  if mapping[obj] then return mapping[obj] end
+
+  local meta = getmetatable(obj)
+  local neue = setmetatable({type = obj.type, name = obj.name, id = obj.id, line = obj.line, offset = obj.offset}, meta)
+  mapping[obj] = neue
+
+  if meta == Set then
+    neue.new(Set, neue)
+    for v in pairs(obj) do
+      neue:add(sanitize(v, mapping))
+    end
+  elseif not obj.type then
+    for k, v in pairs(obj) do
+      neue[sanitize(k, mapping)] = sanitize(v, mapping)
+    end
+  elseif obj.type == "variable" then
+    neue.generated = obj.generated
+    neue.cardinal = sanitize(obj.cardinal, mapping)
+  else -- Some kind of node
+    neue.operator = obj.operator
+    neue.scope = obj.scope -- @FIXME: Update to be plural
+    neue.mutateType = obj.mutateType -- @FIXME: mutates aren't passing their types through?
+    neue.bindings = bindingsToRecords(obj.bindings, mapping)
+  end
+
+  return neue
+end
+
+-- Make the bindings easier to digest
+function bindingsToRecords(bindings, mapping)
+  if not bindings then return end
+  if not mapping then
+    mapping = {}
+  end
+  local records = Set:new()
+  print("OHAI")
+  for ix, binding in ipairs(bindings) do
+    records:add({
+        sort = ix,
+        tag = binding.type,
+        field = binding.field,
+        variable = sanitize(binding.variable, mapping),
+        constant = binding.constant and binding.constant.constant
+    })
+  end
+  return records
+end
 
 ScanNode = {}
 function ScanNode:new(obj)
@@ -1244,6 +1355,10 @@ function analyze(content, quiet)
       print(string.format("    %2d: %s", ix, util.indentString(4, tostring(node))))
     end
     print("  }")
+
+    print("--- BAG ---")
+    local bag = db.Bag:new({name = queryGraph.name})
+    print(dependencyGraph:addToBag(bag))
   end
 
   if context.errors and #context.errors ~= 0 then
