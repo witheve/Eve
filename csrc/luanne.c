@@ -120,7 +120,7 @@ static int lua_print_value(lua_State *L)
     interpreter c = lua_context(L);
     string out = allocate_string(c->h);
     print_value(out, x);
-    lua_pushlstring(L, bref(out->contents, 0), buffer_length(out));
+    lua_pushlstring(L, bref(out, 0), buffer_length(out));
     return 1;
 }
 
@@ -172,7 +172,7 @@ vector lua_compile_eve(interpreter c, heap h, buffer b, boolean tracing, buffer 
         printf ("lua error\n");
         printf ("%s\n", lua_tostring(c->L, -1));
     }
-    
+
     *out = lua_to_buffer(c->L, -1, h);
     int count = 0;
     foreach_lua_table(c->L, -2, k, v) {
@@ -226,7 +226,7 @@ extern void bundle_add_loaders(lua_State* L);
 vector vector_from_lua(heap h, lua_State *L, int index)
 {
     vector res = allocate_vector(h, 5);
-    foreach_lua_table(L, index, _, v) 
+    foreach_lua_table(L, index, _, v)
         vector_insert(res, lua_tovalue(L, v));
     return res;
 }
@@ -253,7 +253,7 @@ int lua_build_node(lua_State *L)
                      (lua_type(L, v) == LUA_TTABLE)?
                   vector_from_lua(c->h, L, v):
                   lua_tovalue(L, v));
-        
+
         table_set(n->display,lua_tovalue(c->L, k),
                   (lua_type(L, v) == LUA_TTABLE)?
                   aprintf(c->h,"%V", vector_from_lua(c->h, L, v)):
@@ -277,7 +277,7 @@ interpreter build_lua()
     interpreter c = allocate(h, sizeof(struct interpreter));
     c->L = luaL_newstate();
     c->h = h;
-    
+
     luaL_openlibs(c->L);
     bundle_add_loaders(c->L);
 
@@ -287,6 +287,7 @@ interpreter build_lua()
     define(c, "sregister", construct_register);
     define(c, "sboolean", construct_boolean);
     define(c, "sstring", construct_string);
+    define(c, "generate_uuid", lua_gen_uuid);
     define(c, "value_to_string", lua_print_value);
     define(c, "build_node", lua_build_node);
     define(c, "node_id", node_id);
