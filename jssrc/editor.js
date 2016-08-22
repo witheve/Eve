@@ -162,6 +162,16 @@ function posToToken(pos, lines) {
   return false;
 }
 
+function getCodeBlocks(editor) {
+  let blocks = [];
+  for(let mark of editor.getAllMarks()) {
+    if(mark.source.type == "code_block") {
+      blocks.push(mark);
+    }
+  }
+  return blocks;
+}
+
 function doSwap(editor) {
   sendSwap(editor.getValue());
 }
@@ -174,7 +184,44 @@ function handleEditorParse(parse) {
   let parseLines = parse.lines;
   let from = {};
   let to = {};
-  console.log(parse.root);
+  let ix = 0;
+  let parseBlocks = parse.root.children;
+  for(let block of getCodeBlocks(codeEditor)) {
+    let loc = block.find();
+    let fromLine = loc.from.line;
+    let toLine = loc.to.line;
+    let parseStart = parse[parseBlocks[ix]].line;
+    let offset = parseStart - fromLine + 3;
+    console.log(fromLine, parseStart, offset);
+
+    for(let line = fromLine; line < toLine; line++) {
+      // clear all the marks on that line?
+      for(let mark of codeEditor.findMarks({line, ch: 0}, {line, ch: 1000000})) {
+        mark.clear();
+      }
+      from.line = line;
+      to.line = line;
+      let tokens = parseLines[line + offset];
+      if(tokens) {
+        let firstToken = tokens[0];
+        // figure out what type of line this is and set the appropriate
+        // line classes
+        let state;
+        for(let token of tokens) {
+          from.ch = token.surrogateOffset;
+          to.ch = token.surrogateOffset + token.surrogateLength;
+          let className = token.type;
+          if(state == "TAG" || state == "NAME") {
+            className += " " + state;
+          }
+          codeEditor.markText(from, to, {className, inclusiveRight: true});
+          state = token.type
+        }
+      }
+    }
+    codeEditor.dirtyLines = [];
+    ix++;
+  }
   // codeEditor.operation(function() {
   //   for(let line of codeEditor.dirtyLines) {
   //     // clear all the marks on that line?
