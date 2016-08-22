@@ -1048,39 +1048,27 @@ function sanitize(obj, mapping)
     end
   elseif not obj.type then
     for k, v in pairs(obj) do
-      neue[sanitize(k, mapping)] = sanitize(v, mapping)
+      local sk, sv = sanitize(k, mapping), sanitize(v, mapping)
+      neue[sk] = sv
+      if type(sk) == "number" and type(sv) == "table" then
+        sv.sort = sk
+      end
     end
   elseif obj.type == "variable" then
     neue.generated = obj.generated
     neue.cardinal = sanitize(obj.cardinal, mapping)
+  elseif obj.type == "binding" then
+    neue.field = obj.field
+    neue.variable = sanitize(obj.variable, mapping)
+    neue.constant = obj.constant and obj.constant.constant
   else -- Some kind of node
     neue.operator = obj.operator
     neue.scope = obj.scope -- @FIXME: Update to be plural
     neue.mutateType = obj.mutateType -- @FIXME: mutates aren't passing their types through?
-    neue.bindings = bindingsToRecords(obj.bindings, mapping)
+    neue.bindings = sanitize(obj.bindings, mapping)
   end
 
   return neue
-end
-
--- Make the bindings easier to digest
-function bindingsToRecords(bindings, mapping)
-  if not bindings then return end
-  if not mapping then
-    mapping = {}
-  end
-  local records = Set:new()
-  print("OHAI")
-  for ix, binding in ipairs(bindings) do
-    records:add({
-        sort = ix,
-        tag = binding.type,
-        field = binding.field,
-        variable = sanitize(binding.variable, mapping),
-        constant = binding.constant and binding.constant.constant
-    })
-  end
-  return records
 end
 
 ScanNode = {}
