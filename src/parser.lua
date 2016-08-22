@@ -684,6 +684,8 @@ local function parse(tokens, context)
       -- then this starts one
       if stackTop.type ~= "query" then
         stack:push(makeNode(context, "query", token, {doc = "Unnamed block", children = {}}))
+      else
+        stackTop.line = token.line
       end
 
     elseif type == "BLOCK_CLOSE" then
