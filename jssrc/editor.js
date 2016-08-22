@@ -220,14 +220,111 @@ function handleEditorParse(parse) {
   });
 }
 
+function ctrlify(keymap) {
+  let finalKeymap = {};
+  for(let key in keymap) {
+    finalKeymap[key] = keymap[key];
+    if(key.indexOf("Cmd") > -1) {
+      finalKeymap[key.replace("Cmd", "Ctrl")] = keymap[key];
+    }
+  }
+  return finalKeymap;
+}
+
+
+function samePos(a, b) {
+  return comparePos(a,b) === 0;
+}
+
+function comparePos(a, b) {
+  if(a.line === b.line && a.ch === b.ch) return 0;
+  if(a.line > b.line) return 1;
+  if(a.line === b.line && a.ch > b.ch) return 1;
+  return -1;
+}
+
+function whollyEnclosed(inner, outer) {
+  let left = comparePos(inner.from, outer.from);
+  let right = comparePos(inner.to, outer.to);
+  if((left === 1 || left === 0) && (right === -1 || right === 0)) {
+    return true;
+  }
+  return false;
+}
+
+function fullyMark(cm, selection, source) {
+  let marks = cm.findMarks(selection.from, selection.to);
+  let marked = false;
+  for(let mark of marks) {
+    let loc = mark.find();
+    if(mark.source.type == source.type) {
+      // if this mark is wholly equalivent to the selection
+      // then we remove it and we've "marked" the span
+      if(samePos(loc.from, selection.from) && samePos(loc.to, selection.to)) {
+        marked = true;
+        mark.clear();
+      // if the mark is wholly enclosed by the selection, then
+      // we remove it as we'll be replacing it with a larger span
+      } else if(whollyEnclosed(loc, selection)) {
+        mark.clear();
+      // if the selection is wholly enclosed in the mark, we have to split
+      // the mark so the selection is no longer contained in it
+      } else if(whollyEnclosed(selection, loc)) {
+        let startMarker = cm.markText(loc.from, selection.from, {className: source.type.toUpperCase(), addToHistory: true});
+        startMarker.source = mark.source;
+        let endMarker = cm.markText(selection.to, loc.to, {className: source.type.toUpperCase(), addToHistory: true});
+        endMarker.source = mark.source;
+        mark.clear();
+        marked = true;
+      // otherwise we need to trim the mark to not include the selection.
+      // if the mark is on the left
+      } else if(comparePos(loc.to, selection.from) > 0) {
+        let startMarker = cm.markText(loc.from, selection.from, {className: source.type.toUpperCase(), addToHistory: true});
+        startMarker.source = mark.source;
+        mark.clear();
+      // if the mark is on the right
+      } else if(comparePos(loc.from, selection.to) < 0) {
+        let startMarker = cm.markText(selection.to, loc.to, {className: source.type.toUpperCase(), addToHistory: true});
+        startMarker.source = mark.source;
+        mark.clear();
+      }
+    }
+  }
+  if(!marked) {
+    let marker = cm.markText(selection.from, selection.to, {className: source.type.toUpperCase(), addToHistory: true});
+    marker.source = source;
+  }
+}
+
+function formatBold(cm) {
+  cm.operation(function() {
+    if(cm.somethingSelected()) {
+      let from = cm.getCursor("from");
+      let to = cm.getCursor("to");
+      fullyMark(cm, {from, to}, {type: "strong"});
+    }
+  });
+}
+
+function formatItalic(cm) {
+  cm.operation(function() {
+    if(cm.somethingSelected()) {
+      let from = cm.getCursor("from");
+      let to = cm.getCursor("to");
+      fullyMark(cm, {from, to}, {type: "emph"});
+    }
+  });
+}
+
 function makeEditor() {
   let editor = new CodeMirror(function() {}, {
     tabSize: 2,
     lineWrapping: true,
-    extraKeys: {
+    extraKeys: ctrlify({
       "Cmd-Enter": doSwap,
-      "Ctrl-Enter": doSwap,
-    }
+      "Cmd-B": formatBold,
+      "Cmd-I": formatItalic,
+    })
   });
   editor.dirtyLines = [];
   editor.on("change", function(cm, change) {
@@ -257,6 +354,7 @@ function injectCodeMirror(node, elem) {
       drawNodeGraph();
     });
     injectMarkdown(editor, elem.value);
+    editor.clearHistory();
     node.appendChild(editor.getWrapperElement());
     editor.refresh();
   }
