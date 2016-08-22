@@ -12,6 +12,8 @@ local ipairs = ipairs
 local string = string
 local table = table
 local utf8 = require("utf8")
+local generate_uuid = generate_uuid
+local value_to_string = value_to_string
 local util = require("util")
 local Set = require("set").Set
 setfenv(1, Pkg)
@@ -256,13 +258,12 @@ UUID = {}
 UUID.__index = UUID
 function UUID:new()
   local uuid = setmetatable({}, self)
-  -- "TODO: Generate me!
-  uuid.value = util.generateId()
+  uuid.value = generate_uuid()
   return uuid
 end
 
 function UUID.__tostring(uuid)
-  return "⦑" .. uuid.value .. "⦒"
+  return value_to_string(uuid.value)
 end
 
 
