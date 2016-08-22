@@ -671,9 +671,10 @@ local function parse(tokens, context)
       if stackTop.type == "query" and stackTop.line + 1 == token.line then
         stackTop.doc = stackTop.doc .. "\n" .. token.value
         stackTop.line = token.line
+      elseif stackTop.type == "query" and #stackTop.children == 0 then
+        stack:pop()
+        stack:push(makeNode(context, "query", token, {doc = token.value, children = {}}))
       else
-        -- clear everything currently on the stack as we're starting a totally new
-        -- query
         stackTop = tryFinishExpression(true)
         stack:push(makeNode(context, "query", token, {doc = token.value, children = {}}))
       end

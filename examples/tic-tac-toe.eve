@@ -1,6 +1,6 @@
 # Tic-Tac-Toe
 
-##  Game logic
+## Game logic
 
 Tic-Tac-Toe is a classic game played by two players, "X" and "O", who take turns marking their letter on a 3x3 grid. The first player to mark 3 adjacent cells in a line wins. The game can potentially result in a draw, where all grid cells are marked, but neither player has 3 adjacent cells. To build this game in Eve, we need several parts:
 
