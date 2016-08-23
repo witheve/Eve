@@ -794,8 +794,8 @@ local function parse(tokens, context)
         if next and next.type ~= "IF" then
           local childQuery = makeNode(context, "query", token, {outputs = stackTop.outputs, parent = stackTop, closed = true, children = {}})
           stack:push(childQuery)
-          local childQuery = makeNode(context, "outputs", token, {children = {}})
-          stack:push(childQuery)
+          local childOutputs = makeNode(context, "outputs", token, {children = {}})
+          stack:push(childOutputs)
         end
       end
 
@@ -1678,8 +1678,10 @@ end
 
 local function handleMatchNode(query, root, context)
 
-  findAndSetScope(root, context)
-  context.matchScopes = root.scopes
+  if not context.unionNode and not context.notNode then
+    findAndSetScope(root, context)
+    context.matchScopes = root.scopes
+  end
 
   for _, child in ipairs(root.children) do
     local type = child.type
@@ -1774,7 +1776,9 @@ local function handleMatchNode(query, root, context)
     end
   end
 
-  context.matchScopes = nil
+  if not context.unionNode and not context.notNode then
+    context.matchScopes = nil
+  end
 end
 
 generateQueryNode = function(root, context)
@@ -1795,8 +1799,10 @@ generateQueryNode = function(root, context)
 
   for _, child in ipairs(root.children) do
     local type = child.type
-    if type == "match" or context.notNode or context.unionNode then
+    if type == "match" then
       handleMatchNode(query, child, context)
+    elseif context.notNode or context.unionNode then
+      handleMatchNode(query, root, context)
     elseif type == "update" then
       handleUpdateNode(query, child, context)
     else
