@@ -1,5 +1,6 @@
 #include <runtime.h>
 #include <luanne.h>
+#include <http/http.h>
 
 static char *luat(lua_State *L, int index)
 {
@@ -172,7 +173,7 @@ vector lua_compile_eve(interpreter c, heap h, buffer b, boolean tracing, buffer 
         printf ("lua error\n");
         printf ("%s\n", lua_tostring(c->L, -1));
     }
-    
+
     *out = lua_to_buffer(c->L, -1, h);
     int count = 0;
     foreach_lua_table(c->L, -2, k, v) {
@@ -226,7 +227,7 @@ extern void bundle_add_loaders(lua_State* L);
 vector vector_from_lua(heap h, lua_State *L, int index)
 {
     vector res = allocate_vector(h, 5);
-    foreach_lua_table(L, index, _, v) 
+    foreach_lua_table(L, index, _, v)
         vector_insert(res, lua_tovalue(L, v));
     return res;
 }
@@ -253,11 +254,14 @@ int lua_build_node(lua_State *L)
                      (lua_type(L, v) == LUA_TTABLE)?
                   vector_from_lua(c->h, L, v):
                   lua_tovalue(L, v));
-        
-        table_set(n->display,lua_tovalue(c->L, k),
-                  (lua_type(L, v) == LUA_TTABLE)?
-                  aprintf(c->h,"%V", vector_from_lua(c->h, L, v)):
-                  aprintf(c->h,"%r", lua_tovalue(L, v)));
+
+        string out = allocate_string(c->h);
+        if(lua_type(L, v) == LUA_TTABLE) {
+            print_value_vector_json(out, vector_from_lua(c->h, L, v));
+        } else {
+            print_value_json(out, lua_tovalue(L, v));
+        }
+        table_set(n->display, lua_tovalue(c->L, k), out);
     }
 
     // xxx - shouldn't really be a value
@@ -277,7 +281,7 @@ interpreter build_lua()
     interpreter c = allocate(h, sizeof(struct interpreter));
     c->L = luaL_newstate();
     c->h = h;
-    
+
     luaL_openlibs(c->L);
     bundle_add_loaders(c->L);
 
