@@ -972,35 +972,9 @@ function DependencyGraph.__tostring(dg)
 end
 
 function DependencyGraph:addToBag(bag)
-  -- @TODO: Make a mapping of *all* variables to UUIDS
-  --        Resolve these in advance or they'll all end up being different!
-  --        You can store these in a bag and pass the bag around as your state
-  --        With a bunch of fns that take the thing to convert and a bag
   -- @TODO: Handle subquery nodes
-  -- @TODO: Consider generating a textual query instead?
 
   local nodeRecords = Set:new()
-
-  -- for node in pairs(self.unprepared or nothing) do
-  --   local nodeRecord = util.shallowCopy(node)
-  --   nodeRecord.tag = Set:new({"node", "unprepared"})
-  --   nodeRecord.bindings = bindingsToRecords(node.bindings)
-  --   nodeRecords:add(nodeRecord)
-  -- end
-  -- for node in pairs(self.unsorted or nothing) do
-  --   local nodeRecord = util.shallowCopy(node)
-  --   nodeRecord.tag = Set:new({"node", "unsorted"})
-  --   nodeRecord.bindings = bindingsToRecords(node.bindings)
-  --   nodeRecords:add(nodeRecord)
-  -- end
-  -- for ix, node in ipairs(self.sorted or nothing) do
-  --   local nodeRecord = util.shallowCopy(node)
-  --   nodeRecord.tag = Set:new({"node", "sorted"})
-  --   nodeRecord.sort = sort
-  --   nodeRecord.bindings = bindingsToRecords(node.bindings)
-  --   nodeRecords:add(nodeRecord)
-  -- end
-
   local mapping = {}
   for node in pairs(self.unprepared or nothing) do
     local nodeRecord = sanitize(node, mapping)
@@ -1061,11 +1035,21 @@ function sanitize(obj, mapping)
     neue.field = obj.field
     neue.variable = sanitize(obj.variable, mapping)
     neue.constant = obj.constant and obj.constant.constant
+  elseif obj.type == "query" then
+    -- @TODO: ME!
   else -- Some kind of node
     neue.operator = obj.operator
     neue.scope = obj.scope -- @FIXME: Update to be plural
     neue.mutateType = obj.mutateType -- @FIXME: mutates aren't passing their types through?
     neue.bindings = sanitize(obj.bindings, mapping)
+
+    -- Handle subquery nodes
+    if obj.queries then
+      for _, query in ipairs(obj.queries) do
+        local subid = query.deps.graph.addToBag(bag)
+        -- @TODO: link me to my parent
+      end
+    end
   end
 
   return neue
