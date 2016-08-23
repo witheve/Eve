@@ -14,6 +14,12 @@ local table = table
 local utf8 = require("utf8")
 local generate_uuid = generate_uuid
 local value_to_string = value_to_string
+local sstring = sstring
+local snumber = snumber
+local sboolean = sboolean
+local create_edb = create_edb
+local insert_edb = insert_edb
+local dump_edb = dump_edb
 local util = require("util")
 local Set = require("set").Set
 setfenv(1, Pkg)
@@ -254,6 +260,23 @@ end
 
 -- EDB bridge wrapper --
 
+function asValue(v)
+  if type(v) == "table" then
+    if getmetatable(v) == UUID then
+      return v.value
+    else
+      error("Unable to coerce table to Eve value")
+    end
+  elseif type(v) == "string" then
+    return sstring(v)
+  elseif type(v) == "number" then
+    return snumber(v)
+  elseif type(v) == "boolean" then
+    return sboolean(v)
+  end
+  error("Unknown value type: " .. type(v))
+end
+
 UUID = {}
 UUID.__index = UUID
 function UUID:new()
@@ -292,16 +315,35 @@ function EAV.signature(eav)
   return sig
 end
 
+function EAV.asValues(eav)
+  return {asValue(eav[1]), asValue(eav[2]), asValue(eav[3])}
+end
+
 Bag = {}
 Bag.__index = Bag
 function Bag:new(args)
-  local bag = setmetatable({eavs = {}, hashes = Set:new(), indexEAV = {}, indexAVE = {}}, self)
+  local bag = setmetatable({eavs = {}, hashes = Set:new(), dirty = Set:new(), indexEAV = {}, indexAVE = {}}, self)
   bag.name = args and args.name or "Unnamed"
   bag.id = args and args.id or UUID:new()
   if args then
     bag:addMany(args)
   end
   return bag
+end
+
+-- @FIXME: no way to remove atm because we don't cache dirty removed EAVs
+function Bag:sync()
+  if not self.cbag then
+    self.cbag = create_edb(self.id)
+  end
+
+  for hash in pairs(self.dirty) do
+    self.dirty:remove(hash)
+
+    local m = 1
+    local values = EAV.asValues(self.eavs[hash])
+    insert_edb(self.cbag, values[1], values[2], values[3], m)
+  end
 end
 
 function Bag:size()
@@ -312,6 +354,7 @@ function Bag:add(eav)
   setmetatable(eav, EAV)
   local hash = EAV.hash(eav)
   if self.hashes:add(hash) then
+    self.dirty:add(hash)
     self.eavs[hash] = eav
     self:_indexEAV(eav)
     return true
@@ -322,6 +365,7 @@ end
 function Bag:remove(eav)
   local hash = EAV.hash(eav)
   if self.hashes:remove(hash) then
+    self.dirty:add(hash)
     self.eavs[hash] = nil
     self:_deindexEAV(eav)
   end
@@ -374,6 +418,7 @@ function Bag:union(other)
       changed = true
       self.hashes:add(hash)
       self.eavs[hash] = eav
+      self.dirty:add(hash)
     end
   end
   return changed
@@ -386,6 +431,7 @@ function Bag:difference(bag)
       changed = true
       self.hashes:remove(hash)
       self.eavs[hash] = nil
+      self.dirty:add(hash)
     end
   end
   return changed
