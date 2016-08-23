@@ -112,6 +112,12 @@ function handleDOMUpdates(state) {
         } else {
           elem = document.createElement(tag || "div")
         }
+        // Mark all attributes of the entity dirty to rerender them into the new element
+        for(let attribute in entity) {
+          if(dirty[entityId].indexOf(attribute) == -1) {
+            dirty[entityId].push(attribute);
+          }
+        }
         elem.entity = entityId;
         activeElements[entityId] = elem;
         elem.sort = entity.sort || entity["eve-auto-index"] || "";
