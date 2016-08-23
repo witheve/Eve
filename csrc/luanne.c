@@ -255,12 +255,6 @@ int lua_build_node(lua_State *L)
                   vector_from_lua(c->h, L, v):
                   lua_tovalue(L, v));
 
-<<<<<<< HEAD
-        table_set(n->display,lua_tovalue(c->L, k),
-                  (lua_type(L, v) == LUA_TTABLE)?
-                  aprintf(c->h,"%V", vector_from_lua(c->h, L, v)):
-                  aprintf(c->h,"%r", lua_tovalue(L, v)));
-=======
         string out = allocate_string(c->h);
         if(lua_type(L, v) == LUA_TTABLE) {
             print_value_vector_json(out, vector_from_lua(c->h, L, v));
@@ -268,7 +262,6 @@ int lua_build_node(lua_State *L)
             print_value_json(out, lua_tovalue(L, v));
         }
         table_set(n->display, lua_tovalue(c->L, k), out);
->>>>>>> modularity
     }
 
     // xxx - shouldn't really be a value
