@@ -60,6 +60,17 @@ static file allocate_file(filebag fb, file parent)
     result;\
     })
 
+static boolean filebag_eav_check(filebag fb, file f, struct stat *s, listener out, value e, value a, value v)
+{
+    if ((a == sym(length)) && ((u64)*(double *)v) == s->st_size) return true;
+    if ((a == sym(name)) && (f->name ==v)) return true;
+    if ((a == sym(child)) && table_find(f->children, v)) return true;
+    //    if (a == sym(contents))
+    //    if (a == sym(owner)) {
+    return false;
+}
+
+
 static void filebag_ea_scan(filebag fb, file f, struct stat *s, listener out, value e, value a)
 {
     if (a == sym(length)) {
@@ -78,7 +89,7 @@ static void filebag_ea_scan(filebag fb, file f, struct stat *s, listener out, va
     }
     if (a == sym(contents)) {
         buffer x = read_file(fb->h, path_of_file(f));
-        apply(out, e, a, f->name, 1, 0);
+        apply(out, e, a, intern_buffer(x), 1, 0);
         return;
     }
     // also struct tiespec st_mtimespec
@@ -126,19 +137,17 @@ void filebag_scan(filebag fb, int sig, listener out, value e, value a, value v)
     if (sig & 0x04) /*E*/ {
         file f = table_find(fb->idmap, e);
         if (f) {
+            struct stat st;
+            int res = stat(path_of_file(f), &st);
             if (sig & 0x02) /*A*/ {
                 // xxx - we should do the filter thing
                 if (sig & 1) {
-                    if ((a == sym(tag)) && (v == sym(root)) && (e == fb->root->u)){
+                    if (((a == sym(tag)) && (v == sym(root)) && (e == fb->root->u)) ||
+                        filebag_eav_check(fb, f, &st, out, e, a, v))
                         apply(out, e, a, v, 1, 0);
-                    }
                 } else {
-                    struct stat st;
-                    int res = stat(path_of_file(f), &st);
-                    if (res == 0) {
-                        if (S_ISDIR(st.st_mode)) fill_children(fb, f);
-                        filebag_ea_scan(fb, f, &st, out, e, a);
-                    }
+                    if (S_ISDIR(st.st_mode)) fill_children(fb, f);
+                    filebag_ea_scan(fb, f, &st, out, e, a);
                 }
             } else {
                 struct stat st;
@@ -183,7 +192,7 @@ void filebag_commit(filebag fb, edb s)
             allocate_file(fb, e);
     }
 
-    edb_foreach_a(s, e, sym(body), v, m) {
+    edb_foreach_a(s, e, sym(contents), v, m) {
         file f;
         estring contents = v;
         // xxx ordering

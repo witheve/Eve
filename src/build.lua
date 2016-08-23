@@ -3,6 +3,7 @@ Set = require("set").Set
 math = require("math")
 parser = require("parser")
 db = require("db")
+errors = require("error")
 
 local makeNode = parser.makeNode
 local DefaultNodeMeta = parser.DefaultNodeMeta
@@ -481,6 +482,10 @@ end
 function translate_expression(n, bound, down, context, tracing)
   local signature = db.getSignature(n.bindings, bound)
   local schema = db.getSchema(n.operator, signature)
+  if not schema then
+    errors.unknownExpressionSignature(context, n, signature, db.getSchemas(n.operator))
+    return down(bound)
+  end
 
   local args, fields = db.getArgs(schema, n.bindings)
   for _, term in ipairs(args) do
@@ -566,12 +571,16 @@ end
 
 
 function build(queryGraph, tracing, context)
-   local tailf = function(b)
-               return empty_env(), cnode(queryGraph, "terminal", {}, {}, context, tracing)
-           end
-   local env, program = walk(queryGraph.unpacked, nil, {}, tailf, context, tracing)
-   context.downEdges[#context.downEdges + 1] = {queryGraph.id, node_id(program)}
-   return program, env.maxregs
+  local errCount = context.errors and #context.errors
+  local tailf = function(b)
+    return empty_env(), cnode(queryGraph, "terminal", {}, {}, context, tracing)
+  end
+  local env, program = walk(queryGraph.unpacked, nil, {}, tailf, context, tracing)
+  context.downEdges[#context.downEdges + 1] = {queryGraph.id, node_id(program)}
+  -- Only emit the continuation graph if building it did not produce any new errors
+  if not context.errors or #context.errors == errCount then
+    return program, env.maxregs
+  end
 end
 
 ------------------------------------------------------------

@@ -537,7 +537,7 @@ function DependencyGraph:addSubqueryNode(node, context)
   end
 
   for _, body in ipairs(node.queries) do
-    local subgraph = DependencyGraph:fromQueryGraph(body, context, true)
+    local subgraph = DependencyGraph:fromQueryGraph(body, context, self)
     subgraph:prepare()
     deps.maybeDepends:union(subgraph:depends() + subgraph.terms, true)
   end
@@ -545,7 +545,7 @@ function DependencyGraph:addSubqueryNode(node, context)
   return self:add(node)
 end
 
-function DependencyGraph:fromQueryGraph(query, context, isSubquery)
+function DependencyGraph:fromQueryGraph(query, context, parent)
   local uniqueCounter = 0
   local dgraph = self
   if getmetatable(dgraph) ~= DependencyGraph then
@@ -553,9 +553,12 @@ function DependencyGraph:fromQueryGraph(query, context, isSubquery)
   end
   dgraph.query = query;
   dgraph.context = context
-  if not isSubquery then
+  dgraph.parent = parent
+  if not parent then
     util.walk(query, prepareQueryGraph)
     unify(query)
+  else
+    dgraph.cardinalTerms = parent.cardinalTerms
   end
   query.deps = {graph = dgraph}
 
@@ -666,11 +669,9 @@ function DependencyGraph:prepare(isSubquery) -- prepares a completed graph for o
     if node.queries then
       for _, query in ipairs(node.queries) do
         query.deps.graph:prepare()
-        --print("PREPARING", query.name or query)
         local childTerms = query.deps.graph:depends() + query.deps.graph.terms
-        --print("  REQUIRED", required)
         for term in pairs(childTerms) do
-          if self.terms[term] then
+          if self.terms[term] and not node.deps.provides[term] and not node.deps.contributes[term] then
             node.deps.depends:add(term)
           end
         end
@@ -1209,6 +1210,7 @@ function compileExec(contents, tracing)
     end
   end
   if context.errors and #context.errors ~= 0 then
+    print("Bailing due to errors.")
     return {}, util.toFlatJSON(parseGraph)
   end
   return set, util.toFlatJSON(parseGraph)

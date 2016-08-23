@@ -667,7 +667,13 @@ function errors.unknownGeneratedVariable(context, variable, terms)
 end
 
 function errors.unknownVariable(context, variable, terms)
-  if variable.generated then return errors.unknownGeneratedVariable(context, variable, terms) end
+  if variable.generated then
+    if variable.cardinal and not terms[variable.cardinal] then
+      variable = variable.cardinal
+    else
+      return errors.unknownGeneratedVariable(context, variable, terms)
+    end
+  end
   local best = chooseNearest(variable, filterGenerated(terms), formatVariable)
   local recommendation = ""
   if best then
@@ -691,6 +697,22 @@ function errors.unknownExpression(context, expression, expressions)
 
   <LINE>%s
   ]], expression.operator, recommendation)}
+end
+
+function errors.unknownExpressionSignature(context, expression, signature, schemas)
+  local recommendations = ""
+  for _, schema in ipairs(schemas) do
+    recommendations = string.format("%s%s[%s]\n", recommendations, expression.operator, schema.signature)
+  end
+
+  printError{type = "Unknown expression signature", context = context, token = expression, content = string.format([[
+  Unknown expression signature "%s[%s]"
+
+  <LINE>
+
+  Valid signatures include:
+  %s
+  ]], expression.operator, signature, recommendations)}
 end
 
 
