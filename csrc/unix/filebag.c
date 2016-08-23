@@ -27,20 +27,24 @@ typedef struct filebag {
 #define MAXNAMLEN NAME_MAX
 #endif // foo
 
-static void name_file(file f, estring name)
+static void name_file(heap h, file f, estring name)
 {
     // xxx should allow renames, links, deletia
     f->name = name;
-    if (f->parent)
+    if (f->parent) {
+        if (!f->parent->children)
+            f->parent->children = create_value_table(h);
+
         table_set(f->parent->children, name, f);
+    }
 }
 
-static file allocate_file(filebag fb, file parent)
+static file allocate_file(filebag fb, file parent, uuid u)
 {
     // should allow reparenting using rename()
     // and link()
     file f = allocate(fb->h, sizeof(struct file));
-    f->u = generate_uuid();
+    f->u = u;
     f->name = 0;
     f->parent = parent;
     f->children = 0;
@@ -102,7 +106,6 @@ static void filebag_ea_scan(filebag fb, file f, struct stat *s, listener out, va
 
 static void fill_children(filebag fb, file f)
 {
-    if (!f->children) f->children = create_value_table(fb->h);
     char *path = path_of_file(f);
     DIR *x;
     if (!(x= opendir(path_of_file(f)))) return;
@@ -116,7 +119,7 @@ static void fill_children(filebag fb, file f)
         estring cname = intern_cstring(d->d_name);
 
         if (!(child = table_find(f->children, cname)))
-            name_file(allocate_file(fb, f), cname);
+            name_file(fb->h, allocate_file(fb, f, generate_uuid()), cname);
     }
 }
 
@@ -182,14 +185,15 @@ void filebag_commit(filebag fb, edb s)
     edb_foreach_a(s, e, sym(child), v, m) {
         file parent;
         if ((parent = table_find(fb->idmap, e))){
-            allocate_file(fb, e);
+            allocate_file(fb, parent, v);
         }
     }
 
     edb_foreach_a(s, e, sym(name), v, m) {
-        file parent;
-        if ((parent = table_find(fb->idmap, e)))
-            allocate_file(fb, e);
+        file f;
+        if ((f = table_find(fb->idmap, e))) {
+            name_file(fb->h, f, v);
+        }
     }
 
     edb_foreach_a(s, e, sym(contents), v, m) {
@@ -197,7 +201,7 @@ void filebag_commit(filebag fb, edb s)
         estring contents = v;
         // xxx ordering
         if ((f = table_find(fb->idmap, e)) && (f->name)){
-            descriptor fd = open(path_of_file(f), O_WRONLY|O_CREAT|O_TRUNC);
+            descriptor fd = open(path_of_file(f), O_WRONLY|O_CREAT|O_TRUNC, 0666);
             int res = write(fd, contents->body, contents->length);
             if (res != contents->length) {
                 prf("file write failed\n");
@@ -219,16 +223,14 @@ bag filebag_init(buffer root_pathname, uuid root)
     heap h = allocate_rolling(init, sstring("filebag"));
     filebag fb = allocate(h, sizeof(struct filebag));
     fb->h = h;
-    fb->b.insert=cont(h, filebag_insert, fb);
-    fb->b.scan=cont(h, filebag_scan, fb);
+    fb->b.insert = cont(h, filebag_insert, fb);
+    fb->b.scan = cont(h, filebag_scan, fb);
+    fb->b.u = generate_uuid();
     fb->idmap = create_value_table(h);
-    fb->root = allocate_file(fb, 0);
+    fb->root = allocate_file(fb, 0, generate_uuid());
     fb->root->name = intern_cstring(".");
-
-    // xxx duplicated
     fb->b.listeners = allocate_table(h, key_from_pointer, compare_pointer);
-    fb->b.delta_listeners = allocate_table(h, key_from_pointer, compare_pointer);
     fb->b.implications = allocate_table(h, key_from_pointer, compare_pointer);
-
+    fb->b.commit = cont(h, filebag_commit, fb);
     return (bag)fb;
 }

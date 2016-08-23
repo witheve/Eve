@@ -14,7 +14,7 @@ build the chat pane
 ```
   match
     channel = "general"
-  bind
+  bind @browser
     [#div class: "chat-pane" children:
       [#div #chat-messages class: "chat-messages" channel]
       [#input #channel-input autofocus: true channel]]
@@ -26,7 +26,7 @@ draw messages
   match
     parent = [#chat-messages channel]
     id = [#message name time message channel]
-  bind
+  bind @browser
     parent.children += [#div id, class: "chat-message", children:
                          [#div class: "chat-user", text: name]
                          [#div class: "chat-time", text: time]
@@ -41,8 +41,8 @@ handle chat keydowns
     element = [#channel-input channel value]
     [#user name]
     [#time hours minutes seconds]
-  commit
+  commit @browser
     element.value := ""
-  commit global
+  commit @all
     [#message event name, time: "{{hours}}:{{minutes}}", message: value, channel]
 ```

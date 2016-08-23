@@ -15,7 +15,7 @@ Draw the game world!
 ```
   match
     [#session-connect]
-  commit
+  commit @browser
     [#div style: [user-select: "none" -webkit-user-select: "none" -moz-user-select: "none"]  children:
       [#svg @game-window viewBox: "10 0 80 100", width: 480 children:
         [#rect x: 0 y: 0 width: 100 height: 53 fill: "rgb(112, 197, 206)" sort: 0]
@@ -32,7 +32,7 @@ Draw the main menu
   match
     [@world screen: "menu"]
     svg = [@game-window]
-  bind
+  bind @browser
     svg.children += [#text x: 50 y: 45 text-anchor: "middle" font-size: 6 text: "Click the screen to begin!" sort: 10]
 ```
 
@@ -49,7 +49,7 @@ Draw the game over final score
   match
     [@world screen: "game over" score best]
     svg = [@game-window]
-  bind
+  bind @browser
     svg.children += [#text x: 50 y: 30 text-anchor: "middle" font-size: 6 text: "Game Over :(" sort: 10]
     svg.children += [#text x: 50 y: 55 text-anchor: "middle" font-size: 6 text: "Score {{score}}" sort: 10]
     svg.children += [#text x: 50 y: 65 text-anchor: "middle" font-size: 6 text: "Best {{best}}" sort: 10]
@@ -99,7 +99,7 @@ Draw the player
     svg = [@game-window]
     player = [#player x y]
     imgs = "https://cdn.rawgit.com/bhauman/flappy-bird-demo/master/resources/public/imgs"
-  bind
+  bind @browser
     sprite = [#image player width: 10 height: 10 href: "http://i.imgur.com/sp68LtM.gif" sort: 8]
     sprite.x := x - 5
     sprite.y := y - 5
@@ -114,7 +114,7 @@ Draw the obstacles
     bottom-height = height + gap
     imgs = "https://cdn.rawgit.com/bhauman/flappy-bird-demo/master/resources/public/imgs"
 
-  bind
+  bind @browser
     sprite-group = [#svg @obs-spr obstacle sort: 2 overflow: "visible" children:
       [#image y: 0 width: 10 height, preserveAspectRatio: "none" href: "{{imgs}}/pillar-bkg.png" sort: 1]
       [#image x: -1 y: height - 5 width: 12 height: 5 href: "{{imgs}}/lower-pillar-head.png" sort: 2]

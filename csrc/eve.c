@@ -56,11 +56,11 @@ static void handle_error_terminal(char * message, bag data, uuid data_id) {
 }
 
 
-static CONTINUATION_1_2(test_result, heap, table, table);
-static void test_result(heap h, table s, table c)
+static CONTINUATION_1_3(test_result, heap, multibag, multibag,  table);
+static void test_result(heap h, multibag t, multibag f, table counts)
 {
-    if (s) {
-        table_foreach(s, n, v) {
+    if (f) {
+        table_foreach(f, n, v) {
             prf("result: %v %b\n", n, edb_dump(h, (edb)v));
         }
     } else prf("result: empty\n");

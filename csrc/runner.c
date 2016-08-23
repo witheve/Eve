@@ -2,6 +2,47 @@
 
 #define multibag_foreach(__m, __u, __b)  if(__m) table_foreach(__m, __u, __b)
 
+// should these guys really reconcile their differences
+static inline int multibag_count(table m)
+{
+    int count = 0;
+    multibag_foreach(m, u, b)
+        count += edb_size(b);
+    return count;
+}
+
+static boolean compare_multibags(multibag a, multibag b)
+{
+    bag d;
+    if (!a != !b) return false; // if one is zero and the other not, not equal
+    if (!a) return true;        // both are empty
+
+    table_foreach(a, u, ab) {
+        bag bb = table_find(b, u);
+        if (!bb) return false;
+        if (edb_size((edb)ab) != edb_size((edb)bb))
+            return false;
+
+        edb_foreach((edb)ab, e, a, v, c, _) {
+            if (count_of((edb)bb, e, a, v) != c) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+void multibag_insert(multibag *mb, heap h, uuid u, value e, value a, value v, multiplicity m, uuid block_id)
+{
+    bag b;
+
+    if (!*mb) (*mb) = create_value_table(h);
+    if (!(b = table_find((*mb), u)))
+        table_set(*mb, u, b = (bag)create_edb(h, u, 0));
+
+    apply(b->insert, e, a, v, m, block_id);
+}
+
 // debuggin
 static estring bagname(evaluation e, uuid u)
 {
@@ -11,51 +52,14 @@ static estring bagname(evaluation e, uuid u)
     return(intern_cstring("missing bag?"));
 }
 
-static inline int multibag_count(table m)
-{
-    int count = 0;
-    multibag_foreach(m, u, b)
-        count += edb_size(b);
-    return count;
-}
-
-static boolean compare_sets(table set, table retain, table destroy)
-{
-    bag d;
-    if (!retain != !destroy) return false;
-    if (!retain) return true;
-
-    table_foreach(set, u, _) {
-        bag s = table_find(retain, u);
-        bag d = table_find(destroy, u);
-
-        if (!s != !d) return false;
-        if (s) {
-            if (edb_size((edb)d) != edb_size((edb)s)){
-                return false;
-            }
-            edb_foreach((edb)s, e, a, v, c, _) {
-                if (count_of((edb)d, e, a, v) != c) {
-                    return false;
-                }
-            }
-        }
-    }
-    return true;
-}
-
 // @FIXME: This collapses multibag diffs into a single diff.
-static bag diff_sets(heap h, table set, table neue_bags, table old_bags)
+static bag diff_sets(heap h, multibag neue_bags, multibag old_bags)
 {
     uuid diff_id = generate_uuid();
     bag diff = (bag)create_edb(h, diff_id, 0);
+    bag old;
 
-    table_foreach(set, u, _) {
-        bag neue = 0;
-        if(neue_bags) {
-            neue = table_find(neue_bags, u);
-        }
-        bag old = 0;
+    table_foreach(neue_bags, u, neue) {
         if(old_bags) {
             old = table_find(old_bags, u);
         }
@@ -63,45 +67,29 @@ static bag diff_sets(heap h, table set, table neue_bags, table old_bags)
         if (!neue || !old) {
             continue;
         } else if (neue && !old) {
-            edb_foreach((edb)neue, e, a, v, c, bku) {
-                apply(diff->insert, e, a, v, c, bku);
+            edb_foreach((edb)neue, e, a, v, c, block_id) {
+                apply(diff->insert, e, a, v, c, block_id);
             }
         } else if(!neue && old) {
-            edb_foreach((edb)old, e, a, v, c, bku) {
-                apply(diff->insert, e, a, v, 0, bku);
+            edb_foreach((edb)old, e, a, v, c, block_id) {
+                apply(diff->insert, e, a, v, 0, block_id);
             }
         } else {
-            edb_foreach((edb)neue, e, a, v, c, bku) {
+            edb_foreach((edb)neue, e, a, v, c, block_id) {
                 if (count_of((edb)old, e, a, v) != c) {
-                    apply(diff->insert, e, a, v, c, bku);
+                    apply(diff->insert, e, a, v, c, block_id);
                 }
             }
-            edb_foreach((edb)old, e, a, v, c, bku) {
+            edb_foreach((edb)old, e, a, v, c, block_id) {
                 multiplicity neue_c = count_of((edb)neue, e, a, v);
                 if (neue_c != c && neue_c == 0) {
-                    apply(diff->insert, e, a, v, 0, bku);
+                    apply(diff->insert, e, a, v, 0, block_id);
                 }
             }
         }
     }
     return diff;
 }
-
-static CONTINUATION_1_5(insert_f, evaluation, uuid, value, value, value, multiplicity);
-static void insert_f(evaluation ev, uuid u, value e, value a, value v, multiplicity m)
-{
-    bag b;
-    //  prf("insert %v %v %v %v %d\n", bagname(ev, u), e, a, v, m);
-    if (!ev->block_solution)
-        ev->block_solution = create_value_table(ev->working);
-
-    if (!(b = table_find(ev->block_solution, u)))
-        table_set(ev->block_solution, u, b = (bag)create_edb(ev->working, u, 0));
-
-    apply(b->insert, e, a, v, m, ev->bk->name);
-}
-
-
 
 static CONTINUATION_2_5(shadow_f_by_p_and_t, evaluation, listener, value, value, value, multiplicity, uuid);
 static void shadow_f_by_p_and_t(evaluation ev, listener result, value e, value a, value v, multiplicity m, uuid bku)
@@ -126,10 +114,8 @@ static void shadow_t_by_f(evaluation ev, listener result, value e, value a, valu
 
     if (m > 0) {
         bag b;
-        table_foreach(ev->f_bags, u, _) {
-            if (ev->last_f_solution && (b = table_find(ev->last_f_solution, u)))
-                total += count_of((edb)b, e, a, v);
-        }
+        multibag_foreach(ev->f_solution, u, b)
+            total += count_of((edb)b, e, a, v);
         if (total >= 0)
             apply(result, e, a, v, m, bku);
     }
@@ -145,45 +131,35 @@ static void shadow_p_by_t_and_f(evaluation ev, listener result,
 
     if (m > 0) {
         bag b;
-        multibag_foreach(ev->t_solution, u, b) {
+        multibag_foreach(ev->t_solution, u, b)
             total += count_of(b, e, a, v);
-        }
 
         if (total >= 0) {
             total = 0;
-            table_foreach(ev->f_bags, u, _) {
-                if (ev->last_f_solution && (b = table_find(ev->last_f_solution, u)))
-                    total += count_of((edb)b, e, a, v);
-            }
+            multibag_foreach(ev->last_f_solution, u, b)
+                total += count_of((edb)b, e, a, v);
             if (total >= 0)
                 apply(result, e, a, v, m, bku);
         }
     }
 }
 
-static CONTINUATION_1_5(merge_scan, evaluation, int, listener, value, value, value);
-static void merge_scan(evaluation ev, int sig, listener result, value e, value a, value v)
+void merge_scan(evaluation ev, vector scopes, int sig, listener result, value e, value a, value v)
 {
-    table_foreach(ev->persisted, u, b) {
-        bag proposed;
+    multibag_foreach(ev->t_input, u, b)
         apply(((bag)b)->scan, sig,
               cont(ev->working, shadow_p_by_t_and_f, ev, result),
               e, a, v);
-        if (ev->t_solution && (proposed = table_find(ev->t_solution, u))) {
-            apply(proposed->scan, sig,
-                  cont(ev->working, shadow_t_by_f, ev, result),
-                  e, a, v);
-        }
-    }
 
-    table_foreach(ev->f_bags, u, _) {
-        bag last;
-        if (ev->last_f_solution && (last = table_find(ev->last_f_solution, u))){
-            apply(last->scan, sig,
-                  cont(ev->working, shadow_f_by_p_and_t, ev, result),
-                  e, a, v);
-        }
-    }
+    multibag_foreach(ev->t_solution, u, b)
+        apply(((bag)b)->scan, sig,
+              cont(ev->working, shadow_t_by_f, ev, result),
+              e, a, v);
+
+    multibag_foreach(ev->last_f_solution, u, b)
+        apply(((bag)b)->scan, sig,
+              cont(ev->working, shadow_f_by_p_and_t, ev, result),
+              e, a, v);
 }
 
 static CONTINUATION_1_0(evaluation_complete, evaluation);
@@ -192,35 +168,6 @@ static void evaluation_complete(evaluation s)
     s->non_empty = true;
 }
 
-
-static boolean merge_solution_into_t(evaluation ev, uuid u, bag s)
-{
-    static int runcount = 0;
-    runcount++;
-    bag bd;
-    boolean result = false;
-
-    if (!ev->t_solution)
-        ev->t_solution = create_value_table(ev->working);
-
-    if (!(bd = table_find(ev->t_solution, u))) {
-        table_set(ev->t_solution, u, s);
-        return true;
-    } else {
-        edb_foreach((edb)s, e, a, v, count, bk) {
-            int old_count = count_of((edb)bd, e, a, v);
-            if ((count > 0) && (old_count == 0)) {
-                result = true;
-                apply(bd->insert, e, a, v, 1, bk);
-            }
-            if (count < 0) {
-                result = true;
-                apply(bd->insert, e, a, v, -1, bk);
-            }
-        }
-    }
-    return result;
-}
 
 static void merge_multibag_bag(evaluation ev, table *d, uuid u, bag s)
 {
@@ -238,12 +185,42 @@ static void merge_multibag_bag(evaluation ev, table *d, uuid u, bag s)
     }
 }
 
+
+static boolean merge_solution_into_t(multibag *m, heap h, uuid u, bag s)
+{
+    static int runcount = 0;
+    runcount++;
+    bag bd;
+    boolean result = false;
+
+    if (!*m)
+        *m = create_value_table(h);
+
+    if (!(bd = table_find(*m, u))) {
+        table_set(*m, u, s);
+        return true;
+    } else {
+        edb_foreach((edb)s, e, a, v, count, bk) {
+            int old_count = count_of((edb)bd, e, a, v);
+            if ((count > 0) && (old_count == 0)) {
+                result = true;
+                apply(bd->insert, e, a, v, 1, bk);
+            }
+            if (count < 0) {
+                result = true;
+                apply(bd->insert, e, a, v, -1, bk);
+            }
+        }
+    }
+    return result;
+}
+
 static void run_block(evaluation ev, block bk)
 {
     heap bh = allocate_rolling(pages, sstring("block run"));
-    bk->ev->block_solution = 0;
+    bk->ev->block_t_solution = 0;
+    bk->ev->block_f_solution = 0;
     bk->ev->non_empty = false;
-    ev->bk = bk;
     ticks start = rdtsc();
     value *r = allocate(ev->working, (bk->regs + 1)* sizeof(value));
 
@@ -253,9 +230,13 @@ static void run_block(evaluation ev, block bk)
 
     ev->cycle_time += rdtsc() - start;
 
-    if (bk->ev->non_empty)
-        multibag_foreach(ev->block_solution, u, b)
-            merge_multibag_bag(ev, &ev->solution, u, b);
+    if (bk->ev->non_empty) {
+        multibag_foreach(ev->block_f_solution, u, b)
+            merge_multibag_bag(ev, &ev->f_solution, u, b);
+        // is this really merge_multibag_bag?
+        multibag_foreach(ev->block_t_solution, u, b)
+            merge_multibag_bag(ev, &ev->t_solution_for_f, u, b);
+    }
 
     destroy(bh);
 }
@@ -302,21 +283,22 @@ static boolean fixedpoint(evaluation ev)
 {
     long iterations = 0;
     vector counts = allocate_vector(ev->working, 10);
-    boolean again;
-
     ticks start_time = now();
     ev->t = start_time;
-    ev->solution = 0;
-
+    boolean again;
     vector t_diffs = allocate_vector(ev->working, 2);
+
+    ev->t_solution = 0;
     do {
         again = false;
-        ev->solution =  0;
+        ev->f_solution =  0;
         vector f_diffs = allocate_vector(ev->working, 2);
+
         do {
+            ev->t_solution_for_f = 0;
             iterations++;
-            ev->last_f_solution = ev->solution;
-            ev->solution = 0;
+            ev->last_f_solution = ev->f_solution;
+            ev->f_solution = 0;
 
             if (ev->event_blocks)
                 vector_foreach(ev->event_blocks, b)
@@ -325,33 +307,30 @@ static boolean fixedpoint(evaluation ev)
                 run_block(ev, b);
 
             if(iterations > (MAX_F_ITERATIONS - 1)) { // super naive 2-cycle diff capturing
-                vector_insert(f_diffs, diff_sets(ev->working, ev->f_bags, ev->last_f_solution, ev->solution));
+                vector_insert(f_diffs, diff_sets(ev->working, ev->last_f_solution, ev->f_solution));
             }
             if(iterations > MAX_F_ITERATIONS) {
                 fixedpoint_error(ev, f_diffs, "Unable to converge in F");
                 return false;
             }
-        } while(!compare_sets(ev->f_bags, ev->solution, ev->last_f_solution));
+        } while(!compare_multibags(ev->f_solution, ev->last_f_solution));
 
         if(vector_length(counts) > (MAX_T_ITERATIONS - 1)) {
             bag diff = (bag)create_edb(ev->working, generate_uuid(), 0);
-            multibag_foreach(ev->solution, u, b) {
-                if (table_find(ev->persisted, u)) {
-                    edb_foreach((edb)b, e, a, v, c, bku) {
-                        apply(diff->insert, e, a, v, c, bku);
-                    }
+            multibag_foreach(ev->t_solution, u, b) {
+                edb_foreach((edb)b, e, a, v, c, block_id) {
+                    apply(diff->insert, e, a, v, c, block_id);
                 }
             }
             vector_insert(t_diffs, diff);
         }
 
-        multibag_foreach(ev->solution, u, b)
-            if (table_find(ev->persisted, u))
-                again |= merge_solution_into_t(ev, u, b);
-
         vector_insert(counts, box_float((double)iterations));
         iterations = 0;
         ev->event_blocks = 0;
+
+        multibag_foreach(ev->t_solution_for_f, u, b)
+            again |= merge_solution_into_t(&ev->t_solution, ev->working, u, b);
 
         if(vector_length(counts) > MAX_T_ITERATIONS) {
             fixedpoint_error(ev, t_diffs, "Unable to converge in T");
@@ -360,34 +339,18 @@ static boolean fixedpoint(evaluation ev)
     } while(again);
 
 
-    int delta_t_count = 0;
+    // what about multibag commits?
+    // new bags really shouldn't be allocated from ev->h
     multibag_foreach(ev->t_solution, u, b) {
         bag bd;
-        if ((bd = table_find(ev->persisted, u))) {
-            delta_t_count += edb_size(b);
-            apply(bd->commit, b);
-        }
+        if (!(bd = table_find(ev->t_input, u)))
+            table_set(ev->t_input, u, bd = (bag)create_edb(ev->h, u, 0));
+        apply(bd->commit, b);
     }
 
-    // this should schedule each dependent at most once, regardless of the
-    // number of bags
-    if (ev->t_solution) {
-        table_foreach (ev->persisted, u, b){
-            if (table_find(ev->t_solution, u)) {
-                table_foreach(((bag)b)->listeners, t, _)
-                    if (t != ev->run)
-                        apply((thunk)t);
-            }
-        }
-    }
-
-    // allow the deltas to also see the updated base by applying
-    // them after
-    multibag_foreach(ev->t_solution, u, b) {
-        bag bd;
-        if ((bd = table_find(ev->persisted, u))) {
-            table_foreach(bd->delta_listeners, t, _)
-                apply((bag_handler)t, ev, b);
+    multibag_foreach(ev->t_solution, u, b){
+        table_foreach(((bag)b)->listeners, t, _) {
+            apply((bag_handler)t, b);
         }
     }
 
@@ -397,38 +360,30 @@ static boolean fixedpoint(evaluation ev)
     table_set(ev->counters, intern_cstring("time"), (void *)(end_time - start_time));
     table_set(ev->counters, intern_cstring("iterations"), (void *)iterations);
     table_set(ev->counters, intern_cstring("cycle-time"), (void *)ev->cycle_time);
-    apply(ev->complete, ev->solution, ev->counters);
-
-    int f_count = 0;
-    if (ev->solution) {
-        table_foreach(ev->f_bags, u, _) {
-            bag b = table_find(ev->solution, u);
-            if (b)  f_count += edb_size((edb)b);
-        }
-    }
+    // ??
+    apply(ev->complete, ev->t_solution, ev->f_solution, ev->counters);
 
     prf ("fixedpoint in %t seconds, %d blocks, %V iterations, %d changes to global, %d maintains, %t seconds handler\n",
          end_time-start_time, vector_length(ev->blocks),
          counts,
-         delta_t_count,
-         f_count,
+         multibag_count(ev->t_solution),
+         multibag_count(ev->f_solution),
          now() - end_time);
     destroy(ev->working);
     return true;
 }
 
-static void clear_evaluation(evaluation ev)
+static void setup_evaluation(evaluation ev)
 {
+    ev->event_blocks = 0;
     ev->working = allocate_rolling(pages, sstring("working"));
-    ev->t_solution = 0;
     ev->t = now();
 }
 
 void inject_event(evaluation ev, buffer b, boolean tracing)
 {
     buffer desc;
-    clear_evaluation(ev);
-    ev->event_blocks = 0;
+    setup_evaluation(ev);
     vector c = compile_eve(ev->working, b, tracing, &desc);
 
     vector_foreach(c, i) {
@@ -442,13 +397,13 @@ void inject_event(evaluation ev, buffer b, boolean tracing)
 CONTINUATION_1_0(run_solver, evaluation);
 void run_solver(evaluation ev)
 {
-    clear_evaluation(ev);
+    setup_evaluation(ev);
     fixedpoint(ev);
 }
 
 void close_evaluation(evaluation ev)
 {
-    table_foreach(ev->persisted, uuid, b)
+    table_foreach(ev->t_input, uuid, b)
         table_set(((bag)b)->listeners, ev->run, 0);
 
     vector_foreach(ev->blocks, b)
@@ -457,34 +412,35 @@ void close_evaluation(evaluation ev)
     destroy(ev->h);
 }
 
-evaluation build_evaluation(table scopes, table persisted, evaluation_result r, error_handler error)
+evaluation build_evaluation(table scopes, multibag t_input, evaluation_result r, error_handler error)
 {
     heap h = allocate_rolling(pages, sstring("eval"));
     evaluation ev = allocate(h, sizeof(struct evaluation));
     ev->h = h;
     ev->error = error;
     ev->scopes = scopes;
-    ev->f_bags = create_value_table(h);
-    table_foreach(scopes, n, u){
-        if (!table_find(persisted, u)) {
-            table_set(ev->f_bags, u, (void *)1);
-        }
-    }
-
+    ev->t_input = t_input;
     ev->counters =  allocate_table(h, key_from_pointer, compare_pointer);
-    ev->insert = cont(h, insert_f, ev);
     ev->blocks = allocate_vector(h, 10);
-    ev->persisted = persisted;
     ev->cycle_time = 0;
-    ev->reader = cont(ev->h, merge_scan, ev);
     ev->complete = r;
     ev->terminal = cont(ev->h, evaluation_complete, ev);
-
     ev->run = cont(h, run_solver, ev);
-    table_foreach(ev->persisted, uuid, z) {
+
+    ev->default_insert_scopes = table_find(scopes, sym(session));
+    if (!ev->default_insert_scopes)
+        prf("proceeding without a default insert target (usually session)\n");
+
+    ev->default_scan_scopes = allocate_vector(h, table_elements(scopes));
+    table_foreach(scopes, n, u)
+        vector_insert(ev->default_scan_scopes, u);
+
+
+    table_foreach(ev->t_input, uuid, z) {
         bag b = z;
 
         table_set(b->listeners, ev->run, (void *)1);
+        // xxx - reflecton
         table_foreach(b->implications, n, v){
             vector_insert(ev->blocks, build(ev, n));
         }

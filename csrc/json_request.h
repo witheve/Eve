@@ -4,7 +4,7 @@ typedef struct json_session {
     table current_delta;
     table persisted;
     buffer_handler write; // to weboscket
-    uuid event_uuid;
+    uuid browser_uuid;
     buffer graph;
     table scopes;
     bag root, session;

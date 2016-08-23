@@ -1,6 +1,6 @@
 # TodoMVC
 
-[TodoMVC][1] is a specification for a todo list web application. Its original purpose was to help developers evaluate the plethora of Javascript frameworks implementing the Model-View-Controller (MVC) design pattern. Today, it has evolved into a benchmark for programming languages and frameworks targeting the web, so TodoMVC apps don’t necessarily reflect the MVC design pattern. 
+[TodoMVC][1] is a specification for a todo list web application. Its original purpose was to help developers evaluate the plethora of Javascript frameworks implementing the Model-View-Controller (MVC) design pattern. Today, it has evolved into a benchmark for programming languages and frameworks targeting the web, so TodoMVC apps don’t necessarily reflect the MVC design pattern.
 TodoMVC is a great example to demonstrate Eve's capabilities, as our semantics naturally enable a concise implementation; without optimizing for line count, the program you're reading only contains 63 lines of Eve code.
 
 [1]: http://todomvc.com/
@@ -28,9 +28,9 @@ In this block, we do a little work to determine todo-count, all-checked, and non
                   else false
     none-checked = if [#todo completed: true] then false
                    else true
-    todo-count = if c = count[given: [#todo completed: false]] then c 
+    todo-count = if c = count[given: [#todo completed: false]] then c
                  else 0
-  bind
+  bind @browser
     [#link rel: "stylesheet" href: "/examples/todomvc.css"] // Links to an external stylesheet
     [#div class: "todoapp" children: [#header children: [#h1 text: "todos"]
       [#input @new-todo, class: "new-todo", autofocus: true, placeholder: "What needs to be done?"]
@@ -63,7 +63,7 @@ Now we look at how the todos are actually displayed in the application. We attac
       if filter = "completed" then ([#todo, body, completed: true, editing], body, true, editing)
       else if filter = "active" then ([#todo, body, completed: false, editing], body, false, editing)
       else if filter = "all" then ([#todo, body, completed, editing], body, completed, editing)
-  bind
+  bind @browser
     parent.children += [#li, class: [todo: true, completed, editing], todo, children:
                        [#input #todo-checkbox, todo, class: [toggle: true, hidden: editing], type: "checkbox", checked: completed]
                        [#label #todo-item, class: [hidden: editing], todo, text: body]
@@ -85,6 +85,7 @@ A user can interact with TodoMVC in several ways. First and foremost, the user c
     kd = [#keydown element, key: "enter"]
   commit
     [#todo body: value, editing: false, completed: false, kd]
+  commit @browser
     element.value := ""
 ```
 

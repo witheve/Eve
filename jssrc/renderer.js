@@ -438,7 +438,7 @@ window.addEventListener("input", function(event) {
       \`\`\`
       match
         input = ${target.entity}
-      commit
+      commit @browser
         input.value := "${target.value.replace("\"", "\\\"")}"
       \`\`\``;
     sendEvent(query);
