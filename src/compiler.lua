@@ -1347,6 +1347,7 @@ function analyze(content, quiet)
     print("--- BAG ---")
     local bag = db.Bag:new({name = queryGraph.name})
     print(dependencyGraph:addToBag(bag))
+    bag:sync()
   end
 
   if context.errors and #context.errors ~= 0 then
