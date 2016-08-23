@@ -599,13 +599,13 @@ function Bag:recordToEAVs(record, id, mapping)
     eavs[#eavs + 1] = {id, "tag", "array"}
   end
 
-  return eavs
+  return eavs, id
 end
 
 function Bag:addRecord(record, id, mapping)
-
-  local eavs = self:recordToEAVs(record, id, mapping)
+  local eavs, id = self:recordToEAVs(record, id, mapping)
   self:addMany(eavs)
+  return id
 end
 
 function Bag.__tostring(bag)
