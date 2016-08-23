@@ -51,6 +51,8 @@ void http_register_service(http_server, http_service, string);
 typedef closure(json_handler, bag, uuid);
 reader parse_json(heap h, json_handler j);
 void print_value_json(buffer out, value v);
+void print_value_vector_json(buffer out, vector vec);
+void escape_json(buffer out, string current);
 
 reader response_header_parser(heap, http_handler);
 reader request_header_parser(heap, http_handler);
