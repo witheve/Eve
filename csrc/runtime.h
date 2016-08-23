@@ -69,7 +69,11 @@ struct node {
 };
 
 
-typedef closure(evaluation_result, table, table);
+#include <edb.h>
+
+typedef table multibag;
+
+typedef closure(evaluation_result, multibag, multibag, table);
 
 typedef closure(block_completion, boolean);
 
@@ -89,31 +93,28 @@ struct block {
     table nmap;
 };
 
-
-#include <edb.h>
-
-typedef closure(insertron, value, value, value, value, multiplicity);
 typedef closure(error_handler, char *, bag, uuid);
+typedef closure(bag_handler, bag);
 
 struct evaluation  {
     heap h;
-    heap working;
-    insertron insert;
-    scanner reader;
+    heap working; // lifetime is a whole f-t pass
     error_handler error;
 
-    table counters;
-
-    table block_solution;
-    table solution;
-    table last_f_solution;
-    table t_solution;
-
-    table persisted;
     table scopes;
+    multibag t_input;
+    multibag block_t_solution;
+    multibag block_f_solution;
+    multibag f_solution;
+    multibag last_f_solution;
+    multibag t_solution;
+    multibag t_solution_for_f;
+    // map from names to uuids
+
     vector blocks;
     vector event_blocks;
 
+    table counters;
     ticks t;
     boolean non_empty;
     evaluation_result complete;
@@ -121,8 +122,9 @@ struct evaluation  {
     thunk terminal;
     thunk run;
     ticks cycle_time;
-    table f_bags;
-    block bk; //currently running block
+
+    vector default_scan_scopes;
+    vector default_insert_scopes; // really 'session'
 };
 
 
@@ -140,11 +142,7 @@ evaluation build_evaluation(table scopes, table persisted, evaluation_result e, 
 void run_solver(evaluation s);
 void inject_event(evaluation, buffer b, boolean);
 void block_close(block);
-
-void init_request_service(bag b);
-
-
-typedef closure(bag_handler, evaluation, bag);
+bag init_request_service();
 
 bag filebag_init(buffer, uuid);
 extern thunk ignore;
@@ -160,3 +158,6 @@ static void get_stack_trace(string *out)
         bprintf(*out, "0x%016x\n", addr);
     }
 }
+
+void merge_scan(evaluation ev, vector scopes, int sig, listener result, value e, value a, value v);
+void multibag_insert(multibag *mb, heap h, uuid u, value e, value a, value v, multiplicity m, uuid block_id);

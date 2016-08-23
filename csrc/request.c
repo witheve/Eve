@@ -54,7 +54,8 @@ static void eve_json_input(request r, bag from_server, uuid n)
         }
         merge_remote(r->b, from_server, lookupv((edb)from_server, n, sym(insert)), 1);
         merge_remote(r->b, from_server, lookupv((edb)from_server, n, sym(remove)), -1);
-        inject_event(r->ev, aprintf(r->h,"init!\n```\nbind [#eve-response]\n```"), 0);
+        // listener
+        // inject_event(r->ev, aprintf(r->h,"init!\n```\nbind [#eve-response]\n```"), 0);
     }
 }
 
@@ -68,8 +69,10 @@ static void eve_json_input(request r, bag from_server, uuid n)
 //   udp-json
 //   etc...
 extern thunk ignore;
-static CONTINUATION_2_2(bag_update, table, bag, evaluation, bag);
-static void bag_update(table idmap, bag root, evaluation ev, bag deltas)
+
+// committer
+static CONTINUATION_2_1(bag_update, table, bag, bag);
+static void bag_update(table idmap, bag root, bag deltas)
 {
     heap h = init;
 
@@ -89,9 +92,8 @@ static void bag_update(table idmap, bag root, evaluation ev, bag deltas)
         heap h = init;
         request r = allocate(h, sizeof(struct request));
         r->h = h;
-        r->ev = ev;
-        // xxx - not super general
-        r->b = table_find(ev->persisted, table_find(ev->scopes, sym(remote)));
+        // deltas
+        //   r->b = table_find(ev->persisted, table_find(ev->scopes, sym(remote)));
         bag shadow = (bag)create_edb(h, root->u, build_vector(h, root));
         apply(shadow->insert, e, sym(url), sym(/ws), 1, 0);
         apply(shadow->insert, e, sym(method), sym(GET), 1, 0);
@@ -104,9 +106,11 @@ static void bag_update(table idmap, bag root, evaluation ev, bag deltas)
 
 // ok, this is more of an experiment to see if we can
 // manage state sympathetically with an eve program
-void init_request_service(bag b)
+bag init_request_service()
 {
     table idmap = create_value_table(init);
+    // ok, we're going to do that...uhh,
     // temporary - going to be implemented just as a bag handler
-    table_set(b->delta_listeners, cont(init, bag_update, idmap, b), (void *)1);
+    // table_set(b->delta_listeners, cont(init, bag_update, idmap, b), (void *)1);
+    return (bag)create_edb(init, generate_uuid(), 0);
 }

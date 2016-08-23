@@ -46,10 +46,10 @@ static void handle_error(session session, char * message, bag data, uuid data_id
 }
 
 
-static CONTINUATION_1_2(http_request_complete, session, table, table)
-static void http_request_complete(session hs, table solution, table counters)
+static CONTINUATION_1_3(http_request_complete, session, multibag, multibag, table);
+static void http_request_complete(session hs, multibag f_solution, multibag t_solution, table counters)
 {
-    edb s = table_find(solution, hs->session_id);
+    edb s = table_find(t_solution, hs->session_id);
 
     if (s) {
         edb_foreach_e(s, e, sym(tag), sym(http-response), m) {
@@ -104,8 +104,9 @@ static void dispatch_request(session s, bag b, uuid i, register_read reg)
             send_http_response(s->h, s->write, "200 OK", c[0], k);
         } else {
             if (s->ev) {
-                table_set(s->ev->persisted, s->event_id, b);
-                table_set(s->ev->persisted, s->session_id, create_edb(s->h, s->session_id, 0));
+                // add to the evaluation read set
+                table_set(s->ev->t_input, s->event_id, b);
+                table_set(s->ev->t_input, s->session_id, create_edb(s->h, s->session_id, 0));
 
                 inject_event(s->ev,
                              aprintf(s->h,"init!\n```\nbind\n[#http-request request:%v]\n```",

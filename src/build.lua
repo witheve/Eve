@@ -350,6 +350,7 @@ function translate_object(n, bound, down, context, tracing)
 
    return env, cnode(n, "scan", {c},
                   {sig = sig,
+                   scopes = n.scopes,
                    e = ef(n, env, e),
                    a = af(n, env, a),
                    v = vf(n, env, v)},
@@ -368,8 +369,20 @@ function translate_mutate(n, bound, down, context, tracing)
    local env, c = down(bound)
    local operator = n.operator
 
+   -- the nodes arguments are all arrays, so translate
+   local scopes = {}
+   for k, v in pairs(n.scopes) do
+        scopes[#scopes+1] = k
+   end
+
+   if (#scopes == 0) then
+      scopes[1] = "session"
+   end
+
+
    c = cnode(n, operator, {c},
-                        {scope =n.scope,
+                        {scopes = scopes,
+                         mutateType = n.mutateType,
                          e = read_lookup(n, env,e),
                          a = read_lookup(n, env,a),
                          v = read_lookup(n, env,v)},
