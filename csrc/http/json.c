@@ -11,6 +11,24 @@ typedef parser (*completion)(json_parser);
      (__p->number = __p->number * __base + (__c - __start + __offset), true):false)
 
 
+void escape_json(buffer out, string current)
+{
+    buffer_write_byte(out , '"');
+    string_foreach(current, ch) {
+        if(ch == '\\' || ch == '"') {
+            bprintf(out , "\\");
+        } else if(ch == '\n') {
+            bprintf(out , "\\n");
+            continue;
+        } else if(ch == '\t') {
+            bprintf(out , "\\t");
+            continue;
+        }
+        buffer_write_byte(out , ch);
+    }
+    buffer_write_byte(out , '"');
+}
+
 void print_value_json(buffer out, value v)
 {
     switch(type_of(v)) {
@@ -24,17 +42,22 @@ void print_value_json(buffer out, value v)
         {
             estring si = v;
             buffer current = alloca_wrap_buffer(si->body, si->length);
-            buffer_write_byte(out , '"');
-            string_foreach(current, ch) {
-                if(ch == '\\' || ch == '"') {
-                    bprintf(out , "\\");
-                } else if(ch == '\n') {
-                    bprintf(out , "\\n");
-                    continue;
-                }
-                buffer_write_byte(out , ch);
-            }
-            buffer_write_byte(out , '"');
+            escape_json(out, current);
+        }
+        break;
+    case register_space:
+        if (v == etrue) {
+            bprintf(out, "true");
+            break;
+        }
+        if (v == efalse) {
+            bprintf(out, "false");
+            break;
+        }
+
+        if (((u64)v & ~0xff) == register_base) {
+            bprintf(out, "\"r%d\"", (unsigned long)v - register_base);
+            break;
         }
         break;
     default:
@@ -45,6 +68,17 @@ void print_value_json(buffer out, value v)
         else
           prf ("wth!@ %v\n", v);
     }
+}
+
+void print_value_vector_json(buffer out, vector vec) {
+  bprintf(out, "[");
+  boolean multi = false;
+  vector_foreach(vec, current) {
+      bprintf(out, multi ? ", " : "");
+      print_value_json(out, current);
+      multi = true;
+  }
+  bprintf(out, "]");
 }
 
 static void json_encode_internal(buffer dest, bag b, uuid n);

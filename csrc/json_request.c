@@ -93,14 +93,11 @@ static void send_full_parse(heap h, buffer_handler output, string parse)
 
 static void dump_display(buffer dest, node source)
 {
-    boolean first=true;
+    boolean multi = false;
     bprintf(dest, "{");
     table_foreach(source->display, k, v) {
-        // @FIXME: Correctly print variadic arguments
-        if(k != sym(variadic)) {
-            bprintf(dest, "%s%v: \"%b\"", !first?", ":"", k, v);
-            first = false;
-        }
+        bprintf(dest, "%s%v: %b", multi ? ", " : "", k, v);
+        multi = true;
     }
     bprintf(dest, "}");
 }
