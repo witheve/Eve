@@ -144,7 +144,7 @@ Draw the board
     cell = [#cell board row column]
     contents = if cell.player then cell.player
               else ""
-  bind
+  bind @browser
     [#div board @container style: [font-family: "sans-serif"], children:
       [#div #status board class: "status", style: [text-align: "center", width: 150, padding-bottom: 10]]
       [#div class: "board" style: [color: "black"] children:
@@ -159,7 +159,7 @@ Winning cells are drawn in a different color
   match
     winning-cells = [#cell #winner]
     cell-elements = [#div cell: winning-cells, style]
-  bind
+  bind @browser
     style.color := "blue"
 ```
 
@@ -171,7 +171,7 @@ Display the current player if the game isn't won
   match
     status = [#status board]
     not(board.winner)
-  bind
+  bind @browser
     status.text += "It's {{board.player}}'s turn!"
 ```
 
@@ -181,6 +181,6 @@ When the game is won, display the winner
   match
     status = [#status board]
     winner = board.winner
-  bind
+  bind @browser
     status.text += "{{winner}} wins! Click anywhere to restart!"
 ```

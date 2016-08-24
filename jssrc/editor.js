@@ -199,8 +199,6 @@ function handleEditorParse(parse) {
         let tokens = parseLines[line + offset];
         if(tokens) {
           let firstToken = tokens[0];
-          // figure out what type of line this is and set the appropriate
-          // line classes
           let state;
           for(let token of tokens) {
             from.ch = token.surrogateOffset;
@@ -252,8 +250,8 @@ function whollyEnclosed(inner, outer) {
   return false;
 }
 
-function fullyMark(cm, selection, source) {
-  let marks = cm.findMarks(selection.from, selection.to);
+function fullyMark(editor, selection, source) {
+  let marks = editor.findMarks(selection.from, selection.to);
   let marked = false;
   for(let mark of marks) {
     let loc = mark.find();
@@ -270,50 +268,117 @@ function fullyMark(cm, selection, source) {
       // if the selection is wholly enclosed in the mark, we have to split
       // the mark so the selection is no longer contained in it
       } else if(whollyEnclosed(selection, loc)) {
-        let startMarker = cm.markText(loc.from, selection.from, {className: source.type.toUpperCase(), addToHistory: true});
+        let startMarker = editor.markText(loc.from, selection.from, {className: source.type.toUpperCase(), addToHistory: true});
         startMarker.source = mark.source;
-        let endMarker = cm.markText(selection.to, loc.to, {className: source.type.toUpperCase(), addToHistory: true});
+        let endMarker = editor.markText(selection.to, loc.to, {className: source.type.toUpperCase(), addToHistory: true});
         endMarker.source = mark.source;
         mark.clear();
         marked = true;
       // otherwise we need to trim the mark to not include the selection.
       // if the mark is on the left
       } else if(comparePos(loc.to, selection.from) > 0) {
-        let startMarker = cm.markText(loc.from, selection.from, {className: source.type.toUpperCase(), addToHistory: true});
+        let startMarker = editor.markText(loc.from, selection.from, {className: source.type.toUpperCase(), addToHistory: true});
         startMarker.source = mark.source;
         mark.clear();
       // if the mark is on the right
       } else if(comparePos(loc.from, selection.to) < 0) {
-        let startMarker = cm.markText(selection.to, loc.to, {className: source.type.toUpperCase(), addToHistory: true});
+        let startMarker = editor.markText(selection.to, loc.to, {className: source.type.toUpperCase(), addToHistory: true});
         startMarker.source = mark.source;
         mark.clear();
       }
     }
   }
   if(!marked) {
-    let marker = cm.markText(selection.from, selection.to, {className: source.type.toUpperCase(), addToHistory: true});
+    let marker = editor.markText(selection.from, selection.to, {className: source.type.toUpperCase(), addToHistory: true});
     marker.source = source;
   }
 }
 
-function formatBold(cm) {
-  cm.operation(function() {
-    if(cm.somethingSelected()) {
-      let from = cm.getCursor("from");
-      let to = cm.getCursor("to");
-      fullyMark(cm, {from, to}, {type: "strong"});
+function doFormat(editor, type) {
+  editor.operation(function() {
+    if(editor.somethingSelected()) {
+      let from = editor.getCursor("from");
+      let to = editor.getCursor("to");
+      fullyMark(editor, {from, to}, {type: type});
+    } else {
+      // by default, we want to add boldness to the next change we make
+      let action = "add";
+      let cursor = editor.getCursor("from");
+      let marks = editor.findMarksAt(cursor);
+      // get the marks at the cursor, if we're at the end of or in the middle
+      // of a strong span, then we need to set that the next change is meant
+      // to be remove for strong
+      for(let mark of marks) {
+        if(!mark.source || mark.source.type !== type) continue;
+        let loc = mark.find();
+        if(samePos(loc.to, cursor)) {
+          // if we're at the end of a bold span, we don't want the next change
+          // to be bold
+          action = "remove";
+        } else if (samePos(loc.from, cursor)) {
+          // if we're at the beginning of a bold span, we're stating we want
+          // to add more bold to the front
+          action = "add";
+        } else {
+          // otherwise you're in the middle of a span, and we want the next
+          // change to not be bold
+          action = "split";
+        }
+      }
+      editor.formatting[type] = action;
     }
   });
 }
 
-function formatItalic(cm) {
-  cm.operation(function() {
-    if(cm.somethingSelected()) {
-      let from = cm.getCursor("from");
-      let to = cm.getCursor("to");
-      fullyMark(cm, {from, to}, {type: "emph"});
-    }
+// @TODO: formatting shouldn't apply in codeblocks.
+function formatBold(editor) {
+  doFormat(editor, "strong");
+}
+
+function formatItalic(editor) {
+  doFormat(editor, "emph");
+}
+
+function formatHeader(editor) {
+  editor.operation(function() {
+    let line = editor.getCursor("from").line;
+    let from = {line, ch: 0};
+    let to = {line, ch: editor.getLine(line).length};
+    console.log(from, to);
+    fullyMark(editor, {from, to}, {type: "heading1", level: "1"});
   });
+}
+
+function getMarksByType(editor, type, start, stop) {
+  let marks;
+  if(start && stop) {
+    marks = editor.findMarks(start, stop);
+  } else if(start && !stop) {
+    marks = editor.findMarksAt(start);
+  } else {
+    marks = editor.getAllMarks();
+  }
+  let valid = [];
+  for(let mark of marks) {
+    console.log("MARK", mark, mark.source.type, type)
+    if(mark.source && mark.source.type === type) {
+      valid.push(mark);
+    }
+  }
+  return valid;
+}
+
+function splitMark(editor, mark, from, to) {
+  if(!to) to = from;
+  let loc = mark.find();
+  let source = mark.source;
+  let startMarker = editor.markText(loc.from, from, {className: source.type.toUpperCase(), addToHistory: true});
+  startMarker.source = source;
+  if(comparePos(to, loc.to) === -1) {
+    let endMarker = editor.markText(to, loc.to, {className: source.type.toUpperCase(), addToHistory: true});
+    endMarker.source = source;
+  }
+  mark.clear();
 }
 
 function makeEditor() {
@@ -324,21 +389,66 @@ function makeEditor() {
       "Cmd-Enter": doSwap,
       "Cmd-B": formatBold,
       "Cmd-I": formatItalic,
+      "Cmd-E": formatHeader,
     })
   });
   editor.dirtyLines = [];
-  editor.on("change", function(cm, change) {
+  editor.formatting = {};
+  editor.formats = ["strong", "emph"];
+  editor.on("change", function(editor, change) {
     let {from, to, text} = change;
+    let adjusted = {line: from.line, ch: from.ch + text.length};
+    if(change.origin === "+input") {
+      // handle formatting
+      for(let format of editor.formats) {
+        let action = editor.formatting[format];
+        let className = format.toUpperCase();
+        let source = {type: format};
+        if(action == "add") {
+          let marker = editor.markText(from, adjusted, {className});
+          marker.source = source;
+        } else if(action == "split") {
+          let marks = getMarksByType(editor, format, from);
+          for(let mark of marks) {
+            splitMark(editor, mark, from, adjusted);
+          }
+        } else if(!action) {
+          let marks = getMarksByType(editor, format, from);
+          for(let mark of marks) {
+            let loc = mark.find();
+            // if we're at the end of this mark
+            if(samePos(loc.to, from)) {
+              let marker = editor.markText(loc.from, adjusted, mark);
+              marker.source = mark.source;
+              mark.clear();
+            }
+          }
+        }
+      }
+    }
     let end = to.line > from.line + text.length ? to.line : from.line + text.length;
     for(let start = from.line; start <= end; start++) {
-      let lineInfo = cm.lineInfo(start);
+      let lineInfo = editor.lineInfo(start);
       if(lineInfo && lineInfo.bgClass && lineInfo.bgClass.indexOf("CODE") > -1) {
-        cm.dirtyLines.push(start);
+        editor.dirtyLines.push(start);
       }
     }
   });
-  editor.on("changes", function(cm, changes) {
-    sendParse(toMarkdown(cm));
+  editor.on("cursorActivity", function(editor) {
+    // remove any formatting that may have been applied
+    editor.formatting = {};
+  });
+  editor.on("paste", function(editor) {
+    // remove any formatting that may have been applied
+    editor.formatting = {};
+  });
+  editor.on("copy", function(editor) {
+
+  });
+  editor.on("changes", function(editor, changes) {
+    // remove any formatting that may have been applied
+    editor.formatting = {};
+    sendParse(toMarkdown(editor));
   });
   return editor;
 }
