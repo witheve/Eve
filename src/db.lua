@@ -289,6 +289,10 @@ function UUID.__tostring(uuid)
   return value_to_string(uuid.value)
 end
 
+function UUID.toJSON(uuid)
+  return "{\"type\": \"uuid\", \"value\": \"" .. value_to_string(uuid.value) .. "\"}"
+end
+
 
 EAV = {}
 EAV.__index = EAV
