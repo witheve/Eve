@@ -319,11 +319,14 @@ DependencyGraph = {}
 
 function DependencyGraph:new(obj)
   obj = obj or {}
+
   -- Essential state
+  obj.id = obj.id or db.UUID:new()
   obj.unprepared = obj.unprepared or Set:new() -- set of nodes that must still be prepared prior to ordering
   obj.unsorted = obj.unsorted or Set:new() -- set of nodes that need to be ordered
   obj.sorted = obj.sorted or {} -- append-only set of ordered nodes
 
+  -- Cached state
   obj.providers = obj.providers or {} -- Set of nodes capable of providing a term
   obj.dependents = obj.dependents or {} -- Sets of nodes depending on a term
   obj.bound = obj.bound or Set:new() -- Set of terms bound by the currently ordered set of nodes
@@ -971,11 +974,10 @@ function DependencyGraph.__tostring(dg)
   return result .. "\n}"
 end
 
-function DependencyGraph:addToBag(bag)
-  -- @TODO: Handle subquery nodes
-
+function DependencyGraph:toRecord(mapping)
+  mapping = mapping or {}
   local nodeRecords = Set:new()
-  local mapping = {}
+
   for node in pairs(self.unprepared or nothing) do
     local nodeRecord = sanitize(node, mapping)
     nodeRecord.tag = Set:new({"node", "unprepared"})
@@ -993,16 +995,17 @@ function DependencyGraph:addToBag(bag)
     nodeRecords:add(nodeRecord)
   end
 
-
-  local dgRecord = {
-    name = "blurbl",
+  return {
+    name = self.query.name,
     tag = "dependency-graph",
     nodes = nodeRecords,
     terms = sanitize(self.terms, mapping),
     groups = sanitize(self.termGroups, mapping)
   }
+end
 
-  bag:addRecord(dgRecord)
+function DependencyGraph:addToBag(bag)
+  bag:addRecord(self:toRecord(), self.id)
   return bag
 end
 
@@ -1020,6 +1023,9 @@ function sanitize(obj, mapping)
     for v in pairs(obj) do
       neue:add(sanitize(v, mapping))
     end
+  elseif meta == DependencyGraph then
+    neue = obj:toRecord(mapping)
+    mapping[obj] = neue
   elseif not obj.type then
     for k, v in pairs(obj) do
       local sk, sv = sanitize(k, mapping), sanitize(v, mapping)
@@ -1035,21 +1041,13 @@ function sanitize(obj, mapping)
     neue.field = obj.field
     neue.variable = sanitize(obj.variable, mapping)
     neue.constant = obj.constant and obj.constant.constant
-  elseif obj.type == "query" then
-    -- @TODO: ME!
   else -- Some kind of node
+    neue.deps = sanitize(obj.deps, mapping)
     neue.operator = obj.operator
-    neue.scope = obj.scope -- @FIXME: Update to be plural
-    neue.mutateType = obj.mutateType -- @FIXME: mutates aren't passing their types through?
+    neue.scopes = obj.scopes
+    neue.mutateType = obj.mutateType
     neue.bindings = sanitize(obj.bindings, mapping)
-
-    -- Handle subquery nodes
-    if obj.queries then
-      for _, query in ipairs(obj.queries) do
-        local subid = query.deps.graph.addToBag(bag)
-        -- @TODO: link me to my parent
-      end
-    end
+    neue.queries = sanitize(obj.queries, mapping)
   end
 
   return neue
