@@ -1,0 +1,15 @@
+```
+  commit
+    [#f foo: "yo"]
+    [#g @cool]
+```
+
+remove stuff
+```
+  match
+    f = [#f]
+    g = [#g]
+  commit
+    f.foo := none
+    g := none
+```
