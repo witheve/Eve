@@ -1015,9 +1015,13 @@ function ScanNode:fromBinding(source, binding, entity, context)
   obj.mutateType = source.mutateType
   obj.scopes = source.scopes
   obj.entity = entity
-  obj.attribute = binding.field
-  obj.value = binding.variable or binding.constant
-  context.downEdges[#context.downEdges + 1] = {obj.value.id, obj.id}
+  if binding.field ~= ENTITY_FIELD then
+    obj.attribute = binding.field
+    obj.value = binding.variable or binding.constant
+  end
+  if obj.value then
+    context.downEdges[#context.downEdges + 1] = {obj.value.id, obj.id}
+  end
   return obj
 end
 
@@ -1133,7 +1137,11 @@ function unpackObjects(dg, context)
               unpackList[#unpackList + 1] = ScanNode:fromBinding(node, binding, entity, context)
             end
           elseif #node.bindings == 1 then
-            error("Eliding only binding on object: " .. tostring(node))
+            if node.operator == "erase" then
+              unpackList[#unpackList + 1] = ScanNode:fromBinding(node, {}, entity, context)
+            else
+              error("Eliding only binding on object: " .. tostring(node))
+            end
           end
         end
       end
