@@ -510,6 +510,16 @@ function errors.mergeWithoutObject(context, node, rightNode)
   ]])})
 end
 
+function errors.invalidNone(context, node)
+  printError({type = "Invalid `none`", context = context, token = node, content = string.format([[
+  `none` can only be used to remove records (e.g. `foo := none`), remove all values
+  for an attribute (e.g. `foo.name := none`), or remove many attributes via a
+  merge (e.g. `foo <- [height: none, weight: none]`)
+
+  <LINE>
+  ]])})
+end
+
 function errors.setWithoutNone(context, node, rightNode)
   local left = node.children[1].value
   printError({type = "Invalid set", context = context, token = node, content = string.format([[
@@ -553,6 +563,14 @@ end
 function errors.misplacedMatch(context, token)
   printError({type = "Misplaced match", context = context, token = token, content = string.format([[
   Matches should only be at the start of a new block
+
+  <LINE>
+  ]])})
+end
+
+function errors.invalidScopeDeclaration(context, node)
+  printError({type = "Invalid collection name", context = context, token = node, content = string.format([[
+  Collection names can only be names like `@global` or strings like "global"
 
   <LINE>
   ]])})

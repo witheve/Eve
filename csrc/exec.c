@@ -449,7 +449,6 @@ static void do_regfile(execf n, perf p, int size, heap h, perf pp, operator op, 
     start_perf(p, op);
     value *r;
     if (op == op_insert) {
-
         // xxx - shouldn't be necessary
         memset(r, 0, size * sizeof(value));
     }

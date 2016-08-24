@@ -1,4 +1,3 @@
-
 typedef struct edb *edb;
 
 typedef closure(listener, value, value, value, multiplicity, uuid);
@@ -13,7 +12,6 @@ struct bag {
     inserter insert;
     committer commit;
     table listeners; // who is this again?
-    table delta_listeners; // goes away with batch updates
     table implications; // goes away with reflection
 };
 

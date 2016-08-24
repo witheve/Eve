@@ -2,7 +2,7 @@ build the counter
 ```
   match
     counter = [#counter count]
-  bind
+  bind @browser
     [#div counter class: "counter-container", children:
       [#div #count-button class: "button", sort: 0, text: "-", diff: -1, counter]
       [#div class: "count", sort: 1, text: count]
@@ -13,7 +13,7 @@ increment the counter
 ```
   match
     [#click element: [#count-button diff counter]]
-  commit
+  commit @browser
     counter.count := counter.count + diff
 ```
 
@@ -21,6 +21,6 @@ go!
 ```
   match
     [#session-connect]
-  commit
+  commit @browser
     [#counter count: 0]
 ```

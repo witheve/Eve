@@ -169,14 +169,14 @@ static void edb_insert(edb b, value e, value a, value v, multiplicity m, uuid bl
         table_set(al, v, final);
 
         // AVE
-        table al = level_fetch(b->h, b->ave, a);
-        table vl = level_fetch(b->h, al, v);
-        table_set(vl, e, final);
+        table aal = level_fetch(b->h, b->ave, a);
+        table avl = level_fetch(b->h, aal, v);
+        table_set(avl, e, final);
         b->count++;
     } else {
         final->m += m;
 
-        if (!final->m){
+        if (!final->m) {
             table_set(al, v, 0);
             table al = level_fetch(b->h, b->ave, a);
             table vl = level_fetch(b->h, al, v);
@@ -210,7 +210,6 @@ edb create_edb(heap h, uuid u, vector includes)
     b->b.scan_sync = cont(h, edb_scan_sync, b);
     b->b.u = u;
     b->b.listeners = allocate_table(h, key_from_pointer, compare_pointer);
-    b->b.delta_listeners = allocate_table(h, key_from_pointer, compare_pointer);
     b->b.implications = allocate_table(h, key_from_pointer, compare_pointer);
     b->b.commit = cont(h, edb_commit, b);
     b->h = h;

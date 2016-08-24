@@ -1,7 +1,7 @@
 Create an http connection to myself. try to create a correlator between
-request and response
+request and response.
 ```
-  match [#test-start]
+  match [#session-connect]
   commit global [#eve-connection host: "127.0.0.1:8080"]
                 [@step count:0]
 ```
@@ -40,4 +40,14 @@ add a todo
                                      bind el.value := \"pick up children from cleaners\"
                                           [#keydown element:el key:\"enter\"]
                                     ```"]]
+```
+
+print result
+```
+   match
+     s = [@step count:1]
+   match @remote
+     t = [#todo-item]
+   bind @browser
+     [#div text: "todo :{{t.text}}"]
 ```

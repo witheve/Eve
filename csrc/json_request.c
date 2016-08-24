@@ -93,14 +93,11 @@ static void send_full_parse(heap h, buffer_handler output, string parse)
 
 static void dump_display(buffer dest, node source)
 {
-    boolean first=true;
+    boolean multi = false;
     bprintf(dest, "{");
     table_foreach(source->display, k, v) {
-        // @FIXME: Correctly print variadic arguments
-        if(k != sym(variadic)) {
-            bprintf(dest, "%s%v: \"%b\"", !first?", ":"", k, v);
-            first = false;
-        }
+        bprintf(dest, "%s%v: %b", multi ? ", " : "", k, v);
+        multi = true;
     }
     bprintf(dest, "}");
 }
@@ -176,23 +173,19 @@ static void send_node_times(heap h, buffer_handler output, node head, table coun
 }
 
 // solution should already contain the diffs against persisted...except missing support (diane)
-static CONTINUATION_1_2(send_response, json_session, table, table);
-static void send_response(json_session session, table solution, table counters)
+static CONTINUATION_1_3(send_response, json_session, multibag, multibag, table);
+static void send_response(json_session session, multibag t_solution, multibag f_solution, table counters)
 {
     heap h = allocate_rolling(pages, sstring("response"));
     heap p = allocate_rolling(pages, sstring("response delta"));
     table results = create_value_vector_table(p);
+    edb browser;
 
-    edb_foreach((edb)session->session, e, a, v, c, _)
-        table_set(results, build_vector(p, e, a, v), etrue);
-
-    if(solution) {
-        bag ev = table_find(solution, session->event_uuid);
-        if (ev){
-            edb_foreach((edb)ev, e, a, v, c, _)
-                table_set(results, build_vector(p, e, a, v), etrue);
-        }
+    if (f_solution && (browser = table_find(f_solution, session->browser_uuid))) {
+        edb_foreach(browser, e, a, v, c, _)
+            table_set(results, build_vector(p, e, a, v), etrue);
     }
+
 
     table_foreach(session->persisted, k, scopeBag) {
         table_foreach(((bag)scopeBag)->implications, impl, _) {
@@ -202,6 +195,17 @@ static void send_response(json_session session, table solution, table counters)
 
     values_diff diff = diff_value_vector_tables(p, session->current_delta, results);
     // destructs h
+
+    if (t_solution && (browser = table_find(t_solution, session->browser_uuid))) {
+        edb_foreach(browser, e, a, v, m, u) {
+            if (m > 0)
+                vector_insert(diff->insert, build_vector(h, e, a, v));
+            if (m < 0)
+                vector_insert(diff->remove, build_vector(h, e, a, v));
+        }
+    }
+
+
     send_guy(h, session->write, diff);
 
     destroy(session->current_delta->h);
@@ -286,20 +290,24 @@ void new_json_session(bag root, boolean tracing,
     session->tracing = tracing;
     session->session = (bag)create_edb(h, su, 0);
     session->current_delta = create_value_vector_table(allocate_rolling(pages, sstring("trash")));
-    session->event_uuid = generate_uuid();
+    session->browser_uuid = generate_uuid();
     session->graph = root_graph;
     session->persisted = create_value_table(h);
-    // xxx - parameterize file root path
-    bag fb = filebag_init(sstring(pathroot), generate_uuid());
+
     table_set(session->persisted, session->root->u, session->root);
     table_set(session->persisted, session->session->u, session->session);
-    // this has to be in persisted, otherwise we will only read
-    // from the f version - something is very strangely structured here
-    table_set(session->persisted, fb->u, fb);
+
     session->scopes = create_value_table(session->h);
     table_set(session->scopes, intern_cstring("session"), session->session->u);
     table_set(session->scopes, intern_cstring("all"), session->root->u);
-    table_set(session->scopes, intern_cstring("event"), session->event_uuid);
+    table_set(session->scopes, intern_cstring("browser"), session->browser_uuid);
+
+    // xxx - parameterize file root path
+    // we really shouldn't be allowing everyone to mess with the filesystem
+    bag fb = filebag_init(sstring(pathroot), generate_uuid());
+    table_set(session->scopes, intern_cstring("file"), fb->u);
+    table_set(session->persisted, fb->u, fb);
+
     session->eh = allocate_rolling(pages, sstring("eval"));
     session->ev = build_evaluation(session->scopes, session->persisted, cont(session->h, send_response, session), cont(session->h, handle_error, session));
     session->write = websocket_send_upgrade(session->eh, b, u,

@@ -17,7 +17,7 @@ Draw a list of fruits
 ```
   match
     [#fruit color name]
-  bind
+  bind @browser
     [#div ix: name, text: name, style: [color]]
 ```
 
@@ -26,7 +26,7 @@ make yo
   match
     v = [#click element]
     element = [not(children)]
-  commit
+  commit @browser
      element.children += [#div element zig:v text:"yo"]
 ```
 
@@ -35,8 +35,6 @@ trash yo
   match
     [#click element]
     element = [children]
-  commit
+  commit @browser
      element.children -= children
 ```
-
-
