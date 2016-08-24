@@ -995,12 +995,21 @@ function DependencyGraph:toRecord(mapping)
     nodeRecords:add(nodeRecord)
   end
 
+  local groupRecords = Set:new()
+  for group in pairs(self.termGroups) do
+    groupRecords:add({
+      tag = "term-group",
+      terms = group
+    })
+  end
+
   return {
     name = self.query.name,
     tag = "dependency-graph",
+    query = sanitize(self.query, mapping),
     nodes = nodeRecords,
     terms = sanitize(self.terms, mapping),
-    groups = sanitize(self.termGroups, mapping)
+    groups = sanitize(groupRecords, mapping)
   }
 end
 
@@ -1019,7 +1028,8 @@ function sanitize(obj, mapping)
   mapping[obj] = neue
 
   if meta == Set then
-    neue.new(Set, neue)
+    neue = Set:new()
+    mapping[obj] = neue
     for v in pairs(obj) do
       neue:add(sanitize(v, mapping))
     end
