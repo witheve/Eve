@@ -360,7 +360,6 @@ function getMarksByType(editor, type, start, stop) {
   }
   let valid = [];
   for(let mark of marks) {
-    console.log("MARK", mark, mark.source.type, type)
     if(mark.source && mark.source.type === type) {
       valid.push(mark);
     }
