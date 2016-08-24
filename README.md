@@ -69,7 +69,7 @@ Finally, you can communicate with Eve using websockets and a very simple [JSON p
 
 ## Learn More
 
-*Coming Soon...*
+- [Eve Language Handbook (draft)](https://github.com/witheve/docs/blob/master/drafts/handbook/contents.md)
 
 ## Get Involved
 
