@@ -334,7 +334,7 @@ end
 -- @FIXME: no way to remove atm because we don't cache dirty removed EAVs
 function Bag:sync()
   if not self.cbag then
-    self.cbag = create_edb(self.id)
+    self.cbag = create_edb(self.id.value)
   end
 
   for hash in pairs(self.dirty) do
