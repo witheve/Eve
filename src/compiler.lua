@@ -1018,7 +1018,7 @@ function DependencyGraph:addToBag(bag)
   return bag
 end
 
-function sanitize(obj, mapping)
+function sanitize(obj, mapping, flattenArray)
   if not mapping then mapping = {} end
   if not obj or type(obj) ~= "table" then return obj end
   if mapping[obj] then return mapping[obj] end
@@ -1037,11 +1037,23 @@ function sanitize(obj, mapping)
     neue = obj:toRecord(mapping)
     mapping[obj] = neue
   elseif not obj.type then
-    for k, v in pairs(obj) do
-      local sk, sv = sanitize(k, mapping), sanitize(v, mapping)
-      neue[sk] = sv
-      if type(sk) == "number" and type(sv) == "table" then
-        sv.sort = sk
+    if flattenArray and util.isArray(obj) then
+      -- If the object is purely an array and flattenArray is true, turn it into a set with sorts on it.
+      neue = Set:new()
+      mapping[obj] = neue
+
+      for ix, v in ipairs(obj) do
+        local sv = sanitize(v, mapping)
+        if not sv.sort then
+          sv.sort = ix
+        end
+        neue:add(sv)
+      end
+    else
+      -- Otherwise keep it as a full sub-record
+      for k, v in pairs(obj) do
+        local sk, sv = sanitize(k, mapping), sanitize(v, mapping)
+        neue[sk] = sv
       end
     end
   elseif obj.type == "variable" then
@@ -1056,7 +1068,7 @@ function sanitize(obj, mapping)
     neue.operator = obj.operator
     neue.scopes = obj.scopes
     neue.mutateType = obj.mutateType
-    neue.bindings = sanitize(obj.bindings, mapping)
+    neue.bindings = sanitize(obj.bindings, mapping, true)
     neue.queries = sanitize(obj.queries, mapping)
   end
 
