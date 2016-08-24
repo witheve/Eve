@@ -60,6 +60,18 @@ end
 if ... == nil then
 end
 
+function flatPrintTable(t)
+   if t and type(t) == "table" then
+     local result = ""
+     for k, v in pairs(t) do
+        if not (k == nil) then result = result .. " " .. tostring(k) .. ": " end
+        if not (v == nil) then result = result .. tostring(v) end
+     end
+     return result
+   end
+   return tostring(t)
+end
+
 
 ------------------------------------------------------------
 -- Collection helpers
@@ -112,7 +124,7 @@ end
 -- JSON helpers
 ------------------------------------------------------------
 
-local function isArray(t)
+function isArray(t)
   local i = 0
   for _ in pairs(t) do
       i = i + 1
