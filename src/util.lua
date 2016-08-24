@@ -11,6 +11,8 @@ local table = table
 local io = io
 local string = string
 local math = math
+local error = error
+local value_to_string = value_to_string
 
 setfenv(1, Pkg)
 
@@ -148,8 +150,10 @@ function toJSON(obj, seen)
     return tostring(obj)
   elseif objType == "boolean" then
     return tostring(obj)
+  elseif obj == nil then
+    return "null"
   end
-  return "uh oh"
+  error("UNKNOWN OBJECT " .. tostring(obj) .. " of type " .. type(obj))
 end
 
 function toFlatJSONRecurse(obj, results, seen)
@@ -190,8 +194,10 @@ function toFlatJSONRecurse(obj, results, seen)
     return tostring(obj)
   elseif objType == "boolean" then
     return tostring(obj)
+  elseif obj == nil then
+    return "null"
   end
-  return "uh oh"
+  error("UNKNOWN OBJECT " .. tostring(obj) .. " of type " .. type(obj))
 end
 
 function toFlatJSON(obj)
@@ -324,6 +330,7 @@ end
 nothing = {}
 
 function formatQueryNode(node, indent)
+  if not node or not node.type then return tostring(node) end
   indent = indent or 0
   local padding = string.rep("  ", indent)
   local result = padding .. node.type
