@@ -860,7 +860,7 @@ local function parse(tokens, context)
       -- consume the paren
       scanner:read()
 
-    elseif type == "IDENTIFIER" or type == "NUMBER" or type == "STRING" or type == "UUID" or type == "BOOLEAN" then
+    elseif type == "IDENTIFIER" or type == "NUMBER" or type == "STRING" or type == "UUID" or type == "BOOLEAN" or type == "NONE" then
       stackTop.children[#stackTop.children + 1] = token
 
     else
@@ -1014,6 +1014,9 @@ local function resolveMutate(context, node)
     -- foo <- [ ... ]
     if node.operator == "set" then
       if rightNode.type == "NONE" then
+        context.mutateOperator = "erase"
+        right = resolveExpression(makeNode(context, "object", node, {children = {}}), context)
+        context.mutateOperator = "set"
         -- TODO
       else
         -- error the only valid thing to set a reference to directly
@@ -1259,7 +1262,7 @@ end
 resolveExpression = function(node, context)
   if not node then return end
 
-  if node.type == "NUMBER" or node.type == "STRING" or node.type == "UUID" or node.type == "BOOLEAN" then
+  if node.type == "NUMBER" or node.type == "STRING" or node.type == "UUID" or node.type == "BOOLEAN" or node.type == "NONE" then
     return makeNode(context, "constant", node, {constant = node.value, constantType = node.type:lower()})
 
   elseif node.type == "variable" or node.type == "constant" then
