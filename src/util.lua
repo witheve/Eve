@@ -162,6 +162,8 @@ function toJSON(obj, seen)
     return tostring(obj)
   elseif objType == "boolean" then
     return tostring(obj)
+  elseif objType == "userdata" then
+    return toJSON(value_to_string(obj))
   elseif obj == nil then
     return "null"
   end
@@ -180,9 +182,9 @@ function toFlatJSONRecurse(obj, results, seen)
       temp[#temp + 1] = toFlatJSONRecurse(child, results, seen)
     end
     return string.format("[%s]", table.concat(temp, ", "))
-  elseif objType == "table"then
+  elseif objType == "table" then
     if seen[obj] and obj.id then
-      return obj.id
+      return toJSON(obj.id)
     end
     seen[obj] = true
     local temp = {}
@@ -191,12 +193,12 @@ function toFlatJSONRecurse(obj, results, seen)
         local jsond = toFlatJSONRecurse(value, results, seen)
         temp[#temp + 1] = string.format("\"%s\": %s", key, jsond)
       elseif seen[value] and value.id then
-        temp[#temp + 1] = string.format("\"%s\": %s", key, value.id)
+        temp[#temp + 1] = string.format("\"%s\": %s", key, toJSON(value.id))
       end
     end
     if obj.id then
       results[#results + 1] = string.format("\"%s\": {%s}", obj.id, table.concat(temp, ", "))
-      return obj.id
+      return toJSON(obj.id)
     else
       return string.format("{%s}", table.concat(temp, ", "))
     end
@@ -206,6 +208,8 @@ function toFlatJSONRecurse(obj, results, seen)
     return tostring(obj)
   elseif objType == "boolean" then
     return tostring(obj)
+  elseif objType == "userdata" then
+    return toJSON(value_to_string(obj))
   elseif obj == nil then
     return "null"
   end
