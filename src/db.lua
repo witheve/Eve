@@ -562,18 +562,22 @@ function Bag:findRecords(record)
   return result
 end
 
-function Bag:appendEAVs(eavs, e, a, v, mapping)
+function Bag:appendEAVs(eavs, e, a, v, mapping, parentIsASet)
   if mapping[v] then -- if v is a record we've already added, use its id instead of creating a new one
     v = mapping[v]
   end
   if type(v) ~= "table" or getmetatable(v) == UUID then -- single value
     eavs[#eavs + 1] = {e, a, v}
   elseif getmetatable(v) == Set then -- set of values for an attribute
+    if parentIsASet then
+      error("Error: Adding sets of sets via addRecord(). This is basically never what you want, and will lose the distinction of which subset the elements belong to. Try wrapping the subsets as their own records. Offender: " .. tostring(parentIsASet))
+    end
     for subv in pairs(v) do
-      self:appendEAVs(eavs, e, a, subv, mapping)
+      self:appendEAVs(eavs, e, a, subv, mapping, v)
     end
   else -- sub-record(s) or array of values
     util.into(eavs, self:recordToEAVs(v, nil, mapping))
+    eavs[#eavs + 1] = {e, a, mapping[v]}
   end
 end
 
