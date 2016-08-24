@@ -1262,8 +1262,16 @@ end
 resolveExpression = function(node, context)
   if not node then return end
 
-  if node.type == "NUMBER" or node.type == "STRING" or node.type == "UUID" or node.type == "BOOLEAN" or node.type == "NONE" then
+  if node.type == "NUMBER" or node.type == "STRING" or node.type == "UUID" or node.type == "BOOLEAN" then
     return makeNode(context, "constant", node, {constant = node.value, constantType = node.type:lower()})
+
+  elseif node.type == "NONE" then
+    if context.mutateOperator == "erase" or context.mutateOperator == "set" then
+      return makeNode(context, "constant", node, {constant = node.value, constantType = node.type:lower()})
+    else
+      -- error
+      errors.invalidNone(context, node)
+    end
 
   elseif node.type == "variable" or node.type == "constant" then
     return node
