@@ -24,9 +24,7 @@ static inline ticks milliseconds(int n)
 // this is actually* ticks, not the normalized fixed point seconds we use elsewhere
 static ticks rdtsc(void)
 {
-    unsigned a, d;
-    asm("cpuid");
+    volatile u64 a, d;
     asm volatile("rdtsc" : "=a" (a), "=d" (d));
-
-    return (((ticks)a) | (((ticks)d) << 32));
+    return (a | (d << 32));
 }

@@ -87,8 +87,8 @@ static void filebag_ea_scan(filebag fb, file f, struct stat *s, listener out, va
     }
     if (a == sym(child)) {
         if (f->children) {
-            table_foreach(f->children, _, f)
-                apply(out, e, a, ((file)f)->u, 1, 0);
+            table_foreach(f->children, _, c)
+                apply(out, e, a, ((file)c)->u, 1, 0);
         }
     }
     if (a == sym(contents)) {
