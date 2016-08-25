@@ -70,6 +70,7 @@ Finally, you can communicate with Eve using websockets and a very simple [JSON p
 ## Learn More
 
 - [Eve Language Handbook (draft)](https://github.com/witheve/docs/blob/master/drafts/handbook/contents.md)
+- [Syntax Quick Reference](https://github.com/witheve/assets/blob/master/docs/SyntaxReference.pdf)
 
 ## Get Involved
 
