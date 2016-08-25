@@ -9,7 +9,7 @@
 // a global, which locks us into having only one program running, but
 // we should figure out a way to close over this in some useful way, while
 // allowing updating the program.
-static buffer root_graph;
+static bag root_compiler_bag;
 static char *exec_path;
 
 extern thunk ignore;
@@ -237,7 +237,6 @@ void handle_json_query(json_session session, bag in, uuid root)
 
     estring t = lookupv((edb)in, root, sym(type));
     estring q = lookupv((edb)in, root, sym(query));
-    buffer desc;
     string x = q?alloca_wrap_buffer(q->body, q->length):0;
 
     if (t == sym(query)) {
@@ -248,20 +247,18 @@ void handle_json_query(json_session session, bag in, uuid root)
         // xxx - reflection
         session->root->implications =  allocate_table(((edb)session->root)->h, key_from_pointer, compare_pointer);
 
-        vector nodes = compile_eve(init, x, session->tracing, &desc);
-        root_graph = desc;
-        session->graph = desc;
-        heap graph_heap = allocate_rolling(pages, sstring("initial graphs"));
+        bag compiler_bag;
+        vector nodes = compile_eve(init, x, session->tracing, &compiler_bag);
+        root_compiler_bag = compiler_bag;
+
+        table_set(session->scopes, intern_cstring("compiler"), compiler_bag->u);
+        table_set(session->persisted, compiler_bag->u, compiler_bag);
+
+        heap graph_heap = allocate_rolling(pages, sstring("initial graphs")); // @FIXME: LEAKING HEAP
         vector_foreach(nodes, node) {
             // xxx - reflection
             table_set(session->root->implications, node, (void *)1);
             send_cnode_graph(graph_heap, session->write, ((compiled)node)->head);
-        }
-        // send full parse destroys the heap
-        if(session->graph) {
-            send_full_parse(graph_heap, session->write, session->graph);
-        } else {
-            destroy(graph_heap);
         }
         session->ev = build_evaluation(session->scopes, session->persisted, cont(session->h, send_response, session), cont(session->h, handle_error, session));
         run_solver(session->ev);
@@ -285,13 +282,13 @@ void new_json_session(bag root, boolean tracing,
     uuid su = generate_uuid();
 
     json_session session = allocate(h, sizeof(struct json_session));
+    session->graph = 0; // @FIXME: remove this completely
     session->h = h;
     session->root = root;
     session->tracing = tracing;
     session->session = (bag)create_edb(h, su, 0);
     session->current_delta = create_value_vector_table(allocate_rolling(pages, sstring("trash")));
     session->browser_uuid = generate_uuid();
-    session->graph = root_graph;
     session->persisted = create_value_table(h);
 
     table_set(session->persisted, session->root->u, session->root);
@@ -301,6 +298,11 @@ void new_json_session(bag root, boolean tracing,
     table_set(session->scopes, intern_cstring("session"), session->session->u);
     table_set(session->scopes, intern_cstring("all"), session->root->u);
     table_set(session->scopes, intern_cstring("browser"), session->browser_uuid);
+
+    bag compiler_bag = root_compiler_bag;
+    table_set(session->scopes, intern_cstring("compiler"), compiler_bag->u);
+    table_set(session->persisted, compiler_bag->u, compiler_bag);
+
 
     // xxx - parameterize file root path
     // we really shouldn't be allowing everyone to mess with the filesystem
@@ -316,24 +318,19 @@ void new_json_session(bag root, boolean tracing,
                                       reg);
 
     // send the graphs
-    heap graph_heap = allocate_rolling(pages, sstring("initial graphs"));
+    heap graph_heap = allocate_rolling(pages, sstring("initial graphs")); // @FIXME: LEAKING HEAP
     table_foreach(session->persisted, k, scopeBag) {
         table_foreach(((bag)scopeBag)->implications, impl, _) {
             send_cnode_graph(graph_heap, session->write, ((compiled)impl)->head);
         }
     }
-    // send full parse destroys the heap
-    if(session->graph) {
-        send_full_parse(graph_heap, session->write, session->graph);
-    } else {
-        destroy(graph_heap);
-    }
+
     inject_event(session->ev, aprintf(session->h,"init!\n```\nbind\n      [#session-connect]\n```"), session->tracing);
 }
 
-void init_json_service(http_server h, bag root, boolean tracing, buffer graph, char *exec_file_path)
+void init_json_service(http_server h, bag root, boolean tracing, bag compiler_bag, char *exec_file_path)
 {
-    root_graph = graph;
+    root_compiler_bag = compiler_bag;
     exec_path = exec_file_path;
     http_register_service(h, cont(init, new_json_session, root, tracing), sstring("/ws"));
 }

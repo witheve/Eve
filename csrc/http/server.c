@@ -183,10 +183,10 @@ http_server create_http_server(station p, buffer eve)
     s->content = create_value_table(h);
     s->services = create_value_table(h);
     s->h = allocate_rolling(pages, sstring("server"));
-    buffer desc;
+    bag compiler_bag; // @FIXME: What do we do with the compiler_bag here?
     if (eve) {
         // tracing
-        s->implications = compile_eve(s->h, eve, false, &desc);
+        s->implications = compile_eve(s->h, eve, false, &compiler_bag);
     } else {
         s->implications = 0;
     }

@@ -191,7 +191,7 @@ void require_luajit(interpreter c, char *z)
     lua_setglobal(c->L, z);
 }
 
-vector lua_compile_eve(interpreter c, heap h, buffer b, boolean tracing, buffer *out)
+vector lua_compile_eve(interpreter c, heap h, buffer b, boolean tracing, bag *compiler_bag)
 {
     vector result = allocate_vector(h, 3);
     lua_pushcfunction(c->L, traceback);
@@ -205,9 +205,10 @@ vector lua_compile_eve(interpreter c, heap h, buffer b, boolean tracing, buffer 
         printf ("%s\n", lua_tostring(c->L, -1));
     }
 
-    *out = lua_to_buffer(c->L, -1, h);
+    *compiler_bag = lua_tovalue(c->L, 5);
+
     int count = 0;
-    foreach_lua_table(c->L, -2, k, v) {
+    foreach_lua_table(c->L, 4, k, v) {
         compiled n = allocate(c->h, sizeof(struct compiled));
         foreach_lua_table(c->L, v, k0, v0) {
             value kv = lua_tovalue(c->L, k0);
@@ -215,12 +216,6 @@ vector lua_compile_eve(interpreter c, heap h, buffer b, boolean tracing, buffer 
             if (kv == sym(name)) n->name = lua_tovalue(c->L, v0);
             if (kv == sym(regs)) n->regs = (int)lua_tonumber(c->L, v0);
             if (kv == sym(head)) n->head = lua_tovalue(c->L, v0);
-
-            if (kv == sym(compilerBag)) {
-                foreach_lua_table(c->L, v0, k1, v1) {
-                    if(kv == sym(cbag)) n->compiler_bag = lua_tovalue(c->L, v1);
-                }
-            }
         }
         vector_insert(result, n);
     }
@@ -393,11 +388,11 @@ void free_lua(interpreter lua)
     freelist = lua;
 }
 
-vector compile_eve(heap h, buffer b, boolean tracing, buffer *desc)
+vector compile_eve(heap h, buffer b, boolean tracing, bag *compiler_bag)
 {
     interpreter lua = get_lua();
     lua->h = h;
-    vector v = lua_compile_eve(lua, h, b, tracing, desc);
+    vector v = lua_compile_eve(lua, h, b, tracing, compiler_bag);
     free_lua(lua);
     return v;
 }
