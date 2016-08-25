@@ -714,6 +714,7 @@ function injectCodeMirror(node, elem) {
     let editor = new CodeMirror(node, {
       tabSize: 2,
       lineWrapping: true,
+      lineNumbers: true,
       extraKeys: {
         "Cmd-Enter": doSwap,
         "Ctrl-Enter": doSwap,
