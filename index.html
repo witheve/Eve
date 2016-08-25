@@ -87,12 +87,23 @@
       .pixel-chart ul { display:flex; position:relative; align-items: flex-end; flex:1 0 auto; }
       .pixel-chart ul li { height:10px; width:10px; background: #d8d8d8; overflow:hidden; position:relative; margin-right:1px; flex:none; }
 
-      .CodeMirror { color: #c4c4c4; line-height:20px; }
-      .CodeMirror .CODE { background: rgba(255,255,255,0.05); background: rgba(0,0,0,0.2); }
+      .CodeMirror { color: #c4c4c4; line-height:20px; font-family: Avenir; }
+      .CodeMirror-selected { background: #444; }
+      .CodeMirror-focused .CodeMirror-selected { background: #444; }
+      .CodeMirror .STRONG { font-weight:bold; }
+      .CodeMirror .EMPH { font-style:italic; }
+      .CodeMirror .CODE { background: rgba(255,255,255,0.08); background: rgba(0,0,0,0.3); font-family: Inconsolata; }
+      .CodeMirror span.CODE { padding:2px 4px; border-radius:3px; }
+      .CodeMirror .CodeMirror-line.ITEM { padding-left: 20px; }
+      .CodeMirror .CodeMirror-line.ITEM:before { content: "-"; padding-right:10px; }
+      .CodeMirror .CODE_BLOCK { font-family: Inconsolata; }
       .CodeMirror .CODE-TOP { border-radius:3px 3px 0 0; padding-top:8px; }
       .CodeMirror .CODE-BOTTOM { border-radius:0 0 3px 3px; padding-bottom:8px; }
       .CodeMirror .DOC { color: #d8d8d8; }
-      .CodeMirror .HEADER { font-size:14pt; padding-top:10px; padding-bottom:20px; }
+      .CodeMirror .HEADING1 { font-size:16pt;}
+      .CodeMirror .HEADING2 { font-size:14pt;}
+      .CodeMirror .HEADING3 { font-size:12pt;}
+      .CodeMirror .HEADING4 { font-size:12pt;}
       .CodeMirror .COMMENT { color: #747474; }
       .CodeMirror .TAG { color: #50edf6; color: #4bcbd3; }
       .CodeMirror .NAME { color: #50edf6; color: #4bcbd3; }
@@ -104,8 +115,10 @@
     </style>
   </head>
   <body>
+    <script type="text/javascript" src="jssrc/commonmark.js"></script>
     <script type="text/javascript" src="jssrc/codemirror.js"></script>
     <script type="text/javascript" src="jssrc/microReact.js"></script>
     <script type="text/javascript" src="jssrc/renderer.js"></script>
+    <script type="text/javascript" src="jssrc/editor.js"></script>
   </body>
 </html>

@@ -237,6 +237,8 @@ int main(int argc, char **argv)
     register(h, "/jssrc/codemirror.js", "application/javascript", codemirror);
     register(h, "/jssrc/codemirror.css", "text/css", codemirrorCss);
     register(h, "/examples/todomvc.css", "text/css", exampleTodomvcCss);
+    register(h, "/jssrc/commonmark.js", "application/javascript", commonmark);
+    register(h, "/jssrc/editor.js", "application/javascript", editor);
 
     // TODO: figure out a better way to manage multiple graphs
     init_json_service(h, root, enable_tracing, compiler_bag, exec_path);

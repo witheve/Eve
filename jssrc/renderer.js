@@ -609,7 +609,6 @@ let activeParse = {};
 let editorParse = {};
 let allNodeGraphs = {};
 let showGraphs = false;
-let codeEditor;
 
 function drawNode(nodeId, graph, state, seen) {
   let node = graph[nodeId];
@@ -654,126 +653,6 @@ function drawNode(nodeId, graph, state, seen) {
     }
   }
   return me;
-}
-
-function posToToken(pos, lines) {
-  if(!lines) return false;
-  let tokens = lines[pos.line + 1] || [];
-  for(let token of tokens) {
-    if(token.offset <= pos.ch && token.offset + token.value.length >= pos.ch) {
-      return token;
-    }
-  }
-  return false;
-}
-
-function doSwap(editor) {
-  sendSwap(editor.getValue());
-}
-
-function doSave() {
-  sendSave(codeEditor.getValue());
-}
-
-function handleEditorParse(parse) {
-  let parseLines = parse.lines;
-  let from = {};
-  let to = {};
-  codeEditor.operation(function() {
-    for(let line of codeEditor.dirtyLines) {
-      // clear all the marks on that line?
-      for(let mark of codeEditor.findMarks({line, ch: 0}, {line, ch: 1000000})) {
-        mark.clear();
-      }
-      from.line = line;
-      to.line = line;
-      let tokens = parseLines[line + 1];
-      if(tokens) {
-        let firstToken = tokens[0];
-        // figure out what type of line this is and set the appropriate
-        // line classes
-        let state;
-        for(let token of tokens) {
-          from.ch = token.surrogateOffset;
-          to.ch = token.surrogateOffset + token.surrogateLength;
-          let className = token.type;
-          if(state == "TAG" || state == "NAME") {
-            className += " " + state;
-          }
-          codeEditor.markText(from, to, {className, inclusiveRight: true});
-          state = token.type
-        }
-      }
-    }
-    codeEditor.dirtyLines = [];
-  });
-}
-
-function injectCodeMirror(node, elem) {
-  if(!node.editor) {
-    let editor = new CodeMirror(node, {
-      tabSize: 2,
-      lineWrapping: true,
-      extraKeys: {
-        "Cmd-Enter": doSwap,
-        "Ctrl-Enter": doSwap,
-      }
-    });
-    editor.dirtyLines = [];
-    editor.on("cursorActivity", function() {
-      let pos = editor.getCursor();
-      activeIds = nodeToRelated(pos, posToToken(pos, renderer.tree[elem.id].parse.lines), renderer.tree[elem.id].parse);
-      drawNodeGraph();
-    });
-    editor.on("change", function(cm, change) {
-      let {from, to, text} = change;
-      let end = to.line > from.line + text.length ? to.line : from.line + text.length;
-      for(let start = from.line; start <= end; start++) {
-        cm.dirtyLines.push(start);
-        let lineInfo = cm.lineInfo(start);
-        if(lineInfo) {
-          let prevInfo = cm.lineInfo(start - 1);
-          let codeAbove = prevInfo && prevInfo.bgClass && prevInfo.bgClass.indexOf("CODE") > -1;
-          if(lineInfo.text.match(/^\s*```/)) {
-            cm.addLineClass(start, "background", "CODE");
-            // there are two possible cases, eight this line is the beginning
-            // of a code block, or it's the end of one we can determine that
-            // by checking if the line above us is marked CODE
-            if(codeAbove) {
-              cm.addLineClass(start, "background", "BLOCK_END");
-            } else {
-              cm.removeLineClass(start, "background", "BLOCK_END");
-            }
-          } else if(codeAbove && prevInfo.bgClass.indexOf("BLOCK_END") == -1) {
-            // if the thing above us is code and it's not the end of a block, then
-            // this is also code.
-            cm.addLineClass(start, "background", "CODE");
-            cm.removeLineClass(start, "background", "BLOCK_END");
-          } else {
-            cm.removeLineClass(start, "background", "CODE");
-            cm.removeLineClass(start, "background", "BLOCK_END");
-          }
-        }
-      }
-    });
-    editor.on("changes", function(cm, changes) {
-      let value = cm.getValue();
-      sendParse(value);
-    });
-    editor.setValue(elem.value);
-    codeEditor = editor;
-    node.editor = editor;
-  }
-}
-
-function setKeyMap(event) {
-  codeEditor.setOption("keyMap", event.currentTarget.value);
-}
-
-function CodeMirrorNode(info) {
-  info.postRender = injectCodeMirror;
-  info.c = "cm-container";
-  return info;
 }
 
 function indexParse(parse) {
@@ -838,7 +717,6 @@ function nodeToRelated(pos, node, parse) {
     for(let next of down[cur] || []) nodesDown.push(next);
   }
 
-
   return active;
 }
 
@@ -851,29 +729,8 @@ function toggleGraphs() {
   drawNodeGraph();
 }
 
-function compileAndRun() {
-  doSwap(codeEditor);
-}
-
 function injectProgram(node, elem) {
   node.appendChild(activeElements["root"]);
-}
-
-function applyFix(event, elem) {
-  //we need to do the changes in reverse order to ensure
-  //the positions remain the same?
-  let changes = elem.fix.changes.slice();
-  changes.sort((a, b) => {
-    let line = b.to.line - a.to.line;
-    if(line == 0) {
-      return b.to.offset - a.to.offset;
-    }
-    return line;
-  });
-  for(let change of changes) {
-    codeEditor.replaceRange(change.value, {line: change.from.line - 1, ch: change.from.offset}, {line: change.to.line - 1, ch: change.to.offset});
-  }
-  doSwap(codeEditor);
 }
 
 function drawNodeGraph() {
