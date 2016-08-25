@@ -82,6 +82,7 @@ typedef struct compiled {
     string name;
     node head;
     int regs;
+    bag compiler_bag;
 } *compiled;
 
 struct block {

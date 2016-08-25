@@ -184,6 +184,12 @@ vector lua_compile_eve(interpreter c, heap h, buffer b, boolean tracing, buffer 
             if (kv == sym(name)) n->name = lua_tovalue(c->L, v0);
             if (kv == sym(regs)) n->regs = (int)lua_tonumber(c->L, v0);
             if (kv == sym(head)) n->head = lua_tovalue(c->L, v0);
+
+            if (kv == sym(compilerBag)) {
+                foreach_lua_table(c->L, v0, k1, v1) {
+                    if(kv == sym(cbag)) n->compiler_bag = lua_tovalue(c->L, v1);
+                }
+            }
         }
         vector_insert(result, n);
     }
