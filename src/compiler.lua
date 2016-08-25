@@ -1003,10 +1003,15 @@ function DependencyGraph:toRecord(mapping)
     })
   end
 
+  local query = sanitize(self.query, mapping)
+  if not self.parent then
+    query.tag = Set:new({"node", "block"})
+  end
+
   return {
     name = self.query.name,
     tag = "dependency-graph",
-    query = sanitize(self.query, mapping),
+    query = query,
     nodes = nodeRecords,
     terms = sanitize(self.terms, mapping),
     groups = sanitize(groupRecords, mapping)
