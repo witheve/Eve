@@ -1,17 +1,45 @@
 "use strict"
 
 //---------------------------------------------------------
-// MicroReact renderer
+// Utilities
+//---------------------------------------------------------
+function clone(obj) {
+  if(typeof obj !== "object") return obj;
+  if(obj.constructor === Array) {
+    let neue = [];
+    for(let ix = 0; ix < obj.length; ix++) {
+      neue[ix] = clone(obj[ix]);
+    }
+    return neue;
+  } else {
+    let neue = {};
+    for(let key in obj) {
+      neue[key] = clone(obj[key]);
+    }
+    return neue;
+  }
+}
+
+function safeEav(eav) {
+  if(eav[0].type == "uuid")  {
+    eav[0] = `⦑${eav[0].value}⦒`
+  }
+  if(eav[1].type == "uuid")  {
+    eav[1] = `⦑${eav[1].value}⦒`
+  }
+  if(eav[2].type == "uuid")  {
+    eav[2] = `⦑${eav[2].value}⦒`
+  }
+  return eav;
+}
+
+//---------------------------------------------------------
+// MicroReact-based record renderer
 //---------------------------------------------------------
 let renderer = new Renderer();
 document.body.appendChild(renderer.content);
 
-//---------------------------------------------------------
-// handle dom updates
-//---------------------------------------------------------
-
-// root will get added to the dom by the program microReact element in
-// drawNodeGraph
+// root will get added to the dom by the program microReact element in renderEditor
 var activeElements = {"root": document.createElement("div")};
 activeElements["root"].className = "program";
 var activeStyles = {};
@@ -50,25 +78,7 @@ function insertSorted(parent, child) {
   }
 }
 
-function safeEav(eav) {
-  if(eav[0].type == "uuid")  {
-    eav[0] = `⦑${eav[0].value}⦒`
-  }
-  if(eav[1].type == "uuid")  {
-    eav[1] = `⦑${eav[1].value}⦒`
-  }
-  if(eav[2].type == "uuid")  {
-    eav[2] = `⦑${eav[2].value}⦒`
-  }
-  return eav;
-}
-
-function doRender() {
-  handleDOMUpdates(state);
-  frameRequested = false;
-}
-
-function handleDOMUpdates(state) {
+function renderRecords(state) {
   let diffEntities = 0;
 
   if(document.activeElement && document.activeElement.entity) {
@@ -276,8 +286,6 @@ function handleDOMUpdates(state) {
     }
   }
 
-  //////
-
   if(lastFocusPath) {
     let current = activeElements.root;
     let ix = 0;
@@ -299,92 +307,6 @@ function handleDOMUpdates(state) {
   }
   updatingDOM = false;
   state.dirty = {};
-}
-
-//---------------------------------------------------------
-// Helpers to send event update queries
-//---------------------------------------------------------
-
-function formatObjects(objs) {
-  let rows = [];
-  for(let obj of objs) {
-    let id;
-    let kvs = {};
-    let fields = [];
-    for(let key in obj) {
-      let value = obj[key];
-      if(key == "tags") {
-        for(let tag of value) {
-          fields.push("#" + tag);
-        }
-        kvs["tag"] = value
-      } else if(key == "id") {
-        id = obj[key];
-      } else {
-        let stringValue;
-        if(typeof value == "string" && value[0] == "⦑") {
-          stringValue = value;
-        } else {
-          stringValue = JSON.stringify(value);
-        }
-        fields.push(key + ": " + stringValue);
-        kvs[key] = stringValue;
-      }
-    }
-    if(id) {
-        console.log(kvs);
-      for(let key in kvs) {
-        let value = kvs[key];
-        if(value.prototype !== Array) {
-          rows.push(`[#eav entity: ${id}, attribute: "${key}", value: ${value}]`);
-        } else {
-          for(let elem of value) {
-            rows.push(`[#eav entity: ${id}, attribute: "${key}", value: ${elem}]`);
-          }
-        }
-      }
-    } else {
-      let final = "[" + fields.join(", ") + "]";
-      rows.push(final)
-    }
-  }
-  return rows;
-}
-
-function sendEventObjs(objs) {
-  if(!objs.length) return;
-  let query = `handle some event
-  \`\`\`
-  bind
-    ${formatObjects(objs).join("\n    ")}
-  \`\`\``
-  return sendEvent(query);
-}
-
-function sendEvent(query) {
-  //console.log("QUERY", query);
-  if(socket && socket.readyState == 1) {
-    socket.send(JSON.stringify({scope: "event", type: "query", query}))
-  }
-  return query;
-}
-
-function sendSwap(query) {
-  if(socket && socket.readyState == 1) {
-    socket.send(JSON.stringify({scope: "root", type: "swap", query}))
-  }
-}
-
-function sendSave(query) {
-  if(socket && socket.readyState == 1) {
-    socket.send(JSON.stringify({scope: "root", type: "save", query}))
-  }
-}
-
-function sendParse(query) {
-  if(socket && socket.readyState == 1) {
-    socket.send(JSON.stringify({scope: "root", type: "parse", query}))
-  }
 }
 
 //---------------------------------------------------------
@@ -601,154 +523,22 @@ function onHashChange(event) {
 window.addEventListener("hashchange", onHashChange);
 
 //---------------------------------------------------------
-// Draw node graph
+// Editor Renderer
 //---------------------------------------------------------
-let activeLayers = {ids: true, registers: true};
+let activeLayers = {};
 let activeIds = {};
 let activeParse = {};
 let editorParse = {};
 let allNodeGraphs = {};
 let showGraphs = false;
 
-function drawNode(nodeId, graph, state, seen) {
-  let node = graph[nodeId];
-
-  if(seen[nodeId]) {
-    return {text: `seen ${node.type}`};
-  } else if(node.type == "terminal" || node.type == "subtail") {
-    return undefined;
-  }
-  seen[nodeId] = true;
-
-  let overlays = [];
-  let overlay = {c: "node-overlay", children: overlays};
-  if(activeLayers.ids) {
-    let idOverlay = {c: "id-overlay", style: "flex: 0 0 auto", text: `id: ${nodeId}`};
-    overlays.push(idOverlay);
-  }
-
-  let myTime = ((node.time * 100) / state.rootTime).toFixed(1);
-
-  let active = currentClass(node, state);
-  let children = [];
-  let childrenContainer = {c: "node-children", children};
-  let me = {c: `node`, children: [
-    {c: `${node.type} node-text ${active}`, text: `${node.type} ${node.scan_type || ""} (${node.count || 0} | ${myTime}%)`},
-    overlay,
-    {t:"pre", text: JSON.stringify(node.display, undefined, 2)},
-    childrenContainer
-  ]};
-  if((node.type == "fork") || (node.type == "choose")) {
-    childrenContainer.c += ` fork-node-children`;
-    for(let child of node.arms) {
-      children.push({style: "margin-right: 20px;", children: [drawNode(child, graph, state, seen)]});
-    }
-  } else if((node.type == "sub") || (node.type == "not")) {
-    childrenContainer.c += ` sub-node-children`;
-    children.push({style: "margin-left: 30px;", children: [drawNode(node.arms[1], graph, state, seen)]});
-    children.push(drawNode(node.arms[0], graph, state, seen));
-  } else {
-    for(let child of node.arms) {
-      children.push(drawNode(child, graph, state, seen));
-    }
-  }
-  return me;
-}
-
-function indexParse(parse) {
-  let lines = [];
-  let tokens = parse.root.context.tokens
-  for(let tokenId of tokens) {
-    let token = parse[tokenId];
-    if(!lines[token.line]) {
-      lines[token.line] = [];
-    }
-    lines[token.line].push(token)
-  }
-  parse.lines = lines;
-  let down = {};
-  let up = {};
-  for(let edge of parse.root.context.downEdges) {
-    if(!down[edge[0]]) down[edge[0]] = [];
-    if(!up[edge[1]]) up[edge[1]] = [];
-    down[edge[0]].push(edge[1]);
-    up[edge[1]].push(edge[0]);
-  }
-  parse.edges = {down, up};
-
-  // if there isn't an active graph, then make the first query
-  // active
-  if(!activeIds["graph"]) {
-    activeIds["graph"] = parse.root.children[0];
-  }
-  return parse;
-}
-
-function nodeToRelated(pos, node, parse) {
-  let active = {};
-  if(!parse.root) return active;
-  // search for which query we're looking at
-  let prev;
-  for(let queryId of parse.root.children) {
-    let query = parse[queryId];
-    if(query.line == pos.line + 1) {
-      prev = query;
-      break;
-    } else if (query.line > pos.line + 1) {
-      break;
-    }
-    prev = query;
-  }
-  if(prev) active["graph"] = prev.id;
-
-  if(!node.id) return active;
-  let {up, down} = parse.edges;
-  active[node.id] = true;
-  let nodesUp = up[node.id] ? up[node.id].slice() : [];
-  for(let ix = 0; ix < nodesUp.length; ix++) {
-    let cur = nodesUp[ix];
-    active[cur] = true;
-    for(let next of up[cur] || []) nodesUp.push(next);
-  }
-  let nodesDown = down[node.id] ? down[node.id].slice() : [];
-  for(let ix = 0; ix < nodesDown.length; ix++) {
-    let cur = nodesDown[ix];
-    active[cur] = true;
-    for(let next of down[cur] || []) nodesDown.push(next);
-  }
-
-  return active;
-}
-
-function currentClass(node, state) {
-  return state.activeIds[node.id] ? "active" : "";
-}
-
-function toggleGraphs() {
-  showGraphs = !showGraphs;
-  drawNodeGraph();
-}
-
 function injectProgram(node, elem) {
   node.appendChild(activeElements["root"]);
 }
 
-function drawNodeGraph() {
-  let graphs;
+function renderEditor() {
   let state = {activeIds};
-  for(let headId in allNodeGraphs) {
-    if(!activeParse.edges.up[headId] || activeParse.edges.up[headId].indexOf(activeIds["graph"]) == -1) continue;
-    let cur = allNodeGraphs[headId];
-    state.rootTime = activeParse.cycle_time;
-    let tree = drawNode(headId, cur, state, {});
-    let ordered = drawOrdered(activeParse.root.children, state);
-    if(showGraphs) {
-      graphs = {c: "graphs", children: [
-        ordered,
-        tree,
-      ]}
-    }
-  }
+
   let root = activeParse.root || {context: {errors: [], code: ""}};
   let program;
   let errors;
@@ -791,11 +581,9 @@ function drawNodeGraph() {
           {t: "option", value: "emacs", text: "emacs"},
         ]},
         {c: "show-graphs", text: "save", click: doSave},
-        {c: "show-graphs", text: "compile and run", click: compileAndRun},
-        {c: "show-graphs", text: "show compile", click: toggleGraphs}
+        {c: "show-graphs", text: "compile and run", click: compileAndRun}
       ]},
     ]},
-    graphs,
     errors,
     program,
   ]};
@@ -803,147 +591,9 @@ function drawNodeGraph() {
 }
 
 //---------------------------------------------------------
-// Draw ordered
-//---------------------------------------------------------
-
-let positionals = {"a": 0, "b": 1, "c": 2, "d": 3, "e": 4, "f": 5, "g": 6, "h": 7, "i": 8, "j": 9, "k": 10};
-let infix = {"+": true, "-": true, "*": true, "/": true, "=": true, ">": true, "<": true, ">=": true, "<=": true, "!=": true};
-
-function orderedNode(nodeId, state) {
-  let node = activeParse[nodeId]
-  if(!node && typeof nodeId == "string") {
-    return {c: "value", text: `"${nodeId}"`};
-  }
-  let active = currentClass(node, state);
-
-  let overlays = [];
-  let overlay = {c: "node-overlay", children: overlays};
-  if(activeLayers.registers && node.registers) {
-    let registers = {c: "registers-overlay row", children: [{t: "label", text: "Registers"}]};
-    overlays.push(registers);
-    for(let variable in node.registers) {
-      registers.children.push({c: "register-pair row", children: [orderedNode(variable, state), {text: `: ${node.registers[variable]}`}]});
-    }
-  }
-  if(activeLayers.ids) {
-    let idOverlay = {c: "id-overlay", text: `id: ${nodeId}`};
-    overlays.push(idOverlay);
-  }
-
-  if(node.type == "object" || node.type == "mutate") {
-    return {c: `ordered-node ordered-object ${active}`, children: [
-      {c: "row", children: [
-        {c: "node-type", text: node.type},
-        {c: "eav", children: [orderedNode(node.entity, state), orderedNode(node.attribute, state), orderedNode(node.value, state)]},
-      ]},
-      overlay
-    ]};
-  } else if(node.type == "subproject") {
-    let projections = [{text: "["}]
-    for(let proj of node.projection) {
-      projections.push(orderedNode(proj, state));
-    }
-    projections.push({text: "]"});
-    return {c: `ordered-node subproject ${active}`, children: [
-      {c: "row sub-node", children: [
-        {c: "node-type", text: node.type},
-        {c: "subproject-projection", children: projections},
-      ]},
-      overlay,
-      {c: "subproject-children", children: node.nodes.map(function(cur) { return orderedNode(cur, state); })}
-    ]};
-  } else if(node.type == "expression") {
-    let bindings = []
-    let startIx = 0;
-    let isInfix = infix[node.operator];
-    if(!isInfix) {
-      bindings.push({text: `${node.operator}(`})
-      startIx++;
-    }
-    for(let bindingId of node.bindings) {
-      let binding = activeParse[bindingId];
-      if(binding.field !== "return" && positionals[binding.field] !== undefined) {
-        bindings[startIx + positionals[binding.field]] = orderedNode(binding.variable || binding.constant, state);
-      } else {
-        bindings.unshift({text: `=`})
-        bindings.unshift(orderedNode(binding.variable || binding.constant, state));
-        startIx += 2;
-      }
-    }
-    if(isInfix) {
-      bindings.splice(bindings.length - 1, 0, {text: node.operator});
-    }
-    if(node.projection && node.projection.length) {
-      bindings.push({text: `given`})
-      for(let proj of node.projection) {
-        bindings.push(orderedNode(proj, state));
-      }
-    }
-    if(node.groupings && node.groupings.length) {
-      bindings.push({text: `per`})
-      for(let group of node.groupings) {
-        bindings.push(orderedNode(group, state));
-      }
-    }
-    if(!isInfix) {
-      bindings.push({text: ")"});
-    }
-    return {c: `ordered-node expression ${active}`, children: [
-      {c: "row", children: [
-        {c: "node-type", text: node.type},
-        {c: "expression-bindings", children: bindings},
-      ]},
-    ]};
-  } else if(node.type == "variable") {
-    return {c: "value", text: `${node.name}`};
-  } else if(node.type == "constant") {
-    if(node.constantType == "string") {
-      return {c: "value", text: `"${node.constant}"`};
-    } else {
-      return {c: "value", text: node.constant};
-    }
-  }
-}
-
-function drawOrdered(ordered, state) {
-  let queries = [];
-  for(let queryId of ordered) {
-    let query = activeParse[queryId];
-    if(state.activeIds["graph"] != query.id) continue;
-    var items = [];
-    for(let nodeId of query.unpacked) {
-      items.push(orderedNode(nodeId, state));
-    }
-    queries.push({c: "ordered-node ordered-query", children: [
-      {c: "ordered-query-children", children: items},
-    ]});
-  }
-  return {c: "ordered", children: [
-    {children: queries},
-  ]}
-}
-
-function clone(obj) {
-  if(typeof obj !== "object") return obj;
-  if(obj.constructor === Array) {
-    let neue = [];
-    for(let ix = 0; ix < obj.length; ix++) {
-      neue[ix] = clone(obj[ix]);
-    }
-    return neue;
-  } else {
-    let neue = {};
-    for(let key in obj) {
-      neue[key] = clone(obj[key]);
-    }
-    return neue;
-  }
-}
-
-//---------------------------------------------------------
 // Connect the websocket, send the ui code
 //---------------------------------------------------------
-let DEBUG = false;
+let DEBUG = true;
 
 let state = {entities: {}, dirty: {}};
 function handleDiff(state, diff) {
@@ -1058,7 +708,6 @@ function handleDiff(state, diff) {
   }
 }
 
-
 var socket = new WebSocket("ws://" + window.location.host +"/ws");
   var frameRequested = false;
   var prerendering = false;
@@ -1066,11 +715,7 @@ socket.onmessage = function(msg) {
   let data = JSON.parse(msg.data);
   if(data.type == "result") {
     handleDiff(state, data);
-    handleDOMUpdates(state); // Don't use requestAnimationFrame for now -- the batching plays hell with text input sync.
-    // if(!frameRequested) {
-    //   window.requestAnimationFrame(doRender);
-    //   frameRequested = true;
-    // }
+    renderRecords(state);
 
     let diffEntities = 0;
     if(DEBUG) {
@@ -1093,11 +738,11 @@ socket.onmessage = function(msg) {
     }
 
     if(document.readyState === "complete") {
-      drawNodeGraph();
+      renderEditor();
     } else if(!prerenderering) {
       prerenderering = true;
       document.addEventListener("DOMContentLoaded", function() {
-        drawNodeGraph();
+        renderEditor();
       });
     }
 
@@ -1105,7 +750,7 @@ socket.onmessage = function(msg) {
     allNodeGraphs[data.head] = data.nodes;
   } else if(data.type == "full_parse") {
     activeParse = indexParse(data.parse);
-    drawNodeGraph();
+    renderEditor();
     handleEditorParse(activeParse);
   } else if(data.type == "parse") {
     editorParse = indexParse(data.parse);
@@ -1133,4 +778,123 @@ socket.onopen = function() {
 }
 socket.onclose = function() {
   console.log("Disconnected from eve server!");
+}
+
+//---------------------------------------------------------
+// Bootstrapping interface
+//---------------------------------------------------------
+
+function indexParse(parse) {
+  let lines = [];
+  let tokens = parse.root.context.tokens
+  for(let tokenId of tokens) {
+    let token = parse[tokenId];
+    if(!lines[token.line]) {
+      lines[token.line] = [];
+    }
+    lines[token.line].push(token)
+  }
+  parse.lines = lines;
+  let down = {};
+  let up = {};
+  for(let edge of parse.root.context.downEdges) {
+    if(!down[edge[0]]) down[edge[0]] = [];
+    if(!up[edge[1]]) up[edge[1]] = [];
+    down[edge[0]].push(edge[1]);
+    up[edge[1]].push(edge[0]);
+  }
+  parse.edges = {down, up};
+
+  // if there isn't an active graph, then make the first query
+  // active
+  if(!activeIds["graph"]) {
+    activeIds["graph"] = parse.root.children[0];
+  }
+  return parse;
+}
+
+//---------------------------------------------------------
+// Communication helpers
+//---------------------------------------------------------
+
+function formatObjects(objs) {
+  let rows = [];
+  for(let obj of objs) {
+    let id;
+    let kvs = {};
+    let fields = [];
+    for(let key in obj) {
+      let value = obj[key];
+      if(key == "tags") {
+        for(let tag of value) {
+          fields.push("#" + tag);
+        }
+        kvs["tag"] = value
+      } else if(key == "id") {
+        id = obj[key];
+      } else {
+        let stringValue;
+        if(typeof value == "string" && value[0] == "⦑") {
+          stringValue = value;
+        } else {
+          stringValue = JSON.stringify(value);
+        }
+        fields.push(key + ": " + stringValue);
+        kvs[key] = stringValue;
+      }
+    }
+    if(id) {
+        console.log(kvs);
+      for(let key in kvs) {
+        let value = kvs[key];
+        if(value.prototype !== Array) {
+          rows.push(`[#eav entity: ${id}, attribute: "${key}", value: ${value}]`);
+        } else {
+          for(let elem of value) {
+            rows.push(`[#eav entity: ${id}, attribute: "${key}", value: ${elem}]`);
+          }
+        }
+      }
+    } else {
+      let final = "[" + fields.join(", ") + "]";
+      rows.push(final)
+    }
+  }
+  return rows;
+}
+
+function sendEventObjs(objs) {
+  if(!objs.length) return;
+  let query = `handle some event
+  \`\`\`
+  bind
+    ${formatObjects(objs).join("\n    ")}
+  \`\`\``
+  return sendEvent(query);
+}
+
+function sendEvent(query) {
+  //console.log("QUERY", query);
+  if(socket && socket.readyState == 1) {
+    socket.send(JSON.stringify({scope: "event", type: "query", query}))
+  }
+  return query;
+}
+
+function sendSwap(query) {
+  if(socket && socket.readyState == 1) {
+    socket.send(JSON.stringify({scope: "root", type: "swap", query}))
+  }
+}
+
+function sendSave(query) {
+  if(socket && socket.readyState == 1) {
+    socket.send(JSON.stringify({scope: "root", type: "save", query}))
+  }
+}
+
+function sendParse(query) {
+  if(socket && socket.readyState == 1) {
+    socket.send(JSON.stringify({scope: "root", type: "parse", query}))
+  }
 }
