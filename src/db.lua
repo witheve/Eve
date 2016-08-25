@@ -335,7 +335,12 @@ function Bag:new(args)
   return bag
 end
 
--- @FIXME: no way to remove atm because we don't cache dirty removed EAVs
+-- @FIXME: This is a shim until toFlatJSON is removed to stop it from going insane trying to consume the bag
+function Bag:toFlatJSON()
+  return util.toJSON(self.id)
+end
+
+
 function Bag:_sync(eav)
   if not self.cbag then
     self.cbag = create_edb(self.id.value)
