@@ -30,9 +30,50 @@ typedef struct values_diff {
   vector remove;
 } *values_diff;
 
+
+
+
 static inline u64 type_of (void *x)
 {
     return ((u64)x) & region_mask;
+}
+
+static inline u64 fold_key(u64 key)
+{
+    key ^= key >> 32;
+    key ^= key>>16;
+    key ^= key>>8;
+    return key;
+}
+
+static inline u64 value_as_key(value v)
+{
+    if (type_of(v) == float_space) {
+        return fold_key(*(u64 *)v);
+    }
+    return fold_key((u64)v);
+}
+
+// assumes bibop and interned strings and uuids
+static boolean value_equals(value a, value b)
+{
+    if (a == b) return true;
+    if ((type_of(a) == float_space) && (type_of(b) == float_space)) {
+        return *(double *)a == *(double *)b;
+    }
+    return false;
+}
+
+static inline value value_table_find (table t, void *c)
+{
+    key k = value_as_key(c);
+
+    for (entry i = t->entries[k%t->buckets];
+         i; i = i->next)
+        if ((i->k == k) && value_equals(i->c, c))
+            return(i->v);
+
+    return(EMPTY);
 }
 
 typedef void *uuid;
