@@ -326,7 +326,7 @@ end
 Bag = {}
 Bag.__index = Bag
 function Bag:new(args)
-  local bag = setmetatable({eavs = {}, hashes = Set:new(), dirty = Set:new(), indexEAV = {}, indexAVE = {}}, self)
+  local bag = setmetatable({eavs = {}, hashes = Set:new(), indexEAV = {}, indexAVE = {}}, self)
   bag.name = args and args.name or "Unnamed"
   bag.id = args and args.id or UUID:new()
   if args then
@@ -336,18 +336,20 @@ function Bag:new(args)
 end
 
 -- @FIXME: no way to remove atm because we don't cache dirty removed EAVs
-function Bag:sync()
+function Bag:_sync(eav)
   if not self.cbag then
     self.cbag = create_edb(self.id.value)
   end
 
-  for hash in pairs(self.dirty) do
-    self.dirty:remove(hash)
-
-    local m = 1
-    local values = EAV.asValues(self.eavs[hash])
-    insert_edb(self.cbag, values[1], values[2], values[3], m)
+  local hash = EAV.hash(eav)
+  local m
+  if self.hashes:has(hash) then
+    m = 1
+  else
+    m = -1
   end
+  local values = EAV.asValues(eav)
+  insert_edb(self.cbag, values[1], values[2], values[3], m)
 end
 
 function Bag:size()
@@ -358,9 +360,9 @@ function Bag:add(eav)
   setmetatable(eav, EAV)
   local hash = EAV.hash(eav)
   if self.hashes:add(hash) then
-    self.dirty:add(hash)
     self.eavs[hash] = eav
-    self:_indexEAV(eav)
+    self:_index(eav)
+    self:_sync(eav)
     return true
   end
   return false
@@ -369,9 +371,9 @@ end
 function Bag:remove(eav)
   local hash = EAV.hash(eav)
   if self.hashes:remove(hash) then
-    self.dirty:add(hash)
     self.eavs[hash] = nil
-    self:_deindexEAV(eav)
+    self:_deindex(eav)
+    self:_sync(eav)
   end
   return false
 end
@@ -441,7 +443,7 @@ function Bag:difference(bag)
   return changed
 end
 
-function Bag:_indexEAV(eav)
+function Bag:_index(eav)
   local hash = EAV.hash(eav)
   local e, a, v = eav[1], eav[2], eav[3]
 
@@ -456,7 +458,7 @@ function Bag:_indexEAV(eav)
   return true
 end
 
-function Bag:_deindexEAV(eav)
+function Bag:_deindex(eav)
   local hash = EAV.hash(eav)
   local e, a, v = eav[1], eav[2], eav[3]
 
