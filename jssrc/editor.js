@@ -7,6 +7,71 @@ function Span(start, len, source) {
   this.source = source
 }
 
+function findMark(mark) {
+  let loc = mark.find();
+  if(loc.from) return loc;
+  return {from: loc, to: loc};
+}
+
+let typeToBgClass = {"code_block": "CODE"};
+let typeToTextClass = {"item": "ITEM", "heading1": "HEADING1", "heading2": "HEADING2", "heading3": "HEADING3", "heading4": "HEADING4"};
+
+function createFullClear(editor, mark) {
+  let origClear = mark.clear
+  return function() {
+    let loc = findMark(mark);
+    let start = loc.from.line;
+    let end = loc.to.line;
+    if(start == end) {
+      end += 1;
+    }
+    let type = mark.source.type;
+    for(let line = start; line < end; line++) {
+      if(typeToBgClass[type]) {
+        editor.removeLineClass(line, "background", typeToBgClass[type]);
+      } else if(typeToTextClass[type]) {
+        editor.removeLineClass(line, "text", typeToTextClass[type]);
+      }
+    }
+    origClear.apply(mark);
+  }
+}
+
+function addMark(editor, from, to, source) {
+  let className = source.type.toUpperCase();
+  if(className == "HEADING") {
+    className += source.level;
+  }
+  let marker;
+  if(!samePos(from, to)) {
+    marker = editor.markText(from, to, {className})
+  } else {
+    marker = editor.setBookmark(from, {});
+  }
+  marker.source = source;
+
+  let type = source.type;
+  if(type == "heading") {
+    type += source.level;
+  }
+  if(typeToBgClass[type] || typeToTextClass[type]) {
+    let start = from.line;
+    let end = to.line;
+    if(start == end) {
+      end += 1;
+    }
+    for(let line = start; line < end; line++) {
+      if(typeToBgClass[type]) {
+        editor.addLineClass(line, "background", typeToBgClass[type]);
+      } else if(typeToTextClass[type]) {
+        editor.addLineClass(line, "text", typeToTextClass[type]);
+      }
+    }
+    marker.clear = createFullClear(editor, marker);
+  }
+  return marker;
+}
+
 function injectMarkdown(editor, markdown) {
   let parsed = parser.parse(markdown);
   let walker = parsed.walker();
@@ -48,43 +113,18 @@ function injectMarkdown(editor, markdown) {
       }
     } else {
       let info = context.pop();
-      if(node.type == "emph" || node.type == "strong" || node.type == "heading" || node.type == "item" || node.type == "link") {
+      if(node.type == "emph" || node.type == "strong" || node.type == "link") {
         spans.push(new Span(info.start, pos - info.start, node));
+      } else if(node.type == "heading" || node.type == "item") {
+        spans.push(new Span(info.start, 0, node));
       }
     }
   }
 
   editor.operation(function() {
     editor.setValue(text.join(""));
-
     for(let span of spans) {
-      let className = span.source.type.toUpperCase();
-      if(className == "HEADING") {
-        className += span.source.level;
-      }
-      let marker = editor.markText(editor.posFromIndex(span.start), editor.posFromIndex(span.end), {className})
-      marker.source = span.source;
-    }
-
-    let typeToBgClass = {"code_block": "CODE"};
-    let typeToTextClass = {"item": "ITEM"};
-    let marks = editor.getAllMarks();
-    for(let mark of marks) {
-      if(mark.source.type == "code_block" || mark.source.type == "item") {
-        let loc = mark.find();
-        let start = loc.from.line;
-        let end = loc.to.line;
-        if(start == end) {
-          end += 1;
-        }
-        for(let line = start; line < end; line++) {
-          if(typeToBgClass[mark.source.type]) {
-            editor.addLineClass(line, "background", typeToBgClass[mark.source.type]);
-          } else if(typeToTextClass[mark.source.type]) {
-            editor.addLineClass(line, "text", typeToTextClass[mark.source.type]);
-          }
-        }
-      }
+      addMark(editor, editor.posFromIndex(span.start), editor.posFromIndex(span.end), span.source);
     }
   });
 }
@@ -96,7 +136,7 @@ function toMarkdown(editor) {
   let pieces = [];
   let pos = 0;
   for(let mark of marks) {
-    let loc = mark.find();
+    let loc = findMark(mark);
     let from = editor.indexFromPos(loc.from);
     let to = editor.indexFromPos(loc.to);
     markers.push({pos: from, start: true, source: mark.source});
@@ -181,7 +221,7 @@ function handleEditorParse(parse) {
   codeEditor.operation(function() {
     for(let block of getCodeBlocks(codeEditor)) {
       if(!parseBlocks[ix]) continue;
-      let loc = block.find();
+      let loc = findMark(block);
       let fromLine = loc.from.line;
       let toLine = loc.to.line;
       let parseStart = parse[parseBlocks[ix]].line;
@@ -251,45 +291,39 @@ function whollyEnclosed(inner, outer) {
 }
 
 function fullyMark(editor, selection, source) {
-  let marks = editor.findMarks(selection.from, selection.to);
+  let marks = getMarksByType(editor, source.type, selection.from, selection.to);
   let marked = false;
   for(let mark of marks) {
-    let loc = mark.find();
-    if(mark.source.type == source.type) {
-      // if this mark is wholly equalivent to the selection
-      // then we remove it and we've "marked" the span
-      if(samePos(loc.from, selection.from) && samePos(loc.to, selection.to)) {
-        marked = true;
-        mark.clear();
+    let loc = findMark(mark);
+    // if this mark is wholly equalivent to the selection
+    // then we remove it and we've "marked" the span
+    if(samePos(loc.from, selection.from) && samePos(loc.to, selection.to)) {
+      marked = true;
+      mark.clear();
       // if the mark is wholly enclosed by the selection, then
       // we remove it as we'll be replacing it with a larger span
-      } else if(whollyEnclosed(loc, selection)) {
-        mark.clear();
+    } else if(whollyEnclosed(loc, selection)) {
+      mark.clear();
       // if the selection is wholly enclosed in the mark, we have to split
       // the mark so the selection is no longer contained in it
-      } else if(whollyEnclosed(selection, loc)) {
-        let startMarker = editor.markText(loc.from, selection.from, {className: source.type.toUpperCase(), addToHistory: true});
-        startMarker.source = mark.source;
-        let endMarker = editor.markText(selection.to, loc.to, {className: source.type.toUpperCase(), addToHistory: true});
-        endMarker.source = mark.source;
-        mark.clear();
-        marked = true;
+    } else if(whollyEnclosed(selection, loc)) {
+      let startMarker = addMark(editor, loc.from, selection.to, source);
+      let endMarker = addMark(editor, selection.to, loc.to, source);
+      mark.clear();
+      marked = true;
       // otherwise we need to trim the mark to not include the selection.
       // if the mark is on the left
-      } else if(comparePos(loc.to, selection.from) > 0) {
-        let startMarker = editor.markText(loc.from, selection.from, {className: source.type.toUpperCase(), addToHistory: true});
-        startMarker.source = mark.source;
-        mark.clear();
+    } else if(comparePos(loc.to, selection.from) > 0) {
+      let startMarker = addMark(editor, loc.from, selection.from, source);
+      mark.clear();
       // if the mark is on the right
-      } else if(comparePos(loc.from, selection.to) < 0) {
-        let startMarker = editor.markText(selection.to, loc.to, {className: source.type.toUpperCase(), addToHistory: true});
-        startMarker.source = mark.source;
-        mark.clear();
-      }
+    } else if(comparePos(loc.from, selection.to) < 0) {
+      let startMarker = addMark(editor, selection.to, loc.to, source);
+      mark.clear();
     }
   }
   if(!marked) {
-    let marker = editor.markText(selection.from, selection.to, {className: source.type.toUpperCase(), addToHistory: true});
+    let marker = addMark(editor, selection.from, selection.to, source);
     marker.source = source;
   }
 }
@@ -310,7 +344,7 @@ function doFormat(editor, type) {
       // to be remove for strong
       for(let mark of marks) {
         if(!mark.source || mark.source.type !== type) continue;
-        let loc = mark.find();
+        let loc = findMark(mark);
         if(samePos(loc.to, cursor)) {
           // if we're at the end of a bold span, we don't want the next change
           // to be bold
@@ -330,6 +364,37 @@ function doFormat(editor, type) {
   });
 }
 
+function doLineFormat(editor, source) {
+  editor.operation(function() {
+    let loc = {from: editor.getCursor("from"), to: editor.getCursor("to")};
+    let start = loc.from.line;
+    let end = loc.to.line;
+    let existing = [];
+    let changed = false;
+    for(let line = start; line <= end; line++) {
+      let from = {line, ch: 0};
+      let marks = getMarksByType(editor, source.type, from);
+      // if there's already a mark, we don't need to do anything
+      if(!marks.length) {
+        changed = true;
+        fullyMark(editor, {from, to: from}, source);
+      } else {
+        // we want to store the found marks in case we need to clear
+        // them in the event that all the lines are already formatted
+        existing.push.apply(existing, marks);
+      }
+    }
+    // if all the lines were already formatted, then we need to remove
+    // the formatting from all of them instead.
+    if(!changed) {
+      for(let mark of existing) {
+        mark.clear();
+      }
+    }
+    editor.refresh();
+  });
+}
+
 // @TODO: formatting shouldn't apply in codeblocks.
 function formatBold(editor) {
   doFormat(editor, "strong");
@@ -340,20 +405,18 @@ function formatItalic(editor) {
 }
 
 function formatHeader(editor) {
-  editor.operation(function() {
-    let line = editor.getCursor("from").line;
-    let from = {line, ch: 0};
-    let to = {line, ch: editor.getLine(line).length};
-    console.log(from, to);
-    fullyMark(editor, {from, to}, {type: "heading1", level: "1"});
-  });
+  doLineFormat(editor, {type: "heading1", level: "1"});
+}
+
+function formatList(editor) {
+  doLineFormat(editor, {type: "item", _listData: {type: "bullet"}});
 }
 
 function getMarksByType(editor, type, start, stop) {
   let marks;
-  if(start && stop) {
+  if(start && stop && !samePos(start, stop)) {
     marks = editor.findMarks(start, stop);
-  } else if(start && !stop) {
+  } else if(start) {
     marks = editor.findMarksAt(start);
   } else {
     marks = editor.getAllMarks();
@@ -369,15 +432,19 @@ function getMarksByType(editor, type, start, stop) {
 
 function splitMark(editor, mark, from, to) {
   if(!to) to = from;
-  let loc = mark.find();
+  let loc = findMark(mark);
   let source = mark.source;
-  let startMarker = editor.markText(loc.from, from, {className: source.type.toUpperCase(), addToHistory: true});
+  let startMarker = addMark(editor, loc.from, from, source);
   startMarker.source = source;
   if(comparePos(to, loc.to) === -1) {
-    let endMarker = editor.markText(to, loc.to, {className: source.type.toUpperCase(), addToHistory: true});
+    let endMarker = addMark(editor, to, loc.to, source);
     endMarker.source = source;
   }
   mark.clear();
+}
+
+function isNewlineChange(change) {
+  return change.text.length == 2 && change.text[1] == "";
 }
 
 function makeEditor() {
@@ -389,23 +456,55 @@ function makeEditor() {
       "Cmd-B": formatBold,
       "Cmd-I": formatItalic,
       "Cmd-E": formatHeader,
+      "Cmd-Y": formatList,
     })
   });
   editor.dirtyLines = [];
   editor.formatting = {};
   editor.formats = ["strong", "emph"];
+  editor.on("beforeChange", function(editor, change) {
+    let {from, to, text} = change;
+    if(change.origin === "+delete") {
+      let marks = getMarksByType(editor, "item", to);
+      for(let mark of marks) {
+        // clear the old bookmark
+        mark.clear();
+        change.cancel();
+      }
+    }
+    if(change.origin === "+input") {
+      // if we are at the start of a list item and adding a new line, we're really removing the
+      // list item-ness of this row
+      let marks = getMarksByType(editor, "item", {line: from.line, ch: 0});
+      if(marks.length && isNewlineChange(change) && editor.getLine(from.line) === "") {
+        for(let mark of marks) {
+          mark.clear();
+        }
+        change.cancel();
+      }
+    }
+  });
   editor.on("change", function(editor, change) {
     let {from, to, text} = change;
     let adjusted = {line: from.line, ch: from.ch + text.length};
     if(change.origin === "+input") {
+
+      // check if we're adding a new line from a list line. If so, we continue
+      // the list.
+      let marks = getMarksByType(editor, "item", {line: from.line, ch: 0});
+      if(marks.length && isNewlineChange(change)) {
+        let nextLine = {line: from.line + 1, ch: 0};
+        let parentSource = marks[0].source;
+        addMark(editor, nextLine, nextLine, {type: parentSource.type, _listData: parentSource._listData});
+      }
+
       // handle formatting
       for(let format of editor.formats) {
         let action = editor.formatting[format];
         let className = format.toUpperCase();
         let source = {type: format};
         if(action == "add") {
-          let marker = editor.markText(from, adjusted, {className});
-          marker.source = source;
+          let marker = addMark(editor, from, adjusted, source);
         } else if(action == "split") {
           let marks = getMarksByType(editor, format, from);
           for(let mark of marks) {
@@ -414,22 +513,23 @@ function makeEditor() {
         } else if(!action) {
           let marks = getMarksByType(editor, format, from);
           for(let mark of marks) {
-            let loc = mark.find();
+            let loc = findMark(mark);
             // if we're at the end of this mark
             if(samePos(loc.to, from)) {
-              let marker = editor.markText(loc.from, adjusted, mark);
-              marker.source = mark.source;
+              let marker = addMark(editor, loc.from, adjusted, source);
               mark.clear();
             }
           }
         }
       }
-    }
-    let end = to.line > from.line + text.length ? to.line : from.line + text.length;
-    for(let start = from.line; start <= end; start++) {
-      let lineInfo = editor.lineInfo(start);
-      if(lineInfo && lineInfo.bgClass && lineInfo.bgClass.indexOf("CODE") > -1) {
-        editor.dirtyLines.push(start);
+    } else if(change.origin === "+delete") {
+      let marks = getMarksByType(editor, "heading", to);
+      for(let mark of marks) {
+        if(from.ch == 0) {
+          addMark(editor, from, from, mark.source);
+        }
+        // clear the old bookmark
+        mark.clear();
       }
     }
   });
