@@ -13,6 +13,7 @@ function findMark(mark) {
   return {from: loc, to: loc};
 }
 
+let lineMarks = {"item": true, "heading1": true, "heading2": true, "heading3": true, "heading4": true};
 let typeToBgClass = {"code_block": "CODE"};
 let typeToTextClass = {"item": "ITEM", "heading1": "HEADING1", "heading2": "HEADING2", "heading3": "HEADING3", "heading4": "HEADING4"};
 
@@ -373,6 +374,14 @@ function doLineFormat(editor, source) {
     let changed = false;
     for(let line = start; line <= end; line++) {
       let from = {line, ch: 0};
+      // if there are line marks of another type, we need to remove them
+      let allMarks = editor.findMarksAt(from);
+      for(let mark of allMarks) {
+        let type = mark.source.type
+        if(type !== source.type && lineMarks[type]) {
+          mark.clear();
+        }
+      }
       let marks = getMarksByType(editor, source.type, from);
       // if there's already a mark, we don't need to do anything
       if(!marks.length) {
