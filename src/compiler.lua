@@ -1061,6 +1061,15 @@ function sanitize(obj, mapping, flattenArray)
         neue[sk] = sv
       end
     end
+  elseif obj.type == "code" then
+    neue.ast = sanitize(obj.ast, mapping)
+    neue.children = sanitize(obj.children, mapping, true)
+    neue.context = sanitize(obj.context, mapping)
+  elseif obj.type == "context" then
+    neue.errors = sanitize(obj.errors, mapping)
+    neue.tokens = sanitize(obj.tokens, mapping)
+    neue.downEdges = sanitize(obj.downEdges, mapping)
+    neue.comments = sanitize(obj.comments, mapping)
   elseif obj.type == "variable" then
     neue.generated = obj.generated
     neue.cardinal = sanitize(obj.cardinal, mapping)
@@ -1078,6 +1087,16 @@ function sanitize(obj, mapping, flattenArray)
   end
 
   return neue
+end
+
+function parseGraphToRecord(parseGraph, mapping)
+  mapping = mapping or {}
+  return sanitize(parseGraph, mapping)
+end
+
+function parseGraphAddToBag(parseGraph, bag)
+  local record = parseGraphToRecord(parseGraph)
+  bag:addRecord(record, parseGraph.id)
 end
 
 ScanNode = {}
@@ -1308,13 +1327,14 @@ end
 function compileExec(contents, tracing)
   local parseGraph = parser.parseString(contents)
   local context = parseGraph.context
+  context.type = "context"
+  context.compilerBag = db.Bag:new({name = "compiler"})
 
   if context.errors and #context.errors ~= 0 then
     return {}, util.toFlatJSON(parseGraph), {}
   end
 
   local set = {}
-  context.compilerBag = db.Bag:new({name = "compiler"})
 
   for ix, queryGraph in ipairs(parseGraph.children) do
     local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph, context)
@@ -1327,6 +1347,10 @@ function compileExec(contents, tracing)
       set[#set+1] = {head = head, regs = regs, name = queryGraph.name}
     end
   end
+
+  parseGraphAddToBag(parseGraph, context.compilerBag)
+
+
   if context.errors and #context.errors ~= 0 then
     print("Bailing due to errors.")
     return {}, context.compilerBag.cbag
@@ -1337,6 +1361,9 @@ end
 function analyze(content, quiet)
   local parseGraph = parser.parseString(content)
   local context = parseGraph.context
+  context.type = "context"
+  context.compilerBag = db.Bag:new({name = "compiler"})
+
   if context.errors and #context.errors ~= 0 then
     print("Bailing due to errors.")
     return 0
@@ -1367,12 +1394,13 @@ function analyze(content, quiet)
       print(string.format("    %2d: %s", ix, util.indentString(4, tostring(node))))
     end
     print("  }")
-
-    print("--- BAG ---")
-    local bag = db.Bag:new({name = queryGraph.name})
-    dependencyGraph:addToBag(bag)
-    print(bag)
   end
+
+
+  print("--- BAG ---")
+  parseGraphAddToBag(parseGraph, context.compilerBag)
+  print("built")
+  print(context.compilerBag)
 
   if context.errors and #context.errors ~= 0 then
     print("Bailing due to errors.")
