@@ -1314,6 +1314,7 @@ function compileExec(contents, tracing)
   end
 
   local set = {}
+  context.compilerBag = db.Bag:new({name = "compiler"})
 
   for ix, queryGraph in ipairs(parseGraph.children) do
     local dependencyGraph = DependencyGraph:fromQueryGraph(queryGraph, context)
@@ -1321,8 +1322,9 @@ function compileExec(contents, tracing)
     local head, regs
     -- @NOTE: We cannot allow dead DGs to still try and run, they may be missing filtering hunks and fire all sorts of missiles
     if not dependencyGraph.ignore then
+      dependencyGraph:addToBag(context.compilerBag)
       head, regs = build.build(queryGraph, tracing, parseGraph.context)
-      set[#set+1] = {head = head, regs = regs, name = queryGraph.name}
+      set[#set+1] = {head = head, regs = regs, name = queryGraph.name, compilerBag = context.compilerBag}
     end
   end
   if context.errors and #context.errors ~= 0 then
