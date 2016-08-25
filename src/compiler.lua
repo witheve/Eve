@@ -1399,8 +1399,7 @@ function analyze(content, quiet)
 
   print("--- BAG ---")
   parseGraphAddToBag(parseGraph, context.compilerBag)
-  print("built")
-  print(context.compilerBag)
+  context.compilerBag:print()
 
   if context.errors and #context.errors ~= 0 then
     print("Bailing due to errors.")

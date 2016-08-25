@@ -11,6 +11,7 @@ local pairs = pairs
 local ipairs = ipairs
 local string = string
 local table = table
+local io = io
 local utf8 = require("utf8")
 local generate_uuid = generate_uuid
 local value_to_string = value_to_string
@@ -623,36 +624,48 @@ function Bag:addRecord(record, id, mapping)
   return id
 end
 
-function Bag.__tostring(bag)
-  local entities = ""
+function Bag.print(bag, printer)
+  local print = io.write
+  if printer then
+    print = printer
+  end
+
+  local header = string.format("%s (%s)", bag.id, bag.name)
+  print(header .. "\n")
+  print(string.rep("-", #header) .. "\n")
+
   for e, idxA in pairs(bag.indexEAV) do
     local ePadding = string.rep(" ", utf8.len(tostring(e)) + 1)
-    entities = entities .. tostring(e)
+    print(tostring(e))
     if idxA.name then
       local names = {}
       for v, eavs in pairs(idxA.name) do
         names[#names + 1] = v
       end
-      entities = entities .. " (" .. table.concat(names, ", ") .. ")"
+      print(" (" .. table.concat(names, ", ") .. ")")
     end
-    entities = entities .. "\n"
+    print("\n")
 
     for a, idxV in pairs(idxA) do
       local aHeader = string.format("%s%s: ", ePadding, a)
-      entities = entities .. aHeader
+      print(aHeader)
       aPadding = string.rep(" ", utf8.len(aHeader))
 
       local multi = false
       for v, eav in pairs(idxV) do
-        entities = string.format("%s%s%s\n", entities, multi and aPadding or "", v)
+        print(string.format("%s%s\n", multi and aPadding or "", v))
         multi = true
       end
     end
 
-    entities = entities .. "\n"
+    print("\n")
   end
-  local header = string.format("%s (%s)", bag.id, bag.name)
-  return string.format("%s\n%s\n%s",  header, string.rep("-", #header), entities)
+end
+
+function Bag.__tostring(bag)
+  local buffer = {}
+  bag:print(util.bufferedPrinter(buffer))
+  return table.concat(buffer, "")
 end
 
 return Pkg

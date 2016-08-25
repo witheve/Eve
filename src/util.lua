@@ -226,6 +226,13 @@ end
 -- String helpers
 ------------------------------------------------------------
 
+function bufferedPrinter(buffer)
+  local function printToBuffer(msg)
+    buffer[#buffer + 1] = msg
+  end
+  return printToBuffer
+end
+
 function makeWhitespace(size, char)
   local whitespace = {}
   local char = char or " "
