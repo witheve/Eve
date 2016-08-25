@@ -61,12 +61,7 @@ void print_value_json(buffer out, value v)
         }
         break;
     default:
-        if(v == etrue)
-            bprintf(out, "true");
-        else if( v == efalse)
-            bprintf(out, "false");
-        else
-          prf ("wth!@ %v\n", v);
+        prf ("wth!@ %v\n", v);
     }
 }
 

@@ -121,7 +121,7 @@ static int lua_print_value(lua_State *L)
     interpreter c = lua_context(L);
     string out = allocate_string(c->h);
     print_value(out, x);
-    lua_pushlstring(L, bref(out->contents, 0), buffer_length(out));
+    lua_pushlstring(L, bref(out, 0), buffer_length(out));
     return 1;
 }
 
@@ -272,6 +272,39 @@ int lua_build_node(lua_State *L)
     return 1;
 }
 
+int lua_create_edb(lua_State *L)
+{
+    interpreter c = lua_context(L);
+    uuid id = lua_tovalue(L, 1);
+    bag b = (bag)create_edb(c->h, id, 0);
+
+    lua_pushlightuserdata(L, b);
+    return 1;
+}
+
+int lua_insert_edb(lua_State *L)
+{
+    interpreter c = lua_context(L);
+    bag b = (bag) lua_touserdata(L, 1);
+    value e = (value) lua_touserdata(L, 2);
+    value a = (value) lua_touserdata(L, 3);
+    value v = (value) lua_touserdata(L, 4);
+    int m = (int)lua_tonumber(L, 5);
+    apply(b->insert, e, a, v, m, 0);
+
+    return 0;
+}
+
+int lua_dump_edb(lua_State *L)
+{
+    interpreter c = lua_context(L);
+    bag b = (bag) lua_touserdata(L, 1);
+    string out = edb_dump(c->h, (edb) b);
+    lua_pushlstring(L, bref(out, 0), buffer_length(out));
+
+    return 1;
+}
+
 // FIXME - CAS thread safety or per core lists
 static interpreter freelist = 0;
 
@@ -291,9 +324,13 @@ interpreter build_lua()
     define(c, "sregister", construct_register);
     define(c, "sboolean", construct_boolean);
     define(c, "sstring", construct_string);
+    define(c, "generate_uuid", lua_gen_uuid);
     define(c, "value_to_string", lua_print_value);
     define(c, "build_node", lua_build_node);
     define(c, "node_id", node_id);
+    define(c, "create_edb", lua_create_edb);
+    define(c, "insert_edb", lua_insert_edb);
+    define(c, "dump_edb", lua_dump_edb);
     require_luajit(c, "compiler");
     return c;
 }

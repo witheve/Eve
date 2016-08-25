@@ -11,6 +11,8 @@ local table = table
 local io = io
 local string = string
 local math = math
+local error = error
+local value_to_string = value_to_string
 
 setfenv(1, Pkg)
 
@@ -58,6 +60,23 @@ end
 if ... == nil then
 end
 
+function flatPrintTable(t)
+   if t and type(t) == "table" then
+     local result = ""
+     for k, v in pairs(t) do
+        if not (k == nil) then result = result .. " " .. tostring(k) .. ": " end
+        if not (v == nil) then result = result .. tostring(v) end
+     end
+     return result
+   end
+   return tostring(t)
+end
+
+
+------------------------------------------------------------
+-- Collection helpers
+------------------------------------------------------------
+
 function shallowCopy(obj)
    if type(obj) ~= "table" then return obj end
    local meta = getmetatable(obj)
@@ -82,6 +101,15 @@ function walk(obj, fn, seen)
    end
 end
 
+-- @NOTE: only used for appending lists
+function into(dest, src)
+  if type(dest) ~= "table" or type(src) ~= "table" then return dest end
+  for _, v in ipairs(src) do
+    dest[#dest + 1] = v
+  end
+  return dest
+end
+
 ------------------------------------------------------------
 -- ID helpers
 ------------------------------------------------------------
@@ -96,7 +124,7 @@ end
 -- JSON helpers
 ------------------------------------------------------------
 
-local function isArray(t)
+function isArray(t)
   local i = 0
   for _ in pairs(t) do
       i = i + 1
@@ -134,8 +162,12 @@ function toJSON(obj, seen)
     return tostring(obj)
   elseif objType == "boolean" then
     return tostring(obj)
+  elseif objType == "userdata" then
+    return toJSON(value_to_string(obj))
+  elseif obj == nil then
+    return "null"
   end
-  return "uh oh"
+  error("UNKNOWN OBJECT " .. tostring(obj) .. " of type " .. type(obj))
 end
 
 function toFlatJSONRecurse(obj, results, seen)
@@ -150,9 +182,9 @@ function toFlatJSONRecurse(obj, results, seen)
       temp[#temp + 1] = toFlatJSONRecurse(child, results, seen)
     end
     return string.format("[%s]", table.concat(temp, ", "))
-  elseif objType == "table"then
+  elseif objType == "table" then
     if seen[obj] and obj.id then
-      return obj.id
+      return toJSON(obj.id)
     end
     seen[obj] = true
     local temp = {}
@@ -161,12 +193,12 @@ function toFlatJSONRecurse(obj, results, seen)
         local jsond = toFlatJSONRecurse(value, results, seen)
         temp[#temp + 1] = string.format("\"%s\": %s", key, jsond)
       elseif seen[value] and value.id then
-        temp[#temp + 1] = string.format("\"%s\": %s", key, value.id)
+        temp[#temp + 1] = string.format("\"%s\": %s", key, toJSON(value.id))
       end
     end
     if obj.id then
       results[#results + 1] = string.format("\"%s\": {%s}", obj.id, table.concat(temp, ", "))
-      return obj.id
+      return toJSON(obj.id)
     else
       return string.format("{%s}", table.concat(temp, ", "))
     end
@@ -176,8 +208,12 @@ function toFlatJSONRecurse(obj, results, seen)
     return tostring(obj)
   elseif objType == "boolean" then
     return tostring(obj)
+  elseif objType == "userdata" then
+    return toJSON(value_to_string(obj))
+  elseif obj == nil then
+    return "null"
   end
-  return "uh oh"
+  error("UNKNOWN OBJECT " .. tostring(obj) .. " of type " .. type(obj))
 end
 
 function toFlatJSON(obj)
@@ -310,6 +346,7 @@ end
 nothing = {}
 
 function formatQueryNode(node, indent)
+  if not node or not node.type then return tostring(node) end
   indent = indent or 0
   local padding = string.rep("  ", indent)
   local result = padding .. node.type
@@ -394,8 +431,6 @@ end
 
 DefaultNodeMeta = {}
 DefaultNodeMeta.__tostring = formatQueryNode
-
-
 
 ------------------------------------------------------------
 -- Package
