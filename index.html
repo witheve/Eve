@@ -1,7 +1,7 @@
 <html>
   <head>
     <title>Eve</title>
-    <link rel="stylesheet" type="text/css" href="jssrc/codemirror.css">
+    <link rel="stylesheet" type="text/css" href="js/codemirror.css">
     <style>
       * { box-sizing:border-box; }
       body { background: rgb(47,47,49); color: #d8d8d8; font-family: Avenir; display: flex; flex-direction: column; margin:0; width: 100%; }
@@ -115,10 +115,22 @@
     </style>
   </head>
   <body>
-    <script type="text/javascript" src="jssrc/commonmark.js"></script>
-    <script type="text/javascript" src="jssrc/codemirror.js"></script>
-    <script type="text/javascript" src="jssrc/microReact.js"></script>
-    <script type="text/javascript" src="jssrc/renderer.js"></script>
-    <script type="text/javascript" src="jssrc/editor.js"></script>
+    <script type="text/javascript" src="js/codemirror.js"></script>
+
+    <script type="text/javascript" src="js/system.js"></script>
+    <script>
+      SystemJS.config({
+        baseURL: "/js",
+        defaultJSExtensions: true,
+        meta: {
+          codemirror: {format: "amd"}
+        }
+      });
+      // Kicks off requiring everyone else
+      SystemJS.register("CodeMirror", [], function($export) {
+        $export("CodeMirror", CodeMirror);
+      });
+      SystemJS.import("client");
+    </script>
   </body>
 </html>

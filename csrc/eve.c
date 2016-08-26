@@ -4,7 +4,7 @@
 #include <luanne.h>
 
 static boolean enable_tracing = false;
-static buffer loadedParse;
+static bag compiler_bag;
 static char *exec_path;
 static int port = 8080;
 static buffer server_eve = 0;
@@ -29,7 +29,7 @@ station create_station(unsigned int address, unsigned short port) {
 }
 
 
-extern void init_json_service(http_server, uuid, boolean, buffer, char*);
+extern void init_json_service(http_server, uuid, boolean, bag, char*);
 extern int strcmp(const char *, const char *);
 static buffer read_file_or_exit(heap, char *);
 
@@ -90,8 +90,11 @@ static void run_test(bag root, buffer b, boolean tracing)
     table_set(persisted, remote->u, remote);
 
     init_request_service(troot);
-    buffer desc;
-    vector n = compile_eve(h, b, tracing, &desc);
+    bag compiler_bag;
+    vector n = compile_eve(h, b, tracing, &compiler_bag);
+    table_set(scopes, intern_cstring("compiler"), compiler_bag->u);
+    table_set(persisted, compiler_bag->u, compiler_bag);
+
     vector_foreach(n, i)
         table_set(session->implications, i, (void *)1);
 
@@ -155,10 +158,9 @@ static void do_json(interpreter c, char *x, bag b)
 
 static void do_exec(interpreter c, char *x, bag b)
 {
-    buffer desc;
     buffer f = read_file_or_exit(init, x);
     exec_path = x;
-    vector v = compile_eve(init, f, enable_tracing, &loadedParse);
+    vector v = compile_eve(init, f, enable_tracing, &compiler_bag);
     vector_foreach(v, i)
         table_set(b->implications, i, (void *)1);
 }
@@ -230,16 +232,20 @@ int main(int argc, char **argv)
 
     http_server h = create_http_server(create_station(0, port), server_eve);
     register(h, "/", "text/html", index);
-    register(h, "/jssrc/renderer.js", "application/javascript", renderer);
-    register(h, "/jssrc/microReact.js", "application/javascript", microReact);
-    register(h, "/jssrc/codemirror.js", "application/javascript", codemirror);
-    register(h, "/jssrc/codemirror.css", "text/css", codemirrorCss);
-    register(h, "/examples/todomvc.css", "text/css", exampleTodomvcCss);
-    register(h, "/jssrc/commonmark.js", "application/javascript", commonmark);
-    register(h, "/jssrc/editor.js", "application/javascript", editor);
+    register(h, "/js/microReact.js", "application/javascript", microReact_js);
+    register(h, "/js/codemirror.js", "application/javascript", codemirror_js);
+    register(h, "/js/codemirror.css", "text/css", codemirror_css);
+    register(h, "/examples/todomvc.css", "text/css", todomvc_css);
+    register(h, "/js/commonmark.js", "application/javascript", commonmark_js);
+    register(h, "/js/system.js", "application/javascript", system_js);
+
+    register(h, "/js/util.js", "application/javascript", util_js);
+    register(h, "/js/client.js", "application/javascript", client_js);
+    register(h, "/js/renderer.js", "application/javascript", renderer_js);
+    register(h, "/js/editor.js", "application/javascript", editor_js);
 
     // TODO: figure out a better way to manage multiple graphs
-    init_json_service(h, root, enable_tracing, loadedParse, exec_path);
+    init_json_service(h, root, enable_tracing, compiler_bag, exec_path);
 
     prf("\n----------------------------------------------\n\nEve started. Running at http://localhost:%d\n\n",port);
 

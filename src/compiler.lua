@@ -1003,10 +1003,15 @@ function DependencyGraph:toRecord(mapping)
     })
   end
 
+  local query = sanitize(self.query, mapping)
+  if not self.parent then
+    query.tag = Set:new({"node", "block"})
+  end
+
   return {
     name = self.query.name,
     tag = "dependency-graph",
-    query = sanitize(self.query, mapping),
+    query = query,
     nodes = nodeRecords,
     terms = sanitize(self.terms, mapping),
     groups = sanitize(groupRecords, mapping)
@@ -1056,6 +1061,20 @@ function sanitize(obj, mapping, flattenArray)
         neue[sk] = sv
       end
     end
+  elseif obj.type == "code" then
+    neue.tag = "parse-graph"
+    neue.ast = sanitize(obj.ast, mapping)
+    neue.children = sanitize(obj.children, mapping, true)
+    neue.context = sanitize(obj.context, mapping)
+  elseif obj.type == "context" then
+    for _, token in ipairs(obj.tokens) do
+      token.tag = "token"
+    end
+    neue.tokens = sanitize(obj.tokens, mapping, true)
+    neue.downEdges = sanitize(obj.downEdges, mapping)
+    neue.errors = sanitize(obj.errors, mapping, true)
+    neue.comments = sanitize(obj.comments, mapping, true)
+    neue.code = sanitize(obj.code, mapping)
   elseif obj.type == "variable" then
     neue.generated = obj.generated
     neue.cardinal = sanitize(obj.cardinal, mapping)
@@ -1063,6 +1082,10 @@ function sanitize(obj, mapping, flattenArray)
     neue.field = obj.field
     neue.variable = sanitize(obj.variable, mapping)
     neue.constant = obj.constant and obj.constant.constant
+  elseif obj.tag == "token" then -- Some kind of token
+    for k, v in pairs(obj) do
+      neue[k] = sanitize(v, mapping)
+    end
   else -- Some kind of node
     neue.deps = sanitize(obj.deps, mapping)
     neue.operator = obj.operator
@@ -1070,9 +1093,20 @@ function sanitize(obj, mapping, flattenArray)
     neue.mutateType = obj.mutateType
     neue.bindings = sanitize(obj.bindings, mapping, true)
     neue.queries = sanitize(obj.queries, mapping)
+    neue.unpacked = sanitize(obj.unpacked, mapping)
   end
 
   return neue
+end
+
+function parseGraphToRecord(parseGraph, mapping)
+  mapping = mapping or {}
+  return sanitize(parseGraph, mapping)
+end
+
+function parseGraphAddToBag(parseGraph, bag)
+  local record = parseGraphToRecord(parseGraph)
+  bag:addRecord(record, parseGraph.id)
 end
 
 ScanNode = {}
@@ -1303,6 +1337,8 @@ end
 function compileExec(contents, tracing)
   local parseGraph = parser.parseString(contents)
   local context = parseGraph.context
+  context.type = "context"
+  context.compilerBag = db.Bag:new({name = "compiler"})
 
   if context.errors and #context.errors ~= 0 then
     return {}, util.toFlatJSON(parseGraph), {}
@@ -1316,20 +1352,28 @@ function compileExec(contents, tracing)
     local head, regs
     -- @NOTE: We cannot allow dead DGs to still try and run, they may be missing filtering hunks and fire all sorts of missiles
     if not dependencyGraph.ignore then
-      head, regs = build.build(queryGraph, tracing, parseGraph.context)
+      dependencyGraph:addToBag(context.compilerBag)
+      head, regs = build.build(queryGraph, tracing, context)
       set[#set+1] = {head = head, regs = regs, name = queryGraph.name}
     end
   end
+
+  parseGraphAddToBag(parseGraph, context.compilerBag)
+
+
   if context.errors and #context.errors ~= 0 then
     print("Bailing due to errors.")
-    return {}, util.toFlatJSON(parseGraph)
+    return {}, context.compilerBag.cbag
   end
-  return set, util.toFlatJSON(parseGraph)
+  return set, context.compilerBag.cbag
 end
 
 function analyze(content, quiet)
   local parseGraph = parser.parseString(content)
   local context = parseGraph.context
+  context.type = "context"
+  context.compilerBag = db.Bag:new({name = "compiler"})
+
   if context.errors and #context.errors ~= 0 then
     print("Bailing due to errors.")
     return 0
@@ -1360,12 +1404,12 @@ function analyze(content, quiet)
       print(string.format("    %2d: %s", ix, util.indentString(4, tostring(node))))
     end
     print("  }")
-
-    print("--- BAG ---")
-    local bag = db.Bag:new({name = queryGraph.name})
-    dependencyGraph:addToBag(bag)
-    print(bag)
   end
+
+
+  print("--- BAG ---")
+  parseGraphAddToBag(parseGraph, context.compilerBag)
+  context.compilerBag:print()
 
   if context.errors and #context.errors ~= 0 then
     print("Bailing due to errors.")

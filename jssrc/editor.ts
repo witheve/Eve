@@ -1,4 +1,11 @@
+import * as commonmark from "commonmark";
+import {CodeMirror} from "CodeMirror";
+import {sendSwap, sendSave, sendParse} from "./client";
+import {setActiveIds, renderer, renderEditor} from "./renderer";
+
 let parser = new commonmark.Parser();
+
+let codeEditor:any;
 
 function Span(start, len, source) {
   this.start = start;
@@ -222,23 +229,24 @@ function doSwap(editor) {
   sendSwap(toMarkdown(editor));
 }
 
-function doSave() {
+export function doSave() {
   sendSave(toMarkdown(codeEditor));
 }
 
-function handleEditorParse(parse) {
+export function handleEditorParse(parse) {
+  if(!codeEditor) return;
   let parseLines = parse.lines;
-  let from = {};
-  let to = {};
+  let from:any = {};
+  let to:any = {};
   let ix = 0;
-  let parseBlocks = parse.root.children;
+  let parseBlocks = parse.blocks;
   codeEditor.operation(function() {
     for(let block of getCodeBlocks(codeEditor)) {
       if(!parseBlocks[ix]) continue;
       let loc = findMark(block);
       let fromLine = loc.from.line;
       let toLine = loc.to.line;
-      let parseStart = parse[parseBlocks[ix]].line;
+      let parseStart = parseBlocks[ix].line;
       let offset = parseStart - fromLine + 1;
 
       for(let line = fromLine; line < toLine; line++) {
@@ -252,7 +260,6 @@ function handleEditorParse(parse) {
         to.line = line;
         let tokens = parseLines[line + offset];
         if(tokens) {
-          let firstToken = tokens[0];
           let state;
           for(let token of tokens) {
             from.ch = token.surrogateOffset;
@@ -450,7 +457,7 @@ function formatCodeBlock(editor) {
   });
 }
 
-function getMarksByType(editor, type, start, stop, inclusive) {
+function getMarksByType(editor, type, start, stop?, inclusive?) {
   let marks;
   if(start && stop && !samePos(start, stop)) {
     if(inclusive) {
@@ -697,11 +704,12 @@ function injectCodeMirror(node, elem) {
     codeEditor = makeEditor();
     let editor = codeEditor;
     node.editor = editor;
-    node.editor.on("cursorActivity", function() {
-      let pos = editor.getCursor();
-      activeIds = nodeToRelated(pos, posToToken(pos, renderer.tree[elem.id].parse.lines), renderer.tree[elem.id].parse);
-      drawNodeGraph();
-    });
+    // @FIXME: Disabled per @chris's advice
+    // node.editor.on("cursorActivity", function() {
+    //   let pos = editor.getCursor();
+    //   setActiveIds(nodeToRelated(pos, posToToken(pos, renderer.tree[elem.id].parse.lines), renderer.tree[elem.id].parse));
+    //   renderEditor();
+    // });
     injectMarkdown(editor, elem.value);
     editor.clearHistory();
     node.appendChild(editor.getWrapperElement());
@@ -709,21 +717,21 @@ function injectCodeMirror(node, elem) {
   }
 }
 
-function setKeyMap(event) {
+export function setKeyMap(event) {
   codeEditor.setOption("keyMap", event.currentTarget.value);
 }
 
-function CodeMirrorNode(info) {
+export function CodeMirrorNode(info) {
   info.postRender = injectCodeMirror;
   info.c = "cm-container";
   return info;
 }
 
-function compileAndRun() {
+export function compileAndRun() {
   doSwap(codeEditor);
 }
 
-function applyFix(event, elem) {
+export function applyFix(event, elem) {
   //we need to do the changes in reverse order to ensure
   //the positions remain the same?
   let changes = elem.fix.changes.slice();
@@ -739,4 +747,3 @@ function applyFix(event, elem) {
   }
   doSwap(codeEditor);
 }
-

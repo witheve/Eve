@@ -2,6 +2,37 @@
 #include <luanne.h>
 #include <http/http.h>
 
+extern string edb_dump(heap h, edb b);
+
+static void lua_stack_dump (lua_State *L) {
+    int i;
+    int top = lua_gettop(L);
+    for (i = 1; i <= top; i++) {  /* repeat for each level */
+        int t = lua_type(L, i);
+        switch (t) {
+
+        case LUA_TSTRING:  /* strings */
+            printf("%d. `%s'", i, lua_tostring(L, i));
+            break;
+
+        case LUA_TBOOLEAN:  /* booleans */
+            printf("%d. %s", i, lua_toboolean(L, i) ? "true" : "false");
+            break;
+
+        case LUA_TNUMBER:  /* numbers */
+            printf("%d. %g", i, lua_tonumber(L, i));
+            break;
+
+        default:  /* other values */
+            printf("%d. %s", i, lua_typename(L, t));
+            break;
+
+        }
+        printf(",  ");  /* put a separator */
+    }
+    printf("\n");  /* end the listing */
+}
+
 static char *luat(lua_State *L, int index)
 {
     return (char *)lua_typename(L, lua_type(L, index));
@@ -160,7 +191,7 @@ void require_luajit(interpreter c, char *z)
     lua_setglobal(c->L, z);
 }
 
-vector lua_compile_eve(interpreter c, heap h, buffer b, boolean tracing, buffer *out)
+vector lua_compile_eve(interpreter c, heap h, buffer b, boolean tracing, bag *compiler_bag)
 {
     vector result = allocate_vector(h, 3);
     lua_pushcfunction(c->L, traceback);
@@ -174,9 +205,10 @@ vector lua_compile_eve(interpreter c, heap h, buffer b, boolean tracing, buffer 
         printf ("%s\n", lua_tostring(c->L, -1));
     }
 
-    *out = lua_to_buffer(c->L, -1, h);
+    *compiler_bag = lua_tovalue(c->L, 5);
+
     int count = 0;
-    foreach_lua_table(c->L, -2, k, v) {
+    foreach_lua_table(c->L, 4, k, v) {
         compiled n = allocate(c->h, sizeof(struct compiled));
         foreach_lua_table(c->L, v, k0, v0) {
             value kv = lua_tovalue(c->L, k0);
@@ -351,15 +383,16 @@ interpreter get_lua()
 void free_lua(interpreter lua)
 {
     // luc_gc(lua->l, LUA_GCCOLLECT, 0);
+    lua_settop(lua->L, 1);
     lua->next = freelist;
     freelist = lua;
 }
 
-vector compile_eve(heap h, buffer b, boolean tracing, buffer *desc)
+vector compile_eve(heap h, buffer b, boolean tracing, bag *compiler_bag)
 {
     interpreter lua = get_lua();
     lua->h = h;
-    vector v = lua_compile_eve(lua, h, b, tracing, desc);
+    vector v = lua_compile_eve(lua, h, b, tracing, compiler_bag);
     free_lua(lua);
     return v;
 }

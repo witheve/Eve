@@ -82,6 +82,7 @@ typedef struct compiled {
     string name;
     node head;
     int regs;
+    bag compiler_bag;
 } *compiled;
 
 struct block {
@@ -137,7 +138,7 @@ void close_evaluation(evaluation);
 
 extern char *pathroot;
 
-vector compile_eve(heap h, buffer b, boolean tracing, buffer *desc);
+vector compile_eve(heap h, buffer b, boolean tracing, bag *compiler_bag);
 evaluation build_evaluation(table scopes, table persisted, evaluation_result e, error_handler error);
 void run_solver(evaluation s);
 void inject_event(evaluation, buffer b, boolean);

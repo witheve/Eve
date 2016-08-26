@@ -382,9 +382,9 @@ static void setup_evaluation(evaluation ev)
 
 void inject_event(evaluation ev, buffer b, boolean tracing)
 {
-    buffer desc;
     setup_evaluation(ev);
-    vector c = compile_eve(ev->working, b, tracing, &desc);
+    bag compiler_bag; // @FIXME: what do we do with the compiler_bag here?
+    vector c = compile_eve(ev->working, b, tracing, &compiler_bag);
 
     vector_foreach(c, i) {
         if (!ev->event_blocks)
