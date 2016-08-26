@@ -1,50 +1,49 @@
 "use strict"
 
-//---------------------------------------------------------
-// Utilities
-//---------------------------------------------------------
-function clone(obj) {
-  if(typeof obj !== "object") return obj;
-  if(obj.constructor === Array) {
-    let neue = [];
-    for(let ix = 0; ix < obj.length; ix++) {
-      neue[ix] = clone(obj[ix]);
-    }
-    return neue;
-  } else {
-    let neue = {};
-    for(let key in obj) {
-      neue[key] = clone(obj[key]);
-    }
-    return neue;
+import {Renderer} from "microReact";
+import {clone} from "./util";
+import {CodeMirrorNode, applyFix, setKeyMap, doSave, compileAndRun} from "./editor";
+import {sendEvent, sendEventObjs} from "./client";
+
+//type RecordElementCollection = HTMLCollection | SVGColl
+interface RecordElement extends Element { entity?: string, sort?: any, _parent?: RecordElement, style?: CSSStyleDeclaration };
+interface RDocument extends Document { activeElement: RecordElement };
+declare var document: RDocument;
+
+function isInputElem(elem:Element): elem is HTMLInputElement {
+  return elem.tagName === "INPUT";
+}
+function isSelectElem(elem:Element): elem is HTMLSelectElement {
+  return elem.tagName === "SELECT";
+}
+
+export function setActiveIds(ids) {
+  for(let k in activeIds) {
+    activeIds[k] = undefined;
+  }
+  for(let k in ids) {
+    activeIds[k] = ids[k];
   }
 }
 
-function safeEav(eav) {
-  if(eav[0].type == "uuid")  {
-    eav[0] = `⦑${eav[0].value}⦒`
-  }
-  if(eav[1].type == "uuid")  {
-    eav[1] = `⦑${eav[1].value}⦒`
-  }
-  if(eav[2].type == "uuid")  {
-    eav[2] = `⦑${eav[2].value}⦒`
-  }
-  return eav;
-}
 
 //---------------------------------------------------------
 // MicroReact-based record renderer
 //---------------------------------------------------------
-let renderer = new Renderer();
+export var renderer = new Renderer();
 document.body.appendChild(renderer.content);
 
+// These will get maintained by the client as diffs roll in
+export var sentInputValues = {};
+export var activeIds = {};
+export var activeStyles = {};
+export var activeClasses = {};
+export var activeChildren = {};
+
 // root will get added to the dom by the program microReact element in renderEditor
-var activeElements = {"root": document.createElement("div")};
-activeElements["root"].className = "program";
-var activeStyles = {};
-var activeClasses = {};
-var activeChildren = {};
+var activeElements:{[id : string]: RecordElement, root: RecordElement} = {"root": document.createElement("div")};
+activeElements.root.className = "program";
+
 var supportedTags = {
   "div": true, "span": true, "input": true, "ul": true, "li": true, "label": true, "button": true, "header": true, "footer": true, "a": true, "strong": true,
   "h1": true, "h2": true, "h3": true, "h4": true, "h5": true, "h6": true,
@@ -56,7 +55,7 @@ var supportedTags = {
 };
 var svgs = {"svg": true, "circle": true, "line": true, "rect": true, "polygon":true, "text": true, "image": true, "defs": true, "pattern": true, "linearGradient": true, "g": true, "path": true};
 // Map of input entities to a queue of their values which originated from the client and have not been received from the server yet.
-var sentInputValues = {};
+
 var lastFocusPath = null;
 var updatingDOM = null;
 var selectableTypes = {"": true, undefined: true, text: true, search: true, password: true, tel: true, url: true};
@@ -78,7 +77,7 @@ function insertSorted(parent, child) {
   }
 }
 
-function renderRecords(state) {
+export function renderRecords(state) {
   let diffEntities = 0;
 
   if(document.activeElement && document.activeElement.entity) {
@@ -118,7 +117,7 @@ function renderRecords(state) {
         let parent = elem.parentNode;
         if(parent) parent.removeChild(elem);
         if(svgs[tag]) {
-          elem = document.createElementNS("http://www.w3.org/2000/svg", tag);
+          elem = document.createElementNS("http://www.w3.org/2000/svg", tag) as RecordElement;
         } else {
           elem = document.createElement(tag || "div")
         }
@@ -173,8 +172,9 @@ function renderRecords(state) {
         } else {
           let children = (value.constructor === Array) ? clone(value) : [value];
           // Remove any children that no longer belong
-          for(let ix = elem.children.length - 1; ix >= 0; ix--) {
-            let child = elem.children[ix];
+          for(let ix = elem.childNodes.length - 1; ix >= 0; ix--) {
+            if(!(elem.childNodes[ix] instanceof Element)) continue;
+            let child = elem.childNodes[ix] as RecordElement;
             let childIx = children.indexOf(child.entity);
             if(childIx == -1) {
               elem.removeChild(child);
@@ -202,19 +202,20 @@ function renderRecords(state) {
         elem.textContent = (value !== undefined) ? value : "";
 
       } else if(attribute === "value") {
+        let input = elem as (RecordElement & HTMLInputElement);
         if(!value) {
-          elem.value = "";
+          input.value = "";
         } else if(value.constructor === Array) {
           console.error("Unable to set 'value' multiple times on entity", entity, value);
         } else {
-          elem.value = value; // @FIXME: Should this really be setAttribute?
+          input.value = value; // @FIXME: Should this really be setAttribute?
         }
 
       } else if(attribute === "checked") {
         if(value && value.constructor === Array) {
           console.error("Unable to set 'checked' multiple times on entity", entity, value);
         } else {
-          if(value) elem.setAttribute("checked", true);
+          if(value) elem.setAttribute("checked", "true");
           else elem.removeAttribute("checked");
         }
 
@@ -290,7 +291,7 @@ function renderRecords(state) {
     let current = activeElements.root;
     let ix = 0;
     for(let segment of lastFocusPath) {
-      current = current.children[segment];
+      current = current.childNodes[segment] as RecordElement;
       if(!current) {
         updatingDOM.blur();
         lastFocusPath = null;
@@ -299,8 +300,9 @@ function renderRecords(state) {
       ix++;
     }
     if(current && current.entity !== updatingDOM.entity) {
-      current.focus();
-      if(updatingDOM.tagName === current.tagName && current.tagName === "INPUT" && selectableTypes[updatingDOM.type] && selectableTypes[current.type]) {
+      let curElem = current as HTMLElement;
+      curElem.focus();
+      if(updatingDOM.tagName === current.tagName && isInputElem(current) && selectableTypes[updatingDOM.type] && selectableTypes[current.type]) {
         current.setSelectionRange(updatingDOM.selectionStart, updatingDOM.selectionEnd);
       }
     }
@@ -315,7 +317,7 @@ function renderRecords(state) {
 
 window.addEventListener("click", function(event) {
   let {target} = event;
-  let current = target;
+  let current = target as RecordElement;
   let objs = [];
   while(current) {
     if(current.entity) {
@@ -325,14 +327,14 @@ window.addEventListener("click", function(event) {
       }
       objs.push({tags, element: current.entity});
     }
-    current = current.parentNode
+    current = current.parentElement;
   }
   // objs.push({tags: ["click"], element: "window"});
   sendEventObjs(objs);
 });
 window.addEventListener("dblclick", function(event) {
   let {target} = event;
-  let current = target;
+  let current = target as RecordElement;
   let objs = [];
   while(current) {
     if(current.entity) {
@@ -342,14 +344,14 @@ window.addEventListener("dblclick", function(event) {
       }
       objs.push({tags, element: current.entity});
     }
-    current = current.parentNode
+    current = current.parentElement;
   }
   // objs.push({tags: ["click"], element: "window"});
   sendEventObjs(objs);
 });
 
 window.addEventListener("input", function(event) {
-  let {target} = event;
+  let target = event.target as (RecordElement & HTMLInputElement);
   if(target.entity) {
     if(!sentInputValues[target.entity]) {
       sentInputValues[target.entity] = [];
@@ -368,14 +370,15 @@ window.addEventListener("input", function(event) {
   }
 });
 window.addEventListener("change", function(event) {
-  let {target} = event;
+  let target = event.target as (RecordElement & (HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement));
   if(target.tagName == "INPUT" || target.tagName == "TEXTAREA") return;
   if(target.entity) {
     if(!sentInputValues[target.entity]) {
       sentInputValues[target.entity] = [];
     }
     let value = target.value;
-    if(target.tagName == "SELECT") {
+
+    if(isSelectElem(target)) {
       value = target.options[target.selectedIndex].value;
     }
     sentInputValues[target.entity].push(value);
@@ -409,7 +412,7 @@ function getFocusPath(target) {
 }
 
 window.addEventListener("focus", function(event) {
-  let {target} = event;
+  let target = event.target as RecordElement;
   if(target.entity) {
     let objs = [{tags: ["focus"], element: target.entity}];
     sendEventObjs(objs);
@@ -422,7 +425,7 @@ window.addEventListener("blur", function(event) {
     event.preventDefault();
     return;
   }
-  let {target} = event;
+  let target = event.target as RecordElement;
   if(target.entity) {
     let objs = [{tags: ["blur"], element: target.entity}];
     sendEventObjs(objs);
@@ -449,7 +452,7 @@ window.addEventListener("blur", function(event) {
 let keyMap = {13: "enter", 27: "escape"}
 window.addEventListener("keydown", function(event) {
   let {target} = event;
-  let current = target;
+  let current = target as RecordElement;
   let objs = [];
   let key = event.keyCode;
   while(current) {
@@ -460,14 +463,14 @@ window.addEventListener("keydown", function(event) {
       }
       objs.push({tags, element: current.entity, key: keyMap[key] || key});
     }
-    current = current.parentNode;
+    current = current.parentElement;
   }
   sendEventObjs(objs);
 });
 
 window.addEventListener("keyup", function(event) {
   let {target} = event;
-  let current = target;
+  let current = target as RecordElement;
   let objs = [];
   let key = event.keyCode;
   while(current) {
@@ -478,68 +481,30 @@ window.addEventListener("keyup", function(event) {
       }
       objs.push({tags, element: current.entity, key: keyMap[key] || key});
     }
-    current = current.parentNode;
+    current = current.parentElement;
   }
   objs.push({tags: ["keyup"], element: "window", key});
   sendEventObjs(objs);
 });
 
-function onHashChange(event) {
-  let hash = window.location.hash.substr(1);
-  if(hash[0] == "/") hash = hash.substr(1);
-  let segments = hash.split("/").map(function(seg, ix) {
-    return `[index: ${ix + 1}, value: "${seg}"]`;
-  });
-  let query =
-  `hash changed remove any current url segments
-    \`\`\`
-    match
-      url = [#url hash-segment]
-    commit
-      url.hash-segment -= hash-segment
-    \`\`\`\n\n`;
-  if(hash !== "") {
-    query +=
-    `hash changed if there isn't already a url, make one
-      \`\`\`
-      match
-        not([#url])
-      commit
-        [#url hash-segment: ${segments.join(" ")}]
-      \`\`\`
-        \n\n` +
-    `add the new hash-segments if there is
-      \`\`\`
-      match
-        url = [#url]
-      commit
-        url <- [hash-segment: ${segments.join(" ")}]
-      \`\`\`
-    `;
-  }
-  sendEvent(query);
-}
-
-window.addEventListener("hashchange", onHashChange);
-
 //---------------------------------------------------------
 // Editor Renderer
 //---------------------------------------------------------
 let activeLayers = {};
-let activeIds = {};
-let activeParse = {};
 let editorParse = {};
 let allNodeGraphs = {};
 let showGraphs = false;
 
+let editorRoot:{context: any, ast:any} = {context: {errors: [], code: ""}, ast: {}};
+
 function injectProgram(node, elem) {
-  node.appendChild(activeElements["root"]);
+  node.appendChild(activeElements.root);
 }
 
-function renderEditor() {
+export function renderEditor() {
   let state = {activeIds};
 
-  let root = activeParse.root || {context: {errors: [], code: ""}};
+  let root = editorRoot;
   let program;
   let errors;
   if(root && root.context.errors.length) {
@@ -562,19 +527,24 @@ function renderEditor() {
   }
   let outline = [];
   if(root.ast) {
-    for(let childId of root.ast.children) {
-      let child = activeParse[childId];
-      for(let line of child.doc.split("\n")) {
-        outline.push({text: line});
-      }
-    }
+    // @TODO: Update to use EAVs
+    // for(let childId of root.ast.children) {
+    //   let child = activeParse[childId];
+    //   for(let line of child.doc.split("\n")) {
+    //     outline.push({text: line});
+    //   }
+    // }
   }
+
+  // @TODO: Update to use EAVs
+  let activeParse = {};
+
   let rootUi = {c: "parse-info", children: [
     // {c: "outline", children: outline},
     {c: "run-info", children: [
       CodeMirrorNode({value: root.context.code, parse: activeParse}),
       {c: "toolbar", children: [
-        {c: "stats", text: `total time: ${activeParse.total_time || 0}s`},
+        {c: "stats"},
         {t: "select", c: "show-graphs", change: setKeyMap, children: [
           {t: "option", value: "default", text: "default"},
           {t: "option", value: "vim", text: "vim"},
@@ -588,313 +558,4 @@ function renderEditor() {
     program,
   ]};
   renderer.render([{c: "graph-root", children: [rootUi]}]);
-}
-
-//---------------------------------------------------------
-// Connect the websocket, send the ui code
-//---------------------------------------------------------
-let DEBUG = true;
-
-let state = {entities: {}, dirty: {}};
-function handleDiff(state, diff) {
-  let diffEntities = 0;
-  let entitiesWithUpdatedValues = {};
-  let {entities, dirty} = state;
-
-  for(let remove of diff.remove) {
-    let [e, a, v] = safeEav(remove);
-    if(!entities[e]) {
-      console.error(`Attempting to remove an attribute of an entity that doesn't exist: ${e}`);
-      continue;
-    }
-    if(!dirty[e]) dirty[e] = [];
-    let entity = entities[e];
-    let values = entity[a];
-    if(!values) continue;
-    dirty[e].push(a);
-    if(values.constructor !== Array || values.length <= 1) {
-      delete entity[a];
-    } else {
-      let ix = values.indexOf(v);
-      if(ix === -1) continue;
-      values.splice(ix, 1);
-    }
-
-    // Update active*
-    if(a === "children" && activeChildren[v] === e) {
-      delete activeChildren[v];
-    }
-
-    if(a === "class" && activeClasses[v]) {
-      let classIx = activeClasses[v].indexOf(e);
-      if(classIx !== -1) {
-        activeClasses[v].splice(classIx, 1);
-      }
-    }
-
-    if(a === "style" && activeStyles[v]) {
-      let styleIx = activeStyles[v].indexOf(e);
-      if(styleIx !== -1) {
-        activeStyles[v].splice(styleIx, 1);
-      }
-    }
-
-    if(a === "value") {
-      entitiesWithUpdatedValues[e] = true;
-    }
-  }
-
-  for(let insert of diff.insert) {
-    let [e, a, v] = safeEav(insert);
-    if(!entities[e]) {
-      entities[e] = {};
-      diffEntities++;
-    }
-    if(!dirty[e]) dirty[e] = [];
-    dirty[e].push(a);
-    let entity = entities[e];
-    if(!entity[a]) {
-      entity[a] = v;
-    } else if(entity[a] == v) {
-      // do nothing (this really shouldn't happen, our diff is weird then)
-      console.error(`Received a diff setting ${entity}["${a}"] = ${v} (the existing value)`);
-      continue;
-    } else if(entity[a].constructor !== Array) {
-      entity[a] = [entity[a], v];
-    } else {
-      entity[a].push(v);
-    }
-
-    // Update active*
-    if(a === "children") {
-      if(activeChildren[v]) console.error(`Unable to handle child element ${v} parented to two parents (${activeChildren[v]}, ${e}). Overwriting.`);
-      activeChildren[v] = e;
-    }
-
-    if(a === "class") {
-      if(!activeClasses[v]) activeClasses[v] = [e];
-      else activeClasses[v].push(e);
-    }
-
-    if(a === "style") {
-      if(!activeStyles[v]) activeStyles[v] = [e];
-      else activeStyles[v].push(e);
-    }
-
-    if(a === "value") {
-      entitiesWithUpdatedValues[e] = true;
-    }
-  }
-
-  // Update value syncing
-  for(let e in entitiesWithUpdatedValues) {
-    let a = "value";
-    let entity = entities[e];
-    if(!entity[a]) {
-      sentInputValues[e] = [];
-    } else {
-      if(entity[a].constructor === Array) console.error("Unable to set 'value' multiple times on entity", e, entity[a]);
-      let sent = sentInputValues[e];
-      if(sent && sent[0] === entity[a]) {
-        let ix;
-        while((ix = dirty[e].indexOf(a)) !== -1) {
-          dirty[e].splice(ix, 1);
-        }
-        sent.shift();
-      } else {
-        sentInputValues[e] = [];
-      }
-    }
-  }
-}
-
-var socket = new WebSocket("ws://" + window.location.host +"/ws");
-  var frameRequested = false;
-  var prerendering = false;
-socket.onmessage = function(msg) {
-  let data = JSON.parse(msg.data);
-  if(data.type == "result") {
-    handleDiff(state, data);
-    renderRecords(state);
-
-    let diffEntities = 0;
-    if(DEBUG) {
-      console.groupCollapsed(`Received Result +${data.insert.length}/-${data.remove.length} (∂Entities: ${diffEntities})`);
-      console.table(data.insert);
-      console.table(data.remove);
-      if(state.entities) {
-        let copy = clone(state.entities);
-        console.log(copy);
-        let byName = {};
-        for(let entity in copy) {
-          if(copy[entity].name) {
-            copy[entity].entity = entity;
-            byName[copy[entity].name] = copy[entity];
-          }
-        }
-        console.log(byName);
-      }
-      console.groupEnd();
-    }
-
-    if(document.readyState === "complete") {
-      renderEditor();
-    } else if(!prerenderering) {
-      prerenderering = true;
-      document.addEventListener("DOMContentLoaded", function() {
-        renderEditor();
-      });
-    }
-
-  } else if(data.type == "node_graph") {
-    allNodeGraphs[data.head] = data.nodes;
-  } else if(data.type == "full_parse") {
-    activeParse = indexParse(data.parse);
-    renderEditor();
-    handleEditorParse(activeParse);
-  } else if(data.type == "parse") {
-    editorParse = indexParse(data.parse);
-    handleEditorParse(editorParse);
-
-  } else if(data.type == "node_times") {
-    activeParse.iterations = data.iterations;
-    activeParse.total_time = data.total_time;
-    activeParse.cycle_time = data.cycle_time;
-    let graph = allNodeGraphs[data.head];
-    if(!graph) return;
-    for(let nodeId in data.nodes) {
-      let cur = graph[nodeId];
-      let info = data.nodes[nodeId];
-      cur.time = info.time;
-      cur.count = info.count;
-    }
-  } else if(data.type == "error") {
-    console.error(data.message, data);
-  }
-}
-socket.onopen = function() {
-  console.log("Connected to eve server!");
-  onHashChange({});
-}
-socket.onclose = function() {
-  console.log("Disconnected from eve server!");
-}
-
-//---------------------------------------------------------
-// Bootstrapping interface
-//---------------------------------------------------------
-
-function indexParse(parse) {
-  let lines = [];
-  let tokens = parse.root.context.tokens
-  for(let tokenId of tokens) {
-    let token = parse[tokenId];
-    if(!lines[token.line]) {
-      lines[token.line] = [];
-    }
-    lines[token.line].push(token)
-  }
-  parse.lines = lines;
-  let down = {};
-  let up = {};
-  for(let edge of parse.root.context.downEdges) {
-    if(!down[edge[0]]) down[edge[0]] = [];
-    if(!up[edge[1]]) up[edge[1]] = [];
-    down[edge[0]].push(edge[1]);
-    up[edge[1]].push(edge[0]);
-  }
-  parse.edges = {down, up};
-
-  // if there isn't an active graph, then make the first query
-  // active
-  if(!activeIds["graph"]) {
-    activeIds["graph"] = parse.root.children[0];
-  }
-  return parse;
-}
-
-//---------------------------------------------------------
-// Communication helpers
-//---------------------------------------------------------
-
-function formatObjects(objs) {
-  let rows = [];
-  for(let obj of objs) {
-    let id;
-    let kvs = {};
-    let fields = [];
-    for(let key in obj) {
-      let value = obj[key];
-      if(key == "tags") {
-        for(let tag of value) {
-          fields.push("#" + tag);
-        }
-        kvs["tag"] = value
-      } else if(key == "id") {
-        id = obj[key];
-      } else {
-        let stringValue;
-        if(typeof value == "string" && value[0] == "⦑") {
-          stringValue = value;
-        } else {
-          stringValue = JSON.stringify(value);
-        }
-        fields.push(key + ": " + stringValue);
-        kvs[key] = stringValue;
-      }
-    }
-    if(id) {
-        console.log(kvs);
-      for(let key in kvs) {
-        let value = kvs[key];
-        if(value.prototype !== Array) {
-          rows.push(`[#eav entity: ${id}, attribute: "${key}", value: ${value}]`);
-        } else {
-          for(let elem of value) {
-            rows.push(`[#eav entity: ${id}, attribute: "${key}", value: ${elem}]`);
-          }
-        }
-      }
-    } else {
-      let final = "[" + fields.join(", ") + "]";
-      rows.push(final)
-    }
-  }
-  return rows;
-}
-
-function sendEventObjs(objs) {
-  if(!objs.length) return;
-  let query = `handle some event
-  \`\`\`
-  bind
-    ${formatObjects(objs).join("\n    ")}
-  \`\`\``
-  return sendEvent(query);
-}
-
-function sendEvent(query) {
-  //console.log("QUERY", query);
-  if(socket && socket.readyState == 1) {
-    socket.send(JSON.stringify({scope: "event", type: "query", query}))
-  }
-  return query;
-}
-
-function sendSwap(query) {
-  if(socket && socket.readyState == 1) {
-    socket.send(JSON.stringify({scope: "root", type: "swap", query}))
-  }
-}
-
-function sendSave(query) {
-  if(socket && socket.readyState == 1) {
-    socket.send(JSON.stringify({scope: "root", type: "save", query}))
-  }
-}
-
-function sendParse(query) {
-  if(socket && socket.readyState == 1) {
-    socket.send(JSON.stringify({scope: "root", type: "parse", query}))
-  }
 }

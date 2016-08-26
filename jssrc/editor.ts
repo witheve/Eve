@@ -1,4 +1,11 @@
+import * as commonmark from "commonmark";
+import * as CodeMirror from "CodeMirror";
+import {sendSwap, sendSave, sendParse, nodeToRelated} from "./client";
+import {setActiveIds, renderer, renderEditor} from "./renderer";
+
 let parser = new commonmark.Parser();
+
+let codeEditor:any;
 
 function Span(start, len, source) {
   this.start = start;
@@ -222,14 +229,14 @@ function doSwap(editor) {
   sendSwap(toMarkdown(editor));
 }
 
-function doSave() {
+export function doSave() {
   sendSave(toMarkdown(codeEditor));
 }
 
 function handleEditorParse(parse) {
   let parseLines = parse.lines;
-  let from = {};
-  let to = {};
+  let from:any = {};
+  let to:any = {};
   let ix = 0;
   let parseBlocks = parse.root.children;
   codeEditor.operation(function() {
@@ -450,7 +457,7 @@ function formatCodeBlock(editor) {
   });
 }
 
-function getMarksByType(editor, type, start, stop, inclusive) {
+function getMarksByType(editor, type, start, stop?, inclusive?) {
   let marks;
   if(start && stop && !samePos(start, stop)) {
     if(inclusive) {
@@ -699,8 +706,8 @@ function injectCodeMirror(node, elem) {
     node.editor = editor;
     node.editor.on("cursorActivity", function() {
       let pos = editor.getCursor();
-      activeIds = nodeToRelated(pos, posToToken(pos, renderer.tree[elem.id].parse.lines), renderer.tree[elem.id].parse);
-      drawNodeGraph();
+      setActiveIds(nodeToRelated(pos, posToToken(pos, renderer.tree[elem.id].parse.lines), renderer.tree[elem.id].parse));
+      renderEditor();
     });
     injectMarkdown(editor, elem.value);
     editor.clearHistory();
@@ -709,21 +716,21 @@ function injectCodeMirror(node, elem) {
   }
 }
 
-function setKeyMap(event) {
+export function setKeyMap(event) {
   codeEditor.setOption("keyMap", event.currentTarget.value);
 }
 
-function CodeMirrorNode(info) {
+export function CodeMirrorNode(info) {
   info.postRender = injectCodeMirror;
   info.c = "cm-container";
   return info;
 }
 
-function compileAndRun() {
+export function compileAndRun() {
   doSwap(codeEditor);
 }
 
-function applyFix(event, elem) {
+export function applyFix(event, elem) {
   //we need to do the changes in reverse order to ensure
   //the positions remain the same?
   let changes = elem.fix.changes.slice();
@@ -739,4 +746,3 @@ function applyFix(event, elem) {
   }
   doSwap(codeEditor);
 }
-

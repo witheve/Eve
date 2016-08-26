@@ -42,7 +42,7 @@ RUNTIME_H = luanne.h runtime.h estring.h number.h types.h exec.h edb.h json_requ
 HTTP = server.o websocket.o base64.o sha1.o json.o client.o http.o hmac_sha2.o sha256.o
 DNS = dns.o
 HTTP_H = http.h
-CONTENT = index.o renderer.o microReact.o codemirror.o codemirrorCss.o exampleTodomvcCss.o commonmark.o editor.o
+CONTENT = index.o renderer.o microReact.o codemirror.o codemirrorCss.o exampleTodomvcCss.o commonmark.o editor.o client.o systemjs.o utiljs.o
 
 luajit-2.0:
 	git clone http://luajit.org/git/luajit-2.0.git
@@ -62,22 +62,35 @@ bundle.o: bundle.c
 index.o: ../index.html
 	cc wrap.S -DSTART=$(S)index_start -DEND=$(S)index_end -DFILE='"$<"' -c -o $@
 
-renderer.o: ../jssrc/renderer.js
-	cc wrap.S -DSTART=$(S)renderer_start -DEND=$(S)renderer_end -DFILE='"$<"' -c -o $@
 
-microReact.o: ../jssrc/microReact.js
-	cc wrap.S -DSTART=$(S)microReact_start -DEND=$(S)microReact_end -DFILE='"$<"' -c -o $@
+../build/%.js: ../jssrc/%.ts
+	cd .. && tsc --pretty
+
+systemjs.o: ../jssrc/system.js
+	cc wrap.S -DSTART=$(S)systemjs_start -DEND=$(S)systemjs_end -DFILE='"$<"' -c -o $@
+
+commonmark.o: ../jssrc/commonmark.js
+	cc wrap.S -DSTART=$(S)commonmark_start -DEND=$(S)commonmark_end -DFILE='"$<"' -c -o $@
 
 codemirror.o: ../jssrc/codemirror.js
 	cc wrap.S -DSTART=$(S)codemirror_start -DEND=$(S)codemirror_end -DFILE='"$<"' -c -o $@
 codemirrorCss.o: ../jssrc/codemirror.css
 	cc wrap.S -DSTART=$(S)codemirrorCss_start -DEND=$(S)codemirrorCss_end -DFILE='"$<"' -c -o $@
 
-editor.o: ../jssrc/editor.js
-	cc wrap.S -DSTART=$(S)editor_start -DEND=$(S)editor_end -DFILE='"$<"' -c -o $@
+microReact.o: ../jssrc/microReact.js
+	cc wrap.S -DSTART=$(S)microReact_start -DEND=$(S)microReact_end -DFILE='"$<"' -c -o $@
 
-commonmark.o: ../jssrc/commonmark.js
-	cc wrap.S -DSTART=$(S)commonmark_start -DEND=$(S)commonmark_end -DFILE='"$<"' -c -o $@
+utiljs.o: ../build/util.js
+	cc wrap.S -DSTART=$(S)utiljs_start -DEND=$(S)utiljs_end -DFILE='"$<"' -c -o $@
+
+client.o: ../build/client.js
+	cc wrap.S -DSTART=$(S)client_start -DEND=$(S)client_end -DFILE='"$<"' -c -o $@
+
+renderer.o: ../build/renderer.js
+	cc wrap.S -DSTART=$(S)renderer_start -DEND=$(S)renderer_end -DFILE='"$<"' -c -o $@
+
+editor.o: ../build/editor.js
+	cc wrap.S -DSTART=$(S)editor_start -DEND=$(S)editor_end -DFILE='"$<"' -c -o $@
 
 exampleTodomvcCss.o: ../examples/todomvc.css
 	cc wrap.S -DSTART=$(S)exampleTodomvcCss_start -DEND=$(S)exampleTodomvcCss_end -DFILE='"$<"' -c -o $@
@@ -100,7 +113,7 @@ eve: $(CORE) $(UNIX) $(COMPILER) $(UTF) $(LUAPOWER) $(HTTP) $(RUNTIME) $(DNS) $(
 	cc $(LINK) $^ $(LIBLUAJIT) -lm -ldl  -o $@
 
 clean:
-	rm -f *.o eve continuation_templates.h
+	rm -f *.o eve continuation_templates.h *.js *.js.map
 
 distclean:
 	make clean ; rm -rf lua luajit-2.0
