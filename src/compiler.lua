@@ -1062,17 +1062,19 @@ function sanitize(obj, mapping, flattenArray)
       end
     end
   elseif obj.type == "code" then
+    neue.tag = "parse-graph"
     neue.ast = sanitize(obj.ast, mapping)
     neue.children = sanitize(obj.children, mapping, true)
     neue.context = sanitize(obj.context, mapping)
   elseif obj.type == "context" then
-    neue.errors = sanitize(obj.errors, mapping)
     for _, token in ipairs(obj.tokens) do
       token.tag = "token"
     end
-    neue.tokens = sanitize(obj.tokens, mapping)
+    neue.tokens = sanitize(obj.tokens, mapping, true)
     neue.downEdges = sanitize(obj.downEdges, mapping)
-    neue.comments = sanitize(obj.comments, mapping)
+    neue.errors = sanitize(obj.errors, mapping, true)
+    neue.comments = sanitize(obj.comments, mapping, true)
+    neue.code = sanitize(obj.code, mapping)
   elseif obj.type == "variable" then
     neue.generated = obj.generated
     neue.cardinal = sanitize(obj.cardinal, mapping)
