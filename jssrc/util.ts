@@ -26,7 +26,6 @@ export function debounce(fn, wait) {
   let timeout, context, args;
 
   let doFn = function doDebounced() {
-    console.log("DO");
     timeout = undefined;
     fn.apply(context, args);
     context = undefined;
@@ -34,7 +33,6 @@ export function debounce(fn, wait) {
   }
 
   return function debounced(...argList) {
-    console.log("DB");
     context = this;
     args = argList;
     if(timeout) {
