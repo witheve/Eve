@@ -121,13 +121,11 @@
     <script>
       SystemJS.config({
         baseURL: "/js",
-        defaultJSExtensions: true,
-        meta: {
-          codemirror: {format: "amd"}
-        }
+        defaultJSExtensions: true
       });
       // Kicks off requiring everyone else
       SystemJS.register("CodeMirror", [], function($export) {
+        $export("default", CodeMirror);
         $export("CodeMirror", CodeMirror);
       });
       SystemJS.import("client");
