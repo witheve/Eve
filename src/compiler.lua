@@ -1067,6 +1067,9 @@ function sanitize(obj, mapping, flattenArray)
     neue.context = sanitize(obj.context, mapping)
   elseif obj.type == "context" then
     neue.errors = sanitize(obj.errors, mapping)
+    for _, token in ipairs(obj.tokens) do
+      token.tag = "token"
+    end
     neue.tokens = sanitize(obj.tokens, mapping)
     neue.downEdges = sanitize(obj.downEdges, mapping)
     neue.comments = sanitize(obj.comments, mapping)
@@ -1077,6 +1080,10 @@ function sanitize(obj, mapping, flattenArray)
     neue.field = obj.field
     neue.variable = sanitize(obj.variable, mapping)
     neue.constant = obj.constant and obj.constant.constant
+  elseif obj.tag == "token" then -- Some kind of token
+    for k, v in pairs(obj) do
+      neue[k] = sanitize(v, mapping)
+    end
   else -- Some kind of node
     neue.deps = sanitize(obj.deps, mapping)
     neue.operator = obj.operator
@@ -1084,6 +1091,7 @@ function sanitize(obj, mapping, flattenArray)
     neue.mutateType = obj.mutateType
     neue.bindings = sanitize(obj.bindings, mapping, true)
     neue.queries = sanitize(obj.queries, mapping)
+    neue.unpacked = sanitize(obj.unpacked, mapping)
   end
 
   return neue
