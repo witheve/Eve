@@ -17,3 +17,29 @@ export function clone(obj) {
     return neue;
   }
 }
+
+export function sortComparator(a, b) {
+  return a.sort === b.sort ? 0 : (a.sort < b.sort ? -1 : 1);
+}
+
+export function debounce(fn, wait) {
+  let timeout, context, args;
+
+  let doFn = function doDebounced() {
+    console.log("DO");
+    timeout = undefined;
+    fn.apply(context, args);
+    context = undefined;
+    args = undefined;
+  }
+
+  return function debounced(...argList) {
+    console.log("DB");
+    context = this;
+    args = argList;
+    if(timeout) {
+      window.clearTimeout(timeout);
+    }
+    timeout = window.setTimeout(doFn, wait);
+  }
+}
