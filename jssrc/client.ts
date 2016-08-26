@@ -2,8 +2,6 @@ import {clone, debounce, sortComparator} from "./util";
 import {sentInputValues, activeIds, activeChildren, renderRecords, renderEditor} from "./renderer"
 import {handleEditorParse} from "./editor"
 
-console.log("SUP G");
-
 //---------------------------------------------------------
 // Utilities
 //---------------------------------------------------------

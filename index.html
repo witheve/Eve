@@ -130,9 +130,7 @@
       SystemJS.register("CodeMirror", [], function($export) {
         $export("CodeMirror", CodeMirror);
       });
-      SystemJS.import("client").then(function(client) {
-        console.log("Initialized");
-      });
+      SystemJS.import("client");
     </script>
   </body>
 </html>
