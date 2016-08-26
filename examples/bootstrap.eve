@@ -1,0 +1,41 @@
+## Editor Syntax Highlighting
+
+Send the parse graph
+
+```
+  match @compiler
+    graph = [#parse-graph context]
+    context = [type: "context" code]
+  bind @browser
+    context <- [#context code]
+    graph <- [#parse-graph context]
+```
+
+Send errors
+
+```
+  match @compiler
+    context = [type: "context" errors]
+  bind @browser
+    context.errors += errors
+```
+
+Send blocks
+@TODO: tie blocks to their parse graph to enable multi-program
+
+```
+  match @compiler
+    block = [#block name sort line]
+  bind @browser
+    block <- [#block name sort line]
+```
+
+Send tokens
+@TODO: tie tokens to their parse graph (or block) to enable multi-program
+
+```
+  match @compiler
+    token = [#token id type sort line surrogateOffset surrogateLength]
+  bind @browser
+    token <- [#token id type sort line surrogateOffset surrogateLength]
+```
