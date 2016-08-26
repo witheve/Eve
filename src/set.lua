@@ -61,6 +61,10 @@ function Set:remove(val)
    return true
 end
 
+function Set:has(val)
+  return self[val]
+end
+
 function Set:toJSON(seen)
   local temp = {}
   seen = seen or {}

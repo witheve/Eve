@@ -11,6 +11,15 @@ local pairs = pairs
 local ipairs = ipairs
 local string = string
 local table = table
+local utf8 = require("utf8")
+local generate_uuid = generate_uuid
+local value_to_string = value_to_string
+local sstring = sstring
+local snumber = snumber
+local sboolean = sboolean
+local create_edb = create_edb
+local insert_edb = insert_edb
+local dump_edb = dump_edb
 local util = require("util")
 local Set = require("set").Set
 setfenv(1, Pkg)
@@ -247,6 +256,403 @@ function getArgs(schema, bindings)
   end
 
   return args, fields
+end
+
+-- EDB bridge wrapper --
+
+function asValue(v)
+  if type(v) == "table" then
+    if getmetatable(v) == UUID then
+      return v.value
+    else
+      error("Unable to coerce table to Eve value")
+    end
+  elseif type(v) == "string" then
+    return sstring(v)
+  elseif type(v) == "number" then
+    return snumber(v)
+  elseif type(v) == "boolean" then
+    return sboolean(v)
+  end
+  error("Unknown value type: " .. type(v))
+end
+
+UUID = {}
+UUID.__index = UUID
+function UUID:new()
+  local uuid = setmetatable({}, self)
+  uuid.value = generate_uuid()
+  return uuid
+end
+
+function UUID.__tostring(uuid)
+  return value_to_string(uuid.value)
+end
+
+function UUID.toJSON(uuid)
+  return "{\"type\": \"uuid\", \"value\": \"" .. value_to_string(uuid.value) .. "\"}"
+end
+
+
+EAV = {}
+EAV.__index = EAV
+
+function EAV:new(args)
+  local eav = setmetatable(args or {}, self)
+  return eav
+end
+
+function EAV.__tostring(eav)
+  return string.format("[%s, %s, %s]", eav[1], eav[2], eav[3])
+end
+
+function EAV.hash(eav)
+  local hash = string.format("%s ⦷ %s ⦷ %s", eav[1], eav[2], eav[3]);
+  return hash
+end
+
+function EAV.signature(eav)
+  local sig = ""
+  if eav[1] ~= nil then sig[1] = "E" else sig[1] = "e" end
+  if eav[2] ~= nil then sig[2] = "A" else sig[2] = "a" end
+  if eav[3] ~= nil then sig[3] = "V" else sig[3] = "v" end
+  return sig
+end
+
+function EAV.asValues(eav)
+  return {asValue(eav[1]), asValue(eav[2]), asValue(eav[3])}
+end
+
+Bag = {}
+Bag.__index = Bag
+function Bag:new(args)
+  local bag = setmetatable({eavs = {}, hashes = Set:new(), indexEAV = {}, indexAVE = {}}, self)
+  bag.name = args and args.name or "Unnamed"
+  bag.id = args and args.id or UUID:new()
+  if args then
+    bag:addMany(args)
+  end
+  return bag
+end
+
+-- @FIXME: This is a shim until toFlatJSON is removed to stop it from going insane trying to consume the bag
+function Bag:toFlatJSON()
+  return util.toJSON(self.id)
+end
+
+
+function Bag:_sync(eav)
+  if not self.cbag then
+    self.cbag = create_edb(self.id.value)
+  end
+
+  local hash = EAV.hash(eav)
+  local m
+  if self.hashes:has(hash) then
+    m = 1
+  else
+    m = -1
+  end
+  local values = EAV.asValues(eav)
+  insert_edb(self.cbag, values[1], values[2], values[3], m)
+end
+
+function Bag:size()
+  return self.hashes:length()
+end
+
+function Bag:add(eav)
+  setmetatable(eav, EAV)
+  local hash = EAV.hash(eav)
+  if self.hashes:add(hash) then
+    self.eavs[hash] = eav
+    self:_index(eav)
+    self:_sync(eav)
+    return true
+  end
+  return false
+end
+
+function Bag:remove(eav)
+  local hash = EAV.hash(eav)
+  if self.hashes:remove(hash) then
+    self.eavs[hash] = nil
+    self:_deindex(eav)
+    self:_sync(eav)
+  end
+  return false
+end
+
+function Bag:addMany(eavs)
+  local changed = false
+  for _, eav in ipairs(eavs) do
+    changed = self:add(eav) or changed
+  end
+  return changed
+end
+
+function Bag:removeMany(eavs)
+  local changed = false
+  for _, eav in ipairs(eavs) do
+    changed = self:remove(eav) or changed
+  end
+  return changed
+end
+
+function Bag:has(eav)
+  local hash = EAV.hash(eav)
+  return self.hashes:has(hash)
+end
+
+function Bag:hasAny(eavs)
+  for _, eav in ipairs(eavs) do
+    if self:has(eav) then
+      return true
+    end
+  end
+  return false
+end
+
+function Bag:hasAll(eavs)
+  for _, eav in ipairs(eavs) do
+    if not self:has(eav) then
+      return false
+    end
+  end
+  return true
+end
+
+function Bag:union(other)
+  local changed = false
+  for hash, eav in pairs(other.eavs) do
+    if not self.hashes:has(hash) then
+      changed = true
+      self.hashes:add(hash)
+      self.eavs[hash] = eav
+      self.dirty:add(hash)
+    end
+  end
+  return changed
+end
+
+function Bag:difference(bag)
+  local changed = false
+  for hash, eav in pairs(other.eavs) do
+    if self.hashes:has(hash) then
+      changed = true
+      self.hashes:remove(hash)
+      self.eavs[hash] = nil
+      self.dirty:add(hash)
+    end
+  end
+  return changed
+end
+
+function Bag:_index(eav)
+  local hash = EAV.hash(eav)
+  local e, a, v = eav[1], eav[2], eav[3]
+
+  if not self.indexEAV[e] then self.indexEAV[e] = {} end
+  if not self.indexEAV[e][a] then self.indexEAV[e][a] = {} end
+  self.indexEAV[e][a][v] = eav
+
+  if not self.indexAVE[a] then self.indexAVE[a] = {} end
+  if not self.indexAVE[a][v] then self.indexAVE[a][v] = {} end
+  self.indexAVE[a][v][e] = eav
+
+  return true
+end
+
+function Bag:_deindex(eav)
+  local hash = EAV.hash(eav)
+  local e, a, v = eav[1], eav[2], eav[3]
+
+  if self.indexEAV[e] and self.indexEAV[e][a] then
+    self.indexEAV[e][a][v] = nil
+  end
+
+  if self.indexAVE[a]and self.indexAVE[a][v] then
+    self.indexAVE[a][v][e] = nil
+  end
+  return true
+end
+
+function Bag:getRecord(entity)
+  local record = {}
+  local eavs = self:find({entity, nil, nil})
+  for eav in pairs(eavs) do
+    record[eav[2]] = eav[3]
+  end
+
+  return record
+end
+
+function Bag:find(pattern)
+  local e, a, v = pattern[1], pattern[2], pattern[3]
+  local sig = patternSignature(pattern)
+  local result = Set:new(0)
+  if sig == "EAV" then
+    local idx = self.indexEAV[e]
+    if idx and idx[a] and idx[a][v] then
+      result:add(idx[a][v])
+    end
+  elseif sig == "EAv" then
+    local idx = self.indexEAV[e]
+    if idx and a and idx[a] then
+      for v, eav in pairs(idx[a]) do
+        result:add(eav)
+      end
+    end
+  elseif sig == "eAV" then
+    local idx = self.indexAVE[a]
+    if idx and idx[v] then
+      for v, eav in pairs(idx[v]) do
+        result:add(eav)
+      end
+    end
+  elseif sig == "Eav" then
+    local idx = self.indexEAV[e]
+    if idx then
+      for a, vtable in pairs(idx) do
+        for v, eav in pairs(vtable) do
+          result:add(eav)
+        end
+      end
+    end
+  elseif sig == "eAv" then
+    local idx = self.indexAVE[a]
+    if idx then
+      for v, etable in pairs(idx) do
+        for e, eav in pairs(etable) do
+          result:add(eav)
+        end
+      end
+    end
+  else
+    for hash, eav in pairs(self.eavs) do
+      if v == nil or eav[2] == v then
+        result:add(eav)
+      end
+    end
+  end
+
+  return result
+end
+
+function Bag:findRecords(record)
+  local eavs = {}
+  for k, v in pairs(record) do
+    eavs[#eavs + 1] = {nil, k, v}
+  end
+
+  if #eavs < 1 then return Set:new() end
+
+  local entities = Set:new()
+  for eav in pairs(self:find(eavs[#eavs])) do
+    entities:add(eav[1])
+  end
+  eavs[#eavs] = nil
+
+  for eav in ipairs(eavs) do
+    local matchedEntities = Set:new()
+    for eav in pairs(self:find(eav)) do
+      matchedEntities:add(eav[1])
+    end
+    entities:intersection(matchedEntities, true)
+
+    if entities:length() == 0 then
+      return entities
+    end
+  end
+
+  local result = Set:new()
+  for entity in pairs(entities) do
+    result:add(self:getRecord(entity))
+  end
+
+  return result
+end
+
+function Bag:appendEAVs(eavs, e, a, v, mapping, parentIsASet)
+  if mapping[v] then -- if v is a record we've already added, use its id instead of creating a new one
+    v = mapping[v]
+  end
+  if type(v) ~= "table" or getmetatable(v) == UUID then -- single value
+    eavs[#eavs + 1] = {e, a, v}
+  elseif getmetatable(v) == Set then -- set of values for an attribute
+    if parentIsASet then
+      error("Error: Adding sets of sets via addRecord(). This is basically never what you want, and will lose the distinction of which subset the elements belong to. Try wrapping the subsets as their own records. Offender: " .. tostring(parentIsASet))
+    end
+    for subv in pairs(v) do
+      self:appendEAVs(eavs, e, a, subv, mapping, v)
+    end
+  else -- sub-record(s) or array of values
+    util.into(eavs, self:recordToEAVs(v, nil, mapping))
+    eavs[#eavs + 1] = {e, a, mapping[v]}
+  end
+end
+
+function Bag:recordToEAVs(record, id, mapping)
+  if not id then
+    id = UUID:new()
+  end
+  if not mapping then
+    mapping = {}
+  end
+  if not mapping[record] then
+    mapping[record] = id
+  else
+    id = mapping[record]
+  end
+
+  local eavs = {}
+  for k, v in pairs(record) do
+    self:appendEAVs(eavs, id, k, v, mapping)
+  end
+
+  if #record > 0 then
+    eavs[#eavs + 1] = {id, "tag", "array"}
+  end
+
+  return eavs, id
+end
+
+function Bag:addRecord(record, id, mapping)
+  local eavs, id = self:recordToEAVs(record, id, mapping)
+  self:addMany(eavs)
+  return id
+end
+
+function Bag.__tostring(bag)
+  local entities = ""
+  for e, idxA in pairs(bag.indexEAV) do
+    local ePadding = string.rep(" ", utf8.len(tostring(e)) + 1)
+    entities = entities .. tostring(e)
+    if idxA.name then
+      local names = {}
+      for v, eavs in pairs(idxA.name) do
+        names[#names + 1] = v
+      end
+      entities = entities .. " (" .. table.concat(names, ", ") .. ")"
+    end
+    entities = entities .. "\n"
+
+    for a, idxV in pairs(idxA) do
+      local aHeader = string.format("%s%s: ", ePadding, a)
+      entities = entities .. aHeader
+      aPadding = string.rep(" ", utf8.len(aHeader))
+
+      local multi = false
+      for v, eav in pairs(idxV) do
+        entities = string.format("%s%s%s\n", entities, multi and aPadding or "", v)
+        multi = true
+      end
+    end
+
+    entities = entities .. "\n"
+  end
+  local header = string.format("%s (%s)", bag.id, bag.name)
+  return string.format("%s\n%s\n%s",  header, string.rep("-", #header), entities)
 end
 
 return Pkg

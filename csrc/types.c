@@ -67,36 +67,6 @@ void print_value_vector(buffer out, vector vec) {
 }
 
 //-------------------------------------------------------
-// Value hash/equals
-//-------------------------------------------------------
-
-static inline u64 fold_key(u64 key)
-{
-    key ^= key >> 32;
-    key ^= key>>16;
-    key ^= key>>8;
-    return key;
-}
-
-u64 value_as_key(value v)
-{
-    if (type_of(v) == float_space) {
-        return fold_key(*(u64 *)v);
-    }
-    return fold_key((u64)v);
-}
-
-// assumes bibop and interned strings and uuids
-boolean value_equals(value a, value b)
-{
-    if (a == b) return true;
-    if ((type_of(a) == float_space) && (type_of(b) == float_space)) {
-        return *(double *)a == *(double *)b;
-    }
-    return false;
-}
-
-//-------------------------------------------------------
 // Value vector hash/equals
 //-------------------------------------------------------
 

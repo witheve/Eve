@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 table level_fetch(heap h, table current, value key) {
-    table next_level = table_find(current, key);
+    table next_level = value_table_find(current, key);
     if(!next_level) {
         next_level = create_value_table(h);
         table_set(current, key, next_level);
@@ -13,11 +13,11 @@ table level_fetch(heap h, table current, value key) {
 
 multiplicity count_of(edb b, value e, value a, value v)
 {
-    table al = table_find(b->eav, e);
+    table al = value_table_find(b->eav, e);
     if(al) {
-        table vl = table_find(al, a);
+        table vl = value_table_find(al, a);
         if(vl) {
-            leaf c = table_find(vl, v);
+            leaf c = value_table_find(vl, v);
             if (c) return c->m;
         }
     }
@@ -26,9 +26,9 @@ multiplicity count_of(edb b, value e, value a, value v)
 
 value lookupv(edb b, uuid e, estring a)
 {
-    table al = table_find(b->eav, e);
+    table al = value_table_find(b->eav, e);
     if(al) {
-        table vl = table_find(al, a);
+        table vl = value_table_find(al, a);
         if(vl)
             table_foreach(vl, v, terminal)
                 if(((leaf)terminal)->m != 0)
@@ -68,12 +68,12 @@ static void edb_scan(edb b, int sig, listener out, value e, value a, value v)
 
     case s_EAV:
         {
-            table al = table_find(b->eav, e);
+            table al = value_table_find(b->eav, e);
             if(al) {
-                table vl = table_find(al, a);
+                table vl = value_table_find(al, a);
                 if(vl) {
                     leaf final;
-                    if ((final = table_find(vl, v)) != 0){
+                    if ((final = value_table_find(vl, v)) != 0){
                         apply(out, e, a, v, final->m, final->block_id);
                     }
                 }
@@ -83,9 +83,9 @@ static void edb_scan(edb b, int sig, listener out, value e, value a, value v)
 
     case s_EAv:
         {
-            table al = table_find(b->eav, e);
+            table al = value_table_find(b->eav, e);
             if(al) {
-                table vl = table_find(al, a);
+                table vl = value_table_find(al, a);
                 if(vl) {
                     table_foreach(vl, v, f) {
                         leaf final = f;
@@ -99,7 +99,7 @@ static void edb_scan(edb b, int sig, listener out, value e, value a, value v)
 
     case s_Eav:
         {
-            table al = table_find(b->eav, e);
+            table al = value_table_find(b->eav, e);
             if(al) {
                 table_foreach(al, a, vl) {
                     table_foreach((table)vl, v, f){
@@ -114,9 +114,9 @@ static void edb_scan(edb b, int sig, listener out, value e, value a, value v)
 
     case s_eAV:
         {
-            table al = table_find(b->ave, a);
+            table al = value_table_find(b->ave, a);
             if(al) {
-                table vl = table_find(al, v);
+                table vl = value_table_find(al, v);
                 if(vl) {
                     table_foreach(vl, e, f) {
                         leaf final = f;
@@ -130,7 +130,7 @@ static void edb_scan(edb b, int sig, listener out, value e, value a, value v)
 
     case s_eAv:
         {
-            table al = table_find(b->ave, a);
+            table al = value_table_find(b->ave, a);
             if(al) {
                 table_foreach(al, v, vl) {
                     table_foreach((table)vl, e, f) {
@@ -162,7 +162,7 @@ static void edb_insert(edb b, value e, value a, value v, multiplicity m, uuid bl
     table el = level_fetch(b->h, b->eav, e);
     table al = level_fetch(b->h, el, a);
 
-    if (!(final = table_find(al, v))){
+    if (!(final = value_table_find(al, v))){
         final = allocate(b->h, sizeof(struct leaf));
         final->block_id = block_id;
         final->m = m;

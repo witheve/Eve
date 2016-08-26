@@ -2,8 +2,8 @@
 
 static void allocate_buckets(table t)
 {
-    t->entries = allocate_vector(t->h, t->buckets);
-    memset(t->entries->contents, 0, t->entries->end = t->buckets * sizeof(void *));
+    t->entries = allocate(t->h, t->buckets * sizeof(void *));
+    memset(t->entries, 0, t->buckets * sizeof(void *));
 }
 
 table allocate_table(heap h, u64 (*key_function)(void *x), boolean (*equals_function)(void *x, void *y))
@@ -28,7 +28,7 @@ void *table_find (table t, void *c)
 {
     key k = t->key_function(c);
 
-    for (entry i = vector_get(t->entries, position(t, k));
+    for (entry i = t->entries[position(t, k)];
          i; i = i->next)
         if ((i->k == k) && t->equals_function(i->c, c))
             return(i->v);
@@ -40,7 +40,7 @@ void *table_find_key (table t, void *c, void **kr)
 {
     key k = t->key_function(c);
 
-    for (entry i = vector_get(t->entries, position(t, k));
+    for (entry i = t->entries[position(t, k)];
          i; i = i->next)
         if ((i->k == k) && t->equals_function(i->c, c)){
             *kr = i->c;
@@ -53,20 +53,21 @@ void *table_find_key (table t, void *c, void **kr)
 
 static void resize_table(table t, int buckets)
 {
-    vector old_entries = t->entries;
+    entry *old_entries = t->entries;
     key km;
+    int old_buckets = t->buckets;
 
     t->buckets = buckets;
     allocate_buckets(t);
 
-    vector_foreach (old_entries, k){
-        entry j = k;
-
+    for(int i = 0; i<old_buckets; i++){
+        entry j = old_entries[i];
+        
         while(j) {
             entry n = j->next;
             km = j->k % t->buckets;
-            j->next = vector_get(t->entries, km);
-            vector_set(t->entries, km, j);
+            j->next = t->entries[km];
+            t->entries[km] = j;
             j = n;
         }
     }
@@ -77,7 +78,7 @@ void table_set (table t, void *c, void *v)
 {
     key k = t->key_function(c);
     key p = position(t, k);
-    entry *e = bref(t->entries, p * sizeof(void *));
+    entry *e = t->entries + p;
 
     for (; *e; e = &(*e)->next)
         if (((*e)->k == k) && t->equals_function((*e)->c, c)) {
@@ -107,19 +108,3 @@ int table_elements(table t)
 {
     return(t->count);
 }
-
-void print_table(string b,table t)
-{
-    int i;
-  
-    bprintf (b, "{");
-    vector_foreach(t->entries, k) {
-        entry j = k; 
-        for (;j;j = j->next)
-            // xxx  - use the input syntax for fucks sake
-            bprintf (b,"(%v %v)", j->c, j->v);
-    }
-    bprintf (b,"}");
-}
-
-

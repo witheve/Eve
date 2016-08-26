@@ -60,18 +60,6 @@ function push(m, x, y)
    m[#m+1] = y
 end
 
-function flat_print_table(t)
-   if type(t) == "table" then
-     local result = ""
-     for k, v in pairs(t) do
-        if not (k == nil) then result = result .. " " .. tostring(k) .. ":" end
-        if not (v == nil) then result = result .. tostring(v) end
-     end
-     return result
-   end
-   return tostring(t)
-end
-
 
 function translate_value(x)
    if type(x) == "table" then

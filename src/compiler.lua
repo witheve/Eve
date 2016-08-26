@@ -319,11 +319,14 @@ DependencyGraph = {}
 
 function DependencyGraph:new(obj)
   obj = obj or {}
+
   -- Essential state
+  obj.id = obj.id or db.UUID:new()
   obj.unprepared = obj.unprepared or Set:new() -- set of nodes that must still be prepared prior to ordering
   obj.unsorted = obj.unsorted or Set:new() -- set of nodes that need to be ordered
   obj.sorted = obj.sorted or {} -- append-only set of ordered nodes
 
+  -- Cached state
   obj.providers = obj.providers or {} -- Set of nodes capable of providing a term
   obj.dependents = obj.dependents or {} -- Sets of nodes depending on a term
   obj.bound = obj.bound or Set:new() -- Set of terms bound by the currently ordered set of nodes
@@ -971,6 +974,106 @@ function DependencyGraph.__tostring(dg)
   return result .. "\n}"
 end
 
+function DependencyGraph:toRecord(mapping)
+  mapping = mapping or {}
+  local nodeRecords = Set:new()
+
+  for node in pairs(self.unprepared or nothing) do
+    local nodeRecord = sanitize(node, mapping)
+    nodeRecord.tag = Set:new({"node", "unprepared"})
+    nodeRecords:add(nodeRecord)
+  end
+  for node in pairs(self.unsorted or nothing) do
+    local nodeRecord = sanitize(node, mapping)
+    nodeRecord.tag = Set:new({"node", "unsorted"})
+    nodeRecords:add(nodeRecord)
+  end
+  for ix, node in ipairs(self.sorted or nothing) do
+    local nodeRecord = sanitize(node, mapping)
+    nodeRecord.tag = Set:new({"node", "sorted"})
+    nodeRecord.sort = ix
+    nodeRecords:add(nodeRecord)
+  end
+
+  local groupRecords = Set:new()
+  for group in pairs(self.termGroups) do
+    groupRecords:add({
+      tag = "term-group",
+      terms = group
+    })
+  end
+
+  return {
+    name = self.query.name,
+    tag = "dependency-graph",
+    query = sanitize(self.query, mapping),
+    nodes = nodeRecords,
+    terms = sanitize(self.terms, mapping),
+    groups = sanitize(groupRecords, mapping)
+  }
+end
+
+function DependencyGraph:addToBag(bag)
+  bag:addRecord(self:toRecord(), self.id)
+  return bag
+end
+
+function sanitize(obj, mapping, flattenArray)
+  if not mapping then mapping = {} end
+  if not obj or type(obj) ~= "table" then return obj end
+  if mapping[obj] then return mapping[obj] end
+
+  local meta = getmetatable(obj)
+  local neue = setmetatable({type = obj.type, name = obj.name, id = obj.id, line = obj.line, offset = obj.offset}, meta)
+  mapping[obj] = neue
+
+  if meta == Set then
+    neue = Set:new()
+    mapping[obj] = neue
+    for v in pairs(obj) do
+      neue:add(sanitize(v, mapping))
+    end
+  elseif meta == DependencyGraph then
+    neue = obj:toRecord(mapping)
+    mapping[obj] = neue
+  elseif not obj.type then
+    if flattenArray and util.isArray(obj) then
+      -- If the object is purely an array and flattenArray is true, turn it into a set with sorts on it.
+      neue = Set:new()
+      mapping[obj] = neue
+
+      for ix, v in ipairs(obj) do
+        local sv = sanitize(v, mapping)
+        if not sv.sort then
+          sv.sort = ix
+        end
+        neue:add(sv)
+      end
+    else
+      -- Otherwise keep it as a full sub-record
+      for k, v in pairs(obj) do
+        local sk, sv = sanitize(k, mapping), sanitize(v, mapping)
+        neue[sk] = sv
+      end
+    end
+  elseif obj.type == "variable" then
+    neue.generated = obj.generated
+    neue.cardinal = sanitize(obj.cardinal, mapping)
+  elseif obj.type == "binding" then
+    neue.field = obj.field
+    neue.variable = sanitize(obj.variable, mapping)
+    neue.constant = obj.constant and obj.constant.constant
+  else -- Some kind of node
+    neue.deps = sanitize(obj.deps, mapping)
+    neue.operator = obj.operator
+    neue.scopes = obj.scopes
+    neue.mutateType = obj.mutateType
+    neue.bindings = sanitize(obj.bindings, mapping, true)
+    neue.queries = sanitize(obj.queries, mapping)
+  end
+
+  return neue
+end
 
 ScanNode = {}
 function ScanNode:new(obj)
@@ -1257,6 +1360,11 @@ function analyze(content, quiet)
       print(string.format("    %2d: %s", ix, util.indentString(4, tostring(node))))
     end
     print("  }")
+
+    print("--- BAG ---")
+    local bag = db.Bag:new({name = queryGraph.name})
+    dependencyGraph:addToBag(bag)
+    print(bag)
   end
 
   if context.errors and #context.errors ~= 0 then
