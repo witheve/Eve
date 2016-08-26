@@ -1,5 +1,5 @@
 import * as commonmark from "commonmark";
-import * as CodeMirror from "CodeMirror";
+import {CodeMirror} from "CodeMirror";
 import {sendSwap, sendSave, sendParse, nodeToRelated} from "./client";
 import {setActiveIds, renderer, renderEditor} from "./renderer";
 
