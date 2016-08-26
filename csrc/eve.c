@@ -232,17 +232,17 @@ int main(int argc, char **argv)
 
     http_server h = create_http_server(create_station(0, port), server_eve);
     register(h, "/", "text/html", index);
-    register(h, "/js/microReact.js", "application/javascript", microReact);
-    register(h, "/js/codemirror.js", "application/javascript", codemirror);
-    register(h, "/js/codemirror.css", "text/css", codemirrorCss);
-    register(h, "/examples/todomvc.css", "text/css", exampleTodomvcCss);
-    register(h, "/js/commonmark.js", "application/javascript", commonmark);
-    register(h, "/js/system.js", "application/javascript", systemjs);
+    register(h, "/js/microReact.js", "application/javascript", microReact_js);
+    register(h, "/js/codemirror.js", "application/javascript", codemirror_js);
+    register(h, "/js/codemirror.css", "text/css", codemirror_css);
+    register(h, "/examples/todomvc.css", "text/css", todomvc_css);
+    register(h, "/js/commonmark.js", "application/javascript", commonmark_js);
+    register(h, "/js/system.js", "application/javascript", system_js);
 
-    register(h, "/js/util.js", "application/javascript", client);
-    register(h, "/js/client.js", "application/javascript", client);
-    register(h, "/js/renderer.js", "application/javascript", renderer);
-    register(h, "/js/editor.js", "application/javascript", editor);
+    register(h, "/js/util.js", "application/javascript", util_js);
+    register(h, "/js/client.js", "application/javascript", client_js);
+    register(h, "/js/renderer.js", "application/javascript", renderer_js);
+    register(h, "/js/editor.js", "application/javascript", editor_js);
 
     // TODO: figure out a better way to manage multiple graphs
     init_json_service(h, root, enable_tracing, compiler_bag, exec_path);

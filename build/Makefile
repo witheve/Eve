@@ -42,7 +42,7 @@ RUNTIME_H = luanne.h runtime.h estring.h number.h types.h exec.h edb.h json_requ
 HTTP = server.o websocket.o base64.o sha1.o json.o client.o http.o hmac_sha2.o sha256.o
 DNS = dns.o
 HTTP_H = http.h
-CONTENT = index.o renderer.o microReact.o codemirror.o codemirrorCss.o exampleTodomvcCss.o commonmark.o editor.o client.o systemjs.o utiljs.o
+CONTENT = index.o system_js.o microReact_js.o codemirror_js.o codemirror_css.o commonmark_js.o todomvc_css.o  util_js.o client_js.o renderer_js.o editor_js.o
 
 luajit-2.0:
 	git clone http://luajit.org/git/luajit-2.0.git
@@ -66,34 +66,16 @@ index.o: ../index.html
 ../build/%.js: ../jssrc/%.ts
 	cd .. && tsc --pretty
 
-systemjs.o: ../jssrc/system.js
-	cc wrap.S -DSTART=$(S)systemjs_start -DEND=$(S)systemjs_end -DFILE='"$<"' -c -o $@
+%_js.o: ../jssrc/%.js
+	cc wrap.S -DSTART=$(S)$*_js_start -DEND=$(S)$*_js_end -DFILE='"$<"' -c -o $@
+%_js.o: ../build/%.js
+	cc wrap.S -DSTART=$(S)$*_js_start -DEND=$(S)$*_js_end -DFILE='"$<"' -c -o $@
 
-commonmark.o: ../jssrc/commonmark.js
-	cc wrap.S -DSTART=$(S)commonmark_start -DEND=$(S)commonmark_end -DFILE='"$<"' -c -o $@
 
-codemirror.o: ../jssrc/codemirror.js
-	cc wrap.S -DSTART=$(S)codemirror_start -DEND=$(S)codemirror_end -DFILE='"$<"' -c -o $@
-codemirrorCss.o: ../jssrc/codemirror.css
-	cc wrap.S -DSTART=$(S)codemirrorCss_start -DEND=$(S)codemirrorCss_end -DFILE='"$<"' -c -o $@
-
-microReact.o: ../jssrc/microReact.js
-	cc wrap.S -DSTART=$(S)microReact_start -DEND=$(S)microReact_end -DFILE='"$<"' -c -o $@
-
-utiljs.o: ../build/util.js
-	cc wrap.S -DSTART=$(S)utiljs_start -DEND=$(S)utiljs_end -DFILE='"$<"' -c -o $@
-
-client.o: ../build/client.js
-	cc wrap.S -DSTART=$(S)client_start -DEND=$(S)client_end -DFILE='"$<"' -c -o $@
-
-renderer.o: ../build/renderer.js
-	cc wrap.S -DSTART=$(S)renderer_start -DEND=$(S)renderer_end -DFILE='"$<"' -c -o $@
-
-editor.o: ../build/editor.js
-	cc wrap.S -DSTART=$(S)editor_start -DEND=$(S)editor_end -DFILE='"$<"' -c -o $@
-
-exampleTodomvcCss.o: ../examples/todomvc.css
-	cc wrap.S -DSTART=$(S)exampleTodomvcCss_start -DEND=$(S)exampleTodomvcCss_end -DFILE='"$<"' -c -o $@
+%_css.o: ../jssrc/%.css
+	cc wrap.S -DSTART=$(S)$*_css_start -DEND=$(S)$*_css_end -DFILE='"$<"' -c -o $@
+%_css.o: ../examples/%.css
+	cc wrap.S -DSTART=$(S)$*_css_start -DEND=$(S)$*_css_end -DFILE='"$<"' -c -o $@
 
 path.c: Makefile
 	echo 'char *pathroot = "$(BUILD)";' > path.c
