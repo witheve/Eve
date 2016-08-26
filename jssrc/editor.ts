@@ -1,6 +1,6 @@
 import * as commonmark from "commonmark";
 import {CodeMirror} from "CodeMirror";
-import {sendSwap, sendSave, sendParse, nodeToRelated} from "./client";
+import {sendSwap, sendSave, sendParse} from "./client";
 import {setActiveIds, renderer, renderEditor} from "./renderer";
 
 let parser = new commonmark.Parser();
@@ -233,19 +233,20 @@ export function doSave() {
   sendSave(toMarkdown(codeEditor));
 }
 
-function handleEditorParse(parse) {
+export function handleEditorParse(parse) {
+  if(!codeEditor) return;
   let parseLines = parse.lines;
   let from:any = {};
   let to:any = {};
   let ix = 0;
-  let parseBlocks = parse.root.children;
+  let parseBlocks = parse.blocks;
   codeEditor.operation(function() {
     for(let block of getCodeBlocks(codeEditor)) {
       if(!parseBlocks[ix]) continue;
       let loc = findMark(block);
       let fromLine = loc.from.line;
       let toLine = loc.to.line;
-      let parseStart = parse[parseBlocks[ix]].line;
+      let parseStart = parseBlocks[ix].line;
       let offset = parseStart - fromLine + 1;
 
       for(let line = fromLine; line < toLine; line++) {
@@ -259,7 +260,6 @@ function handleEditorParse(parse) {
         to.line = line;
         let tokens = parseLines[line + offset];
         if(tokens) {
-          let firstToken = tokens[0];
           let state;
           for(let token of tokens) {
             from.ch = token.surrogateOffset;
@@ -704,11 +704,12 @@ function injectCodeMirror(node, elem) {
     codeEditor = makeEditor();
     let editor = codeEditor;
     node.editor = editor;
-    node.editor.on("cursorActivity", function() {
-      let pos = editor.getCursor();
-      setActiveIds(nodeToRelated(pos, posToToken(pos, renderer.tree[elem.id].parse.lines), renderer.tree[elem.id].parse));
-      renderEditor();
-    });
+    // @FIXME: Disabled per @chris's advice
+    // node.editor.on("cursorActivity", function() {
+    //   let pos = editor.getCursor();
+    //   setActiveIds(nodeToRelated(pos, posToToken(pos, renderer.tree[elem.id].parse.lines), renderer.tree[elem.id].parse));
+    //   renderEditor();
+    // });
     injectMarkdown(editor, elem.value);
     editor.clearHistory();
     node.appendChild(editor.getWrapperElement());

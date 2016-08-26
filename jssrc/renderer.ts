@@ -3,7 +3,7 @@
 import {Renderer} from "microReact";
 import {clone} from "./util";
 import {CodeMirrorNode, applyFix, setKeyMap, doSave, compileAndRun} from "./editor";
-import {sendEvent, sendEventObjs} from "./client";
+import {sendEvent, sendEventObjs, indexes, state as clientState, parseInfo} from "./client";
 
 //type RecordElementCollection = HTMLCollection | SVGColl
 interface RecordElement extends Element { entity?: string, sort?: any, _parent?: RecordElement, style?: CSSStyleDeclaration };
@@ -36,8 +36,6 @@ document.body.appendChild(renderer.content);
 // These will get maintained by the client as diffs roll in
 export var sentInputValues = {};
 export var activeIds = {};
-export var activeStyles = {};
-export var activeClasses = {};
 export var activeChildren = {};
 
 // root will get added to the dom by the program microReact element in renderEditor
@@ -87,6 +85,9 @@ export function renderRecords(state) {
     updatingDOM = true;
   }
 
+  let activeClasses = indexes.byTag["class"] || {};
+  let activeStyles = indexes.byTag["style"] || {};
+
   let regenClassesFor = [];
   let regenStylesFor = [];
   let {dirty, entities, parents} = state;
@@ -108,7 +109,7 @@ export function renderRecords(state) {
         tag = value;
       }
 
-      if(!tag && elem) { // Nuke the element if it no longer has a supported tag
+      if(!tag && elem && elem !== activeElements.root) { // Nuke the element if it no longer has a supported tag
         let parent = elem.parentNode;
         if(parent) parent.removeChild(elem);
         elem = activeElements[entityId] = null;
@@ -495,21 +496,28 @@ let editorParse = {};
 let allNodeGraphs = {};
 let showGraphs = false;
 
-let editorRoot:{context: any, ast:any} = {context: {errors: [], code: ""}, ast: {}};
-
 function injectProgram(node, elem) {
   node.appendChild(activeElements.root);
 }
 
 export function renderEditor() {
-  let state = {activeIds};
+  let parseGraphs = indexes.byTag.index["parse-graph"];
+  if(!parseGraphs || parseGraphs.length === 0) return;
 
-  let root = editorRoot;
+  if(parseGraphs.length > 1) {
+    console.error("Multiple parse graphs in the compiler bag, wut do?", parseGraphs);
+    return;
+  }
+  let entities = clientState.entities;
+  let root = entities[parseGraphs[0]];
+  let context = entities[root.context];
+
   let program;
   let errors;
-  if(root && root.context.errors.length) {
-    root.context.errors.sort((a, b) => { return a.pos.line - b.pos.line; })
-    let items = root.context.errors.map(function(errorInfo) {
+  if(root && context.errors && context.errors.length) {
+    context.errors.sort((a, b) => { return entities[entities[a].pos].line - entities[entities[b].pos].line; })
+    let items = context.errors.map(function(errorId) {
+      let errorInfo = entities[errorId];
       let fix;
       if(errorInfo.fixes) {
         fix = {c: "fix-it", text: "Fix it for me", fix: errorInfo.fixes, click: applyFix}
@@ -536,13 +544,10 @@ export function renderEditor() {
     // }
   }
 
-  // @TODO: Update to use EAVs
-  let activeParse = {};
-
   let rootUi = {c: "parse-info", children: [
     // {c: "outline", children: outline},
     {c: "run-info", children: [
-      CodeMirrorNode({value: root.context.code, parse: activeParse}),
+      CodeMirrorNode({value: context.code || "", parse: parseInfo}),
       {c: "toolbar", children: [
         {c: "stats"},
         {t: "select", c: "show-graphs", change: setKeyMap, children: [

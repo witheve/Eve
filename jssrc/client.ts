@@ -1,5 +1,6 @@
-import {clone} from "./util";
-import {sentInputValues, activeIds, activeChildren, activeClasses, activeStyles, renderRecords, renderEditor} from "./renderer"
+import {clone, debounce} from "./util";
+import {sentInputValues, activeIds, activeChildren, renderRecords, renderEditor} from "./renderer"
+import {handleEditorParse} from "./editor"
 
 console.log("SUP G");
 
@@ -20,11 +21,80 @@ function safeEav(eav) {
   return eav;
 }
 
+type IndexedList = {[v: string]: string[]}
+type IndexSubscriber = (index: IndexedList, dirty?: IndexedList, self?:Index) => void
+class Index {
+  public index:IndexedList = {};
+  public dirty:IndexedList = {};
+  private subscribers:IndexSubscriber[] = [];
+
+  constructor(public attribute:string) {}
+
+  insert(v: any, e: string) {
+    if(!this.index[v] || this.index[v].indexOf(e) === -1) {
+      if(!this.index[v]) this.index[v] = [];
+      if(!this.dirty[v]) this.dirty[v] = [];
+      this.index[v].push(e);
+      this.dirty[v].push(e);
+      return true;
+    }
+    return false;
+  }
+
+  remove(v: any, e: string) {
+    if(!this.index[v]) return false;
+
+    let ix = this.index[v].indexOf(e)
+    if(ix !== -1) {
+      if(!this.dirty[v]) this.dirty[v] = [];
+      this.index[v][ix] = this.index[v].pop();
+      this.dirty[v].push(e);
+      return true;
+    }
+    return false;
+  }
+
+  subscribe(subscriber:IndexSubscriber) {
+    if(this.subscribers.indexOf(subscriber) === -1) {
+      this.subscribers.push(subscriber);
+      return true;
+    }
+    return false;
+  }
+
+  unsubscribe(subscriber:IndexSubscriber) {
+    let ix = this.subscribers.indexOf(subscriber);
+    if(ix !== -1) {
+      this.subscribers[ix] = this.subscribers.pop();
+      return true;
+    }
+    return false;
+  }
+
+  dispatchIfDirty() {
+    if(Object.keys(this.dirty).length === 0) return;
+    for(let subscriber of this.subscribers) {
+      subscriber(this.index, this.dirty, this);
+    }
+    this.dirty = {};
+  }
+};
+
 //---------------------------------------------------------
 // Connect the websocket, send the ui code
 //---------------------------------------------------------
-export var DEBUG = true;
-export var state = {entities: {}, dirty: {}};
+export var DEBUG:string|boolean = "state";
+interface ClientState {
+  entities: {root?: any, [id:string]: any},
+  dirty: {root?: any, [id:string]: any},
+}
+export var state:ClientState = {entities: {}, dirty: {}};
+export var indexes = {
+  byName: new Index("name"),
+  byTag: new Index("tag"),
+  byClass: new Index("class"),
+  byStyle: new Index("style"),
+};
 
 function handleDiff(state, diff) {
   let diffEntities = 0;
@@ -50,23 +120,15 @@ function handleDiff(state, diff) {
       values.splice(ix, 1);
     }
 
+    // Update indexes
+    if(a === "name") indexes.byName.remove(v, e);
+    if(a === "tag") indexes.byTag.remove(v, e);
+    if(a === "class") indexes.byClass.remove(v, e);
+    if(a === "style") indexes.byStyle.remove(v, e);
+
     // Update active*
     if(a === "children" && activeChildren[v] === e) {
       delete activeChildren[v];
-    }
-
-    if(a === "class" && activeClasses[v]) {
-      let classIx = activeClasses[v].indexOf(e);
-      if(classIx !== -1) {
-        activeClasses[v].splice(classIx, 1);
-      }
-    }
-
-    if(a === "style" && activeStyles[v]) {
-      let styleIx = activeStyles[v].indexOf(e);
-      if(styleIx !== -1) {
-        activeStyles[v].splice(styleIx, 1);
-      }
     }
 
     if(a === "value") {
@@ -95,20 +157,17 @@ function handleDiff(state, diff) {
       entity[a].push(v);
     }
 
+    // Update indexes
+    if(a === "name") indexes.byName.insert(v, e);
+    if(a === "tag") indexes.byTag.insert(v, e);
+    if(a === "class") indexes.byClass.insert(v, e);
+    if(a === "style") indexes.byStyle.insert(v, e);
+
+
     // Update active*
     if(a === "children") {
       if(activeChildren[v]) console.error(`Unable to handle child element ${v} parented to two parents (${activeChildren[v]}, ${e}). Overwriting.`);
       activeChildren[v] = e;
-    }
-
-    if(a === "class") {
-      if(!activeClasses[v]) activeClasses[v] = [e];
-      else activeClasses[v].push(e);
-    }
-
-    if(a === "style") {
-      if(!activeStyles[v]) activeStyles[v] = [e];
-      else activeStyles[v].push(e);
     }
 
     if(a === "value") {
@@ -136,6 +195,10 @@ function handleDiff(state, diff) {
       }
     }
   }
+  for(let indexName in indexes) {
+    let index:Index = indexes[indexName];
+    index.dispatchIfDirty();
+  }
 }
 
 let prerendering = false;
@@ -151,19 +214,16 @@ socket.onmessage = function(msg) {
     let diffEntities = 0;
     if(DEBUG) {
       console.groupCollapsed(`Received Result +${data.insert.length}/-${data.remove.length} (∂Entities: ${diffEntities})`);
-      console.table(data.insert);
-      console.table(data.remove);
-      if(state.entities) {
+      if(DEBUG === true || DEBUG === "diff") {
+        console.table(data.insert);
+        console.table(data.remove);
+      }
+      if(DEBUG === true || DEBUG === "state") {
+        // we clone here to keep the entities fresh when you want to thumb through them in the log later (since they are rendered lazily)
         let copy = clone(state.entities);
-        console.log(copy);
-        let byName = {};
-        for(let entity in copy) {
-          if(copy[entity].name) {
-            copy[entity].entity = entity;
-            byName[copy[entity].name] = copy[entity];
-          }
-        }
-        console.log(byName);
+
+        console.log("Entities", copy);
+        console.log("Indexes", indexes);
       }
       console.groupEnd();
     }
@@ -177,21 +237,6 @@ socket.onmessage = function(msg) {
       });
     }
 
-  } else if(data.type == "full_parse") {
-    // @TODO: replace me with EAV-bridge
-    // activeParse = indexParse(data.parse);
-    // renderEditor();
-    // handleEditorParse(activeParse);
-  } else if(data.type == "parse") {
-    // @TODO: replace me with EAV-bridge
-    // editorParse = indexParse(data.parse);
-    // handleEditorParse(editorParse);
-
-  } else if(data.type == "node_times") {
-    // @TODO: replace me with EAV-bridge
-    // activeParse.iterations = data.iterations;
-    // activeParse.total_time = data.total_time;
-    // activeParse.cycle_time = data.cycle_time;
   } else if(data.type == "error") {
     console.error(data.message, data);
   }
@@ -207,72 +252,39 @@ socket.onclose = function() {
 //---------------------------------------------------------
 // Bootstrapping interface
 //---------------------------------------------------------
+export var parseInfo = {blocks: [], lines: []};
 
-export function indexParse(parse) {
+let updateEditorParse = debounce(handleEditorParse, 0);
+
+function tokensToParseInfo(index, dirty) {
+  if(!dirty["token"]) return;
+
+  let tokenIds = index["token"];
   let lines = [];
-  let tokens = parse.root.context.tokens
-  for(let tokenId of tokens) {
-    let token = parse[tokenId];
+  for(let tokenId of tokenIds) {
+    let token = state.entities[tokenId];
     if(!lines[token.line]) {
       lines[token.line] = [];
     }
-    lines[token.line].push(token)
+    lines[token.line].push(token);
   }
-  parse.lines = lines;
-  let down = {};
-  let up = {};
-  for(let edge of parse.root.context.downEdges) {
-    if(!down[edge[0]]) down[edge[0]] = [];
-    if(!up[edge[1]]) up[edge[1]] = [];
-    down[edge[0]].push(edge[1]);
-    up[edge[1]].push(edge[0]);
-  }
-  parse.edges = {down, up};
-
-  // if there isn't an active graph, then make the first query
-  // active
-  if(!activeIds["graph"]) {
-    activeIds["graph"] = parse.root.children[0];
-  }
-  return parse;
+  parseInfo.lines = lines;
+  updateEditorParse(parseInfo);
 }
+indexes.byTag.subscribe(tokensToParseInfo);
 
-export function nodeToRelated(pos, node, parse) {
-  let active = {};
-  if(!parse.root) return active;
-  // search for which query we're looking at
-  let prev;
-  for(let queryId of parse.root.children) {
-    let query = parse[queryId];
-    if(query.line == pos.line + 1) {
-      prev = query;
-      break;
-    } else if (query.line > pos.line + 1) {
-      break;
-    }
-    prev = query;
+function blocksToParseInfo(index, dirty) {
+  if(!dirty["block"]) return;
+  let blockIds = index["block"];
+  let blocks = [];
+  for(let blockId of blockIds) {
+    let block = state.entities[blockId];
+    blocks.push(block);
   }
-  if(prev) active["graph"] = prev.id;
-
-  if(!node.id) return active;
-  let {up, down} = parse.edges;
-  active[node.id] = true;
-  let nodesUp = up[node.id] ? up[node.id].slice() : [];
-  for(let ix = 0; ix < nodesUp.length; ix++) {
-    let cur = nodesUp[ix];
-    active[cur] = true;
-    for(let next of up[cur] || []) nodesUp.push(next);
-  }
-  let nodesDown = down[node.id] ? down[node.id].slice() : [];
-  for(let ix = 0; ix < nodesDown.length; ix++) {
-    let cur = nodesDown[ix];
-    active[cur] = true;
-    for(let next of down[cur] || []) nodesDown.push(next);
-  }
-
-
-  return active;
+  parseInfo.blocks = blocks;
+  updateEditorParse(parseInfo);
 }
+indexes.byTag.subscribe(blocksToParseInfo);
 
 //---------------------------------------------------------
 // Communication helpers
