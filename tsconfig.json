@@ -4,7 +4,7 @@
     "moduleResolution": "node",
     "outDir": "build",
     "target": "es5",
-    "inlineSourceMap": true,
+    "sourceMap": false,
     "skipDefaultLibCheck": true,
 
     "forceConsistentCasingInFileNames": true
