@@ -1,4 +1,4 @@
-import {clone, debounce} from "./util";
+import {clone, debounce, sortComparator} from "./util";
 import {sentInputValues, activeIds, activeChildren, renderRecords, renderEditor} from "./renderer"
 import {handleEditorParse} from "./editor"
 
@@ -254,7 +254,7 @@ socket.onclose = function() {
 //---------------------------------------------------------
 export var parseInfo = {blocks: [], lines: []};
 
-let updateEditorParse = debounce(handleEditorParse, 0);
+let updateEditorParse = debounce(handleEditorParse, 1);
 
 function tokensToParseInfo(index, dirty) {
   if(!dirty["token"]) return;
@@ -268,6 +268,12 @@ function tokensToParseInfo(index, dirty) {
     }
     lines[token.line].push(token);
   }
+
+  for(let line of lines) {
+    if(!line) continue;
+    line.sort(sortComparator);
+  }
+
   parseInfo.lines = lines;
   updateEditorParse(parseInfo);
 }
@@ -281,6 +287,7 @@ function blocksToParseInfo(index, dirty) {
     let block = state.entities[blockId];
     blocks.push(block);
   }
+  blocks.sort(sortComparator);
   parseInfo.blocks = blocks;
   updateEditorParse(parseInfo);
 }
