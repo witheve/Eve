@@ -39,7 +39,7 @@ export var activeIds = {};
 export var activeChildren = {};
 
 // root will get added to the dom by the program microReact element in renderEditor
-var activeElements:{[id : string]: RecordElement, root: RecordElement} = {"root": document.createElement("div")};
+export var activeElements:{[id : string]: RecordElement, root: RecordElement} = {"root": document.createElement("div")};
 activeElements.root.className = "program";
 
 var supportedTags = {
@@ -85,8 +85,8 @@ export function renderRecords(state) {
     updatingDOM = true;
   }
 
-  let activeClasses = indexes.byTag["class"] || {};
-  let activeStyles = indexes.byTag["style"] || {};
+  let activeClasses = indexes.byClass.index || {};
+  let activeStyles = indexes.byStyle.index || {};
 
   let regenClassesFor = [];
   let regenStylesFor = [];
@@ -283,7 +283,8 @@ export function renderRecords(state) {
         }
       }
       if(neue.length) {
-        elem.setAttribute("style", elem.getAttribute("style") + "; " + neue.join("; "));
+        let s = elem.getAttribute("style");
+        elem.setAttribute("style",  (s ? (s + "; ") : "") + neue.join("; "));
       }
     }
   }
