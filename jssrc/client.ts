@@ -5,8 +5,10 @@ import {handleEditorParse} from "./editor"
 //---------------------------------------------------------
 // Utilities
 //---------------------------------------------------------
+type EAV = [string, string, any];
+type Record = any;
 
-function safeEav(eav) {
+function safeEav(eav:[any, any, any]):EAV {
   if(eav[0].type == "uuid")  {
     eav[0] = `⦑${eav[0].value}⦒`
   }
@@ -19,40 +21,40 @@ function safeEav(eav) {
   return eav;
 }
 
-type IndexedList = {[v: string]: string[]}
-type IndexSubscriber = (index: IndexedList, dirty?: IndexedList, self?:Index) => void
-class Index {
-  public index:IndexedList = {};
-  public dirty:IndexedList = {};
-  private subscribers:IndexSubscriber[] = [];
+interface IndexedList<V>{[v: string]: V[]}
+type IndexSubscriber<V> = (index: IndexedList<V>, dirty?: IndexedList<V>, self?:Index<V>) => void
+class Index<V> {
+  public index:IndexedList<V> = {};
+  public dirty:IndexedList<V> = {};
+  private subscribers:IndexSubscriber<V>[] = [];
 
   constructor(public attribute:string) {}
 
-  insert(v: any, e: string) {
-    if(!this.index[v] || this.index[v].indexOf(e) === -1) {
-      if(!this.index[v]) this.index[v] = [];
-      if(!this.dirty[v]) this.dirty[v] = [];
-      this.index[v].push(e);
-      this.dirty[v].push(e);
+  insert(key: any, value: V) {
+    if(!this.index[key] || this.index[key].indexOf(value) === -1) {
+      if(!this.index[key]) this.index[key] = [];
+      if(!this.dirty[key]) this.dirty[key] = [];
+      this.index[key].push(value);
+      this.dirty[key].push(value);
       return true;
     }
     return false;
   }
 
-  remove(v: any, e: string) {
-    if(!this.index[v]) return false;
+  remove(key: any, value: V) {
+    if(!this.index[key]) return false;
 
-    let ix = this.index[v].indexOf(e)
+    let ix = this.index[key].indexOf(value)
     if(ix !== -1) {
-      if(!this.dirty[v]) this.dirty[v] = [];
-      this.index[v][ix] = this.index[v].pop();
-      this.dirty[v].push(e);
+      if(!this.dirty[key]) this.dirty[key] = [];
+      this.index[key][ix] = this.index[key].pop();
+      this.dirty[key].push(value);
       return true;
     }
     return false;
   }
 
-  subscribe(subscriber:IndexSubscriber) {
+  subscribe(subscriber:IndexSubscriber<V>) {
     if(this.subscribers.indexOf(subscriber) === -1) {
       this.subscribers.push(subscriber);
       return true;
@@ -60,7 +62,7 @@ class Index {
     return false;
   }
 
-  unsubscribe(subscriber:IndexSubscriber) {
+  unsubscribe(subscriber:IndexSubscriber<V>) {
     let ix = this.subscribers.indexOf(subscriber);
     if(ix !== -1) {
       this.subscribers[ix] = this.subscribers.pop();
@@ -83,15 +85,16 @@ class Index {
 //---------------------------------------------------------
 export var DEBUG:string|boolean = "state";
 interface ClientState {
-  entities: {root?: any, [id:string]: any},
-  dirty: {root?: any, [id:string]: any},
+  entities: {root?: Record, [id:string]: Record},
+  dirty: {root?: string[], [id:string]: string[]}
 }
 export var state:ClientState = {entities: {}, dirty: {}};
 export var indexes = {
-  byName: new Index("name"),
-  byTag: new Index("tag"),
-  byClass: new Index("class"),
-  byStyle: new Index("style"),
+  byId: new Index<Record>("name"),
+  byName: new Index<string>("name"),
+  byTag: new Index<string>("tag"),
+  byClass: new Index<string>("class"),
+  byStyle: new Index<string>("style"),
 };
 
 function handleDiff(state, diff) {
@@ -194,7 +197,7 @@ function handleDiff(state, diff) {
     }
   }
   for(let indexName in indexes) {
-    let index:Index = indexes[indexName];
+    let index = indexes[indexName];
     index.dispatchIfDirty();
   }
 }
