@@ -505,9 +505,9 @@ static void force_node(block bk, node n)
     if (!table_find(bk->nmap, n)){
         execf *x = allocate(bk->h, sizeof(execf *));
         table_set(bk->nmap, n, x);
-        prf("%d [label=\"%r:%d\"];\n", (unsigned int)n->id, n->type, (unsigned int)n->id);
+        prf("%v [label=\"%r:%v\"];\n", n->id, n->type, n->id);
         vector_foreach(n->arms, i) {
-            prf("%d -> %d;\n", n->id, ((node)i)->id);
+            prf("%v -> %v;\n", n->id, ((node)i)->id);
             force_node(bk, i);
         }
         *x = n->builder(bk, n);
@@ -530,7 +530,7 @@ block build(evaluation ev, compiled c)
     bk->name = c->name;
     // this is only used during building
     bk->nmap = allocate_table(bk->h, key_from_pointer, compare_pointer);
-    prf("digraph foo {\n");
+    prf("digraph %v {\n", bk->name);
     force_node(bk, c->head);
     prf("}\n");
     bk->head = *(execf *)table_find(bk->nmap, c->head);
