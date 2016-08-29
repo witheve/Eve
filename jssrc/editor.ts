@@ -89,6 +89,40 @@ class Span {
   onBeforeChange(change) {}
 }
 
+function cmLength (cm) {
+  var lastLine = cm.lineCount() - 1;
+  return cm.indexFromPos({line: lastLine, ch: cm.getLine(lastLine).length});
+}
+
+function normalizeChange(editor, change) {
+  let {from, text, removed} = change;
+  let removedText = removed.join("\n");
+  let addedText = text.join("\n");
+  let start = editor.indexFromPos(from);
+  let end = start + addedText.length;
+  return {start, removed: removedText, added: addedText}
+}
+
+function inverseNormalizedChange(change) {
+  let {start, removed, added} = change;
+  return {start, added: removed, removed: added};
+}
+
+function changeToOps(editor, change) {
+  let {start, added, removed} = normalizeChange(editor, change);
+  let remaining = cmLength(editor) - start - added.length;
+  let ops = [];
+  ops.push(start);
+  ops.push(added);
+  ops.push(removed.length * -1);
+  ops.push(remaining)
+  let invert = [];
+  invert.push(start);
+  invert.push(removed);
+  invert.push(added.length * -1);
+  invert.push(remaining);
+}
+
 function changeToFinalPos(change) {
   let {from, to, text} = change;
   let adjusted = {line: from.line + (text.length - 1), ch: 0}

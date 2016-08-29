@@ -193,7 +193,6 @@ local keywords = {
 
 local utf8nbsp = utf8.char(160)
 local whitespace = { [" "] = true, ["\n"] = true, ["\t"] = true, ["\r"] = true, [utf8nbsp] = true }
-local queryKeywords = {match = true, bind = true, commit = true}
 
 local function isIdentifierChar(char, prev)
   return not specials[char] and not whitespace[char] and not (prev == "/" and char == "/")
