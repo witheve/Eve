@@ -87,6 +87,7 @@ struct block {
     execf head;
     evaluation ev;
     table nmap;
+    node start;
 };
 
 
