@@ -501,9 +501,21 @@ function injectProgram(node, elem) {
   node.appendChild(activeElements.root);
 }
 
+export function renderEve() {
+  let program = {c: "program-container", postRender: injectProgram}
+  let {editor, errors} = renderEditor();
+
+  let rootUi = {c: "parse-info", children: [
+    editor,
+    errors,
+    program,
+  ]};
+  renderer.render([{c: "graph-root", children: [rootUi]}]);
+}
+
 export function renderEditor() {
   let parseGraphs = indexes.byTag.index["parse-graph"];
-  if(!parseGraphs || parseGraphs.length === 0) return;
+  if(!parseGraphs || parseGraphs.length === 0) return {editor: undefined, errors: undefined};
 
   if(parseGraphs.length > 1) {
     console.error("Multiple parse graphs in the compiler bag, wut do?", parseGraphs);
@@ -545,23 +557,19 @@ export function renderEditor() {
     // }
   }
 
-  let rootUi = {c: "parse-info", children: [
-    // {c: "outline", children: outline},
-    {c: "run-info", children: [
-      CodeMirrorNode({value: context.code || "", parse: parseInfo}),
-      {c: "toolbar", children: [
-        {c: "stats"},
-        {t: "select", c: "show-graphs", change: setKeyMap, children: [
-          {t: "option", value: "default", text: "default"},
-          {t: "option", value: "vim", text: "vim"},
-          {t: "option", value: "emacs", text: "emacs"},
-        ]},
-        {c: "show-graphs", text: "save", click: doSave},
-        {c: "show-graphs", text: "compile and run", click: compileAndRun}
+  let editor = {c: "run-info", children: [
+    CodeMirrorNode({value: context.code || "", parse: parseInfo}),
+    {c: "toolbar", children: [
+      {c: "stats"},
+      {t: "select", c: "show-graphs", change: setKeyMap, children: [
+        {t: "option", value: "default", text: "default"},
+        {t: "option", value: "vim", text: "vim"},
+        {t: "option", value: "emacs", text: "emacs"},
       ]},
+      {c: "show-graphs", text: "save", click: doSave},
+      {c: "show-graphs", text: "compile and run", click: compileAndRun}
     ]},
-    errors,
-    program,
   ]};
-  renderer.render([{c: "graph-root", children: [rootUi]}]);
+
+  return {editor, errors}
 }

@@ -1,5 +1,5 @@
 import {clone, debounce, sortComparator} from "./util";
-import {sentInputValues, activeIds, activeChildren, renderRecords, renderEditor} from "./renderer"
+import {sentInputValues, activeIds, activeChildren, renderRecords, renderEve} from "./renderer"
 import {handleEditorParse} from "./editor"
 
 //---------------------------------------------------------
@@ -230,11 +230,11 @@ socket.onmessage = function(msg) {
     }
 
     if(document.readyState === "complete") {
-      renderEditor();
+      renderEve();
     } else if(!prerendering) {
       prerendering = true;
       document.addEventListener("DOMContentLoaded", function() {
-        renderEditor();
+        renderEve();
       });
     }
 
