@@ -360,18 +360,18 @@ static void do_random(block bk, perf p, execf n, value dest, value seed, timer t
 
         // Fold the tick bits down into a u8
         u8 ts = (tb ^ (tb >> 7)
-                    ^ (tb >> 14)) & (0x80 - 1);
+                 ^ (tb >> 14)) & (0x80 - 1);
 
         // Fold the user seed bits down into a u8
         u8 us = (ub ^ (ub >> 7)
-                    ^ (ub >> 14)
-                    ^ (ub >> 21)
-                    ^ (ub >> 28)
-                    ^ (ub >> 35)
-                    ^ (ub >> 42)
-                    ^ (ub >> 49)
-                    ^ (ub >> 56)
-                    ^ (ub >> 63)) & (0x80 - 1);
+                 ^ (ub >> 14)
+                 ^ (ub >> 21)
+                 ^ (ub >> 28)
+                 ^ (ub >> 35)
+                 ^ (ub >> 42)
+                 ^ (ub >> 49)
+                 ^ (ub >> 56)
+                 ^ (ub >> 63)) & (0x80 - 1);
 
         // We fold down to 7 bits to gain some semblance of actual entropy. This means the RNG only has 128 outputs for now.
         u8 true_seed = us ^ ts;
@@ -429,7 +429,7 @@ static void do_trace(execf next, node n, heap h, perf pp, operator op, value *r)
             // xxx - what is name doing in there anyways?
             if ((k != sym(name)) && (k != sym(pass)))
                 prf (" %r=%v ", k, lookup(r, v));
-    }
+        }
     prf("\n");
     apply(next, h, pp, op, r);
 }
@@ -500,16 +500,52 @@ table builders_table()
     return builders;
 }
 
+
+static void print_dot_internal(buffer dest, table visited, table counters, node n)
+{
+
+    if (!table_find(visited, n)) {
+
+
+        buffer description = allocate_string(dest->h);
+        estring sig = table_find(n->arguments, sym(sig));
+        estring e = table_find(n->arguments, sym(e));
+        estring a = table_find(n->arguments, sym(a));
+        estring v = table_find(n->arguments, sym(v));
+
+        if(sig != 0) {
+            bprintf(description, "sig: %r, e: %r, a: %r, v: %r\n", sig, e, a, v);
+        }
+
+        perf p = table_find(counters, n);
+        bprintf(dest, "%v [label=\"%r:%v:%d:%b\"];\n",
+                n->id, n->type,
+                n->id, p?p->count:0, description);
+        table_set(visited, n, (void *)1);
+        vector_foreach(n->arms, i) {
+            bprintf(dest, "%v -> %v;\n", n->id, ((node)i)->id);
+            print_dot_internal(dest, visited, counters, i);
+        }
+    }
+}
+
+string print_dot(heap h, block bk, table counters)
+{
+    table visited = allocate_table(h, key_from_pointer, compare_pointer);
+    string dest = allocate_string(h);
+    bprintf(dest, "digraph %v {\n", bk->name);
+    print_dot_internal(dest, visited, counters, bk->start);
+    bprintf(dest, "}\n");
+    return dest;
+}
+
 static void force_node(block bk, node n)
 {
     if (!table_find(bk->nmap, n)){
         execf *x = allocate(bk->h, sizeof(execf *));
         table_set(bk->nmap, n, x);
-        prf("%v [label=\"%r:%v\"];\n", n->id, n->type, n->id);
-        vector_foreach(n->arms, i) {
-            prf("%v -> %v;\n", n->id, ((node)i)->id);
+        vector_foreach(n->arms, i)
             force_node(bk, i);
-        }
         *x = n->builder(bk, n);
     }
 }
@@ -530,9 +566,8 @@ block build(evaluation ev, compiled c)
     bk->name = c->name;
     // this is only used during building
     bk->nmap = allocate_table(bk->h, key_from_pointer, compare_pointer);
-    prf("digraph %v {\n", bk->name);
+    bk->start  =c->head;
     force_node(bk, c->head);
-    prf("}\n");
     bk->head = *(execf *)table_find(bk->nmap, c->head);
     return bk;
 }

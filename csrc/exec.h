@@ -75,7 +75,10 @@ static inline int reg(value n)
 static inline void start_perf(perf p, operator op)
 {
     if (op== op_insert) {
-        if (p->trig == 1) p->count=0;
+        if (p->trig == 1) {
+            p->count=0;
+            p->trig = 0;
+        }
         p->count++;
     }
     if (op == op_flush) p->trig = 1;
