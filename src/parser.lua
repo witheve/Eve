@@ -1447,7 +1447,6 @@ generateObjectNode = function(root, context)
           dependencies:add(resolved)
           lastAttribute = nil
           binding.variable = resolved
-          binding = generateBindingNode(context, binding, related, object)
         else
           local resolved = resolveExpression(right, context)
           if not resolved then
