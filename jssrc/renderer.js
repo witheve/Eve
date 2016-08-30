@@ -278,7 +278,7 @@ function handleDOMUpdates(state) {
 
   //////
 
-  if(lastFocusPath) {
+  if(lastFocusPath && updatingDOM !== true) {
     let current = activeElements.root;
     let ix = 0;
     for(let segment of lastFocusPath) {
