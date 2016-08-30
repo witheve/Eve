@@ -19,7 +19,10 @@ export function clone(obj) {
 }
 
 export function sortComparator(a, b) {
-  return a.sort === b.sort ? 0 : (a.sort < b.sort ? -1 : 1);
+  if(!a.sort || !b.sort) return 0;
+  let aSort = a.sort[0];
+  let bSort = b.sort[0];
+  return aSort === bSort ? 0 : (aSort < bSort ? -1 : 1);
 }
 
 export function debounce(fn, wait) {

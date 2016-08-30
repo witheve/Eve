@@ -3,7 +3,7 @@
 import {Renderer} from "microReact";
 import {clone} from "./util";
 import {CodeMirrorNode, applyFix, setKeyMap, doSave, compileAndRun} from "./editor";
-import {sendEvent, sendEventObjs, indexes, state as clientState, parseInfo} from "./client";
+import {sendEvent, sendEventObjs, indexes, parseInfo} from "./client";
 
 //type RecordElementCollection = HTMLCollection | SVGColl
 interface RecordElement extends Element { entity?: string, sort?: any, _parent?: RecordElement, style?: CSSStyleDeclaration };
@@ -521,16 +521,16 @@ export function renderEditor() {
     console.error("Multiple parse graphs in the compiler bag, wut do?", parseGraphs);
     return;
   }
-  let entities = clientState.entities;
-  let root = entities[parseGraphs[0]];
-  let context = entities[root.context];
+  let records = indexes.records.index;
+  let root = records[parseGraphs[0]];
+  let context = records[root.context];
 
   let program;
   let errors;
   if(root && context.errors && context.errors.length) {
-    context.errors.sort((a, b) => { return entities[entities[a].pos].line - entities[entities[b].pos].line; })
+    context.errors.sort((a, b) => { return records[records[a].pos].line - records[records[b].pos].line; })
     let items = context.errors.map(function(errorId) {
-      let errorInfo = entities[errorId];
+      let errorInfo = records[errorId];
       let fix;
       if(errorInfo.fixes) {
         fix = {c: "fix-it", text: "Fix it for me", fix: errorInfo.fixes, click: applyFix}

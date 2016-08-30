@@ -21,40 +21,15 @@ function safeEav(eav:[any, any, any]):EAV {
   return eav;
 }
 
-interface IndexedList<V>{[v: string]: V[]}
-type IndexSubscriber<V> = (index: IndexedList<V>, dirty?: IndexedList<V>, self?:Index<V>) => void
-class Index<V> {
-  public index:IndexedList<V> = {};
-  public dirty:IndexedList<V> = {};
-  private subscribers:IndexSubscriber<V>[] = [];
+type IndexSubscriber<T> = (index: T, dirty?: T, self?: Index<T>) => void
+class Index<T> {
+  public index:T = {} as any;
+  public dirty:T = {} as any;
+  private subscribers:IndexSubscriber<T>[] = [];
 
-  constructor(public attribute:string) {}
+  constructor(public attribute?:string) {}
 
-  insert(key: any, value: V) {
-    if(!this.index[key] || this.index[key].indexOf(value) === -1) {
-      if(!this.index[key]) this.index[key] = [];
-      if(!this.dirty[key]) this.dirty[key] = [];
-      this.index[key].push(value);
-      this.dirty[key].push(value);
-      return true;
-    }
-    return false;
-  }
-
-  remove(key: any, value: V) {
-    if(!this.index[key]) return false;
-
-    let ix = this.index[key].indexOf(value)
-    if(ix !== -1) {
-      if(!this.dirty[key]) this.dirty[key] = [];
-      this.index[key][ix] = this.index[key].pop();
-      this.dirty[key].push(value);
-      return true;
-    }
-    return false;
-  }
-
-  subscribe(subscriber:IndexSubscriber<V>) {
+  subscribe(subscriber:IndexSubscriber<T>) {
     if(this.subscribers.indexOf(subscriber) === -1) {
       this.subscribers.push(subscriber);
       return true;
@@ -62,7 +37,7 @@ class Index<V> {
     return false;
   }
 
-  unsubscribe(subscriber:IndexSubscriber<V>) {
+  unsubscribe(subscriber:IndexSubscriber<T>) {
     let ix = this.subscribers.indexOf(subscriber);
     if(ix !== -1) {
       this.subscribers[ix] = this.subscribers.pop();
@@ -76,44 +51,96 @@ class Index<V> {
     for(let subscriber of this.subscribers) {
       subscriber(this.index, this.dirty, this);
     }
-    this.dirty = {};
+  }
+
+  clearDirty() {
+    this.dirty = {} as any;
+  }
+}
+
+interface IndexedList<V>{[v: string]: V[]}
+class IndexList<V> extends Index<IndexedList<V>> {
+  insert(key: string, value: V) {
+    if(!this.index[key] || this.index[key].indexOf(value) === -1) {
+      if(!this.index[key]) this.index[key] = [];
+      if(!this.dirty[key]) this.dirty[key] = [];
+      this.index[key].push(value);
+      this.dirty[key].push(value);
+      return true;
+    }
+    return false;
+  }
+
+  remove(key: string, value: V) {
+    if(!this.index[key]) return false;
+
+    let ix = this.index[key].indexOf(value)
+    if(ix !== -1) {
+      if(!this.dirty[key]) this.dirty[key] = [];
+      this.index[key][ix] = this.index[key].pop();
+      this.dirty[key].push(value);
+      return true;
+    }
+    return false;
   }
 };
+
+interface IndexedScalar<V>{[v: string]: V}
+class IndexScalar<V> extends Index<IndexedScalar<V>> {
+  insert(key: string, value: V) {
+    if(this.index[key] === undefined) {
+      this.index[key] = value;
+      this.dirty[key] = value;
+      return true;
+    } else if(this.index[key] !== value) {
+      throw new Error(`Unable to set multiple values on scalar index for key: '${key}' old: '${this.index[key]}' new: '${value}'`);
+    }
+    return false;
+  }
+
+  remove(key: string, value: V) {
+    if(this.index[key] === undefined) return false;
+
+    this.dirty[key] = this.index[key];
+    delete this.index[key];
+    return true;
+  }
+}
 
 //---------------------------------------------------------
 // Connect the websocket, send the ui code
 //---------------------------------------------------------
 export var DEBUG:string|boolean = "state";
-interface ClientState {
-  entities: {root?: Record, [id:string]: Record},
-  dirty: {root?: string[], [id:string]: string[]}
-}
-export var state:ClientState = {entities: {}, dirty: {}};
+
 export var indexes = {
-  byId: new Index<Record>("name"),
-  byName: new Index<string>("name"),
-  byTag: new Index<string>("tag"),
-  byClass: new Index<string>("class"),
-  byStyle: new Index<string>("style"),
+  records: new IndexScalar<Record>(),      // E -> Record
+  dirty: new IndexList<string>(),          // E -> A
+  byName: new IndexList<string>("name"),   // name -> E
+  byTag: new IndexList<string>("tag"),     // tag -> E
+  byClass: new IndexList<string>("class"), // class -> E
+  byStyle: new IndexList<string>("style"), // style -> E
 };
 
 function handleDiff(state, diff) {
   let diffEntities = 0;
   let entitiesWithUpdatedValues = {};
-  let {entities, dirty} = state;
+
+  let records = indexes.records;
+  let dirty = indexes.dirty;
 
   for(let remove of diff.remove) {
     let [e, a, v] = safeEav(remove);
-    if(!entities[e]) {
+    if(!records.index[e]) {
       console.error(`Attempting to remove an attribute of an entity that doesn't exist: ${e}`);
       continue;
     }
-    if(!dirty[e]) dirty[e] = [];
-    let entity = entities[e];
+
+    let entity = records.index[e];
     let values = entity[a];
     if(!values) continue;
-    dirty[e].push(a);
-    if(values.constructor !== Array || values.length <= 1) {
+    dirty.insert(e, a);
+
+    if(values.length <= 1) {
       delete entity[a];
     } else {
       let ix = values.indexOf(v);
@@ -139,24 +166,17 @@ function handleDiff(state, diff) {
 
   for(let insert of diff.insert) {
     let [e, a, v] = safeEav(insert);
-    if(!entities[e]) {
-      entities[e] = {};
-      diffEntities++;
+    let entity = records.index[e];
+    if(!entity) {
+      entity = {};
+      records.insert(e, entity);
+      diffEntities++; // Nuke this and use records.dirty
     }
-    if(!dirty[e]) dirty[e] = [];
-    dirty[e].push(a);
-    let entity = entities[e];
-    if(!entity[a]) {
-      entity[a] = v;
-    } else if(entity[a] == v) {
-      // do nothing (this really shouldn't happen, our diff is weird then)
-      console.error(`Received a diff setting ${entity}["${a}"] = ${v} (the existing value)`);
-      continue;
-    } else if(entity[a].constructor !== Array) {
-      entity[a] = [entity[a], v];
-    } else {
-      entity[a].push(v);
-    }
+
+    dirty.insert(e, a);
+
+    if(!entity[a]) entity[a] = [];
+    entity[a].push(v);
 
     // Update indexes
     if(a === "name") indexes.byName.insert(v, e);
@@ -179,7 +199,7 @@ function handleDiff(state, diff) {
   // Update value syncing
   for(let e in entitiesWithUpdatedValues) {
     let a = "value";
-    let entity = entities[e];
+    let entity = records.index[e];
     if(!entity[a]) {
       sentInputValues[e] = [];
     } else {
@@ -196,9 +216,13 @@ function handleDiff(state, diff) {
       }
     }
   }
+  // Trigger all the subscribers of dirty indexes
   for(let indexName in indexes) {
-    let index = indexes[indexName];
-    index.dispatchIfDirty();
+    indexes[indexName].dispatchIfDirty();
+  }
+  // Clear dirty states afterwards so a subscriber of X can see the dirty state of Y reliably
+  for(let indexName in indexes) {
+    indexes[indexName].clearDirty();
   }
 }
 
@@ -209,6 +233,7 @@ var socket = new WebSocket("ws://" + window.location.host +"/ws");
 socket.onmessage = function(msg) {
   let data = JSON.parse(msg.data);
   if(data.type == "result") {
+    let state = {entities: indexes.records.index, dirty: indexes.dirty.index};
     handleDiff(state, data);
     renderRecords(state);
 
@@ -259,15 +284,17 @@ let updateEditorParse = debounce(handleEditorParse, 1);
 
 function tokensToParseInfo(index, dirty) {
   if(!dirty["token"]) return;
+  let records = indexes.records.index;
 
   let tokenIds = index["token"];
   let lines = [];
   for(let tokenId of tokenIds) {
-    let token = state.entities[tokenId];
-    if(!lines[token.line]) {
-      lines[token.line] = [];
+    let token = records[tokenId];
+    let line = token.line[0];
+    if(!lines[line]) {
+      lines[line] = [];
     }
-    lines[token.line].push(token);
+    lines[line].push(token);
   }
 
   for(let line of lines) {
@@ -282,10 +309,12 @@ indexes.byTag.subscribe(tokensToParseInfo);
 
 function blocksToParseInfo(index, dirty) {
   if(!dirty["block"]) return;
+  let records = indexes.records.index;
+
   let blockIds = index["block"];
   let blocks = [];
   for(let blockId of blockIds) {
-    let block = state.entities[blockId];
+    let block = records[blockId];
     blocks.push(block);
   }
   blocks.sort(sortComparator);
@@ -293,6 +322,18 @@ function blocksToParseInfo(index, dirty) {
   updateEditorParse(parseInfo);
 }
 indexes.byTag.subscribe(blocksToParseInfo);
+
+
+function printDebugRecords(index, dirty) {
+  for(let recordId in dirty) {
+    let record = indexes.records.index[recordId];
+    if(record.tag && record.tag.indexOf("debug") !== -1) {
+      console.info(record);
+    }
+  }
+}
+indexes.dirty.subscribe(printDebugRecords);
+
 
 //---------------------------------------------------------
 // Communication helpers
