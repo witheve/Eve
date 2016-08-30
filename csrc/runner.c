@@ -279,6 +279,8 @@ static void fixedpoint_error(evaluation ev, vector diffs, char * message) {
     destroy(ev->working);
 }
 
+extern string print_dot(heap h, block bk, table counters);
+
 static boolean fixedpoint(evaluation ev)
 {
     long iterations = 0;
@@ -369,6 +371,27 @@ static boolean fixedpoint(evaluation ev)
          multibag_count(ev->t_solution),
          multibag_count(ev->f_solution),
          now() - end_time);
+
+    // ticks max_ticks = 0;
+    // perf max_p = 0;
+    // node max_node = 0;
+    // table_foreach(ev->counters, n, pv) {
+    //     perf p = (perf) pv;
+    //     if(max_ticks < p->time) {
+    //         max_ticks = p->time;
+    //         max_p = p;
+    //         max_node = n;
+    //     }
+    // }
+
+    // vector_foreach(ev->blocks, bk) {
+    //     prf("%b\n", print_dot(ev->working, bk, ev->counters));
+    // }
+
+    // prf("Max node");
+    // prf(" - node: %p, kind: %v, id: %v, time: %t, count: %d\n", max_node, max_node->type, max_node->id, max_p->time, max_p->count);
+    // prf("\n\n\n");
+
     destroy(ev->working);
     return true;
 }
