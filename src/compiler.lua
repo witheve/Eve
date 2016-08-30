@@ -294,13 +294,21 @@ function presort(nodes, typeCost)
   local idSorted = idSort(nodes)
   local presorted = {}
 
-  typeCost = typeCost or {mutate = 1000, expression = 100, ["not"] = 200, choose = 300, union = 400, object = 500}
+  typeCost = typeCost or {mutate = 1000, expression = 200, ["not"] = 100, choose = 300, union = 400, object = 500}
   while #idSorted > 0 do
     local cheapest
     local cheapestCost = 2^52
     local cheapestIx
     for ix, node in ipairs(idSorted) do
-      local cost = (typeCost[node.type] or 600) + node.deps.provides:length() * 10 - node.deps.depends:length()
+      local cost = (typeCost[node.type] or 600) - node.deps.depends:length()
+      if node.type == "object" then
+        for _, binding in ipairs(node.bindings) do
+          if binding.constant then
+            cost = cost - 1
+          end
+        end
+      end
+
       if cost < cheapestCost then
         cheapest = node
         cheapestCost = cost
