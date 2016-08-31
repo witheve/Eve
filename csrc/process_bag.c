@@ -12,6 +12,7 @@ struct process_bag{
     struct bag b;
     heap h;
     table processes;
+    multibag persisted;
 };
 
 evaluation process_resolve(process_bag pb, uuid e)
@@ -61,7 +62,7 @@ void process_bag_commit(process_bag pb, edb s)
         if ((p = table_find(pb->processes, e))){
             p->ev = build_process(p->h,
                                   wrap_buffer(p->h, source->body, source->length),
-                                  false, p->scopes, p->persisted,
+                                  false, p->persisted,
                                   ignore, ignore);
         }
     }

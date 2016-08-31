@@ -7,8 +7,6 @@ static boolean enable_tracing = false;
 static bag compiler_bag;
 static char *exec_path;
 static int port = 8080;
-// defer these until after everything else has been set up
-static vector tests;
 
 //filesystem like tree namespace
 #define register(__bag, __url, __content, __name)\
@@ -114,6 +112,7 @@ static bag static_content(heap h)
 
 
 // with the input/provides we can special case less of this
+// this really gets folded in with run_test and just becomes boot-with-eve
 static void run_eve_http_server(char *x)
 {
     buffer b = read_file_or_exit(init, x);
@@ -129,14 +128,15 @@ static void run_eve_http_server(char *x)
     // system facilities are part of the 'boot' program, but aren't
     // accessible by children without explicit arrangement
     build_bag(scopes, persisted, "file", (bag)filebag_init(sstring(pathroot)));
-    process_bag pb  = process_bag_init();
+    process_bag pb  = process_bag_init(persisted);
     build_bag(scopes, persisted, "process", (bag)pb);
     bag content = (bag)create_edb(init, 0);
 
     // right now, the response is being persisted..to the event bag?
     http_server *server = allocate(h, sizeof(http_server));
     heap hc = allocate_rolling(pages, sstring("eval"));
-    evaluation ev = build_process(hc, b, enable_tracing, scopes, persisted,
+    evaluation ev = build_process(hc, b, enable_tracing,
+                                  persisted,
                                   cont(h, http_eval_result, server, persisted, pb,
                                        table_find(scopes, sym(session))),
                                   cont(h, handle_error_terminal));
@@ -145,40 +145,6 @@ static void run_eve_http_server(char *x)
 
     prf("\n----------------------------------------------\n\nEve started. Running at http://localhost:%d\n\n",port);
 }
-
-static CONTINUATION_1_2(test_result, heap, multibag, multibag);
-static void test_result(heap h, multibag t, multibag f)
-{
-    if (f) {
-        table_foreach(f, n, v) {
-            prf("result: %v %b\n", n, edb_dump(h, (edb)v));
-        }
-    } else prf("result: empty\n");
-}
-
-static void run_test(bag root, buffer b, boolean tracing)
-{
-    heap h = allocate_rolling(pages, sstring("command line"));
-    table scopes = create_value_table(h);
-    table persisted = create_value_table(h);
-
-    build_bag(scopes, persisted, "all", (bag)create_edb(h, 0));
-    build_bag(scopes, persisted, "session", (bag)create_edb(h, 0));
-    // maybe?
-    build_bag(scopes, persisted, "event", (bag)create_edb(h, 0));
-    build_bag(scopes, persisted, "remove", (bag)create_edb(h, 0));
-    build_bag(scopes, persisted, "file", (bag)filebag_init(sstring(pathroot)));
-    heap ht = allocate_rolling(pages, sstring("eval"));
-    evaluation ev = build_process(ht, b, tracing, scopes, persisted,
-                                  cont(h, test_result, h),
-                                  cont(h, handle_error_terminal));
-
-    bag event = (bag)create_edb(ht, 0);
-    apply(event->insert, generate_uuid(), sym(tag), sym(test-start), 1, 0);
-    inject_event(ev, event);
-}
-
-
 
 typedef struct command {
     char *single, *extended, *help;
@@ -210,11 +176,6 @@ static void do_analyze(char *x)
     free_lua(c);
 }
 
-static void do_run_test(char *x)
-{
-    vector_insert(tests, x);
-}
-
 static CONTINUATION_0_1(end_read, reader);
 static void end_read(reader r)
 {
@@ -228,8 +189,6 @@ static void print_help(char *x);
 static struct command command_body[] = {
     {"p", "parse", "parse and print structure", true, do_parse},
     {"a", "analyze", "parse order print structure", true, do_analyze},
-    {"r", "run", "execute eve", true, do_run_test},
-    //    {"s", "serve", "serve urls from the given root path", true, 0},
     {"s", "serve", "use the subsequent eve file to serve http requests", true, run_eve_http_server},
     {"P", "port", "serve http on passed port", true, do_port},
     {"h", "help", "print help", false, print_help},
@@ -251,8 +210,6 @@ int main(int argc, char **argv)
     init_runtime();
     bag root = (bag)create_edb(init, 0);
     commands = command_body;
-
-    tests = allocate_vector(init, 5);
 
     //    init_request_service(root);
 
@@ -276,9 +233,6 @@ int main(int argc, char **argv)
             exit(-1);
         }
     }
-
-    vector_foreach(tests, t)
-        run_test(root, read_file_or_exit(init, t), enable_tracing);
 
     unix_wait();
 }

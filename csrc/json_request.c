@@ -82,8 +82,6 @@ static void send_diff(heap h, buffer_handler output, values_diff diff)
 static CONTINUATION_1_2(send_response, json_session, multibag, multibag);
 static void send_response(json_session session, multibag t_solution, multibag f_solution)
 {
-    prf ("send response!%b\n", edb_dump(init, f_solution));
-
     heap h = allocate_rolling(pages, sstring("response"));
     heap p = allocate_rolling(pages, sstring("response delta"));
     table results = create_value_vector_table(p);

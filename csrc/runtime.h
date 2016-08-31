@@ -177,7 +177,6 @@ static void build_bag(table scope, table bags, char *name, bag b)
 static evaluation build_process(heap h,
                                 buffer source,
                                 boolean tracing,
-                                table scopes,
                                 table inputs,
                                 evaluation_result r,
                                 error_handler e)
@@ -185,11 +184,7 @@ static evaluation build_process(heap h,
     buffer desc;
     bag compiler_bag;
     vector n = compile_eve(h, source, tracing, &compiler_bag);
-    uuid compiler_uuid = generate_uuid();
-
-    // fixme refactor
-    table_set(scopes, sym(compiler), compiler_uuid);
-    table_set(inputs, compiler_uuid, compiler_bag);
+    table scopes = create_value_table(h);
     return build_evaluation(h, scopes, inputs, r, e, n);
 }
 
