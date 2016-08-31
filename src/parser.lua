@@ -1410,6 +1410,7 @@ generateObjectNode = function(root, context)
         binding.field = "name"
         binding.constant = makeNode(context, "constant", right, {constant = right.value, constantType = "string"})
         related = right
+        generateBindingNode(context, binding, related, object)
 
       elseif left.type == "TAG" then
         binding.field = "tag"
@@ -1419,6 +1420,8 @@ generateObjectNode = function(root, context)
           object.type = "expression"
           object.operator = right.value
           binding = nil;
+        else
+          generateBindingNode(context, binding, related, object)
         end
 
       elseif right and left.type == "IDENTIFIER" then
@@ -1426,59 +1429,66 @@ generateObjectNode = function(root, context)
         binding.field = left.value
         lastAttribute = left
         lastAttributeIndex = 0
-        -- if this is an object and we're mutating then we need to
-        -- assign an eve-auto-index if there are several objects in
-        -- a row
-        if right.type == "object" and mutating and next and next.type == "object" then
-          local indexIdentifier = makeNode(context, "IDENTIFIER", right, {value = "eve-auto-index"})
-          local indexConstant = makeNode(context, "NUMBER", right, {value = tostring(lastAttributeIndex)})
-          local equalityNode = makeNode(context, "equality", right, {operator = "=", children = {indexIdentifier, indexConstant}})
-          right.children[#right.children + 1] = equalityNode
+        local rights = {right};
+        if right.type == "block" then
+          rights = right.children
         end
-        if right.type == "equality" and (right.children[1].type == "NAME" or right.children[2].type == "TAG") then
-          -- error, two possible cases here, you either forgot [] or you meant for this to not be an equality
-          -- for now we'll just assume it's the former
-          errors.bareTagOrName(context, right)
-        elseif right.type == "attribute" then
-          local prevMutating = context.mutating
-          context.mutating = nil
-          local resolved = resolveExpression(right, context)
-          context.mutating = prevMutating
-          dependencies:add(resolved)
-          lastAttribute = nil
-          binding.variable = resolved
-        else
-          local resolved = resolveExpression(right, context)
-          if not resolved then
-            -- error
-            binding = nil
-            errors.invalidObjectAttributeBinding(context, right or child)
-          elseif resolved.type == "constant" then
-            binding.constant = resolved
-            lastAttribute = nil
-          elseif resolved.type == "variable" then
-            binding.variable = resolved
-            -- we only add non-objects to dependencies since sub
-            -- objects have their own cardinalities to deal with
-            if right.type ~= "object" then
-              dependencies:add(resolved)
-              lastAttribute = nil
-            end
-          else
-            binding = nil
-            -- error
-            errors.invalidObjectAttributeBinding(context, right)
+        for rightIx, currentRight in ipairs(rights) do
+          lastAttributeIndex = lastAttributeIndex + 1
+          nextRight = rights[rightIx + 1]
+          -- if this is an object and we're mutating then we need to
+          -- assign an eve-auto-index if there are several objects in
+          -- a row
+          if currentRight.type == "object" and mutating and ((next and next.type == "object") or (nextRight and nextRight.type == "object")) then
+            local indexIdentifier = makeNode(context, "IDENTIFIER", currentRight, {value = "eve-auto-index"})
+            local indexConstant = makeNode(context, "NUMBER", currentRight, {value = tostring(lastAttributeIndex)})
+            local equalityNode = makeNode(context, "equality", currentRight, {operator = "=", children = {indexIdentifier, indexConstant}})
+            currentRight.children[#currentRight.children + 1] = equalityNode
           end
+          if currentRight.type == "equality" and (currentRight.children[1].type == "NAME" or currentRight.children[2].type == "TAG") then
+            -- error, two possible cases here, you either forgot [] or you meant for this to not be an equality
+            -- for now we'll just assume it's the former
+            errors.bareTagOrName(context, currentRight)
+          elseif currentRight.type == "attribute" then
+            local prevMutating = context.mutating
+            context.mutating = nil
+            local resolved = resolveExpression(currentRight, context)
+            context.mutating = prevMutating
+            dependencies:add(resolved)
+            lastAttribute = nil
+            binding.variable = resolved
+          else
+            local resolved = resolveExpression(currentRight, context)
+            if not resolved then
+              -- error
+              binding = nil
+              errors.invalidObjectAttributeBinding(context, currentRight or child)
+            elseif resolved.type == "constant" then
+              binding.constant = resolved
+              lastAttribute = nil
+            elseif resolved.type == "variable" then
+              binding.variable = resolved
+              -- we only add non-objects to dependencies since sub
+              -- objects have their own cardinalities to deal with
+              if currentRight.type ~= "object" then
+                dependencies:add(resolved)
+                lastAttribute = nil
+              end
+            else
+              binding = nil
+              -- error
+              errors.invalidObjectAttributeBinding(context, currentRight)
+            end
+          end
+          generateBindingNode(context, binding, related, object)
+          binding.variable = nil
+          binding.constant = nil
         end
 
       else
         binding = nil
         -- error
         errors.invalidObjectAttributeBinding(context, child)
-      end
-      if binding then
-        -- FIXME: is this the right related node for the binding?
-        binding = generateBindingNode(context, binding, related, object)
       end
 
     elseif type == "not" and object.type == "object" then
