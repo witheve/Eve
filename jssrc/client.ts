@@ -1,5 +1,5 @@
 import {clone, debounce, sortComparator} from "./util";
-import {sentInputValues, activeIds, activeChildren, renderRecords, renderEve} from "./renderer"
+import {sentInputValues, activeIds, renderRecords, renderEve} from "./renderer"
 import {handleEditorParse} from "./editor"
 
 //---------------------------------------------------------
@@ -56,6 +56,10 @@ class Index<T> {
   clearDirty() {
     this.dirty = {} as any;
   }
+
+  clearIndex() {
+    this.index = {} as any;
+  }
 }
 
 interface IndexedList<V>{[v: string]: V[]}
@@ -100,7 +104,6 @@ class IndexScalar<V> extends Index<IndexedScalar<V>> {
 
   remove(key: string, value: V) {
     if(this.index[key] === undefined) return false;
-
     this.dirty[key] = this.index[key];
     delete this.index[key];
     return true;
@@ -117,8 +120,11 @@ export var indexes = {
   dirty: new IndexList<string>(),          // E -> A
   byName: new IndexList<string>("name"),   // name -> E
   byTag: new IndexList<string>("tag"),     // tag -> E
+
+  // renderer indexes
   byClass: new IndexList<string>("class"), // class -> E
   byStyle: new IndexList<string>("style"), // style -> E
+  byChild: new IndexScalar<string>("children") // child -> E
 };
 
 function handleDiff(state, diff) {
@@ -140,7 +146,7 @@ function handleDiff(state, diff) {
     if(!values) continue;
     dirty.insert(e, a);
 
-    if(values.length <= 1) {
+    if(values.length <= 1 && values[0] === v) {
       delete entity[a];
     } else {
       let ix = values.indexOf(v);
@@ -149,19 +155,13 @@ function handleDiff(state, diff) {
     }
 
     // Update indexes
-    if(a === "name") indexes.byName.remove(v, e);
     if(a === "tag") indexes.byTag.remove(v, e);
-    if(a === "class") indexes.byClass.remove(v, e);
-    if(a === "style") indexes.byStyle.remove(v, e);
+    else if(a === "name") indexes.byName.remove(v, e);
+    else if(a === "class") indexes.byClass.remove(v, e);
+    else if(a === "style") indexes.byStyle.remove(v, e);
+    else if(a === "children") indexes.byChild.remove(v, e);
+    else if(a === "value") entitiesWithUpdatedValues[e] = true;
 
-    // Update active*
-    if(a === "children" && activeChildren[v] === e) {
-      delete activeChildren[v];
-    }
-
-    if(a === "value") {
-      entitiesWithUpdatedValues[e] = true;
-    }
   }
 
   for(let insert of diff.insert) {
@@ -179,21 +179,12 @@ function handleDiff(state, diff) {
     entity[a].push(v);
 
     // Update indexes
-    if(a === "name") indexes.byName.insert(v, e);
     if(a === "tag") indexes.byTag.insert(v, e);
-    if(a === "class") indexes.byClass.insert(v, e);
-    if(a === "style") indexes.byStyle.insert(v, e);
-
-
-    // Update active*
-    if(a === "children") {
-      if(activeChildren[v]) console.error(`Unable to handle child element ${v} parented to two parents (${activeChildren[v]}, ${e}). Overwriting.`);
-      activeChildren[v] = e;
-    }
-
-    if(a === "value") {
-      entitiesWithUpdatedValues[e] = true;
-    }
+    else if(a === "name") indexes.byName.insert(v, e);
+    else if(a === "class") indexes.byClass.insert(v, e);
+    else if(a === "style") indexes.byStyle.insert(v, e);
+    else if(a === "children") indexes.byChild.insert(v, e);
+    else if(a === "value") entitiesWithUpdatedValues[e] = true;
   }
 
   // Update value syncing
@@ -203,13 +194,11 @@ function handleDiff(state, diff) {
     if(!entity[a]) {
       sentInputValues[e] = [];
     } else {
-      if(entity[a].constructor === Array) console.error("Unable to set 'value' multiple times on entity", e, entity[a]);
+      if(entity[a].length > 1) console.error("Unable to set 'value' multiple times on entity", e, entity[a]);
+      let value = entity[a][0];
       let sent = sentInputValues[e];
-      if(sent && sent[0] === entity[a]) {
-        let ix;
-        while((ix = dirty[e].indexOf(a)) !== -1) {
-          dirty[e].splice(ix, 1);
-        }
+      if(sent && sent[0] === value) {
+        dirty.remove(e, a);
         sent.shift();
       } else {
         sentInputValues[e] = [];
@@ -224,6 +213,8 @@ function handleDiff(state, diff) {
   for(let indexName in indexes) {
     indexes[indexName].clearDirty();
   }
+  // Finally, wipe the dirty E -> A index
+  indexes.dirty.clearIndex();
 }
 
 let prerendering = false;
@@ -235,7 +226,6 @@ socket.onmessage = function(msg) {
   if(data.type == "result") {
     let state = {entities: indexes.records.index, dirty: indexes.dirty.index};
     handleDiff(state, data);
-    renderRecords(state);
 
     let diffEntities = 0;
     if(DEBUG) {
@@ -323,6 +313,10 @@ function blocksToParseInfo(index, dirty) {
 }
 indexes.byTag.subscribe(blocksToParseInfo);
 
+function renderOnChange(index, dirty) {
+  renderRecords();
+}
+indexes.dirty.subscribe(renderOnChange);
 
 function printDebugRecords(index, dirty) {
   for(let recordId in dirty) {

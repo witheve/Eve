@@ -10,11 +10,11 @@ interface RecordElement extends Element { entity?: string, sort?: any, _parent?:
 interface RDocument extends Document { activeElement: RecordElement };
 declare var document: RDocument;
 
-function isInputElem(elem:Element): elem is HTMLInputElement {
-  return elem.tagName === "INPUT";
+function isInputElem<T extends Element>(elem:T): elem is T&HTMLInputElement {
+  return elem && elem.tagName === "INPUT";
 }
-function isSelectElem(elem:Element): elem is HTMLSelectElement {
-  return elem.tagName === "SELECT";
+function isSelectElem<T extends Element>(elem:T): elem is T&HTMLSelectElement {
+  return elem && elem.tagName === "SELECT";
 }
 
 export function setActiveIds(ids) {
@@ -36,7 +36,6 @@ document.body.appendChild(renderer.content);
 // These will get maintained by the client as diffs roll in
 export var sentInputValues = {};
 export var activeIds = {};
-export var activeChildren = {};
 
 // root will get added to the dom by the program microReact element in renderEditor
 export var activeElements:{[id : string]: RecordElement, root: RecordElement} = {"root": document.createElement("div")};
@@ -55,17 +54,15 @@ var svgs = {"svg": true, "circle": true, "line": true, "rect": true, "polygon":t
 // Map of input entities to a queue of their values which originated from the client and have not been received from the server yet.
 
 var lastFocusPath = null;
-var updatingDOM = null;
 var selectableTypes = {"": true, undefined: true, text: true, search: true, password: true, tel: true, url: true};
 
-function insertSorted(parent, child) {
+function insertSorted(parent:Node, child:RecordElement) {
   let current;
-  for(let curIx = 0; curIx < parent.children.length; curIx++) {
-    current = parent.children[curIx];
-    if(current.sort && current.sort > child.sort) {
+  for(let curIx = 0; curIx < parent.childNodes.length; curIx++) {
+    let cur = parent.childNodes[curIx] as RecordElement;
+    if(cur.sort !== undefined && cur.sort > child.sort) {
+      current = cur;
       break;
-    } else {
-      current = null;
     }
   }
   if(current) {
@@ -75,38 +72,36 @@ function insertSorted(parent, child) {
   }
 }
 
-export function renderRecords(state) {
-  let diffEntities = 0;
+let _suppressBlur = false; // This global is set when the records are being re-rendered, to prevent false blurs from mucking up focus tracking.
 
+export function renderRecords() {
+  _suppressBlur = true;
+  let lastActiveElement:RecordElement;
   if(document.activeElement && document.activeElement.entity) {
-    updatingDOM = document.activeElement;
-  }
-  if(!updatingDOM) {
-    updatingDOM = true;
+    lastActiveElement = document.activeElement;
   }
 
+  let records = indexes.records.index;
+  let dirty = indexes.dirty.index;
   let activeClasses = indexes.byClass.index || {};
   let activeStyles = indexes.byStyle.index || {};
+  let activeChildren = indexes.byChild.index || {};
 
   let regenClassesFor = [];
   let regenStylesFor = [];
-  let {dirty, entities, parents} = state;
+
   for(let entityId in dirty) {
-    let entity = entities[entityId];
+    let entity = records[entityId];
     let elem = activeElements[entityId];
 
     if(dirty[entityId].indexOf("tag") !== -1) {
-      let value = entity.tag;
+      let values = entity.tag || []
       let tag;
-      if(value && value.constructor == Array) {
-        for(let t of value) {
-          if(supportedTags[t]) {
-            if(tag) console.error(`Received multiple supported tags for entity: ${entityId} (tags: ${tag}, ${t})`)
-            tag = t;
-          }
+      for(let val of values) {
+        if(supportedTags[val]) {
+          if(tag) console.error("Unable to set 'tag' multiple times on entity", entity, entity.tag);
+          tag = val;
         }
-      } else if(supportedTags[value]) {
-        tag = value;
       }
 
       if(!tag && elem && elem !== activeElements.root) { // Nuke the element if it no longer has a supported tag
@@ -142,7 +137,8 @@ export function renderRecords(state) {
         }
         elem.entity = entityId;
         activeElements[entityId] = elem;
-        elem.sort = entity.sort || entity["eve-auto-index"] || "";
+        if(entity.sort && entity.sort.length > 1) console.error("Unable to set 'sort' multiple times on entity", entity, entity.sort);
+        elem.sort = (entity.sort && entity.sort[0]) || (entity["eve-auto-index"] && entity["eve-auto-index"][0]) || "";
         let parent = activeElements[activeChildren[entityId] || "root"];
         if(parent) {
           insertSorted(parent, elem)
@@ -171,7 +167,7 @@ export function renderRecords(state) {
             elem.removeChild(elem.lastElementChild);
           }
         } else {
-          let children = (value.constructor === Array) ? clone(value) : [value];
+          let children = (value && clone(value)) || [];
           // Remove any children that no longer belong
           for(let ix = elem.childNodes.length - 1; ix >= 0; ix--) {
             if(!(elem.childNodes[ix] instanceof Element)) continue;
@@ -199,29 +195,29 @@ export function renderRecords(state) {
         regenStylesFor.push(entityId);
 
       } else if(attribute === "text") {
-        let text = (value && value.constructor === Array) ? value.join(", ") : value;
-        elem.textContent = (value !== undefined) ? value : "";
+        elem.textContent = (value && value.join(", ")) || "";
 
       } else if(attribute === "value") {
         let input = elem as (RecordElement & HTMLInputElement);
         if(!value) {
           input.value = "";
-        } else if(value.constructor === Array) {
-          console.error("Unable to set 'value' multiple times on entity", entity, value);
+        } else if(value.length > 1) {
+          console.error("Unable to set 'value' multiple times on entity", entity, JSON.stringify(value));
         } else {
-          input.value = value; // @FIXME: Should this really be setAttribute?
+          input.value = value[0]; // @FIXME: Should this really be setAttribute?
         }
 
       } else if(attribute === "checked") {
-        if(value && value.constructor === Array) {
+        if(value && value.length > 1) {
           console.error("Unable to set 'checked' multiple times on entity", entity, value);
+        } else if(value && value[0]) {
+          elem.setAttribute("checked", "true");
         } else {
-          if(value) elem.setAttribute("checked", "true");
-          else elem.removeAttribute("checked");
+          elem.removeAttribute("checked");
         }
 
       } else {
-        value = (value && value.constructor === Array) ? value.join(", ") : value;
+        value = value && value.join(", ");
         if(value === undefined) {
           elem.removeAttribute(attribute);
         } else {
@@ -231,27 +227,27 @@ export function renderRecords(state) {
     }
 
     let attrs = Object.keys(entity);
-    if(attrs.length == 0) {
-      diffEntities--;
-      delete entities[entityId];
-    }
   }
 
   for(let entityId of regenClassesFor) {
     let elem = activeElements[entityId];
     if(!elem) continue;
-    let entity = entities[entityId];
+    let entity = records[entityId];
     let value = entity["class"];
     if(!value) {
       elem.className = "";
     } else {
-      value = (value.constructor === Array) ? value : [value];
       let neue = [];
       for(let klassId of value) {
         if(klassId[0] == "⦑" && klassId[klassId.length - 1] == "⦒" && activeClasses[klassId]) {
-          let klass = entities[klassId];
+          let klass = records[klassId];
           for(let name in klass) {
-            if(klass[name] && neue.indexOf(name) === -1) {
+            if(!klass[name]) continue;
+            if(klass[name].length > 1) {
+              console.error("Unable to set class attribute to multiple values on entity", entity, name, klass[name]);
+              continue;
+            }
+            if(klass[name][0] && neue.indexOf(name) === -1) {
               neue.push(name);
             }
           }
@@ -266,17 +262,16 @@ export function renderRecords(state) {
   for(let entityId of regenStylesFor) {
     let elem = activeElements[entityId];
     if(!elem) continue;
-    let entity = entities[entityId];
+    let entity = records[entityId];
     let value = entity["style"];
     elem.removeAttribute("style"); // @FIXME: This could be optimized to care about the diff rather than blowing it all away
     if(value) {
-      value = (value.constructor === Array) ? value : [value];
       let neue = [];
       for(let styleId of value) {
         if(styleId[0] == "⦑" && styleId[styleId.length - 1] == "⦒" && activeStyles[styleId]) {
-          let style = entities[styleId];
+          let style = records[styleId];
           for(let attr in style) {
-            elem.style[attr] = style[attr];
+            elem.style[attr] = style[attr] && style[attr].join(", ");
           }
         } else {
           neue.push(styleId);
@@ -289,28 +284,27 @@ export function renderRecords(state) {
     }
   }
 
-  if(lastFocusPath && updatingDOM !== true) {
+  if(lastFocusPath && isInputElem(lastActiveElement)) {
     let current = activeElements.root;
     let ix = 0;
     for(let segment of lastFocusPath) {
       current = current.childNodes[segment] as RecordElement;
       if(!current) {
-        updatingDOM.blur();
+        lastActiveElement.blur();
         lastFocusPath = null;
         break;
       }
       ix++;
     }
-    if(current && current.entity !== updatingDOM.entity) {
+    if(current && current.entity !== lastActiveElement.entity) {
       let curElem = current as HTMLElement;
       curElem.focus();
-      if(updatingDOM.tagName === current.tagName && isInputElem(current) && selectableTypes[updatingDOM.type] && selectableTypes[current.type]) {
-        current.setSelectionRange(updatingDOM.selectionStart, updatingDOM.selectionEnd);
+      if(isInputElem(lastActiveElement) && isInputElem(current) && selectableTypes[lastActiveElement.type] && selectableTypes[current.type]) {
+        current.setSelectionRange(lastActiveElement.selectionStart, lastActiveElement.selectionEnd);
       }
     }
   }
-  updatingDOM = false;
-  state.dirty = {};
+  _suppressBlur = false
 }
 
 //---------------------------------------------------------
@@ -423,7 +417,7 @@ window.addEventListener("focus", function(event) {
 }, true);
 
 window.addEventListener("blur", function(event) {
-  if(updatingDOM) {
+  if(_suppressBlur) {
     event.preventDefault();
     return;
   }
