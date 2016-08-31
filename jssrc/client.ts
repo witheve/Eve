@@ -1,4 +1,4 @@
-import {clone, debounce, sortComparator} from "./util";
+import {clone, debounce, uuid, sortComparator} from "./util";
 import {sentInputValues, activeIds, renderRecords, renderEve} from "./renderer"
 import {handleEditorParse} from "./editor"
 
@@ -220,7 +220,7 @@ function handleDiff(state, diff) {
 let prerendering = false;
 var frameRequested = false;
 
-var socket = new WebSocket("ws://" + window.location.host +"/ws");
+var socket = new WebSocket("ws://" + window.location.host + window.location.pathname, "eve-json");
 socket.onmessage = function(msg) {
   let data = JSON.parse(msg.data);
   if(data.type == "result") {
@@ -333,68 +333,50 @@ indexes.dirty.subscribe(printDebugRecords);
 // Communication helpers
 //---------------------------------------------------------
 
-export function formatObjects(objs) {
-  let rows = [];
-  for(let obj of objs) {
-    let id;
-    let kvs = {};
-    let fields = [];
-    for(let key in obj) {
-      let value = obj[key];
-      if(key == "tags") {
-        for(let tag of value) {
-          fields.push("#" + tag);
-        }
-        kvs["tag"] = value
-      } else if(key == "id") {
-        id = obj[key];
-      } else {
-        let stringValue;
-        if(typeof value == "string" && value[0] == "⦑") {
-          stringValue = value;
+function recordToEAVs(record) {
+  if(!record) return;
+  let eavs = [];
+  if(record.id && record.id.constructor === Array) throw new Error("Unable to apply multiple ids to the same record: " + JSON.stringify(record));
+  if(!record.id) record.id = uuid();
+  record.id = "" + record.id + "";
+  let e = record.id;
+
+  for(let a in record) {
+    if(record[a] === undefined) continue;
+    if(a === "id") continue;
+    if(record[a].constructor === Array) {
+      for(let v of record[a]) {
+        if(typeof v === "object") {
+          eavs.push.apply(eavs, recordToEAVs(v));
+          eavs.push([e, a, v.id]);
         } else {
-          stringValue = JSON.stringify(value);
-        }
-        fields.push(key + ": " + stringValue);
-        kvs[key] = stringValue;
-      }
-    }
-    if(id) {
-        console.log(kvs);
-      for(let key in kvs) {
-        let value = kvs[key];
-        if(value.prototype !== Array) {
-          rows.push(`[#eav entity: ${id}, attribute: "${key}", value: ${value}]`);
-        } else {
-          for(let elem of value) {
-            rows.push(`[#eav entity: ${id}, attribute: "${key}", value: ${elem}]`);
-          }
+          eavs.push([e, a, v]);
         }
       }
     } else {
-      let final = "[" + fields.join(", ") + "]";
-      rows.push(final)
+      let v = record[a];
+      if(typeof v === "object") {
+        eavs.push.apply(eavs, recordToEAVs(v));
+        eavs.push([e, a, v.id]);
+      } else {
+        eavs.push([e, a, v]);
+      }
     }
   }
-  return rows;
+  return eavs;
 }
 
-export function sendEventObjs(objs) {
-  if(!objs.length) return;
-  let query = `handle some event
-  \`\`\`
-  bind
-    ${formatObjects(objs).join("\n    ")}
-  \`\`\``
-  return sendEvent(query);
-}
-
-export function sendEvent(query) {
-  //console.log("QUERY", query);
-  if(socket && socket.readyState == 1) {
-    socket.send(JSON.stringify({scope: "event", type: "query", query}))
+export function sendEvent(records:any[]) {
+  if(!records || !records.length) return;
+  let eavs = [];
+  for(let record of records) {
+    eavs.push.apply(eavs, recordToEAVs(record));
   }
-  return query;
+
+  console.log(records, eavs);
+  if(socket && socket.readyState == 1) {
+    socket.send(JSON.stringify({type: "event", insert: eavs}))
+  }
 }
 
 export function sendSwap(query) {
@@ -423,36 +405,12 @@ function onHashChange(event) {
   let hash = window.location.hash.substr(1);
   if(hash[0] == "/") hash = hash.substr(1);
   let segments = hash.split("/").map(function(seg, ix) {
-    return `[index: ${ix + 1}, value: "${seg}"]`;
+    return {id: uuid(), index: ix + 1, value: seg};
   });
-  let query =
-  `hash changed remove any current url segments
-    \`\`\`
-    match
-      url = [#url hash-segment]
-    commit
-      url.hash-segment -= hash-segment
-    \`\`\`\n\n`;
-  if(hash !== "") {
-    query +=
-    `hash changed if there isn't already a url, make one
-      \`\`\`
-      match
-        not([#url])
-      commit
-        [#url hash-segment: ${segments.join(" ")}]
-      \`\`\`
-        \n\n` +
-    `add the new hash-segments if there is
-      \`\`\`
-      match
-        url = [#url]
-      commit
-        url <- [hash-segment: ${segments.join(" ")}]
-      \`\`\`
-    `;
-  }
-  sendEvent(query);
+
+  sendEvent([
+    {tag: "url", "hash-segment": segments}
+  ]);
 }
 
 window.addEventListener("hashchange", onHashChange);

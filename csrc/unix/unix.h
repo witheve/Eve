@@ -1,5 +1,6 @@
 typedef void *station;
 
+
 void initialize_timers(heap);
 typedef closure(buffer_handler, buffer, thunk);
 
@@ -51,8 +52,15 @@ heap init_fixed_page_region(heap meta,
                             bytes pagesize);
 ticks now();
 
-typedef closure(new_client, buffer_handler, station, register_read);
-typedef closure(connected, buffer_handler, register_read);
+
+typedef struct endpoint {
+    buffer_handler w;
+    register_read r;
+} *endpoint;
+    
+
+typedef closure(new_client, endpoint, station);
+typedef closure(connected, endpoint);
 
 void tcp_create_client (heap, station, connected);
 

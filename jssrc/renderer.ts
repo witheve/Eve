@@ -3,7 +3,7 @@
 import {Renderer} from "microReact";
 import {clone} from "./util";
 import {CodeMirrorNode, applyFix, setKeyMap, doSave, compileAndRun} from "./editor";
-import {sendEvent, sendEventObjs, indexes, parseInfo} from "./client";
+import {indexes, sendEvent, parseInfo} from "./client";
 
 //type RecordElementCollection = HTMLCollection | SVGColl
 interface RecordElement extends Element { entity?: string, sort?: any, _parent?: RecordElement, style?: CSSStyleDeclaration };
@@ -317,16 +317,15 @@ window.addEventListener("click", function(event) {
   let objs = [];
   while(current) {
     if(current.entity) {
-      let tags = ["click"];
+      let tag = ["click"];
       if(current == target) {
-        tags.push("direct-target");
+        tag.push("direct-target");
       }
-      objs.push({tags, element: current.entity});
+      objs.push({tag, element: current.entity});
     }
     current = current.parentElement;
   }
-  // objs.push({tags: ["click"], element: "window"});
-  sendEventObjs(objs);
+  sendEvent(objs);
 });
 window.addEventListener("dblclick", function(event) {
   let {target} = event;
@@ -334,16 +333,15 @@ window.addEventListener("dblclick", function(event) {
   let objs = [];
   while(current) {
     if(current.entity) {
-      let tags = ["double-click"];
+      let tag = ["double-click"];
       if(current == target) {
-        tags.push("direct-target");
+        tag.push("direct-target");
       }
-      objs.push({tags, element: current.entity});
+      objs.push({tag, element: current.entity});
     }
     current = current.parentElement;
   }
-  // objs.push({tags: ["click"], element: "window"});
-  sendEventObjs(objs);
+  sendEvent(objs);
 });
 
 window.addEventListener("input", function(event) {
@@ -353,16 +351,7 @@ window.addEventListener("input", function(event) {
       sentInputValues[target.entity] = [];
     }
     sentInputValues[target.entity].push(target.value);
-    let query =
-    `input value updated
-      \`\`\`
-      match
-        input = ${target.entity}
-      commit @browser
-        input.value := "${target.value.replace("\"", "\\\"")}"
-      \`\`\``;
-    sendEvent(query);
-    sendEventObjs([{tags: ["change"], element: target.entity}]);
+    sendEvent([{tag: ["change"], element: target.entity, value: target.value}]);
   }
 });
 window.addEventListener("change", function(event) {
@@ -378,20 +367,11 @@ window.addEventListener("change", function(event) {
       value = target.options[target.selectedIndex].value;
     }
     sentInputValues[target.entity].push(value);
-    let query =
-      `input value updated
-      \`\`\`
-      match
-        input = ${target.entity}
-      commit
-        input.value := "${value.replace("\"", "\\\"")}"
-      \`\`\``;
-    sendEvent(query);
-    let tags = ["change"];
+    let tag = ["change"];
     if(target == target) {
-      tags.push("direct-target");
+      tag.push("direct-target");
     }
-    sendEventObjs([{tags, element: target.entity}]);
+    sendEvent([{tag, element: target.entity, value: target.value}]);
   }
 });
 
@@ -410,8 +390,8 @@ function getFocusPath(target) {
 window.addEventListener("focus", function(event) {
   let target = event.target as RecordElement;
   if(target.entity) {
-    let objs = [{tags: ["focus"], element: target.entity}];
-    sendEventObjs(objs);
+    let objs = [{tag: ["focus"], element: target.entity}];
+    sendEvent(objs);
     lastFocusPath = getFocusPath(target);
   }
 }, true);
@@ -423,8 +403,8 @@ window.addEventListener("blur", function(event) {
   }
   let target = event.target as RecordElement;
   if(target.entity) {
-    let objs = [{tags: ["blur"], element: target.entity}];
-    sendEventObjs(objs);
+    let objs = [{tag: ["blur"], element: target.entity}];
+    sendEvent(objs);
 
     if(lastFocusPath) {
       let curFocusPath = getFocusPath(target);
@@ -453,15 +433,15 @@ window.addEventListener("keydown", function(event) {
   let key = event.keyCode;
   while(current) {
     if(current.entity) {
-      let tags = ["keydown"];
+      let tag = ["keydown"];
       if (current == target) {
-        tags.push("direct-target");
+        tag.push("direct-target");
       }
-      objs.push({tags, element: current.entity, key: keyMap[key] || key});
+      objs.push({tag, element: current.entity, key: keyMap[key] || key});
     }
     current = current.parentElement;
   }
-  sendEventObjs(objs);
+  sendEvent(objs);
 });
 
 window.addEventListener("keyup", function(event) {
@@ -471,16 +451,16 @@ window.addEventListener("keyup", function(event) {
   let key = event.keyCode;
   while(current) {
     if(current.entity) {
-      let tags = ["keyup"];
+      let tag = ["keyup"];
       if (current == target) {
-        tags.push("direct-target");
+        tag.push("direct-target");
       }
-      objs.push({tags, element: current.entity, key: keyMap[key] || key});
+      objs.push({tag, element: current.entity, key: keyMap[key] || key});
     }
     current = current.parentElement;
   }
-  objs.push({tags: ["keyup"], element: "window", key});
-  sendEventObjs(objs);
+  objs.push({tag: ["keyup"], element: "window", key});
+  sendEvent(objs);
 });
 
 //---------------------------------------------------------

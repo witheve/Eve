@@ -1,23 +1,9 @@
 typedef struct http_server *http_server;
-http_server create_http_server(station p, buffer eve);
+http_server create_http_server(station p, evaluation ev);
 
 void http_send_request(buffer_handler w, bag b, uuid n);
 
-void send_http_response(heap h,
-                        buffer_handler write,
-                        char * status,
-                        string type,
-                        buffer b);
-
-void register_http_service(http_server s,
-                           string url,
-                           thunk apply);
-
-void register_http_file(http_server s,
-                        string url,
-                        string pathname,
-                        string mimetype);
-
+void http_send_response(http_server hs, bag b, uuid root);
 
 string base64_encode(heap h, buffer x);
 
@@ -37,19 +23,16 @@ void register_static_content(http_server h, char *url, char *content_type, buffe
 // siganture for more standard request/response guys
 typedef closure(http_handler, bag, uuid, register_read);
 
-buffer_handler websocket_send_upgrade(heap h,
-                                      bag b,
-                                      uuid n,
-                                      buffer_handler down,
-                                      buffer_handler up,
-                                      register_read reg);
+endpoint websocket_send_upgrade(heap h,
+                                endpoint down,
+                                bag b,
+                                uuid n);
 
 // should be asynch...but you know
 typedef closure(http_service, buffer_handler, bag, uuid, register_read);
 void http_register_service(http_server, http_service, string);
 // this has no backpressure
-typedef closure(json_handler, bag, uuid);
-reader parse_json(heap h, json_handler j);
+object_handler parse_json(heap h, endpoint e, object_handler j);
 void print_value_json(buffer out, value v);
 void print_value_vector_json(buffer out, vector vec);
 void escape_json(buffer out, string current);
@@ -62,6 +45,7 @@ client open_http_client(heap h, bag s, uuid request, http_handler response);
 
 void http_send_header(buffer_handler w, bag b, uuid n, value first, value second, value third);
 
-buffer_handler websocket_client(heap h, bag request, uuid rid, reader up);
+endpoint websocket_client(heap h, bag request, uuid rid);
 
 buffer json_encode(heap, bag b, uuid n);
+endpoint http_ws_upgrade(http_server s, bag b, uuid root);

@@ -68,15 +68,12 @@ struct node {
     table display;
 };
 
-
 #include <edb.h>
+#include <multibag.h>
 
-typedef table multibag;
-
-typedef closure(evaluation_result, multibag, multibag, table);
+typedef closure(evaluation_result, multibag, multibag);
 
 typedef closure(block_completion, boolean);
-
 
 typedef struct compiled {
     string name;
@@ -114,7 +111,7 @@ struct evaluation  {
     // map from names to uuids
 
     vector blocks;
-    vector event_blocks;
+    bag event_bag;
 
     table counters;
     ticks t;
@@ -139,14 +136,19 @@ void close_evaluation(evaluation);
 
 extern char *pathroot;
 
+
 vector compile_eve(heap h, buffer b, boolean tracing, bag *compiler_bag);
-evaluation build_evaluation(table scopes, table persisted, evaluation_result e, error_handler error);
+
+evaluation build_evaluation(heap h, table scopes, table persisted,
+                            evaluation_result e, error_handler error,
+                            vector implications);
+
 void run_solver(evaluation s);
-void inject_event(evaluation, buffer b, boolean);
+void inject_event(evaluation, bag);
 void block_close(block);
 bag init_request_service();
 
-bag filebag_init(buffer, uuid);
+bag filebag_init(buffer);
 extern thunk ignore;
 
 static void get_stack_trace(string *out)
@@ -163,3 +165,37 @@ static void get_stack_trace(string *out)
 
 void merge_scan(evaluation ev, vector scopes, int sig, listener result, value e, value a, value v);
 void multibag_insert(multibag *mb, heap h, uuid u, value e, value a, value v, multiplicity m, uuid block_id);
+
+
+static void build_bag(table scope, table bags, char *name, bag b)
+{
+    uuid x = generate_uuid();
+    table_set(bags, x, b);
+    table_set(scope, intern_cstring(name),x);
+}
+
+static evaluation build_process(heap h,
+                                buffer source,
+                                boolean tracing,
+                                table scopes,
+                                table inputs,
+                                evaluation_result r,
+                                error_handler e)
+{
+    buffer desc;
+    bag compiler_bag;
+    vector n = compile_eve(h, source, tracing, &compiler_bag);
+    uuid compiler_uuid = generate_uuid();
+
+    // fixme refactor
+    table_set(scopes, sym(compiler), compiler_uuid);
+    table_set(inputs, compiler_uuid, compiler_bag);
+    return build_evaluation(h, scopes, inputs, r, e, n);
+}
+
+typedef struct process_bag *process_bag;
+process_bag process_bag_init();
+
+typedef closure(object_handler, bag, uuid);
+object_handler create_json_session(heap h, evaluation ev, endpoint down, uuid u);
+evaluation process_resolve(process_bag, uuid);

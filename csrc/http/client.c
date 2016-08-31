@@ -20,12 +20,12 @@ static void response_body(client c, bag b, uuid n, buffer in, register_read r)
 }
 
 
-static CONTINUATION_1_2(client_connected, client, buffer_handler, register_read);
-static void client_connected(client c, buffer_handler w, register_read r)
+static CONTINUATION_1_1(client_connected, client, endpoint);
+static void client_connected(client c, endpoint e)
 {
-    http_send_request(w, c->b, c->request);
+    http_send_request(e->w, c->b, c->request);
     //    cont(c->h, response_body, c)));
-    apply(r, response_header_parser(c->h, c->response));
+    apply(e->r, response_header_parser(c->h, c->response));
 }
 
 client open_http_client(heap h, bag b, uuid request, http_handler response)

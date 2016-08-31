@@ -7,15 +7,18 @@ static boolean enable_tracing = false;
 static bag compiler_bag;
 static char *exec_path;
 static int port = 8080;
-static buffer server_eve = 0;
 // defer these until after everything else has been set up
 static vector tests;
 
-#define register(__h, __url, __content, __name)\
+//filesystem like tree namespace
+#define register(__bag, __url, __content, __name)\
  {\
     extern unsigned char __name##_start, __name##_end;\
     unsigned char *s = &__name##_start, *e = &__name##_end;\
-    register_static_content(__h, __url, __content, wrap_buffer(init, s, e-s), dynamicReload?(char *)e:0); \
+    uuid n = generate_uuid();\
+    apply(__bag->insert, e, sym(url), sym(__url), 1, 0);           \
+    apply(__bag->insert, e, sym(body), intern_string(s, e-s), 1, 0);       \
+    apply(__bag->insert, e, sym(content-type), sym(__content_type), 1, 0); \
  }
 
 int atoi( const char *str );
@@ -39,13 +42,14 @@ static void send_error_terminal(heap h, char* message, bag data, uuid data_id)
 {
     void * address = __builtin_return_address(1);
     string stack = allocate_string(h);
-    get_stack_trace(&stack);
+    // xxx - figure out why stack trace is busted :/
+    //    get_stack_trace(&stack);
 
-    prf("ERROR: %s\n  stage: executor\n  offsets:\n%b", message, stack);
+    prf("ERROR: %s\n  stage: executor\n", message);
 
     if(data != 0) {
       string data_string = edb_dump(h, (edb)data);
-      prf("  data: ⦑%v⦒\n%b", data_id, data);
+      prf("  data: ⦑%v⦒\n%b", data_id, data_string);
     }
     destroy(h);
 }
@@ -56,8 +60,94 @@ static void handle_error_terminal(char * message, bag data, uuid data_id) {
 }
 
 
-static CONTINUATION_1_3(test_result, heap, multibag, multibag,  table);
-static void test_result(heap h, multibag t, multibag f, table counts)
+
+static CONTINUATION_4_2(http_eval_result, http_server *, table, process_bag, uuid, multibag, multibag);
+static void http_eval_result(http_server *h, table inputs, process_bag pb, uuid where, multibag t, multibag f)
+{
+    bag b;
+
+    if (!t || (!(b=table_find(t, where)))) {
+        prf("empty http eval result %d\n", f?table_elements(f):0);
+    } else {
+        edb_foreach_ev((edb)b, e, sym(response), response, m){
+            // xxx we're using e as a very weak correlator to the connection
+            http_send_response(*h, b, e);
+            return;
+        }
+
+        edb_foreach_ev((edb)b, e, sym(upgrade), child, m){
+            heap jh = allocate_rolling(init, sstring("json session"));
+            evaluation ev = process_resolve(pb, child);
+            if (ev) {
+                endpoint ws =  http_ws_upgrade(*h, b, e);
+                parse_json(jh, ws, create_json_session(jh, ev, ws,
+                                                       table_find(ev->scopes, "browser")));
+                bag session_connect = (bag)create_edb(jh, 0);
+
+                apply(session_connect->insert,
+                      generate_uuid(),
+                      sym(tag),
+                      sym(session-connect), 1, 0);
+                inject_event(ev, session_connect);
+            }
+        }
+    }
+}
+
+
+static bag static_content(heap h)
+{
+    bag b = (bag)create_edb(h, 0);
+    register(b, "/", "text/html", index);
+    register(b, "/js/microReact.js", "application/javascript", microReact_js);
+    register(b, "/js/codemirror.js", "application/javascript", codemirror_js);
+    register(b, "/js/codemirror.css", "text/css", codemirror_css);
+    register(b, "/examples/todomvc.css", "text/css", todomvc_css);
+    register(b, "/js/commonmark.js", "application/javascript", commonmark_js);
+    register(b, "/js/system.js", "application/javascript", system_js);
+    register(b, "/js/util.js", "application/javascript", util_js);
+    register(b, "/js/client.js", "application/javascript", client_js);
+    register(b, "/js/renderer.js", "application/javascript", renderer_js);
+    register(b, "/js/editor.js", "application/javascript", editor_js);
+    return b;
+}
+
+
+// with the input/provides we can special case less of this
+static void run_eve_http_server(char *x)
+{
+    buffer b = read_file_or_exit(init, x);
+    heap h = allocate_rolling(pages, sstring("command line"));
+    table scopes = create_value_table(h);
+    table persisted = create_value_table(h);
+    build_bag(scopes, persisted, "all", (bag)create_edb(h, 0));
+    build_bag(scopes, persisted, "session", (bag)create_edb(h, 0));
+    // maybe?
+    build_bag(scopes, persisted, "event", (bag)create_edb(h, 0));
+    build_bag(scopes, persisted, "remove", (bag)create_edb(h, 0));
+
+    // system facilities are part of the 'boot' program, but aren't
+    // accessible by children without explicit arrangement
+    build_bag(scopes, persisted, "file", (bag)filebag_init(sstring(pathroot)));
+    process_bag pb  = process_bag_init();
+    build_bag(scopes, persisted, "process", (bag)pb);
+    bag content = (bag)create_edb(init, 0);
+
+    // right now, the response is being persisted..to the event bag?
+    http_server *server = allocate(h, sizeof(http_server));
+    heap hc = allocate_rolling(pages, sstring("eval"));
+    evaluation ev = build_process(hc, b, enable_tracing, scopes, persisted,
+                                  cont(h, http_eval_result, server, persisted, pb,
+                                       table_find(scopes, sym(session))),
+                                  cont(h, handle_error_terminal));
+
+    *server = create_http_server(create_station(0, port), ev);
+
+    prf("\n----------------------------------------------\n\nEve started. Running at http://localhost:%d\n\n",port);
+}
+
+static CONTINUATION_1_2(test_result, heap, multibag, multibag);
+static void test_result(heap h, multibag t, multibag f)
 {
     if (f) {
         table_foreach(f, n, v) {
@@ -69,38 +159,23 @@ static void test_result(heap h, multibag t, multibag f, table counts)
 static void run_test(bag root, buffer b, boolean tracing)
 {
     heap h = allocate_rolling(pages, sstring("command line"));
-    bag troot =  (bag)create_edb(h, generate_uuid(), 0);
-    bag remote = (bag)create_edb(h, generate_uuid(), 0);
-    // todo - reduce the amount of setup required here
-    bag event = (bag)create_edb(h, generate_uuid(), 0);
-    bag session = (bag)create_edb(h, generate_uuid(), 0);
-    bag fb = filebag_init(sstring(pathroot), generate_uuid());
-
     table scopes = create_value_table(h);
-    table_set(scopes, intern_cstring("all"), troot->u);
-    table_set(scopes, intern_cstring("session"), session->u);
-    table_set(scopes, intern_cstring("event"), event->u);
-    table_set(scopes, intern_cstring("remote"), remote->u);
-    table_set(scopes, intern_cstring("file"), fb->u);
-
     table persisted = create_value_table(h);
-    table_set(persisted, troot->u, troot);
-    table_set(persisted, session->u, session);
-    table_set(persisted, fb->u, fb);
-    table_set(persisted, remote->u, remote);
 
-    init_request_service(troot);
-    bag compiler_bag;
-    vector n = compile_eve(h, b, tracing, &compiler_bag);
-    table_set(scopes, intern_cstring("compiler"), compiler_bag->u);
-    table_set(persisted, compiler_bag->u, compiler_bag);
+    build_bag(scopes, persisted, "all", (bag)create_edb(h, 0));
+    build_bag(scopes, persisted, "session", (bag)create_edb(h, 0));
+    // maybe?
+    build_bag(scopes, persisted, "event", (bag)create_edb(h, 0));
+    build_bag(scopes, persisted, "remove", (bag)create_edb(h, 0));
+    build_bag(scopes, persisted, "file", (bag)filebag_init(sstring(pathroot)));
+    heap ht = allocate_rolling(pages, sstring("eval"));
+    evaluation ev = build_process(ht, b, tracing, scopes, persisted,
+                                  cont(h, test_result, h),
+                                  cont(h, handle_error_terminal));
 
-    vector_foreach(n, i)
-        table_set(session->implications, i, (void *)1);
-
-    evaluation ev = build_evaluation(scopes, persisted, cont(h, test_result, h), cont(h, handle_error_terminal));
-    inject_event(ev, aprintf(h,"init!\n```\nbind\n      [#test-start]\n```"), tracing);
-    //    destroy(h); everything asynch is running here!
+    bag event = (bag)create_edb(ht, 0);
+    apply(event->insert, generate_uuid(), sym(tag), sym(test-start), 1, 0);
+    inject_event(ev, event);
 }
 
 
@@ -108,30 +183,34 @@ static void run_test(bag root, buffer b, boolean tracing)
 typedef struct command {
     char *single, *extended, *help;
     boolean argument;
-    void (*f)(interpreter, char *, bag);
+    void (*f)(char *);
 } *command;
 
-static void do_port(interpreter c, char *x, bag b)
+static void do_port(char *x)
 {
     port = atoi(x);
 }
 
-static void do_tracing(interpreter c, char *x, bag b)
+static void do_tracing(char *x)
 {
     enable_tracing = true;
 }
 
-static void do_parse(interpreter c, char *x, bag b)
+static void do_parse(char *x)
 {
+    interpreter c = get_lua();
     lua_run_module_func(c, read_file_or_exit(init, x), "parser", "printParse");
+    free_lua(c);
 }
 
-static void do_analyze(interpreter c, char *x, bag b)
+static void do_analyze(char *x)
 {
+    interpreter c = get_lua();
     lua_run_module_func(c, read_file_or_exit(init, x), "compiler", "analyzeQuiet");
+    free_lua(c);
 }
 
-static void do_run_test(interpreter c, char *x, bag b)
+static void do_run_test(char *x)
 {
     vector_insert(tests, x);
 }
@@ -142,53 +221,23 @@ static void end_read(reader r)
     apply(r, 0, 0);
 }
 
-static CONTINUATION_0_2(dumpo, bag, uuid);
-static void dumpo(bag b, uuid u)
-{
-    if (b) prf("%b", edb_dump(init, (edb)b));
-}
-
-// should actually merge into bag
-static void do_json(interpreter c, char *x, bag b)
-{
-    buffer f = read_file_or_exit(init, x);
-    reader r = parse_json(init, cont(init, dumpo));
-    apply(r, f, cont(init, end_read));
-}
-
-static void do_exec(interpreter c, char *x, bag b)
-{
-    buffer f = read_file_or_exit(init, x);
-    exec_path = x;
-    vector v = compile_eve(init, f, enable_tracing, &compiler_bag);
-    vector_foreach(v, i)
-        table_set(b->implications, i, (void *)1);
-}
-
-static void do_server_eve(interpreter c, char *x, bag b)
-{
-    server_eve = read_file_or_exit(init, x);
-}
-
 static command commands;
 
-static void print_help(interpreter c, char *x, bag b);
+static void print_help(char *x);
 
 static struct command command_body[] = {
     {"p", "parse", "parse and print structure", true, do_parse},
     {"a", "analyze", "parse order print structure", true, do_analyze},
     {"r", "run", "execute eve", true, do_run_test},
     //    {"s", "serve", "serve urls from the given root path", true, 0},
-    {"S", "seve", "use the subsequent eve file to serve http requests", true, do_server_eve},
-    {"e", "exec", "read eve file and serve", true, do_exec},
+    {"s", "serve", "use the subsequent eve file to serve http requests", true, run_eve_http_server},
     {"P", "port", "serve http on passed port", true, do_port},
     {"h", "help", "print help", false, print_help},
-    {"j", "json", "source json object from file", true, do_json},
     {"t", "tracing", "enable per-statement tracing", false, do_tracing},
     //    {"R", "resolve", "implication resolver", false, 0},
 };
 
-static void print_help(interpreter c, char *x, bag b)
+static void print_help(char *x)
 {
     for (int j = 0; (j < sizeof(command_body)/sizeof(struct command)); j++) {
         command c = &commands[j];
@@ -200,10 +249,9 @@ static void print_help(interpreter c, char *x, bag b)
 int main(int argc, char **argv)
 {
     init_runtime();
-    bag root = (bag)create_edb(init, generate_uuid(), 0);
-    interpreter interp = build_lua();
+    bag root = (bag)create_edb(init, 0);
     commands = command_body;
-    boolean dynamicReload = true;
+
     tests = allocate_vector(init, 5);
 
     //    init_request_service(root);
@@ -221,33 +269,13 @@ int main(int argc, char **argv)
             }
         }
         if (c) {
-            c->f(interp, argv[i+1], root);
+            c->f(argv[i+1]);
             if (c->argument) i++;
         } else {
-            do_exec(interp, argv[i], root);
-            // prf("\nUnknown flag %s, aborting\n", argv[i]);
-            // exit(-1);
+            prf("\nUnknown flag %s, aborting\n", argv[i]);
+            exit(-1);
         }
     }
-
-    http_server h = create_http_server(create_station(0, port), server_eve);
-    register(h, "/", "text/html", index);
-    register(h, "/js/microReact.js", "application/javascript", microReact_js);
-    register(h, "/js/codemirror.js", "application/javascript", codemirror_js);
-    register(h, "/js/codemirror.css", "text/css", codemirror_css);
-    register(h, "/examples/todomvc.css", "text/css", todomvc_css);
-    register(h, "/js/commonmark.js", "application/javascript", commonmark_js);
-    register(h, "/js/system.js", "application/javascript", system_js);
-
-    register(h, "/js/util.js", "application/javascript", util_js);
-    register(h, "/js/client.js", "application/javascript", client_js);
-    register(h, "/js/renderer.js", "application/javascript", renderer_js);
-    register(h, "/js/editor.js", "application/javascript", editor_js);
-
-    // TODO: figure out a better way to manage multiple graphs
-    init_json_service(h, root, enable_tracing, compiler_bag, exec_path);
-
-    prf("\n----------------------------------------------\n\nEve started. Running at http://localhost:%d\n\n",port);
 
     vector_foreach(tests, t)
         run_test(root, read_file_or_exit(init, t), enable_tracing);

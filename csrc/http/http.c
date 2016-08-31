@@ -27,7 +27,7 @@ typedef struct header_parser {
     heap h;
     http_handler up;
     bag b;
-    uuid u;
+    uuid u, hu;
     buffer term;
     estring name;
     header_state s;
@@ -93,7 +93,7 @@ static void parse_http_header(header_parser p, buffer b, register_read reg)
                 break;
             case property:
                 p->s = skipo;
-                apply(p->b->insert, p->u, p->name, intern_buffer(p->term), 1, 0);
+                apply(p->b->insert, p->hu, p->name, intern_buffer(p->term), 1, 0);
                 break;
             default:
                 p->s++;
@@ -112,9 +112,11 @@ reader new_parser(heap h, http_handler result, value a, value b, value c)
     header_parser p = allocate(h, sizeof(struct header_parser));
     p->h = h;
     p->up = result;
-    p->b = (bag)create_edb(h, 0, 0); // uuid?
-    p->u = generate_uuid();
+    p->b = (bag)create_edb(h, 0);
     p->s = 0;
+    p->u = generate_uuid();
+    p->hu = generate_uuid();
+    apply(p->b->insert, p->u, sym(headers), p->hu, 1, 0);
     p->headers[0] = a;
     p->headers[1] = b;
     p->headers[2] = c;

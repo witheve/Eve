@@ -83,6 +83,11 @@ function translate_value(x)
       if ct == "uuid" then
          return suuid(x.constant)
       end
+
+      if ct == "none" then
+         return snone()
+      end
+
       print ("i couldn't figure out this value", flat_print_table(x))
       return x
    end

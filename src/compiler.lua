@@ -308,7 +308,6 @@ function presort(nodes, typeCost)
           end
         end
       end
-
       if cost < cheapestCost then
         cheapest = node
         cheapestCost = cost

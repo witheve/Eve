@@ -120,7 +120,7 @@ buffer json_encode(heap h, bag b, uuid n)
 struct json_parser {
     heap h;
     value v;
-    json_handler out;
+    object_handler out;
     bag b;
 
     parser p;
@@ -323,7 +323,7 @@ static void *start_array(json_parser p)
 {
     push(p->ids, generate_uuid());
     apply(p->b->insert, peek(p->ids), sym(tag), sym(array), 1, 0);
-    push(p->indices, (void *)0);
+    push(p->indices, (void *)1);
     return first_array_element;
 }
 
@@ -457,10 +457,10 @@ static void *json_top(json_parser p, character c)
 {
     switch(c) {
     case '{':
-        p->b = (bag)create_edb(p->h, 0, 0);
+        p->b = (bag)create_edb(p->h, 0);
         return start_object(p);
     case '[':
-        p->b = (bag)create_edb(p->h, 0, 0);
+        p->b = (bag)create_edb(p->h, 0);
         return start_array(p);
     default:
         if (whitespace(c)) return json_top;
@@ -493,7 +493,7 @@ static void json_input(json_parser p, buffer b, register_read r)
     }
 }
 
-reader parse_json(heap h, json_handler j)
+object_handler parse_json(heap h, endpoint e, object_handler j)
 {
     if (!real_escape_map) {
         real_escape_map = real_escape_map_storage;
@@ -511,5 +511,7 @@ reader parse_json(heap h, json_handler j)
     push(p->completions, top_complete);
     p->p = json_top;
     p->self = cont(p->h, json_input, p);
-    return(p->self);
+    apply(e->r, p->self);
+    // for symmetric json
+    return 0;
 }

@@ -6,13 +6,12 @@ typedef closure(inserter, value, value, value, multiplicity, uuid);
 typedef closure(committer, edb);
 
 struct bag {
-    uuid u;
+    //  uuid u; ?
     scanner scan;
     scanner scan_sync;
     inserter insert;
     committer commit;
     table listeners; // who is this again?
-    table implications; // goes away with reflection
 };
 
 struct edb {
@@ -31,12 +30,15 @@ typedef struct leaf {
     multiplicity m;
 } *leaf;
 
+#define e_sig 0x04
+#define a_sig 0x02
+#define v_sig 0x01
 #define s_eav 0x0
-#define s_eAv 0x2
-#define s_eAV 0x3
-#define s_Eav 0x4
-#define s_EAv 0x6
-#define s_EAV 0x7
+#define s_eAv (a_sig)
+#define s_eAV (a_sig | v_sig)
+#define s_Eav (e_sig)
+#define s_EAv (e_sig | a_sig)
+#define s_EAV (e_sig | a_sig | v_sig)
 
 value lookupv(edb b, uuid e, estring a);
 
@@ -52,7 +54,7 @@ void destroy_bag(bag b);
     for(multiplicity __c = ((leaf)__cv)->m, __z = 0; !__z; __z++)
 
 long count_of(edb b, value e, value a, value v);
-edb create_edb(heap, uuid, vector inherits);
+edb create_edb(heap, vector inherits);
 
 #define edb_foreach_av(__b, __e, __a, __v, __c)\
     for(table __av = (table)table_find((__b)->eav, __e); __av; __av = 0)  \
@@ -60,10 +62,16 @@ edb create_edb(heap, uuid, vector inherits);
     table_foreach((table)__vl, __v, __cv)\
     for(multiplicity __c = ((leaf)__cv)->m , __z = 0; __z == 0; __z++)
 
-#define edb_foreach_a(__b, __e, __a, __v, __c)\
+#define edb_foreach_ev(__b, __e, __a, __v, __c)\
     for(table __avt = (table)table_find((__b)->ave, __a); __avt; __avt = 0)  \
     table_foreach((table)__avt, __v, __ect)\
     table_foreach((table)__ect, __e, __cv)\
+    for(multiplicity __c = ((leaf)__cv)->m , __z = 0; __z == 0; __z++)
+
+#define edb_foreach_v(__b, __e, __a, __v, __c)\
+    for(table __av = (table)table_find((__b)->eav, __e); __av; __av = 0)  \
+    for(table __vv = (table)table_find(__av, __a); __vv; __vv = 0)  \
+    table_foreach((table)__vv, __v, __cv)\
     for(multiplicity __c = ((leaf)__cv)->m , __z = 0; __z == 0; __z++)
 
 #define edb_foreach_e(__b, __e, __a, __v, __c)\

@@ -137,9 +137,9 @@ local expressions = {
   toggle = {rename("toggle", schemas.unaryValue)},
   random = {schema({"return", IN, "seed"}, "random")},
   time = {schema({"return", OPT, "frames", "seconds", "minutes", "hours"}, "time")},
-  split = {schema({"token", IN, "index", "text", "by"}, "split-bound"),
-           schema({"token", "index", IN, "text", "by"}, "split")},
-
+  split = {schema({"token", "index", IN, "text", "by"}, "split"),
+           schema({"token", IN, "index", "text", "by"}, "split-bound-index"),
+           schema({IN,"token", "index", "text", "by"},  "split-filter")},
   -- Aggregates
   count = {schema({"return"}, "sum", "aggregate")},
   sum = {schema({"return", STRONG_IN, "value"}, "sum", "aggregate")},
@@ -344,7 +344,7 @@ end
 
 function Bag:_sync(eav)
   if not self.cbag then
-    self.cbag = create_edb(self.id.value)
+    self.cbag = create_edb()
   end
 
   local hash = EAV.hash(eav)

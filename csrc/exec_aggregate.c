@@ -85,9 +85,9 @@ static void do_join(execf n, perf p, table *groups, vector pk,
         extract(pk, groupings, r);
         pqueue x;
 
-        if (!*groups) 
+        if (!*groups)
             *groups = allocate_table(h, key_from_pointer, compare_pointer);
-        
+
         if (!(x = table_find(*groups, pk))) {
             x = allocate_pqueue(h, order_join_keys);
             table_set(*groups, pk, x);
@@ -166,7 +166,8 @@ static void do_sum(execf n, perf p,
     if (op == op_flush) {
         table_foreach(*targets, pk, x) {
             copyout(r, grouping, pk);
-            store(r, dst, box_float(*(double *)x));
+            value out = box_float(*(double *)x);
+            store(r, dst, out);
             apply(n, h, p, op_insert, r);
         }
         *targets = create_value_vector_table((*targets)->h);

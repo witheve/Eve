@@ -1,5 +1,4 @@
-
-// bibop - 
+// bibop -
 #define region_mask 0x7ffe00000000ull
 #define region_size 0x10000000000ull
 // each of these is a 1T space
@@ -12,6 +11,7 @@
 
 #define efalse ((void *)(register_space + 0x100000000))
 #define etrue ((void *)(register_space + 0x100000001))
+#define enone ((void *)(register_space + 0x10000003))
 #define register_ignore ((void *)(register_space + 0x100000002))
 
 #define allocation_space 0xa0000000000ull
@@ -100,4 +100,3 @@ static inline table create_value_vector_table(heap h)
 {
     return  allocate_table(h, value_vector_as_key, value_vector_equals);
 }
-

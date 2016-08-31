@@ -1,3 +1,5 @@
+import {v4 as rawuuid} from "uuid";
+
 //---------------------------------------------------------
 // Utilities
 //---------------------------------------------------------
@@ -16,6 +18,10 @@ export function clone(obj) {
     }
     return neue;
   }
+}
+
+export function uuid() {
+  return "⦑" + rawuuid() + "⦒";
 }
 
 export function sortComparator(a, b) {

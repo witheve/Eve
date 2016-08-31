@@ -1,7 +1,7 @@
 <html>
   <head>
     <title>Eve</title>
-    <link rel="stylesheet" type="text/css" href="js/codemirror.css">
+    <link rel="stylesheet" type="text/css" href="/jssrc/codemirror.css">
     <style>
       * { box-sizing:border-box; }
       body { background: rgb(47,47,49); color: #d8d8d8; font-family: Avenir; display: flex; flex-direction: column; margin:0; width: 100%; }
@@ -115,18 +115,30 @@
     </style>
   </head>
   <body>
-    <script type="text/javascript" src="js/codemirror.js"></script>
-
-    <script type="text/javascript" src="js/system.js"></script>
+    <script type="text/javascript" src="/jssrc/uuid.js"></script>
+    <script type="text/javascript" src="/jssrc/codemirror.js"></script>
+    <script type="text/javascript" src="/jssrc/commonmark.js"></script>
+    <script type="text/javascript" src="/jssrc/microReact.js"></script>
+    <script type="text/javascript" src="/jssrc/system.js"></script>
     <script>
       SystemJS.config({
-        baseURL: "/js",
+        baseURL: "/build",
         defaultJSExtensions: true
       });
       // Kicks off requiring everyone else
+      SystemJS.register("uuid", [], function($export) {
+        $export("default", uuid);
+        $export("v4", uuid);
+      });
       SystemJS.register("CodeMirror", [], function($export) {
         $export("default", CodeMirror);
         $export("CodeMirror", CodeMirror);
+      });
+      SystemJS.register("microReact", [], function($export) {
+        $export("Renderer", Renderer);
+      });
+      SystemJS.register("commonmark", [], function($export) {
+        $export(commonmark);
       });
       SystemJS.import("client");
     </script>
