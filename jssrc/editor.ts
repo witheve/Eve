@@ -628,6 +628,7 @@ export function doSave() {
 }
 
 export function handleEditorParse(parse) {
+  console.log(parse);
   if(!codeEditor) return;
   let parseLines = parse.lines;
   let from:any = {};

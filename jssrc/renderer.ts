@@ -552,7 +552,7 @@ export function renderEditor() {
   }
 
   let editor = {c: "run-info", children: [
-    CodeMirrorNode({value: context.code || "", parse: parseInfo}),
+    CodeMirrorNode({value: context.code && context.code[0] || "", parse: parseInfo}),
     {c: "toolbar", children: [
       {c: "stats"},
       {t: "select", c: "show-graphs", change: setKeyMap, children: [
