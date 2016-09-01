@@ -46,34 +46,31 @@ void process_bag_commit(process_bag pb, edb s)
         table_set(pb->processes, e, p);
     }
 
-    edb_foreach_ev(s, e, sym(source), v, m) {
-        process p = table_find(pb->processes, e);
-        if(!p) {
-            prf("No process found for %v source\n", e);
-            continue;
-        }
-        estring source = v;
-        p->ev = build_process(p->h,
-                              wrap_buffer(p->h, source->body, source->length),
-                              false,
-                              p->scopes,
-                              p->persisted,
-                              ignore, ignore);
-    }
-
-    // scopes is a bag, which we're going to ...upgrade to a bag bag
-    edb_foreach_ev(s, e, sym(scope), v, m) {
+        // scopes is a bag, which we're going to ...upgrade to a bag bag
+    edb_foreach_ev(s, e, sym(scope), descriptor, m) {
         process p;
+        // xx - handle default read and write
         if ((p = table_find(pb->processes, e))){
-            prf("pouring the passed scope definition into the legit active bag %p\n", table_find(pb->persisted, v));
-            apply(p->ev->bag_bag->commit, table_find(pb->persisted, v));
-            table_set(pb->persisted, v, p->ev->bag_bag);
+            edb_foreach_av(s, descriptor, name, bag, m)
+                table_set(p->scopes, name, bag);
         } else {
             prf("No process found for %v scopes\n", e);
         }
-        apply(p->ev->bag_bag->commit, table_find(pb->persisted, v));
-        table_set(pb->persisted, v, p->ev->bag_bag);
     }
+
+    edb_foreach_ev(s, e, sym(source), v, m) {
+        process p = table_find(pb->processes, e);
+        if(p) {
+            estring source = v;
+            bag compiler_bag;
+            vector n = compile_eve(p->h,
+                                   alloca_wrap_buffer(source->body, source->length),
+                                   false, &compiler_bag);
+            p->ev = build_evaluation(p->h, p->scopes, p->persisted, ignore, ignore, n);
+        }
+        prf("No process found for %v source\n", e);
+    }
+
 }
 
 

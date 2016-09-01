@@ -12,8 +12,6 @@ static vector uuid_set(block bk, vector scopes)
         if (!u) {
             uuid lost = generate_uuid();
             prf("Unable to find context: %v. New id: %v\n", i, lost);
-            __asm__("int $3");
-
             table_set(bk->ev->scopes, i, lost);
         }
         vector_insert(out, u);

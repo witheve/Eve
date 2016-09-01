@@ -85,13 +85,12 @@ start eve program
      r = [#request-object connection websocket:true extension:"eve" file]
   // there may be a terser version here
   commit @bag
-        scope = [#bag]
         browser = [#bag]
         session = [#bag]
-        scope.bags += [browser, session, bag:scope]
   commit @process
-     // build an environment for the new process
-     child = [#process source:file.contents scope]
+     child = [#process source:file.contents scope:[write:(session)
+                                                   read:(browser, session)
+                                                   bags:[browser, session]]]
   commit
      connection.upgrade := child
      r := none

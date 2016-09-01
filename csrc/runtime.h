@@ -170,20 +170,6 @@ void multibag_insert(multibag *mb, heap h, uuid u, value e, value a, value v, mu
 
 bag init_bag_bag(evaluation ev);
 
-static evaluation build_process(heap h,
-                                buffer source,
-                                boolean tracing,
-                                table scopes,
-                                table inputs,
-                                evaluation_result r,
-                                error_handler e)
-{
-    bag compiler_bag;
-    vector n = compile_eve(h, source, tracing, &compiler_bag);
-    evaluation ev = build_evaluation(h, scopes, inputs, r, e, n);
-    return ev;
-}
-
 typedef struct process_bag *process_bag;
 process_bag process_bag_init();
 

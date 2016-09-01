@@ -23,6 +23,7 @@ static void bagbag_commit(evaluation ev, edb s)
     }
 }
 
+
 CONTINUATION_1_5(bagbag_scan, evaluation, int, listener, value, value, value);
 void bagbag_scan(evaluation ev, int sig, listener out, value e, value a, value v)
 {
