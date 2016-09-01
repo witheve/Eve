@@ -41,7 +41,7 @@ void process_bag_commit(process_bag pb, edb s)
         heap h = allocate_rolling(pages, sstring("process"));
         process p = allocate(h, sizeof(struct process));
         p->scopes = create_value_table(h);
-        p->persisted = create_value_table(h);
+        p->persisted = pb->persisted;
         p->h = h;
         table_set(pb->processes, e, p);
     }

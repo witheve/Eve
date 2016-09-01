@@ -9,6 +9,8 @@ static estring bagname(evaluation e, uuid u)
     return(intern_cstring("missing bag?"));
 }
 
+static uuid bag_bag_id;
+
 // @FIXME: This collapses multibag diffs into a single diff.
 static bag diff_sets(heap h, multibag neue_bags, multibag old_bags)
 {
@@ -306,9 +308,14 @@ static boolean fixedpoint(evaluation ev)
     // new bags really shouldn't be allocated from ev->h
     multibag_foreach(ev->t_solution, u, b) {
         bag bd;
-        if (!(bd = table_find(ev->t_input, u)))
-            table_set(ev->t_input, u, bd = (bag)create_edb(ev->h, 0));
-        apply(bd->commit, b);
+        if (u == bag_bag_id) {
+            // not in t_input/persisted because its shared
+            apply(ev->bag_bag->commit, b);
+        } else {
+            if (!(bd = table_find(ev->t_input, u)))
+                table_set(ev->t_input, u, bd = (bag)create_edb(ev->h, 0));
+            apply(bd->commit, b);
+        }
     }
 
     multibag_foreach(ev->t_solution, u, b){
@@ -390,6 +397,7 @@ void close_evaluation(evaluation ev)
     destroy(ev->h);
 }
 
+
 evaluation build_evaluation(heap h,
                             table scopes,
                             multibag t_input,
@@ -409,13 +417,19 @@ evaluation build_evaluation(heap h,
     ev->complete = r;
     ev->terminal = cont(ev->h, evaluation_complete, ev);
     ev->run = cont(h, run_solver, ev);
-
     ev->default_scan_scopes = allocate_vector(h, 5);
     ev->default_insert_scopes = allocate_vector(h, 5);
     table_foreach(ev->t_input, uuid, z) {
         bag b = z;
         table_set(b->listeners, ev->run, (void *)1);
     }
+
+    ev->bag_bag = init_bag_bag(ev);
+
+    if (!bag_bag_id)
+        bag_bag_id = generate_uuid();
+
+    table_set(ev->scopes, sym(bag), bag_bag_id);
 
     // xxx - compiler output reflecton
     vector_foreach(implications, i) {

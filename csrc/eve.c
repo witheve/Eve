@@ -95,7 +95,6 @@ static void run_eve_http_server(char *x)
     uuid fid = generate_uuid();
     table_set(persisted, fid, fb);
 
-
     table_set(scopes, sym(file), fid);
     table_set(scopes, sym(process), pid);
 
