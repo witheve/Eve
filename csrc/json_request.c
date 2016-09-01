@@ -164,7 +164,8 @@ static void json_input(json_session s, bag json_bag, uuid root_id)
     if(type == sym(event)) {
         table mapping = create_value_table(s->h);
         bag event = (bag)create_edb(s->h, 0);
-        bag browser = table_find(s->ev->scopes, sym(browser));
+        uuid browser_id = table_find(s->ev->scopes, sym(browser));
+        bag browser = table_find(s->ev->t_input, browser_id);
         value eavs_id = lookupv(b, root_id, sym(insert));
         int ix = 1;
         while(true) {

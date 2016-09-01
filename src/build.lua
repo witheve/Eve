@@ -341,9 +341,15 @@ function translate_object(n, bound, down, context, tracing)
 
    local env, c = down(bound)
 
+   -- the nodes arguments are all arrays, so translate
+   local scopes = {}
+   for k, v in pairs(n.scopes) do
+        scopes[#scopes + 1] = k
+   end
+
    return env, cnode(n, "scan", {c},
                   {sig = sig,
-                   scopes = n.scopes,
+                   scopes = scopes,
                    e = ef(n, env, e),
                    a = af(n, env, a),
                    v = vf(n, env, v)},
@@ -365,7 +371,7 @@ function translate_mutate(n, bound, down, context, tracing)
    -- the nodes arguments are all arrays, so translate
    local scopes = {}
    for k, v in pairs(n.scopes) do
-        scopes[#scopes+1] = k
+        scopes[#scopes + 1] = k
    end
 
    c = cnode(n, operator, {c},

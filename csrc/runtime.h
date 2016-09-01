@@ -178,7 +178,6 @@ static evaluation build_process(heap h,
                                 evaluation_result r,
                                 error_handler e)
 {
-    buffer desc;
     bag compiler_bag;
     vector n = compile_eve(h, source, tracing, &compiler_bag);
     evaluation ev = build_evaluation(h, scopes, inputs, r, e, n);
