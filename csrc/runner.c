@@ -409,16 +409,6 @@ evaluation build_evaluation(heap h,
     ev->complete = r;
     ev->terminal = cont(ev->h, evaluation_complete, ev);
     ev->run = cont(h, run_solver, ev);
-    ev->default_insert_scopes = table_find(scopes, sym(session));
-
-    if (!ev->default_insert_scopes)
-        prf("proceeding without a default insert target (usually session)\n");
-
-    ev->default_scan_scopes = allocate_vector(h, table_elements(scopes));
-    table_foreach(scopes, n, u) {
-        vector_insert(ev->default_scan_scopes, u);
-    }
-
 
     table_foreach(ev->t_input, uuid, z) {
         bag b = z;

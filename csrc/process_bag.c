@@ -46,16 +46,6 @@ void process_bag_commit(process_bag pb, edb s)
         table_set(pb->processes, e, p);
     }
 
-    edb_foreach_ev(s, e, sym(scopes), v, m) {
-        process p;
-        if ((p = table_find(pb->processes, e))){
-            value name = lookupv(s, v, sym(name));
-            table_set(p->scopes, name, v);
-            // xxx- sharing - this allocation should come from the bagbag
-            table_set(p->persisted, v, create_edb(p->h, 0));
-        }
-    }
-
     edb_foreach_ev(s, e, sym(source), v, m) {
         process p;
         estring source = v;
@@ -66,11 +56,21 @@ void process_bag_commit(process_bag pb, edb s)
                                   ignore, ignore);
         }
     }
+
+
+    // scopes is a bag, which we're going to ...upgrade to a bag bag
+    edb_foreach_ev(s, e, sym(scopes), v, m) {
+        process p;
+        if ((p = table_find(pb->processes, e))){
+            apply(p->ev->bag_bag->commit, table_find(pb->persisted, v));
+            table_set(pb->persisted, v, p->ev->bag_bag);
+        }
+    }
 }
 
 
 // not sure if bag is the right model for presenting this interface, but it can be changed
-process_bag process_bag_init()
+process_bag process_bag_init(multibag persisted)
 {
     heap h = allocate_rolling(init, sstring("process_bag"));
     process_bag pb = allocate(h, sizeof(struct process_bag));
@@ -80,5 +80,6 @@ process_bag process_bag_init()
     pb->b.listeners = allocate_table(h, key_from_pointer, compare_pointer);
     pb->b.commit = cont(h, process_bag_commit, pb);
     pb->processes = create_value_table(h);
+    pb->persisted = persisted;
     return pb;
 }

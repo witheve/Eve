@@ -124,6 +124,7 @@ struct evaluation  {
 
     vector default_scan_scopes;
     vector default_insert_scopes; // really 'session'
+    bag bag_bag;
 };
 
 
@@ -167,12 +168,7 @@ void merge_scan(evaluation ev, vector scopes, int sig, listener result, value e,
 void multibag_insert(multibag *mb, heap h, uuid u, value e, value a, value v, multiplicity m, uuid block_id);
 
 
-static void build_bag(table scope, table bags, char *name, bag b)
-{
-    uuid x = generate_uuid();
-    table_set(bags, x, b);
-    table_set(scope, intern_cstring(name),x);
-}
+bag init_bag_bag(evaluation ev);
 
 static evaluation build_process(heap h,
                                 buffer source,
@@ -185,7 +181,9 @@ static evaluation build_process(heap h,
     bag compiler_bag;
     vector n = compile_eve(h, source, tracing, &compiler_bag);
     table scopes = create_value_table(h);
-    return build_evaluation(h, scopes, inputs, r, e, n);
+    evaluation ev = build_evaluation(h, scopes, inputs, r, e, n);
+    ev->bag_bag = init_bag_bag(ev);
+    return ev;
 }
 
 typedef struct process_bag *process_bag;

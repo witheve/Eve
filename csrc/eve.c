@@ -119,27 +119,34 @@ static void run_eve_http_server(char *x)
     heap h = allocate_rolling(pages, sstring("command line"));
     table scopes = create_value_table(h);
     table persisted = create_value_table(h);
-    build_bag(scopes, persisted, "all", (bag)create_edb(h, 0));
-    build_bag(scopes, persisted, "session", (bag)create_edb(h, 0));
-    // maybe?
-    build_bag(scopes, persisted, "event", (bag)create_edb(h, 0));
-    build_bag(scopes, persisted, "remove", (bag)create_edb(h, 0));
 
-    // system facilities are part of the 'boot' program, but aren't
-    // accessible by children without explicit arrangement
-    build_bag(scopes, persisted, "file", (bag)filebag_init(sstring(pathroot)));
+    bag sib = (bag)create_edb(h, 0);
+    uuid sid = generate_uuid();
+    table_set(persisted, sid, sib);
+
     process_bag pb  = process_bag_init(persisted);
-    build_bag(scopes, persisted, "process", (bag)pb);
-    bag content = (bag)create_edb(init, 0);
+    uuid pid = generate_uuid();
+    table_set(persisted, pid, pb);
+
+    bag fb = (bag)filebag_init(sstring(pathroot));
+    uuid fid = generate_uuid();
+    table_set(persisted, fid, fb);
 
     // right now, the response is being persisted..to the event bag?
     http_server *server = allocate(h, sizeof(http_server));
     heap hc = allocate_rolling(pages, sstring("eval"));
     evaluation ev = build_process(hc, b, enable_tracing,
                                   persisted,
-                                  cont(h, http_eval_result, server, persisted, pb,
-                                       table_find(scopes, sym(session))),
+                                  cont(h, http_eval_result, server, persisted, pb, sid),
                                   cont(h, handle_error_terminal));
+
+    table_set(ev->scopes, sym(file), fid);
+    table_set(ev->scopes, sym(process), pid);
+    table_set(ev->scopes, sym(server), sid);
+
+
+    vector_insert(ev->default_scan_scopes, sid);
+    vector_insert(ev->default_insert_scopes, sid);
 
     *server = create_http_server(create_station(0, port), ev);
 

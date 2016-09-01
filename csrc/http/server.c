@@ -69,7 +69,6 @@ static void dispatch_request(session s, bag b, uuid i, register_read reg)
         return;
     }
 
-
     bag event = (bag)create_edb(s->h, build_vector(s->h, b));
     uuid x = generate_uuid();
 
