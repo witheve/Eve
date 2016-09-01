@@ -112,8 +112,9 @@ static void send_response(json_session session, multibag t_solution, multibag f_
     session->current_delta = results;
 }
 
-u64 id_bracket_open = 0xe2a691;
-u64 id_bracket_close = 0xe2a692;
+// LE is full of sadness and inverts the bytes in integers.
+u64 id_bracket_open = 0x91a6e2;
+u64 id_bracket_close = 0x92a6e2;
 boolean is_stringy_uuid(value v) {
     if(type_of(v) != estring_space) return false;
     estring s = (estring)v;
@@ -122,9 +123,8 @@ boolean is_stringy_uuid(value v) {
     memcpy(&open_rune, s->body, 3);
     if(memcmp(&open_rune, &id_bracket_open, 3) != 0) return false;
     u64 close_rune = 0;
-    memcpy(&close_rune, s->body + s->length - 4, 3);
+    memcpy(&close_rune, s->body + s->length - 3, 3);
     if(memcmp(&close_rune, &id_bracket_close, 3) != 0) return false;
-    if(close_rune != id_bracket_close) return false;
     return true;
 }
 
@@ -136,7 +136,7 @@ value map_if_uuid(heap h, value v, bag browser, table mapping) {
     // Check to see if we map to an existing uuid
     estring s = (estring)v;
     buffer str = alloca_wrap_buffer(s->body, s->length);
-    table_foreach(((edb)browser)->eav, e, avl) {
+    table_foreach(((edb)browser)->eav, e, avl) { // @FIXME: bag doesn't exist in the child yet, so this ptr is garbage.
         buffer eid = allocate_buffer(h, 40);
         bprintf(eid , "⦑%X⦒", alloca_wrap_buffer(e, UUID_LENGTH));
         if(string_equal(eid, str)) {
