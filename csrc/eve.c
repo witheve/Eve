@@ -87,10 +87,6 @@ static void run_eve_http_server(char *x)
     table scopes = create_value_table(h);
     table persisted = create_value_table(h);
 
-    bag sib = (bag)create_edb(h, 0);
-    uuid sid = generate_uuid();
-    table_set(persisted, sid, sib);
-
     process_bag pb  = process_bag_init(persisted);
     uuid pid = generate_uuid();
     table_set(persisted, pid, pb);
@@ -99,23 +95,18 @@ static void run_eve_http_server(char *x)
     uuid fid = generate_uuid();
     table_set(persisted, fid, fb);
 
-    // right now, the response is being persisted..to the event bag?
-    http_server *server = allocate(h, sizeof(http_server));
+
+    table_set(scopes, sym(file), fid);
+    table_set(scopes, sym(process), pid);
+
     heap hc = allocate_rolling(pages, sstring("eval"));
     evaluation ev = build_process(hc, b, enable_tracing,
+                                  scopes,
                                   persisted,
                                   ignore,
                                   cont(h, handle_error_terminal));
 
-    table_set(ev->scopes, sym(file), fid);
-    table_set(ev->scopes, sym(process), pid);
-    table_set(ev->scopes, sym(server), sid);
-
-    vector_insert(ev->default_scan_scopes, sid);
-    vector_insert(ev->default_insert_scopes, sid);
-
-    *server = create_http_server(create_station(0, port), ev);
-
+    create_http_server(create_station(0, port), ev, pb);
     prf("\n----------------------------------------------\n\nEve started. Running at http://localhost:%d\n\n",port);
 }
 

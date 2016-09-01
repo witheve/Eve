@@ -52,7 +52,9 @@ void process_bag_commit(process_bag pb, edb s)
         if ((p = table_find(pb->processes, e))){
             p->ev = build_process(p->h,
                                   wrap_buffer(p->h, source->body, source->length),
-                                  false, p->persisted,
+                                  false,
+                                  p->scopes,
+                                  p->persisted,
                                   ignore, ignore);
         }
     }

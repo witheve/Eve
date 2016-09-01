@@ -173,6 +173,7 @@ bag init_bag_bag(evaluation ev);
 static evaluation build_process(heap h,
                                 buffer source,
                                 boolean tracing,
+                                table scopes,
                                 table inputs,
                                 evaluation_result r,
                                 error_handler e)
@@ -180,7 +181,6 @@ static evaluation build_process(heap h,
     buffer desc;
     bag compiler_bag;
     vector n = compile_eve(h, source, tracing, &compiler_bag);
-    table scopes = create_value_table(h);
     evaluation ev = build_evaluation(h, scopes, inputs, r, e, n);
     ev->bag_bag = init_bag_bag(ev);
     return ev;

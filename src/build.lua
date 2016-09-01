@@ -368,11 +368,6 @@ function translate_mutate(n, bound, down, context, tracing)
         scopes[#scopes+1] = k
    end
 
-   if (#scopes == 0) then
-      scopes[1] = "session"
-   end
-
-
    c = cnode(n, operator, {c},
                         {scopes = scopes,
                          mutateType = n.mutateType,

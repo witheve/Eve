@@ -1,5 +1,4 @@
 typedef struct http_server *http_server;
-http_server create_http_server(station p, evaluation ev);
 
 void http_send_request(buffer_handler w, bag b, uuid n);
 
@@ -49,3 +48,4 @@ endpoint websocket_client(heap h, bag request, uuid rid);
 
 buffer json_encode(heap, bag b, uuid n);
 endpoint http_ws_upgrade(http_server s, bag b, uuid root);
+http_server create_http_server(station p, evaluation ev, process_bag pb);

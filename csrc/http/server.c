@@ -85,18 +85,6 @@ static void dispatch_request(session s, bag b, uuid i, register_read reg)
     s->e->r = reg;
 }
 
-
-endpoint http_ws_upgrade(http_server s, bag b, uuid root)
-{
-    session hs = table_find(s->sessions, root);
-    if (hs)
-        return websocket_send_upgrade(hs->h, hs->e,
-                                      hs->last_headers,
-                                      hs->last_headers_root);
-    prf("no http connection correlator found for %v\n");
-    return 0;
-}
-
 CONTINUATION_1_2(new_connection, http_server, endpoint, station);
 void new_connection(http_server s,
                     endpoint e,
@@ -115,27 +103,37 @@ void new_connection(http_server s,
     apply(e->r, request_header_parser(h, cont(h, dispatch_request, hs)));
 }
 
-static CONTINUATION_4_2(http_eval_result, http_server, table, process_bag, uuid, multibag, multibag);
-static void http_eval_result(http_server s, table inputs, process_bag pb, uuid where, multibag t, multibag f)
+static CONTINUATION_3_2(http_eval_result, http_server, process_bag, uuid,
+                        multibag, multibag);
+static void http_eval_result(http_server s, process_bag pb, uuid where,
+                             multibag t, multibag f)
 {
     bag b;
 
     if (!t || (!(b=table_find(t, where)))) {
-        prf("empty http eval result t: %d f: %d\n",
+        prf("empty http eval result t: %d f: %d %b\n",
             t?table_elements(t):0,
-            f?table_elements(f):0);
+            f?table_elements(f):0,
+            (f && table_find(f, where))?edb_dump(init,
+                                                 ((edb)table_find(f, where)))
+            :sstring("empty"));
+
+
     } else {
         edb_foreach_ev((edb)b, e, sym(response), response, m){
             // xxx we're using e as a very weak correlator to the connection
-            http_send_response(h, b, e);
+            http_send_response(s, b, e);
             return;
         }
 
         edb_foreach_ev((edb)b, e, sym(upgrade), child, m){
+            session hs = table_find(s->sessions, e);
             heap jh = allocate_rolling(init, sstring("json session"));
             evaluation ev = process_resolve(pb, child);
             if (ev) {
-                endpoint ws =  http_ws_upgrade(h, b, e);
+                endpoint ws =  websocket_send_upgrade(hs->h, hs->e,
+                                      hs->last_headers,
+                                      hs->last_headers_root);
                 parse_json(jh, ws, create_json_session(jh, ev, ws,
                                                        table_find(ev->scopes, "browser")));
                 bag session_connect = (bag)create_edb(jh, 0);
@@ -145,6 +143,8 @@ static void http_eval_result(http_server s, table inputs, process_bag pb, uuid w
                       sym(tag),
                       sym(session-connect), 1, 0);
                 inject_event(ev, session_connect);
+            } else {
+                prf ("unable to correlate upgrade process\n");
             }
         }
     }
@@ -152,16 +152,26 @@ static void http_eval_result(http_server s, table inputs, process_bag pb, uuid w
 
 
 
-http_server create_http_server(station p, evaluation ev)
+http_server create_http_server(station p, evaluation ev, process_bag pb)
 {
     heap h = allocate_rolling(pages, sstring("server"));
     http_server s = allocate(h, sizeof(struct http_server));
 
     s->h = h;
     s->ev = ev;
+
     s->sessions = create_value_table(h);
+
+    bag sib = (bag)create_edb(h, 0);
+    uuid sid = generate_uuid();
+    table_set(ev->t_input, sid, sib);
+    table_set(ev->scopes, sym(server), sid);
+    vector_insert(ev->default_scan_scopes, sid);
+    vector_insert(ev->default_insert_scopes, sid);
+
     // use a listener instead
-    ev->complete = cont(h, http_eval_result, s, persisted, pb, sid),
+    ev->complete = cont(h, http_eval_result, s, pb, sid),
+
     tcp_create_server(h,
                       p,
                       cont(h, new_connection, s),
