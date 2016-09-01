@@ -61,9 +61,10 @@ void process_bag_commit(process_bag pb, edb s)
 
 
     // scopes is a bag, which we're going to ...upgrade to a bag bag
-    edb_foreach_ev(s, e, sym(scopes), v, m) {
+    edb_foreach_ev(s, e, sym(scope), v, m) {
         process p;
         if ((p = table_find(pb->processes, e))){
+            prf("pouring the passed scope definition into the legit active bag %p\n", table_find(pb->persisted, v));
             apply(p->ev->bag_bag->commit, table_find(pb->persisted, v));
             table_set(pb->persisted, v, p->ev->bag_bag);
         }

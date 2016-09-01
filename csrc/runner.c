@@ -304,14 +304,17 @@ static boolean fixedpoint(evaluation ev)
     } while(again);
 
 
-    // what about multibag commits?
-    // new bags really shouldn't be allocated from ev->h
+
+    // xxx - clear out the new bags before anything else
+    if (ev->t_solution) {
+        edb bdelta = table_find(ev->t_solution, bag_bag_id);
+        if (bdelta)
+            apply(ev->bag_bag->commit, bdelta);
+    }
+
     multibag_foreach(ev->t_solution, u, b) {
         bag bd;
-        if (u == bag_bag_id) {
-            // not in t_input/persisted because its shared
-            apply(ev->bag_bag->commit, b);
-        } else {
+        if (u != bag_bag_id) {
             if (!(bd = table_find(ev->t_input, u)))
                 table_set(ev->t_input, u, bd = (bag)create_edb(ev->h, 0));
             apply(bd->commit, b);
