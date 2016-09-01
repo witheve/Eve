@@ -6,6 +6,7 @@ typedef struct process {
     evaluation ev;
     table scopes;
     table persisted;
+    vector read, write;
 } *process;
 
 struct process_bag{
@@ -42,6 +43,8 @@ void process_bag_commit(process_bag pb, edb s)
         process p = allocate(h, sizeof(struct process));
         p->scopes = create_value_table(h);
         p->persisted = pb->persisted;
+        p->read = allocate_vector(h, 3);
+        p->write = allocate_vector(h, 5);
         p->h = h;
         table_set(pb->processes, e, p);
     }
@@ -51,8 +54,13 @@ void process_bag_commit(process_bag pb, edb s)
         process p;
         // xx - handle default read and write
         if ((p = table_find(pb->processes, e))){
-            edb_foreach_av(s, descriptor, name, bag, m)
+            edb_foreach_av(s, lookupv(s, descriptor, sym(bags)), name, bag, m) {
                 table_set(p->scopes, name, bag);
+            }
+            edb_foreach_v(s, descriptor, sym(read), bag, m)
+                vector_insert(p->read, bag);
+            edb_foreach_v(s, descriptor, sym(read), bag, m)
+                vector_insert(p->write, bag);
         } else {
             prf("No process found for %v scopes\n", e);
         }
@@ -67,8 +75,11 @@ void process_bag_commit(process_bag pb, edb s)
                                    alloca_wrap_buffer(source->body, source->length),
                                    false, &compiler_bag);
             p->ev = build_evaluation(p->h, p->scopes, p->persisted, ignore, ignore, n);
+            p->ev->default_scan_scopes = p->read;
+            p->ev->default_insert_scopes = p->write;
+        } else {
+            prf("No process found for %v source\n", e);
         }
-        prf("No process found for %v source\n", e);
     }
 
 }
