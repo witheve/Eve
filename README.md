@@ -51,11 +51,17 @@ Windows Users - Docker for Windows requires Microsoft Hyper-V, which requires Wi
 
 ## Running
 
+### Native
+
 To run Eve, execute the following command in the `eve/build` directory:
 
-`./eve -e [eve_file]`
+`./eve`
 
-where `[eve_file]` is the location of an `*.eve` file you want to compile. This process launches a server at `http://localhost:8080`. You can point your browser there to see the results of the compilation. You can configure the port with the `--port` flag. e.g. `./eve --port 1234`.
+This command launches a server at `http://localhost:8080`. You can configure the port with the `--port` flag e.g. `./eve --port 1234`. You can point your browser that location to access the Eve editor. 
+
+If you want to compile an existing program, use the `-e` flag and provide a path to a `*.eve` file e.g. `./eve -e ../examples/tic-tac-toe.eve`. As you make changes in the editor, they will be reflected back into this file.
+
+### Docker
 
 To run the Docker container, execute:
 
@@ -63,7 +69,9 @@ To run the Docker container, execute:
 docker run -p [port]:8080 witheve/eve [eve_file]
 ```
 
-Here, `[port]` is an available port on your local machine. It can be `8080` or any other port you would like. Then direct your browser to `http://localhost:[port]` to access the results. **Note**: To pass your own Eve files into the container, you'll need to mount a [docker volume](https://docs.docker.com/engine/tutorials/dockervolumes/).
+Here, `[port]` is an available port on your local machine. It can be `8080` or any other port you would like. Then direct your browser to `http://localhost:[port]` to access the results.
+
+**Note**: The working directory of the container is `eve/build`. To run a program in the `eve/examples` directory, you need to provide a relative path e.g. `../exmaples/tic-tac-toe.eve`. To pass your own Eve files into the container, you'll need to mount a [docker volume](https://docs.docker.com/engine/tutorials/dockervolumes/). 
 
 ## How to use Eve
 
