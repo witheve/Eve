@@ -37,7 +37,7 @@ static void process_bag_scan(process_bag fb, int sig, listener out, value e, val
 CONTINUATION_1_1(process_bag_commit, process_bag, edb)
 void process_bag_commit(process_bag pb, edb s)
 {
-    edb_foreach_e(s, e, sym(tag), sym(process), v) {
+    edb_foreach_e(s, e, sym(tag), sym(process), m) {
         heap h = allocate_rolling(pages, sstring("process"));
         process p = allocate(h, sizeof(struct process));
         p->scopes = create_value_table(h);
@@ -47,26 +47,30 @@ void process_bag_commit(process_bag pb, edb s)
     }
 
     edb_foreach_ev(s, e, sym(source), v, m) {
-        process p;
-        estring source = v;
-        if ((p = table_find(pb->processes, e))){
-            p->ev = build_process(p->h,
-                                  wrap_buffer(p->h, source->body, source->length),
-                                  false,
-                                  p->scopes,
-                                  p->persisted,
-                                  ignore, ignore);
+        process p = table_find(pb->processes, e);
+        if(!p) {
+            prf("No process found for %v source\n", e);
+            continue;
         }
+        estring source = v;
+        p->ev = build_process(p->h,
+                              wrap_buffer(p->h, source->body, source->length),
+                              false,
+                              p->scopes,
+                              p->persisted,
+                              ignore, ignore);
     }
 
 
     // scopes is a bag, which we're going to ...upgrade to a bag bag
     edb_foreach_ev(s, e, sym(scopes), v, m) {
-        process p;
-        if ((p = table_find(pb->processes, e))){
-            apply(p->ev->bag_bag->commit, table_find(pb->persisted, v));
-            table_set(pb->persisted, v, p->ev->bag_bag);
+        process p = table_find(pb->processes, e);
+        if(!p) {
+            prf("No process found for %v scopes\n", e);
+            continue;
         }
+        apply(p->ev->bag_bag->commit, table_find(pb->persisted, v));
+        table_set(pb->persisted, v, p->ev->bag_bag);
     }
 }
 

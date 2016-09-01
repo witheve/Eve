@@ -25,7 +25,7 @@ Place the mines. This is structured as a loop and has an iterative random
 number generator inlined. Random number generation in the standard library
 would significantly simplify this clause. To avoid excessive thrashing the
 other clauses in this program are guarded from running until this is complete.
-```
+|```
 match
   board = [@board width height area seed unplaced-mines unplaced-mines > 0]
   noise-1 = sin[angle: (seed * 12.9898) / 360] * 43758.5453
@@ -43,17 +43,49 @@ commit
   cell += #has-mine
   board.seed := next-seed-2
   board.unplaced-mines := unplaced-mines - dec-unplaced
+|```
+
+|```
+match
+  board = [@board width height area seed unplaced-mines unplaced-mines > 0]
+  // we want a new random value for each placement attempt
+  cell-number = floor[value: area * random[seed]]
+  column = mod[value: cell-number by: width]
+  row = floor[value: cell-number / height]
+  cell = [#cell row column]
+  // Keep trying until we find a cell that doesn't already have one!
+  retry = if cell = [#has-mine] then 1
+          else 0
+commit
+  cell += #has-mine
+~~  board.unplaced-mines := unplaced-mines - 1
+bind
+  board.seed := seed + retry
+|```
+
 ```
+match
+  board = [@board width height area unplaced-mines unplaced-mines > 0]
+  cell-number = range[from: 0, to: unplaced-mines]
+  column = mod[value: cell-number by: width]
+  row = floor[value: cell-number / height]
+  cell = [#cell row column]
+commit
+  cell += #has-mine
+  board.unplaced-mines := 0
+```
+
 Make each cell keep track of its neighbors.
 ```
 match
-  [@board unplaced-mines: 0]
+  board = [@board unplaced-mines: 0 not(#initialized)]
   this-cell = [#cell row: this-row column: this-column]
   i = range[from: -1, to: 2]
   j = range[from: -1, to: 2]
   this-neighbor = [#cell row: this-row + i column: this-column + j]
   not(this-cell = this-neighbor)
-bind
+commit
+  board += #initialized
   this-cell.neighbor += this-neighbor
 ```
 Count how many neighbors with mines each cell has. Note that this doesn't tag
@@ -183,13 +215,28 @@ removes everything. I think this might be a bug in Eve.
 ```
 match
   board = [@board mines #game-over]
-  [#click]
+  [#click #direct-target]
   cell = [#cell]
 commit
-  board.unplaced-mines := mines
+  board -= #game-over
+  board -= #won
+  board -= #lost
+  //board.unplaced-mines -= 0
+  board.unplaced-mines += 4
   cell -= #has-mine
   cell -= #revealed
 ```
+```
+match
+  [@board unplaced-mines]
+  placed-mines = if c = count[given: [#cell #has-mine]] then c
+                 else 0
+  revealed = if c = count[given: [#revealed]] then c
+             else 0
+bind @browser
+  [#debug unplaced-mines placed-mines revealed]
+```
+
 
 ## Todo
 

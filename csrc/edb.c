@@ -196,8 +196,8 @@ static int buffer_unicode_length(buffer buf, int start)
 {
     int length = 0;
     int limit = buffer_length(buf);
-    for (u32 x = start, q;  
-         (q = utf8_length(*(u32 *)bref(buf, x))),  x<limit;                       
+    for (u32 x = start, q;
+         (q = utf8_length(*(u32 *)bref(buf, x))),  x<limit;
          x += q) length++;
     return length;
 }
@@ -246,4 +246,9 @@ string edb_dump(heap h, edb b)
         }
     }
     return out;
+}
+
+edb bag_as_edb(bag b)
+{
+    return (edb) b;
 }
