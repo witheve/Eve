@@ -3,6 +3,7 @@
 // do we really need this? i mean eventually for reflection purposes
 typedef struct process {
     heap h;
+    estring name;
     evaluation ev;
     table scopes;
     table persisted;
@@ -38,10 +39,13 @@ static void process_bag_scan(process_bag fb, int sig, listener out, value e, val
 CONTINUATION_1_1(process_bag_commit, process_bag, edb)
 void process_bag_commit(process_bag pb, edb s)
 {
+    process p;
+
     edb_foreach_e(s, e, sym(tag), sym(process), m) {
         heap h = allocate_rolling(pages, sstring("process"));
-        process p = allocate(h, sizeof(struct process));
+        p = allocate(h, sizeof(struct process));
         p->scopes = create_value_table(h);
+        p->name = sym(anonymous);
         p->persisted = pb->persisted;
         p->read = allocate_vector(h, 3);
         p->write = allocate_vector(h, 5);
@@ -49,32 +53,37 @@ void process_bag_commit(process_bag pb, edb s)
         table_set(pb->processes, e, p);
     }
 
-        // scopes is a bag, which we're going to ...upgrade to a bag bag
     edb_foreach_ev(s, e, sym(scope), descriptor, m) {
-        process p;
-        // xx - handle default read and write
         if ((p = table_find(pb->processes, e))){
-            edb_foreach_av(s, lookupv(s, descriptor, sym(bags)), name, bag, m) {
+            edb_foreach_av(s, lookupv(s, descriptor, sym(bags)), name, bag, m)
                 table_set(p->scopes, name, bag);
-            }
             edb_foreach_v(s, descriptor, sym(read), bag, m)
                 vector_insert(p->read, bag);
             edb_foreach_v(s, descriptor, sym(read), bag, m)
                 vector_insert(p->write, bag);
         } else {
-            prf("No process found for %v scopes\n", e);
+            prf("No process found for %v scope\n", e);
+        }
+    }
+
+    // scopes is a bag, which we're going to ...upgrade to a bag bag
+    edb_foreach_ev(s, e, sym(name), name, m) {
+        // xx - handle default read and write
+        if ((p = table_find(pb->processes, e))){
+            p->name = name;
+        } else {
+            prf("No process found for %v name\n", e);
         }
     }
 
     edb_foreach_ev(s, e, sym(source), v, m) {
-        process p = table_find(pb->processes, e);
         if(p) {
             estring source = v;
             bag compiler_bag;
             vector n = compile_eve(p->h,
                                    alloca_wrap_buffer(source->body, source->length),
                                    false, &compiler_bag);
-            p->ev = build_evaluation(p->h, p->scopes, p->persisted, ignore, ignore, n);
+            p->ev = build_evaluation(p->h, p->name, p->scopes, p->persisted, ignore, ignore, n);
             p->ev->default_scan_scopes = p->read;
             p->ev->default_insert_scopes = p->write;
         } else {

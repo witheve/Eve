@@ -82,15 +82,16 @@ send eve bootstrap
 start eve program
 ```
   match
-     r = [#request-object connection websocket:true extension:"eve" file]
+     r = [#request-object connection websocket:true token extension:"eve" file]
   // there may be a terser version here
   commit @bag
         browser = [#bag]
         session = [#bag]
   commit @process
-     child = [#process source:file.contents scope:[write:(session)
-                                                   read:(browser, session)
-                                                   bags:[browser, session]]]
+     child = [#process source:file.contents name:token
+              scope:[write:(session)
+              read:(browser, session)
+              bags:[browser, session]]]
   commit
      connection.upgrade := child
      r := none

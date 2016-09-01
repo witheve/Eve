@@ -97,6 +97,7 @@ typedef closure(bag_handler, bag);
 
 struct evaluation  {
     heap h;
+    estring name;
     heap working; // lifetime is a whole f-t pass
     error_handler error;
 
@@ -140,7 +141,8 @@ extern char *pathroot;
 
 vector compile_eve(heap h, buffer b, boolean tracing, bag *compiler_bag);
 
-evaluation build_evaluation(heap h, table scopes, table persisted,
+evaluation build_evaluation(heap h, estring name,
+                            table scopes, table persisted,
                             evaluation_result e, error_handler error,
                             vector implications);
 
