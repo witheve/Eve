@@ -59,39 +59,6 @@ static void handle_error_terminal(char * message, bag data, uuid data_id) {
 
 
 
-static CONTINUATION_4_2(http_eval_result, http_server *, table, process_bag, uuid, multibag, multibag);
-static void http_eval_result(http_server *h, table inputs, process_bag pb, uuid where, multibag t, multibag f)
-{
-    bag b;
-
-    if (!t || (!(b=table_find(t, where)))) {
-        prf("empty http eval result %d\n", f?table_elements(f):0);
-    } else {
-        edb_foreach_ev((edb)b, e, sym(response), response, m){
-            // xxx we're using e as a very weak correlator to the connection
-            http_send_response(*h, b, e);
-            return;
-        }
-
-        edb_foreach_ev((edb)b, e, sym(upgrade), child, m){
-            heap jh = allocate_rolling(init, sstring("json session"));
-            evaluation ev = process_resolve(pb, child);
-            if (ev) {
-                endpoint ws =  http_ws_upgrade(*h, b, e);
-                parse_json(jh, ws, create_json_session(jh, ev, ws,
-                                                       table_find(ev->scopes, "browser")));
-                bag session_connect = (bag)create_edb(jh, 0);
-
-                apply(session_connect->insert,
-                      generate_uuid(),
-                      sym(tag),
-                      sym(session-connect), 1, 0);
-                inject_event(ev, session_connect);
-            }
-        }
-    }
-}
-
 
 static bag static_content(heap h)
 {
@@ -137,13 +104,12 @@ static void run_eve_http_server(char *x)
     heap hc = allocate_rolling(pages, sstring("eval"));
     evaluation ev = build_process(hc, b, enable_tracing,
                                   persisted,
-                                  cont(h, http_eval_result, server, persisted, pb, sid),
+                                  ignore,
                                   cont(h, handle_error_terminal));
 
     table_set(ev->scopes, sym(file), fid);
     table_set(ev->scopes, sym(process), pid);
     table_set(ev->scopes, sym(server), sid);
-
 
     vector_insert(ev->default_scan_scopes, sid);
     vector_insert(ev->default_insert_scopes, sid);

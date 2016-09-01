@@ -410,6 +410,8 @@ evaluation build_evaluation(heap h,
     ev->terminal = cont(ev->h, evaluation_complete, ev);
     ev->run = cont(h, run_solver, ev);
 
+    ev->default_scan_scopes = allocate_vector(h, 5);
+    ev->default_insert_scopes = allocate_vector(h, 5);
     table_foreach(ev->t_input, uuid, z) {
         bag b = z;
         table_set(b->listeners, ev->run, (void *)1);

@@ -43,6 +43,7 @@ static inline void multibag_insert(multibag *mb, heap h, uuid u, value e, value 
 {
     bag b;
 
+    prf("insert: %v %v %v %v\n", u, e, a, v);
     if (!*mb) (*mb) = create_value_table(h);
     if (!(b = table_find((*mb), u)))
         table_set(*mb, u, b = (bag)create_edb(h, 0));

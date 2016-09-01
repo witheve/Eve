@@ -115,6 +115,42 @@ void new_connection(http_server s,
     apply(e->r, request_header_parser(h, cont(h, dispatch_request, hs)));
 }
 
+static CONTINUATION_4_2(http_eval_result, http_server, table, process_bag, uuid, multibag, multibag);
+static void http_eval_result(http_server s, table inputs, process_bag pb, uuid where, multibag t, multibag f)
+{
+    bag b;
+
+    if (!t || (!(b=table_find(t, where)))) {
+        prf("empty http eval result t: %d f: %d\n",
+            t?table_elements(t):0,
+            f?table_elements(f):0);
+    } else {
+        edb_foreach_ev((edb)b, e, sym(response), response, m){
+            // xxx we're using e as a very weak correlator to the connection
+            http_send_response(h, b, e);
+            return;
+        }
+
+        edb_foreach_ev((edb)b, e, sym(upgrade), child, m){
+            heap jh = allocate_rolling(init, sstring("json session"));
+            evaluation ev = process_resolve(pb, child);
+            if (ev) {
+                endpoint ws =  http_ws_upgrade(h, b, e);
+                parse_json(jh, ws, create_json_session(jh, ev, ws,
+                                                       table_find(ev->scopes, "browser")));
+                bag session_connect = (bag)create_edb(jh, 0);
+
+                apply(session_connect->insert,
+                      generate_uuid(),
+                      sym(tag),
+                      sym(session-connect), 1, 0);
+                inject_event(ev, session_connect);
+            }
+        }
+    }
+}
+
+
 
 http_server create_http_server(station p, evaluation ev)
 {
@@ -124,7 +160,8 @@ http_server create_http_server(station p, evaluation ev)
     s->h = h;
     s->ev = ev;
     s->sessions = create_value_table(h);
-
+    // use a listener instead
+    ev->complete = cont(h, http_eval_result, s, persisted, pb, sid),
     tcp_create_server(h,
                       p,
                       cont(h, new_connection, s),
