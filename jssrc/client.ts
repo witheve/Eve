@@ -415,7 +415,6 @@ export function sendEvent(records:any[]) {
     eavs.push.apply(eavs, recordToEAVs(record));
   }
 
-  console.log(records, eavs);
   if(socket && socket.readyState == 1) {
     socket.send(JSON.stringify({type: "event", insert: eavs}))
   }
@@ -446,12 +445,13 @@ export function sendParse(query) {
 function onHashChange(event) {
   let hash = window.location.hash.substr(1);
   if(hash[0] == "/") hash = hash.substr(1);
+
   let segments = hash.split("/").map(function(seg, ix) {
     return {id: uuid(), index: ix + 1, value: seg};
   });
 
   sendEvent([
-    {tag: "url", "hash-segment": segments}
+    {tag: "url-change", "hash-segment": segments}
   ]);
 }
 
