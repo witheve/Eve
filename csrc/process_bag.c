@@ -84,8 +84,10 @@ void process_bag_commit(process_bag pb, edb s)
                                    alloca_wrap_buffer(source->body, source->length),
                                    false, &compiler_bag);
             p->ev = build_evaluation(p->h, p->name, p->scopes, p->persisted, ignore, ignore, n);
-            p->ev->default_scan_scopes = p->read;
-            p->ev->default_insert_scopes = p->write;
+            vector_foreach(p->read, i)
+                vector_insert(p->ev->default_scan_scopes, i);
+            vector_foreach(p->write, i)
+                vector_insert(p->ev->default_insert_scopes, i);
         } else {
             prf("No process found for %v source\n", e);
         }
