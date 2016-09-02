@@ -64,10 +64,13 @@ class Span {
     return {from: this.from, to: this.to};
   }
 
-  clear() {
+  clear(origin = "+delete") {
     if(this.textMarker) {
       let cm = this.editor.editor;
       let loc = this.find();
+      this.from = loc.from;
+      this.to = loc.to;
+      this.editor.addToHistory({type: "span", added: [], removed: [this], origin});
       this.textMarker.clear();
       this.textMarker.span = null;
       this.textMarker = null;
@@ -84,6 +87,13 @@ class Span {
     }
   }
 
+  clone() {
+    let spanType = TypeToSpanType[this.source.type] || Span;
+    let loc = this.find();
+    return new spanType(loc.from, loc.to, this.source);
+  }
+
+  refresh(change) {}
   onChange(change) {}
   onBeforeChange(change) {}
 }
@@ -94,17 +104,25 @@ function cmLength (cm) {
 }
 
 function normalizeChange(editor, change) {
-  let {from, text, removed} = change;
-  let removedText = removed.join("\n");
-  let addedText = text.join("\n");
-  let start = editor.indexFromPos(from);
-  let end = start + addedText.length;
-  return {start, removed: removedText, added: addedText}
+  // if there's a text property, we're dealing with a codemirror change
+  // object
+  if(change.text) {
+    let {from, text, removed} = change;
+    let removedText = removed.join("\n");
+    let addedText = text.join("\n");
+    let start = editor.indexFromPos(from);
+    let end = start + addedText.length;
+    return {type: "range", start, removed: removedText, added: addedText}
+  } else {
+    // otherwise we're dealing with a span change which is already normalized
+    // for us
+    return change;
+  }
 }
 
 function inverseNormalizedChange(change) {
-  let {start, removed, added} = change;
-  return {start, added: removed, removed: added};
+  let {type, start, removed, added} = change;
+  return {type, start, added: removed, removed: added};
 }
 
 function changeToOps(editor, change) {
@@ -146,6 +164,7 @@ function formattingChange(span, change, action) {
     if(samePos(loc.to, from)) {
       span.clear();
       editor.mark(loc.from, adjusted, source);
+
     }
   }
 }
@@ -227,10 +246,20 @@ class CodeBlockSpan extends Span {
   onBeforeChange(change) {
     if(change.origin === "+delete") {
       let loc = this.find();
-      if(samePos(loc.from, loc.to)) {
-        // clear the old bookmark
+      if(samePos(loc.from, change.to)) {
         this.clear();
         change.cancel();
+      }
+    }
+  }
+
+  refresh(change) {
+    let loc = this.find();
+    let cm = this.editor.editor;
+    for(let ix = loc.from.line; ix < loc.to.line; ix++) {
+      let info = cm.lineInfo(ix);
+      if(!info.bgClass || info.bgClass.indexOf(this.lineBackgroundClass) === -1) {
+        cm.addLineClass(ix, "background", this.lineBackgroundClass);
       }
     }
   }
@@ -238,87 +267,32 @@ class CodeBlockSpan extends Span {
   onChange(change) {
     let {from, to, text} = change;
     let adjusted = changeToFinalPos(change);
-    if(change.origin === "+input") {
-      // check if we're adding a new line inside of a code_block. If so, that line is also a
-      // code_block line
-      let mark = this;
-      let loc = mark.find();
-      if(samePos(from, loc.from)) {
-        mark.clear();
-        if(isNewlineChange(change)) {
-          let newTo = {line: adjusted.line + 1, ch: 0};
-          let marker = this.editor.mark({line: loc.from.line, ch: 0}, newTo, mark.source);
-        } else {
-          // if we're typing at the beginning of a code_block, we need to
-          // extend the block
-          let newTo = loc.to;
-          if(comparePos(adjusted, newTo) > 0) {
-            newTo = {line: adjusted.line + 1, ch: 0};
-          }
-          let marker = this.editor.mark({line: loc.from.line, ch: 0}, newTo, mark.source);
-        }
-      } else if(isNewlineChange(change) && comparePos(from, loc.to) < 0) {
-        this.editor.editor.addLineClass(from.line, "background", this.lineBackgroundClass)
-        this.editor.editor.addLineClass(from.line + 1, "background", this.lineBackgroundClass)
-      }
-    } else if(change.origin === "+delete") {
+    let mark = this;
+    let loc = mark.find();
 
-      let mark = this;
-      let loc = mark.find();
-      // if the code_block is now empty, then we need to turn this mark into
-      // a bookmark
-      if(this.editor.editor.getRange(loc.from, loc.to) === "\n") {
-        mark.clear();
-        this.editor.mark(loc.from, loc.from, mark.source);
-      } else if(loc.to.ch !== 0) {
-        // if we removed the end of the block, we have to make sure that this mark
-        // ends up terminating at the beginning of the next line.
-        let to = {line: from.line + 1, ch: 0};
-        mark.clear();
-        this.editor.mark(loc.from, to, mark.source);
-        // we then have to check if any formatting marks ended up in here
-        // and remove them
-        for(let containedMark of this.editor.editor.findMarks(loc.from, to)) {
-          if(containedMark.span && containedMark.span.source.type !== "code_block") {
-            containedMark.span.clear();
-          }
+    if(from.line < loc.from.line || (from.line === loc.from.line && loc.from.ch !== 0) || samePos(loc.from, loc.to)) {
+      mark.clear();
+      // if we're typing at the beginning of a code_block, we need to
+      // extend the block
+      // let newTo = {line: adjusted.line + change.text.length, ch: 0};
+      let newFrom = {line: from.line, ch: 0};
+      let newTo = {line: loc.to.line > loc.from.line ? loc.to.line : from.line + 1, ch: 0};
+      let marker = this.editor.mark(newFrom, newTo, mark.source);
+    } else if(loc.to.ch !== 0) {
+      // if we removed the end of the block, we have to make sure that this mark
+      // ends up terminating at the beginning of the next line.
+      let to = {line: from.line + 1, ch: 0};
+      mark.clear();
+      this.editor.mark(loc.from, to, mark.source);
+      // we then have to check if any formatting marks ended up in here
+      // and remove them
+      for(let containedMark of this.editor.editor.findMarks(loc.from, to)) {
+        if(containedMark.source && containedMark.source.type !== "code_block") {
+          containedMark.clear();
         }
       }
-    } else if(change.origin === "paste") {
-      let mark = this;
-      let loc = mark.find();
-
-      if(samePos(from, loc.from) || comparePos(loc.to, from) > 0) {
-        // mark all the pasted lines with the code classes
-        let ix = 0;
-        for(let text of change.text) {
-          this.editor.editor.addLineClass(from.line + ix, "background", this.lineBackgroundClass);
-          ix++;
-        }
-      }
-
-      if(samePos(from, loc.from)) {
-        mark.clear();
-        // if we're typing at the beginning of a code_block, we need to
-        // extend the block
-        let newTo = {line: adjusted.line + change.text.length, ch: 0};
-        let marker = this.editor.mark({line: loc.from.line, ch: 0}, newTo, mark.source);
-      }
-
-      if(loc.to.ch !== 0) {
-        // if we removed the end of the block, we have to make sure that this mark
-        // ends up terminating at the beginning of the next line.
-        let to = {line: from.line + 1, ch: 0};
-        mark.clear();
-        this.editor.mark(loc.from, to, mark.source);
-        // we then have to check if any formatting marks ended up in here
-        // and remove them
-        for(let containedMark of this.editor.editor.findMarks(loc.from, to)) {
-          if(containedMark.source && containedMark.source.type !== "code_block") {
-            containedMark.clear();
-          }
-        }
-      }
+    } else {
+      this.refresh(change);
     }
   }
 }
@@ -350,6 +324,12 @@ class EmphasisSpan extends Span {
   }
 }
 
+class ImageSpan extends Span {
+}
+
+class LinkSpan extends Span {
+}
+
 let MarkdownFormats = ["strong", "emph", "code"];
 let TypeToSpanType = {
   "heading": HeadingSpan,
@@ -358,11 +338,17 @@ let TypeToSpanType = {
   "strong": StrongSpan,
   "emphasis": EmphasisSpan,
   "code": CodeSpan,
+  "image": ImageSpan,
+  "link": LinkSpan,
 }
+
 class MarkdownEditor {
   editor: any;
   spans: any;
   formatting: any;
+  history: any;
+  changing: boolean;
+  affectedMarks: any[];
 
   constructor(value: string) {
     var self = this;
@@ -382,6 +368,14 @@ class MarkdownEditor {
     editor.markdownEditor = this;
     this.editor = editor;
     this.formatting = {};
+    this.affectedMarks = [];
+    this.history = {position: 0, items: []}
+    CodeMirror.commands.undo = function(cm) {
+      cm.markdownEditor.undo();
+    }
+    CodeMirror.commands.redo = function(cm) {
+      cm.markdownEditor.redo();
+    }
     editor.on("beforeChange", function(editor, change) { self.onBeforeChange(change); });
     editor.on("change", function(editor, change) { self.onChange(change); });
     editor.on("cursorActivity", function(editor) { self.onCursorActivity(); });
@@ -391,6 +385,7 @@ class MarkdownEditor {
 
     this.loadMarkdown(value);
     this.editor.clearHistory();
+    this.history = {position: 0, items: []};
   }
 
   onBeforeChange(change) {
@@ -405,22 +400,35 @@ class MarkdownEditor {
     }
     for(let mark of marks) {
       if(mark.span && mark.span.onBeforeChange) {
-        mark.span.onBeforeChange(change);
+        if(!mark.find()) {
+          mark.clear();
+        } else {
+          mark.span.onBeforeChange(change);
+        }
       }
+    }
+    if(!change.canceled) {
+      this.changing = true;
+      this.affectedMarks.push.apply(this.affectedMarks, marks);
     }
   }
 
   onChange(change) {
-    let {from, to} = change;
-    let codeBlockMarks = getMarksByType(this.editor, "code_block", from, to, "inclusive");
-    let marks;
-    if(!samePos(from, to)) {
-      let adjustedFrom = this.editor.posFromIndex(this.editor.indexFromPos(from) - 1);
-      let adjustedTo = this.editor.posFromIndex(this.editor.indexFromPos(to) + 1);
-      marks = this.editor.findMarks(adjustedFrom, adjustedTo);
-    } else {
-      marks = this.editor.findMarksAt(from);
+    let marks = this.affectedMarks;
+    if(change.origin === "+mdredo" || change.origin === "+mdundo") {
+      for(let mark of marks) {
+        if(mark.span && mark.span.refresh) {
+          mark.span.refresh(change);
+        }
+      }
+      return;
     }
+    // any multi-line change should be in its own undo block
+    if(change.text.length > 1) {
+      this.finalizeLastHistoryEntry();
+    }
+    this.addToHistory(change);
+    let {from, to} = change;
     for(let mark of marks) {
       if(mark.span && mark.span.onChange) {
         mark.span.onChange(change);
@@ -437,29 +445,120 @@ class MarkdownEditor {
   }
 
   onChanges(changes) {
+    this.affectedMarks = [];
+    this.changing = false;
+    this.history.transitioning = false;
     // remove any formatting that may have been applied
     this.formatting = {};
     sendParse(toMarkdown(this.editor));
   }
 
   onCursorActivity() {
+    if(!this.changing) {
+      this.finalizeLastHistoryEntry();
+    }
     // remove any formatting that may have been applied
     this.formatting = {};
   }
 
   onCopy(event) { }
   onPaste(event) {
+    this.finalizeLastHistoryEntry();
     // remove any formatting that may have been applied
     this.formatting = {};
   }
 
-  _markSpan(span) {
+  finalizeLastHistoryEntry() {
+    let history = this.history;
+    if(history.items.length) {
+      history.items[history.items.length - 1].finalized = true;
+    }
+  }
+
+  addToHistory(change) {
+    let history = this.history;
+    if(history.transitioning) return;
+    // if we're not in the last position, we need to remove all the items
+    // after since we're effectively branching in history
+    if(history.items.length !== history.position) {
+      history.items = history.items.slice(0, history.position);
+    }
+    let changeSet : {changes: any[]} = {changes: []};
+    let last = history.items[history.items.length - 1];
+    let normalized = changeSet.changes;
+    if(last && !last.finalized) {
+      normalized = last.changes;
+    }
+    if(change.origin !== "+mdundo" && change.origin !== "+mdredo") {
+      normalized.push(normalizeChange(this.editor, change));
+    }
+    if(normalized.length && (!last || last.finalized)) {
+      history.position++;
+      history.items.push(changeSet);
+    }
+  }
+
+  undo() {
+    let self = this;
+    let history = this.history;
+    if(history.position === 0) return;
+    this.finalizeLastHistoryEntry();
+    history.position--;
+    let changeSet = history.items[history.position];
+    let editor = this.editor;
+    history.transitioning = true;
+    editor.operation(function() {
+      for(let ix = changeSet.changes.length - 1; ix > -1; ix--) {
+        let change = changeSet.changes[ix];
+        let inverted = inverseNormalizedChange(change);
+        if(inverted.type === "range") {
+          editor.replaceRange(inverted.added, editor.posFromIndex(inverted.start), editor.posFromIndex(inverted.start + inverted.removed.length), "+mdundo");
+        } else if(inverted.type === "span") {
+          for(let removed of inverted.removed) {
+            removed.clear("+mdundo");
+          }
+          for(let added of inverted.added) {
+            self._markSpan(added, "+mdundo");
+          }
+        }
+      }
+    })
+  }
+
+  redo() {
+    let self = this;
+    let history = this.history;
+    if(history.position > history.items.length - 1) return;
+    let changeSet = history.items[history.position];
+    history.position++;
+    let editor = this.editor;
+    history.transitioning = true;
+    editor.operation(function() {
+      for(let change of changeSet.changes) {
+        if(change.type === "range") {
+          editor.replaceRange(change.added, editor.posFromIndex(change.start), editor.posFromIndex(change.start + change.removed.length), "+mdredo");
+        } else if(change.type === "span") {
+          for(let removed of change.removed) {
+            removed.clear("+mdredo");
+          }
+          for(let added of change.added) {
+            self._markSpan(added, "+mdredo");
+          }
+        }
+      }
+    })
+  }
+
+  _markSpan(span, origin = "+input") {
+    this.addToHistory({type: "span", added: [span], removed: [], origin});
     span.applyMark(this);
   }
 
   mark(from, to, source) {
-    let spanClass = TypeToSpanType[source.type];
-    this._markSpan(new spanClass(this, from, to, source));
+    let spanClass = TypeToSpanType[source.type] || Span;
+    let span = new spanClass(this, from, to, source)
+    this._markSpan(span);
+    return span;
   }
 
   marksByType(type, from, to) {
@@ -722,7 +821,7 @@ function fullyMark(editor, selection, source) {
       // if the selection is wholly enclosed in the mark, we have to split
       // the mark so the selection is no longer contained in it
     } else if(whollyEnclosed(selection, loc)) {
-      let startMarker = editor.mark(loc.from, selection.to, source);
+      let startMarker = editor.mark(loc.from, selection.from, source);
       let endMarker = editor.mark(selection.to, loc.to, source);
       mark.clear();
       marked = true;
@@ -744,6 +843,7 @@ function fullyMark(editor, selection, source) {
 
 function doFormat(editor, type) {
   let cm = editor.editor;
+  editor.finalizeLastHistoryEntry();
   cm.operation(function() {
     if(cm.somethingSelected()) {
       let from = cm.getCursor("from");
@@ -777,11 +877,13 @@ function doFormat(editor, type) {
       }
       editor.formatting[type] = action;
     }
+    editor.finalizeLastHistoryEntry();
   });
 }
 
 function doLineFormat(editor, source) {
   let cm = editor.editor;
+  editor.finalizeLastHistoryEntry();
   cm.operation(function() {
     let loc = {from: cm.getCursor("from"), to: cm.getCursor("to")};
     let start = loc.from.line;
@@ -817,6 +919,7 @@ function doLineFormat(editor, source) {
         mark.span.clear();
       }
     }
+    editor.finalizeLastHistoryEntry();
     editor.refresh();
   });
 }
@@ -843,6 +946,7 @@ function formatList(editor) {
 }
 
 function formatCodeBlock(editor) {
+  editor.markdownEditor.finalizeLastHistoryEntry();
   editor.operation(function() {
     let cursor = editor.getCursor("from");
     let to = {line: cursor.line, ch: 0};
@@ -851,6 +955,7 @@ function formatCodeBlock(editor) {
       to.line += 1;
     }
     editor.markdownEditor.mark({line: cursor.line, ch: 0}, to, {type: "code_block"});
+    editor.markdownEditor.finalizeLastHistoryEntry();
   });
 }
 
@@ -903,7 +1008,7 @@ function injectCodeMirror(node, elem) {
 }
 
 export function setKeyMap(event) {
-  codeEditor.setOption("keyMap", event.currentTarget.value);
+  codeEditor.editor.setOption("keyMap", event.currentTarget.value);
 }
 
 export function CodeMirrorNode(info) {
