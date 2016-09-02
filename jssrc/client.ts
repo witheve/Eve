@@ -113,7 +113,7 @@ class IndexScalar<V> extends Index<IndexedScalar<V>> {
 //---------------------------------------------------------
 // Connect the websocket, send the ui code
 //---------------------------------------------------------
-export var DEBUG:string|boolean = "state";
+export var DEBUG:string|boolean = false;
 
 export var indexes = {
   records: new IndexScalar<Record>(),      // E -> Record
