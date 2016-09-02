@@ -21,6 +21,6 @@ go!
 ```
   match
     [#session-connect]
-  commit @browser
+  commit
     [#counter count: 0]
 ```
