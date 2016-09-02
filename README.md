@@ -35,7 +35,7 @@ Next you'll need to download the Eve source, either by cloning our repository
 git clone https://github.com/witheve/Eve.git
 ```
 
-or downloading the source [directly](https://github.com/witheve/Eve/archive/master.zip)
+or downloading the source [directly](https://github.com/witheve/Eve/archive/master.zip).
 
 To build Eve, execute `make` in the `eve/build` directory.
 
