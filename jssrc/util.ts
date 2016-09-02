@@ -21,7 +21,9 @@ export function clone(obj) {
 }
 
 export function uuid() {
-  return "⦑" + rawuuid() + "⦒";
+  let raw:string = rawuuid();
+  let mangled = raw.slice(0, 8) + raw.slice(9, 9 + 4) + raw.slice(-12);
+  return "⦑" + mangled + "⦒";
 }
 
 export function sortComparator(a, b) {

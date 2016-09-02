@@ -8,6 +8,7 @@ typedef struct json_session {
     uuid u;
     evaluation ev;
     endpoint down;
+    table id_mappings;
 } *json_session;
 
 buffer format_error_json(heap h, char* message, bag data, uuid data_id);
@@ -88,8 +89,11 @@ static void send_response(json_session session, multibag t_solution, multibag f_
     edb browser;
 
     if (f_solution && (browser = table_find(f_solution, session->u))) {
-        edb_foreach(browser, e, a, v, c, _)
+        edb_foreach(browser, e, a, v, c, _) {
             table_set(results, build_vector(p, e, a, v), etrue);
+            table_set(session->id_mappings, e, e);
+        }
+
     }
 
 
@@ -98,6 +102,7 @@ static void send_response(json_session session, multibag t_solution, multibag f_
 
     if (t_solution && (browser = table_find(t_solution, session->u))) {
         edb_foreach(browser, e, a, v, m, u) {
+            table_set(session->id_mappings, e, e); // @FIXME: This is gonna leak dead ids.
             if (m > 0)
                 vector_insert(diff->insert, build_vector(h, e, a, v));
             if (m < 0)
@@ -128,27 +133,19 @@ boolean is_stringy_uuid(value v) {
     return true;
 }
 
-value map_if_uuid(heap h, value v, bag browser, table mapping) {
+value map_if_uuid(heap h, value v, table mapping) {
     if(!is_stringy_uuid(v)) return v;
-    value mapped = table_find(mapping, v);
+
+    estring s = (estring)v;
+    buffer str = alloca_wrap_buffer(s->body + 3, s->length - 6);
+
+    uuid id = parse_uuid(str);
+    value mapped = table_find(mapping, id);
     if(mapped) return mapped; // If we've already been mapped, reuse that value.
 
-    // Check to see if we map to an existing uuid
-    estring s = (estring)v;
-    buffer str = alloca_wrap_buffer(s->body, s->length);
-    table_foreach(((edb)browser)->eav, e, avl) { // @FIXME: bag doesn't exist in the child yet, so this ptr is garbage.
-        buffer eid = allocate_buffer(h, 40);
-        bprintf(eid , "⦑%X⦒", alloca_wrap_buffer(e, UUID_LENGTH));
-        if(string_equal(eid, str)) {
-            table_set(mapping, v, e);
-            return e;
-        }
-    }
-
-    // If we don't map at all, map us to a new uuid.
-    uuid id = generate_uuid();
-    table_set(mapping, v, id);
-    return id;
+    uuid neue = generate_uuid();
+    table_set(mapping, id, neue);
+    return neue;
 }
 
 static CONTINUATION_1_2(json_input, json_session, bag, uuid);
@@ -162,18 +159,15 @@ static void json_input(json_session s, bag json_bag, uuid root_id)
     edb b = (edb)json_bag;
     value type = lookupv(b, root_id, sym(type));
     if(type == sym(event)) {
-        table mapping = create_value_table(s->h);
         bag event = (bag)create_edb(s->h, 0);
-        uuid browser_id = table_find(s->ev->scopes, sym(browser));
-        bag browser = table_find(s->ev->t_input, browser_id);
         value eavs_id = lookupv(b, root_id, sym(insert));
         int ix = 1;
         while(true) {
             value eav_id = lookupv(b, eavs_id, box_float(ix));
             if(!eav_id) break;
-            value e = map_if_uuid(s->h, lookupv(b, eav_id, box_float(1)), browser, mapping);
-            value a = map_if_uuid(s->h, lookupv(b, eav_id, box_float(2)), browser, mapping);
-            value v = map_if_uuid(s->h, lookupv(b, eav_id, box_float(3)), browser, mapping);
+            value e = map_if_uuid(s->h, lookupv(b, eav_id, box_float(1)), s->id_mappings);
+            value a = map_if_uuid(s->h, lookupv(b, eav_id, box_float(2)), s->id_mappings);
+            value v = map_if_uuid(s->h, lookupv(b, eav_id, box_float(3)), s->id_mappings);
 
             apply(event->insert, e, a, v, 1, 0); // @NOTE: It'd be cute to be able to tag this as coming from the json session.
             ix++;
@@ -191,6 +185,7 @@ object_handler create_json_session(heap h, evaluation ev, endpoint down, uuid u)
     s->down = down;
     s->ev = ev;
     s->current_delta = create_value_vector_table(allocate_rolling(pages, sstring("json delta")));
+    s->id_mappings = create_value_table(h);
     // xxx - very clumsy way to wire this up
     ev->complete = cont(h, send_response, s);
     ev->error = cont(h, handle_error, s);
