@@ -336,7 +336,8 @@ static boolean fixedpoint(evaluation ev)
     // counters? reflection? enable them
     apply(ev->complete, ev->t_solution, ev->last_f_solution);
 
-    prf ("fixedpoint in %t seconds, %d blocks, %V iterations, %d changes to global, %d maintains, %t seconds handler\n",
+    prf ("fixedpoint %v in %t seconds, %d blocks, %V iterations, %d changes to global, %d maintains, %t seconds handler\n",
+         ev->name,
          end_time-start_time, vector_length(ev->blocks),
          counts,
          multibag_count(ev->t_solution),
@@ -402,6 +403,7 @@ void close_evaluation(evaluation ev)
 
 
 evaluation build_evaluation(heap h,
+                            estring name,
                             table scopes,
                             multibag t_input,
                             evaluation_result r,
@@ -410,6 +412,7 @@ evaluation build_evaluation(heap h,
 {
     evaluation ev = allocate(h, sizeof(struct evaluation));
     ev->h = h;
+    ev->name = name;
     ev->error = error;
     // consider adding "event" to the running namespace
     ev->scopes = scopes;
