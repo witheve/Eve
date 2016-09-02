@@ -1,12 +1,15 @@
 start path resolution
 ```
   match
-     r = [#http-request]
+     connection = [#http-request]
      split[text:r.request.url token index, by:"/"]
      fr = [#root]
+     websocket = if r.request.headers.Sec-WebSocket-Protocol = "eve-json" then true else false     
   bind
      [#path index:1 file:fr]
      [#path index token]
+commit
+     [#request-object connection websocket]
 ```
 
 resolve a path
@@ -22,24 +25,22 @@ bind
 path search complete
 ```
 match
-     connection = [#http-request]
      [#path index token]
      final = [#path index: count[given: index] file]
      split[text:final.token by:"." token:extoken index:exindex]
      exindex = 2
      // since this object is part of the event context, its
      // not avilable when we're looking for it in send eve bootsrap
-     ws = if connection.request.headers.Sec-WebSocket-Protocol = "eve-json" then true else false
 
 commit
-     [#request-object extension: extoken connection websocket:ws token: final.token file]
+     [#complete-object extension:extoken token:final.token file]
 ```
 
 
 assert the content type table in the same t as the content response
 ```
 match
-     [#request-object]
+     [#complete-object]
 bind
      [#content-type suffix:"jpeg" type:"application/jpeg"]
      [#content-type suffix:"css" type:"text/css"]
@@ -50,7 +51,8 @@ bind
 complete! send content response
 ```
   match
-     r = [#request-object extension file connection]
+     r = [#request-object connection websocket:false]
+     c = [#complete-object extension file]
      ct = [#content-type suffix:extension]
   commit
     connection.response := [
@@ -59,14 +61,15 @@ complete! send content response
        reason:"OK"
        header:[Content-Type:ct.type]]
     r := none
-  bind r.completed := true
+    c := none         
 ```
 
 
 send eve bootstrap
 ```
   match
-     r = [#request-object connection websocket:false extension:"eve" file]
+     r = [#request-object connection websocket:false]
+     c = [#complete-object token extension:"eve" file]     
      [#root child:[name:"index.html" contents]]
   commit
      connection.response := [
@@ -75,14 +78,15 @@ send eve bootstrap
        reason:"OK"
        header:[Content-Type:"text/html"]]
      r := none
-  bind r.completed := true
+     c := none     
 ```
 
 
 start eve program
 ```
   match
-     r = [#request-object connection websocket:true token extension:"eve" file]
+     r = [#request-object connection  websocket:true]
+     c = [#complete-object token extension:"eve" file]
   // there may be a terser version here
   commit @bag
         browser = [#bag]
@@ -95,14 +99,15 @@ start eve program
   commit
      connection.upgrade := child
      r := none
-  bind r.completed := true
+     c := none
 ```
 
 
 no such file!
 ```
    match
-      r = [#request-object not(completed) connection]
+      not ([#complete-object])
+      r = [#request-object connection]
    commit
       connection.response :=
        [status:"404"
