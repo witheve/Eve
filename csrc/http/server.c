@@ -135,7 +135,7 @@ static void http_eval_result(http_server s, process_bag pb, uuid where,
                                       hs->last_headers,
                                       hs->last_headers_root);
                 parse_json(jh, ws, create_json_session(jh, ev, ws,
-                                                       table_find(ev->scopes, "browser")));
+                                                       table_find(ev->scopes, sym(browser))));
                 bag session_connect = (bag)create_edb(jh, 0);
 
                 apply(session_connect->insert,
