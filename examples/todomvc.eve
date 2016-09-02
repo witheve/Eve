@@ -23,27 +23,27 @@ In this block, we do a little work to determine todo-count, all-checked, and non
 
 ```
   match
-    [@app filter]
-    all-checked = if not([#todo completed: false]) then true
-                  else false
-    none-checked = if [#todo completed: true] then false
-                   else true
-    todo-count = if c = count[given: [#todo completed: false]] then c
-                 else 0
+    [@app filter]
+    all-checked = if not([#todo completed: false]) then true
+                  else false
+    none-checked = if [#todo completed: true] then false
+                   else true
+    todo-count = if c = count[given: [#todo completed: false]] then c
+                 else 0
   bind @browser
-    [#link rel: "stylesheet" href: "/examples/todomvc.css"] // Links to an external stylesheet
-    [#div class: "todoapp" children: [#header children: [#h1 text: "todos"]
-      [#input @new-todo, class: "new-todo", autofocus: true, placeholder: "What needs to be done?"]
-      [#input @toggle-all, class: "toggle-all", type: "checkbox", checked: all-checked]]
-    [#div class: "main" children:
-      [#ul @todo-list, class: "todo-list"]]
-    [#footer children:
-      [#span @todo-count, class: "todo-count", children: [#strong text: todo-count] [#span text: " items left"]]
-      [#ul @filters, class: "filters", children:
-        [#li children: [#a href: "#/all" class: [selected: is(filter = "all")] text: "all"]]
-        [#li children: [#a href: "#/active" class: [selected: is(filter = "active")] text: "active"]]
-        [#li children: [#a href: "#/completed" class: [selected: is(filter = "completed")] text: "completed"]]]
-      [#span @clear-completed, class: [clear-completed: true, hidden: none-checked], text: "Clear completed"]]]
+    [#link rel: "stylesheet" href: "/examples/todomvc.css"] // Links to an external stylesheet
+    [#div class: "todoapp" children: [#header children: [#h1 text: "todos"]
+      [#input @new-todo, class: "new-todo", autofocus: true, placeholder: "What needs to be done?"]
+      [#input @toggle-all, class: "toggle-all", type: "checkbox", checked: all-checked]]
+    [#div class: "main" children:
+      [#ul @todo-list, class: "todo-list"]]
+    [#footer children:
+      [#span @todo-count, class: "todo-count", children: [#strong text: todo-count] [#span text: " items left"]]
+      [#ul @filters, class: "filters", children:
+        [#li children: [#a href: "#/all" class: [selected: is(filter = "all")] text: "all"]]
+        [#li children: [#a href: "#/active" class: [selected: is(filter = "active")] text: "active"]]
+        [#li children: [#a href: "#/completed" class: [selected: is(filter = "completed")] text: "completed"]]]
+      [#span @clear-completed, class: [clear-completed: true, hidden: none-checked], text: "Clear completed"]]]
 ```
 
 ### Drawing the Todo List
@@ -57,18 +57,18 @@ Now we look at how the todos are actually displayed in the application. We attac
 
 ```
   match
-    [@app filter]
+    [@app filter]
     parent = [@todo-list]
-    (todo, body, completed, editing) =
-      if filter = "completed" then ([#todo, body, completed: true, editing], body, true, editing)
-      else if filter = "active" then ([#todo, body, completed: false, editing], body, false, editing)
-      else if filter = "all" then ([#todo, body, completed, editing], body, completed, editing)
+    (todo, body, completed, editing) =
+      if filter = "completed" then ([#todo, body, completed: true, editing], body, true, editing)
+      else if filter = "active" then ([#todo, body, completed: false, editing], body, false, editing)
+      else if filter = "all" then ([#todo, body, completed, editing], body, completed, editing)
   bind @browser
-    parent.children += [#li, class: [todo: true, completed, editing], todo, children:
-                       [#input #todo-checkbox, todo, class: [toggle: true, hidden: editing], type: "checkbox", checked: completed]
-                       [#label #todo-item, class: [hidden: editing], todo, text: body]
-                       [#input #todo-editor, class: [edit: true, hidden: toggle[value: editing]], todo, value: body, autofocus: true]
-                       [#button #remove-todo, class: [destroy: true, hidden: editing], todo]
+    parent.children += [#li, class: [todo: true, completed, editing], todo, children:
+                       [#input #todo-checkbox, todo, class: [toggle: true, hidden: editing], type: "checkbox", checked: completed]
+                       [#label #todo-item, class: [hidden: editing], todo, text: body]
+                       [#input #todo-editor, class: [edit: true, hidden: toggle[value: editing]], todo, value: body, autofocus: true]
+                       [#button #remove-todo, class: [destroy: true, hidden: editing], todo]
 ```
 
 Thanks to Eve's set semantics, we don't need any loops here; for every unique `#todo` in the database, Eve will do the work of adding another `#li` as a child of `@todo-list`.
@@ -81,12 +81,12 @@ A user can interact with TodoMVC in several ways. First and foremost, the user c
 
 ```
   match
-    element = [@new-todo value]
-    kd = [#keydown element, key: "enter"]
+    element = [@new-todo value]
+    kd = [#keydown element, key: "enter"]
   commit
-    [#todo body: value, editing: false, completed: false, kd]
+    [#todo body: value, editing: false, completed: false, kd]
   commit @browser
-    element.value := ""
+    element.value := ""
 ```
 
 Of note here is the record `[#todo body: value, editing: false, completed: false, kd]`. The inclusion of the `kd` attribute might seem strange, but its purpose is to guarantee the uniqueness of the todo. Let’s say we want to add two todos with the same body. If `kd` were not an attribute, then the two todos would be exactly the same and Eve’s set semantics would collapse them into a single todo. Therefore, we need some way to distinguish todos with identical bodies. Adding `kd` allows for this.
@@ -103,15 +103,15 @@ Here we handle all the ways we edit a todo. Editing includes changing the body a
 
 ```
   match
-    (todo, body, editing, completed) =
-      if [#click element: [#todo-checkbox todo]] then (todo, todo.body, todo.editing, toggle[value: todo.completed])
-      else if [#click element: [@toggle-all checked]] then ([#todo body], body, todo.editing, toggle[value: checked])
-      else if [#double-click element: [#todo-item todo]] then (todo, todo.body, true, todo.completed)
-      else if [#blur element: [#todo-editor todo value]] then (todo, value, false, todo.completed)
-      else if [#keydown element: [#todo-editor todo] key: "escape"] then (todo, todo.body, false, todo.completed)
-      else if [#keydown element: [#todo-editor todo value] key: "enter"] then (todo, value, false, todo.completed)
+    (todo, body, editing, completed) =
+      if [#click element: [#todo-checkbox todo]] then (todo, todo.body, todo.editing, toggle[value: todo.completed])
+      else if [#click element: [@toggle-all checked]] then ([#todo body], body, todo.editing, toggle[value: checked])
+      else if [#double-click element: [#todo-item todo]] then (todo, todo.body, true, todo.completed)
+      else if [#blur element: [#todo-editor todo value]] then (todo, value, false, todo.completed)
+      else if [#keydown element: [#todo-editor todo] key: "escape"] then (todo, todo.body, false, todo.completed)
+      else if [#keydown element: [#todo-editor todo value] key: "enter"] then (todo, value, false, todo.completed)
   commit
-    todo <- [body, completed, editing]
+    todo <- [body, completed, editing]
 ```
 
 ### Deleting Todos
@@ -120,10 +120,10 @@ Deleting a todo from the list is accomplished by removing the `#todo` tag from t
 
 ```
   match
-    todo = if [#click element: [#remove-todo todo]] then todo
-           else if [#click element: [@clear-completed]] then [#todo completed: true]
+    todo = if [#click element: [#remove-todo todo]] then todo
+           else if [#click element: [@clear-completed]] then [#todo completed: true]
   commit
-    todo -= #todo
+    todo -= #todo
 ```
 
 ### Filtering Todos (Routing)
@@ -138,10 +138,10 @@ We can extract this value using `#url`, which has a hash-segment attribute that 
 
 ```
   match
-    value = if [#url hash-segment: [index: 1, value]] then value
-            else "all"
+    value = if [#url hash-segment: [index: 1, value]] then value
+            else "all"
   bind
-    [@app filter: value]
+    [@app filter: value]
 ```
 
 
@@ -156,11 +156,10 @@ Persist the #url event changes
 
 ```
   match
-    url-change = [#url-change hash-segment]
+    url-change = [#url-change hash-segment: [value index]]
     url = [#url]
   commit
-    url.hash-segment := hash-segment
-    hash-segment <- [value: hash-segment.value, index: hash-segment.index]
+    url.hash-segment := [value index]
 ```
 
 Persist the #input #change event values
@@ -170,6 +169,4 @@ Persist the #input #change event values
     [#change element value]
   commit @browser
     element.value := value
-  commit @browser
-    [#debug #changed element value: value]
 ```
