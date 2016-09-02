@@ -59,7 +59,7 @@ void process_bag_commit(process_bag pb, edb s)
                 table_set(p->scopes, name, bag);
             edb_foreach_v(s, descriptor, sym(read), bag, m)
                 vector_insert(p->read, bag);
-            edb_foreach_v(s, descriptor, sym(read), bag, m)
+            edb_foreach_v(s, descriptor, sym(write), bag, m)
                 vector_insert(p->write, bag);
         } else {
             prf("No process found for %v scope\n", e);
