@@ -1015,12 +1015,12 @@ function DependencyGraph:toRecord(mapping)
   if not self.parent then
     query.tag = Set:new({"node", "block"})
   end
+  query.nodes = nodeRecords
 
   return {
     name = self.query.name,
     tag = "dependency-graph",
     query = query,
-    nodes = nodeRecords,
     terms = sanitize(self.terms, mapping),
     groups = sanitize(groupRecords, mapping)
   }
@@ -1070,7 +1070,7 @@ function sanitize(obj, mapping, flattenArray)
       end
     end
   elseif obj.type == "code" then
-    neue.tag = "parse-graph"
+    neue.tag = Set:new({"parse-graph", "editor"})
     neue.ast = sanitize(obj.ast, mapping)
     neue.children = sanitize(obj.children, mapping, true)
     neue.context = sanitize(obj.context, mapping)

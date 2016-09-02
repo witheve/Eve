@@ -4,7 +4,7 @@ Send the parse graph
 
 ```
   match @compiler
-    graph = [#parse-graph context]
+    graph = [#parse-graph #editor context]
     context = [type: "context" code]
   bind @browser
     context <- [#context code]
@@ -15,27 +15,27 @@ Send errors
 
 ```
   match @compiler
-    context = [type: "context" errors]
+    graph = [#parse-graph #editor context]
   bind @browser
-    context.errors += errors
+    context.errors += context.errors
 ```
 
 Send blocks
-@TODO: tie blocks to their parse graph to enable multi-program
 
 ```
   match @compiler
+    graph = [#parse-graph #editor children: block]
     block = [#block name sort line]
   bind @browser
-    block <- [#block name sort line]
+    block <- [#block graph name sort line]
 ```
 
 Send tokens
-@TODO: tie tokens to their parse graph (or block) to enable multi-program
 
 ```
   match @compiler
+    graph = [#parse-graph #editor context: [tokens: token]]
     token = [#token id type sort line surrogateOffset surrogateLength]
   bind @browser
-    token <- [#token id type sort line surrogateOffset surrogateLength]
+    token <- [#token graph id type sort line surrogateOffset surrogateLength]
 ```
