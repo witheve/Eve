@@ -89,7 +89,7 @@ start eve program
         session = [#bag]
   commit @process
      child = [#process source:file.contents name:token
-              scope:[write:(session)
+              scope:[write:session
               read:(browser, session)
               bags:[browser, session]]]
   commit

@@ -4,6 +4,7 @@
 
 static vector uuid_set(block bk, vector scopes)
 {
+    if (vector_length(scopes) == 0) return 0;
     vector out = allocate_vector(bk->h, vector_length(scopes));
     vector_foreach(scopes, i) {
         // we're going to soft create these scopes, but the uuids
@@ -132,13 +133,13 @@ static execf build_mutation(block bk, node n, int deltam)
 
     vector name_scopes = table_find(n->arguments, sym(scopes));
 
+
     ins->bk = bk;
     ins->p = register_perf(bk->ev, n);
     ins->n =  resolve_cfg(bk, n, 0);
     ins->e = table_find(n->arguments, sym(e));
     ins->a = table_find(n->arguments, sym(a));
     ins->v = table_find(n->arguments, sym(v));
-
     ins->deltam = deltam;
     ins->scopes = vector_length(name_scopes)?uuid_set(bk, name_scopes):bk->ev->default_insert_scopes;
     return cont(bk->h, do_insert, ins);
