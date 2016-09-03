@@ -3,6 +3,7 @@
 import {Renderer} from "microReact";
 import {clone} from "./util";
 import {CodeMirrorNode, applyFix, setKeyMap, doSave, compileAndRun} from "./editor";
+import * as MarkdownEditor from "./editor";
 import {sendEvent, sendEventObjs, indexes, parseInfo} from "./client";
 
 //type RecordElementCollection = HTMLCollection | SVGColl
@@ -537,8 +538,6 @@ export function renderEditor() {
       ]};
     });
     errors = {c: "errors", children: items};
-  } else {
-    program = {c: "program-container", postRender: injectProgram}
   }
   let outline = [];
   if(root.ast) {
@@ -552,6 +551,7 @@ export function renderEditor() {
   }
 
   let editor = {c: "run-info", children: [
+    MarkdownEditor.toolbar(),
     CodeMirrorNode({value: context.code && context.code[0] || "", parse: parseInfo}),
     {c: "toolbar", children: [
       {c: "stats"},

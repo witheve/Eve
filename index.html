@@ -2,6 +2,7 @@
   <head>
     <title>Eve</title>
     <link rel="stylesheet" type="text/css" href="js/codemirror.css">
+    <link rel="stylesheet" type="text/css" href="http://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css">
     <style>
       * { box-sizing:border-box; }
       body { background: rgb(47,47,49); color: #d8d8d8; font-family: Avenir; display: flex; flex-direction: column; margin:0; width: 100%; }
@@ -87,7 +88,15 @@
       .pixel-chart ul { display:flex; position:relative; align-items: flex-end; flex:1 0 auto; }
       .pixel-chart ul li { height:10px; width:10px; background: #d8d8d8; overflow:hidden; position:relative; margin-right:1px; flex:none; }
 
-      .CodeMirror { color: #c4c4c4; line-height:20px; font-family: Avenir; }
+      .md-toolbar { display:flex; flex-direction:row; margin:12px; }
+      .md-toolbar > * {background: rgba(255,255,255,0.1); bsackground: rgba(0,0,0,0.3); padding:5px 10px; min-width:30px; display:flex; align-items:center; justify-content: center; }
+      .md-toolbar > *:first-child { border-radius:3px 0 0 3px; }
+      .md-toolbar > *:last-child { border-radius:0px 3px 3px 0px; }
+      .md-toolbar > * + * { margin-left: 1px; }
+      .md-toolbar .bold { font-weight: bold; }
+      .md-toolbar .italic { font-style: italic; }
+
+      .CodeMirror { color: #c4c4c4; line-height:20px; font-family: Avenir; max-width: 600px; }
       .CodeMirror-selected { background: #444; }
       .CodeMirror-focused .CodeMirror-selected { background: #444; }
       .CodeMirror .STRONG { font-weight:bold; }

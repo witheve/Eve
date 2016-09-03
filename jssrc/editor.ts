@@ -574,6 +574,10 @@ class MarkdownEditor {
     this.editor.refresh();
   }
 
+  focus() {
+    this.editor.focus();
+  }
+
   loadMarkdown(markdownText) {
     let editor = this.editor;
     let self = this;
@@ -927,26 +931,37 @@ function doLineFormat(editor, source) {
 
 // @TODO: formatting shouldn't apply in codeblocks.
 function formatBold(editor) {
-  doFormat(editor.markdownEditor, "strong");
+  let editor = (editor && editor.markdownEditor) || codeEditor;
+  doFormat(editor, "strong");
+  editor.focus();
 }
 
 function formatItalic(editor) {
-  doFormat(editor.markdownEditor, "emph");
+  let editor = (editor && editor.markdownEditor) || codeEditor;
+  doFormat(editor, "emph");
+  editor.focus();
 }
 
 function formatCode(editor) {
-  doFormat(editor.markdownEditor, "code");
+  let editor = (editor && editor.markdownEditor) || codeEditor;
+  doFormat(editor, "code");
+  editor.focus();
 }
 
 function formatHeader(editor) {
-  doLineFormat(editor.markdownEditor, {type: "heading", level: "1"});
+  let editor = (editor && editor.markdownEditor) || codeEditor;
+  doLineFormat(editor, {type: "heading", level: "1"});
+  editor.focus();
 }
 
 function formatList(editor) {
-  doLineFormat(editor.markdownEditor, {type: "item", _listData: {type: "bullet"}});
+  let editor = (editor && editor.markdownEditor) || codeEditor;
+  doLineFormat(editor, {type: "item", _listData: {type: "bullet"}});
+  editor.focus();
 }
 
 function formatCodeBlock(editor) {
+  let editor = (editor && editor.markdownEditor) || codeEditor.editor;
   editor.markdownEditor.finalizeLastHistoryEntry();
   editor.operation(function() {
     let cursor = editor.getCursor("from");
@@ -958,6 +973,7 @@ function formatCodeBlock(editor) {
     editor.markdownEditor.mark({line: cursor.line, ch: 0}, to, {type: "code_block"});
     editor.markdownEditor.finalizeLastHistoryEntry();
   });
+  editor.focus();
 }
 
 function getMarksByType(editor, type, start, stop?, inclusive?) {
@@ -997,6 +1013,10 @@ function isNewlineChange(change) {
   return change.text.length == 2 && change.text[1] == "";
 }
 
+export function setKeyMap(event) {
+  codeEditor.editor.setOption("keyMap", event.currentTarget.value);
+}
+
 function injectCodeMirror(node, elem) {
   if(!node.editor) {
     codeEditor = new MarkdownEditor(elem.value);
@@ -1008,14 +1028,23 @@ function injectCodeMirror(node, elem) {
   }
 }
 
-export function setKeyMap(event) {
-  codeEditor.editor.setOption("keyMap", event.currentTarget.value);
-}
-
 export function CodeMirrorNode(info) {
   info.postRender = injectCodeMirror;
   info.c = "cm-container";
   return info;
+}
+
+export function toolbar() {
+  let toolbar = {c: "md-toolbar", children: [
+    {c: "bold", text: "B", click: formatBold},
+    {c: "italic", text: "I", click: formatItalic},
+    {c: "header", text: "H1", click: formatHeader},
+    {c: "list", text: "List", click: formatList},
+    {c: "inline-code", text: "Inline code", click: formatCode},
+    {c: "code-block", text: "Code block", click: formatCodeBlock},
+    {c: "run", text: "Run", click: compileAndRun},
+  ]};
+  return toolbar;
 }
 
 export function compileAndRun() {
