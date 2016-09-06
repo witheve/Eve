@@ -931,37 +931,37 @@ function doLineFormat(editor, source) {
 
 // @TODO: formatting shouldn't apply in codeblocks.
 function formatBold(editor) {
-  let editor = (editor && editor.markdownEditor) || codeEditor;
+  editor = (editor && editor.markdownEditor) || codeEditor;
   doFormat(editor, "strong");
   editor.focus();
 }
 
 function formatItalic(editor) {
-  let editor = (editor && editor.markdownEditor) || codeEditor;
+  editor = (editor && editor.markdownEditor) || codeEditor;
   doFormat(editor, "emph");
   editor.focus();
 }
 
 function formatCode(editor) {
-  let editor = (editor && editor.markdownEditor) || codeEditor;
+  editor = (editor && editor.markdownEditor) || codeEditor;
   doFormat(editor, "code");
   editor.focus();
 }
 
 function formatHeader(editor) {
-  let editor = (editor && editor.markdownEditor) || codeEditor;
+  editor = (editor && editor.markdownEditor) || codeEditor;
   doLineFormat(editor, {type: "heading", level: "1"});
   editor.focus();
 }
 
 function formatList(editor) {
-  let editor = (editor && editor.markdownEditor) || codeEditor;
+  editor = (editor && editor.markdownEditor) || codeEditor;
   doLineFormat(editor, {type: "item", _listData: {type: "bullet"}});
   editor.focus();
 }
 
 function formatCodeBlock(editor) {
-  let editor = (editor && editor.markdownEditor) || codeEditor.editor;
+  editor = (editor && editor.markdownEditor) || codeEditor.editor;
   editor.markdownEditor.finalizeLastHistoryEntry();
   editor.operation(function() {
     let cursor = editor.getCursor("from");
