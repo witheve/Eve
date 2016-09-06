@@ -103,10 +103,13 @@ static void send_response(json_session session, multibag t_solution, multibag f_
     if (t_solution && (browser = table_find(t_solution, session->u))) {
         edb_foreach(browser, e, a, v, m, u) {
             table_set(session->id_mappings, e, e); // @FIXME: This is gonna leak dead ids.
-            if (m > 0)
-                vector_insert(diff->insert, build_vector(h, e, a, v));
-            if (m < 0)
-                vector_insert(diff->remove, build_vector(h, e, a, v));
+            vector eav = 0;
+            if(m != 0)
+                eav = build_vector(h, e, a, v);
+            if (m > 0 && !eav_vector_contains(diff->insert, eav))
+                vector_insert(diff->insert, eav);
+            if (m < 0 && !eav_vector_contains(diff->remove, eav))
+                vector_insert(diff->remove, eav);
         }
     }
 
