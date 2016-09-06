@@ -87,6 +87,7 @@ boolean value_equals(value, value);
 
 u64 value_vector_as_key(void *);
 boolean value_vector_equals(void *, void *);
+boolean eav_vector_contains(vector eavs, vector eav);
 
 values_diff diff_value_vector_tables(heap, table, table);
 boolean order_values(void *, void *);

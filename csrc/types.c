@@ -91,6 +91,13 @@ boolean value_vector_equals(void * a, void * b)
     return true;
 }
 
+boolean eav_vector_contains(vector eavs, vector eav) {
+    vector_foreach(eavs, cur) {
+        if(value_vector_equals(cur, eav)) return true;
+    }
+    return false;
+}
+
 //-------------------------------------------------------
 // Diffing value vector tables
 //-------------------------------------------------------
@@ -146,4 +153,3 @@ boolean order_values(value a, value b)
         return false;
     }
 }
-
