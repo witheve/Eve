@@ -553,6 +553,7 @@ export function renderEditor() {
   let editor = {c: "run-info", children: [
     MarkdownEditor.toolbar(),
     CodeMirrorNode({value: context.code && context.code[0] || "", parse: parseInfo}),
+    MarkdownEditor.comments(),
     {c: "toolbar", children: [
       {c: "stats"},
       {t: "select", c: "show-graphs", change: setKeyMap, children: [

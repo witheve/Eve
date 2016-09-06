@@ -383,10 +383,15 @@ class MarkdownEditor {
     editor.on("paste", function(editor, event) { self.onPaste(event); });
     editor.on("copy", function(editor, event) { self.onCopy(event); });
     editor.on("changes", function(editor, changes) { self.onChanges(changes); });
+    // editor.on("scroll", function(editor) { self.onScroll(); });
 
     this.loadMarkdown(value);
     this.editor.clearHistory();
     this.history = {position: 0, items: []};
+  }
+
+  onScroll() {
+
   }
 
   onBeforeChange(change) {
@@ -723,11 +728,11 @@ function getCodeBlocks(editor) {
 }
 
 function doSwap(editor) {
-  sendSwap(toMarkdown(editor));
+  sendSwap(editor.getMarkdown());
 }
 
 export function doSave() {
-  sendSave(toMarkdown(codeEditor));
+  sendSave(codeEditor.getMarkdown());
 }
 
 export function handleEditorParse(parse) {
@@ -961,17 +966,18 @@ function formatList(editor) {
 }
 
 function formatCodeBlock(editor) {
-  editor = (editor && editor.markdownEditor) || codeEditor.editor;
-  editor.markdownEditor.finalizeLastHistoryEntry();
-  editor.operation(function() {
-    let cursor = editor.getCursor("from");
+  editor = (editor && editor.markdownEditor) || codeEditor;
+  let cm = editor.editor;
+  editor.finalizeLastHistoryEntry();
+  cm.operation(function() {
+    let cursor = cm.getCursor("from");
     let to = {line: cursor.line, ch: 0};
-    let text = editor.getLine(cursor.line);
+    let text = cm.getLine(cursor.line);
     if(text !== "") {
       to.line += 1;
     }
-    editor.markdownEditor.mark({line: cursor.line, ch: 0}, to, {type: "code_block"});
-    editor.markdownEditor.finalizeLastHistoryEntry();
+    editor.mark({line: cursor.line, ch: 0}, to, {type: "code_block"});
+    editor.finalizeLastHistoryEntry();
   });
   editor.focus();
 }
@@ -1045,6 +1051,23 @@ export function toolbar() {
     {c: "run", text: "Run", click: compileAndRun},
   ]};
   return toolbar;
+}
+
+export function comments() {
+  if(!codeEditor) return;
+  let comments = [];
+  let cm = codeEditor.editor;
+  let blocks = getCodeBlocks(codeEditor);
+  let scroll = cm.getScrollInfo();
+  for(let block of blocks) {
+    let loc = block.find();
+    let coords = codeEditor.editor.charCoords(loc.from || loc, "local");
+    comments.push({c: "comment", top: coords.top, width: 260, height: 20, backgroundColor: "red"});
+  }
+  let height = scroll.top + codeEditor.editor.charCoords({line: codeEditor.editor.lineCount() - 1, ch: 0}).bottom;
+  return {c: "comments",  width: 260, children: comments, postRender: function(node) {
+    document.querySelector(".CodeMirror-sizer").appendChild(node);
+  }}
 }
 
 export function compileAndRun() {
