@@ -728,6 +728,7 @@ function getCodeBlocks(editor) {
 }
 
 function doSwap(editor) {
+  editor = editor.markdownEditor || editor;
   sendSwap(editor.getMarkdown());
 }
 
@@ -1062,10 +1063,19 @@ export function comments() {
   for(let block of blocks) {
     let loc = block.find();
     let coords = codeEditor.editor.charCoords(loc.from || loc, "local");
-    comments.push({c: "comment", top: coords.top, width: 260, height: 20, backgroundColor: "red"});
+    let text = `This line says I should search for a tag with the value "session-connect",
+  but since it's not in an object, I don't know what it applies to.
+
+  If you wrap it in square brackets, that tells me you're looking
+  for an object with that tag:
+
+    // search for objects with tag = "session-connect"
+    [#session-connect]`
+    comments.push({c: "comment", top: coords.top, width: 260, height: 20, text});
+
   }
   let height = scroll.top + codeEditor.editor.charCoords({line: codeEditor.editor.lineCount() - 1, ch: 0}).bottom;
-  return {c: "comments",  width: 260, children: comments, postRender: function(node) {
+  return {c: "comments",  width: 290, children: comments, postRender: function(node) {
     document.querySelector(".CodeMirror-sizer").appendChild(node);
   }}
 }
