@@ -437,6 +437,10 @@ evaluation build_evaluation(heap h,
 
     table_set(ev->scopes, sym(bag), bag_bag_id);
 
+    uuid debug_bag_id = generate_uuid();
+    table_set(ev->scopes, sym(debug), debug_bag_id);
+    table_set(ev->t_input, debug_bag_id, init_debug_bag(ev));
+
     // xxx - compiler output reflecton
     vector_foreach(implications, i) {
         // xxx - shouldn't build take the termination?
