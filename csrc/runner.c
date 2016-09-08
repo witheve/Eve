@@ -269,6 +269,12 @@ static boolean fixedpoint(evaluation ev)
             vector_foreach(ev->blocks, b)
                 run_block(ev, b);
 
+            multibag_foreach(ev->t_input, u, input) { // @FIXME: Blowing up on pretend-o bag like file and process.
+                bag input_bag = (bag)input;
+                vector_foreach(input_bag->blocks, b) {
+                    run_block(ev, b);
+                }
+            }
 
             if(iterations > (MAX_F_ITERATIONS - 1)) { // super naive 2-cycle diff capturing
                 vector_insert(f_diffs, diff_sets(ev->working, ev->last_f_solution, ev->f_solution));

@@ -42,5 +42,6 @@ bag init_bag_bag(evaluation ev)
     b->scan = cont(ev->h, bagbag_scan, ev);
     b->commit = cont(ev->h, bagbag_commit, ev);
     b->listeners = allocate_table(ev->h, key_from_pointer, compare_pointer);
+    b->blocks = allocate_vector(ev->h, 1);
     return b;
 }
