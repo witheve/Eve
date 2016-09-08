@@ -64,46 +64,6 @@ static file allocate_file(filebag fb, file parent, uuid u)
     result;\
     })
 
-static boolean filebag_eav_check(filebag fb, file f, struct stat *s, listener out, value e, value a, value v)
-{
-    if ((a == sym(length)) && ((u64)*(double *)v) == s->st_size) return true;
-    if ((a == sym(name)) && (f->name ==v)) return true;
-    if ((a == sym(child)) && table_find(f->children, v)) return true;
-    //    if (a == sym(contents))
-    //    if (a == sym(owner)) {
-    return false;
-}
-
-
-static void filebag_ea_scan(filebag fb, file f, struct stat *s, listener out, value e, value a)
-{
-    if (a == sym(length)) {
-        apply(out, e, a, box_float(s->st_size), 1, 0);
-        return;
-    }
-    if (a == sym(name)) {
-        apply(out, e, a, f->name, 1, 0);
-        return;
-    }
-    if (a == sym(child)) {
-        if (f->children) {
-            table_foreach(f->children, _, c)
-                apply(out, e, a, ((file)c)->u, 1, 0);
-        }
-    }
-    if (a == sym(contents)) {
-        buffer x = read_file(fb->h, path_of_file(f));
-        if (x) apply(out, e, a, intern_buffer(x), 1, 0);
-        return;
-    }
-    // also struct tiespec st_mtimespec
-    if (a == sym(owner)) {
-        struct passwd *p = getpwuid(s->st_uid);
-        if (p)
-            apply(out, e, a, intern_cstring(p->pw_name), 1, 0);
-    }
-}
-
 static void fill_children(filebag fb, file f)
 {
     char *path = path_of_file(f);
@@ -122,6 +82,52 @@ static void fill_children(filebag fb, file f)
             if ((!f->children) || !(child = table_find(f->children, cname)))
                 name_file(fb->h, allocate_file(fb, f, generate_uuid()), cname);
         }
+    }
+    closedir(x);
+}
+
+static boolean filebag_eav_check(filebag fb, file f, struct stat *s, listener out, value e, value a, value v)
+{
+    if ((a == sym(length)) && ((u64)*(double *)v) == s->st_size) return true;
+    if ((a == sym(name)) && (f->name ==v)) return true;
+    if (a == sym(child)) {
+        fill_children(fb, f);
+        if(f->children && table_find(f->children, v)) return true;
+    }
+    //    if (a == sym(contents))
+    //    if (a == sym(owner)) {
+    return false;
+}
+
+static void filebag_ea_scan(filebag fb, file f, struct stat *s, listener out, value e, value a)
+{
+    if (a == sym(length)) {
+        apply(out, e, a, box_float(s->st_size), 1, 0);
+        return;
+    }
+    if (a == sym(name)) {
+        apply(out, e, a, f->name, 1, 0);
+        return;
+    }
+    if (a == sym(child)) {
+
+        if (f->children) {
+            fill_children(fb, f);
+            table_foreach(f->children, _, c) {
+                apply(out, e, a, ((file)c)->u, 1, 0);
+            }
+        }
+    }
+    if (a == sym(contents)) {
+        buffer x = read_file(fb->h, path_of_file(f));
+        if (x) apply(out, e, a, intern_buffer(x), 1, 0);
+        return;
+    }
+    // also struct tiespec st_mtimespec
+    if (a == sym(owner)) {
+        struct passwd *p = getpwuid(s->st_uid);
+        if (p)
+            apply(out, e, a, intern_cstring(p->pw_name), 1, 0);
     }
 }
 
@@ -158,8 +164,9 @@ static void filebag_scan(filebag fb, int sig, listener out, value e, value a, va
             if (sig & a_sig) {
                 if (sig & v_sig) {
                     if (((a == sym(tag)) && (v == sym(root)) && (e == fb->root->u)) ||
-                        filebag_eav_check(fb, f, &st, out, e, a, v))
+                        filebag_eav_check(fb, f, &st, out, e, a, v)) {
                         apply(out, e, a, v, 1, 0);
+                    }
                 } else {
                     if (S_ISDIR(st.st_mode)) fill_children(fb, f);
                     filebag_ea_scan(fb, f, &st, out, e, a);
