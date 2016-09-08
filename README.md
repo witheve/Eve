@@ -75,8 +75,9 @@ Here, `[port]` is an available port on your local machine. It can be `8080` or a
 
 ## How to use Eve
 
-You can learn about Eve with the following resources:
+You can learn about Eve through the following resources:
 
+- [Eve Quickstart Tutorial](https://github.com/witheve/docs/blob/master/drafts/guides/quickstart.md)
 - [Syntax Quick Reference](https://github.com/witheve/assets/blob/master/docs/SyntaxReference.pdf)
 - [Eve Language Handbook (draft)](https://github.com/witheve/docs/blob/master/drafts/handbook/contents.md)
 
