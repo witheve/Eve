@@ -615,7 +615,7 @@ class MarkdownEditor {
         }
       }
       if(last) {
-        // self.mark(last, {line: editor.lineCount() - 1, ch: 0}, {type: "elision"});
+        self.mark(last, {line: editor.lineCount() - 1, ch: 0}, {type: "elision"});
       }
       history.transitioning = false;
     });
@@ -1170,7 +1170,7 @@ export function comments() {
   if(!codeEditor) return;
   let comments = [];
   let cm = codeEditor.editor;
-  let blocks = getCodeBlocks(codeEditor);
+  let blocks = [];// getCodeBlocks(codeEditor);
   let scroll = cm.getScrollInfo();
   for(let block of blocks) {
     let loc = block.find();
