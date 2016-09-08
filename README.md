@@ -78,6 +78,7 @@ Here, `[port]` is an available port on your local machine. It can be `8080` or a
 You can learn about Eve through the following resources:
 
 - [Eve Quick Start Tutorial](https://github.com/witheve/docs/blob/master/drafts/guides/quickstart.md) (20-30 mintues) (draft)
+- [Eve Quick(er) Start Tutorial](https://github.com/witheve/docs/blob/master/drafts/guides/quickerstart.md) (5-10 mintues) (draft)
 - [Syntax Quick Reference](https://github.com/witheve/assets/blob/master/docs/SyntaxReference.pdf) (draft)
 - [Eve Language Handbook](https://github.com/witheve/docs/blob/master/drafts/handbook/contents.md) (draft)
 
