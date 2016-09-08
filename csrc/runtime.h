@@ -170,6 +170,7 @@ void merge_scan(evaluation ev, vector scopes, int sig, listener result, value e,
 void multibag_insert(multibag *mb, heap h, uuid u, value e, value a, value v, multiplicity m, uuid block_id);
 
 
+bag init_debug_bag(evaluation ev);
 bag init_bag_bag(evaluation ev);
 
 typedef struct process_bag *process_bag;
