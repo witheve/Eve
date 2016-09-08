@@ -518,7 +518,7 @@ export function renderEditor() {
   }
   let records = indexes.records.index;
   let root = records[parseGraphs[0]];
-  let context = records[root.context];
+  let context = records[root.context[root.context.length - 1]];
 
   let program;
   let errors;
@@ -551,18 +551,21 @@ export function renderEditor() {
   }
 
   let editor = {c: "run-info", children: [
-    MarkdownEditor.toolbar(),
-    CodeMirrorNode({value: context.code && context.code[0] || "", parse: parseInfo}),
-    MarkdownEditor.comments(),
-    {c: "toolbar", children: [
-      {c: "stats"},
-      {t: "select", c: "show-graphs", change: setKeyMap, children: [
-        {t: "option", value: "default", text: "default"},
-        {t: "option", value: "vim", text: "vim"},
-        {t: "option", value: "emacs", text: "emacs"},
+      MarkdownEditor.outline(),
+    {c: "editor-content", children: [
+      MarkdownEditor.toolbar(),
+      CodeMirrorNode({value: context.code && context.code[0] || "", parse: parseInfo}),
+      MarkdownEditor.comments(),
+      {c: "toolbar", children: [
+        {c: "stats"},
+        {t: "select", c: "show-graphs", change: setKeyMap, children: [
+          {t: "option", value: "default", text: "default"},
+          {t: "option", value: "vim", text: "vim"},
+          {t: "option", value: "emacs", text: "emacs"},
+        ]},
+        {c: "show-graphs", text: "save", click: doSave},
+        {c: "show-graphs", text: "compile and run", click: compileAndRun}
       ]},
-      {c: "show-graphs", text: "save", click: doSave},
-      {c: "show-graphs", text: "compile and run", click: compileAndRun}
     ]},
   ]};
 

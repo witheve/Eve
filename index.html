@@ -46,7 +46,7 @@
       .active, .active * { background: #4D7598 !important; color: rgb(156,192,214);}
       .row {display:flex; flex-direction:row; }
 
-      .run-info { display:flex; flex-direction: column; flex: 0 0 auto; }
+      .run-info { display:flex; flex-direction: row; flex: 0 0 auto; }
 
       .toolbar { display:flex; align-items:center; padding:10px; flex-direction:row; display:flex; border-radius: 0 0 3px 3px; }
       .stats { flex:1; width:180px; }
@@ -96,11 +96,16 @@
       .md-toolbar .bold { font-weight: bold; }
       .md-toolbar .italic { font-style: italic; }
 
+      .editor-content { display:flex; flex:1; flex-direction:column; }
+
+      .outline { margin-right:40px; margin-top:68px; }
+
       .comments { position:absolute; right:0; top:0; width:290px; bottom:0; background:rgb(47,47,49); z-index:1; padding-left:20px;  }
       .comments .comment { position: absolute; }
 
       .CodeMirror { color: #c4c4c4; line-height:20px; font-family: Avenir; width: 900px; }
       .CodeMirror pre { padding: 0 4px; margin-right:300px; }
+      .CodeMirror-scroll { scroll-behavior: smooth; }
       .CodeMirror-linebackground { right:300px; }
       .CodeMirror-selected { background: #444; }
       .CodeMirror-focused .CodeMirror-selected { background: #444; }

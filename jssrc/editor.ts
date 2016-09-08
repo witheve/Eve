@@ -1,7 +1,7 @@
 import * as commonmark from "commonmark";
 import {CodeMirror} from "CodeMirror";
 import {sendSwap, sendSave, sendParse} from "./client";
-import {setActiveIds, renderer, renderEditor} from "./renderer";
+import {setActiveIds, renderer, renderEve} from "./renderer";
 
 let lineMarks = {"item": true, "heading": true, "heading1": true, "heading2": true, "heading3": true, "heading4": true};
 
@@ -59,6 +59,7 @@ class Span {
   find() {
     if(this.textMarker) {
       let loc = this.textMarker.find();
+      if(!loc) return;
       if(loc.from) return loc;
       return {from: loc, to: loc};
     }
@@ -72,6 +73,7 @@ class Span {
       this.from = loc.from;
       this.to = loc.to;
       this.editor.addToHistory({type: "span", added: [], removed: [this], origin});
+      this.editor.queueUpdate();
       this.textMarker.clear();
       this.textMarker.span = null;
       this.textMarker = null;
@@ -171,11 +173,13 @@ function formattingChange(span, change, action) {
 }
 
 class HeadingSpan extends Span {
+  active: boolean;
 
   constructor(editor: any, from: Pos, to: Pos, source: any) {
     super(editor, from, to, source);
     this.lineTextClass = "HEADING" + this.source.level;
     this.lineBackgroundClass = "HEADING" + this.source.level;
+    this.active = false;
   }
 
   getMarkAttributes() {
@@ -188,7 +192,7 @@ class HeadingSpan extends Span {
       let marks = getMarksByType(this.editor.editor, "heading", to);
       for(let mark of marks) {
         if(from.ch == 0) {
-          this.editor.mark(from, from, mark.source);
+          this.editor.mark(from, from, mark.span.source);
         }
         // clear the old bookmark
         mark.clear();
@@ -331,6 +335,17 @@ class ImageSpan extends Span {
 class LinkSpan extends Span {
 }
 
+class ElisionSpan extends Span {
+  element: HTMLElement;
+  getMarkAttributes() {
+    if(!this.element) {
+      this.element = document.createElement("div");
+      this.element.textContent = "...";
+    }
+    return {className: this.source.type.toUpperCase(), replacedWith: this.element}
+  }
+}
+
 let MarkdownFormats = ["strong", "emph", "code"];
 let TypeToSpanType = {
   "heading": HeadingSpan,
@@ -341,6 +356,7 @@ let TypeToSpanType = {
   "code": CodeSpan,
   "image": ImageSpan,
   "link": LinkSpan,
+  "elision": ElisionSpan,
 }
 
 class MarkdownEditor {
@@ -349,6 +365,8 @@ class MarkdownEditor {
   formatting: any;
   history: any;
   changing: boolean;
+  queued: boolean;
+  eliding: boolean;
   affectedMarks: any[];
 
   constructor(value: string) {
@@ -369,6 +387,8 @@ class MarkdownEditor {
     editor.markdownEditor = this;
     this.editor = editor;
     this.formatting = {};
+    this.queued = false;
+    this.eliding = false;
     this.affectedMarks = [];
     this.history = {position: 0, items: []}
     CodeMirror.commands.undo = function(cm) {
@@ -456,7 +476,7 @@ class MarkdownEditor {
     this.history.transitioning = false;
     // remove any formatting that may have been applied
     this.formatting = {};
-    sendParse(toMarkdown(this.editor));
+    this.queueUpdate();
   }
 
   onCursorActivity() {
@@ -564,11 +584,53 @@ class MarkdownEditor {
     let spanClass = TypeToSpanType[source.type] || Span;
     let span = new spanClass(this, from, to, source)
     this._markSpan(span);
+    this.queueUpdate();
     return span;
   }
 
   marksByType(type, from, to) {
 
+  }
+
+  visibleHeading(span: HeadingSpan) {
+    span.active = true;
+    let headings = getMarksByType(this.editor, "heading");
+    let self = this;
+    let {history, editor} = this;
+    let last = {line: 0, ch: 0};
+    editor.operation(function() {
+      history.transitioning = true;
+      let elisions = getMarksByType(editor, "elision");
+      for(let elision of elisions) {
+        elision.span.clear();
+      }
+      for(let heading of headings) {
+        let loc = heading.span.find();
+        if(!last && !heading.span.active) {
+          last = loc.from;
+        }
+        if(last && heading.span.active) {
+          self.mark(last, loc.from, {type: "elision"});
+          last = null;
+        }
+      }
+      if(last) {
+        // self.mark(last, {line: editor.lineCount() - 1, ch: 0}, {type: "elision"});
+      }
+      history.transitioning = false;
+    });
+  }
+
+  clearElisions() {
+    let {history, editor} = this;
+    let elisions = getMarksByType(this.editor, "elision");
+    editor.operation(function() {
+      history.transitioning = true;
+      for(let elision of elisions) {
+        elision.span.clear();
+      }
+      history.transitioning = false;
+    });
   }
 
   dom() {
@@ -581,6 +643,22 @@ class MarkdownEditor {
 
   focus() {
     this.editor.focus();
+  }
+
+  queueUpdate() {
+    let self = this;
+    if(!this.queued) {
+      this.queued = true;
+      setTimeout(function() {
+        renderEve();
+        self.sendParse();
+        self.queued = false;
+      }, 1);
+    }
+  }
+
+  sendParse() {
+    sendParse(toMarkdown(this.editor));
   }
 
   loadMarkdown(markdownText) {
@@ -983,7 +1061,7 @@ function formatCodeBlock(editor) {
   editor.focus();
 }
 
-function getMarksByType(editor, type, start, stop?, inclusive?) {
+function getMarksByType(editor, type, start?, stop?, inclusive?) {
   let marks;
   if(start && stop && !samePos(start, stop)) {
     if(inclusive) {
@@ -1054,6 +1132,40 @@ export function toolbar() {
   return toolbar;
 }
 
+function gotoOutlineItem(event, elem) {
+  let span = elem.span as HeadingSpan;
+  let loc = span.find();
+  if(loc) {
+    if(event.shiftKey) {
+      span.active = true;
+      codeEditor.visibleHeading(span);
+    } else {
+      let coords = codeEditor.editor.charCoords(loc.from, "local");
+      codeEditor.editor.scrollTo(null, coords.top - 50);
+      codeEditor.focus();
+      codeEditor.clearElisions();
+      let headings = getMarksByType(codeEditor.editor, "heading");
+      for(let heading of headings) {
+        heading.span.active = false;
+      }
+    }
+  }
+  renderEve();
+}
+
+export function outline() {
+  if(!codeEditor) return;
+  let contents = [];
+  let cm = codeEditor.editor;
+  let headings = getMarksByType(cm, "heading");
+  for(let heading of headings) {
+    let loc = heading.span.find();
+    let text = cm.getRange(loc.from, {line: loc.from.line + 1, ch: 0});
+    contents.push({c: `heading heading-level-${heading.span.source.level}`, text, span: heading.span, click: gotoOutlineItem});
+  }
+  return {c: "outline", children: contents};
+}
+
 export function comments() {
   if(!codeEditor) return;
   let comments = [];
@@ -1067,10 +1179,7 @@ export function comments() {
   but since it's not in an object, I don't know what it applies to.
 
   If you wrap it in square brackets, that tells me you're looking
-  for an object with that tag:
-
-    // search for objects with tag = "session-connect"
-    [#session-connect]`
+  for an object with that tag.`
     comments.push({c: "comment", top: coords.top, width: 260, height: 20, text});
 
   }
