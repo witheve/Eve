@@ -210,6 +210,8 @@ const int MAX_F_ITERATIONS = 250;
 const int MAX_T_ITERATIONS = 50;
 
 static void fixedpoint_error(evaluation ev, vector diffs, char * message) {
+    prf("ERROR: %s\n", message);
+
     uuid error_data_id = generate_uuid();
     bag edata = (bag)create_edb(ev->working, 0);
     uuid error_diffs_id = generate_uuid();
