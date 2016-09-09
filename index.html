@@ -15,37 +15,6 @@
       .parse-info > div { overflow: hidden; }
       .parse-info + .parse-info { margin-top:50px; }
 
-      .node-text { padding: 3px 6px; background: rgb(44,72,97); flex:none; white-space:nowrap; }
-      .node-type { color: rgb(73, 158, 211); }
-
-      .node { display: flex; flex-direction:column; flex: 0 0 auto; margin:1px 0; }
-      .node-children { display: flex; flex-direction:column; align-items:stretch;  }
-      .fork-node-children { flex-direction:row; justify-content: center; }
-      .sub-node-children { margin-left: 0px; }
-
-      .parse-info > .graphs { font-size:10pt; background: rgba(0,0,0,0.4); display:flex; flex-direction:row; overflow:auto; margin-left:5px; padding:20px; border-radius:3px; }
-      .graphs > * + * { margin-left:40px; }
-
-      .ordered-node.ordered-query { background:none; padding: 0; }
-
-      .ordered-node { padding:5px; background: rgba(0,0,0,0.3); background: rgb(44,72,97); margin-bottom:1px; }
-      .ordered-node.subproject { background:none; padding:5px 0; }
-      .ordered-node.subproject > .row { padding:5px; margin-bottom: 1px; background: rgb(44,72,97); }
-
-      .ordered-object { display:flex; flex-direction: column; }
-      .ordered-object .eav { display:flex; flex-direction:row; }
-      .ordered-object .eav > * { margin-left: 10px; }
-
-      .subproject-children { display:flex; flex-direction:column; margin-left:20px; }
-
-      .subproject-projection, .expression-bindings { display: flex; flex-direction: row; }
-      .subproject-projection > *, .expression-bindings > * { margin-left: 5px }
-
-      .value + .value { margin-left: 5px; padding-left: 5px; border-left: 1px solid #202930; }
-
-      .active, .active * { background: #4D7598 !important; color: rgb(156,192,214);}
-      .row {display:flex; flex-direction:row; }
-
       .run-info { display:flex; flex-direction: row; flex: 0 0 auto; }
 
       .toolbar { display:flex; align-items:center; padding:10px; flex-direction:row; display:flex; border-radius: 0 0 3px 3px; }
@@ -77,6 +46,7 @@
       .node-overlay .registers-overlay label { padding-right: 4px; color: #A0A0A0; align-self: center; }
       .node-overlay .registers-overlay .register-pair { padding: 0 4px; border-left: 1px solid #202930 }
 
+
       .pixel { margin:10px; padding:10px; background: rgba(255,255,255,0.05); align-self: flex-start; flex:none; }
       .pixel .name { font-size:14pt; margin-bottom:8px; }
       .pixel ul { margin:0; list-style:none; padding:0; font-size:10pt; }
@@ -98,10 +68,22 @@
 
       .editor-content { display:flex; flex:1; flex-direction:column; }
 
-      .outline { margin-right:40px; margin-top:68px; }
+      .outline { margin-right:40px; margin-top:20px; -webkit-user-select: none; max-width:200px; }
+      .outline.eliding .heading { color: #777; }
+      .outline .elide { margin-bottom:20px; }
+      .outline .heading { cursor: pointer; }
+      .outline .heading:hover, .outline.eliding .active { color: #63b6e7; }
+      .heading-level-1 { font-size: 24px; padding-bottom: 9px; border-bottom: 1px solid #666; }
+      .heading-level-2 { font-weight: 500; margin-top:20px; }
+      .heading-level-3 { margin-left: 20px; color: #aaa; margin-top: 6px; font-size: 11pt; line-height:20px; }
+      .heading-level-1 + .heading-level-2 { margin-top: 20px; }
+      .heading-level-2 + .heading-level-2 { margin-top: 20px; }
 
       .comments { position:absolute; right:0; top:0; width:290px; bottom:0; background:rgb(47,47,49); z-index:1; padding-left:20px;  }
       .comments .comment { position: absolute; }
+
+      .elision { background:red; }
+      .elision-marker { height:10px; display:inline-block;  }
 
       .CodeMirror { color: #c4c4c4; line-height:20px; font-family: Avenir; width: 900px; }
       .CodeMirror pre { padding: 0 4px; margin-right:300px; }

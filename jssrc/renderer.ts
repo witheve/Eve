@@ -539,23 +539,13 @@ export function renderEditor() {
     });
     errors = {c: "errors", children: items};
   }
-  let outline = [];
-  if(root.ast) {
-    // @TODO: Update to use EAVs
-    // for(let childId of root.ast.children) {
-    //   let child = activeParse[childId];
-    //   for(let line of child.doc.split("\n")) {
-    //     outline.push({text: line});
-    //   }
-    // }
-  }
 
   let editor = {c: "run-info", children: [
-      MarkdownEditor.outline(),
+    MarkdownEditor.outline ? MarkdownEditor.outline.render() : undefined,
     {c: "editor-content", children: [
       MarkdownEditor.toolbar(),
       CodeMirrorNode({value: context.code && context.code[0] || "", parse: parseInfo}),
-      MarkdownEditor.comments(),
+      MarkdownEditor.comments ? MarkdownEditor.comments.render() : undefined,
       {c: "toolbar", children: [
         {c: "stats"},
         {t: "select", c: "show-graphs", change: setKeyMap, children: [
