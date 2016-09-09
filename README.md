@@ -71,7 +71,13 @@ docker run -p [port]:8080 witheve/eve [eve_file]
 
 `[port]` is an available port on your local machine. It can be `8080` or any other port you would like. Then direct your browser to `http://localhost:[port]` to access the editor.
 
-`[eve_file]` is a path to a `*.eve` file you would like to build. The working directory of the container is `eve/build`, so to run a program in the `eve/examples` directory, you need to provide a relative path e.g. `docker -p 8080:8080 witheve/eve ../examples/clock.eve`. To pass Eve files on your local machine into the container, you'll need to mount a [docker volume](https://docs.docker.com/engine/tutorials/dockervolumes/). 
+`[eve_file]` is a path to a `*.eve` file you would like to build. The working directory of the container is `eve/build`, so to run a program in the `eve/examples` directory, you need to provide a relative path e.g. 
+
+```
+docker -p 8080:8080 witheve/eve ../examples/clock.eve
+```
+
+To pass Eve files on your local machine into the container, you'll need to mount a [docker volume](https://docs.docker.com/engine/tutorials/dockervolumes/). 
 
 ## How to use Eve
 
