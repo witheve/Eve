@@ -248,7 +248,12 @@ string edb_dump(heap h, edb b)
     return out;
 }
 
-edb bag_as_edb(bag b)
+edb __as_edb(void * b)
 {
     return (edb) b;
+}
+
+bag __as_bag(void * b)
+{
+    return (bag) b;
 }
