@@ -55,12 +55,18 @@ void process_bag_commit(process_bag pb, edb s)
 
     edb_foreach_ev(s, e, sym(scope), descriptor, m) {
         if ((p = table_find(pb->processes, e))){
-            edb_foreach_av(s, lookupv(s, descriptor, sym(bags)), name, bag, m)
+            edb_foreach_av(s, lookupv(s, descriptor, sym(bags)), name, bag, m) {
                 table_set(p->scopes, name, bag);
+                if(!table_find(p->persisted, bag)) {
+                    // @NOTE: is this the right heap given that it can be used by subprocesses?
+                    table_set(p->persisted, bag, create_edb(p->h, 0));
+                }
+            }
             edb_foreach_v(s, descriptor, sym(read), bag, m)
                 vector_insert(p->read, bag);
             edb_foreach_v(s, descriptor, sym(write), bag, m)
                 vector_insert(p->write, bag);
+
         } else {
             prf("No process found for %v scope\n", e);
         }
@@ -107,6 +113,7 @@ process_bag process_bag_init(multibag persisted)
     pb->b.listeners = allocate_table(h, key_from_pointer, compare_pointer);
     pb->b.commit = cont(h, process_bag_commit, pb);
     pb->b.blocks = allocate_vector(h, 1);
+    pb->b.block_listeners = allocate_table(h, key_from_pointer, compare_pointer);
     pb->processes = create_value_table(h);
     pb->persisted = persisted;
     return pb;

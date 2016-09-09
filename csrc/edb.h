@@ -13,6 +13,7 @@ struct bag {
     committer commit;
     table listeners; // who is this again?
     vector blocks;
+    table block_listeners;
 };
 
 struct edb {

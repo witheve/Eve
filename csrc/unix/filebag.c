@@ -247,5 +247,6 @@ bag filebag_init(buffer root_pathname)
     fb->b.listeners = allocate_table(h, key_from_pointer, compare_pointer);
     fb->b.commit = cont(h, filebag_commit, fb);
     fb->b.blocks = allocate_vector(h, 1);
+    fb->b.block_listeners = allocate_table(h, key_from_pointer, compare_pointer);
     return (bag)fb;
 }

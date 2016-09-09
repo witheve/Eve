@@ -24,5 +24,6 @@ bag init_debug_bag(evaluation ev)
     b->commit = cont(ev->h, debug_bag_commit, ev);
     b->listeners = allocate_table(ev->h, key_from_pointer, compare_pointer);
     b->blocks = allocate_vector(ev->h, 1);
+    b->block_listeners = allocate_table(ev->h, key_from_pointer, compare_pointer);
     return b;
 }

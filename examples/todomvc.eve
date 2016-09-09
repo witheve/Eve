@@ -143,30 +143,3 @@ We can extract this value using `#url`, which has a hash-segment attribute that 
   bind
     [@app filter: value]
 ```
-
-
-### Temporary event bootstrapping
-@FIXME: Migrate these into the bootstrap.
-
-Persist the #url event changes
-
-```
-  bind [#url]
-```
-
-```
-  match
-    url-change = [#url-change hash-segment: [value index]]
-    url = [#url]
-  commit
-    url.hash-segment := [value index]
-```
-
-Persist the #input #change event values
-
-```
-  match
-    [#change element value]
-  commit @browser
-    element.value := value
-```

@@ -94,6 +94,7 @@ struct block {
 
 typedef closure(error_handler, char *, bag, uuid);
 typedef closure(bag_handler, bag);
+typedef closure(bag_block_handler, bag, vector, vector); // source, inserts, removes
 
 struct evaluation  {
     heap h;
@@ -126,6 +127,8 @@ struct evaluation  {
     vector default_scan_scopes;
     vector default_insert_scopes; // really 'session'
     bag bag_bag;
+
+    bag_block_handler inject_blocks;
 };
 
 

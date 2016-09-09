@@ -271,13 +271,6 @@ static boolean fixedpoint(evaluation ev)
             vector_foreach(ev->blocks, b)
                 run_block(ev, b);
 
-            multibag_foreach(ev->t_input, u, input) { // @FIXME: Blowing up on pretend-o bag like file and process.
-                bag input_bag = (bag)input;
-                vector_foreach(input_bag->blocks, b) {
-                    run_block(ev, b);
-                }
-            }
-
             if(iterations > (MAX_F_ITERATIONS - 1)) { // super naive 2-cycle diff capturing
                 vector_insert(f_diffs, diff_sets(ev->working, ev->last_f_solution, ev->f_solution));
             }
@@ -409,6 +402,20 @@ void close_evaluation(evaluation ev)
     destroy(ev->h);
 }
 
+CONTINUATION_1_3(inject_blocks, evaluation, bag, vector, vector);
+void inject_blocks(evaluation ev, bag source, vector inserts, vector removes)
+{
+    if(removes) {
+        prf("ERROR: I don't know how to remove blocks from an evaluation yet.");
+    }
+    if(inserts) {
+        vector_foreach(inserts, b) {
+            vector_insert(ev->blocks, build(ev, b));
+        }
+    }
+
+    apply(ev->run);
+}
 
 evaluation build_evaluation(heap h,
                             estring name,
@@ -431,11 +438,13 @@ evaluation build_evaluation(heap h,
     ev->complete = r;
     ev->terminal = cont(ev->h, evaluation_complete, ev);
     ev->run = cont(h, run_solver, ev);
+    ev->inject_blocks = cont(h, inject_blocks, ev);
     ev->default_scan_scopes = allocate_vector(h, 5);
     ev->default_insert_scopes = allocate_vector(h, 5);
     table_foreach(ev->t_input, uuid, z) {
         bag b = z;
         table_set(b->listeners, ev->run, (void *)1);
+        table_set(b->block_listeners, ev->inject_blocks, (void *)1);
     }
 
     ev->bag_bag = init_bag_bag(ev);
@@ -453,6 +462,15 @@ evaluation build_evaluation(heap h,
     vector_foreach(implications, i) {
         // xxx - shouldn't build take the termination?
         vector_insert(ev->blocks, build(ev, i));
+    }
+
+    table_foreach(ev->scopes, name, id) {
+        bag input_bag = table_find(ev->t_input, id);
+        if(!input_bag) continue;
+
+        vector_foreach(input_bag->blocks, b) {
+            vector_insert(ev->blocks, build(ev, b));
+        }
     }
 
     return ev;

@@ -1,10 +1,31 @@
+Pre-fetch the code for hard-coded watchers
+```
+  commit
+    [#watcher @browser]
+    //[#watcher @editor]
+```
+
+```
+  match
+    watcher = [#watcher name]
+    not(watcher.code)
+  match
+    [#root child: [@evesrc child: [name: "{{name}}.eve" contents: code]]]
+  commit
+    watcher.code := code
+  commit @debug
+    watcher.name := name
+    watcher.code := code
+```
+
+
 start path resolution
 ```
   match
      connection = [#http-request]
      split[text:r.request.url token index, by:"/"]
      fr = [#root]
-     websocket = if r.request.headers.Sec-WebSocket-Protocol = "eve-json" then true else false     
+     websocket = if r.request.headers.Sec-WebSocket-Protocol = "eve-json" then true else false
   bind
      [#path index:1 file:fr]
      [#path index token]
@@ -61,7 +82,7 @@ complete! send content response
        reason:"OK"
        header:[Content-Type:ct.type]]
     r := none
-    c := none         
+    c := none
 ```
 
 
@@ -69,7 +90,7 @@ send eve bootstrap
 ```
   match
      r = [#request-object connection websocket:false]
-     c = [#complete-object token extension:"eve" file]     
+     c = [#complete-object token extension:"eve" file]
      [#root child:[name:"index.html" contents]]
   commit
      connection.response := [
@@ -78,19 +99,22 @@ send eve bootstrap
        reason:"OK"
        header:[Content-Type:"text/html"]]
      r := none
-     c := none     
+     c := none
 ```
-
 
 start eve program
 ```
   match
-     r = [#request-object connection  websocket:true]
-     c = [#complete-object token extension:"eve" file]
+    r = [#request-object connection  websocket:true]
+    c = [#complete-object token extension:"eve" file]
+
+    [#watcher @browser code: browser-code]
+
   // there may be a terser version here
   commit @bag
-        browser = [#bag]
+        browser = [#bag code: browser-code]
         session = [#bag]
+
   commit @process
      child = [#process source:file.contents name:token
               scope:[write:session
@@ -100,6 +124,8 @@ start eve program
      connection.upgrade := child
      r := none
      c := none
+  commit @debug
+    [#kthxbai]
 ```
 
 

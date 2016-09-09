@@ -213,6 +213,7 @@ edb create_edb(heap h, vector includes)
     b->b.listeners = allocate_table(h, key_from_pointer, compare_pointer);
     b->b.commit = cont(h, edb_commit, b);
     b->b.blocks = allocate_vector(h, 1);
+    b->b.block_listeners = allocate_table(h, key_from_pointer, compare_pointer);
     b->h = h;
     b->count = 0;
     b->eav = create_value_table(h);
