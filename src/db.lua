@@ -107,6 +107,7 @@ local schemas = {
   moveOut = schema{"b", IN, "a"}
 }
 
+-- @TODO: Rewrite schemas to have tags (e.g. aggregate) directly on the object, with the list of signatures under that)
 local expressions = {
   ["+"] = {rename("plus", schemas.binary)},
   ["-"] = {rename("minus", schemas.binary)},
