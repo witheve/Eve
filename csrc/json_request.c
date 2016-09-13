@@ -155,7 +155,8 @@ static CONTINUATION_1_2(json_input, json_session, bag, uuid);
 static void json_input(json_session s, bag json_bag, uuid root_id)
 {
     if(!json_bag) {
-        // should we kill the evaluation? most likely
+        close_evaluation(s->ev);
+        destroy(s->h);
         return;
     }
 
