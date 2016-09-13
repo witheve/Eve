@@ -63,12 +63,22 @@ Now we look at how the todos are actually displayed in the application. We attac
       if filter = "completed" then ([#todo, body, completed: true, editing], body, true, editing)
       else if filter = "active" then ([#todo, body, completed: false, editing], body, false, editing)
       else if filter = "all" then ([#todo, body, completed, editing], body, completed, editing)
+
   bind @browser
     parent.children += [#li, class: [todo: true, completed, editing], todo, children:
                        [#input #todo-checkbox, todo, class: [toggle: true, hidden: editing], type: "checkbox", checked: completed]
                        [#label #todo-item, class: [hidden: editing], todo, text: body]
-                       [#input #todo-editor, class: [edit: true, hidden: toggle[value: editing]], todo, value: body, autofocus: true]
+                       [#input #todo-editor, class: [edit: true, hidden: toggle[value: editing]], todo, autofocus: true]
                        [#button #remove-todo, class: [destroy: true, hidden: editing], todo]
+```
+
+Initialize the todo editor values to their todo's body.
+
+```
+  match
+    todo-editor = [#todo-editor todo not(value)]
+  commit @browser
+    todo-editor.value := todo.body
 ```
 
 Thanks to Eve's set semantics, we don't need any loops here; for every unique `#todo` in the database, Eve will do the work of adding another `#li` as a child of `@todo-list`.
