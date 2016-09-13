@@ -504,6 +504,7 @@ export function renderEve() {
     editor,
     errors,
     program,
+    MarkdownEditor.viewBar.render(),
   ]};
   renderer.render([{c: "graph-root", children: [rootUi]}]);
 }

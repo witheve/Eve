@@ -1308,3 +1308,45 @@ export function applyFix(event, elem) {
   }
   doSwap(codeEditor);
 }
+
+//-----------------------------------------------------------------
+// views
+//-----------------------------------------------------------------
+
+class ViewBar {
+  dragging: boolean;
+  constructor() {
+    this.dragging = false;
+  }
+
+  down(event, elem) {
+    let self = elem.viewBar;
+    self.dragging = true;
+  }
+
+  render() {
+    let ghost;
+    if(this.dragging) {
+      ghost = {c: "view ghost"};
+    }
+    return {c: "view-bar", children: [
+      {c: "view", mousedown: this.down, viewBar: this},
+      ghost
+    ]}
+  }
+}
+
+window.addEventListener("mouseup", function(event) {
+  if(viewBar.dragging) {
+    viewBar.dragging = false;
+    console.log("done dragging!");
+  }
+});
+
+window.addEventListener("mousemove", function(event) {
+  if(viewBar.dragging) {
+    console.log(event);
+  }
+});
+
+export var viewBar = new ViewBar();
