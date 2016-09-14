@@ -30,7 +30,7 @@ start path resolution
   bind
      [#path index:1 file:fr]
      [#path index token]
-commit
+  commit
      [#request-object connection websocket]
 ```
 
@@ -40,8 +40,9 @@ match
     [#path index:pindex file:pfile]
 match @file    
     f = pfile.child
+    token = f.name
 match    
-    child = [#path index:(pindex + 1) token:f.name]
+    child = [#path index:(pindex + 1) token]
 bind
     child.file := f
 ```
@@ -78,9 +79,11 @@ complete! send content response
      r = [#request-object connection websocket:false]
      c = [#complete-object extension file]
      ct = [#content-type suffix:extension]
+  match @file
+     conts = file.contents
   commit
     connection.response := [
-       content: file.contents
+       content: conts
        status:"200"
        reason:"OK"
        header:[Content-Type:ct.type]]
@@ -94,6 +97,7 @@ send eve bootstrap
   match
      r = [#request-object connection websocket:false]
      c = [#complete-object token extension:"eve" file]
+  match @file
      [#root child:[name:"index.html" contents]]
   commit
      connection.response := [
@@ -113,13 +117,16 @@ start eve program
 
     [#watcher @browser code: browser-code]
 
+  match @file
+    source = file.contents
+    
   // there may be a terser version here
   commit @bag
         browser = [#bag code: browser-code]
         session = [#bag]
 
   commit @process
-     child = [#process source:file.contents name:token
+     child = [#process source name:token
               scope:[write:session
               read:(browser, session)
               bags:[browser, session]]]
