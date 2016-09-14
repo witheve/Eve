@@ -105,11 +105,12 @@ static void shadow_p_by_t_and_f(evaluation ev, listener result,
 
 void merge_scan(evaluation ev, vector scopes, int sig, listener result, value e, value a, value v)
 {
-    /* xxx - since we went to all the trouble - we should only be looking at bags in scopes */
-    multibag_foreach(ev->t_input, u, b)
-        apply(((bag)b)->scan, sig,
+    vector_foreach(scopes, u) {
+        bag b = table_find(ev->t_input, u);
+        apply(b->scan, sig,
               cont(ev->working, shadow_p_by_t_and_f, ev, result),
               e, a, v);
+    }
 
     multibag_foreach(ev->t_solution, u, b)
         apply(((bag)b)->scan, sig,
