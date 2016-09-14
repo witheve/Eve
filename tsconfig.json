@@ -1,12 +1,13 @@
 {
   "compilerOptions": {
-    "module": "system",
+    "module": "commonjs",
     "moduleResolution": "node",
     "outDir": "build",
     "target": "es5",
-    "sourceMap": false,
+    "sourceMap": true,
     "skipDefaultLibCheck": true,
 
+    "strictNullChecks": true,
     "forceConsistentCasingInFileNames": true
   },
   "include": [ "jssrc/**/*.ts" ]
