@@ -1,16 +1,16 @@
 //---------------------------------------------------------
 // Utilities
 //---------------------------------------------------------
-export function clone(obj) {
+export function clone<T>(obj:T):T {
   if(typeof obj !== "object") return obj;
   if(obj.constructor === Array) {
-    let neue = [];
-    for(let ix = 0; ix < obj.length; ix++) {
+    let neue:T = [] as any;
+    for(let ix = 0; ix < (obj as any).length; ix++) {
       neue[ix] = clone(obj[ix]);
     }
     return neue;
   } else {
-    let neue = {};
+    let neue:T = {} as any;
     for(let key in obj) {
       neue[key] = clone(obj[key]);
     }
