@@ -112,7 +112,8 @@ function cmLength (cm) {
   return cm.indexFromPos({line: lastLine, ch: cm.getLine(lastLine).length});
 }
 
-function normalizeChange(editor, change) {
+interface Change {type: string, start: number, removed: any, added: any}
+function normalizeChange(editor, change):Change {
   // if there's a text property, we're dealing with a codemirror change
   // object
   if(change.text) {
@@ -125,11 +126,11 @@ function normalizeChange(editor, change) {
   } else {
     // otherwise we're dealing with a span change which is already normalized
     // for us
-    return change;
+    return change as Change;
   }
 }
 
-function inverseNormalizedChange(change) {
+function inverseNormalizedChange(change:Change):Change {
   let {type, start, removed, added} = change;
   return {type, start, added: removed, removed: added};
 }
@@ -137,12 +138,12 @@ function inverseNormalizedChange(change) {
 function changeToOps(editor, change) {
   let {start, added, removed} = normalizeChange(editor, change);
   let remaining = cmLength(editor) - start - added.length;
-  let ops = [];
+  let ops:any[] = [];
   ops.push(start);
   ops.push(added);
   ops.push(removed.length * -1);
   ops.push(remaining)
-  let invert = [];
+  let invert:any[] = [];
   invert.push(start);
   invert.push(removed);
   invert.push(added.length * -1);
@@ -560,7 +561,7 @@ class MarkdownEditor {
           editor.replaceRange(inverted.added, editor.posFromIndex(inverted.start), editor.posFromIndex(inverted.start + inverted.removed.length), "+mdundo");
         } else if(inverted.type === "span") {
           for(let removed of inverted.removed) {
-            removed.clear("+mdundo");
+            removed.clear("+mdundo"); // Is this correct? It seems like this is a string elsewhere?
           }
           for(let added of inverted.added) {
             self._markSpan(added, "+mdundo");
@@ -644,7 +645,7 @@ class MarkdownEditor {
     if(to === undefined) {
       to = from;
     }
-    let results = [];
+    let results:MDMark[] = [];
     for(let mark of index) {
       let loc = mark.find();
       if((comparePos(loc.from, from) <= 0 && comparePos(loc.to, from) >= 0) ||
@@ -659,7 +660,7 @@ class MarkdownEditor {
     let headings = this.marksByType("heading");
     let self = this;
     let {history, editor} = this;
-    let last = {line: 0, ch: 0};
+    let last:{line:number, ch:number}|null = {line: 0, ch: 0};
     editor.operation(function() {
       history.transitioning = true;
       let elisions = self.marksByType("elision");
@@ -744,15 +745,15 @@ class MarkdownEditor {
 
 }
 
-function parseMarkdown(markdown) {
+function parseMarkdown(markdown):{text: string, spans: any[]} {
   let parsed = parser.parse(markdown);
   let walker = parsed.walker();
   var cur;
-  var text = [];
+  var text:string[] = [];
   var pos = 0;
   var lastLine = 1;
-  var spans = [];
-  var context = [];
+  var spans:any[] = [];
+  var context:any[] = [];
   while(cur = walker.next()) {
     let node = cur.node;
     if(cur.entering) {
@@ -796,9 +797,9 @@ function parseMarkdown(markdown) {
 
 function toMarkdown(editor) {
   let marks = editor.getAllMarks();
-  let markers = [];
+  let markers:any[] = [];
   let fullText = editor.getValue();
-  let pieces = [];
+  let pieces:string[] = [];
   let pos = 0;
   for(let m of marks) {
     let mark = m.span;
@@ -1029,7 +1030,7 @@ function doLineFormat(editor, source) {
     let loc = {from: cm.getCursor("from"), to: cm.getCursor("to")};
     let start = loc.from.line;
     let end = loc.to.line;
-    let existing = [];
+    let existing:any[] = [];
     let changed = false;
     for(let line = start; line <= end; line++) {
       let from = {line, ch: 0};
@@ -1114,7 +1115,8 @@ function formatCodeBlock(editor) {
   editor.focus();
 }
 
-function getMarksByType(editor, type, start?, stop?, inclusive?) {
+type MDMark = any;
+function getMarksByType(editor, type, start?, stop?, inclusive?):MDMark[] {
   let marks;
   if(start && stop && !samePos(start, stop)) {
     if(inclusive) {
@@ -1127,7 +1129,7 @@ function getMarksByType(editor, type, start?, stop?, inclusive?) {
   } else {
     marks = editor.getAllMarks();
   }
-  let valid = [];
+  let valid:MDMark[] = [];
   for(let mark of marks) {
     if(mark.span && mark.span.source.type === type) {
       valid.push(mark);
@@ -1232,7 +1234,7 @@ class Outline {
   }
 
   render() {
-    let contents = [];
+    let contents:any[] = [];
     let cm = this.editor.editor;
     let headings = this.editor.marksByType("heading");
     headings.sort(function(a, b) {
@@ -1260,7 +1262,7 @@ class Comments {
 
   render() {
     let {editor} = this;
-    let comments = [];
+    let comments:any[] = [];
     let cm = editor.editor;
     let blocks = editor.marksByType("code_block");
     // let blocks = [];
