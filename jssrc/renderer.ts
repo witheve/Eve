@@ -4,10 +4,10 @@ import {Renderer} from "microReact";
 import {clone} from "./util";
 import {CodeMirrorNode, applyFix, setKeyMap, doSave, compileAndRun} from "./editor";
 import * as MarkdownEditor from "./editor";
-import {sendEvent, sendEventObjs, indexes, parseInfo} from "./client";
+import {sendEvent, indexes, parseInfo} from "./client";
 
 //type RecordElementCollection = HTMLCollection | SVGColl
-interface RecordElement extends Element { entity?: string, sort?: any, _parent?: RecordElement, style?: CSSStyleDeclaration };
+interface RecordElement extends Element { entity?: string, sort?: any, _parent?: RecordElement|null, style?: CSSStyleDeclaration };
 interface RDocument extends Document { activeElement: RecordElement };
 declare var document: RDocument;
 
@@ -39,7 +39,7 @@ export var sentInputValues = {};
 export var activeIds = {};
 
 // root will get added to the dom by the program microReact element in renderEditor
-export var activeElements:{[id : string]: RecordElement, root: RecordElement} = {"root": document.createElement("div")};
+export var activeElements:{[id : string]: RecordElement|null, root: RecordElement} = {"root": document.createElement("div")};
 activeElements.root.className = "program";
 
 var supportedTags = {
@@ -54,7 +54,7 @@ var supportedTags = {
 var svgs = {"svg": true, "circle": true, "line": true, "rect": true, "polygon":true, "text": true, "image": true, "defs": true, "pattern": true, "linearGradient": true, "g": true, "path": true};
 // Map of input entities to a queue of their values which originated from the client and have not been received from the server yet.
 
-var lastFocusPath = null;
+var lastFocusPath:string[]|null = null;
 var selectableTypes = {"": true, undefined: true, text: true, search: true, password: true, tel: true, url: true};
 
 function insertSorted(parent:Node, child:RecordElement) {
@@ -77,7 +77,7 @@ let _suppressBlur = false; // This global is set when the records are being re-r
 
 export function renderRecords() {
   _suppressBlur = true;
-  let lastActiveElement:RecordElement;
+  let lastActiveElement:RecordElement|null = null;
   if(document.activeElement && document.activeElement.entity) {
     lastActiveElement = document.activeElement;
   }
@@ -88,12 +88,12 @@ export function renderRecords() {
   let activeStyles = indexes.byStyle.index || {};
   let activeChildren = indexes.byChild.index || {};
 
-  let regenClassesFor = [];
-  let regenStylesFor = [];
+  let regenClassesFor:string[] = [];
+  let regenStylesFor:string[] = [];
 
   for(let entityId in dirty) {
     let entity = records[entityId];
-    let elem = activeElements[entityId];
+    let elem:RecordElement|null = activeElements[entityId];
 
     if(dirty[entityId].indexOf("tag") !== -1) {
       let values = entity.tag || []
@@ -238,7 +238,7 @@ export function renderRecords() {
     if(!value) {
       elem.className = "";
     } else {
-      let neue = [];
+      let neue:string[] = [];
       for(let klassId of value) {
         if(klassId[0] == "⦑" && klassId[klassId.length - 1] == "⦒" && activeClasses[klassId]) {
           let klass = records[klassId];
@@ -267,12 +267,12 @@ export function renderRecords() {
     let value = entity["style"];
     elem.removeAttribute("style"); // @FIXME: This could be optimized to care about the diff rather than blowing it all away
     if(value) {
-      let neue = [];
+      let neue:string[] = [];
       for(let styleId of value) {
         if(styleId[0] == "⦑" && styleId[styleId.length - 1] == "⦒" && activeStyles[styleId]) {
           let style = records[styleId];
           for(let attr in style) {
-            elem.style[attr] = style[attr] && style[attr].join(", ");
+            (elem as any).style[attr] = style[attr] && style[attr].join(", ");
           }
         } else {
           neue.push(styleId);
@@ -285,7 +285,7 @@ export function renderRecords() {
     }
   }
 
-  if(lastFocusPath && isInputElem(lastActiveElement)) {
+  if(lastFocusPath && lastActiveElement && isInputElem(lastActiveElement)) {
     let current = activeElements.root;
     let ix = 0;
     for(let segment of lastFocusPath) {
@@ -315,36 +315,34 @@ export function renderRecords() {
 window.addEventListener("click", function(event) {
   let {target} = event;
   let current = target as RecordElement;
-  let objs = [];
+  let objs:any[] = [];
   while(current) {
     if(current.entity) {
-      let tags = ["click"];
+      let tag = ["click"];
       if(current == target) {
-        tags.push("direct-target");
+        tag.push("direct-target");
       }
-      objs.push({tags, element: current.entity});
+      objs.push({tag, element: current.entity});
     }
     current = current.parentElement;
   }
-  // objs.push({tags: ["click"], element: "window"});
-  sendEventObjs(objs);
+  sendEvent(objs);
 });
 window.addEventListener("dblclick", function(event) {
   let {target} = event;
   let current = target as RecordElement;
-  let objs = [];
+  let objs:any[] = [];
   while(current) {
     if(current.entity) {
-      let tags = ["double-click"];
+      let tag = ["double-click"];
       if(current == target) {
-        tags.push("direct-target");
+        tag.push("direct-target");
       }
-      objs.push({tags, element: current.entity});
+      objs.push({tag, element: current.entity});
     }
     current = current.parentElement;
   }
-  // objs.push({tags: ["click"], element: "window"});
-  sendEventObjs(objs);
+  sendEvent(objs);
 });
 
 window.addEventListener("input", function(event) {
@@ -354,16 +352,7 @@ window.addEventListener("input", function(event) {
       sentInputValues[target.entity] = [];
     }
     sentInputValues[target.entity].push(target.value);
-    let query =
-    `input value updated
-      \`\`\`
-      match
-        input = ${target.entity}
-      commit @browser
-        input.value := "${target.value.replace("\"", "\\\"")}"
-      \`\`\``;
-    sendEvent(query);
-    sendEventObjs([{tags: ["change"], element: target.entity}]);
+    sendEvent([{tag: ["change"], element: target.entity, value: target.value}]);
   }
 });
 window.addEventListener("change", function(event) {
@@ -378,28 +367,19 @@ window.addEventListener("change", function(event) {
     if(isSelectElem(target)) {
       value = target.options[target.selectedIndex].value;
     }
-    sentInputValues[target.entity].push(value);
-    let query =
-      `input value updated
-      \`\`\`
-      match
-        input = ${target.entity}
-      commit
-        input.value := "${value.replace("\"", "\\\"")}"
-      \`\`\``;
-    sendEvent(query);
-    let tags = ["change"];
+    sentInputValues[target.entity!].push(value);
+    let tag = ["change"];
     if(target == target) {
-      tags.push("direct-target");
+      tag.push("direct-target");
     }
-    sendEventObjs([{tags, element: target.entity}]);
+    sendEvent([{tag, element: target.entity, value: target.value}]);
   }
 });
 
 function getFocusPath(target) {
   let root = activeElements.root;
   let current = target;
-  let path = [];
+  let path:string[] = [];
   while(current !== root && current) {
     let parent = current.parentElement;
     path.unshift(Array.prototype.indexOf.call(parent.children, current));
@@ -411,8 +391,8 @@ function getFocusPath(target) {
 window.addEventListener("focus", function(event) {
   let target = event.target as RecordElement;
   if(target.entity) {
-    let objs = [{tags: ["focus"], element: target.entity}];
-    sendEventObjs(objs);
+    let objs = [{tag: ["focus"], element: target.entity}];
+    sendEvent(objs);
     lastFocusPath = getFocusPath(target);
   }
 }, true);
@@ -424,8 +404,8 @@ window.addEventListener("blur", function(event) {
   }
   let target = event.target as RecordElement;
   if(target.entity) {
-    let objs = [{tags: ["blur"], element: target.entity}];
-    sendEventObjs(objs);
+    let objs = [{tag: ["blur"], element: target.entity}];
+    sendEvent(objs);
 
     if(lastFocusPath) {
       let curFocusPath = getFocusPath(target);
@@ -450,39 +430,40 @@ let keyMap = {13: "enter", 27: "escape"}
 window.addEventListener("keydown", function(event) {
   let {target} = event;
   let current = target as RecordElement;
-  let objs = [];
+  let objs:any[] = [];
   let key = event.keyCode;
   while(current) {
     if(current.entity) {
-      let tags = ["keydown"];
+      let tag = ["keydown"];
       if (current == target) {
-        tags.push("direct-target");
+        tag.push("direct-target");
       }
-      objs.push({tags, element: current.entity, key: keyMap[key] || key});
+      objs.push({tag, element: current.entity, key: keyMap[key] || key});
     }
     current = current.parentElement;
   }
-  sendEventObjs(objs);
+  sendEvent(objs);
 });
 
 window.addEventListener("keyup", function(event) {
   let {target} = event;
   let current = target as RecordElement;
-  let objs = [];
+  let objs:any[] = [];
   let key = event.keyCode;
   while(current) {
     if(current.entity) {
-      let tags = ["keyup"];
+      let tag = ["keyup"];
       if (current == target) {
-        tags.push("direct-target");
+        tag.push("direct-target");
       }
-      objs.push({tags, element: current.entity, key: keyMap[key] || key});
+      objs.push({tag, element: current.entity, key: keyMap[key] || key});
     }
     current = current.parentElement;
   }
-  objs.push({tags: ["keyup"], element: "window", key});
-  sendEventObjs(objs);
+  objs.push({tag: ["keyup"], element: "window", key});
+  sendEvent(objs);
 });
+
 
 //---------------------------------------------------------
 // Editor Renderer
@@ -509,13 +490,13 @@ export function renderEve() {
   renderer.render([{c: "graph-root", children: [rootUi]}]);
 }
 
-export function renderEditor() {
+export function renderEditor():{editor:any, errors:any} {
   let parseGraphs = indexes.byTag.index["parse-graph"];
   if(!parseGraphs || parseGraphs.length === 0) return {editor: undefined, errors: undefined};
 
   if(parseGraphs.length > 1) {
     console.error("Multiple parse graphs in the compiler bag, wut do?", parseGraphs);
-    return;
+    return {} as any;
   }
   let records = indexes.records.index;
   let root = records[parseGraphs[0]];
