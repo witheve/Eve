@@ -140,7 +140,8 @@ export function renderRecords() {
         activeElements[entityId] = elem;
         if(entity.sort && entity.sort.length > 1) console.error("Unable to set 'sort' multiple times on entity", entity, entity.sort);
         elem.sort = (entity.sort && entity.sort[0]) || (entity["eve-auto-index"] && entity["eve-auto-index"][0]) || "";
-        let parent = activeElements[activeChildren[entityId] || "root"];
+        let parentId = activeChildren[entityId] && activeChildren[entityId][0] || "root";
+        let parent = activeElements[parentId];
         if(parent) {
           insertSorted(parent, elem)
         }

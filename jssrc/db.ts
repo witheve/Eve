@@ -1,6 +1,7 @@
 export type UUID = string;
-export type EAV = [string, string, any];
-export type Record = any;
+type Value = string | number | boolean | UUID;
+export type EAV = [string, string, Value];
+export type Record = any; //{[attribute:string]: Value[], [attribute:number]: Value[]};
 
 //---------------------------------------------------------
 // Indexes
@@ -49,7 +50,8 @@ class Index<T> {
 
 interface IndexedList<V>{[v: string]: V[]}
 export class IndexList<V> extends Index<IndexedList<V>> {
-  insert(key: string, value: V) {
+  insert(key: Value, value: V) {
+    key = ""+key;
     if(!this.index[key] || this.index[key].indexOf(value) === -1) {
       if(!this.index[key]) this.index[key] = [];
       if(!this.dirty[key]) this.dirty[key] = [];
@@ -60,7 +62,8 @@ export class IndexList<V> extends Index<IndexedList<V>> {
     return false;
   }
 
-  remove(key: string, value: V) {
+  remove(key: Value, value: V) {
+    key = ""+key;
     if(!this.index[key]) return false;
 
     let ix = this.index[key].indexOf(value)
@@ -76,7 +79,8 @@ export class IndexList<V> extends Index<IndexedList<V>> {
 
 interface IndexedScalar<V>{[v: string]: V}
 export class IndexScalar<V> extends Index<IndexedScalar<V>> {
-  insert(key: string, value: V) {
+  insert(key: Value, value: V) {
+    key = ""+key;
     if(this.index[key] === undefined) {
       this.index[key] = value;
       this.dirty[key] = value;
@@ -87,7 +91,8 @@ export class IndexScalar<V> extends Index<IndexedScalar<V>> {
     return false;
   }
 
-  remove(key: string, value: V) {
+  remove(key: Value, value: V) {
+    key = ""+key;
     if(this.index[key] === undefined) return false;
     this.dirty[key] = this.index[key];
     delete this.index[key];
@@ -98,12 +103,11 @@ export class IndexScalar<V> extends Index<IndexedScalar<V>> {
 //---------------------------------------------------------
 // DB
 //---------------------------------------------------------
-type Value = string | number | boolean | UUID;
-
 export class DB {
-  protected _indexes:{[attribute:string]: IndexList<UUID>} = {}; // A: V -> E
-  protected _records = new IndexScalar<Record>();                // E -> Record
-  protected _dirty = new IndexList<string>();                    // E -> A
+  _indexes:{[attribute:string]: IndexList<UUID>} = {}; // A: V -> E[]
+  _records = new IndexScalar<Record>();                // E -> A : V[]
+  _attributes = new IndexList<UUID>();                 // A -> E[]
+  _dirty = new IndexList<string>();                    // E -> A[]
 
   constructor(public id:UUID) {}
 
@@ -161,6 +165,92 @@ export class DB {
     if(!record[attribute]) return;
     return record[attribute][0];
   }
+
+  querySelector(selector:string, args?:Value[]):UUID[] {
+    let entities:UUID[] = [];
+
+    // Strip whitespace before and after colons
+    selector = selector.replace(/\s*:\s/, ":");
+
+    // Split into attributes and/or attribute:value pairs
+    let parts = selector.split(" ");
+    for(let part of parts) {
+      let [attr, val] = part.split(":");
+      let value;
+      if(attr[0] === "#") {
+        if(val) throw new InvalidSelectorError(part, "tag");
+        value = attr.substring(1);
+        attr = "tag";
+      } else if(attr[0] == "@") {
+        if(val) throw new InvalidSelectorError(part, "name");
+        value = attr.substring(1);
+        attr = "name";
+      } else if(val && val[0] !== "%") throw new InvalidSelectorError(part, "value");
+      else if(val === "") throw new InvalidSelectorError(part, "colon");
+
+      if(val && val[0] === "%") {
+        if(!args) throw new InvalidSelectorError(part, "args");
+        value = args[+val.substring(1) + 1];
+      }
+
+      let matches;
+      if(value) {
+        let index = this.index(attr);
+        matches = index.index[value];
+      } else {
+        let index = this._attributes;
+        matches = index.index[attr];
+      }
+
+      // Special case the first run to just copy the match instead of running over every entity for no good reason
+      if(entities.length === 0) entities.push.apply(entities, matches);
+      else {
+        for(let ix = 0; ix < entities.length;) {
+          let entity = entities[ix];
+          if(matches.indexOf(entity) === -1) {
+            entities[ix] = entities.pop()!;
+          } else {
+            ix++;
+          }
+        }
+      }
+
+      if(entities.length === 0) break;
+    }
+    return entities;
+  }
+
+  forEach(selector:string, args:Value[], callback:(...attrs:Value[][]) => void) {
+    let entities = this.querySelector(selector, args);
+
+    let attributes:string[] = [];
+
+    // Strip whitespace before and after colons
+    selector = selector.replace(/\s*:\s/, ":");
+    // Split into attributes and/or attribute:value pairs
+    let parts = selector.split(" ");
+    for(let part of parts) {
+      let [attr, val] = part.split(":");
+      if(attr[0] === "#" ||
+         attr[0] === "@" ||
+         val !== undefined) {
+        break;
+      }
+      attributes.push(attr);
+    }
+
+    // This will get reused on each entity
+    let row:Value[][] = [];
+
+    for(let entity of entities) {
+      let record = this._records.index[entity];
+      for(let ix = 0; ix < attributes.length; ix++) {
+        row[ix] = record[attributes[ix]];
+      }
+      callback.apply(this, row);
+      row.length = 0; // Clear the row for the next guy.
+    }
+  }
 }
 
 
@@ -177,5 +267,16 @@ class UnknownAttributeError extends Error {
 class CardinalityError extends Error {
   constructor(entity:string, attribute:string, expected: number, actual: number) {
     super(`Invalid Cardinality in: '${entity}'.'${attribute}'. Expected ${expected}, got ${actual}`);
+  }
+}
+class InvalidSelectorError extends Error {
+  constructor(selector: string, kind:"tag"|"name"|"value"|"colon"|"args") {
+    let issue;
+    if(kind === "tag") issue = "Tag literals may not specify a value.";
+    else if(kind === "name") issue = "Name literals may not specify a value.";
+    else if(kind === "value") issue = "Attribute values must be sanitized through placeholders (e.g.: %1).";
+    else if(kind === "colon") issue = "Colons in selectors *must* be followed by a placeholder (e.g.: %1).";
+    else if(kind === "args") issue = "Placeholders may only be used when an args list is provided.";
+    super(`Invalid Selector: '${selector}'. ${issue}`);
   }
 }

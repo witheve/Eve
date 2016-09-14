@@ -2,7 +2,7 @@ import {clone, debounce, sortComparator} from "./util";
 import {sentInputValues, activeIds, renderRecords, renderEve} from "./renderer"
 import {handleEditorParse} from "./editor"
 
-import {IndexScalar, IndexList, EAV, Record} from "./db"
+import {DB, IndexScalar, IndexList, EAV, Record} from "./db"
 
 //---------------------------------------------------------
 // Utilities
@@ -23,38 +23,37 @@ function safeEav(eav:[any, any, any]):EAV {
 //---------------------------------------------------------
 // Connect the websocket, send the ui code
 //---------------------------------------------------------
-export var DEBUG:string|boolean = false;
+export var DEBUG:string|boolean = true;
+
+// This guy is a temporary shim for the transition to fully local DBs.
+var magicallyGlobalDB = new DB("ID_1234");
 
 export var indexes = {
-  records: new IndexScalar<Record>(), // E -> Record
-  dirty: new IndexList<string>(),     // E -> A
-  byName: new IndexList<string>(),    // name -> E
-  byTag: new IndexList<string>(),     // tag -> E
+  records: magicallyGlobalDB._records,        // E -> Record
+  dirty: magicallyGlobalDB._dirty,            // E -> A
+  byName: magicallyGlobalDB.index("name"),    // name -> E
+  byTag: magicallyGlobalDB.index("tag"),      // tag -> E
 
   // renderer indexes
-  byClass: new IndexList<string>(),   // class -> E
-  byStyle: new IndexList<string>(),   // style -> E
-  byChild: new IndexScalar<string>()  // child -> E
+  byClass: magicallyGlobalDB.index("class"),    // class -> E
+  byStyle: magicallyGlobalDB.index("style"),    // style -> E
+  byChild: magicallyGlobalDB.index("children"), // children -> E
 };
 
-function handleDiff(state, diff) {
-  let diffEntities = 0;
+function handleDiff(db:DB, diff) {
   let entitiesWithUpdatedValues = {};
-
-  let records = indexes.records;
-  let dirty = indexes.dirty;
 
   for(let remove of diff.remove) {
     let [e, a, v] = safeEav(remove);
-    if(!records.index[e]) {
+    if(!db._records.index[e]) {
       console.error(`Attempting to remove an attribute of an entity that doesn't exist: ${e}`);
       continue;
     }
 
-    let entity = records.index[e];
+    let entity = db._records.index[e];
     let values = entity[a];
     if(!values) continue;
-    dirty.insert(e, a);
+    db._dirty.insert(e, a);
 
     if(values.length <= 1 && values[0] === v) {
       delete entity[a];
@@ -64,43 +63,32 @@ function handleDiff(state, diff) {
       values.splice(ix, 1);
     }
 
-    // Update indexes
-    if(a === "tag") indexes.byTag.remove(v, e);
-    else if(a === "name") indexes.byName.remove(v, e);
-    else if(a === "class") indexes.byClass.remove(v, e);
-    else if(a === "style") indexes.byStyle.remove(v, e);
-    else if(a === "children") indexes.byChild.remove(v, e);
-    else if(a === "value") entitiesWithUpdatedValues[e] = true;
+    if(db._indexes[a]) db._indexes[a].remove(v, e);
+    if(a === "value") entitiesWithUpdatedValues[e] = true;
 
   }
 
   for(let insert of diff.insert) {
     let [e, a, v] = safeEav(insert);
-    let entity = records.index[e];
+    let entity = db._records.index[e];
     if(!entity) {
       entity = {};
-      records.insert(e, entity);
-      diffEntities++; // Nuke this and use records.dirty
+      db._records.insert(e, entity);
     }
-
-    dirty.insert(e, a);
+    db._attributes.insert(a, e);
+    db._dirty.insert(e, a);
 
     if(!entity[a]) entity[a] = [];
     entity[a].push(v);
 
-    // Update indexes
-    if(a === "tag") indexes.byTag.insert(v, e);
-    else if(a === "name") indexes.byName.insert(v, e);
-    else if(a === "class") indexes.byClass.insert(v, e);
-    else if(a === "style") indexes.byStyle.insert(v, e);
-    else if(a === "children") indexes.byChild.insert(v, e);
-    else if(a === "value") entitiesWithUpdatedValues[e] = true;
+    if(db._indexes[a]) db._indexes[a].insert(v, e);
+    if(a === "value") entitiesWithUpdatedValues[e] = true;
   }
 
   // Update value syncing
   for(let e in entitiesWithUpdatedValues) {
     let a = "value";
-    let entity = records.index[e];
+    let entity = db._records.index[e];
     if(!entity[a]) {
       sentInputValues[e] = [];
     } else {
@@ -108,7 +96,7 @@ function handleDiff(state, diff) {
       let value = entity[a][0];
       let sent = sentInputValues[e];
       if(sent && sent[0] === value) {
-        dirty.remove(e, a);
+        db._dirty.remove(e, a);
         sent.shift();
       } else {
         sentInputValues[e] = [];
@@ -116,28 +104,41 @@ function handleDiff(state, diff) {
     }
   }
   // Trigger all the subscribers of dirty indexes
-  for(let indexName in indexes) {
-    indexes[indexName].dispatchIfDirty();
+  for(let indexName in db._indexes) {
+    db._indexes[indexName].dispatchIfDirty();
   }
+  db._dirty.dispatchIfDirty();
+  db._records.dispatchIfDirty();
+  db._attributes.dispatchIfDirty();
   // Clear dirty states afterwards so a subscriber of X can see the dirty state of Y reliably
-  for(let indexName in indexes) {
-    indexes[indexName].clearDirty();
+  for(let indexName in db._indexes) {
+    db._indexes[indexName].clearDirty();
   }
+  db._dirty.clearDirty();
+  db._records.clearDirty();
+  db._attributes.clearDirty();
   // Finally, wipe the dirty E -> A index
-  indexes.dirty.clearIndex();
+  db._dirty.clearIndex();
 }
 
 let prerendering = false;
 var frameRequested = false;
 
-var socket = new WebSocket("ws://" + window.location.host +"/ws");
+interface Connection extends WebSocket {
+  dbs: {[id:string]: DB}
+}
+
+var socket:Connection = new WebSocket("ws://" + window.location.host +"/ws") as any;
+
+socket.dbs = {browser: magicallyGlobalDB};
+
 socket.onmessage = function(msg) {
   let data = JSON.parse(msg.data);
   if(data.type == "result") {
-    let state = {entities: indexes.records.index, dirty: indexes.dirty.index};
-    handleDiff(state, data);
+    let db = magicallyGlobalDB; //socket.dbs[data.db];
+    handleDiff(db, data);
 
-    let diffEntities = 0;
+    let diffEntities = Object.keys(db._records.dirty).length;
     if(DEBUG) {
       console.groupCollapsed(`Received Result +${data.insert.length}/-${data.remove.length} (∂Entities: ${diffEntities})`);
       if(DEBUG === true || DEBUG === "diff") {
@@ -146,10 +147,8 @@ socket.onmessage = function(msg) {
       }
       if(DEBUG === true || DEBUG === "state") {
         // we clone here to keep the entities fresh when you want to thumb through them in the log later (since they are rendered lazily)
-        let copy = clone(state.entities);
-
-        console.log("Entities", copy);
-        console.log("Indexes", indexes);
+        console.log("Entities", indexes.records.index);
+        console.log("Indexes", db._indexes);
       }
       console.groupEnd();
     }
@@ -300,7 +299,7 @@ indexes.dirty.subscribe(printDebugRecords);
 export function sendEvent(query) {
   //console.log("QUERY", query);
   if(socket && socket.readyState == 1) {
-    socket.send(JSON.stringify({scope: "event", type: "query", query}))
+    //socket.send(JSON.stringify({scope: "event", type: "query", query}))
   }
   return query;
 }
