@@ -180,5 +180,5 @@ typedef struct process_bag *process_bag;
 process_bag process_bag_init();
 
 typedef closure(object_handler, bag, uuid);
-object_handler create_json_session(heap h, evaluation ev, endpoint down, uuid u);
+object_handler create_json_session(heap h, evaluation ev, endpoint down);
 evaluation process_resolve(process_bag, uuid);

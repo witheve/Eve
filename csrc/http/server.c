@@ -134,8 +134,7 @@ static void http_eval_result(http_server s, process_bag pb, uuid where,
                 endpoint ws =  websocket_send_upgrade(hs->h, hs->e,
                                       hs->last_headers,
                                       hs->last_headers_root);
-                parse_json(jh, ws, create_json_session(jh, ev, ws,
-                                                       table_find(ev->scopes, sym(browser))));
+                parse_json(jh, ws, create_json_session(jh, ev, ws));
                 bag session_connect = (bag)create_edb(jh, 0);
 
                 apply(session_connect->insert,

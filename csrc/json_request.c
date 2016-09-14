@@ -5,7 +5,7 @@
 typedef struct json_session {
     heap h;
     table current_delta;
-    uuid u;
+    uuid browser_id;
     evaluation ev;
     endpoint down;
     table id_mappings;
@@ -88,7 +88,7 @@ static void send_response(json_session session, multibag t_solution, multibag f_
     table results = create_value_vector_table(p);
     edb browser;
 
-    if (f_solution && (browser = table_find(f_solution, session->u))) {
+    if (f_solution && (browser = table_find(f_solution, session->browser_id))) {
         edb_foreach(browser, e, a, v, c, _) {
             table_set(results, build_vector(p, e, a, v), etrue);
             table_set(session->id_mappings, e, e);
@@ -100,7 +100,7 @@ static void send_response(json_session session, multibag t_solution, multibag f_
     values_diff diff = diff_value_vector_tables(p, session->current_delta, results);
     // destructs h
 
-    if (t_solution && (browser = table_find(t_solution, session->u))) {
+    if (t_solution && (browser = table_find(t_solution, session->browser_id))) {
         edb_foreach(browser, e, a, v, m, u) {
             table_set(session->id_mappings, e, e); // @FIXME: This is gonna leak dead ids.
             vector eav = 0;
@@ -176,12 +176,11 @@ static void json_input(json_session s, bag json_bag, uuid root_id)
             apply(event->insert, e, a, v, 1, 0); // @NOTE: It'd be cute to be able to tag this as coming from the json session.
             ix++;
         }
-        prf("JSON EVENT\n%b\n", edb_dump(s->h, (edb)event));
         inject_event(s->ev, event);
     }
 }
 
-object_handler create_json_session(heap h, evaluation ev, endpoint down, uuid u)
+object_handler create_json_session(heap h, evaluation ev, endpoint down)
 {
     // allocate json parser
     json_session s = allocate(h, sizeof(struct json_session));
@@ -190,10 +189,10 @@ object_handler create_json_session(heap h, evaluation ev, endpoint down, uuid u)
     s->ev = ev;
     s->current_delta = create_value_vector_table(allocate_rolling(pages, sstring("json delta")));
     s->id_mappings = create_value_table(h);
-    // xxx - very clumsy way to wire this up
     ev->complete = cont(h, send_response, s);
     ev->error = cont(h, handle_error, s);
+    s->browser_id = table_find(ev->scopes, sym(browser));
+    table_set(ev->t_input, s->browser_id, create_edb(h, 0));
 
-    s->u = u;
     return(cont(h, json_input, s));
 }

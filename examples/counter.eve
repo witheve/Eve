@@ -11,9 +11,9 @@ build the counter
 
 increment the counter
 ```
-  match
+  match (@browser, @session)
     [#click element: [#count-button diff counter]]
-  commit @browser
+  commit @session
     counter.count := counter.count + diff
 ```
 
