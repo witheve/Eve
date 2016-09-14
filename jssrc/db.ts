@@ -102,8 +102,8 @@ type Value = string | number | boolean | UUID;
 
 export class DB {
   protected _indexes:{[attribute:string]: IndexList<UUID>} = {}; // A: V -> E
-  protected _records = new IndexScalar<Record>();            // E -> Record
-  protected _dirty = new IndexList<string>();                // E -> A
+  protected _records = new IndexScalar<Record>();                // E -> Record
+  protected _dirty = new IndexList<string>();                    // E -> A
 
   constructor(public id:UUID) {}
 
@@ -130,5 +130,52 @@ export class DB {
     return index;
   }
 
+  exists(entity:UUID, attribute?:string):boolean {
+    let record = this._records.index[entity];
+    if(!attribute) return !!record;
+    else if(record) return !!record[attribute];
+    else return false;
+  }
 
+  every(entity:UUID, attribute:string):Value[] {
+    let record = this._records.index[entity];
+    if(!record) throw new UnknownEntityError(entity);
+    if(!record[attribute]) throw new UnknownAttributeError(entity, attribute);
+    return record[attribute];
+  }
+  only(entity:UUID, attribute:string):Value {
+    let record = this._records.index[entity];
+    if(!record) throw new UnknownEntityError(entity);
+    if(!record[attribute]) throw new UnknownAttributeError(entity, attribute);
+    if(record[attribute].length > 1) throw new CardinalityError(entity, attribute, 1, record[attribute].length);
+    return record[attribute][0];
+  }
+  any(entity:UUID, attribute:string):Value[]|undefined {
+    let record = this._records.index[entity];
+    if(!record) throw new UnknownEntityError(entity);
+    return record[attribute];
+  }
+  one(entity:UUID, attribute:string):Value|undefined {
+    let record = this._records.index[entity];
+    if(!record) throw new UnknownEntityError(entity);
+    if(!record[attribute]) return;
+    return record[attribute][0];
+  }
+}
+
+
+class UnknownEntityError extends Error {
+  constructor(entity:string) {
+    super(`Unknown Entity: '${entity}'`);
+  }
+}
+class UnknownAttributeError extends Error {
+  constructor(entity:string, attribute:string) {
+    super(`Unknown Attribute: '${entity}'.'${attribute}'`);
+  }
+}
+class CardinalityError extends Error {
+  constructor(entity:string, attribute:string, expected: number, actual: number) {
+    super(`Invalid Cardinality in: '${entity}'.'${attribute}'. Expected ${expected}, got ${actual}`);
+  }
 }
