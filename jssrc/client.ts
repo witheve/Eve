@@ -26,15 +26,15 @@ function safeEav(eav:[any, any, any]):EAV {
 export var DEBUG:string|boolean = false;
 
 export var indexes = {
-  records: new IndexScalar<Record>(),      // E -> Record
-  dirty: new IndexList<string>(),          // E -> A
-  byName: new IndexList<string>("name"),   // name -> E
-  byTag: new IndexList<string>("tag"),     // tag -> E
+  records: new IndexScalar<Record>(), // E -> Record
+  dirty: new IndexList<string>(),     // E -> A
+  byName: new IndexList<string>(),    // name -> E
+  byTag: new IndexList<string>(),     // tag -> E
 
   // renderer indexes
-  byClass: new IndexList<string>("class"), // class -> E
-  byStyle: new IndexList<string>("style"), // style -> E
-  byChild: new IndexScalar<string>("children") // child -> E
+  byClass: new IndexList<string>(),   // class -> E
+  byStyle: new IndexList<string>(),   // style -> E
+  byChild: new IndexScalar<string>()  // child -> E
 };
 
 function handleDiff(state, diff) {
@@ -178,9 +178,21 @@ socket.onclose = function() {
 //---------------------------------------------------------
 // Bootstrapping interface
 //---------------------------------------------------------
-export var parseInfo = {blocks: [], lines: [], blockIds: {}, tokenIds: {}};
+interface Block {id: string, name: string, sort: number, line: number};
+interface Token {id: string, type: string, sort: number, line: number, surrogateOffset: number, surrogateLength: number};
+type Line = Token[]
+
+interface ParseInfo {
+  blocks:Block[],
+  blockIds:{[id:string]: Block},
+  lines:Line[],
+  tokenIds:{[id:string]: Token},
+}
+export var parseInfo:ParseInfo = {blocks: [], lines: [], blockIds: {}, tokenIds: {}};
 
 let updateEditorParse = debounce(handleEditorParse, 1); // @FIXME: We need to listen for any changes to records with those tags
+
+
 
 function tokensToParseInfo(tokenIds) {
   let records = indexes.records.index;
@@ -188,7 +200,7 @@ function tokensToParseInfo(tokenIds) {
   // @FIXME: we don't want to be incremental right now, it's tough.
   tokenIds = indexes.byTag.index["token"];
 
-  let lines = [];
+  let lines:Token[][] = [];
   for(let tokenId of tokenIds) {
     // if(parseInfo.tokenIds[tokenId]) {
     //   let ix = parseInfo..indexOf(parseInfo.tokenIds[tokenId]);
@@ -232,7 +244,7 @@ function blocksToParseInfo(blockIds) {
   blockIds = indexes.byTag.index["block"];
 
 
-  let blocks = [];
+  let blocks:Block[] = [];
   for(let blockId of blockIds) {
     // if(parseInfo.blockIds[blockId]) {
     //   let ix = parseInfo.blocks.indexOf(parseInfo.blockIds[blockId]);
@@ -241,7 +253,7 @@ function blocksToParseInfo(blockIds) {
     // }
     let block = records[blockId];
     if(!block) continue;
-    parseInfo.blockIds[blockId] = {name: block.name[0], sort: block.sort[0], line: block.line[0]};
+    parseInfo.blockIds[blockId] = {id: blockId, name: block.name[0], sort: block.sort[0], line: block.line[0]};
     blocks.push(parseInfo.blockIds[blockId]);
   }
   blocks.sort(sortComparator);
@@ -254,8 +266,8 @@ indexes.byTag.subscribe(function(index, dirty) {
 });
 
 function handleEditorUpdates(index, dirty) {
-  let blockIds = [];
-  let tokenIds = [];
+  let blockIds:string[] = [];
+  let tokenIds:string[] = [];
   for(let recordId in dirty) {
     if(parseInfo.blockIds[recordId]) blockIds.push(recordId);
     if(parseInfo.tokenIds[recordId]) tokenIds.push(recordId);
@@ -284,62 +296,6 @@ indexes.dirty.subscribe(printDebugRecords);
 //---------------------------------------------------------
 // Communication helpers
 //---------------------------------------------------------
-
-export function formatObjects(objs) {
-  let rows = [];
-  for(let obj of objs) {
-    let id;
-    let kvs = {};
-    let fields = [];
-    for(let key in obj) {
-      let value = obj[key];
-      if(key == "tags") {
-        for(let tag of value) {
-          fields.push("#" + tag);
-        }
-        kvs["tag"] = value
-      } else if(key == "id") {
-        id = obj[key];
-      } else {
-        let stringValue;
-        if(typeof value == "string" && value[0] == "⦑") {
-          stringValue = value;
-        } else {
-          stringValue = JSON.stringify(value);
-        }
-        fields.push(key + ": " + stringValue);
-        kvs[key] = stringValue;
-      }
-    }
-    if(id) {
-        console.log(kvs);
-      for(let key in kvs) {
-        let value = kvs[key];
-        if(value.prototype !== Array) {
-          rows.push(`[#eav entity: ${id}, attribute: "${key}", value: ${value}]`);
-        } else {
-          for(let elem of value) {
-            rows.push(`[#eav entity: ${id}, attribute: "${key}", value: ${elem}]`);
-          }
-        }
-      }
-    } else {
-      let final = "[" + fields.join(", ") + "]";
-      rows.push(final)
-    }
-  }
-  return rows;
-}
-
-export function sendEventObjs(objs) {
-  if(!objs.length) return;
-  let query = `handle some event
-  \`\`\`
-  bind
-    ${formatObjects(objs).join("\n    ")}
-  \`\`\``
-  return sendEvent(query);
-}
 
 export function sendEvent(query) {
   //console.log("QUERY", query);
