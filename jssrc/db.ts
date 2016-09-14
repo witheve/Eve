@@ -1,13 +1,18 @@
+export type UUID = string;
 export type EAV = [string, string, any];
 export type Record = any;
 
-type IndexSubscriber<T> = (index: T, dirty?: T, self?: Index<T>) => void
+//---------------------------------------------------------
+// Indexes
+//---------------------------------------------------------
+
+type IndexSubscriber<T> = (index: T, dirty: T, self: Index<T>) => void
 class Index<T> {
   public index:T = {} as any;
   public dirty:T = {} as any;
   private subscribers:IndexSubscriber<T>[] = [];
 
-  constructor(public attribute?:string) {}
+  constructor() {}
 
   subscribe(subscriber:IndexSubscriber<T>) {
     if(this.subscribers.indexOf(subscriber) === -1) {
@@ -20,7 +25,7 @@ class Index<T> {
   unsubscribe(subscriber:IndexSubscriber<T>) {
     let ix = this.subscribers.indexOf(subscriber);
     if(ix !== -1) {
-      this.subscribers[ix] = this.subscribers.pop();
+      this.subscribers[ix] = this.subscribers.pop()!;
       return true;
     }
     return false;
@@ -61,7 +66,7 @@ export class IndexList<V> extends Index<IndexedList<V>> {
     let ix = this.index[key].indexOf(value)
     if(ix !== -1) {
       if(!this.dirty[key]) this.dirty[key] = [];
-      this.index[key][ix] = this.index[key].pop();
+      this.index[key][ix] = this.index[key].pop()!;
       this.dirty[key].push(value);
       return true;
     }
@@ -88,4 +93,42 @@ export class IndexScalar<V> extends Index<IndexedScalar<V>> {
     delete this.index[key];
     return true;
   }
+}
+
+//---------------------------------------------------------
+// DB
+//---------------------------------------------------------
+type Value = string | number | boolean | UUID;
+
+export class DB {
+  protected _indexes:{[attribute:string]: IndexList<UUID>} = {}; // A: V -> E
+  protected _records = new IndexScalar<Record>();            // E -> Record
+  protected _dirty = new IndexList<string>();                // E -> A
+
+  constructor(public id:UUID) {}
+
+  record(entity:UUID):Record {
+    return this._records[entity];
+  }
+
+  index(attribute:string):IndexList<UUID> {
+    let index = this._indexes[attribute];
+    if(index) return index;
+
+    index = new IndexList<UUID>();
+    this._indexes[attribute] = index;
+
+    for(let entity in this._records.index) {
+      let record = this._records.index[entity];
+      let values = record[attribute];
+      if(!values) continue;
+      for(let value of values) {
+        index.insert(value, entity);
+      }
+    }
+
+    return index;
+  }
+
+
 }
