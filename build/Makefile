@@ -42,7 +42,7 @@ RUNTIME_H = luanne.h runtime.h estring.h number.h types.h exec.h edb.h json_requ
 HTTP = server.o websocket.o base64.o sha1.o json.o client.o http.o hmac_sha2.o sha256.o
 DNS = dns.o
 HTTP_H = http.h
-CONTENT = index.o system_js.o microReact_js.o codemirror_js.o codemirror_css.o commonmark_js.o todomvc_css.o  util_js.o client_js.o renderer_js.o editor_js.o
+CONTENT = index.o system_js.o microReact_js.o codemirror_js.o codemirror_css.o commonmark_js.o todomvc_css.o  util_js.o client_js.o renderer_js.o editor_js.o db_js.o
 
 luajit-2.0:
 	git clone http://luajit.org/git/luajit-2.0.git

@@ -243,6 +243,7 @@ int main(int argc, char **argv)
     register(h, "/js/client.js", "application/javascript", client_js);
     register(h, "/js/renderer.js", "application/javascript", renderer_js);
     register(h, "/js/editor.js", "application/javascript", editor_js);
+    register(h, "/js/db.js", "application/javascript", db_js);
 
     // TODO: figure out a better way to manage multiple graphs
     init_json_service(h, root, enable_tracing, compiler_bag, exec_path);
