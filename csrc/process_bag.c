@@ -46,7 +46,9 @@ void process_bag_commit(process_bag pb, edb s)
         p = allocate(h, sizeof(struct process));
         p->scopes = create_value_table(h);
         p->name = sym(anonymous);
-        p->persisted = pb->persisted;
+        p->persisted = create_value_table(h);
+        table_foreach(pb->persisted, u, b) 
+            table_set(p->persisted, u, b);
         p->read = allocate_vector(h, 3);
         p->write = allocate_vector(h, 5);
         p->h = h;
