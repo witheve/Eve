@@ -13,15 +13,12 @@ Pre-fetch the code for hard-coded watchers
     [#root child: [@evesrc child: [name: "{{name}}.eve" contents: code]]]
   commit
     watcher.code := code
-  commit @debug
-    watcher.name := name
-    watcher.code := code
 ```
 
 
 start path resolution
 ```
-  match @file     
+  match @file
      fr = [#root]
   match
      connection = [#http-request]
@@ -38,10 +35,10 @@ resolve a path
 ```
 match
     [#path index:pindex file:pfile]
-match @file    
+match @file
     f = pfile.child
     token = f.name
-match    
+match
     child = [#path index:(pindex + 1) token]
 bind
     child.file := f
@@ -119,11 +116,11 @@ start eve program
 
   match @file
     source = file.contents
-    
+
   // there may be a terser version here
   commit @bag
-        browser = [#bag code: browser-code]
-        session = [#bag]
+        browser = [#bag r code: browser-code]
+        session = [#bag r]
 
   commit @process
      child = [#process source name:token
