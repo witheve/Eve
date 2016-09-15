@@ -11,7 +11,7 @@ void compile_into_bag(evaluation ev, bag b, estring code) {
         vector_insert(b->blocks, block);
     }
 
-    table_foreach(b->listeners, listener, _) {
+    table_foreach(b->block_listeners, listener, _) {
         apply((bag_block_handler)listener, b, blocks, 0);
     }
 }
@@ -32,19 +32,20 @@ static void bagbag_commit(evaluation ev, edb s)
         }
     }
 
-    edb_foreach_ev(s, e, sym(code), code, m) {
-        bag b = (bag)table_find(ev->t_input, e);
-        if(b) {
-            compile_into_bag(ev, b, code);
-        }
-    }
-
     edb_foreach_ev(s, e, sym(bags), v, m) {
         // we're going to silent refuse to bind fruits into the bag namespace?
         // maybe this map should be raw eavs?
         bag b;
         if (table_find(ev->t_input, e)) {
             table_set(ev->scopes, v, e);
+        }
+    }
+
+    edb_foreach_ev(s, e, sym(code), code, m) {
+        bag b = (bag)table_find(ev->t_input, e);
+
+        if(b) {
+            compile_into_bag(ev, b, code);
         }
     }
 }
