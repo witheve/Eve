@@ -3,6 +3,22 @@
 
 static table symbol_table;
 
+vector split(heap h, string source, character sep)
+{
+    vector result = allocate_vector(h, 3);
+    string working = allocate_string(h);
+    character c;
+
+    string_foreach(source, c){
+        if (c == sep) {
+            push(result, working);
+            working = allocate_string(h);
+        } else string_insert(working, c);
+    }
+    if (buffer_length(working)) push(result, working);
+    return(result);
+}
+
 u64 shash(unsigned char *content, int length)
 {
     unsigned h = 0;

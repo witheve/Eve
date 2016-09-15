@@ -1,7 +1,6 @@
 #include <core.h>
 #include <unix.h>
 
-
 struct timer {
     thunk t;
     ticks  w;
@@ -9,35 +8,37 @@ struct timer {
     boolean   disable;
 };
 
-static pqueue timers;
-static heap theap;
+struct timers {
+    pqueue q;
+    heap h;
+};
 
 void remove_timer(timer t)
 {
     t->disable = true;
 }
 
-timer register_timer(ticks interval, thunk n)
+timer register_timer(timers t, ticks interval, thunk call)
 {
-    timer t=(timer)allocate(theap, sizeof(struct timer));
+    timer n = (timer)allocate(t->h, sizeof(struct timer));
 
-    t->t= n;
-    t->disable = false;
-    t->interval = 0;
-    t->w = now() + interval;
-    pqueue_insert(timers, t);
-    return(t);
+    n->t= call;
+    n->disable = false;
+    n->interval = 0;
+    n->w = now() + interval;
+    pqueue_insert(t->q, t);
+    return(n);
 }
 
-timer register_periodic_timer(ticks interval, thunk n)
+timer register_periodic_timer(timers t, ticks interval, thunk call)
 {
-    timer t = allocate(theap, sizeof(struct timer));
-    t->t = n;
-    t->disable = false;
-    t->interval = interval;
-    t->w = now();
-    pqueue_insert(timers, t);
-    return(t);
+    timer n = allocate(t->h, sizeof(struct timer));
+    n->t = call;
+    n->disable = false;
+    n->interval = interval;
+    n->w = now();
+    pqueue_insert(t->q, n);
+    return(n);
 }
 
 ticks time_delta(heap h, ticks x, ticks n)
@@ -45,25 +46,24 @@ ticks time_delta(heap h, ticks x, ticks n)
     return( x-n);
 }
 
-
-ticks timer_check()
+ticks timer_check(timers t)
 {
     timer current;
 
-    while ((current = pqueue_peek(timers)) &&
+    while ((current = pqueue_peek(t->q)) &&
            (current->w < now())) {
-        pqueue_pop(timers);
+        pqueue_pop(t->q);
         if (!current->disable) {
             if (current->interval) {
                 current->w += current->interval;
-                pqueue_insert(timers, current);
+                pqueue_insert(t->q, current);
             }
             if (current->t != 0)
                 apply(current->t);
         }
     }
 
-    if ((current = pqueue_peek(timers)) != 0) {
+    if ((current = pqueue_peek(t->q)) != 0) {
         // presumably this can be negative
         return (current->w - now());
     }
@@ -121,8 +121,10 @@ static boolean compare_timer(void *za, void *zb)
     return (a->w < b->w);
 }
 
-void initialize_timers(heap h)
+timers initialize_timers(heap h)
 {
-    timers = allocate_pqueue(h, compare_timer);
-    theap = h;
+    timers t = allocate(h, sizeof(struct timers));
+    t->q = allocate_pqueue(h, compare_timer);
+    t->h = h;
+    return t;
 }

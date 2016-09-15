@@ -43,7 +43,7 @@ static void read_nonblocking_desc(heap h,
 static CONTINUATION_3_0(rereg, heap, descriptor, buffer_handler);
 static void rereg(heap h, descriptor d, buffer_handler bh)
 {
-    register_read_handler(d, cont(h, read_nonblocking_desc, h, d, bh));
+    register_read_handler(tcontext()->s, d, cont(h, read_nonblocking_desc, h, d, bh));
 }
 
 static void read_nonblocking_desc(heap h,
@@ -60,7 +60,7 @@ static void read_nonblocking_desc(heap h,
 }
 
 
-void select_timer_block(ticks interval);
+void select_timer_block(selector, ticks);
 
 static station digest_sockaddrin(heap h, struct sockaddr_in *a)
 {
@@ -90,3 +90,4 @@ static inline void nonblocking(decsriptor d)
     unsigned char on = 1;
     ioctl(d, FIONBIO, &on);
 }
+

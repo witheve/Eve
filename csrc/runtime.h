@@ -36,6 +36,8 @@ uuid parse_uuid(string c);
 string aprintf(heap h, char *fmt, ...);
 void bbprintf(string b, string fmt, ...);
 
+#define pages (tcontext()->page_heap)
+
 typedef struct perf {
     int count;
     ticks start;
@@ -198,3 +200,4 @@ static inline buffer_handler deserialize_into_bag(heap h, bag b)
 }
 
 bag connect_postgres(station s, estring user, estring password, estring database);
+bag env_init();

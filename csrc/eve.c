@@ -7,6 +7,7 @@ static boolean enable_tracing = false;
 static char *exec_path;
 static int port = 8080;
 static bag static_bag;
+static bag env_bag;
 static int default_behaviour = true;
 
 //filesystem like tree namespace
@@ -138,9 +139,24 @@ static void do_analyze(char *x)
     free_lua(c);
 }
 
+// xxx - this should really be a bag creation function, once we get our function
+// and first class bag story straight
 static void do_db(char *x)
 {
-    // xxx -split
+    buffer args = wrap_buffer(init, x, cstring_length(x));
+    vector n = split(init, args, ':');
+    // wrap environment
+    estring user;
+    edb_foreach_ev((edb)env_bag, e, sym(USER), v, m)
+        user = v;
+    estring password = sym();
+    int len = vector_length(n);
+
+    if (len > 0)  user = vector_get(n, 0);
+    estring database = user;    
+    if (len > 1)  password = vector_get(n, 1);
+    if (len > 2)  database = vector_get(n, 2);    
+
     station s = station_from_string(init, sstring("127.0.0.1:5432"));
     bag b = connect_postgres(s, sym(yuri), sym(), sym(yuri));
 }
@@ -175,6 +191,7 @@ int main(int argc, char **argv)
     bag root = (bag)create_edb(init, 0);
     commands = command_body;
     static_bag = staticdb();
+    env_bag = env_init();
 
     for (int i = 1; i < argc ; i++) {
         command c = 0;

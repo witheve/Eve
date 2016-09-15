@@ -236,7 +236,7 @@ endpoint websocket_send_upgrade(heap h,
         outline(upgrade, "Sec-WebSocket-Protocol: %r", proto);
     outline(upgrade, "");
 
-    register_periodic_timer(seconds(5), cont(w->h, send_keepalive, w, allocate_buffer(w->h, 0)));
+    register_periodic_timer(tcontext()->t, seconds(5), cont(w->h, send_keepalive, w, allocate_buffer(w->h, 0)));
     w->down = down;
     apply(w->down->w, upgrade, ignore);
     apply(w->down->r, w->self);

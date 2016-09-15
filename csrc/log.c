@@ -1,14 +1,37 @@
 #include <runtime.h>
 
-typedef struct log {
+typedef struct commitlog {
     struct bag b;
     bag wrapped;
-} *log;
+    buffer stage, writing;
+    thunk complete;
+    descriptor file;
+} *commitlog;
 
-static void log_commit(edb b, edb source)
-static void log_commit()
+static void swap(commitlog log)
 {
+    buffer x = log->writing;
+    log->writing = log->stage;
+    log->stage = x;
+}
+
+static void commit_complete(commitlog log)
+{
+    buffer_clear(log->writing);
+    if (buffer_length(log->stage)) {
+        swap(log);
+        async_write(file, log->writing, log->complete);
+    }
+}
+
+static void log_commit(commitlog log, edb_source)
+{
+    boolean start = !buffer_length(log->stage) && !buffer_length(log->writing);
     buffer h;
+    if (start) {
+        swap(log);
+        async_write(file, log->writing, log->complete);
+    }
 }
 
 static CONTINUATION_3_1(fill, edb, value*, value *, value);

@@ -330,7 +330,7 @@ static execf build_time(block bk, node n, execf *arms)
     if(frame != 0) interval = milliseconds(1000 / 60);
     else if(second != 0) interval = seconds(1);
     else if(minute != 0) interval = seconds(60);
-    timer t = register_periodic_timer(interval, cont(bk->h, time_expire, bk));
+    timer t = register_periodic_timer(tcontext()->t, interval, cont(bk->h, time_expire, bk));
     return cont(bk->h,
                 do_time,
                 bk,
@@ -388,7 +388,7 @@ static execf build_random(block bk, node n)
     value dest = table_find(n->arguments, sym(return));
     value seed = table_find(n->arguments, sym(seed));
     ticks interval = milliseconds(1000 / 60);
-    timer t = register_periodic_timer(interval, 0);
+    timer t = register_periodic_timer(tcontext()->t, interval, 0);
     return cont(bk->h,
                 do_random,
                 bk,

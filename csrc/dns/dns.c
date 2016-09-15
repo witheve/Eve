@@ -156,7 +156,7 @@ static void dns_resolve(resolver r,
     buffer_write_be16(b, IN_CLASS);
 
     udp_write(r->u, r->server, b);
-    register_timer(seconds(5), cont(r->h, timeout, r, rq));
+    register_timer(tcontext()->t, seconds(5), cont(r->h, timeout, r, rq));
 }
 
 resolver allocate_resolver(heap h, station server)

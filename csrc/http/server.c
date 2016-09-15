@@ -90,7 +90,7 @@ void new_connection(http_server s,
                     endpoint e,
                     station peer)
 {
-    heap h = allocate_rolling(pages, sstring("connection"));
+    heap h = allocate_rolling(tcontext()->page_heap, sstring("connection"));
     session hs = allocate(h, sizeof(struct session));
     hs->parent = s;
     hs->h = h;

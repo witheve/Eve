@@ -87,8 +87,8 @@ void error(char *x)
 void unix_wait()
 {
     while (1) {
-        ticks next = timer_check();
-        select_timer_block(next);
+        ticks next = timer_check(tcontext()->t);
+        select_timer_block(tcontext()->s, next);
     }
 }
 
@@ -133,10 +133,16 @@ station station_from_string(heap h, buffer b)
     return new;
 }
 
-void init_unix()
+struct context *primary;
+
+// pages now threadsafe
+void init_unix(heap page_allocator)
 {
+    primary = allocate(init, sizeof(struct context));
     signal(SIGPIPE, SIG_IGN);
-    prf_heap = allocate_rolling(pages, sstring("prf"));
-    select_init();
+    prf_heap = allocate_rolling(page_allocator, sstring("prf"));
+    primary->page_heap = page_allocator;
+    primary->s = select_init(init);
+    primary->t = initialize_timers(allocate_rolling(pages, sstring("timers")));
     init_processes();
 }

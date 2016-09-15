@@ -38,7 +38,7 @@ static void input(udp u)
         apply(u->r, a, b);
     } else return;
     // use self
-    register_read_handler(u->receive, cont(u->h, input, u));
+    register_read_handler(tcontext()->s, u->receive, cont(u->h, input, u));
 }
 
 udp create_udp(heap h,
@@ -83,6 +83,6 @@ udp create_udp(heap h,
         prf("error bind\n");
         return(0);
     }
-    register_read_handler(u->receive, cont(h, input, u));
+    register_read_handler(tcontext()->s, u->receive, cont(h, input, u));
     return u;
 }

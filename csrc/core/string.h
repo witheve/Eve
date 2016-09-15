@@ -173,3 +173,4 @@ u64 string_hash(void *x);
 boolean string_equal(void *a, void *b);
 
 u64 shash(unsigned char *content, int length);
+vector split(heap h, string source, character sep);

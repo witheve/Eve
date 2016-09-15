@@ -43,7 +43,7 @@ static CONTINUATION_1_1(regtcp, tcpsock, reader);
 static void regtcp(tcpsock t, reader r)
 {
     t->client_reader = r;
-    register_read_handler(t->d, t->read_handler);
+    register_read_handler(tcontext()->s, t->d, t->read_handler);
 }
 
 
@@ -103,7 +103,7 @@ static void actually_write(tcpsock t)
     }
 
     if (t->q)
-        register_write_handler(t->d, t->writer);
+        register_write_handler(tcontext()->s, t->d, t->writer);
 }
 
 // thunk needs to be bound up in the buffer
@@ -113,9 +113,9 @@ void tcp_write(tcpsock t, buffer b, thunk n)
 {
     // track socket buffer occupancy and fast path this guy
     if (!t->q)
-        register_write_handler(t->d, t->writer);
+        register_write_handler(tcontext()->s, t->d, t->writer);
 
-    if (!write_buffers) write_buffers  = allocate_rolling(pages, sstring("tcp write"));
+    if (!write_buffers) write_buffers  = allocate_rolling(tcontext()->page_heap, sstring("tcp write"));
     write_buffer w = allocate(write_buffers, sizeof(struct write_buffer));
     w->next = 0;
     w->b = b;
@@ -135,7 +135,7 @@ static void connect_finish(tcpsock t)
 
     // really check to see if we succeeded
     if (getpeername(t->d, (struct sockaddr *)&foo, &size) == -1) {
-        register_timer(seconds(1), cont(t->h, connect_try, t));
+        register_timer(tcontext()->t, seconds(1), cont(t->h, connect_try, t));
         //        apply(t->c, false, false);
         //        close(t->d);
     } else {
@@ -158,7 +158,7 @@ static void connect_try (tcpsock t)
     int r = connect(t->d, 
                     (struct sockaddr *)&a,
                     sizeof(struct sockaddr_in));
-    register_write_handler(t->d, cont(t->h, connect_finish, t));
+    register_write_handler(tcontext()->s, t->d, cont(t->h, connect_finish, t));
 }
 
 
@@ -226,7 +226,7 @@ static void new_connection(tcp_server t, new_client n)
         close(t->d);
     }
 
-    register_read_handler(t->d, cont(t->h, new_connection, t, n));
+    register_read_handler(tcontext()->s, t->d, cont(t->h, new_connection, t, n));
 }
 
 
@@ -240,9 +240,9 @@ static void bind_try(tcp_server t, new_client n)
         listen(t->d, 5);
 
         apply(t->connected);
-        register_read_handler(t->d, cont(t->h, new_connection, t, n));
+        register_read_handler(tcontext()->s, t->d, cont(t->h, new_connection, t, n));
     } else {
-        register_timer(seconds(5),
+        register_timer(tcontext()->t, seconds(5),
                        cont(t->h, bind_try, t, n));
     }
 }

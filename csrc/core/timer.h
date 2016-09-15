@@ -1,9 +1,10 @@
 
 typedef struct timer *timer;
-timer register_timer(ticks, thunk n);
-timer register_periodic_timer(ticks, thunk n);
+typedef struct timers *timers;
+timer register_timer(timers, ticks, thunk n);
+timer register_periodic_timer(timers, ticks, thunk n);
 void remove_timer();
-void initialize_timer();
+timers initialize_timers(heap h);
 ticks parse_time();
 void print_time(string b, ticks t);
 ticks timer_check();

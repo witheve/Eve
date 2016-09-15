@@ -1,7 +1,5 @@
 typedef void *station;
 
-
-void initialize_timers(heap);
 typedef closure(buffer_handler, buffer, thunk);
 
 // xxx - recursive type declaration...maybe cheat and use compatible types
@@ -16,6 +14,7 @@ extern heap pages;
 
 typedef closure(status_handler, int);
 
+typedef struct timers *timers;
 typedef int descriptor;
 
 extern descriptor standardoutput;
@@ -24,9 +23,10 @@ extern descriptor standarderror;
 
 void exit(int);
 void standardout(string s);
+typedef struct selector *selector;
 
-void register_read_handler(descriptor, thunk);
-void register_write_handler(descriptor, thunk);
+void register_read_handler(selector, descriptor, thunk);
+void register_write_handler(selector, descriptor, thunk);
 heap efence_heap(bytes);
 
 buffer read_file(heap, char *);
@@ -70,7 +70,7 @@ void tcp_create_server(heap h,
                        thunk bound);
 
 void unix_wait();
-void select_init();
+selector select_init(heap);
 void init_processes();
 
 void clocktime(ticks t, unsigned int *hours, unsigned int *minutes, unsigned int *seconds);
@@ -99,3 +99,15 @@ static register_read requeue(heap h, buffer b, register_read reg)
     if (buffer_length(b) == 0) return reg;
     return cont(h, regbounce, reg, b);
 }
+
+typedef struct context *context;
+
+extern struct context *primary;
+
+#define tcontext() primary
+
+typedef struct context {
+    timers t;
+    heap page_heap;
+    selector s;
+} *context;

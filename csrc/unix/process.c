@@ -98,13 +98,15 @@ buffer_handler allocate_process(heap h,
     close(errs[1]);
 
     if (output != ignore)
-        register_read_handler(outs[0],
+        register_read_handler(tcontext()->s,
+                              outs[0],
                               cont(h, read_nonblocking_desc, h,
                                       outs[0],
                                       output));
 
     if (error != ignore)
-        register_read_handler(errs[0],
+        register_read_handler(tcontext()->s,
+                              errs[0],
                               cont(h, read_nonblocking_desc, h,
                                       errs[0],
                                       error));

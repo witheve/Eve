@@ -2,19 +2,20 @@
 
 #define FDSIZE 256
 
-static table read_handlers;
-static table write_handlers;
-static fd_set reads;
-static fd_set writes;
+struct selector {
+    table read_handlers;
+    table write_handlers;
+};
+    
 
-void register_read_handler(descriptor d, thunk t)
+void register_read_handler(selector s, descriptor d, thunk t)
 {
-    table_set(read_handlers, (void *)(unsigned long)d, t);
+    table_set(s->read_handlers, (void *)(unsigned long)d, t);
 }
 
-void register_write_handler(descriptor d, thunk t)
+void register_write_handler(selector s, descriptor d, thunk t)
 {
-    table_set(write_handlers, (void *)(unsigned long)d, t);
+    table_set(s->write_handlers, (void *)(unsigned long)d, t);
 }
 
 extern int ffsll(long long value);
@@ -35,29 +36,31 @@ static void scan_table(fd_set *t, table f)
     }
 }
 
-void select_timer_block(ticks interval)
+void select_timer_block(selector s, ticks interval)
 {
     struct timeval timeout;
     struct timeval *timeout_pointer = 0;
     int result;
     descriptor d;
+    fd_set reads;
+    fd_set writes;
 
     if (interval){
         ticks_to_timeval(&timeout, interval);
         timeout_pointer = &timeout;
     }
 
-    table_foreach (read_handlers, d, z)
+    table_foreach (s->read_handlers, d, z)
         FD_SET((unsigned long)d, &reads);
 
-    table_foreach (write_handlers, d, z)
+    table_foreach (s->write_handlers, d, z)
         FD_SET((unsigned long)d, &writes);
 
     result = select(FD_SETSIZE, &reads, &writes, 0, timeout_pointer);
 
     if (result > 0) {
-        scan_table(&reads, read_handlers);
-        scan_table(&writes, write_handlers);
+        scan_table(&reads, s->read_handlers);
+        scan_table(&writes, s->write_handlers);
     }
 }
 
@@ -66,10 +69,12 @@ static u64 key_from_fd(void *x) {return((unsigned long) x);}
 // but maybe we can mix up key a little bit for better distribution?
 static boolean compare_fd(void *x, void *y) {return((unsigned long)x==(unsigned long)y);}
 
-void select_init()
+selector select_init(heap h)
 {
-    read_handlers = allocate_table(init, key_from_fd, compare_fd);
-    write_handlers = allocate_table(init, key_from_fd, compare_fd);
+    selector s = allocate(h, sizeof(struct selector));
+    s->read_handlers = allocate_table(init, key_from_fd, compare_fd);
+    s->write_handlers = allocate_table(init, key_from_fd, compare_fd);
+    return s;
 }
 
 
