@@ -23,9 +23,9 @@ build the chat pane
 draw messages
 
 ```
-  match
-    parent = [#chat-messages channel]
+  match (@all, @session, @browser)
     id = [#message name time message channel]
+    parent = [#chat-messages channel]
   bind @browser
     parent.children += [#div id, class: "chat-message", children:
                          [#div class: "chat-user", text: name]
@@ -36,11 +36,12 @@ draw messages
 handle chat keydowns
 
 ```
-  match
+  match (@session, @browser)
     event = [#keydown element, key: "enter"]
     element = [#channel-input channel value]
     [#user name]
     [#time hours minutes seconds]
+
   commit @browser
     element.value := ""
   commit @all

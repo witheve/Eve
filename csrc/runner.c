@@ -107,6 +107,8 @@ void merge_scan(evaluation ev, vector scopes, int sig, listener result, value e,
 {
     vector_foreach(scopes, u) {
         bag b = table_find(ev->t_input, u);
+        if(!b) continue;
+
         apply(b->scan, sig,
               cont(ev->working, shadow_p_by_t_and_f, ev, result),
               e, a, v);
