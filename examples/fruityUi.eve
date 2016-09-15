@@ -15,7 +15,7 @@ Draw a list of fruits
 ```
   match
     [#fruit color name]
-  bind
+  bind @browser
     [#div #foo sort: name, text: name, style: [color]]
 ```
 
@@ -23,6 +23,6 @@ draw clicks
 ```
   match
     click = [#click element]
-  commit
+  commit @browser
     [#div sort: "zzz", click, text: "yo"]
 ```

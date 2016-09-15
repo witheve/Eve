@@ -1,18 +1,17 @@
 #include <runtime.h>
-#include <json_request.h>
 #include <http/http.h>
 #include <luanne.h>
 
+typedef struct json_session {
+    heap h;
+    table current_delta;
+    uuid browser_id;
+    evaluation ev;
+    endpoint down;
+    table id_mappings;
+} *json_session;
 
-// FIXME: because we allow you to swap the program out, we have to have
-// a way to swap out the root parse graph. For now, we're doing this as
-// a global, which locks us into having only one program running, but
-// we should figure out a way to close over this in some useful way, while
-// allowing updating the program.
-static bag root_compiler_bag;
-static char *exec_path;
-
-extern thunk ignore;
+buffer format_error_json(heap h, char* message, bag data, uuid data_id);
 
 static CONTINUATION_1_0(send_destroy, heap);
 static void send_destroy(heap h)
@@ -47,7 +46,7 @@ buffer format_error_json(heap h, char* message, bag data, uuid data_id)
     if(data != 0) {
       vector_set(includes, 0, data);
     }
-    bag response = (bag)create_edb(h, id, includes);
+    bag response = (bag)create_edb(h, includes);
     uuid root = generate_uuid();
     apply(response->insert, root, sym(type), sym(error), 1, 0);
     apply(response->insert, root, sym(stage), sym(executor), 1, 0);
@@ -63,14 +62,14 @@ static CONTINUATION_1_3(handle_error, json_session, char *, bag, uuid);
 static void handle_error(json_session session, char * message, bag data, uuid data_id) {
     heap h = allocate_rolling(pages, sstring("error handler"));
     buffer out = format_error_json(h, message, data, data_id);
-    apply(session->write, out, cont(h, send_destroy, h));
+    apply(session->down->w, out, cont(h, send_destroy, h));
 }
 
 
 // always call this guy independent of commit so that we get an update,
 // even on empty, after the first evaluation. warning, destroys
 // his heap
-static void send_guy(heap h, buffer_handler output, values_diff diff)
+static void send_diff(heap h, buffer_handler output, values_diff diff)
 {
     string out = allocate_string(h);
     bprintf(out, "{\"type\":\"result\", \"insert\":[");
@@ -81,256 +80,119 @@ static void send_guy(heap h, buffer_handler output, values_diff diff)
     apply(output, out, cont(h, send_destroy, h));
 }
 
-
-static void send_full_parse(heap h, buffer_handler output, string parse)
-{
-    string out = allocate_string(h);
-    bprintf(out, "{\"type\":\"full_parse\", \"parse\": ");
-    buffer_append(out, bref(parse, 0), buffer_length(parse));
-    bprintf(out, "}");
-    apply(output, out, cont(h, send_destroy, h));
-}
-
-static void dump_display(buffer dest, node source)
-{
-    boolean multi = false;
-    bprintf(dest, "{");
-    table_foreach(source->display, k, v) {
-        bprintf(dest, "%s%v: %b", multi ? ", " : "", k, v);
-        multi = true;
-    }
-    bprintf(dest, "}");
-}
-
-static void send_cnode_graph(heap h, buffer_handler output, node head)
-{
-    string out = allocate_string(h);
-
-    bprintf(out, "{\"type\":\"node_graph\", \"head\": \"%v\", \"nodes\":{", head->id);
-    vector to_scan = allocate_vector(h, 10);
-    vector_insert(to_scan, head);
-    int nodeComma = 0;
-    vector_foreach(to_scan, n){
-        node current = (node) n;
-        if(nodeComma) {
-            bprintf(out, ",");
-        }
-        bprintf(out, "\"%v\": {\"id\": \"%v\", \"type\": %v, \"arms\": [", current->id, current->id, current->type);
-        int needsComma = 0;
-        vector_foreach(current->arms, arm) {
-            vector_insert(to_scan, arm);
-            if(needsComma) {
-                bprintf(out, ",");
-            }
-            bprintf(out, "\"%v\"", ((node)arm)->id);
-            needsComma = 1;
-        }
-        bprintf(out, "]");
-
-        // xxx is in display props now
-        if(current->type == intern_cstring("scan")) {
-            bprintf(out, ", \"scan_type\": %v", table_find(current->arguments, sym(sig)));
-        }
-        bprintf(out, ", \"display\":");
-        dump_display(out, current);
-
-        bprintf(out, "}");
-        nodeComma = 1;
-    }
-
-    bprintf(out, "}");
-    bprintf(out, "}");
-    apply(output, out, ignore);
-}
-
-static void send_node_times(heap h, buffer_handler output, node head, table counts)
-{
-    string out = allocate_string(h);
-    u64 time = (u64)table_find(counts, sym(time));
-    u64 cycle_time = (u64)table_find(counts, sym(cycle-time));
-    u64 iterations = (u64)table_find(counts, sym(iterations));
-
-    bprintf(out, "{\"type\":\"node_times\", \"total_time\": %t, \"cycle_time\": %u, \"iterations\": %d, \"head\": \"%v\", \"nodes\":{", time, cycle_time, iterations, head->id);
-    vector to_scan = allocate_vector(h, 10);
-    vector_insert(to_scan, head);
-    int nodeComma = 0;
-    vector_foreach(to_scan, n){
-        node current = (node) n;
-        vector_foreach(current->arms, arm) {
-            vector_insert(to_scan, arm);
-        }
-        perf p = table_find(counts, current);
-        if(p) {
-            if(nodeComma) bprintf(out, ",");
-            bprintf(out, "\"%v\": {\"count\": %u, \"time\": %l}", current->id, p->count, p->time);
-            nodeComma = 1;
-        }
-    }
-
-    bprintf(out, "}");
-    bprintf(out, "}");
-    apply(output, out, ignore);
-}
-
-// solution should already contain the diffs against persisted...except missing support (diane)
-static CONTINUATION_1_3(send_response, json_session, multibag, multibag, table);
-static void send_response(json_session session, multibag t_solution, multibag f_solution, table counters)
+static CONTINUATION_1_2(send_response, json_session, multibag, multibag);
+static void send_response(json_session session, multibag t_solution, multibag f_solution)
 {
     heap h = allocate_rolling(pages, sstring("response"));
     heap p = allocate_rolling(pages, sstring("response delta"));
     table results = create_value_vector_table(p);
     edb browser;
 
-    if (f_solution && (browser = table_find(f_solution, session->browser_uuid))) {
-        edb_foreach(browser, e, a, v, c, _)
+    if (f_solution && (browser = table_find(f_solution, session->browser_id))) {
+        edb_foreach(browser, e, a, v, c, _) {
             table_set(results, build_vector(p, e, a, v), etrue);
-    }
-
-
-    table_foreach(session->persisted, k, scopeBag) {
-        table_foreach(((bag)scopeBag)->implications, impl, _) {
-            send_node_times(h, session->write, ((compiled)impl)->head, counters);
+            table_set(session->id_mappings, e, e);
         }
+
     }
+
 
     values_diff diff = diff_value_vector_tables(p, session->current_delta, results);
     // destructs h
 
-    if (t_solution && (browser = table_find(t_solution, session->browser_uuid))) {
+    if (t_solution && (browser = table_find(t_solution, session->browser_id))) {
         edb_foreach(browser, e, a, v, m, u) {
-            if (m > 0)
-                vector_insert(diff->insert, build_vector(h, e, a, v));
-            if (m < 0)
-                vector_insert(diff->remove, build_vector(h, e, a, v));
+            table_set(session->id_mappings, e, e); // @FIXME: This is gonna leak dead ids.
+            vector eav = 0;
+            if(m != 0)
+                eav = build_vector(h, e, a, v);
+            if (m > 0 && !eav_vector_contains(diff->insert, eav))
+                vector_insert(diff->insert, eav);
+            if (m < 0 && !eav_vector_contains(diff->remove, eav))
+                vector_insert(diff->remove, eav);
         }
     }
 
 
-    send_guy(h, session->write, diff);
+    send_diff(h, session->down->w, diff);
 
     destroy(session->current_delta->h);
     session->current_delta = results;
 }
 
-void send_parse(json_session session, buffer query)
-{
-    heap h = allocate_rolling(pages, sstring("parse response"));
-    string out = allocate_string(h);
-    interpreter lua = get_lua();
-    value json = lua_run_module_func(lua, query, "parser", "parseJSON");
-    estring json_estring = json;
-    buffer_append(out, json_estring->body, json_estring->length);
-    free_lua(lua);
-    // send the json message
-    apply(session->write, out, cont(h, send_destroy, h));
+// LE is full of sadness and inverts the bytes in integers.
+u64 id_bracket_open = 0x91a6e2;
+u64 id_bracket_close = 0x92a6e2;
+boolean is_stringy_uuid(value v) {
+    if(type_of(v) != estring_space) return false;
+    estring s = (estring)v;
+    if(s->length < 6) return false; // It's too short to contain id brackets at all.
+    u64 open_rune = 0;
+    memcpy(&open_rune, s->body, 3);
+    if(memcmp(&open_rune, &id_bracket_open, 3) != 0) return false;
+    u64 close_rune = 0;
+    memcpy(&close_rune, s->body + s->length - 3, 3);
+    if(memcmp(&close_rune, &id_bracket_close, 3) != 0) return false;
+    return true;
 }
 
+value map_if_uuid(heap h, value v, table mapping) {
+    if(!is_stringy_uuid(v)) return v;
 
-CONTINUATION_1_2(handle_json_query, json_session, bag, uuid);
-void handle_json_query(json_session session, bag in, uuid root)
+    estring s = (estring)v;
+    buffer str = alloca_wrap_buffer(s->body + 3, s->length - 6);
+
+    uuid id = parse_uuid(str);
+    value mapped = table_find(mapping, id);
+    if(mapped) return mapped; // If we've already been mapped, reuse that value.
+
+    uuid neue = generate_uuid();
+    table_set(mapping, id, neue);
+    return neue;
+}
+
+static CONTINUATION_1_2(json_input, json_session, bag, uuid);
+static void json_input(json_session s, bag json_bag, uuid root_id)
 {
-    if (in == 0) {
-        close_evaluation(session->ev);
-        destroy(session->h);
+    if(!json_bag) {
+        close_evaluation(s->ev);
+        destroy(s->h);
         return;
     }
 
-    estring t = lookupv((edb)in, root, sym(type));
-    estring q = lookupv((edb)in, root, sym(query));
-    string x = q?alloca_wrap_buffer(q->body, q->length):0;
+    edb b = (edb)json_bag;
+    value type = lookupv(b, root_id, sym(type));
+    if(type == sym(event)) {
+        bag event = (bag)create_edb(s->h, 0);
+        value eavs_id = lookupv(b, root_id, sym(insert));
+        int ix = 1;
+        while(true) {
+            value eav_id = lookupv(b, eavs_id, box_float(ix));
+            if(!eav_id) break;
+            value e = map_if_uuid(s->h, lookupv(b, eav_id, box_float(1)), s->id_mappings);
+            value a = map_if_uuid(s->h, lookupv(b, eav_id, box_float(2)), s->id_mappings);
+            value v = map_if_uuid(s->h, lookupv(b, eav_id, box_float(3)), s->id_mappings);
 
-    if (t == sym(query)) {
-        inject_event(session->ev, x, session->tracing);
-    }
-    if (t == sym(swap)) {
-        close_evaluation(session->ev);
-        // xxx - reflection
-        session->root->implications =  allocate_table(((edb)session->root)->h, key_from_pointer, compare_pointer);
-
-        bag compiler_bag;
-        vector nodes = compile_eve(init, x, session->tracing, &compiler_bag);
-        root_compiler_bag = compiler_bag;
-
-        table_set(session->scopes, intern_cstring("compiler"), compiler_bag->u);
-        table_set(session->persisted, compiler_bag->u, compiler_bag);
-
-        heap graph_heap = allocate_rolling(pages, sstring("initial graphs")); // @FIXME: LEAKING HEAP
-        vector_foreach(nodes, node) {
-            // xxx - reflection
-            table_set(session->root->implications, node, (void *)1);
-            send_cnode_graph(graph_heap, session->write, ((compiled)node)->head);
+            apply(event->insert, e, a, v, 1, 0); // @NOTE: It'd be cute to be able to tag this as coming from the json session.
+            ix++;
         }
-        session->ev = build_evaluation(session->scopes, session->persisted, cont(session->h, send_response, session), cont(session->h, handle_error, session));
-        run_solver(session->ev);
-    }
-    if (t == sym(parse)) {
-        send_parse(session, alloca_wrap_buffer(q->body, q->length));
-    }
-    if (t == sym(save)) {
-        write_file(exec_path, alloca_wrap_buffer(q->body, q->length));
+        inject_event(s->ev, event);
     }
 }
 
-
-CONTINUATION_2_4(new_json_session,
-                 bag, boolean,
-                 buffer_handler, bag, uuid, register_read)
-void new_json_session(bag root, boolean tracing,
-                      buffer_handler write, bag b, uuid u, register_read reg)
+object_handler create_json_session(heap h, evaluation ev, endpoint down)
 {
-    heap h = allocate_rolling(pages, sstring("session"));
-    uuid su = generate_uuid();
+    // allocate json parser
+    json_session s = allocate(h, sizeof(struct json_session));
+    s->h = h;
+    s->down = down;
+    s->ev = ev;
+    s->current_delta = create_value_vector_table(allocate_rolling(pages, sstring("json delta")));
+    s->id_mappings = create_value_table(h);
+    ev->complete = cont(h, send_response, s);
+    ev->error = cont(h, handle_error, s);
+    s->browser_id = table_find(ev->scopes, sym(browser));
+    table_set(ev->t_input, s->browser_id, create_edb(h, 0));
 
-    json_session session = allocate(h, sizeof(struct json_session));
-    session->graph = 0; // @FIXME: remove this completely
-    session->h = h;
-    session->root = root;
-    session->tracing = tracing;
-    session->session = (bag)create_edb(h, su, 0);
-    session->current_delta = create_value_vector_table(allocate_rolling(pages, sstring("trash")));
-    session->browser_uuid = generate_uuid();
-    session->persisted = create_value_table(h);
-
-    table_set(session->persisted, session->root->u, session->root);
-    table_set(session->persisted, session->session->u, session->session);
-
-    session->scopes = create_value_table(session->h);
-    table_set(session->scopes, intern_cstring("session"), session->session->u);
-    table_set(session->scopes, intern_cstring("all"), session->root->u);
-    table_set(session->scopes, intern_cstring("browser"), session->browser_uuid);
-
-    bag compiler_bag = root_compiler_bag;
-    table_set(session->scopes, intern_cstring("compiler"), compiler_bag->u);
-    table_set(session->persisted, compiler_bag->u, compiler_bag);
-
-
-    // xxx - parameterize file root path
-    // we really shouldn't be allowing everyone to mess with the filesystem
-    bag fb = filebag_init(sstring(pathroot), generate_uuid());
-    table_set(session->scopes, intern_cstring("file"), fb->u);
-    table_set(session->persisted, fb->u, fb);
-
-    session->eh = allocate_rolling(pages, sstring("eval"));
-    session->ev = build_evaluation(session->scopes, session->persisted, cont(session->h, send_response, session), cont(session->h, handle_error, session));
-    session->write = websocket_send_upgrade(session->eh, b, u,
-                                      write,
-                                      parse_json(session->eh, cont(h, handle_json_query, session)),
-                                      reg);
-
-    // send the graphs
-    heap graph_heap = allocate_rolling(pages, sstring("initial graphs")); // @FIXME: LEAKING HEAP
-    table_foreach(session->persisted, k, scopeBag) {
-        table_foreach(((bag)scopeBag)->implications, impl, _) {
-            send_cnode_graph(graph_heap, session->write, ((compiled)impl)->head);
-        }
-    }
-
-    inject_event(session->ev, aprintf(session->h,"init!\n```\nbind\n      [#session-connect]\n```"), session->tracing);
-}
-
-void init_json_service(http_server h, bag root, boolean tracing, bag compiler_bag, char *exec_file_path)
-{
-    root_compiler_bag = compiler_bag;
-    exec_path = exec_file_path;
-    http_register_service(h, cont(init, new_json_session, root, tracing), sstring("/ws"));
+    return(cont(h, json_input, s));
 }

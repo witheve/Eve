@@ -1,13 +1,11 @@
-import * as commonmark from "commonmark";
+import {Parser} from "commonmark";
 import {CodeMirror} from "CodeMirror";
 import {sendSwap, sendSave, sendParse} from "./client";
 import {setActiveIds, renderer, renderEve} from "./renderer";
 
-let lineMarks = {"item": true, "heading": true, "heading1": true, "heading2": true, "heading3": true, "heading4": true};
-
-let parser = new commonmark.Parser();
-
 let codeEditor: MarkdownEditor;
+let lineMarks = {"item": true, "heading": true, "heading1": true, "heading2": true, "heading3": true, "heading4": true};
+let parser = new Parser();
 
 interface Pos {line: number, ch: number}
 interface Range { from: Pos, to: Pos }

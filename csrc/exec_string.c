@@ -31,11 +31,29 @@ static execf build_concat(block bk, node n)
                 table_find(n->arguments, sym(variadic)));
 }
 
-static CONTINUATION_6_4(do_split, perf, execf,
+
+
+
+static inline void output_split(execf n, buffer out, int ind,
+                                heap h, perf p, operator op, value *r, value token, value index,
+                                boolean bound_index, boolean bound_token)
+{
+    estring k = intern_buffer(out);
+    if ((!bound_index || (ind == *(double *)lookup(r, index))) &&
+        (!bound_token || (k == lookup(r, token)))){
+        store(r, token, k) ;
+        store(r, index, box_float(ind));
+        apply(n, h, p, op, r);
+    }
+}
+
+static CONTINUATION_8_4(do_split, perf, execf,
                         value, value, value, value,
+                        boolean, boolean,
                         heap, perf, operator, value *);
 static void do_split(perf p, execf n,
                      value token, value text, value index, value by,
+                     boolean bound_index, boolean bound_token,
                      heap h, perf pp, operator op, value *r)
 {
     start_perf(p, op);
@@ -60,29 +78,53 @@ static void do_split(perf p, execf n,
                 string_insert(out, si);
             }
             if (j == k->length) {
-                store(r, token, intern_buffer(out));
-                store(r, index, box_float(ind++));
                 j = 0;
-                out = 0;
-                apply(n, h, p, op, r);
+                output_split(n, out, ++ind, h, p, op, r, token, index, bound_index, bound_token);
+                buffer_clear(out);
             }
         }
+        if (out && buffer_length(out))
+            output_split(n, out, ++ind, h, p, op, r, token, index, bound_index, bound_token);
     } else apply(n, h, p, op, r);
     stop_perf(p, pp);
 }
 
 
-static execf build_split(block bk, node n)
+// xxx - bound index and bound filter are just split
+static execf build_split_bound_index(block bk, node n)
 {
-    // need an index here
     return cont(bk->h, do_split,
                 register_perf(bk->ev, n),
                 resolve_cfg(bk, n, 0),
                 table_find(n->arguments, sym(token)),
                 table_find(n->arguments, sym(text)),
                 table_find(n->arguments, sym(index)),
-                table_find(n->arguments, sym(by)));
+                table_find(n->arguments, sym(by)),
+                true, false);
+}
 
+static execf build_split_filter(block bk, node n)
+{
+    return cont(bk->h, do_split,
+                register_perf(bk->ev, n),
+                resolve_cfg(bk, n, 0),
+                table_find(n->arguments, sym(token)),
+                table_find(n->arguments, sym(text)),
+                table_find(n->arguments, sym(index)),
+                table_find(n->arguments, sym(by)),
+                true, true);
+}
+
+static execf build_split(block bk, node n)
+{
+    return cont(bk->h, do_split,
+                register_perf(bk->ev, n),
+                resolve_cfg(bk, n, 0),
+                table_find(n->arguments, sym(token)),
+                table_find(n->arguments, sym(text)),
+                table_find(n->arguments, sym(index)),
+                table_find(n->arguments, sym(by)),
+                false, false);
 }
 
 
@@ -119,5 +161,7 @@ void register_string_builders(table builders)
 {
     table_set(builders, intern_cstring("concat"), build_concat);
     table_set(builders, intern_cstring("split"), build_split);
+    table_set(builders, intern_cstring("split-filter"), build_split_filter);
+    table_set(builders, intern_cstring("split-bound-index"), build_split_bound_index);
     table_set(builders, intern_cstring("length"), build_length);
 }

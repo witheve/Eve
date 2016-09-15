@@ -4,6 +4,7 @@
 
 static vector uuid_set(block bk, vector scopes)
 {
+    if (vector_length(scopes) == 0) return 0;
     vector out = allocate_vector(bk->h, vector_length(scopes));
     vector_foreach(scopes, i) {
         // we're going to soft create these scopes, but the uuids
@@ -11,6 +12,7 @@ static vector uuid_set(block bk, vector scopes)
         uuid u = table_find(bk->ev->scopes, i);
         if (!u) {
             uuid lost = generate_uuid();
+            prf("Unable to find context: %v. New id: %v\n", i, lost);
             table_set(bk->ev->scopes, i, lost);
         }
         vector_insert(out, u);
@@ -78,7 +80,6 @@ static execf build_scan(block bk, node n)
                 table_find(n->arguments, sym(e)),
                 table_find(n->arguments, sym(a)),
                 table_find(n->arguments, sym(v)));
-
 }
 
 
@@ -131,6 +132,8 @@ static execf build_mutation(block bk, node n, int deltam)
     }
 
     vector name_scopes = table_find(n->arguments, sym(scopes));
+
+
     ins->bk = bk;
     ins->p = register_perf(bk->ev, n);
     ins->n =  resolve_cfg(bk, n, 0);
@@ -198,15 +201,18 @@ static void do_set(block bk, perf p, execf n,
         value vv=  lookup(r, v);
         boolean should_insert = true;
         bag b;
+        multibag *target;
+
+        if (mt == sym(bind)) {
+            target = &bk->ev->block_f_solution;
+        } else {
+            target = &bk->ev->block_t_solution;
+        }
 
         vector_foreach(scopes, u) {
-            multibag *target;
-            if (mt == sym(bind)) {
-                target = &bk->ev->block_f_solution;
-            } else {
-                target = &bk->ev->block_t_solution;
-            }
-            multibag_insert(target, bk->ev->h, u, ev, av, vv, 1, bk->name);
+            if (vv != enone)
+                multibag_insert(target, bk->ev->h, u, ev, av, vv, 1, bk->name);
+
             if ((b = table_find(bk->ev->t_input, u))) {
                 apply(b->scan, s_EAv,
                       cont(h, each_t_remove, bk->ev, bk->ev->working, u, target),
@@ -237,10 +243,61 @@ static execf build_set(block bk, node n)
                 table_find(n->arguments, sym(v)));
 }
 
+static CONTINUATION_6_4(do_erase, perf, execf, block,
+                        vector, value, value,
+                        heap, perf, operator, value *);
+static void do_erase(perf p, execf n, block bk, vector scopes, value mt, value e,
+                   heap h, perf pp, operator op, value *r)
+{
+    start_perf(p, op);
+    if (op == op_insert) {
+        bag b;
+        multibag *target;
+        value ev = lookup(r, e);
+        if (mt == sym(bind)) {
+            target = &bk->ev->block_f_solution;
+        } else {
+            target = &bk->ev->block_t_solution;
+        }
+
+        vector_foreach(scopes, u) {
+            // xxx - this can be done in constant time rather than
+            // the size of the object. the attribute tables are also
+            // being left behind below, which will confuse generic join
+            if ((b = table_find(bk->ev->t_input, u))) {
+                apply(b->scan, s_Eav,
+                      cont(h, each_t_remove, bk->ev, bk->ev->working, u, target),
+                      ev, 0, 0);
+            }
+            if (bk->ev->t_solution && (b = table_find(bk->ev->t_solution, u))) {
+                apply(b->scan, s_Eav,
+                      cont(h, each_t_solution_remove, bk->ev, bk->ev->working, u, target),
+                      ev, 0, 0);
+            }
+        }
+    }
+    apply(n, h, p, op, r);
+    stop_perf(p, pp);
+}
+
+static execf build_erase(block bk, node n)
+{
+    vector name_scopes = table_find(n->arguments, sym(scopes));
+
+    return cont(bk->h, do_erase,
+                register_perf(bk->ev, n),
+                resolve_cfg(bk, n, 0),
+                bk,
+                vector_length(name_scopes)?uuid_set(bk, name_scopes):bk->ev->default_insert_scopes,
+                table_find(n->arguments, sym(mutateType)),
+                table_find(n->arguments, sym(e)));
+}
+
 extern void register_edb_builders(table builders)
 {
     table_set(builders, intern_cstring("insert"), build_insert);
     table_set(builders, intern_cstring("remove"), build_remove);
     table_set(builders, intern_cstring("set"), build_set);
     table_set(builders, intern_cstring("scan"), build_scan);
+    table_set(builders, intern_cstring("erase"), build_erase);
 }

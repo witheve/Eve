@@ -188,30 +188,32 @@ static void edb_insert(edb b, value e, value a, value v, multiplicity m, uuid bl
 static CONTINUATION_1_1(edb_commit, edb, edb);
 static void edb_commit(edb b, edb source)
 {
-    edb_foreach(source, e, a, v, m, block_id) 
+    edb_foreach(source, e, a, v, m, block_id)
         edb_insert(b, e, a, v, m, block_id);
 }
 
-int buffer_unicode_length(buffer buf)
+static int buffer_unicode_length(buffer buf, int start)
 {
     int length = 0;
-    rune_foreach(buf, c) {
-        length++;
-    }
+    int limit = buffer_length(buf);
+    for (u32 x = start, q;
+         (q = utf8_length(*(u32 *)bref(buf, x))),  x<limit;
+         x += q) length++;
     return length;
 }
 
 
-edb create_edb(heap h, uuid u, vector includes)
+edb create_edb(heap h, vector includes)
 {
     edb b = allocate(h, sizeof(struct edb));
     b->b.insert = cont(h, edb_insert, b);
     b->b.scan = cont(h, edb_scan, b);
     b->b.scan_sync = cont(h, edb_scan_sync, b);
-    b->b.u = u;
+    //    b->b.u = u;
     b->b.listeners = allocate_table(h, key_from_pointer, compare_pointer);
-    b->b.implications = allocate_table(h, key_from_pointer, compare_pointer);
     b->b.commit = cont(h, edb_commit, b);
+    b->b.blocks = allocate_vector(h, 1);
+    b->b.block_listeners = allocate_table(h, key_from_pointer, compare_pointer);
     b->h = h;
     b->count = 0;
     b->eav = create_value_table(h);
@@ -222,7 +224,6 @@ edb create_edb(heap h, uuid u, vector includes)
       b->includes = allocate_vector(h, 1);
     }
 
-
     return b;
 }
 
@@ -231,20 +232,29 @@ string edb_dump(heap h, edb b)
 {
     buffer out = allocate_string(h);
     table_foreach(b->eav, e, avl) {
-        int start = buffer_unicode_length(out);
+        int start = buffer_length(out);
         bprintf(out, "%v ", e);
-
-        int ind = buffer_unicode_length(out)-start;
+        int ind = buffer_unicode_length(out, start);
         int first =0;
 
         table_foreach((table)avl, a, vl) {
             int second = 0;
-            int start = buffer_unicode_length(out);
+            int start = buffer_length(out);
             bprintf(out, "%S%v ", first++?ind:0, a);
-            int ind2 = buffer_unicode_length(out)-start;
+            int ind2 = buffer_unicode_length(out, start) + ((first==1)?ind:0);
             table_foreach((table)vl, v, _)
                 bprintf(out, "%S%v\n", second++?ind2:0, v);
         }
     }
     return out;
+}
+
+edb __as_edb(void * b)
+{
+    return (edb) b;
+}
+
+bag __as_bag(void * b)
+{
+    return (bag) b;
 }

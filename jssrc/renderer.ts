@@ -367,6 +367,7 @@ window.addEventListener("change", function(event) {
     if(isSelectElem(target)) {
       value = target.options[target.selectedIndex].value;
     }
+
     sentInputValues[target.entity!].push(value);
     let tag = ["change"];
     if(target == target) {

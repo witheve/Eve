@@ -83,6 +83,11 @@ function translate_value(x)
       if ct == "uuid" then
          return suuid(x.constant)
       end
+
+      if ct == "none" then
+         return snone()
+      end
+
       print ("i couldn't figure out this value", flat_print_table(x))
       return x
    end
@@ -336,9 +341,15 @@ function translate_object(n, bound, down, context, tracing)
 
    local env, c = down(bound)
 
+   -- the nodes arguments are all arrays, so translate
+   local scopes = {}
+   for k, v in pairs(n.scopes) do
+        scopes[#scopes + 1] = k
+   end
+
    return env, cnode(n, "scan", {c},
                   {sig = sig,
-                   scopes = n.scopes,
+                   scopes = scopes,
                    e = ef(n, env, e),
                    a = af(n, env, a),
                    v = vf(n, env, v)},
@@ -360,13 +371,8 @@ function translate_mutate(n, bound, down, context, tracing)
    -- the nodes arguments are all arrays, so translate
    local scopes = {}
    for k, v in pairs(n.scopes) do
-        scopes[#scopes+1] = k
+        scopes[#scopes + 1] = k
    end
-
-   if (#scopes == 0) then
-      scopes[1] = "session"
-   end
-
 
    c = cnode(n, operator, {c},
                         {scopes = scopes,

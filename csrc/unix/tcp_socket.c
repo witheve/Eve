@@ -21,6 +21,7 @@ typedef struct tcpsock {
     thunk read_handler;
     register_read r;
     reader client_reader;
+    struct endpoint e;
 } *tcpsock;
 
 typedef struct tcp_server {
@@ -138,9 +139,9 @@ static void connect_finish(tcpsock t)
         //        apply(t->c, false, false);
         //        close(t->d);
     } else {
-        apply(t->c,
-              cont(t->h, tcp_write, t),
-              cont(t->h, regtcp, t));
+        t->e.w = cont(t->h, tcp_write, t);
+        t->e.r = cont(t->h, regtcp, t);
+        apply(t->c, &t->e);
     }
 }
 
@@ -214,11 +215,13 @@ static void new_connection(tcp_server t, new_client n)
         // do we really care about this?
         //        getsockname(fd, (struct sockaddr *)&from, &flen);
         //        table myself = digest_sockaddrin(t->h, &from);
+
+        new->e.w = cont(new->h, tcp_write, new);
+        new->e.r = cont(new->h, regtcp, new);
         
         apply(n,
-              cont(new->h, tcp_write, new),
-              peer,
-              cont(new->h, regtcp, new));
+              &new->e,
+              peer);
     } else {
         close(t->d);
     }
