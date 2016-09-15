@@ -25,9 +25,9 @@ Send blocks
 ```
   match @compiler
     graph = [#parse-graph #editor children: block]
-    block = [#block name sort line]
+    block = [#block id name sort line]
   bind @browser
-    block <- [#block graph name sort line]
+    block <- [#block graph id name sort line]
 ```
 
 Send tokens
