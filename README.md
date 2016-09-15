@@ -49,7 +49,9 @@ docker pull witheve/eve
 
 Windows Users - Docker for Windows requires Microsoft Hyper-V, which requires Windows 10. For users of earlier Windows versions, binaries are forthcoming.
 
-## Running
+## [Running](https://github.com/witheve/docs/blob/master/drafts/handbook/running.md)
+
+### Native
 
 ### Native
 
@@ -69,9 +71,15 @@ To run the Docker container, execute:
 docker run -p [port]:8080 witheve/eve [eve_file]
 ```
 
-Here, `[port]` is an available port on your local machine. It can be `8080` or any other port you would like. Then direct your browser to `http://localhost:[port]` to access the editor.
+`[port]` is an available port on your local machine. It can be `8080` or any other port you would like. Then direct your browser to `http://localhost:[port]` to access the editor.
 
-**Note**: The working directory of the container is `eve/build`. To run a program in the `eve/examples` directory, you need to provide a relative path e.g. `../examples/tic-tac-toe.eve`. To pass Eve files on your local machine into the container, you'll need to mount a [docker volume](https://docs.docker.com/engine/tutorials/dockervolumes/). 
+`[eve_file]` is a path to a `*.eve` file you would like to build. The working directory of the container is `eve/build`, so to run a program in the `eve/examples` directory, you need to provide a relative path e.g. 
+
+```
+docker -p 8080:8080 witheve/eve ../examples/clock.eve
+```
+
+To pass Eve files on your local machine into the container, you'll need to mount a [docker volume](https://docs.docker.com/engine/tutorials/dockervolumes/). 
 
 ## How to use Eve
 
