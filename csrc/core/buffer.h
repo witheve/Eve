@@ -91,30 +91,30 @@ void buffer_read_field(buffer b,
                        bytes length);
 
 #define WRITE_BE(bits)\
-  static inline void buffer_write_be##bits(buffer b, u64 x)\
+   static inline void buffer_write_be##bits(buffer b, u64 x)   \
   {                                                            \
-      u64 k = x;                                              \
+      u64 k = x;                                               \
       int len = bits>>3;                                       \
-      buffer_extend(b, len);                                  \
-      u8 *n = bref(b, b->end);                                \
-      for (int i = len-1; i >= 0; i--) {                 \
+      buffer_extend(b, len);                                   \
+      u8 *n = bref(b, b->end);                                 \
+      for (int i = len-1; i >= 0; i--) {                       \
           n[i] = k & 0xff;                                     \
           k >>= 8;                                             \
       }                                                        \
       b->end += len;                                           \
   }
 
-#define READ_BE(bits)                                   \
-    static inline u64 buffer_read_be##bits(buffer b)        \
-    {                                                           \
-        u64 k = 0;                                          \
+#define READ_BE(bits)                                            \
+    static inline u64 buffer_read_be##bits(buffer b)             \
+    {                                                            \
+        u64 k = 0;                                               \
         int len = bits>>3;                                       \
-        u8 *n = bref(b, b->start);                             \
-        for (int i = 0; i < len; i++) {                    \
-            k = (k << 8) | (*n++);                              \
-        }                                                       \
-        b->start +=len;                                         \
-        return(k);                                              \
+        u8 *n = bref(b, 0);                                      \
+        for (int i = 0; i < len; i++) {                          \
+            k = (k << 8) | (*n++);                               \
+        }                                                        \
+        b->start +=len;                                          \
+        return(k);                                               \
     }
 
 WRITE_BE(64)

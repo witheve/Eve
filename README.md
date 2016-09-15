@@ -14,9 +14,9 @@ Eve is a set of tools to help us think. Currently, these tools include: a tempor
 
 ### From Source
 
-To build Eve from source, you'll need LuaJIT, gcc, make, and python. Currently, building from source is only supported on Linux and OSX. On Windows, we've managed to compile Eve in cygwin, but have not gotten it to run yet. Contributions are welcome on this front.
+Before you can install Eve you'll need need LuaJIT, gcc, make, and python. Currently, building from source is only supported on Linux and OSX. On Windows, we've managed to compile Eve in cygwin, but have not gotten it to run yet. Contributions are welcome on this front.
 
-Install luajit by downloading [LuaJIT-2.1.0-beta2](http://luajit.org/download.html) and then in the LuaJIT directory:
+First install gcc, make, and python using your operating system's standard channels. Chances are you already have these. Install luajit by downloading [LuaJIT-2.1.0-beta2](http://luajit.org/download.html) and then in the LuaJIT directory:
 
 ```
 make
@@ -29,7 +29,15 @@ By default, LuaJIT is not added to your path, so you'll need to do that as well:
 ln -sf luajit-2.1.0-beta2 /usr/local/bin/luajit
 ```
 
-then execute `make` in the `eve/build` directory.
+Next you'll need to download the Eve source, either by cloning our repository
+
+```
+git clone https://github.com/witheve/Eve.git
+```
+
+or downloading the source [directly](https://github.com/witheve/Eve/archive/master.zip).
+
+To build Eve, execute `make` in the `eve/build` directory.
 
 ### Docker
 
@@ -43,11 +51,17 @@ Windows Users - Docker for Windows requires Microsoft Hyper-V, which requires Wi
 
 ## Running
 
+### Native
+
 To run Eve, execute the following command in the `eve/build` directory:
 
-`./eve -e [eve_file]`
+`./eve`
 
-where `[eve_file]` is the location of an `*.eve` file you want to compile. This process launches a server at `http://localhost:8080`. You can point your browser there to see the results of the compilation. You can configure the port with the `--port` flag. e.g. `./eve --port 1234`.
+This command launches a server hosted at `http://localhost:8080`. You can access the Eve editor by directing your browser to that address. We recommend using Chrome, since we haven't tested on other browsers. You can configure the port with the `--port` flag e.g. `./eve --port 1234`.
+
+If you want to compile an existing program, use the `-e` flag and provide a path to a `*.eve` file e.g. `./eve -e ../examples/tic-tac-toe.eve`. As you make changes in the editor, they will be reflected back into this file.
+
+### Docker
 
 To run the Docker container, execute:
 
@@ -55,14 +69,18 @@ To run the Docker container, execute:
 docker run -p [port]:8080 witheve/eve [eve_file]
 ```
 
-Here, `[port]` is an available port on your local machine. It can be `8080` or any other port you would like. Then direct your browser to `http://localhost:[port]` to access the results. **Note**: To pass your own Eve files into the container, you'll need to mount a [docker volume](https://docs.docker.com/engine/tutorials/dockervolumes/).
+Here, `[port]` is an available port on your local machine. It can be `8080` or any other port you would like. Then direct your browser to `http://localhost:[port]` to access the editor.
+
+**Note**: The working directory of the container is `eve/build`. To run a program in the `eve/examples` directory, you need to provide a relative path e.g. `../examples/tic-tac-toe.eve`. To pass Eve files on your local machine into the container, you'll need to mount a [docker volume](https://docs.docker.com/engine/tutorials/dockervolumes/). 
 
 ## How to use Eve
 
-You can learn about Eve with the following resources:
+You can learn about Eve through the following resources:
 
-- [Syntax Quick Reference](https://github.com/witheve/assets/blob/master/docs/SyntaxReference.pdf)
-- [Eve Language Handbook (draft)](https://github.com/witheve/docs/blob/master/drafts/handbook/contents.md)
+- [Eve Quick Start Tutorial](https://github.com/witheve/docs/blob/master/drafts/guides/quickstart.md) (20-30 mintues) (draft)
+- [Eve Quick(er) Start Tutorial](https://github.com/witheve/docs/blob/master/drafts/guides/quickerstart.md) (5-10 mintues) (draft)
+- [Syntax Quick Reference](https://github.com/witheve/assets/blob/master/docs/SyntaxReference.pdf) (draft)
+- [Eve Language Handbook](https://github.com/witheve/docs/blob/master/drafts/handbook/contents.md) (draft)
 
 *Please let us know what kind of documents would be the most helpful as you begin your journey with Eve*. We want our documentation to be a highlight of the Eve experience, so any suggestions are greatly appreciated.
 

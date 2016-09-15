@@ -50,5 +50,9 @@ build/Eve.xcodeproj/*/xcuserdata
 build/lua
 build/luajit-2.0
 build/*.js
-
-build/*.js
+build/db
+build/package
+build/package.dSYM
+build/staticdb
+build/contgen*
+build/*.map

@@ -9,6 +9,7 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
+#include <limits.h>
 
 void ticks_to_timeval(struct timeval *a, ticks b);
 ticks timeval_to_ticks(struct timeval *a);
@@ -17,7 +18,7 @@ typedef int decsriptor;
 
 #define MIN(x, y) ((x)<(y)?(x):(y))
 
-static inline buffer system_read(heap h, 
+static inline buffer system_read(heap h,
                                  descriptor d,
                                  bytes length)
 {
@@ -26,7 +27,7 @@ static inline buffer system_read(heap h,
     void *dest = bref(b, 0);
     // error handling
     int result = read(d, dest, len);
-    if (result > 0) { 
+    if (result > 0) {
         buffer_produce(b, result);
         return(b);
     }
@@ -34,7 +35,7 @@ static inline buffer system_read(heap h,
 }
 
 static CONTINUATION_3_0(read_nonblocking_desc, heap, descriptor, buffer_handler);
-static void read_nonblocking_desc(heap h, 
+static void read_nonblocking_desc(heap h,
                                   descriptor d,
                                   buffer_handler bh);
 
@@ -45,7 +46,7 @@ static void rereg(heap h, descriptor d, buffer_handler bh)
     register_read_handler(d, cont(h, read_nonblocking_desc, h, d, bh));
 }
 
-static void read_nonblocking_desc(heap h, 
+static void read_nonblocking_desc(heap h,
                                   descriptor d,
                                   buffer_handler bh)
 {
@@ -72,7 +73,7 @@ static station digest_sockaddrin(heap h, struct sockaddr_in *a)
 
 static int encode_sockaddrin(struct sockaddr_in *out, station in)
 {
-    memset (out, 0, sizeof(struct sockaddr_in));  
+    memset (out, 0, sizeof(struct sockaddr_in));
 #ifdef HAVE_SOCKADDR_SA_LEN
     out->sin_len=sizeof(struct sockaddr_in);
 #endif
@@ -86,6 +87,6 @@ static int encode_sockaddrin(struct sockaddr_in *out, station in)
 
 static inline void nonblocking(decsriptor d)
 {
-    unsigned char on = 1;        
+    unsigned char on = 1;
     ioctl(d, FIONBIO, &on);
 }

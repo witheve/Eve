@@ -220,9 +220,9 @@ static void *parse_fractional(json_parser p, character c)
     return check_exp(p, c);
 }
 
-static void *parse_float(json_parser p, character c)
+static void *start_parse_float(json_parser p, character c)
 {
-    if (numeric(p, c, '0', '9', 0, 10)) return parse_float;
+    if (numeric(p, c, '0', '9', 0, 10)) return start_parse_float;
     p->float_result = (double)p->number;
     if (c == '.') {
         p->number = 10;
@@ -416,17 +416,14 @@ static void *start_immediate(json_parser p, buffer b, value v)
 
 static void *parse_value(json_parser p, character c)
 {
-    if (c == '-') {
-        p->float_result = 0.0;
-        push(p->completions, negate);
-        return parse_float;
-    }
-
-    if ((c >= '0') && (c <= '9')) {
+    if (((c >= '0') && (c <= '9')) || (c == '-')) {
         p->float_result = 0.0;
         p->number = 0;
         push(p->completions, finish_float);
-        return parse_float(p, c);
+        if (c == '-') {
+            push(p->completions, negate);
+            return start_parse_float;
+        } else return start_parse_float(p, c);
     }
 
     switch(c) {

@@ -8,11 +8,6 @@ static inline execf resolve_cfg(block bk, node n, int index)
     return (*(execf *)table_find(bk->nmap, vector_get(n->arms, index)));
 }
 
-static int toreg(value k)
-{
-    return((unsigned long) k - register_base);
-}
-
 static boolean isreg(value k)
 {
     if ((type_of(k) == register_space) && (k != etrue) && (k != efalse)) return true;

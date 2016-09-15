@@ -36,7 +36,6 @@ static void *uuid_deserialize(buffer source)
 
 static table interned_uuid;
 
-//binary
 uuid intern_uuid(unsigned char *x)
 {
     void *result;
@@ -65,7 +64,6 @@ uuid parse_uuid(string c)
     }
     return (intern_uuid(u));
 }
-
 
 uuid generate_uuid()
 {

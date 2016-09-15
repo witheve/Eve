@@ -4,9 +4,10 @@
 #include <luanne.h>
 
 static boolean enable_tracing = false;
-static bag compiler_bag;
 static char *exec_path;
 static int port = 8080;
+static bag static_bag;
+static int default_behaviour = true;
 
 //filesystem like tree namespace
 #define register(__bag, __url, __content, __name)\
@@ -51,42 +52,30 @@ static void send_error_terminal(heap h, char* message, bag data, uuid data_id)
     }
     destroy(h);
 }
+
 static CONTINUATION_0_3(handle_error_terminal, char *, bag, uuid);
 static void handle_error_terminal(char * message, bag data, uuid data_id) {
     heap h = allocate_rolling(pages, sstring("error handler"));
     send_error_terminal(h, message, data, data_id);
 }
 
-
-
-
-static bag static_content(heap h)
+extern void *db_start, *db_end;
+bag staticdb()
 {
-    bag b = (bag)create_edb(h, 0);
-    register(b, "/", "text/html", index);
-    register(b, "/js/microReact.js", "application/javascript", microReact_js);
-    register(b, "/js/codemirror.js", "application/javascript", codemirror_js);
-    register(b, "/js/codemirror.css", "text/css", codemirror_css);
-    register(b, "/examples/todomvc.css", "text/css", todomvc_css);
-    register(b, "/js/commonmark.js", "application/javascript", commonmark_js);
-    register(b, "/js/system.js", "application/javascript", system_js);
-    register(b, "/js/util.js", "application/javascript", util_js);
-    register(b, "/js/client.js", "application/javascript", client_js);
-    register(b, "/js/renderer.js", "application/javascript", renderer_js);
-    register(b, "/js/editor.js", "application/javascript", editor_js);
-    register(b, "/js/db.js", "application/javascript", db_js);
-    return b;
+    edb e = create_edb(init, 0);
+    buffer_handler n = deserialize_into_bag(init, (bag)e);
+    apply(n, wrap_buffer(init, &db_start, ((u64)&db_end) - ((u64)&db_start)), ignore);
+    return (bag)e;
 }
-
 
 // with the input/provides we can special case less of this
 // this really gets folded in with run_test and just becomes boot-with-eve
-static void run_eve_http_server(char *x)
+static void start_http_server(buffer source)
 {
-    buffer b = read_file_or_exit(init, x);
     heap h = allocate_rolling(pages, sstring("command line"));
     table scopes = create_value_table(h);
     table persisted = create_value_table(h);
+    bag compiler_bag;
 
     process_bag pb  = process_bag_init(persisted);
     uuid pid = generate_uuid();
@@ -96,14 +85,25 @@ static void run_eve_http_server(char *x)
     uuid fid = generate_uuid();
     table_set(persisted, fid, fb);
 
+    uuid sid = generate_uuid();
+    table_set(persisted, sid, static_bag);
+
     table_set(scopes, sym(file), fid);
     table_set(scopes, sym(process), pid);
+    table_set(scopes, sym(static), sid);
 
     heap hc = allocate_rolling(pages, sstring("eval"));
-    vector n = compile_eve(h, b, false, &compiler_bag);
+    vector n = compile_eve(h, source, false, &compiler_bag);
     evaluation ev = build_evaluation(h, sym(http-server), scopes, persisted, ignore, cont(h, handle_error_terminal), n);
     create_http_server(create_station(0, port), ev, pb);
     prf("\n----------------------------------------------\n\nEve started. Running at http://localhost:%d\n\n",port);
+}
+
+static void run_eve_http_server(char *x)
+{
+    buffer b = read_file_or_exit(init, x);
+    default_behaviour = false;
+    start_http_server(b);
 }
 
 typedef struct command {
@@ -126,6 +126,7 @@ static void do_parse(char *x)
 {
     interpreter c = get_lua();
     lua_run_module_func(c, read_file_or_exit(init, x), "parser", "printParse");
+    default_behaviour = false;
     free_lua(c);
 }
 
@@ -133,13 +134,15 @@ static void do_analyze(char *x)
 {
     interpreter c = get_lua();
     lua_run_module_func(c, read_file_or_exit(init, x), "compiler", "analyzeQuiet");
+    default_behaviour = false;
     free_lua(c);
 }
 
-static CONTINUATION_0_1(end_read, reader);
-static void end_read(reader r)
+static void do_db(char *x)
 {
-    apply(r, 0, 0);
+    // xxx -split
+    station s = station_from_string(init, sstring("127.0.0.1:5432"));
+    bag b = connect_postgres(s, sym(yuri), sym(), sym(yuri));
 }
 
 static command commands;
@@ -148,6 +151,7 @@ static void print_help(char *x);
 
 static struct command command_body[] = {
     {"p", "parse", "parse and print structure", true, do_parse},
+    {"d", "db", "connect to postgres", true, do_db},
     {"a", "analyze", "parse order print structure", true, do_analyze},
     {"s", "serve", "use the subsequent eve file to serve http requests", true, run_eve_http_server},
     {"P", "port", "serve http on passed port", true, do_port},
@@ -170,8 +174,7 @@ int main(int argc, char **argv)
     init_runtime();
     bag root = (bag)create_edb(init, 0);
     commands = command_body;
-
-    //    init_request_service(root);
+    static_bag = staticdb();
 
     for (int i = 1; i < argc ; i++) {
         command c = 0;
@@ -193,6 +196,12 @@ int main(int argc, char **argv)
             exit(-1);
         }
     }
+
+    // depends on uuid layout, package.c, and other fragilizites
+    unsigned char fixed_uuid[12] = {0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+    estring static_server = lookupv((edb)static_bag, intern_uuid(fixed_uuid), sym(server));
+    if (default_behaviour)
+        start_http_server(alloca_wrap_buffer(static_server->body, static_server->length));
 
     unix_wait();
 }

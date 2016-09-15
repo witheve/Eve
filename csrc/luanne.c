@@ -113,7 +113,7 @@ static int node_id(lua_State *L)
 
 static int none(lua_State *L)
 {
-    lua_pushlightuserdata(L, enone);
+    lua_pushlightuserdata(L, register_ignore);
     return 1;
 }
 
@@ -122,19 +122,7 @@ static int construct_number(lua_State *L)
     interpreter c = lua_context(L);
     char *s = (char *)lua_tostring(L, 1);
     int len = lua_strlen(L, 1);
-    boolean fractional = false;
-    double rez = 0, fact = (s[0]=='-')?(s++, len--, -1.0):1.0;
-
-    for (int i = 0; i < len ; i++) {
-        if (s[i] == '.'){
-            fractional = true;
-        } else {
-            if (fractional) fact /= 10.0f;
-            rez = rez * 10.0f + (double)digit_of(s[i]);
-        }
-    }
-
-    lua_pushlightuserdata(L, box_float(rez * fact));
+    lua_pushlightuserdata(L, box_float(parse_float(alloca_wrap_buffer(s, len))));
     return 1;
 }
 
@@ -368,7 +356,7 @@ interpreter build_lua()
     define(c, "create_edb", lua_create_edb);
     define(c, "insert_edb", lua_insert_edb);
     define(c, "dump_edb", lua_dump_edb);
-    define(c, "snone", enone);
+    define(c, "snone", none);
     require_luajit(c, "compiler");
     return c;
 }

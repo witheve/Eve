@@ -15,6 +15,7 @@ typedef u8 boolean;
 typedef u64 bytes;
 typedef u64 bits;
 
+typedef u8 byte;
 typedef unsigned long size_t;
 
 // sad but useful intrinsics tied up with libc

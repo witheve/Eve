@@ -1,5 +1,3 @@
-typedef void *value;
-
 #include <math.h>
 #include <core/core.h>
 #include <unix/unix.h>
@@ -14,9 +12,6 @@ typedef enum {
 
 u64 key_of(value);
 boolean equals(value, value);
-
-#include <number.h>
-#include <estring.h>
 
 typedef value eboolean;
 extern heap efence;
@@ -170,7 +165,6 @@ static void get_stack_trace(string *out)
 }
 
 void merge_scan(evaluation ev, vector scopes, int sig, listener result, value e, value a, value v);
-void multibag_insert(multibag *mb, heap h, uuid u, value e, value a, value v, multiplicity m, uuid block_id);
 
 
 bag init_debug_bag(evaluation ev);
@@ -182,3 +176,25 @@ process_bag process_bag_init();
 typedef closure(object_handler, bag, uuid);
 object_handler create_json_session(heap h, evaluation ev, endpoint down);
 evaluation process_resolve(process_bag, uuid);
+
+
+static CONTINUATION_3_1(fill_bag, bag, value*, value *, value);
+static void fill_bag(bag target, value *e, value *a, value v)
+{
+    if (!*e) {*e = v; return;}
+    if (!*a) {*a = v; return;}
+    apply(target->insert, *e, *a, v, 1, 0);
+    *e = *a = 0;
+}
+
+buffer_handler allocate_deserialize(heap h, closure(handler, value));
+
+static inline buffer_handler deserialize_into_bag(heap h, bag b)
+{
+    value *e = allocate(h, sizeof(value));
+    value *a = allocate(h, sizeof(value));
+    *e = *a = 0;
+    return(allocate_deserialize(h, cont(h, fill_bag, b, e, a)));
+}
+
+bag connect_postgres(station s, estring user, estring password, estring database);

@@ -210,7 +210,7 @@ static void do_set(block bk, perf p, execf n,
         }
 
         vector_foreach(scopes, u) {
-            if (vv != enone)
+            if (vv != register_ignore)
                 multibag_insert(target, bk->ev->h, u, ev, av, vv, 1, bk->name);
 
             if ((b = table_find(bk->ev->t_input, u))) {
