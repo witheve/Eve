@@ -44,7 +44,9 @@ void select_timer_block(selector s, ticks interval)
     descriptor d;
     fd_set reads;
     fd_set writes;
-
+    FD_ZERO(&reads);
+    FD_ZERO(&writes);
+    
     if (interval){
         ticks_to_timeval(&timeout, interval);
         timeout_pointer = &timeout;
