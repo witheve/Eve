@@ -47,7 +47,7 @@ void process_bag_commit(process_bag pb, edb s)
         p->scopes = create_value_table(h);
         p->name = sym(anonymous);
         p->persisted = create_value_table(h);
-        table_foreach(pb->persisted, u, b) 
+        table_foreach(pb->persisted, u, b)
             table_set(p->persisted, u, b);
         p->read = allocate_vector(h, 3);
         p->write = allocate_vector(h, 5);
@@ -88,9 +88,13 @@ void process_bag_commit(process_bag pb, edb s)
         if(p) {
             estring source = v;
             bag compiler_bag;
+            uuid compiler_id = generate_uuid();
             vector n = compile_eve(p->h,
                                    alloca_wrap_buffer(source->body, source->length),
                                    false, &compiler_bag);
+            table_set(p->scopes, sym(compiler), compiler_id);
+            table_set(p->persisted, compiler_id, compiler_bag);
+
             p->ev = build_evaluation(p->h, p->name, p->scopes, p->persisted, ignore, ignore, n);
             vector_foreach(p->read, i)
                 vector_insert(p->ev->default_scan_scopes, i);
