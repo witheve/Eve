@@ -1,4 +1,4 @@
-import {clone, debounce, sortComparator} from "./util";
+import {clone, debounce, uuid, sortComparator} from "./util";
 import {sentInputValues, activeIds, renderRecords, renderEve} from "./renderer"
 import {handleEditorParse} from "./editor"
 
@@ -128,8 +128,7 @@ interface Connection extends WebSocket {
   dbs: {[id:string]: DB}
 }
 
-var socket:Connection = new WebSocket("ws://" + window.location.host +"/ws") as any;
-
+var socket:Connection = new WebSocket("ws://" + window.location.host + window.location.pathname, "eve-json") as any;
 socket.dbs = {browser: magicallyGlobalDB};
 
 socket.onmessage = function(msg) {
@@ -262,12 +261,48 @@ indexes.dirty.subscribe(printDebugRecords);
 // Communication helpers
 //---------------------------------------------------------
 
-export function sendEvent(query) {
-  //console.log("QUERY", query);
-  if(socket && socket.readyState == 1) {
-    //socket.send(JSON.stringify({scope: "event", type: "query", query}))
+function recordToEAVs(record) {
+  if(!record) return;
+  let eavs:EAV[] = [];
+  if(record.id && record.id.constructor === Array) throw new Error("Unable to apply multiple ids to the same record: " + JSON.stringify(record));
+  if(!record.id) record.id = uuid();
+  record.id = "" + record.id + "";
+  let e = record.id;
+
+  for(let a in record) {
+    if(record[a] === undefined) continue;
+    if(a === "id") continue;
+    if(record[a].constructor === Array) {
+      for(let v of record[a]) {
+        if(typeof v === "object") {
+          eavs.push.apply(eavs, recordToEAVs(v));
+          eavs.push([e, a, v.id]);
+        } else {
+          eavs.push([e, a, v]);
+        }
+      }
+    } else {
+      let v = record[a];
+      if(typeof v === "object") {
+        eavs.push.apply(eavs, recordToEAVs(v));
+        eavs.push([e, a, v.id]);
+      } else {
+        eavs.push([e, a, v]);
+      }
+    }
   }
-  return query;
+  return eavs;
+}
+
+export function sendEvent(records:any[]) {
+  if(!records || !records.length) return;
+  let eavs = [];
+  for(let record of records) {
+    eavs.push.apply(eavs, recordToEAVs(record));
+  }
+  if(socket && socket.readyState == 1) {
+    socket.send(JSON.stringify({type: "event", insert: eavs}))
+  }
 }
 
 export function sendSwap(query) {
@@ -295,39 +330,13 @@ export function sendParse(query) {
 function onHashChange(event) {
   let hash = window.location.hash.substr(1);
   if(hash[0] == "/") hash = hash.substr(1);
-  let segments = hash.split("/").map(function(seg, ix) {
-    return `[index: ${ix + 1}, value: "${seg}"]`;
-  });
-  let query =
-  `hash changed remove any current url segments
-    \`\`\`
-    match
-      url = [#url hash-segment]
-    commit
-      url.hash-segment -= hash-segment
-    \`\`\`\n\n`;
-  if(hash !== "") {
-    query +=
-    `hash changed if there isn't already a url, make one
-      \`\`\`
-      match
-        not([#url])
-      commit
-        [#url hash-segment: ${segments.join(" ")}]
-      \`\`\`
-        \n\n` +
-    `add the new hash-segments if there is
-      \`\`\`
-      match
-        url = [#url]
-      commit
-        url <- [hash-segment: ${segments.join(" ")}]
-      \`\`\`
-    `;
-  }
-  sendEvent(query);
 
-  console.log(magicallyGlobalDB.dump());
+  let segments = hash.split("/").map(function(seg, ix) {
+    return {id: uuid(), index: ix + 1, value: seg};
+  });
+  sendEvent([
+    {tag: "url-change", "hash-segment": segments}
+  ]);
 }
 
 window.addEventListener("hashchange", onHashChange);

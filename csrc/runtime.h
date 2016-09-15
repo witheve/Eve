@@ -68,15 +68,12 @@ struct node {
     table display;
 };
 
-
 #include <edb.h>
+#include <multibag.h>
 
-typedef table multibag;
-
-typedef closure(evaluation_result, multibag, multibag, table);
+typedef closure(evaluation_result, multibag, multibag);
 
 typedef closure(block_completion, boolean);
-
 
 typedef struct compiled {
     string name;
@@ -97,9 +94,11 @@ struct block {
 
 typedef closure(error_handler, char *, bag, uuid);
 typedef closure(bag_handler, bag);
+typedef closure(bag_block_handler, bag, vector, vector); // source, inserts, removes
 
 struct evaluation  {
     heap h;
+    estring name;
     heap working; // lifetime is a whole f-t pass
     error_handler error;
 
@@ -114,7 +113,7 @@ struct evaluation  {
     // map from names to uuids
 
     vector blocks;
-    vector event_blocks;
+    bag event_bag;
 
     table counters;
     ticks t;
@@ -127,6 +126,9 @@ struct evaluation  {
 
     vector default_scan_scopes;
     vector default_insert_scopes; // really 'session'
+    bag bag_bag;
+
+    bag_block_handler inject_blocks;
 };
 
 
@@ -139,14 +141,20 @@ void close_evaluation(evaluation);
 
 extern char *pathroot;
 
+
 vector compile_eve(heap h, buffer b, boolean tracing, bag *compiler_bag);
-evaluation build_evaluation(table scopes, table persisted, evaluation_result e, error_handler error);
+
+evaluation build_evaluation(heap h, estring name,
+                            table scopes, table persisted,
+                            evaluation_result e, error_handler error,
+                            vector implications);
+
 void run_solver(evaluation s);
-void inject_event(evaluation, buffer b, boolean);
+void inject_event(evaluation, bag);
 void block_close(block);
 bag init_request_service();
 
-bag filebag_init(buffer, uuid);
+bag filebag_init(buffer);
 extern thunk ignore;
 
 static void get_stack_trace(string *out)
@@ -163,3 +171,14 @@ static void get_stack_trace(string *out)
 
 void merge_scan(evaluation ev, vector scopes, int sig, listener result, value e, value a, value v);
 void multibag_insert(multibag *mb, heap h, uuid u, value e, value a, value v, multiplicity m, uuid block_id);
+
+
+bag init_debug_bag(evaluation ev);
+bag init_bag_bag(evaluation ev);
+
+typedef struct process_bag *process_bag;
+process_bag process_bag_init();
+
+typedef closure(object_handler, bag, uuid);
+object_handler create_json_session(heap h, evaluation ev, endpoint down);
+evaluation process_resolve(process_bag, uuid);

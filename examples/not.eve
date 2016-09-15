@@ -1,12 +1,18 @@
+bob
+```
+match [#test-start]
+bind
+  [@joey #person #employee]
+  [@zoey #person]
+  [@zanny #person]
+  [@trigger #employee]
+```
+
 people who are not employees
 ```
   match
-    person = [#person]
+    person = [#person name]
     not(person = [#employee])
-```
-
-inline people who are not employees
-```
-  match
-    person = [#person not(salary) not(#employee)]
+  bind
+    person.good := true
 ```

@@ -308,7 +308,6 @@ function presort(nodes, typeCost)
           end
         end
       end
-
       if cost < cheapestCost then
         cheapest = node
         cheapestCost = cost
@@ -436,6 +435,11 @@ function DependencyGraph:addMutateNode(node)
   return self:add(node)
 end
 
+-- @TODO: Rewrite ordering phase to support choosing from a set of nodes
+--        E.g. if (f, b) and (b, f) are legal, but not (b, b) or (f, f), create a node for each
+--        valid schema and satisfy them as as a set when any of them is satisfied.
+-- @NOTE: This could still lead to pidgeon-holing ourselves into a subpar or even unorderable state
+-- Since we'll greedily order the first valid option instead of considering the needs of those coming after us
 function DependencyGraph:addExpressionNode(node)
   -- TODO also need to consider projections and groupings as dependencies
   -- TODO handle productions other than just "return", this will require schemas
@@ -927,10 +931,10 @@ function DependencyGraph:order(allowPartial)
         end
         self.ignore = true
 
-        -- for group in pairs(self.termGroups) do
-        --   local depends = self.groupDepends[group]
-        --   print(group, depends:length(), depends)
-        -- end
+        for group in pairs(self.termGroups) do
+          local depends = self.groupDepends[group]
+          print(group, depends:length(), depends)
+        end
       end
 
       break

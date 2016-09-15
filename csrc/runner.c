@@ -1,48 +1,5 @@
 #include <runtime.h>
 
-#define multibag_foreach(__m, __u, __b)  if(__m) table_foreach(__m, __u, __b)
-
-// should these guys really reconcile their differences
-static inline int multibag_count(table m)
-{
-    int count = 0;
-    multibag_foreach(m, u, b)
-        count += edb_size(b);
-    return count;
-}
-
-static boolean compare_multibags(multibag a, multibag b)
-{
-    bag d;
-    if (!a != !b) return false; // if one is zero and the other not, not equal
-    if (!a) return true;        // both are empty
-
-    table_foreach(a, u, ab) {
-        bag bb = table_find(b, u);
-        if (!bb) return false;
-        if (edb_size((edb)ab) != edb_size((edb)bb))
-            return false;
-
-        edb_foreach((edb)ab, e, a, v, c, _) {
-            if (count_of((edb)bb, e, a, v) != c) {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-void multibag_insert(multibag *mb, heap h, uuid u, value e, value a, value v, multiplicity m, uuid block_id)
-{
-    bag b;
-
-    if (!*mb) (*mb) = create_value_table(h);
-    if (!(b = table_find((*mb), u)))
-        table_set(*mb, u, b = (bag)create_edb(h, u, 0));
-
-    apply(b->insert, e, a, v, m, block_id);
-}
-
 // debuggin
 static estring bagname(evaluation e, uuid u)
 {
@@ -52,11 +9,13 @@ static estring bagname(evaluation e, uuid u)
     return(intern_cstring("missing bag?"));
 }
 
+static uuid bag_bag_id;
+
 // @FIXME: This collapses multibag diffs into a single diff.
 static bag diff_sets(heap h, multibag neue_bags, multibag old_bags)
 {
     uuid diff_id = generate_uuid();
-    bag diff = (bag)create_edb(h, diff_id, 0);
+    bag diff = (bag)create_edb(h, 0);
     bag old;
 
     table_foreach(neue_bags, u, neue) {
@@ -146,10 +105,12 @@ static void shadow_p_by_t_and_f(evaluation ev, listener result,
 
 void merge_scan(evaluation ev, vector scopes, int sig, listener result, value e, value a, value v)
 {
-    multibag_foreach(ev->t_input, u, b)
-        apply(((bag)b)->scan, sig,
+    vector_foreach(scopes, u) {
+        bag b = table_find(ev->t_input, u);
+        apply(b->scan, sig,
               cont(ev->working, shadow_p_by_t_and_f, ev, result),
               e, a, v);
+    }
 
     multibag_foreach(ev->t_solution, u, b)
         apply(((bag)b)->scan, sig,
@@ -158,6 +119,11 @@ void merge_scan(evaluation ev, vector scopes, int sig, listener result, value e,
 
     multibag_foreach(ev->last_f_solution, u, b)
         apply(((bag)b)->scan, sig,
+              cont(ev->working, shadow_f_by_p_and_t, ev, result),
+              e, a, v);
+
+    if (ev->event_bag)
+        apply(ev->event_bag->scan, sig,
               cont(ev->working, shadow_f_by_p_and_t, ev, result),
               e, a, v);
 }
@@ -245,8 +211,10 @@ const int MAX_F_ITERATIONS = 250;
 const int MAX_T_ITERATIONS = 50;
 
 static void fixedpoint_error(evaluation ev, vector diffs, char * message) {
+    prf("ERROR: %s\n", message);
+
     uuid error_data_id = generate_uuid();
-    bag edata = (bag)create_edb(ev->working, error_data_id, 0);
+    bag edata = (bag)create_edb(ev->working, 0);
     uuid error_diffs_id = generate_uuid();
     apply(edata->insert, error_diffs_id, sym(tag), sym(array), 1, 0);
 
@@ -289,11 +257,10 @@ static boolean fixedpoint(evaluation ev)
     ev->t = start_time;
     boolean again;
     vector t_diffs = allocate_vector(ev->working, 2);
-
     ev->t_solution = 0;
+
     do {
         again = false;
-        ev->f_solution =  0;
         vector f_diffs = allocate_vector(ev->working, 2);
 
         do {
@@ -302,9 +269,6 @@ static boolean fixedpoint(evaluation ev)
             ev->last_f_solution = ev->f_solution;
             ev->f_solution = 0;
 
-            if (ev->event_blocks)
-                vector_foreach(ev->event_blocks, b)
-                    run_block(ev, b);
             vector_foreach(ev->blocks, b)
                 run_block(ev, b);
 
@@ -318,7 +282,7 @@ static boolean fixedpoint(evaluation ev)
         } while(!compare_multibags(ev->f_solution, ev->last_f_solution));
 
         if(vector_length(counts) > (MAX_T_ITERATIONS - 1)) {
-            bag diff = (bag)create_edb(ev->working, generate_uuid(), 0);
+            bag diff = (bag)create_edb(ev->working, 0);
             multibag_foreach(ev->t_solution, u, b) {
                 edb_foreach((edb)b, e, a, v, c, block_id) {
                     apply(diff->insert, e, a, v, c, block_id);
@@ -327,9 +291,10 @@ static boolean fixedpoint(evaluation ev)
             vector_insert(t_diffs, diff);
         }
 
+        ev->event_bag = 0;
         vector_insert(counts, box_float((double)iterations));
         iterations = 0;
-        ev->event_blocks = 0;
+        ev->f_solution =  0;
 
         multibag_foreach(ev->t_solution_for_f, u, b)
             again |= merge_solution_into_t(&ev->t_solution, ev->working, u, b);
@@ -341,13 +306,21 @@ static boolean fixedpoint(evaluation ev)
     } while(again);
 
 
-    // what about multibag commits?
-    // new bags really shouldn't be allocated from ev->h
+
+    // xxx - clear out the new bags before anything else
+    if (ev->t_solution) {
+        edb bdelta = table_find(ev->t_solution, bag_bag_id);
+        if (bdelta)
+            apply(ev->bag_bag->commit, bdelta);
+    }
+
     multibag_foreach(ev->t_solution, u, b) {
         bag bd;
-        if (!(bd = table_find(ev->t_input, u)))
-            table_set(ev->t_input, u, bd = (bag)create_edb(ev->h, u, 0));
-        apply(bd->commit, b);
+        if (u != bag_bag_id) {
+            if (!(bd = table_find(ev->t_input, u)))
+                table_set(ev->t_input, u, bd = (bag)create_edb(ev->h, 0));
+            apply(bd->commit, b);
+        }
     }
 
     multibag_foreach(ev->t_solution, u, b){
@@ -362,14 +335,15 @@ static boolean fixedpoint(evaluation ev)
     table_set(ev->counters, intern_cstring("time"), (void *)(end_time - start_time));
     table_set(ev->counters, intern_cstring("iterations"), (void *)iterations);
     table_set(ev->counters, intern_cstring("cycle-time"), (void *)ev->cycle_time);
-    // ??
-    apply(ev->complete, ev->t_solution, ev->f_solution, ev->counters);
+    // counters? reflection? enable them
+    apply(ev->complete, ev->t_solution, ev->last_f_solution);
 
-    prf ("fixedpoint in %t seconds, %d blocks, %V iterations, %d changes to global, %d maintains, %t seconds handler\n",
+    prf ("fixedpoint %v in %t seconds, %d blocks, %V iterations, %d changes to global, %d maintains, %t seconds handler\n",
+         ev->name,
          end_time-start_time, vector_length(ev->blocks),
          counts,
          multibag_count(ev->t_solution),
-         multibag_count(ev->f_solution),
+         multibag_count(ev->last_f_solution),
          now() - end_time);
 
     // ticks max_ticks = 0;
@@ -384,9 +358,8 @@ static boolean fixedpoint(evaluation ev)
     //     }
     // }
 
-    // vector_foreach(ev->blocks, bk) {
-    //     prf("%b\n", print_dot(ev->working, bk, ev->counters));
-    // }
+    // vector_foreach(ev->blocks, bk)
+    //  prf("%b\n", print_dot(ev->working, bk, ev->counters));
 
     // prf("Max node");
     // prf(" - node: %p, kind: %v, id: %v, time: %t, count: %d\n", max_node, max_node->type, max_node->id, max_p->time, max_p->count);
@@ -398,22 +371,17 @@ static boolean fixedpoint(evaluation ev)
 
 static void setup_evaluation(evaluation ev)
 {
-    ev->event_blocks = 0;
     ev->working = allocate_rolling(pages, sstring("working"));
+    ev->f_solution = 0;
+    ev->event_bag = 0;
     ev->t = now();
 }
 
-void inject_event(evaluation ev, buffer b, boolean tracing)
+void inject_event(evaluation ev, bag event)
 {
+    // event bag just shows up and isn't addressable, think about changing that
     setup_evaluation(ev);
-    bag compiler_bag; // @FIXME: what do we do with the compiler_bag here?
-    vector c = compile_eve(ev->working, b, tracing, &compiler_bag);
-
-    vector_foreach(c, i) {
-        if (!ev->event_blocks)
-            ev->event_blocks = allocate_vector(ev->working, vector_length(c));
-        vector_insert(ev->event_blocks, build(ev, i));
-    }
+    ev->event_bag = event;
     fixedpoint(ev);
 }
 
@@ -426,8 +394,10 @@ void run_solver(evaluation ev)
 
 void close_evaluation(evaluation ev)
 {
-    table_foreach(ev->t_input, uuid, b)
+    table_foreach(ev->t_input, uuid, b) {
         table_set(((bag)b)->listeners, ev->run, 0);
+        table_set(((bag)b)->block_listeners, ev->inject_blocks, 0);
+    }
 
     vector_foreach(ev->blocks, b)
         block_close(b);
@@ -435,12 +405,34 @@ void close_evaluation(evaluation ev)
     destroy(ev->h);
 }
 
-evaluation build_evaluation(table scopes, multibag t_input, evaluation_result r, error_handler error)
+CONTINUATION_1_3(inject_blocks, evaluation, bag, vector, vector);
+void inject_blocks(evaluation ev, bag source, vector inserts, vector removes)
 {
-    heap h = allocate_rolling(pages, sstring("eval"));
+    if(removes) {
+        prf("ERROR: I don't know how to remove blocks from an evaluation yet.");
+    }
+    if(inserts) {
+        vector_foreach(inserts, b) {
+            vector_insert(ev->blocks, build(ev, b));
+        }
+    }
+
+    apply(ev->run);
+}
+
+evaluation build_evaluation(heap h,
+                            estring name,
+                            table scopes,
+                            multibag t_input,
+                            evaluation_result r,
+                            error_handler error,
+                            vector implications)
+{
     evaluation ev = allocate(h, sizeof(struct evaluation));
     ev->h = h;
+    ev->name = name;
     ev->error = error;
+    // consider adding "event" to the running namespace
     ev->scopes = scopes;
     ev->t_input = t_input;
     ev->counters =  allocate_table(h, key_from_pointer, compare_pointer);
@@ -449,23 +441,38 @@ evaluation build_evaluation(table scopes, multibag t_input, evaluation_result r,
     ev->complete = r;
     ev->terminal = cont(ev->h, evaluation_complete, ev);
     ev->run = cont(h, run_solver, ev);
-
-    ev->default_insert_scopes = table_find(scopes, sym(session));
-    if (!ev->default_insert_scopes)
-        prf("proceeding without a default insert target (usually session)\n");
-
-    ev->default_scan_scopes = allocate_vector(h, table_elements(scopes));
-    table_foreach(scopes, n, u)
-        vector_insert(ev->default_scan_scopes, u);
-
-
+    ev->inject_blocks = cont(h, inject_blocks, ev);
+    ev->default_scan_scopes = allocate_vector(h, 5);
+    ev->default_insert_scopes = allocate_vector(h, 5);
     table_foreach(ev->t_input, uuid, z) {
         bag b = z;
-
         table_set(b->listeners, ev->run, (void *)1);
-        // xxx - reflecton
-        table_foreach(b->implications, n, v){
-            vector_insert(ev->blocks, build(ev, n));
+        table_set(b->block_listeners, ev->inject_blocks, (void *)1);
+    }
+
+    ev->bag_bag = init_bag_bag(ev);
+
+    if (!bag_bag_id)
+        bag_bag_id = generate_uuid();
+
+    table_set(ev->scopes, sym(bag), bag_bag_id);
+
+    uuid debug_bag_id = generate_uuid();
+    table_set(ev->scopes, sym(debug), debug_bag_id);
+    table_set(ev->t_input, debug_bag_id, init_debug_bag(ev));
+
+    // xxx - compiler output reflecton
+    vector_foreach(implications, i) {
+        // xxx - shouldn't build take the termination?
+        vector_insert(ev->blocks, build(ev, i));
+    }
+
+    table_foreach(ev->scopes, name, id) {
+        bag input_bag = table_find(ev->t_input, id);
+        if(!input_bag) continue;
+
+        vector_foreach(input_bag->blocks, b) {
+            vector_insert(ev->blocks, build(ev, b));
         }
     }
 

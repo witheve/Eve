@@ -1,8 +1,13 @@
+## to download and install a dedicated copy of luajit:
+## LUAJIT_INSTALL = ./lua
 LUAJIT_INSTALL = /usr/local
 LUAJIT = $(LUAJIT_INSTALL)/bin/luajit-2.1.0-beta2
 LIBLUAJIT = $(LUAJIT_INSTALL)/lib/libluajit-5.1.a
 LUAJIT_INCLUDES = $(LUAJIT_INSTALL)/include/luajit-2.1
 BUILD = $(CURDIR)
+
+#find a better way to do this
+.SECONDARY: ../build/client.js ../build/editor.js ../build/renderer.js ../build/util.js
 
 PLATFORM = $(shell uname)
 
@@ -29,6 +34,11 @@ VPATH += ../csrc/dns
 VPATH += ../src
 VPATH += ../csrc
 
+CFLAGS = -g
+
+opt: eve
+opt: CFLAGS = -O2
+
 LUAPOWER = bundle.o
 UTF = lutf8lib.o
 COMPILER = compiler.o error.o fs.o parser.o util.o set.o color.o build.o implicationResolver.o db.o
@@ -37,8 +47,8 @@ UNIX_H = unix_internal.h unix.h
 CORE = buffer.o table.o vector.o format.o rolling.o string.o pqueue.o timer.o field.o
 CORE_H = bswap.h pqueue.h vector.h buffer.h heap.h timer.h continuation.h core.h string.h table.h
 EXEC = exec_expression.o exec_edb.o exec_string.o exec_aggregate.o exec.o
-RUNTIME = edb.o init.o uuid.o estring.o types.o luanne.o json_request.o runner.o request.o path.o $(EXEC)
-RUNTIME_H = luanne.h runtime.h estring.h number.h types.h exec.h edb.h json_request.h
+RUNTIME = edb.o init.o uuid.o estring.o types.o luanne.o json_request.o runner.o path.o process_bag.o bag_bag.o debug_bag.o $(EXEC)
+RUNTIME_H = luanne.h runtime.h estring.h number.h types.h exec.h edb.h multibag.h
 HTTP = server.o websocket.o base64.o sha1.o json.o client.o http.o hmac_sha2.o sha256.o
 DNS = dns.o
 HTTP_H = http.h
@@ -78,10 +88,10 @@ index.o: ../index.html
 	cc wrap.S -DSTART=$(S)$*_css_start -DEND=$(S)$*_css_end -DFILE='"$<"' -c -o $@
 
 path.c: Makefile
-	echo 'char *pathroot = "$(BUILD)";' > path.c
+	echo 'char *pathroot = "$(BUILD)/../";' > path.c
 
 %.o: %.c continuation_templates.h $(UNIX_H) $(CORE_H) $(RUNTIME_H) $(HTTP_H)
-	cc -std=gnu99 -I../csrc/unix -I../csrc/core -I../csrc -I. $(INCLUDES) -I$(LUAJIT_INCLUDES) -g -c $<
+	cc -std=gnu99 -I../csrc/unix -I../csrc/core -I../csrc -I. $(INCLUDES) -I$(LUAJIT_INCLUDES) $(CFLAGS) -c $<
 
 %.o: %.lua $(LUAJIT)
 	$(LUAJIT) -b -g $< $@

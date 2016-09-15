@@ -13,9 +13,15 @@ static int toreg(value k)
     return((unsigned long) k - register_base);
 }
 
+static boolean isreg(value k)
+{
+    if ((type_of(k) == register_space) && (k != etrue) && (k != efalse)) return true;
+    return false;
+}
+
 static inline value lookup(value *r, value k)
 {
-    if ((type_of(k) == register_space) && (k != etrue) && (k != efalse)) {
+    if (isreg(k)) {
         // good look keeping your sanity if this is a non-register value in this space
         return(r[toreg(k)]);
     }
