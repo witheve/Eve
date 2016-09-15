@@ -112,7 +112,7 @@ export class DB {
   constructor(public id:UUID) {}
 
   record(entity:UUID):Record {
-    return this._records[entity];
+    return this._records.index[entity];
   }
 
   index(attribute:string):IndexList<UUID> {
@@ -169,46 +169,26 @@ export class DB {
   querySelector(selector:string, args?:Value[]):UUID[] {
     let entities:UUID[] = [];
 
-    // Strip whitespace before and after colons
-    selector = selector.replace(/\s*:\s/, ":");
-
-    // Split into attributes and/or attribute:value pairs
-    let parts = selector.split(" ");
-    for(let part of parts) {
-      let [attr, val] = part.split(":");
-      let value;
-      if(attr[0] === "#") {
-        if(val) throw new InvalidSelectorError(part, "tag");
-        value = attr.substring(1);
-        attr = "tag";
-      } else if(attr[0] == "@") {
-        if(val) throw new InvalidSelectorError(part, "name");
-        value = attr.substring(1);
-        attr = "name";
-      } else if(val && val[0] !== "%") throw new InvalidSelectorError(part, "value");
-      else if(val === "") throw new InvalidSelectorError(part, "colon");
-
-      if(val && val[0] === "%") {
-        if(!args) throw new InvalidSelectorError(part, "args");
-        value = args[+val.substring(1) + 1];
-      }
-
+    for(let sel of parseSelector(selector, args)) {
+      let {attribute, value} = sel;
       let matches;
       if(value) {
-        let index = this.index(attr);
-        matches = index.index[value];
+        let index = this.index(attribute);
+        matches = index.index[""+value];
       } else {
         let index = this._attributes;
-        matches = index.index[attr];
+        matches = index.index[attribute];
       }
 
       // Special case the first run to just copy the match instead of running over every entity for no good reason
       if(entities.length === 0) entities.push.apply(entities, matches);
-      else {
+      else if(matches) {
         for(let ix = 0; ix < entities.length;) {
           let entity = entities[ix];
+          if(!entity) break;
           if(matches.indexOf(entity) === -1) {
-            entities[ix] = entities.pop()!;
+            if(entities.length > ix + 1) entities[ix] = entities.pop()!;
+            else entities.pop();
           } else {
             ix++;
           }
@@ -220,39 +200,118 @@ export class DB {
     return entities;
   }
 
-  forEach(selector:string, args:Value[], callback:(...attrs:Value[][]) => void) {
-    let entities = this.querySelector(selector, args);
-
-    let attributes:string[] = [];
-
-    // Strip whitespace before and after colons
-    selector = selector.replace(/\s*:\s/, ":");
-    // Split into attributes and/or attribute:value pairs
-    let parts = selector.split(" ");
-    for(let part of parts) {
-      let [attr, val] = part.split(":");
-      if(attr[0] === "#" ||
-         attr[0] === "@" ||
-         val !== undefined) {
-        break;
-      }
-      attributes.push(attr);
-    }
-
+  forEachEntity(entities:UUID[], attributes:string[], callback:(...attrs:Value[][]) => void) {
     // This will get reused on each entity
     let row:Value[][] = [];
 
+    ENTITY_LOOP:
     for(let entity of entities) {
       let record = this._records.index[entity];
+      if(!record) throw new UnknownEntityError(entity);
       for(let ix = 0; ix < attributes.length; ix++) {
         row[ix] = record[attributes[ix]];
+        if(!row[ix]) break ENTITY_LOOP; // If a record is missing a required attribute, skip it.
       }
       callback.apply(this, row);
-      row.length = 0; // Clear the row for the next guy.
+    }
+  }
+
+  _forEachExpansion(entity:UUID, outputs:Selector[], curIx:number, row:(Value|Value[])[], callback:(...attrs:(Value|Value[])[]) => void) {
+    let sel = outputs[curIx];
+    let values = this._records.index[entity][sel.attribute];
+    if(!values) return;
+    if(sel.quantifier === "!") {
+      if(values.length > 1) throw new CardinalityError(entity, sel.attribute, 1, values.length);
+      row[curIx] = values[0];
+      if(curIx == outputs.length - 1) callback.apply(this, row);
+      else this._forEachExpansion(entity, outputs, curIx + 1, row, callback);
+    } else if(sel.quantifier === "*") {
+      for(let val of values) {
+        row[curIx] = val;
+        if(curIx == outputs.length - 1) callback.apply(this, row);
+        else this._forEachExpansion(entity, outputs, curIx + 1, row, callback);
+      }
+    } else {
+      row[curIx] = values;
+      if(curIx == outputs.length - 1) callback.apply(this, row);
+      else this._forEachExpansion(entity, outputs, curIx + 1, row, callback);
+    }
+  }
+
+  forEach(selector:string, args:Value[], callback:(...attrs:(Value|Value[])[]) => void) {
+    let entities = this.querySelector(selector, args);
+    let row = []; // Transient row will be overwritten for every repetition
+
+    let outputs:Selector[] = [];
+    for(let sel of parseSelector(selector, args)) {
+      if(sel.value === undefined) outputs.push(sel);
+    }
+    for(let entity of entities) {
+      if(!this._records.index[entity]) throw new UnknownEntityError(entity);
+      this._forEachExpansion(entity, outputs, 0, row, callback);
+    }
+  }
+
+  dump():string {
+    return JSON.stringify(this._records.index);
+  }
+
+  load(json:string) {
+    let records = JSON.parse(json);
+    for(let entity in records) {
+      this._records.insert(entity, records[entity]);
     }
   }
 }
 
+interface Selector {
+  attribute: string,
+  quantifier?: string,
+  value?: Value
+}
+
+function parseSelector(selector:string, args?:Value[]):Selector[] {
+  let parsed:Selector[] = [];
+
+  // Strip whitespace before and after colons
+  selector = selector.replace(/\s*:\s/, ":");
+
+  // Split into attributes and/or attribute:value pairs
+  let parts = selector.split(" ");
+  for(let part of parts) {
+    let [attr, val] = part.split(":");
+
+    // Find the quantifier, if present
+    let quantifier:string|undefined = attr[attr.length - 1];
+    if(quantifier === "!" ||
+       quantifier === "*") {
+      attr = attr.slice(0, -1);
+    } else quantifier = undefined;
+
+    let value;
+    // If it's prefixed as such, expand the tag/name literal
+    if(attr[0] === "#") {
+      if(val) throw new InvalidSelectorError(part, "tag");
+      value = attr.substring(1);
+      attr = "tag";
+    } else if(attr[0] == "@") {
+      if(val) throw new InvalidSelectorError(part, "name");
+      value = attr.substring(1);
+      attr = "name";
+    } else if(val && val[0] !== "%") throw new InvalidSelectorError(part, "value");
+    else if(val === "") throw new InvalidSelectorError(part, "colon");
+
+    // If it's value is a placeholder, replace it with the matching argument
+    if(val && val[0] === "%") {
+      if(!args) throw new InvalidSelectorError(part, "args");
+      value = args[+val.substring(1) - 1];
+    }
+
+    parsed.push({attribute: attr, quantifier, value});
+  }
+
+  return parsed;
+}
 
 class UnknownEntityError extends Error {
   constructor(entity:string) {

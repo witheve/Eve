@@ -2,7 +2,7 @@ import {clone, debounce, sortComparator} from "./util";
 import {sentInputValues, activeIds, renderRecords, renderEve} from "./renderer"
 import {handleEditorParse} from "./editor"
 
-import {DB, IndexScalar, IndexList, EAV, Record} from "./db"
+import {DB, UUID, IndexScalar, IndexList, EAV, Record} from "./db"
 
 //---------------------------------------------------------
 // Utilities
@@ -147,7 +147,7 @@ socket.onmessage = function(msg) {
       }
       if(DEBUG === true || DEBUG === "state") {
         // we clone here to keep the entities fresh when you want to thumb through them in the log later (since they are rendered lazily)
-        console.log("Entities", indexes.records.index);
+        console.log("Entities", db._records.index);
         console.log("Indexes", db._indexes);
       }
       console.groupEnd();
@@ -193,36 +193,14 @@ let updateEditorParse = debounce(handleEditorParse, 1); // @FIXME: We need to li
 
 
 
-function tokensToParseInfo(tokenIds) {
-  let records = indexes.records.index;
-
-  // @FIXME: we don't want to be incremental right now, it's tough.
-  tokenIds = indexes.byTag.index["token"];
-
+function tokensToParseInfo(db:DB) {
   let lines:Token[][] = [];
-  for(let tokenId of tokenIds) {
-    // if(parseInfo.tokenIds[tokenId]) {
-    //   let ix = parseInfo..indexOf(parseInfo.tokenIds[tokenId]);
-    //   parseInfo.tokens.splice(ix, 1);
-    //   parseInfo.tokenIds[tokenId] = undefined;
-    // }
-
-    let token = records[tokenId];
-    if(!token) continue;
-    let line = token.line[0];
-    if(!lines[line]) {
-      lines[line] = [];
-    }
-    parseInfo.tokenIds[tokenId] = {
-      id: token.id[0],
-      type: token.type[0],
-      sort: token.sort[0],
-      line: token.line[0],
-      surrogateOffset: token.surrogateOffset[0],
-      surrogateLength: token.surrogateLength[0]
-    };
-    lines[line].push(parseInfo.tokenIds[tokenId]);
-  }
+  db.forEach("#token id! type! sort! line! surrogateOffset! surrogateLength!", [], (id, type, sort, line, surrogateOffset, surrogateLength) => {
+    let token:Token = {id, type, sort, line, surrogateOffset, surrogateLength} as Token;
+    parseInfo.tokenIds[token.id] = token;
+    if(!lines[token.line]) lines[token.line] = [];
+    lines[token.line].push(token);
+  });
 
   for(let line of lines) {
     if(!line) continue;
@@ -231,37 +209,25 @@ function tokensToParseInfo(tokenIds) {
   parseInfo.lines = lines;
   updateEditorParse(parseInfo);
 }
-indexes.byTag.subscribe(function(index, dirty) {
+magicallyGlobalDB.index("tag").subscribe(function(index, dirty) {
   if(!dirty["token"]) return;
-  tokensToParseInfo(dirty["token"]);
+  tokensToParseInfo(magicallyGlobalDB);
 });
 
-function blocksToParseInfo(blockIds) {
-  let records = indexes.records.index;
-
-  // @FIXME: we don't want to be incremental right now, it's tough.
-  blockIds = indexes.byTag.index["block"];
-
-
+function blocksToParseInfo(db:DB) {
   let blocks:Block[] = [];
-  for(let blockId of blockIds) {
-    // if(parseInfo.blockIds[blockId]) {
-    //   let ix = parseInfo.blocks.indexOf(parseInfo.blockIds[blockId]);
-    //   parseInfo.blocks.splice(ix, 1);
-    //   parseInfo.blockIds[blockId] = undefined;
-    // }
-    let block = records[blockId];
-    if(!block) continue;
-    parseInfo.blockIds[blockId] = {id: blockId, name: block.name[0], sort: block.sort[0], line: block.line[0]};
-    blocks.push(parseInfo.blockIds[blockId]);
-  }
+  db.forEach("#block id! name! sort! line!", [], (id, name, sort, line) => {
+    let block:Block = {id, name, sort, line} as Block;
+    parseInfo.blockIds[block.id] = block;
+    blocks.push(block);
+  });
   blocks.sort(sortComparator);
   parseInfo.blocks = blocks;
   updateEditorParse(parseInfo);
 }
-indexes.byTag.subscribe(function(index, dirty) {
+magicallyGlobalDB.index("tag").subscribe(function(index, dirty) {
   if(!dirty["block"]) return;
-  blocksToParseInfo(dirty["block"]);
+  blocksToParseInfo(magicallyGlobalDB);
 });
 
 function handleEditorUpdates(index, dirty) {
@@ -271,15 +237,15 @@ function handleEditorUpdates(index, dirty) {
     if(parseInfo.blockIds[recordId]) blockIds.push(recordId);
     if(parseInfo.tokenIds[recordId]) tokenIds.push(recordId);
   }
-  if(blockIds.length) blocksToParseInfo(blockIds);
-  if(tokenIds.length) tokensToParseInfo(tokenIds);
+  if(blockIds.length) blocksToParseInfo(magicallyGlobalDB);
+  if(tokenIds.length) tokensToParseInfo(magicallyGlobalDB);
 }
-indexes.dirty.subscribe(handleEditorUpdates);
+magicallyGlobalDB._dirty.subscribe(handleEditorUpdates);
 
 function renderOnChange(index, dirty) {
   renderRecords();
 }
-indexes.dirty.subscribe(renderOnChange);
+magicallyGlobalDB._dirty.subscribe(renderOnChange);
 
 function printDebugRecords(index, dirty) {
   for(let recordId in dirty) {
@@ -360,6 +326,8 @@ function onHashChange(event) {
     `;
   }
   sendEvent(query);
+
+  console.log(magicallyGlobalDB.dump());
 }
 
 window.addEventListener("hashchange", onHashChange);
