@@ -121,12 +121,13 @@ start eve program
   commit @bag
         browser = [#bag r code: browser-code]
         session = [#bag r]
+        all = [#bag @all]
 
   commit @process
      child = [#process source name:token
               scope:[write:session
               read:(browser, session)
-              bags:[browser, session]]]
+              bags:[browser, session, all]]]
   commit
      connection.upgrade := child
      r := none
@@ -148,4 +149,11 @@ no such file!
         header: [Spoogle: "nothing"]
         content: ""]
       r := none
+```
+
+Create a globally shared bag named all
+
+```
+  commit @bag
+    [#bag @all]
 ```
