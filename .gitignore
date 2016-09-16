@@ -52,3 +52,4 @@ build/luajit-2.0
 build/*.js
 
 build/*.js
+build/*.js.map
