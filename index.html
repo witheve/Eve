@@ -124,16 +124,17 @@
     <script>
       SystemJS.config({
         baseURL: "/build",
-        defaultJSExtensions: true
+        defaultJSExtensions: true,
+        meta: {"/jssrc/codemirror.js": { format: "cjs" }}
       });
+
       // Kicks off requiring everyone else
       SystemJS.register("uuid", [], function($export) {
         $export("default", uuid);
         $export("v4", uuid);
       });
-      SystemJS.register("CodeMirror", [], function($export) {
-        $export("default", CodeMirror);
-        $export("CodeMirror", CodeMirror);
+      SystemJS.registerDynamic("codemirror", [], false, function(require, exports, module) {
+        module.exports = window.CodeMirror;
       });
       SystemJS.register("microReact", [], function($export) {
         $export("Renderer", Renderer);

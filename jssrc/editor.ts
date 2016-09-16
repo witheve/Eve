@@ -1,8 +1,7 @@
 import {Parser} from "commonmark";
-import {CodeMirror} from "CodeMirror";
+import * as CodeMirror from "codemirror";
 import {sendSwap, sendSave, sendParse} from "./client";
 import {setActiveIds, renderer, renderEve} from "./renderer";
-
 let codeEditor: MarkdownEditor;
 let lineMarks = {"item": true, "heading": true, "heading1": true, "heading2": true, "heading3": true, "heading4": true};
 let parser = new Parser();
@@ -356,6 +355,10 @@ class ElisionSpan extends Span {
   }
 }
 
+interface Editor extends CodeMirror.Editor {
+  markdownEditor:MarkdownEditor
+}
+
 let MarkdownFormats = ["strong", "emph", "code"];
 let TypeToSpanType = {
   "heading": HeadingSpan,
@@ -382,7 +385,7 @@ class MarkdownEditor {
 
   constructor(value: string) {
     var self = this;
-    let editor = new CodeMirror(function() {}, {
+    let editor:Editor = CodeMirror(function() {}, {
       tabSize: 2,
       lineWrapping: true,
       extraKeys: ctrlify({
@@ -394,7 +397,7 @@ class MarkdownEditor {
         "Cmd-K": formatCodeBlock,
         "Cmd-L": formatCode,
       })
-    });
+    }) as any;
     editor.markdownEditor = this;
     this.editor = editor;
     this.formatting = {};
@@ -403,11 +406,11 @@ class MarkdownEditor {
     this.markIndexes = {
       type: {}
     };
-    this.history = {position: 0, items: []}
-    CodeMirror.commands.undo = function(cm) {
+    this.history = {position: 0, items: []};
+    CodeMirror.commands["undo"] = function(cm:Editor) {
       cm.markdownEditor.undo();
     }
-    CodeMirror.commands.redo = function(cm) {
+    CodeMirror.commands["redo"] = function(cm:Editor) {
       cm.markdownEditor.redo();
     }
     editor.on("beforeChange", function(editor, change) { self.onBeforeChange(change); });
