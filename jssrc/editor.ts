@@ -6,14 +6,30 @@ let codeEditor: MarkdownEditor;
 let lineMarks = {"item": true, "heading": true, "heading1": true, "heading2": true, "heading3": true, "heading4": true};
 let parser = new Parser();
 
+interface Editor extends CodeMirror.Editor {
+  markdownEditor:MarkdownEditor
+}
+
 interface Pos {line: number, ch: number}
 interface Range { from: Pos, to: Pos }
+
+function isRange(loc:any): loc is Range {
+  return loc.from !== undefined || loc.to !== undefined;
+}
+function isPosition(loc:any): loc is Position {
+  return loc.line !== undefined || loc.ch !== undefined;
+}
+
+interface SpanMarker extends CodeMirror.TextMarker {
+  span?: Span,
+  source?: any
+}
 
 class Span {
   static spanId = 0;
   id: number;
-  textMarker: any;
-  editor: any;
+  textMarker?: SpanMarker;
+  editor: MarkdownEditor;
   source: any;
   from: Pos;
   to: Pos;
@@ -31,15 +47,16 @@ class Span {
     return {className: this.source.type.toUpperCase()}
   }
 
-  applyMark(editor) {
+  applyMark(editor:MarkdownEditor) {
     this.editor = editor;
     let cm = editor.editor;
+    let doc = cm.getDoc();
     let {from, to} = this;
     if(!samePos(from, to)) {
       let attributes = this.getMarkAttributes();
-      this.textMarker = cm.markText(from, to, attributes)
+      this.textMarker = doc.markText(from, to, attributes)
     } else {
-      this.textMarker = cm.setBookmark(from, {});
+      this.textMarker = doc.setBookmark(from, {});
     }
     this.textMarker.span = this;
 
@@ -56,7 +73,7 @@ class Span {
     }
   }
 
-  find() {
+  find():Range|undefined {
     if(this.textMarker) {
       let loc = this.textMarker.find();
       if(!loc) return;
@@ -70,6 +87,10 @@ class Span {
     if(this.textMarker) {
       let cm = this.editor.editor;
       let loc = this.find();
+      if(!loc) {
+        console.warn("Location not found, aborting deletion.");
+        return;
+      }
       this.from = loc.from;
       this.to = loc.to;
       this.editor.clearMark(this, origin);
@@ -96,6 +117,10 @@ class Span {
   clone() {
     let spanType = TypeToSpanType[this.source.type] || Span;
     let loc = this.find();
+    if(!loc) {
+      console.warn("Location not found, aborting clone.");
+      return;
+    }
     return new spanType(loc.from, loc.to, this.source);
   }
 
@@ -213,9 +238,10 @@ class ListItemSpan extends Span {
   }
 
   onBeforeChange(change) {
+    let doc = this.editor.editor.getDoc();
     let {from, to, text} = change;
     let loc = this.find();
-    if(!samePos(loc.from, from)) return;
+    if(!loc || !samePos(loc.from, from)) return;
 
     if(change.origin === "+delete") {
       this.clear();
@@ -224,7 +250,7 @@ class ListItemSpan extends Span {
     if(change.origin === "+input") {
       // if we are at the start of a list item and adding a new line, we're really removing the
       // list item-ness of this row
-      if(isNewlineChange(change) && this.editor.editor.getLine(from.line) === "") {
+      if(isNewlineChange(change) && doc.getLine(from.line) === "") {
         this.clear();
         change.cancel();
       }
@@ -234,6 +260,10 @@ class ListItemSpan extends Span {
   onChange(change) {
     let {from, to, text} = change;
     let loc = this.find();
+    if(!loc) {
+      console.warn("Location not found, aborting change.");
+      return;
+    }
     if(!samePos(loc.from, from)) return;
     // check if we're adding a new line from a list line. If so, we continue
     // the list.
@@ -255,6 +285,10 @@ class CodeBlockSpan extends Span {
   onBeforeChange(change) {
     if(change.origin === "+delete") {
       let loc = this.find();
+      if(!loc) {
+        console.warn("Location not found, aborting deletion.");
+        return;
+      }
       if(samePos(loc.from, change.to)) {
         this.clear();
         change.cancel();
@@ -264,20 +298,29 @@ class CodeBlockSpan extends Span {
 
   refresh(change) {
     let loc = this.find();
+    if(!loc) {
+      console.warn("Location not found, aborting refresh.");
+      return;
+    }
     let cm = this.editor.editor;
     for(let ix = loc.from.line; ix < loc.to.line; ix++) {
       let info = cm.lineInfo(ix);
-      if(!info.bgClass || info.bgClass.indexOf(this.lineBackgroundClass) === -1) {
-        cm.addLineClass(ix, "background", this.lineBackgroundClass);
+      if(!info.bgClass || info.bgClass.indexOf(this.lineBackgroundClass!) === -1) {
+        cm.addLineClass(ix, "background", this.lineBackgroundClass!);
       }
     }
   }
 
   onChange(change) {
+    let doc = this.editor.editor.getDoc();
     let {from, to, text} = change;
     let adjusted = changeToFinalPos(change);
     let mark = this;
     let loc = mark.find();
+    if(!loc) {
+        console.warn("Location not found, aborting change.");
+        return;
+    }
 
     if(from.line < loc.from.line || (from.line === loc.from.line && loc.from.ch !== 0) || samePos(loc.from, loc.to)) {
       mark.clear();
@@ -295,7 +338,7 @@ class CodeBlockSpan extends Span {
       this.editor.mark(loc.from, to, mark.source);
       // we then have to check if any formatting marks ended up in here
       // and remove them
-      for(let containedMark of this.editor.editor.findMarks(loc.from, to)) {
+      for(let containedMark of doc.findMarks(loc.from, to) as SpanMarker[]) {
         if(containedMark.source && containedMark.source.type !== "code_block") {
           containedMark.clear();
         }
@@ -355,10 +398,6 @@ class ElisionSpan extends Span {
   }
 }
 
-interface Editor extends CodeMirror.Editor {
-  markdownEditor:MarkdownEditor
-}
-
 let MarkdownFormats = ["strong", "emph", "code"];
 let TypeToSpanType = {
   "heading": HeadingSpan,
@@ -374,7 +413,7 @@ let TypeToSpanType = {
 
 class MarkdownEditor {
   version: number;
-  editor: any;
+  editor:Editor;
   spans: any;
   formatting: any;
   history: any;
@@ -422,7 +461,8 @@ class MarkdownEditor {
     // editor.on("scroll", function(editor) { self.onScroll(); });
 
     this.loadMarkdown(value);
-    this.editor.clearHistory();
+    let doc = this.editor.getDoc();
+    doc.clearHistory();
     this.history = {position: 0, items: []};
     this.version = 0;
   }
@@ -432,14 +472,15 @@ class MarkdownEditor {
   }
 
   onBeforeChange(change) {
+    let doc = this.editor.getDoc();
     let {from, to} = change;
     let marks;
     if(!samePos(from, to)) {
-      let adjustedFrom = this.editor.posFromIndex(this.editor.indexFromPos(from) - 1);
-      let adjustedTo = this.editor.posFromIndex(this.editor.indexFromPos(to) + 1);
-      marks = this.editor.findMarks(adjustedFrom, adjustedTo);
+      let adjustedFrom = doc.posFromIndex(doc.indexFromPos(from) - 1);
+      let adjustedTo = doc.posFromIndex(doc.indexFromPos(to) + 1);
+      marks = doc.findMarks(adjustedFrom, adjustedTo);
     } else {
-      marks = this.editor.findMarksAt(from);
+      marks = doc.findMarksAt(from);
     }
     for(let mark of marks) {
       if(mark.span && mark.span.onBeforeChange) {
@@ -555,11 +596,12 @@ class MarkdownEditor {
     let editor = this.editor;
     history.transitioning = true;
     editor.operation(function() {
+      let doc = editor.getDoc();
       for(let ix = changeSet.changes.length - 1; ix > -1; ix--) {
         let change = changeSet.changes[ix];
         let inverted = inverseNormalizedChange(change);
         if(inverted.type === "range") {
-          editor.replaceRange(inverted.added, editor.posFromIndex(inverted.start), editor.posFromIndex(inverted.start + inverted.removed.length), "+mdundo");
+          doc.replaceRange(inverted.added, doc.posFromIndex(inverted.start), doc.posFromIndex(inverted.start + inverted.removed.length), "+mdundo");
         } else if(inverted.type === "span") {
           for(let removed of inverted.removed) {
             removed.clear("+mdundo"); // Is this correct? It seems like this is a string elsewhere?
@@ -581,9 +623,10 @@ class MarkdownEditor {
     let editor = this.editor;
     history.transitioning = true;
     editor.operation(function() {
+      let doc = editor.getDoc();
       for(let change of changeSet.changes) {
         if(change.type === "range") {
-          editor.replaceRange(change.added, editor.posFromIndex(change.start), editor.posFromIndex(change.start + change.removed.length), "+mdredo");
+          doc.replaceRange(change.added, doc.posFromIndex(change.start), doc.posFromIndex(change.start + change.removed.length), "+mdredo");
         } else if(change.type === "span") {
           for(let removed of change.removed) {
             removed.clear("+mdredo");
@@ -618,7 +661,7 @@ class MarkdownEditor {
     }
   }
 
-  mark(from, to, source) {
+  mark(from:Pos, to:Pos, source) {
     let type = source.type;
     let spanClass = TypeToSpanType[type] || Span;
     let span = new spanClass(this, from, to, source)
@@ -663,6 +706,7 @@ class MarkdownEditor {
     let {history, editor} = this;
     let last:{line:number, ch:number}|null = {line: 0, ch: 0};
     editor.operation(function() {
+      let doc = editor.getDoc();
       history.transitioning = true;
       let elisions = self.marksByType("elision");
       for(let elision of elisions) {
@@ -679,7 +723,7 @@ class MarkdownEditor {
         }
       }
       if(last) {
-        self.mark(last, {line: editor.lineCount(), ch: 0}, {type: "elision"});
+        self.mark(last, {line: doc.lineCount(), ch: 0}, {type: "elision"});
       }
       history.transitioning = false;
     });
@@ -732,10 +776,11 @@ class MarkdownEditor {
     let {text, spans} = parseMarkdown(markdownText)
 
     editor.operation(function() {
+      let doc = editor.getDoc();
       editor.setValue(text);
       for(let span of spans) {
         let [start, end, source] = span;
-        self.mark(editor.posFromIndex(start), editor.posFromIndex(end), source);
+        self.mark(doc.posFromIndex(start), doc.posFromIndex(end), source);
       }
     });
   }
@@ -876,6 +921,8 @@ export function handleEditorParse(parse) {
   let ix = 0;
   let parseBlocks = parse.blocks;
   codeEditor.editor.operation(function() {
+    console.log("#", this, arguments);
+    let doc = codeEditor.editor.getDoc();
     for(let block of codeEditor.marksByType("code_block")) {
       if(!parseBlocks[ix]) continue;
       let loc = block.find();
@@ -886,7 +933,7 @@ export function handleEditorParse(parse) {
 
       for(let line = fromLine; line < toLine; line++) {
         // clear all the marks on that line?
-        for(let mark of codeEditor.editor.findMarks({line, ch: 0}, {line, ch: 1000000})) {
+        for(let mark of doc.findMarks({line, ch: 0}, {line, ch: 1000000}) as SpanMarker[]) {
           if(!mark.span) {
             mark.clear();
           }
@@ -903,7 +950,7 @@ export function handleEditorParse(parse) {
             if(state == "TAG" || state == "NAME") {
               className += " " + state;
             }
-            codeEditor.editor.markText(from, to, {className, inclusiveRight: true});
+            doc.markText(from, to, {className, inclusiveRight: true});
             state = token.type
           }
         }
@@ -1236,6 +1283,7 @@ class Outline {
   render() {
     let contents:any[] = [];
     let cm = this.editor.editor;
+    let doc = cm.getDoc();
     let headings = this.editor.marksByType("heading");
     headings.sort(function(a, b) {
       let locA = a.find().from;
@@ -1244,7 +1292,7 @@ class Outline {
     });
     for(let heading of headings) {
       let loc = heading.find();
-      let text = cm.getRange(loc.from, {line: loc.from.line + 1, ch: 0});
+      let text = doc.getRange(loc.from, {line: loc.from.line + 1, ch: 0});
       contents.push({c: `heading heading-level-${heading.source.level} ${heading.active ? "active" : ""}`, text, span: heading, outline: this, click: this.gotoItem});
     }
     return {c: `outline ${this.eliding ? "eliding" : ""}`, children: [
@@ -1264,6 +1312,7 @@ class Comments {
     let {editor} = this;
     let comments:any[] = [];
     let cm = editor.editor;
+    let doc = cm.getDoc();
     let blocks = editor.marksByType("code_block");
     // let blocks = [];
     let scroll = cm.getScrollInfo();
@@ -1275,10 +1324,10 @@ class Comments {
 
         If you wrap it in square brackets, that tells me you're looking
         for an object with that tag.`
-        comments.push({c: "comment", top: coords.top, width: 260, height: 20, text});
+        //comments.push({c: "comment", top: coords.top, width: 260, height: 20, text});
 
     }
-    let height = scroll.top + editor.editor.charCoords({line: editor.editor.lineCount() - 1, ch: 0}).bottom;
+    let height = scroll.top + cm.charCoords({line: doc.lineCount() - 1, ch: 0}).bottom;
     return {c: "comments",  width: 290, children: comments, postRender: function(node) {
       document.querySelector(".CodeMirror-sizer").appendChild(node);
     }}
@@ -1295,6 +1344,8 @@ export function compileAndRun() {
 }
 
 export function applyFix(event, elem) {
+  let editor = codeEditor.editor;
+  let doc = editor.getDoc();
   //we need to do the changes in reverse order to ensure
   //the positions remain the same?
   let changes = elem.fix.changes.slice();
@@ -1306,7 +1357,7 @@ export function applyFix(event, elem) {
     return line;
   });
   for(let change of changes) {
-    codeEditor.editor.replaceRange(change.value, {line: change.from.line - 1, ch: change.from.offset}, {line: change.to.line - 1, ch: change.to.offset});
+    doc.replaceRange(change.value, {line: change.from.line - 1, ch: change.from.offset}, {line: change.to.line - 1, ch: change.to.offset});
   }
   doSwap(codeEditor);
 }
