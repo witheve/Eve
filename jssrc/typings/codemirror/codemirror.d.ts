@@ -253,7 +253,7 @@ declare namespace CodeMirror {
         /** Returns the position and dimensions of an arbitrary character.pos should be a { line , ch } object.
         This differs from cursorCoords in that it'll give the size of the whole character,
         rather than just the position that the cursor would have when it would sit at that position. */
-        charCoords(pos: CodeMirror.Position, mode: string): { left: number; right: number; top: number; bottom: number; };
+        charCoords(pos: CodeMirror.Position, mode?: string): { left: number; right: number; top: number; bottom: number; };
 
         /** Given an { left , top } object , returns the { line , ch } position that corresponds to it.
         The optional mode parameter determines relative to what the coordinates are interpreted. It may be "window" , "page"(the default) , or "local". */
@@ -435,7 +435,7 @@ declare namespace CodeMirror {
 
         /** Replace the part of the document between from and to with the given string.
         from and to must be {line, ch} objects. to can be left off to simply insert the string at position from. */
-        replaceRange(replacement: string, from: CodeMirror.Position, to: CodeMirror.Position): void;
+        replaceRange(replacement: string, from: CodeMirror.Position, to: CodeMirror.Position, origin?:string): void;
 
         /** Get the content of line n. */
         getLine(n: number): string;
@@ -625,8 +625,7 @@ declare namespace CodeMirror {
 
         /** Returns a {from, to} object (both holding document positions), indicating the current position of the marked range,
         or undefined if the marker is no longer in the document. */
-        find(): CodeMirror.Range;
-
+        find(): CodeMirror.Range|CodeMirror.Position;
         /**  Returns an object representing the options for the marker. If copyWidget is given true, it will clone the value of the replacedWith option, if any. */
         getOptions(copyWidget: boolean): CodeMirror.TextMarkerOptions;
     }
