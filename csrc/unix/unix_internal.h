@@ -10,6 +10,9 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <limits.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <pwd.h>
 
 void ticks_to_timeval(struct timeval *a, ticks b);
 ticks timeval_to_ticks(struct timeval *a);
@@ -91,3 +94,14 @@ static inline void nonblocking(decsriptor d)
     ioctl(d, FIONBIO, &on);
 }
 
+static inline void thread_send(tid id, thunk m)
+{
+    context c = tcontext();
+}
+ 
+
+#define foreach_file(_path, _name, _len)                               \
+    for (DIR *_x = opendir(_path); _x ; closedir(_x), _x = (void *)0)  \
+    for (struct dirent *_d; _d = readdir(_x); )                        \
+    for (char *_name = _d->d_name; _name; _name = 0)                   \
+    for (int _len = MAXNAMLEN - (sizeof(struct dirent) - _d->d_reclen); _len; _len = 0)

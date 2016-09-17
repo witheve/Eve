@@ -1,7 +1,4 @@
 #include <unix_internal.h>
-#include <dirent.h>
-#include <pwd.h>
-#include <sys/stat.h>
 
 static table file_attributes = 0;
 
@@ -66,24 +63,14 @@ static file allocate_file(filebag fb, file parent, uuid u)
 
 static void fill_children(filebag fb, file f)
 {
-    char *path = path_of_file(f);
-    DIR *x;
-    if (!(x= opendir(path_of_file(f)))) return;
-
-    struct dirent *d;
-
-    // should also remove files that are no longer there
-    // xxx = need to fix dot files and cycles
-    while((d = readdir(x))) {
-        int namelen = MAXNAMLEN - (sizeof(struct dirent) - d->d_reclen);
-        file child;
-        if (d->d_name[0] != '.') {
-            estring cname = intern_cstring(d->d_name);
+    foreach_file(path_of_file(f), name, len) {
+        if (name[0] != '.') {
+            file child;
+            estring cname = intern_string(name, len);
             if ((!f->children) || !(child = table_find(f->children, cname)))
                 name_file(fb->h, allocate_file(fb, f, generate_uuid()), cname);
         }
     }
-    closedir(x);
 }
 
 static boolean filebag_eav_check(filebag fb, file f, struct stat *s, listener out, value e, value a, value v)

@@ -40,10 +40,12 @@ static inline void *bref(buffer b, bytes offset)
 
 static inline void buffer_extend(buffer b, bytes len)
 {
+    // xxx - pad to pagesize
     if (b->length < (b->end + len)) {
         b->length = 2*((b->end-b->start)+len);
         void *new =  allocate(b->h, b->length);
         memcpy(new, b->contents + b->start, (b->end-b->start));
+        deallocate(b->h, b->contents, b->length);
         b->end = b->end - b->start;
         b->start = 0;
         b->contents = new;

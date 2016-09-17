@@ -65,17 +65,16 @@ buffer read_file(heap h, char *path)
     return 0;
 }
 
-static heap prf_heap;
 void prf(char *format, ...)
 {
-    string b = allocate_string(prf_heap);
+    string b = allocate_string(pages);
     va_list ap;
     string f = alloca_string(format);
     va_start(ap, format);
     vbprintf(b, f, ap);
     va_end(ap);
     write(1, bref(b, 0), buffer_length(b));
-    //    deallocate_buffer(b);
+    deallocate_buffer(b);
 }
 
 
@@ -89,6 +88,7 @@ void unix_wait()
     while (1) {
         ticks next = timer_check(tcontext()->t);
         select_timer_block(tcontext()->s, next);
+        // check queues
     }
 }
 
@@ -133,16 +133,25 @@ station station_from_string(heap h, buffer b)
     return new;
 }
 
-struct context *primary;
-
+static u64 tid_count;
 // pages now threadsafe
-void init_unix(heap page_allocator)
+context init_context(heap page_allocator)
 {
-    primary = allocate(init, sizeof(struct context));
+    heap h = allocate_rolling(page_allocator, sstring("thread_init"));
+    context c = allocate(h, sizeof(struct context));
+    
     signal(SIGPIPE, SIG_IGN);
-    prf_heap = allocate_rolling(page_allocator, sstring("prf"));
-    primary->page_heap = page_allocator;
-    primary->s = select_init(init);
-    primary->t = initialize_timers(allocate_rolling(pages, sstring("timers")));
-    init_processes();
+    // put a per thread freelist on top of
+    c->tid = fetch_and_add(&tid_count, 1);
+    c->page_heap = page_allocator;
+    c->s = select_init(h);
+    c->t = initialize_timers(allocate_rolling(page_allocator, sstring("timers")));
+    // xxx - allocation scheme for these queue sets
+    c->input_queues = allocate(h, 10 * sizeof(queue));
+    c->output_queues = allocate(h, 10 * sizeof(queue));
+    c->h = h;
+    memset(c->input_queues, 0, 10 * sizeof(queue));
+    memset(c->output_queues, 0, 10 * sizeof(queue));
+    pipe(c->wakeup);
+    return c;
 }

@@ -40,6 +40,7 @@ typedef struct buffer *buffer;
 #include <timer.h>
 #include <pqueue.h>
 #include <atomic.h>
+#include <queue.h>
 
 extern heap init;
 

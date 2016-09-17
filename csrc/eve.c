@@ -1,4 +1,4 @@
-#include <runtime.h>
+#include <unix_internal.h>
 #include <http/http.h>
 #include <bswap.h>
 #include <luanne.h>
@@ -9,6 +9,8 @@ static int port = 8080;
 static bag static_bag;
 static bag env_bag;
 static int default_behaviour = true;
+static multibag persisted;
+static table scopes; 
 
 //filesystem like tree namespace
 #define register(__bag, __url, __content, __name)\
@@ -55,7 +57,8 @@ static void send_error_terminal(heap h, char* message, bag data, uuid data_id)
 }
 
 static CONTINUATION_0_3(handle_error_terminal, char *, bag, uuid);
-static void handle_error_terminal(char * message, bag data, uuid data_id) {
+static void handle_error_terminal(char * message, bag data, uuid data_id)
+{
     heap h = allocate_rolling(pages, sstring("error handler"));
     send_error_terminal(h, message, data, data_id);
 }
@@ -74,8 +77,6 @@ bag staticdb()
 static void start_http_server(buffer source)
 {
     heap h = allocate_rolling(pages, sstring("command line"));
-    table scopes = create_value_table(h);
-    table persisted = create_value_table(h);
     bag compiler_bag;
 
     process_bag pb  = process_bag_init(persisted);
@@ -100,6 +101,7 @@ static void start_http_server(buffer source)
     prf("\n----------------------------------------------\n\nEve started. Running at http://localhost:%d\n\n",port);
 }
 
+// xxx - defer this until after the rest of the arguments have been run 
 static void run_eve_http_server(char *x)
 {
     buffer b = read_file_or_exit(init, x);
@@ -161,18 +163,30 @@ static void do_db(char *x)
     bag b = connect_postgres(s, sym(yuri), sym(), sym(yuri));
 }
 
+static void do_logging(char *x)
+{
+    foreach_file(x, name, len) {
+        if (name[0] != '.') {
+            edb e = create_edb(init, 0);
+            bag log = start_log((bag)e, x);
+            table_set(scopes, x, log);
+        }
+    }
+}
+
 static command commands;
 
 static void print_help(char *x);
 
 static struct command command_body[] = {
     {"p", "parse", "parse and print structure", true, do_parse},
-    {"d", "db", "connect to postgres", true, do_db},
+    {"D", "db", "connect to postgres", true, do_db},
     {"a", "analyze", "parse order print structure", true, do_analyze},
     {"s", "serve", "use the subsequent eve file to serve http requests", true, run_eve_http_server},
     {"P", "port", "serve http on passed port", true, do_port},
     {"h", "help", "print help", false, print_help},
     {"t", "tracing", "enable per-statement tracing", false, do_tracing},
+    {"d", "data log", "set directory for per-bag log files", true, do_logging},
     //    {"R", "resolve", "implication resolver", false, 0},
 };
 
@@ -192,6 +206,8 @@ int main(int argc, char **argv)
     commands = command_body;
     static_bag = staticdb();
     env_bag = env_init();
+    
+    persisted = create_value_table(init);
 
     for (int i = 1; i < argc ; i++) {
         command c = 0;

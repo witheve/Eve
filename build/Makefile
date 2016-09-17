@@ -18,7 +18,7 @@ ifeq ($(PLATFORM), Darwin)
 endif
 
 ifeq ($(PLATFORM), Linux)
-  LINK += -Wl,-E
+  LINK += -Wl,-E -lpthread
   INCLUDES += --include ../csrc/unix/linux/linux.h
 endif
 
@@ -50,7 +50,7 @@ CORE = buffer.o table.o vector.o format.o rolling.o string.o pqueue.o timer.o fi
 CORE_H = bswap.h pqueue.h vector.h buffer.h heap.h timer.h continuation.h core.h string.h table.h
 EXEC = exec_expression.o exec_edb.o exec_string.o exec_aggregate.o exec.o
 RUNTIME = edb.o init.o uuid.o estring.o types.o luanne.o json_request.o runner.o path.o\
-	  process_bag.o bag_bag.o serialize.o postgres.o debug_bag.o envbag.o $(EXEC) 
+	  process_bag.o bag_bag.o serialize.o postgres.o debug_bag.o envbag.o thread.o log.o $(EXEC) 
 RUNTIME_H = luanne.h runtime.h estring.h number.h types.h exec.h edb.h multibag.h
 HTTP = server.o websocket.o base64.o sha1.o json.o client.o http.o hmac_sha2.o sha256.o
 DNS = dns.o
@@ -104,7 +104,7 @@ staticdb.o: staticdb
 #macosx
 #linux  -Wl,-E
 eve: $(CORE) $(UNIX) $(COMPILER) $(UTF) $(LUAPOWER) $(HTTP) $(RUNTIME) $(DNS) staticdb.o eve.o
-	cc $(LINK) $^ $(LIBLUAJIT) -lm -ldl  -o $@
+	cc $^ $(LIBLUAJIT) $(LINK) -lm -ldl  -o $@
 
 clean:
 	rm -f *.o eve continuation_templates.h *.js *.js.map db

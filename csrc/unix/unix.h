@@ -1,3 +1,4 @@
+
 typedef void *station;
 
 typedef closure(buffer_handler, buffer, thunk);
@@ -100,14 +101,6 @@ static register_read requeue(heap h, buffer b, register_read reg)
     return cont(h, regbounce, reg, b);
 }
 
-typedef struct context *context;
+#include <thread.h>
 
-extern struct context *primary;
-
-#define tcontext() primary
-
-typedef struct context {
-    timers t;
-    heap page_heap;
-    selector s;
-} *context;
+void asynch_write(descriptor d, buffer b, thunk finished);

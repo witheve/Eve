@@ -201,3 +201,6 @@ static inline buffer_handler deserialize_into_bag(heap h, bag b)
 
 bag connect_postgres(station s, estring user, estring password, estring database);
 bag env_init();
+bag start_log(bag base, char *filename);
+void serialize_edb(buffer dest, edb db);
+
