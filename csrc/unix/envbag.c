@@ -14,5 +14,6 @@ bag env_init()
         for (;(y[j] != '=') && (j < len); j++);
         apply(eb->insert, env, intern_string(y, j-1), intern_string(y + j + 1, len - j - 1), 1, 0);
     }
+    return eb;
 }
 

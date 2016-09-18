@@ -52,7 +52,7 @@ EXEC = exec_expression.o exec_edb.o exec_string.o exec_aggregate.o exec.o
 RUNTIME = edb.o init.o uuid.o estring.o types.o luanne.o json_request.o runner.o path.o\
 	  process_bag.o bag_bag.o serialize.o postgres.o debug_bag.o envbag.o thread.o log.o $(EXEC) 
 RUNTIME_H = luanne.h runtime.h estring.h number.h types.h exec.h edb.h multibag.h
-HTTP = server.o websocket.o base64.o sha1.o json.o client.o http.o hmac_sha2.o sha256.o
+HTTP = server.o websocket.o base64.o sha1.o json.o client.o http.o hmac_sha2.o sha256.o md5.o
 DNS = dns.o
 HTTP_H = http.h
 CONTENT = index.html system.js microReact.js codemirror.js codemirror.css commonmark.js\

@@ -154,13 +154,14 @@ static void do_db(char *x)
     estring password = sym();
     int len = vector_length(n);
 
-    if (len > 0)  user = vector_get(n, 0);
+    if (len > 0)  user = intern_buffer(vector_get(n, 0));
     estring database = user;    
-    if (len > 1)  password = vector_get(n, 1);
-    if (len > 2)  database = vector_get(n, 2);    
+    if (len > 1)  password = intern_buffer(vector_get(n, 1));
+    if (len > 2)  database = intern_buffer(vector_get(n, 2));    
 
     station s = station_from_string(init, sstring("127.0.0.1:5432"));
-    bag b = connect_postgres(s, sym(yuri), sym(), sym(yuri));
+    prf ("%r %r %r\n", user, password, database);
+    bag b = connect_postgres(s, user, password, database);
 }
 
 static void do_logging(char *x)
@@ -207,6 +208,7 @@ int main(int argc, char **argv)
     static_bag = staticdb();
     env_bag = env_init();
     
+    scopes = create_value_table(init);
     persisted = create_value_table(init);
 
     for (int i = 1; i < argc ; i++) {

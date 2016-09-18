@@ -1,5 +1,6 @@
 #include <runtime.h>
 #include <bswap.h>
+#include <crypto/md5.h>
 
 
 typedef enum state {
@@ -147,8 +148,40 @@ static void table_complete(postgres p)
         pg_scan_schema(p, pop(p->table_worklist));
 }
 
+#define PG_SALT_LENGTH 4
+
+static void authenticate(postgres p, buffer b)
+{
+    u32 code = buffer_read_be32(b);
+    switch(code) {
+    case 5:{
+        // "md5" + print_hex(md5(print_hex(md5(password + name) + salt)))
+        buffer result = allocate_buffer(p->h, 20);
+        buffer m = pg_allocate_message(p, 'p');
+        char inter[MD5_DIGEST_LENGTH];
+        buffer k = allocate_buffer(p->h, 4);
+        
+        MD5_CTX md5;
+        MD5_Init(&md5);
+        MD5_Update(&md5, p->password->body, p->password->length);
+        MD5_Update(&md5, p->user->body, p->user->length);
+        MD5_Final(inter, &md5);
+        MD5_Init(&md5);
+        bprintf(result, "%X", alloca_wrap_buffer(inter, MD5_DIGEST_LENGTH));
+        MD5_Update(&md5, bref(result, 0), buffer_length(result));
+        MD5_Update(&md5, bref(b, 0), buffer_length(b));
+        MD5_Final(inter, &md5);
+        bprintf(m, "md5%X", alloca_wrap_buffer(inter, MD5_DIGEST_LENGTH));
+        pg_send_message(p, m);
+    }
+    default:
+        prf("pg auth type: %d\n", code);
+    }
+}
+
 static void postgres_message(postgres p, u8 code, buffer b)
 {
+    prf("code: %c\n", code);
     switch(code) {
     // propertly list, separated by a null
     case 'S': return;
@@ -176,6 +209,9 @@ static void postgres_message(postgres p, u8 code, buffer b)
         apply(p->handler, result);
         return;
     }
+    case 'R':
+        authenticate(p, b);
+        break;
     // row schema
     case 'T': {
         int count = buffer_read_be16(b);
