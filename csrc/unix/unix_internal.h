@@ -1,3 +1,5 @@
+// XXX - not that somewhere in the following we are picking up
+// the system htonl defines, at least on Darwin
 #include <runtime.h>
 #include <sys/types.h>
 #include <stdlib.h>
@@ -98,10 +100,10 @@ static inline void thread_send(tid id, thunk m)
 {
     context c = tcontext();
 }
- 
+
 
 #define foreach_file(_path, _name, _len)                               \
     for (DIR *_x = opendir(_path); _x ; closedir(_x), _x = (void *)0)  \
-    for (struct dirent *_d; _d = readdir(_x); )                        \
+    for (struct dirent *_d; (_d = readdir(_x)); )                  \
     for (char *_name = _d->d_name; _name; _name = 0)                   \
     for (int _len = MAXNAMLEN - (sizeof(struct dirent) - _d->d_reclen); _len; _len = 0)

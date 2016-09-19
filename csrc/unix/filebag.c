@@ -66,7 +66,7 @@ static void fill_children(filebag fb, file f)
     foreach_file(path_of_file(f), name, len) {
         if (name[0] != '.') {
             file child;
-            estring cname = intern_string(name, len);
+            estring cname = intern_string((unsigned char *)name, len);
             if ((!f->children) || !(child = table_find(f->children, cname)))
                 name_file(fb->h, allocate_file(fb, f, generate_uuid()), cname);
         }

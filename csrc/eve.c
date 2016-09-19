@@ -1,6 +1,5 @@
 #include <unix_internal.h>
 #include <http/http.h>
-#include <bswap.h>
 #include <luanne.h>
 
 static boolean enable_tracing = false;
@@ -10,7 +9,7 @@ static bag static_bag;
 static bag env_bag;
 static int default_behaviour = true;
 static multibag persisted;
-static table scopes; 
+static table scopes;
 
 //filesystem like tree namespace
 #define register(__bag, __url, __content, __name)\
@@ -101,7 +100,7 @@ static void start_http_server(buffer source)
     prf("\n----------------------------------------------\n\nEve started. Running at http://localhost:%d\n\n",port);
 }
 
-// xxx - defer this until after the rest of the arguments have been run 
+// xxx - defer this until after the rest of the arguments have been run
 static void run_eve_http_server(char *x)
 {
     buffer b = read_file_or_exit(init, x);
@@ -155,9 +154,9 @@ static void do_db(char *x)
     int len = vector_length(n);
 
     if (len > 0)  user = intern_buffer(vector_get(n, 0));
-    estring database = user;    
+    estring database = user;
     if (len > 1)  password = intern_buffer(vector_get(n, 1));
-    if (len > 2)  database = intern_buffer(vector_get(n, 2));    
+    if (len > 2)  database = intern_buffer(vector_get(n, 2));
 
     station s = station_from_string(init, sstring("127.0.0.1:5432"));
     prf ("%r %r %r\n", user, password, database);
@@ -207,7 +206,7 @@ int main(int argc, char **argv)
     commands = command_body;
     static_bag = staticdb();
     env_bag = env_init();
-    
+
     scopes = create_value_table(init);
     persisted = create_value_table(init);
 

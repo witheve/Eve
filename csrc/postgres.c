@@ -13,12 +13,12 @@ typedef struct pgcolumn {
     estring name;
     estring type; /*?*/
 } *pgcolumn;
-    
+
 typedef struct pgtable {
     estring name;
     vector columns;
 } *pgtable;
-    
+
 
 typedef struct postgres {
     struct bag b;
@@ -91,9 +91,9 @@ static void pg_scan_schema(postgres p, estring table_name)
 {
     pgtable t = allocate(p->h, sizeof(struct pgtable));
     t->columns = allocate_vector(p->h, 10);
-    //  had - a.atttypmod as mod 
+    //  had - a.atttypmod as mod
     buffer q =
-        aprintf(p->h, 
+        aprintf(p->h,
                 "SELECT a.attname as Column, a.atttypid as type "
                 "FROM pg_catalog.pg_attribute a "
                 "WHERE a.attnum > 0 "
@@ -114,9 +114,9 @@ static value float_from_int(buffer b)
 {
     // genericize
     int res = 0;
-    string_foreach(b, i) 
+    string_foreach(b, i)
         res = res * 10  + i - '0';
-        
+
     return box_float(res);
 }
 
@@ -157,7 +157,7 @@ static void table_dump_row(postgres p, pgtable t, vector res)
     uuid id = generate_uuid();
     int index;
     apply(p->backing->insert, id, sym(tag), t->name, 1, 0);
-    vector_foreach(res, i) 
+    vector_foreach(res, i)
         apply(p->backing->insert, id, vector_get(t->columns, index++), i, 1, 0);
 }
 
@@ -177,7 +177,7 @@ static void table_dump(postgres p, pgtable t)
 
 static void table_complete(postgres p)
 {
-    if (vector_length(p->table_worklist))  
+    if (vector_length(p->table_worklist))
         pg_scan_schema(p, pop(p->table_worklist));
 }
 
@@ -191,9 +191,9 @@ static void authenticate(postgres p, buffer b)
         // "md5" + print_hex(md5(print_hex(md5(password + name) + salt)))
         buffer result = allocate_buffer(p->h, 20);
         buffer m = pg_allocate_message(p, 'p');
-        char inter[MD5_DIGEST_LENGTH];
+        unsigned char inter[MD5_DIGEST_LENGTH];
         buffer k = allocate_buffer(p->h, 4);
-        
+
         MD5_CTX md5;
         MD5_Init(&md5);
         MD5_Update(&md5, p->password->body, p->password->length);
@@ -336,4 +336,3 @@ bag connect_postgres(station s, estring user, estring password, estring database
     tcp_create_client(h, s, cont(h, postgres_connected, p));
     return (bag)p;
 }
-

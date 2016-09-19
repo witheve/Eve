@@ -1,4 +1,3 @@
-
 typedef void *station;
 
 typedef closure(buffer_handler, buffer, thunk);
@@ -15,7 +14,6 @@ extern heap pages;
 
 typedef closure(status_handler, int);
 
-typedef struct timers *timers;
 typedef int descriptor;
 
 extern descriptor standardoutput;
@@ -58,7 +56,7 @@ typedef struct endpoint {
     buffer_handler w;
     register_read r;
 } *endpoint;
-    
+
 
 typedef closure(new_client, endpoint, station);
 typedef closure(connected, endpoint);

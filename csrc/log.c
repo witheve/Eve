@@ -30,9 +30,9 @@ static CONTINUATION_1_1(log_commit, commitlog, edb);
 static void log_commit(commitlog log, edb source)
 {
     boolean start = !buffer_length(log->stage) && !buffer_length(log->writing);
-    
+
     serialize_edb(log->stage, source);
-        
+
     if (start) {
         swap(log);
         asynch_write(log->file, log->writing, log->complete);
@@ -54,7 +54,7 @@ bag start_log(bag base, char *filename)
     commitlog log = allocate(h, sizeof(struct commitlog));
     log->b.commit = cont(h, log_commit, log);
     log->b.scan = base->scan;
-    
+
     // xxx - move this into a unix specific async file handler
     int fd = open(filename, O_CREAT | O_APPEND | O_RDWR);
     buffer stage;
@@ -71,4 +71,5 @@ bag start_log(bag base, char *filename)
         // can sometimes hang on to them..a guess a freelist is the samea
         apply(des, stage, ignore);
     } while(buffer_length(stage));
+    return (bag)log;
 }

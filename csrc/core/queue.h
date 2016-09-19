@@ -19,6 +19,7 @@ static inline queue allocate_queue(heap h, int logsize)
     q->size = logsize;
     q->messages = allocate(h, 1<<logsize * sizeof(thunk));
     q->next = 0;
+    return q;
 }
 
 // this should really support some kind of backpressure
@@ -34,7 +35,7 @@ static inline void enq(queue *qp, thunk m)
     } else {
         // ideally this would be a streaming write so that messages doesn't jump
         // back and forth?
-        // xxx - assumes ordered writes here 
+        // xxx - assumes ordered writes here
         q->messages[q->write] = m;
         q->write = next;
     }
@@ -48,12 +49,12 @@ static void *qpoll(queue *qp)
         q->read = qwrap(q, q->read + 1);
         return m;
     }
-    
+
     if (q->next) {
         // this is where we would free the old queue
         *qp = q->next;
         return qpoll(qp);
     }
-    
+
     return (void *)0;
 }

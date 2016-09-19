@@ -1,8 +1,6 @@
 // would be nice to abstract this further away from pthreads
 #include <pthread.h>
 
-typedef struct context *context;
-
 extern struct context *primary;
 
 typedef struct context {
@@ -29,5 +27,3 @@ typedef int tid;
 
 extern pthread_key_t pkey;
 #define tcontext() ((context)pthread_getspecific(pkey))
-
-
