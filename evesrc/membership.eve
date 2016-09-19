@@ -1,0 +1,24 @@
+listen for packets
+```
+   [udp]  // this could really also be port and deserialize?
+ commit
+   [#member id last-heard]
+   //update announcment timer
+```
+
+timeout
+```
+  // send current view
+```
+
+
+
+receive vote
+```
+  // send current view
+```
+
+send vote
+```
+  // send current view
+```
