@@ -340,3 +340,10 @@ function onHashChange(event) {
 }
 
 window.addEventListener("hashchange", onHashChange);
+
+
+
+
+
+
+window["___dbs"] = socket.dbs;
