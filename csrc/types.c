@@ -106,13 +106,13 @@ values_diff diff_value_vector_tables(heap h, table old, table neue) {
   vector remove = allocate_vector(h, 10);
   vector insert = allocate_vector(h, 10);
 
-  table_foreach(old, key, value) {
+  table_foreach(old, key, _) {
     if(!table_find(neue, key)) {
       vector_insert(remove, key);
     }
   }
 
-  table_foreach(neue, key, value) {
+  table_foreach(neue, key, _) {
     if(!table_find(old, key)) {
       vector_insert(insert, key);
     }
