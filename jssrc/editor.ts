@@ -6,12 +6,8 @@ let codeEditor: MarkdownEditor;
 let lineMarks = {"item": true, "heading": true, "heading1": true, "heading2": true, "heading3": true, "heading4": true};
 let parser = new Parser();
 
-interface Editor extends CodeMirror.Editor {
-  markdownEditor:MarkdownEditor
-}
-
-interface Pos {line: number, ch: number}
-interface Range { from: Pos, to: Pos }
+type Pos = CodeMirror.Position;
+type Range = CodeMirror.Range;
 
 function isRange(loc:any): loc is Range {
   return loc.from !== undefined || loc.to !== undefined;
@@ -19,6 +15,10 @@ function isRange(loc:any): loc is Range {
 function isPosition(loc:any): loc is Position {
   return loc.line !== undefined || loc.ch !== undefined;
 }
+
+//---------------------------------------------------------
+// Spans (TextMarkers)
+//---------------------------------------------------------
 
 interface SpanMarker extends CodeMirror.TextMarker {
   span?: Span,
@@ -77,7 +77,7 @@ class Span {
     if(this.textMarker) {
       let loc = this.textMarker.find();
       if(!loc) return;
-      if(loc.from) return loc;
+      if(isRange(loc)) return loc;
       return {from: loc, to: loc};
     }
     return {from: this.from, to: this.to};
@@ -411,20 +411,44 @@ let TypeToSpanType = {
   "elision": ElisionSpan,
 }
 
+//---------------------------------------------------------
+// Editor
+//---------------------------------------------------------
+
+// Register static commands
+let _rawUndo = CodeMirror.commands["undo"];
+CodeMirror.commands["undo"] = function(editor:RawEditor) {
+  if(!editor.markdownEditor) _rawUndo.apply(this, arguments);
+  else editor.markdownEditor.undo();
+}
+let _rawRedo = CodeMirror.commands["redo"];
+CodeMirror.commands["redo"] = function(editor:RawEditor) {
+  if(!editor.markdownEditor) _rawRedo.apply(this, arguments);
+  else editor.markdownEditor.redo();
+}
+
+interface RawEditor extends CodeMirror.Editor {
+  markdownEditor?:MarkdownEditor
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+interface HistoryItem { finalized?: boolean, changes:Change[] }
+
 class MarkdownEditor {
-  version: number;
-  editor:Editor;
-  spans: any;
-  formatting: any;
-  history: any;
-  changing: boolean;
-  queued: boolean;
-  affectedMarks: any[];
-  markIndexes: any;
+  version: number = 0;
+  editor:RawEditor;
+  spans:Span[] = [];
+  formatting = {};
+  history:{position:number, transitioning:boolean, items: HistoryItem[]} = {position: 0, items: [], transitioning: false};
+  changing: boolean = false;
+  queued: boolean = false;
+  affectedMarks: SpanMarker[] = [];
+  markIndexes = {type: {}};
 
   constructor(value: string) {
     var self = this;
-    let editor:Editor = CodeMirror(function() {}, {
+    let editor:RawEditor = CodeMirror(function() {}, {
       tabSize: 2,
       lineWrapping: true,
       extraKeys: ctrlify({
@@ -439,42 +463,23 @@ class MarkdownEditor {
     }) as any;
     editor.markdownEditor = this;
     this.editor = editor;
-    this.formatting = {};
-    this.queued = false;
-    this.affectedMarks = [];
-    this.markIndexes = {
-      type: {}
-    };
-    this.history = {position: 0, items: []};
-    CodeMirror.commands["undo"] = function(cm:Editor) {
-      cm.markdownEditor.undo();
-    }
-    CodeMirror.commands["redo"] = function(cm:Editor) {
-      cm.markdownEditor.redo();
-    }
+
     editor.on("beforeChange", function(editor, change) { self.onBeforeChange(change); });
     editor.on("change", function(editor, change) { self.onChange(change); });
     editor.on("cursorActivity", function(editor) { self.onCursorActivity(); });
     editor.on("paste", function(editor, event) { self.onPaste(event); });
     editor.on("copy", function(editor, event) { self.onCopy(event); });
     editor.on("changes", function(editor, changes) { self.onChanges(changes); });
-    // editor.on("scroll", function(editor) { self.onScroll(); });
 
     this.loadMarkdown(value);
     let doc = this.editor.getDoc();
     doc.clearHistory();
-    this.history = {position: 0, items: []};
-    this.version = 0;
-  }
-
-  onScroll() {
-
   }
 
   onBeforeChange(change) {
     let doc = this.editor.getDoc();
     let {from, to} = change;
-    let marks;
+    let marks:SpanMarker[];
     if(!samePos(from, to)) {
       let adjustedFrom = doc.posFromIndex(doc.indexFromPos(from) - 1);
       let adjustedTo = doc.posFromIndex(doc.indexFromPos(to) + 1);
@@ -790,6 +795,10 @@ class MarkdownEditor {
   }
 
 }
+
+//---------------------------------------------------------
+// Markdown Parsing
+//---------------------------------------------------------
 
 function parseMarkdown(markdown):{text: string, spans: any[]} {
   let parsed = parser.parse(markdown);
