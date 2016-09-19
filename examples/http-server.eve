@@ -2,7 +2,7 @@ Pre-fetch the code for hard-coded watchers
 ```
   commit
     [#watcher @browser]
-    //[#watcher @editor]
+    [#watcher @editor]
 ```
 
 ```
@@ -19,16 +19,31 @@ Pre-fetch the code for hard-coded watchers
 start path resolution
 ```
   match @file
-     fr = [#root]
+    fr = [#root]
   match
-     connection = [#http-request]
-     split[text:r.request.url token index, by:"/"]
-     websocket = if r.request.headers.Sec-WebSocket-Protocol = "eve-json" then true else false
-  bind
-     [#path index:1 file:fr]
-     [#path index token]
+    connection = [#http-request]
+    r = connection.request
+    headers = r.headers
+    split[text:r.url token index, by:"/"]
+
+    websocket = if headers.Sec-WebSocket-Protocol = "eve-json" then true else false
   commit
-     [#request-object connection websocket]
+    request = [#request-object connection websocket requires: "browser"]
+  bind
+    [#path request index:1 file:fr]
+    [#path request index token]
+```
+
+If a path is rooted in /edit, parse it without the first path segment and tag the request accordingly
+```
+  match
+    path = [#path request index: 2 token: "edit"]
+  match @file
+    fr = [#root]
+  bind
+    path.file := fr
+  commit
+    request.requires += "editor"
 ```
 
 resolve a path
@@ -55,7 +70,7 @@ match
      // not avilable when we're looking for it in send eve bootsrap
 
 commit
-     [#complete-object extension:extoken token:final.token file]
+     [#complete-object extension:extoken token:final.token file scope: [bags: [Spoooogle: true]]]
 ```
 
 
@@ -106,34 +121,83 @@ send eve bootstrap
      c := none
 ```
 
+Prepare the default bags in scope for a child process
+```
+  match
+    r = [#request-object websocket:true]
+    c = [#complete-object extension:"eve" scope]
+
+  match @bag
+    all = [#bag @all]
+
+  commit @bag
+    session = [#bag @session r]
+
+  commit
+    scope.bags <- [session, all]
+    scope.read += session
+    scope.write += session
+```
+
+Prepare any watchers the request requires
+```
+  match
+    r = [#request-object connection websocket:true requires: watcher-name]
+    c = [#complete-object token extension:"eve" file scope]
+    [#watcher name: watcher-name code]
+
+  commit @bag
+    module = [#bag name: watcher-name r code]
+
+  commit
+    [#eav entity: scope.bags attribute: watcher-name value: module]
+```
+
+Mirror the scope object into process due to implementation issues
+```
+  match
+    r = [#request-object connection websocket:true]
+    c = [#complete-object token extension:"eve" file scope]
+
+  commit @process
+    scope.read := scope.read
+    scope.write := scope.write
+    scope.bags := scope.bags
+```
+
+```
+  match
+    r = [#request-object connection websocket:true]
+    c = [#complete-object token extension:"eve" file scope]
+    [#eav entity: scope.bags attribute: module-name value: module]
+    not(module-name = "Spoooogle")
+  commit @process
+    [#eav entity: scope.bags attribute: module-name value: module]
+```
+
 start eve program
 ```
   match
-    r = [#request-object connection  websocket:true]
-    c = [#complete-object token extension:"eve" file]
-
-    [#watcher @browser code: browser-code]
+    r = [#request-object connection websocket:true]
+    c = [#complete-object token extension:"eve" file scope]
 
   match @file
     source = file.contents
 
-  // there may be a terser version here
-  commit @bag
-        browser = [#bag r code: browser-code]
-        session = [#bag r]
-        all = [#bag @all]
-
   commit @process
-     child = [#process source name:token
-              scope:[write:session
-              read:(browser, session)
-              bags:[browser, session, all]]]
+     child = [#process source name:token scope: [read: scope.read write: scope.write bags: scope.bags]] //
   commit
      connection.upgrade := child
      r := none
      c := none
-  commit @debug
-    [#kthxbai]
+```
+
+```
+  match
+    r = [#request-object connection websocket:true]
+    c = [#complete-object token extension:"eve" file scope]
+
+    bs = scope.bags
 ```
 
 
