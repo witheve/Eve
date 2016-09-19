@@ -8,14 +8,21 @@ typedef enum state {
     waiting,
     ready
 } state;
-     
+
+typedef struct pgcolumn {
+    estring name;
+    estring type; /*?*/
+} *pgcolumn;
+    
 typedef struct pgtable {
-    string name;
+    estring name;
+    vector columns;
 } *pgtable;
     
 
 typedef struct postgres {
     struct bag b;
+    bag backing;
     state s;
     heap h;
     endpoint e;
@@ -34,6 +41,7 @@ typedef struct postgres {
 } *postgres;
 
 static CONTINUATION_1_0(table_complete, postgres);
+
 
 static void pg_concat_estring(buffer dest, estring e)
 {
@@ -70,14 +78,19 @@ static void pg_query(postgres p, string q, closure(handler, vector), thunk done)
     pg_send_message(p, b);
 };
 
-static CONTINUATION_1_1(pg_schema_row, postgres, vector);
-static void pg_schema_row(postgres p, vector v)
+static CONTINUATION_2_1(pg_schema_row, postgres, pgtable, vector);
+static void pg_schema_row(postgres p, pgtable t, vector v)
 {
-    prf("zikky: %V\n", v);
+    pgcolumn c = allocate(p->h, sizeof(struct pgcolumn));
+    c->name = vector_get(v, 0);
+    // xxx -maybe just put this guy in the edb? or both?
+    vector_insert(t->columns, c);
 }
 
 static void pg_scan_schema(postgres p, estring table_name)
 {
+    pgtable t = allocate(p->h, sizeof(struct pgtable));
+    t->columns = allocate_vector(p->h, 10);
     //  had - a.atttypmod as mod 
     buffer q =
         aprintf(p->h, 
@@ -88,13 +101,8 @@ static void pg_scan_schema(postgres p, estring table_name)
                 "AND a.attrelid = ("
                 "SELECT c.oid FROM pg_catalog.pg_class c "
                 "LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace "
-                "WHERE c.relname ~ '%r')", table_name);
-    pg_query(p, q, cont(p->h, pg_schema_row, p), cont(p->h, table_complete, p));
-}
-
-static CONTINUATION_1_5(postgres_scan, postgres, int, listener, value, value, value);
-static void postgres_scan(postgres b, int sig, listener out, value e, value a, value v)
-{
+                "WHERE c.relname = '%r')", table_name);
+    pg_query(p, q, cont(p->h, pg_schema_row, p, t), cont(p->h, table_complete, p));
 }
 
 static value bool_from_thingy(buffer b)
@@ -139,12 +147,37 @@ static buffer_to_value find_translator(u32 type_oid)
 static CONTINUATION_1_1(each_table, postgres, vector);
 static void each_table(postgres p, vector v)
 {
+    prf ("table %v\n", vector_get(v, 0));
     vector_insert(p->table_worklist, vector_get(v, 0));
+}
+
+static CONTINUATION_2_1(table_dump_row, postgres, pgtable, vector);
+static void table_dump_row(postgres p, pgtable t, vector res)
+{
+    uuid id = generate_uuid();
+    int index;
+    apply(p->backing->insert, id, sym(tag), t->name, 1, 0);
+    vector_foreach(res, i) 
+        apply(p->backing->insert, id, vector_get(t->columns, index++), i, 1, 0);
+}
+
+
+static void table_dump(postgres p, pgtable t)
+{
+    buffer q = allocate_buffer(p->h, 10);
+    boolean first = true;
+    bprintf(q, "SELECT ");
+    vector_foreach(t->columns, i) {
+        if (!first) bprintf(q, ", ");
+        first = false;
+        bprintf(q, "%r", ((pgcolumn)i)->name);
+    }
+    pg_query(p, q, cont(p->h, pg_schema_row, p, t), cont(p->h, table_complete, p));
 }
 
 static void table_complete(postgres p)
 {
-    if (vector_length(p->table_worklist)) 
+    if (vector_length(p->table_worklist))  
         pg_scan_schema(p, pop(p->table_worklist));
 }
 
@@ -173,6 +206,7 @@ static void authenticate(postgres p, buffer b)
         MD5_Final(inter, &md5);
         bprintf(m, "md5%X", alloca_wrap_buffer(inter, MD5_DIGEST_LENGTH));
         pg_send_message(p, m);
+        break;
     }
     default:
         prf("pg auth type: %d\n", code);
@@ -181,7 +215,6 @@ static void authenticate(postgres p, buffer b)
 
 static void postgres_message(postgres p, u8 code, buffer b)
 {
-    prf("code: %c\n", code);
     switch(code) {
     // propertly list, separated by a null
     case 'S': return;
