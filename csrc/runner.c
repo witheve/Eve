@@ -446,6 +446,8 @@ evaluation build_evaluation(heap h,
     ev->inject_blocks = cont(h, inject_blocks, ev);
     ev->default_scan_scopes = allocate_vector(h, 5);
     ev->default_insert_scopes = allocate_vector(h, 5);
+
+    // xxx - this should be on a per-block basis
     table_foreach(ev->t_input, uuid, z) {
         bag b = z;
         table_set(b->listeners, ev->run, (void *)1);

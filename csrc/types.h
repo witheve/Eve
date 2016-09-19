@@ -2,6 +2,7 @@
 #define region_mask 0x7ffe00000000ull
 #define region_size 0x10000000000ull
 // each of these is a 1T space
+// xxx - aren't bags really a first class value at this point?
 #define uuid_space 0x10000000000ull
 #define float_space 0x20000000000ull
 #define estring_space 0x30000000000ull
