@@ -1,6 +1,6 @@
 # make this look like the filesystem
 
-%1 server {examples/http-server.eve}
+%1 server {evesrc/http-server.eve}
 #%1 foo bar
 #%1 z %2
 #%1 count 3.7
