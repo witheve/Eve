@@ -1,0 +1,37 @@
+listen for packets. these can be vote packets or normal packets, add guys that
+we dont think are in our current view
+```
+ match
+   [#packet source:id]
+   [#time frame]
+   to = [#timeout]
+   m = [#member id]
+ commit
+   m.last-heard = frame
+   [#member id]
+```
+
+add new peers and accelerate
+   [#packet body:[#member]]
+
+   not ([member #
+   [#timeout random(small)]
+
+
+send announcment.
+```
+match
+   maxframes = 60 * 5 // 60 frames per second
+   [#time frame]
+   [members #id]
+   > seconds [#timeout]
+   new = max(timeout.ticks *2, maxticks)
+
+commit
+   timeout.ticks := mod(random, max(maxticks, new) + minticks)
+   m = [udp-message destination:rando kind:"announce"]
+   m.id += id
+
+  // send current view
+  // to random peer
+```

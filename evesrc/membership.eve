@@ -1,0 +1,117 @@
+things to work on:
+
+   - and packet interface is sketchy, dont have it properly
+     wired up with udp and listener and serializer. also
+     output schema?
+
+   - timers are super sketch, guess i'm going to make
+     a new monotonic one
+
+   - random is super sketch
+
+listen for packets. these can be vote packets or normal packets, add guys that
+we dont think are in our current view
+```
+ match
+   [#packet id]
+   [#timestamp ticks]
+   to = [#timeout]
+ commit
+   [#member id last-heard]
+   // random but short after each update
+   timeout.ticks := mod(value, by)
+   //update announcment timer
+```
+
+
+send announcment.
+```
+match
+   [#time hours minutes seconds]
+   [members #id]
+   > seconds [#timeout]
+   new = timeout.ticks *2
+
+
+commit
+   timeout.ticks := mod(random, max(maxticks, new) + minticks)
+   m = [udp-message destination:rando kind:"announce"]
+   m.id += id
+
+  // send current view
+  // to random peer
+```
+
+
+voting protocol section
+
+vote receive when i have a vote outstanding - if this
+id is lower than mine, then abandon the vote
+
+```
+   leader.id < [#id]
+   v = [#vote]
+commit
+   v := none
+```
+
+per receive vote - success. there is no one in my member set that
+isn't represented in the proposed population. other people that
+I dont know about will be merged as part of the general input path
+```
+  match
+    [#member id]
+    [#message member:id leader]
+  commit
+    [udp-message destination:leader kind:"vote-accept"]
+```
+
+per receive vote - failure. i know about someone that isn't in the vote.
+this response doesn't effect correctness, just convergence time
+```
+  match
+    [#member id]
+    [#message member:id leader]
+  commit
+    [udp-message destination:leader kind:"vote-fail"]
+```
+
+
+leader send vote
+```
+  match
+     [#member id]
+     [#generation gid]
+     id = min(id)
+     // better track of current generation?
+     generation = max(gid) + 1
+  commit
+     v = [#vote]
+     v.member += id
+     // send announcment to all the peers
+     [send destination:id body:vote]
+
+```
+
+leader vote input fail
+-- call off the vote
+```
+match
+  [udp kind: "vote-fail"]
+  v = [#vote]
+commit
+  v := none
+```
+
+leader vote input success
+```
+match
+   [udp kind:"vote" source]
+   v = [#vote]
+commit
+   v -= [source]
+```
+
+leader vote timeout - we
+```
+```
