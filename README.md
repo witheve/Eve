@@ -84,7 +84,7 @@ To pass Eve files on your local machine into the container, you'll need to mount
 You can learn about Eve through the following resources:
 
 - Eve Quick Start Tutorial (Coming soon)
-- [Syntax Quick Reference](https://github.com/witheve/assets/blob/master/docs/SyntaxReference.pdf) (draft)
+- [Syntax Quick Reference](https://witheve.github.io/assets/docs/SyntaxReference.pdf) (draft)
 - [Eve Language Handbook](https://github.com/witheve/docs/blob/master/src/handbook/contents.md) (draft)
 
 *Please let us know what kind of documents would be the most helpful as you begin your journey with Eve*. We want our documentation to be a highlight of the Eve experience, so any suggestions are greatly appreciated.
