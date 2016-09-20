@@ -144,6 +144,8 @@ local expressions = {
   -- Aggregates
   count = {schema({"return"}, "sum", "aggregate")},
   sum = {schema({"return", STRONG_IN, "value"}, "sum", "aggregate")},
+  min = {schema({"return", STRONG_IN, "value"}, "min", "aggregate")},
+  max = {schema({"return", STRONG_IN, "value"}, "max", "aggregate")},
   join = {schema({"return", STRONG_IN, "token", "index", "with"}, "join", "aggregate")}}
 
 

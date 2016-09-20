@@ -11,7 +11,7 @@ struct bag {
     scanner scan_sync;
     inserter insert;
     committer commit;
-    table listeners; // who is this again?
+    table listeners;
     vector blocks;
     table block_listeners;
 };
