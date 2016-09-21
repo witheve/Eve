@@ -1637,13 +1637,12 @@ local function findAndSetScope(root, context)
   end
 
   for _, scope in ipairs(scopes) do
-    print("sctpe", scope.type)
     if scope.type == "equality" and scope.children[1].type == "NAME" then
       root.scopes:add(scope.children[2].value)
     elseif scope.type == "STRING" then
       root.scopes:add(scope.value)
     elseif scope.type == "variable" then
-      root.scopes:add(scope.name)
+      root.scopes:add(scope)
     else
       -- error
       errors.invalidScopeDeclaration(context, scope)

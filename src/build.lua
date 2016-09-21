@@ -371,8 +371,7 @@ function translate_mutate(n, bound, down, context, tracing)
    -- the nodes arguments are all arrays, so translate
    local scopes = {}
    for k, v in pairs(n.scopes) do
-        print("zikky", k, bound[k], variable(k))
-        scopes[#scopes + 1] = k
+        scopes[#scopes + 1] = read_lookup(n, env, k)
    end
 
    c = cnode(n, operator, {c},

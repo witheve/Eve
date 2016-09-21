@@ -2,14 +2,14 @@
 #include <exec.h>
 
 
-static vector uuid_set(block bk, vector scopes)
+static vector uuid_set(block bk, value *regs, vector scopes)
 {
     if (vector_length(scopes) == 0) return 0;
     vector out = allocate_vector(bk->h, vector_length(scopes));
     vector_foreach(scopes, i) {
         // we're going to soft create these scopes, but the uuids
         // remain unreferrable to the outside world
-        uuid u = table_find(bk->ev->scopes, i);
+        uuid u = table_find(bk->ev->scopes, lookup(regs, i));
         if (!u) {
             uuid lost = generate_uuid();
             prf("Unable to find context: %v. New id: %v\n", i, lost);
