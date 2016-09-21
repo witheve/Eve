@@ -81,7 +81,7 @@ uuid generate_uuid()
 
 void init_uuid()
 {
-    uuid_heap = allocate_rolling(init_fixed_page_region(init, uuid_space, uuid_space + region_size, pages->pagesize),
+    uuid_heap = allocate_rolling(init_fixed_page_region(init, uuid_space, uuid_space + region_size, pages->pagesize, false),
                                  sstring("uuid"));
     interned_uuid = allocate_table(uuid_heap, uuid_hash, uuid_compare);
 }

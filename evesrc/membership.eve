@@ -35,7 +35,8 @@ match
 
 commit
    timeout.ticks := mod(random, max(maxticks, new) + minticks)
-   m = [udp-message destination:rando kind:"announce"]
+commit @udp   
+   m = [packet destination:rando kind:"announce"]
    m.id += id
 
   // send current view

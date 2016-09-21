@@ -26,7 +26,7 @@ void init_runtime()
     // bootstrap
     heap trash = init_memory(4096);
 
-    heap page_allocator = init_fixed_page_region(trash, allocation_space, allocation_space + region_size, 65536);
+    heap page_allocator = init_fixed_page_region(trash, allocation_space, allocation_space + region_size, 65536, true);
     efence = efence_heap(4096);
     pthread_key_create(&pkey, 0);
         
@@ -41,6 +41,6 @@ void init_runtime()
     float_heap = allocate_rolling(init_fixed_page_region(init,
                                                          float_space,
                                                          float_space + region_size,
-                                                         pages->pagesize),
+                                                         pages->pagesize, false),
                                   sstring("efloat"));
 }

@@ -48,7 +48,8 @@ extern void unix_shutdown();
 heap init_fixed_page_region(heap meta,
                             u64 base_address,
                             u64 max_address,
-                            bytes pagesize);
+                            bytes pagesize,
+                            boolean recycle);
 ticks now();
 
 

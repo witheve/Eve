@@ -26,7 +26,8 @@ void init_estring()
     heap string_region = init_fixed_page_region(init,
                                                 estring_space, 
                                                 estring_space + region_size,
-                                                pages->pagesize);
+                                                pages->pagesize,
+                                                false);
     estring_heap = allocate_rolling(string_region, sstring("estring"));
     interned_string = allocate_table(estring_heap, si_hash, si_compare);
 }

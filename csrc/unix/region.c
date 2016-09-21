@@ -8,6 +8,7 @@ typedef struct region_heap {
     struct heap h;
     u64 base, max, fill;
     void *freelist;
+    boolean recycle;
 } *region_heap;
 
 
@@ -37,11 +38,11 @@ static void region_free(heap h, void *x, bytes size)
 {
     region_heap r = (region_heap)h;
     h->allocated -= pad(size, h->pagesize);
-    /*    if (size == h->pagesize) {
+    if ((size == h->pagesize) && r->recycle){
         // multipage
         *(void **)x = r->freelist;
         r->freelist = x;
-        } else*/ {
+    } else {
         munmap(x, pad(size, h->pagesize));
     }
     h->allocated -= size;
@@ -56,7 +57,8 @@ boolean in_region(region_heap r, void *p) {
 heap init_fixed_page_region(heap meta,
                             u64 base_address,
                             u64 max_address,
-                            bytes pagesize)
+                            bytes pagesize,
+                            boolean recycle)
 {
     region_heap r = allocate(meta, sizeof(struct region_heap));
     r->h.alloc = region_pages;
@@ -66,5 +68,6 @@ heap init_fixed_page_region(heap meta,
     r->fill = r->base;
     r->max = max_address;
     r->freelist = 0;
+    r->recycle = recycle;
     return (heap)r;
 }

@@ -9,7 +9,6 @@ typedef enum {
     op_close
 } operator;
 
-
 u64 key_of(value);
 boolean equals(value, value);
 
@@ -138,7 +137,6 @@ void close_evaluation(evaluation);
 
 extern char *pathroot;
 
-
 vector compile_eve(heap h, buffer b, boolean tracing, bag *compiler_bag);
 
 evaluation build_evaluation(heap h, estring name,
@@ -203,4 +201,4 @@ bag connect_postgres(station s, estring user, estring password, estring database
 bag env_init();
 bag start_log(bag base, char *filename);
 void serialize_edb(buffer dest, edb db);
-
+bag udp_bag_init();

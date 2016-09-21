@@ -17,6 +17,7 @@ typedef struct pgcolumn {
 typedef struct pgtable {
     estring name;
     vector columns;
+    boolean fetched;
 } *pgtable;
 
 
@@ -87,26 +88,14 @@ static void pg_schema_row(postgres p, pgtable t, vector v)
     vector_insert(t->columns, c);
 }
 
-static void pg_scan_schema(postgres p, estring table_name)
-{
-    pgtable t = allocate(p->h, sizeof(struct pgtable));
-    t->columns = allocate_vector(p->h, 10);
-    //  had - a.atttypmod as mod
-    buffer q =
-        aprintf(p->h,
-                "SELECT a.attname as Column, a.atttypid as type "
-                "FROM pg_catalog.pg_attribute a "
-                "WHERE a.attnum > 0 "
-                "AND NOT a.attisdropped "
-                "AND a.attrelid = ("
-                "SELECT c.oid FROM pg_catalog.pg_class c "
-                "LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace "
-                "WHERE c.relname = '%r')", table_name);
-    pg_query(p, q, cont(p->h, pg_schema_row, p, t), cont(p->h, table_complete, p));
-}
-
 static value bool_from_thingy(buffer b)
 {
+    return efalse;
+}
+
+static value translate_money(buffer b)
+{
+    prf("money %X\n", b);
     return efalse;
 }
 
@@ -130,6 +119,8 @@ static buffer_to_value find_translator(u32 type_oid)
     switch(type_oid) {
     case 25:
     case 19:
+    case 17: // bytea format has likely been escaped in some whack way
+             // https://www.postgresql.org/docs/9.0/static/datatype-binary.html
     case 1043:
         return (buffer_to_value)intern_buffer;
     case 26:
@@ -138,6 +129,8 @@ static buffer_to_value find_translator(u32 type_oid)
         return float_from_int;
     case 16:
         return bool_from_thingy;
+    case 790:
+        return translate_money;
     default:
         prf("bad pg type: %d\n", type_oid);
     }
@@ -147,7 +140,6 @@ static buffer_to_value find_translator(u32 type_oid)
 static CONTINUATION_1_1(each_table, postgres, vector);
 static void each_table(postgres p, vector v)
 {
-    prf ("table %v\n", vector_get(v, 0));
     vector_insert(p->table_worklist, vector_get(v, 0));
 }
 
@@ -161,7 +153,6 @@ static void table_dump_row(postgres p, pgtable t, vector res)
         apply(p->backing->insert, id, vector_get(t->columns, index++), i, 1, 0);
 }
 
-
 static void table_dump(postgres p, pgtable t)
 {
     buffer q = allocate_buffer(p->h, 10);
@@ -172,13 +163,30 @@ static void table_dump(postgres p, pgtable t)
         first = false;
         bprintf(q, "%r", ((pgcolumn)i)->name);
     }
+    bprintf(q, " FROM %r", t->name);
+    prf("%b\n", q);
     pg_query(p, q, cont(p->h, pg_schema_row, p, t), cont(p->h, table_complete, p));
 }
 
 static void table_complete(postgres p)
 {
-    if (vector_length(p->table_worklist))
-        pg_scan_schema(p, pop(p->table_worklist));
+    if (vector_length(p->table_worklist)) {
+        pgtable t = allocate(p->h, sizeof(struct pgtable));
+        t->name =pop(p->table_worklist);
+        t->columns = allocate_vector(p->h, 10);
+        //  had - a.atttypmod as mod
+        buffer q =
+            aprintf(p->h,
+                    "SELECT a.attname as Column, a.atttypid as type "
+                    "FROM pg_catalog.pg_attribute a "
+                    "WHERE a.attnum > 0 "
+                    "AND NOT a.attisdropped "
+                "AND a.attrelid = ("
+                    "SELECT c.oid FROM pg_catalog.pg_class c "
+                    "LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace "
+                    "WHERE c.relname = '%r')", t->name);
+        pg_query(p, q, cont(p->h, pg_schema_row, p, t), cont(p->h, table_complete, p));
+    }
 }
 
 #define PG_SALT_LENGTH 4
@@ -223,7 +231,7 @@ static void postgres_message(postgres p, u8 code, buffer b)
         return;
 
     case 'C': {
-        prf("completed %s\n",bref(b, 0));
+        prf("completed %b\n", b);
         apply(p->query_done);
         return;
     }
@@ -284,16 +292,17 @@ static void postgres_input(postgres p, buffer in, register_read reg)
         if (!p->reassembly) {
             p->reassembly = in;
             in = 0;
+        } else {
+            buffer_append(p->reassembly, bref(in, 0), buffer_length(in));
         }
-
+        
         while (p->reassembly) {
             buffer r = p->reassembly;
-            if (buffer_length(r) < 5) return;
-
+            if (buffer_length(r) < 5) break;
             u8 code = buffer_read_byte(r);
             u32 length = buffer_read_be32(r);
             r->start -= 5;
-            if (buffer_length(r) < length) return;
+            if (buffer_length(r) < length) break;
             postgres_message(p, code, wrap_buffer(p->h, bref(r, 5), length - 4));
             r->start += length + 1;
             if (r->start == r->end)  p->reassembly = 0;

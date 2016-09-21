@@ -10,6 +10,9 @@ static bag env_bag;
 static int default_behaviour = true;
 static multibag persisted;
 static table scopes;
+static boolean recycle;
+static boolean cluster;
+static vector seeds;
 
 //filesystem like tree namespace
 #define register(__bag, __url, __content, __name)\
@@ -159,8 +162,31 @@ static void do_db(char *x)
     if (len > 2)  database = intern_buffer(vector_get(n, 2));
 
     station s = station_from_string(init, sstring("127.0.0.1:5432"));
-    prf ("%r %r %r\n", user, password, database);
     bag b = connect_postgres(s, user, password, database);
+    uuid p = generate_uuid();
+    table_set(persisted, p, b);
+    table_set(scopes, database, p);
+}
+
+
+static void do_recycle(char *x)
+{
+    cluster = true;
+}
+
+
+static void do_cluster(char *x)
+{
+    cluster = true;
+}
+
+
+// XXX - these could also come out of the static database
+// also, it would probably be operationally useful
+// if we turned up the resolver
+static void do_set_seed(char *x)
+{
+    vector_insert(seeds, station_from_string(init, alloca_wrap_buffer(x, cstring_length(x))));
 }
 
 static void do_logging(char *x)
@@ -187,6 +213,9 @@ static struct command command_body[] = {
     {"h", "help", "print help", false, print_help},
     {"t", "tracing", "enable per-statement tracing", false, do_tracing},
     {"d", "data log", "set directory for per-bag log files", true, do_logging},
+    {"r", "recycle", "recycle pages to save VM space and reduce kernel involvement", false, do_recycle},
+    {"c", "cluster", "attach to cluster or start a new cluster", false, do_cluster},
+    {"S", "seed", "declare the address of an existing cluster member to attach to", true, do_set_seed},    
     //    {"R", "resolve", "implication resolver", false, 0},
 };
 
@@ -199,6 +228,26 @@ static void print_help(char *x)
     exit(0);
 }
 
+// XXX - dont involve so much manual setup in these environments
+// we should have everything we need for a proper boot
+// its kinda mandatory to have a static bag for membership
+static void start_cluster(buffer membership_source)
+{
+    heap h = allocate_rolling(pages, sstring("command line"));
+    bag compiler_bag;
+
+    bag ub = udp_bag_init(persisted);
+    uuid uid = generate_uuid();
+    table_set(persisted, uid, uid);
+    table_set(scopes, sym(udp), uid);
+
+    heap hc = allocate_rolling(pages, sstring("eval"));
+    vector n = compile_eve(h, membership_source, false, &compiler_bag);
+    evaluation ev = build_evaluation(h, sym(membership), scopes, persisted,
+                                     ignore, cont(h, handle_error_terminal), n);
+    table_set(ub->listeners, ev->run, (void *)1); 
+}
+
 int main(int argc, char **argv)
 {
     init_runtime();
@@ -206,6 +255,7 @@ int main(int argc, char **argv)
     commands = command_body;
     static_bag = staticdb();
     env_bag = env_init();
+    seeds = allocate_vector(init, 3);
 
     scopes = create_value_table(init);
     persisted = create_value_table(init);
@@ -234,8 +284,13 @@ int main(int argc, char **argv)
     // depends on uuid layout, package.c, and other fragilizites
     unsigned char fixed_uuid[12] = {0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
     estring static_server = lookupv((edb)static_bag, intern_uuid(fixed_uuid), sym(server));
+    
     if (default_behaviour)
         start_http_server(alloca_wrap_buffer(static_server->body, static_server->length));
+    
+    estring static_membership = lookupv((edb)static_bag, intern_uuid(fixed_uuid), sym(membership));
+    if (cluster)
+        start_cluster(alloca_wrap_buffer(static_membership->body, static_membership->length));
 
     unix_wait();
 }
