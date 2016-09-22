@@ -11,7 +11,7 @@ decsriptor standardinput = 0;
 decsriptor standardoutput = 1;
 decsriptor standarderror = 2;
 
-station ip_wildcard_service;
+station ip_wildcard;
 
 void ticks_to_timeval(struct timeval *a, ticks b)
 {

@@ -3,7 +3,7 @@
 #include <netinet/in.h>
 
 /*TODO: put back in multicast support */
-
+     
 struct udp {
     buffer_handler read;
     descriptor send, receive;
@@ -11,7 +11,17 @@ struct udp {
     heap h;
     int mtu;
     udp_receiver r;
+    // xxx determine my externally facing address
+    station myself;
 };
+
+station udp_station(udp u)
+{
+    unsigned int len;
+    struct sockaddr_in s;
+    getsockname(u->receive, (struct sockaddr *)&s, &len);
+    return digest_sockaddrin(&s);
+}
 
 void udp_write(udp u, station a, buffer b) 
 {
@@ -84,6 +94,8 @@ udp create_udp(heap h,
         prf("error binding udp socket\n");
         return(0);
     }
+
+
     register_read_handler(tcontext()->s, u->receive, cont(h, input, u));
     return u;
 }

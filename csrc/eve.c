@@ -250,7 +250,10 @@ static void start_cluster(buffer membership_source)
     vector n = compile_eve(h, membership_source, false, &compiler_bag);
     evaluation ev = build_evaluation(h, sym(membership), scopes, persisted,
                                      ignore, cont(h, handle_error_terminal), n);
-    table_set(ub->listeners, ev->run, (void *)1); 
+    table_set(ub->listeners, ev->run, (void *)1);
+    bag event = (bag)create_edb(init, 0);
+    apply(event->insert, tid, sym(tag), sym(start), 1, 0);
+    inject_event(ev, event);
 }
 
 int main(int argc, char **argv)

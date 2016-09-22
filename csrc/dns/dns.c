@@ -167,7 +167,7 @@ resolver allocate_resolver(heap h, station server)
     r->h = h;
     r->server = server;
     r->u = create_udp(init, 
-                      ip_wildcard_service,
+                      ip_wildcard,
                       cont(h, dns_input, r));
     return r;
 }

@@ -1,16 +1,17 @@
 listen for packets. these can be vote packets or normal packets, add guys that
 we dont think are in our current view
 ```
-match [#start]
-
-match @udp
-     [#address id]
+match
+     [#start]
+     milliseconds = 50
+commit @udp
+     [#udp id]
      
 commit
-     [#membership milliseconds:50 id]
+     [#membership milliseconds id]
      
 commit @timer
-     [#timeout milliseconds:50]
+     [#timeout milliseconds]
 ```
    
 listen for packets. these can be vote packets or normal packets, add guys that
@@ -18,11 +19,9 @@ we dont think are in our current view
 ```
  match
    [#packet source:id]
-   [#time frames]
    to = [#timeout]
    m = [#member id]
  commit
-   m.last-heard := frames
    [#member id]
 ```
 

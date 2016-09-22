@@ -186,7 +186,6 @@ static void fill_bag(bag target, value *e, value *a, value v)
         estring s = v;
         if (s->length > 64) z = sym(....);
     }
-    prf("deser %v\n", z);
     if (!*e) {*e = v; return;}
     if (!*a) {*a = v; return;}
     apply(target->insert, *e, *a, v, 1, 0);
@@ -211,3 +210,5 @@ bag udp_bag_init();
 bag timer_bag_init();
 
 station create_station(unsigned int address, unsigned short port);
+void init_station();
+extern heap station_heap;
