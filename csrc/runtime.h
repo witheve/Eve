@@ -181,6 +181,12 @@ evaluation process_resolve(process_bag, uuid);
 static CONTINUATION_3_1(fill_bag, bag, value*, value *, value);
 static void fill_bag(bag target, value *e, value *a, value v)
 {
+    value z = v;
+    if (type_of(v) == estring_space) {
+        estring s = v;
+        if (s->length > 64) z = sym(....);
+    }
+    prf("deser %v\n", z);
     if (!*e) {*e = v; return;}
     if (!*a) {*a = v; return;}
     apply(target->insert, *e, *a, v, 1, 0);
@@ -202,3 +208,6 @@ bag env_init();
 bag start_log(bag base, char *filename);
 void serialize_edb(buffer dest, edb db);
 bag udp_bag_init();
+bag timer_bag_init();
+
+station create_station(unsigned int address, unsigned short port);

@@ -96,9 +96,10 @@ static void write_term(char *x, int length)
 {
     char start = x[0];
     if (start == '%') {
-        int n = 0;
-        for(char *r = x + 1; *r; r++)
+        int n = 0, len = 0;
+        for(char *r = x + 1; len < (length - 1); r++, len++)
             n = (n * 10) + (*r - '0');
+
         char buf[12];
         memset(buf, 0, sizeof(buf));
         buf[0] = 0x80;

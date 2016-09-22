@@ -143,24 +143,41 @@ static execf build_join(block bk, node n, execf *arms)
                 table_find(n->arguments, sym(with)));
 }
 
+typedef double (*dubop)(double, double);
 
-static CONTINUATION_7_4(do_sum, execf, perf, table*, vector, value, value, vector, heap, perf, operator, value *);
-static void do_sum(execf n, perf p,
-                   table *targets, vector grouping, value src, value dst, vector pk,
-                   heap h, perf pp, operator op, value *r)
+static double op_min(double a, double b)
+{
+    return (a<b)?a:b;
+}
+static double op_max(double a, double b)
+{
+    return (a>b)?a:b;
+}
+static double op_sum(double a, double b)
+{
+    return a+b;
+}
+
+
+
+static CONTINUATION_8_4(do_double_agg, execf, perf, dubop, table*, vector, value, value, vector, heap, perf, operator, value *);
+static void do_double_agg(execf n, perf p, dubop dop,
+                          table *targets, vector grouping, value src, value dst, vector pk,
+                          heap h, perf pp, operator op, value *r)
 {
     start_perf(p, op);
+    
     if (op == op_insert) {
         extract(pk, grouping, r);
         double *x;
+        double *z = lookup(r, src);
         if (!(x = table_find(*targets, pk))) {
             x = allocate((*targets)->h, sizeof(double *));
-            *x = 0.0;
+            *x = *z;
             vector key = allocate_vector((*targets)->h, vector_length(grouping));
             extract(key, grouping, r);
             table_set(*targets, key, x);
-        }
-        *x = *x + *(double *)lookup(r, src);
+        } else *x = dop(*x,*z);
     }
 
     if (op == op_flush) {
@@ -180,25 +197,28 @@ static void do_sum(execf n, perf p,
     stop_perf(p, pp);
 }
 
-static execf build_sum(block bk, node n, execf *arms)
+static execf build_double_agg(block bk, node n, execf *arms)
 {
     vector groupings = table_find(n->arguments, sym(groupings));
     if (!groupings) groupings = allocate_vector(bk->h, 0);
     vector pk = allocate_vector(bk->h, vector_length(groupings));
     table *targets = allocate(bk->h, sizeof(table));
     *targets = create_value_vector_table(bk->h);
+    dubop op;
+    if (n->type == sym("max")) op = op_max;
+    if (n->type == sym("min")) op = op_min;
+    if (n->type == sym("sum")) op = op_sum;
     return cont(bk->h,
-                do_sum,
+                do_double_agg,
                 resolve_cfg(bk, n, 0),
                 register_perf(bk->ev, n),
+                op,
                 targets,
                 groupings,
                 table_find(n->arguments, sym(value)),
                 table_find(n->arguments, sym(return)),
                 pk);
 }
-
-
 
 typedef struct subagg {
     heap phase;
@@ -331,7 +351,9 @@ void register_aggregate_builders(table builders)
 {
     table_set(builders, intern_cstring("subagg"), build_subagg);
     table_set(builders, intern_cstring("subaggtail"), build_subagg_tail);
-    table_set(builders, intern_cstring("sum"), build_sum);
+    table_set(builders, intern_cstring("sum"), build_double_agg);
+    table_set(builders, intern_cstring("max"), build_double_agg);
+    table_set(builders, intern_cstring("min"), build_double_agg);    
     table_set(builders, intern_cstring("join"), build_join);
     table_set(builders, intern_cstring("sort"), build_sort);
 }

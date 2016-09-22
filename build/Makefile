@@ -26,6 +26,7 @@ all: eve
 
 VPATH += ..
 VPATH += ../csrc/unix
+VPATH += ../evesrc
 VPATH += ../csrc/core
 VPATH += ../csrc/http
 VPATH += ../csrc/crypto
@@ -50,13 +51,14 @@ CORE = buffer.o table.o vector.o format.o rolling.o string.o pqueue.o timer.o fi
 CORE_H = bswap.h pqueue.h vector.h buffer.h heap.h timer.h continuation.h core.h string.h table.h
 EXEC = exec_expression.o exec_edb.o exec_string.o exec_aggregate.o exec.o
 RUNTIME = edb.o init.o uuid.o estring.o types.o luanne.o json_request.o runner.o path.o\
-	  process_bag.o bag_bag.o serialize.o postgres.o debug_bag.o envbag.o thread.o log.o $(EXEC) 
+	  process_bag.o bag_bag.o serialize.o postgres.o debug_bag.o envbag.o thread.o log.o\
+          timer_bag.o station.o $(EXEC) 
 RUNTIME_H = luanne.h runtime.h estring.h number.h types.h exec.h edb.h multibag.h
 HTTP = server.o websocket.o base64.o sha1.o json.o client.o http.o hmac_sha2.o sha256.o md5.o
 DNS = dns.o
 HTTP_H = http.h
 CONTENT = index.html system.js microReact.js codemirror.js codemirror.css commonmark.js\
-          uuid.js client.js renderer.js editor.js db.js
+          uuid.js client.js renderer.js editor.js db.js http-server.eve
 
 luajit-2.0:
 	git clone http://luajit.org/git/luajit-2.0.git

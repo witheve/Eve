@@ -101,9 +101,10 @@ static inline void thread_send(tid id, thunk m)
     context c = tcontext();
 }
 
-
+// apparently d_reclen is somewhat arbitrary in
+// linux, use strlen to get the filename
 #define foreach_file(_path, _name, _len)                               \
     for (DIR *_x = opendir(_path); _x ; closedir(_x), _x = (void *)0)  \
-    for (struct dirent *_d; (_d = readdir(_x)); )                  \
+    for (struct dirent *_d; (_d = readdir(_x)); )                      \
     for (char *_name = _d->d_name; _name; _name = 0)                   \
-    for (int _len = MAXNAMLEN - (sizeof(struct dirent) - _d->d_reclen); _len; _len = 0)
+    for (int _len = cstring_length(_d->d_name); _len; _len = 0)

@@ -132,8 +132,6 @@ start eve program
      connection.upgrade := child
      r := none
      c := none
-  commit @debug
-    [#kthxbai]
 ```
 
 

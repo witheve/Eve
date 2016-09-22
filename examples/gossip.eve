@@ -1,37 +1,69 @@
 listen for packets. these can be vote packets or normal packets, add guys that
 we dont think are in our current view
 ```
+match [#start]
+
+match @udp
+     [#address id]
+     
+commit
+     [#membership milliseconds:50 id]
+     
+commit @timer
+     [#timeout milliseconds:50]
+```
+   
+listen for packets. these can be vote packets or normal packets, add guys that
+we dont think are in our current view
+```
  match
    [#packet source:id]
-   [#time frame]
+   [#time frames]
    to = [#timeout]
    m = [#member id]
  commit
-   m.last-heard = frame
+   m.last-heard := frames
    [#member id]
 ```
 
 add new peers and accelerate
-   [#packet body:[#member]]
+``
+match @udp
+   [#packet body]
 
-   not ([member #
+   not ([member #id])
    [#timeout random(small)]
+
 
 
 send announcment.
 ```
+match @timer
+   [#timeout]
+   
 match
-   maxframes = 60 * 5 // 60 frames per second
-   [#time frame]
-   [members #id]
-   > seconds [#timeout]
-   new = max(timeout.ticks *2, maxticks)
+   max-timeout = 10 * 1000
+   // this is really 'sources' which includes seeds and active peers
+   [#membership id milliseconds peer:[#peer pid]]
+   actually = if (milliseconds * 2) > max-timeout then max-timeout else new
+   // mod[value: random[seed: 0], by: count[given: pid]]
+   rando = max[value: id]
 
 commit
-   timeout.ticks := mod(random, max(maxticks, new) + minticks)
-   m = [udp-message destination:rando kind:"announce"]
+   // min advertisement interval is 6.66ms
+   timeout.ticks := mod[value: random[seed: 0] by: actually] + 20
    m.id += id
+   
+commit @bag
+   // uniquification
+   packet = [#bag]
+commit packet
+    [#id id]
+   
+commit @udp   
+   [#packet body:packet]
 
-  // send current view
-  // to random peer
+commit @debug
+   [#send]
+   
 ```

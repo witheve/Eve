@@ -79,8 +79,9 @@ udp create_udp(heap h,
         prf("SO_SNDBUF");
     
     struct sockaddr s;
-    if (bind (u->receive, &s, (socklen_t)sizeof(struct sockaddr_in))) {
-        prf("error bind\n");
+    
+    if (bind (u->receive, &s, encode_sockaddrin((struct sockaddr_in *)&s, local))) {
+        prf("error binding udp socket\n");
         return(0);
     }
     register_read_handler(tcontext()->s, u->receive, cont(h, input, u));

@@ -12,6 +12,7 @@ static multibag persisted;
 static table scopes;
 static boolean recycle;
 static boolean cluster;
+static buffer cluster_source;
 static vector seeds;
 
 //filesystem like tree namespace
@@ -26,14 +27,6 @@ static vector seeds;
  }
 
 int atoi( const char *str );
-
-station create_station(unsigned int address, unsigned short port) {
-    void *a = allocate(init,6);
-    unsigned short p = htons(port);
-    memset(a, 0, 6);
-    memcpy (a+4, &p, 2);
-    return(a);
-}
 
 
 extern void init_json_service(http_server, uuid, boolean, bag, char*);
@@ -180,6 +173,12 @@ static void do_cluster(char *x)
     cluster = true;
 }
 
+static void do_cluster_source(char *x)
+{
+    cluster = true;
+    cluster_source = read_file_or_exit(init, x);
+}
+
 
 // XXX - these could also come out of the static database
 // also, it would probably be operationally useful
@@ -215,6 +214,7 @@ static struct command command_body[] = {
     {"d", "data log", "set directory for per-bag log files", true, do_logging},
     {"r", "recycle", "recycle pages to save VM space and reduce kernel involvement", false, do_recycle},
     {"c", "cluster", "attach to cluster or start a new cluster", false, do_cluster},
+    {"m", "cluster with source", "attach to cluster or start a new cluster, using the passed file as the protocol source", true, do_cluster_source},    
     {"S", "seed", "declare the address of an existing cluster member to attach to", true, do_set_seed},    
     //    {"R", "resolve", "implication resolver", false, 0},
 };
@@ -236,10 +236,15 @@ static void start_cluster(buffer membership_source)
     heap h = allocate_rolling(pages, sstring("command line"));
     bag compiler_bag;
 
-    bag ub = udp_bag_init(persisted);
+    bag ub = udp_bag_init();
     uuid uid = generate_uuid();
-    table_set(persisted, uid, uid);
+    table_set(persisted, uid, ub);
     table_set(scopes, sym(udp), uid);
+    
+    bag tb = timer_bag_init();
+    uuid tid = generate_uuid();
+    table_set(persisted, tid, tb);
+    table_set(scopes, sym(timer), tid);
 
     heap hc = allocate_rolling(pages, sstring("eval"));
     vector n = compile_eve(h, membership_source, false, &compiler_bag);
@@ -283,14 +288,18 @@ int main(int argc, char **argv)
 
     // depends on uuid layout, package.c, and other fragilizites
     unsigned char fixed_uuid[12] = {0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
-    estring static_server = lookupv((edb)static_bag, intern_uuid(fixed_uuid), sym(server));
+    uuid percent_one = intern_uuid(fixed_uuid);
+    estring static_server = lookupv((edb)static_bag, percent_one, sym(server));
     
     if (default_behaviour)
         start_http_server(alloca_wrap_buffer(static_server->body, static_server->length));
+
     
-    estring static_membership = lookupv((edb)static_bag, intern_uuid(fixed_uuid), sym(membership));
-    if (cluster)
-        start_cluster(alloca_wrap_buffer(static_membership->body, static_membership->length));
+    if (!cluster_source)  {
+        estring static_membership = lookupv((edb)static_bag, percent_one, sym(membership));
+        cluster_source = wrap_buffer(init, static_membership->body, static_membership->length);
+    }
+    if (cluster) start_cluster(cluster_source);
 
     unix_wait();
 }

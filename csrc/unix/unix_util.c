@@ -139,7 +139,7 @@ context init_context(heap page_allocator)
 {
     heap h = allocate_rolling(page_allocator, sstring("thread_init"));
     context c = allocate(h, sizeof(struct context));
-    
+
     signal(SIGPIPE, SIG_IGN);
     // put a per thread freelist on top of
     c->tid = fetch_and_add(&tid_count, 1);

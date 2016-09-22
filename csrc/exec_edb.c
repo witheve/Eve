@@ -2,15 +2,15 @@
 #include <exec.h>
 
 
-static vector uuid_set(block bk, value *regs, vector scopes)
+static vector uuid_set(block bk, vector scopes)
 {
     if (vector_length(scopes) == 0) return 0;
     vector out = allocate_vector(bk->h, vector_length(scopes));
     vector_foreach(scopes, i) {
         // we're going to soft create these scopes, but the uuids
         // remain unreferrable to the outside world
-        uuid u = table_find(bk->ev->scopes, lookup(regs, i));
-        if (!u) {
+        uuid u = table_find(bk->ev->scopes, i);
+        if (!u && !isreg(i)) {
             uuid lost = generate_uuid();
             prf("Unable to find context: %v. New id: %v\n", i, lost);
             table_set(bk->ev->scopes, i, lost);
@@ -53,6 +53,7 @@ static void do_scan(block bk, perf p, execf n,
         return;
     }
 
+    // xxx scopes can contain regs here
     merge_scan(bk->ev, scopes, sig,
                cont(h, scan_listener, n, h, op, r, p,
                     sigbit(sig, 2, e), sigbit(sig, 1, a), sigbit(sig, 0, v)),
@@ -104,7 +105,7 @@ static void do_insert(insert ins,
 
     if (op == op_insert) {
         vector_foreach(ins->scopes, u)
-            multibag_insert(ins->target, *ins->h, u,
+            multibag_insert(ins->target, *ins->h, lookup(r, u),
                             lookup(r, ins->e), lookup(r, ins->a), lookup(r, ins->v),
                             ins->deltam, ins->bk->name);
     }
@@ -133,7 +134,6 @@ static execf build_mutation(block bk, node n, int deltam)
 
     vector name_scopes = table_find(n->arguments, sym(scopes));
 
-
     ins->bk = bk;
     ins->p = register_perf(bk->ev, n);
     ins->n =  resolve_cfg(bk, n, 0);
@@ -145,8 +145,6 @@ static execf build_mutation(block bk, node n, int deltam)
     return cont(bk->h, do_insert, ins);
 }
 
-
-// merge these two
 static execf build_insert(block bk, node n)
 {
     return build_mutation(bk, n, 1);
@@ -209,7 +207,11 @@ static void do_set(block bk, perf p, execf n,
             target = &bk->ev->block_t_solution;
         }
 
-        vector_foreach(scopes, u) {
+        vector_foreach(scopes, bu) {
+            // xxx - right now multibag_insert this will soft create an edb, even if
+            // u is not a uuid, or associated with a bag
+            uuid u = lookup(r, bu);
+            
             if (vv != register_ignore)
                 multibag_insert(target, bk->ev->h, u, ev, av, vv, 1, bk->name);
 

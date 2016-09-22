@@ -14,6 +14,8 @@
 #define true_constant    0x02
 #define false_constant   0x01
 
+// also compressed strings please
+
 static inline int first_bit_set(u64 value)
 {
     return(63-__builtin_clzll(value));

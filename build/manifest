@@ -1,27 +1,25 @@
 # make this look like the filesystem
 
 %1 server {evesrc/http-server.eve}
-#%1 foo bar
-#%1 z %2
-#%1 count 3.7
+%1 membership {evesrc/membership.eve}
 
-#%0 content-type text/html
-#%0 name index.html
-#%0 content {build/manifest}
+%3 name client.js
+%3 content-type application/eve
+%3 content {build/client.js}
 
-#%2 name peggy
+%4 name db.js
+%4 content-type application/javascript
+%4 content {build/db.js}
 
-#1 content-type application/eve
-#1 name examples/http-server.eve
-#1 content {examples/http-server.eve}
+%5 name editor.js
+%5 content-type application/javascript
+%5 content {build/editor.js}
 
-#    register(b, "/js/microReact.js", "application/javascript", microReact_js);
-#    register(b, "/js/codemirror.js", "application/javascript", codemirror_js);
-#    register(b, "/js/codemirror.css", "text/css", codemirror_css);
-#    register(b, "/examples/todomvc.css", "text/css", todomvc_css);
-#    register(b, "/js/commonmark.js", "application/javascript", commonmark_js);
-#    register(b, "/js/system.js", "application/javascript", system_js);
-#    register(b, "/js/util.js", "application/javascript", util_js);
-#    register(b, "/js/client.js", "application/javascript", client_js);
-#    register(b, "/js/renderer.js", "application/javascript", renderer_js);
-#    register(b, "/js/editor.js", "application/javascript", editor_js);
+%6 name editor.js
+%6 content-type application/javascript
+%6 content {build/renderer.js}
+
+%7 name util.js
+%7 content-type application/javascript
+%7 content {build/util.js}
+

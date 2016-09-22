@@ -29,11 +29,14 @@ void init_runtime()
     heap page_allocator = init_fixed_page_region(trash, allocation_space, allocation_space + region_size, 65536, true);
     efence = efence_heap(4096);
     pthread_key_create(&pkey, 0);
-        
+
     init = allocate_rolling(page_allocator, 0);
     ignore = cont(init, ignoro);
     primary = init_context(page_allocator);
     pthread_setspecific(pkey, primary);
+    
+    ip_wildcard_service = create_station(0, 0);
+    
     init_estring();
     init_uuid();
     init_processes();
