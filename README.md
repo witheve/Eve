@@ -55,7 +55,7 @@ docker pull witheve/eve
 
 Windows Users - Docker for Windows requires Microsoft Hyper-V, which requires Windows 10. For users of earlier Windows versions, binaries are forthcoming.
 
-## [Running](https://github.com/witheve/docs/blob/master/drafts/handbook/running.md)
+## [Running](https://github.com/witheve/docs/blob/master/src/handbook/running.md)
 
 ### Native
 
