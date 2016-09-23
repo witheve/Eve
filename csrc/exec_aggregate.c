@@ -205,9 +205,10 @@ static execf build_double_agg(block bk, node n, execf *arms)
     table *targets = allocate(bk->h, sizeof(table));
     *targets = create_value_vector_table(bk->h);
     dubop op;
-    if (n->type == sym("max")) op = op_max;
-    if (n->type == sym("min")) op = op_min;
-    if (n->type == sym("sum")) op = op_sum;
+
+    if (n->type == sym(max)) op = op_max;
+    if (n->type == sym(min)) op = op_min;
+    if (n->type == sym(sum)) op = op_sum;
     return cont(bk->h,
                 do_double_agg,
                 resolve_cfg(bk, n, 0),

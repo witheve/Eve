@@ -3,17 +3,28 @@ we dont think are in our current view
 ```
 match
      [#start]
-     milliseconds = 50
 commit @udp
-     [#udp id]
-     
-commit
-     [#membership milliseconds id]
-     
-commit @timer
-     [#timeout milliseconds]
+     u = [#udp]
 ```
-   
+
+
+udp socket is created, set up the membership instance
+```
+match @udp
+   [#udp]
+   id = u.address
+match   
+    milliseconds = 50
+    [#peer id:pid]
+    not ([#membership])
+commit @timer
+    [#timeout milliseconds]
+commit 
+    m = [#membership milliseconds id]
+    m.peer += pid
+```   
+
+
 listen for packets. these can be vote packets or normal packets, add guys that
 we dont think are in our current view
 ```
@@ -25,26 +36,32 @@ we dont think are in our current view
    [#member id]
 ```
 
+
 add new peers and accelerate
-``
+```
 match @udp
    [#packet body]
-
+   m = [#membership]
    not ([member #id])
-   [#timeout random(small)]
-
+commit
+   // how do i know this is going to apply to this timeout?
+   m.timeout := mod[value: random[seed: 0] by: 1000]
+```
 
 
 send announcment.
 ```
+match 
 match @timer
+   // this should be a particular* timer, but setting up the correlation isn't very straightforward
    [#timeout]
    
 match
    max-timeout = 10 * 1000
    // this is really 'sources' which includes seeds and active peers
-   [#membership id milliseconds peer:[#peer pid]]
+   [#membership id milliseconds peer:pid]
    actually = if (milliseconds * 2) > max-timeout then max-timeout else new
+   x = sort[value: id]
    // mod[value: random[seed: 0], by: count[given: pid]]
    rando = max[value: id]
 

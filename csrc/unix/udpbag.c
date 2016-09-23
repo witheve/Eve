@@ -10,6 +10,18 @@ typedef struct udp_bag {
 static CONTINUATION_1_5(udp_scan, udp_bag, int, listener, value, value, value);
 static void udp_scan(udp_bag ub, int sig, listener out, value e, value a, value v)
 {
+    prf("udp scan: %v %v %v\n", e, a, v);
+    if ((sig == s_eAV) && (a == sym(tag)) && (v == sym(udp))){
+        table_foreach(ub->channels, e, u)
+            apply(out, e, a, v, 1, 0);
+    }
+    
+    // ech
+    if ((sig == s_eAv) && (a == sym(address)))  
+        table_foreach(ub->channels, e, u)
+            apply(out, e, a, v, 1, 0);
+
+    
     if ((sig == s_EAv) && (a == sym(address))) {
         udp u = table_find(ub->channels, e);
         apply(out, e, a, udp_station(u), 1, 0);
@@ -35,7 +47,8 @@ static void udp_commit(udp_bag ub, edb s)
         }
         edb_foreach_v(s, e, sym(host), port, c) {
             // fill in port if defined
-        } 
+        }
+        prf("udp commit %d\n", table_elements(ub->b.listeners));
         udp u = create_udp(ub->h, ip_wildcard, cont(ub->h, udp_input, ub));
         table_set(ub->channels, e, u);
     }
@@ -71,5 +84,6 @@ bag udp_bag_init()
     ub->b.listeners = allocate_table(h, key_from_pointer, compare_pointer);
     ub->b.blocks = allocate_vector(h, 0);
     ub->b.block_listeners = allocate_table(h, key_from_pointer, compare_pointer);
+    ub->channels = create_value_table(h);
     return (bag)ub;
 }

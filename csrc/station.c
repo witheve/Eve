@@ -11,12 +11,15 @@ station create_station(unsigned int address, unsigned short port) {
     return(a);
 }
 
+station ip_wildcard;
+
 void init_station()
 {
     heap station_region = init_fixed_page_region(init,
-                                                 estring_space, 
-                                                 estring_space + region_size,
+                                                 station_space, 
+                                                 station_space + region_size,
                                                  pages->pagesize,
                                                  false);
     station_heap = allocate_rolling(station_region, sstring("stations"));
+    ip_wildcard = create_station(0, 0);
 }

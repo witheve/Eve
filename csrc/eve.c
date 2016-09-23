@@ -241,15 +241,30 @@ static void start_cluster(buffer membership_source)
     table_set(persisted, uid, ub);
     table_set(scopes, sym(udp), uid);
     
+    bag sb = (bag)create_edb(init, 0);
+    uuid sid = generate_uuid();
+    table_set(persisted, sid, sb);
+    table_set(scopes, sym(session), sid);
+
+    uuid p = generate_uuid();
+    apply(sb->insert, p, sym(tag), sym(peer), 1, 0);
+    //    create_station(0x7f00001, 3014)
+    apply(sb->insert, p, sym(id), sym(zikki), 1, 0);
+    prf("peer: %v\n", p);
+
     bag tb = timer_bag_init();
     uuid tid = generate_uuid();
     table_set(persisted, tid, tb);
     table_set(scopes, sym(timer), tid);
 
     heap hc = allocate_rolling(pages, sstring("eval"));
-    vector n = compile_eve(h, membership_source, false, &compiler_bag);
+    vector n = compile_eve(h, membership_source, enable_tracing, &compiler_bag);
     evaluation ev = build_evaluation(h, sym(membership), scopes, persisted,
                                      ignore, cont(h, handle_error_terminal), n);
+    
+    vector_insert(ev->default_scan_scopes, sid);
+    vector_insert(ev->default_insert_scopes, sid);
+    
     table_set(ub->listeners, ev->run, (void *)1);
     bag event = (bag)create_edb(init, 0);
     apply(event->insert, tid, sym(tag), sym(start), 1, 0);

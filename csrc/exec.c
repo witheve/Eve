@@ -345,14 +345,14 @@ static execf build_time(block bk, node n, execf *arms)
                 t);
 }
 
-static CONTINUATION_6_4(do_random,
-                        block, perf, execf, value, value, timer,
+static CONTINUATION_5_4(do_random,
+                        block, perf, execf, value, value, 
                         heap, perf, operator, value *);
-static void do_random(block bk, perf p, execf n, value dest, value seed, timer t, heap h, perf pp, operator op, value *r)
+static void do_random(block bk, perf p, execf n, value dest, value seed, heap h, perf pp, operator op, value *r)
 {
     start_perf(p, op);
     if (op == op_close) {
-        remove_timer(t);
+        //        remove_timer(t);
     }
 
     if (op == op_insert) {
@@ -390,15 +390,14 @@ static execf build_random(block bk, node n)
     value dest = table_find(n->arguments, sym(return));
     value seed = table_find(n->arguments, sym(seed));
     ticks interval = milliseconds(1000 / 60);
-    timer t = register_periodic_timer(tcontext()->t, interval, 0);
+    //timer t = register_periodic_timer(tcontext()->t, interval, 0);
     return cont(bk->h,
                 do_random,
                 bk,
                 register_perf(bk->ev, n),
                 resolve_cfg(bk, n, 0),
                 dest,
-                seed,
-                t);
+                seed);
 }
 
 static CONTINUATION_3_4(do_fork, perf, int, execf *, heap, perf, operator, value *) ;

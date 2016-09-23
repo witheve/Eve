@@ -52,7 +52,6 @@ void pqueue_insert(pqueue q, void *v)
 void *pqueue_pop(pqueue q)
 {
     void *result = EMPTY;
-
     if (vector_length(q->v) > 0) {
         result = vector_get(q->v, 0);
         void *n = pop(q->v);

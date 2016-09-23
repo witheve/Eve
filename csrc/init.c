@@ -35,12 +35,10 @@ void init_runtime()
     primary = init_context(page_allocator);
     pthread_setspecific(pkey, primary);
     
-    ip_wildcard = create_station(0, 0);
-    
     init_estring();
     init_uuid();
     init_processes();
-    init_station();    
+    init_station();
 
     float_heap = allocate_rolling(init_fixed_page_region(init,
                                                          float_space,

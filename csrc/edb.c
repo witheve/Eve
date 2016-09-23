@@ -188,7 +188,7 @@ static void edb_insert(edb b, value e, value a, value v, multiplicity m, uuid bl
 static CONTINUATION_1_1(edb_commit, edb, edb);
 static void edb_commit(edb b, edb source)
 {
-    edb_foreach(source, e, a, v, m, block_id)
+    edb_foreach(source, e, a, v, m, block_id) 
         edb_insert(b, e, a, v, m, block_id);
 }
 

@@ -325,8 +325,12 @@ static boolean fixedpoint(evaluation ev)
         }
     }
 
-    multibag_foreach(ev->t_solution, u, b){
+    multibag sol = ev->t_solution;
+    multibag_foreach(sol, u, _){
+        bag b = table_find(ev->t_input, u);
+        prf("commitsin %v %d\n", u, table_elements(((bag)b)->listeners));
         table_foreach(((bag)b)->listeners, t, _) {
+            prf("call listener: %v\n", u);
             apply((bag_handler)t, b);
         }
     }
@@ -367,7 +371,8 @@ static boolean fixedpoint(evaluation ev)
     // prf(" - node: %p, kind: %v, id: %v, time: %t, count: %d\n", max_node, max_node->type, max_node->id, max_p->time, max_p->count);
     // prf("\n\n\n");
 
-    destroy(ev->working);
+    // fix recursion properly
+    //    destroy(ev->working);
     return true;
 }
 

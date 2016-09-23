@@ -21,12 +21,11 @@ void remove_timer(timer t)
 timer register_timer(timers t, ticks interval, thunk call)
 {
     timer n = (timer)allocate(t->h, sizeof(struct timer));
-
-    n->t= call;
+    n->t = call;
     n->disable = false;
     n->interval = 0;
     n->w = now() + interval;
-    pqueue_insert(t->q, t);
+    pqueue_insert(t->q, n);
     return(n);
 }
 
