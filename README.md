@@ -14,13 +14,15 @@ Eve is a set of tools to help us think. Currently, these tools include: a tempor
 
 ### A Note for Windows Users
 
-Currently, Eve only installs natively on OSX and Linux. However, Windows 10 users have two options: first, you can run Eve via Docker. To do this, follow the instructions below. The second way to run Eve on Windows is via [Ubuntu on Windows](https://msdn.microsoft.com/en-us/commandline/wsl/about). Follow the linked instructions and then in a command line run `bash`. This will start a bash environment in the command line. From there, follow the rest of the Eve installation instructions as if you were installing under Ubuntu.
+Currently, Eve only installs natively on OSX and Linux. However, Windows 10 users have two options: first, you can run Eve via Docker. To do this, follow the instructions below. The second way to run Eve on Windows 10 is via [Ubuntu on Windows](https://msdn.microsoft.com/en-us/commandline/wsl/about). Follow the linked instructions and then in a command line run `bash`. This will start a bash environment in the command line. From there, follow the rest of the Eve installation instructions as if you were installing under Ubuntu.
+
+Unfortunately, users of earlier verision of Windows will not be able to run Eve at this time.
 
 ### From Source
 
 Before you can install Eve you'll need need gcc, make, python, and LuaJIT.
 
-First install gcc, make, and python using your operating system's standard channels. Chances are you already have these. Install luajit by downloading [LuaJIT-2.1.0-beta2](http://luajit.org/download.html) and then in the LuaJIT directory:
+First install gcc, make, and python using your operating system's standard channels. Chances are you already have these. Install LuaJIT by downloading [LuaJIT-2.1.0-beta2](http://luajit.org/download.html) and then in the extracted directory:
 
 ```
 make
