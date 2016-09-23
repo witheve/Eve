@@ -14,7 +14,7 @@ Eve is a set of tools to help us think. Currently, these tools include: a tempor
 
 ### A Note for Windows Users
 
-Currently, Eve only installs natively on OSX and Linux. However, Windows 10 users have two options: first, you can run Eve via Docker. To do this, follow the instructions below. The second way to run Eve on Windows is via [Ubunut on Windows](https://msdn.microsoft.com/en-us/commandline/wsl/about). Follow the linked instructions and then in a command line run `bash`. This will start a bash environment in the command line. From there, follow the rest of the Eve installation instructions as if you were installing under Ubuntu.
+Currently, Eve only installs natively on OSX and Linux. However, Windows 10 users have two options: first, you can run Eve via Docker. To do this, follow the instructions below. The second way to run Eve on Windows is via [Ubuntu on Windows](https://msdn.microsoft.com/en-us/commandline/wsl/about). Follow the linked instructions and then in a command line run `bash`. This will start a bash environment in the command line. From there, follow the rest of the Eve installation instructions as if you were installing under Ubuntu.
 
 ### From Source
 
