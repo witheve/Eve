@@ -8,6 +8,7 @@ typedef struct context {
     timers t;
     heap page_heap;
     heap h;
+    heap short_lived;
     selector s;
     queue *input_queues;
     queue *output_queues;

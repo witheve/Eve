@@ -127,8 +127,9 @@ void vbprintf(string s, string fmt, va_list ap)
                     // xxx  transient or resizable stack head
                     buffer b = allocate_string(s->h);
                     print_value(b, va_arg(ap, void *));
+                    int z = buffer_length(b);
                     // xxx utf token length
-                    for (int i =0 ; i < (pad-buffer_length(b)); i++) string_insert(s, ' ');
+                    for (int i =0 ; (pad < z) && (i < (pad-z)); i++) string_insert(s, ' ');
                     buffer_append(s, bref(b, 0), buffer_length(b));
                     pad = 0;
                     state = 0;
@@ -140,8 +141,9 @@ void vbprintf(string s, string fmt, va_list ap)
                     // xxx  transient or resizable stack head
                     buffer b = allocate_string(s->h);
                     print_value_raw(b, va_arg(ap, void *));
+                    int z = buffer_length(b);
                     // xxx utf token length
-                    for (int i =0 ; i < (pad-buffer_length(b)); i++) string_insert(s, ' ');
+                    for (int i =0 ; (pad < z) && (i < (pad-z)); i++) string_insert(s, ' ');                    
                     buffer_append(s, bref(b, 0), buffer_length(b));
                     pad = 0;
                     state = 0;

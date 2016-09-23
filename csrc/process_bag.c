@@ -15,6 +15,7 @@ struct process_bag{
     heap h;
     table processes;
     multibag persisted;
+    boolean tracing;
 };
 
 evaluation process_resolve(process_bag pb, uuid e)
@@ -91,7 +92,7 @@ void process_bag_commit(process_bag pb, edb s)
             uuid compiler_id = generate_uuid();
             vector n = compile_eve(p->h,
                                    alloca_wrap_buffer(source->body, source->length),
-                                   false, &compiler_bag);
+                                   pb->tracing, &compiler_bag);
             table_set(p->scopes, sym(compiler), compiler_id);
             table_set(p->persisted, compiler_id, compiler_bag);
 
@@ -109,7 +110,7 @@ void process_bag_commit(process_bag pb, edb s)
 
 
 // not sure if bag is the right model for presenting this interface, but it can be changed
-process_bag process_bag_init(multibag persisted)
+process_bag process_bag_init(multibag persisted, boolean tracing)
 {
     heap h = allocate_rolling(init, sstring("process_bag"));
     process_bag pb = allocate(h, sizeof(struct process_bag));
@@ -122,5 +123,6 @@ process_bag process_bag_init(multibag persisted)
     pb->b.block_listeners = allocate_table(h, key_from_pointer, compare_pointer);
     pb->processes = create_value_table(h);
     pb->persisted = persisted;
+    pb->tracing = tracing;
     return pb;
 }

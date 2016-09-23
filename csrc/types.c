@@ -130,7 +130,7 @@ boolean order_values(value a, value b)
     u64 ta = type_of(a);
     u64 tb = type_of(b);
 
-    if (a !=b) return a<b;
+    if (ta != tb) return a<b;
 
     switch(ta){
     case uuid_space:

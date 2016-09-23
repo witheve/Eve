@@ -242,8 +242,9 @@ string edb_dump(heap h, edb b)
             int start = buffer_length(out);
             bprintf(out, "%S%v ", first++?ind:0, a);
             int ind2 = buffer_unicode_length(out, start) + ((first==1)?ind:0);
-            table_foreach((table)vl, v, _)
-                bprintf(out, "%S%v\n", second++?ind2:0, v);
+            table_foreach((table)vl, v, _) {
+                bprintf(out, "%S%v\n", second++?ind2:0, compress_fat_strings(v));
+            }
         }
     }
     return out;

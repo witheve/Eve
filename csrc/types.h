@@ -51,7 +51,6 @@ static inline u64 type_of (void *x)
 {
     return ((u64)x) & region_mask;
 }
-
 static inline u64 fold_key(u64 key)
 {
     key ^= key >> 32;

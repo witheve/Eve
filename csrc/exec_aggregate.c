@@ -8,13 +8,14 @@ static CONTINUATION_7_4(do_sort,
                         table *, value, value, vector,vector,
                         heap, perf, operator, value *);
 static void do_sort(execf n, perf p,
-                    table *targets, value key, value out, vector proj, vector pk,
+                    table *targets, value key, value out, vector grouping, vector pk,
                     heap h, perf pp, operator op, value *r)
 {
     start_perf(p, op);
+    
     if (op == op_insert) {
-
-        extract(pk, proj, r);
+        extract(pk, grouping, r);
+                
         pqueue x;
         if (!(x = table_find(*targets, pk))) {
             x = allocate_pqueue(h, order_values);
@@ -27,11 +28,14 @@ static void do_sort(execf n, perf p,
     if (op == op_flush) {
         table_foreach(*targets, pk, x) {
             pqueue q = x;
-            int count;
-            copyout(r, proj, x);
-            vector_foreach(q->v, i) {
-                // if we dont do the denorm trick, these should at least be findable and resuable
-                store(out, out, box_float(count++));
+            value v;
+            int count = 1;
+            copyout(r, grouping, pk);
+            // ok, i think there is a faster way here..but
+            while (v = pqueue_pop(q)){
+                store(r, key, v);                            
+                // xxx - small int representation
+                store(r, out, box_float(count++));
                 apply(n, h, p, op_insert, r);
             }
         }
@@ -46,11 +50,21 @@ static void do_sort(execf n, perf p,
 
 static execf build_sort(block bk, node n, execf *arms)
 {
+    vector groupings = table_find(n->arguments, sym(groupings));
+    if (!groupings) groupings = allocate_vector(bk->h, 0);
+    vector pk = allocate_vector(bk->h, vector_length(groupings));
+    table *targets = allocate(bk->h, sizeof(table));
+    *targets = create_value_vector_table(bk->h);
+    
     return cont(bk->h,
                 do_sort,
                 resolve_cfg(bk, n, 0),
                 register_perf(bk->ev, n),
-                0, 0, 0, 0, 0);
+                targets,
+                table_find(n->arguments, sym(value)),
+                table_find(n->arguments, sym(return)),
+                groupings,
+                pk);
 }
 
 

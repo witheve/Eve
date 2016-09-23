@@ -325,13 +325,19 @@ static boolean fixedpoint(evaluation ev)
         }
     }
 
-    multibag sol = ev->t_solution;
-    multibag_foreach(sol, u, _){
+    // why isn't the listener dispatched from the commit? - is there some
+    // questiot about interrelation of results between bags?
+    // stash here because recursion
+    multibag save_last_t = ev->t_solution;
+    multibag save_last_f = ev->last_f_solution;
+    
+    multibag_foreach(save_last_t, u, r){
         bag b = table_find(ev->t_input, u);
-        prf("commitsin %v %d\n", u, table_elements(((bag)b)->listeners));
-        table_foreach(((bag)b)->listeners, t, _) {
-            prf("call listener: %v\n", u);
-            apply((bag_handler)t, b);
+        if (b) {
+            table_foreach(((bag)b)->listeners, t, _) {
+                prf("call listener: %v\n", u);
+                apply((bag_handler)t, r);
+            }
         }
     }
 
@@ -342,7 +348,7 @@ static boolean fixedpoint(evaluation ev)
     table_set(ev->counters, intern_cstring("iterations"), (void *)iterations);
     table_set(ev->counters, intern_cstring("cycle-time"), (void *)ev->cycle_time);
     // counters? reflection? enable them
-    apply(ev->complete, ev->t_solution, ev->last_f_solution);
+    apply(ev->complete, save_last_t, save_last_f);
 
     prf ("fixedpoint %v in %t seconds, %d blocks, %V iterations, %d changes to global, %d maintains, %t seconds handler\n",
          ev->name,

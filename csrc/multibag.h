@@ -56,3 +56,11 @@ static inline void multibag_insert(multibag *mb, heap h, uuid u, value e, value 
 
     apply(b->insert, e, a, v, m, block_id);
 }
+
+static void multibag_print(multibag x)
+{
+    table_foreach(x, u, b){
+        prf("%v:\n", u);
+        prf("%b\n", edb_dump(init, (edb)b));
+    }
+}

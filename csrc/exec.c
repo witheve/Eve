@@ -429,7 +429,7 @@ static void do_trace(execf next, node n, heap h, perf pp, operator op, value *r)
         table_foreach(n->arguments, k, v) {
             // xxx - what is name doing in there anyways?
             if ((k != sym(name)) && (k != sym(pass)))
-                prf (" %r=%v ", k, lookup(r, v));
+                prf (" %r=%v ", k, compress_fat_strings(lookup(r, v)));
         }
     prf("\n");
     apply(next, h, pp, op, r);

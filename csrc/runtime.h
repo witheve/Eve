@@ -171,7 +171,7 @@ bag init_debug_bag(evaluation ev);
 bag init_bag_bag(evaluation ev);
 
 typedef struct process_bag *process_bag;
-process_bag process_bag_init();
+process_bag process_bag_init(multibag, boolean);
 
 typedef closure(object_handler, bag, uuid);
 object_handler create_json_session(heap h, evaluation ev, endpoint down);
@@ -212,3 +212,12 @@ bag timer_bag_init();
 station create_station(unsigned int address, unsigned short port);
 void init_station();
 extern heap station_heap;
+
+static value compress_fat_strings(value v)
+{
+    if (type_of(v) == estring_space) {
+        estring x = v;
+        if (x->length > 64) return(sym(...));
+    }
+    return v;
+}

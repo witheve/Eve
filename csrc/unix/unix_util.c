@@ -65,7 +65,7 @@ buffer read_file(heap h, char *path)
 
 void prf(char *format, ...)
 {
-    string b = allocate_string(pages);
+    string b = allocate_string(tcontext()->short_lived);
     va_list ap;
     string f = alloca_string(format);
     va_start(ap, format);
@@ -148,6 +148,7 @@ context init_context(heap page_allocator)
     c->input_queues = allocate(h, 10 * sizeof(queue));
     c->output_queues = allocate(h, 10 * sizeof(queue));
     c->h = h;
+    c->short_lived = allocate_rolling(page_allocator, sstring("thread specific short lived"));
     memset(c->input_queues, 0, 10 * sizeof(queue));
     memset(c->output_queues, 0, 10 * sizeof(queue));
     pipe(c->wakeup);
