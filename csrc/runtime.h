@@ -64,6 +64,15 @@ struct node {
     table display;
 };
 
+static value compress_fat_strings(value v)
+{
+    if (type_of(v) == estring_space) {
+        estring x = v;
+        if (x->length > 64) return(sym(...));
+    }
+    return v;
+}
+
 #include <edb.h>
 #include <multibag.h>
 
@@ -213,11 +222,3 @@ station create_station(unsigned int address, unsigned short port);
 void init_station();
 extern heap station_heap;
 
-static value compress_fat_strings(value v)
-{
-    if (type_of(v) == estring_space) {
-        estring x = v;
-        if (x->length > 64) return(sym(...));
-    }
-    return v;
-}

@@ -264,7 +264,7 @@ static boolean fixedpoint(evaluation ev)
     do {
         again = false;
         vector f_diffs = allocate_vector(ev->working, 2);
-
+        prf("start t\n");
         do {
             ev->t_solution_for_f = 0;
             iterations++;
@@ -335,7 +335,9 @@ static boolean fixedpoint(evaluation ev)
         bag b = table_find(ev->t_input, u);
         if (b) {
             table_foreach(((bag)b)->listeners, t, _) {
-                prf("call listener: %v\n", u);
+                value k = sym(unmapped);
+                table_foreach (ev->scopes, n, u2)
+                    if (u2 == u) k = n;
                 apply((bag_handler)t, r);
             }
         }

@@ -252,15 +252,16 @@ static void start_cluster(buffer membership_source)
     apply(sb->insert, p, sym(id), sym(zikki), 1, 0);
     prf("peer: %v\n", p);
 
-    bag tb = timer_bag_init();
+
     uuid tid = generate_uuid();
-    table_set(persisted, tid, tb);
     table_set(scopes, sym(timer), tid);
 
     heap hc = allocate_rolling(pages, sstring("eval"));
     vector n = compile_eve(h, membership_source, enable_tracing, &compiler_bag);
     evaluation ev = build_evaluation(h, sym(membership), scopes, persisted,
                                      ignore, cont(h, handle_error_terminal), n);
+    bag tb = timer_bag_init(ev);
+    table_set(persisted, tid, tb);
     
     vector_insert(ev->default_scan_scopes, sid);
     vector_insert(ev->default_insert_scopes, sid);

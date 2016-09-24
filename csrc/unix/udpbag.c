@@ -19,7 +19,7 @@ static void udp_scan(udp_bag ub, int sig, listener out, value e, value a, value 
     // ech
     if ((sig == s_eAv) && (a == sym(address)))  
         table_foreach(ub->channels, e, u)
-            apply(out, e, a, v, 1, 0);
+            apply(out, e, a, udp_station(u), 1, 0);
 
     
     if ((sig == s_EAv) && (a == sym(address))) {

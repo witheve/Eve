@@ -42,14 +42,7 @@ static inline void multibag_set(multibag *mb, heap h, uuid u, bag b)
 static inline void multibag_insert(multibag *mb, heap h, uuid u, value e, value a, value v, multiplicity m, uuid block_id)
 {
     bag b;
-#if 0
-    value ev= v;
-    if (type_of(v)==estring_space) {
-        estring es = (estring)v;
-        if (es->length > 100) ev=sym(...);
-    }
-    prf("insert: %v %v %v %v\n", u, e, a, ev);
-#endif
+
     if (!*mb) (*mb) = create_value_table(h);
     if (!(b = table_find((*mb), u)))
         table_set(*mb, u, b = (bag)create_edb(h, 0));

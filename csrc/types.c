@@ -42,6 +42,10 @@ void print_value(buffer b, value v)
             break;
         }
 
+    case station_space:
+        bprintf(b, "<station>");
+        break;
+        
     default:
         bprintf(b, "[[[%p]]]", v);
     }
@@ -148,6 +152,8 @@ boolean order_values(value a, value b)
         break;
     case register_space:
         return ((unsigned long)a) < ((unsigned long)b);
+    case station_space:
+        return (memcmp(a, b, 12) == -1);
     default:
         prf("unsupported type in compare\n");
         return false;

@@ -14,72 +14,58 @@ match @udp
    [#udp]
    id = u.address
 match   
-    milliseconds = 50
+    milliseconds = 1000
     [#peer id:pid]
     not ([#membership])
 commit @timer
     [#timeout milliseconds]
 commit 
-    m = [#membership milliseconds id]
+    m = [#membership timeout:milliseconds id]
     m.peer += pid
 ```   
 
 
 listen for packets. these can be vote packets or normal packets, add guys that
 we dont think are in our current view
-```
+***
  match
    [#packet source:id]
    to = [#timeout]
    m = [#member id]
  commit
    [#member id]
-```
-
+***
 
 add new peers and accelerate
-```
+***
 match @udp
    [#packet body]
    m = [#membership]
    not ([member #id])
 commit
    // how do i know this is going to apply to this timeout?
-   m.timeout := mod[value: random[seed: 0] by: 1000]
-```
+   m.timeout := mod[value: random[seed: 0] by: 1000] + 100
+***
 
 
 send announcment.
 ```
 match 
-match @timer
    // this should be a particular* timer, but setting up the correlation isn't very straightforward
-   [#timeout]
+   [#timer-expire]
    
 match
-   max-timeout = 10 * 1000
+   max-timeout = 40 * 1000
    // this is really 'sources' which includes seeds and active peers
-   [#membership id milliseconds peer:pid]
-   actually = if (milliseconds * 2) > max-timeout then max-timeout else new
-   x = sort[value: id]
-   // mod[value: random[seed: 0], by: count[given: pid]]
-   rando = max[value: id]
+   m = [#membership id]
+   f = m.timeout * 2 * random[seed: m.timeout] + 300
+   new_timeout = if f > max-timeout then max-timeout else f
+   x = sort[value: m.peer]
 
-commit
-   // min advertisement interval is 6.66ms
-   timeout.ticks := mod[value: random[seed: 0] by: actually] + 20
-   m.id += id
-   
-commit @bag
-   // uniquification
-   packet = [#bag]
-commit packet
-    [#id id]
-   
-commit @udp   
-   [#packet body:packet]
-
-commit @debug
-   [#send]
-   
+commit m.timeout := new_timeout
+// presumably this is exactly one bag
+commit @bag packet = [#bag]
+commit packet [#id id]
+commit @udp [#packet body:packet]
+commit @timer [#timeout milliseconds:new_timeout]   
 ```
