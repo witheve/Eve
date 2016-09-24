@@ -109,7 +109,6 @@ static void do_insert(insert ins,
 
     if (op == op_insert) {
         vector_foreach(ins->scopes, u) {
-            prf("insert: %v\n", u);
             multibag_insert(ins->target, *ins->h, lookup(r, u),
                             lookup(r, ins->e), lookup(r, ins->a), lookup(r, ins->v),
                             ins->deltam, ins->bk->name);

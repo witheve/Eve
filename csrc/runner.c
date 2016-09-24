@@ -263,7 +263,6 @@ static boolean fixedpoint(evaluation ev)
     do {
         again = false;
         vector f_diffs = allocate_vector(ev->working, 2);
-        prf("start t\n");
         do {
             ev->t_solution_for_f = 0;
             iterations++;

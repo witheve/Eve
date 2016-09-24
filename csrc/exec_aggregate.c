@@ -22,8 +22,6 @@ static void do_sort(execf n, perf p,
             // make a new key idiot
             table_set(*targets,pk, x);
         }
-        prf ("sort insert %V %v\n", pk, lookup(r, key));
-
         pqueue_insert(x, lookup(r, key));
     }
 

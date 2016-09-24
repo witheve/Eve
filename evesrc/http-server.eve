@@ -22,8 +22,8 @@ start path resolution
      fr = [#root]
   match
      connection = [#http-request]
-     split[text:r.request.url token index, by:"/"]
-     websocket = if r.request.headers.Sec-WebSocket-Protocol = "eve-json" then true else false
+     split[text:connection.request.url token index, by:"/"]
+     websocket = if connection.request.headers.Sec-WebSocket-Protocol = "eve-json" then true else false
   bind
      [#path index:1 file:fr]
      [#path index token]

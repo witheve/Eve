@@ -69,7 +69,6 @@ static void dispatch_request(session s, bag b, uuid i, register_read reg)
         return;
     }
 
-    prf("request: %b\n", edb_dump(init, ((edb)b)));
     bag event = (bag)create_edb(s->h, build_vector(s->h, b));
     uuid x = generate_uuid();
 
@@ -121,8 +120,6 @@ static void http_eval_result(http_server s, process_bag pb, uuid where,
 
 
     } else {
-        multibag_print(t);
-
         edb_foreach_ev((edb)b, e, sym(response), response, m){
             // xxx we're using e as a very weak correlator to the connection
             http_send_response(s, b, e);
@@ -144,7 +141,6 @@ static void http_eval_result(http_server s, process_bag pb, uuid where,
                       generate_uuid(),
                       sym(tag),
                       sym(session-connect), 1, 0);
-                prf("injecting session connect\n");
                 inject_event(ev, session_connect);
             } else {
                 prf ("unable to correlate upgrade process\n");

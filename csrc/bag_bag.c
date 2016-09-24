@@ -24,12 +24,10 @@ static void bagbag_insert(evaluation ev, value e, value a, value v, multiplicity
 static CONTINUATION_1_1(bagbag_commit, evaluation, edb)
 static void bagbag_commit(evaluation ev, edb s)
 {
-    prf("bagbag commit: %b\n", edb_dump(init, s));
     edb_foreach_e(s, e, sym(tag), sym(bag), m) {
         bag b = table_find(ev->t_input, e);
         if(!b) {
             b = (bag)create_edb(ev->h, 0);
-            prf("bag bag create bag: %v\n", e);
             table_set(ev->t_input, e, b);
         }
         value v;
@@ -63,7 +61,6 @@ void bagbag_scan(evaluation ev, int sig, listener out, value e, value a, value v
     if ((sig == s_eAV) && (a == sym(name))) {
         value e;
         if ((e = table_find(ev->scopes, v))) {
-            prf ("scope lookup: %v\n", e);
             apply(out, e, a, v, 1, 0);
         }
     }
@@ -78,7 +75,6 @@ bag init_bag_bag(evaluation ev)
     b->listeners = allocate_table(ev->h, key_from_pointer, compare_pointer);
     b->block_listeners = allocate_table(ev->h, key_from_pointer, compare_pointer);
     b->blocks = allocate_vector(ev->h, 0);
-    prf("bag create %p\n", b);
     return b;
 }
 
