@@ -4,6 +4,7 @@ typedef struct udp_bag {
     struct bag b;
     heap h;
     table channels;
+    evaluation ev;
 } *udp_bag;
 
 
@@ -39,6 +40,8 @@ static CONTINUATION_1_1(udp_commit, udp_bag, edb);
 static void udp_commit(udp_bag ub, edb s)
 {
     station d;
+    prf("udp commit: %b\n", edb_dump(init, s));
+
     edb_foreach_e(s, e, sym(tag), sym(udp), c) {
         unsigned int host = 0;
         int port = 0;
@@ -52,9 +55,16 @@ static void udp_commit(udp_bag ub, edb s)
         udp u = create_udp(ub->h, ip_wildcard, cont(ub->h, udp_input, ub));
         table_set(ub->channels, e, u);
     }
-    edb_foreach_e(s, e, sym(tag), sym(packet), c) {
-        edb_foreach_v(s, e, sym(destination), v, c) 
-            d = v;
+    edb_foreach_e(s, e, sym(tag), sym(packet), _) {
+        edb_foreach_v(s, e, sym(destination), destination, _) {
+            edb_foreach_v(s, e, sym(body), b, _) {
+                edb h = table_find(ub->ev->t_input, b);
+                prf("body: %v %p\n", b, h);
+                if (h) {
+                    prf("targ: %b\n", edb_dump(init, h));
+                }
+            }
+        }
     }
 }
 
@@ -69,7 +79,9 @@ static void udp_reception(udp_bag u, station s, buffer b)
         apply((bag_handler)t, in);
 }
 
-bag udp_bag_init()
+// we shouldn't need this evaluation, but first class bags and
+// hackerism
+bag udp_bag_init(evaluation ev)
 {
     // this should be some kind of parameterized listener.
     // we can do the same trick that we tried to do
@@ -85,5 +97,6 @@ bag udp_bag_init()
     ub->b.blocks = allocate_vector(h, 0);
     ub->b.block_listeners = allocate_table(h, key_from_pointer, compare_pointer);
     ub->channels = create_value_table(h);
+    ub->ev = ev;
     return (bag)ub;
 }

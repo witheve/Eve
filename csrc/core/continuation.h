@@ -17,4 +17,5 @@ typedef void (**thunk)();
 
 //extern thunk ignore;
 
+#define name_of_cont(_c) (((char **)_c)[2])
 #include <continuation_templates.h>

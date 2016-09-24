@@ -236,9 +236,8 @@ static void start_cluster(buffer membership_source)
     heap h = allocate_rolling(pages, sstring("command line"));
     bag compiler_bag;
 
-    bag ub = udp_bag_init();
+
     uuid uid = generate_uuid();
-    table_set(persisted, uid, ub);
     table_set(scopes, sym(udp), uid);
     
     bag sb = (bag)create_edb(init, 0);
@@ -262,6 +261,9 @@ static void start_cluster(buffer membership_source)
                                      ignore, cont(h, handle_error_terminal), n);
     bag tb = timer_bag_init(ev);
     table_set(persisted, tid, tb);
+    bag ub = udp_bag_init(ev);    
+    table_set(persisted, uid, ub);
+    
     
     vector_insert(ev->default_scan_scopes, sid);
     vector_insert(ev->default_insert_scopes, sid);

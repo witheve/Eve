@@ -9,13 +9,17 @@ static vector uuid_set(block bk, vector scopes)
     vector_foreach(scopes, i) {
         // we're going to soft create these scopes, but the uuids
         // remain unreferrable to the outside world
-        uuid u = table_find(bk->ev->scopes, i);
-        if (!u && !isreg(i)) {
-            uuid lost = generate_uuid();
-            prf("Unable to find context: %v. New id: %v\n", i, lost);
-            table_set(bk->ev->scopes, i, lost);
+        if (isreg(i)) {
+            vector_insert(out, i);
+        } else {
+            uuid u = table_find(bk->ev->scopes, i);
+            if (!u) {
+                uuid u = generate_uuid();
+                prf("Unable to find context: %v. New id: %v\n", i, u);
+                table_set(bk->ev->scopes, i, u);
+            }
+            vector_insert(out, u);
         }
-        vector_insert(out, u);
     }
     return out;
 }
@@ -104,10 +108,12 @@ static void do_insert(insert ins,
     start_perf(ins->p, op);
 
     if (op == op_insert) {
-        vector_foreach(ins->scopes, u)
+        vector_foreach(ins->scopes, u) {
+            prf("insert: %v\n", u);
             multibag_insert(ins->target, *ins->h, lookup(r, u),
                             lookup(r, ins->e), lookup(r, ins->a), lookup(r, ins->v),
                             ins->deltam, ins->bk->name);
+        }
     }
 
     apply(ins->n, h, ins->p, op, r);

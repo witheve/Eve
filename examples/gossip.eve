@@ -5,6 +5,8 @@ match
      [#start]
 commit @udp
      u = [#udp]
+commit @bag
+     [#bag @announcement]
 ```
 
 
@@ -17,11 +19,13 @@ match
     milliseconds = 1000
     [#peer id:pid]
     not ([#membership])
-commit @timer
-    [#timeout milliseconds]
-commit 
-    m = [#membership timeout:milliseconds id]
-    m.peer += pid
+match @bag
+    announcement = [@announcement]
+    
+commit announcement [#piggy id]
+commit @timer [#timeout milliseconds]
+commit m = [#membership timeout:milliseconds id]
+       m.peer += pid
 ```   
 
 
@@ -53,6 +57,9 @@ send announcment.
 match 
    // this should be a particular* timer, but setting up the correlation isn't very straightforward
    [#timer-expire]
+
+match @bag
+   announcement = [@announcement]
    
 match
    max-timeout = 40 * 1000
@@ -61,11 +68,15 @@ match
    f = m.timeout * 2 * random[seed: m.timeout] + 300
    new_timeout = if f > max-timeout then max-timeout else f
    x = sort[value: m.peer]
-
+   p = m.peer
 commit m.timeout := new_timeout
 // presumably this is exactly one bag
-commit @bag packet = [#bag]
-commit packet [#id id]
-commit @udp [#packet body:packet]
+commit @udp [#packet destination:p body:announcement]
 commit @timer [#timeout milliseconds:new_timeout]   
+```
+
+if there is a message, send the message 
+```
+match [#packet]
+
 ```
