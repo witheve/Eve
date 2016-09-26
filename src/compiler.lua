@@ -1366,7 +1366,7 @@ function compileExec(contents, tracing)
     if not dependencyGraph.ignore then
       dependencyGraph:addToBag(context.compilerBag)
       head, regs = build.build(queryGraph, tracing, context)
-      set[#set+1] = {head = head, regs = regs, name = queryGraph.name}
+      set[#set+1] = {head = head, regs = regs, id = queryGraph.id, name = queryGraph.name}
     end
   end
 
