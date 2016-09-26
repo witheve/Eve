@@ -168,7 +168,7 @@ Finally, we fill the previously mentioned `#status` div with our current game st
 Display the current player if the game isn't won
 
 ```
-  match
+  match (@session, @browser)
     status = [#status board]
     not(board.winner)
   bind @browser
