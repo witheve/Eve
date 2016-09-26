@@ -59,7 +59,7 @@ To go from a statement to a node, we grab all the nodes in its bod(ies)
 
 ```
 match @instinct
-  search = [#search from: "statement" to: "node" statement]
+  search = [#search to: "node" statement]
 
 match @compiler
   statement = [#statement query: [#query node]]
@@ -72,7 +72,7 @@ To go from a node to a variable, we grab all the variables from its binding(s)
 
 ```
 match @instinct
-  search = [#search from: "node" to: "variable" node]
+  search = [#search to: "variable" node]
 
 match @compiler
   node = [#node binding: [#binding variable]]
@@ -85,7 +85,7 @@ To go from a variable to an action, we grab all the actions with the variable in
 
 ```
 match @instinct
-  search = [#search from: "variable" to: "action" variable]
+  search = [#search to: "action" variable]
 
 match @compiler
   action = [#action binding: [#binding variable]]
@@ -98,7 +98,7 @@ To go from an action to an EAV, we look up all the EAVs with that node as an ori
 
 ```
 match @instinct
-  search = [#search from: "action" to: "eav" action]
+  search = [#search to: "eav" action]
 
 match @compiler
   action = [#action scope]
@@ -120,7 +120,7 @@ To go from an EAV to an action, we grab the origin (node id) off the EAV
 
 ```
 match @instinct
-  search = [#search from: "eav" to: "action" eav: [entity attribute value] scope]
+  search = [#search to: "action" eav: [entity attribute value] scope]
 
 match @compiler
   action = [#action scope]
@@ -136,7 +136,7 @@ To go from an action to a variable, we grab all the variables in the action's bi
 
 ```
 match @instinct
-  search = [#search from: "action" to: "variable" action]
+  search = [#search to: "variable" action]
 
 match @compiler
   action = [#action binding: [#binding variable]]
@@ -149,7 +149,7 @@ To go from a variable to a node, we grab all the nodes with the variable in thei
 
 ```
 match @instinct
-  search = [#search from: "variable" to: "node" variable]
+  search = [#search to: "node" variable]
 
 match @compiler
   node = [#node binding: [#binding variable]]
@@ -163,7 +163,7 @@ To go from a node to a statement, we grab the parent of the query the node belon
 
 ```
 match @instinct
-  search = [#search from: "node" to: "statement" node]
+  search = [#search to: "statement" node]
 
 match @compiler
   statement = [#statement query: [#query node]]
