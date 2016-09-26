@@ -43,6 +43,25 @@ value lookupv(edb b, uuid e, estring a)
     return(0);
 }
 
+value lookupe(edb b, value a, value v)
+{
+    table vl = value_table_find(b->ave, a);
+    if(vl) {
+        table el = value_table_find(vl, v);
+        if(el)
+            table_foreach(el, e, terminal)
+                if(((leaf)terminal)->m != 0)
+                    return e;
+    }
+
+    vector_foreach(b->includes, i) {
+        value x = lookupe(i, a, v);
+        if (x) return x;
+    }
+
+    return(0);
+}
+
 int edb_size(edb b)
 {
     return b->count;
