@@ -62,7 +62,7 @@ bind
 path search complete
 ```
 match
-     [#path index token]
+     [#path request index token]
      final = [#path index: count[given: index] file]
      split[text:final.token by:"." token:extoken index:exindex]
      exindex = 2
@@ -70,7 +70,7 @@ match
      // not avilable when we're looking for it in send eve bootsrap
 
 commit
-     [#complete-object extension:extoken token:final.token file scope: [bags: [Spoooogle: true]]]
+     [#complete-object request extension:extoken token:final.token file scope: [bags: [Spoooogle: true]]]
 ```
 
 
