@@ -1,0 +1,54 @@
+
+
+setup - why dont bare commits just get run?
+```
+match
+  [#initialize]
+commit
+  [#page title:"gallery" row:1 column:2]
+  [#page title:"artist" row:1 column:1]
+  [#page title:"jewelry" row:2 column:2]
+  [#page title:"calendar" row:2 column:1]
+```
+
+grid
+```
+  match
+    [row column title]
+    not([#grid]) 
+    row_body = join[token:"<td>{{title}}</td>" index:column with:"" per: row]
+    grid = join[token:"<tr>{{row_body}}</tr>" index:row with:""]    
+  commit
+    [#grid text:"<table>{{grid}}</table>"]
+```
+    
+
+gallery
+```
+match
+     connection = [#http-request]
+     connection.request.url = "/gallery"
+match @yuri
+     [#piece title]
+     content = join[token:"{{title}}<br>" index:0 with:""]
+commit
+     connection.response := [
+       content
+       status:"200"
+       reason:"OK"
+       header:[Content-Type:"text/html"]]
+```
+
+home page
+```
+match
+     connection = [#http-request]
+     connection.request.url = "/"
+     [#grid]                      
+commit     
+     connection.response := [
+       content: "<html>hello{{grid.text}}</html>"
+       status:"200"
+       reason:"OK"
+       header:[Content-Type:"text/html"]]
+```

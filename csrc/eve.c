@@ -71,9 +71,14 @@ bag staticdb()
 // this really gets folded in with run_test and just becomes boot-with-eve
 static void start_http_server(buffer source)
 {
-    heap h = allocate_rolling(pages, sstring("command line"));
+    heap h = allocate_rolling(pages, sstring("command line http server"));
     bag compiler_bag;
 
+    // harsh- no name
+    edb stb = create_edb(h, 0);
+    uuid stid = generate_uuid();
+    table_set(persisted, stid, stb);
+        
     process_bag pb  = process_bag_init(persisted, enable_tracing);
     uuid pid = generate_uuid();
     table_set(persisted, pid, pb);
@@ -88,10 +93,18 @@ static void start_http_server(buffer source)
     table_set(scopes, sym(file), fid);
     table_set(scopes, sym(process), pid);
     table_set(scopes, sym(static), sid);
+    
 
     heap hc = allocate_rolling(pages, sstring("eval"));
     vector n = compile_eve(h, source, enable_tracing, &compiler_bag);
     evaluation ev = build_evaluation(h, sym(http-server), scopes, persisted, ignore, cont(h, handle_error_terminal), n);
+    vector_insert(ev->default_scan_scopes, stid);
+    vector_insert(ev->default_insert_scopes, stid);
+
+    edb in = create_edb(h, 0);
+    apply(in->b.insert, generate_uuid(), sym(tag), sym(initialize), 1, 0);
+    inject_event(ev, (bag)in);
+          
     create_http_server(create_station(0, port), ev, pb);
     prf("\n----------------------------------------------\n\nEve started. Running at http://localhost:%d\n\n",port);
 }
@@ -158,6 +171,7 @@ static void do_db(char *x)
     bag b = connect_postgres(s, user, password, database);
     uuid p = generate_uuid();
     table_set(persisted, p, b);
+    prf("postgres database %v\n", database);
     table_set(scopes, database, p);
 }
 

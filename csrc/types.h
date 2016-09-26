@@ -45,8 +45,6 @@ typedef struct values_diff {
 } *values_diff;
 
 
-
-
 static inline u64 type_of (void *x)
 {
     return ((u64)x) & region_mask;

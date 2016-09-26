@@ -16,7 +16,8 @@ typedef struct pgcolumn {
 
 typedef struct pgtable {
     estring name;
-    vector columns;
+    table columns;
+    vector column_list;
     boolean fetched;
 } *pgtable;
 
@@ -27,7 +28,7 @@ typedef struct postgres {
     state s;
     heap h;
     endpoint e;
-    table columns;
+    table tables;
     estring user;
     estring database;
     estring password;
@@ -37,7 +38,6 @@ typedef struct postgres {
     closure(handler, vector);
     thunk query_done;
     vector signature;
-
     vector table_worklist;
 } *postgres;
 
@@ -85,7 +85,8 @@ static void pg_schema_row(postgres p, pgtable t, vector v)
     pgcolumn c = allocate(p->h, sizeof(struct pgcolumn));
     c->name = vector_get(v, 0);
     // xxx -maybe just put this guy in the edb? or both?
-    vector_insert(t->columns, c);
+    table_set(t->columns, c, c);
+    vector_insert(t->column_list, c);
 }
 
 static value bool_from_thingy(buffer b)
@@ -149,31 +150,43 @@ static void table_dump_row(postgres p, pgtable t, vector res)
     uuid id = generate_uuid();
     int index;
     apply(p->backing->insert, id, sym(tag), t->name, 1, 0);
-    vector_foreach(res, i)
-        apply(p->backing->insert, id, vector_get(t->columns, index++), i, 1, 0);
+    vector_foreach(res, i) {
+        pgcolumn c = vector_get(t->column_list, index++);
+        apply(p->backing->insert, id, c->name, i, 1, 0);
+    }
 }
 
-static void table_dump(postgres p, pgtable t)
+static CONTINUATION_2_0(mark_fetched, pgtable, thunk);
+static void mark_fetched(pgtable t, thunk done)
+{
+    t->fetched = true;
+    apply(done);
+}
+
+static void table_dump(postgres p, pgtable t, thunk done)
 {
     buffer q = allocate_buffer(p->h, 10);
     boolean first = true;
     bprintf(q, "SELECT ");
-    vector_foreach(t->columns, i) {
+    vector_foreach(t->column_list, i) {
         if (!first) bprintf(q, ", ");
         first = false;
         bprintf(q, "%r", ((pgcolumn)i)->name);
     }
     bprintf(q, " FROM %r", t->name);
     prf("%b\n", q);
-    pg_query(p, q, cont(p->h, pg_schema_row, p, t), cont(p->h, table_complete, p));
+    pg_query(p, q, cont(p->h, table_dump_row, p, t), cont(p->h, mark_fetched, t, done));
 }
 
 static void table_complete(postgres p)
 {
     if (vector_length(p->table_worklist)) {
         pgtable t = allocate(p->h, sizeof(struct pgtable));
+        t->fetched = false;
         t->name =pop(p->table_worklist);
-        t->columns = allocate_vector(p->h, 10);
+        t->columns = create_value_table(p->h);
+        t->column_list = allocate_vector(p->h, 10);
+        table_set(p->tables, t->name, t);
         //  had - a.atttypmod as mod
         buffer q =
             aprintf(p->h,
@@ -314,7 +327,6 @@ static void postgres_input(postgres p, buffer in, register_read reg)
 static CONTINUATION_1_1(postgres_connected, postgres, endpoint);
 static void postgres_connected(postgres p, endpoint e)
 {
-    prf ("connected\n");
     p->e = e;
     p->reassembly = 0;
     buffer b = allocate_buffer(p->h, 256);
@@ -332,6 +344,48 @@ static void postgres_connected(postgres p, endpoint e)
     apply(e->r, p->self);
 }
 
+static CONTINUATION_6_0(pg_scan_complete, postgres, int, listener, value, value, value);
+static void pg_scan_complete(postgres p, int sig, listener out, value e, value a, value v)
+{
+    if ((sig == s_eAV) && (a == sym(tag))) {
+        pgtable t;
+        if ((t = table_find(p->tables, v))){
+            if (!t->fetched) {
+                // synchronous!?
+                table_dump(p, t, ignore);
+                // cont(p->h, pg_scan_complete, p, sig, out, e, a, v));
+            } else {
+                apply(p->backing->scan, sig, out, e, a, v);
+            }
+        }
+        return;
+    }
+
+    if (sig & a_sig) {
+        table_foreach(p->tables, n, z) {
+            pgtable t = z;
+            if (table_find(t->columns, a) && (!t->fetched)) {
+                //synchronous
+                table_dump(p, t, cont(p->h, pg_scan_complete, p, sig, out, e, a, v));
+                return;
+            }
+            apply(p->backing->scan, sig, out, e, a, v);
+        }
+    }
+}
+                 
+CONTINUATION_1_5(postgres_scan, postgres, int, listener, value, value, value);
+void postgres_scan(postgres p, int sig, listener out, value e, value a, value v)
+{
+    // this is really the same as the reclose thing
+    pg_scan_complete(p, sig, out, e, a, v);
+}
+
+static CONTINUATION_1_1(postgres_commit, postgres, edb)
+static void postgres_commit(postgres p, edb s)
+{
+}
+
 bag connect_postgres(station s, estring user, estring password, estring database)
 {
     heap h = allocate_rolling(pages, sstring("postgres"));
@@ -339,9 +393,16 @@ bag connect_postgres(station s, estring user, estring password, estring database
     p->h = h;
     p->s = initialize;
     p->user = user;
+    p->backing = (bag)create_edb(h, 0);
     p->password = password;
     p->database = database;
+    p->tables = create_value_table(p->h);
     p->table_worklist = allocate_vector(p->h, 10);
+    p->b.scan = cont(h, postgres_scan, p);
+    p->b.commit = cont(h, postgres_commit, p);
+    p->b.listeners = allocate_table(p->h, key_from_pointer, compare_pointer);
+    p->b.block_listeners = allocate_table(p->h, key_from_pointer, compare_pointer);
+    p->b.blocks = allocate_vector(p->h, 0);
     tcp_create_client(h, s, cont(h, postgres_connected, p));
     return (bag)p;
 }

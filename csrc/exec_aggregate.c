@@ -100,14 +100,17 @@ static void do_join(execf n, perf p, table *groups, vector pk,
         pqueue x;
 
         if (!*groups)
-            *groups = allocate_table(h, key_from_pointer, compare_pointer);
+            *groups = create_value_vector_table(h);
 
         if (!(x = table_find(*groups, pk))) {
+            vector new_pk = allocate_vector(h, vector_length(groupings));
+            extract(new_pk, groupings, r);
             x = allocate_pqueue(h, order_join_keys);
-            table_set(*groups, pk, x);
-        }
+            table_set(*groups, new_pk, x);
+        } 
         join_key jk = allocate(h, sizeof(struct join_key));
         jk->index = lookup(r, index);
+
         // xxx - coerce everything to a string
         jk->token = lookup(r, token);
         jk->with = lookup(r, with);
@@ -115,17 +118,19 @@ static void do_join(execf n, perf p, table *groups, vector pk,
     }
 
     if (op == op_flush) {
-        table_foreach(*groups, pk, x) {
-            pqueue q = x;
-            buffer composed = allocate_string(h);
-            copyout(r, groupings, pk);
-            vector_foreach(q->v, i) {
-                join_key jk = i;
-                buffer_append(composed, jk->token->body, jk->token->length);
-                buffer_append(composed, jk->with->body, jk->with->length);
+        if (*groups){
+            table_foreach(*groups, pk, x) {
+                pqueue q = x;
+                buffer composed = allocate_string(h);
+                copyout(r, groupings, pk);
+                join_key jk;
+                while (jk = (join_key)pqueue_pop(q)){
+                    buffer_append(composed, jk->token->body, jk->token->length);
+                    buffer_append(composed, jk->with->body, jk->with->length);
+                }
+                store(r, out, intern_buffer(composed));
+                apply(n, h, p, op_insert, r);
             }
-            store(r, out, intern_buffer(composed));
-            apply(n, h, p, op_insert, r);
         }
         apply(n, h, p, op_flush, r);
         *groups = 0;
@@ -144,6 +149,8 @@ static execf build_join(block bk, node n, execf *arms)
     vector pk = allocate_vector(bk->h, vector_length(groupings));
     table *groups = allocate(bk->h, sizeof(table));
 
+    prf ("jion %V\n", groupings);
+    
     return cont(bk->h,
                 do_join,
                 resolve_cfg(bk, n, 0),
