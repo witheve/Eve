@@ -563,6 +563,7 @@ block build(evaluation ev, compiled c)
     bk->regs = c->regs;
     bk->h = h;
     bk->name = c->name;
+    bk->id = c->id;
     // this is only used during building
     bk->nmap = allocate_table(bk->h, key_from_pointer, compare_pointer);
     bk->start  =c->head;

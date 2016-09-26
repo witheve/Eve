@@ -219,6 +219,7 @@ vector lua_compile_eve(interpreter c, heap h, buffer b, boolean tracing, bag *co
         foreach_lua_table(c->L, v, k0, v0) {
             value kv = lua_tovalue(c->L, k0);
             // xxx - do we have a direct extract?
+            if (kv == sym(id)) n->id = lua_tovalue(c->L, v0);
             if (kv == sym(name)) n->name = lua_tovalue(c->L, v0);
             if (kv == sym(regs)) n->regs = (int)lua_tonumber(c->L, v0);
             if (kv == sym(head)) n->head = lua_tovalue(c->L, v0);

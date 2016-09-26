@@ -77,6 +77,7 @@ typedef closure(block_completion, boolean);
 
 typedef struct compiled {
     string name;
+    value id;
     node head;
     int regs;
     bag compiler_bag;
@@ -86,6 +87,7 @@ struct block {
     heap h;
     int regs;
     string name;
+    value id;
     execf head;
     evaluation ev;
     table nmap;
