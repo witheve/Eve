@@ -124,7 +124,7 @@ function handleDiff(db:DB, diff) {
 let prerendering = false;
 var frameRequested = false;
 
-interface Connection extends WebSocket {
+export interface Connection extends WebSocket {
   dbs: {[id:string]: DB}
 }
 
