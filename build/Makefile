@@ -70,7 +70,7 @@ contgen: contgen.c
 	cc $< -g -o $@
 
 continuation_templates.h: contgen
-	contgen 10 10 > continuation_templates.h
+	$(BUILD)/contgen 10 10 > continuation_templates.h
 
 lutf8lib.o: lutf8lib.c
 	cc -std=c99 -c -g -I$(LUAJIT_INCLUDES) $^
@@ -89,7 +89,7 @@ package: package.o path.o
 	cc $^ -o $@
 
 staticdb: $(DB_INCLUDES) package $(CONTENT) manifest
-	package < manifest > staticdb
+	$(BUILD)/package < manifest > staticdb
 
 staticdb.o: staticdb
 	cc wrap.S -DSTART=$(S)db_start -DEND=$(S)db_end -DFILE='"$<"' -c -o $@
