@@ -33,35 +33,22 @@ interface TreeNode {
 
   hidden?: boolean
 }
-interface DocumentNode extends TreeNode { hidden?: boolean }
 interface TreeMap {[id:string]: TreeNode|undefined}
 
-interface TreeControlElem extends Elem {
-  nodeId: string
-  nodes: TreeMap
-}
-interface TreeItemElem extends Elem {
-  nodeId: string,
-  nodes: TreeMap,
-  leaf?: boolean,
-  label?: Elem,
-  controls?: Elem[],
-
-  decorate?: (elem:TreeItemElem) => void
-}
-interface NavigatorState {
-  open?: boolean
-  rootId: string
-  currentId?: string
-  nodes: TreeMap
-}
-
 class Navigator {
+  labels = {
+    folder: "Workspace",
+    document: "Table of Contents"
+  };
   open: boolean = true;
 
   constructor(public rootId, public nodes:TreeMap, public currentId:string = rootId) {}
 
-  // Helpers
+  currentType():string {
+    let node = this.nodes[this.currentId];
+    return node && node.type || "folder";
+  }
+
   walk(rootId:string, callback:(nodeId:string, parentId?:string) => void, parentId?:string) {
     let node = this.nodes[rootId];
     if(!node) return;
@@ -74,7 +61,7 @@ class Navigator {
     }
   }
 
-  // Handlers
+  // Event Handlers
   togglePane = (event:MouseEvent, elem) => {
     this.open = !this.open;
     render();
@@ -86,8 +73,8 @@ class Navigator {
     render();
   }
 
-  toggleBranch = (event:MouseEvent, elem:TreeControlElem) => {
-    let node = this.nodes[elem.nodeId];
+  toggleBranch = (event:MouseEvent, {nodeId}) => {
+    let node = this.nodes[nodeId];
     if(!node) return;
     node.open = !node.open;
     render();
@@ -98,86 +85,77 @@ class Navigator {
     if(parentId) this.nodes[nodeId]!.hidden = this.nodes[parentId]!.hidden;
   }
 
-  toggleElision = (event, elem:TreeControlElem) => {
-    let node:DocumentNode|undefined = this.nodes[elem.nodeId];
+  toggleElision = (event, {nodeId}) => {
+    let node = this.nodes[nodeId];
     if(!node) return;
     node.hidden = !node.hidden;
-    this.walk(elem.nodeId, this._inheritParentElision);
+    this.walk(nodeId, this._inheritParentElision);
     render();
     event.stopPropagation();
   }
 
   // Elements
-  tree(elem:TreeItemElem):TreeItemElem {
-    let {nodes, nodeId, decorate} = elem;
-    let node = nodes[nodeId];
-    if(!node) return elem;
+  workspaceItem(nodeId:string):Elem {
+    let node = this.nodes[nodeId];
+    if(!node) return {c: "tree-item", nodeId};
 
-    if(!elem.controls) elem.controls = [];
-    if(!elem.label) elem.label = {c: "label", text: node.name, nodeId, nodes};
-    elem.c = elem.c ? `${elem.c} tree-item ${node.type}` : `tree-item ${node.type}`;
-    elem.children = [
-      {c: "controls", children: elem.controls},
-      elem.label
-    ];
-
-    elem.leaf = !node.children;
-    if(decorate) decorate(elem);
-
-    if(elem.leaf || !node.children) {
-      elem.c += " tree-leaf";
-    } else if(!node.open) {
-      elem.c += " tree-branch tree-collapsed";
-      elem.children.unshift({c: "expand-btn ion-ios-arrow-right", nodeId, nodes, click: this.toggleBranch});
-    } else {
-      elem.c += " tree-branch tree-expanded";
-      elem.children.unshift({c: "collapse-btn ion-ios-arrow-right", nodeId, nodes, click: this.toggleBranch});
-
-      let items:(Elem|undefined)[] = [];
-      for(let childId of node.children) {
-        items.push(this.tree({nodeId: childId, nodes, decorate}));
-      }
-
-      elem.children.push({c: "tree-items", children: items});
-    }
-
-    return elem;
-  }
-
-  decorateFolderItems(elem:TreeItemElem) {
-    let {nodes, nodeId, decorate} = elem;
-    let node = nodes[nodeId];
-    if(!node) return elem;
-
+    let subtree:Elem|undefined;
     if(node.type === "folder") {
-      elem.controls!.push({c: "new-btn ion-ios-plus-empty", click: () => console.log("new folder or document")});
-      elem.label!.click = this.toggleBranch;
-    } else {
-      elem.leaf = true;
-      elem.label!.click = this.navigate;
+      let items:(Elem|undefined)[] = [];
+      if(node.open) {
+        for(let childId of node.children || []) {
+          items.push(this.workspaceItem(childId));
+        }
+      }
+      subtree = {c: "tree-items", children: items};
     }
-    elem.controls!.push({c: "delete-btn ion-ios-close-empty", click: () => console.log("delete folder or document w/ confirmation")});
+
+    return {c: `tree-item ${subtree ? "branch" : "leaf"} ${node.type} ${subtree && !node.open ? "collapsed" : ""}`, nodeId, children: [
+      {c: "flex-row", children: [
+        {c: `label ${subtree ? "ion-ios-arrow-down" : "no-icon"}`, text: node.name, nodeId, click: subtree ? this.toggleBranch : this.navigate}, // icon should be :before
+        {c: "controls", children: [
+          subtree ? {c: "new-btn ion-ios-plus-empty", click: () => console.log("new folder or document")} : undefined,
+          {c: "delete-btn ion-ios-close-empty", click: () => console.log("delete folder or document w/ confirmation")}
+        ]}
+      ]},
+      subtree
+    ]};
   }
 
-  decorateDocumentItems(elem:TreeItemElem) {
-    let {nodes, nodeId, decorate} = elem;
-    let node:DocumentNode|undefined = nodes[nodeId];
-    if(!node) return elem;
+  tocItem(nodeId:string):Elem {
+    let node = this.nodes[nodeId];
+    if(!node) return {c: "tree-item", nodeId};
 
-    if(node.type === "section" || node.type === "document") {
-      if(node.hidden) elem.c += " hidden";
-      elem.controls!.push({c: `elide-btn ${node.hidden ? "ion-eye-disabled" : "ion-eye"}`, nodeId: elem.nodeId, nodes: elem.nodes, click: this.toggleElision});
-      if(!elem.leaf) elem.label!.click = this.toggleBranch;
+    let subtree:Elem|undefined;
+    if(node.children) {
+      let items:(Elem|undefined)[] = [];
+      if(node.open) {
+        for(let childId of node.children) {
+          items.push(this.tocItem(childId));
+        }
+      }
+      subtree = {c: "tree-items", children: items};
     }
+
+    return {c: `tree-item ${subtree ? "branch" : "leaf"} ${node.type} ${subtree && !node.open ? "collapsed" : ""} ${node.hidden ? "hidden" : ""}`, nodeId, children: [
+      {c: "flex-row", children: [
+        {c: `label ${subtree ? "ion-ios-arrow-down" : "no-icon"}`, text: node.name, nodeId, click: subtree ? this.toggleBranch : undefined}, // icon should be :before
+        {c: "controls", children: [
+          {c: `elide-btn ${node.hidden ? "ion-eye-disabled" : "ion-eye"}`, nodeId, click: this.toggleElision},
+        ]}
+      ]},
+      subtree
+    ]};
   }
 
-  header({mode, open}:{mode:string, open?:boolean}):Elem {
+  header():Elem {
+    let type = this.currentType();
     return {c: "navigator-header", children: [
-      {c: "label", text: mode, click: this.togglePane},
+      {c: "label", text: this.labels[type], click: this.togglePane},
       {c: "flex-spacer"},
       {c: "controls", children: [
-        open ? {c: `up-btn ion-ios-arrow-up ${(mode === "Workspace") ? "disabled" : ""}`, click: this.navigate} : undefined,
-        {c: `${open ? "expand-btn" : "collapse-btn"} ion-ios-arrow-left`, click: this.togglePane},
+        this.open ? {c: `up-btn ion-ios-arrow-up ${(type === "folder") ? "disabled" : ""}`, click: this.navigate} : undefined,
+        {c: `${this.open ? "expand-btn" : "collapse-btn"} ion-ios-arrow-left`, click: this.togglePane},
       ]}
     ]};
   }
@@ -187,23 +165,21 @@ class Navigator {
     let root = this.nodes[nodeId];
     if(!root) return {c: "navigator-pane", children: [
       {c: "navigator-pane-inner", children: [
-        this.header({mode: "Workspace", open: this.open}),
+        this.header(),
         {c: "new-btn ion-ios-plus-empty", click: () => console.log("new folder or document")}
       ]}
     ]};
 
-    let decorate;
-    let mode = "Workspace";
+    let tree:Elem|undefined;
     if(root.type === "folder") {
-      decorate = this.decorateFolderItems.bind(this);
+      tree = this.workspaceItem(nodeId);
     } else if(root.type === "document") {
-      decorate = this.decorateDocumentItems.bind(this);
-      mode = "Table of Contents";
+      tree = this.tocItem(nodeId);
     }
     return {c: `navigator-pane ${this.open ? "" : "collapsed"}`, click: this.open ? undefined : this.togglePane, children: [
       {c: "navigator-pane-inner", children: [
-        this.header({mode, open: this.open}),
-        this.tree({nodeId, nodes: this.nodes, decorate})
+        this.header(),
+        tree
       ]}
     ]};
   }
@@ -387,12 +363,10 @@ var fakeComments:CommentMap = {
 };
 
 interface IDEState {
-  navigator:NavigatorState,
   editor:EditorState,
   comments:CommentsState
 }
 let magicalEditorState:IDEState = {
-  navigator: {open: true, rootId: "root", nodes: fakeNodes},
   editor: {},
   comments: {comments: fakeComments}
 };
