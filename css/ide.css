@@ -22,8 +22,10 @@ html, body, __root { height: 100%; }
 .navigator-pane.collapsed .navigator-pane-inner { margin-left: -195px; }
 .navigator-pane.collapsed .tree-item { pointer-events: none; }
 
-.editor-pane { width: 700px; }
+.editor-pane { flex: 1; }
 
+.CodeMirror-sizer { display: flex; flex-direction: row; }
+.CodeMirror-sizer > div:first-child { width: 700px; }
 .comments-pane { flex: 1; }
 
 /****************************************************************************\
@@ -39,7 +41,7 @@ html, body, __root { height: 100%; }
 .tree-item { flex-direction: column; align-items: stretch; }
 .tree-item > .tree-items { display: flex; flex-direction: column; padding-left: 10px; clear: both; }
 
-.tree-item .label { display: flex; flex: 1 1 auto; margin-left: 20px; user-select: none; -webkit-user-select: none; }
+.tree-item .label { display: flex; flex: 1 1 auto; margin-left: 20px; user-select: none; -webkit-user-select: none; transition: opacity 0.15s; }
 .tree-item .label:before { display: inline-block; margin-left: -15px; margin-right: 5px; height: 15px; width: 15px; text-align: center; }
 .tree-item.branch .label:before { opacity: 0.25; transition: opacity 0.15s, transform 0.15s; }
 .tree-item.branch.collapsed .label:before { transform: rotate(-90deg); opacity: 0.5; }
@@ -50,12 +52,12 @@ html, body, __root { height: 100%; }
 .tree-item .controls > * { display: inline-block; width: 20px; text-align: center; }
 .tree-item:hover > .flex-row > .controls { opacity: 1; }
 
-.tree-item.hidden > .flex-row > .label { opacity: 0.5}
+.tree-item.hidden > .flex-row > .label { opacity: 0.5; }
 
 /****************************************************************************\
  * Comments
 \****************************************************************************/
-.comments-pane-inner { position: absolute; left: 100%; top: 0; width: 300px; z-index: 2; }
+.comments-pane { background: #303030; color: #d8d8d8; }
 
 
 .comments-pane .comment { position: absolute; margin-left: 5px; padding: 10px; max-width: 500px; display: flex; flex-direction: column; align-items: stretch; }
@@ -83,12 +85,13 @@ html, body, __root { height: 100%; }
 
 
 .CodeMirror { background:none; color: inherit; height:100%; font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:10pt;  }
-.CodeMirror-scroll { height:100%; }
+.CodeMirror-scroll, .CodeMirror-gutters { height:100%; }
 .CodeMirror-cursor { background: white; border-color:white; }
 
 .CodeMirror { color: #c4c4c4; line-height:20px; font-family: Avenir; }
-.CodeMirror pre { padding: 0 4px; margin-right:300px; }
+.CodeMirror pre { padding: 0 4px; }
 .CodeMirror-scroll { scroll-behavior: smooth; }
+.CodeMirror-gutters { background: #303030; border-right: none; }
 .CodeMirror-linebackground { right:300px; }
 .CodeMirror-selected { background: #444; }
 .CodeMirror-focused .CodeMirror-selected { background: #444; }

@@ -209,7 +209,7 @@ class Editor {
   defaults:CodeMirror.EditorConfiguration = {
     tabSize: 2,
     lineWrapping: true,
-    lineNumbers: false,
+    lineNumbers: true,
     extraKeys: ctrlify({
       "Cmd-Enter": () => console.log("sup dawg")
     })
@@ -221,7 +221,12 @@ class Editor {
     this.cm = CodeMirror(() => undefined, this.defaults);
 
     let str = "";
-    for(let i = 0; i < 20; i++) str += "foo\nbar\nbaz\nbat\nquux\n";
+    for(let i = 0; i < 50; i++) {
+      let len = Math.random() * 7;
+      for(let i = 0; i < len; i++)
+        str += "foo bar baz bat quux ";
+      str += "\n";
+    }
     this.cm.setValue(str); // @FIXME
   }
 
@@ -358,9 +363,7 @@ class Comments {
       children.push(elem);
     }
 
-    return {c: "comments-pane", postRender: this.injectIntoCM, children: [
-      {c: "comments-pane-inner", children}
-    ]};
+    return {c: "comments-pane", postRender: this.injectIntoCM, children};
   }
 }
 
