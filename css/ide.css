@@ -16,7 +16,7 @@ html, body, __root { height: 100%; }
 \****************************************************************************/
 .editor-root { display: flex; flex-direction: row; height: 100%; align-items: stretch; }
 
-.navigator-pane { width: 220px; overflow-x: hidden;  transition: width 0.3s ease-in-out; }
+.navigator-pane { width: 220px; flex: 0 0 auto; overflow-x: hidden;  transition: width 0.3s ease-in-out; }
 .navigator-pane.collapsed { width: 20px; }
 .navigator-pane .navigator-pane-inner { width: 220px; padding: 0 5px; margin-left: 0; transition: margin-left 0.3s ease-in-out; }
 .navigator-pane.collapsed .navigator-pane-inner { margin-left: -195px; }

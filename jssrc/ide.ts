@@ -242,51 +242,49 @@ interface Comment {
 
   replies?: string[]
 }
-interface CommentMap {
-  [id:string]: Comment
-}
-interface CommentsState {
-  comments: CommentMap
-}
-interface ActionElem extends Elem { commentId: string, comments: CommentMap }
+interface CommentMap {[id:string]: Comment}
 
-// @TODO: work descriptions in
-var quickActions = {
-  "fix it": (event, elem:ActionElem) => {
-    console.log("fix it");
-  },
-  "create it": (event, elem:ActionElem) => {
-    console.log("create it");
-  },
-  "fake it": (event, elem:ActionElem) => {
-    console.log("fake it");
-  },
-  "dismiss": (event, elem:ActionElem) => {
-    console.log("dismiss");
-  }
-};
+class Comments {
+  constructor(public comments: CommentMap) {}
 
-function commentsPane(state:CommentsState):Elem {
-  let children:Elem[] = [];
-  for(let commentId in state.comments) {
-    let actions:Elem[] = [];
-    let comment = state.comments[commentId];
-    if(comment.actions) {
-      for(let action of comment.actions) {
-        let elem = {c: `comment-action`, text: action, commentId, comments: state.comments, click: quickActions[action]};
-        actions.push(elem);
+  // @TODO: work descriptions in
+  actions = {
+    "fix it": (event, {commentId}) => {
+      console.log("fix it");
+    },
+    "create it": (event, {commentId}) => {
+      console.log("create it");
+    },
+    "fake it": (event, {commentId}) => {
+      console.log("fake it");
+    },
+    "dismiss": (event, {commentId}) => {
+      console.log("dismiss");
+    }
+  };
+
+  render() {
+    let children:Elem[] = [];
+    for(let commentId in this.comments) {
+      let comment = this.comments[commentId];
+      let actions:Elem[] = [];
+      if(comment.actions) {
+        for(let action of comment.actions) {
+          let elem = {c: `comment-action`, text: action, commentId, click: this.actions[action]};
+          actions.push(elem);
+        }
       }
+
+      let elem = {c: `comment ${comment.type}`, children: [
+        comment.title ? {c: "label", text: comment.title} : undefined,
+        comment.description ? {c: "description", text: comment.description} : undefined,
+        actions.length ? {c: "quick-actions", children: actions} : undefined,
+      ]};
+      children.push(elem);
     }
 
-    let elem = {c: `comment ${comment.type}`, children: [
-      comment.title ? {c: "label", text: comment.title} : undefined,
-      comment.description ? {c: "description", text: comment.description} : undefined,
-      actions.length ? {c: "quick-actions", children: actions} : undefined,
-    ]};
-    children.push(elem);
+    return {c: "comments-pane", children};
   }
-
-  return {c: "comments-pane", children};
 }
 
 //---------------------------------------------------------
@@ -363,23 +361,22 @@ var fakeComments:CommentMap = {
 };
 
 interface IDEState {
-  editor:EditorState,
-  comments:CommentsState
+  editor:EditorState
 }
 let magicalEditorState:IDEState = {
-  editor: {},
-  comments: {comments: fakeComments}
+  editor: {}
 };
 
 
 let _navigator = new Navigator("root", fakeNodes);
+let _comments = new Comments(fakeComments);
 function editorRoot(state:IDEState):Elem {
   // Update child states as necessary
 
   return {c: `editor-root`, children: [
     _navigator.render(),
     editorPane(state.editor),
-    commentsPane(state.comments)
+    _comments.render()
   ]};
 }
 
