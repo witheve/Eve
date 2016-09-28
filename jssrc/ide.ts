@@ -356,6 +356,12 @@ class Comments {
     comment.marker = undefined;
   }
 
+  goTo = (event, {commentId}) => {
+    let comment = this.comments[commentId];
+    let cm = this.ide.editor.cm;
+    cm.scrollIntoView(isRange(comment.loc) ? comment.loc.from : comment.loc, 20);
+  }
+
   render():Elem { // @FIXME: I'm here, just hidden by CodeMirror and CM scroll
     let cm = this.ide.editor.cm;
 
@@ -378,11 +384,14 @@ class Comments {
       let start = isRange(comment.loc) ? comment.loc.from : comment.loc;
       let coords = cm.charCoords(start, "local");
 
-      let elem = {c: `comment ${comment.type}`, top: coords.top, commentId, mouseover: this.highlight, mouseleave: this.unhighlight, children: [
-        //comment.title ? {c: "label", text: comment.title} : undefined,
-        comment.description ? {c: "description", text: comment.description} : undefined,
-        actions.length ? {c: "quick-actions", children: actions} : undefined,
-      ]};
+      let elem = {
+        c: `comment ${comment.type}`, top: coords.top, commentId,
+        mouseover: this.highlight, mouseleave: this.unhighlight, click: this.goTo,
+        children: [
+          //comment.title ? {c: "label", text: comment.title} : undefined,
+          comment.description ? {c: "description", text: comment.description} : undefined,
+          actions.length ? {c: "quick-actions", children: actions} : undefined,
+        ]};
       children.push(elem);
     }
 

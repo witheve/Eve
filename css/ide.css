@@ -97,12 +97,11 @@ html, body, __root { height: 100%; }
 /****************************************************************************\
  * Comments
 \****************************************************************************/
-.comments-pane { background: #303030; }
+.comments-pane { position: relative; background: #303030; }
 .comments-pane .comment { color: #d8d8d8; }
 
 
-.comments-pane .comment { position: absolute; margin-left: 5px; padding: 10px; max-width: 500px; display: flex; flex-direction: column; align-items: stretch; }
-.comments-pane .comment + .comment { margin-top: 5px; }
+.comments-pane .comment { position: absolute; padding: 0 10px; margin-top: -2px; width: 100%; max-width: 500px; display: flex; flex-direction: column; align-items: stretch; }
 .comments-pane .comment > .label + .description { margin-top: 5px; }
 .comments-pane .comment > .description { font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:10pt; }
 
