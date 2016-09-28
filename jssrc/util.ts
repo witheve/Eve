@@ -33,7 +33,7 @@ export function sortComparator(a, b) {
   return aSort === bSort ? 0 : (aSort < bSort ? -1 : 1);
 }
 
-export function debounce(fn, wait) {
+export function debounce<CB extends Function>(fn:CB, wait:number, leading?:boolean) {
   let timeout, context, args;
 
   let doFn = function doDebounced() {
@@ -43,12 +43,25 @@ export function debounce(fn, wait) {
     args = undefined;
   }
 
-  return function debounced(...argList) {
-    context = this;
-    args = argList;
-    if(timeout) {
-      window.clearTimeout(timeout);
-    }
-    timeout = window.setTimeout(doFn, wait);
+  let debounced:CB;
+  if(!leading) {
+    debounced = function(...argList) {
+      context = this;
+      args = argList;
+      if(timeout) {
+        window.clearTimeout(timeout);
+      }
+      timeout = window.setTimeout(doFn, wait);
+    } as any;
+  } else {
+    debounced = function(...argList) {
+      context = this;
+      args = argList;
+      if(!timeout) {
+        timeout = window.setTimeout(doFn, wait);
+      }
+    } as any;
   }
+
+  return debounced;
 }
