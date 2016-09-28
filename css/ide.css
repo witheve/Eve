@@ -1,0 +1,77 @@
+.flex-spacer { flex: 1; }
+
+@keyframes hide-delayed {
+    from { opacity: 1; }
+    99% { opacity: 1; }
+    to { opacity: 0; }
+}
+
+* { box-sizing: border-box; }
+
+
+html, body, __root { height: 100%; }
+/****************************************************************************\
+ * Root
+\****************************************************************************/
+.editor-root { display: flex; flex-direction: row; height: 100%; align-items: stretch; }
+
+.navigator-pane { width: 220px; overflow-x: hidden;  transition: width 0.3s ease-in-out; }
+.navigator-pane.collapsed { width: 20px; }
+.navigator-pane .navigator-pane-inner { width: 220px; padding: 0 5px; margin-left: 0; transition: margin-left 0.3s ease-in-out; }
+.navigator-pane.collapsed .navigator-pane-inner { margin-left: -195px; }
+.navigator-pane.collapsed .tree-item { pointer-events: none; }
+
+.editor-pane { width: 700px; }
+
+.comments-pane { flex: 1; }
+
+/****************************************************************************\
+ * Navigator
+\****************************************************************************/
+.navigator-header { display: flex; flex-direction: row; padding-left: 5px; }
+.navigator-header > .controls { float: right; }
+.navigator-header > .controls > * { display: inline-block; width: 20px; opacity: 0.25; text-align: center; transition: opacity 0.15s transform 0.15s; }
+.navigator-header:hover > .controls > *:not(.disabled) { opacity: 1; }
+.navigator-header .collapse-btn { transform: rotate(180deg); }
+.navigator-header .label { white-space: pre; }
+
+.tree-item > * { display: inline-block; }
+.tree-item > .label { display: inline; }
+.tree-item > .tree-items { display: block; padding-left: 10px; }
+.tree-branch > .expand-btn, .tree-branch > .collapse-btn { margin-right: 3px; height: 15px; width: 15px; text-align: center; opacity: 0.25; transition: opacity 0.15s, transform 0.15s; }
+.tree-branch:hover > .expand-btn, .tree-branch:hover > .collapse-btn { opacity: 1; }
+.tree-branch .collapse-btn { transform: rotate(90deg); }
+.tree-leaf { margin-left:18px; }
+
+.tree-item > .controls { margin-left: 5px; opacity: 0; transition: opacity 0.15s; float: right; }
+.tree-item > .controls > * { display: inline-block; width: 20px; text-align: center; }
+.tree-item:hover > .controls { opacity: 1; }
+
+.tree-item.hidden > .label { opacity: 0.5}
+
+/****************************************************************************\
+ * Comments
+\****************************************************************************/
+.comments-pane { }
+.comments-pane .comment { margin-left: 5px; padding: 10px; max-width: 500px; display: flex; flex-direction: column; align-items: stretch; }
+.comments-pane .comment + .comment { margin-top: 5px; }
+.comments-pane .comment > .label + .description { margin-top: 5px; }
+.comments-pane .comment > .description { font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:10pt; }
+
+.comments-pane .quick-actions { display: flex; flex-direction: row; flex-wrap: wrap; opacity: 0.5; transition: opacity 0.15s; }
+.comments-pane .comment:hover .quick-actions { opacity: 1; }
+.comments-pane .quick-actions > .comment-action { flex: 1 0 auto; max-width: 50%; padding: 2px 5px; margin-top: 5px; text-align: center; background: #404040; }
+.comments-pane .quick-actions > .comment-action + .comment-action { margin-left: 1px; }
+.comments-pane .quick-actions > .comment-action:hover { background: #505050; }
+
+
+.comments-pane .comment.error{ }
+
+.error-title { color: rgb(73, 158, 211); }
+.error-context { color: rgb(83, 117, 137); }
+.error pre { font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:10pt; margin:0; margin-top:20px; margin-left:3px; }
+
+/****************************************************************************\
+ * Editor
+\****************************************************************************/
+.editor-pane { background: #202020; }

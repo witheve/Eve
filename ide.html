@@ -1,0 +1,143 @@
+<html>
+  <head>
+    <title>Eve</title>
+    <link rel="stylesheet" type="text/css" href="/jssrc/codemirror.css">
+    <link rel="stylesheet" type="text/css" href="http://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css">
+    <style>
+      * { box-sizing:border-box; }
+      body { background: rgb(47,47,49); color: #d8d8d8; font-family: Avenir; display: flex; flex-direction: column; margin:0; width: 100%; }
+      .__root { display: flex; flex-direction: column; align-self: stretch; }
+      .program-container { display: flex; flex: 1; }
+      .program { position: relative; flex: 1; flex-direction: column; align-self: stretch; padding:20px; overflow: auto; margin-left:50px; display:flex; }
+      .graph-root { position:relative; display:flex; flex-direction:column; align-self: stretch; align-items:flex-start; margin-right:10px; padding:20px 40px; height:100%; overflow:hidden;  }
+
+      .parse-info { display:flex; flex-direction: row; align-self: stretch; height:100%; }
+      .parse-info > div { overflow: hidden; }
+      .parse-info + .parse-info { margin-top:50px; }
+
+      .run-info { display:flex; flex-direction: row; flex: 0 0 auto; }
+
+      .toolbar { display:flex; align-items:center; padding:10px; flex-direction:row; display:flex; border-radius: 0 0 3px 3px; }
+      .stats { flex:1; width:180px; }
+      .show-graphs { cursor: pointer; padding:3px 8px; border-radius:3px; color: #d8d8d8; background: rgba(255,255,255,0.1); margin-left:10px; }
+
+      .cm-container { position:relative; display:flex; flex-direction:column; flex:1; padding: 10px; border-radius:3px 3px 0 0; }
+      .CodeMirror { background:none; color: inherit; height:100%; font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:10pt;  }
+      .CodeMirror-scroll { height:100%; }
+      .CodeMirror-cursor { background: white; border-color:white; }
+
+      .fix-it { padding:8px 12px; border-radius:3px; margin-top:17px; background: rgb(54, 62, 85); color: #c2e6ff; align-self:flex-end; cursor: pointer; }
+      .fix-it:hover { background: rgb(79, 92, 129); }
+
+      .ansi-gray { color: rgb(83, 117, 137); }
+      .ansi-red { color: red; }
+
+      .node-overlay { display: flex; flex-direction: column; font-size: 0.9em; }
+      .ordered-node > .node-overlay { padding: 1px 5px; }
+      .ordered-node.subproject > .node-overlay { margin-bottom: 1px; margin-top: -1px; background: rgb(44,72,97); }
+
+      .node-overlay .registers-overlay label { padding-right: 4px; color: #A0A0A0; align-self: center; }
+      .node-overlay .registers-overlay .register-pair { padding: 0 4px; border-left: 1px solid #202930 }
+
+
+      .pixel { margin:10px; padding:10px; background: rgba(255,255,255,0.05); align-self: flex-start; flex:none; }
+      .pixel .name { font-size:14pt; margin-bottom:8px; }
+      .pixel ul { margin:0; list-style:none; padding:0; font-size:10pt; }
+      .pixel li { display:flex; margin-bottom:2px; flex:none; }
+      .pixel li .attribute { display:flex; width: 80px; margin-right: 10px; color: #aaa; white-space:nowrap; overflow:hidden; text-align:right; }
+
+      .pixel-chart { display:flex; flex-direction:column; }
+      .pixel-chart .name { margin-bottom:12px; }
+      .pixel-chart ul { display:flex; position:relative; align-items: flex-end; flex:1 0 auto; }
+      .pixel-chart ul li { height:10px; width:10px; background: #d8d8d8; overflow:hidden; position:relative; margin-right:1px; flex:none; }
+
+      .md-toolbar { display:flex; flex-direction:row; margin:12px; }
+      .md-toolbar > * {background: rgba(255,255,255,0.1); bsackground: rgba(0,0,0,0.3); padding:5px 10px; min-width:30px; display:flex; align-items:center; justify-content: center; }
+      .md-toolbar > *:first-child { border-radius:3px 0 0 3px; }
+      .md-toolbar > *:last-child { border-radius:0px 3px 3px 0px; }
+      .md-toolbar > * + * { margin-left: 1px; }
+      .md-toolbar .bold { font-weight: bold; }
+      .md-toolbar .italic { font-style: italic; }
+
+      .editor-content { display:flex; flex:1; flex-direction:column; }
+
+      .outline { margin-right:40px; margin-top:20px; -webkit-user-select: none; max-width:200px; }
+      .outline.eliding .heading { color: #777; }
+      .outline .elide { margin-bottom:20px; }
+      .outline .heading { cursor: pointer; }
+      .outline .heading:hover, .outline.eliding .active { color: #63b6e7; }
+      .heading-level-1 { font-size: 24px; padding-bottom: 9px; border-bottom: 1px solid #666; }
+      .heading-level-2 { font-weight: 500; margin-top:20px; }
+      .heading-level-3 { margin-left: 20px; color: #aaa; margin-top: 6px; font-size: 11pt; line-height:20px; }
+      .heading-level-1 + .heading-level-2 { margin-top: 20px; }
+      .heading-level-2 + .heading-level-2 { margin-top: 20px; }
+
+      .comments { position:absolute; right:0; top:0; width:290px; bottom:0; background:rgb(47,47,49); z-index:1; padding-left:20px;  }
+      .comments .comment { position: absolute; }
+
+      .elision { border-top:5px solid #222; }
+      .elision-marker { height:10px; display:inline-block;  }
+
+      .CodeMirror { color: #c4c4c4; line-height:20px; font-family: Avenir; width: 900px; }
+      .CodeMirror pre { padding: 0 4px; margin-right:300px; }
+      .CodeMirror-scroll { scroll-behavior: smooth; }
+      .CodeMirror-linebackground { right:300px; }
+      .CodeMirror-selected { background: #444; }
+      .CodeMirror-focused .CodeMirror-selected { background: #444; }
+      .CodeMirror .STRONG { font-weight:bold; }
+      .CodeMirror .EMPH { font-style:italic; }
+      .CodeMirror .CODE { background: rgba(255,255,255,0.08); background: rgba(0,0,0,0.3); font-family: Inconsolata; }
+      .CodeMirror span.CODE { padding:2px 4px; border-radius:3px; }
+      .CodeMirror .CodeMirror-line.ITEM { padding-left: 20px; }
+      .CodeMirror .CodeMirror-line.ITEM:before { content: "-"; padding-right:10px; }
+      .CodeMirror .CODE_BLOCK { font-family: Inconsolata; }
+      .CodeMirror .CODE-TOP { border-radius:3px 3px 0 0; padding-top:8px; }
+      .CodeMirror .CODE-BOTTOM { border-radius:0 0 3px 3px; padding-bottom:8px; }
+      .CodeMirror .DOC { color: #d8d8d8; }
+      .CodeMirror .HEADING1 { font-size:16pt;}
+      .CodeMirror .HEADING2 { font-size:14pt;}
+      .CodeMirror .HEADING3 { font-size:12pt;}
+      .CodeMirror .HEADING4 { font-size:12pt;}
+      .CodeMirror .COMMENT { color: #747474; }
+      .CodeMirror .TAG { color: #50edf6; color: #4bcbd3; }
+      .CodeMirror .NAME { color: #50edf6; color: #4bcbd3; }
+      .CodeMirror .IF, .ELSE, .THEN { color: gray; color: #63b6e7; }
+      .CodeMirror .COMMIT, .BIND, .MATCH { color: gray; color: #63b6e7; }
+      .CodeMirror .STRING, .STRING_OPEN, .STRING_CLOSE, .BOOLEAN, .NUMBER { color: #ff66ac; color: #acaaff; }
+      .CodeMirror .OPEN_BRACKET, .CodeMirror .DOT, .CodeMirror .CLOSE_BRACKET, .CodeMirror .OPEN_PAREN, .CodeMirror .CLOSE_PAREN, .CodeMirror .ALIAS, .CodeMirror .EQUALITY, .CodeMirror .SET, .CodeMirror .INSERT, .CodeMirror .REMOVE, .CodeMirror .INFIX, .CodeMirror .COMMA { color: gray; }
+      .CodeMirror .BLOCK_OPEN, .CodeMirror .BLOCK_CLOSE { color: gray; }
+    </style>
+
+    <link rel="stylesheet" type="text/css" href="/css/ide.css">
+  </head>
+  <body>
+    <script type="text/javascript" src="/jssrc/uuid.js"></script>
+    <script type="text/javascript" src="/jssrc/codemirror.js"></script>
+    <script type="text/javascript" src="/jssrc/commonmark.js"></script>
+    <script type="text/javascript" src="/jssrc/microReact.js"></script>
+    <script type="text/javascript" src="/jssrc/system.js"></script>
+    <script>
+      SystemJS.config({
+        baseURL: "/build",
+        defaultJSExtensions: true,
+        meta: {"/jssrc/codemirror.js": { format: "cjs" }}
+      });
+
+      // Kicks off requiring everyone else
+      SystemJS.register("uuid", [], function($export) {
+        $export("default", uuid);
+        $export("v4", uuid);
+      });
+      SystemJS.registerDynamic("codemirror", [], false, function(require, exports, module) {
+        module.exports = window.CodeMirror;
+      });
+      SystemJS.register("microReact", [], function($export) {
+        $export("Renderer", Renderer);
+      });
+      SystemJS.register("commonmark", [], function($export) {
+        $export(commonmark);
+      });
+      SystemJS.import("ide");
+    </script>
+  </body>
+</html>
