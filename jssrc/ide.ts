@@ -1,5 +1,6 @@
 import {Renderer, Element as Elem, RenderHandler} from "microReact";
 import * as  CodeMirror from "codemirror";
+import {debounce} from "./util";
 
 type Range = CodeMirror.Range;
 type Position = CodeMirror.Position;
@@ -222,8 +223,8 @@ class Editor {
 
     let str = "";
     for(let i = 0; i < 50; i++) {
-      let len = Math.random() * 7;
-      for(let i = 0; i < len; i++)
+      let len = i % 7;
+      for(let j = 0; j < len; j++)
         str += "foo bar baz bat quux ";
       str += "\n";
     }
@@ -283,7 +284,6 @@ interface Comment {
   title?: string,
   description?: string,
   actions?: string[],
-
   replies?: string[],
 
   marker?: CodeMirror.TextMarker
@@ -296,7 +296,25 @@ interface Action {
 }
 
 class Comments {
-  constructor(public ide:IDE, public comments: CommentMap) {}
+  ordered:string[];
+
+  rootNode?:HTMLElement;
+  _currentWidth?:number;
+
+  constructor(public ide:IDE, public comments: CommentMap) {
+    this.ordered = Object.keys(this.comments);
+    this.ordered.sort(this.commentComparator);
+
+    window.addEventListener("resize", this.resizeComments);
+  }
+
+  commentComparator = (aId:string, bId:string) => {
+    let a = this.comments[aId];
+    let b = this.comments[bId];
+    let aLine = isRange(a.loc) ? a.loc.from.line : a.loc.line;
+    let bLine = isRange(b.loc) ? b.loc.from.line : b.loc.line;
+    return aLine - bLine;
+  }
 
   // handlers
   actions:{[id:string]: Action} = {
@@ -330,9 +348,102 @@ class Comments {
     }
   };
 
-  injectIntoCM:RenderHandler = (node, elem) => {
-    let wrapper = this.ide.editor.cm.getWrapperElement();
-    wrapper.querySelector(".CodeMirror-sizer").appendChild(node);
+  resizeComments = debounce(() => {
+    if(!this.rootNode) return;
+
+    let inner:HTMLElement = this.rootNode.children[0] as any;
+    if(this._currentWidth && inner.offsetWidth === this._currentWidth) return;
+    else {
+      this._currentWidth = inner.offsetWidth;
+    }
+
+    let nodes:HTMLElement[] =  inner.children as any;
+    let cm = this.ide.editor.cm;
+
+    let ix = 0;
+    let intervals:ClientRect[] = [];
+    for(let commentId of this.ordered) {
+      let comment = this.comments[commentId];
+      let start = isRange(comment.loc) ? comment.loc.from : comment.loc;
+      let coords = cm.charCoords(start, "local");
+
+      let node = nodes[ix];
+      node.style.top = ""+coords.top;
+      for(let lvl = 1; lvl < 4; lvl++) {
+        node.classList.remove("collapse-" + lvl);
+      }
+      intervals[ix] = node.getBoundingClientRect();
+      ix++;
+    }
+
+    // Adjust pairs of comments until they no longer intersect.
+    // @TODO: Never collapse the active comment!
+    // @TODO: Uncollapse a newly active comment
+    for(let ix = 0, length = intervals.length - 1; ix < length; ix++) {
+      let prev:ClientRect|undefined = intervals[ix - 1];
+      let cur = intervals[ix];
+      let next = intervals[ix + 1];
+
+      if(next.top > cur.bottom) {
+        continue;
+      }
+
+      let curNode = nodes[ix];
+      let nextNode = nodes[ix + 1];
+
+      // Scoot the current comment up as much as possible without:
+      // - Pushing the comment off the top of the screen
+      // - Pushing it entirely off it's line
+      // - Going any further than required to fit both comments
+      // - Intersecting with the comment preceding it
+
+      let intersect = cur.bottom - next.top;
+      let oldTop = cur.top;
+      let neueTop = Math.max(0, cur.top - cur.height, cur.top - intersect, prev && prev.bottom || 0);
+      intersect -= cur.top - neueTop;
+      curNode.style.top = ""+neueTop;
+      cur = intervals[ix] = curNode.getBoundingClientRect();
+
+      if(intersect == 0) continue;
+
+
+      // Collapse the current comment:
+      // Collapse rules are implemented in CSS, so we test height after each collapse to see if we've gone far enough
+      // We want to ensure comments are always within one line of their parent line, so readjust the top if the comment is now too short
+      // This can't possibly accomplish anything if both comments are meant to be on the same line, so we ignore it in that case
+      if(oldTop !== next.top) {
+        for(let lvl = 1; lvl < 3; lvl++) {
+          let oldHeight = cur.height;
+          curNode.classList.remove("collapse-" + (lvl - 1));
+          curNode.classList.add("collapse-" + lvl);
+          cur = intervals[ix] = curNode.getBoundingClientRect();
+          intersect -= oldHeight - cur.height;
+
+          if(cur.bottom < oldTop) {
+            curNode.style.top = ""+(cur.top + oldTop - cur.bottom + 10);
+            intersect += oldTop - cur.bottom;
+            cur = intervals[ix] = curNode.getBoundingClientRect();
+          }
+
+          if(intersect <= 0) break;
+        }
+        if(intersect <= 0) continue;
+      }
+
+      // All the clever tricks have failed, so we push the next comment down the remainder of the intersection
+      nextNode.style.top = ""+(next.top + intersect);
+      next = intervals[ix + 1] = nextNode.getBoundingClientRect();
+    }
+  }, 32, true);
+
+  wangjangle:RenderHandler = (node, elem) => {
+    if(!node["_injected"]) {
+      let wrapper = this.ide.editor.cm.getWrapperElement();
+      wrapper.querySelector(".CodeMirror-sizer").appendChild(node);
+      node["_injected"] = true;
+    }
+    this.rootNode = node;
+    this.resizeComments();
   }
 
   highlight = (event, {commentId}) => {
@@ -363,10 +474,8 @@ class Comments {
   }
 
   render():Elem { // @FIXME: I'm here, just hidden by CodeMirror and CM scroll
-    let cm = this.ide.editor.cm;
-
     let children:Elem[] = [];
-    for(let commentId in this.comments) {
+    for(let commentId of this.ordered) {
       let comment = this.comments[commentId];
       let actions:Elem[] = [];
       if(comment.actions) {
@@ -381,21 +490,18 @@ class Comments {
         }
       }
 
-      let start = isRange(comment.loc) ? comment.loc.from : comment.loc;
-      let coords = cm.charCoords(start, "local");
-
       let elem = {
-        c: `comment ${comment.type}`, top: coords.top, commentId,
+        c: `comment ${comment.type}`, commentId,
         mouseover: this.highlight, mouseleave: this.unhighlight, click: this.goTo,
         children: [
-          //comment.title ? {c: "label", text: comment.title} : undefined,
+          comment.title ? {c: "label", text: comment.title} : undefined,
           comment.description ? {c: "description", text: comment.description} : undefined,
           actions.length ? {c: "quick-actions", children: actions} : undefined,
         ]};
       children.push(elem);
     }
 
-    return {c: "comments-pane", postRender: this.injectIntoCM, children};
+    return {c: "comments-pane", postRender: this.wangjangle, children: [{c: "comments-pane-inner", children}]};
   }
 }
 
@@ -459,9 +565,10 @@ var fakeNodes:TreeMap = {
 };
 
 var fakeComments:CommentMap = {
-  foo: {loc: {line: 2, ch: 8}, type: "error", title: "Unassigned if", description: "You can only assign an if to a block or an identifier"},
+  foo: {loc: {line: 2, ch: 3}, type: "error", title: "Unassigned if", description: "You can only assign an if to a block or an identifier"},
   bar: {loc: {from: {line: 8, ch: 0}, to: {line: 8, ch: 12}}, type: "warning", title: "Unmatched pattern", description: "No records currently in the database match this pattern, and no blocks are capable of providing one", actions: ["create it", "fake it", "dismiss"]},
-  catbug: {loc: {from: {line: 13, ch: 18}, to: {line: 14, ch: 0}}, type: "error", title: "mega error", description: "u fucked up", actions: ["fix it"]},
+  catbug: {loc: {from: {line: 11, ch: 18}, to: {line: 12, ch: 0}}, type: "error", title: "mega error", description: "This is a pretty big description of how badly you fucked", actions: ["fix it"]},
+  dankeykang: {loc: {from: {line: 11, ch: 0}, to: {line: 12, ch: 50}}, type: "warning", title: "dankey warning", description: "how did you even manage to mess up dk", actions: ["dismiss"]},
 };
 
 class IDE {
