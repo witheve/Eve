@@ -284,7 +284,9 @@ interface Comment {
   description?: string,
   actions?: string[],
 
-  replies?: string[]
+  replies?: string[],
+
+  marker?: CodeMirror.TextMarker
 }
 interface CommentMap {[id:string]: Comment}
 interface Action {
@@ -333,6 +335,27 @@ class Comments {
     wrapper.querySelector(".CodeMirror-sizer").appendChild(node);
   }
 
+  highlight = (event, {commentId}) => {
+    let comment = this.comments[commentId];
+    if(comment.marker) return;
+    let cm = this.ide.editor.cm;
+    let doc = cm.getDoc();
+
+    if(isRange(comment.loc)) {
+      comment.marker = doc.markText(comment.loc.from, comment.loc.to, {className: `comment-highlight ${comment.type} range`});
+    } else {
+      let to = {line: comment.loc.line, ch: comment.loc.ch + 1};
+      comment.marker = doc.markText(comment.loc, to, {className: `comment-highlight ${comment.type} pos`});
+    }
+  }
+
+  unhighlight = (event, {commentId}) => {
+    let comment = this.comments[commentId];
+    if(!comment.marker) return;
+    comment.marker.clear();
+    comment.marker = undefined;
+  }
+
   render():Elem { // @FIXME: I'm here, just hidden by CodeMirror and CM scroll
     let cm = this.ide.editor.cm;
 
@@ -355,8 +378,8 @@ class Comments {
       let start = isRange(comment.loc) ? comment.loc.from : comment.loc;
       let coords = cm.charCoords(start, "local");
 
-      let elem = {c: `comment ${comment.type}`, top: coords.top, commentId, children: [
-        comment.title ? {c: "label", text: comment.title} : undefined,
+      let elem = {c: `comment ${comment.type}`, top: coords.top, commentId, mouseover: this.highlight, mouseleave: this.unhighlight, children: [
+        //comment.title ? {c: "label", text: comment.title} : undefined,
         comment.description ? {c: "description", text: comment.description} : undefined,
         actions.length ? {c: "quick-actions", children: actions} : undefined,
       ]};
@@ -428,7 +451,8 @@ var fakeNodes:TreeMap = {
 
 var fakeComments:CommentMap = {
   foo: {loc: {line: 2, ch: 8}, type: "error", title: "Unassigned if", description: "You can only assign an if to a block or an identifier"},
-  bar: {loc: {line: 12, ch: 0}, type: "warning", title: "Unmatched pattern", description: "No records currently in the database match this pattern, and no blocks are capable of providing one", actions: ["create it", "fake it", "dismiss"]},
+  bar: {loc: {from: {line: 8, ch: 0}, to: {line: 8, ch: 12}}, type: "warning", title: "Unmatched pattern", description: "No records currently in the database match this pattern, and no blocks are capable of providing one", actions: ["create it", "fake it", "dismiss"]},
+  catbug: {loc: {from: {line: 13, ch: 18}, to: {line: 14, ch: 0}}, type: "error", title: "mega error", description: "u fucked up", actions: ["fix it"]},
 };
 
 class IDE {

@@ -55,30 +55,6 @@ html, body, __root { height: 100%; }
 .tree-item.hidden > .flex-row > .label { opacity: 0.5; }
 
 /****************************************************************************\
- * Comments
-\****************************************************************************/
-.comments-pane { background: #303030; color: #d8d8d8; }
-
-
-.comments-pane .comment { position: absolute; margin-left: 5px; padding: 10px; max-width: 500px; display: flex; flex-direction: column; align-items: stretch; }
-.comments-pane .comment + .comment { margin-top: 5px; }
-.comments-pane .comment > .label + .description { margin-top: 5px; }
-.comments-pane .comment > .description { font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:10pt; }
-
-.comments-pane .quick-actions { display: flex; flex-direction: row; flex-wrap: wrap; opacity: 0.5; transition: opacity 0.15s; }
-.comments-pane .comment:hover .quick-actions { opacity: 1; }
-.comments-pane .quick-actions > .comment-action { flex: 1 0 auto; max-width: 50%; padding: 2px 5px; margin-top: 5px; text-align: center; background: #404040; }
-.comments-pane .quick-actions > .comment-action + .comment-action { margin-left: 1px; }
-.comments-pane .quick-actions > .comment-action:hover { background: #505050; }
-
-
-.comments-pane .comment.error{ }
-
-.error-title { color: rgb(73, 158, 211); }
-.error-context { color: rgb(83, 117, 137); }
-.error pre { font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:10pt; margin:0; margin-top:20px; margin-left:3px; }
-
-/****************************************************************************\
  * Editor
 \****************************************************************************/
 .editor-pane { background: #202020; }
@@ -117,3 +93,35 @@ html, body, __root { height: 100%; }
 .CodeMirror .STRING, .STRING_OPEN, .STRING_CLOSE, .BOOLEAN, .NUMBER { color: #ff66ac; color: #acaaff; }
 .CodeMirror .OPEN_BRACKET, .CodeMirror .DOT, .CodeMirror .CLOSE_BRACKET, .CodeMirror .OPEN_PAREN, .CodeMirror .CLOSE_PAREN, .CodeMirror .ALIAS, .CodeMirror .EQUALITY, .CodeMirror .SET, .CodeMirror .INSERT, .CodeMirror .REMOVE, .CodeMirror .INFIX, .CodeMirror .COMMA { color: gray; }
 .CodeMirror .BLOCK_OPEN, .CodeMirror .BLOCK_CLOSE { color: gray; }
+
+/****************************************************************************\
+ * Comments
+\****************************************************************************/
+.comments-pane { background: #303030; }
+.comments-pane .comment { color: #d8d8d8; }
+
+
+.comments-pane .comment { position: absolute; margin-left: 5px; padding: 10px; max-width: 500px; display: flex; flex-direction: column; align-items: stretch; }
+.comments-pane .comment + .comment { margin-top: 5px; }
+.comments-pane .comment > .label + .description { margin-top: 5px; }
+.comments-pane .comment > .description { font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:10pt; }
+
+.comments-pane .quick-actions { display: flex; flex-direction: row; flex-wrap: wrap; opacity: 0.5; transition: opacity 0.15s; }
+.comments-pane .comment:hover .quick-actions { opacity: 1; }
+.comments-pane .quick-actions > .comment-action { flex: 1 0 auto; max-width: 50%; padding: 2px 5px; margin-top: 5px; text-align: center; background: #404040; }
+.comments-pane .quick-actions > .comment-action + .comment-action { margin-left: 1px; }
+.comments-pane .quick-actions > .comment-action:hover { background: #505050; }
+
+
+.comments-pane .comment.error{ }
+
+.error-title { color: rgb(73, 158, 211); }
+.error-context { color: rgb(83, 117, 137); }
+.error pre { font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:10pt; margin:0; margin-top:20px; margin-left:3px; }
+
+.CodeMirror .comment-highlight.range { border-bottom: 1px solid white; }
+.CodeMirror .comment-highlight.range.error { border-bottom-color: #F06060; }
+.CodeMirror .comment-highlight.range.warning { border-bottom-color: #C0C060; }
+.CodeMirror .comment-highlight.pos:after { display: block; content: "^"; position: absolute; left: 0; bottom: -10px; color: white; }
+.CodeMirror .comment-highlight.pos.error:after { color: #F06060; }
+.CodeMirror .comment-highlight.pos.warning:after { color: #C0C060; }
