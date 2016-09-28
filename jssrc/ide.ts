@@ -1,5 +1,9 @@
 import {Renderer, Element as Elem} from "microReact";
-import {Position, Range} from "CodeMirror";
+import {Position, Range} from "codemirror";
+
+function isRange(loc:any): loc is Range {
+  return loc.from !== undefined || loc.to !== undefined;
+}
 
 export var renderer = new Renderer();
 document.body.appendChild(renderer.content);
@@ -231,6 +235,12 @@ function editorPane(state:EditorState):Elem {
  *   - View results
  *   - Live docs
  *   - User messages / responses
+ * - Comments are tagged by a Position or a Range which CM will track
+ * - Hovering a comment will highlight its matching Position or Range
+ * - Clicking a comment will  scroll its location into view
+ * - Comments are collapsed by the callback that moves them into position by doing so in order
+ * - Hovering a quick action whill display a transient tooltip beneath the action bar describing the impact of clicking it
+ * - All QAs must be undo-able
  */
 
 type CommentType = "error"|"warning"|"info"|"comment"|"result";
@@ -239,25 +249,43 @@ interface Comment {
   type: CommentType,
   title?: string,
   description?: string,
-  actions?: string[]
+  actions?: string[],
+
+  replies?: string[]
+}
+interface CommentMap {
+  [id:string]: Comment
 }
 interface CommentsState {
-  comments:Comment[]
+  comments: CommentMap
 }
+interface ActionElem extends Elem { commentId: string, comments: CommentMap }
 
-interface CommentElem extends Elem {}
+// @TODO: work descriptions in
+var quickActions = {
+  "fix it": (event, elem:ActionElem) => {
+    console.log("fix it");
+  },
+  "create it": (event, elem:ActionElem) => {
+    console.log("create it");
+  },
+  "fake it": (event, elem:ActionElem) => {
+    console.log("fake it");
+  },
+  "dismiss": (event, elem:ActionElem) => {
+    console.log("dismiss");
+  }
+};
 
 function commentsPane(state:CommentsState):Elem {
-  // takes a list of comments
-  // splits them by type
-  // each comment is tagged with a CodeMirror Position or Range
-
-  let children:CommentElem[] = [];
-  for(let comment of state.comments) {
-    let actions = [];
+  let children:Elem[] = [];
+  for(let commentId in state.comments) {
+    let actions:Elem[] = [];
+    let comment = state.comments[commentId];
     if(comment.actions) {
       for(let action of comment.actions) {
-        let elem = {c: `comment-action`, text: action, comment};
+        let elem = {c: `comment-action`, text: action, commentId, comments: state.comments, click: quickActions[action]};
+        actions.push(elem);
       }
     }
 
@@ -266,6 +294,7 @@ function commentsPane(state:CommentsState):Elem {
       comment.description ? {c: "description", text: comment.description} : undefined,
       actions.length ? {c: "quick-actions", children: actions} : undefined,
     ]};
+    children.push(elem);
   }
 
   return {c: "comments-pane", children};
@@ -330,8 +359,19 @@ var fakeNodes:TreeMap = {
   h4: {name: "k i am a really long name", type: "section"}
 };
 
-var fakeComments:Comment[] = [
-];
+
+interface Comment {
+  loc: Position|Range,
+  type: CommentType,
+  title?: string,
+  description?: string,
+  actions?: string[]
+}
+
+var fakeComments:CommentMap = {
+  foo: {loc: {line: 18, ch: 13}, type: "error", title: "Unassigned if", description: "You can only assign an if to a block or an identifier"},
+  bar: {loc: {line: 5, ch: 2}, type: "warning", title: "Unmatched pattern", description: "No records currently in the database match this pattern, and no blocks are capable of providing one", actions: ["create it", "fake it", "dismiss"]},
+};
 
 interface IDEState {
   navigator:NavigatorState,
