@@ -55,8 +55,10 @@ html, body, __root { height: 100%; }
 /****************************************************************************\
  * Comments
 \****************************************************************************/
-.comments-pane { }
-.comments-pane .comment { margin-left: 5px; padding: 10px; max-width: 500px; display: flex; flex-direction: column; align-items: stretch; }
+.comments-pane-inner { position: absolute; left: 100%; top: 0; width: 300px; z-index: 2; }
+
+
+.comments-pane .comment { position: absolute; margin-left: 5px; padding: 10px; max-width: 500px; display: flex; flex-direction: column; align-items: stretch; }
 .comments-pane .comment + .comment { margin-top: 5px; }
 .comments-pane .comment > .label + .description { margin-top: 5px; }
 .comments-pane .comment > .description { font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:10pt; }
@@ -78,3 +80,37 @@ html, body, __root { height: 100%; }
  * Editor
 \****************************************************************************/
 .editor-pane { background: #202020; }
+
+
+.CodeMirror { background:none; color: inherit; height:100%; font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:10pt;  }
+.CodeMirror-scroll { height:100%; }
+.CodeMirror-cursor { background: white; border-color:white; }
+
+.CodeMirror { color: #c4c4c4; line-height:20px; font-family: Avenir; }
+.CodeMirror pre { padding: 0 4px; margin-right:300px; }
+.CodeMirror-scroll { scroll-behavior: smooth; }
+.CodeMirror-linebackground { right:300px; }
+.CodeMirror-selected { background: #444; }
+.CodeMirror-focused .CodeMirror-selected { background: #444; }
+.CodeMirror .STRONG { font-weight:bold; }
+.CodeMirror .EMPH { font-style:italic; }
+.CodeMirror .CODE { background: rgba(255,255,255,0.08); background: rgba(0,0,0,0.3); font-family: Inconsolata; }
+.CodeMirror span.CODE { padding:2px 4px; border-radius:3px; }
+.CodeMirror .CodeMirror-line.ITEM { padding-left: 20px; }
+.CodeMirror .CodeMirror-line.ITEM:before { content: "-"; padding-right:10px; }
+.CodeMirror .CODE_BLOCK { font-family: Inconsolata; }
+.CodeMirror .CODE-TOP { border-radius:3px 3px 0 0; padding-top:8px; }
+.CodeMirror .CODE-BOTTOM { border-radius:0 0 3px 3px; padding-bottom:8px; }
+.CodeMirror .DOC { color: #d8d8d8; }
+.CodeMirror .HEADING1 { font-size:16pt;}
+.CodeMirror .HEADING2 { font-size:14pt;}
+.CodeMirror .HEADING3 { font-size:12pt;}
+.CodeMirror .HEADING4 { font-size:12pt;}
+.CodeMirror .COMMENT { color: #747474; }
+.CodeMirror .TAG { color: #50edf6; color: #4bcbd3; }
+.CodeMirror .NAME { color: #50edf6; color: #4bcbd3; }
+.CodeMirror .IF, .ELSE, .THEN { color: gray; color: #63b6e7; }
+.CodeMirror .COMMIT, .BIND, .MATCH { color: gray; color: #63b6e7; }
+.CodeMirror .STRING, .STRING_OPEN, .STRING_CLOSE, .BOOLEAN, .NUMBER { color: #ff66ac; color: #acaaff; }
+.CodeMirror .OPEN_BRACKET, .CodeMirror .DOT, .CodeMirror .CLOSE_BRACKET, .CodeMirror .OPEN_PAREN, .CodeMirror .CLOSE_PAREN, .CodeMirror .ALIAS, .CodeMirror .EQUALITY, .CodeMirror .SET, .CodeMirror .INSERT, .CodeMirror .REMOVE, .CodeMirror .INFIX, .CodeMirror .COMMA { color: gray; }
+.CodeMirror .BLOCK_OPEN, .CodeMirror .BLOCK_CLOSE { color: gray; }

@@ -1,5 +1,8 @@
-import {Renderer, Element as Elem} from "microReact";
-import {Position, Range} from "codemirror";
+import {Renderer, Element as Elem, RenderHandler} from "microReact";
+import * as  CodeMirror from "codemirror";
+
+type Range = CodeMirror.Range;
+type Position = CodeMirror.Position;
 
 function isRange(loc:any): loc is Range {
   return loc.from !== undefined || loc.to !== undefined;
@@ -7,12 +10,6 @@ function isRange(loc:any): loc is Range {
 
 export var renderer = new Renderer();
 document.body.appendChild(renderer.content);
-
-
-function render() {
-  renderer.render([editorRoot(magicalEditorState)]);
-}
-
 
 //---------------------------------------------------------
 // Navigator
@@ -42,7 +39,7 @@ class Navigator {
   };
   open: boolean = true;
 
-  constructor(public rootId, public nodes:TreeMap, public currentId:string = rootId) {}
+  constructor(public ide:IDE, public rootId, public nodes:TreeMap, public currentId:string = rootId) {}
 
   currentType():string {
     let node = this.nodes[this.currentId];
@@ -189,22 +186,64 @@ class Navigator {
 //---------------------------------------------------------
 // Editor
 //---------------------------------------------------------
-
 /* - Exactly 700px
  * - Display cardinality badges
  * - Show related (at least action -> EAV / EAV -> DOM
  * - Syntax highlighting
  * - Autocomplete (at least language constructs, preferably also expression schemas and known tags/names/attributes)
  */
+interface EditorNode extends HTMLElement { cm?: CodeMirror.Editor }
 
-function injectCodeMirror() {
+function ctrlify(keymap) {
+  let finalKeymap = {};
+  for(let key in keymap) {
+    finalKeymap[key] = keymap[key];
+    if(key.indexOf("Cmd") > -1) {
+      finalKeymap[key.replace("Cmd", "Ctrl")] = keymap[key];
+    }
+  }
+  return finalKeymap;
 }
 
-interface EditorState {
-}
-function editorPane(state:EditorState):Elem {
-  return {c: "editor-pane",  postRender: injectCodeMirror
+class Editor {
+  defaults:CodeMirror.EditorConfiguration = {
+    tabSize: 2,
+    lineWrapping: true,
+    lineNumbers: false,
+    extraKeys: ctrlify({
+      "Cmd-Enter": () => console.log("sup dawg")
+    })
   };
+
+  cm:CodeMirror.Editor;
+
+  constructor(public ide:IDE) {
+    this.cm = CodeMirror(() => undefined, this.defaults);
+
+    let str = "";
+    for(let i = 0; i < 20; i++) str += "foo\nbar\nbaz\nbat\nquux\n";
+    this.cm.setValue(str); // @FIXME
+  }
+
+  // handlers
+  injectCodeMirror:RenderHandler = (node:EditorNode, elem) => {
+    if(!node.cm) {
+      node.cm = this.cm;
+      node.appendChild(this.cm.getWrapperElement());
+    }
+    this.cm.refresh();
+    render();
+  }
+
+  refresh() {
+    if(this.cm) {
+      this.cm.refresh();
+    }
+  }
+
+  render() {
+    return {c: "editor-pane",  postRender: this.injectCodeMirror};
+  }
 }
 
 //---------------------------------------------------------
@@ -243,39 +282,75 @@ interface Comment {
   replies?: string[]
 }
 interface CommentMap {[id:string]: Comment}
+interface Action {
+  name: string,
+  description: (comment:Comment) => string,
+  run: (event:Event, {commentId:string}) => void
+}
 
 class Comments {
-  constructor(public comments: CommentMap) {}
+  constructor(public ide:IDE, public comments: CommentMap) {}
 
-  // @TODO: work descriptions in
-  actions = {
-    "fix it": (event, {commentId}) => {
-      console.log("fix it");
+  // handlers
+  actions:{[id:string]: Action} = {
+    "fix it": {
+      name: "fix it",
+      description: (comment) => ``,
+      run: (event, {commentId}) => {
+        console.log("fix it", commentId);
+      }
     },
-    "create it": (event, {commentId}) => {
-      console.log("create it");
+    "create it": {
+      name: "create it",
+      description: (comment) => `Create a new block that provides records like this`,
+      run: (event, {commentId}) => {
+        console.log("create it", commentId);
+      }
     },
-    "fake it": (event, {commentId}) => {
-      console.log("fake it");
+    "fake it": {
+      name: "fake it",
+      description: (comment) => `Make up some fake records shaped like this for testing`,
+      run: (event, {commentId}) => {
+        console.log("fake it", commentId);
+      }
     },
-    "dismiss": (event, {commentId}) => {
-      console.log("dismiss");
+    "dismiss": {
+      name: "dismiss",
+      description: (comment) => `Dismiss this warning`,
+      run: (event, {commentId}) => {
+        console.log("dismiss", commentId);
+      }
     }
   };
 
-  render() {
+  injectIntoCM:RenderHandler = (node, elem) => {
+    let wrapper = this.ide.editor.cm.getWrapperElement();
+    wrapper.querySelector(".CodeMirror-sizer").appendChild(node);
+  }
+
+  render():Elem { // @FIXME: I'm here, just hidden by CodeMirror and CM scroll
+    let cm = this.ide.editor.cm;
+
     let children:Elem[] = [];
     for(let commentId in this.comments) {
       let comment = this.comments[commentId];
       let actions:Elem[] = [];
       if(comment.actions) {
-        for(let action of comment.actions) {
-          let elem = {c: `comment-action`, text: action, commentId, click: this.actions[action]};
+        for(let actionId of comment.actions) {
+          let action = this.actions[actionId];
+          if(!action) {
+            console.warn(`Unknown action id: '${actionId}'`);
+            continue;
+          }
+          let elem = {c: `comment-action`, text: action.name, tooltip: action.description(comment), commentId, click: action.run};
           actions.push(elem);
         }
       }
 
-      let elem = {c: `comment ${comment.type}`, children: [
+      let start = isRange(comment.loc) ? comment.loc.from : comment.loc;
+      let coords = cm.charCoords(start, "local");
+
+      let elem = {c: `comment ${comment.type}`, top: coords.top, commentId, children: [
         comment.title ? {c: "label", text: comment.title} : undefined,
         comment.description ? {c: "description", text: comment.description} : undefined,
         actions.length ? {c: "quick-actions", children: actions} : undefined,
@@ -283,7 +358,9 @@ class Comments {
       children.push(elem);
     }
 
-    return {c: "comments-pane", children};
+    return {c: "comments-pane", postRender: this.injectIntoCM, children: [
+      {c: "comments-pane-inner", children}
+    ]};
   }
 }
 
@@ -315,7 +392,7 @@ function newBlockBar():Elem {
 }
 
 //---------------------------------------------------------
-// New Block
+// Modals
 //---------------------------------------------------------
 
 /* - Transient
@@ -346,38 +423,30 @@ var fakeNodes:TreeMap = {
   h4: {name: "k i am a really long name", type: "section"}
 };
 
-
-interface Comment {
-  loc: Position|Range,
-  type: CommentType,
-  title?: string,
-  description?: string,
-  actions?: string[]
-}
-
 var fakeComments:CommentMap = {
-  foo: {loc: {line: 18, ch: 13}, type: "error", title: "Unassigned if", description: "You can only assign an if to a block or an identifier"},
-  bar: {loc: {line: 5, ch: 2}, type: "warning", title: "Unmatched pattern", description: "No records currently in the database match this pattern, and no blocks are capable of providing one", actions: ["create it", "fake it", "dismiss"]},
+  foo: {loc: {line: 2, ch: 8}, type: "error", title: "Unassigned if", description: "You can only assign an if to a block or an identifier"},
+  bar: {loc: {line: 12, ch: 0}, type: "warning", title: "Unmatched pattern", description: "No records currently in the database match this pattern, and no blocks are capable of providing one", actions: ["create it", "fake it", "dismiss"]},
 };
 
-interface IDEState {
-  editor:EditorState
+class IDE {
+  navigator:Navigator = new Navigator(this, "root", fakeNodes);
+  editor:Editor = new Editor(this);
+  comments:Comments = new Comments(this, fakeComments);
+
+  render() {
+    // Update child states as necessary
+
+    return {c: `editor-root`, children: [
+      this.navigator.render(),
+      this.editor.render(),
+      this.comments.render()
+    ]};
+  }
 }
-let magicalEditorState:IDEState = {
-  editor: {}
-};
 
-
-let _navigator = new Navigator("root", fakeNodes);
-let _comments = new Comments(fakeComments);
-function editorRoot(state:IDEState):Elem {
-  // Update child states as necessary
-
-  return {c: `editor-root`, children: [
-    _navigator.render(),
-    editorPane(state.editor),
-    _comments.render()
-  ]};
+let _ide = new IDE();
+function render() {
+  renderer.render([_ide.render()]);
 }
 
 //// DEBUG
