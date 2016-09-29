@@ -8,6 +8,7 @@ BUILD = $(CURDIR)
 
 #find a better way to do this
 .SECONDARY: ../build/client.js ../build/editor.js ../build/renderer.js ../build/util.js
+WITH_NPM_PATH = PATH=node_modules/typescript/bin:$(PATH)
 
 PLATFORM = $(shell uname)
 
@@ -78,9 +79,12 @@ lutf8lib.o: lutf8lib.c
 bundle.o: bundle.c
 	cc -std=c99 -c -g -I$(LUAJIT_INCLUDES) $^
 
-
-%.js: $(BUILD)/../jssrc/%.ts
-	cd .. && tsc --pretty
+%.js: ../jssrc/%.ts
+	@# check if there is an appropriate typescript installation
+	@# otherwise install it locally with npm
+	@$(WITH_NPM_PATH) tsc -v | grep -q 'Version 2' || \
+		npm install typescript || (echo 'Please install npm' && exit 1)
+	$(WITH_NPM_PATH) tsc --pretty -p ..
 
 path.c: Makefile
 	echo 'char *pathroot = "$(BUILD)/../";' > path.c
@@ -112,4 +116,4 @@ clean:
 	rm -f *.o eve continuation_templates.h *.js *.js.map db
 
 distclean:
-	make clean ; rm -rf lua luajit-2.0
+	make clean ; rm -rf lua luajit-2.0 node_modules
