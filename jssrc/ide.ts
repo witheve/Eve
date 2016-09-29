@@ -1,4 +1,5 @@
 import {Renderer, Element as Elem, RenderHandler} from "microReact";
+import {Parser as MDParser} from "commonmark";
 import * as CodeMirror from "codemirror";
 import {debounce, uuid, unpad} from "./util";
 
@@ -7,6 +8,17 @@ type Position = CodeMirror.Position;
 
 function isRange(loc:any): loc is Range {
   return loc.from !== undefined || loc.to !== undefined;
+}
+
+function comparePositions(a:Position, b:Position) {
+  if(a.line === b.line && a.ch === b.ch) return 0;
+  if(a.line > b.line) return 1;
+  if(a.line === b.line && a.ch > b.ch) return 1;
+  return -1;
+}
+
+function samePosition(a:Position, b:Position) {
+  return comparePositions(a, b) === 0;
 }
 
 export var renderer = new Renderer();
@@ -191,16 +203,175 @@ class Navigator {
 
 
 //---------------------------------------------------------
+// Spans
+//---------------------------------------------------------
+interface SpanMarker extends CodeMirror.TextMarker {
+  span?: Span,
+  active?: boolean,
+  source?: any
+}
+
+function isSpanMarker(x:CodeMirror.TextMarker): x is SpanMarker {
+  return x && x["span"];
+}
+
+class Span {
+  protected static _nextId = 0;
+
+  id: number = Span._nextId++;
+  editor: Editor;
+  marker?: SpanMarker;
+
+  protected _attributes:CodeMirror.TextMarkerOptions;
+
+  lineTextClass?: string;
+  lineBackgroundClass?: string;
+
+  constructor(protected _from:Position, protected _to:Position, protected _source:any) {}
+
+  find():Range {
+    if(!this.marker) return {from: this._from, to: this._to};
+
+    let loc = this.marker.find();
+    if(!loc) throw new Error("Could not find marker");
+    if(isRange(loc)) return loc;
+    return {from: loc, to: loc};
+  }
+
+  attached() {
+    return this.marker && this.find();
+  }
+
+  clone<T extends Span>(this:T):T {
+    let loc = this.find();
+    return new (this.constructor as any)(loc.from, loc.to, this._source);
+  }
+
+  applyMark(editor:Editor) {
+    let cm = editor.cm;
+    let doc = cm.getDoc();
+    let {_from, _to} = this;
+    if(!samePosition(_from, _to)) {
+      this.marker = doc.markText(_from, _to, this._attributes);
+    } else {
+      this.marker = doc.setBookmark(_from, {});
+    }
+    this.marker.span = this;
+
+    if(this.lineTextClass || this.lineBackgroundClass) {
+      let end = _from.line != _to.line ? _to.line : _to.line + 1;
+      for(let line = _from.line; line < end; line++) {
+        if(this.lineBackgroundClass) cm.addLineClass(line, "background", this.lineBackgroundClass);
+        if(this.lineTextClass) cm.addLineClass(line, "text", this.lineTextClass);
+      }
+    }
+  }
+
+  clear(origin = "+delete") {
+    if(!this.marker) return;
+    let cm = this.editor.cm;
+
+    let loc = this.find();
+    let _from = this._from = loc.from;
+    let _to = this._to = loc.to;
+    this.editor.clearSpan(this, origin);
+    this.marker.clear();
+    this.marker.span = undefined;
+    this.marker = undefined;
+
+    if(this.lineTextClass || this.lineBackgroundClass) {
+      let end = _from.line != _to.line ? _to.line : _to.line + 1;
+      for(let line = _from.line; line < end; line++) {
+        if(this.lineBackgroundClass) cm.removeLineClass(line, "background", this.lineBackgroundClass);
+        if(this.lineTextClass) cm.removeLineClass(line, "text", this.lineTextClass);
+      }
+    }
+  }
+
+  // Handlers
+  refresh(change:CodeMirror.EditorChangeCancellable) {}
+  onBeforeChange(change:CodeMirror.EditorChangeCancellable) {}
+  onChange(change:CodeMirror.EditorChangeCancellable) {}
+}
+
+class CodeBlockSpan extends Span {
+  lineBackgroundClass = "CODE";
+}
+
+var spanTypes:{[type:string]: (typeof Span)} = {
+  code_block: CodeBlockSpan,
+  "default": Span
+}
+
+
+//---------------------------------------------------------
 // Editor
 //---------------------------------------------------------
 /* - [x] Exactly 700px
+ * - [ ] Syntax highlighting
+   * - [ ] Add missing span types
+   * - [ ] Event handlers e.g. onChange, etc.
+   * - [ ] Get spans updating again
  * - [ ] Display cardinality badges
  * - [ ] Show related (at least action -> EAV / EAV -> DOM
- * - [ ] Syntax highlighting
  * - [ ] Autocomplete (at least language constructs, preferably also expression schemas and known tags/names/attributes)
  * - [ ] Undo
  */
 interface EditorNode extends HTMLElement { cm?: CodeMirror.Editor }
+
+type MDSpan = [number, number, commonmark.Node];
+let _mdParser = new MDParser();
+function parseMarkdown(input:string):{text: string, spans: MDSpan[]} {
+  let parsed = _mdParser.parse(input);
+  let walker = parsed.walker();
+  var cur:commonmark.NodeWalkingStep;
+  var text:string[] = [];
+  var pos = 0;
+  var lastLine = 1;
+  var spans:MDSpan[] = [];
+  var context:{node: commonmark.Node, start: number}[] = [];
+  while(cur = walker.next()) {
+    let node = cur.node;
+    if(cur.entering) {
+      while(node.sourcepos && node.sourcepos[0][0] > lastLine) {
+        lastLine++;
+        pos++;
+        text.push("\n");
+      }
+      if(node.type !== "text") {
+        context.push({node, start: pos});
+      }
+      if(node.type == "text" || node.type == "code_block" || node.type == "code") {
+        text.push(node.literal);
+        pos += node.literal.length;
+      }
+      if(node.type == "softbreak") {
+        text.push("\n");
+        pos += 1;
+        lastLine++;
+      }
+      if(node.type == "code_block") {
+        let start = context[context.length - 1].start;
+        spans.push([start, pos, node]);
+        lastLine = node.sourcepos[1][0] + 1;
+      }
+      if(node.type == "code") {
+        let start = context[context.length - 1].start;
+        spans.push([start, pos, node]);
+      }
+    } else {
+      let info = context.pop();
+      if(!info) throw new Error("Invalid context stack while parsing markdown");
+      if(node.type == "emph" || node.type == "strong" || node.type == "link") {
+        spans.push([info.start, pos, node]);
+      } else if(node.type == "heading" || node.type == "item") {
+        spans.push([info.start, info.start, node]);
+      }
+    }
+  }
+  return {text: text.join(""), spans};
+}
+
 
 function ctrlify(keymap) {
   let finalKeymap = {};
@@ -227,12 +398,30 @@ class Editor {
 
   constructor(public ide:IDE, protected _value:string = "") {
     this.cm = CodeMirror(() => undefined, this.defaults);
-    this.cm.setValue(_value);
+    this.loadMarkdown(_value);
   }
 
-  setValue(value:string) {
-    this._value = value;
-    this.cm.setValue(value);
+  loadMarkdown(value:string) {
+    let {text, spans} = parseMarkdown(value);
+    this._value = text;
+    this.cm.operation(() => {
+      this.cm.setValue(text);
+      let doc = this.cm.getDoc();
+      for(let [start, end, source] of spans) {
+        this.markSpan(doc.posFromIndex(start), doc.posFromIndex(end), source);
+      }
+    });
+  }
+
+  markSpan(frm:Position, to:Position, source:any) {
+    let SpanClass = spanTypes[source.type] || spanTypes["default"];
+    let span = new SpanClass(frm, to, source);
+    span.applyMark(this);
+    console.log("Marking", frm, to, source);
+  }
+
+  clearSpan(span:Span, origin = "+delete") {
+    console.log("@TODO: Implement me!");
   }
 
   refresh() {
@@ -259,28 +448,31 @@ class Editor {
 //---------------------------------------------------------
 // Comments
 //---------------------------------------------------------
-/* - [x] Last priority on width
+/* - [x] Comments are pinned to a range in the current CM editor
+ *   - [x] Hovering (always?) a comment will highlight its matching Position or Range
+ *   - [x] Clicking a comment will scroll its location into view
+ *   - [x] Comments are collapsed by the callback that moves them into position by doing so in order
+ * - [x] Last priority on width
+ * - [x] Soak up left over space
  * - [x] Icons below min width
- * - [ ] BUG: Mouse left of comments-panel in icon popout causes popout to close
- * - [x] Soak up extra space
- * - [ ] Filters (?)
- * - [ ] Quick actions
+ *   - [x] Popout view on hover when iconified
+ *   - [ ] BUG: Mouse left of comments-panel in icon popout causes popout to close
+ *   - [ ] BUG: Display popout above instead of below when below would push it off the screen
+ * - [ ] Condensed, unattached console view
  * - [ ] Count indicator (?)
  * - [x] Scrollbar minimap
- * - [ ] Condensed, unattached console view
+ * - [ ] Filters (?)
+ * - [ ] Quick actions
+ *   - [x] Map of ids to QA titles, description templates, and executors
+ *   - [ ] Hovering a quick action will display a transient tooltip beneath the action bar describing the impact of clicking it
+ *   - [ ] All QAs must be undo-able
+ * - [ ] AESTHETIC: selection goes under comments bar (instead of respecting line margins)
  * - Comment types:
  *   - Errors
  *   - Warnings
  *   - View results
  *   - Live docs
  *   - User messages / responses
- * - [x] Comments are tagged by a Position or a Range which CM will track
- * - [x] Hovering a comment will highlight its matching Position or Range
- * - [x] Clicking a comment will scroll its location into view
- * - [x] Comments are collapsed by the callback that moves them into position by doing so in order
- * - [ ] Hovering a quick action will display a transient tooltip beneath the action bar describing the impact of clicking it
- * - [ ] All QAs must be undo-able
- * - [ ] Aesthetic fix: selection goes under comments bar (instead of respecting line margins)
  */
 
 type CommentType = "error"|"warning"|"info"|"comment"|"result";
@@ -555,7 +747,6 @@ class Comments {
   }
 
   render():Elem { // @FIXME: I'm here, just hidden by CodeMirror and CM scroll
-    console.log("R");
     let children:Elem[] = [];
     for(let commentId of this.ordered) {
       children.push(this.comment(commentId));
@@ -685,16 +876,16 @@ var fakeNodes:TreeMap = {
 _addFakeDoc("Department Cost", fakeText, fakeNodes, "root");
 
 var fakeComments:CommentMap = {
-  bar: {loc: {from: {line: 24, ch: 15}, to: {line: 24, ch: 26}}, type: "error", title: "Invalid tag location", actions: ["fix it"], description: unpad(`
+  bar: {loc: {from: {line: 21, ch: 15}, to: {line: 21, ch: 26}}, type: "error", title: "Invalid tag location", actions: ["fix it"], description: unpad(`
         '#department' tells me to search for a record tagged "department", but since it's not in a record, I don't know the full pattern to look for.
 
         If you wrap it in square brackets, that tells me you're looking for a record with just that tag.`)},
 
-  catbug: {loc: {from: {line: 25, ch: 13}, to: {line: 25, ch: 52}}, type: "warning", title: "Unmatched pattern", actions: ["create it", "fake it", "dismiss"], description: unpad(`
+  catbug: {loc: {from: {line: 22, ch: 13}, to: {line: 22, ch: 52}}, type: "warning", title: "Unmatched pattern", actions: ["create it", "fake it", "dismiss"], description: unpad(`
            No records currently in the database match this pattern, and no blocks are capable of providing one.
 
            I can create a new block for you to produce records shaped like this; or add some fake records that match that pattern for testing purposes.`)},
-  dankeykang: {loc: {from: {line: 39, ch: 17}, to: {line: 39, ch: 21}}, type: "error", title: "Unbound variable", description: unpad(`
+  dankeykang: {loc: {from: {line: 34, ch: 17}, to: {line: 34, ch: 21}}, type: "error", title: "Unbound variable", description: unpad(`
                The variable 'nqme' was not bound in this block. Did you mean 'name'?
                `)},
 };

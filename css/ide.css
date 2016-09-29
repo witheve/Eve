@@ -67,12 +67,11 @@ html, body, __root { height: 100%; }
 .CodeMirror pre { padding: 0 4px; }
 .CodeMirror-scroll { scroll-behavior: smooth; }
 .CodeMirror-gutters { background: #303030; border-right: none; padding-right: 5px; }
-.CodeMirror-linebackground { right:300px; }
 .CodeMirror-selected { background: #444; }
 .CodeMirror-focused .CodeMirror-selected { background: #444; }
 .CodeMirror .STRONG { font-weight:bold; }
 .CodeMirror .EMPH { font-style:italic; }
-.CodeMirror .CODE { background: rgba(255,255,255,0.08); background: rgba(0,0,0,0.3); font-family: Inconsolata; }
+.CodeMirror .CODE { background: rgba(255,255,255,0.08); background: rgba(0,0,0,0.3); font-family: Inconsolata; margin-left: -5px; margin-right: -5px; }
 .CodeMirror span.CODE { padding:2px 4px; border-radius:3px; }
 .CodeMirror .CodeMirror-line.ITEM { padding-left: 20px; }
 .CodeMirror .CodeMirror-line.ITEM:before { content: "-"; padding-right:10px; }
