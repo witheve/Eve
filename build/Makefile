@@ -1,13 +1,9 @@
 ## to download and install a dedicated copy of luajit:
 LUAJIT_INSTALL = ./lua
-#LUAJIT_INSTALL = /usr/local
 LUAJIT = $(LUAJIT_INSTALL)/bin/luajit-2.1.0-beta2
 LIBLUAJIT = $(LUAJIT_INSTALL)/lib/libluajit-5.1.a
 LUAJIT_INCLUDES = $(LUAJIT_INSTALL)/include/luajit-2.1
 BUILD = $(CURDIR)
-
-#find a better way to do this
-.SECONDARY: ../build/client.js ../build/editor.js ../build/renderer.js ../build/util.js
 WITH_NPM_PATH = PATH=node_modules/typescript/bin:$(PATH)
 
 PLATFORM = $(shell uname)
@@ -71,7 +67,7 @@ contgen: contgen.c
 	cc $< -g -o $@
 
 continuation_templates.h: contgen
-	$(BUILD)/contgen 10 10 > continuation_templates.h
+	./contgen 10 10 > continuation_templates.h
 
 lutf8lib.o: lutf8lib.c
 	cc -std=c99 -c -g -I$(LUAJIT_INCLUDES) $^
@@ -93,7 +89,7 @@ package: package.o path.o
 	cc $^ -o $@
 
 staticdb: $(DB_INCLUDES) package $(CONTENT) manifest
-	$(BUILD)/package < manifest > staticdb
+	./package < manifest > staticdb
 
 staticdb.o: staticdb
 	cc wrap.S -DSTART=$(S)db_start -DEND=$(S)db_end -DFILE='"$<"' -c -o $@
