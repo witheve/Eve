@@ -1,6 +1,6 @@
 import {Renderer, Element as Elem, RenderHandler} from "microReact";
-import * as  CodeMirror from "codemirror";
-import {debounce, uuid} from "./util";
+import * as CodeMirror from "codemirror";
+import {debounce, uuid, unpad} from "./util";
 
 type Range = CodeMirror.Range;
 type Position = CodeMirror.Position;
@@ -636,8 +636,8 @@ To calculate the cost of a department, we sum the salaries of its employees.
 
 \`\`\`
 match
-  department = [#department]
-  employee = [#employee salary department]
+  department = #department
+  employee = [#employee salary department seniority]
   cost = sum[value: salary, given: employee, per: department]
 bind
   department.cost := cost
@@ -651,7 +651,7 @@ Finally, we visualize the costs
 match
   [#department name cost]
 bind @browser
-  [#div text: "{{name}} costs {{cost}}"]
+  [#div text: "{{nqme}} costs {{cost}}"]
 \`\`\`
 
 `;
@@ -685,10 +685,18 @@ var fakeNodes:TreeMap = {
 _addFakeDoc("Department Cost", fakeText, fakeNodes, "root");
 
 var fakeComments:CommentMap = {
-  foo: {loc: {line: 2, ch: 3}, type: "error", title: "Unassigned if", description: "You can only assign an if to a block or an identifier"},
-  bar: {loc: {from: {line: 8, ch: 0}, to: {line: 8, ch: 12}}, type: "warning", title: "Unmatched pattern", description: "No records currently in the database match this pattern, and no blocks are capable of providing one", actions: ["create it", "fake it", "dismiss"]},
-  catbug: {loc: {from: {line: 11, ch: 18}, to: {line: 12, ch: 0}}, type: "error", title: "mega error", description: "This is a pretty big description of how badly you fucked", actions: ["fix it"]},
-  dankeykang: {loc: {from: {line: 11, ch: 0}, to: {line: 12, ch: 50}}, type: "warning", title: "dankey warning", description: "how did you even manage to mess up dk", actions: ["dismiss"]},
+  bar: {loc: {from: {line: 24, ch: 15}, to: {line: 24, ch: 26}}, type: "error", title: "Invalid tag location", actions: ["fix it"], description: unpad(`
+        '#department' tells me to search for a record tagged "department", but since it's not in a record, I don't know the full pattern to look for.
+
+        If you wrap it in square brackets, that tells me you're looking for a record with just that tag.`)},
+
+  catbug: {loc: {from: {line: 25, ch: 13}, to: {line: 25, ch: 52}}, type: "warning", title: "Unmatched pattern", actions: ["create it", "fake it", "dismiss"], description: unpad(`
+           No records currently in the database match this pattern, and no blocks are capable of providing one.
+
+           I can create a new block for you to produce records shaped like this; or add some fake records that match that pattern for testing purposes.`)},
+  dankeykang: {loc: {from: {line: 39, ch: 17}, to: {line: 39, ch: 21}}, type: "error", title: "Unbound variable", description: unpad(`
+               The variable 'nqme' was not bound in this block. Did you mean 'name'?
+               `)},
 };
 
 class IDE {
