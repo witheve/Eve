@@ -15,12 +15,13 @@ document.body.appendChild(renderer.content);
 //---------------------------------------------------------
 // Navigator
 //---------------------------------------------------------
-/* - Document Pseudo-FS
- * - Table of Contents
- * - Separate detail levels to control indentation / info overload
- * - 2nd priority on width
- * - Collapsible
- * - Elision
+/* - [x] Document Pseudo-FS
+ * - [x] Table of Contents
+ * - [x] Separate detail levels to control indentation / info overload
+ * - [x] 2nd priority on width
+ * - [x] Collapsible
+ * - [x] Elision (in ToC)
+ * - [ ] Elision (in editor)
  */
 
 interface TreeNode {
@@ -187,11 +188,11 @@ class Navigator {
 //---------------------------------------------------------
 // Editor
 //---------------------------------------------------------
-/* - Exactly 700px
- * - Display cardinality badges
- * - Show related (at least action -> EAV / EAV -> DOM
- * - Syntax highlighting
- * - Autocomplete (at least language constructs, preferably also expression schemas and known tags/names/attributes)
+/* - [x] Exactly 700px
+ * - [ ] Display cardinality badges
+ * - [ ] Show related (at least action -> EAV / EAV -> DOM
+ * - [ ] Syntax highlighting
+ * - [ ] Autocomplete (at least language constructs, preferably also expression schemas and known tags/names/attributes)
  */
 interface EditorNode extends HTMLElement { cm?: CodeMirror.Editor }
 
@@ -210,7 +211,7 @@ class Editor {
   defaults:CodeMirror.EditorConfiguration = {
     tabSize: 2,
     lineWrapping: true,
-    lineNumbers: true,
+    lineNumbers: false,
     extraKeys: ctrlify({
       "Cmd-Enter": () => console.log("sup dawg")
     })
@@ -222,7 +223,7 @@ class Editor {
     this.cm = CodeMirror(() => undefined, this.defaults);
 
     let str = "";
-    for(let i = 0; i < 50; i++) {
+    for(let i = 0; i < 100; i++) {
       let len = i % 7;
       for(let j = 0; j < len; j++)
         str += "foo bar baz bat quux ";
@@ -242,9 +243,7 @@ class Editor {
   }
 
   refresh() {
-    if(this.cm) {
-      this.cm.refresh();
-    }
+    this.cm.refresh();
   }
 
   render() {
@@ -255,26 +254,26 @@ class Editor {
 //---------------------------------------------------------
 // Comments
 //---------------------------------------------------------
-/* - Last priority on width
- * - Icons below min width
- * - Soak up extra space
- * - Filters (?)
- * - Quick actions
- * - Count indicator (?)
- * - Scrollbar minimap
- * - Condensed, unattached console view
+/* - [x] Last priority on width
+ * - [ ] Icons below min width
+ * - [x] Soak up extra space
+ * - [ ] Filters (?)
+ * - [ ] Quick actions
+ * - [ ] Count indicator (?)
+ * - [x] Scrollbar minimap
+ * - [ ] Condensed, unattached console view
  * - Comment types:
  *   - Errors
  *   - Warnings
  *   - View results
  *   - Live docs
  *   - User messages / responses
- * - Comments are tagged by a Position or a Range which CM will track
- * - Hovering a comment will highlight its matching Position or Range
- * - Clicking a comment will  scroll its location into view
- * - Comments are collapsed by the callback that moves them into position by doing so in order
- * - Hovering a quick action whill display a transient tooltip beneath the action bar describing the impact of clicking it
- * - All QAs must be undo-able
+ * - [x] Comments are tagged by a Position or a Range which CM will track
+ * - [x] Hovering a comment will highlight its matching Position or Range
+ * - [x] Clicking a comment will scroll its location into view
+ * - [x] Comments are collapsed by the callback that moves them into position by doing so in order
+ * - [ ] Hovering a quick action whill display a transient tooltip beneath the action bar describing the impact of clicking it
+ * - [ ] All QAs must be undo-able
  */
 
 type CommentType = "error"|"warning"|"info"|"comment"|"result";
@@ -286,7 +285,8 @@ interface Comment {
   actions?: string[],
   replies?: string[],
 
-  marker?: CodeMirror.TextMarker
+  marker?: CodeMirror.TextMarker,
+  annotation?: CodeMirror.AnnotateScrollbar.Annotation
 }
 interface CommentMap {[id:string]: Comment}
 interface Action {
@@ -296,16 +296,44 @@ interface Action {
 }
 
 class Comments {
+  comments:CommentMap;
   ordered:string[];
 
   rootNode?:HTMLElement;
   _currentWidth?:number;
 
-  constructor(public ide:IDE, public comments: CommentMap) {
+  constructor(public ide:IDE, comments: CommentMap) {
+    this.update(comments);
+    window.addEventListener("resize", this.resizeComments);
+  }
+
+  update(comments:CommentMap) {
+    if(this.comments) {
+      for(let commentId of this.ordered) {
+        let comment = this.comments[commentId];
+        if(comment.marker) comment.marker.clear();
+        if(comment.annotation) comment.annotation.clear();
+      }
+    }
+    this.comments = comments;
     this.ordered = Object.keys(this.comments);
     this.ordered.sort(this.commentComparator);
 
-    window.addEventListener("resize", this.resizeComments);
+    this.annotateScrollbar();
+  }
+
+  annotateScrollbar = () => {
+    let cm = this.ide.editor.cm;
+
+    for(let commentId of this.ordered) {
+      let comment = this.comments[commentId];
+      if(!comment.annotation) comment.annotation = cm.annotateScrollbar({className: `scrollbar-annotation ${comment.type}`});
+      comment.annotation.update([isRange(comment.loc) ? comment.loc : {from: comment.loc, to: comment.loc}])
+      setTimeout(() => {
+        comment.annotation!.redraw(true);
+      }, 100);
+      console.log("doin it");
+    }
   }
 
   commentComparator = (aId:string, bId:string) => {
