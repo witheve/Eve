@@ -14,20 +14,9 @@ Eve is a set of tools to help us think. Currently, these tools include: a tempor
 
 ### From Source
 
-Before you can install Eve you'll need need LuaJIT, gcc, make, and python. Currently, building from source is only supported on Linux and OSX. On Windows, we've managed to compile Eve in cygwin, but have not gotten it to run yet. Contributions are welcome on this front.
+Before you can install Eve you'll need gcc, make, and npm. Currently, building from source is only supported on Linux and OSX. On Windows, we've managed to compile Eve in cygwin, but have not gotten it to run yet. Contributions are welcome on this front.
 
-First install gcc, make, and python using your operating system's standard channels. Chances are you already have these. Install luajit by downloading [LuaJIT-2.1.0-beta2](http://luajit.org/download.html) and then in the LuaJIT directory:
-
-```
-make
-make install
-```
-
-By default, LuaJIT is not added to your path, so you'll need to do that as well:
-
-```
-ln -sf luajit-2.1.0-beta2 /usr/local/bin/luajit
-```
+First install gcc, make, and npm using your operating system's standard channels. Chances are you already have these. 
 
 Next you'll need to download the Eve source, either by cloning our repository
 
@@ -50,8 +39,6 @@ docker pull witheve/eve
 Windows Users - Docker for Windows requires Microsoft Hyper-V, which requires Windows 10. For users of earlier Windows versions, binaries are forthcoming.
 
 ## [Running](https://github.com/witheve/docs/blob/master/drafts/handbook/running.md)
-
-### Native
 
 ### Native
 

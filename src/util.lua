@@ -57,9 +57,6 @@ function printList(obj)
    io.write("}")
 end
 
-if ... == nil then
-end
-
 function flatPrintTable(t)
    if t and type(t) == "table" then
      local result = ""
