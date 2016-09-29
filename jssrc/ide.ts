@@ -66,6 +66,10 @@ class Navigator {
     this.open = !this.open;
     render();
     event.stopPropagation();
+    // @FIXME: This is kinda hacky, but we'd have to have a full on animation system for better.
+    setTimeout(this.ide.resize, 100);
+    setTimeout(this.ide.resize, 200);
+    setTimeout(this.ide.resize, 300);
   }
 
   navigate = (event, elem:{nodeId:string}) => {
@@ -308,7 +312,6 @@ class Comments {
 
   constructor(public ide:IDE, comments: CommentMap) {
     this.update(comments);
-    window.addEventListener("resize", this.resizeComments);
   }
 
   collapsed() {
@@ -471,7 +474,7 @@ class Comments {
       nextNode.style.top = ""+(next.top + intersect);
       next = intervals[ix + 1] = nextNode.getBoundingClientRect();
     }
-  }, 32, true);
+  }, 16, true);
 
   wangjangle:RenderHandler = (node, elem) => {
     if(!node["_injected"]) {
@@ -551,13 +554,8 @@ class Comments {
       ]};
   }
 
-  commentBadge(commentId:string):Elem {
-    let comment = this.comments[commentId];
-
-    return {c: `comment badge ${comment.type}`, commentId, mouseover: this.openComment, mouseleave: this.closeComment, click: this.goTo};
-  }
-
   render():Elem { // @FIXME: I'm here, just hidden by CodeMirror and CM scroll
+    console.log("R");
     let children:Elem[] = [];
     for(let commentId of this.ordered) {
       children.push(this.comment(commentId));
@@ -697,6 +695,14 @@ class IDE {
   navigator:Navigator = new Navigator(this, "root", fakeNodes);
   editor:Editor = new Editor(this, fakeText);
   comments:Comments = new Comments(this, fakeComments);
+
+  constructor() {
+    window.addEventListener("resize", this.resize);
+  }
+
+  resize = debounce(() => {
+    this.comments.resizeComments();
+  }, 16, true);
 
   render() {
     // Update child states as necessary
