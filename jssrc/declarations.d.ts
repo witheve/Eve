@@ -1,7 +1,8 @@
 /// <reference path="./typings/codemirror/codemirror.d.ts" />
+/// <reference path="./typings/commonmark/commonmark.d.ts" />
 
 declare module "uuid";
-declare module "commonmark";
+
 declare module "microReact" {
   export interface Handler<T extends Event> {
     (evt:T, elem:Element): void
