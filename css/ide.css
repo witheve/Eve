@@ -24,9 +24,8 @@ html, body, __root { height: 100%; }
 
 .editor-pane { flex: 1; }
 
-.CodeMirror-sizer { display: flex; flex-direction: row; }
-.CodeMirror-sizer > div:first-child { width: 700px; }
-.comments-pane { flex: 1; }
+.CodeMirror-sizer > div:first-child { width: 700px; min-height: 100%; }
+.comments-pane { position: absolute; left: 700px; right: 0px; top: 0; bottom: 0; padding-right: 15px; }
 
 /****************************************************************************\
  * Navigator
@@ -97,7 +96,7 @@ html, body, __root { height: 100%; }
 /****************************************************************************\
  * Comments
 \****************************************************************************/
-.comments-pane { position: relative; background: #303030; }
+.comments-pane { background: #303030; }
 .comments-pane-inner { position: relative; min-width: 300px; max-width: 500px; }
 .comments-pane .comment { color: #d8d8d8; }
 
