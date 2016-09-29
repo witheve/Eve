@@ -853,15 +853,15 @@ class MarkdownEditor {
 //---------------------------------------------------------
 // Markdown Parsing
 //---------------------------------------------------------
-
-function parseMarkdown(markdown):{text: string, spans: any[]} {
+type MDSpan = [number, number, commonmark.Node];
+function parseMarkdown(markdown):{text: string, spans: MDSpan[]} {
   let parsed = parser.parse(markdown);
   let walker = parsed.walker();
   var cur;
   var text:string[] = [];
   var pos = 0;
   var lastLine = 1;
-  var spans:any[] = [];
+  var spans:MDSpan[] = [];
   var context:any[] = [];
   while(cur = walker.next()) {
     let node = cur.node;
