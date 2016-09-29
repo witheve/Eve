@@ -66,7 +66,7 @@ html, body, __root { height: 100%; }
 .CodeMirror { color: #c4c4c4; line-height:20px; font-family: Avenir; }
 .CodeMirror pre { padding: 0 4px; }
 .CodeMirror-scroll { scroll-behavior: smooth; }
-.CodeMirror-gutters { background: #303030; border-right: none; }
+.CodeMirror-gutters { background: #303030; border-right: none; padding-right: 5px; }
 .CodeMirror-linebackground { right:300px; }
 .CodeMirror-selected { background: #444; }
 .CodeMirror-focused .CodeMirror-selected { background: #444; }
@@ -104,7 +104,7 @@ html, body, __root { height: 100%; }
 .comments-pane .comment { position: absolute; padding: 5px 10px; margin-top: -2px; width: 100%; display: flex; flex-direction: column; align-items: stretch; overflow: visible; }
 .comments-pane .comment-inner { background: #303030; }
 .comments-pane .comment > .label { display: none; }
-.comments-pane .comment-inner > .description { font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:10pt; white-space: pre-wrap; }
+.comments-pane .comment-inner > .description { font-size: 10pt; white-space: pre-wrap; }
 
 .comments-pane .quick-actions { display: flex; flex-direction: row; flex-wrap: wrap; opacity: 0.5; transition: opacity 0.15s; }
 .comments-pane .comment:hover .quick-actions { opacity: 1; }
