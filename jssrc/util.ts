@@ -65,3 +65,19 @@ export function debounce<CB extends Function>(fn:CB, wait:number, leading?:boole
 
   return debounced;
 }
+
+export function unpad(str:string):string {
+  if(!str) return str;
+  let indent = 0;
+  let neue = "";
+  let lines = str.split("\n");
+  if(lines[0] == "") lines.shift();
+  while(lines[0][indent] == " ") indent++;
+  let multi = false;
+  for(let line of lines) {
+    if(multi) neue += "\n";
+    neue += line.substring(indent);
+    multi = true;
+  }
+  return neue;
+}
