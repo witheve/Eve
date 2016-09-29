@@ -24,8 +24,8 @@ html, body, __root { height: 100%; }
 
 .editor-pane { flex: 1; }
 
-.CodeMirror-sizer > div:first-child { width: 700px; min-height: 100%; }
-.comments-pane { position: absolute; left: 700px; right: 0px; top: 0; bottom: 0; padding-right: 15px; }
+.CodeMirror-sizer > div:first-child { width: 690px; min-height: 100%; margin-left: 5px; margin-right: 5px; }
+.comments-pane { position: absolute; left: 700px; right: 0px; top: 0; bottom: 0; padding-right: 15px; z-index: 1; }
 
 /****************************************************************************\
  * Navigator
@@ -97,13 +97,14 @@ html, body, __root { height: 100%; }
  * Comments
 \****************************************************************************/
 .comments-pane { background: #303030; }
-.comments-pane-inner { position: relative; min-width: 300px; max-width: 500px; }
+.comments-pane-inner { position: relative; min-width: 300px; max-width: 500px; height: 100%; }
 .comments-pane .comment { color: #d8d8d8; }
 
 
-.comments-pane .comment { position: absolute; padding: 5px 10px; margin-top: -2px; width: 100%; display: flex; flex-direction: column; align-items: stretch; background: #303030; }
+.comments-pane .comment { position: absolute; padding: 5px 10px; margin-top: -2px; width: 100%; display: flex; flex-direction: column; align-items: stretch; overflow: visible; }
+.comments-pane .comment-inner { background: #303030; }
 .comments-pane .comment > .label { display: none; }
-.comments-pane .comment > .description { font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:10pt; white-space: pre-wrap; }
+.comments-pane .comment-inner > .description { font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:10pt; white-space: pre-wrap; }
 
 .comments-pane .quick-actions { display: flex; flex-direction: row; flex-wrap: wrap; opacity: 0.5; transition: opacity 0.15s; }
 .comments-pane .comment:hover .quick-actions { opacity: 1; }
@@ -124,11 +125,17 @@ html, body, __root { height: 100%; }
 .comments-pane .comment.collapse-2,
 .comments-pane .comment.collapse-3 { border-top: 1px solid #202020; border-bottom: 1px solid #202020; }
 
-.comments-pane .comment.error{ }
+.comments-pane.collapsed .comments-pane-inner { min-width: 50px; }
+.comments-pane.collapsed .comment > .label { display: inline-block; margin-left: 25px; white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+.comments-pane.collapsed .comment-inner { display: none; }
+.comments-pane.collapsed .comment:hover .comment-inner { display: block; position: absolute; right: 0; top: 28px; width: 400px; padding: 10px; z-index: 1; border-radius: 2px; border: 1px solid #202020; }
 
-.error-title { color: rgb(73, 158, 211); }
-.error-context { color: rgb(83, 117, 137); }
-.error pre { font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:10pt; margin:0; margin-top:20px; margin-left:3px; }
+.comments-pane.collapsed .comment:before { content: "\f11b"; width: 30px; height: 30px; position: absolute; left: -5px; top: 0; padding: 5px; font-size: 20px; text-align: center; font-family: "Ionicons"; speak: none; text-transform: none; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;}
+.comments-pane.collapsed .comment.error:before { content: "\f100"; color: #F06060; }
+.comments-pane.collapsed .comment.warning:before { content: "\f100"; color: #C0C060; }
+
+
+
 
 .CodeMirror .comment-highlight.range { border-bottom: 1px solid white; }
 .CodeMirror .comment-highlight.range.error { border-bottom-color: #F06060; }
@@ -140,4 +147,4 @@ html, body, __root { height: 100%; }
 .CodeMirror .scrollbar-annotation { background: #AAA; min-height: 5px; opacity: 1; transition: opacity 0.15s; pointer-events: }
 .CodeMirror .scrollbar-annotation:hover { opacity: 0.5; }
 .CodeMirror .scrollbar-annotation.error { background: #F06060; }
-.CodeMirror .scrollbar-annotation.warn { background: #C0C060; }
+.CodeMirror .scrollbar-annotation.warning { background: #C0C060; }

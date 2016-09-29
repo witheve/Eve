@@ -1,6 +1,6 @@
 import {Renderer, Element as Elem, RenderHandler} from "microReact";
 import * as  CodeMirror from "codemirror";
-import {debounce} from "./util";
+import {debounce, uuid} from "./util";
 
 type Range = CodeMirror.Range;
 type Position = CodeMirror.Position;
@@ -30,7 +30,8 @@ interface TreeNode {
   children?: string[],
   open?: boolean,
 
-  hidden?: boolean
+  hidden?: boolean,
+  level?: number
 }
 interface TreeMap {[id:string]: TreeNode|undefined}
 
@@ -193,6 +194,7 @@ class Navigator {
  * - [ ] Show related (at least action -> EAV / EAV -> DOM
  * - [ ] Syntax highlighting
  * - [ ] Autocomplete (at least language constructs, preferably also expression schemas and known tags/names/attributes)
+ * - [ ] Undo
  */
 interface EditorNode extends HTMLElement { cm?: CodeMirror.Editor }
 
@@ -219,17 +221,18 @@ class Editor {
 
   cm:CodeMirror.Editor;
 
-  constructor(public ide:IDE) {
+  constructor(public ide:IDE, protected _value:string = "") {
     this.cm = CodeMirror(() => undefined, this.defaults);
+    this.cm.setValue(_value);
+  }
 
-    let str = "";
-    for(let i = 0; i < 100; i++) {
-      let len = i % 7;
-      for(let j = 0; j < len; j++)
-        str += "foo bar baz bat quux ";
-      str += "\n";
-    }
-    this.cm.setValue(str); // @FIXME
+  setValue(value:string) {
+    this._value = value;
+    this.cm.setValue(value);
+  }
+
+  refresh() {
+    this.cm.refresh();
   }
 
   // handlers
@@ -242,9 +245,7 @@ class Editor {
     render();
   }
 
-  refresh() {
-    this.cm.refresh();
-  }
+  // Elements
 
   render() {
     return {c: "editor-pane",  postRender: this.injectCodeMirror};
@@ -255,7 +256,8 @@ class Editor {
 // Comments
 //---------------------------------------------------------
 /* - [x] Last priority on width
- * - [ ] Icons below min width
+ * - [x] Icons below min width
+ * - [ ] BUG: Mouse left of comments-panel in icon popout causes popout to close
  * - [x] Soak up extra space
  * - [ ] Filters (?)
  * - [ ] Quick actions
@@ -272,8 +274,9 @@ class Editor {
  * - [x] Hovering a comment will highlight its matching Position or Range
  * - [x] Clicking a comment will scroll its location into view
  * - [x] Comments are collapsed by the callback that moves them into position by doing so in order
- * - [ ] Hovering a quick action whill display a transient tooltip beneath the action bar describing the impact of clicking it
+ * - [ ] Hovering a quick action will display a transient tooltip beneath the action bar describing the impact of clicking it
  * - [ ] All QAs must be undo-able
+ * - [ ] Aesthetic fix: selection goes under comments bar (instead of respecting line margins)
  */
 
 type CommentType = "error"|"warning"|"info"|"comment"|"result";
@@ -299,12 +302,17 @@ class Comments {
   comments:CommentMap;
   ordered:string[];
 
+  active?:string;
   rootNode?:HTMLElement;
   _currentWidth?:number;
 
   constructor(public ide:IDE, comments: CommentMap) {
     this.update(comments);
     window.addEventListener("resize", this.resizeComments);
+  }
+
+  collapsed() {
+    return this._currentWidth <= 300;
   }
 
   update(comments:CommentMap) {
@@ -328,11 +336,7 @@ class Comments {
     for(let commentId of this.ordered) {
       let comment = this.comments[commentId];
       if(!comment.annotation) comment.annotation = cm.annotateScrollbar({className: `scrollbar-annotation ${comment.type}`});
-      comment.annotation.update([isRange(comment.loc) ? comment.loc : {from: comment.loc, to: comment.loc}])
-      setTimeout(() => {
-        comment.annotation!.redraw(true);
-      }, 100);
-      console.log("doin it");
+      comment.annotation.update([isRange(comment.loc) ? comment.loc : {from: comment.loc, to: comment.loc}]);
     }
   }
 
@@ -382,6 +386,11 @@ class Comments {
     let inner:HTMLElement = this.rootNode.children[0] as any;
     if(this._currentWidth && inner.offsetWidth === this._currentWidth) return;
     else {
+      if(inner.offsetWidth <= 300) {
+        this.rootNode.classList.add("collapsed");
+      } else {
+        this.rootNode.classList.remove("collapsed");
+      }
       this._currentWidth = inner.offsetWidth;
     }
 
@@ -474,9 +483,11 @@ class Comments {
     this.resizeComments();
   }
 
-  highlight = (event, {commentId}) => {
+  highlight = (event:MouseEvent, {commentId}) => {
     let comment = this.comments[commentId];
+    this.active = commentId;
     if(comment.marker) return;
+
     let cm = this.ide.editor.cm;
     let doc = cm.getDoc();
 
@@ -488,9 +499,11 @@ class Comments {
     }
   }
 
-  unhighlight = (event, {commentId}) => {
+  unhighlight = (event:MouseEvent, {commentId}) => {
     let comment = this.comments[commentId];
+        this.active = undefined;
     if(!comment.marker) return;
+
     comment.marker.clear();
     comment.marker = undefined;
   }
@@ -501,32 +514,53 @@ class Comments {
     cm.scrollIntoView(isRange(comment.loc) ? comment.loc.from : comment.loc, 20);
   }
 
+  openComment = (event, {commentId}) => {
+    this.active = commentId;
+    render();
+  }
+
+  closeComment = (event, {commentId}) => {
+    this.active = undefined;
+    render();
+  }
+
+  comment(commentId:string):Elem {
+    let comment = this.comments[commentId];
+    let actions:Elem[] = [];
+    if(comment.actions) {
+      for(let actionId of comment.actions) {
+        let action = this.actions[actionId];
+        if(!action) {
+          console.warn(`Unknown action id: '${actionId}'`);
+          continue;
+        }
+        let elem = {c: `comment-action`, text: action.name, tooltip: action.description(comment), commentId, click: action.run};
+        actions.push(elem);
+      }
+    }
+
+    return {
+      c: `comment ${comment.type}`, commentId,
+      mouseover: this.highlight, mouseleave: this.unhighlight, click: this.goTo,
+      children: [
+        comment.title ? {c: "label", text: comment.title} : undefined,
+        {c: "comment-inner", children: [
+          comment.description ? {c: "description", text: comment.description} : undefined,
+          actions.length ? {c: "quick-actions", children: actions} : undefined,
+        ]}
+      ]};
+  }
+
+  commentBadge(commentId:string):Elem {
+    let comment = this.comments[commentId];
+
+    return {c: `comment badge ${comment.type}`, commentId, mouseover: this.openComment, mouseleave: this.closeComment, click: this.goTo};
+  }
+
   render():Elem { // @FIXME: I'm here, just hidden by CodeMirror and CM scroll
     let children:Elem[] = [];
     for(let commentId of this.ordered) {
-      let comment = this.comments[commentId];
-      let actions:Elem[] = [];
-      if(comment.actions) {
-        for(let actionId of comment.actions) {
-          let action = this.actions[actionId];
-          if(!action) {
-            console.warn(`Unknown action id: '${actionId}'`);
-            continue;
-          }
-          let elem = {c: `comment-action`, text: action.name, tooltip: action.description(comment), commentId, click: action.run};
-          actions.push(elem);
-        }
-      }
-
-      let elem = {
-        c: `comment ${comment.type}`, commentId,
-        mouseover: this.highlight, mouseleave: this.unhighlight, click: this.goTo,
-        children: [
-          comment.title ? {c: "label", text: comment.title} : undefined,
-          comment.description ? {c: "description", text: comment.description} : undefined,
-          actions.length ? {c: "quick-actions", children: actions} : undefined,
-        ]};
-      children.push(elem);
+      children.push(this.comment(commentId));
     }
 
     return {c: "comments-pane", postRender: this.wangjangle, children: [{c: "comments-pane-inner", children}]};
@@ -580,17 +614,77 @@ function modalWrapper():Elem {
 // Root
 //---------------------------------------------------------
 
+var fakeText = `# Department Costs
+
+This application helps Accounting keep track of internal expenses
+
+## Calculations
+
+Calculate the cost of wages per department
+
+### Vuvuzela
+
+Create the departments and employees.
+\`\`\`
+commit
+  engineering = [#department @engineering]
+  operations = [#department @operations]
+  [#employee @josh department: engineering salary: 10]
+  [#employee @chris department: engineering salary: 7]
+  [#employee @rob department: operations salary: 7]
+\`\`\`
+
+To calculate the cost of a department, we sum the salaries of its employees.
+
+\`\`\`
+match
+  department = [#department]
+  employee = [#employee salary department]
+  cost = sum[value: salary, given: employee, per: department]
+bind
+  department.cost := cost
+\`\`\`
+
+## Visualizations
+
+Finally, we visualize the costs
+
+\`\`\`
+match
+  [#department name cost]
+bind @browser
+  [#div text: "{{name}} costs {{cost}}"]
+\`\`\`
+
+`;
+
+function _addFakeDoc(name:string, text:string, nodes:TreeMap, parentId?:string) {
+  let rootId = uuid();
+  if(parentId && nodes[parentId]) {
+    nodes[parentId]!.children!.push(rootId);
+  }
+
+  let root = nodes[rootId] = {name, type: "document", children: []};
+  let stack:TreeNode[] = [root];
+  for(let line of text.split("\n")) {
+    if(line[0] == "#") {
+      let id = uuid();
+      let level = 0;
+      while(line[level] === "#") level++;
+      while((stack.length > 1) && (level <= stack[stack.length - 1].level)) stack.pop();
+      stack[stack.length - 1].children!.push(id);
+
+      let node = {name: line.substring(level), type: "section", level, children: []};
+      stack.push(node);
+      nodes[id] = node;
+    }
+  }
+}
+
 var fakeNodes:TreeMap = {
-  root: {name: "hello tree", type: "folder", open: true, children: ["bob", "janet", "bar"]},
-  bob: {name: "bobby", type: "folder", children: ["jess"]},
-  bar: {name: "bar", type: "document"},
-  janet: {name: "Jay", type: "document", children: ["h1", "h22"]},
-  h1: {name: "JANET", type: "section", children: ["h2", "h3"]},
-  h2: {name: "The Making Of", type: "section"},
-  h22: {name: "The Man; The Legend", type: "section"},
-  h3: {name: "wjut", type: "section", children: ["h4"]},
-  h4: {name: "k i am a really long name", type: "section"}
+  root: {name: "examples", type: "folder", open: true, children: ["department cost", "tic tac toe"]}
 };
+_addFakeDoc("Department Cost", fakeText, fakeNodes, "root");
 
 var fakeComments:CommentMap = {
   foo: {loc: {line: 2, ch: 3}, type: "error", title: "Unassigned if", description: "You can only assign an if to a block or an identifier"},
@@ -601,7 +695,7 @@ var fakeComments:CommentMap = {
 
 class IDE {
   navigator:Navigator = new Navigator(this, "root", fakeNodes);
-  editor:Editor = new Editor(this);
+  editor:Editor = new Editor(this, fakeText);
   comments:Comments = new Comments(this, fakeComments);
 
   render() {
