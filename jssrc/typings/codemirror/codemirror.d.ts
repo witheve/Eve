@@ -1245,6 +1245,29 @@ declare namespace CodeMirror {
     }
 
   var commands:{[name:string]:(editor:Editor) => void}
+
+
+  // Extension typings addon/scroll/annotatescrollbar.js
+  namespace AnnotateScrollbar {
+    interface Options {
+      className?: string;
+      scrollButtonHeight?: number;
+      listenForChanges?: boolean;
+
+    }
+
+    class Annotation {
+      constructor(cm:Editor, options:Options)
+
+      computeScale():boolean
+      update(annotation:Range[])
+      redraw(compute:boolean)
+      clear()
+    }
+  }
+  interface Editor {
+    annotateScrollbar(options:AnnotateScrollbar.Options):AnnotateScrollbar.Annotation
+  }
 }
 
 declare module "codemirror" {

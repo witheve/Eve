@@ -110,5 +110,3 @@ declare module "microReact" {
     render(elems:Element[]);
   }
 }
-
-declare module "CodeMirror";
