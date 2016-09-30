@@ -209,7 +209,7 @@ function changeToOps(editor, change) {
   invert.push(remaining);
 }
 
-function changeToFinalPos(change) {
+function changeToFinalPos(change:CodeMirror.EditorChangeCancellable) {
   let {from, to, text} = change;
   let adjusted = {line: from.line + (text.length - 1), ch: 0}
   if(text.length == 1) {
@@ -220,7 +220,7 @@ function changeToFinalPos(change) {
   return adjusted;
 }
 
-function formattingChange(span, change, action) {
+function formattingChange(span:Span, change:CodeMirror.EditorChangeCancellable, action) {
   let editor = span.editor;
   let source = {type: span.source.type};
   let {from, to} = change;
@@ -229,6 +229,7 @@ function formattingChange(span, change, action) {
     splitMark(editor, span, from, adjusted);
   } else if(!action) {
     let loc = span.find();
+    if(!loc) return;
     // if we're at the end of this mark
     if(samePos(loc.to, from)) {
       span.clear();
