@@ -24,7 +24,7 @@ html, body, __root { height: 100%; }
 
 .editor-pane { flex: 1; }
 
-.CodeMirror-sizer > div:first-child { width: 690px; min-height: 100%; margin-left: 5px; margin-right: 5px; }
+.CodeMirror-sizer > div:first-child { width: 690px; min-height: 100%; }
 .comments-pane { position: absolute; left: 700px; right: 0px; top: 0; bottom: 0; padding-right: 15px; z-index: 1; }
 
 /****************************************************************************\
@@ -136,7 +136,7 @@ html, body, __root { height: 100%; }
 
 
 
-.CodeMirror .comment-highlight.range { border-bottom: 1px solid white; }
+.CodeMirror .comment-highlight.range { border-bottom: 1px dashed white; }
 .CodeMirror .comment-highlight.range.error { border-bottom-color: #F06060; }
 .CodeMirror .comment-highlight.range.warning { border-bottom-color: #C0C060; }
 .CodeMirror .comment-highlight.pos:after { display: block; content: "^"; position: absolute; left: 0; bottom: -10px; color: white; }

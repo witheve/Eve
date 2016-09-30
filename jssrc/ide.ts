@@ -21,6 +21,12 @@ function samePosition(a:Position, b:Position) {
   return comparePositions(a, b) === 0;
 }
 
+function whollyEnclosed(inner:Range, outer:Range) {
+  let left = comparePositions(inner.from, outer.from);
+  let right = comparePositions(inner.to, outer.to);
+  return (left === 1 || left === 0) && (right === -1 || right === 0);
+}
+
 export var renderer = new Renderer();
 document.body.appendChild(renderer.content);
 
@@ -217,23 +223,23 @@ function isSpanMarker(x:CodeMirror.TextMarker): x is SpanMarker {
 
 class Span {
   protected static _nextId = 0;
+  isLine = false;
 
   id: number = Span._nextId++;
   editor: Editor;
   marker?: SpanMarker;
 
-  protected _attributes:CodeMirror.TextMarkerOptions;
+  protected _attributes:CodeMirror.TextMarkerOptions = {};
 
-  lineTextClass?: string;
-  lineBackgroundClass?: string;
+  constructor(protected _from:Position, protected _to:Position, public source:any) {
+    this._attributes.className = source.type;
+  }
 
-  constructor(protected _from:Position, protected _to:Position, protected _source:any) {}
-
-  find():Range {
+  find():Range|undefined {
     if(!this.marker) return {from: this._from, to: this._to};
 
     let loc = this.marker.find();
-    if(!loc) throw new Error("Could not find marker");
+    if(!loc) return;
     if(isRange(loc)) return loc;
     return {from: loc, to: loc};
   }
@@ -244,10 +250,12 @@ class Span {
 
   clone<T extends Span>(this:T):T {
     let loc = this.find();
-    return new (this.constructor as any)(loc.from, loc.to, this._source);
+    if(!loc) throw new Error("Could not find marker");
+    return new (this.constructor as any)(loc.from, loc.to, this.source);
   }
 
   applyMark(editor:Editor) {
+    this.editor = editor;
     let cm = editor.cm;
     let doc = cm.getDoc();
     let {_from, _to} = this;
@@ -257,49 +265,103 @@ class Span {
       this.marker = doc.setBookmark(_from, {});
     }
     this.marker.span = this;
-
-    if(this.lineTextClass || this.lineBackgroundClass) {
-      let end = _from.line != _to.line ? _to.line : _to.line + 1;
-      for(let line = _from.line; line < end; line++) {
-        if(this.lineBackgroundClass) cm.addLineClass(line, "background", this.lineBackgroundClass);
-        if(this.lineTextClass) cm.addLineClass(line, "text", this.lineTextClass);
-      }
-    }
   }
 
   clear(origin = "+delete") {
     if(!this.marker) return;
     let cm = this.editor.cm;
 
-    let loc = this.find();
-    let _from = this._from = loc.from;
-    let _to = this._to = loc.to;
     this.editor.clearSpan(this, origin);
     this.marker.clear();
     this.marker.span = undefined;
     this.marker = undefined;
-
-    if(this.lineTextClass || this.lineBackgroundClass) {
-      let end = _from.line != _to.line ? _to.line : _to.line + 1;
-      for(let line = _from.line; line < end; line++) {
-        if(this.lineBackgroundClass) cm.removeLineClass(line, "background", this.lineBackgroundClass);
-        if(this.lineTextClass) cm.removeLineClass(line, "text", this.lineTextClass);
-      }
-    }
   }
 
   // Handlers
-  refresh(change:CodeMirror.EditorChangeCancellable) {}
-  onBeforeChange(change:CodeMirror.EditorChangeCancellable) {}
-  onChange(change:CodeMirror.EditorChangeCancellable) {}
+  refresh(change:Change) {}
+  onBeforeChange(change:Change) {}
+
+  // Every span that doesn't have its own onChange logic wants to do this...
+  onChange(change:Change) {
+    let action = this.editor.formatting["strong"];
+    if(change.origin === "+input") {
+      formattingChange(this, change, action);
+    }
+  }
 }
 
-class CodeBlockSpan extends Span {
+class LineSpan extends Span {
+  isLine = true;
+  lineTextClass?: string;
+  lineBackgroundClass?: string;
+
+  applyMark(editor:Editor) {
+    super.applyMark(editor);
+
+    let cm = this.editor.cm;
+    let end = this._to.line + ((this._from.line === this._to.line) ? 1 : 0);
+    for(let line = this._from.line; line < end; line++) {
+      if(this.lineBackgroundClass) cm.addLineClass(line, "background", this.lineBackgroundClass);
+      if(this.lineTextClass) cm.addLineClass(line, "text", this.lineTextClass);
+    }
+  }
+
+  clear(origin?:string) {
+    super.clear(origin);
+
+    let cm = this.editor.cm;
+    let loc = this.find()
+    if(!loc) return;
+    let end = loc.to.line + ((loc.from.line === loc.to.line) ? 1 : 0);
+    for(let line = loc.from.line; line < end; line++) {
+      if(this.lineBackgroundClass) cm.addLineClass(line, "background", this.lineBackgroundClass);
+      if(this.lineTextClass) cm.addLineClass(line, "text", this.lineTextClass);
+    }
+  }
+}
+function isLineSpan(span:Span): span is LineSpan {
+  return span.isLine;
+}
+
+class HeadingSpan extends LineSpan {
+  constructor(_from:Position, _to:Position, source:any) {
+    super(_from, _to, source);
+    let cls =  "HEADING" + this.source.level;
+    this.lineTextClass = cls;
+    this.lineBackgroundClass = cls;
+    this._attributes.className = cls;
+  }
+}
+
+class ListItemSpan extends LineSpan {
+  lineTextClass = "ITEM";
+}
+
+class CodeBlockSpan extends LineSpan {
   lineBackgroundClass = "CODE";
 }
 
+class ElisionSpan extends LineSpan {
+  lineBackgroundClass = "elision";
+  protected element = document.createElement("div");
+
+  constructor(_from:Position, _to:Position, source:any) {
+    super(_from, _to, source);
+    this.element.className = "elision-marker";
+    this._attributes.replacedWith = this.element;
+  }
+}
+
+type FormatType = "strong"|"emph"|"code";
+type FormatLineType = "heading"|"item"|"code_block"|"elision";
+type FormatAction = "add"|"remove"|"split";
+type SpanType = FormatType|FormatLineType|"default";
+
 var spanTypes:{[type:string]: (typeof Span)} = {
+  heading: HeadingSpan,
+  item: ListItemSpan,
   code_block: CodeBlockSpan,
+  elision: ElisionSpan,
   "default": Span
 }
 
@@ -309,7 +371,7 @@ var spanTypes:{[type:string]: (typeof Span)} = {
 //---------------------------------------------------------
 /* - [x] Exactly 700px
  * - [ ] Syntax highlighting
-   * - [ ] Add missing span types
+   * - [x] Add missing span types
    * - [ ] Event handlers e.g. onChange, etc.
    * - [ ] Get spans updating again
  * - [ ] Display cardinality badges
@@ -318,8 +380,8 @@ var spanTypes:{[type:string]: (typeof Span)} = {
  * - [ ] Undo
  */
 interface EditorNode extends HTMLElement { cm?: CodeMirror.Editor }
-
 type MDSpan = [number, number, commonmark.Node];
+
 let _mdParser = new MDParser();
 function parseMarkdown(input:string):{text: string, spans: MDSpan[]} {
   let parsed = _mdParser.parse(input);
@@ -372,6 +434,66 @@ function parseMarkdown(input:string):{text: string, spans: MDSpan[]} {
   return {text: text.join(""), spans};
 }
 
+class Change implements CodeMirror.EditorChange {
+  protected _final?:Position;
+  constructor(protected _raw:CodeMirror.EditorChange) {
+    _raw.from;
+    _raw.origin;
+    _raw.removed;
+    _raw.text;
+    _raw.to;
+  }
+
+  /** String representing the origin of the change event and whether it can be merged with history */
+  get origin() { return this._raw.origin; }
+  /** Lines of text that used to be between from and to, which is overwritten by this change. */
+  get text() { return this._raw.text; }
+  /** Lines of text that used to be between from and to, which is overwritten by this change. */
+  get removed() { return this._raw.removed; }
+  /** Position (in the pre-change coordinate system) where the change started. */
+  get from() { return this._raw.from; }
+  /** Position (in the pre-change coordinate system) where the change ended. */
+  get to() { return this._raw.from; }
+  /** Position (in the post-change coordinate system) where the change eneded. */
+  get final() {
+    if(!this._final) {
+      let {from, to, text} = this._raw;
+      this._final = {line: from.line + (text.length - 1), ch: text[text.length - 1].length};
+      if(text.length == 1) {
+        this._final.ch += from.ch;
+      }
+    }
+    return this._final;
+  }
+  /** String of all text added in the change */
+  get addedText() { return this._raw.text.join("\n"); }
+  /** String of all text removed in the change */
+  get removedText() { return this._raw.removed.join("\n"); }
+}
+
+function formattingChange(span:Span, change:Change, action?:FormatAction) {
+  let editor = span.editor;
+  let final = change.final;
+
+  let loc = span.find();
+  if(!loc) return;
+  // Cut the changed range out of a span
+  if(action == "split") {
+    editor.markSpan(loc.from, change.from, span.source); // @FIXME: Doesn't this always trigger for splits..?
+    // If the change is within the right edge of the span, recreate the remaining segment
+    if(comparePositions(change.to, loc.to) === -1) {
+      editor.markSpan(change.to, loc.to, span.source);
+    }
+
+  } else if(!action) {
+    // If we're at the end of the span, expand it to include the change
+    if(samePosition(loc.to, change.from)) {
+      span.clear();
+      editor.markSpan(loc.from, final, span.source);
+    }
+  }
+}
+
 
 function ctrlify(keymap) {
   let finalKeymap = {};
@@ -396,6 +518,9 @@ class Editor {
 
   cm:CodeMirror.Editor;
 
+  /** Formatting state for the editor at the cursor. */
+  formatting = {};
+
   constructor(public ide:IDE, protected _value:string = "") {
     this.cm = CodeMirror(() => undefined, this.defaults);
     this.loadMarkdown(_value);
@@ -413,19 +538,189 @@ class Editor {
     });
   }
 
-  markSpan(frm:Position, to:Position, source:any) {
-    let SpanClass = spanTypes[source.type] || spanTypes["default"];
-    let span = new SpanClass(frm, to, source);
-    span.applyMark(this);
-    console.log("Marking", frm, to, source);
+  refresh() {
+    this.cm.refresh();
+  }
+
+  //-------------------------------------------------------
+  // Spans
+  //-------------------------------------------------------
+
+  getAllSpans(type?:SpanType):Span[] {
+    let doc = this.cm.getDoc();
+    let marks:SpanMarker[] = doc.getAllMarks();
+    let spans:Span[] = [];
+    for(let mark of marks) {
+      if(mark.span && (!type || mark.span.source.type === type)) {
+        spans.push(mark.span);
+      }
+    }
+    return spans;
+  }
+
+  findSpans(start:Position, stop:Position, type?:SpanType):Span[] {
+    let doc = this.cm.getDoc();
+    let marks:SpanMarker[] = doc.findMarks(start, stop);
+    let spans:Span[] = [];
+    for(let mark of marks) {
+      if(mark.span && (!type || mark.span.source.type === type)) {
+        spans.push(mark.span);
+      }
+    }
+    return spans;
+  }
+
+  findSpansAt(pos:Position, type?:SpanType):Span[] {
+    let doc = this.cm.getDoc();
+    let marks:SpanMarker[] = doc.findMarksAt(pos);
+    let spans:Span[] = [];
+    for(let mark of marks) {
+      if(mark.span && (!type || mark.span.source.type === type)) {
+        spans.push(mark.span);
+      }
+    }
+    return spans;
   }
 
   clearSpan(span:Span, origin = "+delete") {
     console.log("@TODO: Implement me!");
   }
 
-  refresh() {
-    this.cm.refresh();
+  /** Create a new Span representing the given source in the document. */
+  markSpan(from:Position, to:Position, source:any) {
+    let SpanClass = spanTypes[source.type] || spanTypes["default"];
+    if(SpanClass === Span) console.log(source.type);
+    let span = new SpanClass(from, to, source);
+    span.applyMark(this);
+    console.log("Marking", from, to, source);
+  }
+
+  //-------------------------------------------------------
+  // Formatting
+  //-------------------------------------------------------
+
+  /** Create a new span representing the given source, collapsing and splitting existing spans as required to maintain invariants. */
+  formatSpan(from:Position, to:Position, source:any) {
+    let selection = {from, to};
+    let spans = this.findSpans(from, to, source.type);
+    let formatted = false;
+    for(let span of spans) {
+      let loc = span.find();
+      if(!loc) continue;
+
+      // If the formatted range matches an existing span of the same type, clear it.
+      if(samePosition(loc.from, from) && samePosition(loc.to, to)) {
+        span.clear();
+        formatted = true;
+
+        // If formatted range wholly encloses a span of the same type, clear it.
+      } else if(whollyEnclosed(loc, selection)) {
+        span.clear();
+
+        // If the formatted range is wholly enclosed in a span of the same type, split the span around it.
+      } else if(whollyEnclosed(selection, loc)) {
+        this.markSpan(loc.from, from, source);
+        this.markSpan(to, loc.to, source);
+        span.clear();
+        formatted = true;
+
+        // If the formatted range intersects the end of a span of the same type, clear the intersection.
+      } else if(comparePositions(loc.to, from) > 0) {
+        this.markSpan(loc.from, from, source);
+        span.clear();
+
+        // If the formatted range intersects the start of a span of the same type, clear the intersection.
+      } else if(comparePositions(loc.from, to) < 0) {
+        this.markSpan(to, loc.to, source);
+        span.clear();
+      }
+    }
+
+    // If we haven't already formatted by removing existing span(s) then we should create a new span
+    if(!formatted) {
+      this.markSpan(from, to, source);
+    }
+  }
+
+  format(type:FormatType) {
+    this.finalizeLastHistoryEntry();
+    let doc = this.cm.getDoc();
+    this.cm.operation(() => {
+      // If we have a selection, format it.
+      if(doc.somethingSelected()) {
+        this.formatSpan(doc.getCursor("from"), doc.getCursor("to"), {type})
+
+        // Otherwise we want to change our current formatting state.
+      } else {
+        let action:FormatAction = "add"; // By default, we just want our following changes to be bold
+        let cursor = doc.getCursor("from");
+        let spans = this.findSpansAt(cursor, type);
+        for(let span of spans) {
+          let loc = span.find();
+          if(!loc) continue;
+          // If we're at the end of a bold span, we want to stop bolding.
+          if(samePosition(loc.to, cursor)) action = "remove";
+          // If we're at the start of a bold span, we want to continue bolding.
+          if(samePosition(loc.from, cursor)) action = "add";
+          // Otherwise we're somewhere in the middle, and want to insert some unbolded text.
+          else action = "split";
+        }
+        this.formatting[type] = action;
+      }
+      this.finalizeLastHistoryEntry();
+    });
+  }
+
+  formatLine(type:FormatType) {
+    this.finalizeLastHistoryEntry();
+    let doc = this.cm.getDoc();
+    let source = {type};
+    this.cm.operation(() => {
+      let from = doc.getCursor("from");
+      let to = doc.getCursor("to");
+
+      let existing:LineSpan[] = [];
+      let formatted = false;
+      for(let line = from.line, end = to.line; line <= end; line++) {
+        let cur = {line, ch: 0};
+
+        // Line formats are exclusive, so we clear intersecting line spans of other types.
+        let spans = this.findSpansAt(cur);
+        for(let span of spans) {
+          if(isLineSpan(span) && span.source.type !== type) {
+            span.clear();
+          }
+        }
+
+        spans = this.findSpansAt(cur, type);
+        // If this line isn't already formatted to this type, format it.
+        if(!spans.length) {
+          this.formatSpan(cur, cur, source);
+          formatted = true;
+          // Otherwise store the span. We may need to clear them if we intend to unformat the selection.
+        } else {
+          existing.push.apply(existing, spans);
+        }
+      }
+
+      // If no new lines were formatted, we mean to clear the existing format.
+      if(!formatted) {
+        for(let span of existing) {
+          span.clear();
+        }
+      }
+
+      this.finalizeLastHistoryEntry();
+      this.refresh();
+    });
+  }
+
+  //-------------------------------------------------------
+  // Undo History
+  //-------------------------------------------------------
+
+  finalizeLastHistoryEntry() {
+    console.warn("@TODO: Implement me!");
   }
 
   // handlers
@@ -810,6 +1105,9 @@ This application helps Accounting keep track of internal expenses
 ## Calculations
 
 Calculate the cost of wages per department
+ - **Engineering**
+ - *Ops*
+ - \`Magic\`
 
 ### Vuvuzela
 
@@ -876,16 +1174,16 @@ var fakeNodes:TreeMap = {
 _addFakeDoc("Department Cost", fakeText, fakeNodes, "root");
 
 var fakeComments:CommentMap = {
-  bar: {loc: {from: {line: 21, ch: 15}, to: {line: 21, ch: 26}}, type: "error", title: "Invalid tag location", actions: ["fix it"], description: unpad(`
+  bar: {loc: {from: {line: 24, ch: 15}, to: {line: 24, ch: 26}}, type: "error", title: "Invalid tag location", actions: ["fix it"], description: unpad(`
         '#department' tells me to search for a record tagged "department", but since it's not in a record, I don't know the full pattern to look for.
 
         If you wrap it in square brackets, that tells me you're looking for a record with just that tag.`)},
 
-  catbug: {loc: {from: {line: 22, ch: 13}, to: {line: 22, ch: 52}}, type: "warning", title: "Unmatched pattern", actions: ["create it", "fake it", "dismiss"], description: unpad(`
+  catbug: {loc: {from: {line: 25, ch: 13}, to: {line: 25, ch: 52}}, type: "warning", title: "Unmatched pattern", actions: ["create it", "fake it", "dismiss"], description: unpad(`
            No records currently in the database match this pattern, and no blocks are capable of providing one.
 
            I can create a new block for you to produce records shaped like this; or add some fake records that match that pattern for testing purposes.`)},
-  dankeykang: {loc: {from: {line: 34, ch: 17}, to: {line: 34, ch: 21}}, type: "error", title: "Unbound variable", description: unpad(`
+  dankeykang: {loc: {from: {line: 37, ch: 17}, to: {line: 37, ch: 21}}, type: "error", title: "Unbound variable", description: unpad(`
                The variable 'nqme' was not bound in this block. Did you mean 'name'?
                `)},
 };
