@@ -230,6 +230,7 @@ class Span {
   marker?: SpanMarker;
 
   protected _attributes:CodeMirror.TextMarkerOptions = {};
+  type:SpanType = "default";
 
   constructor(protected _from:Position, protected _to:Position, public source:any) {
     this._attributes.className = source.type;
@@ -279,12 +280,12 @@ class Span {
 
   // Handlers
   refresh(change:Change) {}
-  onBeforeChange(change:Change) {}
+  onBeforeChange(change:ChangeCancellable) {}
 
   // Every span that doesn't have its own onChange logic wants to do this...
   onChange(change:Change) {
-    let action = this.editor.formatting["strong"];
     if(change.origin === "+input") {
+      let action = this.editor.formatting[this.type];
       formattingChange(this, change, action);
     }
   }
@@ -324,6 +325,7 @@ function isLineSpan(span:Span): span is LineSpan {
 }
 
 class HeadingSpan extends LineSpan {
+  type:SpanType = "heading";
   constructor(_from:Position, _to:Position, source:any) {
     super(_from, _to, source);
     let cls =  "HEADING" + this.source.level;
@@ -334,14 +336,17 @@ class HeadingSpan extends LineSpan {
 }
 
 class ListItemSpan extends LineSpan {
+  type:SpanType = "item";
   lineTextClass = "ITEM";
 }
 
 class CodeBlockSpan extends LineSpan {
+  type:SpanType = "code_block";
   lineBackgroundClass = "CODE";
 }
 
 class ElisionSpan extends LineSpan {
+  type:SpanType = "elision";
   lineBackgroundClass = "elision";
   protected element = document.createElement("div");
 
@@ -350,6 +355,14 @@ class ElisionSpan extends LineSpan {
     this.element.className = "elision-marker";
     this._attributes.replacedWith = this.element;
   }
+}
+
+class StrongSpan extends Span {
+  type:SpanType = "strong";
+}
+
+class EmphasisSpan extends Span {
+  type:SpanType = "emph";
 }
 
 type FormatType = "strong"|"emph"|"code";
@@ -362,6 +375,8 @@ var spanTypes:{[type:string]: (typeof Span)} = {
   item: ListItemSpan,
   code_block: CodeBlockSpan,
   elision: ElisionSpan,
+  strong: StrongSpan,
+  emph: EmphasisSpan,
   "default": Span
 }
 
@@ -370,10 +385,12 @@ var spanTypes:{[type:string]: (typeof Span)} = {
 // Editor
 //---------------------------------------------------------
 /* - [x] Exactly 700px
- * - [ ] Syntax highlighting
+ * - [ ] Markdown styling
    * - [x] Add missing span types
-   * - [ ] Event handlers e.g. onChange, etc.
-   * - [ ] Get spans updating again
+   * - [x] Event handlers e.g. onChange, etc.
+   * - [x] Get spans updating again
+   * - [ ] BUG: Formatting selected too inclusive: |A*A|A* -Cmd-B-> AAA
+ * - [ ] Syntax highlighting
  * - [ ] Display cardinality badges
  * - [ ] Show related (at least action -> EAV / EAV -> DOM
  * - [ ] Autocomplete (at least language constructs, preferably also expression schemas and known tags/names/attributes)
@@ -435,16 +452,9 @@ function parseMarkdown(input:string):{text: string, spans: MDSpan[]} {
 }
 
 class Change implements CodeMirror.EditorChange {
-  protected _final?:Position;
-  constructor(protected _raw:CodeMirror.EditorChange) {
-    _raw.from;
-    _raw.origin;
-    _raw.removed;
-    _raw.text;
-    _raw.to;
-  }
+  constructor(protected _raw:CodeMirror.EditorChange) {}
 
-  /** String representing the origin of the change event and whether it can be merged with history */
+  /** String representing the origin of the change event and whether it can be merged with history. */
   get origin() { return this._raw.origin; }
   /** Lines of text that used to be between from and to, which is overwritten by this change. */
   get text() { return this._raw.text; }
@@ -456,40 +466,66 @@ class Change implements CodeMirror.EditorChange {
   get to() { return this._raw.from; }
   /** Position (in the post-change coordinate system) where the change eneded. */
   get final() {
-    if(!this._final) {
-      let {from, to, text} = this._raw;
-      this._final = {line: from.line + (text.length - 1), ch: text[text.length - 1].length};
-      if(text.length == 1) {
-        this._final.ch += from.ch;
-      }
+    let {from, to, text} = this._raw;
+    let final = {line: from.line + (text.length - 1), ch: text[text.length - 1].length};
+    if(text.length == 1) {
+      final.ch += from.ch;
     }
-    return this._final;
+    return final;
   }
-  /** String of all text added in the change */
+
+  /** String of all text added in the change. */
   get addedText() { return this._raw.text.join("\n"); }
-  /** String of all text removed in the change */
+  /** String of all text removed in the change. */
   get removedText() { return this._raw.removed.join("\n"); }
+}
+
+class ChangeLinkedList extends Change {
+  constructor(protected _raw:CodeMirror.EditorChangeLinkedList) {
+    super(_raw);
+  }
+
+  /** Next change object in sequence, if any. */
+  next() {
+    return this._raw.next && new ChangeLinkedList(this._raw.next);
+  }
+}
+
+class ChangeCancellable extends Change {
+  constructor(protected _raw:CodeMirror.EditorChangeCancellable) {
+    super(_raw);
+  }
+
+  get canceled() { return this._raw.canceled; }
+
+  update(from?:Position, to?:Position, text?:string) {
+    return this._raw.update(from, to, text);
+  }
+
+  cancel() {
+    return this._raw.cancel();
+  }
 }
 
 function formattingChange(span:Span, change:Change, action?:FormatAction) {
   let editor = span.editor;
-  let final = change.final;
-
   let loc = span.find();
   if(!loc) return;
   // Cut the changed range out of a span
   if(action == "split") {
-    editor.markSpan(loc.from, change.from, span.source); // @FIXME: Doesn't this always trigger for splits..?
+    let final = change.final;
+    editor.markSpan(loc.from, change.from, span.source);
     // If the change is within the right edge of the span, recreate the remaining segment
-    if(comparePositions(change.to, loc.to) === -1) {
-      editor.markSpan(change.to, loc.to, span.source);
+    if(comparePositions(final, loc.to) === -1) {
+      editor.markSpan(final, loc.to, span.source);
     }
+    span.clear();
 
   } else if(!action) {
     // If we're at the end of the span, expand it to include the change
     if(samePosition(loc.to, change.from)) {
       span.clear();
-      editor.markSpan(loc.from, final, span.source);
+      editor.markSpan(loc.from, change.final, span.source);
     }
   }
 }
@@ -506,23 +542,44 @@ function ctrlify(keymap) {
   return finalKeymap;
 }
 
+interface HistoryItem { finalized?: boolean, changes:ChangeLinkedList[] }
+
 class Editor {
   defaults:CodeMirror.EditorConfiguration = {
     tabSize: 2,
     lineWrapping: true,
     lineNumbers: false,
     extraKeys: ctrlify({
-      "Cmd-Enter": () => console.log("sup dawg")
+      "Cmd-Enter": () => console.log("sup dawg"),
+      "Cmd-B": () => this.format("strong"),
+      "Cmd-I": () => this.format("emph"),
+      "Cmd-L": () => this.format("code"),
     })
   };
 
   cm:CodeMirror.Editor;
 
+  /** The current editor generation. Used for imposing a relative ordering on parses. */
+  generation = 0;
+
   /** Formatting state for the editor at the cursor. */
-  formatting = {};
+  formatting:{[formatType:string]: FormatAction} = {};
+
+  /** Whether the editor is currently processing CM change events */
+  changing = false;
+  /** Cache of the spans affected by the current set of changes */
+  changingSpans?:Span[];
+
+  /** Undo history state */
+  history:{position:number, transitioning:boolean, items: HistoryItem[]} = {position: 0, items: [], transitioning: false};
 
   constructor(public ide:IDE, protected _value:string = "") {
     this.cm = CodeMirror(() => undefined, this.defaults);
+    this.cm.on("beforeChange", (editor, rawChange) => this.onBeforeChange(rawChange));
+    this.cm.on("change", (editor, rawChange) => this.onChange(rawChange));
+    this.cm.on("changes", (editor, rawChanges) => this.onChanges(rawChanges));
+    this.cm.on("cursorActivity", this.onCursorActivity);
+
     this.loadMarkdown(_value);
   }
 
@@ -541,6 +598,11 @@ class Editor {
   refresh() {
     this.cm.refresh();
   }
+
+  queueUpdate = debounce(() => {
+    render();
+    this.generation++;
+  }, 1, true);
 
   //-------------------------------------------------------
   // Spans
@@ -589,10 +651,8 @@ class Editor {
   /** Create a new Span representing the given source in the document. */
   markSpan(from:Position, to:Position, source:any) {
     let SpanClass = spanTypes[source.type] || spanTypes["default"];
-    if(SpanClass === Span) console.log(source.type);
     let span = new SpanClass(from, to, source);
     span.applyMark(this);
-    console.log("Marking", from, to, source);
   }
 
   //-------------------------------------------------------
@@ -719,11 +779,18 @@ class Editor {
   // Undo History
   //-------------------------------------------------------
 
+  addToHistory(change:Change) {
+    console.warn("@TODO: Implement me!");
+  }
+
   finalizeLastHistoryEntry() {
     console.warn("@TODO: Implement me!");
   }
 
-  // handlers
+  //-------------------------------------------------------
+  // Handlers
+  //-------------------------------------------------------
+
   injectCodeMirror:RenderHandler = (node:EditorNode, elem) => {
     if(!node.cm) {
       node.cm = this.cm;
@@ -731,6 +798,92 @@ class Editor {
     }
     this.cm.refresh();
     render();
+  }
+
+  onBeforeChange = (raw:CodeMirror.EditorChangeCancellable) => {
+    let doc = this.cm.getDoc();
+    let change = new ChangeCancellable(raw);
+    let {from, to} = change;
+    let spans:Span[];
+    if(samePosition(from, to)) {
+      spans = this.findSpansAt(from);
+    } else {
+      let inclusiveFrom = doc.posFromIndex(doc.indexFromPos(from) - 1);
+      let inclusiveTo = doc.posFromIndex(doc.indexFromPos(to) + 1);
+      spans = this.findSpans(inclusiveFrom, inclusiveTo);
+    }
+    for(let span of spans) {
+      if(span.onBeforeChange) {
+        if(!span.find()) span.clear();
+        else span.onBeforeChange(change);
+      }
+    }
+
+    if(!change.canceled) {
+      this.changing = true;
+      if(this.changingSpans) {
+        this.changingSpans.push.apply(this.changingSpans, spans);
+      } else {
+        this.changingSpans = spans;
+      }
+    }
+  }
+
+  onChange = (raw:CodeMirror.EditorChangeLinkedList) => {
+    let change = new ChangeLinkedList(raw);
+    let spans = this.changingSpans || [];
+    if(change.origin === "+mdredo" || change.origin === "+mdundo") {
+      for(let span of spans) {
+        if(!span.refresh) continue;
+
+        let cur:ChangeLinkedList|undefined = change;
+        while(cur) {
+          span.refresh(change);
+          cur = cur.next();
+        }
+      }
+      return;
+    }
+
+    // Collapse multiline changes into their own undo step
+    if(change.text.length > 1) this.finalizeLastHistoryEntry();
+
+    this.addToHistory(change);
+    for(let span of spans) {
+      if(!span.onChange) continue;
+
+      if(!span.find()) span.clear();
+      else {
+        let cur:ChangeLinkedList|undefined = change;
+        while(cur) {
+          span.onChange(cur);
+          cur = cur.next();
+        }
+      }
+    }
+
+    for(let format in this.formatting) {
+      let action = this.formatting[format];
+      if(action === "add") {
+        this.markSpan(change.from, change.final, {type: format});
+      }
+    }
+  }
+
+  onChanges = (raws:CodeMirror.EditorChangeLinkedList[]) => {
+    this.changingSpans = undefined;
+    this.changing = false;
+    this.history.transitioning = false;
+    this.formatting = {};
+    this.queueUpdate();
+  }
+
+  onCursorActivity = () => {
+    if(!this.changing) {
+      this.finalizeLastHistoryEntry();
+    }
+    // Remove any formatting that may have been applied
+    this.formatting = {};
   }
 
   // Elements
