@@ -315,8 +315,37 @@ class LineSpan extends Span {
     if(!loc) return;
     let end = loc.to.line + ((loc.from.line === loc.to.line) ? 1 : 0);
     for(let line = loc.from.line; line < end; line++) {
-      if(this.lineBackgroundClass) cm.addLineClass(line, "background", this.lineBackgroundClass);
-      if(this.lineTextClass) cm.addLineClass(line, "text", this.lineTextClass);
+      if(this.lineBackgroundClass) cm.removeLineClass(line, "background", this.lineBackgroundClass);
+      if(this.lineTextClass) cm.removeLineClass(line, "text", this.lineTextClass);
+    }
+  }
+
+  onBeforeChange(change:ChangeCancellable) {
+    let doc = this.editor.cm.getDoc();
+    let loc = this.find();
+    if(!loc || !samePosition(loc.from, change.from)) return;
+
+    if(change.origin === "+delete") {
+      this.clear();
+      change.cancel();
+    }
+    // If we're adding a newline at the start of a list item, we're really removing the list formatting of the current line.
+    if(change.origin === "+input" && change.isNewlineChange() && doc.getLine(change.from.line) === "") {
+      this.clear();
+      change.cancel();
+    }
+  }
+
+  onChange(change:Change) {
+    let loc = this.find();
+    if(!loc) return;
+    // If the change starts exclusively outside of the list, ignore it.
+    if(loc.from.line > change.from.line || loc.to.line < change.from.line) return;
+
+    // If we're adding a newline at the end of a list item, we're adding a new list item on the next line.
+    if(change.isNewlineChange()) {
+      let nextLine = {line: change.from.line + 1, ch: 0};
+      this.editor.markSpan(nextLine, nextLine, this.source);
     }
   }
 }
@@ -328,10 +357,24 @@ class HeadingSpan extends LineSpan {
   type:SpanType = "heading";
   constructor(_from:Position, _to:Position, source:any) {
     super(_from, _to, source);
+    if(!this.source.level) {
+      this.source.level = 1;
+    }
     let cls =  "HEADING" + this.source.level;
     this.lineTextClass = cls;
     this.lineBackgroundClass = cls;
     this._attributes.className = cls;
+  }
+
+  onBeforeChange() {}
+  onChange(change:Change) {
+    if(change.origin === "+delete") {
+      let loc = this.find();
+      let doc = this.editor.cm.getDoc();
+      if(!loc || doc.getLine(loc.from.line) === "") {
+        this.clear();
+      }
+    }
   }
 }
 
@@ -389,7 +432,7 @@ var spanTypes:{[type:string]: (typeof Span)} = {
    * - [x] Add missing span types
    * - [x] Event handlers e.g. onChange, etc.
    * - [x] Get spans updating again
-   * - [ ] BUG: Formatting selected too inclusive: |A*A|A* -Cmd-B-> AAA
+   * - [ ] BUG: Formatting selected too inclusive: |A*A|A* -Cmd-Bg-> AAA
  * - [ ] Syntax highlighting
  * - [ ] Display cardinality badges
  * - [ ] Show related (at least action -> EAV / EAV -> DOM
@@ -452,6 +495,8 @@ function parseMarkdown(input:string):{text: string, spans: MDSpan[]} {
 }
 
 class Change implements CodeMirror.EditorChange {
+  type?:string
+
   constructor(protected _raw:CodeMirror.EditorChange) {}
 
   /** String representing the origin of the change event and whether it can be merged with history. */
@@ -478,6 +523,12 @@ class Change implements CodeMirror.EditorChange {
   get addedText() { return this._raw.text.join("\n"); }
   /** String of all text removed in the change. */
   get removedText() { return this._raw.removed.join("\n"); }
+
+  /** Whether this change just a single enter. */
+  isNewlineChange() {
+  return this.text.length == 2 && this.text[1] == "";
+}
+
 }
 
 class ChangeLinkedList extends Change {
@@ -551,9 +602,12 @@ class Editor {
     lineNumbers: false,
     extraKeys: ctrlify({
       "Cmd-Enter": () => console.log("sup dawg"),
-      "Cmd-B": () => this.format("strong"),
-      "Cmd-I": () => this.format("emph"),
-      "Cmd-L": () => this.format("code"),
+      "Cmd-B": () => this.format({type: "strong"}),
+      "Cmd-I": () => this.format({type: "emph"}),
+      "Cmd-L": () => this.format({type: "code"}),
+      "Cmd-E": () => this.formatLine({type: "heading", level: 1}),
+      "Cmd-Y": () => this.formatLine({type: "item"}),
+      "Cmd-K": () => this.formatLine({type: "code_block"})
     })
   };
 
@@ -645,7 +699,9 @@ class Editor {
   }
 
   clearSpan(span:Span, origin = "+delete") {
-    console.log("@TODO: Implement me!");
+    console.warn("@FIXME: history integration");
+    //this.addToHistory({type: "span", added: [], removed: [span], origin});
+    this.queueUpdate();
   }
 
   /** Create a new Span representing the given source in the document. */
@@ -702,19 +758,19 @@ class Editor {
     }
   }
 
-  format(type:FormatType) {
+  format(source:{type:FormatType}) {
     this.finalizeLastHistoryEntry();
     let doc = this.cm.getDoc();
     this.cm.operation(() => {
       // If we have a selection, format it.
       if(doc.somethingSelected()) {
-        this.formatSpan(doc.getCursor("from"), doc.getCursor("to"), {type})
+        this.formatSpan(doc.getCursor("from"), doc.getCursor("to"), source)
 
         // Otherwise we want to change our current formatting state.
       } else {
         let action:FormatAction = "add"; // By default, we just want our following changes to be bold
         let cursor = doc.getCursor("from");
-        let spans = this.findSpansAt(cursor, type);
+        let spans = this.findSpansAt(cursor, source.type);
         for(let span of spans) {
           let loc = span.find();
           if(!loc) continue;
@@ -725,16 +781,15 @@ class Editor {
           // Otherwise we're somewhere in the middle, and want to insert some unbolded text.
           else action = "split";
         }
-        this.formatting[type] = action;
+        this.formatting[source.type] = action;
       }
       this.finalizeLastHistoryEntry();
     });
   }
 
-  formatLine(type:FormatType) {
+  formatLine(source:{type:FormatLineType, level?:number}) {
     this.finalizeLastHistoryEntry();
     let doc = this.cm.getDoc();
-    let source = {type};
     this.cm.operation(() => {
       let from = doc.getCursor("from");
       let to = doc.getCursor("to");
@@ -747,12 +802,12 @@ class Editor {
         // Line formats are exclusive, so we clear intersecting line spans of other types.
         let spans = this.findSpansAt(cur);
         for(let span of spans) {
-          if(isLineSpan(span) && span.source.type !== type) {
+          if(isLineSpan(span) && span.source.type !== source.type) {
             span.clear();
           }
         }
 
-        spans = this.findSpansAt(cur, type);
+        spans = this.findSpansAt(cur, source.type);
         // If this line isn't already formatted to this type, format it.
         if(!spans.length) {
           this.formatSpan(cur, cur, source);
@@ -812,6 +867,15 @@ class Editor {
       let inclusiveTo = doc.posFromIndex(doc.indexFromPos(to) + 1);
       spans = this.findSpans(inclusiveFrom, inclusiveTo);
     }
+
+    // Grab all of the line spans intersecting this change too.
+    for(let line = from.line, end = to.line; line <= end; line++) {
+      let maybeLineSpans = this.findSpansAt({line, ch: 0});
+      for(let maybeLineSpan of maybeLineSpans) {
+        if(maybeLineSpan.isLine) spans.push(maybeLineSpan);
+      }
+    }
+
     for(let span of spans) {
       if(span.onBeforeChange) {
         if(!span.find()) span.clear();
