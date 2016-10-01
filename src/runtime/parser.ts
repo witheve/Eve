@@ -217,15 +217,70 @@ let EveBlockLexer = new Lexer({modes: LexerModes, defaultMode: "code"}, true);
 // Parser
 //-----------------------------------------------------------
 
+type NodeDependent = chev.Token | ParseNode;
+
+interface ParseNode {
+  type?: string
+  id?: string
+  from: NodeDependent[]
+  [property: string]: any
+}
+
+class Block {
+  id: string;
+  nodeId = 0;
+  variables: {[name: string]: ParseNode} = {};
+  equalities: any[] = [];
+  scanLike: ParseNode[] = [];
+  expressions: ParseNode[] = [];
+  binds: ParseNode[] = [];
+  commits: ParseNode[] = [];
+  variableLookup: {[name: string]: ParseNode};
+
+  constructor(id, variableLookup?) {
+    this.id = id;
+    this.variableLookup = variableLookup || {};
+  }
+
+  toVariable(name, generated = false) {
+    let variable = this.variableLookup[name];
+    if(!variable) {
+      this.variableLookup[name] = this.makeNode("variable", {name, from: [], generated});
+    }
+    variable = this.variables[name] = this.variableLookup[name];
+    return variable;
+  }
+
+  equality(a, b) {
+    this.equalities.push([a, b]);
+  }
+
+  makeNode(type, node: ParseNode) {
+    if(!node.id) {
+      node.id = `${this.id}|${this.nodeId++}`;
+    }
+    node.type = type;
+    return node;
+  }
+
+  subBlock() {
+    let neue = new Block(`${this.id}|sub${this.nodeId++}`, this.variableLookup);
+    return neue;
+  }
+}
+
+
+//-----------------------------------------------------------
+// Parser
+//-----------------------------------------------------------
+
 class Parser extends chev.Parser {
-  rootBlock: any;
-  activeBlock: any;
-  allVariables: any;
+  block: Block;
   activeScopes: string[];
 
   // Parser patterns
   doc: any;
-  block: any;
+  codeBlock: any;
   fencedBlock: any;
   section: any;
   matchSection: any;
@@ -233,7 +288,6 @@ class Parser extends chev.Parser {
   value: any;
   bool: any;
   num: any;
-  stringLiteral: any;
   scopeDeclaration: any;
   name: any;
   statement: any;
@@ -272,17 +326,9 @@ class Parser extends chev.Parser {
 
   constructor(input) {
     super(input, allTokens, {recoveryEnabled: false});
-    let $ = this;
+    let self = this;
     let rule = (name, func) => {
-      $[name] = $.RULE(name, func);
-    }
-    let getOrSetVariable = (name, generated = false) => {
-      let variable = $.allVariables[name];
-      if(!variable) {
-        $.allVariables[name] = {type: "variable", name, usages: [], generated};
-      }
-      variable = $.activeBlock.variables[name] = $.allVariables[name];
-      return variable;
+      self[name] = self.RULE(name, func);
     }
     let asValue = (node) => {
       if(node.type === "constant" || node.type === "variable" || node.type === "parenthesis") {
@@ -303,27 +349,27 @@ class Parser extends chev.Parser {
       }
       return outputs;
     }
+
+    let makeNode = (type, node) => {
+      return self.block.makeNode(type, node);
+    }
+
     let blockStack = [];
-    let pushBlock = () => {
-      let block = {
-        type: "block",
-        variables: {},
-        equalities: [],
-        scanLike: [],
-        expressions: [],
-        binds: [],
-        commits: [],
-        parse: undefined,
-        allVariables: undefined,
-      };
+    let pushBlock = (blockId?) => {
+      let block;
+      let prev = blockStack[blockStack.length - 1];
+      if(prev) {
+        block = prev.subBlock();
+      }
+      block = new Block(blockId || "block");
       blockStack.push(block);
-      $.activeBlock = block;
+      self.block = block;
       return block;
     }
 
     let popBlock = () => {
       let popped = blockStack.pop();
-      $.activeBlock = blockStack[blockStack.length - 1];
+      self.block = blockStack[blockStack.length - 1];
       return popped;
     }
 
@@ -337,15 +383,15 @@ class Parser extends chev.Parser {
         content: [],
         blocks: [],
       }
-      $.MANY(() => {
-        $.OR([
+      self.MANY(() => {
+        self.OR([
           {ALT: () => {
-            let content = $.CONSUME(DocContent);
+            let content = self.CONSUME(DocContent);
             doc.full.push(content);
             doc.content.push(content);
           }},
           {ALT: () => {
-            let block : any = $.SUBRULE($.fencedBlock);
+            let block : any = self.SUBRULE(self.fencedBlock);
             if(doc.content.length) {
               block.name = doc.content[doc.content.length - 1].image;
             } else {
@@ -360,9 +406,9 @@ class Parser extends chev.Parser {
     });
 
     rule("fencedBlock", () => {
-      $.CONSUME(Fence);
-      let block = $.SUBRULE($.block);
-      let fence = $.CONSUME(CloseFence);
+      self.CONSUME(Fence);
+      let block = self.SUBRULE(self.codeBlock);
+      let fence = self.CONSUME(CloseFence);
       return block;
     });
 
@@ -370,25 +416,17 @@ class Parser extends chev.Parser {
     // Blocks
     //-----------------------------------------------------------
 
-    rule("block", () => {
-      let block = pushBlock();
-      $.rootBlock = block;
-      let sections = [];
-      $.allVariables = {};
-      $.MANY(() => { sections.push($.SUBRULE($.section)) })
-      // console.log("--block------------------------------------------\n");
-      // console.log(inspect($.activeBlock, {colors: true, depth: 20}));
-      // console.log("\n-------------------------------------------------\n");
-      block.parse = {type: "parse", sections}
-      block.allVariables = $.allVariables;
+    rule("codeBlock", (blockId = "block") => {
+      let block = pushBlock(blockId);
+      self.MANY(() => { self.SUBRULE(self.section) })
       return popBlock();
     })
 
     rule("section", () => {
-      return $.OR([
-        {ALT: () => { return $.SUBRULE($.matchSection) }},
-        {ALT: () => { return $.SUBRULE($.actionSection) }},
-        {ALT: () => { return $.CONSUME(CommentLine); }},
+      return self.OR([
+        {ALT: () => { return self.SUBRULE(self.matchSection) }},
+        {ALT: () => { return self.SUBRULE(self.actionSection) }},
+        {ALT: () => { return self.CONSUME(CommentLine); }},
       ]);
     });
 
@@ -399,17 +437,17 @@ class Parser extends chev.Parser {
 
     rule("scopeDeclaration", () => {
       let scopes = [];
-      $.OR([
+      self.OR([
         {ALT: () => {
-          $.CONSUME(OpenParen);
-          $.AT_LEAST_ONE(() => {
-            let name: any = $.SUBRULE($.name);
+          self.CONSUME(OpenParen);
+          self.AT_LEAST_ONE(() => {
+            let name: any = self.SUBRULE(self.name);
             scopes.push(name.name);
           })
-          $.CONSUME(CloseParen);
+          self.CONSUME(CloseParen);
         }},
         {ALT: () => {
-          let name: any = $.SUBRULE2($.name);
+          let name: any = self.SUBRULE2(self.name);
           scopes.push(name.name);
         }},
       ]);
@@ -422,26 +460,26 @@ class Parser extends chev.Parser {
     //-----------------------------------------------------------
 
     rule("matchSection", () => {
-      $.CONSUME(Match);
+      self.CONSUME(Match);
       let scopes:any = ["session"];
-      $.OPTION(() => { scopes = $.SUBRULE($.scopeDeclaration) })
-      $.activeScopes = scopes;
+      self.OPTION(() => { scopes = self.SUBRULE(self.scopeDeclaration) })
+      self.activeScopes = scopes;
       let statements = [];
-      $.MANY(() => {
-        let statement: any = $.SUBRULE($.statement);
+      self.MANY(() => {
+        let statement: any = self.SUBRULE(self.statement);
         if(statement) {
           statements.push(statement);
           statement.scopes = scopes;
         }
       });
-      return {type: "match", statements, scopes};
+      return {type: "matchSection", statements, scopes};
     });
 
     rule("statement", () => {
-      return $.OR([
-        {ALT: () => { return $.SUBRULE($.comparison); }},
-        {ALT: () => { return $.SUBRULE($.notStatement); }},
-        {ALT: () => { return $.CONSUME(CommentLine); }},
+      return self.OR([
+        {ALT: () => { return self.SUBRULE(self.comparison); }},
+        {ALT: () => { return self.SUBRULE(self.notStatement); }},
+        {ALT: () => { return self.CONSUME(CommentLine); }},
       ])
     });
 
@@ -450,36 +488,36 @@ class Parser extends chev.Parser {
     //-----------------------------------------------------------
 
     rule("actionSection", () => {
-      let action = $.CONSUME(Action).image;
+      let action = self.CONSUME(Action).image;
       let actionKey = action + "s";
       let scopes:any = ["session"];
-      $.OPTION(() => { scopes = $.SUBRULE($.scopeDeclaration) })
-      $.activeScopes = scopes;
+      self.OPTION(() => { scopes = self.SUBRULE(self.scopeDeclaration) })
+      self.activeScopes = scopes;
       let statements = [];
-      $.MANY(() => {
-        let statement = $.SUBRULE($.actionStatement, [actionKey]) as any;
+      self.MANY(() => {
+        let statement = self.SUBRULE(self.actionStatement, [actionKey]) as any;
         if(statement) {
           statements.push(statement);
           statement.scopes = scopes;
         }
       });
-      return {type: "action", statements, scopes};
+      return {type: "actionSection", statements, scopes};
     });
 
 
     rule("actionStatement", (actionKey) => {
-      return $.OR([
+      return self.OR([
         {ALT: () => {
-          let record = $.SUBRULE($.record, [false, actionKey, "+="]);
+          let record = self.SUBRULE(self.record, [false, actionKey, "+="]);
           return record;
         }},
-        {ALT: () => { return $.SUBRULE($.actionEqualityRecord, [actionKey]); }},
+        {ALT: () => { return self.SUBRULE(self.actionEqualityRecord, [actionKey]); }},
         {ALT: () => {
-          let record = $.SUBRULE($.actionOperation, [actionKey]);
-          $.activeBlock[actionKey].push(record);
+          let record = self.SUBRULE(self.actionOperation, [actionKey]);
+          self.block[actionKey].push(record);
           return record;
         }},
-        {ALT: () => { return $.CONSUME(CommentLine); }},
+        {ALT: () => { return self.CONSUME(CommentLine); }},
       ])
     });
 
@@ -488,58 +526,61 @@ class Parser extends chev.Parser {
     //-----------------------------------------------------------
 
     rule("actionOperation", (actionKey) => {
-      return $.OR([
-        {ALT: () => { return $.SUBRULE($.recordOperation, [actionKey]) }},
-        {ALT: () => { return $.SUBRULE($.attributeOperation, [actionKey]) }},
+      return self.OR([
+        {ALT: () => { return self.SUBRULE(self.recordOperation, [actionKey]) }},
+        {ALT: () => { return self.SUBRULE(self.attributeOperation, [actionKey]) }},
       ]);
     });
 
     rule("attributeOperation", (actionKey) => {
-      let {attribute, parent} = $.SUBRULE($.attributeMutator) as any;
-      return $.OR([
+      let mutator = self.SUBRULE(self.attributeMutator) as any;
+      let {attribute, parent} = mutator;
+      return self.OR([
         {ALT: () => {
-          let variable = getOrSetVariable(`${attribute.image}|${attribute.startLine}|${attribute.startColumn}`, true);
-          $.activeBlock.scanLike({type: "scan", entity: parent, attribute: {type: "constant", value: attribute.name}, value: variable, scopes: $.activeScopes});
-          $.CONSUME(Merge);
-          let record = $.SUBRULE($.record, [true]) as any;
+          let variable = self.block.toVariable(`${attribute.image}|${attribute.startLine}|${attribute.startColumn}`, true);
+          let scan = makeNode("scan", {entity: parent, attribute: makeNode("constant", {value: attribute.name, from: [attribute]}), value: variable, scopes: self.activeScopes, from: [mutator]});
+          variable.from.push(scan);
+          self.block.scanLike.push(scan);
+          self.CONSUME(Merge);
+          let record = self.SUBRULE(self.record, [true]) as any;
           record.variable = variable;
           record.action = "<-";
           return record;
         }},
         {ALT: () => {
-          let op = $.CONSUME(Set);
-          $.CONSUME(None);
-          return {type: "action", action: "erase", entity: asValue(parent), attribute: attribute.image};
+          let op = self.CONSUME(Set);
+          let none = self.CONSUME(None);
+          return makeNode("action", {action: "erase", entity: asValue(parent), attribute: attribute.image, from: [mutator, op, none]});
         }},
         {ALT: () => {
-          let op = $.CONSUME2(Set);
-          let value = $.SUBRULE($.infix);
-          return {type: "action", action: op.image, entity: asValue(parent), attribute: attribute.image, value: asValue(value)};
+          let op = self.CONSUME2(Set);
+          let value = self.SUBRULE(self.infix);
+          return makeNode("action", {action: op.image, entity: asValue(parent), attribute: attribute.image, value: asValue(value), from: [mutator, op, value]});
         }},
         {ALT: () => {
-          let op = $.CONSUME3(Set);
-          let value = $.SUBRULE2($.record, [false, actionKey, "+="]);
-          return {type: "action", action: op.image, entity: asValue(parent), attribute: attribute.image, value: asValue(value)};
+          let op = self.CONSUME3(Set);
+          let value = self.SUBRULE2(self.record, [false, actionKey, "+="]);
+          return makeNode("action", {action: op.image, entity: asValue(parent), attribute: attribute.image, value: asValue(value), from: [mutator, op, value]});
         }},
         {ALT: () => {
-          let op = $.CONSUME(Mutate);
-          let value = $.SUBRULE2($.actionAttributeExpression, [actionKey, op.image]);
-          return {type: "action", action: op.image, entity: asValue(parent), attribute: attribute.image, value: asValue(value)};
+          let op = self.CONSUME(Mutate);
+          let value = self.SUBRULE2(self.actionAttributeExpression, [actionKey, op.image]);
+          return makeNode("action", {action: op.image, entity: asValue(parent), attribute: attribute.image, value: asValue(value), from: [mutator, op, value]});
         }},
       ])
     });
 
     rule("recordOperation", () => {
-      let variable = $.SUBRULE($.variable) as any;
-      return $.OR([
+      let variable = self.SUBRULE(self.variable) as any;
+      return self.OR([
         {ALT: () => {
-          $.CONSUME(Set);
-          $.CONSUME(None);
-          return {type: "action", action: "erase", entity: asValue(variable)};
+          let set = self.CONSUME(Set);
+          let none = self.CONSUME(None);
+          return makeNode("action", {action: "erase", entity: asValue(variable), from: [variable, set, none]});
         }},
         {ALT: () => {
-          $.CONSUME(Merge);
-          let record = $.SUBRULE($.record, [true]) as any;
+          self.CONSUME(Merge);
+          let record = self.SUBRULE(self.record, [true]) as any;
           record.needsEntity = true;
           record.variable = variable;
           variable.nonProjecting = true;
@@ -547,34 +588,34 @@ class Parser extends chev.Parser {
           return record;
         }},
         {ALT: () => {
-          let op = $.CONSUME(Mutate);
-          let tag : any = $.SUBRULE($.tag);
-          return {type: "action", action: op.image, entity: asValue(variable), attribute: "tag", value: {type: "constant", value: tag.tag}};
+          let op = self.CONSUME(Mutate);
+          let tag : any = self.SUBRULE(self.tag);
+          return makeNode("action", {action: op.image, entity: asValue(variable), attribute: "tag", value: makeNode("constant", {value: tag.tag, from: [tag]}), from: [variable, op, tag]});
         }},
         {ALT: () => {
-          let op = $.CONSUME2(Mutate);
-          let name : any = $.SUBRULE($.name);
-          return {type: "action", action: op.image, entity: asValue(variable), attribute: "name", value: {type: "constant", value: name.name}};
+          let op = self.CONSUME2(Mutate);
+          let name : any = self.SUBRULE(self.name);
+          return makeNode("action", {action: op.image, entity: asValue(variable), attribute: "name", value: makeNode("constant", {value: name.name, from: [name]}), from: [variable, op, name]});
         }},
       ])
     });
 
     rule("actionAttributeExpression", (actionKey, action) => {
-      return $.OR([
-        {ALT: () => { return $.CONSUME(None); }},
-        {ALT: () => { return $.SUBRULE($.tag); }},
-        {ALT: () => { return $.SUBRULE($.name); }},
-        {ALT: () => { return $.SUBRULE($.record, [false, actionKey, action]); }},
-        {ALT: () => { return $.SUBRULE($.infix); }},
+      return self.OR([
+        {ALT: () => { return self.CONSUME(None); }},
+        {ALT: () => { return self.SUBRULE(self.tag); }},
+        {ALT: () => { return self.SUBRULE(self.name); }},
+        {ALT: () => { return self.SUBRULE(self.record, [false, actionKey, action]); }},
+        {ALT: () => { return self.SUBRULE(self.infix); }},
       ])
     })
 
     rule("actionEqualityRecord", (actionKey) => {
-      let variable = $.SUBRULE($.variable);
-      $.CONSUME(Equality);
-      let record : any = $.SUBRULE($.record, [true, actionKey, "+="]);
+      let variable = self.SUBRULE(self.variable);
+      self.CONSUME(Equality);
+      let record : any = self.SUBRULE(self.record, [true, actionKey, "+="]);
       record.variable = variable;
-      $.activeBlock[actionKey].push(record);
+      self.block[actionKey].push(record);
       return record;
     });
 
@@ -584,20 +625,21 @@ class Parser extends chev.Parser {
 
     rule("record", (noVar = false, blockKey = "scanLike", action = false, parent?) => {
       let attributes = [];
-      let start = $.CONSUME(OpenBracket);
-      let record : any = {type: "record", attributes, start, action, scopes: $.activeScopes }
+      let start = self.CONSUME(OpenBracket);
+      let from: NodeDependent[] = [start];
+      let record : any = makeNode("record", {attributes, action, scopes: self.activeScopes, from});
       if(parent) {
         record.extraProjection = [parent];
       }
       if(!noVar) {
-        record.variable = getOrSetVariable(`record|${start.startLine}|${start.startColumn}`, true);
+        record.variable = self.block.toVariable(`record|${start.startLine}|${start.startColumn}`, true);
         record.variable.nonProjecting = true;
       }
       let nonProjecting = false;
-      $.MANY(() => {
-        $.OR([
+      self.MANY(() => {
+        self.OR([
           {ALT: () => {
-            let attribute: any = $.SUBRULE($.attribute, [false, blockKey, action, record.variable]);
+            let attribute: any = self.SUBRULE(self.attribute, [false, blockKey, action, record.variable]);
             // Inline handles attributes itself and so won't return any attribute for us to add
             // to this object
             if(!attribute) return;
@@ -606,48 +648,51 @@ class Parser extends chev.Parser {
               for(let attr of attribute as any[]) {
                 attr.nonProjecting = nonProjecting;
                 attributes.push(attr);
+                from.push(attr);
               }
             } else {
               attribute.nonProjecting = nonProjecting;
               attributes.push(attribute);
+              from.push(attribute);
             }
           }},
           {ALT: () => {
             nonProjecting = true;
-            return $.CONSUME(Pipe);
+            let pipe = self.CONSUME(Pipe);
+            from.push(pipe);
+            return pipe;
           }},
         ]);
       })
-      let end = $.CONSUME(CloseBracket);
-      record.end = end;
+      from.push(self.CONSUME(CloseBracket));
       if(!noVar) {
-        $.activeBlock[blockKey].push(record);
+        self.block[blockKey].push(record);
       }
       return record;
     });
 
     rule("attribute", (noVar, blockKey, action, recordVariable) => {
-      return $.OR([
-        {ALT: () => { return $.SUBRULE($.attributeEquality, [noVar, blockKey, action, recordVariable]); }},
-        {ALT: () => { return $.SUBRULE($.attributeComparison); }},
-        {ALT: () => { return $.SUBRULE($.attributeNot, [recordVariable]); }},
-        {ALT: () => { return $.SUBRULE($.singularAttribute); }},
+      return self.OR([
+        {ALT: () => { return self.SUBRULE(self.attributeEquality, [noVar, blockKey, action, recordVariable]); }},
+        {ALT: () => { return self.SUBRULE(self.attributeComparison); }},
+        {ALT: () => { return self.SUBRULE(self.attributeNot, [recordVariable]); }},
+        {ALT: () => { return self.SUBRULE(self.singularAttribute); }},
       ]);
     });
 
     rule("singularAttribute", () => {
-      return $.OR([
+      return self.OR([
         {ALT: () => {
-          let name : any = $.SUBRULE($.name);
-          return {type: "attribute", attribute: "name", value: {type: "constant", value: name.name}};
+          let name : any = self.SUBRULE(self.name);
+          return makeNode("attribute", {attribute: "name", value: makeNode("constant", {value: name.name, from: [name]}), from: [name]});
         }},
         {ALT: () => {
-          let tag : any = $.SUBRULE($.tag);
-          return {type: "attribute", attribute: "tag", value: {type: "constant", value: tag.tag}};
+          let tag : any = self.SUBRULE(self.tag);
+          return makeNode("attribute", {attribute: "tag", value: makeNode("constant", {value: tag.tag, from: [tag]}), from: [tag]});
         }},
         {ALT: () => {
-          let variable : any = $.SUBRULE($.variable);
-          return {type: "attribute", attribute: variable.name, value: variable};
+          let variable : any = self.SUBRULE(self.variable);
+          return makeNode("attribute", {attribute: variable.name, value: variable, from: [variable]});
         }},
       ]);
     });
@@ -656,18 +701,19 @@ class Parser extends chev.Parser {
       let scans = [];
       let entity, attribute, value;
       let needsEntity = true;
-      entity = $.SUBRULE($.variable);
-      $.CONSUME(Dot);
-      $.MANY(() => {
-        attribute = $.CONSUME(Identifier);
-        $.CONSUME2(Dot);
-        value = getOrSetVariable(`${attribute.image}|${attribute.startLine}|${attribute.startColumn}`, true);
-        value.usages.push(attribute);
-        $.activeBlock.scanLike({type: "scan", entity, attribute: {type: "constant", value: value.name}, value, needsEntity, scopes: $.activeScopes});
+      entity = self.SUBRULE(self.variable);
+      let dot = self.CONSUME(Dot);
+      self.MANY(() => {
+        attribute = self.CONSUME(Identifier);
+        self.CONSUME2(Dot);
+        value = self.block.toVariable(`${attribute.image}|${attribute.startLine}|${attribute.startColumn}`, true);
+        value.from.push(attribute);
+        let scan = makeNode("scan", {entity, attribute: makeNode("constant", {value: value.name, from: [value]}), value, needsEntity, scopes: self.activeScopes, from: [entity, dot, attribute]});
+        self.block.scanLike.push(scan);
         needsEntity = false;
         entity = value;
       });
-      attribute = $.CONSUME2(Identifier);
+      attribute = self.CONSUME2(Identifier);
       return {type: "attributeMutator", attribute: attribute, parent: entity};
     });
 
@@ -675,13 +721,14 @@ class Parser extends chev.Parser {
       let scans = [];
       let entity, attribute, value;
       let needsEntity = true;
-      entity = $.SUBRULE($.variable);
-      $.AT_LEAST_ONE(() => {
-        $.CONSUME(Dot);
-        attribute = $.CONSUME(Identifier);
-        value = getOrSetVariable(`${attribute.image}|${attribute.startLine}|${attribute.startColumn}`, true);
-        value.usages.push(attribute);
-        $.activeBlock.scanLike.push({type: "scan", entity, attribute: {type: "constant", value: attribute.image}, value, needsEntity, scopes: $.activeScopes});
+      entity = self.SUBRULE(self.variable);
+      self.AT_LEAST_ONE(() => {
+        let dot = self.CONSUME(Dot);
+        attribute = self.CONSUME(Identifier);
+        value = self.block.toVariable(`${attribute.image}|${attribute.startLine}|${attribute.startColumn}`, true);
+        value.from.push(attribute);
+        let scan = makeNode("scan", {entity, attribute: makeNode("constant", {value: attribute.image, from: [attribute]}), value, needsEntity, scopes: self.activeScopes, from: [entity, dot, attribute]});
+        self.block.scanLike.push(scan);
         needsEntity = false;
         entity = value;
       });
@@ -691,63 +738,66 @@ class Parser extends chev.Parser {
     rule("attributeEquality", (noVar, blockKey, action, parent) => {
       let attributes = [];
       let autoIndex = 1;
-      let attribute: any = $.OR([
+      let attribute: any = self.OR([
         {ALT: () => {
-          return $.CONSUME(Identifier).image;
+          return self.CONSUME(Identifier).image;
         }},
         {ALT: () => {
-          let numString: string = $.CONSUME(Num).image;
+          let numString: string = self.CONSUME(Num).image;
           return parseFloat(numString) as any;
         }}
       ]);
-      $.CONSUME(Equality);
+      let equality = self.CONSUME(Equality);
       let result : any;
-      $.OR2([
+      self.OR2([
         {ALT: () => {
-          result = $.SUBRULE($.infix);
+          result = self.SUBRULE(self.infix);
         }},
         {ALT: () => {
-          result = $.SUBRULE($.record, [noVar, blockKey, action, parent]);
-          $.MANY(() => {
+          result = self.SUBRULE(self.record, [noVar, blockKey, action, parent]);
+          self.MANY(() => {
             autoIndex++;
-            let record : any = $.SUBRULE2($.record, [noVar, blockKey, action, parent]);
-            record.attributes.push({type: "attribute", attribute: "eve-auto-index", value: {type: "constant", value: autoIndex}})
-            attributes.push({type: "attribute", attribute, value: asValue(record)});
+            let record : any = self.SUBRULE2(self.record, [noVar, blockKey, action, parent]);
+            record.attributes.push(makeNode("attribute", {attribute: "eve-auto-index", value: makeNode("constant", {value: autoIndex, from: []}), from: []}));
+            attributes.push(makeNode("attribute", {attribute, value: asValue(record), from: [attribute, equality, record]}));
           })
           if(autoIndex > 1) {
-            result.attributes.push({type: "attribute", attribute: "eve-auto-index", value: {type: "constant", value: 1}})
+            result.attributes.push(makeNode("attribute", {attribute: "eve-auto-index", value: makeNode("constant", {value: 1, from: []}), from: []}));
           }
         }},
       ]);
-      attributes.push({type: "attribute", attribute, value: asValue(result)})
+      attributes.push(makeNode("attribute", {attribute, value: asValue(result), from: [attribute, equality, result]}))
       return attributes;
     });
 
     rule("attributeComparison", () => {
-      let attribute = $.CONSUME(Identifier);
-      let comparator = $.CONSUME(Comparison);
-      let result = $.SUBRULE($.expression);
-      let variable = getOrSetVariable(`attribute|${attribute.startLine}|${attribute.startColumn}`, true);
-      $.activeBlock.expressions.push({type: "expression", op: comparator.image, args: [asValue(variable), asValue(result)]});
-      return {type: "attribute", attribute: attribute.image, value: variable};
+      let attribute = self.CONSUME(Identifier);
+      let comparator = self.CONSUME(Comparison);
+      let result = self.SUBRULE(self.expression);
+      let variable = self.block.toVariable(`attribute|${attribute.startLine}|${attribute.startColumn}`, true);
+      let expression = makeNode("expression", {op: comparator.image, args: [asValue(variable), asValue(result)], from: [attribute, comparator, result]})
+      variable.from.push(expression);
+      self.block.expressions.push(expression);
+      return makeNode("attribute", {attribute: attribute.image, value: variable, from: [attribute, comparator, expression]});
     });
 
     rule("attributeNot", (recordVariable) => {
       let block = pushBlock();
       block.type = "not";
-      $.CONSUME(Not);
-      let start = $.CONSUME(OpenParen);
-      let attribute: any = $.OR([
-        {ALT: () => { return $.SUBRULE($.attributeComparison); }},
-        {ALT: () => { return $.SUBRULE($.singularAttribute); }},
+      let not = self.CONSUME(Not);
+      let start = self.CONSUME(OpenParen);
+      let attribute: any = self.OR([
+        {ALT: () => { return self.SUBRULE(self.attributeComparison); }},
+        {ALT: () => { return self.SUBRULE(self.singularAttribute); }},
       ]);
-      let end = $.CONSUME(CloseParen);
+      let end = self.CONSUME(CloseParen);
       // we have to add a record for this guy
-      let scan : any = {type: "scan", entity: recordVariable, attribute: {type: "constant", value: attribute.attribute}, value: attribute.value, start, end, needsEntity: true, scopes: $.activeScopes};
+      let scan : any = makeNode("scan", {entity: recordVariable, attribute: makeNode("constant", {value: attribute.attribute, from: [attribute]}), value: attribute.value, needsEntity: true, scopes: self.activeScopes, from: [attribute]});
       block.variables[recordVariable.name] = recordVariable;
       block.scanLike.push(scan);
+      block.from = [not, start, attribute, end];
       popBlock();
-      $.activeBlock.scanLike.push(block);
+      self.block.scanLike.push(block);
       return;
     });
 
@@ -756,23 +806,15 @@ class Parser extends chev.Parser {
     //-----------------------------------------------------------
 
     rule("name", () => {
-      let name;
-      $.CONSUME(Name);
-      $.OR([
-        {ALT: () => { name = $.CONSUME(Identifier).image; }},
-        {ALT: () => { name = $.SUBRULE($.stringLiteral); }},
-      ]);
-      return {type: "name", name};
+      let at = self.CONSUME(Name);
+      let name = self.CONSUME(Identifier);
+      return makeNode("name", {name: name.image, from: [at, name]});
     });
 
     rule("tag", () => {
-      let tag;
-      $.CONSUME(Tag);
-      $.OR([
-        {ALT: () => { tag = $.CONSUME(Identifier).image; }},
-        {ALT: () => { tag = $.SUBRULE($.stringLiteral); }},
-      ]);
-      return {type: "tag", tag};
+      let hash = self.CONSUME(Tag);
+      let tag = self.CONSUME(Identifier);
+      return makeNode("tag", {tag: tag.image, from: [hash, tag]});
     });
 
     //-----------------------------------------------------------
@@ -780,20 +822,21 @@ class Parser extends chev.Parser {
     //-----------------------------------------------------------
 
     rule("functionRecord", (): any => {
-      let name = $.CONSUME(Identifier);
-      let record: any = $.SUBRULE($.record, [true]);
+      let name = self.CONSUME(Identifier);
+      let record: any = self.SUBRULE(self.record, [true]);
       if(name.image === "lookup") {
         let info: any = {};
         for(let attribute of record.attributes) {
           info[attribute.attribute] = attribute.value;
         }
-        let scan = {type: "scan", entity: info.record, attribute: info.attribute, value: info.value, node: info.node, scopes: $.activeScopes};
-        $.activeBlock.scanLike.push(scan);
+        let scan = makeNode("scan", {entity: info.record, attribute: info.attribute, value: info.value, node: info.node, scopes: self.activeScopes, from: [name, record]});
+        self.block.scanLike.push(scan);
         return scan;
       } else {
-        let variable = getOrSetVariable(`return|${name.startLine}|${name.startColumn}`, true);
-        let functionRecord = {type: "functionRecord", op: name.image, record, variable};
-        $.activeBlock.expressions.push(functionRecord);
+        let variable = self.block.toVariable(`return|${name.startLine}|${name.startColumn}`, true);
+        let functionRecord = makeNode("functionRecord", {op: name.image, record, variable, from: [name, record]});
+        variable.from.push(functionRecord);
+        self.block.expressions.push(functionRecord);
         return functionRecord;
       }
     });
@@ -803,16 +846,16 @@ class Parser extends chev.Parser {
     //-----------------------------------------------------------
 
     rule("comparison", (nonFiltering) : any => {
-      let left = $.SUBRULE($.expression);
+      let left = self.SUBRULE(self.expression);
       let rights = [];
-      $.MANY(() => {
-        let comparator = $.OR([
-          {ALT: () => { return $.CONSUME(Comparison); }},
-          {ALT: () => { return $.CONSUME(Equality); }}
+      self.MANY(() => {
+        let comparator = self.OR([
+          {ALT: () => { return self.CONSUME(Comparison); }},
+          {ALT: () => { return self.CONSUME(Equality); }}
         ]);
-        let value = $.OR2([
-          {ALT: () => { return $.SUBRULE2($.expression); }},
-          {ALT: () => { return $.SUBRULE($.ifExpression); }}
+        let value = self.OR2([
+          {ALT: () => { return self.SUBRULE2(self.expression); }},
+          {ALT: () => { return self.SUBRULE(self.ifExpression); }}
         ]);
         rights.push({comparator, value});
       })
@@ -825,24 +868,25 @@ class Parser extends chev.Parser {
           // if this is a nonFiltering comparison, then we return an expression
           // with a variable for its return value
           if(nonFiltering) {
-            let variable = getOrSetVariable(`comparison|${comparator.startLine}|${comparator.startColumn}`, true);
-            expression = {type: "expression", variable, op: comparator.image, args: [asValue(curLeft), asValue(value)]};
-            $.activeBlock.expressions.push(expression);
+            let variable = self.block.toVariable(`comparison|${comparator.startLine}|${comparator.startColumn}`, true);
+            expression = makeNode("expression", {variable, op: comparator.image, args: [asValue(curLeft), asValue(value)], from: [curLeft, comparator, value]});
+            variable.from.push(expression);
+            self.block.expressions.push(expression);
           } else if(comparator instanceof Equality) {
             if(value.type === "ifExpression") {
               value.outputs = ifOutputs(left);
-              $.activeBlock.scanLike.push(value);
+              self.block.scanLike.push(value);
             } else if(value.type === "functionRecord" && curLeft.type === "parenthesis") {
               value.returns = curLeft.items.map(asValue);
-              $.activeBlock.equalities.push([asValue(value.returns[0]), asValue(value)]);
+              self.block.equality(asValue(value.returns[0]), asValue(value));
             } else if(curLeft.type === "parenthesis") {
               throw new Error("Left hand parenthesis without an if or function on the right");
             } else {
-              $.activeBlock.equalities.push([asValue(curLeft), asValue(value)]);
+              self.block.equality(asValue(curLeft), asValue(value));
             }
           } else {
-            expression = {type: "expression", op: comparator.image, args: [asValue(curLeft), asValue(value)]};
-            $.activeBlock.expressions.push(expression);
+            expression = makeNode("expression", {op: comparator.image, args: [asValue(curLeft), asValue(value)], from: [curLeft, comparator, value]});
+            self.block.expressions.push(expression);
           }
           curLeft = value;
           if(expression) {
@@ -861,31 +905,39 @@ class Parser extends chev.Parser {
     rule("notStatement", () => {
       let block = pushBlock();
       block.type = "not";
-      $.CONSUME(Not);
-      $.CONSUME(OpenParen);
-      $.MANY(() => {
-        $.SUBRULE($.statement);
+      let from: NodeDependent[] = [
+        self.CONSUME(Not),
+        self.CONSUME(OpenParen),
+      ];
+      self.MANY(() => {
+        from.push(self.SUBRULE(self.statement) as ParseNode);
       });
-      $.CONSUME(CloseParen);
+      from.push(self.CONSUME(CloseParen));
       popBlock();
-      $.activeBlock.scanLike.push(block);
+      block.from = from;
+      self.block.scanLike.push(block);
       return;
     });
 
     rule("isExpression", () => {
-      let op = $.CONSUME(Is);
-      $.CONSUME(OpenParen);
+      let op = self.CONSUME(Is);
+      let from: NodeDependent[] = [
+        op,
+        self.CONSUME(OpenParen)
+      ]
       let expressions = [];
-      $.MANY(() => {
-        let comparison: any = $.SUBRULE($.comparison, [true]);
+      self.MANY(() => {
+        let comparison: any = self.SUBRULE(self.comparison, [true]);
         for(let expression of comparison.expressions) {
+          from.push(expression as ParseNode);
           expressions.push(asValue(expression));
         }
       });
-      $.CONSUME(CloseParen);
-      let variable = getOrSetVariable(`is|${op.startLine}|${op.startColumn}`, true);
-      let is = {type: "expression", variable, op: "and", args: expressions};
-      $.activeBlock.expressions.push(is);
+      from.push(self.CONSUME(CloseParen));
+      let variable = self.block.toVariable(`is|${op.startLine}|${op.startColumn}`, true);
+      let is = makeNode("expression", {variable, op: "and", args: expressions, from});
+      variable.from.push(is);
+      self.block.expressions.push(is);
       return is;
     });
 
@@ -895,50 +947,58 @@ class Parser extends chev.Parser {
 
     rule("ifExpression", () => {
       let branches = [];
-      branches.push($.SUBRULE($.ifBranch));
-      $.MANY(() => {
-        branches.push($.OR([
-          {ALT: () => { return $.SUBRULE2($.ifBranch); }},
-          {ALT: () => { return $.SUBRULE($.elseIfBranch); }},
+      let from = branches;
+      branches.push(self.SUBRULE(self.ifBranch));
+      self.MANY(() => {
+        branches.push(self.OR([
+          {ALT: () => { return self.SUBRULE2(self.ifBranch); }},
+          {ALT: () => { return self.SUBRULE(self.elseIfBranch); }},
         ]));
       });
-      $.OPTION(() => {
-        branches.push($.SUBRULE($.elseBranch));
+      self.OPTION(() => {
+        branches.push(self.SUBRULE(self.elseBranch));
       });
-      return {type: "ifExpression", branches};
+      return makeNode("ifExpression", {branches, from});
     });
 
     rule("ifBranch", () => {
       let block = pushBlock();
-      $.CONSUME(If);
-      $.AT_LEAST_ONE(() => {
-        $.SUBRULE($.statement);
+      let from: NodeDependent[] = [
+        self.CONSUME(If)
+      ]
+      self.AT_LEAST_ONE(() => {
+        from.push(self.SUBRULE(self.statement) as ParseNode);
       })
-      $.CONSUME(Then);
-      let outputs = ifOutputs($.SUBRULE($.expression));
+      from.push(self.CONSUME(Then));
+      let expression = self.SUBRULE(self.expression) as ParseNode;
+      from.push(expression);
       popBlock();
-      return {type: "ifBranch", block, outputs, exclusive: false};
+      return makeNode("ifBranch", {block, outputs: ifOutputs(expression), exclusive: false, from});
     });
 
     rule("elseIfBranch", () => {
       let block = pushBlock();
-      $.CONSUME(Else);
-      $.CONSUME(If);
-      $.AT_LEAST_ONE(() => {
-        $.SUBRULE($.statement);
+      let from: NodeDependent[] = [
+        self.CONSUME(Else),
+        self.CONSUME(If),
+      ]
+      self.AT_LEAST_ONE(() => {
+        from.push(self.SUBRULE(self.statement) as ParseNode);
       })
-      $.CONSUME(Then);
-      let outputs = ifOutputs($.SUBRULE($.expression));
+      from.push(self.CONSUME(Then));
+      let expression = self.SUBRULE(self.expression) as ParseNode;
+      from.push(expression);
       popBlock();
-      return {type: "ifBranch", block, outputs, exclusive: true};
+      return makeNode("ifBranch", {block, outputs: ifOutputs(expression), exclusive: true, from});
     });
 
     rule("elseBranch", () => {
       let block = pushBlock();
-      $.CONSUME(Else);
-      let outputs = ifOutputs($.SUBRULE($.expression));
+      let from: NodeDependent[] = [self.CONSUME(Else)];
+      let expression = self.SUBRULE(self.expression) as ParseNode;
+      from.push(expression);
       popBlock();
-      return {type: "ifBranch", block, outputs, exclusive: true};
+      return makeNode("ifBranch", {block, outputs: ifOutputs(expression), exclusive: true, from});
     });
 
     //-----------------------------------------------------------
@@ -946,15 +1006,15 @@ class Parser extends chev.Parser {
     //-----------------------------------------------------------
 
     rule("infix", () => {
-      return $.SUBRULE($.addition);
+      return self.SUBRULE(self.addition);
     });
 
     rule("addition", () : any => {
-      let left = $.SUBRULE($.multiplication);
+      let left = self.SUBRULE(self.multiplication);
       let ops = [];
-      $.MANY(function() {
-        let op = $.CONSUME(AddInfix);
-        let right = $.SUBRULE2($.multiplication);
+      self.MANY(function() {
+        let op = self.CONSUME(AddInfix);
+        let right = self.SUBRULE2(self.multiplication);
         ops.push({op, right})
       });
       if(!ops.length) {
@@ -965,10 +1025,11 @@ class Parser extends chev.Parser {
         let curLeft = left;
         for(let pair of ops) {
           let {op, right} = pair;
-          curVar = getOrSetVariable(`addition|${op.startLine}|${op.startColumn}`, true);
-          let expression = {type: "expression", op: op.image, args: [asValue(curLeft), asValue(right)], variable: curVar};
+          curVar = self.block.toVariable(`addition|${op.startLine}|${op.startColumn}`, true);
+          let expression = makeNode("expression", {op: op.image, args: [asValue(curLeft), asValue(right)], variable: curVar, from: [curLeft, op, right]});
           expressions.push(expression);
-          $.activeBlock.expressions.push(expression)
+          curVar.from.push(expression);
+          self.block.expressions.push(expression)
           curLeft = expression;
         }
         return {type: "addition", expressions, variable: curVar};
@@ -976,11 +1037,11 @@ class Parser extends chev.Parser {
     });
 
     rule("multiplication", () : any => {
-      let left = $.SUBRULE($.infixValue);
+      let left = self.SUBRULE(self.infixValue);
       let ops = [];
-      $.MANY(function() {
-        let op = $.CONSUME(MultInfix);
-        let right = $.SUBRULE2($.infixValue);
+      self.MANY(function() {
+        let op = self.CONSUME(MultInfix);
+        let right = self.SUBRULE2(self.infixValue);
         ops.push({op, right})
       });
       if(!ops.length) {
@@ -991,10 +1052,11 @@ class Parser extends chev.Parser {
         let curLeft = left;
         for(let pair of ops) {
           let {op, right} = pair;
-          curVar = getOrSetVariable(`addition|${op.startLine}|${op.startColumn}`, true);
-          let expression = {type: "expression", op: op.image, args: [asValue(curLeft), asValue(right)], variable: curVar};
+          curVar = self.block.toVariable(`addition|${op.startLine}|${op.startColumn}`, true);
+          let expression = makeNode("expression", {op: op.image, args: [asValue(curLeft), asValue(right)], variable: curVar, from: [curLeft, op, right]});
           expressions.push(expression);
-          $.activeBlock.expressions.push(expression)
+          curVar.from.push(expression);
+          self.block.expressions.push(expression)
           curLeft = expression;
         }
         return {type: "multiplication", expressions, variable: curVar};
@@ -1003,26 +1065,28 @@ class Parser extends chev.Parser {
 
     rule("parenthesis", () => {
       let items = [];
-      $.CONSUME(OpenParen);
-      $.AT_LEAST_ONE(() => {
-        let item = $.SUBRULE($.expression);
+      let from = [];
+      from.push(self.CONSUME(OpenParen));
+      self.AT_LEAST_ONE(() => {
+        let item = self.SUBRULE(self.expression);
         items.push(asValue(item));
+        from.push(item);
       })
-      $.CONSUME(CloseParen);
+      from.push(self.CONSUME(CloseParen));
       if(items.length === 1) {
         return items[0];
       }
-      return {type: "parenthesis", items};
+      return makeNode("parenthesis", {items, from});
     });
 
     rule("infixValue", () => {
-      return $.OR([
-        {ALT: () => { return $.SUBRULE($.attributeAccess); }},
-        {ALT: () => { return $.SUBRULE($.functionRecord); }},
-        {ALT: () => { return $.SUBRULE($.isExpression); }},
-        {ALT: () => { return $.SUBRULE($.variable); }},
-        {ALT: () => { return $.SUBRULE($.value); }},
-        {ALT: () => { return $.SUBRULE($.parenthesis); }},
+      return self.OR([
+        {ALT: () => { return self.SUBRULE(self.attributeAccess); }},
+        {ALT: () => { return self.SUBRULE(self.functionRecord); }},
+        {ALT: () => { return self.SUBRULE(self.isExpression); }},
+        {ALT: () => { return self.SUBRULE(self.variable); }},
+        {ALT: () => { return self.SUBRULE(self.value); }},
+        {ALT: () => { return self.SUBRULE(self.parenthesis); }},
       ]);
     })
 
@@ -1031,9 +1095,9 @@ class Parser extends chev.Parser {
     //-----------------------------------------------------------
 
     rule("expression", () => {
-      return $.OR([
-        {ALT: () => { return $.SUBRULE($.infix); }},
-        {ALT: () => { return $.SUBRULE($.record); }},
+      return self.OR([
+        {ALT: () => { return self.SUBRULE(self.infix); }},
+        {ALT: () => { return self.SUBRULE(self.record); }},
       ]);
     });
 
@@ -1042,9 +1106,9 @@ class Parser extends chev.Parser {
     //-----------------------------------------------------------
 
     rule("variable", () => {
-      let token = $.CONSUME(Identifier);
-      let variable = getOrSetVariable(token.image);
-      variable.usages.push(token);
+      let token = self.CONSUME(Identifier);
+      let variable = self.block.toVariable(token.image);
+      variable.from.push(token);
       return variable;
     });
 
@@ -1052,54 +1116,53 @@ class Parser extends chev.Parser {
     // Values
     //-----------------------------------------------------------
 
-    rule("stringLiteral", () => {
-      $.CONSUME(StringOpen);
-      let value = $.CONSUME(StringChars);
-      $.CONSUME(StringClose);
-      return {type: "constant", value: cleanString(value.image)};
-    });
-
     rule("stringInterpolation", () : any => {
       let args = [];
-      let start = $.CONSUME(StringOpen);
-      $.MANY(() => {
-        let arg = $.OR([
-          {ALT: () => { return {type: "constant", value: cleanString($.CONSUME(StringChars).image)}; }},
+      let start = self.CONSUME(StringOpen);
+      let from: NodeDependent[] = [start];
+      self.MANY(() => {
+        let arg = self.OR([
           {ALT: () => {
-            $.CONSUME(StringEmbedOpen);
-            let expression = $.SUBRULE($.infix);
-            $.CONSUME(StringEmbedClose);
+            let str = self.CONSUME(StringChars);
+            return makeNode("constant", {value: cleanString(str.image), from: [str]});
+          }},
+          {ALT: () => {
+            self.CONSUME(StringEmbedOpen);
+            let expression = self.SUBRULE(self.infix);
+            self.CONSUME(StringEmbedClose);
             return expression;
           }},
         ]);
         args.push(asValue(arg));
+        from.push(arg as ParseNode);
       });
-      $.CONSUME(StringClose);
+      from.push(self.CONSUME(StringClose));
       if(args.length === 1 && args[0].type === "constant") {
-        return {type: "constant", value: args[0].value.toString()};
+        return args[0];
       }
-      let variable = getOrSetVariable(`concat|${start.startLine}|${start.startColumn}`, true);
-      let expression = {type: "expression", op: "concat", args, variable}
-      $.activeBlock.expressions.push(expression);
+      let variable = self.block.toVariable(`concat|${start.startLine}|${start.startColumn}`, true);
+      let expression = makeNode("expression", {op: "concat", args, variable, from});
+      variable.from.push(expression);
+      self.block.expressions.push(expression);
       return expression;
     });
 
     rule("value", () => {
-      return $.OR([
-        {ALT: () => { return $.SUBRULE($.stringInterpolation) }},
-        {ALT: () => { return $.SUBRULE($.num) }},
-        {ALT: () => { return $.SUBRULE($.bool) }},
+      return self.OR([
+        {ALT: () => { return self.SUBRULE(self.stringInterpolation) }},
+        {ALT: () => { return self.SUBRULE(self.num) }},
+        {ALT: () => { return self.SUBRULE(self.bool) }},
       ])
     })
 
     rule("bool", () => {
-      let value = $.CONSUME(Bool);
-      return {type: "constant", value: value.image === "true"};
+      let value = self.CONSUME(Bool);
+      return makeNode("constant", {value: value.image === "true", from: [value]});
     })
 
     rule("num", () => {
-      let num = $.CONSUME(Num);
-      return {type: "constant", value: parseFloat(num.image)};
+      let num = self.CONSUME(Num);
+      return makeNode("constant", {value: parseFloat(num.image), from: [num]}) ;
     });
 
     //-----------------------------------------------------------
@@ -1126,7 +1189,10 @@ export function parseBlock(block, blockId, offset = 0, spans = []) {
     spans.push(offset + token.startOffset, offset + token.startOffset + token.image.length, token.label, tokenId);
   }
   eveParser.input = lex.tokens;
-  let results = eveParser.block();
+  // The parameters here are a strange quirk of how Chevrotain works, I believe the
+  // 1 tells chevrotain what level the rule is starting at, we then pass our params
+  // to the codeBlock parser function as an array
+  let results = eveParser.codeBlock(1, [blockId]);
   return {
     results,
     lex,
