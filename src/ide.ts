@@ -27,9 +27,6 @@ function whollyEnclosed(inner:Range, outer:Range) {
   return (left === 1 || left === 0) && (right === -1 || right === 0);
 }
 
-export var renderer = new Renderer();
-document.body.appendChild(renderer.content);
-
 //---------------------------------------------------------
 // Navigator
 //---------------------------------------------------------
@@ -118,7 +115,7 @@ class Navigator {
   // Event Handlers
   togglePane = (event:MouseEvent, elem) => {
     this.open = !this.open;
-    render();
+    this.ide.render();
     event.stopPropagation();
     // @FIXME: This is kinda hacky, but we'd have to have a full on animation system for better.
     setTimeout(this.ide.resize, 100);
@@ -128,14 +125,14 @@ class Navigator {
 
   navigate = (event, elem:{nodeId:string}) => {
     this.currentId = elem.nodeId || this.rootId;
-    render();
+    this.ide.render();
   }
 
   toggleBranch = (event:MouseEvent, {nodeId}) => {
     let node = this.nodes[nodeId];
     if(!node) return;
     node.open = !node.open;
-    render();
+    this.ide.render();
     event.stopPropagation();
   }
 
@@ -148,7 +145,7 @@ class Navigator {
     if(!node) return;
     node.hidden = !node.hidden;
     this.walk(nodeId, this._inheritParentElision);
-    render();
+    this.ide.render();
     event.stopPropagation();
   }
 
@@ -511,13 +508,12 @@ var spanTypes:{[type:string]: (typeof Span)} = {
 // Editor
 //---------------------------------------------------------
 /* - [x] Exactly 700px
- * - [ ] Markdown styling
+ * - [x] Markdown styling
    * - [x] Add missing span types
    * - [x] Event handlers e.g. onChange, etc.
    * - [x] Get spans updating again
-   * - [ ] BUG: Formatting selected too inclusive: |A*A|A* -Cmd-Bg-> AAA
-   * - [ ] BUG: code spans continue onto next line
- * - [ ] Syntax highlighting
+   * - [x] BUG: Formatting selected too inclusive: |A*A|A* -Cmd-Bg-> AAA
+ * - [x] Syntax highlighting
  * - [ ] Display cardinality badges
  * - [ ] Show related (at least action -> EAV / EAV -> DOM
  * - [ ] Autocomplete (at least language constructs, preferably also expression schemas and known tags/names/attributes)
@@ -744,7 +740,7 @@ class Editor {
   }
 
   queueUpdate = debounce(() => {
-    render();
+    this.ide.render();
     this.generation++;
   }, 1, true);
 
@@ -943,7 +939,7 @@ class Editor {
       node.appendChild(this.cm.getWrapperElement());
     }
     this.cm.refresh();
-    render();
+    this.ide.render();
   }
 
   onBeforeChange = (raw:CodeMirror.EditorChangeCancellable) => {
@@ -1316,12 +1312,12 @@ class Comments {
 
   openComment = (event, {commentId}) => {
     this.active = commentId;
-    render();
+    this.ide.render();
   }
 
   closeComment = (event, {commentId}) => {
     this.active = undefined;
-    render();
+    this.ide.render();
   }
 
   comment(commentId:string):Elem {
@@ -1502,21 +1498,23 @@ var fakeComments:CommentMap = {
 };
 
 export class IDE {
+  renderer:Renderer = new Renderer();
+
   navigator:Navigator = new Navigator(this, "root", {});
   editor:Editor = new Editor(this);
   comments:Comments = new Comments(this, fakeComments);
 
   constructor() {
     window.addEventListener("resize", this.resize);
+    document.body.appendChild(this.renderer.content);
+    this.renderer.content.classList.add("ide-root");
   }
 
   resize = debounce(() => {
     this.comments.resizeComments();
   }, 16, true);
 
-  render() {
-    // Update child states as necessary
-
+  elem() {
     return {c: `editor-root`, children: [
       this.navigator.render(),
       this.editor.render(),
@@ -1524,16 +1522,13 @@ export class IDE {
     ]};
   }
 
+  render() {
+    // Update child states as necessary
+    this.renderer.render([this.elem()]);
+  }
+
   loadSpans(text:string, packed:any[], attributes:{[id:string]: any|undefined}) {
     this.editor.loadSpans(text, packed, attributes);
     this.navigator.loadDocument(this.editor);
   }
 }
-
-export let _ide = new IDE();
-function render() {
-  renderer.render([_ide.render()]);
-}
-
-//// DEBUG
-render();

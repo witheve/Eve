@@ -1,6 +1,6 @@
 import {clone, debounce, uuid, sortComparator} from "./util";
 import {sentInputValues, activeIds, renderRecords, renderEve} from "./renderer"
-import {_ide} from "./ide";
+import {IDE} from "./ide";
 import * as browser from "./runtime/browser";
 
 import {IndexScalar, IndexList, EAV, Record} from "./db"
@@ -192,6 +192,7 @@ socket.onmessage = function(msg) {
   } else if(data.type == "parse") {
     console.log("Got parse!", data);
     _ide.loadSpans(data.text, data.spans, data.extraInfo);
+    _ide.render();
   } else if(data.type == "error") {
     console.error(data.message, data);
   }
@@ -310,3 +311,9 @@ function onHashChange(event) {
 }
 
 window.addEventListener("hashchange", onHashChange);
+
+//---------------------------------------------------------
+// Initialize an IDE
+//---------------------------------------------------------
+let _ide = new IDE();
+_ide.render();

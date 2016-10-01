@@ -4,7 +4,7 @@ import {Renderer} from "microReact";
 import {clone} from "./util";
 import {CodeMirrorNode, applyFix, setKeyMap} from "./editor";
 import * as MarkdownEditor from "./editor";
-import {sendEvent, indexes, parseInfo} from "./client";
+import {sendEvent, indexes} from "./client";
 
 //type RecordElementCollection = HTMLCollection | SVGColl
 interface RecordElement extends Element { entity?: string, sort?: any, _parent?: RecordElement|null, style?: CSSStyleDeclaration };
@@ -33,6 +33,7 @@ export function setActiveIds(ids) {
 //---------------------------------------------------------
 export var renderer = new Renderer();
 document.body.appendChild(renderer.content);
+renderer.content.classList.add("application-root");
 
 // These will get maintained by the client as diffs roll in
 export var sentInputValues = {};
@@ -480,68 +481,5 @@ function injectProgram(node, elem) {
 }
 
 export function renderEve() {
-  let program = {c: "program-container", postRender: injectProgram}
-  let {editor, errors} = renderEditor();
-
-  let rootUi = {c: "parse-info", children: [
-    editor,
-    errors,
-    program,
-    MarkdownEditor.viewBar.render(),
-  ]};
-  renderer.render([{c: "graph-root", children: [rootUi]}]);
-}
-
-export function renderEditor():{editor:any, errors:any} {
-  let parseGraphs = indexes.byTag.index["parse-graph"];
-  if(!parseGraphs || parseGraphs.length === 0) return {editor: undefined, errors: undefined};
-
-  if(parseGraphs.length > 1) {
-    console.error("Multiple parse graphs in the compiler bag, wut do?", parseGraphs);
-    return {} as any;
-  }
-  let records = indexes.records.index;
-  let root = records[parseGraphs[0]];
-  let context = records[root.context[root.context.length - 1]];
-
-  let program;
-  let errors;
-  if(root && context.errors && context.errors.length) {
-    context.errors.sort((a, b) => { return records[records[a].pos].line - records[records[b].pos].line; })
-    let items = context.errors.map(function(errorId) {
-      let errorInfo = records[errorId];
-      let fix;
-      if(errorInfo.fixes) {
-        fix = {c: "fix-it", text: "Fix it for me", fix: errorInfo.fixes, click: applyFix}
-      }
-      return {c: "error", children: [
-        {c: "error-title", text: errorInfo.type},
-        {c: "error-context", text: errorInfo.pos.file || "(passed string)"},
-        {t: "pre", dangerouslySetInnerHTML: errorInfo.final.trim().replace(/\n /gi, "\n")},
-        fix,
-      ]};
-    });
-    errors = {c: "errors", children: items};
-  }
-
-  let editor = {c: "run-info", children: [
-    MarkdownEditor.outline ? MarkdownEditor.outline.render() : undefined,
-    {c: "editor-content", children: [
-      //MarkdownEditor.toolbar(),
-      CodeMirrorNode({value: context.code && context.code[0] || "", parse: parseInfo}),
-      MarkdownEditor.comments ? MarkdownEditor.comments.render() : undefined,
-      {c: "toolbar", children: [
-        {c: "stats"},
-        {t: "select", c: "show-graphs", change: setKeyMap, children: [
-          {t: "option", value: "default", text: "default"},
-          {t: "option", value: "vim", text: "vim"},
-          {t: "option", value: "emacs", text: "emacs"},
-        ]},
-        {c: "show-graphs", text: "save", click: () => console.log("save yo")},
-        {c: "show-graphs", text: "compile and run", click: () => console.log("run dawg")}
-      ]},
-    ]},
-  ]};
-
-  return {editor, errors}
+  renderer.render([{c: "application-container", postRender: injectProgram}]);
 }
