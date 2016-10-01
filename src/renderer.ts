@@ -2,7 +2,7 @@
 
 import {Renderer} from "microReact";
 import {clone} from "./util";
-import {CodeMirrorNode, applyFix, setKeyMap, doSave, compileAndRun} from "./editor";
+import {CodeMirrorNode, applyFix, setKeyMap} from "./editor";
 import * as MarkdownEditor from "./editor";
 import {sendEvent, indexes, parseInfo} from "./client";
 
@@ -140,7 +140,8 @@ export function renderRecords() {
         activeElements[entityId] = elem;
         if(entity.sort && entity.sort.length > 1) console.error("Unable to set 'sort' multiple times on entity", entity, entity.sort);
         elem.sort = (entity.sort && entity.sort[0]) || (entity["eve-auto-index"] && entity["eve-auto-index"][0]) || "";
-        let parent = activeElements[activeChildren[entityId] || "root"];
+        let parentId = activeChildren[entityId] && activeChildren[entityId][0] || "root";
+        let parent = activeElements[parentId];
         if(parent) {
           insertSorted(parent, elem)
         }
@@ -240,7 +241,7 @@ export function renderRecords() {
     } else {
       let neue:string[] = [];
       for(let klassId of value) {
-        if(activeClasses[klassId] !== undefined && records[klassId] !== undefined) {
+        if(klassId[0] == "⦑" && klassId[klassId.length - 1] == "⦒" && activeClasses[klassId]) {
           let klass = records[klassId];
           for(let name in klass) {
             if(!klass[name]) continue;
@@ -269,7 +270,7 @@ export function renderRecords() {
     if(value) {
       let neue:string[] = [];
       for(let styleId of value) {
-        if(activeStyles[styleId]) {
+        if(styleId[0] == "⦑" && styleId[styleId.length - 1] == "⦒" && activeStyles[styleId]) {
           let style = records[styleId];
           for(let attr in style) {
             (elem as any).style[attr] = style[attr] && style[attr].join(", ");
@@ -526,7 +527,7 @@ export function renderEditor():{editor:any, errors:any} {
   let editor = {c: "run-info", children: [
     MarkdownEditor.outline ? MarkdownEditor.outline.render() : undefined,
     {c: "editor-content", children: [
-      MarkdownEditor.toolbar(),
+      //MarkdownEditor.toolbar(),
       CodeMirrorNode({value: context.code && context.code[0] || "", parse: parseInfo}),
       MarkdownEditor.comments ? MarkdownEditor.comments.render() : undefined,
       {c: "toolbar", children: [
@@ -536,8 +537,8 @@ export function renderEditor():{editor:any, errors:any} {
           {t: "option", value: "vim", text: "vim"},
           {t: "option", value: "emacs", text: "emacs"},
         ]},
-        {c: "show-graphs", text: "save", click: doSave},
-        {c: "show-graphs", text: "compile and run", click: compileAndRun}
+        {c: "show-graphs", text: "save", click: () => console.log("save yo")},
+        {c: "show-graphs", text: "compile and run", click: () => console.log("run dawg")}
       ]},
     ]},
   ]};

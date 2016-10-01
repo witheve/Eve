@@ -43,6 +43,7 @@ html, body, __root { height: 100%; }
 .tree-item .label { display: flex; flex: 1 1 auto; margin-left: 20px; user-select: none; -webkit-user-select: none; transition: opacity 0.15s; }
 .tree-item .label:before { display: inline-block; margin-left: -15px; margin-right: 5px; height: 15px; width: 15px; text-align: center; }
 .tree-item.branch .label:before { opacity: 0.25; transition: opacity 0.15s, transform 0.15s; }
+.tree-item.branch.root > .flex-row > .label { opacity: 0; pointer-events: none; }
 .tree-item.branch.collapsed .label:before { transform: rotate(-90deg); opacity: 0.5; }
 .tree-item.branch:hover .label:before { opacity: 1; }
 .tree-item .label.no-icon:before { content: ""; }

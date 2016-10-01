@@ -1,6 +1,6 @@
 import {clone, debounce, uuid, sortComparator} from "./util";
 import {sentInputValues, activeIds, renderRecords, renderEve} from "./renderer"
-import {handleEditorParse} from "./editor"
+import {_ide} from "./ide";
 import * as browser from "./runtime/browser";
 
 import {IndexScalar, IndexList, EAV, Record} from "./db"
@@ -191,6 +191,7 @@ socket.onmessage = function(msg) {
     browser.init(data.code);
   } else if(data.type == "parse") {
     console.log("Got parse!", data);
+    _ide.loadSpans(data.text, data.spans, data.extraInfo);
   } else if(data.type == "error") {
     console.error(data.message, data);
   }
@@ -206,108 +207,6 @@ socket.onopen = function() {
 socket.onclose = function() {
   console.log("Disconnected from eve server!");
 }
-
-//---------------------------------------------------------
-// Bootstrapping interface
-//---------------------------------------------------------
-interface Block {id: string, name: string, sort: number, line: number};
-interface Token {id: string, type: string, sort: number, line: number, surrogateOffset: number, surrogateLength: number};
-type Line = Token[]
-
-interface ParseInfo {
-  blocks:Block[],
-  blockIds:{[id:string]: Block},
-  lines:Line[],
-  tokenIds:{[id:string]: Token},
-}
-export var parseInfo:ParseInfo = {blocks: [], lines: [], blockIds: {}, tokenIds: {}};
-
-let updateEditorParse = debounce(handleEditorParse, 1); // @FIXME: We need to listen for any changes to records with those tags
-
-
-
-function tokensToParseInfo(tokenIds) {
-  let records = indexes.records.index;
-
-  // @FIXME: we don't want to be incremental right now, it's tough.
-  tokenIds = indexes.byTag.index["token"];
-
-  let lines:Token[][] = [];
-  for(let tokenId of tokenIds) {
-    // if(parseInfo.tokenIds[tokenId]) {
-    //   let ix = parseInfo..indexOf(parseInfo.tokenIds[tokenId]);
-    //   parseInfo.tokens.splice(ix, 1);
-    //   parseInfo.tokenIds[tokenId] = undefined;
-    // }
-
-    let token = records[tokenId];
-    if(!token) continue;
-    let line = token.line[0];
-    if(!lines[line]) {
-      lines[line] = [];
-    }
-    parseInfo.tokenIds[tokenId] = {
-      id: token.id[0],
-      type: token.type[0],
-      sort: token.sort[0],
-      line: token.line[0],
-      surrogateOffset: token.surrogateOffset[0],
-      surrogateLength: token.surrogateLength[0]
-    };
-    lines[line].push(parseInfo.tokenIds[tokenId]);
-  }
-
-  for(let line of lines) {
-    if(!line) continue;
-    line.sort(sortComparator);
-  }
-  parseInfo.lines = lines;
-  updateEditorParse(parseInfo);
-}
-indexes.byTag.subscribe(function(index, dirty) {
-  if(!dirty["token"]) return;
-  tokensToParseInfo(dirty["token"]);
-});
-
-function blocksToParseInfo(blockIds) {
-  let records = indexes.records.index;
-
-  // @FIXME: we don't want to be incremental right now, it's tough.
-  blockIds = indexes.byTag.index["block"];
-
-
-  let blocks:Block[] = [];
-  for(let blockId of blockIds) {
-    // if(parseInfo.blockIds[blockId]) {
-    //   let ix = parseInfo.blocks.indexOf(parseInfo.blockIds[blockId]);
-    //   parseInfo.blocks.splice(ix, 1);
-    //   parseInfo.blockIds[blockId] = undefined;
-    // }
-    let block = records[blockId];
-    if(!block) continue;
-    parseInfo.blockIds[blockId] = {id: blockId, name: block.name[0], sort: block.sort[0], line: block.line[0]};
-    blocks.push(parseInfo.blockIds[blockId]);
-  }
-  blocks.sort(sortComparator);
-  parseInfo.blocks = blocks;
-  updateEditorParse(parseInfo);
-}
-indexes.byTag.subscribe(function(index, dirty) {
-  if(!dirty["block"]) return;
-  blocksToParseInfo(dirty["block"]);
-});
-
-function handleEditorUpdates(index, dirty) {
-  let blockIds:string[] = [];
-  let tokenIds:string[] = [];
-  for(let recordId in dirty) {
-    if(parseInfo.blockIds[recordId]) blockIds.push(recordId);
-    if(parseInfo.tokenIds[recordId]) tokenIds.push(recordId);
-  }
-  if(blockIds.length) blocksToParseInfo(blockIds);
-  if(tokenIds.length) tokensToParseInfo(tokenIds);
-}
-indexes.dirty.subscribe(handleEditorUpdates);
 
 function renderOnChange(index, dirty) {
   renderRecords();

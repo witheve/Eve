@@ -47,6 +47,7 @@ interface TreeNode {
   type: string,
   children?: string[],
   open?: boolean,
+  span?: Span,
 
   hidden?: boolean,
   level?: number
@@ -77,6 +78,41 @@ class Navigator {
         this.walk(childId, callback, rootId);
       }
     }
+  }
+
+  loadDocument(editor:Editor) {
+    let doc = editor.cm.getDoc();
+    let headings = editor.getAllSpans("heading");
+    headings.sort((a, b) => {
+      let aLoc = a.find();
+      let bLoc = b.find();
+      if(!aLoc && !bLoc) return 0;
+      if(!aLoc) return -1;
+      if(!bLoc) return 1;
+      if(aLoc.from.line === bLoc.from.line) return 0;
+      return aLoc.from.line < bLoc.from.line ? -1 : 1;
+    });
+
+    this.nodes = {};
+    let rootId = "root";
+    let root = this.nodes[rootId] = {name, type: "document", open: true};
+    let stack:TreeNode[] = [root];
+    for(let heading of headings) {
+      let loc = heading.find();
+      if(!loc) continue;
+
+      while((stack.length > 1) && heading.source.level <= stack[stack.length - 1].level) stack.pop();
+      let parent = stack[stack.length - 1];
+      if(!parent.children) parent.children = [heading.source.id];
+      else parent.children.push(heading.source.id);
+
+      let node:TreeNode = {name: doc.getLine(loc.from.line), type: "section", level: heading.source.level, open: true, span: heading};
+      stack.push(node);
+      this.nodes[heading.source.id] = node;
+    }
+
+    this.nodes[rootId] = root;
+    this.rootId = rootId;
   }
 
   // Event Handlers
@@ -159,7 +195,7 @@ class Navigator {
       subtree = {c: "tree-items", children: items};
     }
 
-    return {c: `tree-item ${subtree ? "branch" : "leaf"} ${node.type} ${subtree && !node.open ? "collapsed" : ""} ${node.hidden ? "hidden" : ""}`, nodeId, children: [
+    return {c: `tree-item ${subtree ? "branch" : "leaf"} ${nodeId === this.rootId ? "root" : ""} ${node.type} ${subtree && !node.open ? "collapsed" : ""} ${node.hidden ? "hidden" : ""}`, nodeId, children: [
       {c: "flex-row", children: [
         {c: `label ${subtree ? "ion-ios-arrow-down" : "no-icon"}`, text: node.name, nodeId, click: subtree ? this.toggleBranch : undefined}, // icon should be :before
         {c: "controls", children: [
@@ -327,7 +363,6 @@ class LineSpan extends Span {
 
     // If we're deleting at the start of a line-formatted line, we need to remove the line formatting too.
     if(change.origin === "+delete" && change.from.ch === 0) {
-      console.log("deleting", loc.from.line, loc.to.line);
       this.clear();
     }
     // If we're adding a newline with nothing on the current line, we're really removing the formatting of the current line.
@@ -676,24 +711,30 @@ class Editor {
   /** Undo history state */
   history:{position:number, transitioning:boolean, items: HistoryItem[]} = {position: 0, items: [], transitioning: false};
 
-  constructor(public ide:IDE, protected _value:string = "") {
+  constructor(public ide:IDE) {
     this.cm = CodeMirror(() => undefined, this.defaults);
     this.cm.on("beforeChange", (editor, rawChange) => this.onBeforeChange(rawChange));
     this.cm.on("change", (editor, rawChange) => this.onChange(rawChange));
     this.cm.on("changes", (editor, rawChanges) => this.onChanges(rawChanges));
     this.cm.on("cursorActivity", this.onCursorActivity);
-
-    this.loadMarkdown(_value);
   }
 
-  loadMarkdown(value:string) {
-    let {text, spans} = parseMarkdown(value);
-    this._value = text;
+  loadSpans(text:string, packed:any[], attributes:{[id:string]: any|undefined}) {
     this.cm.operation(() => {
       this.cm.setValue(text);
       let doc = this.cm.getDoc();
-      for(let [start, end, source] of spans) {
-        this.markSpan(doc.posFromIndex(start), doc.posFromIndex(end), source);
+      if(packed.length % 4 !== 0) throw new Error("Invalid span packing, unable to load.");
+      for(let i = 0; i < packed.length; i += 4) {
+        let from = doc.posFromIndex(packed[i]);
+        let to = doc.posFromIndex(packed[i + 1]);
+        let type = packed[i + 2];
+        let id = packed[i + 3];
+
+        let source = attributes[id] || {};
+        source.type = type;
+        source.id = id;
+        this.markSpan(from, to, source);
+
       }
     });
   }
@@ -1425,6 +1466,9 @@ function _addFakeDoc(name:string, text:string, nodes:TreeMap, parentId?:string) 
   for(let line of text.split("\n")) {
     if(line[0] == "#") {
       let id = uuid();
+
+      let root = nodes[rootId] = {name, type: "document", children: []};
+      let stack:TreeNode[] = [root];
       let level = 0;
       while(line[level] === "#") level++;
       while((stack.length > 1) && (level <= stack[stack.length - 1].level)) stack.pop();
@@ -1457,9 +1501,9 @@ var fakeComments:CommentMap = {
                `)},
 };
 
-class IDE {
-  navigator:Navigator = new Navigator(this, "root", fakeNodes);
-  editor:Editor = new Editor(this, fakeText);
+export class IDE {
+  navigator:Navigator = new Navigator(this, "root", {});
+  editor:Editor = new Editor(this);
   comments:Comments = new Comments(this, fakeComments);
 
   constructor() {
@@ -1479,9 +1523,14 @@ class IDE {
       this.comments.render()
     ]};
   }
+
+  loadSpans(text:string, packed:any[], attributes:{[id:string]: any|undefined}) {
+    this.editor.loadSpans(text, packed, attributes);
+    this.navigator.loadDocument(this.editor);
+  }
 }
 
-let _ide = new IDE();
+export let _ide = new IDE();
 function render() {
   renderer.render([_ide.render()]);
 }

@@ -1,22 +1,39 @@
-import * as commonmark from "commonmark";
-import {CodeMirror} from "CodeMirror";
+import {Parser} from "commonmark";
+import * as CodeMirror from "codemirror";
 import {sendSwap, sendSave, sendParse} from "./client";
 import {setActiveIds, renderer, renderEve} from "./renderer";
-
-let lineMarks = {"item": true, "heading": true, "heading1": true, "heading2": true, "heading3": true, "heading4": true};
-
-let parser = new commonmark.Parser();
-
 let codeEditor: MarkdownEditor;
+let lineMarks = {"item": true, "heading": true, "heading1": true, "heading2": true, "heading3": true, "heading4": true};
+let parser = new Parser();
 
-interface Pos {line: number, ch: number}
-interface Range { from: Pos, to: Pos }
+
+type Pos = CodeMirror.Position;
+type Range = CodeMirror.Range;
+
+type Elem = Element&any;
+
+function isRange(loc:any): loc is Range {
+  return loc.from !== undefined || loc.to !== undefined;
+}
+function isPosition(loc:any): loc is Position {
+  return loc.line !== undefined || loc.ch !== undefined;
+}
+
+//---------------------------------------------------------
+// Spans (TextMarkers)
+//---------------------------------------------------------
+
+interface SpanMarker extends CodeMirror.TextMarker {
+  span?: Span,
+  active?: boolean,
+  source?: any
+}
 
 class Span {
   static spanId = 0;
   id: number;
-  textMarker: any;
-  editor: any;
+  textMarker?: SpanMarker;
+  editor: MarkdownEditor;
   source: any;
   from: Pos;
   to: Pos;
@@ -34,15 +51,16 @@ class Span {
     return {className: this.source.type.toUpperCase()}
   }
 
-  applyMark(editor) {
+  applyMark(editor:MarkdownEditor) {
     this.editor = editor;
     let cm = editor.editor;
+    let doc = cm.getDoc();
     let {from, to} = this;
     if(!samePos(from, to)) {
       let attributes = this.getMarkAttributes();
-      this.textMarker = cm.markText(from, to, attributes)
+      this.textMarker = doc.markText(from, to, attributes)
     } else {
-      this.textMarker = cm.setBookmark(from, {});
+      this.textMarker = doc.setBookmark(from, {});
     }
     this.textMarker.span = this;
 
@@ -59,11 +77,11 @@ class Span {
     }
   }
 
-  find() {
+  find():Range|undefined {
     if(this.textMarker) {
       let loc = this.textMarker.find();
       if(!loc) return;
-      if(loc.from) return loc;
+      if(isRange(loc)) return loc;
       return {from: loc, to: loc};
     }
     return {from: this.from, to: this.to};
@@ -73,6 +91,10 @@ class Span {
     if(this.textMarker) {
       let cm = this.editor.editor;
       let loc = this.find();
+      if(!loc) {
+        console.warn("Location not found, aborting deletion.");
+        return;
+      }
       this.from = loc.from;
       this.to = loc.to;
       this.editor.clearMark(this, origin);
@@ -99,6 +121,10 @@ class Span {
   clone() {
     let spanType = TypeToSpanType[this.source.type] || Span;
     let loc = this.find();
+    if(!loc) {
+      console.warn("Location not found, aborting clone.");
+      return;
+    }
     return new spanType(loc.from, loc.to, this.source);
   }
 
@@ -107,12 +133,46 @@ class Span {
   onBeforeChange(change) {}
 }
 
+function getMarksByType(editor, type, start?, stop?, inclusive?):SpanMarker[] {
+  let marks;
+  if(start && stop && !samePos(start, stop)) {
+    if(inclusive) {
+      marks = editor.findMarks({line: start.line, ch: start.ch - 1}, {line: stop.line, ch: stop.ch + 1});
+    } else {
+      marks = editor.findMarks(start, stop);
+    }
+  } else if(start) {
+    marks = editor.findMarksAt(start);
+  } else {
+    marks = editor.getAllMarks();
+  }
+  let valid:SpanMarker[] = [];
+  for(let mark of marks) {
+    if(mark.span && mark.span.source.type === type) {
+      valid.push(mark);
+    }
+  }
+  return valid;
+}
+
+function splitMark(editor, mark, from, to?) {
+  if(!to) to = from;
+  let loc = mark.find();
+  let source = mark.source;
+  let startMarker = editor.mark(loc.from, from, source);
+  if(comparePos(to, loc.to) === -1) {
+    let endMarker = editor.mark(to, loc.to, source);
+  }
+  mark.clear();
+}
+
 function cmLength (cm) {
   var lastLine = cm.lineCount() - 1;
   return cm.indexFromPos({line: lastLine, ch: cm.getLine(lastLine).length});
 }
 
-function normalizeChange(editor, change) {
+interface Change {type: string, start: number, removed: any, added: any}
+function normalizeChange(editor, change):Change {
   // if there's a text property, we're dealing with a codemirror change
   // object
   if(change.text) {
@@ -125,11 +185,11 @@ function normalizeChange(editor, change) {
   } else {
     // otherwise we're dealing with a span change which is already normalized
     // for us
-    return change;
+    return change as Change;
   }
 }
 
-function inverseNormalizedChange(change) {
+function inverseNormalizedChange(change:Change):Change {
   let {type, start, removed, added} = change;
   return {type, start, added: removed, removed: added};
 }
@@ -137,19 +197,19 @@ function inverseNormalizedChange(change) {
 function changeToOps(editor, change) {
   let {start, added, removed} = normalizeChange(editor, change);
   let remaining = cmLength(editor) - start - added.length;
-  let ops = [];
+  let ops:any[] = [];
   ops.push(start);
   ops.push(added);
   ops.push(removed.length * -1);
   ops.push(remaining)
-  let invert = [];
+  let invert:any[] = [];
   invert.push(start);
   invert.push(removed);
   invert.push(added.length * -1);
   invert.push(remaining);
 }
 
-function changeToFinalPos(change) {
+function changeToFinalPos(change:CodeMirror.EditorChangeCancellable) {
   let {from, to, text} = change;
   let adjusted = {line: from.line + (text.length - 1), ch: 0}
   if(text.length == 1) {
@@ -160,7 +220,7 @@ function changeToFinalPos(change) {
   return adjusted;
 }
 
-function formattingChange(span, change, action) {
+function formattingChange(span:Span, change:CodeMirror.EditorChangeCancellable, action) {
   let editor = span.editor;
   let source = {type: span.source.type};
   let {from, to} = change;
@@ -169,6 +229,7 @@ function formattingChange(span, change, action) {
     splitMark(editor, span, from, adjusted);
   } else if(!action) {
     let loc = span.find();
+    if(!loc) return;
     // if we're at the end of this mark
     if(samePos(loc.to, from)) {
       span.clear();
@@ -197,7 +258,7 @@ class HeadingSpan extends Span {
     if(change.origin === "+delete") {
       let marks = getMarksByType(this.editor.editor, "heading", to);
       for(let mark of marks) {
-        if(from.ch == 0) {
+        if(from.ch == 0 && mark.span) {
           this.editor.mark(from, from, mark.span.source);
         }
         // clear the old bookmark
@@ -215,9 +276,10 @@ class ListItemSpan extends Span {
   }
 
   onBeforeChange(change) {
+    let doc = this.editor.editor.getDoc();
     let {from, to, text} = change;
     let loc = this.find();
-    if(!samePos(loc.from, from)) return;
+    if(!loc || !samePos(loc.from, from)) return;
 
     if(change.origin === "+delete") {
       this.clear();
@@ -226,7 +288,7 @@ class ListItemSpan extends Span {
     if(change.origin === "+input") {
       // if we are at the start of a list item and adding a new line, we're really removing the
       // list item-ness of this row
-      if(isNewlineChange(change) && this.editor.editor.getLine(from.line) === "") {
+      if(isNewlineChange(change) && doc.getLine(from.line) === "") {
         this.clear();
         change.cancel();
       }
@@ -236,6 +298,10 @@ class ListItemSpan extends Span {
   onChange(change) {
     let {from, to, text} = change;
     let loc = this.find();
+    if(!loc) {
+      console.warn("Location not found, aborting change.");
+      return;
+    }
     if(!samePos(loc.from, from)) return;
     // check if we're adding a new line from a list line. If so, we continue
     // the list.
@@ -257,6 +323,10 @@ class CodeBlockSpan extends Span {
   onBeforeChange(change) {
     if(change.origin === "+delete") {
       let loc = this.find();
+      if(!loc) {
+        console.warn("Location not found, aborting deletion.");
+        return;
+      }
       if(samePos(loc.from, change.to)) {
         this.clear();
         change.cancel();
@@ -266,20 +336,29 @@ class CodeBlockSpan extends Span {
 
   refresh(change) {
     let loc = this.find();
+    if(!loc) {
+      console.warn("Location not found, aborting refresh.");
+      return;
+    }
     let cm = this.editor.editor;
     for(let ix = loc.from.line; ix < loc.to.line; ix++) {
       let info = cm.lineInfo(ix);
-      if(!info.bgClass || info.bgClass.indexOf(this.lineBackgroundClass) === -1) {
-        cm.addLineClass(ix, "background", this.lineBackgroundClass);
+      if(!info.bgClass || info.bgClass.indexOf(this.lineBackgroundClass!) === -1) {
+        cm.addLineClass(ix, "background", this.lineBackgroundClass!);
       }
     }
   }
 
   onChange(change) {
+    let doc = this.editor.editor.getDoc();
     let {from, to, text} = change;
     let adjusted = changeToFinalPos(change);
     let mark = this;
     let loc = mark.find();
+    if(!loc) {
+        console.warn("Location not found, aborting change.");
+        return;
+    }
 
     if(from.line < loc.from.line || (from.line === loc.from.line && loc.from.ch !== 0) || samePos(loc.from, loc.to)) {
       mark.clear();
@@ -297,7 +376,7 @@ class CodeBlockSpan extends Span {
       this.editor.mark(loc.from, to, mark.source);
       // we then have to check if any formatting marks ended up in here
       // and remove them
-      for(let containedMark of this.editor.editor.findMarks(loc.from, to)) {
+      for(let containedMark of doc.findMarks(loc.from, to) as SpanMarker[]) {
         if(containedMark.source && containedMark.source.type !== "code_block") {
           containedMark.clear();
         }
@@ -370,74 +449,80 @@ let TypeToSpanType = {
   "elision": ElisionSpan,
 }
 
+//---------------------------------------------------------
+// Editor
+//---------------------------------------------------------
+
+// Register static commands
+let _rawUndo = CodeMirror.commands["undo"];
+CodeMirror.commands["undo"] = function(editor:RawEditor) {
+  if(!editor.markdownEditor) _rawUndo.apply(this, arguments);
+  else editor.markdownEditor.undo();
+}
+let _rawRedo = CodeMirror.commands["redo"];
+CodeMirror.commands["redo"] = function(editor:RawEditor) {
+  if(!editor.markdownEditor) _rawRedo.apply(this, arguments);
+  else editor.markdownEditor.redo();
+}
+
+interface RawEditor extends CodeMirror.Editor {
+  markdownEditor?:MarkdownEditor
+}
+
+interface HistoryItem { finalized?: boolean, changes:Change[] }
+
 class MarkdownEditor {
-  version: number;
-  editor: any;
-  spans: any;
-  formatting: any;
-  history: any;
-  changing: boolean;
-  queued: boolean;
-  affectedMarks: any[];
-  markIndexes: any;
+  version: number = 0;
+  editor:RawEditor;
+  spans:Span[] = [];
+  formatting = {};
+  history:{position:number, transitioning:boolean, items: HistoryItem[]} = {position: 0, items: [], transitioning: false};
+  changing: boolean = false;
+  queued: boolean = false;
+  affectedMarks: SpanMarker[] = [];
+  markIndexes = {type: {}};
 
   constructor(value: string) {
     var self = this;
-    let editor = new CodeMirror(function() {}, {
+    let editor:RawEditor = CodeMirror(function() {}, {
       tabSize: 2,
       lineWrapping: true,
       extraKeys: ctrlify({
-        "Cmd-Enter": doSwap,
-        "Cmd-B": formatBold,
-        "Cmd-I": formatItalic,
+        "Cmd-Enter": function() { console.log("Swap!"); },
+        "Cmd-B": () => formatBold(self),
+        "Cmd-I": () => formatItalic(self),
         "Cmd-E": formatHeader,
-        "Cmd-Y": formatList,
-        "Cmd-K": formatCodeBlock,
-        "Cmd-L": formatCode,
+        "Cmd-Y": () => formatList(self),
+        "Cmd-K": () => formatCodeBlock(self),
+        "Cmd-L": () => formatCode(self),
+        "Cmd-C": () => console.log(this.editor.getDoc().getCursor(), this.headingAt(this.editor.getDoc().getCursor()))
       })
-    });
+    }) as any;
     editor.markdownEditor = this;
     this.editor = editor;
-    this.formatting = {};
-    this.queued = false;
-    this.affectedMarks = [];
-    this.markIndexes = {
-      type: {}
-    };
-    this.history = {position: 0, items: []}
-    CodeMirror.commands.undo = function(cm) {
-      cm.markdownEditor.undo();
-    }
-    CodeMirror.commands.redo = function(cm) {
-      cm.markdownEditor.redo();
-    }
+
     editor.on("beforeChange", function(editor, change) { self.onBeforeChange(change); });
     editor.on("change", function(editor, change) { self.onChange(change); });
     editor.on("cursorActivity", function(editor) { self.onCursorActivity(); });
     editor.on("paste", function(editor, event) { self.onPaste(event); });
     editor.on("copy", function(editor, event) { self.onCopy(event); });
     editor.on("changes", function(editor, changes) { self.onChanges(changes); });
-    // editor.on("scroll", function(editor) { self.onScroll(); });
 
     this.loadMarkdown(value);
-    this.editor.clearHistory();
-    this.history = {position: 0, items: []};
-    this.version = 0;
-  }
-
-  onScroll() {
-
+    let doc = this.editor.getDoc();
+    doc.clearHistory();
   }
 
   onBeforeChange(change) {
+    let doc = this.editor.getDoc();
     let {from, to} = change;
-    let marks;
+    let marks:SpanMarker[];
     if(!samePos(from, to)) {
-      let adjustedFrom = this.editor.posFromIndex(this.editor.indexFromPos(from) - 1);
-      let adjustedTo = this.editor.posFromIndex(this.editor.indexFromPos(to) + 1);
-      marks = this.editor.findMarks(adjustedFrom, adjustedTo);
+      let adjustedFrom = doc.posFromIndex(doc.indexFromPos(from) - 1);
+      let adjustedTo = doc.posFromIndex(doc.indexFromPos(to) + 1);
+      marks = doc.findMarks(adjustedFrom, adjustedTo);
     } else {
-      marks = this.editor.findMarksAt(from);
+      marks = doc.findMarksAt(from);
     }
     for(let mark of marks) {
       if(mark.span && mark.span.onBeforeChange) {
@@ -553,14 +638,15 @@ class MarkdownEditor {
     let editor = this.editor;
     history.transitioning = true;
     editor.operation(function() {
+      let doc = editor.getDoc();
       for(let ix = changeSet.changes.length - 1; ix > -1; ix--) {
         let change = changeSet.changes[ix];
         let inverted = inverseNormalizedChange(change);
         if(inverted.type === "range") {
-          editor.replaceRange(inverted.added, editor.posFromIndex(inverted.start), editor.posFromIndex(inverted.start + inverted.removed.length), "+mdundo");
+          doc.replaceRange(inverted.added, doc.posFromIndex(inverted.start), doc.posFromIndex(inverted.start + inverted.removed.length), "+mdundo");
         } else if(inverted.type === "span") {
           for(let removed of inverted.removed) {
-            removed.clear("+mdundo");
+            removed.clear("+mdundo"); // Is this correct? It seems like this is a string elsewhere?
           }
           for(let added of inverted.added) {
             self._markSpan(added, "+mdundo");
@@ -579,9 +665,10 @@ class MarkdownEditor {
     let editor = this.editor;
     history.transitioning = true;
     editor.operation(function() {
+      let doc = editor.getDoc();
       for(let change of changeSet.changes) {
         if(change.type === "range") {
-          editor.replaceRange(change.added, editor.posFromIndex(change.start), editor.posFromIndex(change.start + change.removed.length), "+mdredo");
+          doc.replaceRange(change.added, doc.posFromIndex(change.start), doc.posFromIndex(change.start + change.removed.length), "+mdredo");
         } else if(change.type === "span") {
           for(let removed of change.removed) {
             removed.clear("+mdredo");
@@ -616,7 +703,7 @@ class MarkdownEditor {
     }
   }
 
-  mark(from, to, source) {
+  mark(from:Pos, to:Pos, source) {
     let type = source.type;
     let spanClass = TypeToSpanType[type] || Span;
     let span = new spanClass(this, from, to, source)
@@ -632,7 +719,7 @@ class MarkdownEditor {
     this._unindexMark(mark);
   }
 
-  marksByType(type, from?, to?) {
+  marksByType(type, from?, to?):SpanMarker[] {
     let index = this.markIndexes.type[type];
     if(!index) return [];
 
@@ -641,14 +728,13 @@ class MarkdownEditor {
 
     // otherwise find each mark and check for intersection
     // if we don't have a to, set it to from for the sake of intersection
-    if(to === undefined) {
-      to = from;
-    }
-    let results = [];
+    if(to === undefined) to = from;
+    if(from === undefined) from = {line: 0, ch: 0};
+    let results:SpanMarker[] = [];
     for(let mark of index) {
       let loc = mark.find();
-      if((comparePos(loc.from, from) <= 0 && comparePos(loc.to, from) >= 0) ||
-         (comparePos(loc.from, to) <= 0 && comparePos(loc.to, to) >= 0)) {
+      if((comparePos(from, loc.from) <= 0 && comparePos(to, loc.from) >= 0) ||
+         (comparePos(from, loc.to) <= 0 && comparePos(to, loc.to) >= 0)) {
         results.push(mark);
       }
     }
@@ -659,8 +745,9 @@ class MarkdownEditor {
     let headings = this.marksByType("heading");
     let self = this;
     let {history, editor} = this;
-    let last = {line: 0, ch: 0};
+    let last:Pos|null = {line: 0, ch: 0};
     editor.operation(function() {
+      let doc = editor.getDoc();
       history.transitioning = true;
       let elisions = self.marksByType("elision");
       for(let elision of elisions) {
@@ -668,16 +755,17 @@ class MarkdownEditor {
       }
       for(let heading of headings) {
         let loc = heading.find();
-        if(!last && !heading.active) {
+        if(!isRange(loc)) {
+          last = loc;
+        } else if(!last && !heading.active) {
           last = loc.from;
-        }
-        if(last && heading.active) {
+        } else if(last && heading.active) {
           self.mark(last, {line: loc.from.line - 1, ch: 10000000000}, {type: "elision"});
           last = null;
         }
       }
       if(last) {
-        self.mark(last, {line: editor.lineCount(), ch: 0}, {type: "elision"});
+        self.mark(last, {line: doc.lineCount(), ch: 0}, {type: "elision"});
       }
       history.transitioning = false;
     });
@@ -689,7 +777,9 @@ class MarkdownEditor {
     editor.operation(function() {
       history.transitioning = true;
       for(let elision of elisions) {
-        elision.span.clear();
+        if(elision.span) {
+          elision.span.clear();
+        }
       }
       history.transitioning = false;
     });
@@ -730,10 +820,11 @@ class MarkdownEditor {
     let {text, spans} = parseMarkdown(markdownText)
 
     editor.operation(function() {
+      let doc = editor.getDoc();
       editor.setValue(text);
       for(let span of spans) {
         let [start, end, source] = span;
-        self.mark(editor.posFromIndex(start), editor.posFromIndex(end), source);
+        self.mark(doc.posFromIndex(start), doc.posFromIndex(end), source);
       }
     });
   }
@@ -742,17 +833,37 @@ class MarkdownEditor {
     return toMarkdown(this.editor);
   }
 
+  headingAt(loc:Pos):SpanMarker|undefined { // @NOTE: We probably want a phantom heading for the doc if the user doesn't provide one...
+    let headings = this.marksByType("heading", {line: 0, ch: 0}, loc);
+    let sectionHeader:SpanMarker|undefined;
+    let nearest:Pos|undefined;;
+    for(let heading of headings) {
+      let loc = heading.find();
+      if(isRange(loc)) loc = loc.from;
+      console.log("N", nearest && nearest.line, "C", loc.line);
+      if(!nearest || nearest.line < loc.line) {
+        nearest = loc;
+        sectionHeader = heading;
+      }
+    }
+
+    return sectionHeader;
+  }
 }
 
-function parseMarkdown(markdown) {
+//---------------------------------------------------------
+// Markdown Parsing
+//---------------------------------------------------------
+type MDSpan = [number, number, commonmark.Node];
+function parseMarkdown(markdown):{text: string, spans: MDSpan[]} {
   let parsed = parser.parse(markdown);
   let walker = parsed.walker();
   var cur;
-  var text = [];
+  var text:string[] = [];
   var pos = 0;
   var lastLine = 1;
-  var spans = [];
-  var context = [];
+  var spans:MDSpan[] = [];
+  var context:any[] = [];
   while(cur = walker.next()) {
     let node = cur.node;
     if(cur.entering) {
@@ -796,9 +907,9 @@ function parseMarkdown(markdown) {
 
 function toMarkdown(editor) {
   let marks = editor.getAllMarks();
-  let markers = [];
+  let markers:any[] = [];
   let fullText = editor.getValue();
-  let pieces = [];
+  let pieces:string[] = [];
   let pos = 0;
   for(let m of marks) {
     let mark = m.span;
@@ -857,17 +968,7 @@ function toMarkdown(editor) {
   return pieces.join("");
 }
 
-function doSwap(editor) {
-  editor = editor.markdownEditor || editor;
-  sendSwap(editor.getMarkdown());
-}
-
-export function doSave() {
-  sendSave(codeEditor.getMarkdown());
-}
-
 export function handleEditorParse(parse) {
-  console.log(parse);
   if(!codeEditor) return;
   let parseLines = parse.lines;
   let from:any = {};
@@ -875,9 +976,12 @@ export function handleEditorParse(parse) {
   let ix = 0;
   let parseBlocks = parse.blocks;
   codeEditor.editor.operation(function() {
+    console.log("#", this, arguments);
+    let doc = codeEditor.editor.getDoc();
     for(let block of codeEditor.marksByType("code_block")) {
       if(!parseBlocks[ix]) continue;
       let loc = block.find();
+      if(!loc || !isRange(loc)) continue;
       let fromLine = loc.from.line;
       let toLine = loc.to.line;
       let parseStart = parseBlocks[ix].line;
@@ -885,7 +989,7 @@ export function handleEditorParse(parse) {
 
       for(let line = fromLine; line < toLine; line++) {
         // clear all the marks on that line?
-        for(let mark of codeEditor.editor.findMarks({line, ch: 0}, {line, ch: 1000000})) {
+        for(let mark of doc.findMarks({line, ch: 0}, {line, ch: 1000000}) as SpanMarker[]) {
           if(!mark.span) {
             mark.clear();
           }
@@ -902,7 +1006,7 @@ export function handleEditorParse(parse) {
             if(state == "TAG" || state == "NAME") {
               className += " " + state;
             }
-            codeEditor.editor.markText(from, to, {className, inclusiveRight: true});
+            doc.markText(from, to, {className, inclusiveRight: true});
             state = token.type
           }
         }
@@ -949,7 +1053,9 @@ function fullyMark(editor, selection, source) {
   let marked = false;
   for(let m of marks) {
     let mark = m.span;
+    if(!mark) continue;
     let loc = mark.find();
+    if(!loc) continue;
     // if this mark is wholly equalivent to the selection
     // then we remove it and we've "marked" the span
     if(samePos(loc.from, selection.from) && samePos(loc.to, selection.to)) {
@@ -982,26 +1088,34 @@ function fullyMark(editor, selection, source) {
   }
 }
 
-function doFormat(editor, type) {
+
+//---------------------------------------------------------
+// Formatting
+//---------------------------------------------------------
+
+function doFormat(editor:MarkdownEditor, type) {
   let cm = editor.editor;
   editor.finalizeLastHistoryEntry();
   cm.operation(function() {
-    if(cm.somethingSelected()) {
-      let from = cm.getCursor("from");
-      let to = cm.getCursor("to");
+    let doc = cm.getDoc();
+    if(doc.somethingSelected()) {
+      let from = doc.getCursor("from");
+      let to = doc.getCursor("to");
       fullyMark(editor, {from, to}, {type: type});
     } else {
       // by default, we want to add boldness to the next change we make
       let action = "add";
-      let cursor = cm.getCursor("from");
-      let marks = cm.findMarksAt(cursor);
+      let cursor = doc.getCursor("from");
+      let marks = doc.findMarksAt(cursor) as SpanMarker[];
       // get the marks at the cursor, if we're at the end of or in the middle
       // of a strong span, then we need to set that the next change is meant
       // to be remove for strong
       for(let m of marks) {
         let mark = m.span;
+        if(!mark) continue;
         if(!mark.source || mark.source.type !== type) continue;
         let loc = mark.find();
+        if(!loc) continue;
         if(samePos(loc.to, cursor)) {
           // if we're at the end of a bold span, we don't want the next change
           // to be bold
@@ -1022,19 +1136,20 @@ function doFormat(editor, type) {
   });
 }
 
-function doLineFormat(editor, source) {
+function doLineFormat(editor:MarkdownEditor, source) {
   let cm = editor.editor;
   editor.finalizeLastHistoryEntry();
   cm.operation(function() {
-    let loc = {from: cm.getCursor("from"), to: cm.getCursor("to")};
+    let doc = cm.getDoc();
+    let loc = {from: doc.getCursor("from"), to: doc.getCursor("to")};
     let start = loc.from.line;
     let end = loc.to.line;
-    let existing = [];
+    let existing:any[] = [];
     let changed = false;
     for(let line = start; line <= end; line++) {
       let from = {line, ch: 0};
       // if there are line marks of another type, we need to remove them
-      let allMarks = cm.findMarksAt(from);
+      let allMarks = doc.findMarksAt(from) as SpanMarker[];
       for(let mark of allMarks) {
         if(!mark.span) continue;
         let type = mark.span.source.type
@@ -1066,45 +1181,34 @@ function doLineFormat(editor, source) {
 }
 
 // @TODO: formatting shouldn't apply in codeblocks.
-function formatBold(editor) {
-  editor = (editor && editor.markdownEditor) || codeEditor;
+function formatBold(editor:MarkdownEditor) {
   doFormat(editor, "strong");
   editor.focus();
 }
 
-function formatItalic(editor) {
-  editor = (editor && editor.markdownEditor) || codeEditor;
+function formatItalic(editor:MarkdownEditor) {
   doFormat(editor, "emph");
   editor.focus();
 }
 
-function formatCode(editor) {
-  editor = (editor && editor.markdownEditor) || codeEditor;
-  doFormat(editor, "code");
-  editor.focus();
-}
-
-function formatHeader(editor, elem) {
-  let level = (elem ? elem.level : 1) || 1;
-  editor = (editor && editor.markdownEditor) || codeEditor;
-  doLineFormat(editor, {type: "heading", level});
-  editor.focus();
-}
-
-function formatList(editor) {
-  editor = (editor && editor.markdownEditor) || codeEditor;
+function formatList(editor:MarkdownEditor) {
   doLineFormat(editor, {type: "item", _listData: {type: "bullet"}});
   editor.focus();
 }
 
-function formatCodeBlock(editor) {
-  editor = (editor && editor.markdownEditor) || codeEditor;
+function formatCode(editor:MarkdownEditor) {
+  doFormat(editor, "code");
+  editor.focus();
+}
+
+function formatCodeBlock(editor:MarkdownEditor) {
   let cm = editor.editor;
   editor.finalizeLastHistoryEntry();
   cm.operation(function() {
-    let cursor = cm.getCursor("from");
+    let doc = cm.getDoc();
+    let cursor = doc.getCursor("from");
     let to = {line: cursor.line, ch: 0};
-    let text = cm.getLine(cursor.line);
+    let text = doc.getLine(cursor.line);
     if(text !== "") {
       to.line += 1;
     }
@@ -1114,38 +1218,15 @@ function formatCodeBlock(editor) {
   editor.focus();
 }
 
-function getMarksByType(editor, type, start?, stop?, inclusive?) {
-  let marks;
-  if(start && stop && !samePos(start, stop)) {
-    if(inclusive) {
-      marks = editor.findMarks({line: start.line, ch: start.ch - 1}, {line: stop.line, ch: stop.ch + 1});
-    } else {
-      marks = editor.findMarks(start, stop);
-    }
-  } else if(start) {
-    marks = editor.findMarksAt(start);
-  } else {
-    marks = editor.getAllMarks();
-  }
-  let valid = [];
-  for(let mark of marks) {
-    if(mark.span && mark.span.source.type === type) {
-      valid.push(mark);
-    }
-  }
-  return valid;
+function formatHeader(editor:MarkdownEditor, elem:Elem) {
+  let level = (elem ? elem.level : 1) || 1;
+  doLineFormat(editor, {type: "heading", level});
+  editor.focus();
 }
 
-function splitMark(editor, mark, from, to?) {
-  if(!to) to = from;
-  let loc = mark.find();
-  let source = mark.source;
-  let startMarker = editor.mark(loc.from, from, source);
-  if(comparePos(to, loc.to) === -1) {
-    let endMarker = editor.mark(to, loc.to, source);
-  }
-  mark.clear();
-}
+//-----------------------------------------------------------------
+// Misc.
+//-----------------------------------------------------------------
 
 function isNewlineChange(change) {
   return change.text.length == 2 && change.text[1] == "";
@@ -1174,17 +1255,17 @@ export function CodeMirrorNode(info) {
   return info;
 }
 
-export function toolbar() {
+export function toolbar(editor:MarkdownEditor) {
   let toolbar = {c: "md-toolbar", children: [
-    {c: "bold", text: "B", click: formatBold},
-    {c: "italic", text: "I", click: formatItalic},
+    {c: "bold", text: "B", click: () => formatBold(editor)},
+    {c: "italic", text: "I", click: () => formatItalic(editor)},
     {c: "header", text: "H1", click: formatHeader},
     {c: "header", text: "H2", click: formatHeader, level: 2},
     {c: "header", text: "H3", click: formatHeader, level: 3},
-    {c: "list", text: "List", click: formatList},
-    {c: "inline-code", text: "Inline code", click: formatCode},
-    {c: "code-block", text: "Code block", click: formatCodeBlock},
-    {c: "run", text: "Run", click: compileAndRun},
+    {c: "list", text: "List", click: () => formatList(editor)},
+    {c: "inline-code", text: "Inline code", click: () => formatCode(editor)},
+    {c: "code-block", text: "Code block", click: () => formatCodeBlock(editor)},
+    {c: "run", text: "Run", click: function() { console.log("maybe one day..."); }},
   ]};
   return toolbar;
 }
@@ -1232,17 +1313,19 @@ class Outline {
   }
 
   render() {
-    let contents = [];
+    let contents:any[] = [];
     let cm = this.editor.editor;
+    let doc = cm.getDoc();
     let headings = this.editor.marksByType("heading");
     headings.sort(function(a, b) {
-      let locA = a.find().from;
-      let locB = b.find().from;
+      let locA = (a.find() as Range).from;
+      let locB = (b.find() as Range).from;
       return comparePos(locA, locB);
     });
     for(let heading of headings) {
       let loc = heading.find();
-      let text = cm.getRange(loc.from, {line: loc.from.line + 1, ch: 0});
+      if(!isRange(loc)) continue;
+      let text = doc.getRange(loc.from, {line: loc.from.line + 1, ch: 0});
       contents.push({c: `heading heading-level-${heading.source.level} ${heading.active ? "active" : ""}`, text, span: heading, outline: this, click: this.gotoItem});
     }
     return {c: `outline ${this.eliding ? "eliding" : ""}`, children: [
@@ -1260,23 +1343,24 @@ class Comments {
 
   render() {
     let {editor} = this;
-    let comments = [];
+    let comments:any[] = [];
     let cm = editor.editor;
+    let doc = cm.getDoc();
     let blocks = editor.marksByType("code_block");
     // let blocks = [];
     let scroll = cm.getScrollInfo();
     for(let block of blocks) {
       let loc = block.find();
-      let coords = editor.editor.charCoords(loc.from || loc, "local");
+      let coords = editor.editor.charCoords(isRange(loc) ? loc.from : loc, "local");
       let text = `This line says I should search for a tag with the value "session-connect",
         but since it's not in an object, I don't know what it applies to.
 
         If you wrap it in square brackets, that tells me you're looking
         for an object with that tag.`
-        comments.push({c: "comment", top: coords.top, width: 260, height: 20, text});
+        //comments.push({c: "comment", top: coords.top, width: 260, height: 20, text});
 
     }
-    let height = scroll.top + editor.editor.charCoords({line: editor.editor.lineCount() - 1, ch: 0}).bottom;
+    let height = scroll.top + cm.charCoords({line: doc.lineCount() - 1, ch: 0}).bottom;
     return {c: "comments",  width: 290, children: comments, postRender: function(node) {
       document.querySelector(".CodeMirror-sizer").appendChild(node);
     }}
@@ -1288,11 +1372,9 @@ class Comments {
 export var outline;
 export var comments;
 
-export function compileAndRun() {
-  doSwap(codeEditor);
-}
-
 export function applyFix(event, elem) {
+  let editor = codeEditor.editor;
+  let doc = editor.getDoc();
   //we need to do the changes in reverse order to ensure
   //the positions remain the same?
   let changes = elem.fix.changes.slice();
@@ -1304,9 +1386,11 @@ export function applyFix(event, elem) {
     return line;
   });
   for(let change of changes) {
-    codeEditor.editor.replaceRange(change.value, {line: change.from.line - 1, ch: change.from.offset}, {line: change.to.line - 1, ch: change.to.offset});
+    doc.replaceRange(change.value, {line: change.from.line - 1, ch: change.from.offset}, {line: change.to.line - 1, ch: change.to.offset});
   }
-  doSwap(codeEditor);
+
+  // @FIXME: Apply the fix
+  // doSwap(codeEditor);
 }
 
 //-----------------------------------------------------------------
