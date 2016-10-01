@@ -25,7 +25,11 @@ html, body, __root { height: 100%; }
 .editor-pane { flex: 1; }
 
 .CodeMirror-sizer > div:first-child { width: 610px; min-height: 100%; }
-.comments-pane { position: absolute; left: 620px; right: 0px; top: 0; bottom: 0; min-width: 50px; padding-right: 15px; z-index: 2; }
+.comments-pane { position: absolute; left: 620px; right: 0px; top: 0; bottom: 0; padding-right: 15px; z-index: 2; }
+
+.comments-pane.collapse-1 { left: auto; width: 150px; }
+.comments-pane.collapsed,
+.comments-pane.collapse-2 { left: auto; width: 30px; }
 
 /****************************************************************************\
  * Navigator
@@ -114,7 +118,7 @@ html, body, __root { height: 100%; }
 \****************************************************************************/
 .comments-pane { background: #303030; }
 .comments-pane-inner { position: relative; min-width: 300px; max-width: 500px; height: 100%; }
-.comments-pane .comment { color: #d8d8d8; }
+.comments-pane .comment { color: #d8d8d8; min-height: 30px; }
 
 
 .comments-pane .comment { position: absolute; padding: 5px 10px; margin-top: -2px; width: 100%; display: flex; flex-direction: column; align-items: stretch; overflow: visible; }
@@ -141,16 +145,27 @@ html, body, __root { height: 100%; }
 .comments-pane .comment.collapse-2,
 .comments-pane .comment.collapse-3 { border-top: 1px solid #202020; border-bottom: 1px solid #202020; }
 
-.comments-pane.collapsed .comments-pane-inner { min-width: 50px; }
-.comments-pane.collapsed .comment > .label { display: inline-block; margin-left: 25px; white-space: pre; overflow: hidden; text-overflow: ellipsis; }
-.comments-pane.collapsed .comment-inner { display: none; }
-.comments-pane.collapsed .comment:hover .comment-inner { display: block; position: absolute; right: 0; top: 28px; width: 400px; padding: 10px; z-index: 1; border-radius: 2px; border: 1px solid #202020; }
+.comments-pane.collapse-1 .comments-pane-inner { min-width: 150px; }
+.comments-pane.collapse-2 .comments-pane-inner,
+.comments-pane.collapsed .comments-pane-inner { min-width: 30px; }
 
+.comments-pane.collapse-1 .comment > .label { display: inline-block; margin-left: 25px; white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+.comments-pane.collapse-2 .comment > .label,
+.comments-pane.collapsed .comment > .label { display: none; }
+.comments-pane.collapse-1 .comment-inner,
+.comments-pane.collapse-2 .comment-inner { display: none; }
+.comments-pane.collapse-1 .comment:hover .comment-inner,
+.comments-pane.collapse-2 .comment:hover .comment-inner { display: block; position: absolute; right: 0; top: 26px; width: 400px; padding: 10px; z-index: 1; border-radius: 2px; border: 1px solid #202020; }
+
+.comments-pane.collapse-1 .comment:before,
+.comments-pane.collapse-2 .comment:before,
 .comments-pane.collapsed .comment:before { content: "\f11b"; width: 30px; height: 30px; position: absolute; left: -5px; top: 0; padding: 5px; font-size: 20px; text-align: center; font-family: "Ionicons"; speak: none; text-transform: none; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;}
+.comments-pane.collapse-1 .comment.error:before,
+.comments-pane.collapse-2 .comment.error:before,
 .comments-pane.collapsed .comment.error:before { content: "\f100"; color: #F06060; }
+.comments-pane.collapse-1 .comment.warning:before,
+.comments-pane.collapse-2 .comment.warning:before,
 .comments-pane.collapsed .comment.warning:before { content: "\f100"; color: #C0C060; }
-
-
 
 
 .CodeMirror .comment-highlight.range { border-bottom: 1px dashed white; }
