@@ -34,10 +34,11 @@ export function init(code) {
   }
 
   global["browser"] = true;
-  console.log("GOT CODE", code);
-  let parsed = parser.parseDoc(code || "");
-  console.log(parsed.errors);
-  let {blocks} = builder.buildDoc(parsed.results);
+  let {results, errors} = parser.parseDoc(code || "");
+  console.log(errors);
+  let {blocks} = builder.buildDoc(results);
+  let {text, spans, extraInfo} = results;
+  responder.send(JSON.stringify({type: "parse", text, spans, extraInfo}));
   console.log(blocks);
   let session = new BrowserSessionDatabase(responder);
   session.blocks = blocks;

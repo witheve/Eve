@@ -80,25 +80,27 @@ wss.on('connection', function connection(ws) {
     let data = JSON.parse(message);
     if(data.type === "init") {
       let {url} = data;
-      fs.stat("." + url, (err, result) => {
-        let content = fs.readFileSync("." + url).toString();
-        ws.send(JSON.stringify({type: "initLocal", code: content}));
-        // let parsed = parser.parseDoc(content);
-        // console.log(parsed.errors);
-        // let {blocks} = builder.buildDoc(parsed.results);
-        // console.log(blocks);
-        // let session = new BrowserSessionDatabase(ws);
-        // session.blocks = blocks;
-        // evaluation = new Evaluation();
-        // evaluation.registerDatabase("session", session);
-        // evaluation.registerDatabase("system", system.instance);
-        // evaluation.registerDatabase("shared", shared);
-        // evaluation.registerDatabase("http", new HttpDatabase());
-        // evaluation.registerDatabase("server", serverDatabase);
-        // evaluation.fixpoint();
-        // for(let queued of queue) {
-        //   handleEvent(evaluation, queued);
-        // }
+      fs.stat("." + url, (err, stats) => {
+        if(stats.isFile()) {
+          let content = fs.readFileSync("." + url).toString();
+          ws.send(JSON.stringify({type: "initLocal", code: content}));
+          // let parsed = parser.parseDoc(content);
+          // console.log(parsed.errors);
+          // let {blocks} = builder.buildDoc(parsed.results);
+          // console.log(blocks);
+          // let session = new BrowserSessionDatabase(ws);
+          // session.blocks = blocks;
+          // evaluation = new Evaluation();
+          // evaluation.registerDatabase("session", session);
+          // evaluation.registerDatabase("system", system.instance);
+          // evaluation.registerDatabase("shared", shared);
+          // evaluation.registerDatabase("http", new HttpDatabase());
+          // evaluation.registerDatabase("server", serverDatabase);
+          // evaluation.fixpoint();
+          // for(let queued of queue) {
+          //   handleEvent(evaluation, queued);
+          // }
+        }
       });
     } else if(data.type === "event") {
       if(!evaluation) {

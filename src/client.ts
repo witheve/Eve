@@ -189,6 +189,8 @@ socket.onmessage = function(msg) {
       onopen: socket.onopen
     }
     browser.init(data.code);
+  } else if(data.type == "parse") {
+    console.log("Got parse!", data);
   } else if(data.type == "error") {
     console.error(data.message, data);
   }

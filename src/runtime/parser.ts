@@ -84,12 +84,12 @@ function parseMarkdown(markdown: string, docId: string) {
         let spanId = `${docId}|${tokenId++}`;
         spans.push(info.start, pos, node.type, spanId);
         if(node.type === "link") {
-          extraInfo[spanId] = node;
+          extraInfo[spanId] = {destination: node._destination};
         }
       } else if(node.type == "heading" || node.type == "item") {
         let spanId = `${docId}|${tokenId++}`;
         spans.push(info.start, info.start, node.type, spanId);
-        extraInfo[spanId] = node;
+        extraInfo[spanId] = {level: node._level, listData: node._listData};
       }
     }
   }
