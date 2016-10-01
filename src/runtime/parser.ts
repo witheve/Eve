@@ -255,6 +255,22 @@ class Block {
     this.equalities.push([a, b]);
   }
 
+  commit(node: ParseNode) {
+    this.commits.push(node);
+  }
+
+  bind(node: ParseNode) {
+    this.binds.push(node);
+  }
+
+  expression(node: ParseNode) {
+    this.expressions.push(node);
+  }
+
+  scan(node: ParseNode) {
+    this.scanLike.push(node);
+  }
+
   makeNode(type, node: ParseNode) {
     if(!node.id) {
       node.id = `${this.id}|${this.nodeId++}`;
@@ -489,7 +505,7 @@ class Parser extends chev.Parser {
 
     rule("actionSection", () => {
       let action = self.CONSUME(Action).image;
-      let actionKey = action + "s";
+      let actionKey = action;
       let scopes:any = ["session"];
       self.OPTION(() => { scopes = self.SUBRULE(self.scopeDeclaration) })
       self.activeScopes = scopes;
@@ -514,7 +530,7 @@ class Parser extends chev.Parser {
         {ALT: () => { return self.SUBRULE(self.actionEqualityRecord, [actionKey]); }},
         {ALT: () => {
           let record = self.SUBRULE(self.actionOperation, [actionKey]);
-          self.block[actionKey].push(record);
+          self.block[actionKey](record);
           return record;
         }},
         {ALT: () => { return self.CONSUME(CommentLine); }},
@@ -540,7 +556,7 @@ class Parser extends chev.Parser {
           let variable = self.block.toVariable(`${attribute.image}|${attribute.startLine}|${attribute.startColumn}`, true);
           let scan = makeNode("scan", {entity: parent, attribute: makeNode("constant", {value: attribute.name, from: [attribute]}), value: variable, scopes: self.activeScopes, from: [mutator]});
           variable.from.push(scan);
-          self.block.scanLike.push(scan);
+          self.block.scan(scan);
           self.CONSUME(Merge);
           let record = self.SUBRULE(self.record, [true]) as any;
           record.variable = variable;
@@ -615,7 +631,7 @@ class Parser extends chev.Parser {
       self.CONSUME(Equality);
       let record : any = self.SUBRULE(self.record, [true, actionKey, "+="]);
       record.variable = variable;
-      self.block[actionKey].push(record);
+      self.block[actionKey](record);
       return record;
     });
 
@@ -623,7 +639,7 @@ class Parser extends chev.Parser {
     // Record + attribute
     //-----------------------------------------------------------
 
-    rule("record", (noVar = false, blockKey = "scanLike", action = false, parent?) => {
+    rule("record", (noVar = false, blockKey = "scan", action = false, parent?) => {
       let attributes = [];
       let start = self.CONSUME(OpenBracket);
       let from: NodeDependent[] = [start];
@@ -666,7 +682,7 @@ class Parser extends chev.Parser {
       })
       from.push(self.CONSUME(CloseBracket));
       if(!noVar) {
-        self.block[blockKey].push(record);
+        self.block[blockKey](record);
       }
       return record;
     });
@@ -709,7 +725,7 @@ class Parser extends chev.Parser {
         value = self.block.toVariable(`${attribute.image}|${attribute.startLine}|${attribute.startColumn}`, true);
         value.from.push(attribute);
         let scan = makeNode("scan", {entity, attribute: makeNode("constant", {value: value.name, from: [value]}), value, needsEntity, scopes: self.activeScopes, from: [entity, dot, attribute]});
-        self.block.scanLike.push(scan);
+        self.block.scan(scan);
         needsEntity = false;
         entity = value;
       });
@@ -728,7 +744,7 @@ class Parser extends chev.Parser {
         value = self.block.toVariable(`${attribute.image}|${attribute.startLine}|${attribute.startColumn}`, true);
         value.from.push(attribute);
         let scan = makeNode("scan", {entity, attribute: makeNode("constant", {value: attribute.image, from: [attribute]}), value, needsEntity, scopes: self.activeScopes, from: [entity, dot, attribute]});
-        self.block.scanLike.push(scan);
+        self.block.scan(scan);
         needsEntity = false;
         entity = value;
       });
@@ -777,7 +793,7 @@ class Parser extends chev.Parser {
       let variable = self.block.toVariable(`attribute|${attribute.startLine}|${attribute.startColumn}`, true);
       let expression = makeNode("expression", {op: comparator.image, args: [asValue(variable), asValue(result)], from: [attribute, comparator, result]})
       variable.from.push(expression);
-      self.block.expressions.push(expression);
+      self.block.expression(expression);
       return makeNode("attribute", {attribute: attribute.image, value: variable, from: [attribute, comparator, expression]});
     });
 
@@ -794,10 +810,10 @@ class Parser extends chev.Parser {
       // we have to add a record for this guy
       let scan : any = makeNode("scan", {entity: recordVariable, attribute: makeNode("constant", {value: attribute.attribute, from: [attribute]}), value: attribute.value, needsEntity: true, scopes: self.activeScopes, from: [attribute]});
       block.variables[recordVariable.name] = recordVariable;
-      block.scanLike.push(scan);
+      block.scan(scan);
       block.from = [not, start, attribute, end];
       popBlock();
-      self.block.scanLike.push(block);
+      self.block.scan(block);
       return;
     });
 
@@ -830,13 +846,13 @@ class Parser extends chev.Parser {
           info[attribute.attribute] = attribute.value;
         }
         let scan = makeNode("scan", {entity: info.record, attribute: info.attribute, value: info.value, node: info.node, scopes: self.activeScopes, from: [name, record]});
-        self.block.scanLike.push(scan);
+        self.block.scan(scan);
         return scan;
       } else {
         let variable = self.block.toVariable(`return|${name.startLine}|${name.startColumn}`, true);
         let functionRecord = makeNode("functionRecord", {op: name.image, record, variable, from: [name, record]});
         variable.from.push(functionRecord);
-        self.block.expressions.push(functionRecord);
+        self.block.expression(functionRecord);
         return functionRecord;
       }
     });
@@ -871,11 +887,11 @@ class Parser extends chev.Parser {
             let variable = self.block.toVariable(`comparison|${comparator.startLine}|${comparator.startColumn}`, true);
             expression = makeNode("expression", {variable, op: comparator.image, args: [asValue(curLeft), asValue(value)], from: [curLeft, comparator, value]});
             variable.from.push(expression);
-            self.block.expressions.push(expression);
+            self.block.expression(expression);
           } else if(comparator instanceof Equality) {
             if(value.type === "ifExpression") {
               value.outputs = ifOutputs(left);
-              self.block.scanLike.push(value);
+              self.block.scan(value);
             } else if(value.type === "functionRecord" && curLeft.type === "parenthesis") {
               value.returns = curLeft.items.map(asValue);
               self.block.equality(asValue(value.returns[0]), asValue(value));
@@ -886,7 +902,7 @@ class Parser extends chev.Parser {
             }
           } else {
             expression = makeNode("expression", {op: comparator.image, args: [asValue(curLeft), asValue(value)], from: [curLeft, comparator, value]});
-            self.block.expressions.push(expression);
+            self.block.expression(expression);
           }
           curLeft = value;
           if(expression) {
@@ -915,7 +931,7 @@ class Parser extends chev.Parser {
       from.push(self.CONSUME(CloseParen));
       popBlock();
       block.from = from;
-      self.block.scanLike.push(block);
+      self.block.scan(block);
       return;
     });
 
@@ -937,7 +953,7 @@ class Parser extends chev.Parser {
       let variable = self.block.toVariable(`is|${op.startLine}|${op.startColumn}`, true);
       let is = makeNode("expression", {variable, op: "and", args: expressions, from});
       variable.from.push(is);
-      self.block.expressions.push(is);
+      self.block.expression(is);
       return is;
     });
 
@@ -1029,7 +1045,7 @@ class Parser extends chev.Parser {
           let expression = makeNode("expression", {op: op.image, args: [asValue(curLeft), asValue(right)], variable: curVar, from: [curLeft, op, right]});
           expressions.push(expression);
           curVar.from.push(expression);
-          self.block.expressions.push(expression)
+          self.block.expression(expression)
           curLeft = expression;
         }
         return {type: "addition", expressions, variable: curVar};
@@ -1056,7 +1072,7 @@ class Parser extends chev.Parser {
           let expression = makeNode("expression", {op: op.image, args: [asValue(curLeft), asValue(right)], variable: curVar, from: [curLeft, op, right]});
           expressions.push(expression);
           curVar.from.push(expression);
-          self.block.expressions.push(expression)
+          self.block.expression(expression)
           curLeft = expression;
         }
         return {type: "multiplication", expressions, variable: curVar};
@@ -1143,7 +1159,7 @@ class Parser extends chev.Parser {
       let variable = self.block.toVariable(`concat|${start.startLine}|${start.startColumn}`, true);
       let expression = makeNode("expression", {op: "concat", args, variable, from});
       variable.from.push(expression);
-      self.block.expressions.push(expression);
+      self.block.expression(expression);
       return expression;
     });
 
