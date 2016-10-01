@@ -84,14 +84,29 @@ html, body, __root { height: 100%; }
 .CodeMirror .HEADING2 { font-size:14pt;}
 .CodeMirror .HEADING3 { font-size:12pt;}
 .CodeMirror .HEADING4 { font-size:12pt;}
+
+/* Syntax Styles */
+
 .CodeMirror .COMMENT { color: #747474; }
-.CodeMirror .TAG { color: #50edf6; color: #4bcbd3; }
-.CodeMirror .NAME { color: #50edf6; color: #4bcbd3; }
-.CodeMirror .IF, .ELSE, .THEN { color: gray; color: #63b6e7; }
+
+/* Variables/Attributes */
+.CodeMirror .ALIAS { }
+.CodeMirror .TAG, .CodeMirror .TAG + .IDENTIFIER { color: #50edf6; color: #4bcbd3; }
+.CodeMirror .NAME, .CodeMirror .NAME + .IDENTIFIER { color: #50edf6; color: #4bcbd3; }
+/* Phases */
 .CodeMirror .COMMIT, .BIND, .MATCH { color: gray; color: #63b6e7; }
-.CodeMirror .STRING, .STRING_OPEN, .STRING_CLOSE, .BOOLEAN, .NUMBER { color: #ff66ac; color: #acaaff; }
-.CodeMirror .OPEN_BRACKET, .CodeMirror .DOT, .CodeMirror .CLOSE_BRACKET, .CodeMirror .OPEN_PAREN, .CodeMirror .CLOSE_PAREN, .CodeMirror .ALIAS, .CodeMirror .EQUALITY, .CodeMirror .SET, .CodeMirror .INSERT, .CodeMirror .REMOVE, .CodeMirror .INFIX, .CodeMirror .COMMA { color: gray; }
-.CodeMirror .BLOCK_OPEN, .CodeMirror .BLOCK_CLOSE { color: gray; }
+/* Statements */
+.CodeMirror .IF, .ELSE, .THEN { color: gray; color: #63b6e7; }
+/* Literals */
+.CodeMirror .STRING, .QUOTE, .BOOL, .NUM { color: #ff66ac; color: #acaaff; }
+/* Brackets */
+.CodeMirror .OPEN-BRACKET, .CodeMirror .CLOSE-BRACKET, .CodeMirror .OPEN-PAREN, .CodeMirror .CLOSE-PAREN { color: gray; }
+.CodeMirror .STRING-EMBED-OPEN, .CodeMirror .STRING-EMBED-CLOSE { color: gray; }
+.CodeMirror .DOT, .CodeMirror .COMMA { color: gray; }
+/* Binding/Action Operators */
+.CodeMirror .EQUALITY, .CodeMirror .MERGE, .CodeMirror .SET, .CodeMirror .MUTATE { color: gray; }
+/* Infix Operators */
+.CodeMirror .ADDINFIX, .CodeMirror .MULTIINFIX, .CodeMirror .COMPARISON { color: gray; }
 
 /****************************************************************************\
  * Comments
