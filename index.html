@@ -5,38 +5,12 @@
     <link rel="stylesheet" type="text/css" href="http://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css">
     <style>
       * { box-sizing:border-box; }
-      body { background: rgb(47,47,49); color: #d8d8d8; font-family: Avenir; display: flex; flex-direction: column; margin:0; width: 100%; }
+      body { background: rgb(47,47,49); color: #d8d8d8; font-family: Avenir; display: flex; flex-direction: row; margin:0; width: 100%; }
       .__root { display: flex; flex-direction: column; align-self: stretch; }
-      .program-container { display: flex; flex: 1; }
+      .__root.ide-root { order: 1; flex: 1 0 auto; }
+      .__root.application-root { order: 2; flex: 1; }
+      .application-container { display: flex; flex-direction: column; flex: 1; }
       .program { position: relative; flex: 1; flex-direction: column; align-self: stretch; padding:20px; overflow: auto; margin-left:50px; display:flex; }
-      .graph-root { position:relative; display:flex; flex-direction:column; align-self: stretch; align-items:flex-start; margin-right:10px; padding:20px 40px; height:100%; overflow:hidden;  }
-
-      .parse-info { display:flex; flex-direction: row; align-self: stretch; height:100%; }
-      .parse-info > div { overflow: hidden; }
-      .parse-info + .parse-info { margin-top:50px; }
-
-      .run-info { display:flex; flex-direction: row; flex: 0 0 auto; }
-
-      .toolbar { display:flex; align-items:center; padding:10px; flex-direction:row; display:flex; border-radius: 0 0 3px 3px; }
-      .stats { flex:1; width:180px; }
-      .show-graphs { cursor: pointer; padding:3px 8px; border-radius:3px; color: #d8d8d8; background: rgba(255,255,255,0.1); margin-left:10px; }
-
-      .cm-container { position:relative; display:flex; flex-direction:column; flex:1; padding: 10px; border-radius:3px 3px 0 0; }
-
-
-      .fix-it { padding:8px 12px; border-radius:3px; margin-top:17px; background: rgb(54, 62, 85); color: #c2e6ff; align-self:flex-end; cursor: pointer; }
-      .fix-it:hover { background: rgb(79, 92, 129); }
-
-      .ansi-gray { color: rgb(83, 117, 137); }
-      .ansi-red { color: red; }
-
-      .node-overlay { display: flex; flex-direction: column; font-size: 0.9em; }
-      .ordered-node > .node-overlay { padding: 1px 5px; }
-      .ordered-node.subproject > .node-overlay { margin-bottom: 1px; margin-top: -1px; background: rgb(44,72,97); }
-
-      .node-overlay .registers-overlay label { padding-right: 4px; color: #A0A0A0; align-self: center; }
-      .node-overlay .registers-overlay .register-pair { padding: 0 4px; border-left: 1px solid #202930 }
-
 
       .pixel { margin:10px; padding:10px; background: rgba(255,255,255,0.05); align-self: flex-start; flex:none; }
       .pixel .name { font-size:14pt; margin-bottom:8px; }
@@ -56,22 +30,6 @@
       .md-toolbar > * + * { margin-left: 1px; }
       .md-toolbar .bold { font-weight: bold; }
       .md-toolbar .italic { font-style: italic; }
-
-      .editor-content { display:flex; flex:1; flex-direction:column; }
-
-      .outline { margin-right:40px; margin-top:20px; -webkit-user-select: none; max-width:200px; }
-      .outline.eliding .heading { color: #777; }
-      .outline .elide { margin-bottom:20px; }
-      .outline .heading { cursor: pointer; }
-      .outline .heading:hover, .outline.eliding .active { color: #63b6e7; }
-      .heading-level-1 { font-size: 24px; padding-bottom: 9px; border-bottom: 1px solid #666; }
-      .heading-level-2 { font-weight: 500; margin-top:20px; }
-      .heading-level-3 { margin-left: 20px; color: #aaa; margin-top: 6px; font-size: 11pt; line-height:20px; }
-      .heading-level-1 + .heading-level-2 { margin-top: 20px; }
-      .heading-level-2 + .heading-level-2 { margin-top: 20px; }
-
-      .comments { position:absolute; right:0; top:0; width:290px; bottom:0; background:rgb(47,47,49); z-index:1; padding-left:20px;  }
-      .comments .comment { position: absolute; }
 
       .elision { border-top:5px solid #222; }
       .elision-marker { height:10px; display:inline-block;  }
