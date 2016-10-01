@@ -14,31 +14,46 @@ import * as system from "./databases/system";
 
 let evaluation;
 
-export function handleEvent(json) {
-  let data = JSON.parse(json);
-  if(data.type === "event") {
-    console.log("EVENT", json);
-    let actions = [];
-    for(let insert of data.insert) {
-      actions.push(new ActionImplementations["+="](insert[0], insert[1], insert[2]));
+class Responder {
+  socket: any;
+
+  constructor(socket) {
+    this.socket = socket;
+  }
+
+  send(json) {
+    this.socket.onmessage({data: json});
+  }
+
+  handleEvent(json) {
+    let data = JSON.parse(json);
+    if(data.type === "event") {
+      console.log("EVENT", json);
+      let actions = [];
+      for(let insert of data.insert) {
+        actions.push(new ActionImplementations["+="](insert[0], insert[1], insert[2]));
+      }
+      evaluation.executeActions(actions);
+    } else if(data.type === "parse") {
+      let {results, errors} = parser.parseDoc(data.code || "");
+      console.log(errors);
+      let {text, spans, extraInfo} = results;
+      this.send(JSON.stringify({type: "parse", text, spans, extraInfo}));
     }
-    evaluation.executeActions(actions);
   }
 }
 
+export var responder: Responder;
+
 export function init(code) {
-  let responder = {
-    send: (json) => {
-      client.socket.onmessage({data: json})
-    }
-  }
+  responder = new Responder(client.socket);
 
   global["browser"] = true;
   let {results, errors} = parser.parseDoc(code || "");
   console.log(errors);
-  let {blocks} = builder.buildDoc(results);
   let {text, spans, extraInfo} = results;
   responder.send(JSON.stringify({type: "parse", text, spans, extraInfo}));
+  let {blocks} = builder.buildDoc(results);
   console.log(blocks);
   let session = new BrowserSessionDatabase(responder);
   session.blocks = blocks;

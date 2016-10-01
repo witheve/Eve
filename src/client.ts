@@ -143,7 +143,7 @@ if(!global["local"]) {
   socket = {
     readyState: 1,
     send: (json) => {
-      browser.handleEvent(json);
+      browser.responder.handleEvent(json);
     }
   }
   browser.init(global["code"]);
@@ -183,7 +183,7 @@ socket.onmessage = function(msg) {
     socket = {
       readyState: 1,
       send: (json) => {
-        browser.handleEvent(json);
+        browser.responder.handleEvent(json);
       },
       onmessage: socket.onmessage,
       onopen: socket.onopen

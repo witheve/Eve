@@ -421,6 +421,7 @@ class CodeBlockSpan extends LineSpan {
   type:SpanType = "code_block";
   isLine = false;
   lineBackgroundClass = "CODE";
+  lineTextClass = "CODE-TEXT";
 
   onBeforeChange(change:ChangeCancellable) {
     if(change.origin === "+delete") {

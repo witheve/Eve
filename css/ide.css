@@ -24,8 +24,8 @@ html, body, __root { height: 100%; }
 
 .editor-pane { flex: 1; }
 
-.CodeMirror-sizer > div:first-child { width: 690px; min-height: 100%; }
-.comments-pane { position: absolute; left: 700px; right: 0px; top: 0; bottom: 0; min-width: 50px; padding-right: 15px; z-index: 1; }
+.CodeMirror-sizer > div:first-child { width: 610px; min-height: 100%; }
+.comments-pane { position: absolute; left: 620px; right: 0px; top: 0; bottom: 0; min-width: 50px; padding-right: 15px; z-index: 2; }
 
 /****************************************************************************\
  * Navigator
@@ -60,11 +60,11 @@ html, body, __root { height: 100%; }
 .editor-pane { background: #202020; }
 
 
-.CodeMirror { background:none; color: inherit; height:100%; font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:10pt;  }
+.CodeMirror { background:none; color: inherit; height:100%; font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:11pt;  }
 .CodeMirror-scroll, .CodeMirror-gutters { height:100%; }
 .CodeMirror-cursor { background: white; border-color:white; }
 
-.CodeMirror { color: #c4c4c4; line-height:20px; font-family: Avenir; }
+.CodeMirror { color: #c4c4c4; line-height:22px; font-family: Avenir; }
 .CodeMirror pre { padding: 0 4px; }
 .CodeMirror-scroll { scroll-behavior: smooth; }
 .CodeMirror-gutters { background: #303030; border-right: none; padding-right: 5px; }
@@ -73,6 +73,7 @@ html, body, __root { height: 100%; }
 .CodeMirror .STRONG { font-weight:bold; }
 .CodeMirror .EMPH { font-style:italic; }
 .CodeMirror .CODE { background: rgba(255,255,255,0.08); background: rgba(0,0,0,0.3); font-family: Inconsolata; margin-left: -5px; margin-right: -5px; }
+.CodeMirror .CODE-TEXT { line-height:19px; }
 .CodeMirror span.CODE { padding:2px 4px; border-radius:3px; }
 .CodeMirror .CodeMirror-line.ITEM { padding-left: 20px; }
 .CodeMirror .CodeMirror-line.ITEM:before { content: "-"; padding-right:10px; }
