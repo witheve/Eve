@@ -680,7 +680,7 @@ class Editor {
   defaults:CodeMirror.EditorConfiguration = {
     tabSize: 2,
     lineWrapping: true,
-    lineNumbers: true,
+    lineNumbers: false,
     extraKeys: ctrlify({
       "Cmd-Enter": () => console.log("sup dawg"),
       "Cmd-B": () => this.format({type: "strong"}),
@@ -1183,10 +1183,14 @@ class Comments {
     let inner:HTMLElement = this.rootNode.children[0] as any;
     if(this._currentWidth && inner.offsetWidth === this._currentWidth) return;
     else {
-      if(inner.offsetWidth <= 300) {
-        this.rootNode.classList.add("collapsed");
+      if(inner.offsetWidth <= 150) {
+        this.rootNode.classList.add("collapse-2");
+        this.rootNode.classList.remove("collapse-1");
+      } else if(inner.offsetWidth <= 300) {
+        this.rootNode.classList.add("collapse-1");
+        this.rootNode.classList.remove("collapse-2");
       } else {
-        this.rootNode.classList.remove("collapsed");
+        this.rootNode.classList.remove("collapse-1", "collapse-2");
       }
       this._currentWidth = inner.offsetWidth;
     }
@@ -1354,7 +1358,7 @@ class Comments {
       children.push(this.comment(commentId));
     }
 
-    return {c: "comments-pane", postRender: this.wangjangle, children: [{c: "comments-pane-inner", children}]};
+    return {c: "comments-pane collapsed collapsed-is-hardcoded", postRender: this.wangjangle, children: [{c: "comments-pane-inner", children}]};
   }
 }
 
