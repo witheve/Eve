@@ -214,7 +214,7 @@ let EveDocLexer = new Lexer({modes: LexerModes, defaultMode: "doc"}, true);
 let EveBlockLexer = new Lexer({modes: LexerModes, defaultMode: "code"}, true);
 
 //-----------------------------------------------------------
-// Parser
+// Parse Nodes
 //-----------------------------------------------------------
 
 type NodeDependent = chev.Token | ParseNode;
@@ -226,7 +226,7 @@ interface ParseNode {
   [property: string]: any
 }
 
-class Block {
+class ParseBlock {
   id: string;
   nodeId = 0;
   variables: {[name: string]: ParseNode} = {};
@@ -280,7 +280,7 @@ class Block {
   }
 
   subBlock() {
-    let neue = new Block(`${this.id}|sub${this.nodeId++}`, this.variableLookup);
+    let neue = new ParseBlock(`${this.id}|sub${this.nodeId++}`, this.variableLookup);
     return neue;
   }
 }
@@ -291,7 +291,7 @@ class Block {
 //-----------------------------------------------------------
 
 class Parser extends chev.Parser {
-  block: Block;
+  block: ParseBlock;
   activeScopes: string[];
 
   // Parser patterns
@@ -377,7 +377,7 @@ class Parser extends chev.Parser {
       if(prev) {
         block = prev.subBlock();
       }
-      block = new Block(blockId || "block");
+      block = new ParseBlock(blockId || "block");
       blockStack.push(block);
       self.block = block;
       return block;
