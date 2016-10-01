@@ -94,7 +94,7 @@ html, body, __root { height: 100%; }
 .CodeMirror .TAG, .CodeMirror .TAG + .IDENTIFIER { color: #50edf6; color: #4bcbd3; }
 .CodeMirror .NAME, .CodeMirror .NAME + .IDENTIFIER { color: #50edf6; color: #4bcbd3; }
 /* Phases */
-.CodeMirror .COMMIT, .BIND, .MATCH { color: gray; color: #63b6e7; }
+.CodeMirror .ACTION, .MATCH { color: gray; color: #63b6e7; }
 /* Statements */
 .CodeMirror .IF, .ELSE, .THEN { color: gray; color: #63b6e7; }
 /* Literals */
@@ -106,7 +106,7 @@ html, body, __root { height: 100%; }
 /* Binding/Action Operators */
 .CodeMirror .EQUALITY, .CodeMirror .MERGE, .CodeMirror .SET, .CodeMirror .MUTATE { color: gray; }
 /* Infix Operators */
-.CodeMirror .ADDINFIX, .CodeMirror .MULTIINFIX, .CodeMirror .COMPARISON { color: gray; }
+.CodeMirror .INFIX, .CodeMirror .COMPARISON { color: gray; }
 
 /****************************************************************************\
  * Comments

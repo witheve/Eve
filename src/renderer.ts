@@ -242,7 +242,7 @@ export function renderRecords() {
     } else {
       let neue:string[] = [];
       for(let klassId of value) {
-        if(klassId[0] == "⦑" && klassId[klassId.length - 1] == "⦒" && activeClasses[klassId]) {
+        if(activeClasses[klassId] !== undefined && records[klassId] !== undefined) {
           let klass = records[klassId];
           for(let name in klass) {
             if(!klass[name]) continue;
@@ -271,7 +271,7 @@ export function renderRecords() {
     if(value) {
       let neue:string[] = [];
       for(let styleId of value) {
-        if(styleId[0] == "⦑" && styleId[styleId.length - 1] == "⦒" && activeStyles[styleId]) {
+        if(activeStyles[styleId]) {
           let style = records[styleId];
           for(let attr in style) {
             (elem as any).style[attr] = style[attr] && style[attr].join(", ");

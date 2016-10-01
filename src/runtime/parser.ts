@@ -119,8 +119,8 @@ class CommentLine extends Token { static PATTERN = /\/\/.*\n/; label = "comment"
 // Operators
 class Equality extends Token { static PATTERN = /:|=/; label = "equality"; }
 class Comparison extends Token { static PATTERN = />=|<=|!=|>|</; label = "comparison"; }
-class AddInfix extends Token { static PATTERN = /\+|-/; label = "addInfix"; }
-class MultInfix extends Token { static PATTERN = /\*|\//; label = "multiInfix"; }
+class AddInfix extends Token { static PATTERN = /\+|-/; label = "infix"; }
+class MultInfix extends Token { static PATTERN = /\*|\//; label = "infix"; }
 class Merge extends Token { static PATTERN = /<-/; label = "merge"; }
 class Set extends Token { static PATTERN = /:=/; label = "set"; }
 class Mutate extends Token { static PATTERN = /\+=|-=/; label = "mutate"; }
