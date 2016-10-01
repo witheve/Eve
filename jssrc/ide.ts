@@ -404,27 +404,23 @@ class CodeBlockSpan extends LineSpan {
     let loc = this.find();
     if(!loc) return;
 
-    // @TODO: I don't really understand the heuristic here yet.
-    // If we're at the beginning of the code block, we need to extend it to contain the change.
+    // We've added a new line and need to expand the block.
+    // @FIXME: I have no idea why this is the logic to do that.
     if(change.from.line < loc.from.line || (change.from.line === loc.from.line && loc.from.ch !== 0) || samePosition(loc.from, loc.to)) {
       this.clear();
+      // If the change is before the block, we're extending the beginning of the block.
+      let newFrom = {line: change.from.line, ch: 0};
+      // If the change is after the block, we're extending the end.
       let newTo = {line: loc.to.line > loc.from.line ? loc.to.line : change.from.line + 1, ch: 0};
-      this.editor.markSpan({line: change.from.line, ch: 0}, newTo, this.source);
+      this.editor.markSpan(newFrom, newTo, this.source);
 
-      // If we removed the end of the block, we need to ensure that it terminates at the beginning of te next line.
-    } else if(loc.to.ch !== 0) {
+      // If the end of the span is no longer at the beginning of the next line, fix it.
+    } if(loc.to.ch !== 0) {
       this.clear();
-      let newTo = {line: change.from.line + 1, ch: 0};
-      let neue = this.editor.markSpan(loc.from, newTo, this.source);
-
-      // If we now intersect any other spans, clear them.
-      // @FIXME: Shouldn't this split them if it doesn't wholly encompass them?
-      for(let span of this.editor.findSpans(loc.from, newTo)) {
-        if(span !== neue) span.clear();
-      }
-    } else {
-      this.refresh(change);
+      this.editor.markSpan(loc.from, {line: change.from.line + 1, ch: 0}, this.source);
     }
+
+    this.refresh(change);
   }
 
   refresh(change:Change) {
@@ -433,7 +429,7 @@ class CodeBlockSpan extends LineSpan {
     let cm = this.editor.cm;
     for(let line = loc.from.line; line < loc.to.line || line === loc.from.line; line++) {
       let info = cm.lineInfo(line);
-      if(!info.bgClass || info.bgClass.indexOf(this.lineBackgroundClass) === -1) {
+      if(!info || !info.bgClass || info.bgClass.indexOf(this.lineBackgroundClass) === -1) {
         cm.addLineClass(line, "background", this.lineBackgroundClass);
       }
     }
@@ -652,15 +648,15 @@ class Editor {
   defaults:CodeMirror.EditorConfiguration = {
     tabSize: 2,
     lineWrapping: true,
-    lineNumbers: false,
+    lineNumbers: true,
     extraKeys: ctrlify({
       "Cmd-Enter": () => console.log("sup dawg"),
       "Cmd-B": () => this.format({type: "strong"}),
       "Cmd-I": () => this.format({type: "emph"}),
       "Cmd-L": () => this.format({type: "code"}),
+      "Cmd-K": () => this.format({type: "code_block"}),
       "Cmd-E": () => this.formatLine({type: "heading", level: 1}),
-      "Cmd-Y": () => this.formatLine({type: "item"}),
-      "Cmd-K": () => this.formatLine({type: "code_block"})
+      "Cmd-Y": () => this.formatLine({type: "item"})
     })
   };
 
@@ -926,7 +922,9 @@ class Editor {
     for(let line = from.line, end = to.line; line <= end; line++) {
       let maybeLineSpans = this.findSpansAt({line, ch: 0});
       for(let maybeLineSpan of maybeLineSpans) {
-        if(maybeLineSpan.isLine) spans.push(maybeLineSpan);
+        if(maybeLineSpan.isLine && spans.indexOf(maybeLineSpan) === -1) {
+          spans.push(maybeLineSpan);
+        }
       }
     }
 
@@ -956,7 +954,7 @@ class Editor {
 
         let cur:ChangeLinkedList|undefined = change;
         while(cur) {
-          span.refresh(change);
+          span.refresh(cur);
           cur = cur.next();
         }
       }
