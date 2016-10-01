@@ -1,0 +1,80 @@
+# Chat
+
+add a user for this sesion on connect
+
+```
+  commit
+    [#user @me]
+```
+
+build the chat pane
+
+```
+  match
+    channel = "general"
+  bind
+    [#div class: "chat-pane" children:
+      [#div #chat-messages class: "chat-messages" channel]
+      [#input #channel-input autofocus: true channel]]
+```
+
+draw messages
+
+```
+  match (@session, @shared)
+    parent = [#chat-messages channel]
+    id = [#message name time message channel]
+  bind
+    parent.children += [#div id, class: "chat-message", children:
+                         [#div class: "chat-user", text: name]
+                         [#div class: "chat-time", text: time]
+                         [#div class: "chat-message", text: message]]
+```
+
+handle chat keydowns
+
+```
+  match
+    event = [#keydown element, key: "enter"]
+    element = [#channel-input channel value]
+    [#user name]
+    [#time hours minutes seconds]
+  commit
+    element.value := ""
+  commit @shared
+    [#message event name, time: "{{hours}}:{{minutes}}", message: value, channel]
+```
+
+
+remove events
+~~~
+  match
+    c = if event = [#keydown] then event
+        if event = [#keyup] then event
+        if event = [#click] then event
+        if event = [#double-click] then event
+        if event = [#change] then event
+        if event = [#blur] then event
+        if event = [#focus] then event
+  commit
+    c := none
+~~~
+
+hash changes
+~~~
+  match
+    change = [#url-change hash-segment]
+  commit
+    change := none
+    url = [#url]
+    url.hash-segment := hash-segment
+~~~
+
+update values
+~~~
+  match
+    [#change element value]
+  commit
+    element.value := value
+~~~
+

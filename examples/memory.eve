@@ -1,0 +1,9 @@
+
+Awesome memory dude
+
+```
+  match
+    [#memory rss]
+  bind
+    [#div text: "Current memory: {{rss}}"]
+```

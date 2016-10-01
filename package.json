@@ -1,0 +1,25 @@
+{
+  "dependencies": {
+    "@types/body-parser": "0.0.33",
+    "@types/commonmark": "^0.22.29",
+    "@types/express": "^4.0.33",
+    "@types/node": "^6.0.41",
+    "@types/request": "0.0.31",
+    "@types/tape": "^4.2.28",
+    "@types/ws": "0.0.33",
+    "body-parser": "^1.15.2",
+    "chevrotain": "^0.14.0",
+    "commonmark": "^0.26.0",
+    "express": "^4.14.0",
+    "request": "^2.75.0",
+    "typescript": "^2.0.3",
+    "ws": "^1.1.1"
+  },
+  "devDependencies": {
+    "faucet": "0.0.1",
+    "tape": "^4.6.0"
+  },
+  "scripts": {
+    "test": "node ./build/test/all.js | faucet"
+  }
+}

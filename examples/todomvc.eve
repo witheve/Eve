@@ -1,0 +1,177 @@
+# TodoMVC
+
+[TodoMVC][1] is a specification for a todo list web application. Its original purpose was to help developers evaluate the plethora of Javascript frameworks implementing the Model-View-Controller (MVC) design pattern. Today, it has evolved into a benchmark for programming languages and frameworks targeting the web, so TodoMVC apps don’t necessarily reflect the MVC design pattern.
+TodoMVC is a great example to demonstrate Eve's capabilities, as our semantics naturally enable a concise implementation; without optimizing for line count, the program you're reading only contains 63 lines of Eve code.
+
+[1]: http://todomvc.com/
+
+## Todos
+
+Each todo is tagged `#todo` and has a `body`, which is the text of the todo entered by the user. Additionally, each todo has two flags. The first flag is the `completed` flag affects how the todo is displayed, and allows the user to filter todos based on completed status; we can look at "completed" todos, "active" todos, or "all" todos. The second flag is the `editing` flag, used to toggle an editing mode on the todo. This is used later to allow the user to update the body text of the todo.
+
+These todos exist in the context of an `@app`, which we use to hold global state information. We use it to place a filter on the todos. The filter can be one of "completed", "active", or "all".
+
+### The Application View
+
+We draw Todo MVC here. All styling is handled in a separate CSS file. The app consists of three parts:
+
+1. __Header__ - Contains the `@toggle-all` button as well as `@new-todo`, which is an input box for entering new todos.
+2. __Body__ - Contains `@todo-list`, the list of todos. The work here is handled in the second block.
+3. __Footer__ - Contains the count of todos, as well as control buttons for filtering, and clearing completed todos.
+
+In this block, we do a little work to determine todo-count, all-checked, and none-checked. Other than that, this block simply lays out the major control elements of TodoMVC. A key aspect of this block is the `bind` keyword. This denotes the beginning of the action phase of the block, and tells Eve that to update records as data changes. This is the key component that enables Eve to react to user interaction and update the display.
+
+```
+  match
+    [@app filter]
+    all-checked = if not([#todo completed: false]) then true
+                  else false
+    none-checked = if [#todo completed: true] then false
+                   else true
+    todo-count = if c = count[given: [#todo completed: false]] then c
+                 else 0
+  bind
+    [#link rel: "stylesheet" href: "/examples/todomvc.css"] // Links to an external stylesheet
+    [#div class: "todoapp" children: [#header children: [#h1 text: "todos"]
+      [#input @new-todo, class: "new-todo", autofocus: true, placeholder: "What needs to be done?"]
+      [#input @toggle-all, class: "toggle-all", type: "checkbox", checked: all-checked]]
+    [#div class: "main" children:
+      [#ul @todo-list, class: "todo-list"]]
+    [#footer children:
+      [#span @todo-count, class: "todo-count", children: [#strong text: todo-count] [#span text: " items left"]]
+      [#ul @filters, class: "filters", children:
+        [#li children: [#a href: "#/all" class: [selected: is(filter = "all")] text: "all"]]
+        [#li children: [#a href: "#/active" class: [selected: is(filter = "active")] text: "active"]]
+        [#li children: [#a href: "#/completed" class: [selected: is(filter = "completed")] text: "completed"]]]
+      [#span @clear-completed, class: [clear-completed: true, hidden: none-checked], text: "Clear completed"]]]
+```
+
+### Drawing the Todo List
+
+Now we look at how the todos are actually displayed in the application. We attach it to `@todo-list` using its `children` attribute. Each todo display element consists of:
+
+- a **list item**, with a checkbox for toggling the completed status of the todo
+- a **label** displaying the text of the todo
+- an **input textbox** for editing the text of the todo
+- a **button** for deleting the todo
+
+```
+  match
+    [@app filter]
+    parent = [@todo-list]
+    (todo, body, completed, editing) =
+      if filter = "completed" then ([#todo, body, completed: true, editing], body, true, editing)
+      else if filter = "active" then ([#todo, body, completed: false, editing], body, false, editing)
+      else if filter = "all" then ([#todo, body, completed, editing], body, completed, editing)
+  bind
+    parent.children += [#li, class: [todo: true, completed, editing], todo, children:
+                       [#input #todo-checkbox, todo, class: [toggle: true, hidden: editing], type: "checkbox", checked: completed]
+                       [#label #todo-item, class: [hidden: editing], todo, text: body]
+                       [#input #todo-editor, class: [edit: true, hidden: toggle[value: editing]], todo, value: body, autofocus: true]
+                       [#button #remove-todo, class: [destroy: true, hidden: editing], todo]]
+```
+
+Thanks to Eve's set semantics, we don't need any loops here; for every unique `#todo` in the database, Eve will do the work of adding another `#li` as a child of `@todo-list`.
+
+## Responding to User Events
+
+### Creating a New Todo
+
+A user can interact with TodoMVC in several ways. First and foremost, the user can create new todos. When the `@new-todo` input box is focused and the user presses enter, the value of the input is captured and a new todo is created.
+
+```
+  match
+    element = [@new-todo value]
+    kd = [#keydown element, key: "enter"]
+  commit
+    [#todo body: value, editing: false, completed: false, kd]
+    element.value := ""
+```
+
+Of note here is the record `[#todo body: value, editing: false, completed: false, kd]`. The inclusion of the `kd` attribute might seem strange, but its purpose is to guarantee the uniqueness of the todo. Let’s say we want to add two todos with the same body. If `kd` were not an attribute, then the two todos would be exactly the same and Eve’s set semantics would collapse them into a single todo. Therefore, we need some way to distinguish todos with identical bodies. Adding `kd` allows for this.
+
+### Editing Todos
+
+Here we handle all the ways we edit a todo. Editing includes changing the body as well as toggling the status of between complete and active.
+
+- click `#todo-checkbox` - toggles the completed status of the checkbox.
+- click `@toggle-all` - marks all todos as complete or incomplete, depending on the initial value. If all todos are marked incomplete, clicking `@toggle-all` will mark them complete. If only some are marked complete, then clicking `@toggle-all` will mark the rest complete. If all todos are marked as complete, then clicking `@toggle-all` will mark them all as incomplete.
+- blur `#todo-editor` - blurring the `@todo-editor` will cancel the edit
+- escape `#todo-editor` - this has the same effect as blurring
+- enter `#todo-editor` - commits the new text in `#todo-editor`, replacing the original body
+
+```
+  match
+    (todo, body, editing, completed) =
+      if [#click element: [#todo-checkbox todo]] then (todo, todo.body, todo.editing, toggle[value: todo.completed])
+      else if [#click element: [@toggle-all checked]] then ([#todo body], body, todo.editing, toggle[value: checked])
+      else if [#double-click element: [#todo-item todo]] then (todo, todo.body, true, todo.completed)
+      else if [#blur element: [#todo-editor todo value]] then (todo, value, false, todo.completed)
+      else if [#keydown element: [#todo-editor todo] key: "escape"] then (todo, todo.body, false, todo.completed)
+      else if [#keydown element: [#todo-editor todo value] key: "enter"] then (todo, value, false, todo.completed)
+  commit
+    todo <- [body, completed, editing]
+```
+
+### Deleting Todos
+
+Deleting a todo from the list is accomplished by removing the `#todo` tag from the todo's record. Recall from the "Drawing the Todo List" section that we select todos by including `#todo` in the record. Therefore, if we remove that tag from the todo, then that todo will no longer appear in the list, although it will still persist in the database.
+
+```
+  match
+    todo = if [#click element: [#remove-todo todo]] then todo
+           else if [#click element: [@clear-completed]] then [#todo completed: true]
+  commit
+    todo -= #todo
+```
+
+### Filtering Todos (Routing)
+
+The TodoMVC specification requires filtering via the URL. This is actually how the filter buttons work; if you look at their href attributes, they modify the URL with certain tags:
+
+- all - displays all todos
+- active - displays active todos only
+- completed - displays completed todos only
+
+We can extract this value using `#url`, which has a hash-segment attribute that automatically parses the URL for us, returning the `value` (expected to be any one of the above). Any other value will fail to show any todos, but the application will not break.
+
+```
+  match
+    value = if [#url hash-segment: [index: 1, value]] then value
+            else "all"
+  bind
+    [@app filter: value]
+```
+
+remove events
+~~~
+  match
+    c = if event = [#keydown] then event
+        if event = [#keyup] then event
+        if event = [#click] then event
+        if event = [#double-click] then event
+        if event = [#change] then event
+        if event = [#blur] then event
+        if event = [#focus] then event
+  commit
+    c := none
+~~~
+
+hash changes
+~~~
+  match
+    change = [#url-change hash-segment]
+  commit
+    change := none
+    url = [#url]
+    url.hash-segment := hash-segment
+~~~
+
+update values
+~~~
+  match
+    [#change element value]
+  commit
+    element.value := value
+~~~
+

@@ -1,0 +1,31 @@
+cool stuff
+
+```
+  bind
+    [#button text: "send a request to google"]
+```
+
+```
+  match
+    [#click]
+  commit @http
+    [#request @google url: "https://jsonplaceholder.typicode.com/posts/"]
+```
+
+```
+  match @http
+    [#request @google response: [json]]
+    json = [#array]
+    lookup[record: json, attribute, value: [title body]]
+  bind
+    [#div text: "{{title}}"]
+    [#div text: "{{body}}"]
+```
+
+```
+  match @http
+    r = [#request not(response)]
+    total = count[given: r]
+  bind
+    [#div text: "Requests in flight: {{total}}"]
+```
