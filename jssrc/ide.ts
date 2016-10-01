@@ -323,14 +323,16 @@ class LineSpan extends Span {
   onBeforeChange(change:ChangeCancellable) {
     let doc = this.editor.cm.getDoc();
     let loc = this.find();
-    if(!loc || !samePosition(loc.from, change.from)) return;
+    if(!loc || loc.from.line !== change.from.line) return;
 
-    if(change.origin === "+delete") {
+    // If we're deleting at the start of a line-formatted line, we need to remove the line formatting too.
+    if(change.origin === "+delete" && change.from.ch === 0) {
+      console.log("deleting", loc.from.line, loc.to.line);
       this.clear();
-      change.cancel();
     }
-    // If we're adding a newline at the start of a list item, we're really removing the list formatting of the current line.
-    if(change.origin === "+input" && change.isNewlineChange() && doc.getLine(change.from.line) === "") {
+    // If we're adding a newline with nothing on the current line, we're really removing the formatting of the current line.
+    let isEmpty = doc.getLine(change.from.line).trim() === "";
+    if(change.origin === "+input" && change.isNewlineChange() && isEmpty) {
       this.clear();
       change.cancel();
     }
@@ -370,8 +372,7 @@ class HeadingSpan extends LineSpan {
   onChange(change:Change) {
     if(change.origin === "+delete") {
       let loc = this.find();
-      let doc = this.editor.cm.getDoc();
-      if(!loc || doc.getLine(loc.from.line) === "") {
+      if(!loc || samePosition(loc.from, change.to)) {
         this.clear();
       }
     }
@@ -383,9 +384,60 @@ class ListItemSpan extends LineSpan {
   lineTextClass = "ITEM";
 }
 
+// Code Blocks are an odd bird. They need the utilities of a Line Span but the logic of a regular span.
 class CodeBlockSpan extends LineSpan {
   type:SpanType = "code_block";
+  isLine = false;
   lineBackgroundClass = "CODE";
+
+  onBeforeChange(change:ChangeCancellable) {
+    if(change.origin === "+delete") {
+      let loc = this.find();
+      if(!loc) return;
+      if(samePosition(loc.from, change.to)) {
+        this.clear();
+        change.cancel();
+      }
+    }
+  }
+  onChange(change:Change) {
+    let loc = this.find();
+    if(!loc) return;
+
+    // @TODO: I don't really understand the heuristic here yet.
+    // If we're at the beginning of the code block, we need to extend it to contain the change.
+    if(change.from.line < loc.from.line || (change.from.line === loc.from.line && loc.from.ch !== 0) || samePosition(loc.from, loc.to)) {
+      this.clear();
+      let newTo = {line: loc.to.line > loc.from.line ? loc.to.line : change.from.line + 1, ch: 0};
+      this.editor.markSpan({line: change.from.line, ch: 0}, newTo, this.source);
+
+      // If we removed the end of the block, we need to ensure that it terminates at the beginning of te next line.
+    } else if(loc.to.ch !== 0) {
+      this.clear();
+      let newTo = {line: change.from.line + 1, ch: 0};
+      let neue = this.editor.markSpan(loc.from, newTo, this.source);
+
+      // If we now intersect any other spans, clear them.
+      // @FIXME: Shouldn't this split them if it doesn't wholly encompass them?
+      for(let span of this.editor.findSpans(loc.from, newTo)) {
+        if(span !== neue) span.clear();
+      }
+    } else {
+      this.refresh(change);
+    }
+  }
+
+  refresh(change:Change) {
+    let loc = this.find();
+    if(!loc) return;
+    let cm = this.editor.cm;
+    for(let line = loc.from.line; line < loc.to.line || line === loc.from.line; line++) {
+      let info = cm.lineInfo(line);
+      if(!info.bgClass || info.bgClass.indexOf(this.lineBackgroundClass) === -1) {
+        cm.addLineClass(line, "background", this.lineBackgroundClass);
+      }
+    }
+  }
 }
 
 class ElisionSpan extends LineSpan {
@@ -408,8 +460,8 @@ class EmphasisSpan extends Span {
   type:SpanType = "emph";
 }
 
-type FormatType = "strong"|"emph"|"code";
-type FormatLineType = "heading"|"item"|"code_block"|"elision";
+type FormatType = "strong"|"emph"|"code"|"code_block";
+type FormatLineType = "heading"|"item"|"elision";
 type FormatAction = "add"|"remove"|"split";
 type SpanType = FormatType|FormatLineType|"default";
 
@@ -433,6 +485,7 @@ var spanTypes:{[type:string]: (typeof Span)} = {
    * - [x] Event handlers e.g. onChange, etc.
    * - [x] Get spans updating again
    * - [ ] BUG: Formatting selected too inclusive: |A*A|A* -Cmd-Bg-> AAA
+   * - [ ] BUG: code spans continue onto next line
  * - [ ] Syntax highlighting
  * - [ ] Display cardinality badges
  * - [ ] Show related (at least action -> EAV / EAV -> DOM
@@ -508,7 +561,7 @@ class Change implements CodeMirror.EditorChange {
   /** Position (in the pre-change coordinate system) where the change started. */
   get from() { return this._raw.from; }
   /** Position (in the pre-change coordinate system) where the change ended. */
-  get to() { return this._raw.from; }
+  get to() { return this._raw.to; }
   /** Position (in the post-change coordinate system) where the change eneded. */
   get final() {
     let {from, to, text} = this._raw;
@@ -709,6 +762,7 @@ class Editor {
     let SpanClass = spanTypes[source.type] || spanTypes["default"];
     let span = new SpanClass(from, to, source);
     span.applyMark(this);
+    return span;
   }
 
   //-------------------------------------------------------
