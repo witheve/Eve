@@ -736,6 +736,73 @@ class Editor {
     });
   }
 
+  toMarkdown() {
+    let cm = this.cm;
+    let doc = cm.getDoc();
+    let spans = this.getAllSpans();
+    let fullText = cm.getValue();
+    let markers:{pos: number, start?:boolean, source:any}[] = []
+    for(let span of spans) {
+      let loc = span.find();
+      if(!loc) continue;
+      markers.push({pos: doc.indexFromPos(loc.from), start: true, source: span.source});
+      markers.push({pos: doc.indexFromPos(loc.to), start: false, source: span.source});
+    }
+    markers.sort((a, b) => a.pos - b.pos);
+
+    let pos = 0;
+    let pieces:string[] = [];
+    for(let mark of markers) {
+      if(!mark.source) continue;
+
+      // If the cursor isn't at this mark yet, push the range between and advance the cursor.
+      if(pos !== mark.pos) {
+        pieces.push(fullText.substring(pos, mark.pos));
+        pos = mark.pos;
+      }
+
+      // Break each known span type out into its markdown equivalent.
+      let type = mark.source.type;
+      if(type === "heading" && mark.start) {
+        for(let ix = 0; ix < mark.source.level; ix++) {
+          pieces.push("#");
+        }
+        pieces.push(" ");
+      } else if(type === "emph") {
+        pieces.push("_");
+      } else if(type == "strong") {
+        pieces.push("**");
+      } else if(type == "code") {
+        pieces.push("`");
+      } else if(type == "code_block" && mark.start) {
+        pieces.push("```\n");
+      } else if(type == "code_block" && !mark.start) {
+        // if the last character of the block is not a \n, we need to
+        // add one since the closing fence must be on its own line.
+        let last = pieces[pieces.length - 1];
+        if(last[last.length - 1] !== "\n") {
+          pieces.push("\n");
+        }
+        pieces.push("```\n");
+      } else if(type == "item" && mark.start && mark.source.listData.type == "bullet") {
+        pieces.push("- ");
+      } else if(type == "item" && mark.start && mark.source.listData.type == "ordered") {
+        pieces.push(`${mark.source.listData.start}. `);
+      } else if(type == "link" && mark.start) {
+        pieces.push("[");
+      } else if(type == "link" && !mark.start) {
+        pieces.push(`](${mark.source.destination})`);
+      }
+    }
+
+    // If there's any text after all the markers have been processed, glom that on.
+    if(pos < fullText.length) {
+      pieces.push(fullText.substring(pos));
+    }
+
+    return pieces.join("");
+  }
+
   refresh() {
     this.cm.refresh();
   }
