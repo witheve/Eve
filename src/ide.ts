@@ -288,7 +288,7 @@ class Span {
     return new (this.constructor as any)(loc.from, loc.to, this.source);
   }
 
-  applyMark(editor:Editor) {
+  applyMark(editor:Editor, origin:string = "+input") {
     this.editor = editor;
     let cm = editor.cm;
     let doc = cm.getDoc();
@@ -299,16 +299,19 @@ class Span {
       this.marker = doc.setBookmark(_from, {});
     }
     this.marker.span = this;
+    editor.addToHistory(new SpanChange([this], [], origin));
   }
 
   clear(origin = "+delete") {
     if(!this.marker) return;
     let cm = this.editor.cm;
 
-    this.editor.clearSpan(this, origin);
     this.marker.clear();
     this.marker.span = undefined;
     this.marker = undefined;
+
+    this.editor.addToHistory(new SpanChange([], [this], origin));
+    this.editor.queueUpdate();
   }
 
   // Handlers
@@ -576,7 +579,7 @@ function parseMarkdown(input:string):{text: string, spans: MDSpan[]} {
 }
 
 class Change implements CodeMirror.EditorChange {
-  type?:string
+  type:string = "range";
 
   constructor(protected _raw:CodeMirror.EditorChange) {}
 
@@ -592,7 +595,7 @@ class Change implements CodeMirror.EditorChange {
   get to() { return this._raw.to; }
   /** Position (in the post-change coordinate system) where the change eneded. */
   get final() {
-    let {from, to, text} = this._raw;
+    let {from, to, text} = this;
     let final = {line: from.line + (text.length - 1), ch: text[text.length - 1].length};
     if(text.length == 1) {
       final.ch += from.ch;
@@ -601,15 +604,17 @@ class Change implements CodeMirror.EditorChange {
   }
 
   /** String of all text added in the change. */
-  get addedText() { return this._raw.text.join("\n"); }
+  get addedText() { return this.text.join("\n"); }
   /** String of all text removed in the change. */
-  get removedText() { return this._raw.removed.join("\n"); }
+  get removedText() { return this.removed.join("\n"); }
 
   /** Whether this change just a single enter. */
   isNewlineChange() {
-  return this.text.length == 2 && this.text[1] == "";
-}
+    return this.text.length == 2 && this.text[1] == "";
+  }
 
+  /** Inverts a change for undo. */
+  invert() { return new ChangeInverted(this._raw) as Change; }
 }
 
 class ChangeLinkedList extends Change {
@@ -622,6 +627,10 @@ class ChangeLinkedList extends Change {
     return this._raw.next && new ChangeLinkedList(this._raw.next);
   }
 }
+function isRangeChange(x:Change|SpanChange): x is Change {
+  return x && x.type === "range";
+}
+
 
 class ChangeCancellable extends Change {
   constructor(protected _raw:CodeMirror.EditorChangeCancellable) {
@@ -637,6 +646,25 @@ class ChangeCancellable extends Change {
   cancel() {
     return this._raw.cancel();
   }
+}
+
+class ChangeInverted extends Change {
+  /** Lines of text that used to be between from and to, which is overwritten by this change. */
+  get text() { return this._raw.removed; }
+  /** Lines of text that used to be between from and to, which is overwritten by this change. */
+  get removed() { return this._raw.text; }
+  /** Inverts a change for undo. */
+  invert() { return new Change(this._raw); }
+}
+
+class SpanChange {
+  type: string = "span";
+  constructor(public added:Span[] = [], public removed:Span[] = [], public origin:string = "+input") {}
+  /** Inverts a change for undo. */
+  invert() { return new SpanChange(this.removed, this.added, this.origin); }
+}
+function isSpanChange(x:Change|SpanChange): x is SpanChange {
+  return x && x.type === "span";
 }
 
 function formattingChange(span:Span, change:Change, action?:FormatAction) {
@@ -662,7 +690,6 @@ function formattingChange(span:Span, change:Change, action?:FormatAction) {
   }
 }
 
-
 function ctrlify(keymap) {
   let finalKeymap = {};
   for(let key in keymap) {
@@ -674,8 +701,23 @@ function ctrlify(keymap) {
   return finalKeymap;
 }
 
-interface HistoryItem { finalized?: boolean, changes:ChangeLinkedList[] }
+// Register static commands
+let _rawUndo = CodeMirror.commands["undo"];
+CodeMirror.commands["undo"] = function(cm:CMEditor) {
+  if(!cm.editor) _rawUndo.apply(this, arguments);
+  else cm.editor.undo();
+}
+let _rawRedo = CodeMirror.commands["redo"];
+CodeMirror.commands["redo"] = function(cm:CMEditor) {
+  if(!cm.editor) _rawRedo.apply(this, arguments);
+  else cm.editor.redo();
+}
 
+
+interface HistoryItem { finalized?: boolean, changes:(Change|SpanChange)[] }
+interface CMEditor extends CodeMirror.Editor {
+  editor?:Editor
+}
 class Editor {
   defaults:CodeMirror.EditorConfiguration = {
     tabSize: 2,
@@ -692,7 +734,7 @@ class Editor {
     })
   };
 
-  cm:CodeMirror.Editor;
+  cm:CMEditor;
 
   /** The current editor generation. Used for imposing a relative ordering on parses. */
   generation = 0;
@@ -713,6 +755,7 @@ class Editor {
 
   constructor(public ide:IDE) {
     this.cm = CodeMirror(() => undefined, this.defaults);
+    this.cm.editor = this;
     this.cm.on("beforeChange", (editor, rawChange) => this.onBeforeChange(rawChange));
     this.cm.on("change", (editor, rawChange) => this.onChange(rawChange));
     this.cm.on("changes", (editor, rawChanges) => this.onChanges(rawChanges));
@@ -721,12 +764,16 @@ class Editor {
 
   // This is a new document and we need to rebuild it from scratch.
   loadSpans(text:string, packed:any[], attributes:{[id:string]: any|undefined}) {
+    // Reset history and suppress storing the load as a history step.
+    this.history.position = 0;
+    this.history.items = [];
+    this.history.transitioning = true;
+
     if(packed.length % 4 !== 0) throw new Error("Invalid span packing, unable to load.");
     this.cm.operation(() => {
       this.reloading = true;
 
       // this is a new document and we need to rebuild it from scratch.
-      console.log("NEW");
       this.cm.setValue(text);
       let doc = this.cm.getDoc();
 
@@ -743,6 +790,7 @@ class Editor {
       }
     });
     this.reloading = false;
+    this.history.transitioning = false;
   }
 
   // This is an update to an existing document, so we need to figure out what got added and removed.
@@ -750,7 +798,6 @@ class Editor {
     if(packed.length % 4 !== 0) throw new Error("Invalid span packing, unable to load.");
     this.cm.operation(() => {
       this.reloading = true;
-      console.log("UPDATE");
       let doc = this.cm.getDoc();
       let spans = this.getAllSpans();
 
@@ -911,12 +958,6 @@ class Editor {
     return spans;
   }
 
-  clearSpan(span:Span, origin = "+delete") {
-    console.warn("@FIXME: history integration");
-    //this.addToHistory({type: "span", added: [], removed: [span], origin});
-    this.queueUpdate();
-  }
-
   /** Create a new Span representing the given source in the document. */
   markSpan(from:Position, to:Position, source:any) {
     let SpanClass = spanTypes[source.type] || spanTypes["default"];
@@ -1047,13 +1088,86 @@ class Editor {
   //-------------------------------------------------------
   // Undo History
   //-------------------------------------------------------
+  undo = () => {
+    let history = this.history;
+    // We're out of undo steps.
+    if(history.position === 0) return;
+    this.finalizeLastHistoryEntry(); // @FIXME: wut do?
+    history.position--;
+    let changeSet = history.items[history.position]
+    this._historyDo(changeSet, true);
+  }
 
-  addToHistory(change:Change) {
-    console.warn("@TODO: Implement me!");
+  redo = () => {
+    let history = this.history;
+    // We're out of redo steps.
+    if(history.position > history.items.length - 1) return;
+    let changeSet = history.items[history.position]
+    history.position++;
+    this._historyDo(changeSet);
+  }
+
+  protected _historyDo(changeSet:HistoryItem, invert:boolean = false) {
+    this.history.transitioning = true;
+    let noRangeChanges = true;
+    this.cm.operation(() => {
+      let doc = this.cm.getDoc();
+      for(let ix = 0, len = changeSet.changes.length; ix < len; ix++) {
+        let change = changeSet.changes[invert ? len - ix - 1 : ix];
+        if(invert) change = change.invert();
+        if(isRangeChange(change)) {
+          noRangeChanges = false;
+          let removedPos = doc.posFromIndex(doc.indexFromPos(change.from) + change.removedText.length);
+          doc.replaceRange(change.addedText, change.from, removedPos);
+        } else if(isSpanChange(change)) {
+          for(let removed of change.removed) {
+            removed.clear("+mdundo");
+          }
+          for(let added of change.added) {
+            added.applyMark(this, "+mdundo");
+          }
+        }
+      }
+    });
+
+    // Because updating the spans doesn't trigger a change, we can't rely on the changes handler to
+    // clear the transitioning state for us if we don't have any range changes.
+    if(noRangeChanges) {
+      this.history.transitioning = false;
+    }
+  }
+
+  addToHistory(change:Change|SpanChange) {
+    let history = this.history;
+    // Bail if we're currently doing an undo or redo
+    if(history.transitioning) return;
+
+    // Truncate the history tree to ancestors of the current state.
+    // @NOTE: In a fancier implementation we could maintain branching history instead.
+    if(history.items.length > history.position) {
+      history.items.length = history.position;
+    }
+    let changeSet:HistoryItem;
+    // If the last history step hasn't been finalized, we want to keep glomming onto it.
+    let last = history.items[history.items.length - 1];
+    if(last && !last.finalized) changeSet = last;
+    else changeSet = {changes: []};
+
+    // @FIXME: Is this check still necessary with history.transitioning?
+    if(change.origin !== "+mdundo" && change.origin !== "+mdredo") {
+      changeSet.changes.push(change);
+    }
+    // Finally add the history step to the history stack (if it's not already in there).
+    if(changeSet !== last) {
+      history.position++;
+      history.items.push(changeSet);
+    }
   }
 
   finalizeLastHistoryEntry() {
-    console.warn("@TODO: Implement me!");
+    let history = this.history;
+    if(!history.items.length) return;
+    history.items[history.items.length - 1].finalized = true;
   }
 
   //-------------------------------------------------------
@@ -1070,8 +1184,6 @@ class Editor {
   }
 
   onBeforeChange = (raw:CodeMirror.EditorChangeCancellable) => {
-    setTimeout(() => console.log("AFTER"), 0);
-    console.log("BEFORE");
     let doc = this.cm.getDoc();
     let change = new ChangeCancellable(raw);
     let {from, to} = change;
@@ -1130,7 +1242,13 @@ class Editor {
     // Collapse multiline changes into their own undo step
     if(change.text.length > 1) this.finalizeLastHistoryEntry();
 
-    this.addToHistory(change);
+
+    let cur:ChangeLinkedList|undefined = change;
+    while(cur) {
+      this.addToHistory(cur);
+      cur = cur.next();
+    }
+
     for(let span of spans) {
       if(!span.onChange) continue;
 
