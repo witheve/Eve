@@ -697,6 +697,9 @@ class Editor {
   /** The current editor generation. Used for imposing a relative ordering on parses. */
   generation = 0;
 
+  /** Whether the editor is being externally updated with new content. */
+  reloading = false;
+
   /** Formatting state for the editor at the cursor. */
   formatting:{[formatType:string]: FormatAction} = {};
 
@@ -716,11 +719,17 @@ class Editor {
     this.cm.on("cursorActivity", this.onCursorActivity);
   }
 
+  // This is a new document and we need to rebuild it from scratch.
   loadSpans(text:string, packed:any[], attributes:{[id:string]: any|undefined}) {
+    if(packed.length % 4 !== 0) throw new Error("Invalid span packing, unable to load.");
     this.cm.operation(() => {
+      this.reloading = true;
+
+      // this is a new document and we need to rebuild it from scratch.
+      console.log("NEW");
       this.cm.setValue(text);
       let doc = this.cm.getDoc();
-      if(packed.length % 4 !== 0) throw new Error("Invalid span packing, unable to load.");
+
       for(let i = 0; i < packed.length; i += 4) {
         let from = doc.posFromIndex(packed[i]);
         let to = doc.posFromIndex(packed[i + 1]);
@@ -731,10 +740,61 @@ class Editor {
         source.type = type;
         source.id = id;
         this.markSpan(from, to, source);
-
       }
     });
+    this.reloading = false;
   }
+
+  // This is an update to an existing document, so we need to figure out what got added and removed.
+  updateSpans(packed:any[], attributes:{[id:string]: any|undefined}) {
+    if(packed.length % 4 !== 0) throw new Error("Invalid span packing, unable to load.");
+    this.cm.operation(() => {
+      this.reloading = true;
+      console.log("UPDATE");
+      let doc = this.cm.getDoc();
+      let spans = this.getAllSpans();
+
+      for(let i = 0; i < packed.length; i += 4) {
+        let from = doc.posFromIndex(packed[i]);
+        let to = doc.posFromIndex(packed[i + 1]);
+        let type = packed[i + 2];
+        let id = packed[i + 3];
+
+        let unchanged = false;
+        let spanIx = 0;
+        while(spanIx < spans.length) {
+          let span = spans[spanIx];
+          if(span.source.id === id) {
+            let loc = span.find();
+            if(!loc || !samePosition(loc.from, from) || !samePosition(loc.to, to)) {
+              console.log("- removing", span);
+              span.clear();
+            } else {
+              unchanged = true;
+              console.log("- existing", span);
+            }
+            spans[spanIx] = spans.pop();
+          } else {
+            spanIx++;
+          }
+        }
+        if(!unchanged) {
+          let source = attributes[id] || {};
+          source.type = type;
+          source.id = id;
+          let s = this.markSpan(from, to, source);
+          console.log("- inserting", s);
+        }
+      }
+
+      // Any remaining spans were deleted
+      for(let span of spans) {
+        span.clear();
+      }
+    });
+    this.reloading = false;
+  }
+
 
   toMarkdown() {
     let cm = this.cm;
@@ -807,10 +867,9 @@ class Editor {
     this.cm.refresh();
   }
 
-  queueUpdate = debounce(() => {
-    this.ide.render();
-    this.generation++;
-  }, 1, true);
+  queueUpdate  = () => {
+    if(!this.reloading) this.ide.queueUpdate();
+  }
 
   //-------------------------------------------------------
   // Spans
@@ -1011,6 +1070,8 @@ class Editor {
   }
 
   onBeforeChange = (raw:CodeMirror.EditorChangeCancellable) => {
+    setTimeout(() => console.log("AFTER"), 0);
+    console.log("BEFORE");
     let doc = this.cm.getDoc();
     let change = new ChangeCancellable(raw);
     let {from, to} = change;
@@ -1576,7 +1637,7 @@ export class IDE {
   editor:Editor = new Editor(this);
   comments:Comments = new Comments(this, fakeComments);
 
-  constructor() {
+  constructor( ) {
     window.addEventListener("resize", this.resize);
     document.body.appendChild(this.renderer.content);
     this.renderer.content.classList.add("ide-root");
@@ -1599,8 +1660,14 @@ export class IDE {
     this.renderer.render([this.elem()]);
   }
 
-  loadSpans(text:string, packed:any[], attributes:{[id:string]: any|undefined}) {
+  queueUpdate = debounce(() => {
+    this.render();
+  }, 1, true);
+
+  loadDocument(text:string, packed:any[], attributes:{[id:string]: any|undefined}) {
     this.editor.loadSpans(text, packed, attributes);
     this.navigator.loadDocument(this.editor);
   }
+
+  onChange?:(self:IDE) => void
 }

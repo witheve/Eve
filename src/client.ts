@@ -191,7 +191,7 @@ socket.onmessage = function(msg) {
     browser.init(data.code);
   } else if(data.type == "parse") {
     console.log("Got parse!", data);
-    _ide.loadSpans(data.text, data.spans, data.extraInfo);
+    _ide.loadDocument(data.text, data.spans, data.extraInfo);
     _ide.render();
   } else if(data.type == "error") {
     console.error(data.message, data);
@@ -285,9 +285,9 @@ export function sendSave(query) {
   }
 }
 
-export function sendParse(query) {
+export function sendParse(code) {
   if(socket && socket.readyState == 1) {
-    socket.send(JSON.stringify({scope: "root", type: "parse", query}))
+    socket.send(JSON.stringify({scope: "root", type: "parse", code}))
   }
 }
 
@@ -317,3 +317,4 @@ window.addEventListener("hashchange", onHashChange);
 //---------------------------------------------------------
 let _ide = new IDE();
 _ide.render();
+console.log(_ide);
