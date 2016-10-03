@@ -95,6 +95,7 @@ export class DependencyChecker {
         this._depsForTag(deps, attributes, "any")
       } else {
         for(let tag of tagAttributes.values) {
+          if(deps["any"]["tag"] === true) break;
           deps["any"]["tag"][tag] = true;
           this._depsForTag(deps, attributes, tag);
         }

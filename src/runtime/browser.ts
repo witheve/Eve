@@ -11,6 +11,7 @@ import {ActionImplementations} from "./actions";
 import {BrowserSessionDatabase} from "./databases/browserSession";
 import {HttpDatabase} from "./databases/http";
 import * as system from "./databases/system";
+import * as analyzer from "./analyzer";
 
 let evaluation;
 
@@ -54,6 +55,7 @@ export function init(code) {
   let {text, spans, extraInfo} = results;
   responder.send(JSON.stringify({type: "parse", text, spans, extraInfo}));
   let {blocks} = builder.buildDoc(results);
+  // analyzer.analyze(results.blocks);
   let session = new BrowserSessionDatabase(responder);
   session.blocks = blocks;
   evaluation = new Evaluation();
