@@ -175,7 +175,7 @@ html, body, __root { height: 100%; }
 .CodeMirror .comment-highlight.pos.error:after { color: #F06060; }
 .CodeMirror .comment-highlight.pos.warning:after { color: #C0C060; }
 
-.CodeMirror .scrollbar-annotation { background: #AAA; min-height: 5px; opacity: 1; transition: opacity 0.15s; pointer-events: }
+.CodeMirror .scrollbar-annotation { background: #AAA; min-height: 5px; opacity: 1; transition: opacity 0.15s; z-index: 2; }
 .CodeMirror .scrollbar-annotation:hover { opacity: 0.5; }
 .CodeMirror .scrollbar-annotation.error { background: #F06060; }
 .CodeMirror .scrollbar-annotation.warning { background: #C0C060; }
