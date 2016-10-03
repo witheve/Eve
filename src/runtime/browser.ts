@@ -51,7 +51,7 @@ export function init(code) {
 
   global["browser"] = true;
   let {results, errors} = parser.parseDoc(code || "");
-  console.error(errors);
+  if(errors && errors.length) console.error(errors);
   let {text, spans, extraInfo} = results;
   responder.send(JSON.stringify({type: "parse", text, spans, extraInfo}));
   let {blocks} = builder.buildDoc(results);
