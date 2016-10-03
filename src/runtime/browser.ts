@@ -29,7 +29,7 @@ class Responder {
   handleEvent(json) {
     let data = JSON.parse(json);
     if(data.type === "event") {
-      console.log("EVENT", json);
+      console.info("EVENT", json);
       let actions = [];
       for(let insert of data.insert) {
         actions.push(new ActionImplementations["+="](insert[0], insert[1], insert[2]));
@@ -37,7 +37,7 @@ class Responder {
       evaluation.executeActions(actions);
     } else if(data.type === "parse") {
       let {results, errors} = parser.parseDoc(data.code || "");
-      console.log(errors);
+      console.error(errors);
       let {text, spans, extraInfo} = results;
       this.send(JSON.stringify({type: "parse", text, spans, extraInfo}));
     }
@@ -51,12 +51,11 @@ export function init(code) {
 
   global["browser"] = true;
   let {results, errors} = parser.parseDoc(code || "");
-  console.log(errors);
+  console.error(errors);
   let {text, spans, extraInfo} = results;
   responder.send(JSON.stringify({type: "parse", text, spans, extraInfo}));
   let {blocks} = builder.buildDoc(results);
   // analyzer.analyze(results.blocks);
-  console.log(blocks);
   let session = new BrowserSessionDatabase(responder);
   session.blocks = blocks;
   evaluation = new Evaluation();
