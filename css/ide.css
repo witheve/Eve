@@ -29,7 +29,7 @@ html, body, __root { height: 100%; }
 
 .comments-pane.collapse-1 { left: auto; width: 150px; }
 .comments-pane.collapsed,
-.comments-pane.collapse-2 { left: auto; width: 30px; }
+.comments-pane.collapse-2 { left: auto; width: 40px; }
 
 /****************************************************************************\
  * Navigator
@@ -118,7 +118,7 @@ html, body, __root { height: 100%; }
 \****************************************************************************/
 .comments-pane { background: #303030; }
 .comments-pane-inner { position: relative; min-width: 300px; max-width: 500px; height: 100%; }
-.comments-pane .comment { color: #d8d8d8; min-height: 30px; }
+.comments-pane .comment { color: #d8d8d8; min-height: 40px; }
 
 
 .comments-pane .comment { position: absolute; padding: 5px 10px; margin-top: -2px; width: 100%; display: flex; flex-direction: column; align-items: stretch; overflow: visible; }
@@ -147,7 +147,7 @@ html, body, __root { height: 100%; }
 
 .comments-pane.collapse-1 .comments-pane-inner { min-width: 150px; }
 .comments-pane.collapse-2 .comments-pane-inner,
-.comments-pane.collapsed .comments-pane-inner { min-width: 30px; }
+.comments-pane.collapsed .comments-pane-inner { min-width: 40px; }
 
 .comments-pane.collapse-1 .comment > .label { display: inline-block; margin-left: 25px; white-space: pre; overflow: hidden; text-overflow: ellipsis; }
 .comments-pane.collapse-2 .comment > .label,
@@ -155,7 +155,7 @@ html, body, __root { height: 100%; }
 .comments-pane.collapse-1 .comment-inner,
 .comments-pane.collapse-2 .comment-inner { display: none; }
 .comments-pane.collapse-1 .comment:hover .comment-inner,
-.comments-pane.collapse-2 .comment:hover .comment-inner { display: block; position: absolute; right: 0; top: 26px; width: 400px; padding: 10px; z-index: 1; border-radius: 2px; border: 1px solid #202020; }
+.comments-pane.collapse-2 .comment:hover .comment-inner { display: block; position: absolute; right: 0; top: 26px; width: 400px; padding: 10px; z-index: 2; border-radius: 2px; border: 1px solid #202020; }
 
 .comments-pane.collapse-1 .comment:before,
 .comments-pane.collapse-2 .comment:before,
