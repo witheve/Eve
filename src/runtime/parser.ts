@@ -75,11 +75,14 @@ function parseMarkdown(markdown: string, docId: string) {
       }
       if(node.type == "code") {
         let spanId = `${docId}|${tokenId++}`;
-        let start = context[context.length - 1].start;
+        let start = context.pop().start;
         spans.push(start, pos, node.type, spanId);
       }
     } else {
       let info = context.pop();
+      if(node !== info.node) {
+        throw new Error("Common mark is exiting a node that doesn't agree with the context stack");
+      }
       if(node.type == "emph" || node.type == "strong" || node.type == "link") {
         let spanId = `${docId}|${tokenId++}`;
         spans.push(info.start, pos, node.type, spanId);
@@ -992,7 +995,10 @@ class Parser extends chev.Parser {
         self.CONSUME(If)
       ]
       self.AT_LEAST_ONE(() => {
-        from.push(self.SUBRULE(self.statement) as ParseNode);
+        let statement = self.SUBRULE(self.statement) as ParseNode;
+        if(statement) {
+          from.push(statement);
+        }
       })
       from.push(self.CONSUME(Then));
       let expression = self.SUBRULE(self.expression) as ParseNode;
