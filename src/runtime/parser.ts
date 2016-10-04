@@ -713,7 +713,7 @@ class Parser extends chev.Parser {
         }},
         {ALT: () => {
           let variable : any = self.SUBRULE(self.variable, [forceGenerate]);
-          return makeNode("attribute", {attribute: variable.name, value: variable, from: [variable]});
+          return makeNode("attribute", {attribute: variable.from[0].image, value: variable, from: [variable]});
         }},
       ]);
     });
