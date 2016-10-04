@@ -191,8 +191,7 @@ socket.onmessage = function(msg) {
     browser.init(data.code);
   } else if(data.type == "parse") {
     console.log("Got parse!", data);
-    _ide.loadDocument(data.text, data.spans, data.extraInfo);
-    _ide.render();
+    _ide.loadDocument("<fake id>", data.text, data.spans, data.extraInfo);
   } else if(data.type == "error") {
     console.error(data.message, data);
   }
@@ -318,3 +317,8 @@ window.addEventListener("hashchange", onHashChange);
 let _ide = new IDE();
 _ide.render();
 console.log(_ide);
+_ide.onChange = (ide:IDE) => {
+  let md = ide.editor.toMarkdown();
+  //console.log(md);
+  sendParse(md);
+}

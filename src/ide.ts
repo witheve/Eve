@@ -36,7 +36,7 @@ function whollyEnclosed(inner:Range, outer:Range) {
  * - [x] 2nd priority on width
  * - [x] Collapsible
  * - [x] Elision (in ToC)
- * - [ ] Elision (in editor)
+ * - [x] Elision (in editor)
  */
 
 interface TreeNode {
@@ -59,7 +59,7 @@ class Navigator {
   };
   open: boolean = true;
 
-  constructor(public ide:IDE, public rootId, public nodes:TreeMap, public currentId:string = rootId) {}
+  constructor(public ide:IDE, public rootId = "root", public nodes:TreeMap = {root: {type: "folder", name: "/", children: []}}, public currentId:string = rootId) {}
 
   currentType():string {
     let node = this.nodes[this.currentId];
@@ -78,14 +78,18 @@ class Navigator {
     }
   }
 
-  loadDocument(editor:Editor) {
+  protected _deleteChildren = (nodeId:string, parentId?:string) => {
+    delete this.nodes[nodeId];
+  }
+
+  loadDocument(id:string, name:string, editor:Editor, parentId:string = this.rootId) {
+    this.walk(id, this._deleteChildren);
+
     let doc = editor.cm.getDoc();
-    let headings = editor.getAllSpans("heading");
+    let headings = editor.getAllSpans("heading") as HeadingSpan[];
     headings.sort(compareSpans);
 
-    this.nodes = {};
-    let rootId = "root";
-    let root = this.nodes[rootId] = {name, type: "document", open: true};
+    let root = this.nodes[id] = {name, type: "document", open: true};
     let stack:TreeNode[] = [root];
     for(let heading of headings) {
       let loc = heading.find();
@@ -101,8 +105,14 @@ class Navigator {
       this.nodes[heading.source.id] = node;
     }
 
-    this.nodes[rootId] = root;
-    this.rootId = rootId;
+    this.nodes[id] = root;
+    let parent = this.nodes[parentId];
+    if(parent) {
+      if(!parent.children) parent.children = [];
+      if(parent.children.indexOf(id) === -1) {
+        parent.children.push(id);
+      }
+    }
   }
 
   // Event Handlers
@@ -273,6 +283,8 @@ function compareSpans(a, b) {
   return aLoc.from.line < bLoc.from.line ? -1 : 1;
 }
 
+interface SpanSource { type: string, id: string }
+
 class Span {
   protected static _nextId = 0;
   isLine = false;
@@ -284,7 +296,7 @@ class Span {
   protected _attributes:CodeMirror.TextMarkerOptions = {};
   type:SpanType = "default";
 
-  constructor(protected _from:Position, protected _to:Position, public source:any) {
+  constructor(protected _from:Position, protected _to:Position, public source:SpanSource) {
     this._attributes.className = source.type;
   }
 
@@ -333,6 +345,10 @@ class Span {
     this.editor.queueUpdate();
   }
 
+  sourceEquals(other:SpanSource) {
+    return other && this.source.type === other.type;
+  }
+
   // Handlers
   refresh(change:Change) {}
   onBeforeChange(change:ChangeCancellable) {}
@@ -350,6 +366,13 @@ class LineSpan extends Span {
   isLine = true;
   lineTextClass?: string;
   lineBackgroundClass?: string;
+
+  constructor(_from:Position, _to:Position, source:SpanSource) {
+    super(_from, _to, source);
+    if(_from.ch !== 0 || _to.ch !== 0) {
+      throw new Error(`Invalid lineSpan range (${_from.line}, ${_from.ch}) to (${_to.line}, ${_to.ch})`);
+    }
+  }
 
   applyMark(editor:Editor) {
     super.applyMark(editor);
@@ -378,10 +401,10 @@ class LineSpan extends Span {
   onBeforeChange(change:ChangeCancellable) {
     let doc = this.editor.cm.getDoc();
     let loc = this.find();
-    if(!loc || loc.from.line !== change.from.line) return;
+    if(!loc || !samePosition(loc.from, change.from)) return;
 
     // If we're deleting at the start of a line-formatted line, we need to remove the line formatting too.
-    if(change.origin === "+delete" && change.from.ch === 0) {
+    if(change.origin === "+delete") {
       this.clear();
     }
     // If we're adding a newline with nothing on the current line, we're really removing the formatting of the current line.
@@ -396,7 +419,8 @@ class LineSpan extends Span {
     let loc = this.find();
     if(!loc) return;
     // If the change starts exclusively outside of the list, ignore it.
-    if(loc.from.line > change.from.line || loc.to.line < change.from.line) return;
+    //if(loc.from.line > change.from.line || loc.to.line < change.from.line) return;
+    if(!samePosition(loc.from, change.from)) return;
 
     // If we're adding a newline at the end of a list item, we're adding a new list item on the next line.
     if(change.isNewlineChange()) {
@@ -409,9 +433,10 @@ function isLineSpan(span:Span): span is LineSpan {
   return span.isLine;
 }
 
+interface HeadingSpanSource extends SpanSource { level: number }
 class HeadingSpan extends LineSpan {
   type:SpanType = "heading";
-  constructor(_from:Position, _to:Position, source:any) {
+  constructor(_from:Position, _to:Position, public source:HeadingSpanSource) {
     super(_from, _to, source);
     if(!this.source.level) {
       this.source.level = 1;
@@ -448,9 +473,14 @@ class HeadingSpan extends LineSpan {
   }
 }
 
+interface ListItemSpanSource extends SpanSource {level: number, listData: {start: number, type:"ordered"|"unordered"}}
 class ListItemSpan extends LineSpan {
   type:SpanType = "item";
   lineTextClass = "ITEM";
+
+  constructor(_from:Position, _to:Position, public source:ListItemSpanSource) {
+    super(_from, _to, source);
+  }
 }
 
 // Code Blocks are an odd bird. They need the utilities of a Line Span but the logic of a regular span.
@@ -459,6 +489,10 @@ class CodeBlockSpan extends LineSpan {
   isLine = false;
   lineBackgroundClass = "CODE";
   lineTextClass = "CODE-TEXT";
+
+  constructor(_from:Position, _to:Position, source:SpanSource) {
+    super(_from, (_to.ch === 0) ? _to : {line: _to.line + 1, ch: 0}, source);
+  }
 
   onBeforeChange(change:ChangeCancellable) {
     if(change.origin === "+delete") {
@@ -485,7 +519,7 @@ class CodeBlockSpan extends LineSpan {
       this.editor.markSpan(newFrom, newTo, this.source);
 
       // If the end of the span is no longer at the beginning of the next line, fix it.
-    } if(loc.to.ch !== 0) {
+    } else if(loc.to.ch !== 0) {
       this.clear();
       this.editor.markSpan(loc.from, {line: change.from.line + 1, ch: 0}, this.source);
     }
@@ -552,10 +586,11 @@ var spanTypes:{[type:string]: (typeof Span)} = {
    * - [x] Get spans updating again
    * - [x] BUG: Formatting selected too inclusive: |A*A|A* -Cmd-Bg-> AAA
  * - [x] Syntax highlighting
+ * - [x] Live parsing
+ * - [x] Undo
  * - [ ] Display cardinality badges
  * - [ ] Show related (at least action -> EAV / EAV -> DOM
  * - [ ] Autocomplete (at least language constructs, preferably also expression schemas and known tags/names/attributes)
- * - [ ] Undo
  */
 interface EditorNode extends HTMLElement { cm?: CodeMirror.Editor }
 type MDSpan = [number, number, commonmark.Node];
@@ -747,6 +782,16 @@ CodeMirror.commands["redo"] = function(cm:CMEditor) {
   else cm.editor.redo();
 }
 
+function debugTokenWithContext(text:string, start:number, end:number):string {
+  let lineStart = text.lastIndexOf("\n", start) + 1;
+  let lineEnd = text.indexOf("\n", end);
+  if(lineEnd === -1) lineEnd = undefined;
+  let tokenStart = start - lineStart;
+  let tokenEnd = end - lineStart;
+  let line = text.substring(lineStart, lineEnd);
+
+  return line.substring(0, tokenStart) + "|" + line.substring(tokenStart, tokenEnd) + "|" + line.substring(tokenEnd);
+}
 
 interface HistoryItem { finalized?: boolean, changes:(Change|SpanChange)[] }
 interface CMEditor extends CodeMirror.Editor {
@@ -756,7 +801,7 @@ class Editor {
   defaults:CodeMirror.EditorConfiguration = {
     tabSize: 2,
     lineWrapping: true,
-    lineNumbers: false,
+    lineNumbers: true,
     extraKeys: ctrlify({
       "Cmd-Enter": () => console.log("sup dawg"),
       "Cmd-B": () => this.format({type: "strong"}),
@@ -770,9 +815,10 @@ class Editor {
 
   cm:CMEditor;
 
+  /** The id of the document currently being edited. */
+  documentId?:string;
   /** The current editor generation. Used for imposing a relative ordering on parses. */
   generation = 0;
-
   /** Whether the editor is being externally updated with new content. */
   reloading = false;
 
@@ -797,7 +843,7 @@ class Editor {
   }
 
   // This is a new document and we need to rebuild it from scratch.
-  loadSpans(text:string, packed:any[], attributes:{[id:string]: any|undefined}) {
+  loadDocument(id:string, text:string, packed:any[], attributes:{[id:string]: any|undefined}) {
     // Reset history and suppress storing the load as a history step.
     this.history.position = 0;
     this.history.items = [];
@@ -817,6 +863,8 @@ class Editor {
         let type = packed[i + 2];
         let id = packed[i + 3];
 
+        //console.info(type, debugTokenWithContext(text, packed[i], packed[i + 1]));
+
         let source = attributes[id] || {};
         source.type = type;
         source.id = id;
@@ -825,15 +873,30 @@ class Editor {
     });
     this.reloading = false;
     this.history.transitioning = false;
+    this.documentId = id;
+    //console.log(this.toMarkdown())
   }
 
   // This is an update to an existing document, so we need to figure out what got added and removed.
-  updateSpans(packed:any[], attributes:{[id:string]: any|undefined}) {
+  updateDocument(packed:any[], attributes:{[id:string]: any|undefined}) {
     if(packed.length % 4 !== 0) throw new Error("Invalid span packing, unable to load.");
+
+    let addedDebug = [];
+    let removedDebug = [];
+
     this.cm.operation(() => {
       this.reloading = true;
       let doc = this.cm.getDoc();
       let spans = this.getAllSpans();
+
+      // Build a spatial lookup of the spans
+      let lineToSpans:{[line:number]: Span[]|undefined} = {};
+      for(let span of spans) {
+        let loc = span.find();
+        if(!loc) continue;
+        if(!lineToSpans[loc.from.line]) lineToSpans[loc.from.line] = [];
+        lineToSpans[loc.from.line].push(span);
+      }
 
       for(let i = 0; i < packed.length; i += 4) {
         let from = doc.posFromIndex(packed[i]);
@@ -841,38 +904,50 @@ class Editor {
         let type = packed[i + 2];
         let id = packed[i + 3];
 
+        let source = attributes[id] || {};
+        source.type = type;
+        source.id = id;
+
         let unchanged = false;
-        let spanIx = 0;
-        while(spanIx < spans.length) {
-          let span = spans[spanIx];
-          if(span.source.id === id) {
+        let spans = lineToSpans[from.line];
+        if(spans) {
+          for(let spanIx = 0; spanIx < spans.length; spanIx++) {
+            let span = spans[spanIx];
             let loc = span.find();
-            if(!loc || !samePosition(loc.from, from) || !samePosition(loc.to, to)) {
-              console.log("- removing", span);
-              span.clear();
-            } else {
+            if(!loc) continue;
+
+            // If the span is extensionally identical to the new one, update it's id and be on our way.
+            if(samePosition(from, loc.from) && samePosition(to, loc.to) && span.sourceEquals(source)) {
               unchanged = true;
-              console.log("- existing", span);
+              span.source = source;
+              //span.refresh();
+              if(spanIx !== spans.length - 1) {
+                spans[spanIx] = spans.pop();
+              } else {
+                spans.pop();
+              }
+              break;
             }
-            spans[spanIx] = spans.pop();
-          } else {
-            spanIx++;
           }
         }
+
+        // If the unpacked item isn't marked unchanged, no existing span represents it, so we add a new one.
         if(!unchanged) {
-          let source = attributes[id] || {};
-          source.type = type;
-          source.id = id;
-          let s = this.markSpan(from, to, source);
-          console.log("- inserting", s);
+          let span = this.markSpan(from, to, source);
+          addedDebug.push(span);
         }
       }
 
       // Any remaining spans were deleted
-      for(let span of spans) {
-        span.clear();
+      for(let line in lineToSpans) {
+        for(let span of lineToSpans[line]) {
+          span.clear();
+          removedDebug.push(span);
+        }
       }
     });
+
+    //console.log("updated:", this.getAllSpans().length, "added:", addedDebug, "removed:", removedDebug);
     this.reloading = false;
   }
 
@@ -882,14 +957,20 @@ class Editor {
     let doc = cm.getDoc();
     let spans = this.getAllSpans();
     let fullText = cm.getValue();
-    let markers:{pos: number, start?:boolean, source:any}[] = []
+    let markers:{pos: number, start?:boolean, isLine?:boolean, source:any}[] = []
     for(let span of spans) {
       let loc = span.find();
       if(!loc) continue;
-      markers.push({pos: doc.indexFromPos(loc.from), start: true, source: span.source});
-      markers.push({pos: doc.indexFromPos(loc.to), start: false, source: span.source});
+      markers.push({pos: doc.indexFromPos(loc.from), start: true, isLine: span.isLine, source: span.source});
+      markers.push({pos: doc.indexFromPos(loc.to), start: false, isLine: span.isLine, source: span.source});
     }
-    markers.sort((a, b) => a.pos - b.pos);
+    markers.sort((a, b) => {
+      let delta = a.pos - b.pos;
+      if(delta !== 0) return delta;
+      if(a.isLine === b.isLine) return 0;
+      if(a.isLine) return -1;
+      return 1;
+    });
 
     let pos = 0;
     let pieces:string[] = [];
@@ -1258,6 +1339,17 @@ class Editor {
   }
 
   onChange = (raw:CodeMirror.EditorChangeLinkedList) => {
+    this.cm.operation(() => {
+      let doc = this.cm.getDoc();
+      let lastLine = doc.lastLine();
+      let pos = CodeMirror.Pos(lastLine + 1, 0);
+      if(doc.getLine(lastLine) !== "") {
+        let cursor = doc.getCursor();
+        doc.replaceRange("\n", pos, pos, "+ghostLine");
+        doc.setCursor(cursor);
+      }
+    });
+
     let change = new ChangeLinkedList(raw);
     let spans = this.changingSpans || [];
     if(change.origin === "+mdredo" || change.origin === "+mdundo") {
@@ -1296,10 +1388,12 @@ class Editor {
       }
     }
 
-    for(let format in this.formatting) {
-      let action = this.formatting[format];
-      if(action === "add") {
-        this.markSpan(change.from, change.final, {type: format});
+    if(change.origin !== "+ghostLine") {
+      for(let format in this.formatting) {
+        let action = this.formatting[format];
+        if(action === "add") {
+          this.markSpan(change.from, change.final, {type: format});
+        }
       }
     }
   }
@@ -1338,8 +1432,9 @@ class Editor {
  * - [x] Soak up left over space
  * - [x] Icons below min width
  *   - [x] Popout view on hover when iconified
- *   - [ ] BUG: Mouse left of comments-panel in icon popout causes popout to close
+ *   - [x] BUG: Mouse left of comments-panel in icon popout causes popout to close
  *   - [ ] BUG: Display popout above instead of below when below would push it off the screen
+ * - [ ] inline comments for narrow screens
  * - [ ] Condensed, unattached console view
  * - [ ] Count indicator (?)
  * - [x] Scrollbar minimap
@@ -1689,84 +1784,6 @@ function modalWrapper():Elem {
 // Root
 //---------------------------------------------------------
 
-var fakeText = `# Department Costs
-
-This application helps Accounting keep track of internal expenses
-
-## Calculations
-
-Calculate the cost of wages per department
- - **Engineering**
- - *Ops*
- - \`Magic\`
-
-### Vuvuzela
-
-Create the departments and employees.
-\`\`\`
-commit
-  engineering = [#department @engineering]
-  operations = [#department @operations]
-  [#employee @josh department: engineering salary: 10]
-  [#employee @chris department: engineering salary: 7]
-  [#employee @rob department: operations salary: 7]
-\`\`\`
-
-To calculate the cost of a department, we sum the salaries of its employees.
-
-\`\`\`
-match
-  department = #department
-  employee = [#employee salary department seniority]
-  cost = sum[value: salary, given: employee, per: department]
-bind
-  department.cost := cost
-\`\`\`
-
-## Visualizations
-
-Finally, we visualize the costs
-
-\`\`\`
-match
-  [#department name cost]
-bind @browser
-  [#div text: "{{nqme}} costs {{cost}}"]
-\`\`\`
-
-`;
-
-function _addFakeDoc(name:string, text:string, nodes:TreeMap, parentId?:string) {
-  let rootId = uuid();
-  if(parentId && nodes[parentId]) {
-    nodes[parentId]!.children!.push(rootId);
-  }
-
-  let root = nodes[rootId] = {name, type: "document", children: []};
-  let stack:TreeNode[] = [root];
-  for(let line of text.split("\n")) {
-    if(line[0] == "#") {
-      let id = uuid();
-
-      let root = nodes[rootId] = {name, type: "document", children: []};
-      let stack:TreeNode[] = [root];
-      let level = 0;
-      while(line[level] === "#") level++;
-      while((stack.length > 1) && (level <= stack[stack.length - 1].level)) stack.pop();
-      stack[stack.length - 1].children!.push(id);
-
-      let node = {name: line.substring(level), type: "section", level, children: []};
-      stack.push(node);
-      nodes[id] = node;
-    }
-  }
-}
-
-var fakeNodes:TreeMap = {
-  root: {name: "examples", type: "folder", open: true, children: ["department cost", "tic tac toe"]}
-};
-_addFakeDoc("Department Cost", fakeText, fakeNodes, "root");
-
 var fakeComments:CommentMap = {
   bar: {loc: {from: {line: 24, ch: 15}, to: {line: 24, ch: 26}}, type: "error", title: "Invalid tag location", actions: ["fix it"], description: unpad(`
         '#department' tells me to search for a record tagged "department", but since it's not in a record, I don't know the full pattern to look for.
@@ -1785,7 +1802,7 @@ var fakeComments:CommentMap = {
 export class IDE {
   renderer:Renderer = new Renderer();
 
-  navigator:Navigator = new Navigator(this, "root", {});
+  navigator:Navigator = new Navigator(this);
   editor:Editor = new Editor(this);
   comments:Comments = new Comments(this, fakeComments);
 
@@ -1814,11 +1831,21 @@ export class IDE {
 
   queueUpdate = debounce(() => {
     this.render();
+    if(this.onChange) this.onChange(this);
   }, 1, true);
 
-  loadDocument(text:string, packed:any[], attributes:{[id:string]: any|undefined}) {
-    this.editor.loadSpans(text, packed, attributes);
-    this.navigator.loadDocument(this.editor);
+  loadDocument(id:string, text:string, packed:any[], attributes:{[id:string]: any|undefined}) {
+    if(id === this.editor.documentId) {
+      this.editor.updateDocument(packed, attributes);
+    } else {
+      this.editor.loadDocument(id, text, packed, attributes);
+    }
+
+    let name = "todomvc.eve"; // @FIXME
+    this.navigator.loadDocument(id, name, this.editor);
+    this.navigator.currentId = id;
+
+    this.render();
   }
 
   onChange?:(self:IDE) => void
