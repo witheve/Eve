@@ -37,7 +37,7 @@ class Responder {
       evaluation.executeActions(actions);
     } else if(data.type === "parse") {
       let {results, errors} = parser.parseDoc(data.code || "");
-      console.error(errors);
+      if(errors && errors.length) console.error(errors);
       let {text, spans, extraInfo} = results;
       this.send(JSON.stringify({type: "parse", text, spans, extraInfo}));
     }
