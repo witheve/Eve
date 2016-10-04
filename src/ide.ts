@@ -78,12 +78,14 @@ class Navigator {
     }
   }
 
-  protected _deleteChildren = (nodeId:string, parentId?:string) => {
-    delete this.nodes[nodeId];
-  }
-
+  // @FIXME: We lose section state (e.g. open, elision) on load here
+  // Due to lack of stable ids its hard to determine if a header is the "same" across loads.
+  // Extensional equality isn't really right because if the position or text changes it's still the "same"
+  // Hierarchical equality (e.g. 1.1.3) is better, but fails if you insert a header between 1.1.1 and 1.1.2
+  // - We do control adding new headers, so we can pass a note telling it to re-identify...
   loadDocument(id:string, name:string, editor:Editor, parentId:string = this.rootId) {
-    this.walk(id, this._deleteChildren);
+    let oldChildren = []
+    this.walk(id, (nodeId:string, parentId?:string) => parentId && oldChildren.push(nodeId));
 
     let doc = editor.cm.getDoc();
     let headings = editor.getAllSpans("heading") as HeadingSpan[];
@@ -100,9 +102,24 @@ class Navigator {
       if(!parent.children) parent.children = [heading.source.id];
       else parent.children.push(heading.source.id);
 
-      let node:TreeNode = {name: doc.getLine(loc.from.line), type: "section", level: heading.source.level, open: true, span: heading};
+      let node:TreeNode = this.nodes[heading.source.id];
+      if(!node) {
+        node = {name: doc.getLine(loc.from.line), type: "section", level: heading.source.level, open: true, span: heading};
+      } else {
+        node.children = undefined;
+        let ix = oldChildren.indexOf(heading.source.id);
+        if(ix !== oldChildren.length - 1) {
+          oldChildren[ix] = oldChildren.pop();
+        } else {
+          oldChildren.pop();
+        }
+      }
       stack.push(node);
       this.nodes[heading.source.id] = node;
+    }
+
+    for(let childId of oldChildren) {
+      this.nodes[childId] = undefined;
     }
 
     this.nodes[id] = root;
