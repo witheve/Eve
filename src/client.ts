@@ -272,24 +272,6 @@ export function sendEvent(records:any[]) {
   }
 }
 
-export function sendSwap(query) {
-  if(socket && socket.readyState == 1) {
-    socket.send(JSON.stringify({scope: "root", type: "swap", query}))
-  }
-}
-
-export function sendSave(query) {
-  if(socket && socket.readyState == 1) {
-    socket.send(JSON.stringify({scope: "root", type: "save", query}))
-  }
-}
-
-export function sendParse(code) {
-  if(socket && socket.readyState == 1) {
-    socket.send(JSON.stringify({scope: "root", type: "parse", code}))
-  }
-}
-
 //---------------------------------------------------------
 // Handlers
 //---------------------------------------------------------
@@ -320,5 +302,12 @@ console.log(_ide);
 _ide.onChange = (ide:IDE) => {
   let md = ide.editor.toMarkdown();
   //console.log(md);
-  sendParse(md);
+  if(socket && socket.readyState == 1) {
+    socket.send(JSON.stringify({scope: "root", type: "parse", code: md}))
+  }
+}
+_ide.onEval = (ide:IDE, persist) => {
+  if(socket && socket.readyState == 1) {
+    socket.send(JSON.stringify({type: "eval", persist}));
+  }
 }

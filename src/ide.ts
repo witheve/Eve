@@ -837,7 +837,8 @@ class Editor {
     lineWrapping: true,
     lineNumbers: true,
     extraKeys: ctrlify({
-      "Cmd-Enter": () => console.log("sup dawg"),
+      "Cmd-Enter": () => this.ide.eval(true),
+      "Shift-Cmd-Enter": () => this.ide.eval(false),
       "Cmd-B": () => this.format({type: "strong"}),
       "Cmd-I": () => this.format({type: "emph"}),
       "Cmd-L": () => this.format({type: "code"}),
@@ -1885,5 +1886,10 @@ export class IDE {
     this.render();
   }
 
+  eval(persist?: boolean) {
+    if(this.onEval) this.onEval(this, persist);
+  }
+
   onChange?:(self:IDE) => void
+  onEval?:(self:IDE, persist?: boolean) => void
 }
