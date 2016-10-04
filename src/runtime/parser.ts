@@ -240,6 +240,7 @@ export class ParseBlock {
   binds: ParseNode[] = [];
   commits: ParseNode[] = [];
   variableLookup: {[name: string]: ParseNode};
+  links: string[] = [];
 
   constructor(id, variableLookup?) {
     this.id = id;
@@ -278,6 +279,9 @@ export class ParseBlock {
   makeNode(type, node: ParseNode) {
     if(!node.id) {
       node.id = `${this.id}|${this.nodeId++}`;
+    }
+    for(let from of node.from as any[]) {
+      this.links.push(node.id, from.id);
     }
     node.type = type;
     return node;
@@ -481,6 +485,8 @@ class Parser extends chev.Parser {
     //-----------------------------------------------------------
 
     rule("matchSection", () => {
+      // @TODO fill in from
+      let from = [];
       self.CONSUME(Match);
       let scopes:any = ["session"];
       self.OPTION(() => { scopes = self.SUBRULE(self.scopeDeclaration) })
@@ -493,7 +499,7 @@ class Parser extends chev.Parser {
           statement.scopes = scopes;
         }
       });
-      return {type: "matchSection", statements, scopes};
+      return makeNode("matchSection", {statements, scopes, from});
     });
 
     rule("statement", () => {
@@ -509,6 +515,8 @@ class Parser extends chev.Parser {
     //-----------------------------------------------------------
 
     rule("actionSection", () => {
+      // @TODO fill in from
+      let from = [];
       let action = self.CONSUME(Action).image;
       let actionKey = action;
       let scopes:any = ["session"];
@@ -522,7 +530,7 @@ class Parser extends chev.Parser {
           statement.scopes = scopes;
         }
       });
-      return {type: "actionSection", statements, scopes};
+      return makeNode("actionSection", {statements, scopes, from});
     });
 
 
@@ -786,7 +794,7 @@ class Parser extends chev.Parser {
             autoIndex++;
             let record : any = self.SUBRULE2(self.record, [noVar, blockKey, action, parent]);
             record.attributes.push(makeNode("attribute", {attribute: "eve-auto-index", value: makeNode("constant", {value: autoIndex, from: []}), from: []}));
-            attributes.push(makeNode("attribute", {attribute, value: asValue(record), from: [attribute, equality, record]}));
+            attributes.push(makeNode("attribute", {attribute, value: asValue(record), from: [attributeNode, equality, record]}));
           })
           if(autoIndex > 1) {
             result.attributes.push(makeNode("attribute", {attribute: "eve-auto-index", value: makeNode("constant", {value: 1, from: []}), from: []}));
@@ -1015,7 +1023,10 @@ class Parser extends chev.Parser {
         self.CONSUME(If),
       ]
       self.AT_LEAST_ONE(() => {
-        from.push(self.SUBRULE(self.statement) as ParseNode);
+        let statement = self.SUBRULE(self.statement) as ParseNode;
+        if(statement) {
+          from.push(statement);
+        }
       })
       from.push(self.CONSUME(Then));
       let expression = self.SUBRULE(self.expression) as ParseNode;

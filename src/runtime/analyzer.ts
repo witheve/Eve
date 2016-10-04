@@ -80,57 +80,11 @@ class Analysis {
   }
 
   //---------------------------------------------------------------------
-  // Links
-  //---------------------------------------------------------------------
-
-  nodes: {[id: string]: ParseNode} = {}
-
-  downLinks: {[id: string]: string[]} = {}
-  upLinks: {[id: string]: string[]} = {}
-
-  _upLink(context, parent, child) {
-    if(!parent.id) throw new Error("Trying to link a node without an id: " + parent.type);
-    this.nodes[parent.id] = parent;
-    let current = this.upLinks[parent.id];
-    if(!current) {
-      current = this.upLinks[parent.id] = [];
-    }
-    current.push(parent.id);
-  }
-
-  _link(context: AnalysisContext, parent, children, recurse = false) {
-    if(!parent.id) throw new Error("Trying to link a node without an id: " + parent.type);
-    this.nodes[parent.id] = parent;
-    let current = this.downLinks[parent.id];
-    if(!current) {
-      current = this.downLinks[parent.id] = [];
-    }
-    if(children.constructor === Array) {
-      for(let child of children) {
-        current.push(child.id);
-        this._upLink(context, child, parent);
-        this._upLink(context, child, context.block);
-        if(recurse && child.from) {
-          this._link(context, child, child.from, recurse);
-        }
-      }
-    } else {
-      current.push(children.id);
-      this._upLink(context, children, parent);
-      this._upLink(context, children, context.block);
-      if(recurse && children.from) {
-        this._link(context, children, children.from, recurse);
-      }
-    }
-  }
-
-  //---------------------------------------------------------------------
   // Scans
   //---------------------------------------------------------------------
 
   _scans(context: AnalysisContext, scans) {
     for(let scan of scans) {
-      // this._link(context, scan, scan.from, true);
       if(scan.type === "record") {
         this._scanRecord(context, scan);
       } else if(scan.type === "scan") {
@@ -176,7 +130,6 @@ class Analysis {
 
   _expressions(context: AnalysisContext, expressions) {
     for(let expression of expressions) {
-      // this._link(context, expression, expression.from, true);
       if(expression.type === "expression") {
 
       } else if(expression.type === "functionRecord") {
@@ -192,7 +145,6 @@ class Analysis {
 
   _actions(context: AnalysisContext, type: ActionType, actions) {
     for(let action of actions) {
-      // this._link(context, action, action.from, true);
       if(action.type === "record") {
         this._actionRecord(context, action);
       } else if(action.type === "action") {
@@ -270,11 +222,29 @@ class Analysis {
   }
 
   //---------------------------------------------------------------------
+  // Links
+  //---------------------------------------------------------------------
+
+  _links(context: AnalysisContext, links) {
+    let changes = context.changes;
+    for(let ix = 0, len = links.length; ix < len; ix += 2) {
+      let equalityId = `${context.block.id}|link|${ix}`;
+      let aId = links[ix];
+      let bId = links[ix + 1];
+      if(!aId || !bId) throw new Error("WAT")
+      changes.store("session", equalityId, "tag", "link");
+      changes.store("session", equalityId, "block", context.block.id);
+      changes.store("session", equalityId, "a", aId);
+      changes.store("session", equalityId, "b", bId);
+    }
+  }
+  //---------------------------------------------------------------------
   // Block
   //---------------------------------------------------------------------
 
   _block(context: AnalysisContext, block: ParseBlock) {
     context.changes.store("session", block.id, "tag", "block");
+    this._links(context, block.links);
     this._variables(context, block.variables);
     this._equalities(context, block.equalities);
     this._scans(context, block.scanLike);
