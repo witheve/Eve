@@ -47,6 +47,7 @@ interface TreeNode {
   span?: Span,
 
   hidden?: boolean,
+  elisionSpan?: Span,
   level?: number
 }
 interface TreeMap {[id:string]: TreeNode|undefined}
@@ -80,15 +81,7 @@ class Navigator {
   loadDocument(editor:Editor) {
     let doc = editor.cm.getDoc();
     let headings = editor.getAllSpans("heading");
-    headings.sort((a, b) => {
-      let aLoc = a.find();
-      let bLoc = b.find();
-      if(!aLoc && !bLoc) return 0;
-      if(!aLoc) return -1;
-      if(!bLoc) return 1;
-      if(aLoc.from.line === bLoc.from.line) return 0;
-      return aLoc.from.line < bLoc.from.line ? -1 : 1;
-    });
+    headings.sort(compareSpans);
 
     this.nodes = {};
     let rootId = "root";
@@ -136,14 +129,30 @@ class Navigator {
     event.stopPropagation();
   }
 
+  doElide(nodeId: string,  elide: boolean) {
+    let node = this.nodes[nodeId];
+    if(!node) return;
+    if(elide && !node.hidden) {
+      let heading = node.span as HeadingSpan;
+      let sectionRange = heading.getSectionRange();
+      if(sectionRange) {
+        node.elisionSpan = this.ide.editor.markSpan(sectionRange.from, sectionRange.to, {type: "elision"});
+      }
+    } else if(!elide && node.elisionSpan) {
+      node.elisionSpan.clear();
+      node.elisionSpan = undefined;
+    }
+    node.hidden = elide;
+  }
+
   _inheritParentElision = (nodeId: string, parentId?: string) => {
-    if(parentId) this.nodes[nodeId]!.hidden = this.nodes[parentId]!.hidden;
+    if(parentId) this.doElide(nodeId, this.nodes[parentId]!.hidden);
   }
 
   toggleElision = (event, {nodeId}) => {
     let node = this.nodes[nodeId];
     if(!node) return;
-    node.hidden = !node.hidden;
+    this.doElide(nodeId, !node.hidden);
     this.walk(nodeId, this._inheritParentElision);
     this.ide.render();
     event.stopPropagation();
@@ -252,6 +261,16 @@ interface SpanMarker extends CodeMirror.TextMarker {
 
 function isSpanMarker(x:CodeMirror.TextMarker): x is SpanMarker {
   return x && x["span"];
+}
+
+function compareSpans(a, b) {
+  let aLoc = a.find();
+  let bLoc = b.find();
+  if(!aLoc && !bLoc) return 0;
+  if(!aLoc) return -1;
+  if(!bLoc) return 1;
+  if(aLoc.from.line === bLoc.from.line) return 0;
+  return aLoc.from.line < bLoc.from.line ? -1 : 1;
 }
 
 class Span {
@@ -401,6 +420,21 @@ class HeadingSpan extends LineSpan {
     this.lineTextClass = cls;
     this.lineBackgroundClass = cls;
     this._attributes.className = cls;
+  }
+
+  getSectionRange():Range|undefined {
+    let loc = this.find();
+    if(!loc) return;
+    let from = {line: loc.from.line + 1, ch: 0};
+    let to = {line: this.editor.cm.getDoc().lastLine() + 1, ch: 0};
+    let headings = this.editor.findSpans(from, to, "heading");
+    if(!headings.length) return {from: loc.from, to};
+
+    headings.sort(compareSpans);
+    let next = headings[0];
+    let nextLoc = next.find();
+    if(!nextLoc) return {from: loc.from, to};
+    return {from: loc.from, to: nextLoc.from};
   }
 
   onBeforeChange() {}
