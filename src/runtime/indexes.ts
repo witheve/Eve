@@ -14,7 +14,9 @@ export class MultiIndex {
 
   register(name, index = new TripleIndex(0)) {
     this.indexes[name] = index;
-    this.scopes.push(name);
+    if(this.scopes.indexOf(name) === -1) {
+      this.scopes.push(name);
+    }
     return index;
   }
 

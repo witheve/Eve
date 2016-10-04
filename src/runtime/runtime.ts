@@ -38,7 +38,9 @@ export class Database {
   }
 
   register(evaluation: Evaluation) {
-    this.evaluations.push(evaluation);
+    if(this.evaluations.indexOf(evaluation) === -1) {
+      this.evaluations.push(evaluation);
+    }
   }
 
   unregister(evaluation: Evaluation) {
@@ -75,28 +77,49 @@ export class Evaluation {
   multiIndex: MultiIndex;
   databases: Database[];
   databaseNames: {[dbId: string]: string};
+  nameToDatabase: {[name: string]: Database};
 
   constructor(index?) {
     this.queued = false;
     this.commitQueue = [];
     this.databases = [];
     this.databaseNames = {};
+    this.nameToDatabase = {};
     this.multiIndex = index || new MultiIndex();
   }
 
+  unregisterDatabase(name) {
+    let db = this.nameToDatabase[name];
+    if(!db) return;
+
+    this.databases.splice(this.databases.indexOf(db), 1);
+    delete this.databaseNames[db.id];
+    delete this.nameToDatabase[name];
+    this.multiIndex.unregister(name);
+    db.unregister(this);
+  }
+
   registerDatabase(name: string, db: Database) {
+    if(this.nameToDatabase[name]) {
+      throw new Error("Trying to register a database name that is already registered");
+    }
     for(let database of this.databases) {
       db.analyze(this, database);
       database.analyze(this, db);
     }
     this.databases.push(db);
     this.databaseNames[db.id] = name;
+    this.nameToDatabase[name] = db;
     this.multiIndex.register(name, db.index);
     db.register(this);
   }
 
   databaseToName(db: Database) {
     return this.databaseNames[db.id];
+  }
+
+  getDatabase(name: string) {
+    return this.nameToDatabase[name];
   }
 
   blocksFromCommit(commit) {

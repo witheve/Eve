@@ -132,8 +132,8 @@ class Dot extends Token { static PATTERN = /\./; label = "dot"; }
 class Pipe extends Token { static PATTERN = /\|/; label = "pipe"; }
 
 // Identifier
-class Identifier extends Token { static PATTERN = new RegExp(`[\\+-/\\*][^\\s${breakChars}]+|[^\\d${breakChars}\\+-/\\*][^\\s${breakChars}]*(?=[^\\[])`); label = "identifier"; }
-class FunctionIdentifier extends Token { static PATTERN = new RegExp(`[\\+-/\\*][^\\s${breakChars}]+|[^\\d${breakChars}\\+-/\\*][^\\s${breakChars}]*(?=\\[)`); label = "functionIdentifier"; }
+class Identifier extends Token { static PATTERN = new RegExp(`([\\+-/\\*][^\\s${breakChars}]+|[^\\d${breakChars}\\+-/\\*][^\\s${breakChars}]*)(?=[^\\[])`); label = "identifier"; }
+class FunctionIdentifier extends Token { static PATTERN = new RegExp(`([\\+-/\\*][^\\s${breakChars}]+|[^\\d${breakChars}\\+-/\\*][^\\s${breakChars}]*)(?=\\[)`); label = "functionIdentifier"; }
 
 // Keywords
 class Keyword extends Token {
@@ -1259,13 +1259,18 @@ export function parseDoc(doc, docId = `doc|${docIx++}`) {
   let start = time();
   let {text, spans, blocks, extraInfo} = parseMarkdown(doc, docId);
   let parsedBlocks = [];
+  let allErrors = [];
   for(let block of blocks) {
     let {results, lex, errors} = parseBlock(block.literal, block.id, block.startOffset, spans);
+    if(errors.length) {
+      console.log("errors", errors);
+      allErrors.push(errors);
+    }
     parsedBlocks.push(results);
   }
   return {
     results: {blocks: parsedBlocks, text, spans, extraInfo},
     time: time(start),
-    errors: eveParser.errors,
+    errors: allErrors,
   }
 }

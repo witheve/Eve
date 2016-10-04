@@ -2,7 +2,7 @@
 // Browser
 //---------------------------------------------------------------------
 
-import {Evaluation} from "./runtime";
+import {Evaluation, Database} from "./runtime";
 import * as join from "./join";
 import * as client from "../client";
 import * as parser from "./parser";
@@ -17,6 +17,7 @@ let evaluation;
 
 class Responder {
   socket: any;
+  lastParse: any;
 
   constructor(socket) {
     this.socket = socket;
@@ -36,10 +37,37 @@ class Responder {
       }
       evaluation.executeActions(actions);
     } else if(data.type === "parse") {
-      let {results, errors} = parser.parseDoc(data.code || "");
+      join.nextId(0);
+      let {results, errors} = parser.parseDoc(data.code || "", "editor");
+      // analyzer.analyze(results.blocks);
       if(errors && errors.length) console.error(errors);
+      this.lastParse = results;
       let {text, spans, extraInfo} = results;
       this.send(JSON.stringify({type: "parse", text, spans, extraInfo}));
+    } else if(data.type === "eval") {
+      let changes = evaluation.createChanges();
+      let session = evaluation.getDatabase("session");
+      join.nextId(0);
+      for(let block of session.blocks) {
+        if(block.bindActions.length) {
+          block.updateBinds({positions: {}, info: []}, changes);
+        }
+      }
+      if(data.persist) {
+        let {blocks} = builder.buildDoc(this.lastParse);
+        for(let block of blocks) {
+          if(block.singleRun) block.dormant = true;
+        }
+        session.blocks = blocks;
+      } else {
+        let session = new Database();
+        let {blocks} = builder.buildDoc(this.lastParse);
+        session.blocks = blocks;
+        evaluation.unregisterDatabase("session");
+        evaluation.registerDatabase("session", session);
+      }
+      evaluation.executeActions([], changes);
+      evaluation.fixpoint();
     }
   }
 }
@@ -50,16 +78,19 @@ export function init(code) {
   responder = new Responder(client.socket);
 
   global["browser"] = true;
-  let {results, errors} = parser.parseDoc(code || "");
+  let {results, errors} = parser.parseDoc(code || "", "editor");
   if(errors && errors.length) console.error(errors);
+  responder.lastParse = results;
   let {text, spans, extraInfo} = results;
   responder.send(JSON.stringify({type: "parse", text, spans, extraInfo}));
   let {blocks} = builder.buildDoc(results);
   // analyzer.analyze(results.blocks);
-  let session = new BrowserSessionDatabase(responder);
+  let browser = new BrowserSessionDatabase(responder);
+  let session = new Database();
   session.blocks = blocks;
   evaluation = new Evaluation();
   evaluation.registerDatabase("session", session);
+  evaluation.registerDatabase("browser", browser);
   evaluation.registerDatabase("system", system.instance);
   evaluation.registerDatabase("http", new HttpDatabase());
   evaluation.fixpoint();

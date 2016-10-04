@@ -3,15 +3,16 @@
 //---------------------------------------------------------------------
 
 import {ParseBlock, ParseNode} from "./parser"
-import {Evaluation, Database} from "./runtime";
-import {Changes} from "./changes";
-import * as join from "./join";
-import * as client from "../client";
-import * as parser from "./parser";
-import * as builder from "./builder";
-import * as analyzer from "./analyzer";
-import * as browser from "./browser";
-import {BrowserSessionDatabase} from "./databases/browserSession";
+import {Evaluation, Database} from "./runtime"
+import {TripleIndex} from "./indexes"
+import {Changes} from "./changes"
+import * as join from "./join"
+import * as client from "../client"
+import * as parser from "./parser"
+import * as builder from "./builder"
+import * as analyzer from "./analyzer"
+import * as browser from "./browser"
+import {BrowserSessionDatabase} from "./databases/browserSession"
 
 enum ActionType { Bind, Commit }
 
@@ -20,13 +21,13 @@ enum ActionType { Bind, Commit }
 //---------------------------------------------------------------------
 
 class AnalysisContext {
-  static ScanId = 0;
+  ScanId = 0;
   changes: Changes
   block: ParseBlock
 
   request(scopes: string[], entity: any, attribute: string, value: any) {
     let changes = this.changes;
-    let scanId = `scan|${AnalysisContext.ScanId++}`;
+    let scanId = `${this.block.id}|scan|${this.ScanId++}`;
     changes.store("session", scanId, "tag", "scan", "analyzer");
     changes.store("session", scanId, "block", this.block.id, "analyzer");
     changes.store("session", scanId, "entity", entity.id, "analyzer");
@@ -40,11 +41,12 @@ class AnalysisContext {
     for(let scope of scopes) {
       changes.store("session", scanId, "scopes", scope, "analyzer");
     }
+    return scanId;
   }
 
   provide(scopes: string[], entity: any, attribute: string, value: any) {
     let changes = this.changes;
-    let actionId = `action|${AnalysisContext.ScanId++}`;
+    let actionId = `${this.block.id}|action|${this.ScanId++}`;
     changes.store("session", actionId, "tag", "action", "analyzer");
     changes.store("session", actionId, "block", this.block.id, "analyzer");
     changes.store("session", actionId, "entity", entity.id, "analyzer");
@@ -58,6 +60,7 @@ class AnalysisContext {
     for(let scope of scopes) {
       changes.store("session", actionId, "scopes", scope, "analyzer");
     }
+    return actionId;
   }
 
   value(node) {
@@ -101,19 +104,23 @@ class Analysis {
     for(let attr of node.attributes) {
       if(attr.value.type === "parenthesis") {
         for(let item of attr.value.items) {
-          context.request(node.scopes, node.variable, attr.attribute, context.value(item));
+          let id = context.request(node.scopes, node.variable, attr.attribute, context.value(item));
+          this._link(context, id, node.id)
         }
       } else {
-        context.request(node.scopes, node.variable, attr.attribute, context.value(attr.value));
+        let id = context.request(node.scopes, node.variable, attr.attribute, context.value(attr.value));
+        this._link(context, id, node.id)
       }
     }
   }
 
   _scanScan(context: AnalysisContext, node) {
     if(node.attribute.type === "variable") {
-      context.request(node.scopes, context.value(node.entity), "any", context.value(node.value));
+      let id = context.request(node.scopes, context.value(node.entity), "any", context.value(node.value));
+      this._link(context, id, node.id)
     } else {
-      context.request(node.scopes, context.value(node.entity), context.value(node.attribute), context.value(node.value));
+      let id = context.request(node.scopes, context.value(node.entity), context.value(node.attribute), context.value(node.value));
+      this._link(context, id, node.id)
     }
   }
 
@@ -157,10 +164,12 @@ class Analysis {
     for(let attr of node.attributes) {
       if(attr.value.type === "parenthesis") {
         for(let item of attr.value.items) {
-          context.provide(node.scopes, node.variable, attr.attribute, context.value(item));
+          let id = context.provide(node.scopes, node.variable, attr.attribute, context.value(item));
+          this._link(context, id, node.id)
         }
       } else {
-        context.provide(node.scopes, node.variable, attr.attribute, context.value(attr.value));
+        let id = context.provide(node.scopes, node.variable, attr.attribute, context.value(attr.value));
+        this._link(context, id, node.id)
       }
     }
   }
@@ -173,11 +182,14 @@ class Analysis {
       //   context.provide(node.scopes, "all", "");
       // }
     } else if(typeof node.attribute === "string") {
-      context.provide(node.scopes, node.entity, node.attribute, context.value(node.value));
+      let id = context.provide(node.scopes, node.entity, node.attribute, context.value(node.value));
+      this._link(context, id, node.id)
     } else if(node.attribute.type === "variable") {
-      context.provide(node.scopes, node.entity, "any", context.value(node.value));
+      let id = context.provide(node.scopes, node.entity, "any", context.value(node.value));
+      this._link(context, id, node.id)
     } else {
-      context.provide(node.scopes, node.entity, context.value(node.attribute), context.value(node.value));
+      let id = context.provide(node.scopes, node.entity, context.value(node.attribute), context.value(node.value));
+      this._link(context, id, node.id)
     }
   }
 
@@ -225,17 +237,21 @@ class Analysis {
   // Links
   //---------------------------------------------------------------------
 
-  _links(context: AnalysisContext, links) {
+  _link(context, aId, bId) {
     let changes = context.changes;
+    if(!aId || !bId) throw new Error("WAT");
+    let linkId = `${context.block.id}|link|${context.ScanId++}`;
+    changes.store("session", linkId, "tag", "link");
+    changes.store("session", linkId, "block", context.block.id);
+    changes.store("session", linkId, "a", aId);
+    changes.store("session", linkId, "b", bId);
+  }
+
+  _links(context: AnalysisContext, links) {
     for(let ix = 0, len = links.length; ix < len; ix += 2) {
-      let equalityId = `${context.block.id}|link|${ix}`;
       let aId = links[ix];
       let bId = links[ix + 1];
-      if(!aId || !bId) throw new Error("WAT")
-      changes.store("session", equalityId, "tag", "link");
-      changes.store("session", equalityId, "block", context.block.id);
-      changes.store("session", equalityId, "a", aId);
-      changes.store("session", equalityId, "b", bId);
+      this._link(context, aId, bId);
     }
   }
   //---------------------------------------------------------------------
@@ -272,21 +288,30 @@ class Analysis {
 }
 
 function makeEveAnalyzer() {
+  if(eve) return eve;
   let {results, errors} = parser.parseDoc(global["examples"]["analyzer.eve"]);
   console.log(errors);
   let {text, spans, extraInfo} = results;
   let {blocks} = builder.buildDoc(results);
-  // analyzer.analyze(results.blocks);
   console.log("analyzer", blocks);
-  let session = new BrowserSessionDatabase(browser.responder);
+  let browserDb = new BrowserSessionDatabase(browser.responder);
+  let session = new Database();
   session.blocks = blocks;
   let evaluation = new Evaluation();
   evaluation.registerDatabase("session", session);
+  evaluation.registerDatabase("browser", browserDb);
   return evaluation;
 }
 
+let eve;
+
 export function analyze(blocks: ParseBlock[]) {
-  let eve = makeEveAnalyzer();
+  eve = makeEveAnalyzer();
+  let session = new Database();
+  let prev = eve.getDatabase("session")
+  session.blocks = prev.blocks;
+  eve.unregisterDatabase("session");
+  eve.registerDatabase("session", session);
   let changes = eve.createChanges();
   let analysis = new Analysis(changes);
   for(let block of blocks) {
@@ -294,5 +319,7 @@ export function analyze(blocks: ParseBlock[]) {
   }
   eve.executeActions([], changes);
   console.log(changes);
+  console.log(eve);
 }
+
 

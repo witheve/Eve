@@ -199,7 +199,7 @@ export class Block {
   parse: any;
 
   constructor(name: string, strata: BlockStratum[], commitActions: Action[], bindActions: Action[], parse?: any) {
-    this.id = nextId();
+    this.id = parse.id || nextId();
     this.name = name;
     this.strata = strata;
     this.commitActions = commitActions;
@@ -219,6 +219,28 @@ export class Block {
     this.vars = blockVars;
     this.prevInserts = new ChangesIndex();
     this.checker = new DependencyChecker(this);
+  }
+
+  updateBinds(diff, changes) {
+    let newPositions = diff.positions;
+    let newInfo = diff.info;
+    let {positions, info} = this.prevInserts;
+    for(let key of Object.keys(positions)) {
+      let pos = positions[key];
+      // if this was added
+      if(info[pos] === ChangeType.ADDED) {
+        let neuePos = newPositions[key];
+        // and it wasn't added in this one, we need to remove it
+        if(newInfo[neuePos] !== ChangeType.ADDED) {
+          let e = info[pos + 1];
+          let a = info[pos + 2];
+          let v = info[pos + 3];
+          let node = info[pos + 4];
+          let scope = info[pos + 5];
+          changes.unstore(scope,e,a,v,node);
+        }
+      }
+    }
   }
 
   execute(multiIndex: MultiIndex, changes: Changes) {
@@ -246,25 +268,7 @@ export class Block {
     if(this.bindActions.length !== 0) {
       let start = perf.time();
       let diff = executeActions(multiIndex, this.bindActions, results, changes, true);
-      let newPositions = diff.positions;
-      let newInfo = diff.info;
-      let {positions, info} = this.prevInserts;
-      for(let key of Object.keys(positions)) {
-        let pos = positions[key];
-        // if this was added
-        if(info[pos] === ChangeType.ADDED) {
-          let neuePos = newPositions[key];
-          // and it wasn't added in this one, we need to remove it
-          if(newInfo[neuePos] !== ChangeType.ADDED) {
-            let e = info[pos + 1];
-            let a = info[pos + 2];
-            let v = info[pos + 3];
-            let node = info[pos + 4];
-            let scope = info[pos + 5];
-            changes.unstore(scope,e,a,v,node);
-          }
-        }
-      }
+      this.updateBinds(diff, changes);
       this.prevInserts = diff;
     }
 

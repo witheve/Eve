@@ -4,6 +4,6 @@ Awesome memory dude
 ```
   match
     [#memory rss]
-  bind
+  bind @browser
     [#div text: "Current memory: {{rss}}"]
 ```

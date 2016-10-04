@@ -45,7 +45,7 @@ function verify(assert, adds, removes, data) {
 
 function evaluate(assert, expected, code) {
   join.nextId(0);
-  let parsed = parser.parseDoc(dedent(code));
+  let parsed = parser.parseDoc(dedent(code), "0");
   let {blocks} = builder.buildDoc(parsed.results);
   let session = new BrowserSessionDatabase({send: () => {}});
   session.blocks = blocks;
@@ -83,8 +83,8 @@ test("match and create a record", (assert) => {
       ["2", "name", "chris"],
       ["5", "tag", "person"],
       ["5", "name", "joe"],
-      ["9|2", "dude", "2"],
-      ["9|5", "dude", "5"],
+      ["8|2", "dude", "2"],
+      ["8|5", "dude", "5"],
     ],
     remove: []
   };
@@ -114,7 +114,7 @@ test("match with constant filter", (assert) => {
       ["2", "name", "chris"],
       ["5", "tag", "person"],
       ["5", "name", "joe"],
-      ["10|2", "dude", "2"],
+      ["9|2", "dude", "2"],
     ],
     remove: []
   };
@@ -146,7 +146,7 @@ test("match with constant attribute", (assert) => {
       ["2", "name", "chris"],
       ["5", "tag", "person"],
       ["5", "name", "joe"],
-      ["10|2", "dude", "2"],
+      ["9|2", "dude", "2"],
     ],
     remove: []
   };
@@ -177,7 +177,7 @@ test("match with attribute having multiple values", (assert) => {
       ["3", "name", "michael"],
       ["6", "tag", "person"],
       ["6", "name", "chris"],
-      ["12|3", "dude", "3"],
+      ["11|3", "dude", "3"],
     ],
     remove: []
   };
@@ -206,7 +206,7 @@ test("match with attribute having multiple values in parenthesis", (assert) => {
       ["3", "tag", "person"],
       ["3", "name", "chris"],
       ["3", "name", "michael"],
-      ["9|3", "dude", "3"],
+      ["8|3", "dude", "3"],
     ],
     remove: []
   };
@@ -234,7 +234,7 @@ test("match with attribute having multiple values in parenthesis with a function
       ["3", "tag", "person"],
       ["3", "name", "chris"],
       ["3", "name", 13],
-      ["10|3", "dude", "3"],
+      ["9|3", "dude", "3"],
     ],
     remove: []
   };
@@ -284,7 +284,7 @@ test("match a record with numeric attributes", (assert) => {
       ["4", 1, "cool"],
       ["4", 2, "om nom"],
       ["4", 3, "om nom nom"],
-      ["12","foo","cool - om nom - om nom nom"]
+      ["11","foo","cool - om nom - om nom nom"]
     ],
     remove: []
   };
@@ -391,7 +391,7 @@ test("match with escaped strings", (assert) => {
       ["3", "tag", "person"],
       ["3", "name", "chris"],
       ["3","info","{\"age\": 10, \"school\": \"Lincoln\"}"],
-      ["8|{\"age\": 10, \"school\": \"Lincoln\"}","info","{\"age\": 10, \"school\": \"Lincoln\"}"],
+      ["7|{\"age\": 10, \"school\": \"Lincoln\"}","info","{\"age\": 10, \"school\": \"Lincoln\"}"],
     ],
     remove: []
   };
@@ -418,7 +418,7 @@ test("match with escaped embeds", (assert) => {
     insert: [
       ["2", "tag", "person"],
       ["2", "name", "chris"],
-      ["8|{chris}","info","{chris}"],
+      ["7|{chris}","info","{chris}"],
     ],
     remove: []
   };
@@ -613,16 +613,16 @@ test("creating an object with multiple values for an attribute", (assert) => {
     insert: [
       ["2", "tag", "person"],
       ["2", "name", "chris"],
-      ["14|chris|8","tag","dude"],
-      ["14|chris|8","dude","chris"],
-      ["14|chris|8","dude","foo"],
-      ["14|chris|8","dude",8],
+      ["13|chris|8","tag","dude"],
+      ["13|chris|8","dude","chris"],
+      ["13|chris|8","dude","foo"],
+      ["13|chris|8","dude",8],
       ["5", "tag", "person"],
       ["5", "name", "joe"],
-      ["14|joe|8","tag","dude"],
-      ["14|joe|8","dude","joe"],
-      ["14|joe|8","dude","foo"],
-      ["14|joe|8","dude",8],
+      ["13|joe|8","tag","dude"],
+      ["13|joe|8","dude","joe"],
+      ["13|joe|8","dude","foo"],
+      ["13|joe|8","dude",8],
     ],
     remove: []
   };
@@ -766,8 +766,8 @@ test("sum constant", (assert) => {
       ["2", "name", "joe"],
       ["5", "tag", "person"],
       ["5", "name", "chris"],
-      ["11|2", "tag", "total"],
-      ["11|2", "total", 2],
+      ["10|2", "tag", "total"],
+      ["10|2", "total", 2],
     ],
     remove: [
     ]
@@ -801,8 +801,8 @@ test("sum variable", (assert) => {
       ["7", "tag", "person"],
       ["7", "name", "chris"],
       ["7", "age", 20],
-      ["14|30", "tag", "total"],
-      ["14|30", "total", 30],
+      ["13|30", "tag", "total"],
+      ["13|30", "total", 30],
     ],
     remove: [
     ]
@@ -836,8 +836,8 @@ test("sum variable with multiple givens", (assert) => {
       ["7", "tag", "person"],
       ["7", "name", "chris"],
       ["7", "age", 20],
-      ["14|30", "tag", "total"],
-      ["14|30", "total", 30],
+      ["13|30", "tag", "total"],
+      ["13|30", "total", 30],
     ],
     remove: [
     ]
@@ -874,10 +874,10 @@ test("sum groups", (assert) => {
       ["11", "tag", "person"],
       ["11", "name", "mike"],
       ["11", "age", 20],
-      ["18|1", "tag", "total"],
-      ["18|1", "total", 1],
-      ["18|2", "tag", "total"],
-      ["18|2", "total", 2],
+      ["17|1", "tag", "total"],
+      ["17|1", "total", 1],
+      ["17|2", "tag", "total"],
+      ["17|2", "total", 2],
     ],
     remove: [
     ]
@@ -915,8 +915,8 @@ test("sum groups with multiple pers", (assert) => {
       ["11", "tag", "person"],
       ["11", "name", "mike"],
       ["11", "age", 20],
-      ["18|1", "tag", "total"],
-      ["18|1", "total", 1],
+      ["17|1", "tag", "total"],
+      ["17|1", "total", 1],
       // ["18|2", "tag", "total"],
       // ["18|2", "total", 2],
     ],
@@ -986,8 +986,8 @@ test("aggregate stratification with results", (assert) => {
       ["2", "name", "joe"],
       ["5", "tag", "person"],
       ["5", "name", "chris"],
-      ["12|12", "tag", "total"],
-      ["12|12", "total", 12],
+      ["11|12", "tag", "total"],
+      ["11|12", "total", 12],
     ],
     remove: [
     ]
@@ -1025,8 +1025,8 @@ test("aggregate stratification with another aggregate", (assert) => {
       ["11", "tag", "person"],
       ["11", "name", "mike"],
       ["11", "age", 20],
-      ["19|3", "tag", "total"],
-      ["19|3", "total", 3],
+      ["18|3", "tag", "total"],
+      ["18|3", "total", 3],
     ],
     remove: [
     ]
@@ -1126,7 +1126,7 @@ test("block order shouldn't matter", (assert) => {
     insert: [
       ["4|bye!", "tag", "result"],  ["4|bye!", "result", "bye!"],
       ["4|hi!", "tag", "result"],  ["4|hi!", "result", "hi!"],
-      ["8", "tag", "foo"],  ["8", "value", "hi!"],
+      ["7", "tag", "foo"],  ["7", "value", "hi!"],
     ],
     remove: [ ]
   };
@@ -1148,8 +1148,8 @@ test("block order shouldn't matter", (assert) => {
   `);
   let expected2 = {
     insert: [
-      ["8|bye!", "tag", "result"],  ["8|bye!", "result", "bye!"],
-      ["8|hi!", "tag", "result"],  ["8|hi!", "result", "hi!"],
+      ["7|bye!", "tag", "result"],  ["7|bye!", "result", "bye!"],
+      ["7|hi!", "tag", "result"],  ["7|hi!", "result", "hi!"],
       ["2", "tag", "foo"],  ["2", "value", "hi!"],
     ],
     remove: [ ]
@@ -1179,7 +1179,7 @@ test("if with variable", (assert) => {
     insert: [
       ["4|bye!", "tag", "result"],  ["4|bye!", "result", "bye!"],
       ["4|hi!", "tag", "result"],  ["4|hi!", "result", "hi!"],
-      ["8", "tag", "foo"],  ["8", "value", "hi!"],
+      ["7", "tag", "foo"],  ["7", "value", "hi!"],
     ],
     remove: [ ]
   };
@@ -1225,7 +1225,7 @@ test("if with constant equality", (assert) => {
   let expected = {
     insert: [
       ["2", "tag", "foo"],  ["2", "value", "hi!"],
-      ["10|meh", "tag", "result"],  ["10|meh", "result", "meh"]
+      ["9|meh", "tag", "result"],  ["9|meh", "result", "meh"]
     ],
     remove: [ ]
   };
@@ -1254,8 +1254,8 @@ test("if with an aggregate", (assert) => {
   let expected = {
     insert: [
       ["2", "tag", "foo"],  ["2", "value", "hi!"],
-      ["8|0", "tag", "result"],  ["8|0", "result", 0],
-      ["8|1", "tag", "result"],  ["8|1", "result", 1]
+      ["7|0", "tag", "result"],  ["7|0", "result", 0],
+      ["7|1", "tag", "result"],  ["7|1", "result", 1]
     ],
     remove: [ ]
   };
@@ -1282,7 +1282,7 @@ test("if with an external equality", (assert) => {
   let expected = {
     insert: [
       ["2", "tag", "foo"],  ["2", "value", "hi!"],
-      ["9|1", "tag", "result"],  ["9|1", "result", 1]
+      ["8|1", "tag", "result"],  ["8|1", "result", 1]
     ],
     remove: [ ]
   };
@@ -1311,7 +1311,7 @@ test("bind adds results", (assert) => {
   let expected = {
     insert: [
       ["2", "tag", "foo"],  ["2", "value", "hi!"],
-      ["8|hi!", "tag", "result"],  ["8|hi!", "value", "hi!"]
+      ["7|hi!", "tag", "result"],  ["7|hi!", "value", "hi!"]
     ],
     remove: [ ]
   };
@@ -1338,7 +1338,7 @@ test("bind removes dead results", (assert) => {
   let expected = {
     insert: [
       ["2", "tag", "foo"],  ["2", "value", "hi!"],
-      ["8|hi!", "tag", "result"],  ["8|hi!", "value", "hi!"]
+      ["7|hi!", "tag", "result"],  ["7|hi!", "value", "hi!"]
     ],
     remove: [ ]
   };
@@ -1359,7 +1359,7 @@ test("bind removes dead results", (assert) => {
   `);
   let expected2 = {
     insert: [],
-    remove: [ ["2", "tag", "foo"], ["8|hi!", "tag", "result"], ["8|hi!", "value", "hi!"] ]
+    remove: [ ["2", "tag", "foo"], ["7|hi!", "tag", "result"], ["7|hi!", "value", "hi!"] ]
   };
   eve.execute(expected2, [new RemoveAction("2", "tag", "foo")]);
   assert.end();
@@ -1405,8 +1405,8 @@ test("you can match from multiple databases", (assert) => {
       ["2", "name", "chris"],
       ["5", "tag", "person"],
       ["5", "name", "joe"],
-      ["9|2", "dude", "2"],
-      ["9|5", "dude", "5"],
+      ["8|2", "dude", "2"],
+      ["8|5", "dude", "5"],
     ],
     remove: []
   };
@@ -1472,8 +1472,8 @@ test("you can write into multiple databases", (assert) => {
       ["2", "name", "chris"],
       ["5", "tag", "person"],
       ["5", "name", "joe"],
-      ["9|2", "dude", "2"],
-      ["9|5", "dude", "5"],
+      ["8|2", "dude", "2"],
+      ["8|5", "dude", "5"],
     ],
     remove: []
   };
@@ -1656,10 +1656,10 @@ test("pipe allows you to select ", (assert) => {
       ["2", "name", "chris"],
       ["5", "tag", "person"],
       ["5", "name", "joe"],
-      ["11|2", "dude", "2"],
-      ["11|2", "name", "chris"],
-      ["11|5", "dude", "5"],
-      ["11|5", "name", "joe"],
+      ["10|2", "dude", "2"],
+      ["10|2", "name", "chris"],
+      ["10|5", "dude", "5"],
+      ["10|5", "name", "joe"],
     ],
     remove: []
   };
@@ -1687,8 +1687,8 @@ test("lookup with bound record", (assert) => {
     insert: [
       ["2", "tag", "person"],
       ["2", "name", "chris"],
-      ["8", "info", "Has tag with value person"],
-      ["8", "info", "Has name with value chris"],
+      ["7", "info", "Has tag with value person"],
+      ["7", "info", "Has name with value chris"],
     ],
     remove: []
   };
@@ -1716,7 +1716,7 @@ test("lookup with bound attribute", (assert) => {
     insert: [
       ["2", "tag", "person"],
       ["2", "name", "chris"],
-      ["7", "info", "2 has name chris"],
+      ["6", "info", "2 has name chris"],
     ],
     remove: []
   };
@@ -1743,7 +1743,7 @@ test("lookup with free attribute, node and bound value", (assert) => {
     insert: [
       ["2", "tag", "person"],
       ["2", "name", "chris"],
-      ["8", "info", "2 has name with value \"chris\" from node 1"],
+      ["7", "info", "2 has name with value \"chris\" from node 1"],
     ],
     remove: []
   };
@@ -1771,7 +1771,7 @@ test("lookup on node", (assert) => {
     insert: [
       ["2", "tag", "person"],
       ["2", "name", "chris"],
-      ["7","info","node 1 produced: (2, name, chris)"],
+      ["6","info","node 1 produced: (2, name, chris)"],
     ],
     remove: []
   };
@@ -1798,8 +1798,8 @@ test("lookup all free", (assert) => {
     insert: [
       ["2", "tag", "person"],
       ["2", "name", "chris"],
-      ["7","info","node 0 produced: (2, tag, person)"],
-      ["7","info","node 1 produced: (2, name, chris)"],
+      ["6","info","node 0 produced: (2, tag, person)"],
+      ["6","info","node 1 produced: (2, name, chris)"],
     ],
     remove: []
   };
@@ -1830,7 +1830,7 @@ test("an identifier followed by whitespace should not be interpreted as a functi
       ["5", "tag", "person"],
       ["5", "name", "joe"],
       ["5", "dude", "joe"],
-      ["11", "tag", "cool"],
+      ["10", "tag", "cool"],
     ],
     remove: []
   };

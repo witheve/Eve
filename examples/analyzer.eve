@@ -127,7 +127,7 @@ bind
             else a
     b-name = if b.name then b.name
             else b
-  bind
+  bind @browser
     [#div children:
       [#h2 text: "equalities"]
       [#div block style: [margin-bottom: 20] children:
@@ -138,7 +138,7 @@ bind
 ```
   match
     [#variable block name group: [number]]
-  bind
+  bind @browser
     [#div children:
       [#h2 text: "variables"]
       [#div block style: [margin-bottom: 20] children:
@@ -152,7 +152,7 @@ bind
     scan = [#scan #unprovided attribute]
     record-tag = if tag = scan.record-tag then tag
                 else if scan = [#analyzer/any] then scan.entity
-  bind
+  bind @browser
     [#div children:
       [#h2 text: "unprovided"]
       [#div record-tag style: [margin-bottom: 20] children:
@@ -164,7 +164,7 @@ bind
 ```
   match
     [#scan record-tag attribute]
-  bind
+  bind @browser
     [#div children:
       [#h2 text: "scans"]
       [#div record-tag style: [margin-bottom: 20] children:
@@ -175,7 +175,7 @@ bind
 ```
   match
     [#action record-tag attribute]
-  bind
+  bind @browser
     [#div children:
       [#h2 text: "actions"]
       [#div record-tag style: [margin-bottom: 20] children:
