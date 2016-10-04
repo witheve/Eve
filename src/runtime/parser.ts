@@ -63,10 +63,11 @@ function parseMarkdown(markdown: string, docId: string) {
         text.push("\n");
         pos += 1;
         lastLine++;
+        context.pop();
       }
       if(node.type == "code_block") {
         let spanId = `${docId}|${tokenId++}|block`;
-        let start = context[context.length - 1].start;
+        let start = context.pop().start;
         node.id = spanId;
         node.startOffset = start;
         spans.push(start, pos, node.type, spanId);
