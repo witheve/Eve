@@ -2,8 +2,6 @@
 
 import {Renderer} from "microReact";
 import {clone} from "./util";
-import {CodeMirrorNode, applyFix, setKeyMap} from "./editor";
-import * as MarkdownEditor from "./editor";
 import {sendEvent, indexes} from "./client";
 
 //type RecordElementCollection = HTMLCollection | SVGColl
