@@ -55,7 +55,7 @@ export function init(code) {
   let {text, spans, extraInfo} = results;
   responder.send(JSON.stringify({type: "parse", text, spans, extraInfo}));
   let {blocks} = builder.buildDoc(results);
-  // analyzer.analyze(results.blocks);
+  analyzer.analyze(results.blocks);
   let session = new BrowserSessionDatabase(responder);
   session.blocks = blocks;
   evaluation = new Evaluation();
