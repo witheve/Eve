@@ -132,7 +132,8 @@ class Dot extends Token { static PATTERN = /\./; label = "dot"; }
 class Pipe extends Token { static PATTERN = /\|/; label = "pipe"; }
 
 // Identifier
-class Identifier extends Token { static PATTERN = new RegExp(`[\\+-/\\*][^\\s${breakChars}]+|[^\\d${breakChars}\\+-/\\*][^\\s${breakChars}]*`); label = "identifier"; }
+class Identifier extends Token { static PATTERN = new RegExp(`[\\+-/\\*][^\\s${breakChars}]+|[^\\d${breakChars}\\+-/\\*][^\\s${breakChars}]*(?=[^\\[])`); label = "identifier"; }
+class FunctionIdentifier extends Token { static PATTERN = new RegExp(`[\\+-/\\*][^\\s${breakChars}]+|[^\\d${breakChars}\\+-/\\*][^\\s${breakChars}]*(?=\\[)`); label = "functionIdentifier"; }
 
 // Keywords
 class Keyword extends Token {
@@ -200,7 +201,7 @@ let codeTokens: any[] = [
   CloseFence, WhiteSpace, CommentLine, OpenBracket, CloseBracket, OpenParen,
   CloseParen, StringEmbedClose, StringOpen, Bool, Action, Set, Equality, Dot, Pipe, Merge,
   Mutate, Comparison, Num,  Match, Is, If, Else, Then,
-  Not, None, Name, Tag, Uuid, Identifier, AddInfix, MultInfix
+  Not, None, Name, Tag, Uuid, FunctionIdentifier, Identifier, AddInfix, MultInfix
 ];
 
 let stringEmbedTokens: any[] = [StringEmbedClose].concat(codeTokens);
@@ -857,7 +858,7 @@ class Parser extends chev.Parser {
     //-----------------------------------------------------------
 
     rule("functionRecord", (): any => {
-      let name = self.CONSUME(Identifier);
+      let name = self.CONSUME(FunctionIdentifier);
       let record: any = self.SUBRULE(self.record, [true]);
       if(name.image === "lookup") {
         let info: any = {};

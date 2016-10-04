@@ -1821,3 +1821,36 @@ test("lookup all free", (assert) => {
   assert.end();
 })
 
+test("an identifier followed by whitespace should not be interpreted as a function", (assert) => {
+  let expected = {
+    insert: [
+      ["2", "tag", "person"],
+      ["2", "name", "chris"],
+      ["2", "dude", "chris"],
+      ["5", "tag", "person"],
+      ["5", "name", "joe"],
+      ["5", "dude", "joe"],
+      ["11", "tag", "cool"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person @chris]
+        [#person @joe]
+    ~~~
+
+    foo bar
+    ~~~
+      match
+        p = [#person name]
+      commit
+        p.dude := name
+        [#cool]
+    ~~~
+  `);
+  assert.end();
+});
+
