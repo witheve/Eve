@@ -16,97 +16,38 @@ import {BrowserSessionDatabase} from "./databases/browserSession";
 enum ActionType { Bind, Commit }
 
 //---------------------------------------------------------------------
-// Register
+// AnalysisContext
 //---------------------------------------------------------------------
 
-class Register {
-  static id = 0
-  id: number
-  variables: ParseNode[] = []
+class AnalysisContext {
+  static ScanId = 0;
+  changes: Changes
+  block: ParseBlock
 
-  constructor() {
-    this.id = Register.id++;
-  }
-
-  constant(value) {
-    if(this.constant !== undefined && this.constant !== value) {
-      throw new Error(`Trying to set a register to unequal constants: ${value} !== ${this.constant}`)
-    }
-    this.constant = value;
-  }
-
-  merge(other) {
-    for(let variable in this.variables) {
-      if(other.variables.indexOf(variable) === -1) {
-        other.variables.push(variable);
-      }
-    }
-    if(this.constant !== undefined) {
-      other.constant(this.constant);
-    }
-    this.variables = other.variables;
-    this.id = other.id;
-    this.constant = other.constant;
-  }
-}
-
-//---------------------------------------------------------------------
-// Record
-//---------------------------------------------------------------------
-
-type AnyValue = {};
-type Value = string | number | boolean | Register | AnyValue;
-
-export const ALL: AnyValue = {};
-
-class Record {
-  static RequestId = 0;
-  static RecordId = 0;
-  id: string
-
-  constructor() {
-    this.id = `record|${Record.RecordId++}`;
-  }
-
-  requested: {[scope: string]: {[attribute: string]: Value[]}} = {}
-  provided: {[scope: string]: {[attribute: string]: Value[]}} = {}
-  removed: {[scope: string]: {[attribute: string]: Value[]}} = {}
-
-  _update(collection, scopes, attribute, value) {
-    for(let scope of scopes) {
-      let currentScope = collection[scope];
-      if(!currentScope) {
-        currentScope = collection[scope] = {};
-      }
-      let current = currentScope[attribute];
-      if(!current) {
-        current = currentScope[attribute] = [];
-      }
-      current.push(value);
-    }
-  }
-
-  request(changes: Changes, scopes: string[], attribute: string, value: any) {
-    let requestId = `request|${Record.RequestId++}`;
-    changes.store("session", requestId, "tag", "request", "analyzer");
-    changes.store("session", requestId, "entity", this.id, "analyzer");
-    changes.store("session", requestId, "attribute", attribute, "analyzer");
+  request(scopes: string[], entity: any, attribute: string, value: any) {
+    let changes = this.changes;
+    let scanId = `scan|${AnalysisContext.ScanId++}`;
+    changes.store("session", scanId, "tag", "scan", "analyzer");
+    changes.store("session", scanId, "block", this.block.id, "analyzer");
+    changes.store("session", scanId, "entity", entity.id, "analyzer");
+    changes.store("session", scanId, "attribute", attribute, "analyzer");
     if(value.id !== undefined) {
-      changes.store("session", requestId, "value", value.id, "analyzer");
+      changes.store("session", scanId, "value", value.id, "analyzer");
       changes.store("session", value.id, "tag", "variable", "analyzer");
     } else {
-      changes.store("session", requestId, "value", value, "analyzer");
+      changes.store("session", scanId, "value", value, "analyzer");
     }
     for(let scope of scopes) {
-      changes.store("session", requestId, "scopes", scope, "analyzer");
+      changes.store("session", scanId, "scopes", scope, "analyzer");
     }
-    this._update(this.requested, scopes, attribute, value);
   }
 
-  provide(changes: Changes, scopes: string[], attribute: string, value: any) {
-    let actionId = `action|${Record.RequestId++}`;
+  provide(scopes: string[], entity: any, attribute: string, value: any) {
+    let changes = this.changes;
+    let actionId = `action|${AnalysisContext.ScanId++}`;
     changes.store("session", actionId, "tag", "action", "analyzer");
-    changes.store("session", actionId, "entity", this.id, "analyzer");
+    changes.store("session", actionId, "block", this.block.id, "analyzer");
+    changes.store("session", actionId, "entity", entity.id, "analyzer");
     changes.store("session", actionId, "attribute", attribute, "analyzer");
     if(value.id !== undefined) {
       changes.store("session", actionId, "value", value.id, "analyzer");
@@ -117,30 +58,6 @@ class Record {
     for(let scope of scopes) {
       changes.store("session", actionId, "scopes", scope, "analyzer");
     }
-    this._update(this.provided, scopes, attribute, value);
-  }
-
-  remove(scopes: string[], attribute: string, value: Value) {
-    this._update(this.removed, scopes, attribute, value);
-  }
-
-}
-
-//---------------------------------------------------------------------
-// AnalysisContext
-//---------------------------------------------------------------------
-
-class AnalysisContext {
-  changes: Changes
-  block: ParseBlock
-  records: {[register: string]: Record} = {}
-
-  record(node) {
-    let current = this.records[node.id];
-    if(!current) {
-      current = this.records[node.id] = new Record();
-    }
-    return current;
   }
 
   value(node) {
@@ -213,7 +130,7 @@ class Analysis {
 
   _scans(context: AnalysisContext, scans) {
     for(let scan of scans) {
-      this._link(context, scan, scan.from, true);
+      // this._link(context, scan, scan.from, true);
       if(scan.type === "record") {
         this._scanRecord(context, scan);
       } else if(scan.type === "scan") {
@@ -227,25 +144,22 @@ class Analysis {
   }
 
   _scanRecord(context: AnalysisContext, node) {
-    let record = context.record(node.variable);
     for(let attr of node.attributes) {
       if(attr.value.type === "parenthesis") {
         for(let item of attr.value.items) {
-          record.request(context.changes, node.scopes, attr.attribute, context.value(item));
+          context.request(node.scopes, node.variable, attr.attribute, context.value(item));
         }
       } else {
-        record.request(context.changes, node.scopes, attr.attribute, context.value(attr.value));
+        context.request(node.scopes, node.variable, attr.attribute, context.value(attr.value));
       }
     }
-    console.log("RECORD", record);
   }
 
   _scanScan(context: AnalysisContext, node) {
-    let record = context.record(node.entity);
     if(node.attribute.type === "variable") {
-      record.request(context.changes, node.scopes, "any", context.value(node.value));
+      context.request(node.scopes, context.value(node.entity), "any", context.value(node.value));
     } else {
-      record.request(context.changes, node.scopes, context.value(node.attribute), context.value(node.value));
+      context.request(node.scopes, context.value(node.entity), context.value(node.attribute), context.value(node.value));
     }
   }
 
@@ -262,7 +176,7 @@ class Analysis {
 
   _expressions(context: AnalysisContext, expressions) {
     for(let expression of expressions) {
-      this._link(context, expression, expression.from, true);
+      // this._link(context, expression, expression.from, true);
       if(expression.type === "expression") {
 
       } else if(expression.type === "functionRecord") {
@@ -278,7 +192,7 @@ class Analysis {
 
   _actions(context: AnalysisContext, type: ActionType, actions) {
     for(let action of actions) {
-      this._link(context, action, action.from, true);
+      // this._link(context, action, action.from, true);
       if(action.type === "record") {
         this._actionRecord(context, action);
       } else if(action.type === "action") {
@@ -288,45 +202,71 @@ class Analysis {
   }
 
   _actionRecord(context: AnalysisContext, node) {
-    let record = context.record(node.variable);
     for(let attr of node.attributes) {
       if(attr.value.type === "parenthesis") {
         for(let item of attr.value.items) {
-          record.provide(context.changes, node.scopes, attr.attribute, context.value(item));
+          context.provide(node.scopes, node.variable, attr.attribute, context.value(item));
         }
       } else {
-        record.provide(context.changes, node.scopes, attr.attribute, context.value(attr.value));
+        context.provide(node.scopes, node.variable, attr.attribute, context.value(attr.value));
       }
     }
-    console.log(record);
   }
 
   _actionAction(context: AnalysisContext, node) {
-    let record = context.record(node.entity);
     if(node.action === "erase") {
-      if(node.attribute === undefined) {
-        record.provide(context.changes, node.scopes, "any", ALL);
-      } else {
-        record.provide(context.changes, node.scopes, "all", ALL);
-      }
+      // if(node.attribute === undefined) {
+      //   context.provide(node.scopes, "any", "");
+      // } else {
+      //   context.provide(node.scopes, "all", "");
+      // }
     } else if(typeof node.attribute === "string") {
-      record.provide(context.changes, node.scopes, node.attribute, context.value(node.value));
+      context.provide(node.scopes, node.entity, node.attribute, context.value(node.value));
     } else if(node.attribute.type === "variable") {
-      record.provide(context.changes, node.scopes, "any", context.value(node.value));
+      context.provide(node.scopes, node.entity, "any", context.value(node.value));
     } else {
-      record.provide(context.changes, node.scopes, context.value(node.attribute), context.value(node.value));
+      context.provide(node.scopes, node.entity, context.value(node.attribute), context.value(node.value));
     }
   }
 
   //---------------------------------------------------------------------
-  // Provided
+  // Variables
   //---------------------------------------------------------------------
 
-  provided: {[scope: string]: {[attribute: string]: Value[]}} = {}
-  // tag -> attrs -> values -> blocks
-  //              -> scopes -> values -> blocks
-  //              -> blocks
-  _provide(context: AnalysisContext) {
+  _variables(context: AnalysisContext, variables) {
+    let changes = context.changes;
+    for(let name of Object.keys(variables)) {
+      let variable = variables[name];
+      changes.store("session", variable.id, "tag", "variable");
+      changes.store("session", variable.id, "name", variable.name);
+      changes.store("session", variable.id, "block", context.block.id);
+      if(variable.generated) {
+        changes.store("session", variable.id, "tag", "generated");
+      }
+      if(variable.nonProjecting) {
+        changes.store("session", variable.id, "tag", "non-projecting");
+      }
+    }
+  }
+
+  //---------------------------------------------------------------------
+  // Equalities
+  //---------------------------------------------------------------------
+
+  _equalities(context: AnalysisContext, equalities) {
+    let changes = context.changes;
+    let ix = 0;
+    for(let [a, b] of equalities) {
+      let equalityId = `${context.block.id}|equality|${ix++}`;
+      a = context.value(a);
+      b = context.value(b);
+      let aId = a.id ? a.id : a;
+      let bId = b.id ? b.id : b;
+      changes.store("session", equalityId, "tag", "equality");
+      changes.store("session", equalityId, "block", context.block.id);
+      changes.store("session", equalityId, "a", aId);
+      changes.store("session", equalityId, "b", bId);
+    }
   }
 
   //---------------------------------------------------------------------
@@ -334,6 +274,9 @@ class Analysis {
   //---------------------------------------------------------------------
 
   _block(context: AnalysisContext, block: ParseBlock) {
+    context.changes.store("session", block.id, "tag", "block");
+    this._variables(context, block.variables);
+    this._equalities(context, block.equalities);
     this._scans(context, block.scanLike);
     this._expressions(context, block.expressions);
     this._actions(context, ActionType.Bind, block.binds);
@@ -359,7 +302,7 @@ class Analysis {
 }
 
 function makeEveAnalyzer() {
-  let {results, errors} = parser.parseDoc(global["examples"]["test.eve"]);
+  let {results, errors} = parser.parseDoc(global["examples"]["analyzer.eve"]);
   console.log(errors);
   let {text, spans, extraInfo} = results;
   let {blocks} = builder.buildDoc(results);

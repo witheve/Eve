@@ -701,7 +701,7 @@ class Parser extends chev.Parser {
       ]);
     });
 
-    rule("singularAttribute", () => {
+    rule("singularAttribute", (forceGenerate) => {
       return self.OR([
         {ALT: () => {
           let name : any = self.SUBRULE(self.name);
@@ -712,7 +712,7 @@ class Parser extends chev.Parser {
           return makeNode("attribute", {attribute: "tag", value: makeNode("constant", {value: tag.tag, from: [tag]}), from: [tag]});
         }},
         {ALT: () => {
-          let variable : any = self.SUBRULE(self.variable);
+          let variable : any = self.SUBRULE(self.variable, [forceGenerate]);
           return makeNode("attribute", {attribute: variable.name, value: variable, from: [variable]});
         }},
       ]);
@@ -815,7 +815,7 @@ class Parser extends chev.Parser {
       let start = self.CONSUME(OpenParen);
       let attribute: any = self.OR([
         {ALT: () => { return self.SUBRULE(self.attributeComparison); }},
-        {ALT: () => { return self.SUBRULE(self.singularAttribute); }},
+        {ALT: () => { return self.SUBRULE(self.singularAttribute, [true]); }},
       ]);
       let end = self.CONSUME(CloseParen);
       // we have to add a record for this guy
@@ -1141,9 +1141,13 @@ class Parser extends chev.Parser {
     // Variable
     //-----------------------------------------------------------
 
-    rule("variable", () => {
+    rule("variable", (forceGenerate = false) => {
       let token = self.CONSUME(Identifier);
-      let variable = self.block.toVariable(token.image);
+      let name = token.image;
+      if(forceGenerate) {
+        name = `${token.image}-${token.startLine}-${token.startColumn}`;
+      }
+      let variable = self.block.toVariable(name, forceGenerate);
       variable.from.push(token);
       return variable;
     });

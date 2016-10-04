@@ -154,6 +154,30 @@ export class Average extends Aggregate {
   }
 }
 
+export class Min extends Aggregate {
+  adjustAggregate(group, value, projection) {
+    if(group.result === undefined) {
+      group.result = value;
+    } else if(value < group.result) {
+      group.result = value;
+    }
+    return group.result;
+  }
+}
+
+export class Max extends Aggregate {
+  adjustAggregate(group, value, projection) {
+    if(group.result === undefined) {
+      group.result = value;
+    } else if(value > group.result) {
+      group.result = value;
+    }
+    return group.result;
+  }
+}
+
 providers.provide("sum", Sum);
 providers.provide("count", Count);
 providers.provide("average", Average);
+providers.provide("min", Min);
+providers.provide("max", Max);

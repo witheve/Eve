@@ -1,0 +1,184 @@
+# Eve Analyzer
+
+## assign variables
+
+For every variable there is a group
+
+```
+  match
+    variable = [#variable]
+    number = random[seed: variable]
+  commit
+    [#group number variable]
+```
+
+```
+  match
+    variable = [#variable not(group)]
+    group = [#group variable]
+  commit
+    variable.group := group
+```
+
+Handle a constant equivalence
+
+```
+  match
+    eq = [#equality]
+    (a, b) = if eq.a.tag, not(eq.b.tag) then (eq.a, eq.b)
+             else if eq.b.tag, not(eq.a.tag) then (eq.b, eq.a)
+  bind
+    a.constant += b
+```
+
+Handle variable equivalence
+
+```
+  match
+    [#equality a b]
+    a.group != b.group
+    min-a = min[value: a.group.number, given: a.group.number, per: a]
+    min-b = min[value: b.group.number, given: b.group.number, per: b]
+    a-group = [#group number: min-a]
+    b-group = [#group number: min-b]
+    (new, old) = if min-a < min-b then (a-group, b-group)
+                 else if min-b < min-a then (b-group, a-group)
+    var = [#variable group: old]
+  commit
+    var.group := new
+```
+
+## associate record-tags to both actions and scans
+
+```
+match
+  [#scan entity: [group] attribute: "tag" value]
+  scan = [#scan entity: [group]]
+bind
+  scan.record-tag += value
+```
+
+```
+match
+  [#action entity: [group] attribute: "tag" value]
+  action = [#action entity: [group]]
+bind
+  action.record-tag += value
+```
+
+```
+match
+  [#scan entity: [group] record-tag]
+  action = [#action entity: [group]]
+bind
+  action.record-tag += record-tag
+```
+
+```
+match
+  scan = [#scan not(record-tag)]
+bind
+  scan += #analyzer/any
+```
+
+## tag equivalence
+
+```
+  match
+    attribute = "tag"
+    [#scan entity: [group] attribute value: tag]
+    [#action entity: [group] attribute value: tag2]
+  bind
+    [#tag-equivalence tag tag2]
+```
+
+## unprovided scans
+
+```
+  match
+    scan = [#scan record-tag attribute]
+    not( action = [#action record-tag attribute]
+        value = if scan.value = action.value then true
+                else if scan.value = [#variable] then true
+                else if action.value = [#variable] then true )
+  bind
+    scan += #unprovided
+```
+
+```
+  match
+    scan = [#scan #analyzer/any attribute]
+    not( action = [#action attribute]
+        value = if scan.value = action.value then true
+                else if scan.value = [#variable] then true
+                else if action.value = [#variable] then true )
+  bind
+    scan += #unprovided
+```
+
+
+
+## drawing
+
+```
+  match
+    [#equality block a b]
+    a-name = if a.name then a.name
+            else a
+    b-name = if b.name then b.name
+            else b
+  bind
+    [#div children:
+      [#h2 text: "equalities"]
+      [#div block style: [margin-bottom: 20] children:
+        [#h3 text: block sort: "_"]
+        [#div text: "{{a-name}} = {{b-name}}" sort: a-name]]]
+```
+
+```
+  match
+    [#variable block name group: [number]]
+  bind
+    [#div children:
+      [#h2 text: "variables"]
+      [#div block style: [margin-bottom: 20] children:
+        [#h3 text: block]
+        [#div children:
+          [#div text: "{{name}} - {{number}}" sort: number]]]]
+```
+
+```
+  match
+    scan = [#scan #unprovided attribute]
+    record-tag = if tag = scan.record-tag then tag
+                else if scan = [#analyzer/any] then scan.entity
+  bind
+    [#div children:
+      [#h2 text: "unprovided"]
+      [#div record-tag style: [margin-bottom: 20] children:
+        [#h3 text: record-tag sort: "_"]
+        [#div text: attribute sort: attribute]]]
+
+```
+
+```
+  match
+    [#scan record-tag attribute]
+  bind
+    [#div children:
+      [#h2 text: "scans"]
+      [#div record-tag style: [margin-bottom: 20] children:
+        [#h3 text: record-tag sort: "_"]
+        [#div text: attribute sort: attribute]]]
+```
+
+```
+  match
+    [#action record-tag attribute]
+  bind
+    [#div children:
+      [#h2 text: "actions"]
+      [#div record-tag style: [margin-bottom: 20] children:
+        [#h3 text: record-tag sort: "_"]
+        [#div text: attribute sort: attribute]]]
+```

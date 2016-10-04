@@ -471,6 +471,73 @@ test("setting an attribute", (assert) => {
   assert.end();
 });
 
+test("setting an attribute to itself", (assert) => {
+  // TODO: should this really be showing name inserted twice?
+  let expected = {
+    insert: [
+      ["2", "tag", "person"],
+      ["2", "name", "chris"],
+      ["2", "name", "chris"],
+      ["5", "tag", "person"],
+      ["5", "name", "joe"],
+      ["5", "name", "joe"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person @chris]
+        [#person @joe]
+    ~~~
+
+    foo bar
+    ~~~
+      match
+        p = [#person name]
+      commit
+        p.name := name
+    ~~~
+  `);
+  assert.end();
+});
+
+test("setting an attribute in multiple blocks", (assert) => {
+  let expected = {
+    insert: [
+      ["1", "tag", "person"],
+      ["1", "meep", "maup"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person]
+    ~~~
+
+    stuff
+    ~~~
+      match
+        p = [#person not(meep)]
+      commit
+        p.meep := "moop"
+    ~~~
+
+    foo bar
+    ~~~
+      match
+        p = [#person meep]
+      commit
+        p.meep := "maup"
+    ~~~
+  `);
+  assert.end();
+});
+
+
 test("setting an attribute to multiple values", (assert) => {
   let expected = {
     insert: [
