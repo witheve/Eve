@@ -622,11 +622,6 @@ class Parser extends chev.Parser {
           let tag : any = self.SUBRULE(self.tag);
           return makeNode("action", {action: op.image, entity: asValue(variable), attribute: "tag", value: makeNode("constant", {value: tag.tag, from: [tag]}), from: [variable, op, tag]});
         }},
-        {ALT: () => {
-          let op = self.CONSUME2(Mutate);
-          let name : any = self.SUBRULE(self.name);
-          return makeNode("action", {action: op.image, entity: asValue(variable), attribute: "name", value: makeNode("constant", {value: name.name, from: [name]}), from: [variable, op, name]});
-        }},
       ])
     });
 
@@ -634,7 +629,6 @@ class Parser extends chev.Parser {
       return self.OR([
         {ALT: () => { return self.CONSUME(None); }},
         {ALT: () => { return self.SUBRULE(self.tag); }},
-        {ALT: () => { return self.SUBRULE(self.name); }},
         {ALT: () => { return self.SUBRULE(self.record, [false, actionKey, action]); }},
         {ALT: () => { return self.SUBRULE(self.infix); }},
       ])
@@ -712,10 +706,6 @@ class Parser extends chev.Parser {
 
     rule("singularAttribute", (forceGenerate) => {
       return self.OR([
-        {ALT: () => {
-          let name : any = self.SUBRULE(self.name);
-          return makeNode("attribute", {attribute: "name", value: makeNode("constant", {value: name.name, from: [name]}), from: [name]});
-        }},
         {ALT: () => {
           let tag : any = self.SUBRULE(self.tag);
           return makeNode("attribute", {attribute: "tag", value: makeNode("constant", {value: tag.tag, from: [tag]}), from: [tag]});

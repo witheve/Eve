@@ -13,7 +13,7 @@ Add a flappy eve and a world for it to flap in
 ```
   commit
     [#player #self name: "eve" x: 25 y: 50 velocity: 0]
-    [@world screen: "menu" frame: 0 distance: 0 best: 0 gravity: -0.061]
+    [#world screen: "menu" frame: 0 distance: 0 best: 0 gravity: -0.061]
     [#obstacle gap: 35 offset: 0]
     [#obstacle gap: 35 offset: -1]
 ```
@@ -22,7 +22,7 @@ Draw the game world!
 ```
   commit @browser
     [#div style: [user-select: "none" -webkit-user-select: "none" -moz-user-select: "none"]  children:
-      [#svg @game-window viewBox: "10 0 80 100", width: 480 children:
+      [#svg #game-window viewBox: "10 0 80 100", width: 480 children:
         [#rect x: 0 y: 0 width: 100 height: 53 fill: "rgb(112, 197, 206)" sort: 0]
         [#image x: 0 y: 52 width: 100 height: 43 preserveAspectRatio: "xMinYMin slice" href: "https://cdn.rawgit.com/bhauman/flappy-bird-demo/master/resources/public/imgs/background.png" sort: 1]
         [#rect x: 0 y: 95 width: 100 height: 5 fill: "rgb(222, 216, 149)" sort: 0]]]
@@ -35,8 +35,8 @@ This handles the game's miscellaneous screens. It's currently pretty simple, but
 Draw the main menu
 ```
   search (@session, @browser)
-    [@world screen: "menu"]
-    svg = [@game-window]
+    [#world screen: "menu"]
+    svg = [#game-window]
   bind @browser
     svg.children += [#text x: 50 y: 45 text-anchor: "middle" font-size: 6 text: "Click the screen to begin!" sort: 10]
 ```
@@ -44,7 +44,7 @@ Draw the main menu
 Keep score
 ```
   search
-    world = [@world distance]
+    world = [#world distance]
   bind
     world.score := floor[value: distance]
 ```
@@ -52,8 +52,8 @@ Keep score
 Draw the game over final score
 ```
   search (@session, @browser)
-    [@world screen: "game over" score best]
-    svg = [@game-window]
+    [#world screen: "game over" score best]
+    svg = [#game-window]
   bind @browser
     svg.children += [#text x: 50 y: 30 text-anchor: "middle" font-size: 6 text: "Game Over :(" sort: 10]
     svg.children += [#text x: 50 y: 55 text-anchor: "middle" font-size: 6 text: "Score {{score}}" sort: 10]
@@ -65,11 +65,11 @@ Start the game
 ```
   search
     [#click #direct-target]
-    // world = [@world screen: "menu"]
-    world = if w = [@world screen: "menu"] then w
-            else [@world screen: "game over"]
-    neue = if world = [@world score best] score > best then score
-          else if world = [@world best] then best
+    // world = [#world screen: "menu"]
+    world = if w = [#world screen: "menu"] then w
+            else [#world screen: "game over"]
+    neue = if world = [#world score best] score > best then score
+          else if world = [#world best] then best
     player = [#player]
   commit
     world <- [screen: "game" distance: 0 best: neue]
@@ -81,7 +81,7 @@ Start the game
 Every 2 distance a wild obstacle appears
 ```
   search
-    [@world distance]
+    [#world distance]
     obstacle = [#obstacle offset]
     obstacle-distance = distance + offset
     obstacle-distance >= 0
@@ -92,7 +92,7 @@ Every 2 distance a wild obstacle appears
 Readjust the height of the gap every time the obstacle resets
 ```
   search
-    [@world screen: "game" frame]
+    [#world screen: "game" frame]
     obstacle = [#obstacle x > 90]
     height = random[seed: "{{obstacle}}{{frame}}"] * 30 + 5
   commit
@@ -102,7 +102,7 @@ Readjust the height of the gap every time the obstacle resets
 Draw the player
 ```
   search (@session, @browser)
-    svg = [@game-window]
+    svg = [#game-window]
     player = [#player x y]
     imgs = "https://cdn.rawgit.com/bhauman/flappy-bird-demo/master/resources/public/imgs"
   bind @browser
@@ -115,13 +115,13 @@ Draw the player
 Draw the obstacles
 ```
   search (@session, @browser)
-    svg = [@game-window]
+    svg = [#game-window]
     obstacle = [#obstacle x height gap]
     bottom-height = height + gap
     imgs = "https://cdn.rawgit.com/bhauman/flappy-bird-demo/master/resources/public/imgs"
 
   bind @browser
-    sprite-group = [#svg @obs-spr obstacle sort: 2 overflow: "visible" children:
+    sprite-group = [#svg #obs-spr obstacle sort: 2 overflow: "visible" children:
       [#image y: 0 width: 10 height, preserveAspectRatio: "none" href: "{{imgs}}/pillar-bkg.png" sort: 1]
       [#image x: -1 y: height - 5 width: 12 height: 5 href: "{{imgs}}/lower-pillar-head.png" sort: 2]
       [#image y: bottom-height width: 10 height: 90 - bottom-height, preserveAspectRatio: "none" href: "{{imgs}}/pillar-bkg.png" sort: 1]
@@ -135,7 +135,7 @@ Flap the player
 ```
   search
     [#click #direct-target]
-    [@world screen: "game"]
+    [#world screen: "game"]
     player = [#player #self]
   commit
     player.velocity := 1.17 // In rare cases this can create a duplicate velocity. If this happens, things will get bad fast.
@@ -145,7 +145,7 @@ As time moves gently forward, winter turns to spring
 ```
   search
     [#time frames]
-    world = [@world screen: "game" frame != frames gravity]
+    world = [#world screen: "game" frame != frames gravity]
     player = [#player y velocity]
     not([#click])
   commit
@@ -157,7 +157,7 @@ As time moves gently forward, winter turns to spring
 Lose the game if the player hits the ground
 ```
   search
-    world = [@world screen: "game"]
+    world = [#world screen: "game"]
     [#player y > 85] // ground height + player radius
   commit
     world.screen := "game over"
@@ -166,7 +166,7 @@ Lose the game if the player hits the ground
 Lose the game if the player hits an obstacle
 ```
   search
-    world = [@world screen: "game"]
+    world = [#world screen: "game"]
     [#player x y]
     [#obstacle x: obstacle-x height gap]
     ∂x = abs[value: obstacle-x + 5 - x] - 10 // distance between the edges of player and obstacle (offset of 1/2 obstacle width because origin is on the left)

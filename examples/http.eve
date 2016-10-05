@@ -9,12 +9,12 @@ cool stuff
   search
     [#click]
   commit @http
-    [#request @google url: "https://jsonplaceholder.typicode.com/posts/"]
+    [#request #google url: "https://jsonplaceholder.typicode.com/posts/"]
 ```
 
 ```
   search @http
-    [#request @google response: [json]]
+    [#request #google response: [json]]
     json = [#array]
     lookup[record: json, attribute, value: [title body]]
   bind

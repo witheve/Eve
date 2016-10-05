@@ -1,14 +1,14 @@
 Add some fruits to the system
 ```
   commit
-    [#fruit @lemon color: "yellow"]
-    [#fruit @cherry color: "red"]
-    [#fruit @orange color: "orange"]
-    [#fruit @apple color: "green"]
-    [#fruit @banana color: "yellow"]
-    [#fruit #exotic @lychee color: "white"]
-    [#fruit @papaya color: "yellow"]
-    [#fruit @kiwi color: "green"]
+    [#fruit name: "lemon" color: "yellow"]
+    [#fruit name: "cherry" color: "red"]
+    [#fruit name: "orange" color: "orange"]
+    [#fruit name: "apple" color: "green"]
+    [#fruit name: "banana" color: "yellow"]
+    [#fruit #exotic name: "lychee" color: "white"]
+    [#fruit name: "papaya" color: "yellow"]
+    [#fruit name: "kiwi" color: "green"]
 ```
 
 Draw a list of fruits

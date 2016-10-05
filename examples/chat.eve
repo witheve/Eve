@@ -4,7 +4,7 @@ add a user for this sesion on connect
 
 ```
   commit
-    [#user @me]
+    [#user #me]
 ```
 
 build the chat pane

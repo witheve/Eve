@@ -66,8 +66,8 @@ class Responder {
         evaluation.unregisterDatabase("session");
         evaluation.registerDatabase("session", session);
       }
-      evaluation.executeActions([], changes);
-      evaluation.fixpoint();
+      changes.commit();
+      evaluation.fixpoint(changes);
     }
   }
 }

@@ -70,7 +70,7 @@ test("create a record", (assert) => {
     people
     ~~~
       commit
-        [#person @chris]
+        [#person name: "chris"]
     ~~~
   `);
   assert.end();
@@ -92,8 +92,8 @@ test("search and create a record", (assert) => {
     people
     ~~~
       commit
-        [#person @chris]
-        [#person @joe]
+        [#person name: "chris"]
+        [#person name: "joe"]
     ~~~
 
     foo bar
@@ -122,8 +122,8 @@ test("search with constant filter", (assert) => {
     people
     ~~~
       commit
-        [#person @chris]
-        [#person @joe]
+        [#person name: "chris"]
+        [#person name: "joe"]
     ~~~
 
     foo bar
@@ -154,8 +154,8 @@ test("search with constant attribute", (assert) => {
     people
     ~~~
       commit
-        [#person @chris]
-        [#person @joe]
+        [#person name: "chris"]
+        [#person name: "joe"]
     ~~~
 
     foo bar
@@ -185,8 +185,8 @@ test("search with attribute having multiple values", (assert) => {
     people
     ~~~
       commit
-        [#person @chris @michael]
-        [#person @chris]
+        [#person name: "chris" name: "michael"]
+        [#person name: "chris"]
     ~~~
 
     foo bar
@@ -214,7 +214,7 @@ test("search with attribute having multiple values in parenthesis", (assert) => 
     people
     ~~~
       commit
-        [#person @chris @michael]
+        [#person name: "chris" name: "michael"]
     ~~~
 
     foo bar
@@ -242,7 +242,7 @@ test("search with attribute having multiple values in parenthesis with a functio
     people
     ~~~
       commit
-        [#person @chris name: 13]
+        [#person name: "chris" name: 13]
     ~~~
 
     foo bar
@@ -315,8 +315,8 @@ test("search with incompatible filters", (assert) => {
       people
       ~~~
         commit
-          [#person @chris]
-          [#person @joe]
+          [#person name: "chris"]
+          [#person name: "joe"]
       ~~~
 
       foo bar
@@ -343,8 +343,8 @@ test("search with unprovided variable", (assert) => {
       people
       ~~~
         commit
-          [#person @chris]
-          [#person @joe]
+          [#person name: "chris"]
+          [#person name: "joe"]
       ~~~
 
       foo bar
@@ -369,8 +369,8 @@ test("search with unprovided root in an attribute access", (assert) => {
       people
       ~~~
         commit
-          [#person @chris]
-          [#person @joe]
+          [#person name: "chris"]
+          [#person name: "joe"]
       ~~~
 
       foo bar
@@ -399,7 +399,7 @@ test("search with escaped strings", (assert) => {
     people
     ~~~
       commit
-        [#person @chris info: "{\\"age\\": 10, \\"school\\": \\"Lincoln\\"}"]
+        [#person name: "chris" info: "{\\"age\\": 10, \\"school\\": \\"Lincoln\\"}"]
     ~~~
 
     foo bar
@@ -426,7 +426,7 @@ test("search with escaped embeds", (assert) => {
     people
     ~~~
       commit
-        [#person @chris]
+        [#person name: "chris"]
     ~~~
 
     foo bar
@@ -456,8 +456,8 @@ test("setting an attribute", (assert) => {
     people
     ~~~
       commit
-        [#person @chris]
-        [#person @joe]
+        [#person name: "chris"]
+        [#person name: "joe"]
     ~~~
 
     foo bar
@@ -488,8 +488,8 @@ test("setting an attribute to itself", (assert) => {
     people
     ~~~
       commit
-        [#person @chris]
-        [#person @joe]
+        [#person name: "chris"]
+        [#person name: "joe"]
     ~~~
 
     foo bar
@@ -558,8 +558,8 @@ test("setting an attribute to multiple values", (assert) => {
     people
     ~~~
       commit
-        [#person @chris]
-        [#person @joe]
+        [#person name: "chris"]
+        [#person name: "joe"]
     ~~~
 
     foo bar
@@ -593,8 +593,8 @@ test("merging multiple values into an attribute", (assert) => {
     people
     ~~~
       commit
-        [#person @chris]
-        [#person @joe]
+        [#person name: "chris"]
+        [#person name: "joe"]
     ~~~
 
     foo bar
@@ -630,8 +630,8 @@ test("creating an object with multiple values for an attribute", (assert) => {
     people
     ~~~
       commit
-        [#person @chris]
-        [#person @joe]
+        [#person name: "chris"]
+        [#person name: "joe"]
     ~~~
 
     foo bar
@@ -659,7 +659,7 @@ test("setting an attribute that removes a previous value", (assert) => {
     people
     ~~~
       commit
-        [#person @chris dude: "joe"]
+        [#person name: "chris" dude: "joe"]
     ~~~
 
     foo bar
@@ -687,7 +687,7 @@ test("setting an attribute on click", (assert) => {
     people
     ~~~
       commit
-        [#person @chris dude: "joe"]
+        [#person name: "chris" dude: "joe"]
     ~~~
 
     foo bar
@@ -719,7 +719,7 @@ test("erase a record", (assert) => {
     people
     ~~~
       commit
-        [#person @chris dude: "joe"]
+        [#person name: "chris" dude: "joe"]
     ~~~
 
     foo bar
@@ -776,8 +776,8 @@ test("sum constant", (assert) => {
     people
     ~~~
       commit
-        [#person @joe]
-        [#person @chris]
+        [#person name: "joe"]
+        [#person name: "chris"]
     ~~~
 
     foo bar
@@ -811,8 +811,8 @@ test("sum variable", (assert) => {
     people
     ~~~
       commit
-        [#person @joe age: 10]
-        [#person @chris age: 20]
+        [#person name: "joe" age: 10]
+        [#person name: "chris" age: 20]
     ~~~
 
     foo bar
@@ -846,8 +846,8 @@ test("sum variable with multiple givens", (assert) => {
     people
     ~~~
       commit
-        [#person @joe age: 10]
-        [#person @chris age: 20]
+        [#person name: "joe" age: 10]
+        [#person name: "chris" age: 20]
     ~~~
 
     foo bar
@@ -886,9 +886,9 @@ test("sum groups", (assert) => {
     people
     ~~~
       commit
-        [#person @joe age: 10]
-        [#person @chris age: 20]
-        [#person @mike age: 20]
+        [#person name: "joe" age: 10]
+        [#person name: "chris" age: 20]
+        [#person name: "mike" age: 20]
     ~~~
 
     foo bar
@@ -927,9 +927,9 @@ test("sum groups with multiple pers", (assert) => {
     people
     ~~~
       commit
-        [#person @joe age: 10]
-        [#person @chris age: 20]
-        [#person @mike age: 20]
+        [#person name: "joe" age: 10]
+        [#person name: "chris" age: 20]
+        [#person name: "mike" age: 20]
     ~~~
 
     foo bar
@@ -961,8 +961,8 @@ test("aggregate stratification", (assert) => {
     people
     ~~~
       commit
-        [#person @joe]
-        [#person @chris]
+        [#person name: "joe"]
+        [#person name: "chris"]
     ~~~
 
     foo bar
@@ -996,8 +996,8 @@ test("aggregate stratification with results", (assert) => {
     people
     ~~~
       commit
-        [#person @joe]
-        [#person @chris]
+        [#person name: "joe"]
+        [#person name: "chris"]
     ~~~
 
     foo bar
@@ -1035,9 +1035,9 @@ test("aggregate stratification with another aggregate", (assert) => {
     people
     ~~~
       commit
-        [#person @joe age: 10]
-        [#person @chris age: 20]
-        [#person @mike age: 20]
+        [#person name: "joe" age: 10]
+        [#person name: "chris" age: 20]
+        [#person name: "mike" age: 20]
     ~~~
 
     foo bar
@@ -1064,9 +1064,9 @@ test("unstratifiable aggregate", (assert) => {
       people
       ~~~
         commit
-          [#person @joe age: 10]
-          [#person @chris age: 20]
-          [#person @mike age: 20]
+          [#person name: "joe" age: 10]
+          [#person name: "chris" age: 20]
+          [#person name: "mike" age: 20]
       ~~~
 
       foo bar
@@ -1382,8 +1382,8 @@ test("you only search facts in the specified database", (assert) => {
     people
     ~~~
       commit
-        [#person @chris]
-        [#person @joe]
+        [#person name: "chris"]
+        [#person name: "joe"]
     ~~~
 
     foo bar
@@ -1414,9 +1414,9 @@ test("you can search from multiple databases", (assert) => {
     people
     ~~~
       commit
-        [#person @chris]
+        [#person name: "chris"]
       commit @foo
-        [#person @joe]
+        [#person name: "joe"]
     ~~~
 
     foo bar
@@ -1446,8 +1446,8 @@ test("writing is scoped to databases", (assert) => {
     people
     ~~~
       commit @foo
-        [#person @chris]
-        [#person @joe]
+        [#person name: "chris"]
+        [#person name: "joe"]
     ~~~
 
     foo bar
@@ -1481,8 +1481,8 @@ test("you can write into multiple databases", (assert) => {
     people
     ~~~
       commit (@foo, @session)
-        [#person @chris]
-        [#person @joe]
+        [#person name: "chris"]
+        [#person name: "joe"]
     ~~~
 
     foo bar
@@ -1667,8 +1667,8 @@ test("pipe allows you to select ", (assert) => {
     people
     ~~~
       commit
-        [#person @chris]
-        [#person @joe]
+        [#person name: "chris"]
+        [#person name: "joe"]
     ~~~
 
     foo bar
@@ -1696,7 +1696,7 @@ test("lookup with bound record", (assert) => {
     people
     ~~~
       commit
-        [#person @chris]
+        [#person name: "chris"]
     ~~~
 
     foo bar
@@ -1724,7 +1724,7 @@ test("lookup with bound attribute", (assert) => {
     people
     ~~~
       commit
-        [#person @chris]
+        [#person name: "chris"]
     ~~~
 
     foo bar
@@ -1751,7 +1751,7 @@ test("lookup with free attribute, node and bound value", (assert) => {
     people
     ~~~
       commit
-        [#person @chris]
+        [#person name: "chris"]
     ~~~
 
     foo bar
@@ -1779,7 +1779,7 @@ test("lookup on node", (assert) => {
     people
     ~~~
       commit
-        [#person @chris]
+        [#person name: "chris"]
     ~~~
 
     foo bar
@@ -1807,7 +1807,7 @@ test("lookup all free", (assert) => {
     people
     ~~~
       commit
-        [#person @chris]
+        [#person name: "chris"]
     ~~~
 
     foo bar
@@ -1838,8 +1838,8 @@ test("an identifier followed by whitespace should not be interpreted as a functi
     people
     ~~~
       commit
-        [#person @chris]
-        [#person @joe]
+        [#person name: "chris"]
+        [#person name: "joe"]
     ~~~
 
     foo bar
