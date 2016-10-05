@@ -1,7 +1,7 @@
 
 remove clicks
 ```
-  match
+  search
     c = [#click]
   commit
     c := none
@@ -34,7 +34,7 @@ This handles the game's miscellaneous screens. It's currently pretty simple, but
 
 Draw the main menu
 ```
-  match (@session, @browser)
+  search (@session, @browser)
     [@world screen: "menu"]
     svg = [@game-window]
   bind @browser
@@ -43,7 +43,7 @@ Draw the main menu
 
 Keep score
 ```
-  match
+  search
     world = [@world distance]
   bind
     world.score := floor[value: distance]
@@ -51,7 +51,7 @@ Keep score
 
 Draw the game over final score
 ```
-  match (@session, @browser)
+  search (@session, @browser)
     [@world screen: "game over" score best]
     svg = [@game-window]
   bind @browser
@@ -63,7 +63,7 @@ Draw the game over final score
 
 Start the game
 ```
-  match
+  search
     [#click #direct-target]
     // world = [@world screen: "menu"]
     world = if w = [@world screen: "menu"] then w
@@ -80,7 +80,7 @@ Start the game
 ## Run the actual game
 Every 2 distance a wild obstacle appears
 ```
-  match
+  search
     [@world distance]
     obstacle = [#obstacle offset]
     obstacle-distance = distance + offset
@@ -91,7 +91,7 @@ Every 2 distance a wild obstacle appears
 
 Readjust the height of the gap every time the obstacle resets
 ```
-  match
+  search
     [@world screen: "game" frame]
     obstacle = [#obstacle x > 90]
     height = random[seed: "{{obstacle}}{{frame}}"] * 30 + 5
@@ -101,7 +101,7 @@ Readjust the height of the gap every time the obstacle resets
 
 Draw the player
 ```
-  match (@session, @browser)
+  search (@session, @browser)
     svg = [@game-window]
     player = [#player x y]
     imgs = "https://cdn.rawgit.com/bhauman/flappy-bird-demo/master/resources/public/imgs"
@@ -114,7 +114,7 @@ Draw the player
 
 Draw the obstacles
 ```
-  match (@session, @browser)
+  search (@session, @browser)
     svg = [@game-window]
     obstacle = [#obstacle x height gap]
     bottom-height = height + gap
@@ -133,7 +133,7 @@ Draw the obstacles
 
 Flap the player
 ```
-  match
+  search
     [#click #direct-target]
     [@world screen: "game"]
     player = [#player #self]
@@ -143,7 +143,7 @@ Flap the player
 
 As time moves gently forward, winter turns to spring
 ```
-  match
+  search
     [#time frames]
     world = [@world screen: "game" frame != frames gravity]
     player = [#player y velocity]
@@ -156,7 +156,7 @@ As time moves gently forward, winter turns to spring
 
 Lose the game if the player hits the ground
 ```
-  match
+  search
     world = [@world screen: "game"]
     [#player y > 85] // ground height + player radius
   commit
@@ -165,7 +165,7 @@ Lose the game if the player hits the ground
 
 Lose the game if the player hits an obstacle
 ```
-  match
+  search
     world = [@world screen: "game"]
     [#player x y]
     [#obstacle x: obstacle-x height gap]

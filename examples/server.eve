@@ -1,7 +1,7 @@
 dude
 
 ```
-  match @server
+  search @server
     r = [#request url headers: [user-agent]]
   commit @server
     r.response := [#response status: 200, body: "yo!"]
@@ -11,7 +11,7 @@ dude
 
 
 ```
-  match @server
+  search @server
     r = [#request url: "/slack-message" body: [text user_name]]
   bind @browser
     [#div text: "Body for slack message is {{user_name}}: \"{{text}}\""]

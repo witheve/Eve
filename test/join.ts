@@ -76,7 +76,7 @@ test("create a record", (assert) => {
   assert.end();
 })
 
-test("match and create a record", (assert) => {
+test("search and create a record", (assert) => {
   let expected = {
     insert: [
       ["2", "tag", "person"],
@@ -98,7 +98,7 @@ test("match and create a record", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person]
       commit
         [dude: p]
@@ -107,7 +107,7 @@ test("match and create a record", (assert) => {
   assert.end();
 })
 
-test("match with constant filter", (assert) => {
+test("search with constant filter", (assert) => {
   let expected = {
     insert: [
       ["2", "tag", "person"],
@@ -128,7 +128,7 @@ test("match with constant filter", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person name]
         name = "chris"
       commit
@@ -139,7 +139,7 @@ test("match with constant filter", (assert) => {
 })
 
 
-test("match with constant attribute", (assert) => {
+test("search with constant attribute", (assert) => {
   let expected = {
     insert: [
       ["2", "tag", "person"],
@@ -160,7 +160,7 @@ test("match with constant attribute", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person name: "chris"]
       commit
         [dude: p]
@@ -169,7 +169,7 @@ test("match with constant attribute", (assert) => {
   assert.end();
 })
 
-test("match with attribute having multiple values", (assert) => {
+test("search with attribute having multiple values", (assert) => {
   let expected = {
     insert: [
       ["3", "tag", "person"],
@@ -191,7 +191,7 @@ test("match with attribute having multiple values", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person name: "chris" name: "michael"]
       commit
         [dude: p]
@@ -200,7 +200,7 @@ test("match with attribute having multiple values", (assert) => {
   assert.end();
 })
 
-test("match with attribute having multiple values in parenthesis", (assert) => {
+test("search with attribute having multiple values in parenthesis", (assert) => {
   let expected = {
     insert: [
       ["3", "tag", "person"],
@@ -219,7 +219,7 @@ test("match with attribute having multiple values in parenthesis", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person name: ("chris", "michael")]
       commit
         [dude: p]
@@ -228,7 +228,7 @@ test("match with attribute having multiple values in parenthesis", (assert) => {
   assert.end();
 })
 
-test("match with attribute having multiple values in parenthesis with a function", (assert) => {
+test("search with attribute having multiple values in parenthesis with a function", (assert) => {
   let expected = {
     insert: [
       ["3", "tag", "person"],
@@ -247,7 +247,7 @@ test("match with attribute having multiple values in parenthesis with a function
 
     foo bar
     ~~~
-      match
+      search
         p = [#person name: ("chris", 4 + 9)]
       commit
         [dude: p]
@@ -277,7 +277,7 @@ test("create a record with numeric attributes", (assert) => {
 })
 
 
-test("match a record with numeric attributes", (assert) => {
+test("search a record with numeric attributes", (assert) => {
   let expected = {
     insert: [
       ["4", "tag", "json-array"],
@@ -296,7 +296,7 @@ test("match a record with numeric attributes", (assert) => {
     ~~~
 
     ~~~
-      match
+      search
         [#json-array 1: first, 2: second, 3: third]
       commit
         [| foo: "{{first}} - {{second}} - {{third}}"}]
@@ -305,7 +305,7 @@ test("match a record with numeric attributes", (assert) => {
   assert.end();
 })
 
-test("match with incompatible filters", (assert) => {
+test("search with incompatible filters", (assert) => {
   let expected = {
     insert: [],
     remove: []
@@ -321,7 +321,7 @@ test("match with incompatible filters", (assert) => {
 
       foo bar
       ~~~
-        match
+        search
           p = [#person name]
           name = "chris"
           name = "joe"
@@ -333,7 +333,7 @@ test("match with incompatible filters", (assert) => {
   assert.end();
 })
 
-test("match with unprovided variable", (assert) => {
+test("search with unprovided variable", (assert) => {
   let expected = {
     insert: [],
     remove: []
@@ -349,7 +349,7 @@ test("match with unprovided variable", (assert) => {
 
       foo bar
       ~~~
-        match
+        search
           [#person]
         commit
           [dude: p]
@@ -359,7 +359,7 @@ test("match with unprovided variable", (assert) => {
   assert.end();
 })
 
-test("match with unprovided root in an attribute access", (assert) => {
+test("search with unprovided root in an attribute access", (assert) => {
   let expected = {
     insert: [],
     remove: []
@@ -375,7 +375,7 @@ test("match with unprovided root in an attribute access", (assert) => {
 
       foo bar
       ~~~
-        match
+        search
           [#person]
         commit
           [dude: p.name]
@@ -385,7 +385,7 @@ test("match with unprovided root in an attribute access", (assert) => {
   assert.end();
 })
 
-test("match with escaped strings", (assert) => {
+test("search with escaped strings", (assert) => {
   let expected = {
     insert: [
       ["3", "tag", "person"],
@@ -404,7 +404,7 @@ test("match with escaped strings", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         [#person info]
       commit
         [info]
@@ -413,7 +413,7 @@ test("match with escaped strings", (assert) => {
   assert.end();
 })
 
-test("match with escaped embeds", (assert) => {
+test("search with escaped embeds", (assert) => {
   let expected = {
     insert: [
       ["2", "tag", "person"],
@@ -431,7 +431,7 @@ test("match with escaped embeds", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         [#person name]
       commit
         [info: "\\{{{name}}\\}"]
@@ -462,7 +462,7 @@ test("setting an attribute", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person name]
       commit
         p.dude := name
@@ -494,7 +494,7 @@ test("setting an attribute to itself", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person name]
       commit
         p.name := name
@@ -520,7 +520,7 @@ test("setting an attribute in multiple blocks", (assert) => {
 
     stuff
     ~~~
-      match
+      search
         p = [#person not(meep)]
       commit
         p.meep := "moop"
@@ -528,7 +528,7 @@ test("setting an attribute in multiple blocks", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person meep]
       commit
         p.meep := "maup"
@@ -564,7 +564,7 @@ test("setting an attribute to multiple values", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person name]
       commit
         p.dude := (name, "foo", 3)
@@ -599,7 +599,7 @@ test("merging multiple values into an attribute", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person name]
       commit
         p <- [dude: (name, "foo", 3)]
@@ -636,7 +636,7 @@ test("creating an object with multiple values for an attribute", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person name]
       commit
         [#dude dude: (name, "foo", 3 + 5)]
@@ -664,7 +664,7 @@ test("setting an attribute that removes a previous value", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person name]
       commit
         p.dude := name
@@ -692,7 +692,7 @@ test("setting an attribute on click", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         [#click]
         p = [#person name]
       commit
@@ -724,7 +724,7 @@ test("erase a record", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person name]
       commit
         p := none
@@ -750,7 +750,7 @@ test("erase an attribute", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person]
       commit
         p.age := none
@@ -782,7 +782,7 @@ test("sum constant", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person]
         total = sum[value: 1, given: p]
       commit
@@ -817,7 +817,7 @@ test("sum variable", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person age]
         total = sum[value: age, given: p]
       commit
@@ -852,7 +852,7 @@ test("sum variable with multiple givens", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person age]
         total = sum[value: age, given: (p, age)]
       commit
@@ -893,7 +893,7 @@ test("sum groups", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person age]
         total = sum[value: 1, given: p, per: age]
       commit
@@ -934,7 +934,7 @@ test("sum groups with multiple pers", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person age]
         total = sum[value: 1, given: p, per: (age, p)]
       commit
@@ -967,7 +967,7 @@ test("aggregate stratification", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person]
         total = sum[value: 1, given: p]
         total > 2
@@ -1002,7 +1002,7 @@ test("aggregate stratification with results", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person]
         total = sum[value: 1, given: p]
         total-plus-10 = total + 10
@@ -1042,7 +1042,7 @@ test("aggregate stratification with another aggregate", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person age]
         total = sum[value: 1, given: p, per: age]
         count-all = sum[value: total, given: total]
@@ -1071,7 +1071,7 @@ test("unstratifiable aggregate", (assert) => {
 
       foo bar
       ~~~
-        match
+        search
           p = [#person age]
           total = sum[value: 1, given: count-all, per: age]
           count-all = sum[value: total, given: total]
@@ -1092,7 +1092,7 @@ test("single argument is", (assert) => {
   evaluate(assert, expected, `
     is test
     ~~~
-      match
+      search
         result = is(3 > 4)
         result2 = is(3 < 4)
       commit
@@ -1110,7 +1110,7 @@ test("multiple argument is", (assert) => {
   evaluate(assert, expected, `
     is test
     ~~~
-      match
+      search
         result = is(5 > 4, 6 != 9)
         result2 = is(5 > 4, 6 = 9)
       commit
@@ -1133,7 +1133,7 @@ test("block order shouldn't matter", (assert) => {
   evaluate(assert, expected, `
     is test
     ~~~
-      match
+      search
         result = if [#foo value] then value
                  else "bye!"
       commit
@@ -1163,7 +1163,7 @@ test("block order shouldn't matter", (assert) => {
 
     is test
     ~~~
-      match
+      search
         result = if [#foo value] then value
                  else "bye!"
       commit
@@ -1186,7 +1186,7 @@ test("if with variable", (assert) => {
   evaluate(assert, expected, `
     is test
     ~~~
-      match
+      search
         result = if [#foo value] then value
                  else "bye!"
       commit
@@ -1211,7 +1211,7 @@ test("else with value", (assert) => {
   evaluate(assert, expected, `
     is test
     ~~~
-      match
+      search
         result = if [#foo] then "hi!"
                  else "bye!"
       commit
@@ -1238,7 +1238,7 @@ test("if with constant equality", (assert) => {
 
     is test
     ~~~
-      match
+      search
         [#foo value]
         result = if value = "yo" then "cool"
                  else if x = "meh" then x
@@ -1268,7 +1268,7 @@ test("if with an aggregate", (assert) => {
 
     is test
     ~~~
-      match
+      search
         result = if c = count[given: [#foo]] then c
                  else 0
       commit
@@ -1295,7 +1295,7 @@ test("if with an external equality", (assert) => {
 
     is test
     ~~~
-      match
+      search
         [#foo value]
         moof = "hi!"
         result = if moof = value then 1
@@ -1324,7 +1324,7 @@ test("bind adds results", (assert) => {
 
     is test
     ~~~
-      match
+      search
         [#foo value]
       bind
         [#result value]
@@ -1351,7 +1351,7 @@ test("bind removes dead results", (assert) => {
 
     is test
     ~~~
-      match
+      search
         [#foo value]
       bind
         [#result value]
@@ -1366,7 +1366,7 @@ test("bind removes dead results", (assert) => {
 });
 
 
-test("you only match facts in the specified database", (assert) => {
+test("you only search facts in the specified database", (assert) => {
   let expected = {
     insert: [
       ["2", "tag", "person"],
@@ -1388,7 +1388,7 @@ test("you only match facts in the specified database", (assert) => {
 
     foo bar
     ~~~
-      match @foo
+      search @foo
         p = [#person]
       commit
         [dude: p]
@@ -1398,7 +1398,7 @@ test("you only match facts in the specified database", (assert) => {
 })
 
 
-test("you can match from multiple databases", (assert) => {
+test("you can search from multiple databases", (assert) => {
   let expected = {
     insert: [
       ["2", "tag", "person"],
@@ -1421,7 +1421,7 @@ test("you can match from multiple databases", (assert) => {
 
     foo bar
     ~~~
-      match (@foo, @session)
+      search (@foo, @session)
         p = [#person]
       commit
         [dude: p]
@@ -1452,7 +1452,7 @@ test("writing is scoped to databases", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person]
       commit
         [dude: p]
@@ -1487,7 +1487,7 @@ test("you can write into multiple databases", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person]
       commit
         [dude: p]
@@ -1509,7 +1509,7 @@ test("split function", (assert) => {
   evaluate(assert, expected, `
     foo bar
     ~~~
-      match
+      search
         token = split[text: "foo|bar|baz" by: "|"]
       commit
         [dude: token]
@@ -1534,7 +1534,7 @@ test("split function with multiple returns", (assert) => {
   evaluate(assert, expected, `
     foo bar
     ~~~
-      match
+      search
         (token, index) = split[text: "foo|bar|baz" by: "|"]
       commit
         [dude: token, index]
@@ -1559,7 +1559,7 @@ test("split function with attribute returns", (assert) => {
   evaluate(assert, expected, `
     foo bar
     ~~~
-      match
+      search
          split[text: "foo|bar|baz" by: "|", token, index]
       commit
         [dude: token, index]
@@ -1579,7 +1579,7 @@ test("split function with fixed return", (assert) => {
   evaluate(assert, expected, `
     foo bar
     ~~~
-      match
+      search
         (token, 2) = split[text: "foo|bar|baz" by: "|"]
       commit
         [dude: token, index: 2]
@@ -1599,7 +1599,7 @@ test("split function with fixed return attribute", (assert) => {
   evaluate(assert, expected, `
     foo bar
     ~~~
-      match
+      search
         split[text: "foo|bar|baz" by: "|", token, index: 2]
       commit
         [dude: token, index: 2]
@@ -1619,7 +1619,7 @@ test("split function with fixed token", (assert) => {
   evaluate(assert, expected, `
     foo bar
     ~~~
-      match
+      search
         split[text: "foo|bar|baz" by: "|", token: "bar", index]
       commit
         [dude: "bar", index]
@@ -1640,7 +1640,7 @@ test("split function with both fixed", (assert) => {
   evaluate(assert, expected, `
     foo bar
     ~~~
-      match
+      search
         split[text: "foo|bar|baz" by: "|", token: "bar", index: 2]
       commit
         [dude: "bar", index: 2]
@@ -1673,7 +1673,7 @@ test("pipe allows you to select ", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         p = [#person name]
       commit
         [dude: p | name]
@@ -1701,7 +1701,7 @@ test("lookup with bound record", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         lookup[record: [#person], attribute, value]
       commit
         [| info: "Has {{attribute}} with value {{value}}"]
@@ -1729,7 +1729,7 @@ test("lookup with bound attribute", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         lookup[record, attribute: "name", value]
       commit
         [| info: "{{record}} has name {{value}}"]
@@ -1756,7 +1756,7 @@ test("lookup with free attribute, node and bound value", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         record = [#person]
         lookup[record, attribute, value: "chris", node]
       commit
@@ -1784,7 +1784,7 @@ test("lookup on node", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         lookup[record, attribute, value, node: 1]
       commit
         [| info: "node 1 produced: ({{record}}, {{attribute}}, {{value}})"]
@@ -1812,7 +1812,7 @@ test("lookup all free", (assert) => {
 
     foo bar
     ~~~
-      match
+      search
         lookup[record, attribute, value, node]
       commit @foo
         [| info: "node {{node}} produced: ({{record}}, {{attribute}}, {{value}})"]
@@ -1844,7 +1844,7 @@ test("an identifier followed by whitespace should not be interpreted as a functi
 
     foo bar
     ~~~
-      match
+      search
         p = [#person name]
       commit
         p.dude := name

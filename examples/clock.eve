@@ -1,7 +1,7 @@
 # Clock
 draw a clock hand
 ```
-  match @browser
+  search @browser
     hand = [#clock-hand angle length]
     x2 = 50 + (length * sin[angle])
     y2 = 50 - (length * cos[angle])
@@ -11,7 +11,7 @@ draw a clock hand
 
 draw a clock
 ```
-  match
+  search
     [#time hours minutes seconds]
   bind @browser
     [#svg viewBox: "0 0 100 100", width: "300px", children:

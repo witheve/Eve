@@ -13,7 +13,7 @@ Add some fruits to the system
 
 Draw a list of fruits
 ```
-  match
+  search
     [#fruit color name]
   bind @browser
     [#div ix: name, text: name, style: [color]]
@@ -21,7 +21,7 @@ Draw a list of fruits
 
 make yo
 ```
-  match (@session, @browser)
+  search (@session, @browser)
     v = [#click element]
     element = [not(children) text]
 
@@ -31,7 +31,7 @@ make yo
 
 trash yo
 ```
-  match (@session, @browser)
+  search (@session, @browser)
     [#click element]
     element = [children]
 
@@ -41,7 +41,7 @@ trash yo
 
 remove clicks
 ```
-  match
+  search
     c = [#click]
   commit
     c := none

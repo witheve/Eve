@@ -99,7 +99,7 @@ html, body, __root { height: 100%; }
 .CodeMirror .TAG, .CodeMirror .TAG + .IDENTIFIER { color: #50edf6; color: #4bcbd3; }
 .CodeMirror .NAME, .CodeMirror .NAME + .IDENTIFIER { color: #50edf6; color: #4bcbd3; }
 /* Phases */
-.CodeMirror .ACTION, .MATCH { color: gray; color: #63b6e7; }
+.CodeMirror .ACTION, .SEARCH { color: gray; color: #63b6e7; }
 /* Statements */
 .CodeMirror .IF, .ELSE, .THEN { color: gray; color: #63b6e7; }
 /* Literals */

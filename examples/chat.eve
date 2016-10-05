@@ -10,7 +10,7 @@ add a user for this sesion on connect
 build the chat pane
 
 ```
-  match
+  search
     channel = "general"
   bind
     [#div class: "chat-pane" children:
@@ -21,7 +21,7 @@ build the chat pane
 draw messages
 
 ```
-  match (@session, @shared)
+  search (@session, @shared)
     parent = [#chat-messages channel]
     id = [#message name time message channel]
   bind
@@ -34,7 +34,7 @@ draw messages
 handle chat keydowns
 
 ```
-  match
+  search
     event = [#keydown element, key: "enter"]
     element = [#channel-input channel value]
     [#user name]
@@ -48,7 +48,7 @@ handle chat keydowns
 
 remove events
 ~~~
-  match
+  search
     c = if event = [#keydown] then event
         if event = [#keyup] then event
         if event = [#click] then event
@@ -62,7 +62,7 @@ remove events
 
 hash changes
 ~~~
-  match
+  search
     change = [#url-change hash-segment]
   commit
     change := none
@@ -72,7 +72,7 @@ hash changes
 
 update values
 ~~~
-  match
+  search
     [#change element value]
   commit
     element.value := value

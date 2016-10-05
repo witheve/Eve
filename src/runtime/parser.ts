@@ -141,7 +141,7 @@ class Keyword extends Token {
     static LONGER_ALT = Identifier;
 }
 class Action extends Keyword { static PATTERN = /bind|commit/; label = "action"; }
-class Match extends Keyword { static PATTERN = /match/; label = "match"; }
+class Search extends Keyword { static PATTERN = /search/; label = "search"; }
 class Is extends Keyword { static PATTERN = /is/; label = "is"; }
 class If extends Keyword { static PATTERN = /if/; label = "if"; }
 class Else extends Keyword { static PATTERN = /else/; label = "else"; }
@@ -200,7 +200,7 @@ class WhiteSpace extends Token {
 let codeTokens: any[] = [
   CloseFence, WhiteSpace, CommentLine, OpenBracket, CloseBracket, OpenParen,
   CloseParen, StringEmbedClose, StringOpen, Bool, Action, Set, Equality, Dot, Pipe, Merge,
-  Mutate, Comparison, Num,  Match, Is, If, Else, Then,
+  Mutate, Comparison, Num,  Search, Is, If, Else, Then,
   Not, None, Name, Tag, Uuid, FunctionIdentifier, Identifier, AddInfix, MultInfix
 ];
 
@@ -308,7 +308,7 @@ class Parser extends chev.Parser {
   codeBlock: any;
   fencedBlock: any;
   section: any;
-  matchSection: any;
+  searchSection: any;
   actionSection: any;
   value: any;
   bool: any;
@@ -450,7 +450,7 @@ class Parser extends chev.Parser {
 
     rule("section", () => {
       return self.OR([
-        {ALT: () => { return self.SUBRULE(self.matchSection) }},
+        {ALT: () => { return self.SUBRULE(self.searchSection) }},
         {ALT: () => { return self.SUBRULE(self.actionSection) }},
         {ALT: () => { return self.CONSUME(CommentLine); }},
       ]);
@@ -482,13 +482,13 @@ class Parser extends chev.Parser {
 
 
     //-----------------------------------------------------------
-    // Match section
+    // Search section
     //-----------------------------------------------------------
 
-    rule("matchSection", () => {
+    rule("searchSection", () => {
       // @TODO fill in from
       let from = [];
-      self.CONSUME(Match);
+      self.CONSUME(Search);
       let scopes:any = ["session"];
       self.OPTION(() => { scopes = self.SUBRULE(self.scopeDeclaration) })
       self.activeScopes = scopes;
@@ -500,7 +500,7 @@ class Parser extends chev.Parser {
           statement.scopes = scopes;
         }
       });
-      return makeNode("matchSection", {statements, scopes, from});
+      return makeNode("searchSection", {statements, scopes, from});
     });
 
     rule("statement", () => {

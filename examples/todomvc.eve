@@ -22,7 +22,7 @@ We draw Todo MVC here. All styling is handled in a separate CSS file. The app co
 In this block, we do a little work to determine todo-count, all-checked, and none-checked. Other than that, this block simply lays out the major control elements of TodoMVC. A key aspect of this block is the `bind` keyword. This denotes the beginning of the action phase of the block, and tells Eve that to update records as data changes. This is the key component that enables Eve to react to user interaction and update the display.
 
 ```
-  match
+  search
     [@app filter]
     all-checked = if not([#todo completed: false]) then true
                   else false
@@ -56,7 +56,7 @@ Now we look at how the todos are actually displayed in the application. We attac
 - a **button** for deleting the todo
 
 ```
-  match (@session, @browser)
+  search (@session, @browser)
     [@app filter]
     parent = [@todo-list]
     (todo, body, completed, editing) =
@@ -80,7 +80,7 @@ Thanks to Eve's set semantics, we don't need any loops here; for every unique `#
 A user can interact with TodoMVC in several ways. First and foremost, the user can create new todos. When the `@new-todo` input box is focused and the user presses enter, the value of the input is captured and a new todo is created.
 
 ```
-  match (@session, @browser)
+  search (@session, @browser)
     element = [@new-todo value]
     kd = [#keydown element, key: "enter"]
   commit
@@ -102,7 +102,7 @@ Here we handle all the ways we edit a todo. Editing includes changing the body a
 - enter `#todo-editor` - commits the new text in `#todo-editor`, replacing the original body
 
 ```
-  match (@session, @browser)
+  search (@session, @browser)
     (todo, body, editing, completed) =
       if [#click element: [#todo-checkbox todo]] then (todo, todo.body, todo.editing, toggle[value: todo.completed])
       else if [#click element: [@toggle-all checked]] then ([#todo body], body, todo.editing, toggle[value: checked])
@@ -119,7 +119,7 @@ Here we handle all the ways we edit a todo. Editing includes changing the body a
 Deleting a todo from the list is accomplished by removing the `#todo` tag from the todo's record. Recall from the "Drawing the Todo List" section that we select todos by including `#todo` in the record. Therefore, if we remove that tag from the todo, then that todo will no longer appear in the list, although it will still persist in the database.
 
 ```
-  match (@session, @browser)
+  search (@session, @browser)
     todo = if [#click element: [#remove-todo todo]] then todo
            else if [#click element: [@clear-completed]] then [#todo completed: true]
   commit
@@ -137,7 +137,7 @@ The TodoMVC specification requires filtering via the URL. This is actually how t
 We can extract this value using `#url`, which has a hash-segment attribute that automatically parses the URL for us, returning the `value` (expected to be any one of the above). Any other value will fail to show any todos, but the application will not break.
 
 ```
-  match
+  search
     value = if [#url hash-segment: [index: 1, value]] then value
             else "all"
   bind
@@ -146,7 +146,7 @@ We can extract this value using `#url`, which has a hash-segment attribute that 
 
 remove events
 ~~~
-  match
+  search
     c = if event = [#keydown] then event
         if event = [#keyup] then event
         if event = [#click] then event
@@ -160,7 +160,7 @@ remove events
 
 hash changes
 ~~~
-  match
+  search
     change = [#url-change hash-segment]
   commit
     change := none
@@ -170,7 +170,7 @@ hash changes
 
 update values
 ~~~
-  match
+  search
     [#change element value]
   commit @browser
     element.value := value

@@ -2,7 +2,7 @@
 Awesome memory dude
 
 ```
-  match
+  search
     [#memory rss]
   bind @browser
     [#div text: "Current memory: {{rss}}"]

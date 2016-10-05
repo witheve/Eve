@@ -5,7 +5,7 @@
 For every variable there is a group
 
 ```
-  match
+  search
     variable = [#variable]
     number = random[seed: variable]
   commit
@@ -13,7 +13,7 @@ For every variable there is a group
 ```
 
 ```
-  match
+  search
     variable = [#variable not(group)]
     group = [#group variable]
   commit
@@ -23,7 +23,7 @@ For every variable there is a group
 Handle a constant equivalence
 
 ```
-  match
+  search
     eq = [#equality]
     (a, b) = if eq.a.tag, not(eq.b.tag) then (eq.a, eq.b)
              else if eq.b.tag, not(eq.a.tag) then (eq.b, eq.a)
@@ -34,7 +34,7 @@ Handle a constant equivalence
 Handle variable equivalence
 
 ```
-  match
+  search
     [#equality a b]
     a.group != b.group
     min-a = min[value: a.group.number, given: a.group.number, per: a]
@@ -51,7 +51,7 @@ Handle variable equivalence
 ## associate record-tags to both actions and scans
 
 ```
-match
+search
   [#scan entity: [group] attribute: "tag" value]
   scan = [#scan entity: [group]]
 bind
@@ -59,7 +59,7 @@ bind
 ```
 
 ```
-match
+search
   [#action entity: [group] attribute: "tag" value]
   action = [#action entity: [group]]
 bind
@@ -67,7 +67,7 @@ bind
 ```
 
 ```
-match
+search
   [#scan entity: [group] record-tag]
   action = [#action entity: [group]]
 bind
@@ -75,7 +75,7 @@ bind
 ```
 
 ```
-match
+search
   scan = [#scan not(record-tag)]
 bind
   scan += #analyzer/any
@@ -84,7 +84,7 @@ bind
 ## tag equivalence
 
 ```
-  match
+  search
     attribute = "tag"
     [#scan entity: [group] attribute value: tag]
     [#action entity: [group] attribute value: tag2]
@@ -95,7 +95,7 @@ bind
 ## unprovided scans
 
 ```
-  match
+  search
     scan = [#scan record-tag attribute]
     not( action = [#action record-tag attribute]
         value = if scan.value = action.value then true
@@ -106,7 +106,7 @@ bind
 ```
 
 ```
-  match
+  search
     scan = [#scan #analyzer/any attribute]
     not( action = [#action attribute]
         value = if scan.value = action.value then true
@@ -121,7 +121,7 @@ bind
 ## drawing
 
 ```
-  match
+  search
     [#equality block a b]
     a-name = if a.name then a.name
             else a
@@ -136,7 +136,7 @@ bind
 ```
 
 ```
-  match
+  search
     [#variable block name group: [number]]
   bind @browser
     [#div children:
@@ -148,7 +148,7 @@ bind
 ```
 
 ```
-  match
+  search
     scan = [#scan #unprovided attribute]
     record-tag = if tag = scan.record-tag then tag
                 else if scan = [#analyzer/any] then scan.entity
@@ -162,7 +162,7 @@ bind
 ```
 
 ```
-  match
+  search
     [#scan record-tag attribute]
   bind @browser
     [#div children:
@@ -173,7 +173,7 @@ bind
 ```
 
 ```
-  match
+  search
     [#action record-tag attribute]
   bind @browser
     [#div children:
