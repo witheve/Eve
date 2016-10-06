@@ -79,52 +79,17 @@ class Navigator {
     }
   }
 
-  /** Pulls a subtree out of the node map and returns it. @NOTE: This modifies the Navigator. */
-  protected extractSubtree(nodeId:string) {
-    let subtree:TreeMap = {};
-    this.walk(nodeId, (curId:string) => {
-      subtree[curId] = this.nodes[curId];
-      this.nodes[curId] = undefined;
-    });
-    return subtree;
-  }
-
-  getEquivalent(nodeId:string, subtree:TreeMap, stack?:TreeNode[]):TreeNode|undefined {
-    if(subtree[nodeId] || !stack) return subtree[nodeId];
-    let offsets = [];
-    for(let node of stack) {
-      offsets.push(node.children && (node.children.length - 1) || 0);
-    }
-
-    let curId = stack[0].id;
-    for(let offset of offsets) {
-      let node = subtree[curId];
-      if(!node) return undefined;
-      curId = node.children && node.children[offset];
-      if(!curId) return undefined;
-    }
-    return subtree[curId];
-  }
-
-  // - We do control adding new headers, so we can pass a note telling it to re-identify...
-  // @NOTE: Header matching is by place in hierarchy. This is necessary to maintain state
-  // since the ids, locations, and text of a header can all change without changing the header.
-  // @FIXME: In order for this to work properly when headers are added/removed,  we need to
-  // warn the navigator of the insertion/removal and where in the document it happened so it
-  // can pre-emptively update its mapping.
   loadDocument(id:string, name:string, editor:Editor, parentId:string = this.rootId) {
-    let oldHierarchy = this.extractSubtree(id);
-
     let doc = editor.cm.getDoc();
     let headings = editor.getAllSpans("heading") as HeadingSpan[];
     headings.sort(compareSpans);
 
-    let old = this.getEquivalent(id, oldHierarchy);
-    let root:TreeNode = {id, name, type: "document", open: old ? old.open : true, hidden: old ? old.hidden : false, elisionSpan: old ? old.elisionSpan : undefined};
+    let old = this.nodes[id];
+    let root:TreeNode = {id, name, type: "document", level: 0, open: old ? old.open : true, hidden: old ? old.hidden : false, elisionSpan: old ? old.elisionSpan : undefined};
 
     let stack:TreeNode[] = [root];
     for(let heading of headings) {
-      let curId = heading.source.id;
+      let curId = heading.id;
       let loc = heading.find();
       if(!loc) continue;
 
@@ -133,7 +98,7 @@ class Navigator {
       if(!parent.children) parent.children = [curId];
       else parent.children.push(curId);
 
-      let old = this.getEquivalent(curId, oldHierarchy, stack);
+      let old = this.nodes[curId];
       let node:TreeNode = {id: curId, name: doc.getLine(loc.from.line), type: "section", level: heading.source.level, span: heading, open: old ? old.open : true, hidden: old ? old.hidden : false, elisionSpan: old ? old.elisionSpan : undefined};
       stack.push(node);
       this.nodes[curId] = node;
@@ -146,6 +111,46 @@ class Navigator {
       if(parent.children.indexOf(id) === -1) {
         parent.children.push(id);
       }
+    }
+  }
+
+  updateNode(span:HeadingSpan) {
+    let nodeId = span.id;
+    let node = this.nodes[nodeId];
+
+    let loc = span.find();
+    if(node && !loc) {
+      if(node.elisionSpan) node.elisionSpan.clear();
+      this.nodes[nodeId] = undefined;
+
+    } else if(node) {
+      // @NOTE: we intentionally don't handle this case currently since updating here would conflict with the parser updates
+
+    } else if(!node && loc) {
+      let cur = loc.from;
+      let parentId:string;
+      let siblingId:string|undefined;
+      do {
+        let parentSpan = this.ide.editor.findHeadingAt(cur);
+        let parentLoc = parentSpan && parentSpan.find();
+        cur = parentLoc ? parentLoc.from : {line: 0, ch: 0};
+        siblingId = parentId;
+        parentId = parentSpan ? parentSpan.id : this.currentId;
+
+      } while(parentId !== this.currentId && this.nodes[parentId]!.level >= span.source.level);
+
+      let parentNode = this.nodes[parentId]!;
+      if(!parentNode.children) parentNode.children = [nodeId];
+      else {
+        let ix = parentNode.children.length;
+        if(siblingId) {
+          ix = parentNode.children.indexOf(siblingId);
+          ix = (ix === -1) ? parentNode.children.length : ix;
+        }
+        parentNode.children.splice(ix, 0, nodeId);
+      }
+      let doc = this.ide.editor.cm.getDoc();
+      this.nodes[nodeId] = {id: nodeId, name: doc.getLine(loc.from.line), type: "section", level: span.source.level, span, open: true, hidden: false};
     }
   }
 
@@ -171,6 +176,18 @@ class Navigator {
     node.open = !node.open;
     this.ide.render();
     event.stopPropagation();
+  }
+
+  gotoSpan = (event:MouseEvent, {nodeId}) => {
+    let node = this.nodes[nodeId];
+    if(!node) return;
+    let loc = node.span.find();
+    if(!loc) return;
+    if(node.span.constructor === HeadingSpan) {
+      let heading = node.span as HeadingSpan;
+      loc = heading.getSectionRange() || loc;
+    }
+    this.ide.editor.cm.scrollIntoView(loc, 20);
   }
 
   doElide(nodeId: string,  elide: boolean) {
@@ -247,7 +264,7 @@ class Navigator {
 
     return {c: `tree-item ${subtree ? "branch" : "leaf"} ${nodeId === this.rootId ? "root" : ""} ${node.type} ${subtree && !node.open ? "collapsed" : ""} ${node.hidden ? "hidden" : ""}`, nodeId, children: [
       {c: "flex-row", children: [
-        {c: `label ${subtree ? "ion-ios-arrow-down" : "no-icon"}`, text: node.name, nodeId, click: subtree ? this.toggleBranch : undefined}, // icon should be :before
+        {c: `label ${subtree ? "ion-ios-arrow-down" : "no-icon"}`, text: node.name, nodeId, click: node.span ? this.gotoSpan : undefined}, // icon should be :before
         {c: "controls", children: [
           {c: `elide-btn ${node.hidden ? "ion-eye-disabled" : "ion-eye"}`, nodeId, click: this.toggleElision},
         ]}
@@ -320,10 +337,12 @@ function compareSpans(a, b) {
 interface SpanSource { type: string, id: string }
 
 class Span {
+  static isEditorControlled = false;
+
   protected static _nextId = 0;
   isLine = false;
 
-  id: number = Span._nextId++;
+  id: string = `${this.type}${Span._nextId++}`;
   editor: Editor;
   marker?: SpanMarker;
 
@@ -469,7 +488,9 @@ function isLineSpan(span:Span): span is LineSpan {
 
 interface HeadingSpanSource extends SpanSource { level: number }
 class HeadingSpan extends LineSpan {
+  static isEditorControlled = true;
   type:SpanType = "heading";
+
   constructor(_from:Position, _to:Position, public source:HeadingSpanSource) {
     super(_from, _to, source);
     if(!this.source.level) {
@@ -481,18 +502,27 @@ class HeadingSpan extends LineSpan {
     this._attributes.className = cls;
   }
 
+  applyMark(editor:Editor) {
+    super.applyMark(editor);
+    editor.ide.navigator.updateNode(this);
+  }
+  clear(origin?:string) {
+    super.clear(origin);
+    this.editor.ide.navigator.updateNode(this);
+  }
+
   getSectionRange():Range|undefined {
     let loc = this.find();
     if(!loc) return;
     let from = {line: loc.from.line + 1, ch: 0};
     let to = {line: this.editor.cm.getDoc().lastLine() + 1, ch: 0};
     let headings = this.editor.findSpans(from, to, "heading");
-    if(!headings.length) return {from: loc.from, to};
+    if(!headings.length) return {from: loc.from, to: {line: to.line - 1, ch: 0}};
 
     headings.sort(compareSpans);
     let next = headings[0];
     let nextLoc = next.find();
-    if(!nextLoc) return {from: loc.from, to};
+    if(!nextLoc) return {from: loc.from, to: {line: to.line - 1, ch: 0}};
     return {from: loc.from, to: nextLoc.from};
   }
 
@@ -509,6 +539,7 @@ class HeadingSpan extends LineSpan {
 
 interface ListItemSpanSource extends SpanSource {level: number, listData: {start: number, type:"ordered"|"unordered"}}
 class ListItemSpan extends LineSpan {
+  static isEditorControlled =true;
   type:SpanType = "item";
   lineTextClass = "ITEM";
 
@@ -519,6 +550,7 @@ class ListItemSpan extends LineSpan {
 
 // Code Blocks are an odd bird. They need the utilities of a Line Span but the logic of a regular span.
 class CodeBlockSpan extends LineSpan {
+  static isEditorControlled = true;
   type:SpanType = "code_block";
   isLine = false;
   lineBackgroundClass = "CODE";
@@ -575,6 +607,7 @@ class CodeBlockSpan extends LineSpan {
 }
 
 class ElisionSpan extends LineSpan {
+  static isEditorControlled = true;
   type:SpanType = "elision";
   lineBackgroundClass = "elision";
   protected element = document.createElement("div");
@@ -587,10 +620,12 @@ class ElisionSpan extends LineSpan {
 }
 
 class StrongSpan extends Span {
+  static isEditorControlled = true;
   type:SpanType = "strong";
 }
 
 class EmphasisSpan extends Span {
+  static isEditorControlled = true;
   type:SpanType = "emph";
 }
 
@@ -841,10 +876,12 @@ class Editor {
       "Shift-Cmd-Enter": () => this.ide.eval(false),
       "Cmd-B": () => this.format({type: "strong"}),
       "Cmd-I": () => this.format({type: "emph"}),
-      "Cmd-L": () => this.format({type: "code"}),
+      "Cmd-Y": () => this.format({type: "code"}),
       "Cmd-K": () => this.format({type: "code_block"}),
-      "Cmd-E": () => this.formatLine({type: "heading", level: 1}),
-      "Cmd-Y": () => this.formatLine({type: "item"})
+      "Cmd-1": () => this.formatLine({type: "heading", level: 1}),
+      "Cmd-2": () => this.formatLine({type: "heading", level: 2}),
+      "Cmd-3": () => this.formatLine({type: "heading", level: 3}),
+      "Cmd-L": () => this.formatLine({type: "item"})
     })
   };
 
@@ -922,66 +959,72 @@ class Editor {
     this.cm.operation(() => {
       this.reloading = true;
       let doc = this.cm.getDoc();
-      let spans = this.getAllSpans();
 
-      // Build a spatial lookup of the spans
-      let lineToSpans:{[line:number]: Span[]|undefined} = {};
-      for(let span of spans) {
-        let loc = span.find();
-        if(!loc) continue;
-        if(!lineToSpans[loc.from.line]) lineToSpans[loc.from.line] = [];
-        lineToSpans[loc.from.line].push(span);
-      }
+      // Find all runtime-controlled spans (e.g. syntax highlighting, errors) that are unchanged and mark them as such.
+      // Unmarked spans will be swept afterwards.
+      // Set editor-controlled spans aside. We'll match them up to maintain id stability afterwards.
 
+      let controlledOffsets = {};
+      let touchedIds = {};
       for(let i = 0; i < packed.length; i += 4) {
-        let from = doc.posFromIndex(packed[i]);
-        let to = doc.posFromIndex(packed[i + 1]);
+        let start = packed[i];
         let type = packed[i + 2];
-        let id = packed[i + 3];
+        if(spanTypes[type] && spanTypes[type].isEditorControlled) {
+          if(!controlledOffsets[type]) controlledOffsets[type] = [i];
+          else controlledOffsets[type].push(i);
+        } else {
+          let from = doc.posFromIndex(packed[i]);
+          let to = doc.posFromIndex(packed[i + 1]);
+          let type = packed[i + 2];
+          let id = packed[i + 3];
 
-        let source = attributes[id] || {};
-        source.type = type;
-        source.id = id;
+          let source = attributes[id] || {};
+          source.type = type;
+          source.id = id;
 
-        let unchanged = false;
-        let spans = lineToSpans[from.line];
-        if(spans) {
-          for(let spanIx = 0; spanIx < spans.length; spanIx++) {
-            let span = spans[spanIx];
+          let spans = this.findSpansAt(from, type);
+          let unchanged = false;
+          for(let span of spans) {
             let loc = span.find();
-            if(!loc) continue;
-
-            // If the span is extensionally identical to the new one, update it's id and be on our way.
-            if(samePosition(from, loc.from) && samePosition(to, loc.to) && span.sourceEquals(source)) {
-              unchanged = true;
+            if(loc && samePosition(to, loc.to) && span.sourceEquals(source)) {
               span.source = source;
-              //span.refresh();
-              if(spanIx !== spans.length - 1) {
-                spans[spanIx] = spans.pop();
-              } else {
-                spans.pop();
-              }
+              touchedIds[span.id] = true;
+              unchanged = true;
               break;
             }
           }
-        }
 
-        // If the unpacked item isn't marked unchanged, no existing span represents it, so we add a new one.
-        if(!unchanged) {
-          let span = this.markSpan(from, to, source);
-          addedDebug.push(span);
+          if(!unchanged) {
+            let span = this.markSpan(from, to, source);
+            touchedIds[span.id] = true;
+            addedDebug.push(span);
+          }
         }
       }
 
-      // Any remaining spans were deleted
-      for(let line in lineToSpans) {
-        for(let span of lineToSpans[line]) {
-          // Nobody but the navigator gets to touch elision spans.
-          if(span.type !== "elision") {
-            span.clear();
-            removedDebug.push(span);
-          }
+      for(let type in controlledOffsets) {
+        let offsets = controlledOffsets[type];
+        let spans = this.getAllSpans(type as SpanType);
+        if(offsets.length !== spans.length) {
+          throw new Error(`The runtime may not add, remove, or move editor controlled spans of type '${type}'. Expected ${spans.length} got ${offsets.length}`);
         }
+        spans.sort(compareSpans);
+
+        for(let spanIx = 0; spanIx < spans.length; spanIx++) {
+          let span = spans[spanIx];
+          let offset = offsets[spanIx];
+
+          let id = packed[offset + 3];
+          span.source.id = id;
+        }
+      }
+
+      // Nuke untouched spans
+      for(let span of this.getAllSpans()) {
+        if(spanTypes[span.type] && spanTypes[span.type].isEditorControlled) continue; // If the span is editor controlled, it's not our business.
+        if(touchedIds[span.id]) continue; // If the span was added or updated, leave it be.
+        removedDebug.push(span);
+        span.clear();
       }
     });
 
@@ -1117,6 +1160,16 @@ class Editor {
     let span = new SpanClass(from, to, source);
     span.applyMark(this);
     return span;
+  }
+
+  findHeadingAt(pos:Position):HeadingSpan|undefined {
+    let from = {line: 0, ch: 0};
+    let headings = this.findSpans(from, pos, "heading") as HeadingSpan[];
+    if(!headings.length) return undefined;
+
+    headings.sort(compareSpans);
+    let next = headings[headings.length - 1];
+    return next;
   }
 
   //-------------------------------------------------------
