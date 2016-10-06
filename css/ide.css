@@ -117,6 +117,14 @@ body { background: #f5f5f5; }
 .CodeMirror .INFIX, .CodeMirror .COMPARISON { color: gray; }
 
 /****************************************************************************\
+ * Format Bars
+\****************************************************************************/
+.editor-pane .new-block-btn { width: 20px; height: 20px; background: gray; }
+
+.editor-pane .format-bar { width:  50px; height: 20px; background: gray; }
+
+
+/****************************************************************************\
  * Comments
 \****************************************************************************/
 .comments-pane { background: #2f2f31; }
