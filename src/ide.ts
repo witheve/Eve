@@ -196,8 +196,10 @@ class Navigator {
   toggleElision = (event, {nodeId}) => {
     let node = this.nodes[nodeId];
     if(!node) return;
-    this.doElide(nodeId, !node.hidden);
-    this.walk(nodeId, this._inheritParentElision);
+    this.ide.editor.cm.operation( () => {
+      this.doElide(nodeId, !node.hidden);
+      this.walk(nodeId, this._inheritParentElision);
+    })
     this.ide.render();
     event.stopPropagation();
   }
