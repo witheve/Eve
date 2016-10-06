@@ -11,10 +11,11 @@
 
 
 html, body, __root { height: 100%; }
+body { background: #f5f5f5; }
 /****************************************************************************\
  * Root
 \****************************************************************************/
-.editor-root { display: flex; flex-direction: row; height: 100%; align-items: stretch; }
+.editor-root { display: flex; flex-direction: row; height: 100%; align-items: stretch; background: #2f2f31; }
 
 .navigator-pane { width: 220px; flex: 0 0 auto; overflow-x: hidden;  transition: width 0.3s ease-in-out; }
 .navigator-pane.collapsed { width: 20px; }
@@ -24,8 +25,8 @@ html, body, __root { height: 100%; }
 
 .editor-pane { flex: 1; }
 
-.CodeMirror-sizer > div:first-child { width: 610px; min-height: 100%; }
-.comments-pane { position: absolute; left: 620px; right: 0px; top: 0; bottom: 0; padding-right: 15px; z-index: 2; }
+.CodeMirror-sizer > div:first-child { width: 650px; min-height: 100%; }
+.comments-pane {  position: absolute; left: 620px; right: 0px; top: 0; bottom: 0; padding-right: 15px; z-index: 2; }
 
 .comments-pane.collapse-1 { left: auto; width: 150px; }
 .comments-pane.collapsed,
@@ -61,15 +62,17 @@ html, body, __root { height: 100%; }
 /****************************************************************************\
  * Editor
 \****************************************************************************/
-.editor-pane { background: #202020; }
+.editor-pane {  }
+
+.CodeMirror-lines { padding-top:30px; }
 
 
 .CodeMirror { background:none; color: inherit; height:100%; font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:11pt;  }
 .CodeMirror-scroll, .CodeMirror-gutters { height:100%; }
 .CodeMirror-cursor { background: white; border-color:white; }
 
-.CodeMirror { color: #c4c4c4; line-height:22px; font-family: Avenir; }
-.CodeMirror pre { padding: 0 4px; }
+.CodeMirror { color: #c4c4c4; line-height:25px; font-family: Avenir; }
+.CodeMirror pre { padding-left: 8px; padding-right:50px; }
 .CodeMirror-scroll { scroll-behavior: smooth; }
 .CodeMirror-gutters { background: #303030; border-right: none; padding-right: 5px; }
 .CodeMirror-selected { background: #444; }
@@ -85,9 +88,9 @@ html, body, __root { height: 100%; }
 .CodeMirror .CODE-TOP { border-radius:3px 3px 0 0; padding-top:8px; }
 .CodeMirror .CODE-BOTTOM { border-radius:0 0 3px 3px; padding-bottom:8px; }
 .CodeMirror .DOC { color: #d8d8d8; }
-.CodeMirror .HEADING1 { font-size:16pt;}
-.CodeMirror .HEADING2 { font-size:14pt;}
-.CodeMirror .HEADING3 { font-size:12pt;}
+.CodeMirror .HEADING1 { font-size:30px; padding-top:20px; padding-bottom: 30px;}
+.CodeMirror .HEADING2 { font-size:20px; padding-top:20px; padding-bottom: 10px; font-weight: bold; }
+.CodeMirror .HEADING3 { font-size:16px; padding-top:20px; padding-bottom: 10px; font-weight: bold; }
 .CodeMirror .HEADING4 { font-size:12pt;}
 
 /* Syntax Styles */
@@ -116,7 +119,7 @@ html, body, __root { height: 100%; }
 /****************************************************************************\
  * Comments
 \****************************************************************************/
-.comments-pane { background: #303030; }
+.comments-pane { background: #2f2f31; }
 .comments-pane-inner { position: relative; min-width: 300px; max-width: 500px; height: 100%; }
 .comments-pane .comment { color: #d8d8d8; min-height: 40px; }
 
@@ -159,13 +162,13 @@ html, body, __root { height: 100%; }
 
 .comments-pane.collapse-1 .comment:before,
 .comments-pane.collapse-2 .comment:before,
-.comments-pane.collapsed .comment:before { content: "\f11b"; width: 30px; height: 30px; position: absolute; left: -5px; top: 0; padding: 5px; font-size: 20px; text-align: center; font-family: "Ionicons"; speak: none; text-transform: none; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;}
+.comments-pane.collapsed .comment:before { content: ""; width: 30px; height: 30px; position: absolute; left: -5px; top: 0; padding: 5px; font-size: 20px; text-align: center; speak: none; text-transform: none; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;}
 .comments-pane.collapse-1 .comment.error:before,
 .comments-pane.collapse-2 .comment.error:before,
 .comments-pane.collapsed .comment.error:before { content: "\f100"; color: #F06060; }
 .comments-pane.collapse-1 .comment.warning:before,
 .comments-pane.collapse-2 .comment.warning:before,
-.comments-pane.collapsed .comment.warning:before { content: "\f100"; color: #C0C060; }
+.comments-pane.collapsed .comment.warning:before { content: "\f100"; color: #999; }
 
 
 .CodeMirror .comment-highlight.range { border-bottom: 1px dashed white; }
