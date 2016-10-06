@@ -526,15 +526,11 @@ class HeadingSpan extends LineSpan {
     return {from: loc.from, to: nextLoc.from};
   }
 
-  onBeforeChange() {}
+
   onChange(change:Change) {
-    if(change.origin === "+delete") {
-      let loc = this.find();
-      if(!loc || samePosition(loc.from, change.to)) {
-        this.clear();
-        return;
-      }
-    } else {
+    let loc = this.find();
+    if(change.origin === "+delete" || change.origin === "+normalize") return;
+    if(loc && loc.from.line === change.to.line) {
       this.editor.inHeading = this;
     }
   }
@@ -1526,11 +1522,13 @@ class Editor {
 
       if(!loc) {
         this.inHeading = undefined;
+        this.queueUpdate();
       } else if(cursor.line !== loc.from.line) {
         this.inHeading = undefined;
         let to = doc.posFromIndex(doc.indexFromPos({line: loc.to.line + 1, ch: 0}) - 1);
         let cur = doc.getRange(loc.from, to);
-        doc.replaceRange(cur.trim(), loc.from, to);
+        doc.replaceRange(cur.trim(), loc.from, to, "+normalize");
+        this.queueUpdate();
       }
     }
   }
