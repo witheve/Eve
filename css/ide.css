@@ -67,11 +67,11 @@ body { background: #f5f5f5; }
 .CodeMirror-lines { padding-top:30px; }
 
 
-.CodeMirror { background:none; color: inherit; height:100%; font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:11pt;  }
+.CodeMirror { background:none; color: inherit; height:100%; font-size:11pt;  }
 .CodeMirror-scroll, .CodeMirror-gutters { height:100%; }
 .CodeMirror-cursor { background: white; border-color:white; }
 
-.CodeMirror { color: #c4c4c4; line-height:25px; font-family: Avenir; }
+.CodeMirror { color: #c4c4c4; line-height:25px; font-family: Avenir, "Helvetica Neue", sans-serif; }
 .CodeMirror pre { padding-left: 8px; padding-right:50px; }
 .CodeMirror-scroll { scroll-behavior: smooth; }
 .CodeMirror-gutters { background: #303030; border-right: none; padding-right: 5px; }
@@ -79,12 +79,12 @@ body { background: #f5f5f5; }
 .CodeMirror-focused .CodeMirror-selected { background: #444; }
 .CodeMirror .STRONG { font-weight:bold; }
 .CodeMirror .EMPH { font-style:italic; }
-.CodeMirror .CODE { background: rgba(255,255,255,0.08); background: rgba(0,0,0,0.3); font-family: Inconsolata; margin-left: -5px; margin-right: -5px; }
+.CodeMirror .CODE { background: rgba(255,255,255,0.08); background: rgba(0,0,0,0.3); font-family: "Inconsolata", "Monaco", "Consolas", "Ubuntu Mono", monospace; margin-left: -5px; margin-right: -5px; }
 .CodeMirror .CODE-TEXT { line-height:19px; }
 .CodeMirror span.CODE { padding:2px 4px; border-radius:3px; }
 .CodeMirror .CodeMirror-line.ITEM { padding-left: 20px; }
 .CodeMirror .CodeMirror-line.ITEM:before { content: "-"; padding-right:10px; }
-.CodeMirror .CODE_BLOCK { font-family: Inconsolata; }
+.CodeMirror .CODE_BLOCK { font-family: "Inconsolata", "Monaco", "Consolas", "Ubuntu Mono", monospace; }
 .CodeMirror .CODE-TOP { border-radius:3px 3px 0 0; padding-top:8px; }
 .CodeMirror .CODE-BOTTOM { border-radius:0 0 3px 3px; padding-bottom:8px; }
 .CodeMirror .DOC { color: #d8d8d8; }
