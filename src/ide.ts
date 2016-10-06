@@ -941,12 +941,12 @@ class Editor {
 
   /** New block button element */
   protected _newBlockElem:HTMLElement;
+  /** Format bar element */
+  protected _formatBarElem:HTMLElement;
 
   constructor(public ide:IDE) {
-    // argh this is hacky as hell
-    let tempRenderer = new Renderer();
-    tempRenderer.render([newBlockBar()]);
-    this._newBlockElem = tempRenderer.content.querySelector(".new-block-btn") as HTMLElement;
+    this._newBlockElem = Renderer.compile(newBlockBar()) as HTMLElement;
+    this._formatBarElem = Renderer.compile(formatBar()) as HTMLElement;
 
     this.cm = CodeMirror(() => undefined, this.defaults);
     this.cm.editor = this;
@@ -1588,6 +1588,12 @@ class Editor {
       this._newBlockElem.parentNode.removeChild(this._newBlockElem);
     }
 
+    // Otherwise if there's a selection, show the format bar.
+    if(!codeBlocks.length && doc.somethingSelected()) {
+      this.cm.addWidget(doc.getCursor("from"), this._formatBarElem, true);
+    } else if(this._formatBarElem.parentNode) {
+      this._formatBarElem.parentNode.removeChild(this._formatBarElem);
+    }
   }
 
   // Elements
@@ -1924,7 +1930,7 @@ class Comments {
  */
 
 function formatBar():Elem {
-  return {};
+  return {id: "format-bar", c: "format-bar"};
 }
 
 //---------------------------------------------------------
@@ -1937,7 +1943,7 @@ function formatBar():Elem {
  */
 
 function newBlockBar():Elem {
-  return {c: "new-block-btn"};
+  return {id: "new-block-btn", c: "new-block-btn"};
 }
 
 //---------------------------------------------------------

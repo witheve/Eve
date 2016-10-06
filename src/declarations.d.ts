@@ -107,6 +107,8 @@ declare module "microReact" {
   }
 
   class Renderer {
+    static compile(elem:Element):HTMLElement;
+
     content:HTMLElement;
     render(elems:Element[]);
   }
