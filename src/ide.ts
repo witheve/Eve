@@ -939,7 +939,15 @@ class Editor {
   /** Undo history state */
   history:{position:number, transitioning:boolean, items: HistoryItem[]} = {position: 0, items: [], transitioning: false};
 
+  /** New block button element */
+  protected _newBlockElem:HTMLElement;
+
   constructor(public ide:IDE) {
+    // argh this is hacky as hell
+    let tempRenderer = new Renderer();
+    tempRenderer.render([newBlockBar()]);
+    this._newBlockElem = tempRenderer.content.querySelector(".new-block-btn") as HTMLElement;
+
     this.cm = CodeMirror(() => undefined, this.defaults);
     this.cm.editor = this;
     this.cm.on("beforeChange", (editor, rawChange) => this.onBeforeChange(rawChange));
@@ -1543,15 +1551,18 @@ class Editor {
   }
 
   onCursorActivity = () => {
+    let doc = this.cm.getDoc();
+    let cursor = doc.getCursor();
+
     if(!this.changing) {
       this.finalizeLastHistoryEntry();
     }
     // Remove any formatting that may have been applied
     this.formatting = {};
 
+    // If we were in a heading and no longer are, normalize the heading and release the lock
+    // on syncing with the server.
     if(this.inHeading) {
-      let doc = this.cm.getDoc();
-      let cursor = doc.getCursor();
       let heading = this.inHeading;
       let loc = heading.find();
 
@@ -1566,6 +1577,17 @@ class Editor {
         this.queueUpdate();
       }
     }
+
+    // If we're outside of a codeblock, display our rich text controls.
+    let codeBlocks = this.findSpansAt(cursor, "code_block");
+
+    //If the cursor is at the beginning of a new line, display the new block button.
+    if(!codeBlocks.length && cursor.ch === 0 && doc.getLine(cursor.line) === "") {
+      this.cm.addWidget(cursor, this._newBlockElem, false);
+    } else if(this._newBlockElem.parentNode) {
+      this._newBlockElem.parentNode.removeChild(this._newBlockElem);
+    }
+
   }
 
   // Elements
@@ -1915,7 +1937,7 @@ function formatBar():Elem {
  */
 
 function newBlockBar():Elem {
-  return {};
+  return {c: "new-block-btn"};
 }
 
 //---------------------------------------------------------
