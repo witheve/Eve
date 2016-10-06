@@ -79,13 +79,38 @@ class Navigator {
     }
   }
 
-  loadDocument(id:string, name:string, editor:Editor, parentId:string = this.rootId) {
+
+  loadWorkspace(id:string, name:string, files:{[filename:string]: string}, parentId = this.rootId) {
+    let root:TreeNode = this.nodes[id] = {id, name, type: "folder"};
+
+    let parent = root;
+    for(let curId in files) {
+      let node:TreeNode = {id: curId, name: curId, type: "document"};
+      this.nodes[curId] = node;
+      if(!parent.children) parent.children = [curId];
+      else parent.children.push(curId);
+    }
+
+    if(id !== this.rootId) {
+      parent = this.nodes[parentId];
+      if(!parent) throw new Error(`Unable to load document into non-existent folder ${parentId}`);
+      if(!parent.children) parent.children = [];
+      if(parent.children.indexOf(id) === -1) {
+        parent.children.push(id);
+      }
+    }
+  }
+
+  loadDocument(id:string, name:string) {
+    let editor = this.ide.editor;
     let doc = editor.cm.getDoc();
     let headings = editor.getAllSpans("heading") as HeadingSpan[];
     headings.sort(compareSpans);
 
-    let old = this.nodes[id];
-    let root:TreeNode = {id, name, type: "document", level: 0, open: old ? old.open : true, hidden: old ? old.hidden : false, elisionSpan: old ? old.elisionSpan : undefined};
+    let root:TreeNode = this.nodes[id];
+    if(!root) throw new Error("Cannot load non-existent document.");
+    root.open = true;
+    root.children = undefined;
 
     let stack:TreeNode[] = [root];
     for(let heading of headings) {
@@ -105,16 +130,11 @@ class Navigator {
     }
 
     this.nodes[id] = root;
-    let parent = this.nodes[parentId];
-    if(parent) {
-      if(!parent.children) parent.children = [];
-      if(parent.children.indexOf(id) === -1) {
-        parent.children.push(id);
-      }
-    }
   }
 
   updateNode(span:HeadingSpan) {
+    if(this.currentType() !== "document") return;
+
     let nodeId = span.id;
     let node = this.nodes[nodeId];
 
@@ -167,6 +187,10 @@ class Navigator {
 
   navigate = (event, elem:{nodeId:string}) => {
     this.currentId = elem.nodeId || this.rootId;
+    let node = this.nodes[elem.nodeId];
+    if(node && node.type === "document") {
+      this.ide.loadFile(elem.nodeId);
+    }
     this.ide.render();
   }
 
@@ -342,7 +366,7 @@ class Span {
   protected static _nextId = 0;
   isLine = false;
 
-  id: string = `${this.type}${Span._nextId++}`;
+  id: string;
   editor: Editor;
   marker?: SpanMarker;
 
@@ -350,6 +374,7 @@ class Span {
   type:SpanType = "default";
 
   constructor(protected _from:Position, protected _to:Position, public source:SpanSource) {
+    this.id = `${this.source.type || "span"}${Span._nextId++}`;
     this._attributes.className = source.type;
   }
 
@@ -893,8 +918,6 @@ class Editor {
 
   cm:CMEditor;
 
-  /** The id of the document currently being edited. */
-  documentId?:string;
   /** The current editor generation. Used for imposing a relative ordering on parses. */
   generation = 0;
   /** Whether the editor is being externally updated with new content. */
@@ -923,6 +946,19 @@ class Editor {
     this.cm.on("change", (editor, rawChange) => this.onChange(rawChange));
     this.cm.on("changes", (editor, rawChanges) => this.onChanges(rawChanges));
     this.cm.on("cursorActivity", this.onCursorActivity);
+  }
+
+  reset() {
+    this.history.position = 0;
+    this.history.items = [];
+    this.history.transitioning = true;
+    this.reloading = true;
+    this.cm.setValue("");
+    for(let span of this.getAllSpans()) {
+      span.clear();
+    }
+    this.reloading = false;
+    this.history.transitioning = false;
   }
 
   // This is a new document and we need to rebuild it from scratch.
@@ -956,7 +992,6 @@ class Editor {
     });
     this.reloading = false;
     this.history.transitioning = false;
-    this.documentId = id;
     //console.log(this.toMarkdown())
   }
 
@@ -1919,6 +1954,13 @@ var fakeComments:CommentMap = {
 };
 
 export class IDE {
+  protected _fileCache:{[fileId:string]: string} = {};
+
+  /** The id of the active document. */
+  documentId?:string;
+  /** Whether the active document has been loaded. */
+  loaded:boolean = false;
+
   renderer:Renderer = new Renderer();
 
   navigator:Navigator = new Navigator(this);
@@ -1953,16 +1995,32 @@ export class IDE {
     if(this.onChange) this.onChange(this);
   }, 1, true);
 
-  loadDocument(id:string, text:string, packed:any[], attributes:{[id:string]: any|undefined}) {
-    if(id === this.editor.documentId) {
+  loadFile(docId:string) {
+    if(this.documentId === docId) return;
+    let code = this._fileCache[docId];
+    if(!code) throw new Error(`Unable to load uncached file: '${docId}'`);
+    this.loaded = false;
+    this.documentId = docId;
+    this.editor.reset();
+    this.onLoadFile(this, docId, code);
+  }
+
+  loadWorkspace(directory:string, files:{[filename:string]: string}) {
+    this._fileCache = files;
+    this.navigator.loadWorkspace("root", directory, files);
+  }
+
+  loadDocument(generation:number, text:string, packed:any[], attributes:{[id:string]: any|undefined}) {
+    if(this.loaded) {
       this.editor.updateDocument(packed, attributes);
     } else {
-      this.editor.loadDocument(id, text, packed, attributes);
+      this.editor.loadDocument(this.documentId, text, packed, attributes);
+      this.loaded = true;
     }
 
-    let name = "todomvc.eve"; // @FIXME
-    this.navigator.loadDocument(id, name, this.editor);
-    this.navigator.currentId = id;
+    let name = this.documentId; // @FIXME
+    this.navigator.loadDocument(this.documentId, name);
+    this.navigator.currentId = this.documentId;
 
     this.render();
   }
@@ -1973,4 +2031,5 @@ export class IDE {
 
   onChange?:(self:IDE) => void
   onEval?:(self:IDE, persist?: boolean) => void
+  onLoadFile?:(self:IDE, documentId:string, code:string) => void
 }

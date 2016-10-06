@@ -190,8 +190,7 @@ socket.onmessage = function(msg) {
     }
     browser.init(data.code);
   } else if(data.type == "parse") {
-    console.log("Got parse!", data);
-    _ide.loadDocument("<fake id>", data.text, data.spans, data.extraInfo);
+    _ide.loadDocument(9001, data.text, data.spans, data.extraInfo); // @FIXME
   } else if(data.type == "error") {
     console.error(data.message, data);
   }
@@ -297,11 +296,13 @@ window.addEventListener("hashchange", onHashChange);
 // Initialize an IDE
 //---------------------------------------------------------
 let _ide = new IDE();
+_ide.documentId = location.pathname.split("/").pop();
 _ide.render();
+_ide.loadWorkspace("examples", window["examples"]);
 console.log(_ide);
 _ide.onChange = (ide:IDE) => {
   let md = ide.editor.toMarkdown();
-  //console.log(md);
+  //console.info(md);
   if(socket && socket.readyState == 1) {
     socket.send(JSON.stringify({scope: "root", type: "parse", code: md}))
   }
@@ -310,4 +311,11 @@ _ide.onEval = (ide:IDE, persist) => {
   if(socket && socket.readyState == 1) {
     socket.send(JSON.stringify({type: "eval", persist}));
   }
+}
+_ide.onLoadFile = (ide, documentId, code) => {
+  if(socket && socket.readyState == 1) {
+    socket.send(JSON.stringify({scope: "root", type: "parse", code}))
+    socket.send(JSON.stringify({type: "eval", persist: false}));
+  }
+  history.replaceState({}, "", `/examples/${documentId}`);
 }
