@@ -461,7 +461,7 @@ class LineSpan extends Span {
       this.clear();
     }
     // If we're adding a newline with nothing on the current line, we're really removing the formatting of the current line.
-    let isEmpty = doc.getLine(change.from.line).trim() === "";
+    let isEmpty = doc.getLine(change.from.line) === "";
     if(change.origin === "+input" && change.isNewlineChange() && isEmpty) {
       this.clear();
       change.cancel();
@@ -532,7 +532,10 @@ class HeadingSpan extends LineSpan {
       let loc = this.find();
       if(!loc || samePosition(loc.from, change.to)) {
         this.clear();
+        return;
       }
+    } else {
+      this.editor.inHeading = this;
     }
   }
 }
@@ -619,6 +622,12 @@ class ElisionSpan extends LineSpan {
   }
 }
 
+class CodeSpan extends Span {
+  static isEditorControlled = true;
+  type:SpanType = "code";
+}
+
+
 class StrongSpan extends Span {
   static isEditorControlled = true;
   type:SpanType = "strong";
@@ -641,6 +650,7 @@ var spanTypes:{[type:string]: (typeof Span)} = {
   elision: ElisionSpan,
   strong: StrongSpan,
   emph: EmphasisSpan,
+  code: CodeSpan,
   "default": Span
 }
 
@@ -897,6 +907,11 @@ class Editor {
   /** Formatting state for the editor at the cursor. */
   formatting:{[formatType:string]: FormatAction} = {};
 
+  // @NOTE: Workaround for Commonmark trimming headers causing desynchronization
+  // We hold off on updates until the user leaves the heading and we can renormalize
+  /** Whether the cursor is currently on a heading */
+  inHeading?:HeadingSpan;
+
   /** Whether the editor is currently processing CM change events */
   changing = false;
   /** Cache of the spans affected by the current set of changes */
@@ -962,8 +977,7 @@ class Editor {
 
       // Find all runtime-controlled spans (e.g. syntax highlighting, errors) that are unchanged and mark them as such.
       // Unmarked spans will be swept afterwards.
-      // Set editor-controlled spans aside. We'll match them up to maintain id stability afterwards.
-
+      // Set editor-controlled spans aside. We'll match them up to maintain id stability afterwards
       let controlledOffsets = {};
       let touchedIds = {};
       for(let i = 0; i < packed.length; i += 4) {
@@ -1111,7 +1125,7 @@ class Editor {
   }
 
   queueUpdate  = () => {
-    if(!this.reloading) this.ide.queueUpdate();
+    if(!this.reloading && !this.inHeading) this.ide.queueUpdate();
   }
 
   //-------------------------------------------------------
@@ -1503,6 +1517,22 @@ class Editor {
     }
     // Remove any formatting that may have been applied
     this.formatting = {};
+
+    if(this.inHeading) {
+      let doc = this.cm.getDoc();
+      let cursor = doc.getCursor();
+      let heading = this.inHeading;
+      let loc = heading.find();
+
+      if(!loc) {
+        this.inHeading = undefined;
+      } else if(cursor.line !== loc.from.line) {
+        this.inHeading = undefined;
+        let to = doc.posFromIndex(doc.indexFromPos({line: loc.to.line + 1, ch: 0}) - 1);
+        let cur = doc.getRange(loc.from, to);
+        doc.replaceRange(cur.trim(), loc.from, to);
+      }
+    }
   }
 
   // Elements
