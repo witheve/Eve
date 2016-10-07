@@ -50,6 +50,7 @@ void http_register_service(http_server, http_service, string);
 // this has no backpressure
 typedef closure(json_handler, bag, uuid);
 reader parse_json(heap h, json_handler j);
+void print_buffer_json(buffer out, buffer current);
 void print_value_json(buffer out, value v);
 
 reader response_header_parser(heap, http_handler);

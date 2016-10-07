@@ -11,6 +11,21 @@ typedef parser (*completion)(json_parser);
      (__p->number = __p->number * __base + (__c - __start + __offset), true):false)
 
 
+void print_buffer_json(buffer out, buffer current)
+{
+    buffer_write_byte(out , '"');
+    string_foreach(current, ch) {
+        if(ch == '\\' || ch == '"') {
+            bprintf(out , "\\");
+        } else if(ch == '\n') {
+            bprintf(out , "\\n");
+            continue;
+        }
+        buffer_write_byte(out , ch);
+    }
+    buffer_write_byte(out , '"');
+}
+
 void print_value_json(buffer out, value v)
 {
     switch(type_of(v)) {
@@ -24,17 +39,7 @@ void print_value_json(buffer out, value v)
         {
             estring si = v;
             buffer current = alloca_wrap_buffer(si->body, si->length);
-            buffer_write_byte(out , '"');
-            string_foreach(current, ch) {
-                if(ch == '\\' || ch == '"') {
-                    bprintf(out , "\\");
-                } else if(ch == '\n') {
-                    bprintf(out , "\\n");
-                    continue;
-                }
-                buffer_write_byte(out , ch);
-            }
-            buffer_write_byte(out , '"');
+            print_buffer_json(out, current);
         }
         break;
     default:
