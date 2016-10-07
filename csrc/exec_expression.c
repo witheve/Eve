@@ -265,6 +265,9 @@ BUILD_UNARY_VALUE(build_ceil, do_ceil)
 DO_UNARY_NUMERIC(do_round, round)
 BUILD_UNARY_VALUE(build_round, do_round)
 
+DO_UNARY_NUMERIC(do_sqrt, sqrt)
+BUILD_UNARY_VALUE(build_sqrt, do_sqrt)
+
 DO_BINARY_NUMERIC(do_plus, +)
 BUILD_BINARY(build_plus, do_plus)
 
