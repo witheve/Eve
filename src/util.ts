@@ -1,7 +1,7 @@
 import {v4 as rawuuid} from "uuid";
 
 //---------------------------------------------------------
-// Utilities
+// Misc. Utilities
 //---------------------------------------------------------
 export function clone<T>(obj:T):T {
   if(typeof obj !== "object") return obj;
@@ -80,4 +80,33 @@ export function unpad(str:string):string {
     multi = true;
   }
   return neue;
+}
+
+//---------------------------------------------------------
+// CodeMirror utilities
+//---------------------------------------------------------
+
+
+export type Range = CodeMirror.Range;
+export type Position = CodeMirror.Position;
+
+export function isRange(loc:any): loc is Range {
+  return loc.from !== undefined || loc.to !== undefined;
+}
+
+export function comparePositions(a:Position, b:Position) {
+  if(a.line === b.line && a.ch === b.ch) return 0;
+  if(a.line > b.line) return 1;
+  if(a.line === b.line && a.ch > b.ch) return 1;
+  return -1;
+}
+
+export function samePosition(a:Position, b:Position) {
+  return comparePositions(a, b) === 0;
+}
+
+export function whollyEnclosed(inner:Range, outer:Range) {
+  let left = comparePositions(inner.from, outer.from);
+  let right = comparePositions(inner.to, outer.to);
+  return (left === 1 || left === 0) && (right === -1 || right === 0);
 }

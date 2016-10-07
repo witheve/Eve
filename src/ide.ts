@@ -1,31 +1,8 @@
 import {Renderer, Element as Elem, RenderHandler} from "microReact";
 import {Parser as MDParser} from "commonmark";
 import * as CodeMirror from "codemirror";
-import {debounce, uuid, unpad} from "./util";
+import {debounce, uuid, unpad, Range, Position, isRange, comparePositions, samePosition, whollyEnclosed} from "./util";
 
-type Range = CodeMirror.Range;
-type Position = CodeMirror.Position;
-
-function isRange(loc:any): loc is Range {
-  return loc.from !== undefined || loc.to !== undefined;
-}
-
-function comparePositions(a:Position, b:Position) {
-  if(a.line === b.line && a.ch === b.ch) return 0;
-  if(a.line > b.line) return 1;
-  if(a.line === b.line && a.ch > b.ch) return 1;
-  return -1;
-}
-
-function samePosition(a:Position, b:Position) {
-  return comparePositions(a, b) === 0;
-}
-
-function whollyEnclosed(inner:Range, outer:Range) {
-  let left = comparePositions(inner.from, outer.from);
-  let right = comparePositions(inner.to, outer.to);
-  return (left === 1 || left === 0) && (right === -1 || right === 0);
-}
 
 //---------------------------------------------------------
 // Navigator
@@ -430,7 +407,7 @@ class Span {
   }
 
   // Handlers
-  refresh(change:Change) {}
+  refresh() {}
   onBeforeChange(change:ChangeCancellable) {}
 
   // Every span that doesn't have its own onChange logic wants to do this...
@@ -456,21 +433,15 @@ class LineSpan extends Span {
 
   applyMark(editor:Editor) {
     super.applyMark(editor);
-
-    let cm = this.editor.cm;
-    let end = this._to.line + ((this._from.line === this._to.line) ? 1 : 0);
-    for(let line = this._from.line; line < end; line++) {
-      if(this.lineBackgroundClass) cm.addLineClass(line, "background", this.lineBackgroundClass);
-      if(this.lineTextClass) cm.addLineClass(line, "text", this.lineTextClass);
-    }
+    this.refresh();
   }
 
   clear(origin?:string) {
-    super.clear(origin);
-
     let cm = this.editor.cm;
-    let loc = this.find()
+    let loc = this.find();
+    super.clear(origin);
     if(!loc) return;
+
     let end = loc.to.line + ((loc.from.line === loc.to.line) ? 1 : 0);
     for(let line = loc.from.line; line < end; line++) {
       if(this.lineBackgroundClass) cm.removeLineClass(line, "background", this.lineBackgroundClass);
@@ -486,10 +457,9 @@ class LineSpan extends Span {
     // If we're deleting at the start of a line-formatted line, we need to remove the line formatting too.
     if(change.origin === "+delete") {
       this.clear();
-    }
-    // If we're adding a newline with nothing on the current line, we're really removing the formatting of the current line.
-    let isEmpty = doc.getLine(change.from.line) === "";
-    if(change.origin === "+input" && change.isNewlineChange() && isEmpty) {
+
+    } else if(change.origin === "+input" && change.isNewlineChange() && doc.getLine(change.from.line) === "") {
+      // If we're adding a newline with nothing on the current line, we're really removing the formatting of the current line.
       this.clear();
       change.cancel();
     }
@@ -497,18 +467,34 @@ class LineSpan extends Span {
 
   onChange(change:Change) {
     let loc = this.find();
-    if(!loc) return;
-    // If the change starts exclusively outside of the list, ignore it.
-    //if(loc.from.line > change.from.line || loc.to.line < change.from.line) return;
-    if(!samePosition(loc.from, change.from)) return;
+    if(!loc || !samePosition(loc.from, change.from)) return;
 
     // If we're adding a newline at the end of a list item, we're adding a new list item on the next line.
     if(change.isNewlineChange()) {
       let nextLine = {line: change.from.line + 1, ch: 0};
+      //this.clear();
       this.editor.markSpan(nextLine, nextLine, this.source);
     }
   }
+
+  refresh() {
+    let loc = this.find();
+    if(!loc) return this.clear();
+
+    let cm = this.editor.cm;
+    let end = loc.to.line + ((loc.from.line === loc.to.line) ? 1 : 0);
+    for(let line = loc.from.line; line < end; line++) {
+      let info = cm.lineInfo(line);
+      if(this.lineBackgroundClass && (!info || !info.bgClass || info.bgClass.indexOf(this.lineBackgroundClass) === -1)) {
+        cm.addLineClass(line, "background", this.lineBackgroundClass);
+      }
+      if(this.lineTextClass && (!info || !info.textClass || info.textClass.indexOf(this.lineTextClass) === -1)) {
+        cm.addLineClass(line, "text", this.lineTextClass);
+      }
+    }
+  }
 }
+
 function isLineSpan(span:Span): span is LineSpan {
   return span.isLine;
 }
@@ -560,6 +546,11 @@ class HeadingSpan extends LineSpan {
     if(loc && loc.from.line === change.to.line) {
       this.editor.inHeading = this;
     }
+  }
+
+  refresh() {
+    super.refresh();
+    this.editor.ide.navigator.updateNode(this);
   }
 }
 
@@ -616,10 +607,10 @@ class CodeBlockSpan extends LineSpan {
       this.editor.markSpan(loc.from, {line: change.from.line + 1, ch: 0}, this.source);
     }
 
-    this.refresh(change);
+    this.refresh();
   }
 
-  refresh(change:Change) {
+  refresh() {
     let loc = this.find();
     if(!loc) return;
     let cm = this.editor.cm;
@@ -749,7 +740,7 @@ function parseMarkdown(input:string):{text: string, spans: MDSpan[]} {
   return {text: text.join(""), spans};
 }
 
-class Change implements CodeMirror.EditorChange {
+export class Change implements CodeMirror.EditorChange {
   type:string = "range";
 
   constructor(protected _raw:CodeMirror.EditorChange) {}
@@ -803,7 +794,7 @@ function isRangeChange(x:Change|SpanChange): x is Change {
 }
 
 
-class ChangeCancellable extends Change {
+export class ChangeCancellable extends Change {
   constructor(protected _raw:CodeMirror.EditorChangeCancellable) {
     super(_raw);
   }
@@ -899,7 +890,7 @@ interface HistoryItem { finalized?: boolean, changes:(Change|SpanChange)[] }
 interface CMEditor extends CodeMirror.Editor {
   editor?:Editor
 }
-class Editor {
+export class Editor {
   defaults:CodeMirror.EditorConfiguration = {
     tabSize: 2,
     lineWrapping: true,
@@ -1491,7 +1482,7 @@ class Editor {
       let pos = CodeMirror.Pos(lastLine + 1, 0);
       if(doc.getLine(lastLine) !== "") {
         let cursor = doc.getCursor();
-        doc.replaceRange("\n", pos, pos, "+ghostLine");
+        doc.replaceRange("\n", pos, pos, "+normalize");
         doc.setCursor(cursor);
       }
     });
@@ -1501,12 +1492,7 @@ class Editor {
     if(change.origin === "+mdredo" || change.origin === "+mdundo") {
       for(let span of spans) {
         if(!span.refresh) continue;
-
-        let cur:ChangeLinkedList|undefined = change;
-        while(cur) {
-          span.refresh(cur);
-          cur = cur.next();
-        }
+        span.refresh();
       }
       return;
     }
@@ -1534,7 +1520,7 @@ class Editor {
       }
     }
 
-    if(change.origin !== "+ghostLine") {
+    if(change.origin !== "+normalize") {
       for(let format in this.formatting) {
         let action = this.formatting[format];
         if(action === "add") {
