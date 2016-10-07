@@ -302,7 +302,7 @@ _ide.loadWorkspace("examples", window["examples"]);
 console.log(_ide);
 _ide.onChange = (ide:IDE) => {
   let md = ide.editor.toMarkdown();
-  //console.info(md);
+  console.info(md);
   if(socket && socket.readyState == 1) {
     socket.send(JSON.stringify({scope: "root", type: "parse", code: md}))
   }
