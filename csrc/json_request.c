@@ -98,7 +98,8 @@ static void dump_display(buffer dest, node source)
     table_foreach(source->display, k, v) {
         // @FIXME: Correctly print variadic arguments
         if(k != sym(variadic)) {
-            bprintf(dest, "%s%v: \"%b\"", !first?", ":"", k, v);
+            bprintf(dest, "%s%v: ", !first?", ":"", k);
+            print_buffer_json(dest, v);
             first = false;
         }
     }
