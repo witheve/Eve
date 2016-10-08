@@ -82,6 +82,33 @@ export function unpad(str:string):string {
   return neue;
 }
 
+var _wordChars = {};
+function setupWordChars(_wordChars) {
+  for(let i = "0".charCodeAt(0); i < "9".charCodeAt(0); i++)
+    _wordChars[String.fromCharCode(i)] = true;
+  for(let i = "a".charCodeAt(0); i < "z".charCodeAt(0); i++)
+    _wordChars[String.fromCharCode(i)] = true;
+  for(let i = "A".charCodeAt(0); i < "Z".charCodeAt(0); i++)
+    _wordChars[String.fromCharCode(i)] = true;
+}
+setupWordChars(_wordChars);
+
+export function expandToWordBoundary(ch:number, line:string, direction:"left"|"right"):number {
+  if(direction === "left") {
+    while(ch > 0) {
+      // We check the next character since the start of a range is inclusive.
+      if(!_wordChars[line[ch - 1]]) break;
+      ch--;
+    }
+  } else {
+    while(ch < line.length) {
+      if(!_wordChars[line[ch]]) break;
+      ch++;
+    }
+  }
+  return ch;
+}
+
 //---------------------------------------------------------
 // CodeMirror utilities
 //---------------------------------------------------------
