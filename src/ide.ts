@@ -1,7 +1,7 @@
 import {Renderer, Element as Elem, RenderHandler} from "microReact";
 import {Parser as MDParser} from "commonmark";
 import * as CodeMirror from "codemirror";
-import {debounce, uuid, unpad, Range, Position, isRange, comparePositions, samePosition, whollyEnclosed} from "./util";
+import {debounce, uuid, unpad, Range, Position, isRange, comparePositions, samePosition, whollyEnclosed, expandToWordBoundary} from "./util";
 
 import {Span, SpanMarker, isSpanMarker, isEditorControlled, spanTypes, compareSpans, HeadingSpan} from "./ide/spans";
 
@@ -552,32 +552,27 @@ export class Editor {
       "Cmd-I": () => this.format({type: "emph"}),
       "Cmd-Y": () => this.format({type: "code"}),
       "Cmd-K": () => this.format({type: "code_block"}),
-      "Cmd-1": () => this.formatLine({type: "heading", level: 1}),
-      "Cmd-2": () => this.formatLine({type: "heading", level: 2}),
-      "Cmd-3": () => this.formatLine({type: "heading", level: 3}),
-      "Cmd-L": () => this.formatLine({type: "item"})
+      "Cmd-1": () => this.format({type: "heading", level: 1}),
+      "Cmd-2": () => this.format({type: "heading", level: 2}),
+      "Cmd-3": () => this.format({type: "heading", level: 3}),
+      "Cmd-L": () => this.format({type: "item"})
     })
   };
 
   cm:CMEditor;
 
-  /** The current editor generation. Used for imposing a relative ordering on parses. */
-  generation = 0;
   /** Whether the editor is being externally updated with new content. */
   reloading = false;
 
   /** Formatting state for the editor at the cursor. */
   formatting:{[formatType:string]: FormatAction} = {};
 
-  // @NOTE: Workaround for Commonmark trimming headers causing desynchronization
-  // We hold off on updates until the user leaves the heading and we can renormalize
-  /** Whether the cursor is currently on a heading */
-  inHeading?:HeadingSpan;
-
   /** Whether the editor is currently processing CM change events */
   changing = false;
   /** Cache of the spans affected by the current set of changes */
   changingSpans?:Span[];
+  /** Cache of spans currently in a denormalized state. So long as this is non-empty, the editor may not sync with the language service. */
+  denormalizedSpans:Span[] = [];
 
   /** Undo history state */
   history:{position:number, transitioning:boolean, items: HistoryItem[]} = {position: 0, items: [], transitioning: false};
@@ -772,7 +767,7 @@ export class Editor {
         }
         pieces.push(" ");
       } else if(type === "emph") {
-        pieces.push("_");
+        pieces.push("*");
       } else if(type == "strong") {
         pieces.push("**");
       } else if(type == "code") {
@@ -810,9 +805,9 @@ export class Editor {
     this.cm.refresh();
   }
 
-  queueUpdate  = () => {
-    if(!this.reloading && !this.inHeading) this.ide.queueUpdate();
-  }
+  queueUpdate = debounce(() => {
+    if(!this.reloading && this.denormalizedSpans.length === 0) this.ide.queueUpdate();
+  }, 0);
 
   //-------------------------------------------------------
   // Spans
@@ -876,11 +871,12 @@ export class Editor {
   //-------------------------------------------------------
 
   /** Create a new span representing the given source, collapsing and splitting existing spans as required to maintain invariants. */
-  formatSpan(from:Position, to:Position, source:any) {
+  formatSpan(from:Position, to:Position, source:any):Span[] {
     console.log("FMT", source.type, from, to);
     let selection = {from, to};
     let spans = this.findSpans(from, to, source.type);
     let formatted = false;
+    let neue:Span[] = [];
     for(let span of spans) {
       let loc = span.find();
       if(!loc) continue;
@@ -896,46 +892,77 @@ export class Editor {
 
         // If the formatted range is wholly enclosed in a span of the same type, split the span around it.
       } else if(whollyEnclosed(selection, loc)) {
-        this.markSpan(loc.from, from, source);
-        this.markSpan(to, loc.to, source);
+        if(!samePosition(loc.from, from)) neue.push(this.markSpan(loc.from, from, source));
+        if(!samePosition(to, loc.to)) neue.push(this.markSpan(to, loc.to, source));
         span.clear();
         formatted = true;
 
         // If the formatted range intersects the end of a span of the same type, clear the intersection.
       } else if(comparePositions(loc.to, from) > 0) {
-        this.markSpan(loc.from, from, source);
+        neue.push(this.markSpan(loc.from, from, source));
         span.clear();
 
         // If the formatted range intersects the start of a span of the same type, clear the intersection.
       } else if(comparePositions(loc.from, to) < 0) {
-        this.markSpan(to, loc.to, source);
+        neue.push(this.markSpan(to, loc.to, source));
         span.clear();
       }
     }
 
     // If we haven't already formatted by removing existing span(s) then we should create a new span
     if(!formatted) {
-      this.markSpan(from, to, source);
+      neue.push(this.markSpan(from, to, source));
     }
+
+    for(let span of neue) {
+      if(span.isDenormalized && span.isDenormalized()) {
+        console.log("- denormalized", span);
+        this.denormalizedSpans.push(span);
+      }
+    }
+
+    return neue;
   }
 
-  format(source:{type:FormatType}) {
+  format(source:{type:string, level?: number, listData?: {type:"ordered"|"unordered", start?: number}}) {
+    let SpanClass:(typeof Span) = spanTypes[source.type] || spanTypes["default"];
+
+    let style = SpanClass.style();
+    if(style === "inline") {
+      this.formatInline(source);
+
+    } else if(style === "line") {
+      this.formatLine(source);
+
+    } else if(style === "block") {
+      this.formatBlock(source);
+    }
+    this.queueUpdate();
+  }
+
+  formatInline(source:{type:string}) {
     this.finalizeLastHistoryEntry();
     let doc = this.cm.getDoc();
     this.cm.operation(() => {
-      // If we have a selection, format it.
-      if(doc.somethingSelected()) {
-        this.formatSpan(doc.getCursor("from"), doc.getCursor("to"), source)
+      let from = doc.getCursor("from");
+      from = {line: from.line, ch: expandToWordBoundary(from.ch, doc.getLine(from.line), "left")};
+
+      // If we have a selection, format it, expanded to the nearest word boundaries.
+      // Or, if we're currently in a word, format the word.
+      if(doc.somethingSelected() || from.ch !== doc.getCursor("from").ch) {
+        let to = doc.getCursor("to");
+        to = {line: to.line, ch: expandToWordBoundary(to.ch, doc.getLine(to.line), "right")};
+
+        this.formatSpan(from, to, source)
 
         // Otherwise we want to change our current formatting state.
       } else {
         let action:FormatAction = "add"; // By default, we just want our following changes to be bold
         let cursor = doc.getCursor("from");
+
         let spans = this.findSpansAt(cursor);
-        console.log("FMT", source.type);
         for(let span of spans) {
           if(!span.isInline()) continue;
-          console.log("- ", span);
           let loc = span.find();
           if(!loc) continue;
           // If we're at the end of a bold span, we want to stop bolding.
@@ -944,7 +971,6 @@ export class Editor {
           if(samePosition(loc.from, cursor)) action = "add";
           // Otherwise we're somewhere in the middle, and want to insert some unbolded text.
           else action = "split";
-          console.log("  ", action);
         }
         this.formatting[source.type] = action;
       }
@@ -952,7 +978,7 @@ export class Editor {
     });
   }
 
-  formatLine(source:{type:FormatLineType, level?:number}) {
+  formatLine(source:{type:string, level?:number, listData?: {type:"ordered"|"unordered", start?: number}}) {
     this.finalizeLastHistoryEntry();
     let doc = this.cm.getDoc();
     this.cm.operation(() => {
@@ -967,7 +993,7 @@ export class Editor {
         // Line formats are exclusive, so we clear intersecting line spans of other types.
         let spans = this.findSpansAt(cur);
         for(let span of spans) {
-          if(span.isLine() && span.source.type !== source.type) {
+          if(span.isLine() || span.isBlock() && span.source.type !== source.type) {
             span.clear();
           }
         }
@@ -992,6 +1018,49 @@ export class Editor {
 
       this.finalizeLastHistoryEntry();
       this.refresh();
+    });
+  }
+
+  formatBlock(source:{type:string}) {
+    this.finalizeLastHistoryEntry();
+    let doc = this.cm.getDoc();
+    this.cm.operation(() => {
+      let from = {line: doc.getCursor("from").line, ch: 0};
+      let to = {line: doc.getCursor("to").line, ch: 0};
+
+      if(to.line === from.line) {
+        to.line += 1;
+      }
+
+      // Determine if this exact span already exists.
+      let exists:Span|undefined;
+      let existing = this.findSpansAt(from, source.type);
+      for(let span of existing) {
+        let loc = span.find();
+        if(!loc) continue;
+        if(samePosition(loc.to, to)) {
+          exists = span;
+          break;
+        }
+      }
+
+      // If the span already exists, we mean to clear it.
+      if(exists) {
+        exists.clear();
+
+        // We're creating a new span.
+      } else {
+
+        // Block formats are exclusive, so we clear intersecting spans of other types.
+        let spans = this.findSpans(from, to);
+        for(let span of spans) {
+          if(span.isEditorControlled()) {
+            span.clear();
+          }
+        }
+
+        this.formatSpan(from, to, source);
+      }
     });
   }
 
@@ -1182,11 +1251,20 @@ export class Editor {
       }
     }
 
+    for(let span of spans) {
+      if(span.isDenormalized && span.isDenormalized()) {
+        this.denormalizedSpans.push(span);
+      }
+    }
+
     if(change.origin !== "+normalize") {
       for(let format in this.formatting) {
         let action = this.formatting[format];
         if(action === "add") {
-          this.markSpan(change.from, change.final, {type: format});
+          let span = this.markSpan(change.from, change.final, {type: format});
+          if(span.isDenormalized && span.isDenormalized()) {
+            this.denormalizedSpans.push(span);
+          }
         }
       }
     }
@@ -1210,20 +1288,40 @@ export class Editor {
     // Remove any formatting that may have been applied
     this.formatting = {};
 
-    // If we were in a heading and no longer are, normalize the heading and release the lock
-    // on syncing with the server.
-    if(this.inHeading) {
-      let heading = this.inHeading;
-      let loc = heading.find();
+    // If any spans are currently denormalized, attempt to normalize them if they're not currently being edited.
+    if(this.denormalizedSpans.length) {
+      console.log("DENORMALIZED:", this.denormalizedSpans.length);
+      for(let ix = 0; ix < this.denormalizedSpans.length;) {
+        let span = this.denormalizedSpans[ix];
+        let loc = span.find();
+        if(!loc) span.clear();
 
-      if(!loc) {
-        this.inHeading = undefined;
-        this.queueUpdate();
-      } else if(cursor.line !== loc.from.line) {
-        this.inHeading = undefined;
-        let to = doc.posFromIndex(doc.indexFromPos({line: loc.to.line + 1, ch: 0}) - 1);
-        let cur = doc.getRange(loc.from, to);
-        doc.replaceRange(cur.trim(), loc.from, to, "+normalize");
+        // If the span is Inline or Block and our cursor is before or after it, we're clear to normalize.
+        else if((span.isInline() || span.isBlock()) &&
+                (comparePositions(cursor, loc.from) < 0 || comparePositions(cursor, loc.to) > 0)) {
+          span.normalize()
+
+          // If the span is a Line and our cursor is on a different line, we're clear to normalize.
+        } else if(span.isLine() && cursor.line !== loc.from.line) {
+          span.normalize();
+
+          // Otherwise the span remains denormalized.
+        } else {
+          console.log("- denormalized", span);
+          ix++;
+          continue;
+        }
+
+        console.log("- normalized", span);
+        if(this.denormalizedSpans.length > 1) {
+          this.denormalizedSpans[ix] = this.denormalizedSpans.pop();
+        } else {
+          this.denormalizedSpans.pop();
+        }
+      }
+
+      // If everybody is normalized now, we can queue an update to resync immediately.
+      if(!this.denormalizedSpans.length) {
         this.queueUpdate();
       }
     }
@@ -1638,6 +1736,8 @@ export class IDE {
   documentId?:string;
   /** Whether the active document has been loaded. */
   loaded:boolean = false;
+  /** The current editor generation. Used for imposing a relative ordering on parses. */
+  generation = 0;
 
   renderer:Renderer = new Renderer();
 
@@ -1670,6 +1770,7 @@ export class IDE {
 
   queueUpdate = debounce(() => {
     this.render();
+    this.generation++;
     if(this.onChange) this.onChange(this);
   }, 1, true);
 
@@ -1689,9 +1790,9 @@ export class IDE {
   }
 
   loadDocument(generation:number, text:string, packed:any[], attributes:{[id:string]: any|undefined}) {
-    // console.log("RESPONSE----------------------------")
-    // console.log(text);
-    // console.log("------------------------------------");
+    console.groupCollapsed(`RECEIVED ${generation}`);
+    console.log(text);
+    console.groupEnd();
     if(this.loaded) {
       this.editor.updateDocument(packed, attributes);
     } else {

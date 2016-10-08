@@ -87,7 +87,9 @@ export function compareSpans(a, b) {
 export class Span {
   protected static _nextId = 0;
 
+  protected static _spanStyle:"inline"|"line"|"block";
   protected _spanStyle:"inline"|"line"|"block";
+
 
   id: string;
   editor: Editor;
@@ -155,6 +157,10 @@ export class Span {
   isEditorControlled() {
     return !!spanTypes[this.type];
   }
+
+  static style() {
+    return this._spanStyle;
+  }
 }
 
 // Optional life cycle methods for Span-derivatives..
@@ -162,9 +168,13 @@ export interface Span {
   refresh?(): void,
   onBeforeChange?(change:ChangeCancellable): void
   onChange?(change:Change): void
+
+  normalize?(): void
+  isDenormalized?(): boolean
 }
 
 export class InlineSpan extends Span {
+  static _spanStyle:"inline" = "inline";
   _spanStyle:"inline" = "inline";
 
   apply(from:Position, to:Position, origin = "+input") {
@@ -180,9 +190,38 @@ export class InlineSpan extends Span {
       formattingChange(this, change, action);
     }
   }
+
+  isDenormalized() {
+    // Inline spans may not have leading or trailing whitespace.
+    let loc = this.find();
+    if(!loc) return;
+    let doc = this.editor.cm.getDoc();
+    console.log(`INLINE`);
+    console.log(`- from: '${doc.getLine(loc.from.line)}' '${doc.getLine(loc.from.line)[loc.from.ch]}'`);
+    console.log(`- to:   '${doc.getLine(loc.to.line)}' '${doc.getLine(loc.to.line)[loc.to.ch - 1]}'`);
+    if(doc.getLine(loc.from.line)[loc.from.ch].search(/\s/) === 0) return true;
+    if(doc.getLine(loc.to.line)[loc.to.ch - 1].search(/\s/) === 0) return true;
+  }
+
+  normalize() {
+    let loc = this.find();
+    if(!loc) return this.clear();
+    let doc = this.editor.cm.getDoc();
+    let cur = doc.getRange(loc.from, loc.to);
+
+    // Because trimLeft/Right aren't standard, we kludge a bit.
+    let reduceLeft = cur.length - (cur + "|").trim().length + 1;
+    let reduceRight = cur.length - ("|" + cur).trim().length + 1;
+
+    let from = {line: loc.from.line, ch: loc.from.ch + reduceLeft};
+    let to = {line: loc.to.line, ch: loc.to.ch - reduceRight};
+    this.clear("+normalize");
+    this.editor.markSpan(from, to, this.source);
+  }
 }
 
 export class LineSpan extends Span {
+  static _spanStyle:"line" = "line";
   _spanStyle:"line" = "line";
 
   lineTextClass?: string;
@@ -214,9 +253,30 @@ export class LineSpan extends Span {
     let end = loc.to.line + ((loc.from.line === loc.to.line) ? 1 : 0);
     updateLineClasses(loc.from.line, end, this.editor, this);
   }
+
+  isDenormalized() {
+    // Line spans may not have leading or trailing whitespace.
+    let loc = this.find();
+    if(!loc) return;
+    let doc = this.editor.cm.getDoc();
+    let line = doc.getLine(loc.from.line);
+    console.log(`LINE: '${line}' '${line[0]}' '${line[line.length - 1]}'`);
+    if(line[0].search(/\s/) === 0 || line[line.length - 1].search(/\s/) === 0) return true;
+  }
+
+  normalize() {
+    let loc = this.find();
+    if(!loc) return this.clear();
+    let doc = this.editor.cm.getDoc();
+
+    let to = doc.posFromIndex(doc.indexFromPos({line: loc.to.line + 1, ch: 0}) - 1);
+    let cur = doc.getRange(loc.from, to);
+    doc.replaceRange(cur.trim(), loc.from, to, "+normalize");
+  }
 }
 
 export class BlockSpan extends Span {
+  static _spanStyle:"block" = "block";
   _spanStyle:"block" = "block";
 
   lineTextClass?: string;
