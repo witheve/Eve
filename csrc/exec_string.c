@@ -67,6 +67,12 @@ static void do_split(perf p, execf n,
                 apply(n, h, p, op, r);
             }
         }
+        if (j != k->length) {
+            if (!out) out = allocate_string(h);
+            store(r, token, intern_buffer(out));
+            store(r, index, box_float(ind++));
+            apply(n, h, p, op, r);
+        }
     } else apply(n, h, p, op, r);
     stop_perf(p, pp);
 }
