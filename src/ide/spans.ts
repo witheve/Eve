@@ -186,7 +186,6 @@ export class InlineSpan extends Span {
   onChange(change:Change) {
     if(change.origin === "+input") {
       let action = this.editor.formatting[this.type];
-      console.log("change", this.type, this.editor.formatting, action);
       formattingChange(this, change, action);
     }
   }
@@ -196,9 +195,6 @@ export class InlineSpan extends Span {
     let loc = this.find();
     if(!loc) return;
     let doc = this.editor.cm.getDoc();
-    console.log(`INLINE`);
-    console.log(`- from: '${doc.getLine(loc.from.line)}' '${doc.getLine(loc.from.line)[loc.from.ch]}'`);
-    console.log(`- to:   '${doc.getLine(loc.to.line)}' '${doc.getLine(loc.to.line)[loc.to.ch - 1]}'`);
     if(doc.getLine(loc.from.line)[loc.from.ch].search(/\s/) === 0) return true;
     if(doc.getLine(loc.to.line)[loc.to.ch - 1].search(/\s/) === 0) return true;
   }
@@ -254,13 +250,38 @@ export class LineSpan extends Span {
     updateLineClasses(loc.from.line, end, this.editor, this);
   }
 
+  onBeforeChange(change:ChangeCancellable) {
+    let loc = this.find();
+    if(!loc) return;
+    let doc = this.editor.cm.getDoc();
+    let isEmpty = doc.getLine(loc.from.line) === "";
+    //If we're at the beginning of an empty line and delete we mean to remove the span.
+    if(samePosition(loc.from, change.to) && isEmpty && change.origin === "+delete") {
+      this.clear();
+      change.cancel();
+
+      // If we're at the beginning of line and delete into a non-empty line we remove the span too.
+    } else if(samePosition(loc.from, change.to) &&
+              doc.getLine(change.from.line) !== "" &&
+              change.origin === "+delete") {
+      this.clear();
+      change.cancel();
+
+      // Similarly, if we're at the beginning of an empty line and hit enter
+      // we mean to remove the formatting.
+    } else if(samePosition(loc.from, change.from) && change.isNewlineChange() && isEmpty) {
+      this.clear();
+      change.cancel();
+    }
+  }
+
   isDenormalized() {
     // Line spans may not have leading or trailing whitespace.
     let loc = this.find();
     if(!loc) return;
     let doc = this.editor.cm.getDoc();
     let line = doc.getLine(loc.from.line);
-    console.log(`LINE: '${line}' '${line[0]}' '${line[line.length - 1]}'`);
+    if(!line) return;
     if(line[0].search(/\s/) === 0 || line[line.length - 1].search(/\s/) === 0) return true;
   }
 
@@ -305,6 +326,33 @@ export class BlockSpan extends Span {
     if(!loc) return this.clear();
     updateLineClasses(loc.from.line, loc.to.line, this.editor, this);
   }
+
+  onBeforeChange(change:ChangeCancellable) {
+    let loc = this.find();
+    if(!loc) return;
+    let doc = this.editor.cm.getDoc();
+    let isEmpty = doc.getLine(loc.from.line) === "";
+
+    //If we're at the beginning of an empty block and delete we mean to remove the span.
+    if(samePosition(loc.from, change.to) && isEmpty && change.origin === "+delete") {
+      this.clear();
+      change.cancel();
+    }
+  }
+
+  onChange(change:Change) {
+    let loc = this.find();
+    if(!loc) return;
+    // If new text has been inserted left of the block, absorb it
+    // If the block's end has been removed, re-align it to the beginning of the next line.
+    if(loc.from.ch !== 0 || loc.to.ch !== 0) {
+      this.clear();
+      let from = {line: loc.from.line, ch: 0};
+      let to = {line: loc.to.line, ch: 0};
+      if(loc.to.ch !== 0) to.line += 1;
+      this.editor.markSpan(from, to, this.source);
+    }
+  }
 }
 
 //---------------------------------------------------------
@@ -318,6 +366,16 @@ class ListItemSpan extends LineSpan {
   apply(from:Position, to:Position, origin = "+input") {
     this.lineTextClass = "ITEM";
     super.apply(from, to, origin);
+  }
+
+  onChange(change:Change) {
+    let loc = this.find();
+    if(!loc) return;
+    // If enter is pressed, continue the list
+    if(loc.from.line === change.from.line && change.isNewlineChange()) {
+      let next = change.final;
+      this.editor.markSpan(next, next, this.source);
+    }
   }
 }
 

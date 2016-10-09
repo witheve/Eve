@@ -872,7 +872,6 @@ export class Editor {
 
   /** Create a new span representing the given source, collapsing and splitting existing spans as required to maintain invariants. */
   formatSpan(from:Position, to:Position, source:any):Span[] {
-    console.log("FMT", source.type, from, to);
     let selection = {from, to};
     let spans = this.findSpans(from, to, source.type);
     let formatted = false;
@@ -915,7 +914,7 @@ export class Editor {
     }
 
     for(let span of neue) {
-      if(span.isDenormalized && span.isDenormalized()) {
+      if(span.isDenormalized && span.isDenormalized() && this.denormalizedSpans.indexOf(span) === -1) {
         console.log("- denormalized", span);
         this.denormalizedSpans.push(span);
       }
@@ -1186,10 +1185,7 @@ export class Editor {
       }
     }
 
-    console.log("BEFORE CHANGE");
     for(let span of spans) {
-      console.log("- ", span);
-
       if(span.onBeforeChange) {
         if(!span.find()) span.clear();
         else span.onBeforeChange(change);
@@ -1222,8 +1218,7 @@ export class Editor {
     let spans = this.changingSpans || [];
     if(change.origin === "+mdredo" || change.origin === "+mdundo") {
       for(let span of spans) {
-        if(!span.refresh) continue;
-        span.refresh();
+        if(span.refresh) span.refresh();
       }
       return;
     }
@@ -1252,7 +1247,7 @@ export class Editor {
     }
 
     for(let span of spans) {
-      if(span.isDenormalized && span.isDenormalized()) {
+      if(span.isDenormalized && span.isDenormalized() && this.denormalizedSpans.indexOf(span) === -1) {
         this.denormalizedSpans.push(span);
       }
     }
@@ -1262,7 +1257,7 @@ export class Editor {
         let action = this.formatting[format];
         if(action === "add") {
           let span = this.markSpan(change.from, change.final, {type: format});
-          if(span.isDenormalized && span.isDenormalized()) {
+          if(span.isDenormalized && span.isDenormalized() && this.denormalizedSpans.indexOf(span) === -1) {
             this.denormalizedSpans.push(span);
           }
         }
@@ -1271,6 +1266,9 @@ export class Editor {
   }
 
   onChanges = (raws:CodeMirror.EditorChangeLinkedList[]) => {
+    for(let span of this.changingSpans) {
+      if(span.refresh) span.refresh();
+    }
     this.changingSpans = undefined;
     this.changing = false;
     this.history.transitioning = false;
@@ -1290,7 +1288,7 @@ export class Editor {
 
     // If any spans are currently denormalized, attempt to normalize them if they're not currently being edited.
     if(this.denormalizedSpans.length) {
-      console.log("DENORMALIZED:", this.denormalizedSpans.length);
+      console.log("Denormalized:", this.denormalizedSpans.length);
       for(let ix = 0; ix < this.denormalizedSpans.length;) {
         let span = this.denormalizedSpans[ix];
         let loc = span.find();
@@ -1307,7 +1305,6 @@ export class Editor {
 
           // Otherwise the span remains denormalized.
         } else {
-          console.log("- denormalized", span);
           ix++;
           continue;
         }
@@ -1790,9 +1787,6 @@ export class IDE {
   }
 
   loadDocument(generation:number, text:string, packed:any[], attributes:{[id:string]: any|undefined}) {
-    console.groupCollapsed(`RECEIVED ${generation}`);
-    console.log(text);
-    console.groupEnd();
     if(this.loaded) {
       this.editor.updateDocument(packed, attributes);
     } else {
