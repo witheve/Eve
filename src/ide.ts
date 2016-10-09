@@ -870,9 +870,21 @@ export class Editor {
   // Formatting
   //-------------------------------------------------------
 
+  protected inCodeBlock(pos:Position) {
+    let inCodeBlock = false;
+    for(let span of this.getAllSpans("code_block")) {
+      let loc = span.find();
+      if(!loc) continue;
+      if(comparePositions(loc.from, pos) <= 0 && comparePositions(loc.to, pos) > 0) {
+        return true;
+      }
+    }
+  }
+
   /** Create a new span representing the given source, collapsing and splitting existing spans as required to maintain invariants. */
   formatSpan(from:Position, to:Position, source:any):Span[] {
     let selection = {from, to};
+
     let spans = this.findSpans(from, to, source.type);
     let formatted = false;
     let neue:Span[] = [];
@@ -952,6 +964,11 @@ export class Editor {
         let to = doc.getCursor("to");
         to = {line: to.line, ch: adjustToWordBoundary(to.ch, doc.getLine(to.line), "right")};
 
+        // No editor-controlled span may be created within a codeblock.
+        // @NOTE: This feels like a minor layor violation.
+        // @FIXME: This doesn't properly handle the unlikely "inline wholly contains codeblock" case
+        if(this.inCodeBlock(from) || this.inCodeBlock(to)) return;
+
         this.formatSpan(from, to, source)
 
         // Otherwise we want to change our current formatting state.
@@ -983,6 +1000,11 @@ export class Editor {
     this.cm.operation(() => {
       let from = doc.getCursor("from");
       let to = doc.getCursor("to");
+
+      // No editor-controlled span may be created within a codeblock.
+      // @NOTE: This feels like a minor layor violation.
+      // @FIXME: This doesn't properly handle the unlikely "line wholly contains codeblock" case
+      if(this.inCodeBlock(from) || this.inCodeBlock(to)) return;
 
       let existing:Span[] = [];
       let formatted = false;
