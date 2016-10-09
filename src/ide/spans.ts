@@ -184,6 +184,26 @@ export class InlineSpan extends Span {
 
   // Handlers
   onChange(change:Change) {
+    let loc = this.find();
+    if(!loc) return;
+    let intersecting = this.editor.findSpansAt(loc.from);
+    for(let span of intersecting) {
+      console.log("- intersects", span.source.type);
+      // If the space between this span and a preceding inline span is removed
+      // delete this span and extend that one to contain it.
+      if(span.isInline() && span.isEditorControlled()) {
+        let otherLoc = span.find();
+        if(!otherLoc) continue;
+        // If this is another span on the same word, ignore it.
+        if(samePosition(otherLoc.to, loc.to)) continue;
+        this.clear();
+        span.clear();
+        console.log(otherLoc.from, loc.to, span.source);
+        this.editor.markSpan(otherLoc.from, loc.to, span.source);
+        return;
+      }
+    }
+
     if(change.origin === "+input") {
       let action = this.editor.formatting[this.type];
       formattingChange(this, change, action);
@@ -191,12 +211,15 @@ export class InlineSpan extends Span {
   }
 
   isDenormalized() {
-    // Inline spans may not have leading or trailing whitespace.
     let loc = this.find();
     if(!loc) return;
     let doc = this.editor.cm.getDoc();
-    if(doc.getLine(loc.from.line)[loc.from.ch].search(/\s/) === 0) return true;
-    if(doc.getLine(loc.to.line)[loc.to.ch - 1].search(/\s/) === 0) return true;
+    let fromLine = doc.getLine(loc.from.line);
+    let toLine = doc.getLine(loc.to.line);
+
+    // Inline spans may not have internal leading or trailing whitespace.
+    if(fromLine[loc.from.ch].search(/\s/) === 0) return true;
+    if(toLine[loc.to.ch - 1].search(/\s/) === 0) return true;
   }
 
   normalize() {
@@ -205,12 +228,13 @@ export class InlineSpan extends Span {
     let doc = this.editor.cm.getDoc();
     let cur = doc.getRange(loc.from, loc.to);
 
+    // Remove leading and trailing whitespace.
     // Because trimLeft/Right aren't standard, we kludge a bit.
-    let reduceLeft = cur.length - (cur + "|").trim().length + 1;
-    let reduceRight = cur.length - ("|" + cur).trim().length + 1;
+    let adjustLeft = cur.length - (cur + "|").trim().length + 1;
+    let adjustRight = cur.length - ("|" + cur).trim().length + 1;
 
-    let from = {line: loc.from.line, ch: loc.from.ch + reduceLeft};
-    let to = {line: loc.to.line, ch: loc.to.ch - reduceRight};
+    let from = {line: loc.from.line, ch: loc.from.ch + adjustLeft};
+    let to = {line: loc.to.line, ch: loc.to.ch - adjustRight};
     this.clear("+normalize");
     this.editor.markSpan(from, to, this.source);
   }

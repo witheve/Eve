@@ -1,7 +1,7 @@
 import {Renderer, Element as Elem, RenderHandler} from "microReact";
 import {Parser as MDParser} from "commonmark";
 import * as CodeMirror from "codemirror";
-import {debounce, uuid, unpad, Range, Position, isRange, comparePositions, samePosition, whollyEnclosed, expandToWordBoundary} from "./util";
+import {debounce, uuid, unpad, Range, Position, isRange, comparePositions, samePosition, whollyEnclosed, adjustToWordBoundary} from "./util";
 
 import {Span, SpanMarker, isSpanMarker, isEditorControlled, spanTypes, compareSpans, HeadingSpan} from "./ide/spans";
 
@@ -944,13 +944,13 @@ export class Editor {
     let doc = this.cm.getDoc();
     this.cm.operation(() => {
       let from = doc.getCursor("from");
-      from = {line: from.line, ch: expandToWordBoundary(from.ch, doc.getLine(from.line), "left")};
+      from = {line: from.line, ch: adjustToWordBoundary(from.ch, doc.getLine(from.line), "left")};
 
       // If we have a selection, format it, expanded to the nearest word boundaries.
       // Or, if we're currently in a word, format the word.
       if(doc.somethingSelected() || from.ch !== doc.getCursor("from").ch) {
         let to = doc.getCursor("to");
-        to = {line: to.line, ch: expandToWordBoundary(to.ch, doc.getLine(to.line), "right")};
+        to = {line: to.line, ch: adjustToWordBoundary(to.ch, doc.getLine(to.line), "right")};
 
         this.formatSpan(from, to, source)
 

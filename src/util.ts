@@ -93,20 +93,40 @@ function setupWordChars(_wordChars) {
 }
 setupWordChars(_wordChars);
 
-export function expandToWordBoundary(ch:number, line:string, direction:"left"|"right"):number {
+export function adjustToWordBoundary(ch:number, line:string, direction:"left"|"right"):number {
+  let neue = ch;
   if(direction === "left") {
-    while(ch > 0) {
-      // We check the next character since the start of a range is inclusive.
-      if(!_wordChars[line[ch - 1]]) break;
-      ch--;
+    if(_wordChars[line[ch]]) {
+      // Expand left to contain any word prefix
+      while(neue > 0) {
+        // We check the next character since the start of a range is inclusive.
+        if(!_wordChars[line[neue - 1]]) break;
+        neue--;
+      }
+
+    } else {
+      // Shrink right to eject any leading whitespace
+      while(neue < line.length) {
+        if(_wordChars[line[neue]]) break;
+        neue++;
+      }
     }
   } else {
-    while(ch < line.length) {
-      if(!_wordChars[line[ch]]) break;
-      ch++;
+    if(_wordChars[line[ch - 1]]) {
+      // Expand right to contain any word suffix
+      while(neue < line.length) {
+        if(!_wordChars[line[neue]]) break;
+        neue++;
+      }
+    } else {
+      // Shrink left to eject any trailing whitespace
+      while(neue > 0) {
+        if(_wordChars[line[neue - 1]]) break;
+        neue--;
+      }
     }
   }
-  return ch;
+  return neue;
 }
 
 //---------------------------------------------------------
