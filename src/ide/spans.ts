@@ -188,7 +188,6 @@ export class InlineSpan extends Span {
     if(!loc) return;
     let intersecting = this.editor.findSpansAt(loc.from);
     for(let span of intersecting) {
-      console.log("- intersects", span.source.type);
       // If the space between this span and a preceding inline span is removed
       // delete this span and extend that one to contain it.
       if(span.isInline() && span.isEditorControlled()) {
@@ -198,7 +197,6 @@ export class InlineSpan extends Span {
         if(samePosition(otherLoc.to, loc.to)) continue;
         this.clear();
         span.clear();
-        console.log(otherLoc.from, loc.to, span.source);
         this.editor.markSpan(otherLoc.from, loc.to, span.source);
         return;
       }
@@ -334,7 +332,7 @@ export class BlockSpan extends Span {
     super.apply(from, to, origin);
   }
 
- clear(origin = "+delete") {
+  clear(origin = "+delete") {
     if(!this.marker) return;
 
     // If the line is still in the document, clear its classes.

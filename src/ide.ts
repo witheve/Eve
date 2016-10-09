@@ -733,19 +733,21 @@ export class Editor {
     let doc = cm.getDoc();
     let spans = this.getAllSpans();
     let fullText = cm.getValue();
-    let markers:{pos: number, start?:boolean, isLine?:boolean, source:any}[] = [];
+    let markers:{pos: number, start?:boolean, isBlock?:boolean, isLine?:boolean, source:any}[] = [];
     for(let span of spans) {
       let loc = span.find();
       if(!loc) continue;
-      markers.push({pos: doc.indexFromPos(loc.from), start: true, isLine: span.isLine(), source: span.source});
-      markers.push({pos: doc.indexFromPos(loc.to), start: false, isLine: span.isLine(), source: span.source});
+      markers.push({pos: doc.indexFromPos(loc.from), start: true, isBlock: span.isBlock(), isLine: span.isLine(), source: span.source});
+      markers.push({pos: doc.indexFromPos(loc.to), start: false, isBlock: span.isBlock(), isLine: span.isLine(), source: span.source});
     }
     markers.sort((a, b) => {
       let delta = a.pos - b.pos;
       if(delta !== 0) return delta;
-      if(a.isLine === b.isLine) return 0;
-      if(a.isLine) return -1;
-      return 1;
+      if(a.isBlock && !b.isBlock) return -1;
+      if(b.isBlock && !a.isBlock) return 1;
+      if(a.isLine && !b.isLine) return -1;
+      if(b.isLine && !a.isLine) return 1;
+      return 0;
     });
 
     let pos = 0;
@@ -927,7 +929,6 @@ export class Editor {
 
     for(let span of neue) {
       if(span.isDenormalized && span.isDenormalized() && this.denormalizedSpans.indexOf(span) === -1) {
-        console.log("- denormalized", span);
         this.denormalizedSpans.push(span);
       }
     }
@@ -1014,7 +1015,7 @@ export class Editor {
         // Line formats are exclusive, so we clear intersecting line spans of other types.
         let spans = this.findSpansAt(cur);
         for(let span of spans) {
-          if(span.isLine() || span.isBlock() && span.source.type !== source.type) {
+          if(span.isLine() && span.source.type !== source.type) {
             span.clear();
           }
         }
