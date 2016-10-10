@@ -922,7 +922,7 @@ export class Editor {
     return neue;
   }
 
-  format(source:{type:string, level?: number, listData?: {type:"ordered"|"unordered", start?: number}}, refocus = false) {
+  format(source:{type:string, level?: number, listData?: {type:"ordered"|"bullet", start?: number}}, refocus = false) {
     let SpanClass:(typeof Span) = spanTypes[source.type] || spanTypes["default"];
 
     let style = SpanClass.style();
@@ -984,7 +984,7 @@ export class Editor {
     });
   }
 
-  formatLine(source:{type:string, level?:number, listData?: {type:"ordered"|"unordered", start?: number}}) {
+  formatLine(source:{type:string, level?:number, listData?: {type:"ordered"|"bullet", start?: number}}) {
     this.finalizeLastHistoryEntry();
     let doc = this.cm.getDoc();
     this.cm.operation(() => {
@@ -1858,6 +1858,7 @@ export class IDE {
   }
 
   loadDocument(generation:number, text:string, packed:any[], attributes:{[id:string]: any|undefined}) {
+    if(generation < this.generation && generation !== undefined) return;
     if(this.loaded) {
       this.editor.updateDocument(packed, attributes);
     } else {

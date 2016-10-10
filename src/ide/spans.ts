@@ -406,11 +406,11 @@ export class BlockSpan extends Span {
 // Special Spans
 //---------------------------------------------------------
 
-interface ListItemSpanSource extends SpanSource {level: number, listData: {start?: number, type:"ordered"|"unordered"}}
+interface ListItemSpanSource extends SpanSource {level: number, listData: {start?: number, type:"ordered"|"bullet"}}
 class ListItemSpan extends LineSpan {
   constructor(editor:Editor, from:Position, to:Position, public source:ListItemSpanSource, origin = "+input") {
     super(editor, from, to, source, origin);
-    source.listData = source.listData || {type: "unordered"}
+    source.listData = source.listData || {type: "bullet"}
   }
 
   apply(from:Position, to:Position, origin = "+input") {
