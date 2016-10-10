@@ -916,9 +916,7 @@ export class Editor {
     }
 
     for(let span of neue) {
-      if(span.isDenormalized && span.isDenormalized() && this.denormalizedSpans.indexOf(span) === -1) {
-        this.denormalizedSpans.push(span);
-      }
+      this.trackDenormalized(span);
     }
 
     return neue;
@@ -1075,6 +1073,18 @@ export class Editor {
         this.formatSpan(from, to, source);
       }
     });
+  }
+
+  trackDenormalized(span:Span) {
+    if(span.isDenormalized) {
+      let denormalized = span.isDenormalized();
+      let existingIx = this.denormalizedSpans.indexOf(span);
+      if(denormalized && existingIx === -1) {
+        this.denormalizedSpans.push(span);
+      } else if(!denormalized && existingIx !== -1) {
+        this.denormalizedSpans.splice(existingIx, 1);
+      }
+    }
   }
 
   //-------------------------------------------------------
@@ -1293,9 +1303,7 @@ export class Editor {
     }
 
     for(let span of spans) {
-      if(span.isDenormalized && span.isDenormalized() && this.denormalizedSpans.indexOf(span) === -1) {
-        this.denormalizedSpans.push(span);
-      }
+      this.trackDenormalized(span);
     }
 
     if(change.origin !== "+normalize") {
@@ -1303,9 +1311,7 @@ export class Editor {
         let action = this.formatting[format];
         if(action === "add") {
           let span = this.markSpan(change.from, change.final, {type: format});
-          if(span.isDenormalized && span.isDenormalized() && this.denormalizedSpans.indexOf(span) === -1) {
-            this.denormalizedSpans.push(span);
-          }
+          this.trackDenormalized(span);
         }
       }
     }
