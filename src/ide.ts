@@ -1043,6 +1043,12 @@ export class Editor {
         to.line += 1;
       }
 
+      if(doc.getLine(to.line) !== "") {
+        let cursor = doc.getCursor();
+        doc.replaceRange("\n", to, to, "+normalize");
+        doc.setCursor(cursor);
+      }
+
       // Determine if this exact span already exists.
       let exists:Span|undefined;
       let existing = this.findSpansAt(from, source.type);
