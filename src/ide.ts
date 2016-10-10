@@ -3,7 +3,7 @@ import {Parser as MDParser} from "commonmark";
 import * as CodeMirror from "codemirror";
 import {debounce, uuid, unpad, Range, Position, isRange, comparePositions, samePosition, whollyEnclosed, adjustToWordBoundary} from "./util";
 
-import {Span, SpanMarker, isSpanMarker, isEditorControlled, spanTypes, compareSpans, HeadingSpan} from "./ide/spans";
+import {Span, SpanMarker, isSpanMarker, isEditorControlled, spanTypes, compareSpans, HeadingSpan, SpanChange, isSpanChange} from "./ide/spans";
 
 //---------------------------------------------------------
 // Navigator
@@ -467,16 +467,6 @@ class ChangeInverted extends Change {
   get removed() { return this._raw.text; }
   /** Inverts a change for undo. */
   invert() { return new Change(this._raw); }
-}
-
-class SpanChange {
-  type: string = "span";
-  constructor(public added:Span[] = [], public removed:Span[] = [], public origin:string = "+input") {}
-  /** Inverts a change for undo. */
-  invert() { return new SpanChange(this.removed, this.added, this.origin); }
-}
-function isSpanChange(x:Change|SpanChange): x is SpanChange {
-  return x && x.type === "span";
 }
 
 function formattingChange(span:Span, change:Change, action?:FormatAction) {
@@ -1122,11 +1112,10 @@ export class Editor {
           doc.replaceRange(change.addedText, change.from, removedPos);
         } else if(isSpanChange(change)) {
           for(let removed of change.removed) {
-            removed.clear("+mdundo");
+            removed.span.clear("+mdundo");
           }
           for(let added of change.added) {
-            console.log("@FIXME: History integration");
-            //added.applyMark(this, "+mdundo");
+            added.span.apply(added.from, added.to, "+mdundo");
           }
         }
       }
@@ -1209,9 +1198,19 @@ export class Editor {
     }
 
     for(let span of spans) {
+      let loc = span.find();
+      if(!loc) {
+        span.clear();
+        return;
+      }
+
       if(span.onBeforeChange) {
-        if(!span.find()) span.clear();
-        else span.onBeforeChange(change);
+        span.onBeforeChange(change);
+      }
+
+      if(comparePositions(change.from, loc.from) <= 0 && comparePositions(change.to, loc.to) >= 0) {
+        // If we clear the span lazily, we can't capture it's position for undo/redo
+        span.clear(change.origin);
       }
     }
 

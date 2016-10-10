@@ -108,6 +108,16 @@ export class Span {
   }
 
   apply(from:Position, to:Position, origin = "+input") {
+    if(this.marker) {
+      let loc = this.find();
+      if(!loc || !samePosition(from, loc.from) || !samePosition(to, loc.to)) {
+        this.marker.clear();
+        this.marker = this.marker.span = undefined;
+      } else {
+        // Nothing has changed.
+        return;
+      }
+    }
     this._attributes.className = this._attributes.className || this.type;
     let doc = this.editor.cm.getDoc();
     if(samePosition(from, to)) {
@@ -118,19 +128,28 @@ export class Span {
     this.marker.span = this;
     if(this.refresh) this.refresh();
 
-    //this.editor.queueUpdate(); // @NOTE: This wasn't present before.
-
-    // @FIXME: History integration.
+    if(this.isEditorControlled()) {
+      let spanRange = this.spanRange();
+      if(spanRange) {
+        this.editor.addToHistory(new SpanChange([spanRange], [], origin));
+      }
+    }
   }
 
   clear(origin = "+delete") {
     if(!this.marker) return;
 
+    let loc = this.find();
+    if(this.isEditorControlled()) {
+      let spanRange = this.spanRange();
+      if(spanRange) {
+        this.editor.addToHistory(new SpanChange([], [spanRange], origin));
+      }
+    }
+
     this.marker.clear();
     this.marker = this.marker.span = undefined;
     this.editor.queueUpdate();
-
-    // @FIXME: History integration.
   }
 
   find():Range|undefined {
@@ -139,6 +158,12 @@ export class Span {
     if(!loc) return;
     if(isRange(loc)) return loc;
     return {from: loc, to: loc};
+  }
+
+  spanRange():SpanRange|undefined {
+    let loc = this.find();
+    if(!loc) return;
+    return {from: loc.from, to: loc.to, span: this};
   }
 
   sourceEquals(other:SpanSource) {
@@ -441,11 +466,12 @@ export class HeadingSpan extends LineSpan {
   }
 }
 
-class ElisionSpan extends LineSpan {
-  protected element = document.createElement("div");
+class ElisionSpan extends BlockSpan {
+  protected element:HTMLElement;
 
   apply(from:Position, to:Position, origin = "+input") {
     this.lineBackgroundClass = "elision";
+    this.element = document.createElement("div");
     this.element.className = "elision-marker";
     this._attributes.replacedWith = this.element;
     super.apply(from, to, origin);
@@ -484,4 +510,21 @@ export var spanTypes = {
   code_block: CodeBlockSpan,
 
   "default": ParserSpan
+}
+
+
+export interface SpanRange {
+  from: Position,
+  to: Position,
+  span: Span
+}
+
+export class SpanChange {
+  type: string = "span";
+  constructor(public added:SpanRange[] = [], public removed:SpanRange[] = [], public origin:string = "+input") {}
+  /** Inverts a change for undo. */
+  invert() { return new SpanChange(this.removed, this.added, this.origin); }
+}
+export function isSpanChange(x:Change|SpanChange): x is SpanChange {
+  return x && x.type === "span";
 }
