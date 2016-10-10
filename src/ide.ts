@@ -1209,8 +1209,8 @@ export class Editor {
         span.onBeforeChange(change);
       }
 
-      if(comparePositions(change.from, loc.from) <= 0 && comparePositions(change.to, loc.to) >= 0) {
-        // If we clear the span lazily, we can't capture it's position for undo/redo
+      // If we clear the span lazily, we can't capture it's position for undo/redo
+      if(span.isInline() && comparePositions(change.from, loc.from) <= 0 && comparePositions(change.to, loc.to) >= 0) {
         span.clear(change.origin);
       }
     }
@@ -1264,12 +1264,18 @@ export class Editor {
       let line = +l;
       let text = doc.getLine(line);
       let pos = {line, ch: 0};
-      if((text[0] === " " ||
-          text[text.length - 1] === " ") &&
-         !this.findSpansAt(pos, "whitespace").length &&
-         !this.inCodeBlock(pos)) {
-        let span = this.markSpan(pos, pos, {type: "whitespace"});
-        this.denormalizedSpans.push(span);
+      if((text[0] === " " || text[text.length - 1] === " ") && !this.inCodeBlock(pos)) {
+        let handled = false;
+        for(let span of this.findSpansAt(pos)) {
+          if(span.isLine()) {
+            handled = true;
+            break;
+          }
+        }
+        if(!handled) {
+          let span = this.markSpan(pos, pos, {type: "whitespace"});
+          this.denormalizedSpans.push(span);
+        }
       }
     }
 
