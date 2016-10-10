@@ -1049,16 +1049,14 @@ export class Editor {
         doc.setCursor(cursor);
       }
 
-      // Determine if this exact span already exists.
+      // Determine if a block span in this range already exists.
       let exists:Span|undefined;
       let existing = this.findSpansAt(from, source.type);
       for(let span of existing) {
         let loc = span.find();
         if(!loc) continue;
-        if(samePosition(loc.to, to)) {
-          exists = span;
-          break;
-        }
+        exists = span;
+        break;
       }
 
       // If the span already exists, we mean to clear it.
