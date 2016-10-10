@@ -364,6 +364,13 @@ export class BlockSpan extends Span {
     let loc = this.find();
     if(loc) {
       clearLineClasses(loc.from.line, loc.to.line, this.editor, this);
+
+      // Nuke all parser spans that were in this range.
+      // Since the parser isn't stateful, it won't send us removals for them.
+      for(let span of this.editor.findSpans(loc.from, loc.to)) {
+        if(span.isEditorControlled()) continue;
+        span.clear();
+      }
     }
     super.clear(origin);
   }

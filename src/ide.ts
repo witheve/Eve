@@ -1037,11 +1037,7 @@ export class Editor {
     let doc = this.cm.getDoc();
     this.cm.operation(() => {
       let from = {line: doc.getCursor("from").line, ch: 0};
-      let to = {line: doc.getCursor("to").line, ch: 0};
-
-      if(to.line === from.line) {
-        to.line += 1;
-      }
+      let to = {line: doc.getCursor("to").line + 1, ch: 0};
 
       if(doc.getLine(to.line) !== "") {
         let cursor = doc.getCursor();
