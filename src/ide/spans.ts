@@ -241,8 +241,8 @@ export class InlineSpan extends Span {
     let toLine = doc.getLine(loc.to.line);
 
     // Inline spans may not have internal leading or trailing whitespace.
-    if(fromLine[loc.from.ch].search(/\s/) === 0) return true;
-    if(toLine[loc.to.ch - 1].search(/\s/) === 0) return true;
+    if(loc.from.ch < fromLine.length && fromLine[loc.from.ch].search(/\s/) === 0) return true;
+    if(loc.to.ch - 1 < toLine.length && loc.to.ch - 1 >= 0 && toLine[loc.to.ch - 1].search(/\s/) === 0) return true;
   }
 
   normalize() {
