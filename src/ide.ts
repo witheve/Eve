@@ -1273,6 +1273,7 @@ export class Editor {
     for(let l in affectedLines) {
       let line = +l;
       let text = doc.getLine(line);
+      if(!text) continue;
       let pos = {line, ch: 0};
       if((text[0] === " " || text[text.length - 1] === " ") && !this.inCodeBlock(pos)) {
         let handled = false;
