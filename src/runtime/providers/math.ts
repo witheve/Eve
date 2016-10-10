@@ -240,6 +240,49 @@ class Random extends Constraint {
   }
 }
 
+class Range extends Constraint {
+  static AttributeMapping = {
+    "from": 0,
+    "to": 1,
+    "increment": 2,
+  }
+
+  resolveProposal(proposal, prefix) {
+    let {args} = this.resolve(prefix);
+    let from_ = args[0];
+    let to = args[1];
+    let increment = args[2] || 1;
+    let results = [];
+    let test = from_ <= to ? (val) => val <= to : (val) => val >= to;
+    for (let val = from_; test(val); val += increment) {
+      results.push(val);
+    }
+    return results;
+  }
+
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    let from_ = args[0];
+    let to = args[1];
+    let increment = args[2] || 1;
+    let val = returns[0];
+    let member = from_ <= val && val <= to &&
+                 ((val - from_) % increment) == 0
+    return member;
+  }
+
+  getProposal(tripleIndex, proposed, prefix) {
+    let {args} = this.resolve(prefix);
+    let from_ = args[0];
+    let to = args[1];
+    let increment = args[2] || 1;
+    let proposal = this.proposalObject;
+    proposal.providing = proposed;
+    proposal.cardinality = Math.ceil((to - from_ + 1) / increment);
+    return proposal;
+  }
+}
+
 providers.provide("+", Add);
 providers.provide("-", Subtract);
 providers.provide("*", Multiply);
@@ -250,3 +293,4 @@ providers.provide("floor", Floor);
 providers.provide("abs", Abs);
 providers.provide("mod", Mod);
 providers.provide("random", Random);
+providers.provide("range", Range);
