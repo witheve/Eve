@@ -1063,7 +1063,7 @@ export class Editor {
       } else {
 
         // Block formats are exclusive, so we clear intersecting spans of other types.
-        let spans = this.findSpans(from, to);
+        let spans = this.findSpans(doc.posFromIndex(doc.indexFromPos(from) - 1), to);
         for(let span of spans) {
           if(span.isEditorControlled()) {
             span.clear();
@@ -1739,7 +1739,8 @@ function formatBar({editor}:EditorBarElem):Elem {
     {text: "code", click: () => editor.format({type: "code"}, true)},
     {text: "H1", click: () => editor.format({type: "heading", level: 1}, true)},
     {text: "H2", click: () => editor.format({type: "heading", level: 2}, true)},
-    {text: "H3", click: () => editor.format({type: "heading", level: 3}, true)}
+    {text: "H3", click: () => editor.format({type: "heading", level: 3}, true)},
+    {text: "block", click: () => editor.format({type: "code_block"}, true)},
   ]};
 }
 
@@ -1754,7 +1755,7 @@ function formatBar({editor}:EditorBarElem):Elem {
 
 function newBlockBar({editor}:EditorBarElem):Elem {
   return {id: "new-block-bar", c: "new-block-bar", children: [
-    {text: "code", click: () => editor.format({type: "code_block"}, true)},
+    {text: "block", click: () => editor.format({type: "code_block"}, true)},
     {text: "list", click: () => editor.format({type: "item"}, true)},
     {text: "H1", click: () => editor.format({type: "heading", level: 1}, true)},
     {text: "H2", click: () => editor.format({type: "heading", level: 2}, true)},
