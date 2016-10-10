@@ -392,10 +392,10 @@ export class BlockSpan extends Span {
     if(!loc) return;
     // If new text has been inserted left of the block, absorb it
     // If the block's end has been removed, re-align it to the beginning of the next line.
-    if(loc.from.ch !== 0 || loc.to.ch !== 0) {
+    if(loc.from.ch !== 0 || loc.to.ch !== 0 || change.from.line < loc.from.line || change.to.line > loc.to.line) {
       this.clear();
-      let from = {line: loc.from.line, ch: 0};
-      let to = {line: loc.to.line, ch: 0};
+      let from = {line: Math.min(loc.from.line, change.from.line), ch: 0};
+      let to = {line: Math.max(loc.to.line, change.to.line), ch: 0};
       if(loc.to.ch !== 0) to.line += 1;
       this.editor.markSpan(from, to, this.source);
     }
