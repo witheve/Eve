@@ -424,7 +424,10 @@ class ListItemSpan extends LineSpan {
     // If enter is pressed, continue the list
     if(loc.from.line === change.from.line && change.isNewlineChange()) {
       let next = change.final;
-      this.editor.markSpan(next, next, this.source);
+      let src = this.source;
+      let ix = src.listData.start !== undefined ? src.listData.start + 1 : undefined;
+      let newSource = {type: src.type, level: src.level, listData: {type: src.listData.type, start: ix}};
+      this.editor.markSpan(next, next, newSource);
     }
   }
 }
