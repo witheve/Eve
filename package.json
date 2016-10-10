@@ -20,7 +20,8 @@
     "tape": "^4.6.0"
   },
   "scripts": {
-    "build": "./node_modules/.bin/tsc && cp src/*.js build/src/ && cp ./node_modules/chevrotain/lib/chevrotain.js build/src/",
+    "build": "./node_modules/.bin/tsc && cp src/*.js build/src/ && cp ./node_modules/chevrotain/lib/chevrotain.js build/src/ && npm run examples",
+    "examples": "node build/scripts/package-examples.js",
     "server": "node build/src/runtime/server.js",
     "test": "node ./build/test/all.js | faucet"
   }
