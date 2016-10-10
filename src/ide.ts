@@ -1225,8 +1225,8 @@ export class Editor {
   }
 
   onChange = (raw:CodeMirror.EditorChangeLinkedList) => {
+    let doc = this.cm.getDoc();
     this.cm.operation(() => {
-      let doc = this.cm.getDoc();
       let lastLine = doc.lastLine();
       let pos = CodeMirror.Pos(lastLine + 1, 0);
       if(doc.getLine(lastLine) !== "") {
@@ -1250,9 +1250,26 @@ export class Editor {
 
 
     let cur:ChangeLinkedList|undefined = change;
+    let affectedLines = {};
     while(cur) {
+      affectedLines[cur.from.line] = true;
+      affectedLines[cur.to.line] = true;
+      affectedLines[cur.final.line] = true;
+
       this.addToHistory(cur);
       cur = cur.next();
+    }
+    for(let l in affectedLines) {
+      let line = +l;
+      let text = doc.getLine(line);
+      let pos = {line, ch: 0};
+      if((text[0] === " " ||
+          text[text.length - 1] === " ") &&
+         !this.findSpansAt(pos, "whitespace").length &&
+         !this.inCodeBlock(pos)) {
+        let span = this.markSpan(pos, pos, {type: "whitespace"});
+        this.denormalizedSpans.push(span);
+      }
     }
 
     for(let span of spans) {

@@ -486,6 +486,13 @@ class CodeBlockSpan extends BlockSpan {
   }
 }
 
+class WhitespaceSpan extends LineSpan {
+  normalize() {
+    super.normalize();
+    this.clear();
+  }
+}
+
 class ParserSpan extends InlineSpan {
   _editorControlled = false;
 }
@@ -508,6 +515,8 @@ export var spanTypes = {
   elision: ElisionSpan,
 
   code_block: CodeBlockSpan,
+
+  whitespace: WhitespaceSpan,
 
   "default": ParserSpan
 }
