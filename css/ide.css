@@ -23,7 +23,7 @@ body { background: #f5f5f5; }
 .navigator-pane.collapsed .navigator-pane-inner { margin-left: -195px; }
 .navigator-pane.collapsed .tree-item { pointer-events: none; }
 
-.editor-pane { flex: 1; }
+.editor-pane { position: relative; flex: 1; }
 
 .CodeMirror-sizer > div:first-child { width: 650px; min-height: 100%; }
 .comments-pane {  position: absolute; left: 620px; right: 0px; top: 0; bottom: 0; padding-right: 15px; z-index: 2; }
@@ -119,9 +119,13 @@ body { background: #f5f5f5; }
 /****************************************************************************\
  * Format Bars
 \****************************************************************************/
-.editor-pane .new-block-btn { width: 20px; height: 20px; background: gray; }
+.editor-pane .new-block-bar { position: absolute; top: 0; left: 0; display: flex; flex-direction: row; background: #404040; z-index: 5; }
+.editor-pane .new-block-bar > * { padding: 5px 10px; }
+.editor-pane .new-block-bar > div:hover { background: #505050; }
 
-.editor-pane .format-bar { width:  50px; height: 20px; background: gray; }
+.editor-pane .format-bar { position: absolute; top: 0; left: 0; display: flex; flex-direction: row; background: #404040; z-index: 5; }
+.editor-pane .format-bar > * { padding: 5px 10px; }
+.editor-pane .format-bar > div:hover { background: #505050; }
 
 
 /****************************************************************************\

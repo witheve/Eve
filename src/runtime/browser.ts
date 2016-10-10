@@ -43,7 +43,7 @@ class Responder {
       if(errors && errors.length) console.error(errors);
       this.lastParse = results;
       let {text, spans, extraInfo} = results;
-      this.send(JSON.stringify({type: "parse", text, spans, extraInfo}));
+      this.send(JSON.stringify({type: "parse", generation: data.generation, text, spans, extraInfo}));
     } else if(data.type === "eval") {
       let changes = evaluation.createChanges();
       let session = evaluation.getDatabase("session");

@@ -1,7 +1,7 @@
 import {v4 as rawuuid} from "uuid";
 
 //---------------------------------------------------------
-// Utilities
+// Misc. Utilities
 //---------------------------------------------------------
 export function clone<T>(obj:T):T {
   if(typeof obj !== "object") return obj;
@@ -80,4 +80,80 @@ export function unpad(str:string):string {
     multi = true;
   }
   return neue;
+}
+
+var _wordChars = {};
+function setupWordChars(_wordChars) {
+  for(let i = "0".charCodeAt(0); i < "9".charCodeAt(0); i++)
+    _wordChars[String.fromCharCode(i)] = true;
+  for(let i = "a".charCodeAt(0); i < "z".charCodeAt(0); i++)
+    _wordChars[String.fromCharCode(i)] = true;
+  for(let i = "A".charCodeAt(0); i < "Z".charCodeAt(0); i++)
+    _wordChars[String.fromCharCode(i)] = true;
+}
+setupWordChars(_wordChars);
+
+export function adjustToWordBoundary(ch:number, line:string, direction:"left"|"right"):number {
+  let neue = ch;
+  if(direction === "left") {
+    if(_wordChars[line[ch]]) {
+      // Expand left to contain any word prefix
+      while(neue > 0) {
+        // We check the next character since the start of a range is inclusive.
+        if(!_wordChars[line[neue - 1]]) break;
+        neue--;
+      }
+
+    } else {
+      // Shrink right to eject any leading whitespace
+      while(neue < line.length) {
+        if(_wordChars[line[neue]]) break;
+        neue++;
+      }
+    }
+  } else {
+    if(_wordChars[line[ch - 1]]) {
+      // Expand right to contain any word suffix
+      while(neue < line.length) {
+        if(!_wordChars[line[neue]]) break;
+        neue++;
+      }
+    } else {
+      // Shrink left to eject any trailing whitespace
+      while(neue > 0) {
+        if(_wordChars[line[neue - 1]]) break;
+        neue--;
+      }
+    }
+  }
+  return neue;
+}
+
+//---------------------------------------------------------
+// CodeMirror utilities
+//---------------------------------------------------------
+
+
+export type Range = CodeMirror.Range;
+export type Position = CodeMirror.Position;
+
+export function isRange(loc:any): loc is Range {
+  return loc.from !== undefined || loc.to !== undefined;
+}
+
+export function comparePositions(a:Position, b:Position) {
+  if(a.line === b.line && a.ch === b.ch) return 0;
+  if(a.line > b.line) return 1;
+  if(a.line === b.line && a.ch > b.ch) return 1;
+  return -1;
+}
+
+export function samePosition(a:Position, b:Position) {
+  return comparePositions(a, b) === 0;
+}
+
+export function whollyEnclosed(inner:Range, outer:Range) {
+  let left = comparePositions(inner.from, outer.from);
+  let right = comparePositions(inner.to, outer.to);
+  return (left === 1 || left === 0) && (right === -1 || right === 0);
 }

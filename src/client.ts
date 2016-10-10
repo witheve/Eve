@@ -190,7 +190,7 @@ socket.onmessage = function(msg) {
     }
     browser.init(data.code);
   } else if(data.type == "parse") {
-    _ide.loadDocument(9001, data.text, data.spans, data.extraInfo); // @FIXME
+    _ide.loadDocument(data.generation, data.text, data.spans, data.extraInfo); // @FIXME
   } else if(data.type == "error") {
     console.error(data.message, data);
   }
@@ -301,10 +301,13 @@ _ide.render();
 _ide.loadWorkspace("examples", window["examples"]);
 console.log(_ide);
 _ide.onChange = (ide:IDE) => {
+  let generation = ide.generation;
   let md = ide.editor.toMarkdown();
-  //console.info(md);
+  console.groupCollapsed(`SENT ${generation}`);
+  console.info(md);
+  console.groupEnd();
   if(socket && socket.readyState == 1) {
-    socket.send(JSON.stringify({scope: "root", type: "parse", code: md}))
+    socket.send(JSON.stringify({scope: "root", type: "parse", generation, code: md}))
   }
 }
 _ide.onEval = (ide:IDE, persist) => {

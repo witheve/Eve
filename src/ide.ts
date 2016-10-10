@@ -1,31 +1,9 @@
 import {Renderer, Element as Elem, RenderHandler} from "microReact";
 import {Parser as MDParser} from "commonmark";
 import * as CodeMirror from "codemirror";
-import {debounce, uuid, unpad} from "./util";
+import {debounce, uuid, unpad, Range, Position, isRange, comparePositions, samePosition, whollyEnclosed, adjustToWordBoundary} from "./util";
 
-type Range = CodeMirror.Range;
-type Position = CodeMirror.Position;
-
-function isRange(loc:any): loc is Range {
-  return loc.from !== undefined || loc.to !== undefined;
-}
-
-function comparePositions(a:Position, b:Position) {
-  if(a.line === b.line && a.ch === b.ch) return 0;
-  if(a.line > b.line) return 1;
-  if(a.line === b.line && a.ch > b.ch) return 1;
-  return -1;
-}
-
-function samePosition(a:Position, b:Position) {
-  return comparePositions(a, b) === 0;
-}
-
-function whollyEnclosed(inner:Range, outer:Range) {
-  let left = comparePositions(inner.from, outer.from);
-  let right = comparePositions(inner.to, outer.to);
-  return (left === 1 || left === 0) && (right === -1 || right === 0);
-}
+import {Span, SpanMarker, isSpanMarker, isEditorControlled, spanTypes, compareSpans, HeadingSpan, SpanChange, isSpanChange} from "./ide/spans";
 
 //---------------------------------------------------------
 // Navigator
@@ -336,348 +314,6 @@ class Navigator {
   }
 }
 
-
-//---------------------------------------------------------
-// Spans
-//---------------------------------------------------------
-interface SpanMarker extends CodeMirror.TextMarker {
-  span?: Span,
-  active?: boolean,
-  source?: any
-}
-
-function isSpanMarker(x:CodeMirror.TextMarker): x is SpanMarker {
-  return x && x["span"];
-}
-
-function compareSpans(a, b) {
-  let aLoc = a.find();
-  let bLoc = b.find();
-  if(!aLoc && !bLoc) return 0;
-  if(!aLoc) return -1;
-  if(!bLoc) return 1;
-  if(aLoc.from.line === bLoc.from.line) return 0;
-  return aLoc.from.line < bLoc.from.line ? -1 : 1;
-}
-
-interface SpanSource { type: string, id: string }
-
-class Span {
-  static isEditorControlled = false;
-
-  protected static _nextId = 0;
-  isLine = false;
-
-  id: string;
-  editor: Editor;
-  marker?: SpanMarker;
-
-  protected _attributes:CodeMirror.TextMarkerOptions = {};
-  type:SpanType = "default";
-
-  constructor(protected _from:Position, protected _to:Position, public source:SpanSource) {
-    this.id = `${this.source.type || "span"}${Span._nextId++}`;
-    this._attributes.className = source.type;
-  }
-
-  find():Range|undefined {
-    if(!this.marker) return {from: this._from, to: this._to};
-
-    let loc = this.marker.find();
-    if(!loc) return;
-    if(isRange(loc)) return loc;
-    return {from: loc, to: loc};
-  }
-
-  attached() {
-    return this.marker && this.find();
-  }
-
-  clone<T extends Span>(this:T):T {
-    let loc = this.find();
-    if(!loc) throw new Error("Could not find marker");
-    return new (this.constructor as any)(loc.from, loc.to, this.source);
-  }
-
-  applyMark(editor:Editor, origin:string = "+input") {
-    this.editor = editor;
-    let cm = editor.cm;
-    let doc = cm.getDoc();
-    let {_from, _to} = this;
-    if(!samePosition(_from, _to)) {
-      this.marker = doc.markText(_from, _to, this._attributes);
-    } else {
-      this.marker = doc.setBookmark(_from, {});
-    }
-    this.marker.span = this;
-    editor.addToHistory(new SpanChange([this], [], origin));
-  }
-
-  clear(origin = "+delete") {
-    if(!this.marker) return;
-    let cm = this.editor.cm;
-
-    this.marker.clear();
-    this.marker.span = undefined;
-    this.marker = undefined;
-
-    this.editor.addToHistory(new SpanChange([], [this], origin));
-    this.editor.queueUpdate();
-  }
-
-  sourceEquals(other:SpanSource) {
-    return other && this.source.type === other.type;
-  }
-
-  // Handlers
-  refresh(change:Change) {}
-  onBeforeChange(change:ChangeCancellable) {}
-
-  // Every span that doesn't have its own onChange logic wants to do this...
-  onChange(change:Change) {
-    if(change.origin === "+input") {
-      let action = this.editor.formatting[this.type];
-      formattingChange(this, change, action);
-    }
-  }
-}
-
-class LineSpan extends Span {
-  isLine = true;
-  lineTextClass?: string;
-  lineBackgroundClass?: string;
-
-  constructor(_from:Position, _to:Position, source:SpanSource) {
-    super(_from, _to, source);
-    if(_from.ch !== 0 || _to.ch !== 0) {
-      throw new Error(`Invalid lineSpan range (${_from.line}, ${_from.ch}) to (${_to.line}, ${_to.ch})`);
-    }
-  }
-
-  applyMark(editor:Editor) {
-    super.applyMark(editor);
-
-    let cm = this.editor.cm;
-    let end = this._to.line + ((this._from.line === this._to.line) ? 1 : 0);
-    for(let line = this._from.line; line < end; line++) {
-      if(this.lineBackgroundClass) cm.addLineClass(line, "background", this.lineBackgroundClass);
-      if(this.lineTextClass) cm.addLineClass(line, "text", this.lineTextClass);
-    }
-  }
-
-  clear(origin?:string) {
-    super.clear(origin);
-
-    let cm = this.editor.cm;
-    let loc = this.find()
-    if(!loc) return;
-    let end = loc.to.line + ((loc.from.line === loc.to.line) ? 1 : 0);
-    for(let line = loc.from.line; line < end; line++) {
-      if(this.lineBackgroundClass) cm.removeLineClass(line, "background", this.lineBackgroundClass);
-      if(this.lineTextClass) cm.removeLineClass(line, "text", this.lineTextClass);
-    }
-  }
-
-  onBeforeChange(change:ChangeCancellable) {
-    let doc = this.editor.cm.getDoc();
-    let loc = this.find();
-    if(!loc || !samePosition(loc.from, change.from)) return;
-
-    // If we're deleting at the start of a line-formatted line, we need to remove the line formatting too.
-    if(change.origin === "+delete") {
-      this.clear();
-    }
-    // If we're adding a newline with nothing on the current line, we're really removing the formatting of the current line.
-    let isEmpty = doc.getLine(change.from.line) === "";
-    if(change.origin === "+input" && change.isNewlineChange() && isEmpty) {
-      this.clear();
-      change.cancel();
-    }
-  }
-
-  onChange(change:Change) {
-    let loc = this.find();
-    if(!loc) return;
-    // If the change starts exclusively outside of the list, ignore it.
-    //if(loc.from.line > change.from.line || loc.to.line < change.from.line) return;
-    if(!samePosition(loc.from, change.from)) return;
-
-    // If we're adding a newline at the end of a list item, we're adding a new list item on the next line.
-    if(change.isNewlineChange()) {
-      let nextLine = {line: change.from.line + 1, ch: 0};
-      this.editor.markSpan(nextLine, nextLine, this.source);
-    }
-  }
-}
-function isLineSpan(span:Span): span is LineSpan {
-  return span.isLine;
-}
-
-interface HeadingSpanSource extends SpanSource { level: number }
-class HeadingSpan extends LineSpan {
-  static isEditorControlled = true;
-  type:SpanType = "heading";
-
-  constructor(_from:Position, _to:Position, public source:HeadingSpanSource) {
-    super(_from, _to, source);
-    if(!this.source.level) {
-      this.source.level = 1;
-    }
-    let cls =  "HEADING" + this.source.level;
-    this.lineTextClass = cls;
-    this.lineBackgroundClass = cls;
-    this._attributes.className = cls;
-  }
-
-  applyMark(editor:Editor) {
-    super.applyMark(editor);
-    editor.ide.navigator.updateNode(this);
-  }
-  clear(origin?:string) {
-    super.clear(origin);
-    this.editor.ide.navigator.updateNode(this);
-  }
-
-  getSectionRange():Range|undefined {
-    let loc = this.find();
-    if(!loc) return;
-    let from = {line: loc.from.line + 1, ch: 0};
-    let to = {line: this.editor.cm.getDoc().lastLine() + 1, ch: 0};
-    let headings = this.editor.findSpans(from, to, "heading");
-    if(!headings.length) return {from: loc.from, to: {line: to.line - 1, ch: 0}};
-
-    headings.sort(compareSpans);
-    let next = headings[0];
-    let nextLoc = next.find();
-    if(!nextLoc) return {from: loc.from, to: {line: to.line - 1, ch: 0}};
-    return {from: loc.from, to: nextLoc.from};
-  }
-
-
-  onChange(change:Change) {
-    let loc = this.find();
-    if(change.origin === "+delete" || change.origin === "+normalize") return;
-    if(loc && loc.from.line === change.to.line) {
-      this.editor.inHeading = this;
-    }
-  }
-}
-
-interface ListItemSpanSource extends SpanSource {level: number, listData: {start: number, type:"ordered"|"unordered"}}
-class ListItemSpan extends LineSpan {
-  static isEditorControlled =true;
-  type:SpanType = "item";
-  lineTextClass = "ITEM";
-
-  constructor(_from:Position, _to:Position, public source:ListItemSpanSource) {
-    super(_from, _to, source);
-  }
-}
-
-// Code Blocks are an odd bird. They need the utilities of a Line Span but the logic of a regular span.
-class CodeBlockSpan extends LineSpan {
-  static isEditorControlled = true;
-  type:SpanType = "code_block";
-  isLine = false;
-  lineBackgroundClass = "CODE";
-  lineTextClass = "CODE-TEXT";
-
-  constructor(_from:Position, _to:Position, source:SpanSource) {
-    super(_from, (_to.ch === 0) ? _to : {line: _to.line + 1, ch: 0}, source);
-  }
-
-  onBeforeChange(change:ChangeCancellable) {
-    if(change.origin === "+delete") {
-      let loc = this.find();
-      if(!loc) return;
-      if(samePosition(loc.from, change.to)) {
-        this.clear();
-        change.cancel();
-      }
-    }
-  }
-  onChange(change:Change) {
-    let loc = this.find();
-    if(!loc) return;
-
-    // We've added a new line and need to expand the block.
-    // @FIXME: I have no idea why this is the logic to do that.
-    if(change.from.line < loc.from.line || (change.from.line === loc.from.line && loc.from.ch !== 0) || samePosition(loc.from, loc.to)) {
-      this.clear();
-      // If the change is before the block, we're extending the beginning of the block.
-      let newFrom = {line: change.from.line, ch: 0};
-      // If the change is after the block, we're extending the end.
-      let newTo = {line: loc.to.line > loc.from.line ? loc.to.line : change.from.line + 1, ch: 0};
-      this.editor.markSpan(newFrom, newTo, this.source);
-
-      // If the end of the span is no longer at the beginning of the next line, fix it.
-    } else if(loc.to.ch !== 0) {
-      this.clear();
-      this.editor.markSpan(loc.from, {line: change.from.line + 1, ch: 0}, this.source);
-    }
-
-    this.refresh(change);
-  }
-
-  refresh(change:Change) {
-    let loc = this.find();
-    if(!loc) return;
-    let cm = this.editor.cm;
-    for(let line = loc.from.line; line < loc.to.line || line === loc.from.line; line++) {
-      let info = cm.lineInfo(line);
-      if(!info || !info.bgClass || info.bgClass.indexOf(this.lineBackgroundClass) === -1) {
-        cm.addLineClass(line, "background", this.lineBackgroundClass);
-      }
-    }
-  }
-}
-
-class ElisionSpan extends LineSpan {
-  static isEditorControlled = true;
-  type:SpanType = "elision";
-  lineBackgroundClass = "elision";
-  protected element = document.createElement("div");
-
-  constructor(_from:Position, _to:Position, source:any) {
-    super(_from, _to, source);
-    this.element.className = "elision-marker";
-    this._attributes.replacedWith = this.element;
-  }
-}
-
-class CodeSpan extends Span {
-  static isEditorControlled = true;
-  type:SpanType = "code";
-}
-
-
-class StrongSpan extends Span {
-  static isEditorControlled = true;
-  type:SpanType = "strong";
-}
-
-class EmphasisSpan extends Span {
-  static isEditorControlled = true;
-  type:SpanType = "emph";
-}
-
-type FormatType = "strong"|"emph"|"code"|"code_block";
-type FormatLineType = "heading"|"item"|"elision";
-type FormatAction = "add"|"remove"|"split";
-type SpanType = FormatType|FormatLineType|"default";
-
-var spanTypes:{[type:string]: (typeof Span)} = {
-  heading: HeadingSpan,
-  item: ListItemSpan,
-  code_block: CodeBlockSpan,
-  elision: ElisionSpan,
-  strong: StrongSpan,
-  emph: EmphasisSpan,
-  code: CodeSpan,
-  "default": Span
-}
-
-
 //---------------------------------------------------------
 // Editor
 //---------------------------------------------------------
@@ -694,6 +330,11 @@ var spanTypes:{[type:string]: (typeof Span)} = {
  * - [ ] Show related (at least action -> EAV / EAV -> DOM
  * - [ ] Autocomplete (at least language constructs, preferably also expression schemas and known tags/names/attributes)
  */
+
+type FormatType = "strong"|"emph"|"code"|"code_block";
+type FormatLineType = "heading"|"item"|"elision";
+type FormatAction = "add"|"remove"|"split";
+
 interface EditorNode extends HTMLElement { cm?: CodeMirror.Editor }
 type MDSpan = [number, number, commonmark.Node];
 
@@ -749,7 +390,7 @@ function parseMarkdown(input:string):{text: string, spans: MDSpan[]} {
   return {text: text.join(""), spans};
 }
 
-class Change implements CodeMirror.EditorChange {
+export class Change implements CodeMirror.EditorChange {
   type:string = "range";
 
   constructor(protected _raw:CodeMirror.EditorChange) {}
@@ -803,7 +444,7 @@ function isRangeChange(x:Change|SpanChange): x is Change {
 }
 
 
-class ChangeCancellable extends Change {
+export class ChangeCancellable extends Change {
   constructor(protected _raw:CodeMirror.EditorChangeCancellable) {
     super(_raw);
   }
@@ -826,16 +467,6 @@ class ChangeInverted extends Change {
   get removed() { return this._raw.text; }
   /** Inverts a change for undo. */
   invert() { return new Change(this._raw); }
-}
-
-class SpanChange {
-  type: string = "span";
-  constructor(public added:Span[] = [], public removed:Span[] = [], public origin:string = "+input") {}
-  /** Inverts a change for undo. */
-  invert() { return new SpanChange(this.removed, this.added, this.origin); }
-}
-function isSpanChange(x:Change|SpanChange): x is SpanChange {
-  return x && x.type === "span";
 }
 
 function formattingChange(span:Span, change:Change, action?:FormatAction) {
@@ -899,11 +530,11 @@ interface HistoryItem { finalized?: boolean, changes:(Change|SpanChange)[] }
 interface CMEditor extends CodeMirror.Editor {
   editor?:Editor
 }
-class Editor {
+export class Editor {
   defaults:CodeMirror.EditorConfiguration = {
     tabSize: 2,
     lineWrapping: true,
-    lineNumbers: false,
+    lineNumbers: true,
     extraKeys: ctrlify({
       "Cmd-Enter": () => this.ide.eval(true),
       "Shift-Cmd-Enter": () => this.ide.eval(false),
@@ -911,45 +542,38 @@ class Editor {
       "Cmd-I": () => this.format({type: "emph"}),
       "Cmd-Y": () => this.format({type: "code"}),
       "Cmd-K": () => this.format({type: "code_block"}),
-      "Cmd-1": () => this.formatLine({type: "heading", level: 1}),
-      "Cmd-2": () => this.formatLine({type: "heading", level: 2}),
-      "Cmd-3": () => this.formatLine({type: "heading", level: 3}),
-      "Cmd-L": () => this.formatLine({type: "item"})
+      "Cmd-1": () => this.format({type: "heading", level: 1}),
+      "Cmd-2": () => this.format({type: "heading", level: 2}),
+      "Cmd-3": () => this.format({type: "heading", level: 3}),
+      "Cmd-L": () => this.format({type: "item"})
     })
   };
 
   cm:CMEditor;
 
-  /** The current editor generation. Used for imposing a relative ordering on parses. */
-  generation = 0;
   /** Whether the editor is being externally updated with new content. */
   reloading = false;
 
   /** Formatting state for the editor at the cursor. */
   formatting:{[formatType:string]: FormatAction} = {};
 
-  // @NOTE: Workaround for Commonmark trimming headers causing desynchronization
-  // We hold off on updates until the user leaves the heading and we can renormalize
-  /** Whether the cursor is currently on a heading */
-  inHeading?:HeadingSpan;
-
   /** Whether the editor is currently processing CM change events */
   changing = false;
   /** Cache of the spans affected by the current set of changes */
   changingSpans?:Span[];
+  /** Cache of spans currently in a denormalized state. So long as this is non-empty, the editor may not sync with the language service. */
+  denormalizedSpans:Span[] = [];
 
   /** Undo history state */
   history:{position:number, transitioning:boolean, items: HistoryItem[]} = {position: 0, items: [], transitioning: false};
 
-  /** New block button element */
-  protected _newBlockElem:HTMLElement;
-  /** Format bar element */
-  protected _formatBarElem:HTMLElement;
+  /** Whether to show the new block button at the cursor. */
+  protected showNewBlockBar = false;
+
+  /** Whether to show the format bar at the cursor. */
+  protected showFormatBar = false;
 
   constructor(public ide:IDE) {
-    this._newBlockElem = Renderer.compile(newBlockBar()) as HTMLElement;
-    this._formatBarElem = Renderer.compile(formatBar()) as HTMLElement;
-
     this.cm = CodeMirror(() => undefined, this.defaults);
     this.cm.editor = this;
     this.cm.on("beforeChange", (editor, rawChange) => this.onBeforeChange(rawChange));
@@ -1022,9 +646,13 @@ class Editor {
       let controlledOffsets = {};
       let touchedIds = {};
       for(let i = 0; i < packed.length; i += 4) {
+        // if(isEditorControlled(packed[i + 2]))
+        //   console.info(packed[i + 2], debugTokenWithContext(doc.getValue(), packed[i], packed[i + 1]));
+
+
         let start = packed[i];
         let type = packed[i + 2];
-        if(spanTypes[type] && spanTypes[type].isEditorControlled) {
+        if(isEditorControlled(type)) {
           if(!controlledOffsets[type]) controlledOffsets[type] = [i];
           else controlledOffsets[type].push(i);
         } else {
@@ -1059,7 +687,7 @@ class Editor {
 
       for(let type in controlledOffsets) {
         let offsets = controlledOffsets[type];
-        let spans = this.getAllSpans(type as SpanType);
+        let spans = this.getAllSpans(type);
         if(offsets.length !== spans.length) {
           throw new Error(`The runtime may not add, remove, or move editor controlled spans of type '${type}'. Expected ${spans.length} got ${offsets.length}`);
         }
@@ -1076,7 +704,7 @@ class Editor {
 
       // Nuke untouched spans
       for(let span of this.getAllSpans()) {
-        if(spanTypes[span.type] && spanTypes[span.type].isEditorControlled) continue; // If the span is editor controlled, it's not our business.
+        if(span.isEditorControlled()) continue; // If the span is editor controlled, it's not our business.
         if(touchedIds[span.id]) continue; // If the span was added or updated, leave it be.
         removedDebug.push(span);
         span.clear();
@@ -1093,19 +721,21 @@ class Editor {
     let doc = cm.getDoc();
     let spans = this.getAllSpans();
     let fullText = cm.getValue();
-    let markers:{pos: number, start?:boolean, isLine?:boolean, source:any}[] = []
+    let markers:{pos: number, start?:boolean, isBlock?:boolean, isLine?:boolean, source:any}[] = [];
     for(let span of spans) {
       let loc = span.find();
       if(!loc) continue;
-      markers.push({pos: doc.indexFromPos(loc.from), start: true, isLine: span.isLine, source: span.source});
-      markers.push({pos: doc.indexFromPos(loc.to), start: false, isLine: span.isLine, source: span.source});
+      markers.push({pos: doc.indexFromPos(loc.from), start: true, isBlock: span.isBlock(), isLine: span.isLine(), source: span.source});
+      markers.push({pos: doc.indexFromPos(loc.to), start: false, isBlock: span.isBlock(), isLine: span.isLine(), source: span.source});
     }
     markers.sort((a, b) => {
       let delta = a.pos - b.pos;
       if(delta !== 0) return delta;
-      if(a.isLine === b.isLine) return 0;
-      if(a.isLine) return -1;
-      return 1;
+      if(a.isBlock && !b.isBlock) return -1;
+      if(b.isBlock && !a.isBlock) return 1;
+      if(a.isLine && !b.isLine) return -1;
+      if(b.isLine && !a.isLine) return 1;
+      return 0;
     });
 
     let pos = 0;
@@ -1127,7 +757,7 @@ class Editor {
         }
         pieces.push(" ");
       } else if(type === "emph") {
-        pieces.push("_");
+        pieces.push("*");
       } else if(type == "strong") {
         pieces.push("**");
       } else if(type == "code") {
@@ -1165,15 +795,15 @@ class Editor {
     this.cm.refresh();
   }
 
-  queueUpdate  = () => {
-    if(!this.reloading && !this.inHeading) this.ide.queueUpdate();
-  }
+  queueUpdate = debounce(() => {
+    if(!this.reloading && this.denormalizedSpans.length === 0) this.ide.queueUpdate();
+  }, 0);
 
   //-------------------------------------------------------
   // Spans
   //-------------------------------------------------------
 
-  getAllSpans(type?:SpanType):Span[] {
+  getAllSpans(type?:string):Span[] {
     let doc = this.cm.getDoc();
     let marks:SpanMarker[] = doc.getAllMarks();
     let spans:Span[] = [];
@@ -1185,7 +815,7 @@ class Editor {
     return spans;
   }
 
-  findSpans(start:Position, stop:Position, type?:SpanType):Span[] {
+  findSpans(start:Position, stop:Position, type?:string):Span[] {
     let doc = this.cm.getDoc();
     let marks:SpanMarker[] = doc.findMarks(start, stop);
     let spans:Span[] = [];
@@ -1197,7 +827,7 @@ class Editor {
     return spans;
   }
 
-  findSpansAt(pos:Position, type?:SpanType):Span[] {
+  findSpansAt(pos:Position, type?:string):Span[] {
     let doc = this.cm.getDoc();
     let marks:SpanMarker[] = doc.findMarksAt(pos);
     let spans:Span[] = [];
@@ -1211,9 +841,8 @@ class Editor {
 
   /** Create a new Span representing the given source in the document. */
   markSpan(from:Position, to:Position, source:any) {
-    let SpanClass = spanTypes[source.type] || spanTypes["default"];
-    let span = new SpanClass(from, to, source);
-    span.applyMark(this);
+    let SpanClass:(typeof Span) = spanTypes[source.type] || spanTypes["default"];
+    let span = new SpanClass(this, from, to, source);
     return span;
   }
 
@@ -1231,11 +860,24 @@ class Editor {
   // Formatting
   //-------------------------------------------------------
 
+  protected inCodeBlock(pos:Position) {
+    let inCodeBlock = false;
+    for(let span of this.getAllSpans("code_block")) {
+      let loc = span.find();
+      if(!loc) continue;
+      if(comparePositions(loc.from, pos) <= 0 && comparePositions(loc.to, pos) > 0) {
+        return true;
+      }
+    }
+  }
+
   /** Create a new span representing the given source, collapsing and splitting existing spans as required to maintain invariants. */
-  formatSpan(from:Position, to:Position, source:any) {
+  formatSpan(from:Position, to:Position, source:any):Span[] {
     let selection = {from, to};
+
     let spans = this.findSpans(from, to, source.type);
     let formatted = false;
+    let neue:Span[] = [];
     for(let span of spans) {
       let loc = span.find();
       if(!loc) continue;
@@ -1251,43 +893,82 @@ class Editor {
 
         // If the formatted range is wholly enclosed in a span of the same type, split the span around it.
       } else if(whollyEnclosed(selection, loc)) {
-        this.markSpan(loc.from, from, source);
-        this.markSpan(to, loc.to, source);
+        if(!samePosition(loc.from, from)) neue.push(this.markSpan(loc.from, from, source));
+        if(!samePosition(to, loc.to)) neue.push(this.markSpan(to, loc.to, source));
         span.clear();
         formatted = true;
 
         // If the formatted range intersects the end of a span of the same type, clear the intersection.
       } else if(comparePositions(loc.to, from) > 0) {
-        this.markSpan(loc.from, from, source);
+        neue.push(this.markSpan(loc.from, from, source));
         span.clear();
 
         // If the formatted range intersects the start of a span of the same type, clear the intersection.
       } else if(comparePositions(loc.from, to) < 0) {
-        this.markSpan(to, loc.to, source);
+        neue.push(this.markSpan(to, loc.to, source));
         span.clear();
       }
     }
 
     // If we haven't already formatted by removing existing span(s) then we should create a new span
     if(!formatted) {
-      this.markSpan(from, to, source);
+      neue.push(this.markSpan(from, to, source));
     }
+
+    for(let span of neue) {
+      this.trackDenormalized(span);
+    }
+
+    return neue;
   }
 
-  format(source:{type:FormatType}) {
+  format(source:{type:string, level?: number, listData?: {type:"ordered"|"unordered", start?: number}}, refocus = false) {
+    let SpanClass:(typeof Span) = spanTypes[source.type] || spanTypes["default"];
+
+    let style = SpanClass.style();
+    if(style === "inline") {
+      this.formatInline(source);
+
+    } else if(style === "line") {
+      this.formatLine(source);
+
+    } else if(style === "block") {
+      this.formatBlock(source);
+    }
+
+    if(refocus) this.cm.focus();
+
+    this.queueUpdate();
+  }
+
+  formatInline(source:{type:string}) {
     this.finalizeLastHistoryEntry();
     let doc = this.cm.getDoc();
     this.cm.operation(() => {
-      // If we have a selection, format it.
-      if(doc.somethingSelected()) {
-        this.formatSpan(doc.getCursor("from"), doc.getCursor("to"), source)
+      let from = doc.getCursor("from");
+      from = {line: from.line, ch: adjustToWordBoundary(from.ch, doc.getLine(from.line), "left")};
+
+      // If we have a selection, format it, expanded to the nearest word boundaries.
+      // Or, if we're currently in a word, format the word.
+      if(doc.somethingSelected() || from.ch !== doc.getCursor("from").ch) {
+        let to = doc.getCursor("to");
+        to = {line: to.line, ch: adjustToWordBoundary(to.ch, doc.getLine(to.line), "right")};
+
+        // No editor-controlled span may be created within a codeblock.
+        // @NOTE: This feels like a minor layor violation.
+        // @FIXME: This doesn't properly handle the unlikely "inline wholly contains codeblock" case
+        if(this.inCodeBlock(from) || this.inCodeBlock(to)) return;
+
+        this.formatSpan(from, to, source)
 
         // Otherwise we want to change our current formatting state.
       } else {
         let action:FormatAction = "add"; // By default, we just want our following changes to be bold
         let cursor = doc.getCursor("from");
-        let spans = this.findSpansAt(cursor, source.type);
+
+        let spans = this.findSpansAt(cursor);
         for(let span of spans) {
+          if(!span.isInline()) continue;
           let loc = span.find();
           if(!loc) continue;
           // If we're at the end of a bold span, we want to stop bolding.
@@ -1303,14 +984,19 @@ class Editor {
     });
   }
 
-  formatLine(source:{type:FormatLineType, level?:number}) {
+  formatLine(source:{type:string, level?:number, listData?: {type:"ordered"|"unordered", start?: number}}) {
     this.finalizeLastHistoryEntry();
     let doc = this.cm.getDoc();
     this.cm.operation(() => {
       let from = doc.getCursor("from");
       let to = doc.getCursor("to");
 
-      let existing:LineSpan[] = [];
+      // No editor-controlled span may be created within a codeblock.
+      // @NOTE: This feels like a minor layor violation.
+      // @FIXME: This doesn't properly handle the unlikely "line wholly contains codeblock" case
+      if(this.inCodeBlock(from) || this.inCodeBlock(to)) return;
+
+      let existing:Span[] = [];
       let formatted = false;
       for(let line = from.line, end = to.line; line <= end; line++) {
         let cur = {line, ch: 0};
@@ -1318,7 +1004,7 @@ class Editor {
         // Line formats are exclusive, so we clear intersecting line spans of other types.
         let spans = this.findSpansAt(cur);
         for(let span of spans) {
-          if(isLineSpan(span) && span.source.type !== source.type) {
+          if(span.isLine() && span.source.type !== source.type) {
             span.clear();
           }
         }
@@ -1344,6 +1030,61 @@ class Editor {
       this.finalizeLastHistoryEntry();
       this.refresh();
     });
+  }
+
+  formatBlock(source:{type:string}) {
+    this.finalizeLastHistoryEntry();
+    let doc = this.cm.getDoc();
+    this.cm.operation(() => {
+      let from = {line: doc.getCursor("from").line, ch: 0};
+      let to = {line: doc.getCursor("to").line, ch: 0};
+
+      if(to.line === from.line) {
+        to.line += 1;
+      }
+
+      // Determine if this exact span already exists.
+      let exists:Span|undefined;
+      let existing = this.findSpansAt(from, source.type);
+      for(let span of existing) {
+        let loc = span.find();
+        if(!loc) continue;
+        if(samePosition(loc.to, to)) {
+          exists = span;
+          break;
+        }
+      }
+
+      // If the span already exists, we mean to clear it.
+      if(exists) {
+        exists.clear();
+
+        // We're creating a new span.
+      } else {
+
+        // Block formats are exclusive, so we clear intersecting spans of other types.
+        let spans = this.findSpans(from, to);
+        for(let span of spans) {
+          if(span.isEditorControlled()) {
+            span.clear();
+          }
+        }
+
+        this.formatSpan(from, to, source);
+      }
+    });
+  }
+
+  trackDenormalized(span:Span) {
+    if(span.isDenormalized) {
+      let denormalized = span.isDenormalized();
+      let existingIx = this.denormalizedSpans.indexOf(span);
+      if(denormalized && existingIx === -1) {
+        this.denormalizedSpans.push(span);
+      } else if(!denormalized && existingIx !== -1) {
+        this.denormalizedSpans.splice(existingIx, 1);
+      }
+    }
   }
 
   //-------------------------------------------------------
@@ -1382,10 +1123,10 @@ class Editor {
           doc.replaceRange(change.addedText, change.from, removedPos);
         } else if(isSpanChange(change)) {
           for(let removed of change.removed) {
-            removed.clear("+mdundo");
+            removed.span.clear("+mdundo");
           }
           for(let added of change.added) {
-            added.applyMark(this, "+mdundo");
+            added.span.apply(added.from, added.to, "+mdundo");
           }
         }
       }
@@ -1461,16 +1202,26 @@ class Editor {
     for(let line = from.line, end = to.line; line <= end; line++) {
       let maybeLineSpans = this.findSpansAt({line, ch: 0});
       for(let maybeLineSpan of maybeLineSpans) {
-        if(maybeLineSpan.isLine && spans.indexOf(maybeLineSpan) === -1) {
+        if(maybeLineSpan.isLine() && spans.indexOf(maybeLineSpan) === -1) {
           spans.push(maybeLineSpan);
         }
       }
     }
 
     for(let span of spans) {
+      let loc = span.find();
+      if(!loc) {
+        span.clear();
+        return;
+      }
+
       if(span.onBeforeChange) {
-        if(!span.find()) span.clear();
-        else span.onBeforeChange(change);
+        span.onBeforeChange(change);
+      }
+
+      // If we clear the span lazily, we can't capture it's position for undo/redo
+      if(span.isInline() && comparePositions(change.from, loc.from) <= 0 && comparePositions(change.to, loc.to) >= 0) {
+        span.clear(change.origin);
       }
     }
 
@@ -1485,13 +1236,13 @@ class Editor {
   }
 
   onChange = (raw:CodeMirror.EditorChangeLinkedList) => {
+    let doc = this.cm.getDoc();
     this.cm.operation(() => {
-      let doc = this.cm.getDoc();
       let lastLine = doc.lastLine();
       let pos = CodeMirror.Pos(lastLine + 1, 0);
       if(doc.getLine(lastLine) !== "") {
         let cursor = doc.getCursor();
-        doc.replaceRange("\n", pos, pos, "+ghostLine");
+        doc.replaceRange("\n", pos, pos, "+normalize");
         doc.setCursor(cursor);
       }
     });
@@ -1500,13 +1251,7 @@ class Editor {
     let spans = this.changingSpans || [];
     if(change.origin === "+mdredo" || change.origin === "+mdundo") {
       for(let span of spans) {
-        if(!span.refresh) continue;
-
-        let cur:ChangeLinkedList|undefined = change;
-        while(cur) {
-          span.refresh(cur);
-          cur = cur.next();
-        }
+        if(span.refresh) span.refresh();
       }
       return;
     }
@@ -1516,9 +1261,32 @@ class Editor {
 
 
     let cur:ChangeLinkedList|undefined = change;
+    let affectedLines = {};
     while(cur) {
+      affectedLines[cur.from.line] = true;
+      affectedLines[cur.to.line] = true;
+      affectedLines[cur.final.line] = true;
+
       this.addToHistory(cur);
       cur = cur.next();
+    }
+    for(let l in affectedLines) {
+      let line = +l;
+      let text = doc.getLine(line);
+      let pos = {line, ch: 0};
+      if((text[0] === " " || text[text.length - 1] === " ") && !this.inCodeBlock(pos)) {
+        let handled = false;
+        for(let span of this.findSpansAt(pos)) {
+          if(span.isLine()) {
+            handled = true;
+            break;
+          }
+        }
+        if(!handled) {
+          let span = this.markSpan(pos, pos, {type: "whitespace"});
+          this.denormalizedSpans.push(span);
+        }
+      }
     }
 
     for(let span of spans) {
@@ -1534,17 +1302,25 @@ class Editor {
       }
     }
 
-    if(change.origin !== "+ghostLine") {
+    for(let span of spans) {
+      this.trackDenormalized(span);
+    }
+
+    if(change.origin !== "+normalize") {
       for(let format in this.formatting) {
         let action = this.formatting[format];
         if(action === "add") {
-          this.markSpan(change.from, change.final, {type: format});
+          let span = this.markSpan(change.from, change.final, {type: format});
+          this.trackDenormalized(span);
         }
       }
     }
   }
 
   onChanges = (raws:CodeMirror.EditorChangeLinkedList[]) => {
+    for(let span of this.changingSpans) {
+      if(span.refresh) span.refresh();
+    }
     this.changingSpans = undefined;
     this.changing = false;
     this.history.transitioning = false;
@@ -1562,20 +1338,39 @@ class Editor {
     // Remove any formatting that may have been applied
     this.formatting = {};
 
-    // If we were in a heading and no longer are, normalize the heading and release the lock
-    // on syncing with the server.
-    if(this.inHeading) {
-      let heading = this.inHeading;
-      let loc = heading.find();
+    // If any spans are currently denormalized, attempt to normalize them if they're not currently being edited.
+    if(this.denormalizedSpans.length) {
+      console.log("Denormalized:", this.denormalizedSpans.length);
+      for(let ix = 0; ix < this.denormalizedSpans.length;) {
+        let span = this.denormalizedSpans[ix];
+        let loc = span.find();
+        if(!loc) span.clear();
 
-      if(!loc) {
-        this.inHeading = undefined;
-        this.queueUpdate();
-      } else if(cursor.line !== loc.from.line) {
-        this.inHeading = undefined;
-        let to = doc.posFromIndex(doc.indexFromPos({line: loc.to.line + 1, ch: 0}) - 1);
-        let cur = doc.getRange(loc.from, to);
-        doc.replaceRange(cur.trim(), loc.from, to, "+normalize");
+        // If the span is Inline or Block and our cursor is before or after it, we're clear to normalize.
+        else if((span.isInline() || span.isBlock()) &&
+                (comparePositions(cursor, loc.from) < 0 || comparePositions(cursor, loc.to) > 0)) {
+          span.normalize()
+
+          // If the span is a Line and our cursor is on a different line, we're clear to normalize.
+        } else if(span.isLine() && cursor.line !== loc.from.line) {
+          span.normalize();
+
+          // Otherwise the span remains denormalized.
+        } else {
+          ix++;
+          continue;
+        }
+
+        console.log("- normalized", span);
+        if(this.denormalizedSpans.length > 1) {
+          this.denormalizedSpans[ix] = this.denormalizedSpans.pop();
+        } else {
+          this.denormalizedSpans.pop();
+        }
+      }
+
+      // If everybody is normalized now, we can queue an update to resync immediately.
+      if(!this.denormalizedSpans.length) {
         this.queueUpdate();
       }
     }
@@ -1583,25 +1378,28 @@ class Editor {
     // If we're outside of a codeblock, display our rich text controls.
     let codeBlocks = this.findSpansAt(cursor, "code_block");
 
+
     //If the cursor is at the beginning of a new line, display the new block button.
-    if(!codeBlocks.length && cursor.ch === 0 && doc.getLine(cursor.line) === "") {
-      this.cm.addWidget(cursor, this._newBlockElem, false);
-    } else if(this._newBlockElem.parentNode) {
-      this._newBlockElem.parentNode.removeChild(this._newBlockElem);
-    }
+    let old = this.showNewBlockBar;
+    this.showNewBlockBar = (!codeBlocks.length &&
+                               cursor.ch === 0 &&
+                               doc.getLine(cursor.line) === "");
+
+    if(this.showNewBlockBar !== old) this.queueUpdate();
 
     // Otherwise if there's a selection, show the format bar.
-    if(!codeBlocks.length && doc.somethingSelected()) {
-      this.cm.addWidget(doc.getCursor("from"), this._formatBarElem, true);
-    } else if(this._formatBarElem.parentNode) {
-      this._formatBarElem.parentNode.removeChild(this._formatBarElem);
-    }
+    old = this.showFormatBar;
+    this.showFormatBar = (!codeBlocks.length && doc.somethingSelected());
+    if(this.showFormatBar !== old) this.queueUpdate();
   }
 
   // Elements
 
   render() {
-    return {c: "editor-pane",  postRender: this.injectCodeMirror};
+    return {c: "editor-pane",  postRender: this.injectCodeMirror, children: [
+      this.showNewBlockBar ? newBlockBar({editor: this}) : undefined,
+      this.showFormatBar ? formatBar({editor: this}) : undefined
+    ]};
   }
 }
 
@@ -1931,8 +1729,17 @@ class Comments {
  * - Code: Something's wrong
  */
 
-function formatBar():Elem {
-  return {id: "format-bar", c: "format-bar"};
+interface EditorBarElem extends Elem { editor: Editor }
+
+function formatBar({editor}:EditorBarElem):Elem {
+  return {id: "format-bar", c: "format-bar", children: [
+    {text: "B", click: () => editor.format({type: "strong"}, true)},
+    {text: "I", click: () => editor.format({type: "emph"}, true)},
+    {text: "code", click: () => editor.format({type: "code"}, true)},
+    {text: "H1", click: () => editor.format({type: "heading", level: 1}, true)},
+    {text: "H2", click: () => editor.format({type: "heading", level: 2}, true)},
+    {text: "H3", click: () => editor.format({type: "heading", level: 3}, true)}
+  ]};
 }
 
 //---------------------------------------------------------
@@ -1944,8 +1751,14 @@ function formatBar():Elem {
  * - Text: Block / List / Quote / H(?)
  */
 
-function newBlockBar():Elem {
-  return {id: "new-block-btn", c: "new-block-btn"};
+function newBlockBar({editor}:EditorBarElem):Elem {
+  return {id: "new-block-bar", c: "new-block-bar", children: [
+    {text: "code", click: () => editor.format({type: "code_block"}, true)},
+    {text: "list", click: () => editor.format({type: "item"}, true)},
+    {text: "H1", click: () => editor.format({type: "heading", level: 1}, true)},
+    {text: "H2", click: () => editor.format({type: "heading", level: 2}, true)},
+    {text: "H3", click: () => editor.format({type: "heading", level: 3}, true)}
+  ]};
 }
 
 //---------------------------------------------------------
@@ -1990,6 +1803,8 @@ export class IDE {
   documentId?:string;
   /** Whether the active document has been loaded. */
   loaded:boolean = false;
+  /** The current editor generation. Used for imposing a relative ordering on parses. */
+  generation = 0;
 
   renderer:Renderer = new Renderer();
 
@@ -2022,6 +1837,7 @@ export class IDE {
 
   queueUpdate = debounce(() => {
     this.render();
+    this.generation++;
     if(this.onChange) this.onChange(this);
   }, 1, true);
 
