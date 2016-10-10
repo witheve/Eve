@@ -567,15 +567,13 @@ export class Editor {
   /** Undo history state */
   history:{position:number, transitioning:boolean, items: HistoryItem[]} = {position: 0, items: [], transitioning: false};
 
-  /** New block button element */
-  protected _newBlockElem:HTMLElement;
-  /** Format bar element */
-  protected _formatBarElem:HTMLElement;
+  /** Whether to show the new block button at the cursor. */
+  protected showNewBlockBar = false;
+
+  /** Whether to show the format bar at the cursor. */
+  protected showFormatBar = false;
 
   constructor(public ide:IDE) {
-    this._newBlockElem = Renderer.compile(newBlockBar()) as HTMLElement;
-    this._formatBarElem = Renderer.compile(formatBar()) as HTMLElement;
-
     this.cm = CodeMirror(() => undefined, this.defaults);
     this.cm.editor = this;
     this.cm.on("beforeChange", (editor, rawChange) => this.onBeforeChange(rawChange));
@@ -926,7 +924,7 @@ export class Editor {
     return neue;
   }
 
-  format(source:{type:string, level?: number, listData?: {type:"ordered"|"unordered", start?: number}}) {
+  format(source:{type:string, level?: number, listData?: {type:"ordered"|"unordered", start?: number}}, refocus = false) {
     let SpanClass:(typeof Span) = spanTypes[source.type] || spanTypes["default"];
 
     let style = SpanClass.style();
@@ -939,6 +937,9 @@ export class Editor {
     } else if(style === "block") {
       this.formatBlock(source);
     }
+
+    if(refocus) this.cm.focus();
+
     this.queueUpdate();
   }
 
@@ -1365,25 +1366,28 @@ export class Editor {
     // If we're outside of a codeblock, display our rich text controls.
     let codeBlocks = this.findSpansAt(cursor, "code_block");
 
+
     //If the cursor is at the beginning of a new line, display the new block button.
-    if(!codeBlocks.length && cursor.ch === 0 && doc.getLine(cursor.line) === "") {
-      this.cm.addWidget(cursor, this._newBlockElem, false);
-    } else if(this._newBlockElem.parentNode) {
-      this._newBlockElem.parentNode.removeChild(this._newBlockElem);
-    }
+    let old = this.showNewBlockBar;
+    this.showNewBlockBar = (!codeBlocks.length &&
+                               cursor.ch === 0 &&
+                               doc.getLine(cursor.line) === "");
+
+    if(this.showNewBlockBar !== old) this.queueUpdate();
 
     // Otherwise if there's a selection, show the format bar.
-    if(!codeBlocks.length && doc.somethingSelected()) {
-      this.cm.addWidget(doc.getCursor("from"), this._formatBarElem, true);
-    } else if(this._formatBarElem.parentNode) {
-      this._formatBarElem.parentNode.removeChild(this._formatBarElem);
-    }
+    old = this.showFormatBar;
+    this.showFormatBar = (!codeBlocks.length && doc.somethingSelected());
+    if(this.showFormatBar !== old) this.queueUpdate();
   }
 
   // Elements
 
   render() {
-    return {c: "editor-pane",  postRender: this.injectCodeMirror};
+    return {c: "editor-pane",  postRender: this.injectCodeMirror, children: [
+      this.showNewBlockBar ? newBlockBar({editor: this}) : undefined,
+      this.showFormatBar ? formatBar({editor: this}) : undefined
+    ]};
   }
 }
 
@@ -1713,8 +1717,17 @@ class Comments {
  * - Code: Something's wrong
  */
 
-function formatBar():Elem {
-  return {id: "format-bar", c: "format-bar"};
+interface EditorBarElem extends Elem { editor: Editor }
+
+function formatBar({editor}:EditorBarElem):Elem {
+  return {id: "format-bar", c: "format-bar", children: [
+    {text: "B", click: () => editor.format({type: "strong"}, true)},
+    {text: "I", click: () => editor.format({type: "emph"}, true)},
+    {text: "code", click: () => editor.format({type: "code"}, true)},
+    {text: "H1", click: () => editor.format({type: "heading", level: 1}, true)},
+    {text: "H2", click: () => editor.format({type: "heading", level: 2}, true)},
+    {text: "H3", click: () => editor.format({type: "heading", level: 3}, true)}
+  ]};
 }
 
 //---------------------------------------------------------
@@ -1726,8 +1739,14 @@ function formatBar():Elem {
  * - Text: Block / List / Quote / H(?)
  */
 
-function newBlockBar():Elem {
-  return {id: "new-block-btn", c: "new-block-btn"};
+function newBlockBar({editor}:EditorBarElem):Elem {
+  return {id: "new-block-bar", c: "new-block-bar", children: [
+    {text: "code", click: () => editor.format({type: "code_block"}, true)},
+    {text: "list", click: () => editor.format({type: "item"}, true)},
+    {text: "H1", click: () => editor.format({type: "heading", level: 1}, true)},
+    {text: "H2", click: () => editor.format({type: "heading", level: 2}, true)},
+    {text: "H3", click: () => editor.format({type: "heading", level: 3}, true)}
+  ]};
 }
 
 //---------------------------------------------------------
