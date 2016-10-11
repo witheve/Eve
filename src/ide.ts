@@ -534,7 +534,7 @@ export class Editor {
   defaults:CodeMirror.EditorConfiguration = {
     tabSize: 2,
     lineWrapping: true,
-    lineNumbers: true,
+    lineNumbers: false,
     extraKeys: ctrlify({
       "Cmd-Enter": () => this.ide.eval(true),
       "Shift-Cmd-Enter": () => this.ide.eval(false),
@@ -572,6 +572,7 @@ export class Editor {
 
   /** Whether to show the new block button at the cursor. */
   protected showNewBlockBar = false;
+  protected newBlockBar:EditorBarElem;
 
   /** Whether to show the format bar at the cursor. */
   protected showFormatBar = false;
@@ -583,6 +584,8 @@ export class Editor {
     this.cm.on("change", (editor, rawChange) => this.onChange(rawChange));
     this.cm.on("changes", (editor, rawChanges) => this.onChanges(rawChanges));
     this.cm.on("cursorActivity", this.onCursorActivity);
+
+    this.newBlockBar = {editor: this, active: false};
   }
 
   reset() {
@@ -1390,7 +1393,10 @@ export class Editor {
                                cursor.ch === 0 &&
                                doc.getLine(cursor.line) === "");
 
-    if(this.showNewBlockBar !== old || this.showNewBlockBar) this.queueUpdate();
+    if(this.showNewBlockBar !== old || this.showNewBlockBar) {
+      this.newBlockBar.active = false;
+      this.queueUpdate();
+    }
 
     // Otherwise if there's a selection, show the format bar.
     old = this.showFormatBar;
@@ -1402,7 +1408,7 @@ export class Editor {
 
   render() {
     return {c: "editor-pane",  postRender: this.injectCodeMirror, children: [
-      this.showNewBlockBar ? newBlockBar({editor: this}) : undefined,
+      this.showNewBlockBar ? newBlockBar(this.newBlockBar) : undefined,
       this.showFormatBar ? formatBar({editor: this}) : undefined
     ]};
   }
@@ -1734,7 +1740,7 @@ class Comments {
  * - Code: Something's wrong
  */
 
-interface EditorBarElem extends Elem { editor: Editor }
+interface EditorBarElem extends Elem { editor: Editor, active?: boolean }
 
 function formatBar({editor}:EditorBarElem):Elem {
   let doc = editor.cm.getDoc();
@@ -1761,16 +1767,24 @@ function formatBar({editor}:EditorBarElem):Elem {
  * - Text: Block / List / Quote / H(?)
  */
 
-function newBlockBar({editor}:EditorBarElem):Elem {
+function newBlockBar(elem:EditorBarElem):Elem {
+  let {editor, active} = elem;
   let doc = editor.cm.getDoc();
   let cursor = doc.getCursor();
   let coords = editor.cm.cursorCoords(cursor, "local");
-  return {id: "new-block-bar", c: "new-block-bar", top: coords.bottom, left: coords.left, children: [
-    {text: "block", click: () => editor.format({type: "code_block"}, true)},
-    {text: "list", click: () => editor.format({type: "item"}, true)},
-    {text: "H1", click: () => editor.format({type: "heading", level: 1}, true)},
-    {text: "H2", click: () => editor.format({type: "heading", level: 2}, true)},
-    {text: "H3", click: () => editor.format({type: "heading", level: 3}, true)}
+  return {id: "new-block-bar", c: `new-block-bar ${active ? "active" : ""}`, top: coords.bottom, left: coords.left, children: [
+    {c: "new-block-bar-toggle ion-plus", click: () => {
+      elem.active = !elem.active;
+      editor.cm.focus();
+      editor.queueUpdate();
+    }},
+    {c: "flex-row controls", children: [
+      {text: "block", click: () => editor.format({type: "code_block"}, true)},
+      {text: "list", click: () => editor.format({type: "item"}, true)},
+      {text: "H1", click: () => editor.format({type: "heading", level: 1}, true)},
+      {text: "H2", click: () => editor.format({type: "heading", level: 2}, true)},
+      {text: "H3", click: () => editor.format({type: "heading", level: 3}, true)}
+    ]}
   ]};
 }
 
