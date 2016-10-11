@@ -49,7 +49,6 @@ function evaluate(assert, expected, code) {
   let {blocks} = builder.buildDoc(parsed.results);
   let session = new BrowserSessionDatabase({send: () => {}});
   session.blocks = blocks;
-  console.log(blocks.map((x) => x.parse.scanLike[1]));
   let evaluation = new Evaluation();
   evaluation.registerDatabase("session", session);
   let changes = evaluation.fixpoint();
@@ -1974,4 +1973,157 @@ test("indented code blocks are not evaled", (assert) => {
   `);
   assert.end();
   })
+
+test("single value sort", (assert) => {
+  let expected = {
+    insert: [
+      ["2", "tag", "person"],
+      ["2", "name", "a"],
+      ["5", "tag", "person"],
+      ["5", "name", "b"],
+      ["8", "tag", "person"],
+      ["8", "name", "c"],
+      ["14|1 a", "dude", "1 a"],
+      ["14|2 b", "dude", "2 b"],
+      ["14|3 c", "dude", "3 c"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "a"]
+        [#person name: "b"]
+        [#person name: "c"]
+    ~~~
+
+    foo bar
+    ~~~
+      search
+        p = [#person name]
+        ix = sort[value: name]
+      commit
+        [dude: "{{ix}} {{name}}"]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("multi value sort", (assert) => {
+  let expected = {
+    insert: [
+      ["3", "tag", "person"],
+      ["3", "name", "a"],
+      ["3", "age", 1],
+      ["7", "tag", "person"],
+      ["7", "name", "a"],
+      ["7", "age", 2],
+      ["11", "tag", "person"],
+      ["11", "name", "b"],
+      ["11", "age", 1],
+      ["18|1 a 1", "dude", "1 a 1"],
+      ["18|2 a 2", "dude", "2 a 2"],
+      ["18|3 b 1", "dude", "3 b 1"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "a" age: 1]
+        [#person name: "a" age: 2]
+        [#person name: "b" age: 1]
+    ~~~
+
+    foo bar
+    ~~~
+      search
+        p = [#person name age]
+        ix = sort[value: (name, age)]
+      commit
+        [dude: "{{ix}} {{name}} {{age}}"]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("multi value sort with multiple directions", (assert) => {
+  let expected = {
+    insert: [
+      ["3", "tag", "person"],
+      ["3", "name", "a"],
+      ["3", "age", 1],
+      ["7", "tag", "person"],
+      ["7", "name", "a"],
+      ["7", "age", 2],
+      ["11", "tag", "person"],
+      ["11", "name", "b"],
+      ["11", "age", 1],
+      ["18|2 a 1", "dude", "2 a 1"],
+      ["18|3 a 2", "dude", "3 a 2"],
+      ["18|1 b 1", "dude", "1 b 1"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "a" age: 1]
+        [#person name: "a" age: 2]
+        [#person name: "b" age: 1]
+    ~~~
+
+    foo bar
+    ~~~
+      search
+        p = [#person name age]
+        ix = sort[value: (name, age), direction: ("down", "up")]
+      commit
+        [dude: "{{ix}} {{name}} {{age}}"]
+    ~~~
+  `);
+  assert.end();
+})
+
+test.only("sort with group", (assert) => {
+  let expected = {
+    insert: [
+      ["3", "tag", "person"],
+      ["3", "name", "a"],
+      ["3", "age", 1],
+      ["7", "tag", "person"],
+      ["7", "name", "a"],
+      ["7", "age", 2],
+      ["11", "tag", "person"],
+      ["11", "name", "b"],
+      ["11", "age", 1],
+      ["18|1 a 1", "dude", "1 a 1"],
+      ["18|2 a 2", "dude", "2 a 2"],
+      ["18|1 b 1", "dude", "1 b 1"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "a" age: 1]
+        [#person name: "a" age: 2]
+        [#person name: "b" age: 1]
+    ~~~
+
+    foo bar
+    ~~~
+      search
+        p = [#person name age]
+        ix = sort[value: age, per: name]
+      commit
+        [dude: "{{ix}} {{name}} {{age}}"]
+    ~~~
+  `);
+  assert.end();
+})
 

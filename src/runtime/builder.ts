@@ -8,6 +8,7 @@ import * as providers from "./providers/index";
 import "./providers/math";
 import "./providers/logical";
 import "./providers/string";
+import {Sort} from "./providers/sort";
 import {Aggregate} from "./providers/aggregate";
 import {ActionImplementations} from "./actions";
 import {Block, BlockStratum} from "./block";
@@ -499,9 +500,10 @@ function stratify(scans) {
       provide(scan.e, scan);
       provide(scan.a, scan);
       provide(scan.v, scan);
-    } else if(scan instanceof Aggregate) {
+    } else if(scan instanceof Aggregate || scan instanceof Sort) {
       for(let ret of scan.returns) {
         provide(ret, scan);
+        blockLevel[scan.id] = 1;
         if(join.isVariable(ret)) {
           variableInfo[ret.id].level = 1;
         }
@@ -532,6 +534,7 @@ function stratify(scans) {
     for(let scan of scans) {
       let isAggregate = false;
       if(scan instanceof Aggregate ||
+         scan instanceof Sort ||
          scan.hasAggregate ||
          (scan.strata && scan.strata.length > 1)) {
         isAggregate = true;
@@ -585,10 +588,10 @@ function stratify(scans) {
   let strata = [{scans: [], aggregates: []}];
   for(let scan of scans) {
     let scanStratum = blockLevel[scan.id];
-    if(scanStratum) {
+    if(scanStratum !== undefined) {
       let level = strata[scanStratum];
       if(!level) level = strata[scanStratum] = {scans: [], aggregates: []};
-      if(scan instanceof Aggregate) {
+      if(scan instanceof Aggregate || scan instanceof Sort) {
         level.aggregates.push(scan);
       }
       level.scans.push(scan);
