@@ -551,6 +551,9 @@ export class Editor {
 
   cm:CMEditor;
 
+  /** Whether the editor has changed since the last update. */
+  dirty = false;
+
   /** Whether the editor is being externally updated with new content. */
   reloading = false;
 
@@ -1186,6 +1189,7 @@ export class Editor {
   }
 
   onBeforeChange = (raw:CodeMirror.EditorChangeCancellable) => {
+    this.dirty = true;
     let doc = this.cm.getDoc();
     let change = new ChangeCancellable(raw);
     let {from, to} = change;
@@ -1846,8 +1850,12 @@ export class IDE {
 
   queueUpdate = debounce(() => {
     this.render();
-    this.generation++;
-    if(this.onChange) this.onChange(this);
+
+    if(this.editor.dirty) {
+      this.generation++;
+      if(this.onChange) this.onChange(this);
+      this.editor.dirty = false;
+    }
   }, 1, true);
 
   loadFile(docId:string) {
