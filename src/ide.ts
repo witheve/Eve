@@ -1843,7 +1843,7 @@ export class IDE {
 
   navigator:Navigator = new Navigator(this);
   editor:Editor = new Editor(this);
-  comments:Comments = new Comments(this, fakeComments);
+  comments:Comments = new Comments(this, {});
 
   constructor( ) {
     window.addEventListener("resize", this.resize);
@@ -1905,6 +1905,7 @@ export class IDE {
     let name = this.documentId; // @FIXME
     this.navigator.loadDocument(this.documentId, name);
     this.navigator.currentId = this.documentId;
+    this.comments.update(fakeComments);
 
     this.render();
   }
