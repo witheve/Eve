@@ -520,8 +520,11 @@ class WhitespaceSpan extends LineSpan {
   }
 }
 
-class ParserSpan extends InlineSpan {
+class ParserSpan extends Span {
   _editorControlled = false;
+  static _spanStyle:"inline" = "inline";
+  _spanStyle:"inline" = "inline";
+
 }
 
 //---------------------------------------------------------
