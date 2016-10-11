@@ -127,9 +127,11 @@ export class SystemDatabase extends Database {
         if(scan.type === "record") {
           for(let attribute of scan.attributes) {
             if(attribute.attribute === "tag" && attribute.value.value === "time") {
+              if(this.time) this.time.close();
               time = this.time = new TimeAgent();
               time.configure(scan);
             } else if(attribute.attribute === "tag" && attribute.value.value === "memory") {
+              if(this.memory) this.memory.close();
               if(global["browser"]) {
                 memory = this.memory = new BrowserMemoryAgent();
               } else {
