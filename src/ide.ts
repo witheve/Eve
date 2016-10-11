@@ -266,6 +266,12 @@ class Navigator {
       subtree = {c: "tree-items", children: items};
     }
 
+    if(node.type === "document") {
+      return {c: `tree-item ${nodeId === this.rootId ? "root" : ""} ${node.type}`, nodeId, children: [
+      subtree
+    ]};
+    }
+
     return {c: `tree-item ${subtree ? "branch" : "leaf"} ${nodeId === this.rootId ? "root" : ""} ${node.type} ${subtree && !node.open ? "collapsed" : ""} ${node.hidden ? "hidden" : ""}`, nodeId, children: [
       {c: "flex-row", children: [
         {c: `label ${subtree ? "ion-ios-arrow-down" : "no-icon"}`, text: node.name, nodeId, click: node.span ? this.gotoSpan : undefined}, // icon should be :before
