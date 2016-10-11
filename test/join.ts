@@ -1951,3 +1951,27 @@ test("an identifier followed by whitespace should not be interpreted as a functi
   assert.end();
 });
 
+test("indented code blocks are not evaled", (assert) => {
+  let expected = {
+    insert: [],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+
+        commit
+          [#person name: "chris"]
+          [#person name: "joe"]
+
+    foo bar
+    ~~~
+      search
+        p = [#person name]
+      commit
+        p.dude := name
+        [#cool]
+    ~~~
+  `);
+  assert.end();
+  })
+

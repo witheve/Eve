@@ -70,8 +70,13 @@ function parseMarkdown(markdown: string, docId: string) {
         let start = context.pop().start;
         node.id = spanId;
         node.startOffset = start;
+        let type = node.type;
+        if(!node._isFenced) {
+          type = "indented_code_block";
+        } else {
+          blocks.push(node);
+        }
         spans.push(start, pos, node.type, spanId);
-        blocks.push(node);
         lastLine = node.sourcepos[1][0] + 1;
       }
       if(node.type == "code") {
