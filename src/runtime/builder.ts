@@ -313,7 +313,6 @@ function buildScans(block, context, scanLikes, outputScans) {
 //-----------------------------------------------------------
 
 function buildExpressions(block, context, expressions, outputScans) {
-  let {unprovided} = block;
   for(let expression of expressions) {
     if(expression.type === "expression") {
       let results = [];
@@ -613,8 +612,8 @@ function stratify(scans) {
 
 function buildStrata(block, context: BuilderContext) {
   let scans = [];
-  buildScans(block, context, block.scanLike, scans);
   buildExpressions(block, context, block.expressions, scans);
+  buildScans(block, context, block.scanLike, scans);
 
   let binds = buildActions(block, context, block.binds, scans);
   let commits = buildActions(block, context, block.commits, scans);

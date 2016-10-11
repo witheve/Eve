@@ -240,6 +240,58 @@ class Random extends Constraint {
   }
 }
 
+class Range extends Constraint {
+  static AttributeMapping = {
+    "from": 0,
+    "to": 1,
+    "increment": 2,
+  }
+
+  resolveProposal(proposal, prefix) {
+    let {args} = this.resolve(prefix);
+    let [from, to, increment] = args;
+    increment = increment || 1;
+    let results = [];
+    if(from <= to) {
+      for (let val = from; val <= to; val += increment) {
+        results.push(val);
+      }
+    } else {
+      for (let val = from; val >= to; val += increment) {
+        results.push(val);
+      }
+    }
+    return results;
+  }
+
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    let [from, to, increment] = args;
+    increment = increment || 1;
+    let val = returns[0];
+    let member = from <= val && val <= to &&
+                 ((val - from) % increment) == 0
+    return member;
+  }
+
+  getProposal(tripleIndex, proposed, prefix) {
+    let {args} = this.resolve(prefix);
+    let [from, to, increment] = args;
+    increment = args[2] || 1;
+    let proposal = this.proposalObject;
+    proposal.providing = proposed;
+    if(from <= to && increment < 0) {
+      proposal.cardinality = 0;
+      return proposal;
+    } else if(from >= to && increment > 0) {
+      proposal.cardinality = 0;
+      return proposal;
+    }
+    proposal.cardinality = Math.ceil(Math.abs((to - from + 1) / increment));
+    return proposal;
+  }
+}
+
 providers.provide("+", Add);
 providers.provide("-", Subtract);
 providers.provide("*", Multiply);
@@ -250,3 +302,4 @@ providers.provide("floor", Floor);
 providers.provide("abs", Abs);
 providers.provide("mod", Mod);
 providers.provide("random", Random);
+providers.provide("range", Range);

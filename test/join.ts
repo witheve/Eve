@@ -2088,7 +2088,7 @@ test("multi value sort with multiple directions", (assert) => {
   assert.end();
 })
 
-test.only("sort with group", (assert) => {
+test("sort with group", (assert) => {
   let expected = {
     insert: [
       ["3", "tag", "person"],
@@ -2122,6 +2122,162 @@ test.only("sort with group", (assert) => {
         ix = sort[value: age, per: name]
       commit
         [dude: "{{ix}} {{name}} {{age}}"]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("if with expression-only arguments", (assert) => {
+  let expected = {
+    insert: [
+      ["4|0", "tag", "div"],
+      ["4|0", "text", 0],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    test
+    ~~~
+    search
+      foo = -1 + 1
+      text = if foo < 1 then foo else "baz"
+    bind @browser
+      [#div text]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("multiple inequalities in a row", (assert) => {
+  let expected = {
+    insert: [
+      ["3", "tag", "person"],
+      ["3", "name", "chris"],
+      ["3", "age", 20],
+      ["7", "tag", "person"],
+      ["7", "name", "joe"],
+      ["7", "age", 10],
+      ["14|3", "dude", "3"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "chris" age: 20]
+        [#person name: "joe" age: 10]
+    ~~~
+
+    foo bar
+    ~~~
+      search
+        p = [#person name age]
+        15 < age < 30
+      commit
+        [dude: p]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("range positive increment", (assert) => {
+  let expected = {
+    insert: [
+      ["2", "dude", 1],
+      ["2", "dude", 2],
+      ["2", "dude", 3],
+      ["2", "dude", 4],
+      ["2", "dude", 5],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    foo bar
+    ~~~
+      search
+        i = range[from: 1 to: 5]
+      commit
+        [| dude: i]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("range negative increment", (assert) => {
+  let expected = {
+    insert: [
+      ["2", "dude", -1],
+      ["2", "dude", -2],
+      ["2", "dude", -3],
+      ["2", "dude", -4],
+      ["2", "dude", -5],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    foo bar
+    ~~~
+      search
+        i = range[from: -1 to: -5 increment: -1]
+      commit
+        [| dude: i]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("range increment on an edge boundary", (assert) => {
+  let expected = {
+    insert: [
+      ["2", "dude", 1],
+      ["2", "dude", 4],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    foo bar
+    ~~~
+      search
+        i = range[from: 1 to: 5 increment: 3]
+      commit
+        [| dude: i]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("range with a single increment", (assert) => {
+  let expected = {
+    insert: [
+      ["2", "dude", 1],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    foo bar
+    ~~~
+      search
+        i = range[from: 1 to: 5 increment: 10]
+      commit
+        [| dude: i]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("range with infinite increment", (assert) => {
+  let expected = {
+    insert: [],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    foo bar
+    ~~~
+      search
+        i = range[from: -1 to: -5 increment: 1]
+      commit
+        [| dude: i]
     ~~~
   `);
   assert.end();

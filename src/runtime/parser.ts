@@ -1283,8 +1283,9 @@ export function parseDoc(doc, docId = `doc|${docIx++}`) {
     if(errors.length) {
       console.log("errors", errors);
       allErrors.push(errors);
+    } else {
+      parsedBlocks.push(results);
     }
-    parsedBlocks.push(results);
   }
   return {
     results: {blocks: parsedBlocks, text, spans, extraInfo},
