@@ -1488,10 +1488,15 @@ class Comments {
   }
 
   update() {
+    // Don't bother with incremental for now.
+    for(let commentId in this.comments) {
+      this.comments[commentId].clear();
+      delete this.comments[commentId];
+    }
+
     let touchedIds = {};
     for(let span of this.ide.editor.getAllSpans("document_comment") as DocumentCommentSpan[]) {
       let commentId = span.source.id;
-      console.log("Found span", span);
       touchedIds[commentId] = true;
       if(this.comments[commentId]) this.comments[commentId].clear();
       this.comments[commentId] = span;
@@ -1505,7 +1510,7 @@ class Comments {
     }
 
     this.ordered = Object.keys(this.comments);
-    this.ordered.sort(compareSpans);
+    this.ordered.sort((a, b) => compareSpans(this.comments[a], this.comments[b]));
     this.resizeComments();
   }
 
