@@ -266,6 +266,12 @@ class Navigator {
       subtree = {c: "tree-items", children: items};
     }
 
+    if(node.type === "document") {
+      return {c: `tree-item ${nodeId === this.rootId ? "root" : ""} ${node.type}`, nodeId, children: [
+      subtree
+    ]};
+    }
+
     return {c: `tree-item ${subtree ? "branch" : "leaf"} ${nodeId === this.rootId ? "root" : ""} ${node.type} ${subtree && !node.open ? "collapsed" : ""} ${node.hidden ? "hidden" : ""}`, nodeId, children: [
       {c: "flex-row", children: [
         {c: `label ${subtree ? "ion-ios-arrow-down" : "no-icon"}`, text: node.name, nodeId, click: node.span ? this.gotoSpan : undefined}, // icon should be :before
@@ -532,9 +538,10 @@ interface CMEditor extends CodeMirror.Editor {
 }
 export class Editor {
   defaults:CodeMirror.EditorConfiguration = {
+    scrollbarStyle: "simple",
     tabSize: 2,
     lineWrapping: true,
-    lineNumbers: true,
+    lineNumbers: false,
     extraKeys: ctrlify({
       "Cmd-Enter": () => this.ide.eval(true),
       "Shift-Cmd-Enter": () => this.ide.eval(false),
@@ -550,6 +557,9 @@ export class Editor {
   };
 
   cm:CMEditor;
+
+  /** Whether the editor has changed since the last update. */
+  dirty = false;
 
   /** Whether the editor is being externally updated with new content. */
   reloading = false;
@@ -569,6 +579,7 @@ export class Editor {
 
   /** Whether to show the new block button at the cursor. */
   protected showNewBlockBar = false;
+  protected newBlockBar:EditorBarElem;
 
   /** Whether to show the format bar at the cursor. */
   protected showFormatBar = false;
@@ -580,6 +591,8 @@ export class Editor {
     this.cm.on("change", (editor, rawChange) => this.onChange(rawChange));
     this.cm.on("changes", (editor, rawChanges) => this.onChanges(rawChanges));
     this.cm.on("cursorActivity", this.onCursorActivity);
+
+    this.newBlockBar = {editor: this, active: false};
   }
 
   reset() {
@@ -1186,6 +1199,7 @@ export class Editor {
   }
 
   onBeforeChange = (raw:CodeMirror.EditorChangeCancellable) => {
+    this.dirty = true;
     let doc = this.cm.getDoc();
     let change = new ChangeCancellable(raw);
     let {from, to} = change;
@@ -1386,7 +1400,10 @@ export class Editor {
                                cursor.ch === 0 &&
                                doc.getLine(cursor.line) === "");
 
-    if(this.showNewBlockBar !== old || this.showNewBlockBar) this.queueUpdate();
+    if(this.showNewBlockBar !== old || this.showNewBlockBar) {
+      this.newBlockBar.active = false;
+      this.queueUpdate();
+    }
 
     // Otherwise if there's a selection, show the format bar.
     old = this.showFormatBar;
@@ -1398,7 +1415,7 @@ export class Editor {
 
   render() {
     return {c: "editor-pane",  postRender: this.injectCodeMirror, children: [
-      this.showNewBlockBar ? newBlockBar({editor: this}) : undefined,
+      this.showNewBlockBar ? newBlockBar(this.newBlockBar) : undefined,
       this.showFormatBar ? formatBar({editor: this}) : undefined
     ]};
   }
@@ -1474,8 +1491,14 @@ class Comments {
     if(this.comments) {
       for(let commentId of this.ordered) {
         let comment = this.comments[commentId];
-        if(comment.marker) comment.marker.clear();
-        if(comment.annotation) comment.annotation.clear();
+        if(comment.marker) {
+          comment.marker.clear();
+          comment.marker = undefined;
+        }
+        if(comment.annotation) {
+          comment.annotation.clear();
+          comment.annotation = undefined;
+        }
       }
     }
     this.comments = comments;
@@ -1715,7 +1738,6 @@ class Comments {
     for(let commentId of this.ordered) {
       children.push(this.comment(commentId));
     }
-
     return {c: "comments-pane collapsed collapsed-is-hardcoded", postRender: this.wangjangle, children: [{c: "comments-pane-inner", children}]};
   }
 }
@@ -1730,14 +1752,15 @@ class Comments {
  * - Code: Something's wrong
  */
 
-interface EditorBarElem extends Elem { editor: Editor }
+interface EditorBarElem extends Elem { editor: Editor, active?: boolean }
 
 function formatBar({editor}:EditorBarElem):Elem {
   let doc = editor.cm.getDoc();
   let cursor = doc.getCursor("to");
-  let coords = editor.cm.cursorCoords(cursor, "local");
+  let bottom = editor.cm.cursorCoords(cursor, undefined).bottom;
+  let left = editor.cm.cursorCoords(cursor, "local").left;
 
-  return {id: "format-bar", c: "format-bar", top: coords.bottom, left: coords.left, children: [
+  return {id: "format-bar", c: "format-bar", top: bottom, left: left, children: [
     {text: "B", click: () => editor.format({type: "strong"}, true)},
     {text: "I", click: () => editor.format({type: "emph"}, true)},
     {text: "code", click: () => editor.format({type: "code"}, true)},
@@ -1757,16 +1780,26 @@ function formatBar({editor}:EditorBarElem):Elem {
  * - Text: Block / List / Quote / H(?)
  */
 
-function newBlockBar({editor}:EditorBarElem):Elem {
+function newBlockBar(elem:EditorBarElem):Elem {
+  let {editor, active} = elem;
   let doc = editor.cm.getDoc();
   let cursor = doc.getCursor();
-  let coords = editor.cm.cursorCoords(cursor, "local");
-  return {id: "new-block-bar", c: "new-block-bar", top: coords.bottom, left: coords.left, children: [
-    {text: "block", click: () => editor.format({type: "code_block"}, true)},
-    {text: "list", click: () => editor.format({type: "item"}, true)},
-    {text: "H1", click: () => editor.format({type: "heading", level: 1}, true)},
-    {text: "H2", click: () => editor.format({type: "heading", level: 2}, true)},
-    {text: "H3", click: () => editor.format({type: "heading", level: 3}, true)}
+  let bottom = editor.cm.cursorCoords(cursor, undefined).bottom;
+  let left = editor.cm.cursorCoords(cursor, "local").left;
+  console.log(cursor.line, cursor.ch, bottom, left);
+  return {id: "new-block-bar", c: `new-block-bar ${active ? "active" : ""}`, top: bottom, left: left, children: [
+    {c: "new-block-bar-toggle ion-plus", click: () => {
+      elem.active = !elem.active;
+      editor.cm.focus();
+      editor.queueUpdate();
+    }},
+    {c: "flex-row controls", children: [
+      {text: "block", click: () => editor.format({type: "code_block"}, true)},
+      {text: "list", click: () => editor.format({type: "item"}, true)},
+      {text: "H1", click: () => editor.format({type: "heading", level: 1}, true)},
+      {text: "H2", click: () => editor.format({type: "heading", level: 2}, true)},
+      {text: "H3", click: () => editor.format({type: "heading", level: 3}, true)}
+    ]}
   ]};
 }
 
@@ -1819,7 +1852,7 @@ export class IDE {
 
   navigator:Navigator = new Navigator(this);
   editor:Editor = new Editor(this);
-  comments:Comments = new Comments(this, fakeComments);
+  comments:Comments = new Comments(this, {});
 
   constructor( ) {
     window.addEventListener("resize", this.resize);
@@ -1846,8 +1879,12 @@ export class IDE {
 
   queueUpdate = debounce(() => {
     this.render();
-    this.generation++;
-    if(this.onChange) this.onChange(this);
+
+    if(this.editor.dirty) {
+      this.generation++;
+      if(this.onChange) this.onChange(this);
+      this.editor.dirty = false;
+    }
   }, 1, true);
 
   loadFile(docId:string) {
@@ -1877,6 +1914,7 @@ export class IDE {
     let name = this.documentId; // @FIXME
     this.navigator.loadDocument(this.documentId, name);
     this.navigator.currentId = this.documentId;
+    this.comments.update(fakeComments);
 
     this.render();
   }
