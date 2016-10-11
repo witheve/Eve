@@ -249,36 +249,45 @@ class Range extends Constraint {
 
   resolveProposal(proposal, prefix) {
     let {args} = this.resolve(prefix);
-    let from_ = args[0];
-    let to = args[1];
-    let increment = args[2] || 1;
+    let [from, to, increment] = args;
+    increment = increment || 1;
     let results = [];
-    let test = from_ <= to ? (val) => val <= to : (val) => val >= to;
-    for (let val = from_; test(val); val += increment) {
-      results.push(val);
+    if(from <= to) {
+      for (let val = from; val <= to; val += increment) {
+        results.push(val);
+      }
+    } else {
+      for (let val = from; val >= to; val += increment) {
+        results.push(val);
+      }
     }
     return results;
   }
 
   test(prefix) {
     let {args, returns} = this.resolve(prefix);
-    let from_ = args[0];
-    let to = args[1];
-    let increment = args[2] || 1;
+    let [from, to, increment] = args;
+    increment = increment || 1;
     let val = returns[0];
-    let member = from_ <= val && val <= to &&
-                 ((val - from_) % increment) == 0
+    let member = from <= val && val <= to &&
+                 ((val - from) % increment) == 0
     return member;
   }
 
   getProposal(tripleIndex, proposed, prefix) {
     let {args} = this.resolve(prefix);
-    let from_ = args[0];
-    let to = args[1];
-    let increment = args[2] || 1;
+    let [from, to, increment] = args;
+    increment = args[2] || 1;
     let proposal = this.proposalObject;
     proposal.providing = proposed;
-    proposal.cardinality = Math.ceil((to - from_ + 1) / increment);
+    if(from <= to && increment < 0) {
+      proposal.cardinality = 0;
+      return proposal;
+    } else if(from >= to && increment > 0) {
+      proposal.cardinality = 0;
+      return proposal;
+    }
+    proposal.cardinality = Math.ceil(Math.abs((to - from + 1) / increment));
     return proposal;
   }
 }
