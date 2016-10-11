@@ -538,6 +538,7 @@ interface CMEditor extends CodeMirror.Editor {
 }
 export class Editor {
   defaults:CodeMirror.EditorConfiguration = {
+    scrollbarStyle: "simple",
     tabSize: 2,
     lineWrapping: true,
     lineNumbers: false,
@@ -1490,8 +1491,14 @@ class Comments {
     if(this.comments) {
       for(let commentId of this.ordered) {
         let comment = this.comments[commentId];
-        if(comment.marker) comment.marker.clear();
-        if(comment.annotation) comment.annotation.clear();
+        if(comment.marker) {
+          comment.marker.clear();
+          comment.marker = undefined;
+        }
+        if(comment.annotation) {
+          comment.annotation.clear();
+          comment.annotation = undefined;
+        }
       }
     }
     this.comments = comments;
@@ -1731,7 +1738,6 @@ class Comments {
     for(let commentId of this.ordered) {
       children.push(this.comment(commentId));
     }
-
     return {c: "comments-pane collapsed collapsed-is-hardcoded", postRender: this.wangjangle, children: [{c: "comments-pane-inner", children}]};
   }
 }
