@@ -138,6 +138,37 @@ export class TripleIndex {
     return obj;
   }
 
+  toTriples(withNode?) {
+    let triples = [];
+    let eavIndex = this.eavIndex.index;
+    let current = [];
+    for(let eKey of Object.keys(eavIndex)) {
+      let eInfo = eavIndex[eKey] as IndexLevel;
+      current[0] = eInfo.value;
+      let aIndex = eInfo.index
+      for(let aKey of Object.keys(aIndex)) {
+        let aInfo = aIndex[aKey] as IndexLevel;
+        current[1] = aInfo.value;
+        let vIndex = aInfo.index;
+        for(let vKey of Object.keys(vIndex)) {
+          let vInfo = vIndex[vKey] as IndexLevel;
+          current[2] = vInfo.value;
+          if(withNode) {
+            let nIndex = vInfo.index;
+            for(let nKey of Object.keys(nIndex)) {
+              let nInfo = nIndex[nKey];
+              current[3] = nInfo;
+              triples.push(current.slice());
+            }
+          } else {
+            triples.push(current.slice());
+          }
+        }
+      }
+    }
+    return triples;
+  }
+
   // find an eav in the indexes
   lookup(e,a?,v?,node?) {
     // let start = perf.time();

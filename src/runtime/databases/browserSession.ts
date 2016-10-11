@@ -25,4 +25,16 @@ export class BrowserSessionDatabase extends Database {
     this.client.send(JSON.stringify(result));
   }
 
+  unregister(evaluation: Evaluation) {
+    console.log("UNREGISTERING!");
+    let ix = this.evaluations.indexOf(evaluation);
+    if(ix > -1) {
+      this.evaluations.splice(ix, 1);
+    }
+    console.log("evals", this.evaluations);
+    if(this.evaluations.length === 0) {
+      console.log("TRIPLES", this.index.toTriples());
+      this.client.send(JSON.stringify({type: "result", insert: [], remove: this.index.toTriples()}))
+    }
+  }
 }

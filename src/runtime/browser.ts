@@ -36,6 +36,9 @@ class Responder {
         actions.push(new ActionImplementations["+="](insert[0], insert[1], insert[2]));
       }
       evaluation.executeActions(actions);
+    } else if(data.type === "close") {
+      evaluation.close();
+      evaluation = undefined;
     } else if(data.type === "parse") {
       join.nextId(0);
       let {results, errors} = parser.parseDoc(data.code || "", "editor");
@@ -45,29 +48,41 @@ class Responder {
       let {text, spans, extraInfo} = results;
       this.send(JSON.stringify({type: "parse", generation: data.generation, text, spans, extraInfo}));
     } else if(data.type === "eval") {
-      let changes = evaluation.createChanges();
-      let session = evaluation.getDatabase("session");
-      join.nextId(0);
-      for(let block of session.blocks) {
-        if(block.bindActions.length) {
-          block.updateBinds({positions: {}, info: []}, changes);
+      if(evaluation !== undefined && data.persist) {
+        let changes = evaluation.createChanges();
+        let session = evaluation.getDatabase("session");
+        join.nextId(0);
+        for(let block of session.blocks) {
+          if(block.bindActions.length) {
+            block.updateBinds({positions: {}, info: []}, changes);
+          }
         }
-      }
-      if(data.persist) {
         let {blocks} = builder.buildDoc(this.lastParse);
         for(let block of blocks) {
           if(block.singleRun) block.dormant = true;
         }
         session.blocks = blocks;
-      } else {
-        let session = new Database();
-        let {blocks} = builder.buildDoc(this.lastParse);
-        session.blocks = blocks;
         evaluation.unregisterDatabase("session");
         evaluation.registerDatabase("session", session);
+        changes.commit();
+        evaluation.fixpoint(changes);
+      } else {
+        evaluation.close();
+        join.nextId(0);
+        let {blocks} = builder.buildDoc(this.lastParse);
+        // analyzer.analyze(results.blocks);
+        let browser = new BrowserSessionDatabase(responder);
+        let session = new Database();
+        session.blocks = blocks;
+        evaluation = new Evaluation();
+        evaluation.registerDatabase("session", session);
+        evaluation.registerDatabase("browser", browser);
+        evaluation.registerDatabase("system", system.instance);
+        evaluation.registerDatabase("http", new HttpDatabase());
+        evaluation.fixpoint();
+
+        client.socket.onopen();
       }
-      changes.commit();
-      evaluation.fixpoint(changes);
     }
   }
 }
