@@ -397,13 +397,28 @@ export class BlockSpan extends Span {
   onChange(change:Change) {
     let loc = this.find();
     if(!loc) return;
+
+    // Absorb local changes around a block.
+    let from = {line: loc.from.line, ch: 0};
+    let to = {line: loc.to.line, ch: 0};
+    if(loc.to.ch !== 0) {
+      to.line += 1;
+    }
+
     // If new text has been inserted left of the block, absorb it
     // If the block's end has been removed, re-align it to the beginning of the next line.
-    if(loc.from.ch !== 0 || loc.to.ch !== 0 || change.from.line < loc.from.line || change.to.line > loc.to.line) {
+    if(comparePositions(change.final, change.to) >= 0) {
+      from.line = Math.min(loc.from.line, change.from.line);
+      to.line = Math.max(loc.to.line, change.to.line);
+      if(to.line === change.to.line && change.to.ch !== 0) {
+        to.line += 1;
+      }
+    }
+
+
+    if(!samePosition(from, loc.from) || !samePosition(to, loc.to)) {
+      console.log("Realigning from", loc.from, "->", from, loc.to, "->", to, change.origin);
       this.clear();
-      let from = {line: Math.min(loc.from.line, change.from.line), ch: 0};
-      let to = {line: Math.max(loc.to.line, change.to.line), ch: 0};
-      if(loc.to.ch !== 0) to.line += 1;
       this.editor.markSpan(from, to, this.source);
     }
   }
