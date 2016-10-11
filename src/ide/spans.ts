@@ -71,7 +71,7 @@ export function isSpanMarker(x:CodeMirror.TextMarker): x is SpanMarker {
 }
 
 export function isEditorControlled(type:string) {
-  return !!spanTypes[type];
+  return spanTypes[type] && spanTypes[type]["_editorControlled"] || false;
 }
 
 export function compareSpans(a, b) {
@@ -87,6 +87,8 @@ export function compareSpans(a, b) {
 export class Span {
   protected static _nextId = 0;
 
+  protected static _editorControlled = true;
+  protected _editorControlled = true;
   protected static _spanStyle:"inline"|"line"|"block";
   protected _spanStyle:"inline"|"line"|"block";
 
@@ -180,7 +182,7 @@ export class Span {
     return this._spanStyle == "block";
   }
   isEditorControlled() {
-    return !!spanTypes[this.type];
+    return this._editorControlled;
   }
 
   static style() {
@@ -521,10 +523,42 @@ class WhitespaceSpan extends LineSpan {
 }
 
 class ParserSpan extends Span {
-  _editorControlled = false;
+  protected static _editorControlled = false;
+  protected _editorControlled = false;
   static _spanStyle:"inline" = "inline";
   _spanStyle:"inline" = "inline";
+}
 
+interface DocumentCommentSpanSource extends SpanSource { kind: "string", message: "string" }
+export class DocumentCommentSpan extends ParserSpan {
+  source:DocumentCommentSpanSource;
+
+  annotation?: CodeMirror.AnnotateScrollbar.Annotation;
+
+  apply(from:Position, to:Position, origin = "+input") {
+    console.log("DC", this.source);
+    this._attributes.className = this.type + " " + this.kind;
+    super.apply(from, to, origin);
+
+    if(!this.annotation) {
+      this.annotation = this.editor.cm.annotateScrollbar({className: `scrollbar-annotation ${this.kind}`});
+    }
+    let loc = this.find();
+    if(loc) {
+      this.annotation.update([loc]);
+    }
+  }
+
+  clear(origin:string = "+delete") {
+    super.clear(origin);
+    if(this.annotation) {
+      this.annotation.clear();
+      this.annotation = undefined;
+    }
+  }
+
+  get kind() { return "error"; }
+  get message() { return this.source.message; }
 }
 
 //---------------------------------------------------------
@@ -536,6 +570,7 @@ export type BlockSpanType = "code_block";
 export type SpanType = InlineSpanType|LineSpanType|BlockSpanType|"default";
 
 export var spanTypes = {
+  whitespace: WhitespaceSpan,
   strong: InlineSpan,
   emph: InlineSpan,
   code: InlineSpan,
@@ -543,11 +578,9 @@ export var spanTypes = {
   heading: HeadingSpan,
   item: ListItemSpan,
   elision: ElisionSpan,
-
   code_block: CodeBlockSpan,
 
-  whitespace: WhitespaceSpan,
-
+  document_comment: DocumentCommentSpan,
   "default": ParserSpan
 }
 

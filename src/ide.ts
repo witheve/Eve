@@ -3,7 +3,7 @@ import {Parser as MDParser} from "commonmark";
 import * as CodeMirror from "codemirror";
 import {debounce, uuid, unpad, Range, Position, isRange, comparePositions, samePosition, whollyEnclosed, adjustToWordBoundary} from "./util";
 
-import {Span, SpanMarker, isSpanMarker, isEditorControlled, spanTypes, compareSpans, HeadingSpan, SpanChange, isSpanChange} from "./ide/spans";
+import {Span, SpanMarker, isSpanMarker, isEditorControlled, spanTypes, compareSpans, SpanChange, isSpanChange, HeadingSpan, DocumentCommentSpan} from "./ide/spans";
 
 //---------------------------------------------------------
 // Navigator
@@ -1472,132 +1472,65 @@ interface Action {
 }
 
 class Comments {
-  comments:CommentMap;
+  comments:{[id:string]: DocumentCommentSpan} = {};
   ordered:string[];
 
   active?:string;
   rootNode?:HTMLElement;
   _currentWidth?:number;
 
-  constructor(public ide:IDE, comments: CommentMap) {
-    this.update(comments);
+  constructor(public ide:IDE) {
+    this.update();
   }
 
   collapsed() {
     return this._currentWidth <= 300;
   }
 
-  update(comments:CommentMap) {
-    if(this.comments) {
-      for(let commentId of this.ordered) {
-        let comment = this.comments[commentId];
-        if(comment.marker) {
-          comment.marker.clear();
-          comment.marker = undefined;
-        }
-        if(comment.annotation) {
-          comment.annotation.clear();
-          comment.annotation = undefined;
-        }
+  update() {
+    let touchedIds = {};
+    for(let span of this.ide.editor.getAllSpans("document_comment") as DocumentCommentSpan[]) {
+      let commentId = span.source.id;
+      console.log("Found span", span);
+      touchedIds[commentId] = true;
+      if(this.comments[commentId]) this.comments[commentId].clear();
+      this.comments[commentId] = span;
+    }
+
+    for(let commentId in this.comments) {
+      if(!touchedIds[commentId]) {
+        this.comments[commentId].clear();
+        delete this.comments[commentId];
       }
     }
-    this.comments = comments;
+
     this.ordered = Object.keys(this.comments);
-    this.ordered.sort(this.commentComparator);
-
-    this.annotateScrollbar();
+    this.ordered.sort(compareSpans);
+    this.resizeComments();
   }
-
-  annotateScrollbar = () => {
-    let cm = this.ide.editor.cm;
-
-    for(let commentId of this.ordered) {
-      let comment = this.comments[commentId];
-      if(!comment.annotation) comment.annotation = cm.annotateScrollbar({className: `scrollbar-annotation ${comment.type}`});
-      comment.annotation.update([isRange(comment.loc) ? comment.loc : {from: comment.loc, to: comment.loc}]);
-    }
-  }
-
-  commentComparator = (aId:string, bId:string) => {
-    let a = this.comments[aId];
-    let b = this.comments[bId];
-    let aLine = isRange(a.loc) ? a.loc.from.line : a.loc.line;
-    let bLine = isRange(b.loc) ? b.loc.from.line : b.loc.line;
-    return aLine - bLine;
-  }
-
-  // handlers
-  actions:{[id:string]: Action} = {
-    "fix it": {
-      name: "fix it",
-      description: (comment) => ``,
-      run: (event, {commentId}) => {
-        console.log("fix it", commentId);
-      }
-    },
-    "create it": {
-      name: "create it",
-      description: (comment) => `Create a new block that provides records like this`,
-      run: (event, {commentId}) => {
-        console.log("create it", commentId);
-      }
-    },
-    "fake it": {
-      name: "fake it",
-      description: (comment) => `Make up some fake records shaped like this for testing`,
-      run: (event, {commentId}) => {
-        console.log("fake it", commentId);
-      }
-    },
-    "dismiss": {
-      name: "dismiss",
-      description: (comment) => `Dismiss this warning`,
-      run: (event, {commentId}) => {
-        console.log("dismiss", commentId);
-      }
-    }
-  };
 
   resizeComments = debounce(() => {
     if(!this.rootNode) return;
 
     let inner:HTMLElement = this.rootNode.children[0] as any;
-    if(this._currentWidth && inner.offsetWidth === this._currentWidth) return;
-    else {
-      if(inner.offsetWidth <= 150) {
-        this.rootNode.classList.add("collapse-2");
-        this.rootNode.classList.remove("collapse-1");
-      } else if(inner.offsetWidth <= 300) {
-        this.rootNode.classList.add("collapse-1");
-        this.rootNode.classList.remove("collapse-2");
-      } else {
-        this.rootNode.classList.remove("collapse-1", "collapse-2");
-      }
-      this._currentWidth = inner.offsetWidth;
-    }
-
-    let nodes:HTMLElement[] =  inner.children as any;
+    let nodes:HTMLElement[] = inner.children as any;
     let cm = this.ide.editor.cm;
 
     let ix = 0;
     let intervals:ClientRect[] = [];
     for(let commentId of this.ordered) {
       let comment = this.comments[commentId];
-      let start = isRange(comment.loc) ? comment.loc.from : comment.loc;
-      let coords = cm.charCoords(start, "local");
+      let loc = comment.find();
+      if(!loc) continue;
+      let coords = cm.charCoords(loc.from, "local");
 
       let node = nodes[ix];
       node.style.top = ""+coords.top;
-      for(let lvl = 1; lvl < 4; lvl++) {
-        node.classList.remove("collapse-" + lvl);
-      }
       intervals[ix] = node.getBoundingClientRect();
       ix++;
     }
 
     // Adjust pairs of comments until they no longer intersect.
-    // @TODO: Never collapse the active comment!
-    // @TODO: Uncollapse a newly active comment
     for(let ix = 0, length = intervals.length - 1; ix < length; ix++) {
       let prev:ClientRect|undefined = intervals[ix - 1];
       let cur = intervals[ix];
@@ -1625,31 +1558,7 @@ class Comments {
 
       if(intersect == 0) continue;
 
-
-      // Collapse the current comment:
-      // Collapse rules are implemented in CSS, so we test height after each collapse to see if we've gone far enough
-      // We want to ensure comments are always within one line of their parent line, so readjust the top if the comment is now too short
-      // This can't possibly accomplish anything if both comments are meant to be on the same line, so we ignore it in that case
-      if(oldTop !== next.top) {
-        for(let lvl = 1; lvl < 3; lvl++) {
-          let oldHeight = cur.height;
-          curNode.classList.remove("collapse-" + (lvl - 1));
-          curNode.classList.add("collapse-" + lvl);
-          cur = intervals[ix] = curNode.getBoundingClientRect();
-          intersect -= oldHeight - cur.height;
-
-          if(cur.bottom < oldTop) {
-            curNode.style.top = ""+(cur.top + oldTop - cur.bottom + 10);
-            intersect += oldTop - cur.bottom;
-            cur = intervals[ix] = curNode.getBoundingClientRect();
-          }
-
-          if(intersect <= 0) break;
-        }
-        if(intersect <= 0) continue;
-      }
-
-      // All the clever tricks have failed, so we push the next comment down the remainder of the intersection
+      // When all else fails, we push the next comment down the remainder of the intersection
       nextNode.style.top = ""+(next.top + intersect);
       next = intervals[ix + 1] = nextNode.getBoundingClientRect();
     }
@@ -1668,32 +1577,27 @@ class Comments {
   highlight = (event:MouseEvent, {commentId}) => {
     let comment = this.comments[commentId];
     this.active = commentId;
-    if(comment.marker) return;
+    let loc = comment.find();
+    if(!loc) return;
 
-    let cm = this.ide.editor.cm;
-    let doc = cm.getDoc();
-
-    if(isRange(comment.loc)) {
-      comment.marker = doc.markText(comment.loc.from, comment.loc.to, {className: `comment-highlight ${comment.type} range`});
-    } else {
-      let to = {line: comment.loc.line, ch: comment.loc.ch + 1};
-      comment.marker = doc.markText(comment.loc, to, {className: `comment-highlight ${comment.type} pos`});
-    }
+    // @TODO: Separate highlighted span
   }
 
   unhighlight = (event:MouseEvent, {commentId}) => {
     let comment = this.comments[commentId];
-        this.active = undefined;
-    if(!comment.marker) return;
+    this.active = undefined;
+    let loc = comment.find();
+    if(!loc) return;
 
-    comment.marker.clear();
-    comment.marker = undefined;
+    // @TODO: Remove separate highlighted span.
   }
 
   goTo = (event, {commentId}) => {
     let comment = this.comments[commentId];
     let cm = this.ide.editor.cm;
-    cm.scrollIntoView(isRange(comment.loc) ? comment.loc.from : comment.loc, 20);
+    let loc = comment.find();
+    if(!loc) return;
+    cm.scrollIntoView(loc, 20);
   }
 
   openComment = (event, {commentId}) => {
@@ -1708,26 +1612,15 @@ class Comments {
 
   comment(commentId:string):Elem {
     let comment = this.comments[commentId];
+    if(!comment) return;
     let actions:Elem[] = [];
-    if(comment.actions) {
-      for(let actionId of comment.actions) {
-        let action = this.actions[actionId];
-        if(!action) {
-          console.warn(`Unknown action id: '${actionId}'`);
-          continue;
-        }
-        let elem = {c: `comment-action`, text: action.name, tooltip: action.description(comment), commentId, click: action.run};
-        actions.push(elem);
-      }
-    }
 
     return {
-      c: `comment ${comment.type}`, commentId,
+      c: `comment ${comment.kind}`, commentId,
       mouseover: this.highlight, mouseleave: this.unhighlight, click: this.goTo,
       children: [
-        comment.title ? {c: "label", text: comment.title} : undefined,
         {c: "comment-inner", children: [
-          comment.description ? {c: "description", text: comment.description} : undefined,
+          comment.message ? {c: "message", text: comment.message} : undefined,
           actions.length ? {c: "quick-actions", children: actions} : undefined,
         ]}
       ]};
@@ -1852,7 +1745,7 @@ export class IDE {
 
   navigator:Navigator = new Navigator(this);
   editor:Editor = new Editor(this);
-  comments:Comments = new Comments(this, {});
+  comments:Comments = new Comments(this);
 
   constructor( ) {
     window.addEventListener("resize", this.resize);
@@ -1914,7 +1807,7 @@ export class IDE {
     let name = this.documentId; // @FIXME
     this.navigator.loadDocument(this.documentId, name);
     this.navigator.currentId = this.documentId;
-    this.comments.update({});
+    this.comments.update();
 
     this.render();
   }
