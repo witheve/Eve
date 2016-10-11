@@ -49,6 +49,7 @@ function evaluate(assert, expected, code) {
   let {blocks} = builder.buildDoc(parsed.results);
   let session = new BrowserSessionDatabase({send: () => {}});
   session.blocks = blocks;
+  console.log(blocks.map((x) => x.parse.scanLike[1]));
   let evaluation = new Evaluation();
   evaluation.registerDatabase("session", session);
   let changes = evaluation.fixpoint();
@@ -1496,6 +1497,102 @@ test("you can write into multiple databases", (assert) => {
   assert.end();
 })
 
+test("reading in a scoped write uses the search scope", (assert) => {
+  let expected = {
+    insert: [
+      ["2", "tag", "person"],
+      ["2", "name", "chris"],
+      ["5", "tag", "person"],
+      ["5", "name", "joe"],
+      ["9|chris", "dude", "chris"],
+      ["9|joe", "dude", "joe"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "chris"]
+        [#person name: "joe"]
+    ~~~
+
+    foo bar
+    ~~~
+      search
+        p = [#person]
+      commit @foo
+        [dude: p.name]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("reading in multiple scopes write uses the search scope", (assert) => {
+  let expected = {
+    insert: [
+      ["2", "tag", "person"],
+      ["2", "name", "chris"],
+      ["5", "tag", "person"],
+      ["5", "name", "joe"],
+      ["8", "tag", "person"],
+      ["8", "name", "woop"],
+      ["12|chris", "dude", "chris"],
+      ["12|joe", "dude", "joe"],
+      ["12|woop", "dude", "woop"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit @blah
+        [#person name: "chris"]
+        [#person name: "joe"]
+      commit
+        [#person name: "woop"]
+    ~~~
+
+    foo bar
+    ~~~
+      search (@blah, @session)
+        p = [#person]
+      commit @foo
+        [dude: p.name]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("scoped attribute mutators pick up the search scope", (assert) => {
+  let expected = {
+    insert: [
+      ["6", "tag", "person"],
+      ["6", "name", "chris"],
+      ["6", "brother", "2|6"],
+      ["2|6", "tag", "person"],
+      ["2|6", "name", "ryan"],
+      ["2|6", "name", "meep"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "chris" brother: [#person name: "ryan"]]
+    ~~~
+
+    foo bar
+    ~~~
+      search
+        p = [#person]
+      commit @foo
+        p.brother.name := "meep"
+    ~~~
+  `);
+  assert.end();
+})
 
 test("split function", (assert) => {
   let expected = {

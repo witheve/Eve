@@ -242,6 +242,7 @@ export class ParseBlock {
   commits: ParseNode[] = [];
   variableLookup: {[name: string]: ParseNode};
   links: string[] = [];
+  searchScopes: string[] = [];
 
   constructor(id, variableLookup?) {
     this.id = id;
@@ -288,6 +289,14 @@ export class ParseBlock {
     return node;
   }
 
+  addSearchScopes(scopes: string[]) {
+    for(let scope of scopes) {
+      if(this.searchScopes.indexOf(scope) === -1) {
+        this.searchScopes.push(scope);
+      }
+    }
+  }
+
   subBlock() {
     let neue = new ParseBlock(`${this.id}|sub${this.nodeId++}`, this.variableLookup);
     return neue;
@@ -302,6 +311,7 @@ export class ParseBlock {
 class Parser extends chev.Parser {
   block: ParseBlock;
   activeScopes: string[];
+  currentAction: string;
 
   // Parser patterns
   doc: any;
@@ -492,6 +502,8 @@ class Parser extends chev.Parser {
       let scopes:any = ["session"];
       self.OPTION(() => { scopes = self.SUBRULE(self.scopeDeclaration) })
       self.activeScopes = scopes;
+      self.currentAction = "match";
+      self.block.addSearchScopes(scopes);
       let statements = [];
       self.MANY(() => {
         let statement: any = self.SUBRULE(self.statement);
@@ -523,6 +535,7 @@ class Parser extends chev.Parser {
       let scopes:any = ["session"];
       self.OPTION(() => { scopes = self.SUBRULE(self.scopeDeclaration) })
       self.activeScopes = scopes;
+      self.currentAction = action;
       let statements = [];
       self.MANY(() => {
         let statement = self.SUBRULE(self.actionStatement, [actionKey]) as any;
@@ -731,7 +744,11 @@ class Parser extends chev.Parser {
         from.push(self.CONSUME2(Dot));
         value = self.block.toVariable(`${attribute.image}|${attribute.startLine}|${attribute.startColumn}`, true);
         value.from.push(attribute);
-        let scan = makeNode("scan", {entity, attribute: makeNode("constant", {value: value.name, from: [value]}), value, needsEntity, scopes: self.activeScopes, from: [entity, dot, attribute]});
+        let scopes = self.activeScopes;
+        if(self.currentAction !== "match") {
+          scopes = self.block.searchScopes;
+        }
+        let scan = makeNode("scan", {entity, attribute: makeNode("constant", {value: attribute.image, from: [value]}), value, needsEntity, scopes, from: [entity, dot, attribute]});
         self.block.scan(scan);
         needsEntity = false;
         entity = value;
@@ -751,7 +768,11 @@ class Parser extends chev.Parser {
         attribute = self.CONSUME(Identifier);
         value = self.block.toVariable(`${attribute.image}|${attribute.startLine}|${attribute.startColumn}`, true);
         value.from.push(attribute);
-        let scan = makeNode("scan", {entity, attribute: makeNode("constant", {value: attribute.image, from: [attribute]}), value, needsEntity, scopes: self.activeScopes, from: [entity, dot, attribute]});
+        let scopes = self.activeScopes;
+        if(self.currentAction !== "match") {
+          scopes = self.block.searchScopes;
+        }
+        let scan = makeNode("scan", {entity, attribute: makeNode("constant", {value: attribute.image, from: [attribute]}), value, needsEntity, scopes, from: [entity, dot, attribute]});
         self.block.scan(scan);
         needsEntity = false;
         entity = value;
