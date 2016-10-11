@@ -2088,7 +2088,7 @@ test("multi value sort with multiple directions", (assert) => {
   assert.end();
 })
 
-test.only("sort with group", (assert) => {
+test("sort with group", (assert) => {
   let expected = {
     insert: [
       ["3", "tag", "person"],
@@ -2122,6 +2122,27 @@ test.only("sort with group", (assert) => {
         ix = sort[value: age, per: name]
       commit
         [dude: "{{ix}} {{name}} {{age}}"]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("if with expression-only arguments", (assert) => {
+  let expected = {
+    insert: [
+      ["4|0", "tag", "div"],
+      ["4|0", "text", 0],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    test
+    ~~~
+    search
+      foo = -1 + 1
+      text = if foo < 1 then foo else "baz"
+    bind @browser
+      [#div text]
     ~~~
   `);
   assert.end();
