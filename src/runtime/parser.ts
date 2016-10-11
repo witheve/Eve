@@ -5,6 +5,7 @@
 import * as commonmark from "commonmark";
 import * as chev from "chevrotain";
 import * as join from "./join";
+import {parserErrors} from "./errors";
 import {buildDoc} from "./builder";
 import {inspect} from "util"
 import {time} from "./performance";
@@ -1247,7 +1248,7 @@ class Parser extends chev.Parser {
 
 let eveParser = new Parser([]);
 
-export function parseBlock(block, blockId, offset = 0, spans = []) {
+export function parseBlock(block, blockId, offset = 0, spans = [], extraInfo = {}) {
   let start = time();
   let lex = EveBlockLexer.tokenize(block);
   let token: any;
@@ -1262,11 +1263,12 @@ export function parseBlock(block, blockId, offset = 0, spans = []) {
   // 1 tells chevrotain what level the rule is starting at, we then pass our params
   // to the codeBlock parser function as an array
   let results = eveParser.codeBlock(1, [blockId]);
+  let errors = parserErrors(eveParser.errors, {blockId, blockStart: offset, spans, extraInfo});
   return {
     results,
     lex,
     time: time(start),
-    errors: eveParser.errors,
+    errors,
   }
 }
 
@@ -1277,7 +1279,7 @@ export function parseDoc(doc, docId = `doc|${docIx++}`) {
   let parsedBlocks = [];
   let allErrors = [];
   for(let block of blocks) {
-    let {results, lex, errors} = parseBlock(block.literal, block.id, block.startOffset, spans);
+    let {results, lex, errors} = parseBlock(block.literal, block.id, block.startOffset, spans, extraInfo);
     if(errors.length) {
       console.log("errors", errors);
       allErrors.push(errors);
