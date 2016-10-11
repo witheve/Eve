@@ -1757,9 +1757,10 @@ interface EditorBarElem extends Elem { editor: Editor, active?: boolean }
 function formatBar({editor}:EditorBarElem):Elem {
   let doc = editor.cm.getDoc();
   let cursor = doc.getCursor("to");
-  let coords = editor.cm.cursorCoords(cursor, "local");
+  let bottom = editor.cm.cursorCoords(cursor, undefined).bottom;
+  let left = editor.cm.cursorCoords(cursor, "local").left;
 
-  return {id: "format-bar", c: "format-bar", top: coords.bottom, left: coords.left, children: [
+  return {id: "format-bar", c: "format-bar", top: bottom, left: left, children: [
     {text: "B", click: () => editor.format({type: "strong"}, true)},
     {text: "I", click: () => editor.format({type: "emph"}, true)},
     {text: "code", click: () => editor.format({type: "code"}, true)},
@@ -1783,8 +1784,10 @@ function newBlockBar(elem:EditorBarElem):Elem {
   let {editor, active} = elem;
   let doc = editor.cm.getDoc();
   let cursor = doc.getCursor();
-  let coords = editor.cm.cursorCoords(cursor, "local");
-  return {id: "new-block-bar", c: `new-block-bar ${active ? "active" : ""}`, top: coords.bottom, left: coords.left, children: [
+  let bottom = editor.cm.cursorCoords(cursor, undefined).bottom;
+  let left = editor.cm.cursorCoords(cursor, "local").left;
+  console.log(cursor.line, cursor.ch, bottom, left);
+  return {id: "new-block-bar", c: `new-block-bar ${active ? "active" : ""}`, top: bottom, left: left, children: [
     {c: "new-block-bar-toggle ion-plus", click: () => {
       elem.active = !elem.active;
       editor.cm.focus();
