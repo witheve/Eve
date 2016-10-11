@@ -30,6 +30,7 @@ class Responder {
   handleEvent(json) {
     let data = JSON.parse(json);
     if(data.type === "event") {
+      if(!evaluation) return;
       console.info("EVENT", json);
       let actions = [];
       for(let insert of data.insert) {
@@ -37,6 +38,7 @@ class Responder {
       }
       evaluation.executeActions(actions);
     } else if(data.type === "close") {
+      if(!evaluation) return;
       evaluation.close();
       evaluation = undefined;
     } else if(data.type === "parse") {
