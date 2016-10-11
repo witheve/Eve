@@ -67,7 +67,7 @@ class Responder {
         changes.commit();
         evaluation.fixpoint(changes);
       } else {
-        evaluation.close();
+        if(evaluation) evaluation.close();
         join.nextId(0);
         let {blocks} = builder.buildDoc(this.lastParse);
         // analyzer.analyze(results.blocks);
