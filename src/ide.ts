@@ -1386,12 +1386,12 @@ export class Editor {
                                cursor.ch === 0 &&
                                doc.getLine(cursor.line) === "");
 
-    if(this.showNewBlockBar !== old) this.queueUpdate();
+    if(this.showNewBlockBar !== old || this.showNewBlockBar) this.queueUpdate();
 
     // Otherwise if there's a selection, show the format bar.
     old = this.showFormatBar;
     this.showFormatBar = (!codeBlocks.length && doc.somethingSelected());
-    if(this.showFormatBar !== old) this.queueUpdate();
+    if(this.showFormatBar !== old || this.showFormatBar) this.queueUpdate();
   }
 
   // Elements
@@ -1733,7 +1733,11 @@ class Comments {
 interface EditorBarElem extends Elem { editor: Editor }
 
 function formatBar({editor}:EditorBarElem):Elem {
-  return {id: "format-bar", c: "format-bar", children: [
+  let doc = editor.cm.getDoc();
+  let cursor = doc.getCursor("to");
+  let coords = editor.cm.cursorCoords(cursor, "local");
+
+  return {id: "format-bar", c: "format-bar", top: coords.bottom, left: coords.left, children: [
     {text: "B", click: () => editor.format({type: "strong"}, true)},
     {text: "I", click: () => editor.format({type: "emph"}, true)},
     {text: "code", click: () => editor.format({type: "code"}, true)},
@@ -1754,7 +1758,10 @@ function formatBar({editor}:EditorBarElem):Elem {
  */
 
 function newBlockBar({editor}:EditorBarElem):Elem {
-  return {id: "new-block-bar", c: "new-block-bar", children: [
+  let doc = editor.cm.getDoc();
+  let cursor = doc.getCursor();
+  let coords = editor.cm.cursorCoords(cursor, "local");
+  return {id: "new-block-bar", c: "new-block-bar", top: coords.bottom, left: coords.left, children: [
     {text: "block", click: () => editor.format({type: "code_block"}, true)},
     {text: "list", click: () => editor.format({type: "item"}, true)},
     {text: "H1", click: () => editor.format({type: "heading", level: 1}, true)},

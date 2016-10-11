@@ -417,7 +417,6 @@ export class BlockSpan extends Span {
 
 
     if(!samePosition(from, loc.from) || !samePosition(to, loc.to)) {
-      console.log("Realigning from", loc.from, "->", from, loc.to, "->", to, change.origin);
       this.clear();
       this.editor.markSpan(from, to, this.source);
     }
