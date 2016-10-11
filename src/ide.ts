@@ -1914,7 +1914,7 @@ export class IDE {
     let name = this.documentId; // @FIXME
     this.navigator.loadDocument(this.documentId, name);
     this.navigator.currentId = this.documentId;
-    this.comments.update(fakeComments);
+    this.comments.update({});
 
     this.render();
   }

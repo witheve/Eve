@@ -317,6 +317,7 @@ _ide.onEval = (ide:IDE, persist) => {
 }
 _ide.onLoadFile = (ide, documentId, code) => {
   if(socket && socket.readyState == 1) {
+    socket.send(JSON.stringify({type: "close"}));
     socket.send(JSON.stringify({scope: "root", type: "parse", code}))
     socket.send(JSON.stringify({type: "eval", persist: false}));
   }
