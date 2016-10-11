@@ -684,6 +684,7 @@ export class Editor {
             let loc = span.find();
             if(loc && samePosition(to, loc.to) && span.sourceEquals(source)) {
               span.source = source;
+              if(span.refresh) span.refresh();
               touchedIds[span.id] = true;
               unchanged = true;
               break;
@@ -1488,17 +1489,11 @@ class Comments {
   }
 
   update() {
-    // Don't bother with incremental for now.
-    for(let commentId in this.comments) {
-      this.comments[commentId].clear();
-      delete this.comments[commentId];
-    }
-
     let touchedIds = {};
     for(let span of this.ide.editor.getAllSpans("document_comment") as DocumentCommentSpan[]) {
-      let commentId = span.source.id;
+      let commentId = span.id;
       touchedIds[commentId] = true;
-      if(this.comments[commentId]) this.comments[commentId].clear();
+      if(this.comments[commentId]) continue;
       this.comments[commentId] = span;
     }
 
