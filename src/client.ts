@@ -193,6 +193,8 @@ socket.onmessage = function(msg) {
     _ide.loadDocument(data.generation, data.text, data.spans, data.extraInfo); // @FIXME
   } else if(data.type == "error") {
     console.error(data.message, data);
+  } else {
+    console.log("UNKNOWN MESSAGE", data);
   }
 }
 socket.onopen = function() {

@@ -27,6 +27,17 @@ class Responder {
     this.socket.onmessage({data: json});
   }
 
+  sendErrors(errors) {
+    if(!errors.length) return;
+    let spans = [];
+    let extraInfo = {};
+    for(let error of errors) {
+      error.injectSpan(spans, extraInfo);
+    }
+    this.send(JSON.stringify({type: "comments", spans, extraInfo}))
+    return true;
+  }
+
   handleEvent(json) {
     let data = JSON.parse(json);
     if(data.type === "event") {
@@ -59,7 +70,8 @@ class Responder {
             block.updateBinds({positions: {}, info: []}, changes);
           }
         }
-        let {blocks} = builder.buildDoc(this.lastParse);
+        let {blocks, errors} = builder.buildDoc(this.lastParse);
+        this.sendErrors(errors);
         for(let block of blocks) {
           if(block.singleRun) block.dormant = true;
         }
@@ -71,7 +83,8 @@ class Responder {
       } else {
         if(evaluation) evaluation.close();
         join.nextId(0);
-        let {blocks} = builder.buildDoc(this.lastParse);
+        let {blocks, errors} = builder.buildDoc(this.lastParse);
+        this.sendErrors(errors);
         // analyzer.analyze(results.blocks);
         let browser = new BrowserSessionDatabase(responder);
         let session = new Database();
@@ -100,7 +113,8 @@ export function init(code) {
   responder.lastParse = results;
   let {text, spans, extraInfo} = results;
   responder.send(JSON.stringify({type: "parse", text, spans, extraInfo}));
-  let {blocks} = builder.buildDoc(results);
+  let {blocks, errors: buildErrors} = builder.buildDoc(results);
+  responder.sendErrors(buildErrors);
   // analyzer.analyze(results.blocks);
   let browser = new BrowserSessionDatabase(responder);
   let session = new Database();

@@ -110,91 +110,91 @@ function parseMarkdown(markdown: string, docId: string) {
 // Tokens
 //-----------------------------------------------------------
 
-const breakChars = "@#\\.,\\(\\)\\[\\]{}⦑⦒:\\\"";
+const breakChars = "@#\\.,\\(\\)\\[\\]\\{\\}⦑⦒:\\\"";
 
 // Markdown
-class DocContent extends Token { static PATTERN = /[^\n]+/; }
-class Fence extends Token {
+export class DocContent extends Token { static PATTERN = /[^\n]+/; }
+export class Fence extends Token {
   static PATTERN = /```|~~~/;
   static PUSH_MODE = "code";
 }
-class CloseFence extends Token {
+export class CloseFence extends Token {
   static PATTERN = /```|~~~/;
   static POP_MODE = true;
 }
 
 // Comments
-class CommentLine extends Token { static PATTERN = /\/\/.*\n/; label = "comment"; }
+export class CommentLine extends Token { static PATTERN = /\/\/.*\n/; label = "comment"; }
 
 // Operators
-class Equality extends Token { static PATTERN = /:|=/; label = "equality"; }
-class Comparison extends Token { static PATTERN = />=|<=|!=|>|</; label = "comparison"; }
-class AddInfix extends Token { static PATTERN = /\+|-/; label = "infix"; }
-class MultInfix extends Token { static PATTERN = /\*|\//; label = "infix"; }
-class Merge extends Token { static PATTERN = /<-/; label = "merge"; }
-class Set extends Token { static PATTERN = /:=/; label = "set"; }
-class Mutate extends Token { static PATTERN = /\+=|-=/; label = "mutate"; }
-class Dot extends Token { static PATTERN = /\./; label = "dot"; }
-class Pipe extends Token { static PATTERN = /\|/; label = "pipe"; }
+export class Equality extends Token { static PATTERN = /:|=/; label = "equality"; }
+export class Comparison extends Token { static PATTERN = />=|<=|!=|>|</; label = "comparison"; }
+export class AddInfix extends Token { static PATTERN = /\+|-/; label = "infix"; }
+export class MultInfix extends Token { static PATTERN = /\*|\//; label = "infix"; }
+export class Merge extends Token { static PATTERN = /<-/; label = "merge"; }
+export class Set extends Token { static PATTERN = /:=/; label = "set"; }
+export class Mutate extends Token { static PATTERN = /\+=|-=/; label = "mutate"; }
+export class Dot extends Token { static PATTERN = /\./; label = "dot"; }
+export class Pipe extends Token { static PATTERN = /\|/; label = "pipe"; }
 
 // Identifier
-class Identifier extends Token { static PATTERN = new RegExp(`([\\+-/\\*][^\\s${breakChars}]+|[^\\d${breakChars}\\+-/\\*][^\\s${breakChars}]*)(?=[^\\[])`); label = "identifier"; }
-class FunctionIdentifier extends Token { static PATTERN = new RegExp(`([\\+-/\\*][^\\s${breakChars}]+|[^\\d${breakChars}\\+-/\\*][^\\s${breakChars}]*)(?=\\[)`); label = "functionIdentifier"; }
+export class Identifier extends Token { static PATTERN = new RegExp(`([\\+-/\\*][^\\s${breakChars}]+|[^\\d${breakChars}\\+-/\\*][^\\s${breakChars}]*)(?=[^\\[])`); label = "identifier"; }
+export class FunctionIdentifier extends Token { static PATTERN = new RegExp(`([\\+-/\\*][^\\s${breakChars}]+|[^\\d${breakChars}\\+-/\\*][^\\s${breakChars}]*)(?=\\[)`); label = "functionIdentifier"; }
 
 // Keywords
-class Keyword extends Token {
+export class Keyword extends Token {
     static PATTERN = Lexer.NA;
     static LONGER_ALT = Identifier;
 }
-class Action extends Keyword { static PATTERN = /bind|commit/; label = "action"; }
-class Search extends Keyword { static PATTERN = /search/; label = "search"; }
-class Is extends Keyword { static PATTERN = /is/; label = "is"; }
-class If extends Keyword { static PATTERN = /if/; label = "if"; }
-class Else extends Keyword { static PATTERN = /else/; label = "else"; }
-class Then extends Keyword { static PATTERN = /then/; label = "then"; }
-class Not extends Keyword { static PATTERN = /not/; label = "not"; }
+export class Action extends Keyword { static PATTERN = /bind|commit/; label = "action"; }
+export class Search extends Keyword { static PATTERN = /search/; label = "search"; }
+export class Is extends Keyword { static PATTERN = /is/; label = "is"; }
+export class If extends Keyword { static PATTERN = /if/; label = "if"; }
+export class Else extends Keyword { static PATTERN = /else/; label = "else"; }
+export class Then extends Keyword { static PATTERN = /then/; label = "then"; }
+export class Not extends Keyword { static PATTERN = /not/; label = "not"; }
 
 // Values
-class Bool extends Keyword { static PATTERN = /true|false/; label = "bool"; }
-class Num extends Token { static PATTERN = /-?\d+(\.\d+)?/; label = "num"; }
-class None extends Keyword { static PATTERN = /none/; label = "none"; }
-class Name extends Token { static PATTERN = /@/; label = "name"; }
-class Tag extends Token { static PATTERN = /#/; label = "tag"; }
-class Uuid extends Token { static PATTERN = /⦑.*⦒/; label = "uuid"; }
+export class Bool extends Keyword { static PATTERN = /true|false/; label = "bool"; }
+export class Num extends Token { static PATTERN = /-?\d+(\.\d+)?/; label = "num"; }
+export class None extends Keyword { static PATTERN = /none/; label = "none"; }
+export class Name extends Token { static PATTERN = /@/; label = "name"; }
+export class Tag extends Token { static PATTERN = /#/; label = "tag"; }
+export class Uuid extends Token { static PATTERN = /⦑.*⦒/; label = "uuid"; }
 
 // Delimiters
-class OpenBracket extends Token { static PATTERN = /\[/; label = "open-bracket"; }
-class CloseBracket extends Token { static PATTERN = /\]/; label = "close-bracket"; }
-class OpenParen extends Token { static PATTERN = /\(/; label = "open-paren"; }
-class CloseParen extends Token { static PATTERN = /\)/; label = "close-paren"; }
+export class OpenBracket extends Token { static PATTERN = /\[/; label = "open-bracket"; }
+export class CloseBracket extends Token { static PATTERN = /\]/; label = "close-bracket"; }
+export class OpenParen extends Token { static PATTERN = /\(/; label = "open-paren"; }
+export class CloseParen extends Token { static PATTERN = /\)/; label = "close-paren"; }
 
 // Strings
-class StringChars extends Token { static PATTERN = /(\\.|{(?=[^{])|[^"\\{])+/; label = "string"; }
-class StringOpen extends Token {
+export class StringChars extends Token { static PATTERN = /(\\.|{(?=[^{])|[^"\\{])+/; label = "string"; }
+export class OpenString extends Token {
   static PATTERN = /"/;
   static PUSH_MODE = "string";
   label = "quote";
 }
-class StringClose extends Token {
+export class CloseString extends Token {
   static PATTERN = /"/;
   static POP_MODE = true;
   label = "quote";
 }
 
 // String Embeds
-class StringEmbedOpen extends Token {
+export class StringEmbedOpen extends Token {
   static PATTERN = /{{/;
   static PUSH_MODE = "code";
   label = "string-embed-open";
 }
-class StringEmbedClose extends Token {
+export class StringEmbedClose extends Token {
   static PATTERN = /}}/;
   static POP_MODE = true;
   label = "string-embed-close";
 }
 
 // Whitespace
-class WhiteSpace extends Token {
+export class WhiteSpace extends Token {
   static PATTERN = /\s+|,/;
   static GROUP = Lexer.SKIPPED;
 }
@@ -205,7 +205,7 @@ class WhiteSpace extends Token {
 
 let codeTokens: any[] = [
   CloseFence, WhiteSpace, CommentLine, OpenBracket, CloseBracket, OpenParen,
-  CloseParen, StringEmbedClose, StringOpen, Bool, Action, Set, Equality, Dot, Pipe, Merge,
+  CloseParen, StringEmbedClose, OpenString, Bool, Action, Set, Equality, Dot, Pipe, Merge,
   Mutate, Comparison, Num,  Search, Is, If, Else, Then,
   Not, None, Name, Tag, Uuid, FunctionIdentifier, Identifier, AddInfix, MultInfix
 ];
@@ -215,11 +215,11 @@ let stringEmbedTokens: any[] = [StringEmbedClose].concat(codeTokens);
 let LexerModes:any = {
   "doc": [WhiteSpace, Fence, DocContent],
   "code": codeTokens,
-  "string": [StringClose, StringEmbedOpen, StringChars],
+  "string": [CloseString, StringEmbedOpen, StringChars],
   // "stringEmbed": stringEmbedTokens,
 };
 
-let allTokens: any[] = codeTokens.concat([Fence, DocContent, StringClose, StringEmbedOpen, StringEmbedClose, StringChars]);
+let allTokens: any[] = codeTokens.concat([Fence, DocContent, CloseString, StringEmbedOpen, StringEmbedClose, StringChars]);
 
 let EveDocLexer = new Lexer({modes: LexerModes, defaultMode: "doc"}, true);
 let EveBlockLexer = new Lexer({modes: LexerModes, defaultMode: "code"}, true);
@@ -1187,7 +1187,7 @@ class Parser extends chev.Parser {
 
     rule("stringInterpolation", () : any => {
       let args = [];
-      let start = self.CONSUME(StringOpen);
+      let start = self.CONSUME(OpenString);
       let from: NodeDependent[] = [start];
       self.MANY(() => {
         let arg = self.OR([
@@ -1205,7 +1205,7 @@ class Parser extends chev.Parser {
         args.push(asValue(arg));
         from.push(arg as ParseNode);
       });
-      from.push(self.CONSUME(StringClose));
+      from.push(self.CONSUME(CloseString));
       if(args.length === 1 && args[0].type === "constant") {
         return args[0];
       }
@@ -1263,7 +1263,8 @@ export function parseBlock(block, blockId, offset = 0, spans = [], extraInfo = {
   // 1 tells chevrotain what level the rule is starting at, we then pass our params
   // to the codeBlock parser function as an array
   let results = eveParser.codeBlock(1, [blockId]);
-  let errors = parserErrors(eveParser.errors, {blockId, blockStart: offset, spans, extraInfo});
+  results.start = offset;
+  let errors = parserErrors(eveParser.errors, {blockId, blockStart: offset, spans, extraInfo, tokens: lex.tokens});
   return {
     results,
     lex,

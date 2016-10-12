@@ -648,8 +648,7 @@ export function buildBlock(block) {
   for(let unprovided of context.unprovided) {
     if(unprovided) {
       let vars = context.registerToVars[ix].map((varName) => block.variables[varName]);
-      // errors.push(unprovidedVariableGroup(vars));
-      throw new Error("UNPROVIDED VARIABLE: " + context.registerToVars[ix]);
+      errors.push(unprovidedVariableGroup(block, vars));
     }
     ix++;
   }
@@ -663,10 +662,17 @@ export function buildBlock(block) {
 export function buildDoc(parsedDoc) {
   let blocks = [];
   let setupInfos = [];
+  let allErrors = [];
   for(let parsedBlock of parsedDoc.blocks) {
-    let {block} = buildBlock(parsedBlock);
-    blocks.push(block);
+    let {block, errors} = buildBlock(parsedBlock);
+    if(errors.length) {
+      for(let error of errors) {
+        allErrors.push(error);
+      }
+    } else {
+      blocks.push(block);
+    }
   }
-  return { blocks };
+  return { blocks, errors: allErrors };
 }
 

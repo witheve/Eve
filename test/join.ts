@@ -46,7 +46,10 @@ function verify(assert, adds, removes, data) {
 function evaluate(assert, expected, code) {
   join.nextId(0);
   let parsed = parser.parseDoc(dedent(code), "0");
-  let {blocks} = builder.buildDoc(parsed.results);
+  let {blocks, errors} = builder.buildDoc(parsed.results);
+  if(assert.errors) {
+    assert.true(parsed.errors.length > 0 || errors.length > 0);
+  }
   let session = new BrowserSessionDatabase({send: () => {}});
   session.blocks = blocks;
   let evaluation = new Evaluation();
@@ -335,53 +338,62 @@ test("search with incompatible filters", (assert) => {
 
 test("search with unprovided variable", (assert) => {
   let expected = {
-    insert: [],
-    remove: []
+    insert: [
+      ["2", "tag", "person"],
+      ["2", "name", "chris"],
+      ["5", "tag", "person"],
+      ["5", "name", "joe"],
+    ],
+    remove: [],
+    errors: true,
   };
-  assert.throws(() => {
-    evaluate(assert, expected, `
-      people
-      ~~~
-        commit
-          [#person name: "chris"]
-          [#person name: "joe"]
-      ~~~
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "chris"]
+        [#person name: "joe"]
+    ~~~
 
-      foo bar
-      ~~~
-        search
-          [#person]
-        commit
-          [dude: p]
-      ~~~
-    `);
-  }, "Unprovided variables should throw an error")
+    foo bar
+    ~~~
+      search
+        [#person]
+      commit
+        [dude: p]
+    ~~~
+  `);
   assert.end();
 })
 
 test("search with unprovided root in an attribute access", (assert) => {
   let expected = {
-    insert: [],
-    remove: []
+    insert: [
+      ["2", "tag", "person"],
+      ["2", "name", "chris"],
+      ["5", "tag", "person"],
+      ["5", "name", "joe"],
+    ],
+    remove: [],
+    errors: true,
   };
-  assert.throws(() => {
-    evaluate(assert, expected, `
-      people
-      ~~~
-        commit
-          [#person name: "chris"]
-          [#person name: "joe"]
-      ~~~
 
-      foo bar
-      ~~~
-        search
-          [#person]
-        commit
-          [dude: p.name]
-      ~~~
-    `);
-  }, "Unprovided variables should throw an error")
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "chris"]
+        [#person name: "joe"]
+    ~~~
+
+    foo bar
+    ~~~
+      search
+        [#person]
+      commit
+        [dude: p.name]
+    ~~~
+  `);
   assert.end();
 })
 
