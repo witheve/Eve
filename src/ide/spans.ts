@@ -536,17 +536,8 @@ export class DocumentCommentSpan extends ParserSpan {
   annotation?: CodeMirror.AnnotateScrollbar.Annotation;
 
   apply(from:Position, to:Position, origin = "+input") {
-    console.log("DC", this.source);
     this._attributes.className = this.type + " " + this.kind;
     super.apply(from, to, origin);
-
-    if(!this.annotation) {
-      this.annotation = this.editor.cm.annotateScrollbar({className: `scrollbar-annotation ${this.kind}`});
-    }
-    let loc = this.find();
-    if(loc) {
-      this.annotation.update([loc]);
-    }
   }
 
   clear(origin:string = "+delete") {
@@ -554,6 +545,16 @@ export class DocumentCommentSpan extends ParserSpan {
     if(this.annotation) {
       this.annotation.clear();
       this.annotation = undefined;
+    }
+  }
+
+  refresh() {
+    if(!this.annotation) {
+      this.annotation = this.editor.cm.annotateScrollbar({className: `scrollbar-annotation ${this.kind}`});
+    }
+    let loc = this.find();
+    if(loc) {
+      this.annotation.update([loc]);
     }
   }
 

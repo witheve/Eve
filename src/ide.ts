@@ -684,6 +684,7 @@ export class Editor {
             let loc = span.find();
             if(loc && samePosition(to, loc.to) && span.sourceEquals(source)) {
               span.source = source;
+              if(span.refresh) span.refresh();
               touchedIds[span.id] = true;
               unchanged = true;
               break;
@@ -1490,10 +1491,9 @@ class Comments {
   update() {
     let touchedIds = {};
     for(let span of this.ide.editor.getAllSpans("document_comment") as DocumentCommentSpan[]) {
-      let commentId = span.source.id;
-      console.log("Found span", span);
+      let commentId = span.id;
       touchedIds[commentId] = true;
-      if(this.comments[commentId]) this.comments[commentId].clear();
+      if(this.comments[commentId]) continue;
       this.comments[commentId] = span;
     }
 
@@ -1505,7 +1505,7 @@ class Comments {
     }
 
     this.ordered = Object.keys(this.comments);
-    this.ordered.sort(compareSpans);
+    this.ordered.sort((a, b) => compareSpans(this.comments[a], this.comments[b]));
     this.resizeComments();
   }
 
