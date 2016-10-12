@@ -459,6 +459,7 @@ class Parser extends chev.Parser {
     //-----------------------------------------------------------
 
     rule("codeBlock", (blockId = "block") => {
+      blockStack = [];
       let block = pushBlock(blockId);
       self.MANY(() => { self.SUBRULE(self.section) })
       return popBlock();
@@ -1284,7 +1285,6 @@ export function parseDoc(doc, docId = `doc|${docIx++}`) {
   for(let block of blocks) {
     let {results, lex, errors} = parseBlock(block.literal, block.id, block.startOffset, spans, extraInfo);
     if(errors.length) {
-      console.log("errors", errors);
       allErrors.push(errors);
     } else {
       parsedBlocks.push(results);

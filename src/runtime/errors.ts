@@ -249,6 +249,6 @@ export var messages = {
   unimplementedExpression: (op) => `There's no definition for the function ${op}`,
 
   neverEqual: (left, right) => `${left} can never equal ${right}`,
-  variableNeverEqual: (variable, value, right) => `${variable} will is equivalent to ${value}, which can't be equal to ${right}`,
+  variableNeverEqual: (variable, value, right) => `${variable.name} is equivalent to ${value}, which can't be equal to ${right}`,
 
 };
