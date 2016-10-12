@@ -729,6 +729,56 @@ export class Editor {
     this.reloading = false;
   }
 
+    // This is an update to an existing document, so we need to figure out what got added and removed.
+  injectSpans(packed:any[], attributes:{[id:string]: any|undefined}) {
+    if(packed.length % 4 !== 0) throw new Error("Invalid span packing, unable to load.");
+
+    this.cm.operation(() => {
+      this.reloading = true;
+      let doc = this.cm.getDoc();
+
+      let controlledOffsets = {};
+      let touchedIds = {};
+      for(let i = 0; i < packed.length; i += 4) {
+        if(isEditorControlled(packed[i + 2]))
+          console.info(packed[i + 2], debugTokenWithContext(doc.getValue(), packed[i], packed[i + 1]));
+
+        let start = packed[i];
+        let type = packed[i + 2];
+        if(isEditorControlled(type)) {
+          throw new Error(`The parser may not inject editor controlled spans of type '${type}'`);
+        } else {
+          let from = doc.posFromIndex(packed[i]);
+          let to = doc.posFromIndex(packed[i + 1]);
+          let type = packed[i + 2];
+          let id = packed[i + 3];
+
+          let source = attributes[id] || {};
+          source.type = type;
+          source.id = id;
+
+          let spans = this.findSpansAt(from, type);
+          let unchanged = false;
+          for(let span of spans) {
+            let loc = span.find();
+            if(loc && samePosition(to, loc.to) && span.sourceEquals(source)) {
+              span.source = source;
+              if(span.refresh) span.refresh();
+              unchanged = true;
+              break;
+            }
+          }
+
+          if(!unchanged) {
+            let span = this.markSpan(from, to, source);
+          }
+        }
+      }
+    });
+
+    console.log("injected!");
+    this.reloading = false;
+  }
 
   toMarkdown() {
     let cm = this.cm;
@@ -1809,6 +1859,12 @@ export class IDE {
     this.navigator.currentId = this.documentId;
     this.comments.update();
 
+    this.render();
+  }
+
+  injectSpans(packed:any[], attributes:{[id:string]: any|undefined}) {
+    this.editor.injectSpans(packed, attributes);
+    this.comments.update();
     this.render();
   }
 
