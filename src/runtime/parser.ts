@@ -366,7 +366,7 @@ class Parser extends chev.Parser {
 
 
   constructor(input) {
-    super(input, allTokens, {recoveryEnabled: false});
+    super(input, allTokens, {});
     let self = this;
     let rule = (name, func) => {
       self[name] = self.RULE(name, func);

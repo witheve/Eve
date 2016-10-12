@@ -8,6 +8,7 @@ import * as providers from "./providers/index";
 import "./providers/math";
 import "./providers/logical";
 import "./providers/string";
+import {unprovidedVariableGroup} from "./errors";
 import {Sort} from "./providers/sort";
 import {Aggregate} from "./providers/aggregate";
 import {ActionImplementations} from "./actions";
@@ -30,6 +31,7 @@ function clone(map) {
 //-----------------------------------------------------------
 
 class BuilderContext {
+  errors: any[] = [];
   groupIx: number;
   varIx: number;
   variableToGroup: any;
@@ -193,6 +195,7 @@ class BuilderContext {
 
   extendTo(block) {
     let neue = new BuilderContext(block, clone(this.variableToGroup), clone(this.groupToValue), this.unprovided, this.registerToVars, this.groupIx, this.varIx);
+    neue.errors = this.errors;
     return neue;
   }
 }
@@ -640,9 +643,12 @@ export function buildBlock(block) {
   // console.log("-- commits --------------------------------------------------------------");
   // console.log(inspect(commits, {colors: true}));
 
+  let errors = [];
   let ix = 0;
   for(let unprovided of context.unprovided) {
     if(unprovided) {
+      let vars = context.registerToVars[ix].map((varName) => block.variables[varName]);
+      // errors.push(unprovidedVariableGroup(vars));
       throw new Error("UNPROVIDED VARIABLE: " + context.registerToVars[ix]);
     }
     ix++;
@@ -650,6 +656,7 @@ export function buildBlock(block) {
 
   return {
     block: new Block(block.name || "Unnamed block", strata, commits, binds, block),
+    errors,
   };
 }
 

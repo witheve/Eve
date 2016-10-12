@@ -789,7 +789,8 @@ function preJoinAccept(multiIndex: MultiIndex, providers : ProposalProvider[], v
 export interface JoinOptions {
   single?: boolean,
   acceptOnly?: boolean,
-  rows?: any[]
+  rows?: any[],
+  solverInfo?: any[]
 }
 
 // Convenient function to kick off a join. We only care about vars here

@@ -160,6 +160,7 @@ export function scansToVars(scans, output = []) {
 }
 
 export class BlockStratum {
+  solverInfo = [];
   scans: ProposalProvider[];
   aggregates: Aggregate[];
   vars: Variable[];
@@ -178,6 +179,7 @@ export class BlockStratum {
     }
     for(let row of rows) {
       options.rows = results;
+      options.solverInfo = this.solverInfo;
       results = join(multiIndex, this.scans, this.vars, row, options);
     }
     return results;
