@@ -310,29 +310,33 @@ test("search a record with numeric attributes", (assert) => {
 
 test("search with incompatible filters", (assert) => {
   let expected = {
-    insert: [],
-    remove: []
+    insert: [
+      ["2", "tag", "person"],
+      ["2", "name", "chris"],
+      ["5", "tag", "person"],
+      ["5", "name", "joe"],
+    ],
+    remove: [],
+    errors: true,
   };
-  assert.throws(() => {
-    evaluate(assert, expected, `
-      people
-      ~~~
-        commit
-          [#person name: "chris"]
-          [#person name: "joe"]
-      ~~~
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "chris"]
+        [#person name: "joe"]
+    ~~~
 
-      foo bar
-      ~~~
-        search
-          p = [#person name]
-          name = "chris"
-          name = "joe"
-        commit
-          [dude: p]
-      ~~~
-    `);
-  }, "Incompatible constant filters should throw an error")
+    foo bar
+    ~~~
+      search
+        p = [#person name]
+        name = "chris"
+        name = "joe"
+      commit
+        [dude: p]
+    ~~~
+  `);
   assert.end();
 })
 

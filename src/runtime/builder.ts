@@ -8,7 +8,7 @@ import * as providers from "./providers/index";
 import "./providers/math";
 import "./providers/logical";
 import "./providers/string";
-import {unprovidedVariableGroup} from "./errors";
+import * as errors from "./errors";
 import {Sort} from "./providers/sort";
 import {Aggregate} from "./providers/aggregate";
 import {ActionImplementations} from "./actions";
@@ -107,7 +107,7 @@ class BuilderContext {
         if(left.type === "constant" && right.type === "constant") {
           // these must be equal, otherwise this query doesn't make any sense
           if(left.value !== right.value) {
-            throw new Error("Equality with two constants that aren't equal: " + `${left.value} = ${right.value}`);
+            this.errors.push(errors.incompatabileConstantEquality(block, left, right));
           }
         } else if(left.type === "constant") {
           let rightGroup = this.getGroup(right);
@@ -116,7 +116,7 @@ class BuilderContext {
           // the builder handles this case for us by adding explicit equality checks into the scans
           if(!join.isVariable(rightValue)) {
             if(rightValue !== undefined && left.value !== rightValue) {
-              throw new Error("Equality with two constants that aren't equal: " + `${left.value} = ${rightValue}`);
+              this.errors.push(errors.incompatabileVariableToConstantEquality(block, right, rightValue, left));
             }
             this.groupToValue[rightGroup] = left.value;
           }
@@ -127,7 +127,7 @@ class BuilderContext {
           // the builder handles this case for us by adding explicit equality checks into the scans
           if(!join.isVariable(leftValue)) {
             if(leftValue !== undefined && leftValue !== right.value) {
-              throw new Error("Equality with two constants that aren't equal: " + `${leftValue} = ${right.value}`);
+              this.errors.push(errors.incompatabileVariableToConstantEquality(block, left, leftValue, right));
             }
             this.groupToValue[leftGroup] = right.value;
           }
@@ -166,7 +166,7 @@ class BuilderContext {
         } else {
           if(variable.constant) {
             if(!join.isVariable(value) && variable.constant.value !== value) {
-              throw new Error("Equality with two constants that aren't equal: " + `${value} = ${variable.constant.value}`);
+              this.errors.push(errors.incompatabileTransitiveEquality(block, variable, value));
             }
             value = variable.constant.value;
             if(this.myRegisters[value.id]) {
@@ -332,7 +332,7 @@ function buildExpressions(block, context, expressions, outputScans) {
       if(impl) {
         outputScans.push(new impl(args, results));
       } else {
-        throw new Error("Not implemented: expression " + expression.op);
+        context.errors.push(errors.unimplementedExpression(block, expression));
       }
     } else if(expression.type === "functionRecord") {
       let results;
@@ -345,6 +345,10 @@ function buildExpressions(block, context, expressions, outputScans) {
       }
       let args = [];
       let impl = providers.get(expression.op);
+      if(!impl) {
+        context.errors.push(errors.unimplementedExpression(block, expression));
+        return;
+      }
       for(let attribute of expression.record.attributes) {
         let ix = impl.AttributeMapping[attribute.attribute];
         if(ix !== undefined) {
@@ -374,12 +378,7 @@ function buildExpressions(block, context, expressions, outputScans) {
         resultIx++;
       }
 
-      if(impl) {
-        outputScans.push(new impl(args, results));
-      } else {
-        throw new Error("Not implemented: expression " + expression.op);
-      }
-
+      outputScans.push(new impl(args, results));
     } else {
       throw new Error("Not implemented: function type " + expression.type);
     }
@@ -643,19 +642,18 @@ export function buildBlock(block) {
   // console.log("-- commits --------------------------------------------------------------");
   // console.log(inspect(commits, {colors: true}));
 
-  let errors = [];
   let ix = 0;
   for(let unprovided of context.unprovided) {
     if(unprovided) {
       let vars = context.registerToVars[ix].map((varName) => block.variables[varName]);
-      errors.push(unprovidedVariableGroup(block, vars));
+      context.errors.push(errors.unprovidedVariableGroup(block, vars));
     }
     ix++;
   }
 
   return {
     block: new Block(block.name || "Unnamed block", strata, commits, binds, block),
-    errors,
+    errors: context.errors,
   };
 }
 

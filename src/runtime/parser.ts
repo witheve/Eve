@@ -1263,7 +1263,9 @@ export function parseBlock(block, blockId, offset = 0, spans = [], extraInfo = {
   // 1 tells chevrotain what level the rule is starting at, we then pass our params
   // to the codeBlock parser function as an array
   let results = eveParser.codeBlock(1, [blockId]);
-  results.start = offset;
+  if(results) {
+    results.start = offset;
+  }
   let errors = parserErrors(eveParser.errors, {blockId, blockStart: offset, spans, extraInfo, tokens: lex.tokens});
   return {
     results,
