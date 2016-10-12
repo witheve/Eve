@@ -55,10 +55,14 @@ class Responder {
     } else if(data.type === "parse") {
       join.nextId(0);
       let {results, errors} = parser.parseDoc(data.code || "", "editor");
+      let {blocks, errors: buildErrors} = builder.buildDoc(results);
       // analyzer.analyze(results.blocks);
       if(errors && errors.length) console.error(errors);
       this.lastParse = results;
       let {text, spans, extraInfo} = results;
+      for(let error of buildErrors) {
+        error.injectSpan(spans, extraInfo);
+      }
       this.send(JSON.stringify({type: "parse", generation: data.generation, text, spans, extraInfo}));
     } else if(data.type === "eval") {
       if(evaluation !== undefined && data.persist) {
