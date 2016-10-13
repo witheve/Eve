@@ -491,8 +491,10 @@ class Parser extends chev.Parser {
           self.CONSUME(CloseParen);
         }},
         {ALT: () => {
-          let name: any = self.SUBRULE2(self.name);
-          scopes.push(name.name);
+          self.AT_LEAST_ONE2(() => {
+            let name: any = self.SUBRULE2(self.name);
+            scopes.push(name.name);
+          })
         }},
       ]);
       return scopes;
