@@ -69,21 +69,6 @@ function lastTokenWithType(tokens, type) {
   }
 }
 
-function parseNodeToBoundaries(node, offset = 0) {
-  let current = node.from[0];
-  while(current.from) {
-    current = current.from[0]
-  }
-  let startToken = current;
-  current = node.from[node.from.length - 1];
-  while(current.from) {
-    current = current.from[current.from.length - 1];
-  }
-  let stopToken = current;
-  let start = offset + startToken.startOffset;
-  let stop = offset + stopToken.startOffset + stopToken.image.length;
-  return [start, stop];
-}
 
 //--------------------------------------------------------------
 // Parse errors
@@ -201,27 +186,27 @@ export function unprovidedVariableGroup(block, variables) {
 
 export function unimplementedExpression(block, expression) {
   let {id, start: blockStart} = block;
-  let [start, stop] = parseNodeToBoundaries(expression, blockStart);
+  let [start, stop] = parser.nodeToBoundaries(expression, blockStart);
   return new EveError(id, start, stop, messages.unimplementedExpression(expression.op));
 }
 
 export function incompatabileConstantEquality(block, left, right) {
   let {id, start: blockStart} = block;
-  let [start] = parseNodeToBoundaries(left, blockStart);
-  let [_, stop] = parseNodeToBoundaries(right, blockStart);
+  let [start] = parser.nodeToBoundaries(left, blockStart);
+  let [_, stop] = parser.nodeToBoundaries(right, blockStart);
   return new EveError(id, start, stop, messages.neverEqual(left.value, right.value));
 }
 
 export function incompatabileVariableToConstantEquality(block, variable, variableValue, constant) {
   let {id, start: blockStart} = block;
-  let [start] = parseNodeToBoundaries(variable, blockStart);
-  let [_, stop] = parseNodeToBoundaries(constant, blockStart);
+  let [start] = parser.nodeToBoundaries(variable, blockStart);
+  let [_, stop] = parser.nodeToBoundaries(constant, blockStart);
   return new EveError(id, start, stop, messages.variableNeverEqual(variable, variableValue, constant.value));
 }
 
 export function incompatabileTransitiveEquality(block, variable, value) {
   let {id, start: blockStart} = block;
-  let [start, stop] = parseNodeToBoundaries(variable, blockStart);
+  let [start, stop] = parser.nodeToBoundaries(variable, blockStart);
   return new EveError(id, start, stop, messages.variableNeverEqual(variable, variable.constant, value));
 }
 

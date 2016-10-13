@@ -239,6 +239,7 @@ export interface ParseNode {
 
 export class ParseBlock {
   id: string;
+  start: number;
   nodeId = 0;
   variables: {[name: string]: ParseNode} = {};
   equalities: any[] = [];
@@ -812,11 +813,11 @@ class Parser extends chev.Parser {
           self.MANY(() => {
             autoIndex++;
             let record : any = self.SUBRULE2(self.record, [noVar, blockKey, action, parent]);
-            record.attributes.push(makeNode("attribute", {attribute: "eve-auto-index", value: makeNode("constant", {value: autoIndex, from: []}), from: []}));
+            record.attributes.push(makeNode("attribute", {attribute: "eve-auto-index", value: makeNode("constant", {value: autoIndex, from: [record]}), from: [record]}));
             attributes.push(makeNode("attribute", {attribute, value: asValue(record), from: [attributeNode, equality, record]}));
           })
           if(autoIndex > 1) {
-            result.attributes.push(makeNode("attribute", {attribute: "eve-auto-index", value: makeNode("constant", {value: 1, from: []}), from: []}));
+            result.attributes.push(makeNode("attribute", {attribute: "eve-auto-index", value: makeNode("constant", {value: 1, from: [result]}), from: [result]}));
           }
         }},
       ]);
@@ -1246,6 +1247,31 @@ class Parser extends chev.Parser {
 //-----------------------------------------------------------
 // Public API
 //-----------------------------------------------------------
+
+export function nodeToBoundaries(node, offset = 0) {
+  let current = node.from[0];
+  while(current.from) {
+    current = current.from[0]
+  }
+  let startToken = current;
+  // The from for variables are all the usages, in that case, we'll just
+  // use the first occurrence (the startToken) and ignore everything else.
+  // For other nodes, we want to get the last node they're made out of.
+  if(node.type !== "variable") {
+    current = node.from[node.from.length - 1];
+    while(current.from) {
+      if(current.type === "variable") {
+        current = current.from[0]
+      } else {
+        current = current.from[current.from.length - 1];
+      }
+    }
+  }
+  let stopToken = current;
+  let start = offset + startToken.startOffset;
+  let stop = offset + stopToken.startOffset + stopToken.image.length;
+  return [start, stop];
+}
 
 let eveParser = new Parser([]);
 

@@ -4,36 +4,36 @@
 
 For every variable there is a group
 
-```
+~~~
   search
     variable = [#variable]
     number = random[seed: variable]
   commit
     [#group number variable]
-```
+~~~
 
-```
+~~~
   search
     variable = [#variable not(group)]
     group = [#group variable]
   commit
     variable.group := group
-```
+~~~
 
 Handle a constant equivalence
 
-```
+~~~
   search
     eq = [#equality]
     (a, b) = if eq.a.tag, not(eq.b.tag) then (eq.a, eq.b)
              else if eq.b.tag, not(eq.a.tag) then (eq.b, eq.a)
   bind
     a.constant += b
-```
+~~~
 
 Handle variable equivalence
 
-```
+~~~
   search
     [#equality a b]
     a.group != b.group
@@ -46,55 +46,55 @@ Handle variable equivalence
     var = [#variable group: old]
   commit
     var.group := new
-```
+~~~
 
 ## associate record-tags to both actions and scans
 
-```
+~~~
 search
   [#scan entity: [group] attribute: "tag" value]
   scan = [#scan entity: [group]]
 bind
   scan.record-tag += value
-```
+~~~
 
-```
+~~~
 search
   [#action entity: [group] attribute: "tag" value]
   action = [#action entity: [group]]
 bind
   action.record-tag += value
-```
+~~~
 
-```
+~~~
 search
   [#scan entity: [group] record-tag]
   action = [#action entity: [group]]
 bind
   action.record-tag += record-tag
-```
+~~~
 
-```
+~~~
 search
   scan = [#scan not(record-tag)]
 bind
   scan += #analyzer/any
-```
+~~~
 
 ## tag equivalence
 
-```
+~~~
   search
     attribute = "tag"
     [#scan entity: [group] attribute value: tag]
     [#action entity: [group] attribute value: tag2]
   bind
     [#tag-equivalence tag tag2]
-```
+~~~
 
 ## unprovided scans
 
-```
+~~~
   search
     scan = [#scan record-tag attribute]
     not( action = [#action record-tag attribute]
@@ -103,9 +103,9 @@ bind
                 else if action.value = [#variable] then true )
   bind
     scan += #unprovided
-```
+~~~
 
-```
+~~~
   search
     scan = [#scan #analyzer/any attribute]
     not( action = [#action attribute]
@@ -114,71 +114,12 @@ bind
                 else if action.value = [#variable] then true )
   bind
     scan += #unprovided
-```
+~~~
 
+~~~
+search
+  scan = [#scan #unprovided start stop record-tag attribute block]
+bind @editor
+  [#comment scan | block start stop message: "{{attribute}} is never added to {{record-tag}} records, so this will always be empty"]
+~~~
 
-
-## drawing
-
-```
-  search
-    [#equality block a b]
-    a-name = if a.name then a.name
-            else a
-    b-name = if b.name then b.name
-            else b
-  bind @browser
-    [#div children:
-      [#h2 text: "equalities"]
-      [#div block style: [margin-bottom: 20] children:
-        [#h3 text: block sort: "_"]
-        [#div text: "{{a-name}} = {{b-name}}" sort: a-name]]]
-```
-
-```
-  search
-    [#variable block name group: [number]]
-  bind @browser
-    [#div children:
-      [#h2 text: "variables"]
-      [#div block style: [margin-bottom: 20] children:
-        [#h3 text: block]
-        [#div children:
-          [#div text: "{{name}} - {{number}}" sort: number]]]]
-```
-
-```
-  search
-    scan = [#scan #unprovided attribute]
-    record-tag = if tag = scan.record-tag then tag
-                else if scan = [#analyzer/any] then scan.entity
-  bind @browser
-    [#div children:
-      [#h2 text: "unprovided"]
-      [#div record-tag style: [margin-bottom: 20] children:
-        [#h3 text: record-tag sort: "_"]
-        [#div text: attribute sort: attribute]]]
-
-```
-
-```
-  search
-    [#scan record-tag attribute]
-  bind @browser
-    [#div children:
-      [#h2 text: "scans"]
-      [#div record-tag style: [margin-bottom: 20] children:
-        [#h3 text: record-tag sort: "_"]
-        [#div text: attribute sort: attribute]]]
-```
-
-```
-  search
-    [#action record-tag attribute]
-  bind @browser
-    [#div children:
-      [#h2 text: "actions"]
-      [#div record-tag style: [margin-bottom: 20] children:
-        [#h3 text: record-tag sort: "_"]
-        [#div text: attribute sort: attribute]]]
-```

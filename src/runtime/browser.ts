@@ -55,11 +55,11 @@ class Responder {
     } else if(data.type === "parse") {
       join.nextId(0);
       let {results, errors} = parser.parseDoc(data.code || "", "editor");
+      let {text, spans, extraInfo} = results;
       let {blocks, errors: buildErrors} = builder.buildDoc(results);
-      // analyzer.analyze(results.blocks);
+      // analyzer.analyze(results.blocks, spans, extraInfo);
       if(errors && errors.length) console.error(errors);
       this.lastParse = results;
-      let {text, spans, extraInfo} = results;
       for(let error of buildErrors) {
         error.injectSpan(spans, extraInfo);
       }
@@ -119,7 +119,7 @@ export function init(code) {
   responder.send(JSON.stringify({type: "parse", text, spans, extraInfo}));
   let {blocks, errors: buildErrors} = builder.buildDoc(results);
   responder.sendErrors(buildErrors);
-  // analyzer.analyze(results.blocks);
+  // analyzer.analyze(results.blocks, spans, extraInfo);
   let browser = new BrowserSessionDatabase(responder);
   let session = new Database();
   session.blocks = blocks;
