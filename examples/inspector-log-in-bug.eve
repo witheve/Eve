@@ -1,0 +1,131 @@
+# Inspector Log In Bug
+
+This example tests the inspector's ability to backtrack to a record missing an attribute somewhere up the chain.
+
+Create some test users.
+
+```
+commit
+  [#user name: "Jess" email: "jess@example.com"]
+  [#user name: "Bob"]
+```
+
+Create the application root, which will hold state like the current user and page.
+
+```
+commit
+  [#app page: "home"]
+```
+
+
+## Events
+
+Log a user in when they click the log-in button.
+
+```
+search
+  [#click element: button]
+
+search @browser
+  button = [#log-in #button app value] // @NOTE: A series of unfortunate events have borked inputs temporarily, so we cheat.
+  //[#log-in #input app value]
+
+search
+  user = [#user name: value]
+
+commit
+ user.tag += "logged-in"
+ app.user := user
+```
+
+
+Log a user out and send them an email when they click the log-out button.
+
+```
+search
+  [#click element: button]
+
+search @browser
+  button = [#log-out #button app]
+
+search
+  user = app.user
+
+commit
+  user.tag -= "logged-in"
+  app.user := none
+
+commit @email
+  [#email to: user.email from: "admin@myapp.example.com" message: "Thanks for using my app!"]
+```
+
+## Drawing
+
+Draw the application.
+
+```
+search
+  app = [#app page]
+
+bind @browser
+  [#div style: [color: "#202020"] children:
+    [#header style: [display: "flex" flex-direction: "row"] children:
+      [#div text: "My App"]
+      [#div #login-controls app]]
+    [#div #page app]]
+```
+
+Draw the login controls. If a user is logged in she should see a "log out" button. If a user is logged out, she should see a "log in" button.
+
+```
+search @browser
+  container = [#login-controls app]
+
+search
+  app.user = [#logged-in]
+
+bind @browser
+  container.children += [#button #log-out app text: "log out"]
+```
+
+```
+search @browser
+  container = [#login-controls app]
+
+search
+  not(app.user)
+
+bind @browser
+  // @NOTE: A series of unfortunate events has broken using inputs for now.
+  //container.children += [#input #log-in sort: 1 app placeholder: "username"]
+  //container.children += [#button #log-in sort: 2 app text: "log in"]
+
+  container.children += [#button #log-in sort: 1 value: "Jess" app text: "log in as Jess"]
+  container.children += [#button #log-in sort: 2 value: "Bob" app text: "log in as Bob"]
+```
+
+Draw the homepage into the `#page` if that's where the user is.
+
+```
+search @browser
+  container = [#page app]
+
+search
+  app.page = "home"
+
+bind @browser
+  container.tag += "found"
+  container.children +=
+    [#div text: "Welcome back!"]
+```
+
+Draw the 404 page if the user isn't on a known page.
+
+```
+search @browser
+  container = [#page not(#found) app]
+
+bind @browser
+  container.children +=
+    [#div text: "404 Error, I don't know about any page named {{app.page}}"]
+```
