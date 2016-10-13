@@ -1,0 +1,17 @@
+# Inspector
+
+The inspector ("don't panic" button) is Eve's interactive debugging tool. It acts as a go between to help the Analyzer understand what's wrong based on your input. It handles the subset of issues that Eve can't know about a priori, where the program is valid and reasonable but not behaving as you intend; e.g.:
+
+- *"I shouldn't be able to see this button when I'm not logged in."*
+- *"Too many emails were sent to each client."*
+- *The profile image for new users is missing."*
+
+Once Eve understands what the issue is, it provides a set of structured questions to work backwards through the symptoms to the source. Just telling you "the block labelled 'draw a sign out button when logged in' drew the sign out button" is worse than useless. However, with a little help from you ("that user shouldn't have the tag `#logged-in` right now), Eve can work backwards and say "the `#logged-in` tag was never removed from the user because she did not have an email attribute.
+
+When you've arrived at the root of the problem, the inspector provides tools to figure out why it happened. If, instead a missing attribute, the issue involved incorrect values (perhaps the result of mathematical error), Eve can show you intermediates to find where the breakdown occurs. When too many or too few rows match a pattern, Eve can show you the cardinality of the actions in a block to get a sense of why the numbers don't add up. These are the issues the inspector can help diagnose:
+
+- **No record matches pattern**
+  - No record is produced with this shape
+  - All records with this shape temporarily have a missing attribute
+  - All records with this shape have the wrong value(s) for an attribute
+-
