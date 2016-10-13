@@ -39,6 +39,19 @@ var app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended: true}));
 
+app.get("/build/examples.js", (request, response) => {
+  let files = {};
+  for(let file of fs.readdirSync("examples/")) {
+    if(path.extname(file) === ".eve") {
+      files[file] = fs.readFileSync(path.join("examples", file)).toString();
+    }
+  }
+
+  fs.writeFileSync("build/examples.js", `var examples = ${JSON.stringify(files)}`)
+  response.setHeader("Content-Type", `application/javascript; charset=utf-8`);
+  response.end(`var examples = ${JSON.stringify(files)}`);
+});
+
 app.get("*", (request, response) => {
   let url = request.url;
   if(url === "/" || url.indexOf(".eve") > -1) {
@@ -81,6 +94,8 @@ wss.on('connection', function connection(ws) {
     if(data.type === "init") {
       let {url} = data;
       fs.stat("." + url, (err, stats) => {
+        if(err) return;
+
         if(stats.isFile()) {
           let content = fs.readFileSync("." + url).toString();
           ws.send(JSON.stringify({type: "initLocal", code: content}));
