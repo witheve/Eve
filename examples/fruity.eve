@@ -21,7 +21,7 @@ Draw a list of fruits
 
 make yo
 ```
-  search (@session, @browser)
+  search @event @browser
     v = [#click element]
     element = [not(children) text]
 
@@ -31,18 +31,10 @@ make yo
 
 trash yo
 ```
-  search (@session, @browser)
+  search @event @browser
     [#click element]
     element = [children]
 
   commit @browser
      element.children -= children
-```
-
-remove clicks
-```
-  search
-    c = [#click]
-  commit
-    c := none
 ```
