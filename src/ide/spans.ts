@@ -434,10 +434,11 @@ class ListItemSpan extends LineSpan {
   constructor(editor:Editor, from:Position, to:Position, public source:ListItemSpanSource, origin = "+input") {
     super(editor, from, to, source, origin);
     source.listData = source.listData || {type: "bullet"}
+    source.level = source.level || 1;
   }
 
   apply(from:Position, to:Position, origin = "+input") {
-    this.lineTextClass = "ITEM";
+    this.lineTextClass = `ITEM ${this.source.listData.type} level-${this.source.level} start-${this.source.listData.start}`;
     super.apply(from, to, origin);
   }
 
