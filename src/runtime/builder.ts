@@ -416,10 +416,11 @@ function buildActions(block, context, actions, scans) {
           impl = ActionImplementations[action.action];
         }
         if(attribute.value.type === "parenthesis") {
+          console.log("PARENS", attribute.value);
           for(let item of attribute.value.items) {
             let value = context.getValue(item)
             if(value instanceof join.Variable) {
-              if(!attribute.nonProjecting && !attribute.value.nonProjecting) {
+              if(!attribute.nonProjecting && !attribute.value.nonProjecting && !item.nonProjecting) {
                 projection[value.id] = value;
               }
             }

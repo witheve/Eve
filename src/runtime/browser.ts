@@ -102,7 +102,13 @@ class Responder {
 
         client.socket.onopen();
       }
+    } else if(data.type === "tokenInfo") {
+      let spans = [];
+      let extraInfo = {};
+      analyzer.tokenInfo(evaluation, data.tokenId, spans, extraInfo)
+      this.send(JSON.stringify({type: "comments", spans, extraInfo}))
     }
+
   }
 }
 
@@ -118,6 +124,7 @@ export function init(code) {
   let {text, spans, extraInfo} = results;
   responder.send(JSON.stringify({type: "parse", text, spans, extraInfo}));
   let {blocks, errors: buildErrors} = builder.buildDoc(results);
+  console.log("BLOCKS", blocks);
   responder.sendErrors(buildErrors);
   // analyzer.analyze(results.blocks, spans, extraInfo);
   let browser = new BrowserSessionDatabase(responder);

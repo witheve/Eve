@@ -522,7 +522,7 @@ class WhitespaceSpan extends LineSpan {
   }
 }
 
-class ParserSpan extends Span {
+export class ParserSpan extends Span {
   protected static _editorControlled = false;
   protected _editorControlled = false;
   static _spanStyle:"inline" = "inline";
@@ -558,7 +558,7 @@ export class DocumentCommentSpan extends ParserSpan {
     }
   }
 
-  get kind() { return "error"; }
+  get kind() { return this.source.kind || "error"; }
   get message() { return this.source.message; }
 }
 
