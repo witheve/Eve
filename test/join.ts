@@ -1233,9 +1233,9 @@ test("multiple argument is", (assert) => {
 test("block order shouldn't matter", (assert) => {
   let expected = {
     insert: [
-      ["4|bye!", "tag", "result"],  ["4|bye!", "result", "bye!"],
-      ["4|hi!", "tag", "result"],  ["4|hi!", "result", "hi!"],
-      ["7", "tag", "foo"],  ["7", "value", "hi!"],
+      ["7|bye!", "tag", "result"],  ["7|bye!", "result", "bye!"],
+      ["7|hi!", "tag", "result"],  ["7|hi!", "result", "hi!"],
+      ["10", "tag", "foo"],  ["10", "value", "hi!"],
     ],
     remove: [ ]
   };
@@ -1257,8 +1257,8 @@ test("block order shouldn't matter", (assert) => {
   `);
   let expected2 = {
     insert: [
-      ["7|bye!", "tag", "result"],  ["7|bye!", "result", "bye!"],
-      ["7|hi!", "tag", "result"],  ["7|hi!", "result", "hi!"],
+      ["10|bye!", "tag", "result"],  ["10|bye!", "result", "bye!"],
+      ["10|hi!", "tag", "result"],  ["10|hi!", "result", "hi!"],
       ["2", "tag", "foo"],  ["2", "value", "hi!"],
     ],
     remove: [ ]
@@ -1286,9 +1286,9 @@ test("block order shouldn't matter", (assert) => {
 test("if with variable", (assert) => {
   let expected = {
     insert: [
-      ["4|bye!", "tag", "result"],  ["4|bye!", "result", "bye!"],
-      ["4|hi!", "tag", "result"],  ["4|hi!", "result", "hi!"],
-      ["7", "tag", "foo"],  ["7", "value", "hi!"],
+      ["7|bye!", "tag", "result"],  ["7|bye!", "result", "bye!"],
+      ["7|hi!", "tag", "result"],  ["7|hi!", "result", "hi!"],
+      ["10", "tag", "foo"],  ["10", "value", "hi!"],
     ],
     remove: [ ]
   };
@@ -1314,7 +1314,7 @@ test("if with variable", (assert) => {
 
 test("else with value", (assert) => {
   let expected = {
-    insert: [ ["3|bye!", "tag", "result"],  ["3|bye!", "result", "bye!"]],
+    insert: [ ["6|bye!", "tag", "result"],  ["6|bye!", "result", "bye!"]],
     remove: [ ]
   };
   evaluate(assert, expected, `
@@ -1334,7 +1334,7 @@ test("if with constant equality", (assert) => {
   let expected = {
     insert: [
       ["2", "tag", "foo"],  ["2", "value", "hi!"],
-      ["9|meh", "tag", "result"],  ["9|meh", "result", "meh"]
+      ["13|meh", "tag", "result"],  ["13|meh", "result", "meh"]
     ],
     remove: [ ]
   };
@@ -1363,8 +1363,8 @@ test("if with an aggregate", (assert) => {
   let expected = {
     insert: [
       ["2", "tag", "foo"],  ["2", "value", "hi!"],
-      ["7|0", "tag", "result"],  ["7|0", "result", 0],
-      ["7|1", "tag", "result"],  ["7|1", "result", 1]
+      ["10|0", "tag", "result"],  ["10|0", "result", 0],
+      ["10|1", "tag", "result"],  ["10|1", "result", 1]
     ],
     remove: [ ]
   };
@@ -1391,7 +1391,7 @@ test("if with an external equality", (assert) => {
   let expected = {
     insert: [
       ["2", "tag", "foo"],  ["2", "value", "hi!"],
-      ["8|1", "tag", "result"],  ["8|1", "result", 1]
+      ["11|1", "tag", "result"],  ["11|1", "result", 1]
     ],
     remove: [ ]
   };
@@ -2239,8 +2239,8 @@ test("sort with group", (assert) => {
 test("if with expression-only arguments", (assert) => {
   let expected = {
     insert: [
-      ["4|0", "tag", "div"],
-      ["4|0", "text", 0],
+      ["7|0", "tag", "div"],
+      ["7|0", "text", 0],
     ],
     remove: []
   };

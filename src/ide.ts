@@ -60,7 +60,7 @@ class Navigator {
 
 
   loadWorkspace(id:string, name:string, files:{[filename:string]: string}, parentId = this.rootId) {
-    let root:TreeNode = this.nodes[id] = {id, name, type: "folder"};
+    let root:TreeNode = this.nodes[id] = {id, name, type: "folder", open: true};
 
     let parent = root;
     for(let curId in files) {

@@ -133,8 +133,7 @@ search @browser
   parent = [#query-div]
 bind @browser
   parent.children += (
-      [#div text: "meep"]
-      [#div sort: 1 children: [#div text: "{{to}} {{to.start}} {{to.stop}}"]]
+      [#div sort: to.start children: [#div text: "{{to}} {{to.start}} {{to.stop}}"]]
   )
 ~~~
 
