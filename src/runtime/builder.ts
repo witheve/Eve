@@ -215,12 +215,16 @@ function buildScans(block, context, scanLikes, outputScans) {
           for(let item of attribute.value.items) {
             let value = context.getValue(item)
             context.provide(value);
-            outputScans.push(join.scan(entity, attribute.attribute, value, undefined, scanLike.scopes));
+            let final = join.scan(entity, attribute.attribute, value, undefined, scanLike.scopes);
+            outputScans.push(final);
+            item.buildId = final;
           }
         } else {
           let value = context.getValue(attribute.value)
           context.provide(value);
-          outputScans.push(join.scan(entity, attribute.attribute, value, undefined, scanLike.scopes));
+          let final = join.scan(entity, attribute.attribute, value, undefined, scanLike.scopes);
+          outputScans.push(final);
+          attribute.buildId = final.id;
         }
       }
     } else if(scanLike.type === "scan") {
@@ -237,7 +241,9 @@ function buildScans(block, context, scanLikes, outputScans) {
         node = context.getValue(scanLike.node)
         context.provide(node);
       }
-      outputScans.push(join.scan(entity, attribute, value, node, scanLike.scopes));
+      let final = join.scan(entity, attribute, value, node, scanLike.scopes);
+      outputScans.push(final);
+      scanLike.buildId = final.id;
     } else if(scanLike.type === "not") {
       let notContext = context.extendTo(scanLike);
       let args = [];
@@ -253,7 +259,9 @@ function buildScans(block, context, scanLikes, outputScans) {
         }
       }
       let {strata} = buildStrata(scanLike, notContext);
-      outputScans.push(new join.NotScan(args, strata));
+      let final = new join.NotScan(args, strata);
+      outputScans.push(final);
+      scanLike.buildId = final.id;
     } else if(scanLike.type === "ifExpression") {
       let seen = [];
       let args = [];
@@ -294,7 +302,9 @@ function buildScans(block, context, scanLikes, outputScans) {
         if(strata.length > 1) {
           hasAggregate = true;
         }
-        branches.push(new join.IfBranch(strata, outputs, branch.exclusive));
+        let final = new join.IfBranch(strata, outputs, branch.exclusive);
+        branches.push(final);
+        branch.buildId = final.od;
       }
       let outputs = [];
       for(let output of scanLike.outputs) {
@@ -304,6 +314,7 @@ function buildScans(block, context, scanLikes, outputScans) {
       }
       let ifScan = new join.IfScan(args, outputs, branches, hasAggregate);
       outputScans.push(ifScan)
+      scanLike.buildId = ifScan.id;
     } else {
       throw new Error("Not implemented: scanLike " + scanLike.type);
     }
@@ -416,7 +427,6 @@ function buildActions(block, context, actions, scans) {
           impl = ActionImplementations[action.action];
         }
         if(attribute.value.type === "parenthesis") {
-          console.log("PARENS", attribute.value);
           for(let item of attribute.value.items) {
             let value = context.getValue(item)
             if(value instanceof join.Variable) {
@@ -424,7 +434,9 @@ function buildActions(block, context, actions, scans) {
                 projection[value.id] = value;
               }
             }
-            actionObjects.push(new impl(entity, attribute.attribute, value, undefined, action.scopes));
+            let final = new impl(entity, attribute.attribute, value, undefined, action.scopes);
+            actionObjects.push(final);
+            item.buildId = final.id;
           }
         } else {
           let value = context.getValue(attribute.value)
@@ -433,7 +445,9 @@ function buildActions(block, context, actions, scans) {
               projection[value.id] = value;
             }
           }
-          actionObjects.push(new impl(entity, attribute.attribute, value, undefined, action.scopes));
+          let final = new impl(entity, attribute.attribute, value, undefined, action.scopes);
+          actionObjects.push(final);
+          attribute.buildId = final.id;
         }
       }
       // if this variable is unprovided, we need to generate an id
@@ -447,14 +461,20 @@ function buildActions(block, context, actions, scans) {
       let {entity, value, attribute} = action;
       let impl = ActionImplementations[action.action];
       if(action.action === "erase") {
-        actionObjects.push(new impl(context.getValue(entity), attribute, undefined, undefined, action.scopes));
+        let final = new impl(context.getValue(entity), attribute, undefined, undefined, action.scopes);
+        actionObjects.push(final);
+        action.buildId = final.id;
       } else {
         if(value.type === "parenthesis") {
           for(let item of value.items) {
-            actionObjects.push(new impl(context.getValue(entity), attribute, context.getValue(item), undefined, action.scopes));
+            let final = new impl(context.getValue(entity), attribute, context.getValue(item), undefined, action.scopes);
+            actionObjects.push(final);
+            item.buildId = final.id;
           }
         } else {
-          actionObjects.push(new impl(context.getValue(entity), attribute, context.getValue(value), undefined, action.scopes));
+          let final = new impl(context.getValue(entity), attribute, context.getValue(value), undefined, action.scopes);
+          actionObjects.push(final);
+          action.buildId = final.id;
         }
       }
       // throw new Error("Action actions aren't implemented yet.")
