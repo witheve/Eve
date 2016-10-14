@@ -27,8 +27,8 @@ search
   [#click element: button]
 
 search @browser
-  button = [#log-in #button app value] // @NOTE: A series of unfortunate events have borked inputs temporarily, so we cheat.
-  //[#log-in #input app value]
+  button = [#log-in #button app]
+  [#log-in #input app value]
 
 search
   user = [#user name: value]
@@ -96,12 +96,8 @@ search
   not(app.user)
 
 bind @browser
-  // @NOTE: A series of unfortunate events has broken using inputs for now.
-  //container.children += [#input #log-in sort: 1 app placeholder: "username"]
-  //container.children += [#button #log-in sort: 2 app text: "log in"]
-
-  container.children += [#button #log-in sort: 1 value: "Jess" app text: "log in as Jess"]
-  container.children += [#button #log-in sort: 2 value: "Bob" app text: "log in as Bob"]
+  container.children += [#input #log-in sort: 1 app placeholder: "username"]
+  container.children += [#button #log-in sort: 2 app text: "log in"]
 ```
 
 Draw the homepage into the `#page` if that's where the user is.
@@ -128,4 +124,30 @@ search @browser
 bind @browser
   container.children +=
     [#div text: "404 Error, I don't know about any page named {{app.page}}"]
+```
+
+
+## Event Shims
+
+Since the event bag isn't in yet, we need to simulate it removing the events we care about after a tick
+
+Remove events we care about after one tick.
+
+```
+search
+  event = if e = [#click] then e
+          if e = [#change] then e
+
+commit
+  event := none
+```
+
+Copy the latest value from a change event onto its input
+
+```
+search
+  [#change element: input value]
+
+commit @browser
+  input.value := value
 ```
