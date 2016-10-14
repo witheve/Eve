@@ -43,7 +43,9 @@ app.get("/build/examples.js", (request, response) => {
   let files = {};
   for(let file of fs.readdirSync("examples/")) {
     if(path.extname(file) === ".eve") {
-      files[file] = fs.readFileSync(path.join("examples", file)).toString();
+      try {
+        files[file] = fs.readFileSync(path.join("examples", file)).toString();
+      } catch(err) {}
     }
   }
 
