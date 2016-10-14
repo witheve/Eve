@@ -5,13 +5,95 @@ The inspector ("don't panic" button) is Eve's interactive debugging tool. It act
 - *"I shouldn't be able to see this button when I'm not logged in."*
 - *"Too many emails were sent to each client."*
 - *The profile image for new users is missing."*
+- *"The clock hand in the wrong position."*
+- *"This program slow."*
 
 Once Eve understands what the issue is, it provides a set of structured questions to work backwards through the symptoms to the source. Just telling you "the block labelled 'draw a sign out button when logged in' drew the sign out button" is worse than useless. However, with a little help from you ("that user shouldn't have the tag `#logged-in` right now), Eve can work backwards and say "the `#logged-in` tag was never removed from the user because she did not have an email attribute.
 
-When you've arrived at the root of the problem, the inspector provides tools to figure out why it happened. If, instead a missing attribute, the issue involved incorrect values (perhaps the result of mathematical error), Eve can show you intermediates to find where the breakdown occurs. When too many or too few rows match a pattern, Eve can show you the cardinality of the actions in a block to get a sense of why the numbers don't add up. These are the issues the inspector can help diagnose:
+When you've arrived at the root of the problem, the inspector provides tools to figure out why it happened. If, instead a missing attribute, the issue involved incorrect values (perhaps the result of mathematical error), Eve can show you intermediates to find where the breakdown occurs. When too many or too few rows match a pattern, Eve can show you the cardinality of the actions in a block to get a sense of why the numbers don't add up. These are some issues the inspector can help diagnose:
 
-- **No record matches pattern**
-  - No record is produced with this shape
-  - All records with this shape temporarily have a missing attribute
-  - All records with this shape have the wrong value(s) for an attribute
--
+## Example Scenarios
+
+### Missing Attribute
+
+*"I shouldn't be able to see this button when I'm not logged in."*
+
+1. Click the investigate button.
+2. Click the logout button.
+  - Should this not show up right now?
+  - Are there too many or few of these?
+  - Does this have an incorrect value?
+    - List of attributes
+3. This should not show up right now.
+  - Filter code to blocks which create the logout button
+  - Show a timeline of events creating the button
+    - The `[#button #log-out]` is drawn because `app.user` is tagged `#logged-in`.
+    - The `app.user` is tagged `#logged-in` because the `[#button #login]` was clicked.
+  - List blocks which could cause it to stop drawing
+    - The `app.user` `#logged-in` tag was not removed when `[#button #logout]` was clicked because `app.user` did not have an `email` attribute.
+
+*The profile image for new users is missing."*
+
+1. Click the investigate button.
+2. Click where the profile image belongs
+  - Should this not show up right now?
+  - Are there too many or few of these?
+  - Does this have an incorrect value
+    - List of attributes
+  - Should this contain something? *(we know about this possibility because a block may conditionally add children to this element)*
+3. This should contain something.
+  - Filter code to blocks which can create a child for this element
+  - Highlight the bailing reason for each block
+  - Summary
+    - A `[#profile-image]` was not created because the user did not have an `alt-text` attribute
+
+### Wrong Cardinality
+
+*"Too many emails were sent to each client."*
+
+1. Click the investigate button.
+2. Click an email to a client
+  - Should this not show up right now?
+  - Are there too many or few of these?
+  - Does this have an incorrect value?
+    - List of attributes
+3. There are too many of these.
+  - Filter code to the block which created the emails
+  - Gray out the patterns that do not contribute to the cardinality of the emails
+  - Embed a cardinality badge for each relevant pattern
+  - Summary
+    - an email was created for each `[#client email]` (721) X `[#promo message]` (1) X `[#admin email]` (5)
+  - Click a pattern to see its values
+4. Click `[#admin email]`
+  - There are 5 `[#admin]`s, each with one `email`. These are: ...
+
+### Wrong Value
+
+*"The clock hand in the wrong position."*
+
+1. Click the investigate button.
+2. Click the clock hand
+  - Should this not show up right now?
+  - Are there too many or few of these?
+  - Does this have an incorrect value?
+    - List of attributes
+3. Click the `x2` attribute
+  - Filter code to the blocks effecting the `x2` attribute of the entity
+  - Gray out the patterns that do not contribute to the `x2` attribute
+  - Embed value badges for each relevant variable
+  - Summary
+    - `[#clock-hand angle` (70) `length` (30) `]`
+    - `x2` (78.19) `= 50 + (length` (30) `* sin[angle` (70) `]` (0.94) `)`
+    - `hand <- [#line x1: 50, y1: 50, x2` (78.19) `y2]`
+
+### Performance
+
+*"This program slow."*
+
+1. Click the investigate button.
+2. ???
+3. Color-code blocks by total time spent
+4. Click a block
+  - Display total percentage of time spent
+  - Display total number of rows run
+  - Display average/max/min time per row
