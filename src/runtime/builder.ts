@@ -304,7 +304,7 @@ function buildScans(block, context, scanLikes, outputScans) {
         }
         let final = new join.IfBranch(strata, outputs, branch.exclusive);
         branches.push(final);
-        branch.buildId = final.od;
+        branch.buildId = final.id;
       }
       let outputs = [];
       for(let output of scanLike.outputs) {
@@ -694,4 +694,3 @@ export function buildDoc(parsedDoc) {
   }
   return { blocks, errors: allErrors };
 }
-
