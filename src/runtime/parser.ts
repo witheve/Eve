@@ -67,7 +67,7 @@ function parseMarkdown(markdown: string, docId: string) {
         context.pop();
       }
       if(node.type == "code_block") {
-        let spanId = `${docId}|${tokenId++}|block`;
+        let spanId = `${docId}|block|${tokenId++}`;
         let start = context.pop().start;
         node.id = spanId;
         node.startOffset = start;
@@ -110,91 +110,91 @@ function parseMarkdown(markdown: string, docId: string) {
 // Tokens
 //-----------------------------------------------------------
 
-const breakChars = "@#\\.,\\(\\)\\[\\]{}⦑⦒:\\\"";
+const breakChars = "@#\\.,\\(\\)\\[\\]\\{\\}⦑⦒:\\\"";
 
 // Markdown
-class DocContent extends Token { static PATTERN = /[^\n]+/; }
-class Fence extends Token {
+export class DocContent extends Token { static PATTERN = /[^\n]+/; }
+export class Fence extends Token {
   static PATTERN = /```|~~~/;
   static PUSH_MODE = "code";
 }
-class CloseFence extends Token {
+export class CloseFence extends Token {
   static PATTERN = /```|~~~/;
   static POP_MODE = true;
 }
 
 // Comments
-class CommentLine extends Token { static PATTERN = /\/\/.*\n/; label = "comment"; }
+export class CommentLine extends Token { static PATTERN = /\/\/.*\n/; label = "comment"; }
 
 // Operators
-class Equality extends Token { static PATTERN = /:|=/; label = "equality"; }
-class Comparison extends Token { static PATTERN = />=|<=|!=|>|</; label = "comparison"; }
-class AddInfix extends Token { static PATTERN = /\+|-/; label = "infix"; }
-class MultInfix extends Token { static PATTERN = /\*|\//; label = "infix"; }
-class Merge extends Token { static PATTERN = /<-/; label = "merge"; }
-class Set extends Token { static PATTERN = /:=/; label = "set"; }
-class Mutate extends Token { static PATTERN = /\+=|-=/; label = "mutate"; }
-class Dot extends Token { static PATTERN = /\./; label = "dot"; }
-class Pipe extends Token { static PATTERN = /\|/; label = "pipe"; }
+export class Equality extends Token { static PATTERN = /:|=/; label = "equality"; }
+export class Comparison extends Token { static PATTERN = />=|<=|!=|>|</; label = "comparison"; }
+export class AddInfix extends Token { static PATTERN = /\+|-/; label = "infix"; }
+export class MultInfix extends Token { static PATTERN = /\*|\//; label = "infix"; }
+export class Merge extends Token { static PATTERN = /<-/; label = "merge"; }
+export class Set extends Token { static PATTERN = /:=/; label = "set"; }
+export class Mutate extends Token { static PATTERN = /\+=|-=/; label = "mutate"; }
+export class Dot extends Token { static PATTERN = /\./; label = "dot"; }
+export class Pipe extends Token { static PATTERN = /\|/; label = "pipe"; }
 
 // Identifier
-class Identifier extends Token { static PATTERN = new RegExp(`([\\+-/\\*][^\\s${breakChars}]+|[^\\d${breakChars}\\+-/\\*][^\\s${breakChars}]*)(?=[^\\[])`); label = "identifier"; }
-class FunctionIdentifier extends Token { static PATTERN = new RegExp(`([\\+-/\\*][^\\s${breakChars}]+|[^\\d${breakChars}\\+-/\\*][^\\s${breakChars}]*)(?=\\[)`); label = "functionIdentifier"; }
+export class Identifier extends Token { static PATTERN = new RegExp(`([\\+-/\\*][^\\s${breakChars}]+|[^\\d${breakChars}\\+-/\\*][^\\s${breakChars}]*)(?=[^\\[])`); label = "identifier"; }
+export class FunctionIdentifier extends Token { static PATTERN = new RegExp(`([\\+-/\\*][^\\s${breakChars}]+|[^\\d${breakChars}\\+-/\\*][^\\s${breakChars}]*)(?=\\[)`); label = "functionIdentifier"; }
 
 // Keywords
-class Keyword extends Token {
+export class Keyword extends Token {
     static PATTERN = Lexer.NA;
     static LONGER_ALT = Identifier;
 }
-class Action extends Keyword { static PATTERN = /bind|commit/; label = "action"; }
-class Search extends Keyword { static PATTERN = /search/; label = "search"; }
-class Is extends Keyword { static PATTERN = /is/; label = "is"; }
-class If extends Keyword { static PATTERN = /if/; label = "if"; }
-class Else extends Keyword { static PATTERN = /else/; label = "else"; }
-class Then extends Keyword { static PATTERN = /then/; label = "then"; }
-class Not extends Keyword { static PATTERN = /not/; label = "not"; }
+export class Action extends Keyword { static PATTERN = /bind|commit/; label = "action"; }
+export class Search extends Keyword { static PATTERN = /search/; label = "search"; }
+export class Is extends Keyword { static PATTERN = /is/; label = "is"; }
+export class If extends Keyword { static PATTERN = /if/; label = "if"; }
+export class Else extends Keyword { static PATTERN = /else/; label = "else"; }
+export class Then extends Keyword { static PATTERN = /then/; label = "then"; }
+export class Not extends Keyword { static PATTERN = /not/; label = "not"; }
 
 // Values
-class Bool extends Keyword { static PATTERN = /true|false/; label = "bool"; }
-class Num extends Token { static PATTERN = /-?\d+(\.\d+)?/; label = "num"; }
-class None extends Keyword { static PATTERN = /none/; label = "none"; }
-class Name extends Token { static PATTERN = /@/; label = "name"; }
-class Tag extends Token { static PATTERN = /#/; label = "tag"; }
-class Uuid extends Token { static PATTERN = /⦑.*⦒/; label = "uuid"; }
+export class Bool extends Keyword { static PATTERN = /true|false/; label = "bool"; }
+export class Num extends Token { static PATTERN = /-?\d+(\.\d+)?/; label = "num"; }
+export class None extends Keyword { static PATTERN = /none/; label = "none"; }
+export class Name extends Token { static PATTERN = /@/; label = "name"; }
+export class Tag extends Token { static PATTERN = /#/; label = "tag"; }
+export class Uuid extends Token { static PATTERN = /⦑.*⦒/; label = "uuid"; }
 
 // Delimiters
-class OpenBracket extends Token { static PATTERN = /\[/; label = "open-bracket"; }
-class CloseBracket extends Token { static PATTERN = /\]/; label = "close-bracket"; }
-class OpenParen extends Token { static PATTERN = /\(/; label = "open-paren"; }
-class CloseParen extends Token { static PATTERN = /\)/; label = "close-paren"; }
+export class OpenBracket extends Token { static PATTERN = /\[/; label = "open-bracket"; }
+export class CloseBracket extends Token { static PATTERN = /\]/; label = "close-bracket"; }
+export class OpenParen extends Token { static PATTERN = /\(/; label = "open-paren"; }
+export class CloseParen extends Token { static PATTERN = /\)/; label = "close-paren"; }
 
 // Strings
-class StringChars extends Token { static PATTERN = /(\\.|{(?=[^{])|[^"\\{])+/; label = "string"; }
-class StringOpen extends Token {
+export class StringChars extends Token { static PATTERN = /(\\.|{(?=[^{])|[^"\\{])+/; label = "string"; }
+export class OpenString extends Token {
   static PATTERN = /"/;
   static PUSH_MODE = "string";
   label = "quote";
 }
-class StringClose extends Token {
+export class CloseString extends Token {
   static PATTERN = /"/;
   static POP_MODE = true;
   label = "quote";
 }
 
 // String Embeds
-class StringEmbedOpen extends Token {
+export class StringEmbedOpen extends Token {
   static PATTERN = /{{/;
   static PUSH_MODE = "code";
   label = "string-embed-open";
 }
-class StringEmbedClose extends Token {
+export class StringEmbedClose extends Token {
   static PATTERN = /}}/;
   static POP_MODE = true;
   label = "string-embed-close";
 }
 
 // Whitespace
-class WhiteSpace extends Token {
+export class WhiteSpace extends Token {
   static PATTERN = /\s+|,/;
   static GROUP = Lexer.SKIPPED;
 }
@@ -205,7 +205,7 @@ class WhiteSpace extends Token {
 
 let codeTokens: any[] = [
   CloseFence, WhiteSpace, CommentLine, OpenBracket, CloseBracket, OpenParen,
-  CloseParen, StringEmbedClose, StringOpen, Bool, Action, Set, Equality, Dot, Pipe, Merge,
+  CloseParen, StringEmbedClose, OpenString, Bool, Action, Set, Equality, Dot, Pipe, Merge,
   Mutate, Comparison, Num,  Search, Is, If, Else, Then,
   Not, None, Name, Tag, Uuid, FunctionIdentifier, Identifier, AddInfix, MultInfix
 ];
@@ -215,11 +215,11 @@ let stringEmbedTokens: any[] = [StringEmbedClose].concat(codeTokens);
 let LexerModes:any = {
   "doc": [WhiteSpace, Fence, DocContent],
   "code": codeTokens,
-  "string": [StringClose, StringEmbedOpen, StringChars],
+  "string": [CloseString, StringEmbedOpen, StringChars],
   // "stringEmbed": stringEmbedTokens,
 };
 
-let allTokens: any[] = codeTokens.concat([Fence, DocContent, StringClose, StringEmbedOpen, StringEmbedClose, StringChars]);
+let allTokens: any[] = codeTokens.concat([Fence, DocContent, CloseString, StringEmbedOpen, StringEmbedClose, StringChars]);
 
 let EveDocLexer = new Lexer({modes: LexerModes, defaultMode: "doc"}, true);
 let EveBlockLexer = new Lexer({modes: LexerModes, defaultMode: "code"}, true);
@@ -239,6 +239,7 @@ export interface ParseNode {
 
 export class ParseBlock {
   id: string;
+  start: number;
   nodeId = 0;
   variables: {[name: string]: ParseNode} = {};
   equalities: any[] = [];
@@ -248,6 +249,7 @@ export class ParseBlock {
   commits: ParseNode[] = [];
   variableLookup: {[name: string]: ParseNode};
   links: string[] = [];
+  tokens: chev.Token[];
   searchScopes: string[] = [];
 
   constructor(id, variableLookup?) {
@@ -261,7 +263,13 @@ export class ParseBlock {
       this.variableLookup[name] = this.makeNode("variable", {name, from: [], generated});
     }
     variable = this.variables[name] = this.variableLookup[name];
-    return variable;
+    return {id: variable.id, type: "variable", name, from: [], generated};
+  }
+
+  addUsage(variable, usage) {
+    this.variableLookup[variable.name].from.push(usage);
+    variable.from.push(usage);
+    this.links.push(variable.id, usage.id);
   }
 
   equality(a, b) {
@@ -286,7 +294,7 @@ export class ParseBlock {
 
   makeNode(type, node: ParseNode) {
     if(!node.id) {
-      node.id = `${this.id}|${this.nodeId++}`;
+      node.id = `${this.id}|node|${this.nodeId++}`;
     }
     for(let from of node.from as any[]) {
       this.links.push(node.id, from.id);
@@ -366,7 +374,7 @@ class Parser extends chev.Parser {
 
 
   constructor(input) {
-    super(input, allTokens, {recoveryEnabled: false});
+    super(input, allTokens, {});
     let self = this;
     let rule = (name, func) => {
       self[name] = self.RULE(name, func);
@@ -459,6 +467,7 @@ class Parser extends chev.Parser {
     //-----------------------------------------------------------
 
     rule("codeBlock", (blockId = "block") => {
+      blockStack = [];
       let block = pushBlock(blockId);
       self.MANY(() => { self.SUBRULE(self.section) })
       return popBlock();
@@ -489,8 +498,10 @@ class Parser extends chev.Parser {
           self.CONSUME(CloseParen);
         }},
         {ALT: () => {
-          let name: any = self.SUBRULE2(self.name);
-          scopes.push(name.name);
+          self.AT_LEAST_ONE2(() => {
+            let name: any = self.SUBRULE2(self.name);
+            scopes.push(name.name);
+          })
         }},
       ]);
       return scopes;
@@ -588,10 +599,10 @@ class Parser extends chev.Parser {
         {ALT: () => {
           let variable = self.block.toVariable(`${attribute.image}|${attribute.startLine}|${attribute.startColumn}`, true);
           let scan = makeNode("scan", {entity: parent, attribute: makeNode("constant", {value: attribute.name, from: [attribute]}), value: variable, scopes: self.activeScopes, from: [mutator]});
-          variable.from.push(scan);
+          self.block.addUsage(variable, scan);
           self.block.scan(scan);
           self.CONSUME(Merge);
-          let record = self.SUBRULE(self.record, [true]) as any;
+          let record = self.SUBRULE(self.record, [true, actionKey, "+="]) as any;
           record.variable = variable;
           record.action = "<-";
           return record;
@@ -619,7 +630,7 @@ class Parser extends chev.Parser {
       ])
     });
 
-    rule("recordOperation", () => {
+    rule("recordOperation", (actionKey) => {
       let variable = self.SUBRULE(self.variable) as any;
       return self.OR([
         {ALT: () => {
@@ -629,7 +640,7 @@ class Parser extends chev.Parser {
         }},
         {ALT: () => {
           self.CONSUME(Merge);
-          let record = self.SUBRULE(self.record, [true]) as any;
+          let record = self.SUBRULE(self.record, [true, actionKey, "+="]) as any;
           record.needsEntity = true;
           record.variable = variable;
           variable.nonProjecting = true;
@@ -749,7 +760,7 @@ class Parser extends chev.Parser {
         from.push(attribute);
         from.push(self.CONSUME2(Dot));
         value = self.block.toVariable(`${attribute.image}|${attribute.startLine}|${attribute.startColumn}`, true);
-        value.from.push(attribute);
+        self.block.addUsage(value, attribute);
         let scopes = self.activeScopes;
         if(self.currentAction !== "match") {
           scopes = self.block.searchScopes;
@@ -773,7 +784,7 @@ class Parser extends chev.Parser {
         let dot = self.CONSUME(Dot);
         attribute = self.CONSUME(Identifier);
         value = self.block.toVariable(`${attribute.image}|${attribute.startLine}|${attribute.startColumn}`, true);
-        value.from.push(attribute);
+        self.block.addUsage(value, attribute);
         let scopes = self.activeScopes;
         if(self.currentAction !== "match") {
           scopes = self.block.searchScopes;
@@ -811,11 +822,11 @@ class Parser extends chev.Parser {
           self.MANY(() => {
             autoIndex++;
             let record : any = self.SUBRULE2(self.record, [noVar, blockKey, action, parent]);
-            record.attributes.push(makeNode("attribute", {attribute: "eve-auto-index", value: makeNode("constant", {value: autoIndex, from: []}), from: []}));
+            record.attributes.push(makeNode("attribute", {attribute: "eve-auto-index", value: makeNode("constant", {value: autoIndex, from: [record]}), from: [record]}));
             attributes.push(makeNode("attribute", {attribute, value: asValue(record), from: [attributeNode, equality, record]}));
           })
           if(autoIndex > 1) {
-            result.attributes.push(makeNode("attribute", {attribute: "eve-auto-index", value: makeNode("constant", {value: 1, from: []}), from: []}));
+            result.attributes.push(makeNode("attribute", {attribute: "eve-auto-index", value: makeNode("constant", {value: 1, from: [result]}), from: [result]}));
           }
         }},
       ]);
@@ -829,7 +840,7 @@ class Parser extends chev.Parser {
       let result = self.SUBRULE(self.expression);
       let variable = self.block.toVariable(`attribute|${attribute.startLine}|${attribute.startColumn}`, true);
       let expression = makeNode("expression", {op: comparator.image, args: [asValue(variable), asValue(result)], from: [attribute, comparator, result]})
-      variable.from.push(expression);
+      self.block.addUsage(variable, expression);
       self.block.expression(expression);
       return makeNode("attribute", {attribute: attribute.image, value: variable, from: [attribute, comparator, expression]});
     });
@@ -888,7 +899,7 @@ class Parser extends chev.Parser {
       } else {
         let variable = self.block.toVariable(`return|${name.startLine}|${name.startColumn}`, true);
         let functionRecord = makeNode("functionRecord", {op: name.image, record, variable, from: [name, record]});
-        variable.from.push(functionRecord);
+        self.block.addUsage(variable, functionRecord);
         self.block.expression(functionRecord);
         return functionRecord;
       }
@@ -925,7 +936,7 @@ class Parser extends chev.Parser {
           if(nonFiltering) {
             let variable = self.block.toVariable(`comparison|${comparator.startLine}|${comparator.startColumn}`, true);
             expression = makeNode("expression", {variable, op: comparator.image, args: [asValue(curLeft), asValue(value)], from: [curLeft, comparator, value]});
-            variable.from.push(expression);
+            self.block.addUsage(variable, expression);
             self.block.expression(expression);
           } else if(comparator instanceof Equality) {
             if(value.type === "ifExpression") {
@@ -991,7 +1002,7 @@ class Parser extends chev.Parser {
       from.push(self.CONSUME(CloseParen));
       let variable = self.block.toVariable(`is|${op.startLine}|${op.startColumn}`, true);
       let is = makeNode("expression", {variable, op: "and", args: expressions, from});
-      variable.from.push(is);
+      self.block.addUsage(variable, is);
       self.block.expression(is);
       return is;
     });
@@ -1091,7 +1102,7 @@ class Parser extends chev.Parser {
           curVar = self.block.toVariable(`addition|${op.startLine}|${op.startColumn}`, true);
           let expression = makeNode("expression", {op: op.image, args: [asValue(curLeft), asValue(right)], variable: curVar, from: [curLeft, op, right]});
           expressions.push(expression);
-          curVar.from.push(expression);
+          self.block.addUsage(curVar, expression);
           self.block.expression(expression)
           curLeft = expression;
         }
@@ -1120,7 +1131,7 @@ class Parser extends chev.Parser {
           curVar = self.block.toVariable(`addition|${op.startLine}|${op.startColumn}`, true);
           let expression = makeNode("expression", {op: op.image, args: [asValue(curLeft), asValue(right)], variable: curVar, from: [curLeft, op, right]});
           expressions.push(expression);
-          curVar.from.push(expression);
+          self.block.addUsage(curVar, expression);
           self.block.expression(expression)
           curLeft = expression;
         }
@@ -1160,9 +1171,14 @@ class Parser extends chev.Parser {
     //-----------------------------------------------------------
 
     rule("expression", () => {
+      let blockKey, action;
+      if(self.currentAction !== "match") {
+        blockKey = self.currentAction;
+        action = "+=";
+      }
       return self.OR([
         {ALT: () => { return self.SUBRULE(self.infix); }},
-        {ALT: () => { return self.SUBRULE(self.record); }},
+        {ALT: () => { return self.SUBRULE(self.record, [false, blockKey, action]); }},
       ]);
     });
 
@@ -1177,7 +1193,7 @@ class Parser extends chev.Parser {
         name = `${token.image}-${token.startLine}-${token.startColumn}`;
       }
       let variable = self.block.toVariable(name, forceGenerate);
-      variable.from.push(token);
+      self.block.addUsage(variable, token);
       return variable;
     });
 
@@ -1187,7 +1203,7 @@ class Parser extends chev.Parser {
 
     rule("stringInterpolation", () : any => {
       let args = [];
-      let start = self.CONSUME(StringOpen);
+      let start = self.CONSUME(OpenString);
       let from: NodeDependent[] = [start];
       self.MANY(() => {
         let arg = self.OR([
@@ -1205,13 +1221,13 @@ class Parser extends chev.Parser {
         args.push(asValue(arg));
         from.push(arg as ParseNode);
       });
-      from.push(self.CONSUME(StringClose));
+      from.push(self.CONSUME(CloseString));
       if(args.length === 1 && args[0].type === "constant") {
         return args[0];
       }
       let variable = self.block.toVariable(`concat|${start.startLine}|${start.startColumn}`, true);
       let expression = makeNode("expression", {op: "concat", args, variable, from});
-      variable.from.push(expression);
+      self.block.addUsage(variable, expression);
       self.block.expression(expression);
       return expression;
     });
@@ -1246,6 +1262,31 @@ class Parser extends chev.Parser {
 // Public API
 //-----------------------------------------------------------
 
+export function nodeToBoundaries(node, offset = 0) {
+  let current = node.from[0];
+  while(current.from) {
+    current = current.from[0]
+  }
+  let startToken = current;
+  // The from for variables are all the usages, in that case, we'll just
+  // use the first occurrence (the startToken) and ignore everything else.
+  // For other nodes, we want to get the last node they're made out of.
+  if(node.type !== "variable") {
+    current = node.from[node.from.length - 1];
+    while(current.from) {
+      if(current.type === "variable") {
+        current = current.from[0]
+      } else {
+        current = current.from[current.from.length - 1];
+      }
+    }
+  }
+  let stopToken = current;
+  let start = startToken.startOffset;
+  let stop = stopToken.startOffset + stopToken.image.length;
+  return [start, stop];
+}
+
 let eveParser = new Parser([]);
 
 export function parseBlock(block, blockId, offset = 0, spans = [], extraInfo = {}) {
@@ -1254,16 +1295,21 @@ export function parseBlock(block, blockId, offset = 0, spans = [], extraInfo = {
   let token: any;
   let tokenIx = 0;
   for(token of lex.tokens) {
-    let tokenId = `${blockId}|${tokenIx++}`;
+    let tokenId = `${blockId}|token|${tokenIx++}`;
     token.id = tokenId;
-    spans.push(offset + token.startOffset, offset + token.startOffset + token.image.length, token.label, tokenId);
+    token.startOffset += offset;
+    spans.push(token.startOffset, token.startOffset + token.image.length, token.label, tokenId);
   }
   eveParser.input = lex.tokens;
   // The parameters here are a strange quirk of how Chevrotain works, I believe the
   // 1 tells chevrotain what level the rule is starting at, we then pass our params
   // to the codeBlock parser function as an array
   let results = eveParser.codeBlock(1, [blockId]);
-  let errors = parserErrors(eveParser.errors, {blockId, blockStart: offset, spans, extraInfo});
+  if(results) {
+    results.start = offset;
+    results.tokens = lex.tokens;
+  }
+  let errors = parserErrors(eveParser.errors, {blockId, blockStart: offset, spans, extraInfo, tokens: lex.tokens});
   return {
     results,
     lex,
@@ -1281,7 +1327,6 @@ export function parseDoc(doc, docId = `doc|${docIx++}`) {
   for(let block of blocks) {
     let {results, lex, errors} = parseBlock(block.literal, block.id, block.startOffset, spans, extraInfo);
     if(errors.length) {
-      console.log("errors", errors);
       allErrors.push(errors);
     } else {
       parsedBlocks.push(results);

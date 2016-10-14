@@ -150,6 +150,7 @@ if(!global["local"]) {
 }
 socket.onmessage = function(msg) {
   let data = JSON.parse(msg.data);
+  console.log(data.type, data);
   if(data.type == "result") {
     let state = {entities: indexes.records.index, dirty: indexes.dirty.index};
     handleDiff(state, data);
@@ -191,8 +192,13 @@ socket.onmessage = function(msg) {
     browser.init(data.code);
   } else if(data.type == "parse") {
     _ide.loadDocument(data.generation, data.text, data.spans, data.extraInfo); // @FIXME
+  } else if(data.type == "comments") {
+    _ide.injectSpans(data.spans, data.extraInfo);
+
   } else if(data.type == "error") {
     console.error(data.message, data);
+  } else {
+    console.log("UNKNOWN MESSAGE", data);
   }
 }
 socket.onopen = function() {
@@ -322,4 +328,10 @@ _ide.onLoadFile = (ide, documentId, code) => {
     socket.send(JSON.stringify({type: "eval", persist: false}));
   }
   history.replaceState({}, "", `/examples/${documentId}`);
+}
+
+_ide.onTokenInfo = (ide, tokenId) => {
+  if(socket && socket.readyState == 1) {
+    socket.send(JSON.stringify({type: "tokenInfo", tokenId}));
+  }
 }

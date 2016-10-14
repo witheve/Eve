@@ -177,6 +177,14 @@ export class TripleIndex {
     return result;
   }
 
+  // find an ave in the indexes
+  alookup(a?,v?,e?,node?) {
+    // let start = perf.time();
+    let result = this.aveIndex.lookup(a,v,e,node)
+    // perf.lookup(start);
+    return result;
+  }
+
   nextVersion() {
     return new TripleIndex(this.version + 1, this.eavIndex, this.aveIndex);
   }

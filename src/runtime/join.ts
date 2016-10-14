@@ -691,10 +691,12 @@ export class IfScan implements ProposalProvider {
 // A join round takes a set of providers, the current prefix, how many rounds are remaining,
 // and an array to hold accepted rows.
 function joinRound(multiIndex: MultiIndex, providers: ProposalProvider[], prefix: any[], rounds: number, rows: any[], options: any) {
+  let {solverInfo} = options;
   // To start out we need to find the best proposal given the providers we have. We'll
   // start our bestProposal out at some horrible cardinality
   let bestProposal: Proposal = {providing: undefined, cardinality: Infinity};
-  let bestProvider;
+  let bestProvider, bestProviderIx;
+  let ix = 0;
   // Walk through the providers and ask for proposals
   for(let provider of providers) {
     let proposed = provider.propose(multiIndex, prefix);
@@ -702,13 +704,18 @@ function joinRound(multiIndex: MultiIndex, providers: ProposalProvider[], prefix
     if(proposed !== undefined && proposed.cardinality < bestProposal.cardinality) {
       bestProposal = proposed;
       bestProvider = provider;
+      bestProviderIx = ix;
     }
+    ix++;
   }
 
   // console.log("Best provider", rounds, bestProvider, bestProposal);
   // if we never found a provider that means we have no more valid solutions
   // and we have nothing more to do
-  if(bestProvider === undefined || bestProposal.cardinality === 0) return;
+  if(bestProvider === undefined || bestProposal.cardinality === 0) {
+    if(bestProviderIx !== undefined) solverInfo[bestProviderIx]++;
+    return;
+  }
 
   // Otherwise, we ask the provider to resolve their proposal into values that
   // we then need to see if the other providers accept.
@@ -733,6 +740,7 @@ function joinRound(multiIndex: MultiIndex, providers: ProposalProvider[], prefix
     // Unless someone tells us otherwise, we'll assume that we can accept
     // this proposal and continue solving
     let accepted = true;
+    let providerIx = 0;
     for(let provider of providers) {
       // we don't need to check this prefix against ourselves since we're the ones
       // who proposed it
@@ -740,11 +748,13 @@ function joinRound(multiIndex: MultiIndex, providers: ProposalProvider[], prefix
         for(let currentProvide of providing) {
           if(!provider.accept(multiIndex, prefix, currentProvide)) {
             // console.log("bailing", provider);
+            solverInfo[providerIx]++;
             accepted = false;
             break;
           }
         }
       }
+      providerIx++;
     }
 
     // if we accepted this prefix and we're not on our final round, then
@@ -789,7 +799,8 @@ function preJoinAccept(multiIndex: MultiIndex, providers : ProposalProvider[], v
 export interface JoinOptions {
   single?: boolean,
   acceptOnly?: boolean,
-  rows?: any[]
+  rows?: any[],
+  solverInfo?: any[]
 }
 
 // Convenient function to kick off a join. We only care about vars here

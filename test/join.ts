@@ -46,7 +46,10 @@ function verify(assert, adds, removes, data) {
 function evaluate(assert, expected, code) {
   join.nextId(0);
   let parsed = parser.parseDoc(dedent(code), "0");
-  let {blocks} = builder.buildDoc(parsed.results);
+  let {blocks, errors} = builder.buildDoc(parsed.results);
+  if(assert.errors) {
+    assert.true(parsed.errors.length > 0 || errors.length > 0);
+  }
   let session = new BrowserSessionDatabase({send: () => {}});
   session.blocks = blocks;
   let evaluation = new Evaluation();
@@ -307,81 +310,94 @@ test("search a record with numeric attributes", (assert) => {
 
 test("search with incompatible filters", (assert) => {
   let expected = {
-    insert: [],
-    remove: []
+    insert: [
+      ["2", "tag", "person"],
+      ["2", "name", "chris"],
+      ["5", "tag", "person"],
+      ["5", "name", "joe"],
+    ],
+    remove: [],
+    errors: true,
   };
-  assert.throws(() => {
-    evaluate(assert, expected, `
-      people
-      ~~~
-        commit
-          [#person name: "chris"]
-          [#person name: "joe"]
-      ~~~
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "chris"]
+        [#person name: "joe"]
+    ~~~
 
-      foo bar
-      ~~~
-        search
-          p = [#person name]
-          name = "chris"
-          name = "joe"
-        commit
-          [dude: p]
-      ~~~
-    `);
-  }, "Incompatible constant filters should throw an error")
+    foo bar
+    ~~~
+      search
+        p = [#person name]
+        name = "chris"
+        name = "joe"
+      commit
+        [dude: p]
+    ~~~
+  `);
   assert.end();
 })
 
 test("search with unprovided variable", (assert) => {
   let expected = {
-    insert: [],
-    remove: []
+    insert: [
+      ["2", "tag", "person"],
+      ["2", "name", "chris"],
+      ["5", "tag", "person"],
+      ["5", "name", "joe"],
+    ],
+    remove: [],
+    errors: true,
   };
-  assert.throws(() => {
-    evaluate(assert, expected, `
-      people
-      ~~~
-        commit
-          [#person name: "chris"]
-          [#person name: "joe"]
-      ~~~
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "chris"]
+        [#person name: "joe"]
+    ~~~
 
-      foo bar
-      ~~~
-        search
-          [#person]
-        commit
-          [dude: p]
-      ~~~
-    `);
-  }, "Unprovided variables should throw an error")
+    foo bar
+    ~~~
+      search
+        [#person]
+      commit
+        [dude: p]
+    ~~~
+  `);
   assert.end();
 })
 
 test("search with unprovided root in an attribute access", (assert) => {
   let expected = {
-    insert: [],
-    remove: []
+    insert: [
+      ["2", "tag", "person"],
+      ["2", "name", "chris"],
+      ["5", "tag", "person"],
+      ["5", "name", "joe"],
+    ],
+    remove: [],
+    errors: true,
   };
-  assert.throws(() => {
-    evaluate(assert, expected, `
-      people
-      ~~~
-        commit
-          [#person name: "chris"]
-          [#person name: "joe"]
-      ~~~
 
-      foo bar
-      ~~~
-        search
-          [#person]
-        commit
-          [dude: p.name]
-      ~~~
-    `);
-  }, "Unprovided variables should throw an error")
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "chris"]
+        [#person name: "joe"]
+    ~~~
+
+    foo bar
+    ~~~
+      search
+        [#person]
+      commit
+        [dude: p.name]
+    ~~~
+  `);
   assert.end();
 })
 
@@ -640,6 +656,99 @@ test("creating an object with multiple values for an attribute", (assert) => {
         p = [#person name]
       commit
         [#dude dude: (name, "foo", 3 + 5)]
+    ~~~
+  `);
+  assert.end();
+});
+
+test("creating an object with multiple complex values for an attribute", (assert) => {
+  let expected = {
+    insert: [
+      ["2", "tag", "person"],
+      ["2", "name", "chris"],
+      ["6", "tag", "foo"],
+      ["8", "tag", "bar"],
+      ["12","tag","dude"],
+      ["12","dude","6"],
+      ["12","dude","8"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "chris"]
+    ~~~
+
+    foo bar
+    ~~~
+      search
+        p = [#person name]
+      commit
+        [#dude dude: ([#foo], [#bar])]
+    ~~~
+  `);
+  assert.end();
+});
+
+test("setting an attribute on an object with multiple complex values", (assert) => {
+  let expected = {
+    insert: [
+      ["2", "tag", "person"],
+      ["2", "name", "chris"],
+      ["6", "tag", "foo"],
+      ["8", "tag", "bar"],
+      ["2","dude","6"],
+      ["2","dude","8"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "chris"]
+    ~~~
+
+    foo bar
+    ~~~
+      search
+        p = [#person name]
+      commit
+        p.dude := ([#foo], [#bar])
+    ~~~
+  `);
+  assert.end();
+});
+
+test("merging an attribute on an object with multiple complex values", (assert) => {
+  let expected = {
+    insert: [
+      ["2", "tag", "person"],
+      ["2", "name", "chris"],
+      ["7", "tag", "foo"],
+      ["7", "eve-auto-index", 1],
+      ["10", "tag", "bar"],
+      ["10", "eve-auto-index", 2],
+      ["2","dude","7"],
+      ["2","dude","10"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "chris"]
+    ~~~
+
+    foo bar
+    ~~~
+      search
+        p = [#person name]
+      commit
+        p <- [dude: [#foo] [#bar]]
     ~~~
   `);
   assert.end();

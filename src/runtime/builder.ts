@@ -8,6 +8,7 @@ import * as providers from "./providers/index";
 import "./providers/math";
 import "./providers/logical";
 import "./providers/string";
+import * as errors from "./errors";
 import {Sort} from "./providers/sort";
 import {Aggregate} from "./providers/aggregate";
 import {ActionImplementations} from "./actions";
@@ -30,6 +31,7 @@ function clone(map) {
 //-----------------------------------------------------------
 
 class BuilderContext {
+  errors: any[] = [];
   groupIx: number;
   varIx: number;
   variableToGroup: any;
@@ -105,7 +107,7 @@ class BuilderContext {
         if(left.type === "constant" && right.type === "constant") {
           // these must be equal, otherwise this query doesn't make any sense
           if(left.value !== right.value) {
-            throw new Error("Equality with two constants that aren't equal: " + `${left.value} = ${right.value}`);
+            this.errors.push(errors.incompatabileConstantEquality(block, left, right));
           }
         } else if(left.type === "constant") {
           let rightGroup = this.getGroup(right);
@@ -114,7 +116,7 @@ class BuilderContext {
           // the builder handles this case for us by adding explicit equality checks into the scans
           if(!join.isVariable(rightValue)) {
             if(rightValue !== undefined && left.value !== rightValue) {
-              throw new Error("Equality with two constants that aren't equal: " + `${left.value} = ${rightValue}`);
+              this.errors.push(errors.incompatabileVariableToConstantEquality(block, right, rightValue, left));
             }
             this.groupToValue[rightGroup] = left.value;
           }
@@ -125,7 +127,7 @@ class BuilderContext {
           // the builder handles this case for us by adding explicit equality checks into the scans
           if(!join.isVariable(leftValue)) {
             if(leftValue !== undefined && leftValue !== right.value) {
-              throw new Error("Equality with two constants that aren't equal: " + `${leftValue} = ${right.value}`);
+              this.errors.push(errors.incompatabileVariableToConstantEquality(block, left, leftValue, right));
             }
             this.groupToValue[leftGroup] = right.value;
           }
@@ -164,7 +166,7 @@ class BuilderContext {
         } else {
           if(variable.constant) {
             if(!join.isVariable(value) && variable.constant.value !== value) {
-              throw new Error("Equality with two constants that aren't equal: " + `${value} = ${variable.constant.value}`);
+              this.errors.push(errors.incompatabileTransitiveEquality(block, variable, value));
             }
             value = variable.constant.value;
             if(this.myRegisters[value.id]) {
@@ -193,6 +195,7 @@ class BuilderContext {
 
   extendTo(block) {
     let neue = new BuilderContext(block, clone(this.variableToGroup), clone(this.groupToValue), this.unprovided, this.registerToVars, this.groupIx, this.varIx);
+    neue.errors = this.errors;
     return neue;
   }
 }
@@ -329,7 +332,7 @@ function buildExpressions(block, context, expressions, outputScans) {
       if(impl) {
         outputScans.push(new impl(args, results));
       } else {
-        throw new Error("Not implemented: expression " + expression.op);
+        context.errors.push(errors.unimplementedExpression(block, expression));
       }
     } else if(expression.type === "functionRecord") {
       let results;
@@ -342,6 +345,10 @@ function buildExpressions(block, context, expressions, outputScans) {
       }
       let args = [];
       let impl = providers.get(expression.op);
+      if(!impl) {
+        context.errors.push(errors.unimplementedExpression(block, expression));
+        return;
+      }
       for(let attribute of expression.record.attributes) {
         let ix = impl.AttributeMapping[attribute.attribute];
         if(ix !== undefined) {
@@ -371,12 +378,7 @@ function buildExpressions(block, context, expressions, outputScans) {
         resultIx++;
       }
 
-      if(impl) {
-        outputScans.push(new impl(args, results));
-      } else {
-        throw new Error("Not implemented: expression " + expression.op);
-      }
-
+      outputScans.push(new impl(args, results));
     } else {
       throw new Error("Not implemented: function type " + expression.type);
     }
@@ -414,10 +416,11 @@ function buildActions(block, context, actions, scans) {
           impl = ActionImplementations[action.action];
         }
         if(attribute.value.type === "parenthesis") {
+          console.log("PARENS", attribute.value);
           for(let item of attribute.value.items) {
             let value = context.getValue(item)
             if(value instanceof join.Variable) {
-              if(!attribute.nonProjecting && !attribute.value.nonProjecting) {
+              if(!attribute.nonProjecting && !attribute.value.nonProjecting && !item.nonProjecting) {
                 projection[value.id] = value;
               }
             }
@@ -643,23 +646,32 @@ export function buildBlock(block) {
   let ix = 0;
   for(let unprovided of context.unprovided) {
     if(unprovided) {
-      throw new Error("UNPROVIDED VARIABLE: " + context.registerToVars[ix]);
+      let vars = context.registerToVars[ix].map((varName) => block.variables[varName]);
+      context.errors.push(errors.unprovidedVariableGroup(block, vars));
     }
     ix++;
   }
 
   return {
     block: new Block(block.name || "Unnamed block", strata, commits, binds, block),
+    errors: context.errors,
   };
 }
 
 export function buildDoc(parsedDoc) {
   let blocks = [];
   let setupInfos = [];
+  let allErrors = [];
   for(let parsedBlock of parsedDoc.blocks) {
-    let {block} = buildBlock(parsedBlock);
-    blocks.push(block);
+    let {block, errors} = buildBlock(parsedBlock);
+    if(errors.length) {
+      for(let error of errors) {
+        allErrors.push(error);
+      }
+    } else {
+      blocks.push(block);
+    }
   }
-  return { blocks };
+  return { blocks, errors: allErrors };
 }
 

@@ -160,6 +160,8 @@ export function scansToVars(scans, output = []) {
 }
 
 export class BlockStratum {
+  solverInfo = [];
+  resultCount = 0;
   scans: ProposalProvider[];
   aggregates: Aggregate[];
   vars: Variable[];
@@ -172,14 +174,21 @@ export class BlockStratum {
   }
 
   execute(multiIndex: MultiIndex, rows: any[], options: JoinOptions = {}) {
+    let ix = 0;
+    for(let scan of this.scans) {
+      this.solverInfo[ix] = 0;
+      ix++;
+    }
     let results = [];
     for(let aggregate of this.aggregates) {
       aggregate.aggregate(rows);
     }
     for(let row of rows) {
       options.rows = results;
+      options.solverInfo = this.solverInfo;
       results = join(multiIndex, this.scans, this.vars, row, options);
     }
+    this.resultCount = results.length;
     return results;
   }
 }

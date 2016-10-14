@@ -27,6 +27,17 @@ class Responder {
     this.socket.onmessage({data: json});
   }
 
+  sendErrors(errors) {
+    if(!errors.length) return;
+    let spans = [];
+    let extraInfo = {};
+    for(let error of errors) {
+      error.injectSpan(spans, extraInfo);
+    }
+    this.send(JSON.stringify({type: "comments", spans, extraInfo}))
+    return true;
+  }
+
   handleEvent(json) {
     let data = JSON.parse(json);
     if(data.type === "event") {
@@ -44,10 +55,14 @@ class Responder {
     } else if(data.type === "parse") {
       join.nextId(0);
       let {results, errors} = parser.parseDoc(data.code || "", "editor");
-      // analyzer.analyze(results.blocks);
+      let {text, spans, extraInfo} = results;
+      let {blocks, errors: buildErrors} = builder.buildDoc(results);
+      // analyzer.analyze(results.blocks, spans, extraInfo);
       if(errors && errors.length) console.error(errors);
       this.lastParse = results;
-      let {text, spans, extraInfo} = results;
+      for(let error of buildErrors) {
+        error.injectSpan(spans, extraInfo);
+      }
       this.send(JSON.stringify({type: "parse", generation: data.generation, text, spans, extraInfo}));
     } else if(data.type === "eval") {
       if(evaluation !== undefined && data.persist) {
@@ -59,7 +74,8 @@ class Responder {
             block.updateBinds({positions: {}, info: []}, changes);
           }
         }
-        let {blocks} = builder.buildDoc(this.lastParse);
+        let {blocks, errors} = builder.buildDoc(this.lastParse);
+        this.sendErrors(errors);
         for(let block of blocks) {
           if(block.singleRun) block.dormant = true;
         }
@@ -71,7 +87,8 @@ class Responder {
       } else {
         if(evaluation) evaluation.close();
         join.nextId(0);
-        let {blocks} = builder.buildDoc(this.lastParse);
+        let {blocks, errors} = builder.buildDoc(this.lastParse);
+        this.sendErrors(errors);
         // analyzer.analyze(results.blocks);
         let browser = new BrowserSessionDatabase(responder);
         let session = new Database();
@@ -85,7 +102,13 @@ class Responder {
 
         client.socket.onopen();
       }
+    } else if(data.type === "tokenInfo") {
+      let spans = [];
+      let extraInfo = {};
+      analyzer.tokenInfo(evaluation, data.tokenId, spans, extraInfo)
+      this.send(JSON.stringify({type: "comments", spans, extraInfo}))
     }
+
   }
 }
 
@@ -100,8 +123,10 @@ export function init(code) {
   responder.lastParse = results;
   let {text, spans, extraInfo} = results;
   responder.send(JSON.stringify({type: "parse", text, spans, extraInfo}));
-  let {blocks} = builder.buildDoc(results);
-  // analyzer.analyze(results.blocks);
+  let {blocks, errors: buildErrors} = builder.buildDoc(results);
+  console.log("BLOCKS", blocks);
+  responder.sendErrors(buildErrors);
+  // analyzer.analyze(results.blocks, spans, extraInfo);
   let browser = new BrowserSessionDatabase(responder);
   let session = new Database();
   session.blocks = blocks;

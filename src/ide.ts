@@ -4,6 +4,7 @@ import * as CodeMirror from "codemirror";
 import {debounce, uuid, unpad, Range, Position, isRange, comparePositions, samePosition, whollyEnclosed, adjustToWordBoundary} from "./util";
 
 import {Span, SpanMarker, isSpanMarker, isEditorControlled, spanTypes, compareSpans, SpanChange, isSpanChange, HeadingSpan, DocumentCommentSpan} from "./ide/spans";
+import * as Spans from "./ide/spans";
 
 //---------------------------------------------------------
 // Navigator
@@ -545,6 +546,7 @@ export class Editor {
     extraKeys: ctrlify({
       "Cmd-Enter": () => this.ide.eval(true),
       "Shift-Cmd-Enter": () => this.ide.eval(false),
+      "Alt-Enter": () => this.ide.tokenInfo(),
       "Cmd-B": () => this.format({type: "strong"}),
       "Cmd-I": () => this.format({type: "emph"}),
       "Cmd-Y": () => this.format({type: "code"}),
@@ -729,6 +731,56 @@ export class Editor {
     this.reloading = false;
   }
 
+    // This is an update to an existing document, so we need to figure out what got added and removed.
+  injectSpans(packed:any[], attributes:{[id:string]: any|undefined}) {
+    if(packed.length % 4 !== 0) throw new Error("Invalid span packing, unable to load.");
+
+    this.cm.operation(() => {
+      this.reloading = true;
+      let doc = this.cm.getDoc();
+
+      let controlledOffsets = {};
+      let touchedIds = {};
+      for(let i = 0; i < packed.length; i += 4) {
+        if(isEditorControlled(packed[i + 2]))
+          console.info(packed[i + 2], debugTokenWithContext(doc.getValue(), packed[i], packed[i + 1]));
+
+        let start = packed[i];
+        let type = packed[i + 2];
+        if(isEditorControlled(type)) {
+          throw new Error(`The parser may not inject editor controlled spans of type '${type}'`);
+        } else {
+          let from = doc.posFromIndex(packed[i]);
+          let to = doc.posFromIndex(packed[i + 1]);
+          let type = packed[i + 2];
+          let id = packed[i + 3];
+
+          let source = attributes[id] || {};
+          source.type = type;
+          source.id = id;
+
+          let spans = this.findSpansAt(from, type);
+          let unchanged = false;
+          for(let span of spans) {
+            let loc = span.find();
+            if(loc && samePosition(to, loc.to) && span.sourceEquals(source)) {
+              span.source = source;
+              if(span.refresh) span.refresh();
+              unchanged = true;
+              break;
+            }
+          }
+
+          if(!unchanged) {
+            let span = this.markSpan(from, to, source);
+          }
+        }
+      }
+    });
+
+    console.log("injected!");
+    this.reloading = false;
+  }
 
   toMarkdown() {
     let cm = this.cm;
@@ -1812,11 +1864,27 @@ export class IDE {
     this.render();
   }
 
+  injectSpans(packed:any[], attributes:{[id:string]: any|undefined}) {
+    this.editor.injectSpans(packed, attributes);
+    this.comments.update();
+    this.render();
+  }
+
   eval(persist?: boolean) {
     if(this.onEval) this.onEval(this, persist);
+  }
+
+  tokenInfo() {
+    let doc = this.editor.cm.getDoc();
+    let cursor = doc.getCursor();
+    let spans = this.editor.findSpansAt(cursor).filter((span) => span instanceof Spans.ParserSpan);
+    if(spans.length && this.onTokenInfo) {
+      this.onTokenInfo(this, spans[0].source.id);
+    }
   }
 
   onChange?:(self:IDE) => void
   onEval?:(self:IDE, persist?: boolean) => void
   onLoadFile?:(self:IDE, documentId:string, code:string) => void
+  onTokenInfo?:(self:IDE, tokenId:string) => void
 }
