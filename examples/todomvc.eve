@@ -54,7 +54,7 @@ Now we look at how the todos are actually displayed in the application. We attac
 - a **button** for deleting the todo
 
 ```
-  search (@session, @browser)
+  search @session @browser
     [#app filter]
     parent = [#todo-list]
     (todo, body, completed, editing) =
@@ -78,7 +78,7 @@ Thanks to Eve's set semantics, we don't need any loops here; for every unique `#
 A user can interact with TodoMVC in several ways. First and foremost, the user can create new todos. When the `@new-todo` input box is focused and the user presses enter, the value of the input is captured and a new todo is created.
 
 ```
-  search (@session, @browser)
+  search @event @session @browser
     element = [#new-todo value]
     kd = [#keydown element, key: "enter"]
   commit
@@ -100,7 +100,7 @@ Here we handle all the ways we edit a todo. Editing includes changing the body a
 - enter `#todo-editor` - commits the new text in `#todo-editor`, replacing the original body
 
 ```
-  search (@session, @browser)
+  search @event @session @browser
     (todo, body, editing, completed) =
       if [#click element: [#todo-checkbox todo]] then (todo, todo.body, todo.editing, toggle[value: todo.completed])
       else if [#click element: [#toggle-all checked]] then ([#todo body], body, todo.editing, toggle[value: checked])
@@ -117,7 +117,7 @@ Here we handle all the ways we edit a todo. Editing includes changing the body a
 Deleting a todo from the list is accomplished by removing the `#todo` tag from the todo's record. Recall from the "Drawing the Todo List" section that we select todos by including `#todo` in the record. Therefore, if we remove that tag from the todo, then that todo will no longer appear in the list, although it will still persist in the database.
 
 ```
-  search (@session, @browser)
+  search @event @session @browser
     todo = if [#click element: [#remove-todo todo]] then todo
            else if [#click element: [#clear-completed]] then [#todo completed: true]
   commit
@@ -135,43 +135,11 @@ The TodoMVC specification requires filtering via the URL. This is actually how t
 We can extract this value using `#url`, which has a hash-segment attribute that automatically parses the URL for us, returning the `value` (expected to be any one of the above). Any other value will fail to show any todos, but the application will not break.
 
 ```
-  search
+  search @browser
     value = if [#url hash-segment: [index: 1, value]] then value
             else "all"
   bind
     [#app filter: value]
 ```
-
-remove events
-~~~
-  search
-    c = if event = [#keydown] then event
-        if event = [#keyup] then event
-        if event = [#click] then event
-        if event = [#double-click] then event
-        if event = [#change] then event
-        if event = [#blur] then event
-        if event = [#focus] then event
-  commit
-    c := none
-~~~
-
-hash changes
-~~~
-  search
-    change = [#url-change hash-segment]
-  commit
-    change := none
-    url = [#url]
-    url.hash-segment := hash-segment
-~~~
-
-update values
-~~~
-  search
-    [#change element value]
-  commit @browser
-    element.value := value
-~~~
 
 [1]: http://todomvc.com/

@@ -1,12 +1,4 @@
 
-remove clicks
-```
-  search
-    c = [#click]
-  commit
-    c := none
-```
-
 # Flappy bird in Eve
 
 Add a flappy eve and a world for it to flap in
@@ -63,7 +55,7 @@ Draw the game over final score
 
 Start the game
 ```
-  search
+  search @session @event
     [#click #direct-target]
     // world = [#world screen: "menu"]
     world = if w = [#world screen: "menu"] then w
@@ -133,7 +125,7 @@ Draw the obstacles
 
 Flap the player
 ```
-  search
+  search @event @session
     [#click #direct-target]
     [#world screen: "game"]
     player = [#player #self]
@@ -143,7 +135,7 @@ Flap the player
 
 As time moves gently forward, winter turns to spring
 ```
-  search
+  search @session @event
     [#time frames]
     world = [#world screen: "game" frame != frames gravity]
     player = [#player y velocity]
