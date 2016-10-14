@@ -694,4 +694,3 @@ export function buildDoc(parsedDoc) {
   }
   return { blocks, errors: allErrors };
 }
-
