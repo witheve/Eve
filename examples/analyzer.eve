@@ -123,3 +123,102 @@ bind @editor
   [#comment scan | block start stop message: "{{attribute}} is never added to {{record-tag}} records, so this will always be empty"]
 ~~~
 
+# token query
+
+~~~
+search
+  query = [#query token]
+  link = [#query-link token to]
+search @browser
+  parent = [#query-div]
+bind @browser
+  parent.children += (
+      [#div text: "meep"]
+      [#div sort: 1 children: [#div text: "{{to}} {{to.start}} {{to.stop}}"]]
+  )
+~~~
+
+~~~
+search
+  query = [#query token]
+bind @browser
+  [#div #query-div text: "Query for {{token}} {{token.start}}" sort: 0]
+~~~
+
+## query links
+
+~~~
+search
+  query = [#query token]
+  [#link a: to b: token]
+bind
+  [#query-link token to distance: 1]
+~~~
+
+~~~
+search
+  query = [#query token]
+  link = [#query-link token distance]
+  [#link a: to b: link.to]
+bind
+  [#query-link token to distance: distance + 1]
+~~~
+
+## token -> scan
+
+~~~
+search
+  query = [#query token]
+  [#query-link token to]
+  to = [#scan start stop]
+  start <= token.start <= stop
+bind
+  query.scan += to
+~~~
+
+~~~
+search
+  [#query token scan: [#scan record-tag attribute value]]
+  provider = [#action record-tag attribute start stop]
+bind @editor
+  [#comment provider | start stop kind: "warning" message: "this is providing it" ]
+bind @browser
+  [#div text: "provided by: {{provider}}"]
+~~~
+
+~~~
+search
+  [#query token scan: [#scan record-tag attribute]]
+bind @browser
+  [#div text: "{{token}} scans #{{record-tag}} {{attribute}}"]
+~~~
+
+## token -> action
+
+~~~
+search
+  query = [#query token]
+  [#query-link token to]
+  to = [#action start stop]
+  start <= token.start <= stop
+bind
+  query.action += to
+~~~
+
+~~~
+search
+  [#query token action: [#action record-tag attribute]]
+  consumer = [#scan record-tag attribute start stop]
+bind @editor
+  [#comment consumer | start stop kind: "warning" message: "This is consuming" ]
+bind @browser
+  [#div text: "consumed by: {{consumer}}"]
+~~~
+
+~~~
+search
+  [#query token action: [#action record-tag attribute]]
+bind @browser
+  [#div text: "{{token}} actions #{{record-tag}} {{attribute}}"]
+~~~
+

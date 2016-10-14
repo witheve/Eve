@@ -4,6 +4,7 @@ import * as CodeMirror from "codemirror";
 import {debounce, uuid, unpad, Range, Position, isRange, comparePositions, samePosition, whollyEnclosed, adjustToWordBoundary} from "./util";
 
 import {Span, SpanMarker, isSpanMarker, isEditorControlled, spanTypes, compareSpans, SpanChange, isSpanChange, HeadingSpan, DocumentCommentSpan} from "./ide/spans";
+import * as Spans from "./ide/spans";
 
 //---------------------------------------------------------
 // Navigator
@@ -545,6 +546,7 @@ export class Editor {
     extraKeys: ctrlify({
       "Cmd-Enter": () => this.ide.eval(true),
       "Shift-Cmd-Enter": () => this.ide.eval(false),
+      "Alt-Enter": () => this.ide.tokenInfo(),
       "Cmd-B": () => this.format({type: "strong"}),
       "Cmd-I": () => this.format({type: "emph"}),
       "Cmd-Y": () => this.format({type: "code"}),
@@ -1872,7 +1874,17 @@ export class IDE {
     if(this.onEval) this.onEval(this, persist);
   }
 
+  tokenInfo() {
+    let doc = this.editor.cm.getDoc();
+    let cursor = doc.getCursor();
+    let spans = this.editor.findSpansAt(cursor).filter((span) => span instanceof Spans.ParserSpan);
+    if(spans.length && this.onTokenInfo) {
+      this.onTokenInfo(this, spans[0].source.id);
+    }
+  }
+
   onChange?:(self:IDE) => void
   onEval?:(self:IDE, persist?: boolean) => void
   onLoadFile?:(self:IDE, documentId:string, code:string) => void
+  onTokenInfo?:(self:IDE, tokenId:string) => void
 }

@@ -88,8 +88,8 @@ export function parserErrors(errors: any[], parseInfo: {blockId: string, blockSt
       eveError = notAllInputParsed(error, parseInfo);
     } else {
       console.log("UNHANDLED ERROR TYPE", name);
-      let start = blockStart + token.startOffset;
-      let stop = blockStart + token.startOffset + token.image.length;
+      let start = token.startOffset;
+      let stop = token.startOffset + token.image.length;
       eveError = new EveError(blockId, start, stop, message, context);
     }
 
@@ -115,7 +115,7 @@ function mismatchedToken(error, parseInfo) {
   let {blockId, blockStart, spans, extraInfo, tokens} = parseInfo;
   let {token, context, message, resyncedTokens, name} = error;
 
-  let blockEnd = blockStart + tokens[tokens.length - 1].endOffset + 1;
+  let blockEnd = tokens[tokens.length - 1].endOffset + 1;
 
   let [expectedType, foundType] = regexGroup(message, MismatchRegex);
 
@@ -132,8 +132,8 @@ function mismatchedToken(error, parseInfo) {
     stop = blockEnd;
   }
 
-  if(start === undefined) start = blockStart + token.startOffset;
-  if(stop === undefined) stop = blockStart + token.startOffset + token.image.length;
+  if(start === undefined) start = token.startOffset;
+  if(stop === undefined) stop = token.startOffset + token.image.length;
 
   return new EveError(blockId, start, stop, message, context);
 }
@@ -149,7 +149,7 @@ function notAllInputParsed(error, parseInfo) {
   let {blockId, blockStart, spans, extraInfo, tokens} = parseInfo;
   let {token, context, message, resyncedTokens, name} = error;
 
-  let blockEnd = blockStart + tokens[tokens.length - 1].endOffset + 1;
+  let blockEnd = tokens[tokens.length - 1].endOffset + 1;
 
   let [foundChar] = regexGroup(message, NotAllInputRegex);
 
@@ -161,8 +161,8 @@ function notAllInputParsed(error, parseInfo) {
     console.log("WEIRD STUFF AT THE END", context);
   }
 
-  if(start === undefined) start = blockStart + token.startOffset;
-  if(stop === undefined) stop = blockStart + token.startOffset + token.image.length;
+  if(start === undefined) start = token.startOffset;
+  if(stop === undefined) stop = token.startOffset + token.image.length;
 
   return new EveError(blockId, start, stop, message, context);
 }
@@ -179,8 +179,8 @@ export function unprovidedVariableGroup(block, variables) {
       token = variable.from[0];
     }
   }
-  let start = blockStart + token.startOffset;
-  let stop = blockStart + token.startOffset + token.image.length;
+  let start = token.startOffset;
+  let stop = token.startOffset + token.image.length;
   return new EveError(id, start, stop, messages.unprovidedVariable(token.image));
 }
 
