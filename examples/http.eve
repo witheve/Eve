@@ -1,6 +1,6 @@
 # HTTP Requests
 
-This is a simple example that sends an HTTP request to a website. The website that returns a JSON result. The result in this case is a set of data about some people. We parse those results and format them for display.
+This is a simple example that sends an HTTP request to a website. The website  returns a JSON result contains a list of users and some info about them. We parse those results and format them for display.
 
 Draw a button, that when clicked will send the HTTP request
 
