@@ -434,10 +434,11 @@ class ListItemSpan extends LineSpan {
   constructor(editor:Editor, from:Position, to:Position, public source:ListItemSpanSource, origin = "+input") {
     super(editor, from, to, source, origin);
     source.listData = source.listData || {type: "bullet"}
+    source.level = source.level || 1;
   }
 
   apply(from:Position, to:Position, origin = "+input") {
-    this.lineTextClass = "ITEM";
+    this.lineTextClass = `ITEM ${this.source.listData.type} level-${this.source.level} start-${this.source.listData.start}`;
     super.apply(from, to, origin);
   }
 
@@ -522,7 +523,7 @@ class WhitespaceSpan extends LineSpan {
   }
 }
 
-class ParserSpan extends Span {
+export class ParserSpan extends Span {
   protected static _editorControlled = false;
   protected _editorControlled = false;
   static _spanStyle:"inline" = "inline";
@@ -558,7 +559,7 @@ export class DocumentCommentSpan extends ParserSpan {
     }
   }
 
-  get kind() { return "error"; }
+  get kind() { return this.source.kind || "error"; }
   get message() { return this.source.message; }
 }
 

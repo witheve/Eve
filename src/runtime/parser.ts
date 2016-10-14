@@ -67,7 +67,7 @@ function parseMarkdown(markdown: string, docId: string) {
         context.pop();
       }
       if(node.type == "code_block") {
-        let spanId = `${docId}|${tokenId++}|block`;
+        let spanId = `${docId}|block|${tokenId++}`;
         let start = context.pop().start;
         node.id = spanId;
         node.startOffset = start;
@@ -249,6 +249,7 @@ export class ParseBlock {
   commits: ParseNode[] = [];
   variableLookup: {[name: string]: ParseNode};
   links: string[] = [];
+  tokens: chev.Token[];
   searchScopes: string[] = [];
 
   constructor(id, variableLookup?) {
@@ -262,7 +263,13 @@ export class ParseBlock {
       this.variableLookup[name] = this.makeNode("variable", {name, from: [], generated});
     }
     variable = this.variables[name] = this.variableLookup[name];
-    return variable;
+    return {id: variable.id, type: "variable", name, from: [], generated};
+  }
+
+  addUsage(variable, usage) {
+    this.variableLookup[variable.name].from.push(usage);
+    variable.from.push(usage);
+    this.links.push(variable.id, usage.id);
   }
 
   equality(a, b) {
@@ -287,7 +294,7 @@ export class ParseBlock {
 
   makeNode(type, node: ParseNode) {
     if(!node.id) {
-      node.id = `${this.id}|${this.nodeId++}`;
+      node.id = `${this.id}|node|${this.nodeId++}`;
     }
     for(let from of node.from as any[]) {
       this.links.push(node.id, from.id);
@@ -592,10 +599,10 @@ class Parser extends chev.Parser {
         {ALT: () => {
           let variable = self.block.toVariable(`${attribute.image}|${attribute.startLine}|${attribute.startColumn}`, true);
           let scan = makeNode("scan", {entity: parent, attribute: makeNode("constant", {value: attribute.name, from: [attribute]}), value: variable, scopes: self.activeScopes, from: [mutator]});
-          variable.from.push(scan);
+          self.block.addUsage(variable, scan);
           self.block.scan(scan);
           self.CONSUME(Merge);
-          let record = self.SUBRULE(self.record, [true]) as any;
+          let record = self.SUBRULE(self.record, [true, actionKey, "+="]) as any;
           record.variable = variable;
           record.action = "<-";
           return record;
@@ -623,7 +630,7 @@ class Parser extends chev.Parser {
       ])
     });
 
-    rule("recordOperation", () => {
+    rule("recordOperation", (actionKey) => {
       let variable = self.SUBRULE(self.variable) as any;
       return self.OR([
         {ALT: () => {
@@ -633,7 +640,7 @@ class Parser extends chev.Parser {
         }},
         {ALT: () => {
           self.CONSUME(Merge);
-          let record = self.SUBRULE(self.record, [true]) as any;
+          let record = self.SUBRULE(self.record, [true, actionKey, "+="]) as any;
           record.needsEntity = true;
           record.variable = variable;
           variable.nonProjecting = true;
@@ -753,7 +760,7 @@ class Parser extends chev.Parser {
         from.push(attribute);
         from.push(self.CONSUME2(Dot));
         value = self.block.toVariable(`${attribute.image}|${attribute.startLine}|${attribute.startColumn}`, true);
-        value.from.push(attribute);
+        self.block.addUsage(value, attribute);
         let scopes = self.activeScopes;
         if(self.currentAction !== "match") {
           scopes = self.block.searchScopes;
@@ -777,7 +784,7 @@ class Parser extends chev.Parser {
         let dot = self.CONSUME(Dot);
         attribute = self.CONSUME(Identifier);
         value = self.block.toVariable(`${attribute.image}|${attribute.startLine}|${attribute.startColumn}`, true);
-        value.from.push(attribute);
+        self.block.addUsage(value, attribute);
         let scopes = self.activeScopes;
         if(self.currentAction !== "match") {
           scopes = self.block.searchScopes;
@@ -833,7 +840,7 @@ class Parser extends chev.Parser {
       let result = self.SUBRULE(self.expression);
       let variable = self.block.toVariable(`attribute|${attribute.startLine}|${attribute.startColumn}`, true);
       let expression = makeNode("expression", {op: comparator.image, args: [asValue(variable), asValue(result)], from: [attribute, comparator, result]})
-      variable.from.push(expression);
+      self.block.addUsage(variable, expression);
       self.block.expression(expression);
       return makeNode("attribute", {attribute: attribute.image, value: variable, from: [attribute, comparator, expression]});
     });
@@ -892,7 +899,7 @@ class Parser extends chev.Parser {
       } else {
         let variable = self.block.toVariable(`return|${name.startLine}|${name.startColumn}`, true);
         let functionRecord = makeNode("functionRecord", {op: name.image, record, variable, from: [name, record]});
-        variable.from.push(functionRecord);
+        self.block.addUsage(variable, functionRecord);
         self.block.expression(functionRecord);
         return functionRecord;
       }
@@ -929,7 +936,7 @@ class Parser extends chev.Parser {
           if(nonFiltering) {
             let variable = self.block.toVariable(`comparison|${comparator.startLine}|${comparator.startColumn}`, true);
             expression = makeNode("expression", {variable, op: comparator.image, args: [asValue(curLeft), asValue(value)], from: [curLeft, comparator, value]});
-            variable.from.push(expression);
+            self.block.addUsage(variable, expression);
             self.block.expression(expression);
           } else if(comparator instanceof Equality) {
             if(value.type === "ifExpression") {
@@ -995,7 +1002,7 @@ class Parser extends chev.Parser {
       from.push(self.CONSUME(CloseParen));
       let variable = self.block.toVariable(`is|${op.startLine}|${op.startColumn}`, true);
       let is = makeNode("expression", {variable, op: "and", args: expressions, from});
-      variable.from.push(is);
+      self.block.addUsage(variable, is);
       self.block.expression(is);
       return is;
     });
@@ -1095,7 +1102,7 @@ class Parser extends chev.Parser {
           curVar = self.block.toVariable(`addition|${op.startLine}|${op.startColumn}`, true);
           let expression = makeNode("expression", {op: op.image, args: [asValue(curLeft), asValue(right)], variable: curVar, from: [curLeft, op, right]});
           expressions.push(expression);
-          curVar.from.push(expression);
+          self.block.addUsage(curVar, expression);
           self.block.expression(expression)
           curLeft = expression;
         }
@@ -1124,7 +1131,7 @@ class Parser extends chev.Parser {
           curVar = self.block.toVariable(`addition|${op.startLine}|${op.startColumn}`, true);
           let expression = makeNode("expression", {op: op.image, args: [asValue(curLeft), asValue(right)], variable: curVar, from: [curLeft, op, right]});
           expressions.push(expression);
-          curVar.from.push(expression);
+          self.block.addUsage(curVar, expression);
           self.block.expression(expression)
           curLeft = expression;
         }
@@ -1164,9 +1171,14 @@ class Parser extends chev.Parser {
     //-----------------------------------------------------------
 
     rule("expression", () => {
+      let blockKey, action;
+      if(self.currentAction !== "match") {
+        blockKey = self.currentAction;
+        action = "+=";
+      }
       return self.OR([
         {ALT: () => { return self.SUBRULE(self.infix); }},
-        {ALT: () => { return self.SUBRULE(self.record); }},
+        {ALT: () => { return self.SUBRULE(self.record, [false, blockKey, action]); }},
       ]);
     });
 
@@ -1181,7 +1193,7 @@ class Parser extends chev.Parser {
         name = `${token.image}-${token.startLine}-${token.startColumn}`;
       }
       let variable = self.block.toVariable(name, forceGenerate);
-      variable.from.push(token);
+      self.block.addUsage(variable, token);
       return variable;
     });
 
@@ -1215,7 +1227,7 @@ class Parser extends chev.Parser {
       }
       let variable = self.block.toVariable(`concat|${start.startLine}|${start.startColumn}`, true);
       let expression = makeNode("expression", {op: "concat", args, variable, from});
-      variable.from.push(expression);
+      self.block.addUsage(variable, expression);
       self.block.expression(expression);
       return expression;
     });
@@ -1270,8 +1282,8 @@ export function nodeToBoundaries(node, offset = 0) {
     }
   }
   let stopToken = current;
-  let start = offset + startToken.startOffset;
-  let stop = offset + stopToken.startOffset + stopToken.image.length;
+  let start = startToken.startOffset;
+  let stop = stopToken.startOffset + stopToken.image.length;
   return [start, stop];
 }
 
@@ -1283,9 +1295,10 @@ export function parseBlock(block, blockId, offset = 0, spans = [], extraInfo = {
   let token: any;
   let tokenIx = 0;
   for(token of lex.tokens) {
-    let tokenId = `${blockId}|${tokenIx++}`;
+    let tokenId = `${blockId}|token|${tokenIx++}`;
     token.id = tokenId;
-    spans.push(offset + token.startOffset, offset + token.startOffset + token.image.length, token.label, tokenId);
+    token.startOffset += offset;
+    spans.push(token.startOffset, token.startOffset + token.image.length, token.label, tokenId);
   }
   eveParser.input = lex.tokens;
   // The parameters here are a strange quirk of how Chevrotain works, I believe the
@@ -1294,6 +1307,7 @@ export function parseBlock(block, blockId, offset = 0, spans = [], extraInfo = {
   let results = eveParser.codeBlock(1, [blockId]);
   if(results) {
     results.start = offset;
+    results.tokens = lex.tokens;
   }
   let errors = parserErrors(eveParser.errors, {blockId, blockStart: offset, spans, extraInfo, tokens: lex.tokens});
   return {

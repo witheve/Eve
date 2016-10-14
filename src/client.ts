@@ -329,3 +329,9 @@ _ide.onLoadFile = (ide, documentId, code) => {
   }
   history.replaceState({}, "", `/examples/${documentId}`);
 }
+
+_ide.onTokenInfo = (ide, tokenId) => {
+  if(socket && socket.readyState == 1) {
+    socket.send(JSON.stringify({type: "tokenInfo", tokenId}));
+  }
+}

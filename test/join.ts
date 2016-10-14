@@ -661,6 +661,99 @@ test("creating an object with multiple values for an attribute", (assert) => {
   assert.end();
 });
 
+test("creating an object with multiple complex values for an attribute", (assert) => {
+  let expected = {
+    insert: [
+      ["2", "tag", "person"],
+      ["2", "name", "chris"],
+      ["6", "tag", "foo"],
+      ["8", "tag", "bar"],
+      ["12","tag","dude"],
+      ["12","dude","6"],
+      ["12","dude","8"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "chris"]
+    ~~~
+
+    foo bar
+    ~~~
+      search
+        p = [#person name]
+      commit
+        [#dude dude: ([#foo], [#bar])]
+    ~~~
+  `);
+  assert.end();
+});
+
+test("setting an attribute on an object with multiple complex values", (assert) => {
+  let expected = {
+    insert: [
+      ["2", "tag", "person"],
+      ["2", "name", "chris"],
+      ["6", "tag", "foo"],
+      ["8", "tag", "bar"],
+      ["2","dude","6"],
+      ["2","dude","8"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "chris"]
+    ~~~
+
+    foo bar
+    ~~~
+      search
+        p = [#person name]
+      commit
+        p.dude := ([#foo], [#bar])
+    ~~~
+  `);
+  assert.end();
+});
+
+test("merging an attribute on an object with multiple complex values", (assert) => {
+  let expected = {
+    insert: [
+      ["2", "tag", "person"],
+      ["2", "name", "chris"],
+      ["7", "tag", "foo"],
+      ["7", "eve-auto-index", 1],
+      ["10", "tag", "bar"],
+      ["10", "eve-auto-index", 2],
+      ["2","dude","7"],
+      ["2","dude","10"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "chris"]
+    ~~~
+
+    foo bar
+    ~~~
+      search
+        p = [#person name]
+      commit
+        p <- [dude: [#foo] [#bar]]
+    ~~~
+  `);
+  assert.end();
+});
+
 test("setting an attribute that removes a previous value", (assert) => {
   let expected = {
     insert: [

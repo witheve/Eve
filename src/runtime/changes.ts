@@ -278,5 +278,28 @@ export class Changes {
     }
     return {type: "result", insert, remove};
   }
+
+  _storeObject(operation: "store" | "unstore", id: string, object: any, node: string, scope: string) {
+    for(let attr of Object.keys(object)) {
+      let value = object[attr];
+      if(value.constructor === Array) {
+        for(let item of value) {
+          this[operation](scope, id, attr, item, node);
+        }
+      } else if(typeof value === "object") {
+        throw new Error("Attempting to store a non-value in an Eve database");
+      } else {
+        this[operation](scope, id, attr, value, node);
+      }
+    }
+  }
+
+  storeObject(id: string, object: any, node: string, scope: string) {
+    this._storeObject("store", id, object, node, scope);
+  }
+
+  unstoreObject(id: string, object: any, node: string, scope: string) {
+    this._storeObject("unstore", id, object, node, scope);
+  }
 }
 

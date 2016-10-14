@@ -111,11 +111,11 @@ class Analysis {
       if(attr.value.type === "parenthesis") {
         for(let item of attr.value.items) {
           let id = context.scan(item, node.scopes, node.variable, attr.attribute, context.value(item));
-          this._link(context, id, node.id)
+          this._link(context, id, item.id)
         }
       } else {
         let id = context.scan(attr, node.scopes, node.variable, attr.attribute, context.value(attr.value));
-        this._link(context, id, node.id)
+        this._link(context, id, attr.id)
       }
     }
   }
@@ -171,11 +171,11 @@ class Analysis {
       if(attr.value.type === "parenthesis") {
         for(let item of attr.value.items) {
           let id = context.provide(item, node.scopes, node.variable, attr.attribute, context.value(item));
-          this._link(context, id, node.id)
+          this._link(context, id, attr.id)
         }
       } else {
         let id = context.provide(attr, node.scopes, node.variable, attr.attribute, context.value(attr.value));
-        this._link(context, id, node.id)
+        this._link(context, id, attr.id)
       }
     }
   }
@@ -260,6 +260,22 @@ class Analysis {
       this._link(context, aId, bId);
     }
   }
+
+  //---------------------------------------------------------------------
+  // Tokens
+  //---------------------------------------------------------------------
+
+  _tokens(context, tokens) {
+    let changes = context.changes;
+    for(let token of tokens) {
+      let tokenId = token.id;
+      changes.store("session", tokenId, "tag", "token");
+      changes.store("session", tokenId, "block", context.block.id);
+      changes.store("session", tokenId, "start", token.startOffset);
+      changes.store("session", tokenId, "stop", token.endOffset);
+    }
+  }
+
   //---------------------------------------------------------------------
   // Block
   //---------------------------------------------------------------------
@@ -267,6 +283,7 @@ class Analysis {
   _block(context: AnalysisContext, block: ParseBlock) {
     context.changes.store("session", block.id, "tag", "block");
     this._links(context, block.links);
+    this._tokens(context, block.tokens);
     this._variables(context, block.variables);
     this._equalities(context, block.equalities);
     this._scans(context, block.scanLike);
@@ -340,6 +357,7 @@ export function analyze(blocks: ParseBlock[], spans: any[], extraInfo: any) {
   let session = new Database();
   let prev = eve.getDatabase("session")
   session.blocks = prev.blocks;
+  // console.log("ANALYZER BLOCKS", session.blocks);
   eve.unregisterDatabase("session");
   eve.registerDatabase("session", session);
   let editorDb = new EditorDatabase(spans, extraInfo);
@@ -354,3 +372,20 @@ export function analyze(blocks: ParseBlock[], spans: any[], extraInfo: any) {
 }
 
 
+let prevQuery;
+export function tokenInfo(evaluation: Evaluation, tokenId: string, spans: any[], extraInfo: any) {
+  eve = makeEveAnalyzer();
+  let editorDb = new EditorDatabase(spans, extraInfo);
+  eve.unregisterDatabase("editor");
+  eve.registerDatabase("editor", editorDb);
+  let changes = eve.createChanges();
+  if(prevQuery) {
+    changes.unstoreObject(prevQuery.queryId, prevQuery.query, "analyzer", "session");
+  }
+  let queryId = `query|${tokenId}`;
+  let query = {tag: "query", token: tokenId};
+  changes.storeObject(queryId, query, "analyzer", "session");
+  eve.executeActions([], changes);
+  prevQuery = {queryId, query};
+
+}
