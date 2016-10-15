@@ -3,8 +3,8 @@
 The inspector ("don't panic" button) is Eve's interactive debugging tool. It acts as a go between to help the Analyzer understand what's wrong based on your input. It handles the subset of issues that Eve can't know about a priori, where the program is valid and reasonable but not behaving as you intend; e.g.:
 
 - *"I shouldn't be able to see this button when I'm not logged in."*
+- *"The student attendance list is missing."*
 - *"Too many emails were sent to each client."*
-- *The profile image for new users is missing."*
 - *"The clock hand in the wrong position."*
 - *"This program slow."*
 
@@ -25,46 +25,50 @@ When you've arrived at the root of the problem, the inspector provides tools to 
   - Does this have an incorrect value?
     - List of attributes
 3. This should not show up right now.
-  - Filter code to blocks which create the logout button
-  - Show a timeline of events creating the button
+  - Filter code to blocks which create the logout button.
+  - Show a timeline of events creating the button.
     - The `[#button #log-out]` is drawn because `app.user` is tagged `#logged-in`.
     - The `app.user` is tagged `#logged-in` because the `[#button #login]` was clicked.
-  - List blocks which could cause it to stop drawing
+  - List blocks which could cause it to stop drawing.
     - The `app.user` `#logged-in` tag was not removed when `[#button #logout]` was clicked because `app.user` did not have an `email` attribute.
 
-*The profile image for new users is missing."*
+### Bad Join
+
+*"The student attendance list is missing."*
 
 1. Click the investigate button.
-2. Click where the profile image belongs
-  - Should this not show up right now?
-  - Are there too many or few of these?
-  - Does this have an incorrect value
-    - List of attributes
-  - Should this contain something? *(we know about this possibility because a block may conditionally add children to this element)*
+2. Click where the attendance list belongs.
+  - Qs
 3. This should contain something.
-  - Filter code to blocks which can create a child for this element
-  - Highlight the bailing reason for each block
+  - Filter code to blocks which can create children for this element.
+  - Highlight the bailing reason for each block.
   - Summary
-    - A `[#profile-image]` was not created because the user did not have an `alt-text` attribute
+    - [this block](#) can insert here, but `[#app page: not(grades)]`
+    - [this block](#) can insert here, but `[#app page: not(syllabus)]`
+    - [this block](#) can insert here, but `teacher.students` is empty
+4. Click `teacher.students`
+  - Filter code to the blocks affecting `teacher.students`
+    - [this block](#) creates `teacher.students`, but `not(student.name = school.name)`
+
 
 ### Wrong Cardinality
 
 *"Too many emails were sent to each client."*
 
 1. Click the investigate button.
-2. Click an email to a client
+2. Click an email to a client.
   - Should this not show up right now?
   - Are there too many or few of these?
   - Does this have an incorrect value?
     - List of attributes
 3. There are too many of these.
-  - Filter code to the block which created the emails
-  - Gray out the patterns that do not contribute to the cardinality of the emails
-  - Embed a cardinality badge for each relevant pattern
+  - Filter code to the block which created the emails.
+  - Gray out the patterns that do not contribute to the cardinality of the emails.
+  - Embed a cardinality badge for each relevant pattern.
   - Summary
-    - an email was created for each `[#client email]` (721) X `[#promo message]` (1) X `[#admin email]` (5)
-  - Click a pattern to see its values
-4. Click `[#admin email]`
+    - an email was created for each `[#client email]` (721) X `[#promo message]` (1) X `[#admin email]` (5).
+  - Click a pattern to see its values.
+4. Click `[#admin email]`.
   - There are 5 `[#admin]`s, each with one `email`. These are: ...
 
 ### Wrong Value
@@ -72,19 +76,25 @@ When you've arrived at the root of the problem, the inspector provides tools to 
 *"The clock hand in the wrong position."*
 
 1. Click the investigate button.
-2. Click the clock hand
+2. Click the clock hand.
   - Should this not show up right now?
   - Are there too many or few of these?
   - Does this have an incorrect value?
     - List of attributes
-3. Click the `x2` attribute
-  - Filter code to the blocks effecting the `x2` attribute of the entity
-  - Gray out the patterns that do not contribute to the `x2` attribute
-  - Embed value badges for each relevant variable
+3. Click the `x2` attribute.
+  - Filter code to the blocks affecting the `x2` attribute of the entity.
+  - Gray out the patterns that do not contribute to the `x2` attribute.
+  - Embed value badges for each relevant variable.
   - Summary
-    - `[#clock-hand angle` (70) `length` (30) `]`
-    - `x2` (78.19) `= 50 + (length` (30) `* sin[angle` (70) `]` (0.94) `)`
-    - `hand <- [#line x1: 50, y1: 50, x2` (78.19) `y2]`
+    - `[#clock-hand angle` (70) `length` (30) `]`.
+    - `x2` (78.19) `= 50 + (length` (30) `* sin[angle` (70) `]` (0.94) `)`.
+    - `hand <- [#line x1: 50, y1: 50, x2` (78.19) `y2]`.
+4. Click the `angle` attribute.
+  - Filter code to the blocks affecting the `angle` attribute of the `[#clock-hand]`
+  - Gray out the patterns that do not contribute to the `angle attribute`.
+  - Embed value badges for each relevant variable.
+  - Summary
+    - `[#clock-hand #hour-hand angle` (900)`: 60 * hours` (15) `, length: 30, stroke: "#023963"]`
 
 ### Performance
 
@@ -92,8 +102,51 @@ When you've arrived at the root of the problem, the inspector provides tools to 
 
 1. Click the investigate button.
 2. ???
-3. Color-code blocks by total time spent
-4. Click a block
-  - Display total percentage of time spent
-  - Display total number of rows run
-  - Display average/max/min time per row
+3. Color-code blocks by total time spent.
+4. Click a block.
+  - Display total percentage of time spent.
+  - Display total number of rows run.
+  - Display average/max/min time per row.
+
+### Exploration
+
+*"What has this block done?"*
+1. Click the investigate button.
+2. Click the block
+  - What does this depend on?
+  - What does this create?
+  - What depends on this?
+3. What does this create?
+  - List patterns and cardinalities created by this node
+  - Highlight visible side effects (e.g. ui)
+
+*"What created this?"*
+1. Click the investigate button.
+2. Click the element or pattern
+  - What created this?
+3. What created this?
+  - Filter code to blocks affecting this.
+  - Highlight the specific actions impacting this.
+
+
+## Inspector views
+
+- Element
+- Variable
+- Action
+- Scan
+- Block
+
+- Active element
+  - Something's wrong
+    - Are there too many/few of these?
+    - Is a value wrong?
+    - Is something missing?
+    - Should this not be here? (?)
+  - Exploration
+    - source
+    - dependents
+
+- Active variable
+  - Something's wrong
+    - Are there too many/few of these?
