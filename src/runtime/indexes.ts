@@ -84,19 +84,20 @@ export class TripleIndex {
   version: number;
   eavIndex: IndexLevel;
   aveIndex: IndexLevel;
-  constructor(version: number, eavIndex?: IndexLevel, aveIndex?: IndexLevel) {
+  neavIndex: IndexLevel;
+  constructor(version: number, eavIndex?: IndexLevel, aveIndex?: IndexLevel, neavIndex?: IndexLevel) {
     this.cardinalityEstimate = 0;
     this.version = version;
     this.eavIndex = eavIndex !== undefined ? eavIndex : new IndexLevel(0, "eavRoot");
     this.aveIndex = aveIndex !== undefined ? aveIndex : new IndexLevel(0, "aveRoot");
+    this.neavIndex = neavIndex !== undefined ? neavIndex : new IndexLevel(0, "neavRoot");
   }
 
-  // our simple indexing function that takes an eav and stores it for us
-  // in all the indexes we'll need and keeps track of the index sides
   store(e,a,v,node = "user") {
     this.cardinalityEstimate++;
     this.eavIndex = this.eavIndex.store(this.version, e,a,v,node);
     this.aveIndex = this.aveIndex.store(this.version, a,v,e,node);
+    this.neavIndex = this.neavIndex.store(this.version, node,e,a,v);
   }
 
   unstore(e,a,v,node?) {
@@ -105,6 +106,7 @@ export class TripleIndex {
       this.cardinalityEstimate--;
       this.eavIndex = changed;
       this.aveIndex = this.aveIndex.unstore(this.version,a,v,e,node);
+      this.neavIndex = this.neavIndex.unstore(this.version,node,e,a,v);
     }
   }
 
@@ -138,9 +140,9 @@ export class TripleIndex {
     return obj;
   }
 
-  toTriples(withNode?) {
+  toTriples(withNode?, startIndex?) {
     let triples = [];
-    let eavIndex = this.eavIndex.index;
+    let eavIndex = startIndex || this.eavIndex.index;
     let current = [];
     for(let eKey of Object.keys(eavIndex)) {
       let eInfo = eavIndex[eKey] as IndexLevel;
@@ -152,7 +154,11 @@ export class TripleIndex {
         let vIndex = aInfo.index;
         for(let vKey of Object.keys(vIndex)) {
           let vInfo = vIndex[vKey] as IndexLevel;
-          current[2] = vInfo.value;
+          if(vInfo.value !== undefined) {
+            current[2] = vInfo.value;
+          } else {
+            current[2] = vInfo;
+          }
           if(withNode) {
             let nIndex = vInfo.index;
             for(let nKey of Object.keys(nIndex)) {
@@ -182,6 +188,11 @@ export class TripleIndex {
     // let start = perf.time();
     let result = this.aveIndex.lookup(a,v,e,node)
     // perf.lookup(start);
+    return result;
+  }
+
+  nodeLookup(node?,e?,a?,v?) {
+    let result = this.neavIndex.lookup(node,e,a,v);
     return result;
   }
 

@@ -394,4 +394,66 @@ export function tokenInfo(evaluation: Evaluation, tokenId: string, spans: any[],
   eve.executeActions([], changes);
   prevQuery = {queryId, query};
 
+  // look at the results and find out which action node we were looking
+  // at
+  let sessionIndex = eve.getDatabase("session").index;
+  let queryInfo = sessionIndex.alookup("tag", "query");
+  let evSession = evaluation.getDatabase("session");
+  if(queryInfo) {
+    for(let entity of Object.keys(queryInfo.index)) {
+      let info = sessionIndex.asObject(entity);
+
+      console.log("INFO", info);
+      // why is this failing?
+      let nodeArray = info.scan || info.action;
+      if(nodeArray) {
+        let node = sessionIndex.asObject(nodeArray[0]);
+        let blockId = node["block"][0];
+        let found;
+        for(let block of evSession.blocks) {
+          console.log("BLOCK ID", block.id, node["block"]);
+          if(block.id === blockId) {
+            found = block;
+            break;
+          }
+        }
+        console.log("NODE BLOCK", blockId, found);
+        console.log("FAILING SCAN", blockToFailingScan(found));
+      }
+
+      // look for the facts that action creates
+      if(info.action) {
+        for(let actionId of info.action) {
+          let action = sessionIndex.asObject(actionId);
+          let evIndex = evaluation.getDatabase(action.scopes[0]).index;
+          let nodeItems = evIndex.nodeLookup(action["build-node"][0]);
+          if(nodeItems) {
+            console.log("ACTION", action["build-node"][0]);
+            console.log(evIndex.toTriples(false, nodeItems.index));
+          }
+        }
+      }
+    }
+  }
+}
+
+function blockToFailingScan(block) {
+  let scanId;
+  for(let stratum of block.strata) {
+    if(stratum.resultCount === 0) {
+      let {solverInfo} = stratum;
+      let scanIx = 0;
+      let maxFailures = 0;
+      let maxIx = 0;
+      for(let failures of solverInfo) {
+        if(failures > maxFailures) {
+          maxFailures = failures;
+          maxIx = scanIx;
+        }
+        scanIx++;
+      }
+      scanId = stratum.scans[maxIx].id;
+    }
+  }
+  return scanId;
 }
