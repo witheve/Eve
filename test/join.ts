@@ -1702,6 +1702,38 @@ test("scoped attribute mutators pick up the search scope", (assert) => {
   assert.end();
 })
 
+test("multi-level attribute accesses", (assert) => {
+  let expected = {
+    insert: [
+      ["6", "tag", "person"],
+      ["6", "name", "chris"],
+      ["6", "brother", "2|6"],
+      ["2|6", "tag", "person"],
+      ["2|6", "name", "ryan"],
+      ["15|ryan", "tag", "dude"],
+      ["15|ryan", "dude", "ryan"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "chris" brother: [#person name: "ryan"]]
+    ~~~
+
+    foo bar
+    ~~~
+      search
+        p = [#person]
+        p2 = [#person name: p.brother.name]
+      commit
+        [#dude dude: p2.name]
+    ~~~
+  `);
+  assert.end();
+})
+
 test("split function", (assert) => {
   let expected = {
     insert: [
