@@ -25,6 +25,21 @@ class AnalysisContext {
   changes: Changes
   block: ParseBlock
 
+  record(parseNode: any) {
+    let changes = this.changes;
+    let recordId = `${this.block.id}|record|${this.ScanId++}`;
+    let [start, stop] = nodeToBoundaries(parseNode);
+    changes.store("session", recordId, "tag", "record", "analyzer");
+    changes.store("session", recordId, "block", this.block.id, "analyzer");
+    changes.store("session", recordId, "start", start, "analyzer");
+    changes.store("session", recordId, "stop", stop, "analyzer");
+    changes.store("session", recordId, "entity", parseNode.variable.id, "analyzer");
+    for(let scope of parseNode.scopes) {
+      changes.store("session", recordId, "scopes", scope, "analyzer");
+    }
+    return recordId;
+  }
+
   scan(parseNode: any, scopes: string[], entity: any, attribute: string, value: any) {
     let changes = this.changes;
     let scanId = `${this.block.id}|scan|${this.ScanId++}`;
@@ -113,6 +128,7 @@ class Analysis {
   }
 
   _scanRecord(context: AnalysisContext, node) {
+    context.record(node);
     for(let attr of node.attributes) {
       if(attr.value.type === "parenthesis") {
         for(let item of attr.value.items) {
@@ -173,6 +189,7 @@ class Analysis {
   }
 
   _actionRecord(context: AnalysisContext, node) {
+    context.record(node);
     for(let attr of node.attributes) {
       if(attr.value.type === "parenthesis") {
         for(let item of attr.value.items) {
@@ -216,6 +233,9 @@ class Analysis {
       changes.store("session", variable.id, "tag", "variable");
       changes.store("session", variable.id, "name", variable.name);
       changes.store("session", variable.id, "block", context.block.id);
+      if(variable.register !== undefined) {
+        changes.store("session", variable.id, "register", variable.register);
+      }
       if(variable.generated) {
         changes.store("session", variable.id, "tag", "generated");
       }
@@ -419,6 +439,8 @@ export function tokenInfo(evaluation: Evaluation, tokenId: string, spans: any[],
         }
         console.log("NODE BLOCK", blockId, found);
         console.log("FAILING SCAN", blockToFailingScan(found));
+        console.log("CARDINALITIES", resultsToCardinalities(found.results))
+        console.log("SPECIFIC ROWS", findResultRows(found.results, 2, "cherry"))
       }
 
       // look for the facts that action creates
@@ -456,4 +478,37 @@ function blockToFailingScan(block) {
     }
   }
   return scanId;
+}
+
+function resultsToCardinalities(results) {
+  let cardinalities = [];
+  let ix = 0;
+  while(ix < results[0].length) {
+    cardinalities[ix] = {cardinality: 0, values: {}};
+    ix++;
+  }
+
+  for(let result of results) {
+    let ix = 0;
+    for(let value of result) {
+      let info = cardinalities[ix];
+      if(!info.values[value]) {
+        info.values[value] = true;
+        info.cardinality++;
+      }
+      ix++;
+    }
+  }
+
+  return cardinalities;
+}
+
+function findResultRows(results, register, value) {
+  let found = [];
+  for(let result of results) {
+    if(result[register] === value) {
+      found.push(result);
+    }
+  }
+  return found;
 }
