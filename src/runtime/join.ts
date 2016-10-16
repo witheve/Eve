@@ -472,6 +472,7 @@ providers.provide("generateId", GenerateId);
 //---------------------------------------------------------------------
 
 export class NotScan {
+  id: number;
   strata: BlockStratum[];
   vars: Variable[];
   args: Variable[];
@@ -479,6 +480,7 @@ export class NotScan {
   resolved: any[];
 
   constructor(args: Variable[], strata: BlockStratum[]) {
+    this.id = nextId();
     this.strata = strata;
     this.resolved = [];
     let blockVars = [];
@@ -525,6 +527,7 @@ export class NotScan {
 //---------------------------------------------------------------------
 
 export class IfBranch {
+  id: number;
   outputs: any[];
   strata: BlockStratum[];
   prefix: any[];
@@ -532,6 +535,7 @@ export class IfBranch {
   exclusive: boolean;
   constantReturn: boolean;
   constructor(strata: BlockStratum[], outputs: any[], exclusive?: boolean) {
+    this.id = nextId();
     this.strata = strata;
     this.outputs = outputs;
     this.exclusive = exclusive;
@@ -564,6 +568,7 @@ export class IfBranch {
 }
 
 export class IfScan implements ProposalProvider {
+  id: number;
   branches: IfBranch[];
   vars: Variable[];
   args: Variable[];
@@ -575,6 +580,7 @@ export class IfScan implements ProposalProvider {
   proposalObject: Proposal;
 
   constructor(args: Variable[], outputs: Variable[], branches: IfBranch[], hasAggregate = false) {
+    this.id = nextId();
     this.branches = branches;
     this.outputs = outputs;
     this.hasAggregate = hasAggregate;

@@ -17,13 +17,12 @@ commit
   [#app page: "home"]
 ```
 
-
 ## Events
 
 Log a user in when they click the log-in button.
 
 ```
-search
+search @event
   [#click element: button]
 
 search @browser
@@ -38,11 +37,10 @@ commit
  app.user := user
 ```
 
-
 Log a user out and send them an email when they click the log-out button.
 
 ```
-search
+search @event
   [#click element: button]
 
 search @browser
@@ -126,28 +124,213 @@ bind @browser
     [#div text: "404 Error, I don't know about any page named {{app.page}}"]
 ```
 
+# Embedded Views
 
-## Event Shims
+## KV Table
 
-Since the event bag isn't in yet, we need to simulate it removing the events we care about after a tick
-
-Remove events we care about after one tick.
-
-```
-search
-  event = if e = [#click] then e
-          if e = [#change] then e
-
-commit
-  event := none
-```
-
-Copy the latest value from a change event onto its input
+Create the DOM structure for `#kv-table`s.
 
 ```
-search
-  [#change element: input value]
+search @view
+  wrapper = [#kv-table kvs: [key]]
+  ix = sort[value: key]
+
+bind @browser
+  wrapper.tag += "div"
+  wrapper.children := [#div class: "flex-row" sort: ix children:
+    [#div text: key style: [width: 120 padding-right: 10]]
+    [#div #kv-values key]]
+```
+
+Inject the values for each key in the `#kv-table`.
+
+```
+search @view
+  wrapper = [#kv-table kvs: [key value]]
+  ix = sort[value per: key]
+
+search @browser
+  value-column = [#kv-values key]
+
+bind @browser
+  value-column.children += [#div text: value sort: ix]
+```
+
+## Attribute Table
+
+```
+search @view
+  wrapper = [#attribute-table entity]
+
+search (@session, @browser)
+  lookup[record: entity attribute: key value]
+
+bind @view
+  wrapper.tag += "kv-table"
+  wrapper.kvs := [key value]
 
 commit @browser
-  input.value := value
+  [#div text: "yo"]
+```
+
+
+# Integrated Pretend Inspector
+
+## Mocking
+
+Populate some mock analyzer data for the pretend inspector to use.
+
+Grab all the elements
+
+```
+search @browser
+  (elem, tag) = if e = [#div] then (e, "div")
+                if e = [#button] then (e, "button")
+                if e = [#input] then (e, "input")
+
+bind @mock
+  [#entity entity: elem type: "element" dom-tag: tag]
+```
+
+Grab the elements' children
+
+```
+search @mock
+  [#entity entity]
+
+search @browser
+  entity = [children]
+
+bind
+  entity.children := children
+```
+
+Grab the attributes for each mocked entity
+
+```
+search @mock
+  mock = [#entity entity]
+
+search (@session, @browser, @mock)
+  lookup[record: entity attribute value]
+
+bind @mock
+  mock.attributes := attribute
+```
+
+## Setup
+
+```
+commit @inspector
+  [#option type: "element" sort: 2 text: "Should this not show up right now?"]
+  [#option type: "element" sort: 3 text: "Is something missing here?"]
+  [#option type: "element" sort: 4 text: "Are there too many/few of these?"]
+  [#option type: "element" sort: 5 text: "Does this have an incorrect value"]
+```
+
+## Events
+
+Open an inspector panel on double click
+
+```
+search @event
+  [#double-click #direct-target element]
+
+commit @inspector
+  [#inspector target: element]
+```
+
+```
+search @inspector
+  [#inspector target: element type]
+
+commit @browser
+  [#div text: element]
+```
+
+## Piping
+
+The inspector type is the type of the targeted entity or unknown if the target can't be found in the mock data.
+
+```
+search @inspector
+  inspector = [#inspector target]
+
+search @mock
+  type = if [#entity entity: target type] then type
+         else "unknown"
+
+bind @inspector
+  inspector.type := type
+```
+
+The inspector attributes are the attributes of the targeted entity
+
+```
+search @inspector
+  inspector = [#inspector target]
+
+search @mock
+  [#entity entity: target attributes]
+
+bind @inspector
+  inspector.attributes := attributes
+```
+
+## Drawing
+
+Draw the inspector panel
+
+```
+search @inspector
+  inspector = [#inspector target type]
+
+bind @browser
+  [#div inspector children:
+    [#header text: "Inspecting {{target}} of type {{type}}"]
+    [#div #inspector-content inspector class: "flex-row"]]
+```
+
+Draw options sub-panel
+
+```
+search @inspector
+  inspector = [#inspector target type]
+  options = [#option type]
+
+search @browser
+  wrapper = [#inspector-content inspector]
+
+bind @browser
+  wrapper.children += [#div class: "attributes-panel" inspector sort: 1 style: [margin-right: 10] children:
+    [#div text: "Options" sort: 1]
+    [#button style: [display: "block" width: 250] text: options.text sort: options.sort]]
+
+```
+
+Draw attributes sub-panel
+
+```
+search @inspector
+  inspector = [#inspector target attributes]
+
+search @browser
+  wrapper = [#inspector-content inspector]
+
+bind @browser
+  wrapper.children += [#div class: "attributes-panel" inspector sort: 2 children:
+    [#div text: "Attributes"]
+    [#div class: "attribute" inspector text: attributes]
+  ]
+```
+
+
+Draw some bs
+
+```
+search @inspector
+  inspector = [#inspector target]
+
+bind (@browser, @view)
+  [#attribute-table entity: target]
 ```

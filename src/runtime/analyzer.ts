@@ -35,6 +35,9 @@ class AnalysisContext {
     changes.store("session", scanId, "stop", stop, "analyzer");
     changes.store("session", scanId, "entity", entity.id, "analyzer");
     changes.store("session", scanId, "attribute", attribute, "analyzer");
+    if(parseNode.buildId !== undefined) {
+      changes.store("session", scanId, "build-node", parseNode.buildId, "analyzer");
+    }
     if(value.id !== undefined) {
       changes.store("session", scanId, "value", value.id, "analyzer");
       changes.store("session", value.id, "tag", "variable", "analyzer");
@@ -57,6 +60,9 @@ class AnalysisContext {
     changes.store("session", actionId, "stop", stop, "analyzer");
     changes.store("session", actionId, "entity", entity.id, "analyzer");
     changes.store("session", actionId, "attribute", attribute, "analyzer");
+    if(parseNode.buildId !== undefined) {
+      changes.store("session", actionId, "build-node", parseNode.buildId, "analyzer");
+    }
     if(value.id !== undefined) {
       changes.store("session", actionId, "value", value.id, "analyzer");
       changes.store("session", value.id, "tag", "variable", "analyzer");
@@ -357,7 +363,7 @@ export function analyze(blocks: ParseBlock[], spans: any[], extraInfo: any) {
   let session = new Database();
   let prev = eve.getDatabase("session")
   session.blocks = prev.blocks;
-  // console.log("ANALYZER BLOCKS", session.blocks);
+  console.log("ANALYZER BLOCKS", session.blocks);
   eve.unregisterDatabase("session");
   eve.registerDatabase("session", session);
   let editorDb = new EditorDatabase(spans, extraInfo);

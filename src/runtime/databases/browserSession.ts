@@ -2,12 +2,27 @@
 // Browser Session Database
 //---------------------------------------------------------------------
 
+import * as parser from "../parser";
+import * as builder from "../builder";
 import {InsertAction, SetAction} from "../actions";
 import {Changes} from "../changes";
 import {Evaluation, Database} from "../runtime";
 
 interface BrowserClient {
   send(json: string);
+}
+
+export class BrowserEventDatabase extends Database {
+  constructor() {
+    super();
+    if(global["examples"]["event.eve"]) {
+      let {results, errors} = parser.parseDoc(global["examples"]["event.eve"]);
+      if(errors && errors.length) console.error("EVENT ERRORS", errors);
+      let {blocks, errors: buildErrors} = builder.buildDoc(results);
+      if(buildErrors && buildErrors.length) console.error("EVENT ERRORS", errors);
+      this.blocks = blocks;
+    }
+  }
 }
 
 export class BrowserSessionDatabase extends Database {

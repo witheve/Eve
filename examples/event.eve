@@ -1,0 +1,32 @@
+remove events
+~~~
+  search @event
+    c = if event = [#keydown] then event
+        if event = [#keyup] then event
+        if event = [#click] then event
+        if event = [#double-click] then event
+        if event = [#change] then event
+        if event = [#blur] then event
+        if event = [#focus] then event
+        if event = [#url-change] then event
+  commit @event
+    c := none
+~~~
+
+hash changes
+~~~
+  search @event
+    change = [#url-change hash-segment]
+    hash-segment = [index value]
+  commit @browser
+    url = [#url]
+    url.hash-segment := [index value]
+~~~
+
+update values
+~~~
+  search @event
+    c = [#change element value]
+  commit @browser
+    element.value := value
+~~~
