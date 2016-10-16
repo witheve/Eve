@@ -162,6 +162,7 @@ export function scansToVars(scans, output = []) {
 export class BlockStratum {
   solverInfo = [];
   resultCount = 0;
+  results: any[];
   scans: ProposalProvider[];
   aggregates: Aggregate[];
   vars: Variable[];
@@ -189,6 +190,7 @@ export class BlockStratum {
       results = join(multiIndex, this.scans, this.vars, row, options);
     }
     this.resultCount = results.length;
+    this.results = results;
     return results;
   }
 }
@@ -206,6 +208,7 @@ export class Block {
   prevInserts: ChangesIndex;
   checker: DependencyChecker;
   parse: any;
+  results: any[];
 
   constructor(name: string, strata: BlockStratum[], commitActions: Action[], bindActions: Action[], parse?: any) {
     this.id = parse.id || nextId();
@@ -266,6 +269,7 @@ export class Block {
       results = stratum.execute(multiIndex, results);
       if(results.length === 0) break;
     }
+    this.results = results;
     // console.log("results :: ", time(start));
     // console.log(" >>> RESULTS")
     // console.log(results);

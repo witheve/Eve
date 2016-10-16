@@ -25,6 +25,21 @@ class AnalysisContext {
   changes: Changes
   block: ParseBlock
 
+  record(parseNode: any) {
+    let changes = this.changes;
+    let recordId = `${this.block.id}|record|${this.ScanId++}`;
+    let [start, stop] = nodeToBoundaries(parseNode);
+    changes.store("session", recordId, "tag", "record", "analyzer");
+    changes.store("session", recordId, "block", this.block.id, "analyzer");
+    changes.store("session", recordId, "start", start, "analyzer");
+    changes.store("session", recordId, "stop", stop, "analyzer");
+    changes.store("session", recordId, "entity", parseNode.variable.id, "analyzer");
+    for(let scope of parseNode.scopes) {
+      changes.store("session", recordId, "scopes", scope, "analyzer");
+    }
+    return recordId;
+  }
+
   scan(parseNode: any, scopes: string[], entity: any, attribute: string, value: any) {
     let changes = this.changes;
     let scanId = `${this.block.id}|scan|${this.ScanId++}`;
@@ -113,6 +128,7 @@ class Analysis {
   }
 
   _scanRecord(context: AnalysisContext, node) {
+    context.record(node);
     for(let attr of node.attributes) {
       if(attr.value.type === "parenthesis") {
         for(let item of attr.value.items) {
@@ -173,6 +189,7 @@ class Analysis {
   }
 
   _actionRecord(context: AnalysisContext, node) {
+    context.record(node);
     for(let attr of node.attributes) {
       if(attr.value.type === "parenthesis") {
         for(let item of attr.value.items) {
@@ -216,6 +233,9 @@ class Analysis {
       changes.store("session", variable.id, "tag", "variable");
       changes.store("session", variable.id, "name", variable.name);
       changes.store("session", variable.id, "block", context.block.id);
+      if(variable.register !== undefined) {
+        changes.store("session", variable.id, "register", variable.register);
+      }
       if(variable.generated) {
         changes.store("session", variable.id, "tag", "generated");
       }
@@ -394,4 +414,101 @@ export function tokenInfo(evaluation: Evaluation, tokenId: string, spans: any[],
   eve.executeActions([], changes);
   prevQuery = {queryId, query};
 
+  // look at the results and find out which action node we were looking
+  // at
+  let sessionIndex = eve.getDatabase("session").index;
+  let queryInfo = sessionIndex.alookup("tag", "query");
+  let evSession = evaluation.getDatabase("session");
+  if(queryInfo) {
+    for(let entity of Object.keys(queryInfo.index)) {
+      let info = sessionIndex.asObject(entity);
+
+      console.log("INFO", info);
+      // why is this failing?
+      let nodeArray = info.scan || info.action;
+      if(nodeArray) {
+        let node = sessionIndex.asObject(nodeArray[0]);
+        let blockId = node["block"][0];
+        let found;
+        for(let block of evSession.blocks) {
+          console.log("BLOCK ID", block.id, node["block"]);
+          if(block.id === blockId) {
+            found = block;
+            break;
+          }
+        }
+        console.log("NODE BLOCK", blockId, found);
+        console.log("FAILING SCAN", blockToFailingScan(found));
+        console.log("CARDINALITIES", resultsToCardinalities(found.results))
+        console.log("SPECIFIC ROWS", findResultRows(found.results, 2, "cherry"))
+      }
+
+      // look for the facts that action creates
+      if(info.action) {
+        for(let actionId of info.action) {
+          let action = sessionIndex.asObject(actionId);
+          let evIndex = evaluation.getDatabase(action.scopes[0]).index;
+          let nodeItems = evIndex.nodeLookup(action["build-node"][0]);
+          if(nodeItems) {
+            console.log("ACTION", action["build-node"][0]);
+            console.log(evIndex.toTriples(false, nodeItems.index));
+          }
+        }
+      }
+    }
+  }
+}
+
+function blockToFailingScan(block) {
+  let scanId;
+  for(let stratum of block.strata) {
+    if(stratum.resultCount === 0) {
+      let {solverInfo} = stratum;
+      let scanIx = 0;
+      let maxFailures = 0;
+      let maxIx = 0;
+      for(let failures of solverInfo) {
+        if(failures > maxFailures) {
+          maxFailures = failures;
+          maxIx = scanIx;
+        }
+        scanIx++;
+      }
+      scanId = stratum.scans[maxIx].id;
+    }
+  }
+  return scanId;
+}
+
+function resultsToCardinalities(results) {
+  let cardinalities = [];
+  let ix = 0;
+  while(ix < results[0].length) {
+    cardinalities[ix] = {cardinality: 0, values: {}};
+    ix++;
+  }
+
+  for(let result of results) {
+    let ix = 0;
+    for(let value of result) {
+      let info = cardinalities[ix];
+      if(!info.values[value]) {
+        info.values[value] = true;
+        info.cardinality++;
+      }
+      ix++;
+    }
+  }
+
+  return cardinalities;
+}
+
+function findResultRows(results, register, value) {
+  let found = [];
+  for(let result of results) {
+    if(result[register] === value) {
+      found.push(result);
+    }
+  }
+  return found;
 }

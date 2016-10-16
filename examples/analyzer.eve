@@ -133,7 +133,7 @@ search @browser
   parent = [#query-div]
 bind @browser
   parent.children += (
-      [#div sort: to.start children: [#div text: "{{to}} {{to.start}} {{to.stop}}"]]
+      [#div sort: to.start children: [#div text: "{{to}} {{to.build-node}}"]]
   )
 ~~~
 
@@ -161,6 +161,17 @@ search
   [#link a: to b: link.to]
 bind
   [#query-link token to distance: distance + 1]
+~~~
+
+## token -> variable
+
+~~~
+search
+  query = [#query token]
+  [#query-link token to]
+  to = [#variable register]
+bind
+  query <- [variable: to, register]
 ~~~
 
 ## token -> scan
@@ -221,3 +232,16 @@ bind @browser
   [#div text: "{{token}} actions #{{record-tag}} {{attribute}}"]
 ~~~
 
+## token -> record
+
+~~~
+search
+  query = [#query]
+  entity = if query.scan then query.scan.entity
+           else if query.action then query.action.entity
+  record = [#record entity start stop]
+bind
+  query <- [entity entity-register: entity.register]
+bind @editor
+  [#comment record | start stop kind: "warning" message: "this is the record" ]
+~~~

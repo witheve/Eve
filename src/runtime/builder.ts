@@ -665,9 +665,12 @@ export function buildBlock(block) {
 
   let ix = 0;
   for(let unprovided of context.unprovided) {
+    let vars = context.registerToVars[ix].map((varName) => block.variableLookup[varName]);
     if(unprovided) {
-      let vars = context.registerToVars[ix].map((varName) => block.variables[varName]);
       context.errors.push(errors.unprovidedVariableGroup(block, vars));
+    }
+    for(let variable of vars) {
+      variable.register = ix;
     }
     ix++;
   }
