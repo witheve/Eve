@@ -930,53 +930,55 @@ export class Editor {
 
   /** Create new Spans wrapping the text between each given span id or range. */
   markBetween(idsOrRanges:(string[]|Range[]), source:any, bounds?:Range) {
-    if(!idsOrRanges.length) return;
-    let ranges:Range[];
+    this.cm.operation(() => {
+      if(!idsOrRanges.length) return;
+      let ranges:Range[];
 
-    if(typeof idsOrRanges[0] === "string") {
-      let ids:string[] = idsOrRanges as string[];
-      ranges = [];
-      let spans:Span[];
-      if(bounds) {
-        spans = this.findSpansAt(bounds.from).concat(this.findSpans(bounds.from, bounds.to));
-      } else {
-        spans = this.getAllSpans();
-      }
-      for(let span of spans) {
-        if(ids.indexOf(span.source.id) !== -1) {
-          let loc = span.find();
-          if(!loc) continue;
-          if(span.isLine()) {
-            loc = {from: loc.from, to: {line: loc.from.line + 1, ch: 0}};
-          }
-          ranges.push(loc);
+      if(typeof idsOrRanges[0] === "string") {
+        let ids:string[] = idsOrRanges as string[];
+        ranges = [];
+        let spans:Span[];
+        if(bounds) {
+          spans = this.findSpansAt(bounds.from).concat(this.findSpans(bounds.from, bounds.to));
+        } else {
+          spans = this.getAllSpans();
         }
-      }
-    } else {
-      ranges = idsOrRanges as Range[];
-    }
-
-    if(!ranges.length) return;
-
-    let doc = this.cm.getDoc();
-    ranges.sort(compareRanges);
-
-    let start = bounds && bounds.from || {line: 0, ch: 0};
-    for(let range of ranges) {
-      let from = doc.posFromIndex(doc.indexFromPos(range.from) - 1);
-      if(comparePositions(start, from) < 0) {
-        this.markSpan(start, from, source);
+        for(let span of spans) {
+          if(ids.indexOf(span.source.id) !== -1) {
+            let loc = span.find();
+            if(!loc) continue;
+            if(span.isLine()) {
+              loc = {from: loc.from, to: {line: loc.from.line + 1, ch: 0}};
+            }
+            ranges.push(loc);
+          }
+        }
+      } else {
+        ranges = idsOrRanges as Range[];
       }
 
-      start = doc.posFromIndex(doc.indexFromPos(range.to) + 1);
-    }
+      if(!ranges.length) return;
 
-    let last = ranges[ranges.length - 1];
-    let to = doc.posFromIndex(doc.indexFromPos(last.to) + 1);
-    let end = bounds && bounds.to || doc.posFromIndex(doc.getValue().length);
-    if(comparePositions(to, end) < 0) {
-      this.markSpan(to, end, source);
-    }
+      let doc = this.cm.getDoc();
+      ranges.sort(compareRanges);
+
+      let start = bounds && bounds.from || {line: 0, ch: 0};
+      for(let range of ranges) {
+        let from = doc.posFromIndex(doc.indexFromPos(range.from) - 1);
+        if(comparePositions(start, from) < 0) {
+          this.markSpan(start, from, source);
+        }
+
+        start = doc.posFromIndex(doc.indexFromPos(range.to) + 1);
+      }
+
+      let last = ranges[ranges.length - 1];
+      let to = doc.posFromIndex(doc.indexFromPos(last.to) + 1);
+      let end = bounds && bounds.to || doc.posFromIndex(doc.getValue().length);
+      if(comparePositions(to, end) < 0) {
+        this.markSpan(to, end, source);
+      }
+    });
   }
 
   findHeadingAt(pos:Position):HeadingSpan|undefined {
@@ -1943,7 +1945,6 @@ export class IDE {
 
   executeRecord(recordId:string, record:any) {
     console.log("Exec", recordId, record);
-
     if(record.tag.indexOf("mark-between") !== 0) {
       let bounds;
       if(record.within) {
