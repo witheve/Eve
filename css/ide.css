@@ -170,3 +170,18 @@ body { background: #f5f5f5; }
 .CodeMirror .scrollbar-annotation:hover { opacity: 0.5; }
 .CodeMirror .scrollbar-annotation.error { background: #F06060; }
 .CodeMirror .scrollbar-annotation.warning { background: #C0C060; }
+
+/****************************************************************************\
+ * Views
+\****************************************************************************/
+.view.kv-table { display: table; border-collapse: collapse; border: 1px solid #202020; }
+.view.kv-table .kv-row { display: table-row; }
+.view.kv-table .kv-row + .kv-row { border-top: 1px solid #606060; }
+.view.kv-table .kv-row > div { display: table-cell; padding: 0 5px; }
+.view.kv-table .kv-values { border-left: 1px solid #202020; }
+
+/****************************************************************************\
+ * Inspector
+\****************************************************************************/
+.CodeMirror .shadow { opacity: 0.6; }
+.CodeMirror .highlight { border-bottom: 1px solid rgba(255, 255, 255, 0.5); }
