@@ -983,6 +983,18 @@ export class Editor {
     });
   }
 
+  clearSpans(type: string, bounds?:Range) {
+    this.cm.operation(() => {
+      let spans:Span[];
+      if(bounds) spans = this.findSpans(bounds.from, bounds.to, type);
+      else spans = this.getAllSpans(type);
+
+      for(let span of spans) {
+        span.clear();
+      }
+    });
+  }
+
   findHeadingAt(pos:Position):HeadingSpan|undefined {
     let from = {line: 0, ch: 0};
     let headings = this.findSpans(from, pos, "heading") as HeadingSpan[];
@@ -1950,16 +1962,29 @@ export class IDE {
 
   executeRecord(recordId:string, record:any) {
     console.log("Exec", recordId, record);
-    if(record.tag.indexOf("mark-between") !== 0) {
-      let bounds;
-      if(record.within) {
-        let span = this.editor.getSpanBySourceId(record.within[0]);
-        if(span) bounds = span.find();
-      }
+
+    let bounds:Range|undefined;
+    if(record.within) {
+      let span = this.editor.getSpanBySourceId(record.within[0]);
+      if(span) bounds = span.find();
+    }
+
+    if(record.tag.indexOf("mark-between") !== -1) {
+      this.editor.clearSpans(record.type[0], bounds);
       this.editor.markBetween(record.target, {type: record.type[0]}, bounds);
 
-    } else if(record.tag.indexOf("jump-to") !== 0) {
+    } else if(record.tag.indexOf("jump-to") !== -1) {
       this.editor.jumpTo(record.target[0]);
+
+    } else if(record.tag.indexOf("clear-spans") !== -1) {
+      let spans:Span[];
+      this.editor.clearSpans(record.type[0], bounds);
+
+    } else if(record.tag.indexOf("start-inspecting") !== -1) {
+      this.startInspecting();
+
+    } else if(record.tag.indexOf("stop-inspecting") !== -1) {
+      this.stopInspecting();
 
     } else {
       console.warn("Unable to execute unknown record type", recordId, record);
@@ -1994,8 +2019,9 @@ export class IDE {
       let spans = this.editor.findSpansAt(pos);
       let events = [];
       for(let span of spans) {
+        console.log(span.source.id);
         if(!span.isEditorControlled()) {
-          events.push({tag: ["inspector " + (event.buttons ? "click" : "mouseover")], token: span.source.id, type: span.source.type});
+          events.push({tag: ["inspector", (event.buttons ? "click" : "mouseover")], token: span.source.id, type: span.source.type});
         }
       }
       if(events.length) {
