@@ -230,6 +230,9 @@ commit @mock
 
   [#related entity: "editor|block|8|token|13" block: "editor|block|4" token:
     ("editor|block|4|token|31" "editor|block|4|token|38" "editor|block|4|token|28" "editor|block|4|token|52")]
+
+  [#value token: ("editor|block|4|token|38" "editor|block|4|token|28") | value: "Bob"]
+  [#value token: ("editor|block|4|token|31" "editor|block|4|token|52") | value: "7"]
 ```
 
 ## Setup
@@ -333,6 +336,20 @@ search @mock
 commit @browser
   [#editor #mark-between inspector type: "shadow" | within: block token]
   [#editor #mark-span inspector type: "highlight" | token]
+```
+
+When the sources pane is open, badge related intermediates
+
+```
+search @inspector
+  inspector = [#inspector pane: "sources" target]
+
+search @mock
+  [#related entity: target block token]
+  [#value token value]
+
+commit @browser
+  [#editor #mark-span inspector type: "badge" kind: "intermediate" message: value | token]
 ```
 
 ## Piping
