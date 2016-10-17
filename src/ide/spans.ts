@@ -185,7 +185,7 @@ export class Span {
   }
 
   disable() {
-    if(this.disabled = false) {
+    if(!this.disabled) {
       this.disabled = true;
       if(this.refresh) this.refresh();
     }
@@ -195,6 +195,10 @@ export class Span {
       this.disabled = false;
       if(this.refresh) this.refresh();
     }
+  }
+
+  isDisabled() {
+    return this.disabled;
   }
 
   sourceEquals(other:SpanSource) {
@@ -678,6 +682,7 @@ interface BadgeSpanSource extends SpanSource { kind: string, message: "string" }
 class BadgeSpan extends ParserSpan {
   source:BadgeSpanSource;
 
+  badgeMarker:SpanMarker|undefined;
   badgeElem:HTMLElement;
 
   apply(from:Position, to:Position, origin = "+input") {
@@ -689,11 +694,17 @@ class BadgeSpan extends ParserSpan {
     this.badgeElem.textContent = this.source.message;
 
     super.apply(from, to, origin);
-    this.editor.cm.addWidget(to, this.badgeElem, false);
+
+    let doc = this.editor.cm.getDoc();
+    this.badgeMarker = doc.setBookmark(to, {widget: this.badgeElem});
+    this.badgeMarker.span = this;
   }
 
   clear(origin = "+delete") {
     super.clear(origin);
+
+    if(this.badgeMarker) this.badgeMarker.clear();
+
     if(this.badgeElem && this.badgeElem.parentNode) {
       this.badgeElem.parentNode.removeChild(this.badgeElem);
     }

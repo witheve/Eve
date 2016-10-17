@@ -126,6 +126,9 @@ class Navigator {
 
     } else if(node) {
       // @NOTE: we intentionally don't handle this case currently since updating here would conflict with the parser updates
+      if(span.isDisabled() !== node.hidden) {
+        node.hidden = span.isDisabled();
+      }
 
     } else if(!node && loc) {
       let cur = loc.from;
@@ -151,7 +154,8 @@ class Navigator {
         parentNode.children.splice(ix, 0, nodeId);
       }
       let doc = this.ide.editor.cm.getDoc();
-      this.nodes[nodeId] = {id: nodeId, name: doc.getLine(loc.from.line), type: "section", level: span.source.level, span, open: true, hidden: false};
+      this.nodes[nodeId] = {id: nodeId, name: doc.getLine(loc.from.line), type: "section", level: span.source.level, span, open: true, hidden: span.isDisabled()};
+      console.log("updated", this.nodes[nodeId]);
     }
   }
 
@@ -1971,7 +1975,7 @@ export class IDE {
   }
 
   executeRecord(recordId:string, record:any) {
-    console.log("Exec", recordId, record);
+    console.log("Exec", recordId, record.tag, record);
 
     let bounds:Range|undefined;
     if(record.within) {
