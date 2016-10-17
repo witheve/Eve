@@ -1,7 +1,7 @@
 import {Renderer, Element as Elem, RenderHandler} from "microReact";
 import {Parser as MDParser} from "commonmark";
 import * as CodeMirror from "codemirror";
-import {debounce, uuid, unpad, Range, Position, isRange, comparePositions, samePosition, whollyEnclosed, adjustToWordBoundary} from "./util";
+import {debounce, uuid, unpad, Range, Position, isRange, compareRanges, comparePositions, samePosition, whollyEnclosed, adjustToWordBoundary} from "./util";
 
 import {Span, SpanMarker, isSpanMarker, isEditorControlled, spanTypes, compareSpans, SpanChange, isSpanChange, HeadingSpan, DocumentCommentSpan} from "./ide/spans";
 import * as Spans from "./ide/spans";
@@ -910,6 +910,55 @@ export class Editor {
     let SpanClass:(typeof Span) = spanTypes[source.type] || spanTypes["default"];
     let span = new SpanClass(this, from, to, source);
     return span;
+  }
+
+  /** Create new Spans wrapping the text between each given span id or range. */
+  markBetween(idsOrRanges:(string[]|Range[]), source:any, bounds?:Range) {
+    if(!idsOrRanges.length) return;
+    let ranges:Range[];
+
+    if(typeof idsOrRanges[0] === "string") {
+      let ids:string[] = idsOrRanges as string[];
+      ranges = [];
+      let spans:Span[];
+      if(bounds) {
+        spans = this.findSpansAt(bounds.from).concat(this.findSpans(bounds.from, bounds.to));
+      } else {
+        spans = this.getAllSpans();
+      }
+      for(let span of spans) {
+        if(ids.indexOf(span.source.id) !== -1) {
+          let loc = span.find();
+          if(!loc) continue;
+          if(span.isLine()) {
+            loc = {from: loc.from, to: {line: loc.from.line + 1, ch: 0}};
+          }
+          ranges.push(loc);
+        }
+      }
+    } else {
+      ranges = idsOrRanges as Range[];
+    }
+
+    let doc = this.cm.getDoc();
+    ranges.sort(compareRanges);
+
+    let start = bounds && bounds.from || {line: 0, ch: 0};
+    for(let range of ranges) {
+      let from = doc.posFromIndex(doc.indexFromPos(range.from) - 1);
+      if(comparePositions(start, from) < 0) {
+        this.markSpan(start, from, source);
+      }
+
+      start = doc.posFromIndex(doc.indexFromPos(range.to) + 1);
+    }
+
+    let last = ranges[ranges.length - 1];
+    let to = doc.posFromIndex(doc.indexFromPos(last.to) + 1);
+    let end = bounds && bounds.to || doc.posFromIndex(doc.getValue().length);
+    if(comparePositions(to, end) < 0) {
+      this.markSpan(to, end, source);
+    }
   }
 
   findHeadingAt(pos:Position):HeadingSpan|undefined {

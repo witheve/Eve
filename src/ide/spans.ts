@@ -92,6 +92,7 @@ export class Span {
   protected static _spanStyle:"inline"|"line"|"block";
   protected _spanStyle:"inline"|"line"|"block";
 
+  protected disabled = false;
 
   id: string;
   editor: Editor;
@@ -166,6 +167,15 @@ export class Span {
     let loc = this.find();
     if(!loc) return;
     return {from: loc.from, to: loc.to, span: this};
+  }
+
+  disable() {
+    this.disabled = true;
+    if(this.refresh) this.refresh();
+  }
+  enable() {
+    this.disabled = false;
+    if(this.refresh) this.refresh();
   }
 
   sourceEquals(other:SpanSource) {
@@ -293,10 +303,14 @@ export class LineSpan extends Span {
   // Handlers
   refresh() {
     let loc = this.find();
-    if(!loc) return this.clear();
+    if(!loc) return;
 
     let end = loc.to.line + ((loc.from.line === loc.to.line) ? 1 : 0);
-    updateLineClasses(loc.from.line, end, this.editor, this);
+    if(!this.disabled) {
+      updateLineClasses(loc.from.line, end, this.editor, this);
+    } else {
+      clearLineClasses(loc.from.line, end, this.editor, this);
+    }
   }
 
   onBeforeChange(change:ChangeCancellable) {
@@ -379,8 +393,13 @@ export class BlockSpan extends Span {
 
   refresh() {
     let loc = this.find();
-    if(!loc) return this.clear();
-    updateLineClasses(loc.from.line, loc.to.line, this.editor, this);
+    if(!loc) return;
+
+    if(!this.disabled) {
+      updateLineClasses(loc.from.line, loc.to.line, this.editor, this);
+    } else {
+      clearLineClasses(loc.from.line, loc.to.line, this.editor, this);
+    }
   }
 
   onBeforeChange(change:ChangeCancellable) {
@@ -505,6 +524,22 @@ class ElisionSpan extends BlockSpan {
     this.element.className = "elision-marker";
     this._attributes.replacedWith = this.element;
     super.apply(from, to, origin);
+
+    let doc = this.editor.cm.getDoc();
+
+    for(let span of this.editor.findSpansAt(from).concat(this.editor.findSpans(from, to))) {
+      if(span === this) continue;
+      span.disable();
+    }
+  }
+
+  clear(origin = "+delete") {
+    let loc = this.find();
+    super.clear(origin);
+    for(let span of this.editor.findSpansAt(loc.from).concat(this.editor.findSpans(loc.from, loc.to))) {
+      if(span === this) continue;
+      span.enable();
+    }
   }
 }
 
@@ -580,6 +615,7 @@ export var spanTypes = {
   heading: HeadingSpan,
   item: ListItemSpan,
   elision: ElisionSpan,
+  elision_transient: ElisionSpan,
   code_block: CodeBlockSpan,
 
   document_comment: DocumentCommentSpan,

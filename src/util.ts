@@ -148,6 +148,12 @@ export function comparePositions(a:Position, b:Position) {
   return -1;
 }
 
+export function compareRanges(a:Range, b:Range) {
+  let first = comparePositions(a.from, b.from);
+  if(first !== 0) return first;
+  else return comparePositions(a.to, b.to);
+}
+
 export function samePosition(a:Position, b:Position) {
   return comparePositions(a, b) === 0;
 }
