@@ -1,0 +1,161 @@
+generate an xscale
+```
+search
+  c = [#chart width height xmargin xrule-height ymargin points:[x]]
+  xmin = min[value:x given: x]
+  xmax = max[value:x given: x]
+  log10 = floor[value:log[value:xmax - xmin]]
+  baselog = if ((xmax - xmin) / log10) > 1 then log10 else log10
+  base = pow[value:baselog by:10]
+  start = floor[value:xmin / base]
+  end = ceiling[value:xmax / base]
+  tick = range[from:start + 1 to:end - 1]
+  scale = (width - xmargin) / (end - start)
+  x1 = (tick - start) * scale
+
+bind
+   c.xscale := scale / base
+   c.xoff := start * base
+
+bind @browser
+   c.xrule :=
+      [#g
+         transform = "translate({{xmargin}}, {{height - ymargin}})"
+         children:
+           [#line x1:0 x2:width - xmargin y1:0 y2:0 stroke-width:0.2 stroke:"black"]
+           [#line x1 x2:x1 y1:0 y2:xrule-height stroke-width:0.2 stroke:"black"]
+           [#text x:x1 y:xrule-height text-anchor:"center" font-size:4 text:tick * base]]
+```
+
+generate a yscale
+```
+search
+  c = [#chart height ymargin xmargin points:[y]]
+  ymin = min[value:y given: y]
+  ymax = max[value:y given: y]
+  log10 = floor[value:log[value:ymax - ymin]]
+  baselog = if ((ymax - ymin) / log10) > 1 then log10 else log10
+  base = pow[value:baselog by:10]
+  start = floor[value:ymin / base]
+  end = ceiling[value:ymax / base]
+  tick = range[from:start + 1 to:end - 1]
+  scale = (end - start) / (height - ymargin)
+  y1 = (end - tick) / scale
+
+bind
+   // xscale is scale / base
+   c.yscale := scale
+   c.yoff := start * base
+
+bind @browser
+   c.yrule :=
+      [#g children:
+       [#line x1:xmargin x2:xmargin y1:0 y2:height - ymargin stroke-width:0.2 stroke:"black"]
+       [#line x1:xmargin - 10 x2:xmargin y1 y2:y1 stroke-width:0.2 stroke:"black"]
+       [#text x:0 y:y1 text-anchor:"center" font-size:4 text:tick * base]]
+```
+
+
+
+
+dump the animels
+```
+search
+  c = [#chart width height xscale xmargin yscale ymargin yoff xoff points:[x y]]
+
+bind @browser
+  c.dots := [#g transform:"scale(1, -1) translate({{xmargin}}, {{ymargin - height}})"
+                children:
+                  [#circle r:0.6 cx:xscale * (x - xoff) cy:yscale * (y - yoff)]]
+```
+
+dump the animels lines
+```
+search (@browser @session)
+  c = [#chart xoff yoff xscale yscale points:[x y] dots]
+  order = sort[value: x]
+  c = [#chart points:[x:x2 y:y2]]
+  order2 = sort[value: x2]
+  order2 = order + 1
+  // should be multiple lines
+  color = if c.linecolor then c.linecolor else "black"
+
+bind @browser
+  dots.children += [#line x1:xscale * (x - xoff) x2: xscale * (x2 - xoff)
+                          y1: yscale * (y - yoff) y2 : yscale * (y2 - yoff)
+                          stroke-width:0.2 stroke:color]
+```
+
+
+make some aminals
+```
+commit
+   [#pet name:"rat" length:24 elo:300]
+   [#pet name:"bus" length:39 elo:1000]
+   [#pet name:"ferret" length:28 elo:1200]
+   [#pet name:"fish" length:19 elo:913]
+   [#pet name:"raccoon" length:16 elo:2312]
+   [#pet name:"loris" length:27 elo:200]
+   [#pet name:"python" length:26 elo:1410]
+   [#pet name:"whale" length:79 elo:871]
+```
+
+generate a chart
+```
+search
+  [#pet length elo]
+bind
+  c = [#chart width:100 height:100 xmargin:15 ymargin:15 xrule-height:5 title:"pets" x-title:"length" y-title:"ELO score"]
+  c.points += [x:length y:elo]
+```
+
+
+row layout 1div
+```
+search @browser
+     d = [#row]
+bind @browser
+     d.tag := "div"
+     d.style := [display:"flex"]
+```
+
+centering text
+```
+search @browser
+     d = [#centering style]
+bind @browser
+     d.tag := "div"
+     style.display := "flex"
+     style.justify-content := "center"
+```
+
+grow box
+```
+search @browser
+     d = [#grow-box style]
+bind @browser
+     d.tag := "div"
+     style.flex-grow := 1
+```
+
+send the chart to the browser
+```
+search (@browser @session)
+   c = [#chart width height dots xrule yrule xmargin ymargin xrule-height]
+   title = if c.title then c.title else ""
+   x-title = if c.x-title then c.x-title else ""
+   y-title = if c.x-title then c.y-title else ""
+bind @browser
+   s = [#svg viewBox: "0 0 {{width}} {{height}}" children:(xrule yrule dots)]
+   y-label = [#div style:[color:"black" height:"1.2em" font-size:15 transform:"rotate(-90deg)"] text:y-title]
+   [#row children:(
+         [#grow-box sort:1 style:[]
+                         children:[#centering style:[flex-direction: "column"]
+                                   children:
+                                     ([#centering style:[] children: [#div style:[color:"black" height:"1.2em" font-size:24] text:title]]
+                                       s
+                                       [#centering style:[] children:[#div style:[color:"black" height:"1.2em" font-size:15] text:x-title]])]]
+         [#centering style:[flex-direction: "column"] children:y-label])]
+
+
+```
