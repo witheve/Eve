@@ -619,12 +619,22 @@ class Parser extends chev.Parser {
         }},
         {ALT: () => {
           let op = self.CONSUME3(Set);
-          let value = self.SUBRULE2(self.record, [false, actionKey, "+="]);
+          let value = self.SUBRULE2(self.record, [false, actionKey, "+=", parent]);
           return makeNode("action", {action: op.image, entity: asValue(parent), attribute: attribute.image, value: asValue(value), from: [mutator, op, value]});
         }},
         {ALT: () => {
           let op = self.CONSUME(Mutate);
-          let value = self.SUBRULE2(self.actionAttributeExpression, [actionKey, op.image]);
+          let value: any = self.SUBRULE2(self.actionAttributeExpression, [actionKey, op.image, parent]);
+          if(value.type === "record" && !value.extraProjection) {
+            value.extraProjection = [parent];
+          }
+          if(value.type === "parenthesis") {
+            for(let item of value.items) {
+              if(item.type === "record" && !value.extraProjection) {
+                item.extraProjection = [parent];
+              }
+            }
+          }
           return makeNode("action", {action: op.image, entity: asValue(parent), attribute: attribute.image, value: asValue(value), from: [mutator, op, value]});
         }},
       ])
@@ -655,11 +665,10 @@ class Parser extends chev.Parser {
       ])
     });
 
-    rule("actionAttributeExpression", (actionKey, action) => {
+    rule("actionAttributeExpression", (actionKey, action, parent) => {
       return self.OR([
-        {ALT: () => { return self.CONSUME(None); }},
         {ALT: () => { return self.SUBRULE(self.tag); }},
-        {ALT: () => { return self.SUBRULE(self.record, [false, actionKey, action]); }},
+        {ALT: () => { return self.SUBRULE(self.record, [false, actionKey, action, parent]); }},
         {ALT: () => { return self.SUBRULE(self.infix); }},
       ])
     })
