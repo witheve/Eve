@@ -147,7 +147,7 @@ search
     [#time hours minutes seconds]
     c = [#memory-chart points]
     npoints = count[given: points.x]
-    npoints > 10
+    npoints > 30
     1 = sort[value: points.x]
 commit
     points := none
@@ -157,9 +157,9 @@ commit
 add a point every second
 ```
   search
-    [#time hours minutes seconds]
-    rss = sin[angle: seconds * 5] * 80 +  50
+    [#time frames]
+    rss = sin[angle: frames]
     c = [#memory-chart]
   commit
-    c.points += [x: minutes * 60 + seconds y:rss]
+    c.points += [x: frames y:rss]
 ```
