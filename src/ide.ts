@@ -778,7 +778,6 @@ export class Editor {
       }
     });
 
-    console.log("injected!");
     this.reloading = false;
   }
 
@@ -865,9 +864,26 @@ export class Editor {
     if(!this.reloading && this.denormalizedSpans.length === 0) this.ide.queueUpdate();
   }, 0);
 
+  jumpTo(id:string) {
+    for(let span of this.getAllSpans()) {
+      if(span.source.id === id) {
+        let loc = span.find();
+        if(!loc) break;
+        this.cm.scrollIntoView(loc, 20);
+        break;
+      }
+    }
+  }
+
   //-------------------------------------------------------
   // Spans
   //-------------------------------------------------------
+
+  getSpanBySourceId(id:string):Span|undefined {
+    for(let span of this.getAllSpans()) {
+      if(span.source.id === id) return span;
+    }
+  }
 
   getAllSpans(type?:string):Span[] {
     let doc = this.cm.getDoc();
@@ -939,6 +955,8 @@ export class Editor {
     } else {
       ranges = idsOrRanges as Range[];
     }
+
+    if(!ranges.length) return;
 
     let doc = this.cm.getDoc();
     ranges.sort(compareRanges);
@@ -1921,6 +1939,25 @@ export class IDE {
 
   eval(persist?: boolean) {
     if(this.onEval) this.onEval(this, persist);
+  }
+
+  executeRecord(recordId:string, record:any) {
+    console.log("Exec", recordId, record);
+
+    if(record.tag.indexOf("mark-between") !== 0) {
+      let bounds;
+      if(record.within) {
+        let span = this.editor.getSpanBySourceId(record.within[0]);
+        if(span) bounds = span.find();
+      }
+      this.editor.markBetween(record.target, {type: record.type[0]}, bounds);
+
+    } else if(record.tag.indexOf("jump-to") !== 0) {
+      this.editor.jumpTo(record.target[0]);
+
+    } else {
+      console.warn("Unable to execute unknown record type", recordId, record);
+    }
   }
 
   tokenInfo() {

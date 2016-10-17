@@ -228,6 +228,15 @@ function printDebugRecords(index, dirty) {
 }
 indexes.dirty.subscribe(printDebugRecords);
 
+function passEditorRecordsToIDE(index, dirty) {
+  for(let recordId in dirty) {
+    let record = indexes.records.index[recordId];
+    if(record.tag && record.tag.indexOf("editor") !== -1) {
+      _ide.executeRecord(recordId, record);
+    }
+  }
+}
+indexes.dirty.subscribe(passEditorRecordsToIDE);
 
 //---------------------------------------------------------
 // Communication helpers
