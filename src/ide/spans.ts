@@ -153,8 +153,6 @@ export class Span {
     this.marker.clear();
     this.marker = this.marker.span = undefined;
     this.editor.queueUpdate();
-
-    console.error("CLEARED", this);
   }
 
   find():Range|undefined {
@@ -654,6 +652,8 @@ export var spanTypes = {
   item: ListItemSpan,
   elision: ElisionSpan,
   elision_transient: ElisionSpan,
+  highlight: InlineSpan,
+  shadow: InlineSpan,
   code_block: CodeBlockSpan,
 
   document_comment: DocumentCommentSpan,

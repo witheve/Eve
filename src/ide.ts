@@ -1980,14 +1980,26 @@ export class IDE {
 
     if(record.tag.indexOf("mark-between") !== -1) {
       this.editor.clearSpans(record.type[0], bounds);
-      this.editor.markBetween(record.target, {type: record.type[0]}, bounds);
+      this.editor.markBetween(record.token, {type: record.type[0]}, bounds);
 
-    } else if(record.tag.indexOf("badge") !== -1) {
-      let span = this.editor.getSpanBySourceId(record.token[0]);
-      let loc = span && span.find();
-      if(loc) {
-        let source = {type: "badge", kind: record.kind[0], message: record.message[0]};
-        this.editor.markSpan(loc.from, loc.to, source);
+    } else if(record.tag.indexOf("mark-span") !== -1) {
+      let ranges:Range[] = [];
+      if(record.token) {
+        for(let token of record.token) {
+          let span = this.editor.getSpanBySourceId(token);
+          let range = span && span.find();
+          if(range) ranges.push(range);
+        }
+      }
+
+      if(ranges) {
+        let source = {type: record.type[0]};
+        for(let attribute in record) {
+          source[attribute] = record[attribute].length === 1 ? record[attribute][0] : record[attribute];
+        }
+        for(let range of ranges) {
+          this.editor.markSpan(range.from, range.to, source);
+        }
       }
 
     } else if(record.tag.indexOf("jump-to") !== -1) {
