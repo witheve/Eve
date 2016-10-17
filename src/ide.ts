@@ -1982,6 +1982,14 @@ export class IDE {
       this.editor.clearSpans(record.type[0], bounds);
       this.editor.markBetween(record.target, {type: record.type[0]}, bounds);
 
+    } else if(record.tag.indexOf("badge") !== -1) {
+      let span = this.editor.getSpanBySourceId(record.token[0]);
+      let loc = span && span.find();
+      if(loc) {
+        let source = {type: "badge", kind: record.kind[0], message: record.message[0]};
+        this.editor.markSpan(loc.from, loc.to, source);
+      }
+
     } else if(record.tag.indexOf("jump-to") !== -1) {
       this.editor.jumpTo(record.target[0]);
 

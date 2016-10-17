@@ -609,6 +609,33 @@ export class DocumentCommentSpan extends ParserSpan {
   get message() { return this.source.message; }
 }
 
+interface BadgeSpanSource extends SpanSource { kind: string, message: "string" }
+class BadgeSpan extends ParserSpan {
+  source:BadgeSpanSource;
+
+  badgeElem:HTMLElement;
+
+  apply(from:Position, to:Position, origin = "+input") {
+    if(!this.badgeElem) {
+      this.badgeElem = document.createElement("div");
+      this.badgeElem.className = "badge-widget";
+    }
+
+    this.badgeElem.textContent = this.source.message;
+
+    super.apply(from, to, origin);
+    this.editor.cm.addWidget(to, this.badgeElem, false);
+  }
+
+  clear(origin = "+delete") {
+    super.clear(origin);
+    if(this.badgeElem && this.badgeElem.parentNode) {
+      this.badgeElem.parentNode.removeChild(this.badgeElem);
+    }
+    this.badgeElem = undefined;
+  }
+}
+
 //---------------------------------------------------------
 // Span Types
 //---------------------------------------------------------
@@ -630,6 +657,7 @@ export var spanTypes = {
   code_block: CodeBlockSpan,
 
   document_comment: DocumentCommentSpan,
+  badge: BadgeSpan,
   "default": ParserSpan
 }
 
