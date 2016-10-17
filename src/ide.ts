@@ -6,6 +6,8 @@ import {debounce, uuid, unpad, Range, Position, isRange, compareRanges, compareP
 import {Span, SpanMarker, isSpanMarker, isEditorControlled, spanTypes, compareSpans, SpanChange, isSpanChange, HeadingSpan, DocumentCommentSpan} from "./ide/spans";
 import * as Spans from "./ide/spans";
 
+import {sendEvent} from "./client";
+
 //---------------------------------------------------------
 // Navigator
 //---------------------------------------------------------
@@ -1858,9 +1860,12 @@ export class IDE {
   /** The id of the active document. */
   documentId?:string;
   /** Whether the active document has been loaded. */
-  loaded:boolean = false;
+  loaded = false;
   /** The current editor generation. Used for imposing a relative ordering on parses. */
   generation = 0;
+
+  /** Whether the inspector is currently active. */
+  inspecting = false;
 
   renderer:Renderer = new Renderer();
 
@@ -1969,6 +1974,35 @@ export class IDE {
       this.onTokenInfo(this, spans[0].source.id);
     }
   }
+
+  startInspecting() {
+    this.inspecting = true;
+    window.addEventListener("mouseover", this.updateInspector);
+    window.addEventListener("mousedown", this.updateInspector);
+  }
+  stopInspecting() {
+    this.inspecting = false;
+    window.removeEventListener("mouseover", this.updateInspector);
+    window.removeEventListener("mousedown", this.updateInspector);
+  }
+  updateInspector = debounce((event:MouseEvent) => {
+    let container = this.editor.cm.getWrapperElement();
+    let bounds = container.getBoundingClientRect();
+    if(event.pageX >= bounds.left && event.pageX <= bounds.right &&
+       event.pageY >= bounds.top && event.pageY <= bounds.bottom) {
+      let pos = this.editor.cm.coordsChar({left: event.pageX, top: event.pageY});
+      let spans = this.editor.findSpansAt(pos);
+      let events = [];
+      for(let span of spans) {
+        if(!span.isEditorControlled()) {
+          events.push({tag: ["inspector " + (event.buttons ? "click" : "mouseover")], token: span.source.id, type: span.source.type});
+        }
+      }
+      if(events.length) {
+        sendEvent(events);
+      }
+    }
+  }, 100);
 
   onChange?:(self:IDE) => void
   onEval?:(self:IDE, persist?: boolean) => void
