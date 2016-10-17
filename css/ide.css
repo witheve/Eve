@@ -17,10 +17,10 @@ body { background: #f5f5f5; color: #555; }
 \****************************************************************************/
 .editor-root { display: flex; flex-direction: row; height: 100%; align-items: stretch; background: #fff; }
 
-.navigator-pane { width: 220px; flex: 0 0 auto; overflow-x: hidden;  transition: width 0.3s ease-in-out; }
+.navigator-pane { width: 320px; flex: 0 0 auto; overflow-x: hidden;  transition: width 0.3s ease-in-out; margin-right:20px; }
 .navigator-pane.collapsed { width: 20px; }
-.navigator-pane .navigator-pane-inner { width: 220px; padding: 0 5px; margin-left: 0; transition: margin-left 0.3s ease-in-out; }
-.navigator-pane.collapsed .navigator-pane-inner { margin-left: -195px; }
+.navigator-pane .navigator-pane-inner { width: 320px; padding: 0 5px; margin-left: 0; transition: margin-left 0.3s ease-in-out; }
+.navigator-pane.collapsed .navigator-pane-inner { margin-left: -295px; }
 .navigator-pane.collapsed .tree-item { pointer-events: none; }
 
 .editor-pane { position: relative; flex: 1; }
@@ -40,10 +40,16 @@ body { background: #f5f5f5; color: #555; }
 .navigator-header > .controls > * { display: inline-block; width: 20px; opacity: 0.25; text-align: center; transition: opacity 0.15s transform 0.15s; }
 .navigator-header:hover > .controls > *:not(.disabled) { opacity: 1; }
 .navigator-header .collapse-btn { transform: rotate(180deg); }
-.navigator-header .label { white-space: pre; }
+.navigator-header .label { white-space: pre; display:none; }
 
 .tree-item { flex-direction: column; align-items: stretch; }
-.tree-item > .tree-items { display: flex; flex-direction: column; padding-left: 10px; clear: both; }
+.tree-item > .tree-items { display: flex; flex-direction: column; }
+
+.item-level-1 > div > .label { font-size:18pt; margin-bottom:25px; }
+.item-level-2 { margin-bottom:25px; margin-left:3px; }
+.item-level-2 > div > .label { font-weight: bold; margin-bottom:5px; }
+.item-level-3 { margin-top:3px; }
+.item-level-3 > div > .label { color:#888; }
 
 .tree-item .label { display: flex; flex: 1 1 auto; margin-left: 20px; user-select: none; -webkit-user-select: none; transition: opacity 0.15s; }
 .tree-item .label:before { display: inline-block; margin-left: -15px; margin-right: 5px; height: 15px; width: 15px; text-align: center; }
@@ -84,7 +90,7 @@ body { background: #f5f5f5; color: #555; }
 
 .CodeMirror .STRONG { font-weight:bold; }
 .CodeMirror .EMPH { font-style:italic; }
-.CodeMirror .CODE { margin-left: 10px; margin-right:50px; border-left:5px solid #efefef; background: #f9f9f9; font-family: "Inconsolata", "Monaco", "Consolas", "Ubuntu Mono", monospace;  }
+.CodeMirror .CODE { margin-left: 10px; margin-right:50px; border-left:5px solid #eaeaea; background: #f4f4f4; font-family: "Inconsolata", "Monaco", "Consolas", "Ubuntu Mono", monospace;  }
 .CodeMirror .CODE-TEXT { line-height:19px; padding-left:30px; }
 .CodeMirror span.CODE { color: #0076ce; background:none; margin:0; padding:0; border:none; }
 .CodeMirror .CodeMirror-line.ITEM { padding-left: 20px; }

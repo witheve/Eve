@@ -173,15 +173,18 @@ function notAllInputParsed(error, parseInfo) {
 
 export function unprovidedVariableGroup(block, variables) {
   let {id, start: blockStart} = block;
-  let token;
+  let found;
   for(let variable of variables) {
     if(!variable.generated) {
-      token = variable.from[0];
+      found = variable;
+      break;
     }
   }
-  let start = token.startOffset;
-  let stop = token.startOffset + token.image.length;
-  return new EveError(id, start, stop, messages.unprovidedVariable(token.image));
+  if(!found) {
+    found = variables[0];
+  }
+  let [start, stop] = parser.nodeToBoundaries(found, blockStart);
+  return new EveError(id, start, stop, messages.unprovidedVariable(found.name));
 }
 
 export function unimplementedExpression(block, expression) {
