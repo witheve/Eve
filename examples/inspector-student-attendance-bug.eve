@@ -1,0 +1,102 @@
+# Inspector Student Attendance Bug
+
+This example tests the inspector's ability to find a bad join somewhere up the chain.
+
+Create some students, teachers, syllabi, and schools.
+
+```
+commit
+  middlington = [#school name: "Middlington Jr. High"]
+
+  [#student name: "John" school: middlington class: 1 grade: 85 absences: 1]
+  [#student name: "Beth" school: middlington class: 1 grade: 78 absences: 4]
+  [#student name: "Jorge" school: middlington class: 2 grade: 92 absences: 1]
+  [#student name: "Rin" school: middlington class: 1 grade: 91 absences: 0]
+
+  user = [#teacher name: "George" school: middlington class: 1]
+  [#teacher name: "Alice" school: middlington class: 2]
+
+  [#syllabus name: "Intro to Introductory Courses" class: 1 | assignment: ("homework 1", "homework 2", "quiz 1", "finals")]
+  [#syllabus name: "Advanced Rocket Surgery" class: 2 | assignment: ("self study", "group project", "finals")]
+
+  [#app page: "grades" user]
+```
+
+## Events
+
+When a nav button is clicked, update the app's page
+
+```
+search @event
+  [#click #direct-target element]
+
+search @browser
+  element = [#button #nav app text: page]
+
+commit
+  app.page := page
+```
+
+## Drawing
+
+Draw the application root
+
+```
+search
+  app = [#app]
+
+bind @browser
+  content = [#div #content sort: 2]
+  app <- [#div children:
+    [#div style: [margin-bottom: 20] children:
+      [#button #nav app text: "grades"]
+      [#button #nav app text: "syllabus"]
+      [#button #nav app text: "attendance"]]
+    content]
+
+bind
+  app.content := content
+```
+
+When the page is "grades", show the student's grades for the current teacher
+
+```
+search
+  app = [#app page: "grades" user: teacher content]
+  student = [#student name school: teacher.school class: teacher.class grade]
+  ix = sort[value: name]
+
+bind @browser
+  content <- [children:
+    [#header sort: 0 text: "Grades for {{teacher.name}}'s class"]
+    [#div sort: ix text: "{{name}}'s grade is {{grade}}"]]
+
+```
+
+When the page is "syllabus", show the syllabus for the current teacher's class
+
+```
+search
+  app = [#app page: "syllabus" user: teacher content]
+  syllabus = [#syllabus class: teacher.class assignment]
+
+bind @browser
+  content <- [children:
+    [#header sort: 0 text: "Syllabus for {{syllabus.name}}"]
+    [#div text: assignment]]
+```
+
+When the page is "attendance", show each student's number of absences
+
+```
+search
+  app = [#app page: "attendance" user: teacher content]
+  teacher.school = [#school name]
+  student = [#student name school: teacher.school class: teacher.class grade]
+  ix = sort[value: name]
+
+bind @browser
+  content <- [children:
+    [#header sort: 0 text: "Attendance for {{name}}"]
+    [#div sort: ix text: "{{name}}'s grade is {{grade}}"]]
+```
