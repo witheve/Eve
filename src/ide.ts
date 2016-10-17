@@ -539,7 +539,7 @@ interface CMEditor extends CodeMirror.Editor {
 }
 export class Editor {
   defaults:CodeMirror.EditorConfiguration = {
-    scrollPastEnd: "true",
+    scrollPastEnd: true,
     scrollbarStyle: "simple",
     tabSize: 2,
     lineWrapping: true,
