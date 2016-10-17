@@ -11,11 +11,11 @@
 
 
 html, body, __root { height: 100%; }
-body { background: #f5f5f5; }
+body { background: #f5f5f5; color: #555; }
 /****************************************************************************\
  * Root
 \****************************************************************************/
-.editor-root { display: flex; flex-direction: row; height: 100%; align-items: stretch; background: #2f2f31; }
+.editor-root { display: flex; flex-direction: row; height: 100%; align-items: stretch; background: #fff; }
 
 .navigator-pane { width: 220px; flex: 0 0 auto; overflow-x: hidden;  transition: width 0.3s ease-in-out; }
 .navigator-pane.collapsed { width: 20px; }
@@ -62,26 +62,31 @@ body { background: #f5f5f5; }
 /****************************************************************************\
  * Editor
 \****************************************************************************/
-.editor-pane {  }
+.editor-pane { margin-left: 20px; }
 
 .CodeMirror-lines { padding-top:30px; }
 
 
 .CodeMirror { background:none; color: inherit; height:100%; font-size:11pt;  }
 .CodeMirror-scroll, .CodeMirror-gutters { height:100%; }
-.CodeMirror-cursor { background: white; border-color:white; }
+.CodeMirror-cursor { background: #555; border-color:#555; }
 
-.CodeMirror { color: #c4c4c4; line-height:25px; font-family: Avenir, "Helvetica Neue", sans-serif; }
+.CodeMirror { color: #555; line-height:25px; font-family: Avenir, "Helvetica Neue", sans-serif; }
 .CodeMirror pre { padding-left: 8px; padding-right:50px; }
 .CodeMirror-scroll { scroll-behavior: smooth; }
 .CodeMirror-gutters { background: #303030; border-right: none; padding-right: 5px; }
 .CodeMirror-selected { background: #444; }
-.CodeMirror-focused .CodeMirror-selected { background: #444; }
+.CodeMirror-focused .CodeMirror-selected { background: #eee; }
+
+.CodeMirror-simplescroll-vertical { width:14px; background: #fff; border-left:1px solid #ddd; border-right:1px solid #ddd; }
+.CodeMirror-simplescroll-vertical div { border:none; border-radius:0; background: #f4f4f4; border-top:1px solid #ddd; border-bottom:1px solid #ddd; }
+.CodeMirror .scrollbar-annotation { width: 8px !important; min-height:3px !important; height:3px !important; right: 3px !important; }
+
 .CodeMirror .STRONG { font-weight:bold; }
 .CodeMirror .EMPH { font-style:italic; }
-.CodeMirror .CODE { background: rgba(255,255,255,0.08); background: rgba(0,0,0,0.3); font-family: "Inconsolata", "Monaco", "Consolas", "Ubuntu Mono", monospace; margin-left: -5px; margin-right: -5px; }
-.CodeMirror .CODE-TEXT { line-height:19px; }
-.CodeMirror span.CODE { padding:2px 4px; border-radius:3px; }
+.CodeMirror .CODE { margin-left: 10px; margin-right:50px; border-left:5px solid #efefef; background: #f9f9f9; font-family: "Inconsolata", "Monaco", "Consolas", "Ubuntu Mono", monospace;  }
+.CodeMirror .CODE-TEXT { line-height:19px; padding-left:30px; }
+.CodeMirror span.CODE { color: #0076ce; background:none; margin:0; padding:0; border:none; }
 .CodeMirror .CodeMirror-line.ITEM { padding-left: 20px; }
 .CodeMirror .CodeMirror-line.ITEM.bullet:before { content: "-"; padding-right:10px; }
 .CodeMirror .CODE_BLOCK { font-family: "Inconsolata", "Monaco", "Consolas", "Ubuntu Mono", monospace; }
@@ -99,14 +104,14 @@ body { background: #f5f5f5; }
 
 /* Variables/Attributes */
 .CodeMirror .ALIAS { }
-.CodeMirror .TAG, .CodeMirror .TAG + .IDENTIFIER { color: #50edf6; color: #4bcbd3; }
-.CodeMirror .NAME, .CodeMirror .NAME + .IDENTIFIER { color: #50edf6; color: #4bcbd3; }
+.CodeMirror .TAG, .CodeMirror .TAG + .IDENTIFIER { color: #50edf6; color: #4bcbd3; color: #0076ce; }
+.CodeMirror .NAME, .CodeMirror .NAME + .IDENTIFIER { color: #50edf6; color: #4bcbd3; color: #0076ce; }
 /* Phases */
-.CodeMirror .ACTION, .SEARCH { color: gray; color: #63b6e7; }
+.CodeMirror .ACTION, .SEARCH { color: black; }
 /* Statements */
-.CodeMirror .IF, .ELSE, .THEN { color: gray; color: #63b6e7; }
+.CodeMirror .IF, .ELSE, .THEN { color: black; }
 /* Literals */
-.CodeMirror .STRING, .QUOTE, .BOOL, .NUM { color: #ff66ac; color: #acaaff; }
+.CodeMirror .STRING, .QUOTE, .BOOL, .NUM { color: #00a588; }
 /* Brackets */
 .CodeMirror .OPEN-BRACKET, .CodeMirror .CLOSE-BRACKET, .CodeMirror .OPEN-PAREN, .CodeMirror .CLOSE-PAREN { color: gray; }
 .CodeMirror .STRING-EMBED-OPEN, .CodeMirror .STRING-EMBED-CLOSE { color: gray; }
@@ -115,6 +120,12 @@ body { background: #f5f5f5; }
 .CodeMirror .EQUALITY, .CodeMirror .MERGE, .CodeMirror .SET, .CodeMirror .MUTATE { color: gray; }
 /* Infix Operators */
 .CodeMirror .INFIX, .CodeMirror .COMPARISON { color: gray; }
+
+/****************************************************************************\
+ * Elision
+\****************************************************************************/
+
+.elision { border-top:5px solid #ddd; }
 
 /****************************************************************************\
  * Format Bars
@@ -137,7 +148,7 @@ body { background: #f5f5f5; }
 /****************************************************************************\
  * Comments
 \****************************************************************************/
-.comments-pane { background: #2f2f31; }
+.comments-pane { background: #fff; }
 .comments-pane-inner { position: relative; min-width: 300px; max-width: 500px; height: 100%; }
 .comments-pane .comment { color: #d8d8d8; min-height: 40px; }
 
@@ -163,10 +174,12 @@ body { background: #f5f5f5; }
 .comments-pane .comment.warning { border-color: #C0C060; }
 
 .CodeMirror .document_comment { border-bottom: 1px dashed white; }
-.CodeMirror .document_comment.error { border-bottom-color: #F06060; }
+.CodeMirror .document_comment.error { border-bottom-color: #ff7e92; }
 .CodeMirror .document_comment.warning { border-bottom-color: #C0C060; }
 
 .CodeMirror .scrollbar-annotation { background: #AAA; min-height: 5px; opacity: 1; transition: opacity 0.15s; z-index: 2; }
 .CodeMirror .scrollbar-annotation:hover { opacity: 0.5; }
-.CodeMirror .scrollbar-annotation.error { background: #F06060; }
+.CodeMirror .scrollbar-annotation.error { background: #ff7e92; }
 .CodeMirror .scrollbar-annotation.warning { background: #C0C060; }
+
+.CodeMirror .COMMENT_error { border-color: #ff7e92; }

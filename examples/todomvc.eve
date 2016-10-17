@@ -20,28 +20,47 @@ We draw Todo MVC here. All styling is handled in a separate CSS file. The app co
 In this block, we do a little work to determine todo-count, all-checked, and none-checked. Other than that, this block simply lays out the major control elements of TodoMVC. A key aspect of this block is the `bind` keyword. This denotes the beginning of the action phase of the block, and tells Eve that to update records as data changes. This is the key component that enables Eve to react to user interaction and update the display.
 
 ```
-  search
-    [#app filter]
-    all-checked = if not([#todo completed: false]) then true
-                  else false
-    none-checked = if [#todo completed: true] then false
-                   else true
-    todo-count = if c = count[given: [#todo completed: false]] then c
-                 else 0
-  bind @browser
-    [#link rel: "stylesheet" href: "/examples/todomvc.css"] // Links to an external stylesheet
-    [#div class: "todoapp" children: [#header children: [#h1 text: "todos"]
-      [#input #new-todo, class: "new-todo", autofocus: true, placeholder: "What needs to be done?"]
-      [#input #toggle-all, class: "toggle-all", type: "checkbox", checked: all-checked]]
-    [#div class: "main" children:
-      [#ul #todo-list, class: "todo-list"]]
-    [#footer children:
-      [#span #todo-count, class: "todo-count", children: [#strong text: todo-count] [#span text: " items left"]]
-      [#ul #filters, class: "filters", children:
-        [#li children: [#a href: "#/all" class: [selected: is(filter = "all")] text: "all"]]
-        [#li children: [#a href: "#/active" class: [selected: is(filter = "active")] text: "active"]]
-        [#li children: [#a href: "#/completed" class: [selected: is(filter = "completed")] text: "completed"]]]
-      [#span #clear-completed, class: [clear-completed: true, hidden: none-checked], text: "Clear completed"]]]
+search
+  [#app filter]
+
+  all-checked = if not([#todo completed: false]) then true
+                else false
+
+  none-checked = if [#todo completed: true] then false
+                  else true
+
+  todo-count = if c = count[given: [#todo completed: false]] then c
+                else 0
+
+bind @browser
+	// Links to an external stylesheet
+  [#link rel: "stylesheet" href: "/examples/todomvc.css"]
+  [#div class: "todoapp" children:
+
+  	[#header children:
+    	[#h1 text: "todos"]
+    	[#input #new-todo, class: "new-todo", autofocus: true,
+      									 placeholder: "What needs to be done?"]
+    	[#input #toggle-all class: "toggle-all", type: "checkbox",
+      									  checked: all-checked]]
+
+  	[#div class: "main" children:
+    	[#ul #todo-list, class: "todo-list"]]
+
+  	[#footer children:
+    	[#span #todo-count, class: "todo-count", children:
+    		[#strong text: todo-count]
+      	[#span text: " items left"]]
+    	[#ul #filters, class: "filters", children:
+      	[#li children: [#a href: "#/all" text: "all"
+        									 class: [selected: is(filter = "all")]]]
+      	[#li children: [#a href: "#/active" text: "active"
+        									 class: [selected: is(filter = "active")]]]
+      	[#li children: [#a href: "#/completed" text: "completed"
+        									 class: [selected: is(filter = "completed")]]]]
+    		[#span #clear-completed text: "Clear completed"
+        												class: [clear-completed: true,
+                                				hidden: none-checked]]]]
 ```
 
 ### Drawing the Todo List
@@ -54,19 +73,30 @@ Now we look at how the todos are actually displayed in the application. We attac
 - a **button** for deleting the todo
 
 ```
-  search @session @browser
-    [#app filter]
-    parent = [#todo-list]
-    (todo, body, completed, editing) =
-      if filter = "completed" then ([#todo, body, completed: true, editing], body, true, editing)
-      else if filter = "active" then ([#todo, body, completed: false, editing], body, false, editing)
-      else if filter = "all" then ([#todo, body, completed, editing], body, completed, editing)
-  bind @browser
-    parent.children += [#li, class: [todo: true, completed, editing], todo, children:
-                       [#input #todo-checkbox, todo, class: [toggle: true, hidden: editing], type: "checkbox", checked: completed]
-                       [#label #todo-item, class: [hidden: editing], todo, text: body]
-                       [#input #todo-editor, class: [edit: true, hidden: toggle[value: editing]], todo, value: body, autofocus: true]
-                       [#button #remove-todo, class: [destroy: true, hidden: editing], todo]]
+search @session @browser
+  [#app filter]
+  parent = [#todo-list]
+
+  (todo, body, completed, editing) =
+    if filter = "completed"
+    	then ([#todo, body, completed: true, editing], body, true, editing)
+
+    else if filter = "active"
+    	then ([#todo, body, completed: false, editing], body, false, editing)
+
+    else if filter = "all"
+    	then ([#todo, body, completed, editing], body, completed, editing)
+
+bind @browser
+  parent.children +=
+  	[#li, class: [todo: true, completed, editing], todo, children:
+			[#input #todo-checkbox todo type: "checkbox" checked: completed
+      											 class: [toggle: true, hidden: editing]]
+			[#label #todo-item, class: [hidden: editing], todo, text: body]
+			[#input #todo-editor, todo, value: body, autofocus: true
+      											class: [edit: true,
+                            				hidden: toggle[value: editing]]]
+			[#button #remove-todo, class: [destroy: true, hidden: editing], todo]]
 ```
 
 Thanks to Eve's set semantics, we don't need any loops here; for every unique `#todo` in the database, Eve will do the work of adding another `#li` as a child of `#todo-list`.
@@ -78,13 +108,15 @@ Thanks to Eve's set semantics, we don't need any loops here; for every unique `#
 A user can interact with TodoMVC in several ways. First and foremost, the user can create new todos. When the `@new-todo` input box is focused and the user presses enter, the value of the input is captured and a new todo is created.
 
 ```
-  search @event @session @browser
-    element = [#new-todo value]
-    kd = [#keydown element, key: "enter"]
-  commit
-    [#todo body: value, editing: false, completed: false, kd]
-  commit @browser
-    element.value := ""
+search @event @session @browser
+  element = [#new-todo value]
+  kd = [#keydown element, key: "enter"]
+
+commit
+  [#todo body: value, editing: false, completed: false, kd]
+
+commit @browser
+  element.value := ""
 ```
 
 Of note here is the record `[#todo body: value, editing: false, completed: false, kd]`. The inclusion of the `kd` attribute might seem strange, but its purpose is to guarantee the uniqueness of the todo. Let’s say we want to add two todos with the same body. If `kd` were not an attribute, then the two todos would be exactly the same and Eve’s set semantics would collapse them into a single todo. Therefore, we need some way to distinguish todos with identical bodies. Adding `kd` allows for this.
@@ -100,16 +132,30 @@ Here we handle all the ways we edit a todo. Editing includes changing the body a
 - enter `#todo-editor` - commits the new text in `#todo-editor`, replacing the original body
 
 ```
-  search @event @session @browser
-    (todo, body, editing, completed) =
-      if [#click element: [#todo-checkbox todo]] then (todo, todo.body, todo.editing, toggle[value: todo.completed])
-      else if [#click element: [#toggle-all checked]] then ([#todo body], body, todo.editing, toggle[value: checked])
-      else if [#double-click element: [#todo-item todo]] then (todo, todo.body, true, todo.completed)
-      else if [#blur element: [#todo-editor todo value]] then (todo, value, false, todo.completed)
-      else if [#keydown element: [#todo-editor todo] key: "escape"] then (todo, todo.body, false, todo.completed)
-      else if [#keydown element: [#todo-editor todo value] key: "enter"] then (todo, value, false, todo.completed)
-  commit
-    todo <- [body, completed, editing]
+search @event @session @browser
+
+  (todo, body, editing, completed) =
+
+    if [#click element: [#todo-checkbox todo]]
+    	then (todo, todo.body, todo.editing, toggle[value: todo.completed])
+
+    else if [#click element: [#toggle-all checked]]
+    	then ([#todo body], body, todo.editing, toggle[value: checked])
+
+    else if [#double-click element: [#todo-item todo]]
+    	then (todo, todo.body, true, todo.completed)
+
+    else if [#blur element: [#todo-editor todo value]]
+    	then (todo, value, false, todo.completed)
+
+    else if [#keydown element: [#todo-editor todo] key: "escape"]
+    	then (todo, todo.body, false, todo.completed)
+
+    else if [#keydown element: [#todo-editor todo value] key: "enter"]
+    	then (todo, value, false, todo.completed)
+
+commit
+  todo <- [body, completed, editing]
 ```
 
 ### Deleting Todos
@@ -117,11 +163,16 @@ Here we handle all the ways we edit a todo. Editing includes changing the body a
 Deleting a todo from the list is accomplished by removing the `#todo` tag from the todo's record. Recall from the "Drawing the Todo List" section that we select todos by including `#todo` in the record. Therefore, if we remove that tag from the todo, then that todo will no longer appear in the list, although it will still persist in the database.
 
 ```
-  search @event @session @browser
-    todo = if [#click element: [#remove-todo todo]] then todo
-           else if [#click element: [#clear-completed]] then [#todo completed: true]
-  commit
-    todo := none
+search @event @session @browser
+  todo =
+  	if [#click element: [#remove-todo todo]]
+			then todo
+
+		else if [#click element: [#clear-completed]]
+			then [#todo completed: true]
+
+commit
+  todo := none
 ```
 
 ### Filtering Todos (Routing)
@@ -135,11 +186,12 @@ The TodoMVC specification requires filtering via the URL. This is actually how t
 We can extract this value using `#url`, which has a hash-segment attribute that automatically parses the URL for us, returning the `value` (expected to be any one of the above). Any other value will fail to show any todos, but the application will not break.
 
 ```
-  search @browser
-    value = if [#url hash-segment: [index: 1, value]] then value
-            else "all"
-  bind
-    [#app filter: value]
+search @browser
+  value = if [#url hash-segment: [index: 1, value]]
+  					then value
+          else "all"
+bind
+  [#app filter: value]
 ```
 
 [1]: http://todomvc.com/

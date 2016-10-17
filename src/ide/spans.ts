@@ -31,6 +31,16 @@ interface LineStyle { lineBackgroundClass?: string, lineTextClass?: string }
 
 function updateLineClasses(start:number, end:number, editor:Editor, {lineBackgroundClass, lineTextClass}:LineStyle) {
   let cm = editor.cm;
+  if(start === end) {
+    let line = start
+    let info = cm.lineInfo(line);
+    if(lineBackgroundClass && (!info || !info.bgClass || info.bgClass.indexOf(lineBackgroundClass) === -1)) {
+      cm.addLineClass(line, "background", lineBackgroundClass);
+    }
+    if(lineTextClass && (!info || !info.textClass || info.textClass.indexOf(lineTextClass) === -1)) {
+      cm.addLineClass(line, "text", lineTextClass);
+    }
+  }
   for(let line = start; line < end; line++) {
     let info = cm.lineInfo(line);
     if(lineBackgroundClass && (!info || !info.bgClass || info.bgClass.indexOf(lineBackgroundClass) === -1)) {
@@ -44,6 +54,11 @@ function updateLineClasses(start:number, end:number, editor:Editor, {lineBackgro
 
 function clearLineClasses(start:number, end:number, editor:Editor, {lineBackgroundClass, lineTextClass}:LineStyle) {
   let cm = editor.cm;
+  if(start === end) {
+    let line = start;
+    if(lineBackgroundClass) cm.removeLineClass(line, "background", lineBackgroundClass);
+    if(lineTextClass) cm.removeLineClass(line, "text", lineTextClass);
+  }
   for(let line = start; line < end; line++) {
     if(lineBackgroundClass) cm.removeLineClass(line, "background", lineBackgroundClass);
     if(lineTextClass) cm.removeLineClass(line, "text", lineTextClass);
@@ -534,14 +549,23 @@ interface DocumentCommentSpanSource extends SpanSource { kind: "string", message
 export class DocumentCommentSpan extends ParserSpan {
   source:DocumentCommentSpanSource;
 
+  lineBackgroundClass: string;
   annotation?: CodeMirror.AnnotateScrollbar.Annotation;
 
   apply(from:Position, to:Position, origin = "+input") {
+    this.lineBackgroundClass = "COMMENT_" + this.kind;
     this._attributes.className = this.type + " " + this.kind;
     super.apply(from, to, origin);
   }
 
   clear(origin:string = "+delete") {
+    if(!this.marker) return;
+
+    // If the line is still in the document, clear its classes.
+    let loc = this.find();
+    if(loc) {
+      clearLineClasses(loc.from.line, loc.to.line, this.editor, this);
+    }
     super.clear(origin);
     if(this.annotation) {
       this.annotation.clear();
@@ -550,10 +574,12 @@ export class DocumentCommentSpan extends ParserSpan {
   }
 
   refresh() {
+    let loc = this.find();
+    if(!loc) return this.clear();
+    updateLineClasses(loc.from.line, loc.to.line, this.editor, this);
     if(!this.annotation) {
       this.annotation = this.editor.cm.annotateScrollbar({className: `scrollbar-annotation ${this.kind}`});
     }
-    let loc = this.find();
     if(loc) {
       this.annotation.update([loc]);
     }
@@ -561,6 +587,47 @@ export class DocumentCommentSpan extends ParserSpan {
 
   get kind() { return this.source.kind || "error"; }
   get message() { return this.source.message; }
+
+  onBeforeChange(change:ChangeCancellable) {
+    let loc = this.find();
+    if(!loc) return;
+    let doc = this.editor.cm.getDoc();
+    let isEmpty = doc.getLine(loc.from.line) === "";
+
+    //If we're at the beginning of an empty block and delete we mean to remove the span.
+    if(samePosition(loc.from, change.to) && isEmpty && change.origin === "+delete") {
+      this.clear();
+      change.cancel();
+    }
+  }
+
+  onChange(change:Change) {
+    let loc = this.find();
+    if(!loc) return;
+
+    // Absorb local changes around a block.
+    let from = {line: loc.from.line, ch: 0};
+    let to = {line: loc.to.line, ch: 0};
+    if(loc.to.ch !== 0) {
+      to.line += 1;
+    }
+
+    // If new text has been inserted left of the block, absorb it
+    // If the block's end has been removed, re-align it to the beginning of the next line.
+    if(comparePositions(change.final, change.to) >= 0) {
+      from.line = Math.min(loc.from.line, change.from.line);
+      to.line = Math.max(loc.to.line, change.to.line);
+      if(to.line === change.to.line && change.to.ch !== 0) {
+        to.line += 1;
+      }
+    }
+
+
+    if(!samePosition(from, loc.from) || !samePosition(to, loc.to)) {
+      this.clear();
+      this.editor.markSpan(from, to, this.source);
+    }
+  }
 }
 
 //---------------------------------------------------------

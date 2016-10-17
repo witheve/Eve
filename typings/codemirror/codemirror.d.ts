@@ -833,6 +833,9 @@ declare namespace CodeMirror {
 
         /** Which scrollbar style to use. CodeMirror provides "native" and "null", with "native" being the default. Addons may add more styles. */
         scrollbarStyle?: string;
+
+        // whether you can scroll past the end of the document
+        scrollPastEnd?: boolean
     }
 
     interface TextMarkerOptions {
