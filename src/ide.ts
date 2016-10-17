@@ -980,6 +980,15 @@ export class Editor {
       if(comparePositions(to, end) < 0) {
         this.markSpan(to, end, source);
       }
+
+      for(let range of ranges) {
+        for(let span of this.findSpans(range.from, range.to)) {
+          span.enable();
+          if(span.refresh) span.refresh();
+
+        }
+      }
+      this.queueUpdate();
     });
   }
 

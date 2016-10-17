@@ -153,6 +153,8 @@ export class Span {
     this.marker.clear();
     this.marker = this.marker.span = undefined;
     this.editor.queueUpdate();
+
+    console.error("CLEARED", this);
   }
 
   find():Range|undefined {
@@ -170,12 +172,16 @@ export class Span {
   }
 
   disable() {
-    this.disabled = true;
-    if(this.refresh) this.refresh();
+    if(this.disabled = false) {
+      this.disabled = true;
+      if(this.refresh) this.refresh();
+    }
   }
   enable() {
-    this.disabled = false;
-    if(this.refresh) this.refresh();
+    if(this.disabled) {
+      this.disabled = false;
+      if(this.refresh) this.refresh();
+    }
   }
 
   sourceEquals(other:SpanSource) {
@@ -380,13 +386,6 @@ export class BlockSpan extends Span {
     let loc = this.find();
     if(loc) {
       clearLineClasses(loc.from.line, loc.to.line, this.editor, this);
-
-      // Nuke all parser spans that were in this range.
-      // Since the parser isn't stateful, it won't send us removals for them.
-      for(let span of this.editor.findSpans(loc.from, loc.to)) {
-        if(span.isEditorControlled()) continue;
-        span.clear();
-      }
     }
     super.clear(origin);
   }
@@ -548,6 +547,18 @@ class CodeBlockSpan extends BlockSpan {
     this.lineBackgroundClass = "CODE";
     this.lineTextClass = "CODE-TEXT";
     super.apply(from, to, origin);
+  }
+
+  clear(origin = "+delete") {
+    let loc = this.find();
+    super.clear(origin);
+
+    // Nuke all parser spans that were in this range.
+    // Since the parser isn't stateful, it won't send us removals for them.
+    for(let span of this.editor.findSpans(loc.from, loc.to)) {
+      if(span.isEditorControlled()) continue;
+      span.clear();
+    }
   }
 }
 
