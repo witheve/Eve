@@ -357,7 +357,7 @@ class Range extends Constraint {
     if(from <= to && increment < 0) {
       proposal.cardinality = 0;
       return proposal;
-    } else if(from >= to && increment > 0) {
+    } else if(from > to && increment > 0) {
       proposal.cardinality = 0;
       return proposal;
     }
