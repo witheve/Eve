@@ -595,8 +595,10 @@ function stratify(scans) {
       if(levelMax > scanLevel) {
         changed = true;
         blockLevel[scan.id] = levelMax;
-        for(let variable of returnVariables) {
-          maybeLevelVariable(scan, levelMax, variable);
+        if(returnVariables) {
+          for(let variable of returnVariables) {
+            maybeLevelVariable(scan, levelMax, variable);
+          }
         }
       }
     }
