@@ -25,6 +25,19 @@ export class BrowserEventDatabase extends Database {
   }
 }
 
+export class BrowserViewDatabase extends Database {
+  constructor() {
+    super();
+    if(global["examples"]["view.eve"]) {
+      let {results, errors} = parser.parseDoc(global["examples"]["view.eve"]);
+      if(errors && errors.length) console.error("View DB Errors", errors);
+      let {blocks, errors: buildErrors} = builder.buildDoc(results);
+      if(buildErrors && buildErrors.length) console.error("View DB Errors", errors);
+      this.blocks = blocks;
+    }
+  }
+}
+
 export class BrowserEditorDatabase extends Database {
   constructor() {
     super();
