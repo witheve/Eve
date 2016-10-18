@@ -2092,9 +2092,10 @@ export class IDE {
   }
   updateInspector = debounce((event:MouseEvent) => {
     let container = this.editor.cm.getWrapperElement();
-    let bounds = container.getBoundingClientRect();
-    if(event.pageX >= bounds.left && event.pageX <= bounds.right &&
-       event.pageY >= bounds.top && event.pageY <= bounds.bottom) {
+    let editor = container.getBoundingClientRect();
+    let app = document.querySelector(".application-container").getBoundingClientRect(); // @FIXME: Not particularly durable
+    if(event.pageX >= editor.left && event.pageX <= editor.right &&
+       event.pageY >= editor.top && event.pageY <= editor.bottom) {
       let pos = this.editor.cm.coordsChar({left: event.pageX, top: event.pageY});
       let spans = this.editor.findSpansAt(pos);
       let events = [];
@@ -2107,6 +2108,18 @@ export class IDE {
       if(events.length) {
         sendEvent(events);
       }
+    } else if(event.pageX >= app.left && event.pageX <= app.right &&
+              event.pageY >= app.top && event.pageY <= app.bottom) {
+      let target:any = event.target;
+      let events = [];
+      if(target.entity) {
+        console.log(target.entity);
+        events.push({tag: ["inspector", (event.buttons ? "click" : "mouseover")], entity: target.entity, type: "element"});
+      }
+      if(events.length) {
+        sendEvent(events);
+      }
+
     }
   }, 100);
 
