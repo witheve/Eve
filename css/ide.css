@@ -126,7 +126,7 @@ body { background: #f5f5f5; color: #555; }
  * Elision
 \****************************************************************************/
 
-.elision { border-top:5px solid #ddd; }
+.elision { border-top:2px solid #ddd; }
 
 /****************************************************************************\
  * Format Bars
@@ -150,10 +150,10 @@ body { background: #f5f5f5; color: #555; }
  * Comments
 \****************************************************************************/
 
-.comment-widget { padding: 1em 0; }
+.comment-widget { padding: 5px 0; }
 .code-comment-widget { padding-left: 30px; margin-top: 2px; margin-left: 15px; margin-right: 50px; }
 
-.comment-widget.error { background: rgba(244, 96, 96, 0.5); }
+.comment-widget.error { background: #ffced6; }
 
 .comment-widget .comment-inner { display: block; }
 .comment-inner { display: none; }
@@ -164,7 +164,7 @@ body { background: #f5f5f5; color: #555; }
 .comment-widget .quick-actions > .comment-action + .comment-action { margin-left: 1px; }
 .comment-widget .quick-actions > .comment-action:hover { background: #505050; }
 
-.comment.error { border-color: #F06060; }
+.comment.error { border-color: #F06060; color: #a7001a; }
 .comment.warning { border-color: #C0C060; }
 
 .CodeMirror .document_comment { border-bottom: 1px solid white; }
