@@ -112,3 +112,26 @@ search @editor
 bind @browser
   action <- [block]
 ```
+
+### Find Value
+
+`#find-value` will request the intermediate value(s) for the given set of `variable`(s) from the language service. By default, all intermediates for the variables will be returned. If `fixed` is specified, containing a set of `[variable value]` pairs, only values that exist in the same "row" as the fixed values will be returned. If multiple values are provided for a variable, the results for each will be logically unioned. Results will be returned in the format `[#value variable value row]`, where `variable` is one of the given `variable`s, `value` is the intermediate value of the variable, and `row` is the "row" the intermediate is from (for matching intermediates of different variables up). These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
+
+```
+search @editor
+  action = [#find-value variable]
+
+bind @browser
+  action <- [#editor #find-value variable]
+```
+
+Include the optional `fixed` attribute, if provided.
+
+```
+search @editor
+  action = [#find-value fixed]
+
+bind @browser
+  fixed <- [variable: fixed.variable value: fixed.value]
+  action <- [fixed]
+```
