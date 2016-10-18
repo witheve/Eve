@@ -90,38 +90,86 @@ commit @editor
   [#inspect]
 ```
 
-Mock up the sources for the fruit divs
+Store id mappings for mocks.
+
+```
+search
+  block = "editor|block|18"
+
+commit @mock
+  [#block #draw-fruits block]
+
+  [#variable name: "fruit" block token:
+    ("editor|block|18|token|1", "editor|block|18|token|15")]
+
+  [#variable name: "color" block token:
+    ("editor|block|18|token|6", "editor|block|18|token|25")]
+
+  [#variable name: "name" block token:
+    ("editor|block|18|token|7", "editor|block|18|token|18", "editor|block|18|token|21")]
+```
+
+Mock sources and relateds for all the fruit divs.
+
+```
+search @browser
+  target = [#div fruit]
+
+search @mock
+  [#block #draw-fruits block]
+  [#variable block token]
+
+commit @mock
+  [#source target source: block type: "code_block"]
+  [#related target type: "identifier" block | token]
+```
+
+Respond to `#find-source` with mocked sources.
 
 ```
 search @editor
   [#find-source target]
 
-search @browser
-  target = [#div fruit]
+search @mock
+  s = [#source target source type]
 
 bind @editor
-  [#source target source: "editor|block|18" type: "code_block"]
+  s <- [#source target source type]
 ```
 
-Mock up the related tokens for the fruit divs
+Respont to `#find-related` with mocked relateds.
 
 ```
 search @editor
   [#find-related target block]
 
-search @browser
-  target = [#div fruit]
+search @mock
+  r = [#related target block type token]
 
 bind @editor
-  // fruit
-  [#related target block type: "identifier" token:
-    ("editor|block|18|token|1", "editor|block|18|token|15")]
+  r <- [#related target block type token]
+```
 
-  // color
-  [#related target block type: "identifier" token:
-    ("editor|block|18|token|6", "editor|block|18|token|25")]
+Mock up intermediate values for the fruit divs.
+@NOTE: We're mocking up the behavior of fixed `[variable: <fruit>, value: <inspector.target>]` here, we're just pretending that's being provided through magic.
 
-  // name
-  [#related target block type: "identifier" token:
-    ("editor|block|18|token|7", "editor|block|18|token|18", "editor|block|18|token|21")]
+```
+search @editor
+  [#find-value variable]
+
+search @mock
+  [#variable name token: variable]
+
+search @inspector
+  [#inspector target]
+
+search @browser
+  lookup[record: target attribute: "fruit" value: fruit]
+
+search
+  value = if name = "fruit" then fruit
+          else if lookup[record: fruit attribute: name value] then value
+
+bind @editor
+  [#value variable value row: 1]
 ```
