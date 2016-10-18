@@ -202,7 +202,7 @@ body { background: #f5f5f5; color: #555; }
 /****************************************************************************\
  * Inspector
 \****************************************************************************/
-.CodeMirror .shadow { opacity: 0.6; }
+.CodeMirror .shadow { color: #999 !important; }
 .CodeMirror .highlight { border-bottom: 1px solid rgba(255, 255, 255, 0.5); }
-.CodeMirror .badge {  }
-.CodeMirror .badge-widget { display: inline-block; margin-left: 4px; font-size: 10pt; background: rgba(50, 50, 100,  0.1); border-radius: 4px; padding: 0 4px; }
+.CodeMirror .badge { border:none; }
+.CodeMirror .badge-widget { display: inline-block; margin:0 4px; font-size: 10pt; color: #03a689; background: #c9e4e0; border-radius: 2px; padding: 0 4px; padding-top:1px; }
