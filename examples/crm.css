@@ -1,0 +1,97 @@
+.container {
+  width: 400px;
+  height: 711px;
+  background: white;
+  font-family: sans-serif;
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+}
+
+.avatar {
+  width: 128;
+  height: 128;
+}
+
+.banner {
+  background: linear-gradient(-90deg, rgb(74,64,136), rgb(0,158,224));
+  width: 100%;
+  height: 150px;
+}
+
+.avatar-container {
+  border-radius: 6px;
+  width: 128px;
+  height: 128px;
+  overflow: hidden;
+  border: 5px solid white;
+  margin: auto;
+  margin-top: -60px;
+}
+
+.name2 {
+  width: 100%;
+  text-align: center;  
+  color: rgb(11,11,37);
+  font-family: sans-serif;
+  font-size: 20px;
+  font-weight: bold;
+  margin-top: 10px;
+}
+
+.info {
+  width: 100%;
+  text-align: center;  
+  color: rgb(147,167,178);
+  font-family: sans-serif;
+  font-size: 14px;
+  margin-top: 5px;
+}
+
+.navigation {
+  display: flex;
+  border-top: 1px solid rgb(240,240,240);
+  border-bottom: 1px solid rgb(240,240,240);
+  color: rgb(118, 148, 163);
+  margin-top: 20px;
+}
+
+.nav-button {
+  flex-grow: 1;
+  text-align: center;
+  height: 57;
+  cursor: pointer;
+}
+
+.icon {
+  font-size: 24px;
+  padding: 3px;
+  height: 40px;
+}
+
+.middle {
+  border-left: 1px solid rgb(240,240,240);
+  border-right: 1px solid rgb(240,240,240);
+}
+
+.bubble {
+  color: white;
+  background-color: rgb(226, 79, 94);
+  width: 30px;
+  height: 30px;
+  margin: auto;
+  border-radius: 50%;
+  font-weight: bold;
+}
+
+.content {
+  margin-top: 10px;
+  padding: 10px;
+  border-top: 1px solid rgb(240,240,240);
+  flex-grow: 1;
+}
+
+.convo {
+  background-color: #FAFAFA;
+  margin-bottom: 10px;
+}

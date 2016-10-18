@@ -1,0 +1,212 @@
+# Generic Mobile Application
+
+Initialize some default values
+
+```
+commit
+  [#app page: "about"]
+```
+
+Set the app user
+
+```
+search
+  app = [#app] 
+  user = [#user name: "Corey Montella"]
+  //user = [#user name: "Eric Hoffman"]
+  
+commit
+  app.user := user
+```
+
+Set get the conversations
+
+```
+search
+  app = [#app user]
+  convos = [#conversation users: user messages]
+
+bind
+  app.conversations := convos
+```
+
+## Events
+
+### Navigation
+
+```
+search @event @browser @session
+  [#click element]
+  page = if element = [#about] then "about"
+         else if element = [#chats] then "chats"
+         else if element = [#more] then "more"
+  app = [#app]
+
+commit
+  app.page := page
+```
+
+### About Page
+
+```
+search @browser @session
+  content = [#content]
+  [#app page: "about" user]
+
+bind @browser
+  content.children += [#div class: "about" children: 
+    [#div text: "Phone: {{user.phone}}"]
+    [#div text: "E-mail: {{user.email}}"]
+  ]
+```
+
+### Messages Page
+
+```
+search @browser @session
+  content = [#content]
+  app = [#app page: "chats" conversations: convos]
+  msgs = convos.messages
+
+bind @browser
+  content.children += [#div class: "convo" convos children:
+    [#div text: "{{msgs.sender.name}}: {{msgs.text}}"]] 
+```
+
+### More Page
+
+```
+search @browser @session
+  content = [#content]
+  [#app page: "more"]
+
+bind @browser
+  content.children += [#div text: "More"]
+```
+
+### Main App
+
+```
+search
+  app = [#app user]
+  [#time hours minutes ampm]
+  // Pad single digit minutes with a leading 0 for display
+  q = if minutes > 10 then minutes
+      else "0{{minutes}}"
+  convos = if app.conversations then count[given: app.conversations]
+           else 0
+
+bind @browser
+  [#link rel: "stylesheet" href: "/examples/crm.css"]
+  [#div #container class: "container" children:
+    [#div class: "banner"]
+    [#div class: "bio-info" children: 
+      [#div class: "avatar-container" children: 
+        [#img class: "avatar", src: user.avatarURL]]
+      [#div class: "name2" text: "{{user.name}}"]
+      [#div class: "info" text: "{{user.title}}"]
+      [#div class: "info" text: "{{hours}}:{{q}}{{ampm}}, {{user.location}}"]
+      [#div class: "info" text: "Active minutes ago"]]
+    [#div #content class: "content"]
+    [#div class: "navigation" children:
+      [#div #about class: "nav-button", children:
+        [#div class: "icon" text: "💁"]
+        [#div class: "label" text: "ABOUT"]]
+      [#div #chats class: "nav-button middle", children:
+        [#div class: "icon" children: [#div class: "bubble" text: convos]]
+        [#div class: "label" text: "MESSAGES"]]
+      [#div #more class: "nav-button" children:
+        [#div class: "icon" text: "⋯"]
+        [#div class: "label" text: "MORE"]]]]
+```
+
+## Test Data
+
+### users
+
+```
+commit
+  [#user
+   name: "Corey Montella"
+   title: "Software Engineer"
+   avatarURL: "https://avatars2.githubusercontent.com/u/10619266?v=3&s=466" 
+   location: "San Francisco, CA"
+   email: "corey@kodowa.com"
+   phone: "555-555-5555"
+   tags: [name: "VIP"][name: "Tech Contact"]]
+
+  [#user
+   name: "Chris Granger"
+   title: "CEO"
+   avatarURL: "https://avatars3.githubusercontent.com/u/70036?v=3&s=466" 
+   location: "San Francisco, CA"
+   email: "chris@kodowa.com"
+   phone: "555-555-5556"]
+
+  [#user
+   name: "Josh Cole"
+   title: "Software Engineer"
+   avatarURL: "https://avatars2.githubusercontent.com/u/313870?v=3&s=466" 
+   location: "San Francisco, CA"
+   email: "josh@kodowa.com"
+   phone: "555-555-5557"]
+
+  [#user
+   name: "Rob Attorri"
+   title: "President"
+   avatarURL: "https://avatars1.githubusercontent.com/u/1314445?v=3&s=466" 
+   location: "San Francisco, CA"
+   email: "rob@kodowa.com"
+   phone: "555-555-5558"]
+
+  [#user
+   name: "Eric Hoffman"
+   title: "Software Engineer"
+   avatarURL: "https://avatars3.githubusercontent.com/u/1807982?v=3&s=466" 
+   location: "San Francisco, CA"
+   email: "eric@kodowa.com"
+   phone: "555-555-5559"]          
+```
+
+### conversations
+
+```
+search
+  corey = [#user name: "Corey Montella"]
+  chris = [#user name: "Chris Granger"]
+  josh = [#user name: "Josh Cole"]
+  rob = [#user name: "Rob Attorri"]
+  eric = [#user name: "Eric Hoffman"]
+
+commit
+  [#conversation users: (corey, chris) messages:
+    [#message sender: corey text: "Hey"]
+    [#message sender: chris text: "Hey, how are you."]
+    [#message sender: corey text: "I'm fine, how are you?"]
+    [#message sender: chris text: "Fine as well."]
+    [#message sender: corey text: "Glad we got that out of the way!"]]
+
+  [#conversation users: (corey, josh) messages:
+    [#message sender: josh text: "Hey"]
+    [#message sender: corey text: "What's up Josh?"]
+    [#message sender: josh text: "I need to tell you something...."]
+    [#message sender: corey text: "Uh oh..."]
+    [#message sender: corey text: "Well what is it? Don't leave me hanging!"]]
+
+  [#conversation users: (corey, rob) messages:
+    [#message sender: corey text: "Did Josh tell you what happened?"]
+    [#message sender: rob text: "Yeah, don't worry, we took care of it. "]
+    [#message sender: corey text: "Well what happened?"]
+    [#message sender: rob text: "Like I said, don't worry about it."]
+    [#message sender: corey text: "..."]
+    [#message sender: rob text: "🕴"]]    
+```
+
+### tags
+
+```
+commit
+  [#tag name: "VIP", color: "#DF65F8"]
+  [#tag name: "Tech Contact", color: "#30D3AD"]
+  [#tag name: "MVP", color: "#FF0000"]
+```

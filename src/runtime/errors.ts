@@ -187,6 +187,16 @@ export function unprovidedVariableGroup(block, variables) {
   return new EveError(id, start, stop, messages.unprovidedVariable(found.name));
 }
 
+export function invalidLookupAction(block, action) {
+  let {id, start: blockStart} = block;
+  let [start, stop] = parser.nodeToBoundaries(action, blockStart);
+  let missing = [];
+  if(action.entity === undefined) missing.push("record");
+  if(action.attribute === undefined) missing.push("attribute");
+  if(action.value === undefined) missing.push("value");
+  return new EveError(id, start, stop, messages.invalidLookupAction(missing));
+}
+
 export function unimplementedExpression(block, expression) {
   let {id, start: blockStart} = block;
   let [start, stop] = parser.nodeToBoundaries(expression, blockStart);
@@ -235,6 +245,8 @@ export var messages = {
   unprovidedVariable: (varName) => `Nothing is providing a value for ${varName}`,
 
   unimplementedExpression: (op) => `There's no definition for the function ${op}`,
+
+  invalidLookupAction: (missing) => `Updating a lookup requires that record, attribute, and value all be provided. Looks like ${missing.join("and")} is missing.`,
 
   neverEqual: (left, right) => `${left} can never equal ${right}`,
   variableNeverEqual: (variable, value, right) => `${variable.name} is equivalent to ${value}, which can't be equal to ${right}`,
