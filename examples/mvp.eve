@@ -137,7 +137,7 @@ bind @editor
   s <- [#source target source type]
 ```
 
-Respont to `#find-related` with mocked relateds.
+Respond to `#find-related` with mocked relateds.
 
 ```
 search @editor
@@ -164,7 +164,7 @@ search @inspector
   [#inspector target]
 
 search @browser
-  lookup[record: target attribute: "fruit" value: fruit]
+  target = [#div fruit]
 
 search
   value = if name = "fruit" then fruit
@@ -172,4 +172,25 @@ search
 
 bind @editor
   [#value variable value row: 1]
+```
+Mock up cardinalities for the fruit divs.
+
+```
+search @editor
+  [#find-cardinality token]
+
+search @mock
+  [#variable block name token]
+
+search @browser
+  target = [#div fruit]
+
+search
+  value = if name = "fruit" then fruit
+          else if lookup[record: fruit attribute: name value] then value
+
+  cardinality = count[given: value per: token]
+
+bind @editor
+  [#cardinality token cardinality]
 ```

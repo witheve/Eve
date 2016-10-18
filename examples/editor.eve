@@ -79,6 +79,16 @@ bind @browser
   action <- [message]
 ```
 
+Copy optional `kind` attribute over if provided.
+
+```
+search @editor
+  action = [#mark-span kind]
+
+bind @browser
+  action <- [kind]
+```
+
 ### Find Source
 
 `#find-source` will request the originating `source` token(s) for a given set of `target` (token(s) or element(s)) from the language service. Results will be returned in the format `[#source target source type]`, where `target` is the same as provided, `source` is one of it's creating token(s), and `type` is the type of the `source` token. These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
@@ -134,4 +144,16 @@ search @editor
 bind @browser
   fixed <- [variable: fixed.variable value: fixed.value]
   action <- [fixed]
+```
+
+### Find Cardinality
+
+`#find-cardinality` will request the cardinalities for the given set of `token`(s) from the language service. If these tokens are not blocks, their parent blocks will be found and used instead. The cardinality is the number of unique values that could satisfy that variable. Results will be returned in the format `[#cardinality token cardinality]` where `token` is as given and cardinality is the count of satisfying values available. These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
+
+```
+search @editor
+  action = [#find-cardinality token]
+
+bind @browser
+  action <- [#editor #find-cardinality token]
 ```
