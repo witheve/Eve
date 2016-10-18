@@ -268,6 +268,12 @@ function buildScans(block, context, scanLikes, outputScans) {
       let branches = [];
       let blockVars = block.variables;
       let hasAggregate = false;
+      for(let variable of scanLike.outputs) {
+        let value = context.getValue(variable);
+        if(join.isVariable(value)) {
+          seen[value.id] = true;
+        }
+      }
       for(let branch of scanLike.branches) {
         let branchContext = context.extendTo(branch.block);
         // if we have an equality that is with a constant, then we need to add
@@ -277,12 +283,6 @@ function buildScans(block, context, scanLikes, outputScans) {
           if(left.type === "constant" || right.type === "constant" || (context.hasVariable(left) && context.hasVariable(right))) {
             let expression = {type: "expression", op: "=", args: equality};
             branch.block.expressions.push(expression)
-          }
-        }
-        for(let variable of branch.outputs) {
-          let value = branchContext.getValue(variable);
-          if(join.isVariable(value)) {
-            seen[value.id] = true;
           }
         }
         for(let variableName in branch.block.variables) {

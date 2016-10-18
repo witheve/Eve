@@ -17,7 +17,7 @@ body { background: #f5f5f5; color: #555; }
 \****************************************************************************/
 .editor-root { display: flex; flex-direction: row; height: 100%; align-items: stretch; background: #fff; }
 
-.navigator-pane { width: 320px; flex: 0 0 auto; overflow-x: hidden;  transition: width 0.3s ease-in-out; margin-right:20px; }
+.navigator-pane { width: 320px; flex: 0 0 auto; overflow-x: hidden; background:#555; color:#ccc; transition: width 0.3s ease-in-out; margin-right:20px; }
 .navigator-pane.collapsed { width: 20px; }
 .navigator-pane .navigator-pane-inner { width: 320px; padding: 0 5px; margin-left: 0; transition: margin-left 0.3s ease-in-out; }
 .navigator-pane.collapsed .navigator-pane-inner { margin-left: -295px; }
@@ -179,7 +179,7 @@ body { background: #f5f5f5; color: #555; }
 .comments-pane .comment.error { border-color: #F06060; }
 .comments-pane .comment.warning { border-color: #C0C060; }
 
-.CodeMirror .document_comment { border-bottom: 1px dashed white; }
+.CodeMirror .document_comment { border-bottom: 1px solid white; }
 .CodeMirror .document_comment.error { border-bottom-color: #ff7e92; }
 .CodeMirror .document_comment.warning { border-bottom-color: #C0C060; }
 
