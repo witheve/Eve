@@ -1,0 +1,65 @@
+# Editor Bootstrap
+
+This DB allows Eve programs to interact directly with the editor.
+
+## Actions
+
+Actions allow remotely controlling the editor.
+
+### Inspect
+
+`#inspect` will enable inspector interactions in the editor. While this is on, additional mouse and cursor events will be attached to the editor to forward the user's current tokens / elements of interest to the `@inspector` DB. When the action is removed, inspector mode will be disabled.
+
+```
+search @editor
+  action = [#inspect]
+
+bind @browser
+  action <- [#editor #inspect]
+```
+
+### Jump To
+
+`#jump-to` will scroll the editor viewport to bring the given `token` into view. If multiple `token`s are specified, only the first will be scrolled to.
+
+```
+search @editor
+  action = [#jump-to token]
+
+bind @browser
+  action <- [#editor #jump-to token]
+```
+
+### Mark Between
+
+`#mark-between` will create new spans *between* the given `token`s of the specified `type`. If `within` (another token id) is specified, it will constrain itself within that token. Otherwise it will go to the beginnning and end of the document. When the action is removed, the associated spans will be removed from the editor.
+
+```
+search @editor
+  action = [#mark-between type token]
+
+bind @browser
+  action <- [#editor #mark-between type token]
+```
+
+Include the optional within attribute, if specified.
+
+```
+search @editor
+  action = [#mark-between within]
+
+bind @browser
+  action <- [within]
+```
+
+### Mark Span
+
+`#mark-span` will create a new span on the same range as the given `token`s of the specified `type`. When the action is removed, the associated spans will be removed from the editor.
+
+```
+search @editor
+  action = [#mark-span type token]
+
+bind @browser
+  action <- [#editor #mark-span type token]
+```
