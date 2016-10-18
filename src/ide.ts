@@ -2037,7 +2037,7 @@ export class IDE {
       for(let span of spans) {
         console.log(span.source.id);
         if(!span.isEditorControlled()) {
-          events.push({tag: ["inspector", (event.buttons ? "click" : "mouseover")], token: span.source.id, type: span.source.type});
+          events.push({tag: ["inspector", (event.buttons ? "click" : "mouseover")], target: span.source.id, type: span.source.type, alt: event.altKey});
         }
       }
       if(events.length) {
@@ -2049,7 +2049,7 @@ export class IDE {
       let events = [];
       if(target.entity) {
         console.log(target.entity);
-        events.push({tag: ["inspector", (event.buttons ? "click" : "mouseover")], entity: target.entity, type: "element"});
+        events.push({tag: ["inspector", (event.buttons ? "click" : "mouseover")], target: target.entity, type: "element", alt: event.altKey});
       }
       if(events.length) {
         sendEvent(events);
