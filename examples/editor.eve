@@ -69,7 +69,7 @@ bind @browser
 
 ### Find Source
 
-`#find-source` will request the originating `source` token(s) for a given set of `target` (token(s) or element(s)) from the language service. Results will be returned in the format `[#source target source type]`, where `target` is the same as provided, `source` is one of it's creating token(s), and `type` is the type of the `source` token. These sources will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
+`#find-source` will request the originating `source` token(s) for a given set of `target` (token(s) or element(s)) from the language service. Results will be returned in the format `[#source target source type]`, where `target` is the same as provided, `source` is one of it's creating token(s), and `type` is the type of the `source` token. These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
 
 ```
 search @editor
@@ -77,4 +77,26 @@ search @editor
 
 bind @browser
   action <- [#editor #find-source target]
+```
+
+### Find Related
+
+`#find-related` will request all token(s) related to the `target` (token(s) or element(s)) from the language service. Related tokens are tokens which are directly joined to or unified with the target. if `block` is specified, the search will be restricted to tokens in the given `block`(s). Results will be returned in the format `[#related target token block type]`, where `target` and `block` are the same as provided, `token` is the related token, and `type` is the type of `token`. These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
+
+```
+search @editor
+  action = [#find-related target]
+
+bind @browser
+  action <- [#editor #find-related target]
+```
+
+Include the optional `block` attribute, if included.
+
+```
+search @editor
+  action = [#find-related block]
+
+bind @browser
+  action <- [block]
 ```
