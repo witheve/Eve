@@ -465,6 +465,11 @@ function buildActions(block, context, actions, scans) {
         actionObjects.push(final);
         action.buildId = final.id;
       } else {
+        if(entity === undefined || value === undefined || attribute === undefined) {
+          context.errors.push(errors.invalidLookupAction(block, action));
+          continue;
+        }
+        attribute = typeof attribute === "string" ? attribute : context.getValue(attribute);
         if(value.type === "parenthesis") {
           for(let item of value.items) {
             let final = new impl(context.getValue(entity), attribute, context.getValue(item), undefined, action.scopes);
