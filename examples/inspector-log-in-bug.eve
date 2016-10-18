@@ -220,10 +220,10 @@ Attach fake sources to known elements
 
 ```
 commit @mock
-  [#source entity: "88|9" block: "editor|block|9"]
-  [#source entity: "95|9" block: "editor|block|9"]
-  [#source entity: "77|9" block: "editor|block|8"]
-  [#source entity: "103" block: "editor|block|11"]
+  [#source entity: "88|52|9|58|68|9" block: "editor|block|9"]
+  [#source entity: "95|52|9|58|68|9" block: "editor|block|9"]
+  [#source entity: "77|52|9|58|68|9" block: "editor|block|8"]
+  [#source entity: "103|63|9|68" block: "editor|block|11"]
 
   [#source entity: "editor|block|8|token|13" block: ("editor|block|4", "editor|block|5")]
   [#source entity: "editor|block|9|token|15" block: ("editor|block|4", "editor|block|5")]
