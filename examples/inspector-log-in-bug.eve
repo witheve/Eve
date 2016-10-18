@@ -257,7 +257,7 @@ commit @inspector
   inspector = [#inspector pane: "inspect" target: element]
 
 commit @browser
-  [#editor #start-inspecting inspector element]
+  [#editor #inspect inspector element]
 ```
 
 There can only be one inspector panel at a time
@@ -272,9 +272,9 @@ search @inspector
 commit @inspector
   inspector := none
 
-commit @browser
+// bind @browser
   // Also nuke any weird state we don't want to leave the editor hanging in.
-  [#editor #clear-spans type: "elision_transient"]
+  // [#editor #clear-spans type: "elision_transient"]
 ```
 
 When a variable is clicked, find its block and navigate to it
@@ -320,8 +320,8 @@ search @inspector
 search @mock
   [#source entity: target block]
 
-commit @browser
-  [#editor #mark-between inspector type: "elision_transient" | token: block]
+bind @browser
+  [#editor #mark-between inspector type: "elision_transient" target | token: block]
 ```
 
 When the sources pane is open, shadow any irrelevant code
@@ -333,9 +333,9 @@ search @inspector
 search @mock
   [#related entity: target block token]
 
-commit @browser
-  [#editor #mark-between inspector type: "shadow" | within: block token]
-  [#editor #mark-span inspector type: "highlight" | token]
+bind @browser
+  [#editor #mark-between inspector type: "shadow" target | within: block token]
+  [#editor #mark-span inspector type: "highlight" target | token]
 ```
 
 When the sources pane is open, badge related intermediates
@@ -348,8 +348,8 @@ search @mock
   [#related entity: target block token]
   [#value token value]
 
-commit @browser
-  [#editor #mark-span inspector type: "badge" kind: "intermediate" message: value | token]
+bind @browser
+  [#editor #mark-span inspector type: "badge" kind: "intermediate" target message: value | token]
 ```
 
 ## Piping

@@ -229,6 +229,14 @@ function printDebugRecords(index, dirty) {
 indexes.dirty.subscribe(printDebugRecords);
 
 function passEditorRecordsToIDE(index, dirty) {
+  let dirtyEditorRecords = indexes.byTag.dirty["editor"] || [];
+  for(let recordId of dirtyEditorRecords) {
+    let record = indexes.records.index[recordId];
+    if(!record || !record.tag || record.tag.indexOf("editor") === -1) {
+      _ide.executeRecord(recordId);
+    }
+  }
+
   for(let recordId in dirty) {
     let record = indexes.records.index[recordId];
     if(record.tag && record.tag.indexOf("editor") !== -1) {

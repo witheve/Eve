@@ -936,9 +936,9 @@ export class Editor {
   }
 
   /** Create new Spans wrapping the text between each given span id or range. */
-  markBetween(idsOrRanges:(string[]|Range[]), source:any, bounds?:Range) {
-    this.cm.operation(() => {
-      if(!idsOrRanges.length) return;
+  markBetween(idsOrRanges:(string[]|Range[]), source:any, bounds?:Range): Span[] {
+    return this.cm.operation(() => {
+      if(!idsOrRanges.length) return [];
       let ranges:Range[];
 
       if(typeof idsOrRanges[0] === "string") {
@@ -969,11 +969,13 @@ export class Editor {
       let doc = this.cm.getDoc();
       ranges.sort(compareRanges);
 
+      let createdSpans:Span[] = [];
+
       let start = bounds && bounds.from || {line: 0, ch: 0};
       for(let range of ranges) {
         let from = doc.posFromIndex(doc.indexFromPos(range.from) - 1);
         if(comparePositions(start, from) < 0) {
-          this.markSpan(start, from, source);
+          createdSpans.push(this.markSpan(start, from, source));
         }
 
         start = doc.posFromIndex(doc.indexFromPos(range.to) + 1);
@@ -983,7 +985,7 @@ export class Editor {
       let to = doc.posFromIndex(doc.indexFromPos(last.to) + 1);
       let end = bounds && bounds.to || doc.posFromIndex(doc.getValue().length);
       if(comparePositions(to, end) < 0) {
-        this.markSpan(to, end, source);
+        createdSpans.push(this.markSpan(to, end, source));
       }
 
       for(let range of ranges) {
@@ -994,6 +996,7 @@ export class Editor {
         }
       }
       this.queueUpdate();
+      return createdSpans;
     });
   }
 
@@ -1974,54 +1977,97 @@ export class IDE {
     if(this.onEval) this.onEval(this, persist);
   }
 
-  executeRecord(recordId:string, record:any) {
-    console.log("Exec", recordId, record.tag, record);
+  activeExecs:{[recordId:string]: any} = {};
 
-    let bounds:Range|undefined;
-    if(record.within) {
-      let span = this.editor.getSpanBySourceId(record.within[0]);
-      if(span) bounds = span.find();
-    }
+  execute = {
+    "mark-between": (exec) => {
+      let source = {type: exec.type[0]};
+      for(let attribute in exec) {
+        if(exec[attribute] === undefined) continue;
+        source[attribute] = exec[attribute].length === 1 ? exec[attribute][0] : exec[attribute];
+      }
+      exec.spans = this.editor.markBetween(exec.token, source, exec.bounds);
+    },
 
-    if(record.tag.indexOf("mark-between") !== -1) {
-      this.editor.clearSpans(record.type[0], bounds);
-      this.editor.markBetween(record.token, {type: record.type[0]}, bounds);
+    "mark-span": (exec) => {
+      exec.spans = [];
 
-    } else if(record.tag.indexOf("mark-span") !== -1) {
       let ranges:Range[] = [];
-      if(record.token) {
-        for(let token of record.token) {
+      if(exec.token) {
+        for(let token of exec.token) {
           let span = this.editor.getSpanBySourceId(token);
           let range = span && span.find();
           if(range) ranges.push(range);
         }
       }
 
-      if(ranges) {
-        let source = {type: record.type[0]};
-        for(let attribute in record) {
-          source[attribute] = record[attribute].length === 1 ? record[attribute][0] : record[attribute];
-        }
-        for(let range of ranges) {
-          this.editor.markSpan(range.from, range.to, source);
-        }
+      let source = {type: exec.type[0]};
+      for(let attribute in exec) {
+        if(exec[attribute] === undefined) continue;
+        source[attribute] = exec[attribute].length === 1 ? exec[attribute][0] : exec[attribute];
       }
 
-    } else if(record.tag.indexOf("jump-to") !== -1) {
-      this.editor.jumpTo(record.target[0]);
+      for(let range of ranges) {
+        exec.spans.push(this.editor.markSpan(range.from, range.to, source));
+      }
+    },
 
-    } else if(record.tag.indexOf("clear-spans") !== -1) {
-      let spans:Span[];
-      this.editor.clearSpans(record.type[0], bounds);
+    "jump-to": (exec) => {
+      this.editor.jumpTo(exec.token[0]);
+    },
 
-    } else if(record.tag.indexOf("start-inspecting") !== -1) {
+    "inspect": (exec) => {
       this.startInspecting();
+    }
+  };
 
-    } else if(record.tag.indexOf("stop-inspecting") !== -1) {
+  executeReverse = {
+    "mark-between": (exec) => {
+      for(let span of exec.spans) {
+        span.clear();
+      }
+    },
+
+    "mark-span": (exec) => {
+      for(let span of exec.spans) {
+        span.clear();
+      }
+    },
+
+    "inspect": (exec) => {
       this.stopInspecting();
+    }
+  };
+
+  executeRecord(recordId:string, record?:any) {
+    let exec:any;
+
+    if(record) {
+      let bounds:Range|undefined;
+      if(record.within) {
+        let span = this.editor.getSpanBySourceId(record.within[0]);
+        if(span) bounds = span.find();
+      }
+
+      exec = {tag: record.tag[0] === "editor" ? record.tag[1] : record.tag[0], bounds};
+      for(let attr in record) {
+        if(!exec[attr]) exec[attr] = record[attr];
+      }
+      this.activeExecs[recordId] = exec;
+      console.log("Execute", recordId, exec.tag, exec);
+
+      let doIt = this.execute[exec.tag];
+      if(!doIt) console.warn("Unable to execute unknown record type", recordId, record);
+      else doIt(exec);
+
 
     } else {
-      console.warn("Unable to execute unknown record type", recordId, record);
+      exec = this.activeExecs[recordId];
+      if(!exec) return;
+      console.log("Reverse", recordId, exec.tag, exec);
+      let doIt = this.executeReverse[exec.tag];
+      if(doIt) doIt(exec);
+      delete this.activeExecs[recordId];
     }
   }
 
