@@ -155,7 +155,7 @@ body { background: #f5f5f5; color: #555; }
 
 .comment-widget.error { background: rgb(255, 216, 222); }
 
-.comment { font-size: 10pt; }
+.comment-widget .comment { font-size: 10pt; }
 
 .comment-widget .comment-inner { display: block; }
 .comment-inner { display: none; }
