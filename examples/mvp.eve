@@ -3,60 +3,102 @@
 ## Setup
 *Fruits* ***have*** **colors**
 - yellow
+  - sort of yellow
 - red
 - orange
 - `green`
 - white
 
 Add some fruits to the system
+
 ```
-  commit
-    [#fruit name: "lemon" color: "yellow"]
-    [#fruit name: "cherry" color: "red"]
-    [#fruit name: "orange" color: "orange"]
-    [#fruit name: "apple" color: "green"]
-    [#fruit name: "banana" color: "yellow"]
-    [#fruit #exotic name: "lychee" color: "white"]
-    [#fruit name: "papaya" color: "yellow"]
-    [#fruit name: "kiwi" color: "green"]
+commit
+  [#fruit name: "lemon" color: "yellow"]
+  [#fruit name: "cherry" color: "red"]
+  [#fruit name: "orange" color: "orange"]
+  [#fruit name: "apple" color: "green"]
+  [#fruit name: "banana" color: "yellow"]
+  [#fruit #exotic name: "lychee" color: "white"]
+  [#fruit name: "papaya" color: "yellow"]
+  [#fruit name: "kiwi" color: "green"]
 ```
 
 ### Drawing
 
+1. Draw some stuff
+2. ...?
+3. Profit!
+
 Draw a list of fruits
+
 ```
-  search
-    [#fruit color name]
-  bind @browser
-    [#div ix: name, text: name, style: [color]]
+search
+  fruit = [#fruit color name]
+bind @browser
+  [#div fruit ix: name, text: name, style: [color]]
 ```
 
 ## Interaction
 
-make yo
-```
-  search (@session, @browser)
-    v = [#click element]
-    element = [not(children) text]
+Toggle whether the attribute table is open for the clicked fruit.
 
-  commit @browser
-     element.children += [#div element zig:v text:"yo"]
+```
+search @event
+  [#click element]
+
+search (@session, @browser)
+  element = [fruit]
+  open = if fruit.open = true then false
+         else true
+
+commit @session
+  fruit.open := open
+```
+
+While the fruit is open, inject an attribute table into it.
+```
+search
+  fruit = [#fruit open: true]
+
+search @browser
+  div = [#div fruit]
+
+bind (@view, @browser)
+  div.children := [#attribute-table entity: fruit]
 ```
 
 trash yo
-```
-  search (@session, @browser)
-    [#click element]
-    element = [children]
 
-  commit @browser
-     element.children -= children
+```
+search @event
+  [#click element]
+
+search (@session, @browser)
+  element = [fruit]
+
+search @view
+  [#attribute-table entity: element]
+
+commit @browser
+  element.children := none
 ```
 
-remove clicks
+# Mock
+
 ```
-  search
-    c = [#click]
-  commit
-    c := none
+commit @editor
+  [#inspect]
+```
+
+Mock up the sources for the fruit divs
+
+```
+search @editor
+  [#find-source target]
+
+search @browser
+  target = [#div fruit]
+
+bind @editor
+  [#source target source: "editor|block|18" type: "code_block"]
 ```
