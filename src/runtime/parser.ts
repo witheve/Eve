@@ -789,10 +789,12 @@ class Parser extends chev.Parser {
       let entity, attribute, value;
       let needsEntity = true;
       entity = self.SUBRULE(self.variable);
+      let parentId = entity.name;
       self.AT_LEAST_ONE(() => {
         let dot = self.CONSUME(Dot);
         attribute = self.CONSUME(Identifier);
-        value = self.block.toVariable(`${attribute.image}|${attribute.startLine}|${attribute.startColumn}`, true);
+        parentId = `${parentId}|${attribute.image}`;
+        value = self.block.toVariable(parentId, true);
         self.block.addUsage(value, attribute);
         let scopes = self.activeScopes;
         if(self.currentAction !== "match") {

@@ -14,48 +14,15 @@ Eve is a set of tools to help us think. Currently, these tools include: a tempor
 
 ### From Source
 
-To build Eve from source, you'll need LuaJIT, gcc, make, and python. Currently, building from source is only supported on Linux and OSX. On Windows, we've managed to compile Eve in cygwin, but have not gotten it to run yet. Contributions are welcome on this front.
-
-Install luajit by downloading [LuaJIT-2.1.0-beta2](http://luajit.org/download.html) and then in the LuaJIT directory:
+You'll need a recent node.js and then:
 
 ```
-make
-make install
+npm install
+npm run build
+npm run server
 ```
 
-By default, LuaJIT is not added to your path, so you'll need to do that as well:
-
-```
-ln -sf luajit-2.1.0-beta2 /usr/local/bin/luajit
-```
-
-then execute `make` in the `eve/build` directory.
-
-### Docker
-
-Eve is also on [Docker Hub](https://hub.docker.com/r/witheve/eve/). You can get our container with the following command:
-
-```
-docker pull witheve/eve
-```
-
-Windows Users - Docker for Windows requires Microsoft Hyper-V, which requires Windows 10. For users of earlier Windows versions, binaries are forthcoming.
-
-## Running
-
-To run Eve, execute the following command in the `eve/build` directory:
-
-`./eve -e [eve_file]`
-
-where `[eve_file]` is the location of an `*.eve` file you want to compile. This process launches a server at `http://localhost:8080`. You can point your browser there to see the results of the compilation. You can configure the port with the `--port` flag. e.g. `./eve --port 1234`.
-
-To run the Docker container, execute:
-
-```
-docker run -p [port]:8080 witheve/eve [eve_file]
-```
-
-Here, `[port]` is an available port on your local machine. It can be `8080` or any other port you would like. Then direct your browser to `http://localhost:[port]` to access the results. **Note**: To pass your own Eve files into the container, you'll need to mount a [docker volume](https://docs.docker.com/engine/tutorials/dockervolumes/).
+Then open `http://localhost:8080/examples/clock.eve`.
 
 ## How to use Eve
 
