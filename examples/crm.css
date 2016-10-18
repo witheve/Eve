@@ -89,9 +89,26 @@
   padding: 10px;
   border-top: 1px solid rgb(240,240,240);
   flex-grow: 1;
+  overflow: auto;
 }
 
 .convo {
   background-color: #FAFAFA;
+  margin-bottom: 20px;
+  padding: 10px;
+}
+
+.msg-avatar {
+  height: 40px;
+  width: 40px;
+  margin-right: 10px;
+  float: left;
+}
+
+.msg-name {
+  font-weight: bold;
+}
+
+.msg {
   margin-bottom: 10px;
 }
