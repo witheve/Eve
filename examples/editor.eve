@@ -135,3 +135,15 @@ bind @browser
   fixed <- [variable: fixed.variable value: fixed.value]
   action <- [fixed]
 ```
+
+### Find Cardinality
+
+`#find-cardinality` will request the cardinalities for the given set of `token`(s) from the language service. If these tokens are not blocks, their parent blocks will be found and used instead. The cardinality is the number of unique values that could satisfy that variable. Results will be returned in the format `[#cardinality token cardinality]` where `token` is as given and cardinality is the count of satisfying values available. These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
+
+```
+search @editor
+  action = [#find-cardinality token]
+
+bind @browser
+  action <- [#editor #find-cardinality token]
+```
