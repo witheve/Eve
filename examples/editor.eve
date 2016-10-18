@@ -59,12 +59,24 @@ bind @browser
 
 `#mark-span` will create a new span on the same range as the given `token`s of the specified `type`. When the action is removed, the associated spans will be removed from the editor.
 
+@NOTE: Mark span must be special cased to copy over all possible optional attributes right now. This is sad.
+
 ```
 search @editor
   action = [#mark-span type token]
 
 bind @browser
   action <- [#editor #mark-span type token]
+```
+
+Copy optional `message` attribute over if provided.
+
+```
+search @editor
+  action = [#mark-span message]
+
+bind @browser
+  action <- [message]
 ```
 
 ### Find Source
@@ -91,7 +103,7 @@ bind @browser
   action <- [#editor #find-related target]
 ```
 
-Include the optional `block` attribute, if included.
+Include the optional `block` attribute, if provided.
 
 ```
 search @editor
