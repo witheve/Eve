@@ -79,6 +79,16 @@ bind @browser
   action <- [message]
 ```
 
+Copy optional `kind` attribute over if provided.
+
+```
+search @editor
+  action = [#mark-span kind]
+
+bind @browser
+  action <- [kind]
+```
+
 ### Find Source
 
 `#find-source` will request the originating `source` token(s) for a given set of `target` (token(s) or element(s)) from the language service. Results will be returned in the format `[#source target source type]`, where `target` is the same as provided, `source` is one of it's creating token(s), and `type` is the type of the `source` token. These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.

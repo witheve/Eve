@@ -676,9 +676,10 @@ class BadgeSpan extends ParserSpan {
   badgeElem:HTMLElement;
 
   apply(from:Position, to:Position, origin = "+input") {
+    this._attributes.className = `badge ${this.source.kind || ""}`;
     if(!this.badgeElem) {
       this.badgeElem = document.createElement("div");
-      this.badgeElem.className = "badge-widget";
+      this.badgeElem.className = `badge-widget ${this.source.kind || ""}`;
     }
 
     this.badgeElem.textContent = this.source.message;
