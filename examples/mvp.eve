@@ -102,3 +102,26 @@ search @browser
 bind @editor
   [#source target source: "editor|block|18" type: "code_block"]
 ```
+
+Mock up the related tokens for the fruit divs
+
+```
+search @editor
+  [#find-related target block]
+
+search @browser
+  target = [#div fruit]
+
+bind @editor
+  // fruit
+  [#related target block type: "identifier" token:
+    ("editor|block|18|token|1", "editor|block|18|token|15")]
+
+  // color
+  [#related target block type: "identifier" token:
+    ("editor|block|18|token|6", "editor|block|18|token|25")]
+
+  // name
+  [#related target block type: "identifier" token:
+    ("editor|block|18|token|7", "editor|block|18|token|18", "editor|block|18|token|21")]
+```

@@ -68,6 +68,47 @@ bind @editor
   [#mark-between inspector type: "elision_transient" | token: source]
 ```
 
+When the inspector is in a state requiring related tokens, request them from the editor.
+
+```
+search @inspector
+  inspector = if i = [#inspector state: "highlight-related"] then i
+              if i = [#inspector state: "shadow-unrelated"] then i
+
+search @editor
+  [#source target source type: "code_block"]
+
+bind @editor
+  [#find-related target: inspector.target | block: source]
+```
+
+When the editor is in the `"highlight-related"` state, mark all related tokens highlighted.
+
+```
+search @inspector
+  inspector = [#inspector state: "highlight-related" target]
+
+search @editor
+  [#related target token type: "identifier"]
+
+bind @editor
+  [#mark-span inspector type: "highlight" | token]
+```
+
+When the editor is in the `"shadow-unrelated"` state, mark everything besides the related tokens shadowed.
+
+```
+search @inspector
+  inspector = [#inspector state: "shadow-unrelated" target]
+
+search @editor
+  [#source target source type: "code_block"]
+  [#related target block: source token type: "identifier"]
+
+bind @editor
+  [#mark-between inspector type: "shadow" | token within: source]
+```
+
 ## Drawing
 
 When an `#inspector` is open with type `"element"` and a target, show the element popout.
@@ -82,7 +123,7 @@ bind @view
 bind @browser
   inspector <- [#div class: "flex-row inspector-pane" children:
     [#div #options-panel children:
-      [#button inspector action: ("focus-blocks", "show-intermediates") text: "Should this not show up?"]
+      [#button inspector action: ("focus-blocks", "highlight-related", "shadow-unrelated", "show-intermediates") text: "Should this not show up?"]
       [#button inspector text: "Are there too many/few of these?"]
       [#button inspector text: "Does this have an incorrect value?"]
       [#button inspector text: "Is something missing here?"]]
