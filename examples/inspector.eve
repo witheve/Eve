@@ -139,6 +139,35 @@ bind @editor
   [#mark-span inspector type: "badge" kind: "intermediate" target message: value | token]
 ```
 
+When the inspector is in the `"show-cardinality"` state, request the cardinalities from the editor.
+
+```
+search @inspector
+  inspector = [#inspector state: "show-cardinality" target]
+
+search @editor
+  [#source target source type: "code_block"]
+  [#related target block: source token type: "identifier"]
+
+bind @editor
+  [#find-cardinality token]
+```
+
+When the editor is in the `"show-cardinality"` state and cardinalities have been found, badge them.
+
+```
+search @inspector
+  inspector = [#inspector state: "show-cardinality" target]
+
+search @editor
+  [#source target source type: "code_block"]
+  [#related target block: source token type: "identifier"]
+  [#cardinality token cardinality]
+
+bind @editor
+  [#mark-span inspector type: "badge" kind: "cardinality" target message: cardinality | token]
+```
+
 ## Drawing
 
 When an `#inspector` is open with type `"element"` and a target, show the element popout.
