@@ -26,11 +26,6 @@ body { background: #f5f5f5; color: #555; }
 .editor-pane { position: relative; flex: 1; }
 
 .CodeMirror-sizer > div:first-child { width: 650px; min-height: 100%; }
-.comments-pane {  position: absolute; left: 620px; right: 0px; top: 0; bottom: 0; padding-right: 15px; z-index: 2; }
-
-.comments-pane.collapse-1 { left: auto; width: 150px; }
-.comments-pane.collapsed,
-.comments-pane.collapse-2 { left: auto; width: 40px; }
 
 /****************************************************************************\
  * Navigator
@@ -154,30 +149,23 @@ body { background: #f5f5f5; color: #555; }
 /****************************************************************************\
  * Comments
 \****************************************************************************/
-.comments-pane { background: #fff; }
-.comments-pane-inner { position: relative; min-width: 300px; max-width: 500px; height: 100%; }
-.comments-pane .comment { color: #d8d8d8; min-height: 40px; }
 
+.comment-widget { padding: 1em 0; }
+.code-comment-widget { padding-left: 30px; margin-top: 2px; margin-left: 15px; margin-right: 50px; }
 
-.comments-pane .comment { position: absolute; padding: 5px 10px; margin-top: -2px; width: 100%; display: flex; flex-direction: column; align-items: stretch; overflow: visible; }
-.comments-pane .comment-inner { background: #303030; }
-.comments-pane .comment-inner > .message { font-size: 10pt; white-space: pre-wrap; }
+.comment-widget.error { background: rgba(244, 96, 96, 0.5); }
 
-.comments-pane .quick-actions { display: flex; flex-direction: row; flex-wrap: wrap; opacity: 0.5; transition: opacity 0.15s; }
-.comments-pane .comment:hover .quick-actions { opacity: 1; }
-.comments-pane .quick-actions > .comment-action { flex: 1 0 auto; max-width: 50%; padding: 2px 5px; margin-top: 5px; text-align: center; background: #404040; }
-.comments-pane .quick-actions > .comment-action + .comment-action { margin-left: 1px; }
-.comments-pane .quick-actions > .comment-action:hover { background: #505050; }
+.comment-widget .comment-inner { display: block; }
+.comment-inner { display: none; }
 
+.comment-widget .quick-actions { display: flex; flex-direction: row; flex-wrap: wrap; opacity: 0.5; transition: opacity 0.15s; }
+.comment-widget:hover .quick-actions { opacity: 1; }
+.comment-widget .quick-actions > .comment-action { flex: 1 0 auto; max-width: 50%; padding: 2px 5px; margin-top: 5px; text-align: center; background: #404040; }
+.comment-widget .quick-actions > .comment-action + .comment-action { margin-left: 1px; }
+.comment-widget .quick-actions > .comment-action:hover { background: #505050; }
 
-.comments-pane .comment { border:1px solid #999; width: 14px; height:14px; min-width:18px; min-height:18px; padding:0; }
-.comments-pane .comments-pane-inner { min-width: 40px; }
-
-.comments-pane .comment-inner { display: none; }
-.comments-pane .comment:hover .comment-inner { display: block; position: absolute; right: 0; top: 26px; width: 400px; padding: 10px; z-index: 2; border-radius: 2px; border: 1px solid #202020; }
-
-.comments-pane .comment.error { border-color: #F06060; }
-.comments-pane .comment.warning { border-color: #C0C060; }
+.comment.error { border-color: #F06060; }
+.comment.warning { border-color: #C0C060; }
 
 .CodeMirror .document_comment { border-bottom: 1px solid white; }
 .CodeMirror .document_comment.error { border-bottom-color: #ff7e92; }

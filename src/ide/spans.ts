@@ -600,9 +600,24 @@ export class DocumentCommentSpan extends ParserSpan {
   lineBackgroundClass: string;
   annotation?: CodeMirror.AnnotateScrollbar.Annotation;
 
+  widgetLine?: number;
+  commentWidget?: CodeMirror.LineWidget;
+  commentElem?: HTMLElement;
+
   apply(from:Position, to:Position, origin = "+input") {
     this.lineBackgroundClass = "COMMENT_" + this.kind;
     this._attributes.className = this.type + " " + this.kind;
+
+    if(!this.commentElem) {
+      this.commentElem = document.createElement("div");
+    }
+
+    this.commentElem.className = "comment-widget" + " " + this.kind;
+
+    if(this.editor.inCodeBlock(to)) {
+      this.commentElem.className += " code-comment-widget";
+    }
+
     super.apply(from, to, origin);
   }
 
@@ -619,63 +634,38 @@ export class DocumentCommentSpan extends ParserSpan {
       this.annotation.clear();
       this.annotation = undefined;
     }
+
+    if(this.commentWidget) {
+      this.commentWidget.clear();
+      this.commentElem.textContent = "";
+    }
   }
 
   refresh() {
     let loc = this.find();
     if(!loc) return this.clear();
-    updateLineClasses(loc.from.line, loc.to.line, this.editor, this);
+
     if(!this.annotation) {
       this.annotation = this.editor.cm.annotateScrollbar({className: `scrollbar-annotation ${this.kind}`});
     }
     if(loc) {
       this.annotation.update([loc]);
+      if(!this.disabled) {
+        updateLineClasses(loc.from.line, loc.to.line, this.editor, this);
+      } else {
+        clearLineClasses(loc.from.line, loc.to.line, this.editor, this);
+      }
+
+      if(loc.to.line !== this.widgetLine) {
+        this.widgetLine = loc.to.line;
+        if(this.commentWidget) this.commentWidget.clear();
+        this.commentWidget = this.editor.cm.addLineWidget(this.widgetLine, this.commentElem);
+      }
     }
   }
 
   get kind() { return this.source.kind || "error"; }
   get message() { return this.source.message; }
-
-  onBeforeChange(change:ChangeCancellable) {
-    let loc = this.find();
-    if(!loc) return;
-    let doc = this.editor.cm.getDoc();
-    let isEmpty = doc.getLine(loc.from.line) === "";
-
-    //If we're at the beginning of an empty block and delete we mean to remove the span.
-    if(samePosition(loc.from, change.to) && isEmpty && change.origin === "+delete") {
-      this.clear();
-      change.cancel();
-    }
-  }
-
-  onChange(change:Change) {
-    let loc = this.find();
-    if(!loc) return;
-
-    // Absorb local changes around a block.
-    let from = {line: loc.from.line, ch: 0};
-    let to = {line: loc.to.line, ch: 0};
-    if(loc.to.ch !== 0) {
-      to.line += 1;
-    }
-
-    // If new text has been inserted left of the block, absorb it
-    // If the block's end has been removed, re-align it to the beginning of the next line.
-    if(comparePositions(change.final, change.to) >= 0) {
-      from.line = Math.min(loc.from.line, change.from.line);
-      to.line = Math.max(loc.to.line, change.to.line);
-      if(to.line === change.to.line && change.to.ch !== 0) {
-        to.line += 1;
-      }
-    }
-
-
-    if(!samePosition(from, loc.from) || !samePosition(to, loc.to)) {
-      this.clear();
-      this.editor.markSpan(from, to, this.source);
-    }
-  }
 }
 
 interface BadgeSpanSource extends SpanSource { kind: string, message: "string" }

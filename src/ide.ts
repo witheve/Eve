@@ -164,10 +164,6 @@ class Navigator {
     this.open = !this.open;
     this.ide.render();
     event.stopPropagation();
-    // @FIXME: This is kinda hacky, but we'd have to have a full on animation system for better.
-    setTimeout(this.ide.resize, 100);
-    setTimeout(this.ide.resize, 200);
-    setTimeout(this.ide.resize, 300);
   }
 
   navigate = (event, elem:{nodeId:string}) => {
@@ -1026,7 +1022,7 @@ export class Editor {
   // Formatting
   //-------------------------------------------------------
 
-  protected inCodeBlock(pos:Position) {
+  inCodeBlock(pos:Position) {
     let inCodeBlock = false;
     for(let span of this.getAllSpans("code_block")) {
       let loc = span.find();
@@ -1658,72 +1654,6 @@ class Comments {
 
     this.ordered = Object.keys(this.comments);
     this.ordered.sort((a, b) => compareSpans(this.comments[a], this.comments[b]));
-    this.resizeComments();
-  }
-
-  resizeComments = debounce(() => {
-    if(!this.rootNode) return;
-
-    let inner:HTMLElement = this.rootNode.children[0] as any;
-    let nodes:HTMLElement[] = inner.children as any;
-    let cm = this.ide.editor.cm;
-
-    let ix = 0;
-    let intervals:ClientRect[] = [];
-    for(let commentId of this.ordered) {
-      let comment = this.comments[commentId];
-      let loc = comment.find();
-      if(!loc) continue;
-      let coords = cm.charCoords(loc.from, "local");
-
-      let node = nodes[ix];
-      node.style.top = ""+coords.top;
-      intervals[ix] = node.getBoundingClientRect();
-      ix++;
-    }
-
-    // Adjust pairs of comments until they no longer intersect.
-    for(let ix = 0, length = intervals.length - 1; ix < length; ix++) {
-      let prev:ClientRect|undefined = intervals[ix - 1];
-      let cur = intervals[ix];
-      let next = intervals[ix + 1];
-
-      if(next.top > cur.bottom) {
-        continue;
-      }
-
-      let curNode = nodes[ix];
-      let nextNode = nodes[ix + 1];
-
-      // Scoot the current comment up as much as possible without:
-      // - Pushing the comment off the top of the screen
-      // - Pushing it entirely off it's line
-      // - Going any further than required to fit both comments
-      // - Intersecting with the comment preceding it
-
-      let intersect = cur.bottom - next.top;
-      let oldTop = cur.top;
-      let neueTop = Math.max(0, cur.top - cur.height, cur.top - intersect, prev && prev.bottom || 0);
-      intersect -= cur.top - neueTop;
-      curNode.style.top = ""+neueTop;
-      cur = intervals[ix] = curNode.getBoundingClientRect();
-
-      if(intersect == 0) continue;
-
-      // When all else fails, we push the next comment down the remainder of the intersection
-      nextNode.style.top = ""+(next.top + intersect);
-      next = intervals[ix + 1] = nextNode.getBoundingClientRect();
-    }
-  }, 16, true);
-
-  wangjangle:RenderHandler = (node, elem) => {
-    if(!node["_injected"]) {
-      let wrapper = this.ide.editor.cm.getWrapperElement();
-      wrapper.querySelector(".CodeMirror-sizer").appendChild(node);
-      node["_injected"] = true;
-    }
-    this.rootNode = node;
-    this.resizeComments();
   }
 
   highlight = (event:MouseEvent, {commentId}) => {
@@ -1762,13 +1692,23 @@ class Comments {
     this.ide.render();
   }
 
+  inject = (node:HTMLElement, elem:Elem) => {
+    let {commentId} = elem;
+    let comment = this.comments[commentId];
+
+    if(comment.commentElem) {
+      comment.commentElem.appendChild(node);
+    }
+  }
+
   comment(commentId:string):Elem {
     let comment = this.comments[commentId];
     if(!comment) return;
     let actions:Elem[] = [];
 
     return {
-      c: `comment ${comment.kind}`, commentId,
+      c: `comment ${comment.kind}`, commentId, dirty: true,
+      postRender: this.inject,
       mouseover: this.highlight, mouseleave: this.unhighlight, click: this.goTo,
       children: [
         {c: "comment-inner", children: [
@@ -1783,7 +1723,7 @@ class Comments {
     for(let commentId of this.ordered) {
       children.push(this.comment(commentId));
     }
-    return {c: "comments-pane collapsed collapsed-is-hardcoded", postRender: this.wangjangle, children: [{c: "comments-pane-inner", children}]};
+    return {c: "comments-pane", children};
   }
 }
 
@@ -1903,14 +1843,9 @@ export class IDE {
   comments:Comments = new Comments(this);
 
   constructor( ) {
-    window.addEventListener("resize", this.resize);
     document.body.appendChild(this.renderer.content);
     this.renderer.content.classList.add("ide-root");
   }
-
-  resize = debounce(() => {
-    this.comments.resizeComments();
-  }, 16, true);
 
   elem() {
     return {c: `editor-root`, children: [
