@@ -47,7 +47,6 @@ search
 commit
   [#counter i count: 0]
   [#counter #fancy count: 0]
-  [#counter #fancy #blue count: 0]
 ```
 
 ## Extend the Counter
