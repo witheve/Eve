@@ -24,7 +24,7 @@ export class DependencyChecker {
     this.dependencies = this.buildDependencies(map);
   }
 
-  buildVariableMap(block, variableMap = {}) {
+  buildVariableMap(block, variableMap = {"any": {attributes: {}}}) {
     for(let level of block.strata) {
       for(let scan of level.scans) {
         if(scan instanceof Scan) {
@@ -35,6 +35,8 @@ export class DependencyChecker {
             if(cur === undefined) {
               cur = variableMap[e.id] = {attributes: {}};
             }
+          } else {
+            cur = variableMap["any"];
           }
           if(!isVariable(a)) {
             let attrInfo = cur.attributes[a];

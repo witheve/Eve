@@ -228,14 +228,23 @@ function buildScans(block, context, scanLikes, outputScans) {
         }
       }
     } else if(scanLike.type === "scan") {
-      let entity = context.getValue(scanLike.entity);
+      let entity;
+      if(scanLike.entity) {
+        entity = context.getValue(scanLike.entity);
+      }
       if(!scanLike.needsEntity) {
         context.provide(entity);
       }
-      let attribute = context.getValue(scanLike.attribute);
-      context.provide(attribute);
-      let value = context.getValue(scanLike.value)
-      context.provide(value);
+      let attribute;
+      if(scanLike.attribute) {
+        attribute = context.getValue(scanLike.attribute);
+        context.provide(attribute);
+      }
+      let value;
+      if(scanLike.value) {
+        value = context.getValue(scanLike.value)
+        context.provide(value);
+      }
       let node;
       if(scanLike.node) {
         node = context.getValue(scanLike.node)

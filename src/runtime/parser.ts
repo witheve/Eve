@@ -1318,7 +1318,7 @@ class Parser extends chev.Parser {
 //-----------------------------------------------------------
 
 export function nodeToBoundaries(node, offset = 0) {
-  return [node.startOffset, toEnd(node.endOffset)];
+  return [node.startOffset, toEnd(node)];
 }
 
 let eveParser = new Parser([]);
