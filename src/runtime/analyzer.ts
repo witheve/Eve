@@ -370,7 +370,7 @@ function makeEveAnalyzer() {
   session.blocks = blocks;
   let evaluation = new Evaluation();
   evaluation.registerDatabase("session", session);
-  evaluation.registerDatabase("browser", browserDb);
+  // evaluation.registerDatabase("browser", browserDb);
   return evaluation;
 }
 
@@ -468,7 +468,7 @@ export function tokenInfo(evaluation: Evaluation, tokenId: string, spans: any[],
 
 export function nodeIdToRecord(evaluation, nodeId, spans, extraInfo) {
   let queryId = `query|${nodeId}`;
-  let query = {tag: "query", "build-id": nodeId};
+  let query = {tag: "query", "build-node": nodeId};
   let eve = doQuery(queryId, query, spans, extraInfo);
 
   let sessionIndex = eve.getDatabase("session").index;
@@ -477,7 +477,11 @@ export function nodeIdToRecord(evaluation, nodeId, spans, extraInfo) {
   if(queryInfo) {
     let [entity] = queryInfo.toValues();
     let obj = sessionIndex.asObject(entity);
+    if(obj.record) {
+      return obj.record[0]
+    }
   }
+  return;
 }
 
 function blockToFailingScan(block) {

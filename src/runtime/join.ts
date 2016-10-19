@@ -243,7 +243,7 @@ export class Scan {
           this.setProposal(curIndex.eavIndex.lookup(e,a), this.v, scopeIx);
           break;
         case "eav*":
-          this.setProposal(curIndex.eavIndex.lookup(e,a,node), this.node, scopeIx);
+          this.setProposal(curIndex.eavIndex.lookup(e,a,v), this.node, scopeIx);
           break;
         case "*a**":
           this.setProposal(curIndex.aveIndex.lookup(a), this.v, scopeIx);

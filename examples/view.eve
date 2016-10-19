@@ -10,10 +10,12 @@ A `#value` view just embeds the `value`(s) its passed.
 search @view
   wrapper = [#value value]
   ix = sort[value]
+  lookup[record: wrapper, attribute: "tag", value: "value", node]
 
 bind @browser
-  wrapper <- [#view #div children:
-    [#div sort: ix text: value]]
+  wrapper <-
+    [#view #div node children:
+      [#div sort: ix text: value]]
 ```
 
 ## Tables
@@ -57,11 +59,16 @@ bind @browser
 ```
 search @view
   wrapper = [#attribute-table entity]
+  lookup[record: wrapper, attribute: "tag", value: "attribute-table", node]
 
 search (@session, @browser)
   lookup[record: entity attribute: key value]
 
-bind @view
+commit @browser
+  [#div text: "GOT NODE {{node}}"]
+
+bind @view @browser
+  wrapper.node := node
   wrapper.tag += "kv-table"
   wrapper.kvs := [key value]
 ```

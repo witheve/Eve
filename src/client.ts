@@ -196,7 +196,7 @@ socket.onmessage = function(msg) {
     _ide.injectSpans(data.spans, data.extraInfo);
 
   } else if(data.type == "findNode") {
-    _ide.attachView(data.record, data.nodes);
+    _ide.attachView(data.recordId, data.spanId);
 
   } else if(data.type == "error") {
     console.error(data.message, data);

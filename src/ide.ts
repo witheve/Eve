@@ -2100,14 +2100,13 @@ export class IDE {
       let view = this.activeViews[recordId] = {record: recordId, container: document.createElement("div")};
       view.container.className = "view-container";
 
+      // this.attachView(recordId, record.node)
       // Find the source node for this view.
-      send({type: "findNode", record: recordId, attribute: "tag", value: "view"});
+      send({type: "findNode", recordId, node: record.node[0]});
     }
   }
 
-  attachView(recordId:string, sources:number[]) {
-    let source = sources.sort()[0];
-    if(!source) return;
+  attachView(recordId:string, spanId:string) {
     let view = this.activeViews[recordId];
     // @NOTE: This isn't particularly kosher.
     let node = activeElements[recordId];
@@ -2115,9 +2114,8 @@ export class IDE {
     view.container.appendChild(node);
 
     let sourceSpan:Span|undefined;
-    console.log("SSS", source);
-    if(source == 232) {
-      sourceSpan = this.editor.getSpanBySourceId("editor|block|21|node|26");
+    if(spanId !== undefined) {
+      sourceSpan = this.editor.getSpanBySourceId(spanId);
     }
     if(!sourceSpan) return;
 
