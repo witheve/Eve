@@ -5,6 +5,7 @@ This program demonstrates:
 - responding to events
 - drawing elements on the screen
 - reusing elements programatically
+- extending an element
 
 ## Increment the counter
 
@@ -18,10 +19,6 @@ commit
   counter.count := counter.count + diff
 ```
 
-## Build the counter
-
-Each button holds a reference to the counter that defines it, so that it can increment the count. The counter container also holds a reference to the counter so that each one is unique, allowing the counter component to be resued.
-
 ```
 search
   counter = [#counter count]
@@ -32,8 +29,6 @@ bind @browser
     [#button sort: 2, text: "-", diff: -1, counter]
     [#button sort: 3, text: "+", diff: 1, counter]]
 ```
-
-Create a bunch of counters. We put `i` in the counter to create multiple counters independent counters.
 
 ```
 search
