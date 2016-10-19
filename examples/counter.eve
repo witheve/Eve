@@ -62,14 +62,3 @@ search @browser @session
 bind @browser @session
   counter-element.style := [border: "1px solid #FF0000"]
 ```
-
-You can extend records arbitrarily this way. You could even extend a fancy counter by adding more tags. For example, this block will add a blue border to counters tagged `#fancy` and `#blue`.
-
-```
-search @browser @session
-	counter-element = [#div counter]
-  counter.tag = ("fancy", "blue")
-  
-bind @browser @session
-  counter-element.style := [border: "1px solid #00FF00"]
-```
