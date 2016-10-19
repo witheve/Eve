@@ -7,7 +7,7 @@ This program demonstrates:
 - reusing elements programatically
 - extending an element
 
-## Increment the counter
+## Increment a Counter
 
 Each button uses the referenced counter to increment itself. We need to search on three databases to accomplish this goal: 
 
@@ -23,7 +23,7 @@ commit
   counter.count := counter.count + diff
 ```
 
-## Build the counter
+## Build a Counter
 
 For every `#counter`, we create a `#div` that contains the elements that draw the counter. The counters are added to the root of the DOM, but you could add them to a particular element in the DOM by specifying a parent element.
 
