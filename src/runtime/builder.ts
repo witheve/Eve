@@ -39,6 +39,7 @@ class BuilderContext {
   unprovided: boolean[];
   registerToVars: any;
   myRegisters: boolean[];
+  nonProviding: boolean;
 
   constructor(block, variableToGroup = {}, groupToValue = {}, unprovided = [], registerToVars = {}, groupIx = 0, varIx = 0) {
     this.variableToGroup = variableToGroup;
@@ -50,6 +51,7 @@ class BuilderContext {
     this.myRegisters = [];
     this.assignGroups(block);
     this.assignRuntimeVariables(block);
+    this.nonProviding = false;
   }
 
   getValue(node) {
@@ -179,10 +181,12 @@ class BuilderContext {
       }
     }
 
-    let unprovided = this.unprovided;
-    for(let ix = 0; ix < this.varIx; ix++) {
-      if(unprovided[ix] === undefined) {
-        unprovided[ix] = true;
+    if(!this.nonProviding) {
+      let unprovided = this.unprovided;
+      for(let ix = 0; ix < this.varIx; ix++) {
+        if(unprovided[ix] === undefined && this.myRegisters[ix]) {
+          unprovided[ix] = true;
+        }
       }
     }
   }
@@ -255,6 +259,7 @@ function buildScans(block, context, scanLikes, outputScans) {
       scanLike.buildId = final.id;
     } else if(scanLike.type === "not") {
       let notContext = context.extendTo(scanLike);
+      notContext.nonProviding = true;
       let args = [];
       let seen = [];
       let blockVars = block.variables;
