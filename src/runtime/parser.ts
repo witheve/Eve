@@ -277,7 +277,12 @@ export class ParseBlock {
   }
 
   addUsage(variable, usage) {
-    this.variableLookup[variable.name].from.push(usage);
+    let global = this.variableLookup[variable.name];
+    global.from.push(usage)
+    if(global.from.length === 1) {
+      global.startOffset = usage.startOffset;
+      global.endOffset = toEnd(usage);
+    }
     variable.from.push(usage);
     variable.startOffset = usage.startOffset;
     variable.endOffset = toEnd(usage);
@@ -760,6 +765,7 @@ class Parser extends chev.Parser {
       from.push(self.CONSUME(CloseBracket));
       let record : any = makeNode("record", info);
       if(!noVar) {
+        self.block.addUsage(info.variable, record);
         self.block[blockKey](record);
       }
       return record;
