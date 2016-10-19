@@ -1099,6 +1099,7 @@ export class Editor {
     }
 
     if(refocus) this.cm.focus();
+    this.newBlockBar.active = false;
 
     this.queueUpdate();
   }
@@ -1790,7 +1791,7 @@ function newBlockBar(elem:EditorBarElem):Elem {
   let doc = editor.cm.getDoc();
   let cursor = doc.getCursor();
   let top = editor.cm.cursorCoords(cursor, undefined).top;
-  let left = editor.cm.cursorCoords(cursor, "local").left;
+  let left = 0;
   console.log(cursor.line, cursor.ch, top, left);
   return {id: "new-block-bar", c: `new-block-bar ${active ? "active" : ""}`, top, left, children: [
     {c: "new-block-bar-toggle ion-plus", click: () => {
