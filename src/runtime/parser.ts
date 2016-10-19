@@ -601,7 +601,7 @@ class Parser extends chev.Parser {
       return self.OR([
         {ALT: () => {
           let variable = self.block.toVariable(`${attribute.image}|${attribute.startLine}|${attribute.startColumn}`, true);
-          let scan = makeNode("scan", {entity: parent, attribute: makeNode("constant", {value: attribute.name, from: [attribute]}), value: variable, scopes: self.activeScopes, from: [mutator]});
+          let scan = makeNode("scan", {entity: parent, attribute: makeNode("constant", {value: attribute.image, from: [attribute]}), value: variable, scopes: self.activeScopes, from: [mutator]});
           self.block.addUsage(variable, scan);
           self.block.scan(scan);
           self.CONSUME(Merge);
