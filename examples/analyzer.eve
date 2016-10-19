@@ -4,72 +4,72 @@
 
 For every variable there is a group
 
-~~~
-  search
-    variable = [#variable]
-    number = random[seed: variable]
-  commit
-    [#group number variable]
-~~~
+...
+search
+  variable = [#variable]
+  number = random[seed: variable]
+commit
+  [#group number variable]
+...
 
-~~~
-  search
-    variable = [#variable not(group)]
-    group = [#group variable]
-  commit
-    variable.group := group
-~~~
+...
+search
+  variable = [#variable not(group)]
+  group = [#group variable]
+commit
+  variable.group := group
+...
 
 Handle a constant equivalence
 
-~~~
-  search
-    eq = [#equality]
-    (a, b) = if eq.a.tag, not(eq.b.tag) then (eq.a, eq.b)
-             else if eq.b.tag, not(eq.a.tag) then (eq.b, eq.a)
-  bind
-    a.constant += b
-~~~
+...
+search
+  eq = [#equality]
+  (a, b) = if eq.a.tag, not(eq.b.tag) then (eq.a, eq.b)
+            else if eq.b.tag, not(eq.a.tag) then (eq.b, eq.a)
+bind
+  a.constant += b
+...
 
 Handle variable equivalence
 
-~~~
-  search
-    [#equality a b]
-    a.group != b.group
-    min-a = min[value: a.group.number, given: a.group.number, per: a]
-    min-b = min[value: b.group.number, given: b.group.number, per: b]
-    a-group = [#group number: min-a]
-    b-group = [#group number: min-b]
-    (new, old) = if min-a < min-b then (a-group, b-group)
-                 else if min-b < min-a then (b-group, a-group)
-    var = [#variable group: old]
-  commit
-    var.group := new
-~~~
+...
+search
+  [#equality a b]
+  a.group != b.group
+  min-a = min[value: a.group.number, given: a.group.number, per: a]
+  min-b = min[value: b.group.number, given: b.group.number, per: b]
+  a-group = [#group number: min-a]
+  b-group = [#group number: min-b]
+  (new, old) = if min-a < min-b then (a-group, b-group)
+                else if min-b < min-a then (b-group, a-group)
+  var = [#variable group: old]
+commit
+  var.group := new
+...
 
 ## associate record-tags to both actions and scans
 
 ~~~
 search
-  [#scan entity: [group] attribute: "tag" value]
-  scan = [#scan entity: [group]]
+  [#scan entity: [register] attribute: "tag" value block]
+  scan = [#scan entity: [register] block]
 bind
   scan.record-tag += value
 ~~~
 
 ~~~
 search
-  [#action entity: [group] attribute: "tag" value]
-  action = [#action entity: [group]]
+  [#action entity: [register] attribute: "tag" value block]
+  action = [#action entity: [register] block]
 bind
   action.record-tag += value
 ~~~
 
 ~~~
 search
-  [#scan entity: [group] record-tag]
-  action = [#action entity: [group]]
+  [#scan entity: [register] record-tag block]
+  action = [#action entity: [register] block]
 bind
   action.record-tag += record-tag
 ~~~
@@ -86,15 +86,15 @@ bind
 ~~~
   search
     attribute = "tag"
-    [#scan entity: [group] attribute value: tag]
-    [#action entity: [group] attribute value: tag2]
+    [#scan block entity: [register] attribute value: tag]
+    [#action block entity: [register] attribute value: tag2]
   bind
     [#tag-equivalence tag tag2]
 ~~~
 
 ## unprovided scans
 
-~~~
+...
   search
     scan = [#scan record-tag attribute]
     not( action = [#action record-tag attribute]
@@ -103,9 +103,9 @@ bind
                 else if action.value = [#variable] then true )
   bind
     scan += #unprovided
-~~~
+...
 
-~~~
+...
   search
     scan = [#scan #analyzer/any attribute]
     not( action = [#action attribute]
@@ -114,14 +114,14 @@ bind
                 else if action.value = [#variable] then true )
   bind
     scan += #unprovided
-~~~
+...
 
-~~~
+...
 search
   scan = [#scan #unprovided start stop record-tag attribute block]
 bind @editor
   [#comment scan | block start stop message: "{{attribute}} is never added to {{record-tag}} records, so this will always be empty"]
-~~~
+...
 
 # token query
 

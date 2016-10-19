@@ -23,6 +23,7 @@ declare namespace chevrotain {
     export class Token {
         image: string;
         startOffset: number;
+        endOffset: number;
         startLine: number;
         startColumn: number;
         endLine: number;

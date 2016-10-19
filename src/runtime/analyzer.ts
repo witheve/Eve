@@ -24,10 +24,17 @@ class AnalysisContext {
   ScanId = 0;
   changes: Changes
   block: ParseBlock
+  spans: any[];
+  extraInfo: any;
+
+  constructor(spans, extraInfo) {
+    this.spans = spans;
+    this.extraInfo = extraInfo;
+  }
 
   record(parseNode: any) {
     let changes = this.changes;
-    let recordId = `${this.block.id}|record|${this.ScanId++}`;
+    let recordId = parseNode.id;
     let [start, stop] = nodeToBoundaries(parseNode);
     changes.store("session", recordId, "tag", "record", "analyzer");
     changes.store("session", recordId, "block", this.block.id, "analyzer");
@@ -42,7 +49,7 @@ class AnalysisContext {
 
   scan(parseNode: any, scopes: string[], entity: any, attribute: string, value: any) {
     let changes = this.changes;
-    let scanId = `${this.block.id}|scan|${this.ScanId++}`;
+    let scanId = parseNode.id;
     let [start, stop] = nodeToBoundaries(parseNode, this.block.start);
     changes.store("session", scanId, "tag", "scan", "analyzer");
     changes.store("session", scanId, "block", this.block.id, "analyzer");
@@ -67,7 +74,7 @@ class AnalysisContext {
 
   provide(parseNode: any, scopes: string[], entity: any, attribute: string, value: any) {
     let changes = this.changes;
-    let actionId = `${this.block.id}|action|${this.ScanId++}`;
+    let actionId = parseNode.id;
     let [start, stop] = nodeToBoundaries(parseNode, this.block.start);
     changes.store("session", actionId, "tag", "action", "analyzer");
     changes.store("session", actionId, "block", this.block.id, "analyzer");
@@ -133,11 +140,9 @@ class Analysis {
       if(attr.value.type === "parenthesis") {
         for(let item of attr.value.items) {
           let id = context.scan(item, node.scopes, node.variable, attr.attribute, context.value(item));
-          this._link(context, id, item.id)
         }
       } else {
         let id = context.scan(attr, node.scopes, node.variable, attr.attribute, context.value(attr.value));
-        this._link(context, id, attr.id)
       }
     }
   }
@@ -145,10 +150,8 @@ class Analysis {
   _scanScan(context: AnalysisContext, node) {
     if(node.attribute.type === "variable") {
       let id = context.scan(node, node.scopes, context.value(node.entity), "any", context.value(node.value));
-      this._link(context, id, node.id)
     } else {
       let id = context.scan(node, node.scopes, context.value(node.entity), context.value(node.attribute), context.value(node.value));
-      this._link(context, id, node.id)
     }
   }
 
@@ -194,11 +197,9 @@ class Analysis {
       if(attr.value.type === "parenthesis") {
         for(let item of attr.value.items) {
           let id = context.provide(item, node.scopes, node.variable, attr.attribute, context.value(item));
-          this._link(context, id, attr.id)
         }
       } else {
         let id = context.provide(attr, node.scopes, node.variable, attr.attribute, context.value(attr.value));
-        this._link(context, id, attr.id)
       }
     }
   }
@@ -212,13 +213,10 @@ class Analysis {
       // }
     } else if(typeof node.attribute === "string") {
       let id = context.provide(node, node.scopes, node.entity, node.attribute, context.value(node.value));
-      this._link(context, id, node.id)
     } else if(node.attribute.type === "variable") {
       let id = context.provide(node, node.scopes, node.entity, "any", context.value(node.value));
-      this._link(context, id, node.id)
     } else {
       let id = context.provide(node, node.scopes, node.entity, context.value(node.attribute), context.value(node.value));
-      this._link(context, id, node.id)
     }
   }
 
@@ -322,13 +320,13 @@ class Analysis {
   // Public
   //---------------------------------------------------------------------
 
-  block(block: ParseBlock) {
-    let context = this.createContext(block);
+  block(block: ParseBlock, spans, extraInfo) {
+    let context = this.createContext(block, spans, extraInfo);
     this._block(context, block);
   }
 
-  createContext(block: ParseBlock) {
-    let context = new AnalysisContext();
+  createContext(block: ParseBlock, spans, extraInfo) {
+    let context = new AnalysisContext(spans, extraInfo);
     context.block = block;
     context.changes = this.changes;
     return context;
@@ -379,6 +377,7 @@ function makeEveAnalyzer() {
 let eve;
 
 export function analyze(blocks: ParseBlock[], spans: any[], extraInfo: any) {
+  console.time();
   eve = makeEveAnalyzer();
   let session = new Database();
   let prev = eve.getDatabase("session")
@@ -392,14 +391,17 @@ export function analyze(blocks: ParseBlock[], spans: any[], extraInfo: any) {
   let changes = eve.createChanges();
   let analysis = new Analysis(changes);
   for(let block of blocks) {
-    analysis.block(block);
+    analysis.block(block, spans, extraInfo);
   }
-  eve.executeActions([], changes);
+  changes.commit();
+  console.log(changes);
+  console.timeEnd();
+  // eve.executeActions([], changes);
 }
 
 
 let prevQuery;
-export function tokenInfo(evaluation: Evaluation, tokenId: string, spans: any[], extraInfo: any) {
+function doQuery(queryId, query, spans, extraInfo) {
   eve = makeEveAnalyzer();
   let editorDb = new EditorDatabase(spans, extraInfo);
   eve.unregisterDatabase("editor");
@@ -408,11 +410,16 @@ export function tokenInfo(evaluation: Evaluation, tokenId: string, spans: any[],
   if(prevQuery) {
     changes.unstoreObject(prevQuery.queryId, prevQuery.query, "analyzer", "session");
   }
-  let queryId = `query|${tokenId}`;
-  let query = {tag: "query", token: tokenId};
   changes.storeObject(queryId, query, "analyzer", "session");
   eve.executeActions([], changes);
   prevQuery = {queryId, query};
+  return eve;
+}
+
+export function tokenInfo(evaluation: Evaluation, tokenId: string, spans: any[], extraInfo: any) {
+  let queryId = `query|${tokenId}`;
+  let query = {tag: "query", token: tokenId};
+  let eve = doQuery(queryId, query, spans, extraInfo);
 
   // look at the results and find out which action node we were looking
   // at
@@ -456,6 +463,20 @@ export function tokenInfo(evaluation: Evaluation, tokenId: string, spans: any[],
         }
       }
     }
+  }
+}
+
+export function nodeIdToRecord(evaluation, nodeId, spans, extraInfo) {
+  let queryId = `query|${nodeId}`;
+  let query = {tag: "query", "build-id": nodeId};
+  let eve = doQuery(queryId, query, spans, extraInfo);
+
+  let sessionIndex = eve.getDatabase("session").index;
+  let queryInfo = sessionIndex.alookup("tag", "query");
+  let evSession = evaluation.getDatabase("session");
+  if(queryInfo) {
+    let [entity] = queryInfo.toValues();
+    let obj = sessionIndex.asObject(entity);
   }
 }
 

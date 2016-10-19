@@ -258,6 +258,15 @@ class IndexLevel {
     return updated;
   }
 
+  toValues() {
+    let values = [];
+    for(let key of Object.keys(this.index)) {
+      let value: any = this.index[key];
+      values.push(value.value || value);
+    }
+    return values;
+  }
+
   lookup(a,b?,c?,d?,e?,f?,g?,h?,i?,j?) {
     let child = this.index[a];
     if(child === undefined) return;
