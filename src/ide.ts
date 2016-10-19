@@ -2081,13 +2081,14 @@ export class IDE {
   //-------------------------------------------------------
 
   findPaneAt(x: number, y: number):"editor"|"application"|undefined {
-    let container = this.editor.cm.getWrapperElement();
-    let editor = container.getBoundingClientRect();
-    let app = document.querySelector(".application-container").getBoundingClientRect(); // @FIXME: Not particularly durable
-    if(x >= editor.left && x <= editor.right &&
+    let editorContainer = this.editor.cm.getWrapperElement();
+    let editor = editorContainer && editorContainer.getBoundingClientRect();
+    let appContainer = document.querySelector(".application-container")
+    let app = appContainer && appContainer.getBoundingClientRect(); // @FIXME: Not particularly durable
+    if(editor && x >= editor.left && x <= editor.right &&
        y >= editor.top && y <= editor.bottom) {
       return "editor";
-    } else if(x >= app.left && x <= app.right &&
+    } else if(app && x >= app.left && x <= app.right &&
               y >= app.top && y <= app.bottom) {
       return "application";
     }
