@@ -8,6 +8,8 @@ This program demonstrates:
 
 ## Increment the counter
 
+Each button uses the referenced counter to increment itself
+
 ```
 search @event @browser @session
   [#click #direct-target element: [#button diff counter]]
@@ -17,6 +19,8 @@ commit
 ```
 
 ## Build the counter
+
+Each button holds a reference to the counter that defines it, so that it can increment the count. The counter container also holds a reference to the counter so that each one is unique, allowing the counter component to be resued.
 
 ```
 search
@@ -29,12 +33,23 @@ bind @browser
     [#button sort: 3, text: "+", diff: 1, counter]]
 ```
 
-Create a bunch of counters
+Create a bunch of counters. We put `i` in the counter to create multiple counters independent counters.
 
 ```
 search
-  i = range[from: 0 to: 6]
+  i = range[from: 0 to: 4]
 
 commit
   [#counter i count: 0]
+  [#counter #fancy count: 0]
+```
+
+```
+search @browser @session
+	counter-element = [#div counter]
+  counter.tag = "fancy"
+  
+bind @browser @session
+  [#div text: "foo22312312312312"]
+  counter-element.style <- [border: "1px solid #FF0000"]
 ```
