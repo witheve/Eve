@@ -146,6 +146,7 @@ export class Keyword extends Token {
     static PATTERN = Lexer.NA;
     static LONGER_ALT = Identifier;
 }
+export class Lookup extends Keyword { static PATTERN = /lookup(?=\[)/; label = "lookup"; }
 export class Action extends Keyword { static PATTERN = /bind|commit/; label = "action"; }
 export class Search extends Keyword { static PATTERN = /search/; label = "search"; }
 export class Is extends Keyword { static PATTERN = /is/; label = "is"; }
@@ -206,7 +207,7 @@ export class WhiteSpace extends Token {
 let codeTokens: any[] = [
   CloseFence, WhiteSpace, CommentLine, OpenBracket, CloseBracket, OpenParen,
   CloseParen, StringEmbedClose, OpenString, Bool, Action, Set, Equality, Dot, Pipe, Merge,
-  Mutate, Comparison, Num,  Search, Is, If, Else, Then,
+  Mutate, Comparison, Num,  Search, Lookup, Is, If, Else, Then,
   Not, None, Name, Tag, Uuid, FunctionIdentifier, Identifier, AddInfix, MultInfix
 ];
 
@@ -357,6 +358,7 @@ class Parser extends chev.Parser {
   actionEqualityRecord: any;
   actionAttributeExpression: any;
   actionOperation: any;
+  actionLookup: any;
   variable: any;
   recordOperation: any;
   ifExpression: any;
@@ -577,6 +579,7 @@ class Parser extends chev.Parser {
           self.block[actionKey](record);
           return record;
         }},
+        {ALT: () => { return self.SUBRULE(self.actionLookup, [actionKey]); }},
         {ALT: () => { return self.CONSUME(CommentLine); }},
       ])
     });
@@ -663,6 +666,18 @@ class Parser extends chev.Parser {
           return makeNode("action", {action: op.image, entity: asValue(variable), attribute: "tag", value: makeNode("constant", {value: tag.tag, from: [tag]}), from: [variable, op, tag]});
         }},
       ])
+    });
+
+    rule("actionLookup", (actionKey) => {
+      let lookup = self.CONSUME(Lookup);
+      let record: any = self.SUBRULE(self.record, [true]);
+      let info: any = {};
+      for(let attribute of record.attributes) {
+        info[attribute.attribute] = attribute.value;
+      }
+      let action = makeNode("action", {action: "+=", entity: info.record, attribute: info.attribute, value: info.value, node: info.node, scopes: self.activeScopes, from: [lookup, record]});
+      self.block[actionKey](action);
+      return action;
     });
 
     rule("actionAttributeExpression", (actionKey, action, parent) => {
@@ -897,7 +912,10 @@ class Parser extends chev.Parser {
     //-----------------------------------------------------------
 
     rule("functionRecord", (): any => {
-      let name = self.CONSUME(FunctionIdentifier);
+      let name = self.OR([
+          {ALT: () => { return self.CONSUME(FunctionIdentifier); }},
+          {ALT: () => { return self.CONSUME(Lookup); }}
+      ]);
       let record: any = self.SUBRULE(self.record, [true]);
       if(name.image === "lookup") {
         let info: any = {};

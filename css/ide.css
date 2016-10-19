@@ -129,7 +129,7 @@ body { background: #f5f5f5; color: #555; }
  * Elision
 \****************************************************************************/
 
-.elision { border-top:5px solid #ddd; }
+.elision { border-top:1px solid #ddd; }
 
 /****************************************************************************\
  * Format Bars
@@ -153,10 +153,12 @@ body { background: #f5f5f5; color: #555; }
  * Comments
 \****************************************************************************/
 
-.comment-widget { padding: 1em 0; }
-.code-comment-widget { padding-left: 30px; margin-top: 2px; margin-left: 15px; margin-right: 50px; }
+.comment-widget { padding: 2px 0; }
+.code-comment-widget { padding-left: 30px; margin-top: 2px; margin-left: 10px; margin-right: 50px; border-left: 5px solid #ff7e92; }
 
-.comment-widget.error { background: rgba(244, 96, 96, 0.5); }
+.comment-widget.error { background: rgb(255, 216, 222); }
+
+.comment-widget .comment { font-size: 10pt; }
 
 .comment-widget .comment-inner { display: block; }
 .comment-inner { display: none; }
@@ -167,7 +169,7 @@ body { background: #f5f5f5; color: #555; }
 .comment-widget .quick-actions > .comment-action + .comment-action { margin-left: 1px; }
 .comment-widget .quick-actions > .comment-action:hover { background: #505050; }
 
-.comment.error { border-color: #F06060; }
+.comment.error { border-color: #F06060; color: #b7003e; }
 .comment.warning { border-color: #C0C060; }
 
 .CodeMirror .document_comment { border-bottom: 1px solid white; }
@@ -179,7 +181,7 @@ body { background: #f5f5f5; color: #555; }
 .CodeMirror .scrollbar-annotation.error { background: #ff7e92; }
 .CodeMirror .scrollbar-annotation.warning { background: #C0C060; }
 
-.CodeMirror .COMMENT_error { border-color: #ff7e92; }
+/* .CodeMirror .COMMENT_error { border-color: #ff7e92; } */
 
 /****************************************************************************\
  * Views
@@ -193,7 +195,10 @@ body { background: #f5f5f5; color: #555; }
 /****************************************************************************\
  * Inspector
 \****************************************************************************/
-.CodeMirror .shadow { opacity: 0.6; }
-.CodeMirror .highlight { border-bottom: 1px solid rgba(255, 255, 255, 0.5); }
+.CodeMirror .shadow { color: #999 !important; }
+.CodeMirror .highlight { border: none; }
 .CodeMirror .badge {  }
-.CodeMirror .badge-widget { display: inline-block; margin-left: 4px; font-size: 10pt; background: rgba(50, 50, 100,  0.1); border-radius: 4px; padding: 0 4px; }
+.CodeMirror .badge-widget { display: inline-block; margin-left: 2px; font-size: 10pt; color: #E91E63; padding: 0 3px; }
+.CodeMirror .badge-widget:before { content: "( "; }
+.CodeMirror .badge-widget:after { content: " )"; }
+
