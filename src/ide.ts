@@ -1553,8 +1553,10 @@ export class Editor {
                             cursor.ch === 0 &&
                             doc.getLine(cursor.line) === "");
 
-    if(this.showNewBlockBar !== old || this.showNewBlockBar) {
+    if(this.showNewBlockBar !== old) {
       this.newBlockBar.active = false;
+      this.queueUpdate();
+    } if(this.showNewBlockBar) {
       this.queueUpdate();
     }
 
