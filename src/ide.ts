@@ -1118,8 +1118,7 @@ export class Editor {
 
         // No editor-controlled span may be created within a codeblock.
         // @NOTE: This feels like a minor layor violation.
-        // @FIXME: This doesn't properly handle the unlikely "inline wholly contains codeblock" case
-        if(this.inCodeBlock(from) || this.inCodeBlock(to)) return;
+        if(from.line !== to.line && this.findSpans(from, to, "code_block").length || this.findSpansAt(from, "code_block").length) return;
 
         this.formatSpan(from, to, source)
 
@@ -1155,8 +1154,7 @@ export class Editor {
 
       // No editor-controlled span may be created within a codeblock.
       // @NOTE: This feels like a minor layor violation.
-      // @FIXME: This doesn't properly handle the unlikely "line wholly contains codeblock" case
-      if(this.inCodeBlock(from) || this.inCodeBlock(to)) return;
+      if(from.line !== to.line && this.findSpans(from, to, "code_block").length || this.findSpansAt(from, "code_block").length) return;
 
       let existing:Span[] = [];
       let formatted = false;
@@ -1555,6 +1553,7 @@ export class Editor {
     }
 
     // Otherwise if there's a selection, show the format bar.
+    codeBlocks = this.findSpans(doc.getCursor("from"), doc.getCursor("to"), "code_block");
     old = this.showFormatBar;
     this.showFormatBar = (!codeBlocks.length && doc.somethingSelected());
     if(this.showFormatBar !== old || this.showFormatBar) this.queueUpdate();
