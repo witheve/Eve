@@ -2049,12 +2049,12 @@ export class IDE {
 
   enableInspector() {
     //window.addEventListener("mouseover", this.updateInspector);
-    window.addEventListener("mousedown", this.updateInspector);
+    window.addEventListener("click", this.updateInspector, true);
   }
 
   disableInspector() {
     //window.removeEventListener("mouseover", this.updateInspector);
-    window.removeEventListener("mousedown", this.updateInspector);
+    window.removeEventListener("click", this.updateInspector, true);
   }
 
   toggleInspecting() {
@@ -2067,7 +2067,7 @@ export class IDE {
     this.queueUpdate();
   }
 
-  updateInspector = debounce((event:MouseEvent) => {
+  updateInspector = (event:MouseEvent) => {
     let pane = this.findPaneAt(event.pageX, event.pageY);
     if(!(event.ctrlKey || event.metaKey || this.inspectingClick)) return;
     this.inspectingClick = false;
@@ -2094,8 +2094,10 @@ export class IDE {
     this.queueUpdate();
     if(events.length) {
       sendEvent(events);
+      event.preventDefault();
+      event.stopPropagation();
     }
-  }, 100);
+  };
 
   onChange?:(self:IDE) => void
   onEval?:(self:IDE, persist?: boolean) => void
