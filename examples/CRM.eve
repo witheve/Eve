@@ -4,7 +4,7 @@ Initialize some default values
 
 ```
 commit
-  [#app page: "about"]
+  [#app page: "chats"]
 ```
 
 Set the app user
@@ -54,7 +54,7 @@ search @browser @session
   [#app page: "about" user]
 
 bind @browser
-  content.children += [#div class: "about" children: 
+  content.children := [#div class: "about" children: 
     [#div text: "Phone: {{user.phone}}"]
     [#div text: "E-mail: {{user.email}}"]
   ]
@@ -69,8 +69,13 @@ search @browser @session
   msgs = convos.messages
 
 bind @browser
-  content.children += [#div class: "convo" convos children:
-    [#div text: "{{msgs.sender.name}}: {{msgs.text}}"]] 
+  content.children := [#div children:
+    [#div class: "convo" convos children:
+      [#div sort: msgs.time class: "msg" message: msgs children:
+        [#img class: "msg-avatar" src: msgs.sender.avatarURL]
+        [#div class: "msg-name" text: msgs.sender.name]
+        [#div class: "msg-text" text: msgs.text]]]]
+
 ```
 
 ### More Page
@@ -81,7 +86,7 @@ search @browser @session
   [#app page: "more"]
 
 bind @browser
-  content.children += [#div text: "More"]
+  content.children := [#div text: "More"]
 ```
 
 ### Main App
@@ -180,26 +185,26 @@ search
 
 commit
   [#conversation users: (corey, chris) messages:
-    [#message sender: corey text: "Hey"]
-    [#message sender: chris text: "Hey, how are you."]
-    [#message sender: corey text: "I'm fine, how are you?"]
-    [#message sender: chris text: "Fine as well."]
-    [#message sender: corey text: "Glad we got that out of the way!"]]
+    [#message sender: corey, time: 1476821596000, text: "Hey"]
+    [#message sender: chris, time: 1476821597000, text: "Hey, how are you."]
+    [#message sender: corey, time: 1476821598000, text: "I'm fine, how are you?"]
+    [#message sender: chris, time: 1476821599000, text: "Fine as well."]
+    [#message sender: corey, time: 1476821600000, text: "Glad we got that out of the way!"]]
 
   [#conversation users: (corey, josh) messages:
-    [#message sender: josh text: "Hey"]
-    [#message sender: corey text: "What's up Josh?"]
-    [#message sender: josh text: "I need to tell you something...."]
-    [#message sender: corey text: "Uh oh..."]
-    [#message sender: corey text: "Well what is it? Don't leave me hanging!"]]
+    [#message sender: josh, time: 1476735198000, text: "Hey"]
+    [#message sender: corey, time: 1476735199000, text: "What's up Josh?"]
+    [#message sender: josh, time: 1476735200000, text: "I need to tell you something...."]
+    [#message sender: corey, time: 1476735201000, text: "Uh oh..."]
+    [#message sender: corey, time: 1476735205000, text: "Well what is it? Don't leave me hanging!"]]
 
   [#conversation users: (corey, rob) messages:
-    [#message sender: corey text: "Did Josh tell you what happened?"]
-    [#message sender: rob text: "Yeah, don't worry, we took care of it. "]
-    [#message sender: corey text: "Well what happened?"]
-    [#message sender: rob text: "Like I said, don't worry about it."]
-    [#message sender: corey text: "..."]
-    [#message sender: rob text: "🕴"]]    
+    [#message sender: corey, time: 1476735420000, text: "Did Josh tell you what happened?"]
+    [#message sender: rob, time: 1476735421000, text: "Yeah, don't worry, we took care of it. "]
+    [#message sender: corey, time: 1476735422000, text: "Well what happened?"]
+    [#message sender: rob, time: 1476735423000, text: "Like I said, don't worry about it."]
+    [#message sender: corey, time: 1476735424000, text: "..."]
+    [#message sender: rob, time: 1476735451000, text: "🕴"]]    
 ```
 
 ### tags
