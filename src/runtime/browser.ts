@@ -129,11 +129,11 @@ class Responder {
       let db:Database = evaluation.getDatabase("browser");
       let level = db.index.lookup(record, attribute, value);
       if(attribute === undefined && level) {
-        let key = Object.keys(level.index).shift();
+        let key = level.toValues()[0];
         level = level.lookup(key);
       }
       if(value === undefined && level) {
-        let key = Object.keys(level.index).shift();
+        let key = level.toValues()[0];
         level = level.lookup(key);
       }
 
