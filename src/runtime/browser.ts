@@ -17,7 +17,7 @@ let evaluation;
 
 class Responder {
   socket: any;
-  lastParse: any;
+  lastBuild: any;
 
   constructor(socket) {
     this.socket = socket;
@@ -57,10 +57,10 @@ class Responder {
       join.nextId(0);
       let {results, errors} = parser.parseDoc(data.code || "", "editor");
       let {text, spans, extraInfo} = results;
-      let {blocks, errors: buildErrors} = builder.buildDoc(results);
-      // analyzer.analyze(results.blocks, spans, extraInfo);
+      let build = builder.buildDoc(results);
+      let {blocks, errors: buildErrors} = build;
       if(errors && errors.length) console.error(errors);
-      this.lastParse = results;
+      this.lastBuild = build;
       for(let error of buildErrors) {
         error.injectSpan(spans, extraInfo);
       }
@@ -75,7 +75,7 @@ class Responder {
             block.updateBinds({positions: {}, info: []}, changes);
           }
         }
-        let {blocks, errors} = builder.buildDoc(this.lastParse);
+        let {blocks, errors} = this.lastBuild;
         this.sendErrors(errors);
         for(let block of blocks) {
           if(block.singleRun) block.dormant = true;
@@ -88,7 +88,7 @@ class Responder {
       } else {
         if(evaluation) evaluation.close();
         join.nextId(0);
-        let {blocks, errors} = builder.buildDoc(this.lastParse);
+        let {blocks, errors} = this.lastBuild;
         this.sendErrors(errors);
         // analyzer.analyze(results.blocks);
         let browser = new BrowserSessionDatabase(responder);
@@ -118,6 +118,14 @@ class Responder {
       let extraInfo = {};
       analyzer.tokenInfo(evaluation, data.tokenId, spans, extraInfo)
       this.send(JSON.stringify({type: "comments", spans, extraInfo}))
+    } else if(data.type === "analyzerQuery") {
+      let parseBlocks = this.lastBuild.blocks.map((block) => block.parse);
+      let spans = [];
+      let extraInfo = {};
+      analyzer.analyze(parseBlocks, spans, extraInfo);
+      if(data.query === "nodeToRecord") {
+        analyzer.nodeIdToRecord(data.nodeId);
+      }
     }
 
   }
@@ -131,10 +139,11 @@ export function init(code) {
   global["browser"] = true;
   let {results, errors} = parser.parseDoc(code || "", "editor");
   if(errors && errors.length) console.error(errors);
-  responder.lastParse = results;
   let {text, spans, extraInfo} = results;
   responder.send(JSON.stringify({type: "parse", text, spans, extraInfo}));
-  let {blocks, errors: buildErrors} = builder.buildDoc(results);
+  let build = builder.buildDoc(results);
+  let {blocks, errors: buildErrors} = build;
+  responder.lastBuild = results;
   console.log("BLOCKS", blocks);
   responder.sendErrors(buildErrors);
   // analyzer.analyze(results.blocks, spans, extraInfo);

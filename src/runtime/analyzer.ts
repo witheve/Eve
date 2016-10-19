@@ -24,6 +24,13 @@ class AnalysisContext {
   ScanId = 0;
   changes: Changes
   block: ParseBlock
+  spans: any[];
+  extraInfo: any;
+
+  constructor(spans, extraInfo) {
+    this.spans = spans;
+    this.extraInfo = extraInfo;
+  }
 
   record(parseNode: any) {
     let changes = this.changes;
@@ -37,6 +44,7 @@ class AnalysisContext {
     for(let scope of parseNode.scopes) {
       changes.store("session", recordId, "scopes", scope, "analyzer");
     }
+    this.spans.push(start, stop, "record", recordId);
     return recordId;
   }
 
@@ -322,13 +330,13 @@ class Analysis {
   // Public
   //---------------------------------------------------------------------
 
-  block(block: ParseBlock) {
-    let context = this.createContext(block);
+  block(block: ParseBlock, spans, extraInfo) {
+    let context = this.createContext(block, spans, extraInfo);
     this._block(context, block);
   }
 
-  createContext(block: ParseBlock) {
-    let context = new AnalysisContext();
+  createContext(block: ParseBlock, spans, extraInfo) {
+    let context = new AnalysisContext(spans, extraInfo);
     context.block = block;
     context.changes = this.changes;
     return context;
@@ -379,6 +387,7 @@ function makeEveAnalyzer() {
 let eve;
 
 export function analyze(blocks: ParseBlock[], spans: any[], extraInfo: any) {
+  console.time();
   eve = makeEveAnalyzer();
   let session = new Database();
   let prev = eve.getDatabase("session")
@@ -392,14 +401,17 @@ export function analyze(blocks: ParseBlock[], spans: any[], extraInfo: any) {
   let changes = eve.createChanges();
   let analysis = new Analysis(changes);
   for(let block of blocks) {
-    analysis.block(block);
+    analysis.block(block, spans, extraInfo);
   }
-  eve.executeActions([], changes);
+  changes.commit();
+  console.log(changes);
+  console.timeEnd();
+  // eve.executeActions([], changes);
 }
 
 
 let prevQuery;
-export function tokenInfo(evaluation: Evaluation, tokenId: string, spans: any[], extraInfo: any) {
+function doQuery(queryId, query, spans, extraInfo) {
   eve = makeEveAnalyzer();
   let editorDb = new EditorDatabase(spans, extraInfo);
   eve.unregisterDatabase("editor");
@@ -408,11 +420,16 @@ export function tokenInfo(evaluation: Evaluation, tokenId: string, spans: any[],
   if(prevQuery) {
     changes.unstoreObject(prevQuery.queryId, prevQuery.query, "analyzer", "session");
   }
-  let queryId = `query|${tokenId}`;
-  let query = {tag: "query", token: tokenId};
   changes.storeObject(queryId, query, "analyzer", "session");
   eve.executeActions([], changes);
   prevQuery = {queryId, query};
+  return eve;
+}
+
+export function tokenInfo(evaluation: Evaluation, tokenId: string, spans: any[], extraInfo: any) {
+  let queryId = `query|${tokenId}`;
+  let query = {tag: "query", token: tokenId};
+  let eve = doQuery(queryId, query, spans, extraInfo);
 
   // look at the results and find out which action node we were looking
   // at
@@ -456,6 +473,20 @@ export function tokenInfo(evaluation: Evaluation, tokenId: string, spans: any[],
         }
       }
     }
+  }
+}
+
+export function nodeIdToRecord(nodeId) {
+  let queryId = `query|${nodeId}`;
+  let query = {tag: "query", build-id: nodeId};
+  let eve = doQuery(queryId, query, spans, extraInfo);
+
+  let sessionIndex = eve.getDatabase("session").index;
+  let queryInfo = sessionIndex.alookup("tag", "query");
+  let evSession = evaluation.getDatabase("session");
+  if(queryInfo) {
+    let [entity] = queryInfo.toValues();
+    let obj = sessionIndex.asObject(obj);
   }
 }
 
