@@ -27,6 +27,13 @@ function cleanString(str) {
   return cleaned;
 }
 
+function toEnd(node) {
+  if(node instanceof Token) {
+    return node.endOffset + 1;
+  }
+  return node.endOffset;
+}
+
 //-----------------------------------------------------------
 // Markdown
 //-----------------------------------------------------------
@@ -234,6 +241,8 @@ export type NodeDependent = chev.Token | ParseNode;
 export interface ParseNode {
   type?: string
   id?: string
+  startOffset?: number,
+  endOffset?: number,
   from: NodeDependent[]
   [property: string]: any
 }
@@ -270,6 +279,8 @@ export class ParseBlock {
   addUsage(variable, usage) {
     this.variableLookup[variable.name].from.push(usage);
     variable.from.push(usage);
+    variable.startOffset = usage.startOffset;
+    variable.endOffset = toEnd(usage);
     this.links.push(variable.id, usage.id);
   }
 
@@ -299,6 +310,10 @@ export class ParseBlock {
     }
     for(let from of node.from as any[]) {
       this.links.push(node.id, from.id);
+    }
+    if(node.from.length) {
+      node.startOffset = node.from[0].startOffset;
+      node.endOffset = toEnd(node.from[node.from.length - 1]);
     }
     node.type = type;
     return node;
@@ -705,19 +720,19 @@ class Parser extends chev.Parser {
       let attributes = [];
       let start = self.CONSUME(OpenBracket);
       let from: NodeDependent[] = [start];
-      let record : any = makeNode("record", {attributes, action, scopes: self.activeScopes, from});
+      let info: any = {attributes, action, scopes: self.activeScopes, from};
       if(parent) {
-        record.extraProjection = [parent];
+        info.extraProjection = [parent];
       }
       if(!noVar) {
-        record.variable = self.block.toVariable(`record|${start.startLine}|${start.startColumn}`, true);
-        record.variable.nonProjecting = true;
+        info.variable = self.block.toVariable(`record|${start.startLine}|${start.startColumn}`, true);
+        info.variable.nonProjecting = true;
       }
       let nonProjecting = false;
       self.MANY(() => {
         self.OR([
           {ALT: () => {
-            let attribute: any = self.SUBRULE(self.attribute, [false, blockKey, action, record.variable]);
+            let attribute: any = self.SUBRULE(self.attribute, [false, blockKey, action, info.variable]);
             // Inline handles attributes itself and so won't return any attribute for us to add
             // to this object
             if(!attribute) return;
@@ -743,6 +758,7 @@ class Parser extends chev.Parser {
         ]);
       })
       from.push(self.CONSUME(CloseBracket));
+      let record : any = makeNode("record", info);
       if(!noVar) {
         self.block[blockKey](record);
       }
@@ -886,6 +902,8 @@ class Parser extends chev.Parser {
       block.variables[recordVariable.name] = recordVariable;
       block.scan(scan);
       block.from = [not, start, attribute, end];
+      block.startOffset = not.startOffset;
+      block.endOffset = toEnd(end);
       popBlock();
       self.block.scan(block);
       return;
@@ -1010,6 +1028,8 @@ class Parser extends chev.Parser {
       from.push(self.CONSUME(CloseParen));
       popBlock();
       block.from = from;
+      block.startOffset = from[0].startOffset;
+      block.endOffset = toEnd(from[from.length - 1]);
       self.block.scan(block);
       return;
     });
@@ -1070,6 +1090,8 @@ class Parser extends chev.Parser {
       from.push(self.CONSUME(Then));
       let expression = self.SUBRULE(self.expression) as ParseNode;
       from.push(expression);
+      block.startOffset = from[0].startOffset;
+      block.endOffset = toEnd(from[from.length - 1]);
       popBlock();
       return makeNode("ifBranch", {block, outputs: ifOutputs(expression), exclusive: false, from});
     });
@@ -1089,6 +1111,8 @@ class Parser extends chev.Parser {
       from.push(self.CONSUME(Then));
       let expression = self.SUBRULE(self.expression) as ParseNode;
       from.push(expression);
+      block.startOffset = from[0].startOffset;
+      block.endOffset = toEnd(from[from.length - 1]);
       popBlock();
       return makeNode("ifBranch", {block, outputs: ifOutputs(expression), exclusive: true, from});
     });
@@ -1098,6 +1122,8 @@ class Parser extends chev.Parser {
       let from: NodeDependent[] = [self.CONSUME(Else)];
       let expression = self.SUBRULE(self.expression) as ParseNode;
       from.push(expression);
+      block.startOffset = from[0].startOffset;
+      block.endOffset = toEnd(from[from.length - 1]);
       popBlock();
       return makeNode("ifBranch", {block, outputs: ifOutputs(expression), exclusive: true, from});
     });
@@ -1292,28 +1318,7 @@ class Parser extends chev.Parser {
 //-----------------------------------------------------------
 
 export function nodeToBoundaries(node, offset = 0) {
-  let current = node.from[0];
-  while(current.from) {
-    current = current.from[0]
-  }
-  let startToken = current;
-  // The from for variables are all the usages, in that case, we'll just
-  // use the first occurrence (the startToken) and ignore everything else.
-  // For other nodes, we want to get the last node they're made out of.
-  if(node.type !== "variable") {
-    current = node.from[node.from.length - 1];
-    while(current.from) {
-      if(current.type === "variable") {
-        current = current.from[0]
-      } else {
-        current = current.from[current.from.length - 1];
-      }
-    }
-  }
-  let stopToken = current;
-  let start = startToken.startOffset;
-  let stop = stopToken.startOffset + stopToken.image.length;
-  return [start, stop];
+  return [node.startOffset, toEnd(node.endOffset)];
 }
 
 let eveParser = new Parser([]);
@@ -1336,7 +1341,32 @@ export function parseBlock(block, blockId, offset = 0, spans = [], extraInfo = {
   let results = eveParser.codeBlock(1, [blockId]);
   if(results) {
     results.start = offset;
+    results.startOffset = offset;
     results.tokens = lex.tokens;
+    for(let scan of results.scanLike) {
+      let type = "scan-boundary";
+      if(scan.type === "record") {
+        type = "record-boundary";
+      }
+      console.log("SCAN", scan.startOffset, scan.endOffset, type)
+      spans.push(scan.startOffset, scan.endOffset, type, scan.id);
+    }
+    for(let action of results.binds) {
+      let type = "action-boundary";
+      if(action.type === "record") {
+        type = "action-record-boundary";
+      }
+      spans.push(action.startOffset, action.endOffset, type, action.id);
+      extraInfo[action.id] = {kind: "bind"};
+    }
+    for(let action of results.commits) {
+      let type = "action-boundary";
+      if(action.type === "record") {
+        type = "action-record-boundary";
+      }
+      spans.push(action.startOffset, action.endOffset, type, action.id);
+      extraInfo[action.id] = {kind: "commits"};
+    }
   }
   let errors = parserErrors(eveParser.errors, {blockId, blockStart: offset, spans, extraInfo, tokens: lex.tokens});
   return {
@@ -1358,6 +1388,7 @@ export function parseDoc(doc, docId = `doc|${docIx++}`) {
     if(errors.length) {
       allErrors.push(errors);
     } else {
+      results.endOffset = block.endOffset;
       parsedBlocks.push(results);
     }
   }

@@ -34,7 +34,7 @@ class AnalysisContext {
 
   record(parseNode: any) {
     let changes = this.changes;
-    let recordId = `${this.block.id}|record|${this.ScanId++}`;
+    let recordId = parseNode.id;
     let [start, stop] = nodeToBoundaries(parseNode);
     changes.store("session", recordId, "tag", "record", "analyzer");
     changes.store("session", recordId, "block", this.block.id, "analyzer");
@@ -44,13 +44,12 @@ class AnalysisContext {
     for(let scope of parseNode.scopes) {
       changes.store("session", recordId, "scopes", scope, "analyzer");
     }
-    this.spans.push(start, stop, "record", recordId);
     return recordId;
   }
 
   scan(parseNode: any, scopes: string[], entity: any, attribute: string, value: any) {
     let changes = this.changes;
-    let scanId = `${this.block.id}|scan|${this.ScanId++}`;
+    let scanId = parseNode.id;
     let [start, stop] = nodeToBoundaries(parseNode, this.block.start);
     changes.store("session", scanId, "tag", "scan", "analyzer");
     changes.store("session", scanId, "block", this.block.id, "analyzer");
@@ -75,7 +74,7 @@ class AnalysisContext {
 
   provide(parseNode: any, scopes: string[], entity: any, attribute: string, value: any) {
     let changes = this.changes;
-    let actionId = `${this.block.id}|action|${this.ScanId++}`;
+    let actionId = parseNode.id;
     let [start, stop] = nodeToBoundaries(parseNode, this.block.start);
     changes.store("session", actionId, "tag", "action", "analyzer");
     changes.store("session", actionId, "block", this.block.id, "analyzer");
@@ -141,11 +140,9 @@ class Analysis {
       if(attr.value.type === "parenthesis") {
         for(let item of attr.value.items) {
           let id = context.scan(item, node.scopes, node.variable, attr.attribute, context.value(item));
-          this._link(context, id, item.id)
         }
       } else {
         let id = context.scan(attr, node.scopes, node.variable, attr.attribute, context.value(attr.value));
-        this._link(context, id, attr.id)
       }
     }
   }
@@ -153,10 +150,8 @@ class Analysis {
   _scanScan(context: AnalysisContext, node) {
     if(node.attribute.type === "variable") {
       let id = context.scan(node, node.scopes, context.value(node.entity), "any", context.value(node.value));
-      this._link(context, id, node.id)
     } else {
       let id = context.scan(node, node.scopes, context.value(node.entity), context.value(node.attribute), context.value(node.value));
-      this._link(context, id, node.id)
     }
   }
 
@@ -202,11 +197,9 @@ class Analysis {
       if(attr.value.type === "parenthesis") {
         for(let item of attr.value.items) {
           let id = context.provide(item, node.scopes, node.variable, attr.attribute, context.value(item));
-          this._link(context, id, attr.id)
         }
       } else {
         let id = context.provide(attr, node.scopes, node.variable, attr.attribute, context.value(attr.value));
-        this._link(context, id, attr.id)
       }
     }
   }
@@ -220,13 +213,10 @@ class Analysis {
       // }
     } else if(typeof node.attribute === "string") {
       let id = context.provide(node, node.scopes, node.entity, node.attribute, context.value(node.value));
-      this._link(context, id, node.id)
     } else if(node.attribute.type === "variable") {
       let id = context.provide(node, node.scopes, node.entity, "any", context.value(node.value));
-      this._link(context, id, node.id)
     } else {
       let id = context.provide(node, node.scopes, node.entity, context.value(node.attribute), context.value(node.value));
-      this._link(context, id, node.id)
     }
   }
 
@@ -476,9 +466,9 @@ export function tokenInfo(evaluation: Evaluation, tokenId: string, spans: any[],
   }
 }
 
-export function nodeIdToRecord(nodeId) {
+export function nodeIdToRecord(evaluation, nodeId, spans, extraInfo) {
   let queryId = `query|${nodeId}`;
-  let query = {tag: "query", build-id: nodeId};
+  let query = {tag: "query", "build-id": nodeId};
   let eve = doQuery(queryId, query, spans, extraInfo);
 
   let sessionIndex = eve.getDatabase("session").index;
@@ -486,7 +476,7 @@ export function nodeIdToRecord(nodeId) {
   let evSession = evaluation.getDatabase("session");
   if(queryInfo) {
     let [entity] = queryInfo.toValues();
-    let obj = sessionIndex.asObject(obj);
+    let obj = sessionIndex.asObject(entity);
   }
 }
 

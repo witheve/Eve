@@ -76,6 +76,9 @@ class Responder {
           }
         }
         let {blocks, errors} = this.lastBuild;
+        let spans = [];
+        let extraInfo = {};
+        analyzer.analyze(blocks.map((block) => block.parse), spans, extraInfo);
         this.sendErrors(errors);
         for(let block of blocks) {
           if(block.singleRun) block.dormant = true;
@@ -122,9 +125,8 @@ class Responder {
       let parseBlocks = this.lastBuild.blocks.map((block) => block.parse);
       let spans = [];
       let extraInfo = {};
-      analyzer.analyze(parseBlocks, spans, extraInfo);
       if(data.query === "nodeToRecord") {
-        analyzer.nodeIdToRecord(data.nodeId);
+        analyzer.nodeIdToRecord(evaluation, data.nodeId, spans, extraInfo);
       }
     }
 
