@@ -10,7 +10,229 @@ The inspector ("don't panic" button) is Eve's interactive debugging tool. It act
 
 Once Eve understands what the issue is, it provides a set of structured questions to work backwards through the symptoms to the source. Just telling you "the block labelled 'draw a sign out button when logged in' drew the sign out button" is worse than useless. However, with a little help from you ("that user shouldn't have the tag `#logged-in` right now), Eve can work backwards and say "the `#logged-in` tag was never removed from the user because she did not have an email attribute.
 
-When you've arrived at the root of the problem, the inspector provides tools to figure out why it happened. If, instead a missing attribute, the issue involved incorrect values (perhaps the result of mathematical error), Eve can show you intermediates to find where the breakdown occurs. When too many or too few rows match a pattern, Eve can show you the cardinality of the actions in a block to get a sense of why the numbers don't add up. These are some issues the inspector can help diagnose:
+When you've arrived at the root of the problem, the inspector provides tools to figure out why it happened. If, instead a missing attribute, the issue involved incorrect values (perhaps the result of mathematical error), Eve can show you intermediates to find where the breakdown occurs. When too many or too few rows match a pattern, Eve can show you the cardinality of the actions in a block to get a sense of why the numbers don't add up. Some issues the inspector can help diagnose can be found in  the **Example Scenarios** section.
+
+
+```
+commit @inspector
+  [#inspector]
+```
+
+## Events
+
+When an inspector alt-click comes in, retarget the inspector to the alt-clicked entity/element. Kill any existing states as well.
+
+```
+search @event
+  [#inspector #click #direct-target target type]
+
+search @inspector
+  inspector = [#inspector]
+
+commit @inspector
+  inspector.target := target
+  inspector.type := type
+  inspector.state := "popout"
+```
+
+When an inspector clear event comes in, remove all current inpection state.
+
+```
+search @event
+  [#inspector #clear]
+
+search @inspector
+  inspector = [#inspector]
+
+commit @inspector
+  inspector.target := none
+  inspector.type := none
+  inspector.state := none
+```
+
+Clear the clear event
+```
+search @event
+  event = [#inspector #clear]
+
+commit @event
+  event := none
+```
+
+When an inspector button is pressed, trigger the button's associated states.
+
+```
+search @event
+  [#click #direct-target element]
+
+search @browser
+  element = [#button inspector action]
+
+commit @inspector
+  inspector.state += action
+```
+
+## States
+
+When the `"close-popout"` state is active, remove the `"popout"` state and the `"close-popout"` states.
+
+```
+search @inspector
+  inspector = [#inspector state: "close-popout"]
+
+commit @inspector
+  inspector.state -= ("popout", "close-popout")
+```
+
+When the `"focus-blocks"` state is active, elide everything but the originating blocks for the currently inspected token.
+
+```
+search @inspector
+  inspector = [#inspector state: "focus-blocks" target]
+
+bind @editor
+  [#find-source target]
+```
+
+If sources have been found for the target in the `"focus-blocks"` state, elide everything besides those sources.
+
+```
+search @inspector
+  inspector = [#inspector state: "focus-blocks" target]
+
+search @editor
+  [#source target source type: "code_block"]
+
+bind @editor
+  [#mark-between inspector type: "elision_transient" | token: source]
+```
+
+When the inspector is in a state requiring related tokens, request them from the editor.
+
+```
+search @inspector
+  inspector = if i = [#inspector state: "highlight-related"] then i
+              if i = [#inspector state: "shadow-unrelated"] then i
+
+search @editor
+  [#source target source type: "code_block"]
+
+bind @editor
+  [#find-related target: inspector.target | block: source]
+```
+
+When the editor is in the `"highlight-related"` state, mark all related tokens highlighted.
+
+```
+search @inspector
+  inspector = [#inspector state: "highlight-related" target]
+
+search @editor
+  [#related target token type: "identifier"]
+
+bind @editor
+  [#mark-span inspector type: "highlight" | token]
+```
+
+When the editor is in the `"shadow-unrelated"` state, mark everything besides the related tokens shadowed.
+
+```
+search @inspector
+  inspector = [#inspector state: "shadow-unrelated" target]
+
+search @editor
+  [#source target source type: "code_block"]
+  [#related target block: source token type: "identifier"]
+
+bind @editor
+  [#mark-between inspector type: "shadow" | token within: source]
+```
+
+When the editor is in the `"show-values"` state, request the intermediate values from the editor.
+
+```
+search @inspector
+  inspector = [#inspector state: "show-values" target]
+
+
+search @editor
+  [#source target source type: "code_block"]
+  [#related target block: source token type: "identifier"]
+
+bind @editor
+  [#find-value variable: token]
+```
+
+When the editor is in the `"show-values"` state and intermediates have been found, badge them.
+
+```
+search @inspector
+  inspector = [#inspector state: "show-values" target]
+
+search @editor
+  [#source target source type: "code_block"]
+  [#related target block: source token type: "identifier"]
+  [#value variable: token value row: 1]
+
+bind @editor
+  [#mark-span inspector type: "badge" kind: "intermediate" target message: value | token]
+```
+
+When the inspector is in the `"show-cardinality"` state, request the cardinalities from the editor.
+
+```
+search @inspector
+  inspector = [#inspector state: "show-cardinality" target]
+
+search @editor
+  [#source target source type: "code_block"]
+  [#related target block: source token type: "identifier"]
+
+bind @editor
+  [#find-cardinality token]
+```
+
+When the editor is in the `"show-cardinality"` state and cardinalities have been found, badge them.
+
+```
+search @inspector
+  inspector = [#inspector state: "show-cardinality" target]
+
+search @editor
+  [#source target source type: "code_block"]
+  [#related target block: source token type: "identifier"]
+  [#cardinality token cardinality]
+
+bind @editor
+  [#mark-span inspector type: "badge" kind: "cardinality" target message: cardinality | token]
+```
+
+## Drawing
+
+When an `#inspector` is open with type `"element"` and a target, show the element popout.
+
+```
+search @inspector
+  inspector = [#inspector state: "popout" target]
+
+bind @view
+  attributes = [#attribute-table inspector entity: target]
+
+bind @browser
+  inspector <- [#div class: "flex-row inspector-pane" children:
+    [#div #options-panel children:
+      [#button inspector action: ("close-popout", "focus-blocks", "highlight-related", "shadow-unrelated", "show-values") text: "Should this not show up?"]
+      [#button inspector action: ("close-popout", "focus-blocks", "highlight-related", "shadow-unrelated", "show-cardinality") text: "Are there too many/few of these?"]
+      [#button inspector text: "Does this have an incorrect value?"]
+      [#button inspector text: "Is something missing here?"]]
+    [#div #attributes-panel children: attributes]]
+```
+
+
+
+
+
+
 
 ## Example Scenarios
 

@@ -1,0 +1,159 @@
+# Editor Bootstrap
+
+This DB allows Eve programs to interact directly with the editor.
+
+## Actions
+
+Actions allow remotely controlling the editor.
+
+### Inspect
+
+`#inspect` will enable inspector interactions in the editor. While this is on, additional mouse and cursor events will be attached to the editor to forward the user's current tokens / elements of interest to the `@inspector` DB. When the action is removed, inspector mode will be disabled.
+
+```
+search @editor
+  action = [#inspect]
+
+bind @inspector
+  action <- [#inspector]
+
+bind @browser
+  action <- [#editor #inspect]
+```
+
+### Jump To
+
+`#jump-to` will scroll the editor viewport to bring the given `token` into view. If multiple `token`s are specified, only the first will be scrolled to.
+
+```
+search @editor
+  action = [#jump-to token]
+
+bind @browser
+  action <- [#editor #jump-to token]
+```
+
+### Mark Between
+
+`#mark-between` will create new spans *between* the given `token`s of the specified `type`. If `within` (another token id) is specified, it will constrain itself within that token. Otherwise it will go to the beginnning and end of the document. When the action is removed, the associated spans will be removed from the editor.
+
+```
+search @editor
+  action = [#mark-between type token]
+
+bind @browser
+  action <- [#editor #mark-between type token]
+```
+
+Include the optional within attribute, if specified.
+
+```
+search @editor
+  action = [#mark-between within]
+
+bind @browser
+  action <- [within]
+```
+
+### Mark Span
+
+`#mark-span` will create a new span on the same range as the given `token`s of the specified `type`. When the action is removed, the associated spans will be removed from the editor.
+
+@NOTE: Mark span must be special cased to copy over all possible optional attributes right now. This is sad.
+
+```
+search @editor
+  action = [#mark-span type token]
+
+bind @browser
+  action <- [#editor #mark-span type token]
+```
+
+Copy optional `message` attribute over if provided.
+
+```
+search @editor
+  action = [#mark-span message]
+
+bind @browser
+  action <- [message]
+```
+
+Copy optional `kind` attribute over if provided.
+
+```
+search @editor
+  action = [#mark-span kind]
+
+bind @browser
+  action <- [kind]
+```
+
+### Find Source
+
+`#find-source` will request the originating `source` token(s) for a given set of `target` (token(s) or element(s)) from the language service. Results will be returned in the format `[#source target source type]`, where `target` is the same as provided, `source` is one of it's creating token(s), and `type` is the type of the `source` token. These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
+
+```
+search @editor
+  action = [#find-source target]
+
+bind @browser
+  action <- [#editor #find-source target]
+```
+
+### Find Related
+
+`#find-related` will request all token(s) related to the `target` (token(s) or element(s)) from the language service. Related tokens are tokens which are directly joined to or unified with the target. if `block` is specified, the search will be restricted to tokens in the given `block`(s). Results will be returned in the format `[#related target token block type]`, where `target` and `block` are the same as provided, `token` is the related token, and `type` is the type of `token`. These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
+
+```
+search @editor
+  action = [#find-related target]
+
+bind @browser
+  action <- [#editor #find-related target]
+```
+
+Include the optional `block` attribute, if provided.
+
+```
+search @editor
+  action = [#find-related block]
+
+bind @browser
+  action <- [block]
+```
+
+### Find Value
+
+`#find-value` will request the intermediate value(s) for the given set of `variable`(s) from the language service. By default, all intermediates for the variables will be returned. If `fixed` is specified, containing a set of `[variable value]` pairs, only values that exist in the same "row" as the fixed values will be returned. If multiple values are provided for a variable, the results for each will be logically unioned. Results will be returned in the format `[#value variable value row]`, where `variable` is one of the given `variable`s, `value` is the intermediate value of the variable, and `row` is the "row" the intermediate is from (for matching intermediates of different variables up). These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
+
+```
+search @editor
+  action = [#find-value variable]
+
+bind @browser
+  action <- [#editor #find-value variable]
+```
+
+Include the optional `fixed` attribute, if provided.
+
+```
+search @editor
+  action = [#find-value fixed]
+
+bind @browser
+  fixed <- [variable: fixed.variable value: fixed.value]
+  action <- [fixed]
+```
+
+### Find Cardinality
+
+`#find-cardinality` will request the cardinalities for the given set of `token`(s) from the language service. If these tokens are not blocks, their parent blocks will be found and used instead. The cardinality is the number of unique values that could satisfy that variable. Results will be returned in the format `[#cardinality token cardinality]` where `token` is as given and cardinality is the count of satisfying values available. These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
+
+```
+search @editor
+  action = [#find-cardinality token]
+
+bind @browser
+  action <- [#editor #find-cardinality token]
+```

@@ -2056,6 +2056,64 @@ test("lookup all free", (assert) => {
     ~~~
   `);
   assert.end();
+});
+
+test("lookup action", (assert) => {
+  let expected = {
+    insert: [
+      ["2", "tag", "person"],
+      ["2", "name", "chris"],
+      ["2", "woo4", "yep"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "chris"]
+    ~~~
+
+    foo bar
+    ~~~
+      search
+        record = [#person]
+        attribute = "woo{{1 + 3}}"
+        value = "yep"
+      commit
+        lookup[record, attribute, value]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("lookup action without value errors", (assert) => {
+  let expected = {
+    insert: [
+      ["2", "tag", "person"],
+      ["2", "name", "chris"],
+    ],
+    remove: [],
+    errors: true,
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "chris"]
+    ~~~
+
+    foo bar
+    ~~~
+      search
+        record = [#person]
+        attribute = "woo{{1 + 3}}"
+        value = "yep"
+      commit
+        lookup[record, attribute]
+    ~~~
+  `);
+  assert.end();
 })
 
 test("an identifier followed by whitespace should not be interpreted as a function", (assert) => {
@@ -2419,6 +2477,66 @@ test("range with infinite increment", (assert) => {
         i = range[from: -1 to: -5 increment: 1]
       commit
         [| dude: i]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("accessing the same attribute sequence natural joins instead of product joining", (assert) => {
+  let expected = {
+    insert: [
+      ["2","tag","user"],
+      ["2","name","Corey Montella"],
+      ["5","tag","user"],
+      ["5","name","Chris Granger"],
+      ["14|2|23","tag","message"],
+      ["14|2|23","sender","2"],
+      ["14|2|23","text","Hello, Chris"],
+      ["14|2|23","eve-auto-index",1],
+      ["19|5|23","tag","message"],
+      ["19|5|23","sender","5"],
+      ["19|5|23","text","Hello there!"],
+      ["19|5|23","eve-auto-index",2],
+      ["23","tag","conversation"],
+      ["23","messages","19|5|23"],
+      ["23","messages","14|2|23"],
+      ["34|23","tag","div"],
+      ["34|23","convos","23"],
+      ["34|23","text","Chris Granger - Hello there!"],
+      ["34|23","text","Corey Montella - Hello, Chris"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    We have users:
+
+    ~~~
+    commit
+      [#user name: "Corey Montella"]
+      [#user name: "Chris Granger"]
+    ~~~
+
+    And we have conversations with messages between users:
+
+    ~~~
+    search
+      corey = [#user name: "Corey Montella"]
+      chris = [#user name: "Chris Granger"]
+
+    commit
+      [#conversation messages:
+        [#message sender: corey, text: "Hello, Chris"]
+        [#message sender: chris, text: "Hello there!"]]
+    ~~~
+
+    Now I want to display all the messages and their senders
+
+    ~~~
+    search
+      convos =  [#conversation]
+
+    bind @browser
+      [#div convos | text: "{{convos.messages.sender.name}} - {{convos.messages.text}}"]
     ~~~
   `);
   assert.end();

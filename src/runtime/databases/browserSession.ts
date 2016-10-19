@@ -25,6 +25,45 @@ export class BrowserEventDatabase extends Database {
   }
 }
 
+export class BrowserViewDatabase extends Database {
+  constructor() {
+    super();
+    if(global["examples"]["view.eve"]) {
+      let {results, errors} = parser.parseDoc(global["examples"]["view.eve"]);
+      if(errors && errors.length) console.error("View DB Errors", errors);
+      let {blocks, errors: buildErrors} = builder.buildDoc(results);
+      if(buildErrors && buildErrors.length) console.error("View DB Errors", errors);
+      this.blocks = blocks;
+    }
+  }
+}
+
+export class BrowserEditorDatabase extends Database {
+  constructor() {
+    super();
+    if(global["examples"]["editor.eve"]) {
+      let {results, errors} = parser.parseDoc(global["examples"]["editor.eve"]);
+      if(errors && errors.length) console.error("Editor DB Errors", errors);
+      let {blocks, errors: buildErrors} = builder.buildDoc(results);
+      if(buildErrors && buildErrors.length) console.error("Editor DB Errors", errors);
+      this.blocks = blocks;
+    }
+  }
+}
+
+export class BrowserInspectorDatabase extends Database {
+  constructor() {
+    super();
+    if(global["examples"]["inspector.eve"]) {
+      let {results, errors} = parser.parseDoc(global["examples"]["inspector.eve"]);
+      if(errors && errors.length) console.error("Inspector DB Errors", errors);
+      let {blocks, errors: buildErrors} = builder.buildDoc(results);
+      if(buildErrors && buildErrors.length) console.error("Inspector DB Errors", errors);
+      this.blocks = blocks;
+    }
+  }
+}
+
 export class BrowserSessionDatabase extends Database {
   client: BrowserClient;
 

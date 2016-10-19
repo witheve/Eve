@@ -1,0 +1,52 @@
+# Views
+
+## Tables
+
+### KV Table
+
+A `#kv-table` is a two-column table which may have many values per key. All values for the same key will be grouped.
+
+Create the DOM structure for `#kv-table`s.
+
+```
+search @view
+  wrapper = [#kv-table kvs: [key]]
+  ix = sort[value: key]
+
+bind @browser
+  wrapper.tag += "div"
+  wrapper.class += ("view" "kv-table")
+  wrapper.children := [#div class: "kv-row" sort: ix wrapper children:
+    [#div text: key]
+    [#div #kv-values class: "kv-values" wrapper key]]
+```
+
+Inject the values for each key in the `#kv-table`.
+
+```
+search @view
+  wrapper = [#kv-table kvs: [key value]]
+  ix = sort[value per: key]
+
+search @browser
+  value-column = [#kv-values wrapper key]
+
+bind @browser
+  value-column.children += [#div value-column text: value sort: ix]
+```
+
+### Attribute Table
+
+**DEPRECATED** This is a hack, since we do not support dynamic scoping, you cannot control what scope it finds EAVs in. Do not use this.
+
+```
+search @view
+  wrapper = [#attribute-table entity]
+
+search (@session, @browser)
+  lookup[record: entity attribute: key value]
+
+bind @view
+  wrapper.tag += "kv-table"
+  wrapper.kvs := [key value]
+```

@@ -65,8 +65,11 @@ body { background: #f5f5f5; color: #555; }
 \****************************************************************************/
 .editor-pane { margin-left: 20px; }
 
-.CodeMirror-lines { padding-top:30px; }
+.editor-pane > .controls { position: absolute; top: 10px; right: 30px; z-index: 10; background: rgba(255, 255, 255, 0.8); }
+.editor-pane > .controls > div { padding: 5px 10px; text-decoration: underline; }
+.editor-pane > .controls > div:hover { background: #eee; }
 
+.CodeMirror-lines { padding-top:30px; }
 
 .CodeMirror { background:none; color: inherit; height:100%; font-size:11pt;  }
 .CodeMirror-scroll, .CodeMirror-gutters { height:100%; }
@@ -126,7 +129,7 @@ body { background: #f5f5f5; color: #555; }
  * Elision
 \****************************************************************************/
 
-.elision { border-top:2px solid #ddd; }
+.elision { border-top:1px solid #ddd; }
 
 /****************************************************************************\
  * Format Bars
@@ -150,10 +153,12 @@ body { background: #f5f5f5; color: #555; }
  * Comments
 \****************************************************************************/
 
-.comment-widget { padding: 5px 0; }
-.code-comment-widget { padding-left: 30px; margin-top: 2px; margin-left: 15px; margin-right: 50px; }
+.comment-widget { padding: 2px 0; }
+.code-comment-widget { padding-left: 30px; margin-top: 2px; margin-left: 10px; margin-right: 50px; border-left: 5px solid #ff7e92; }
 
-.comment-widget.error { background: #ffced6; }
+.comment-widget.error { background: rgb(255, 216, 222); }
+
+.comment-widget .comment { font-size: 10pt; }
 
 .comment-widget .comment-inner { display: block; }
 .comment-inner { display: none; }
@@ -164,7 +169,7 @@ body { background: #f5f5f5; color: #555; }
 .comment-widget .quick-actions > .comment-action + .comment-action { margin-left: 1px; }
 .comment-widget .quick-actions > .comment-action:hover { background: #505050; }
 
-.comment.error { border-color: #F06060; color: #a7001a; }
+.comment.error { border-color: #F06060; color: #b7003e; }
 .comment.warning { border-color: #C0C060; }
 
 .CodeMirror .document_comment { border-bottom: 1px solid white; }
@@ -176,7 +181,7 @@ body { background: #f5f5f5; color: #555; }
 .CodeMirror .scrollbar-annotation.error { background: #ff7e92; }
 .CodeMirror .scrollbar-annotation.warning { background: #C0C060; }
 
-.CodeMirror .COMMENT_error { border-color: #ff7e92; }
+/* .CodeMirror .COMMENT_error { border-color: #ff7e92; } */
 
 /****************************************************************************\
  * Views
@@ -191,6 +196,8 @@ body { background: #f5f5f5; color: #555; }
  * Inspector
 \****************************************************************************/
 .CodeMirror .shadow { color: #999 !important; }
-.CodeMirror .highlight { border-bottom: 1px solid rgba(255, 255, 255, 0.5); }
-.CodeMirror .badge { border:none; }
-.CodeMirror .badge-widget { display: inline-block; margin:0 4px; font-size: 10pt; color: #03a689; background: #c9e4e0; border-radius: 2px; padding: 0 4px; padding-top:1px; }
+.CodeMirror .highlight { border: none; }
+.CodeMirror .badge {  }
+.CodeMirror .badge-widget { display: inline-block; margin-left: 2px; font-size: 10pt; color: #E91E63; padding: 0 3px; }
+.CodeMirror .badge-widget:before { content: "( "; }
+.CodeMirror .badge-widget:after { content: " )"; }

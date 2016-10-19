@@ -125,7 +125,6 @@ export class Sort extends Constraint {
   finalizeGroup(group) {
     let result = group.result;
     let direction = group.direction;
-    console.log("DIRECTION", direction);
     let multi = 1;
     result.sort((a, b) => {
       let ix = -1;
@@ -152,7 +151,6 @@ export class Sort extends Constraint {
       group[JSON.stringify(item)] = ix;
       ix++;
     }
-    console.log("FINALIZED", group);
   }
 
   adjustAggregate(group, value, key) {

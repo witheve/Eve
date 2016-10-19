@@ -8,7 +8,7 @@ import * as client from "../client";
 import * as parser from "./parser";
 import * as builder from "./builder";
 import {ActionImplementations} from "./actions";
-import {BrowserSessionDatabase, BrowserEventDatabase} from "./databases/browserSession";
+import {BrowserSessionDatabase, BrowserEventDatabase, BrowserViewDatabase, BrowserEditorDatabase, BrowserInspectorDatabase} from "./databases/browserSession";
 import {HttpDatabase} from "./databases/http";
 import * as system from "./databases/system";
 import * as analyzer from "./analyzer";
@@ -93,12 +93,20 @@ class Responder {
         // analyzer.analyze(results.blocks);
         let browser = new BrowserSessionDatabase(responder);
         let event = new BrowserEventDatabase();
+        let view = new BrowserViewDatabase();
+        let editor = new BrowserEditorDatabase();
+        let inspector = new BrowserInspectorDatabase();
         let session = new Database();
         session.blocks = blocks;
         evaluation = new Evaluation();
         evaluation.registerDatabase("session", session);
-        evaluation.registerDatabase("event", event);
         evaluation.registerDatabase("browser", browser);
+        evaluation.registerDatabase("event", event);
+
+        evaluation.registerDatabase("view", view);
+        evaluation.registerDatabase("editor", editor);
+        evaluation.registerDatabase("inspector", inspector);
+
         evaluation.registerDatabase("system", system.instance);
         evaluation.registerDatabase("http", new HttpDatabase());
         evaluation.fixpoint();
@@ -132,12 +140,20 @@ export function init(code) {
   // analyzer.analyze(results.blocks, spans, extraInfo);
   let browser = new BrowserSessionDatabase(responder);
   let event = new BrowserEventDatabase();
+  let view = new BrowserViewDatabase();
+  let editor = new BrowserEditorDatabase();
+  let inspector = new BrowserInspectorDatabase();
   let session = new Database();
   session.blocks = blocks;
   evaluation = new Evaluation();
   evaluation.registerDatabase("session", session);
   evaluation.registerDatabase("browser", browser);
   evaluation.registerDatabase("event", event);
+
+  evaluation.registerDatabase("view", view);
+  evaluation.registerDatabase("editor", editor);
+  evaluation.registerDatabase("inspector", inspector);
+
   evaluation.registerDatabase("system", system.instance);
   evaluation.registerDatabase("http", new HttpDatabase());
   evaluation.fixpoint();
