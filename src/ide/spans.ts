@@ -115,7 +115,7 @@ export class Span {
 
   type: string;
 
-  protected _attributes:CodeMirror.TextMarkerOptions = {};
+  protected _attributes:CodeMirror.TextMarkerOptions&{widget?: HTMLElement} = {};
 
   constructor(editor:Editor, from:Position, to:Position, public source:SpanSource, origin = "+input") {
     this.editor = editor;
@@ -139,7 +139,7 @@ export class Span {
     this._attributes.className = this._attributes.className || this.type;
     let doc = this.editor.cm.getDoc();
     if(samePosition(from, to)) {
-      this.marker = doc.setBookmark(from, to);
+      this.marker = doc.setBookmark(from, this._attributes);
     } else {
       this.marker = doc.markText(from, to, this._attributes);
     }
@@ -466,13 +466,27 @@ export class BlockSpan extends Span {
 
 interface ListItemSpanSource extends SpanSource {level: number, listData: {start?: number, type:"ordered"|"bullet"}}
 class ListItemSpan extends LineSpan {
-  constructor(editor:Editor, from:Position, to:Position, public source:ListItemSpanSource, origin = "+input") {
-    super(editor, from, to, source, origin);
-    source.listData = source.listData || {type: "bullet"}
-    source.level = source.level || 1;
-  }
+  source:ListItemSpanSource
+  bulletElem:HTMLElement;
 
   apply(from:Position, to:Position, origin = "+input") {
+    let source = this.source;
+    source.listData = source.listData || {type: "bullet"};
+    source.level = source.level || 1;
+
+    if(!this.bulletElem) {
+      this.bulletElem = document.createElement("span");
+    }
+    this.bulletElem.style.paddingRight = ""+10;
+    this.bulletElem.style.paddingLeft = ""+(20 * (source.level - 1));
+    this._attributes.widget = this.bulletElem;
+
+    if(source.listData.type === "bullet") {
+      this.bulletElem.textContent = "-";
+    } else {
+      this.bulletElem.textContent = `${source.listData.start !== undefined ? source.listData.start : 1}.`;
+    }
+
     this.lineTextClass = `ITEM ${this.source.listData.type} level-${this.source.level} start-${this.source.listData.start}`;
     super.apply(from, to, origin);
   }
