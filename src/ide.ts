@@ -596,6 +596,7 @@ export class Editor {
     this.cm.on("change", (editor, rawChange) => this.onChange(rawChange));
     this.cm.on("changes", (editor, rawChanges) => this.onChanges(rawChanges));
     this.cm.on("cursorActivity", this.onCursorActivity);
+    this.cm.on("scroll", this.onScroll);
 
     this.newBlockBar = {editor: this, active: false};
   }
@@ -1541,6 +1542,10 @@ export class Editor {
     this.updateFormatters();
   }
 
+  onScroll = () => {
+    this.updateFormatters();
+  }
+
   updateFormatters = debounce(() => {
     let doc = this.cm.getDoc();
     let cursor = doc.getCursor();
@@ -1569,7 +1574,7 @@ export class Editor {
     old = this.showFormatBar;
     this.showFormatBar = (!modifyingSelection && !codeBlocks.length && doc.somethingSelected());
     if(this.showFormatBar !== old || this.showFormatBar) this.queueUpdate();
-  }, 50);
+  }, 30);
 
   // Elements
 
@@ -1792,7 +1797,7 @@ function newBlockBar(elem:EditorBarElem):Elem {
   let cursor = doc.getCursor();
   let top = editor.cm.cursorCoords(cursor, undefined).top;
   let left = 0;
-  console.log(cursor.line, cursor.ch, top, left);
+
   return {id: "new-block-bar", c: `new-block-bar ${active ? "active" : ""}`, top, left, children: [
     {c: "new-block-bar-toggle ion-plus", click: () => {
       elem.active = !elem.active;
