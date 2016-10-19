@@ -498,7 +498,7 @@ export class NotScan {
   resolveProposal() { throw new Error("Resolving a not proposal"); }
 
   accept(multiIndex: MultiIndex, prefix, solvingFor, force?) {
-    if(!force && !this.internalVars[solvingFor.id] || !fullyResolved(this.args, prefix)) return true;
+    if(!force && !this.internalVars[solvingFor.id] && this.internalVars.length || !fullyResolved(this.args, prefix)) return true;
     let resolved = this.resolve(prefix);
     let notPrefix = [];
     let ix = 0;
