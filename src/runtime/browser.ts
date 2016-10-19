@@ -118,6 +118,30 @@ class Responder {
       let extraInfo = {};
       analyzer.tokenInfo(evaluation, data.tokenId, spans, extraInfo)
       this.send(JSON.stringify({type: "comments", spans, extraInfo}))
+
+    } else if(data.type === "findNode") {
+      let {record, attribute, value} = data;
+      if(!record) console.error("Unable to find node for completely free EAV");
+
+      // @NOTE: This may not be sufficient in the future.
+      let db:Database = evaluation.getDatabase("browser");
+      let level = db.index.lookup(record, attribute, value);
+      if(!attribute && level) {
+        let key = Object.keys(level.index).shift();
+        level = level.lookup(key);
+      }
+      if(!value && level) {
+        let key = Object.keys(level.index).shift();
+        level = level.lookup(key);
+      }
+
+      let nodes;
+      if(level) {
+        nodes = Object.keys(level.index);
+      } else {
+        nodes = [];
+      }
+      this.send(JSON.stringify({type: "findNode", record, attribute, value, nodes}));
     }
 
   }
