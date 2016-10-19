@@ -1537,15 +1537,21 @@ export class Editor {
       }
     }
 
+    this.updateFormatters();
+  }
+
+  updateFormatters = debounce(() => {
+    let doc = this.cm.getDoc();
+    let cursor = doc.getCursor();
+
     // If we're outside of a codeblock, display our rich text controls.
     let codeBlocks = this.findSpansAt(cursor, "code_block");
-
 
     //If the cursor is at the beginning of a new line, display the new block button.
     let old = this.showNewBlockBar;
     this.showNewBlockBar = (!codeBlocks.length &&
-                               cursor.ch === 0 &&
-                               doc.getLine(cursor.line) === "");
+                            cursor.ch === 0 &&
+                            doc.getLine(cursor.line) === "");
 
     if(this.showNewBlockBar !== old || this.showNewBlockBar) {
       this.newBlockBar.active = false;
@@ -1553,11 +1559,14 @@ export class Editor {
     }
 
     // Otherwise if there's a selection, show the format bar.
+    let inputState = this.ide.inputState;
+    let modifyingSelection = inputState.mouse["1"] || inputState.keyboard.shift;
     codeBlocks = this.findSpans(doc.getCursor("from"), doc.getCursor("to"), "code_block");
+
     old = this.showFormatBar;
-    this.showFormatBar = (!codeBlocks.length && doc.somethingSelected());
+    this.showFormatBar = (!modifyingSelection && !codeBlocks.length && doc.somethingSelected());
     if(this.showFormatBar !== old || this.showFormatBar) this.queueUpdate();
-  }
+  }, 50);
 
   // Elements
 
@@ -1859,6 +1868,7 @@ export class IDE {
     this.renderer.content.classList.add("ide-root");
 
     this.enableInspector();
+    this.monitorInputState();
   }
 
   elem() {
@@ -1938,6 +1948,31 @@ export class IDE {
       this.onTokenInfo(this, spans[0].source.id);
     }
   }
+
+  monitorInputState() {
+    window.addEventListener("mousedown", this.updateMouseInputState);
+    window.addEventListener("mouseup", this.updateMouseInputState);
+    window.addEventListener("keydown", this.updateKeyboardInputState);
+    window.addEventListener("keyup", this.updateKeyboardInputState);
+  }
+
+  inputState = {
+    mouse: {1: false},
+    keyboard: {shift: false}
+  }
+  updateMouseInputState = (event:MouseEvent) => {
+    let mouse = this.inputState.mouse;
+    let neue = !!(event.buttons & 1);
+    if(!neue && mouse["1"]) this.editor.updateFormatters();
+    mouse["1"] = neue;
+  }
+  updateKeyboardInputState = (event:KeyboardEvent) => {
+    let keyboard = this.inputState.keyboard;
+    let neue = event.shiftKey;
+    if(!neue && keyboard.shift) this.editor.updateFormatters();
+    keyboard.shift = neue;
+  }
+
 
   //-------------------------------------------------------
   // Actions
