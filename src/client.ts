@@ -365,7 +365,7 @@ _ide.onLoadFile = (ide, documentId, code) => {
     socket.send(JSON.stringify({scope: "root", type: "parse", code}))
     socket.send(JSON.stringify({type: "eval", persist: false}));
   }
-  history.replaceState({}, "", `/examples/${documentId}`);
+  history.pushState({}, "", `/examples/${documentId}`);
 }
 
 _ide.onTokenInfo = (ide, tokenId) => {
