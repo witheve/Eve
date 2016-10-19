@@ -2105,7 +2105,7 @@ export class IDE {
     }
   }
 
-  attachView(recordId:string, sources:string[]) {
+  attachView(recordId:string, sources:number[]) {
     let source = sources.sort()[0];
     if(!source) return;
     let view = this.activeViews[recordId];
@@ -2114,7 +2114,11 @@ export class IDE {
     if(!node) return;
     view.container.appendChild(node);
 
-    let sourceSpan = this.editor.getSpanBySourceId(source);
+    let sourceSpan:Span|undefined;
+    console.log("SSS", source);
+    if(source == 232) {
+      sourceSpan = this.editor.getSpanBySourceId("editor|block|21|node|26");
+    }
     if(!sourceSpan) return;
 
     let loc = sourceSpan.find();
