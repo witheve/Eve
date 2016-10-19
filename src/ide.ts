@@ -6,7 +6,8 @@ import {debounce, uuid, unpad, Range, Position, isRange, compareRanges, compareP
 import {Span, SpanMarker, isSpanMarker, isEditorControlled, spanTypes, compareSpans, SpanChange, isSpanChange, HeadingSpan, DocumentCommentSpan} from "./ide/spans";
 import * as Spans from "./ide/spans";
 
-import {sendEvent} from "./client";
+import {activeElements} from "./renderer";
+import {send, sendEvent, indexes} from "./client";
 
 //---------------------------------------------------------
 // Navigator
@@ -1926,6 +1927,15 @@ export class IDE {
     if(this.onEval) this.onEval(this, persist);
   }
 
+  tokenInfo() {
+    let doc = this.editor.cm.getDoc();
+    let cursor = doc.getCursor();
+    let spans = this.editor.findSpansAt(cursor).filter((span) => span instanceof Spans.ParserSpan);
+    if(spans.length && this.onTokenInfo) {
+      this.onTokenInfo(this, spans[0].source.id);
+    }
+  }
+
   //-------------------------------------------------------
   // Actions
   //-------------------------------------------------------
@@ -2021,13 +2031,49 @@ export class IDE {
     });
   }
 
-  tokenInfo() {
-    let doc = this.editor.cm.getDoc();
-    let cursor = doc.getCursor();
-    let spans = this.editor.findSpansAt(cursor).filter((span) => span instanceof Spans.ParserSpan);
-    if(spans.length && this.onTokenInfo) {
-      this.onTokenInfo(this, spans[0].source.id);
+  //-------------------------------------------------------
+  // Views
+  //-------------------------------------------------------
+  activeViews:any = {};
+
+  updateViews(inserts: string[], removes: string[], records) {
+    for(let recordId of removes) {
+      let view = this.activeViews[recordId];
+      if(!view) continue;
+      // Detach view
+      if(view.widget) view.widget.clear();
+      delete this.activeViews[recordId];
     }
+
+    for(let recordId of inserts) {
+      // if the view already has a parent, leave it be.
+      if(indexes.byChild.index[recordId]) continue;
+
+      // Otherwise, we'll grab it and attach it to its creator in the editor.
+      let record = records[recordId];
+      let view = this.activeViews[recordId] = {record: recordId, container: document.createElement("div")};
+      view.container.className = "view-container";
+
+      // Find the source node for this view.
+      send({type: "findNode", record: recordId, attribute: "tag", value: "view"});
+    }
+  }
+
+  attachView(recordId:string, sources:string[]) {
+    let source = sources.sort()[0];
+    if(!source) return;
+    let view = this.activeViews[recordId];
+    // @NOTE: This isn't particularly kosher.
+    let node = activeElements[recordId];
+    if(!node) return;
+    view.container.appendChild(node);
+
+    let sourceSpan = this.editor.getSpanBySourceId(source);
+    if(!sourceSpan) return;
+
+    let loc = sourceSpan.find();
+    if(!loc) return;
+    view.widget = this.editor.cm.addLineWidget(loc.to.line, view.container);
   }
 
   //-------------------------------------------------------

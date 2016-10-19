@@ -195,6 +195,9 @@ socket.onmessage = function(msg) {
   } else if(data.type == "comments") {
     _ide.injectSpans(data.spans, data.extraInfo);
 
+  } else if(data.type == "findNode") {
+    _ide.attachView(data.record, data.nodes);
+
   } else if(data.type == "error") {
     console.error(data.message, data);
   } else {
@@ -228,30 +231,35 @@ function printDebugRecords(index, dirty) {
 }
 indexes.dirty.subscribe(printDebugRecords);
 
-function passEditorRecordsToIDE(index, dirty) {
-  let records = {};
-  let inserts = [];
-  let removes = [];
+function subscribeToTagDiff(tag:string, callback: (inserts: string[], removes: string[], records: {[recordId:string]: any}) => void) {
+  indexes.dirty.subscribe((index, dirty) => {
+    let records = {};
+    let inserts = [];
+    let removes = [];
 
-  let dirtyEditorRecords = indexes.byTag.dirty["editor"] || [];
-  for(let recordId of dirtyEditorRecords) {
-    let record = indexes.records.index[recordId];
-    if(!record || !record.tag || record.tag.indexOf("editor") === -1) {
-      removes.push(recordId);
+    let dirtyOldRecords = indexes.byTag.dirty[tag] || [];
+    for(let recordId of dirtyOldRecords) {
+      let record = indexes.records.index[recordId];
+      if(!record || !record.tag || record.tag.indexOf(tag) === -1) {
+        removes.push(recordId);
+      }
     }
-  }
 
-  for(let recordId in dirty) {
-    let record = indexes.records.index[recordId];
-    if(record.tag && record.tag.indexOf("editor") !== -1) {
-      inserts.push(recordId);
-      records[recordId] = record;
+    for(let recordId in dirty) {
+      let record = indexes.records.index[recordId];
+      if(record.tag && record.tag.indexOf(tag) !== -1) {
+        inserts.push(recordId);
+        records[recordId] = record;
+      }
     }
-  }
 
-  _ide.updateActions(inserts, removes, records);
+    callback(inserts, removes, records);
+  });
 }
-indexes.dirty.subscribe(passEditorRecordsToIDE);
+
+subscribeToTagDiff("editor", (inserts, removes, records) => _ide.updateActions(inserts, removes, records));
+
+subscribeToTagDiff("view", (inserts, removes, records) => _ide.updateViews(inserts, removes, records));
 
 //---------------------------------------------------------
 // Communication helpers
@@ -288,6 +296,12 @@ function recordToEAVs(record) {
     }
   }
   return eavs;
+}
+
+export function send(message) {
+  if(socket && socket.readyState == 1) {
+    socket.send(JSON.stringify(message))
+  }
 }
 
 export function sendEvent(records:any[]) {
