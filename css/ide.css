@@ -17,10 +17,10 @@ body { background: #f5f5f5; color: #555; }
 \****************************************************************************/
 .editor-root { display: flex; flex-direction: row; height: 100%; align-items: stretch; background: #fff; }
 
-.navigator-pane { width: 320px; flex: 0 0 auto; overflow-x: hidden; background:#555; color:#eee; transition: width 0.3s ease-in-out; margin-right:20px; padding:30px 0; }
+.navigator-pane { width: 280px; flex: 0 0 auto; overflow-x: hidden; background:#555; color:#eee; transition: width 0.3s ease-in-out; margin-right:20px; padding:30px 0; }
 .navigator-pane.collapsed { width: 20px; }
-.navigator-pane .navigator-pane-inner { width: 320px; padding: 0 5px; margin-left: 0; transition: margin-left 0.3s ease-in-out; }
-.navigator-pane.collapsed .navigator-pane-inner { margin-left: -295px; }
+.navigator-pane .navigator-pane-inner { width: 280px; padding: 0 5px; margin-left: 0; transition: margin-left 0.3s ease-in-out; }
+.navigator-pane.collapsed .navigator-pane-inner { margin-left: -255px; }
 .navigator-pane.collapsed .tree-item { pointer-events: none; }
 
 .editor-pane { position: relative; flex: 1; }
@@ -79,8 +79,8 @@ body { background: #f5f5f5; color: #555; }
 .CodeMirror pre { padding-left: 8px; padding-right:50px; }
 .CodeMirror-scroll { scroll-behavior: smooth; }
 .CodeMirror-gutters { background: #303030; border-right: none; padding-right: 5px; }
-.CodeMirror-selected { background: #444; }
-.CodeMirror-focused .CodeMirror-selected { background: #eee; }
+.CodeMirror-selected { background: rgba(0,117,255,0.1); }
+.CodeMirror-focused .CodeMirror-selected { background: rgba(0,117,255,0.2); }
 
 .CodeMirror-simplescroll-vertical { width:14px; background: #fff; border-left:1px solid #ddd; border-right:1px solid #ddd; }
 .CodeMirror-simplescroll-vertical div { border:none; border-radius:0; background: #f4f4f4; border-top:1px solid #ddd; border-bottom:1px solid #ddd; }
@@ -134,19 +134,19 @@ body { background: #f5f5f5; color: #555; }
 /****************************************************************************\
  * Format Bars
 \****************************************************************************/
-.editor-pane .new-block-bar { position: absolute; top: 0; left: 0; margin-left: -32px; display: flex; flex-direction: row; width: 32px; overflow: hidden; background: #404040; transition: width 0.15s; z-index: 5; }
+.editor-pane .new-block-bar { position: absolute; top: 0; left: 0; margin-left: -32px; display: flex; flex-direction: row; width: 32px; overflow: hidden; background: #666; transition: width 0.15s; z-index: 5; color: #eee; border-radius:2px; }
 .editor-pane .new-block-bar.active { width: 246px; }
 
 .editor-pane .new-block-bar > .new-block-bar-toggle,
-.editor-pane .new-block-bar > .controls > div { padding: 5px 10px; }
+.editor-pane .new-block-bar > .controls > div { display:flex; padding: 5px 10px; align-items:center; cursor:pointer; }
 .editor-pane .new-block-bar > .new-block-bar-toggle:hover,
-.editor-pane .new-block-bar > .controls > div:hover{ background: #505050; }
+.editor-pane .new-block-bar > .controls > div:hover{ background: #888; }
 .editor-pane .new-block-bar > .new-block-bar-toggle:before { transition: transform 0.15s; }
 .editor-pane .new-block-bar.active > .new-block-bar-toggle:before { transform: rotate(45deg); }
 
-.editor-pane .format-bar { position: absolute; top: 0; left: 0; display: flex; flex-direction: row; background: #404040; z-index: 5; }
-.editor-pane .format-bar > * { padding: 5px 10px; }
-.editor-pane .format-bar > div:hover { background: #505050; }
+.editor-pane .format-bar { position: absolute; top: 0; left: 0; display: flex; flex-direction: row; background: #666; color: #eee; z-index: 5; border-radius:2px; overflow:hidden; }
+.editor-pane .format-bar > * { padding: 5px 10px; cursor:pointer; }
+.editor-pane .format-bar > div:hover { background: #888; color: #fff; }
 
 
 /****************************************************************************\

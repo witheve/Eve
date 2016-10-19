@@ -2542,3 +2542,34 @@ test("accessing the same attribute sequence natural joins instead of product joi
   assert.end();
 })
 
+test("not with no external dependencies", (assert) => {
+  let expected = {
+    insert: [],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    foo bar
+    ~~~
+    search
+      not (9 = 4 + 5)
+    commit @browser
+      [#success]
+    ~~~
+  `);
+  expected = {
+    insert: [
+      ["3", "tag", "success"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    foo bar
+    ~~~
+    search
+      not (2 = 4 + 5)
+    commit @browser
+      [#success]
+    ~~~
+  `);
+  assert.end();
+})
