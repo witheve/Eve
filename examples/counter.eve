@@ -9,7 +9,11 @@ This program demonstrates:
 
 ## Increment the counter
 
-Each button uses the referenced counter to increment itself
+Each button uses the referenced counter to increment itself. We need to search on three databases to accomplish this goal: 
+
+- `#click` is in `@event`.
+- `#button` is in `@browser`
+- `counter.count` is in `@session`
 
 ```
 search @event @browser @session
@@ -18,6 +22,10 @@ search @event @browser @session
 commit
   counter.count := counter.count + diff
 ```
+
+## Build the counter
+
+For every `#counter`, we create a `#div` that contains the elements that draw the counter. The counters are added to the root of the DOM, but you could add them to a particular element in the DOM by specifying a parent element.
 
 ```
 search
@@ -30,14 +38,21 @@ bind @browser
     [#button sort: 3, text: "+", diff: 1, counter]]
 ```
 
+Add some counters programatically. To make `n` unique and independent counters, we need to add something to the committed counter that makes it unique. Since `i` = `{1, 2, 3, 4}`, when we add it to the counter record we get 4 different counters. We also add one `#fancy` counter, which is a standard counter with new styling. 
+
 ```
 search
-  i = range[from: 0 to: 4]
+  i = range[from: 1 to: 4]
 
 commit
   [#counter i count: 0]
   [#counter #fancy count: 0]
+  [#counter #fancy #blue count: 0]
 ```
+
+## Extend the Counter
+
+This block says: "For every div with a counter that is tagged fancy, add a red border". Let's break it down. We search for all `#div`s with a counter attribute. The counter is constrained to be only counters with a `#fancy` tag. Then we bind a red border style to the those counter-elements. 
 
 ```
 search @browser @session
@@ -45,6 +60,16 @@ search @browser @session
   counter.tag = "fancy"
   
 bind @browser @session
-  [#div text: "foo22312312312312"]
-  counter-element.style <- [border: "1px solid #FF0000"]
+  counter-element.style := [border: "1px solid #FF0000"]
+```
+
+You can extend records arbitrarily this way. You could even extend a fancy counter by adding more tags. For example, this block will add a blue border to counters tagged `#fancy` and `#blue`.
+
+```
+search @browser @session
+	counter-element = [#div counter]
+  counter.tag = ("fancy", "blue")
+  
+bind @browser @session
+  counter-element.style := [border: "1px solid #00FF00"]
 ```
