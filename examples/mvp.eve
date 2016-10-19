@@ -56,6 +56,7 @@ commit @session
 ```
 
 While the fruit is open, inject an attribute table into it.
+
 ```
 search
   fruit = [#fruit open: true]
@@ -63,8 +64,8 @@ search
 search @browser
   div = [#div fruit]
 
-bind (@view, @browser)
-  div.children := [#attribute-table entity: fruit]
+bind @view
+  [#attribute-table entity: fruit]
 ```
 
 trash yo
