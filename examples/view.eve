@@ -1,5 +1,21 @@
 # Views
 
+## Simple
+
+### Value
+
+A `#value` view just embeds the `value`(s) its passed.
+
+```
+search @view
+  wrapper = [#value value]
+  ix = sort[value]
+
+bind @browser
+  wrapper <- [#view #div children:
+    [#div sort: ix text: value]]
+```
+
 ## Tables
 
 ### KV Table
@@ -14,11 +30,10 @@ search @view
   ix = sort[value: key]
 
 bind @browser
-  wrapper.tag += "div"
-  wrapper.class += ("view" "kv-table")
-  wrapper.children := [#div class: "kv-row" sort: ix wrapper children:
-    [#div text: key]
-    [#div #kv-values class: "kv-values" wrapper key]]
+  wrapper <- [#view #div #view class: "view kv-table" children:
+    [#div class: "kv-row" sort: ix wrapper children:
+      [#div text: key]
+      [#div #kv-values class: "kv-values" wrapper key]]]
 ```
 
 Inject the values for each key in the `#kv-table`.
