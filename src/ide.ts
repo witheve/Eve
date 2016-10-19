@@ -155,7 +155,6 @@ class Navigator {
       }
       let doc = this.ide.editor.cm.getDoc();
       this.nodes[nodeId] = {id: nodeId, name: doc.getLine(loc.from.line), type: "section", level: span.source.level, span, open: true, hidden: span.isDisabled()};
-      console.log("updated", this.nodes[nodeId]);
     }
   }
 
@@ -1562,8 +1561,18 @@ export class Editor {
 
   // Elements
 
+  // @NOTE: Does this belong in the IDE?
+  controls() {
+    return {c: "flex-row controls", children: [
+      {text: "restart", click: () => this.ide.eval(false)},
+      {text: "run", click: () => this.ide.eval(true)},
+      {text: this.ide.inspecting ? "stop inspecting" : "inspect", click: () => this.ide.toggleInspecting()}
+    ]};
+  }
+
   render() {
     return {c: "editor-pane",  postRender: this.injectCodeMirror, children: [
+      this.controls(),
       this.showNewBlockBar ? newBlockBar(this.newBlockBar) : undefined,
       this.showFormatBar ? formatBar({editor: this}) : undefined
     ]};
@@ -1836,6 +1845,9 @@ export class IDE {
   /** Whether the inspector is currently active. */
   inspecting = false;
 
+  /** Whether the next click should be an inspector click automatically (as opposed to requiring Cmd or Ctrl modifiers. */
+  inspectingClick = false;
+
   renderer:Renderer = new Renderer();
 
   navigator:Navigator = new Navigator(this);
@@ -1845,6 +1857,8 @@ export class IDE {
   constructor( ) {
     document.body.appendChild(this.renderer.content);
     this.renderer.content.classList.add("ide-root");
+
+    this.enableInspector();
   }
 
   elem() {
@@ -1912,98 +1926,99 @@ export class IDE {
     if(this.onEval) this.onEval(this, persist);
   }
 
-  activeExecs:{[recordId:string]: any} = {};
+  //-------------------------------------------------------
+  // Actions
+  //-------------------------------------------------------
 
-  execute = {
-    "mark-between": (exec) => {
-      let source = {type: exec.type[0]};
-      for(let attribute in exec) {
-        if(exec[attribute] === undefined) continue;
-        source[attribute] = exec[attribute].length === 1 ? exec[attribute][0] : exec[attribute];
-      }
-      exec.spans = this.editor.markBetween(exec.token, source, exec.bounds);
+  activeActions:{[recordId:string]: any} = {};
+
+  actions = {
+    insert: {
+      "mark-between": (exec) => {
+        let source = {type: exec.type[0]};
+        for(let attribute in exec) {
+          if(exec[attribute] === undefined) continue;
+          source[attribute] = exec[attribute].length === 1 ? exec[attribute][0] : exec[attribute];
+        }
+        exec.spans = this.editor.markBetween(exec.token, source, exec.bounds);
+      },
+
+      "mark-span": (exec) => {
+        exec.spans = [];
+
+        let ranges:Range[] = [];
+        if(exec.token) {
+          for(let token of exec.token) {
+            let span = this.editor.getSpanBySourceId(token);
+            let range = span && span.find();
+            if(range) ranges.push(range);
+          }
+        }
+
+        let source = {type: exec.type[0]};
+        for(let attribute in exec) {
+          if(exec[attribute] === undefined) continue;
+          source[attribute] = exec[attribute].length === 1 ? exec[attribute][0] : exec[attribute];
+        }
+
+        for(let range of ranges) {
+          exec.spans.push(this.editor.markSpan(range.from, range.to, source));
+        }
+      },
+
+      "jump-to": (exec) => {
+        this.editor.jumpTo(exec.token[0]);
+      },
     },
 
-    "mark-span": (exec) => {
-      exec.spans = [];
+    remove: {
+      "mark-between": (exec) => {
+        for(let span of exec.spans) {
+          span.clear();
+        }
+      },
 
-      let ranges:Range[] = [];
-      if(exec.token) {
-        for(let token of exec.token) {
-          let span = this.editor.getSpanBySourceId(token);
-          let range = span && span.find();
-          if(range) ranges.push(range);
+      "mark-span": (exec) => {
+        for(let span of exec.spans) {
+          span.clear();
         }
       }
-
-      let source = {type: exec.type[0]};
-      for(let attribute in exec) {
-        if(exec[attribute] === undefined) continue;
-        source[attribute] = exec[attribute].length === 1 ? exec[attribute][0] : exec[attribute];
-      }
-
-      for(let range of ranges) {
-        exec.spans.push(this.editor.markSpan(range.from, range.to, source));
-      }
-    },
-
-    "jump-to": (exec) => {
-      this.editor.jumpTo(exec.token[0]);
-    },
-
-    "inspect": (exec) => {
-      this.startInspecting();
     }
   };
 
-  executeReverse = {
-    "mark-between": (exec) => {
-      for(let span of exec.spans) {
-        span.clear();
-      }
-    },
+  updateActions(inserts: string[], removes: string[], records) {
+    this.editor.cm.operation(() => {
+      for(let recordId of removes) {
+        let action = this.activeActions[recordId];
+        if(!action) return;
+        console.log("Reverse", recordId, action.tag, action);
+        let run = this.actions.remove[action.tag];
+        if(run) run(action);
+        delete this.activeActions[recordId];
 
-    "mark-span": (exec) => {
-      for(let span of exec.spans) {
-        span.clear();
-      }
-    },
-
-    "inspect": (exec) => {
-      this.stopInspecting();
-    }
-  };
-
-  executeRecord(recordId:string, record?:any) {
-    let exec:any;
-
-    if(record) {
-      let bounds:Range|undefined;
-      if(record.within) {
-        let span = this.editor.getSpanBySourceId(record.within[0]);
-        if(span) bounds = span.find();
+        console.log("End action", recordId, action.tag, action);
       }
 
-      exec = {tag: record.tag[0] === "editor" ? record.tag[1] : record.tag[0], bounds};
-      for(let attr in record) {
-        if(!exec[attr]) exec[attr] = record[attr];
+      for(let recordId of inserts) {
+        let record = records[recordId];
+        let bounds:Range|undefined;
+        if(record.within) {
+          let span = this.editor.getSpanBySourceId(record.within[0]);
+          if(span) bounds = span.find();
+        }
+
+        let action = {tag: record.tag[0] === "editor" ? record.tag[1] : record.tag[0], bounds};
+        for(let attr in record) {
+          if(!action[attr]) action[attr] = record[attr];
+        }
+        this.activeActions[recordId] = action;
+
+        console.log("Begin action", recordId, action.tag, action);
+        let run = this.actions.insert[action.tag];
+        if(!run) console.warn(`Unable to run unknown action type '${action.tag}'`, recordId, record);
+        else run(action);
       }
-      this.activeExecs[recordId] = exec;
-      console.log("Execute", recordId, exec.tag, exec);
-
-      let doIt = this.execute[exec.tag];
-      if(!doIt) console.warn("Unable to execute unknown record type", recordId, record);
-      else doIt(exec);
-
-
-    } else {
-      exec = this.activeExecs[recordId];
-      if(!exec) return;
-      console.log("Reverse", recordId, exec.tag, exec);
-      let doIt = this.executeReverse[exec.tag];
-      if(doIt) doIt(exec);
-      delete this.activeExecs[recordId];
-    }
+    });
   }
 
   tokenInfo() {
@@ -2015,46 +2030,70 @@ export class IDE {
     }
   }
 
-  startInspecting() {
-    this.inspecting = true;
-    window.addEventListener("mouseover", this.updateInspector);
-    window.addEventListener("mousedown", this.updateInspector);
-  }
-  stopInspecting() {
-    this.inspecting = false;
-    window.removeEventListener("mouseover", this.updateInspector);
-    window.removeEventListener("mousedown", this.updateInspector);
-  }
-  updateInspector = debounce((event:MouseEvent) => {
+  //-------------------------------------------------------
+  // Inspector
+  //-------------------------------------------------------
+
+  findPaneAt(x: number, y: number):"editor"|"application"|undefined {
     let container = this.editor.cm.getWrapperElement();
     let editor = container.getBoundingClientRect();
     let app = document.querySelector(".application-container").getBoundingClientRect(); // @FIXME: Not particularly durable
-    if(event.pageX >= editor.left && event.pageX <= editor.right &&
-       event.pageY >= editor.top && event.pageY <= editor.bottom) {
+    if(x >= editor.left && x <= editor.right &&
+       y >= editor.top && y <= editor.bottom) {
+      return "editor";
+    } else if(x >= app.left && x <= app.right &&
+              y >= app.top && y <= app.bottom) {
+      return "application";
+    }
+  }
+
+  enableInspector() {
+    //window.addEventListener("mouseover", this.updateInspector);
+    window.addEventListener("mousedown", this.updateInspector);
+  }
+
+  disableInspector() {
+    //window.removeEventListener("mouseover", this.updateInspector);
+    window.removeEventListener("mousedown", this.updateInspector);
+  }
+
+  toggleInspecting() {
+    if(this.inspecting) {
+      sendEvent([{tag: ["inspector", "clear"]}]);
+    } else {
+      this.inspectingClick = true;
+    }
+    this.inspecting = !this.inspecting;
+    this.queueUpdate();
+  }
+
+  updateInspector = debounce((event:MouseEvent) => {
+    let pane = this.findPaneAt(event.pageX, event.pageY);
+    if(!(event.ctrlKey || event.metaKey || this.inspectingClick)) return;
+    this.inspectingClick = false;
+    let events = [];
+    if(pane === "editor") {
       let pos = this.editor.cm.coordsChar({left: event.pageX, top: event.pageY});
-      let spans = this.editor.findSpansAt(pos);
-      let events = [];
-      for(let span of spans) {
-        console.log(span.source.id);
-        if(!span.isEditorControlled()) {
-          events.push({tag: ["inspector", (event.buttons ? "click" : "mouseover")], target: span.source.id, type: span.source.type, alt: event.altKey});
+      let spans = this.editor.findSpansAt(pos).sort(compareSpans);
+
+      while(spans.length) {
+        let span = spans.shift();
+        if(!span.isEditorControlled() || span.type === "code_block") {
+          events.push({tag: ["inspector", "click", spans.length === 0 ? "direct-target" : undefined], target: span.source.id, type: span.source.type});
         }
       }
-      if(events.length) {
-        sendEvent(events);
-      }
-    } else if(event.pageX >= app.left && event.pageX <= app.right &&
-              event.pageY >= app.top && event.pageY <= app.bottom) {
-      let target:any = event.target;
-      let events = [];
-      if(target.entity) {
-        console.log(target.entity);
-        events.push({tag: ["inspector", (event.buttons ? "click" : "mouseover")], target: target.entity, type: "element", alt: event.altKey});
-      }
-      if(events.length) {
-        sendEvent(events);
-      }
 
+    } else if(pane === "application") {
+      let current:any = event.target;
+      while(current && current.entity) {
+        events.push({tag: ["inspector", "click", current === event.target ? "direct-target" : undefined], target: current.entity, type: "element"});
+        current = current.parentNode;
+      }
+    }
+
+    this.queueUpdate();
+    if(events.length) {
+      sendEvent(events);
     }
   }, 100);
 

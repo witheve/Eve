@@ -13,13 +13,18 @@ Once Eve understands what the issue is, it provides a set of structured question
 When you've arrived at the root of the problem, the inspector provides tools to figure out why it happened. If, instead a missing attribute, the issue involved incorrect values (perhaps the result of mathematical error), Eve can show you intermediates to find where the breakdown occurs. When too many or too few rows match a pattern, Eve can show you the cardinality of the actions in a block to get a sense of why the numbers don't add up. Some issues the inspector can help diagnose can be found in  the **Example Scenarios** section.
 
 
+```
+commit @inspector
+  [#inspector]
+```
+
 ## Events
 
 When an inspector alt-click comes in, retarget the inspector to the alt-clicked entity/element. Kill any existing states as well.
 
 ```
 search @event
-  [#click #inspector alt: true target type]
+  [#inspector #click #direct-target target type]
 
 search @inspector
   inspector = [#inspector]
@@ -27,7 +32,31 @@ search @inspector
 commit @inspector
   inspector.target := target
   inspector.type := type
+  inspector.state := "popout"
+```
+
+When an inspector clear event comes in, remove all current inpection state.
+
+```
+search @event
+  [#inspector #clear]
+
+search @inspector
+  inspector = [#inspector]
+
+commit @inspector
+  inspector.target := none
+  inspector.type := none
   inspector.state := none
+```
+
+Clear the clear event
+```
+search @event
+  event = [#inspector #clear]
+
+commit @event
+  event := none
 ```
 
 When an inspector button is pressed, trigger the button's associated states.
@@ -44,6 +73,16 @@ commit @inspector
 ```
 
 ## States
+
+When the `"close-popout"` state is active, remove the `"popout"` state and the `"close-popout"` states.
+
+```
+search @inspector
+  inspector = [#inspector state: "close-popout"]
+
+commit @inspector
+  inspector.state -= ("popout", "close-popout")
+```
 
 When the `"focus-blocks"` state is active, elide everything but the originating blocks for the currently inspected token.
 
@@ -174,7 +213,7 @@ When an `#inspector` is open with type `"element"` and a target, show the elemen
 
 ```
 search @inspector
-  inspector = [#inspector type: "element" target]
+  inspector = [#inspector state: "popout" target]
 
 bind @view
   attributes = [#attribute-table inspector entity: target]
@@ -182,8 +221,8 @@ bind @view
 bind @browser
   inspector <- [#div class: "flex-row inspector-pane" children:
     [#div #options-panel children:
-      [#button inspector action: ("focus-blocks", "highlight-related", "shadow-unrelated", "show-values") text: "Should this not show up?"]
-      [#button inspector action: ("focus-blocks", "highlight-related", "shadow-unrelated", "show-cardinality") text: "Are there too many/few of these?"]
+      [#button inspector action: ("close-popout", "focus-blocks", "highlight-related", "shadow-unrelated", "show-values") text: "Should this not show up?"]
+      [#button inspector action: ("close-popout", "focus-blocks", "highlight-related", "shadow-unrelated", "show-cardinality") text: "Are there too many/few of these?"]
       [#button inspector text: "Does this have an incorrect value?"]
       [#button inspector text: "Is something missing here?"]]
     [#div #attributes-panel children: attributes]]

@@ -65,8 +65,11 @@ body { background: #f5f5f5; color: #555; }
 \****************************************************************************/
 .editor-pane { margin-left: 20px; }
 
-.CodeMirror-lines { padding-top:30px; }
+.editor-pane > .controls { position: absolute; top: 10px; right: 30px; z-index: 10; background: rgba(255, 255, 255, 0.8); }
+.editor-pane > .controls > div { padding: 5px 10px; text-decoration: underline; }
+.editor-pane > .controls > div:hover { background: #eee; }
 
+.CodeMirror-lines { padding-top:30px; }
 
 .CodeMirror { background:none; color: inherit; height:100%; font-size:11pt;  }
 .CodeMirror-scroll, .CodeMirror-gutters { height:100%; }

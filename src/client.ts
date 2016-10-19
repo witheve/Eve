@@ -229,20 +229,27 @@ function printDebugRecords(index, dirty) {
 indexes.dirty.subscribe(printDebugRecords);
 
 function passEditorRecordsToIDE(index, dirty) {
+  let records = {};
+  let inserts = [];
+  let removes = [];
+
   let dirtyEditorRecords = indexes.byTag.dirty["editor"] || [];
   for(let recordId of dirtyEditorRecords) {
     let record = indexes.records.index[recordId];
     if(!record || !record.tag || record.tag.indexOf("editor") === -1) {
-      _ide.executeRecord(recordId);
+      removes.push(recordId);
     }
   }
 
   for(let recordId in dirty) {
     let record = indexes.records.index[recordId];
     if(record.tag && record.tag.indexOf("editor") !== -1) {
-      _ide.executeRecord(recordId, record);
+      inserts.push(recordId);
+      records[recordId] = record;
     }
   }
+
+  _ide.updateActions(inserts, removes, records);
 }
 indexes.dirty.subscribe(passEditorRecordsToIDE);
 
@@ -266,7 +273,7 @@ function recordToEAVs(record) {
         if(typeof v === "object") {
           eavs.push.apply(eavs, recordToEAVs(v));
           eavs.push([e, a, v.id]);
-        } else {
+        } else if(v !== undefined) {
           eavs.push([e, a, v]);
         }
       }
@@ -275,7 +282,7 @@ function recordToEAVs(record) {
       if(typeof v === "object") {
         eavs.push.apply(eavs, recordToEAVs(v));
         eavs.push([e, a, v.id]);
-      } else {
+      } else if(v !== undefined) {
         eavs.push([e, a, v]);
       }
     }

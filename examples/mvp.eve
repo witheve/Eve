@@ -85,11 +85,6 @@ commit @browser
 
 # Mock
 
-```
-commit @editor
-  [#inspect]
-```
-
 Store id mappings for mocks.
 
 ```
