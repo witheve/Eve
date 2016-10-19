@@ -245,3 +245,14 @@ bind
 bind @editor
   [#comment record | start stop kind: "warning" message: "this is the record" ]
 ~~~
+
+## nodeId -> creator
+
+~~~
+search
+  query = [#query build-id]
+  [#action entity build-id]
+  record = [#record entity]
+commit
+  query.record := record
+~~~
