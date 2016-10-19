@@ -1730,10 +1730,10 @@ function newBlockBar(elem:EditorBarElem):Elem {
   let {editor, active} = elem;
   let doc = editor.cm.getDoc();
   let cursor = doc.getCursor();
-  let bottom = editor.cm.cursorCoords(cursor, undefined).bottom;
+  let top = editor.cm.cursorCoords(cursor, undefined).top;
   let left = editor.cm.cursorCoords(cursor, "local").left;
-  console.log(cursor.line, cursor.ch, bottom, left);
-  return {id: "new-block-bar", c: `new-block-bar ${active ? "active" : ""}`, top: bottom, left: left, children: [
+  console.log(cursor.line, cursor.ch, top, left);
+  return {id: "new-block-bar", c: `new-block-bar ${active ? "active" : ""}`, top, left, children: [
     {c: "new-block-bar-toggle ion-plus", click: () => {
       elem.active = !elem.active;
       editor.cm.focus();
