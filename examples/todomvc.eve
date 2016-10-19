@@ -160,7 +160,7 @@ commit
 
 ### Deleting Todos
 
-Deleting a todo from the list is accomplished by removing the `#todo` tag from the todo's record. Recall from the "Drawing the Todo List" section that we select todos by including `#todo` in the record. Therefore, if we remove that tag from the todo, then that todo will no longer appear in the list, although it will still persist in the database.
+We remove a todo from the list by setting the todo's record to special `none` value. Doing so completely erases that todo from the database.
 
 ```
 search @event @session @browser
