@@ -282,6 +282,7 @@ export class Changes {
   _storeObject(operation: "store" | "unstore", id: string, object: any, node: string, scope: string) {
     for(let attr of Object.keys(object)) {
       let value = object[attr];
+      if(value === undefined) continue;
       if(value.constructor === Array) {
         for(let item of value) {
           this[operation](scope, id, attr, item, node);
