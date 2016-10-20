@@ -19,7 +19,7 @@ export class BrowserEventDatabase extends Database {
       let {results, errors} = parser.parseDoc(global["examples"]["event.eve"]);
       if(errors && errors.length) console.error("EVENT ERRORS", errors);
       let {blocks, errors: buildErrors} = builder.buildDoc(results);
-      if(buildErrors && buildErrors.length) console.error("EVENT ERRORS", errors);
+      if(buildErrors && buildErrors.length) console.error("EVENT ERRORS", buildErrors);
       this.blocks = blocks;
     }
   }
@@ -32,7 +32,7 @@ export class BrowserViewDatabase extends Database {
       let {results, errors} = parser.parseDoc(global["examples"]["view.eve"]);
       if(errors && errors.length) console.error("View DB Errors", errors);
       let {blocks, errors: buildErrors} = builder.buildDoc(results);
-      if(buildErrors && buildErrors.length) console.error("View DB Errors", errors);
+      if(buildErrors && buildErrors.length) console.error("View DB Errors", buildErrors);
       this.blocks = blocks;
     }
   }
@@ -45,7 +45,7 @@ export class BrowserEditorDatabase extends Database {
       let {results, errors} = parser.parseDoc(global["examples"]["editor.eve"]);
       if(errors && errors.length) console.error("Editor DB Errors", errors);
       let {blocks, errors: buildErrors} = builder.buildDoc(results);
-      if(buildErrors && buildErrors.length) console.error("Editor DB Errors", errors);
+      if(buildErrors && buildErrors.length) console.error("Editor DB Errors", buildErrors);
       this.blocks = blocks;
     }
   }
@@ -58,7 +58,7 @@ export class BrowserInspectorDatabase extends Database {
       let {results, errors} = parser.parseDoc(global["examples"]["inspector.eve"]);
       if(errors && errors.length) console.error("Inspector DB Errors", errors);
       let {blocks, errors: buildErrors} = builder.buildDoc(results);
-      if(buildErrors && buildErrors.length) console.error("Inspector DB Errors", errors);
+      if(buildErrors && buildErrors.length) console.error("Inspector DB Errors", buildErrors);
       this.blocks = blocks;
     }
   }
