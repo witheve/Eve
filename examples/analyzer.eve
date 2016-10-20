@@ -151,6 +151,7 @@ search
   query = [#query token]
   [#link a: to b: token]
   to = [#variable register block]
+  token.block = block
 bind
   query.register += [token variable: to register block]
 ~~~
