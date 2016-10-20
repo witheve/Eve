@@ -200,6 +200,8 @@ socket.onmessage = function(msg) {
 
   } else if(data.type == "error") {
     console.error(data.message, data);
+  } else if(_ide.languageService.handleMessage(data)) {
+
   } else {
     console.log("UNKNOWN MESSAGE", data);
   }

@@ -116,7 +116,7 @@ search @mock
   [#variable block token]
 
 commit @mock
-  [#source target source: block type: "code_block"]
+  [#source record: target source: block type: "code_block"]
   [#related target type: "identifier" block | token]
 ```
 
@@ -124,13 +124,13 @@ Respond to `#find-source` with mocked sources.
 
 ```
 search @editor
-  [#find-source target]
+  [#find-source record]
 
 search @mock
-  s = [#source target source type]
+  s = [#source record source type]
 
 bind @editor
-  s <- [#source target source type]
+  s <- [#source record source type]
 ```
 
 Respond to `#find-related` with mocked relateds.

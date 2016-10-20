@@ -1867,6 +1867,7 @@ export class IDE {
 
   renderer:Renderer = new Renderer();
 
+  languageService:LanguageService = new LanguageService();
   navigator:Navigator = new Navigator(this);
   editor:Editor = new Editor(this);
   comments:Comments = new Comments(this);
@@ -2025,6 +2026,18 @@ export class IDE {
       "jump-to": (exec) => {
         this.editor.jumpTo(exec.token[0]);
       },
+
+      "find-source": (action) => {
+        this.languageService.findSource({record: action.record, attribute: action.attribute, span: action.span}, this.languageService.unpackSource((records) => {
+          console.log("SOURCE", records);
+        }));
+      },
+
+      "find-related": (action) => {
+        this.languageService.findRelated({span: action.span, variable: action.variable}, this.languageService.unpackRelated((records) => {
+          console.log("RELATED", records);
+        }));
+      }
     },
 
     remove: {
@@ -2200,4 +2213,80 @@ export class IDE {
   onEval?:(self:IDE, persist?: boolean) => void
   onLoadFile?:(self:IDE, documentId:string, code:string) => void
   onTokenInfo?:(self:IDE, tokenId:string) => void
+}
+
+type FindSourceArgs = {record?: string, attribute?: string, span?:string|string[], source?: {block?: string[], span?: string[]}[]};
+type SourceRecord = {tag: string[], record?: string, attribute?: string, span: string[], block: string[]};
+type FindRelatedArgs = {span?: string[], variable?: string[]};
+type RelatedRecord = {tag: string[], span: string, variable: string[]};
+type FindValueArgs = {variable: string[], given: {[attribute: string]: any}, rows?: any[][], totalRows?: number, variableMappings?: {[span: string]: number}};
+type FindCardinalityArgs = {variable: string[], cardinality?: {[variable: string]: number}};
+type FindAffectorArgs = {record?: string[], attribute?: string[], span?: string[], block?: string[], action: string[]};
+
+class LanguageService {
+  protected static _requestId = 0;
+
+  protected _listeners:{[requestId:number]: (args:any) => void} = {};
+
+  findSource(args:FindSourceArgs, callback:(args:FindSourceArgs) => void) {
+    this.send("findSource", args, callback);
+  }
+
+  unpackSource(callback:(args:SourceRecord[]) => void) {
+    return (message:FindSourceArgs) => {
+      let records:SourceRecord[] = [];
+      for(let source of message.source) {
+        let spans:string[] = (message.span.constructor === Array) ? message.span as any : [message.span];
+        records.push({tag: ["source"], record: message.record, attribute: message.attribute, span: spans, block: source.block});
+      }
+      callback(records);
+    };
+  }
+
+  findRelated(args:FindRelatedArgs, callback:(args:FindRelatedArgs) => void) {
+    this.send("findRelated", args, callback);
+  }
+
+  unpackRelated(callback:(args:RelatedRecord[]) => void) {
+    return (message:FindRelatedArgs) => {
+      let records:RelatedRecord[] = [];
+      // This isn't really correct, but we're rolling with it for now.
+      for(let span of message.span) {
+        records.push({tag: ["related"], span, variable: message.variable});
+      }
+    };
+  }
+
+  findValue(args:FindValueArgs, callback:(args:FindValueArgs) => void) {
+    this.send("findValue", args, callback);
+  }
+
+  findCardinality(args:FindCardinalityArgs, callback:(args:FindCardinalityArgs) => void) {
+    this.send("findCardinality", args, callback);
+  }
+
+  findAffector(args:FindAffectorArgs, callback:(args:FindAffectorArgs) => void) {
+    this.send("findAffector", args, callback);
+  }
+
+  send(type:string, args:any, callback:any) {
+    let id = LanguageService._requestId++;
+    args.requestId = id;
+    this._listeners[id] = callback;
+    args.type = type;
+    send(args);
+  }
+
+  handleMessage = (message) => {
+    let type = message.type;
+    if(type === "findSource" || type === "findRelated" || type === "findValue" || type === "findCardinality" || type === "findAffector") {
+      let id = message.requestId;
+      let listener = this._listeners[id];
+      if(listener) {
+        listener(message);
+        return true;
+      }
+    }
+    return false;
+  }
 }

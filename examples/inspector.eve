@@ -91,7 +91,7 @@ search @inspector
   inspector = [#inspector state: "focus-blocks" target]
 
 bind @editor
-  [#find-source target]
+  [#find-source record: target]
 ```
 
 If sources have been found for the target in the `"focus-blocks"` state, elide everything besides those sources.

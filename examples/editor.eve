@@ -95,10 +95,10 @@ bind @browser
 
 ```
 search @editor
-  action = [#find-source target]
+  action = [#find-source record]
 
 bind @browser
-  action <- [#editor #find-source target]
+  action <- [#editor #find-source record]
 ```
 
 ### Find Related
