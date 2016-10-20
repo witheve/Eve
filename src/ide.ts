@@ -2073,12 +2073,14 @@ export class IDE {
 
     remove: {
       "mark-between": (exec) => {
+        if(!exec.spans) return;
         for(let span of exec.spans) {
           span.clear();
         }
       },
 
       "mark-span": (exec) => {
+        if(!exec.spans) return;
         for(let span of exec.spans) {
           span.clear();
         }
