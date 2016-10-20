@@ -12,8 +12,8 @@ Set the app user
 ```
 search
   app = [#app] 
-  //user = [#user name: "Corey Montella"]
-  user = [#user name: "Eric Hoffman"]
+  user = [#user name: "Corey Montella"]
+  //user = [#user name: "Eric Hoffman"]
   
 commit
   app.user := user
@@ -22,7 +22,7 @@ commit
 
 Set the threads
 
-```
+
 search
   app = [#app contact]
   threads = [#thread users: contact messages]
@@ -30,7 +30,7 @@ search
 
 bind
   app.threads := threads
-```
+
 
 ## Events
 
@@ -107,14 +107,12 @@ commit @session
 
 ### About Page
 
-Displays information relating to a contact. This page is also used to display the the about page of the current user. 
+Displays information relating to a contact. This page is constructed in three parts. The first part displays phone and email for the contact:
 
 ```
 search @browser @session
   content = [#content]
-  [#app page: [#about contact], user]
-  threads = [#thread users: contact messages]
-  recent = threads.users != contact
+  [#app page: [#about contact]]
 
 bind @browser @session
   content.children := [#div class: "about" children: 
@@ -124,12 +122,24 @@ bind @browser @session
     [#div class: "about-line", children:
       [#span class: "about-label", text: "E-mail: "] 
       [#span text: contact.email]]
+    [#div #recent-contacts children:
+      [#h3 text: "All Contacts ({{count[given: contact.contacts]}}):"] 
+      [#img #contact contact: contact.contacts, class: "recent-avatar" src: contact.contacts.avatarURL]]]
+```
+
+If the user has threads
+
+```
+search @browser @session
+  recent-div = [#recent-contacts]
+  [#app page: [#about contact], user]
+  threads = [#thread users: contact messages]
+  recent = threads.users != contact
+
+bind @browser @session
+  recent-div.children := [#div children:  
     [#h3 text: "Recent Contacts ({{count[given: recent]}}):"]
-    [#div children:
-      [#img class: "recent-avatar" src: recent.avatarURL]]
-    [#h3 text: "All Contacts ({{count[given: contact.contacts]}}):"]
-    [#div children:
-      [#img #contact contact: contact.contacts, class: "recent-avatar" src: contact.contacts.avatarURL]]] 
+    [#img class: "recent-avatar" src: recent.avatarURL]]
 ```
 
 ### Messages Page
@@ -157,19 +167,21 @@ bind @browser
 ```
 search @browser @session
   content = [#content]
-  app = [#app page: [#chats] threads]
-  not(threads = [#archived])
-  contacts = threads.users != app.user
-  message-count = count[given: threads.messages, per: threads.users]
+  app = [#app page: [#threads] threads]
+  //not(threads = [#archived])
+  //contacts = threads.users != app.user
+  //message-count = count[given: threads.messages, per: threads.users]
 
 bind @browser
+  [#div text: "hello"]
+```
+
   content.children := [#div threads class: "thread" children:
     [#div #thread thread: threads, class: "thread-box" children: 
       [#img class: "msg-avatar" src: contacts.avatarURL]
       [#div class: "msg-name" text: contacts.name]
       [#div text: "{{message-count}} messages"]]
     [#div #archive-button thread: threads, class: "archive" text: "📥"]]
-```
 
 ### Contacts Page
 
@@ -233,7 +245,7 @@ bind @browser
       [#div #about #nav contact: user, class: "nav-button", children:
         [#div class: "icon" text: "💁"]
         [#div class: "label" text: "ABOUT"]]
-      [#div #chats #nav class: "nav-button middle", children:
+      [#div #threads #nav class: "nav-button middle", children:
         [#div class: "icon" children: [#div class: "bubble" text: threads]]
         [#div class: "label" text: "THREADS"]]
       [#div #contacts #nav class: "nav-button" children:
