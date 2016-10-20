@@ -122,30 +122,12 @@ class Responder {
       analyzer.tokenInfo(evaluation, data.tokenId, spans, extraInfo)
       this.send(JSON.stringify({type: "comments", spans, extraInfo}))
     } else if(data.type === "findNode") {
-      let {record, attribute, value} = data;
-      if(record === undefined) console.error("Unable to find node for completely free EAV");
-
-      // @NOTE: This may not be sufficient in the future.
-      let db:Database = evaluation.getDatabase("browser");
-      let level = db.index.lookup(record, attribute, value);
-      if(attribute === undefined && level) {
-        let key = level.toValues()[0];
-        level = level.lookup(key);
-      }
-      if(value === undefined && level) {
-        let key = level.toValues()[0];
-        level = level.lookup(key);
-      }
-
-      let nodes;
-      if(level) {
-        nodes = level.toValues();
-      } else {
-        nodes = [];
-      }
-      this.send(JSON.stringify({type: "findNode", record, attribute, value, nodes}));
+      let {recordId, node} = data;
+      let spans = [];
+      let extraInfo = {};
+      let spanId = analyzer.nodeIdToRecord(evaluation, data.node, spans, extraInfo);
+      this.send(JSON.stringify({type: "findNode", recordId, spanId}));
     } else if(data.type === "analyzerQuery") {
-      let parseBlocks = this.lastBuild.blocks.map((block) => block.parse);
       let spans = [];
       let extraInfo = {};
       if(data.query === "nodeToRecord") {
@@ -169,6 +151,7 @@ export function init(code) {
   let build = builder.buildDoc(results);
   let {blocks, errors: buildErrors} = build;
   responder.lastBuild = results;
+  analyzer.analyze(blocks.map((block) => block.parse), spans, extraInfo);
   console.log("BLOCKS", blocks);
   responder.sendErrors(buildErrors);
   // analyzer.analyze(results.blocks, spans, extraInfo);

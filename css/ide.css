@@ -185,6 +185,10 @@ body { background: #f5f5f5; color: #555; }
 /****************************************************************************\
  * Views
 \****************************************************************************/
+
+.view-container { margin:10px 50px 0px 10px; padding-left: 20px; border-left:5px solid #ccc; background: #e4e4e4; }
+.CodeMirror-linewidget + .CodeMirror-linewidget .view-container { margin-top:0; }
+
 .view.kv-table { display: table; border-collapse: collapse; border: 1px solid #202020; }
 .view.kv-table .kv-row { display: table-row; }
 .view.kv-table .kv-row + .kv-row { border-top: 1px solid #606060; }

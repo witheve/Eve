@@ -1354,7 +1354,6 @@ export function parseBlock(block, blockId, offset = 0, spans = [], extraInfo = {
       if(scan.type === "record") {
         type = "record-boundary";
       }
-      console.log("SCAN", scan.startOffset, scan.endOffset, type)
       spans.push(scan.startOffset, scan.endOffset, type, scan.id);
     }
     for(let action of results.binds) {

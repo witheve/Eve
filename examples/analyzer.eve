@@ -250,8 +250,8 @@ bind @editor
 
 ~~~
 search
-  query = [#query build-id]
-  [#action entity build-id]
+  query = [#query build-node]
+  [#action entity build-node]
   record = [#record entity]
 commit
   query.record := record

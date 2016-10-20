@@ -61,12 +61,18 @@ While the fruit is open, inject an attribute table into it.
 search
   fruit = [#fruit open: true]
 
-search @browser
-  div = [#div fruit]
-
 bind @view
   [#attribute-table entity: fruit]
 ```
+
+```
+search
+  fruit = [#fruit name]
+
+bind @view
+  [#value value: name]
+```
+
 
 trash yo
 
