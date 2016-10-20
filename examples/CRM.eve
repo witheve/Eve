@@ -4,7 +4,7 @@ Initialize some default values
 
 ```
 commit
-  [#app page: "chats"]
+  [#app]
 ```
 
 Set the app user
@@ -12,52 +12,124 @@ Set the app user
 ```
 search
   app = [#app] 
-  user = [#user name: "Corey Montella"]
-  //user = [#user name: "Eric Hoffman"]
+  //user = [#user name: "Corey Montella"]
+  user = [#user name: "Eric Hoffman"]
   
 commit
   app.user := user
+  app.page := [#about contact: user]
 ```
 
-Set get the conversations
+Set the threads
 
 ```
 search
-  app = [#app user]
-  convos = [#conversation users: user messages]
+  app = [#app contact]
+  threads = [#thread users: contact messages]
+  not(threads = [#archived])
 
 bind
-  app.conversations := convos
+  app.threads := threads
 ```
 
 ## Events
 
-### Navigation
+We have several types of events that the app responds to.
+
+### Switch page
+
+When the user clicks on a `#nav` button, set the app page to that button. We use this in subsequent blocks to fill the `#content` area of the app.
 
 ```
 search @event @browser @session
   [#click element]
-  page = if element = [#about] then "about"
-         else if element = [#chats] then "chats"
-         else if element = [#more] then "more"
+  element.tag = "nav"
+  app = [#app user]
+
+commit
+  app.page := element
+  app.contact := none
+```
+
+### Display contact
+
+When the user clicks on a contact's name, their "About" page is displayed
+
+```
+search @event @browser @session
+  [#click element: [#contact contact]]
   app = [#app]
 
 commit
-  app.page := page
+  app.contact := contact
+  app.page := [#about contact]
 ```
 
+### Display messages
+
+```
+search @event @browser @session
+  [#click element: [#thread thread]]
+  app = [#app]
+
+commit
+  app.page := [#thread thread]
+```
+
+### Send a message
+
+```
+search @event @browser @session
+  [#keydown key: "enter" element: input]
+  input = [#send-message thread value]
+  [#app user]
+  time = 1476821600000 + 1 
+
+commit @browser
+  input.value := ""
+  thread.messages += [#message sender: user, time, text: value]
+
+```
+
+### Archive a thread
+
+When the user archives a thread, the `#archive` tag is added to that thread, which then exludes it from display in the main thread list
+
+```
+search @event @browser @session
+  [#click element: [#archive-button thread]]
+
+commit @session
+  thread += #archived
+```
+
+## Pages
+
 ### About Page
+
+Displays information relating to a contact. This page is also used to display the the about page of the current user. 
 
 ```
 search @browser @session
   content = [#content]
-  [#app page: "about" user]
+  [#app page: [#about contact], user]
+  threads = [#thread users: contact messages]
+  recent = threads.users != contact
 
-bind @browser
+bind @browser @session
   content.children := [#div class: "about" children: 
-    [#div text: "Phone: {{user.phone}}"]
-    [#div text: "E-mail: {{user.email}}"]
-  ]
+    [#div class: "about-line", children:
+      [#span class: "about-label", text: "Phone: "] 
+      [#span text: contact.phone]]
+    [#div class: "about-line", children:
+      [#span class: "about-label", text: "E-mail: "] 
+      [#span text: contact.email]]
+    [#h3 text: "Recent Contacts ({{count[given: recent]}}):"]
+    [#div children:
+      [#img class: "recent-avatar" src: recent.avatarURL]]
+    [#h3 text: "All Contacts ({{count[given: contact.contacts]}}):"]
+    [#div children:
+      [#img #contact contact: contact.contacts, class: "recent-avatar" src: contact.contacts.avatarURL]]] 
 ```
 
 ### Messages Page
@@ -65,17 +137,54 @@ bind @browser
 ```
 search @browser @session
   content = [#content]
-  app = [#app page: "chats" conversations: convos]
-  msgs = convos.messages
+  app = [#app page: [#thread thread]]
+  msgs = thread.messages
+  name = if msgs.sender.name = app.user.name then "Me"
+         else msgs.sender.name
 
 bind @browser
   content.children := [#div children:
-    [#div class: "convo" convos children:
+    [#div #convo class: "convo" children:
       [#div sort: msgs.time class: "msg" message: msgs children:
         [#img class: "msg-avatar" src: msgs.sender.avatarURL]
-        [#div class: "msg-name" text: msgs.sender.name]
-        [#div class: "msg-text" text: msgs.text]]]]
+        [#div #contact contact: msgs.sender, class: "msg-name" text: name]
+        [#div class: "msg-text" text: msgs.text]]]
+    [#input #send-message thread class: "msg-input"]]
+```
 
+### Threads Page
+
+```
+search @browser @session
+  content = [#content]
+  app = [#app page: [#chats] threads]
+  not(threads = [#archived])
+  contacts = threads.users != app.user
+  message-count = count[given: threads.messages, per: threads.users]
+
+bind @browser
+  content.children := [#div threads class: "thread" children:
+    [#div #thread thread: threads, class: "thread-box" children: 
+      [#img class: "msg-avatar" src: contacts.avatarURL]
+      [#div class: "msg-name" text: contacts.name]
+      [#div text: "{{message-count}} messages"]]
+    [#div #archive-button thread: threads, class: "archive" text: "📥"]]
+```
+
+### Contacts Page
+
+```
+search @browser @session
+  content = [#content]
+  [#app user page: [#contacts]]
+
+bind @browser @session
+  content.children := [#div #contact contact: user.contacts, class: "contact" contact: user.contacts, children:
+    [#img class: "contact-avatar" src: user.contacts.avatarURL]
+    [#div class: "contact-name", text: user.contacts.name]
+    [#div text: "Location: {{user.contacts.location}}"]
+    [#div text: "Phone: {{user.contacts.phone}}"]
+    [#div text: "E-mail: {{user.contacts.email}}"]]
 ```
 
 ### More Page
@@ -83,7 +192,7 @@ bind @browser
 ```
 search @browser @session
   content = [#content]
-  [#app page: "more"]
+  [#app page: [#more]]
 
 bind @browser
   content.children := [#div text: "More"]
@@ -96,31 +205,41 @@ search
   app = [#app user]
   [#time hours minutes ampm]
   // Pad single digit minutes with a leading 0 for display
-  q = if minutes > 10 then minutes
-      else "0{{minutes}}"
-  convos = if app.conversations then count[given: app.conversations]
+  formatted-minutes = if minutes > 10 then minutes
+                      else "0{{minutes}}"
+  // The hours values are 0 - 11, but we want 1-12
+  formatted-hours = if hours = 0 then "12"
+                    else hours
+  // Handle the case when the user has no threads
+  threads = if app.threads then count[given: app.threads]
            else 0
+  // If the user is looking at a contact, display that contact's avatar and info.
+  // Otherwise, display the user's own avatar.
+  current-contact = if app.contact then app.contact
+                    else user
 
 bind @browser
-  [#link rel: "stylesheet" href: "/examples/crm.css"]
+  [#link rel: "stylesheet" href: "/examples/css/crm.css"]
   [#div #container class: "container" children:
     [#div class: "banner"]
     [#div class: "bio-info" children: 
       [#div class: "avatar-container" children: 
-        [#img class: "avatar", src: user.avatarURL]]
-      [#div class: "name2" text: "{{user.name}}"]
-      [#div class: "info" text: "{{user.title}}"]
-      [#div class: "info" text: "{{hours}}:{{q}}{{ampm}}, {{user.location}}"]
-      [#div class: "info" text: "Active minutes ago"]]
+        [#img class: "avatar", src: current-contact.avatarURL]]
+      [#div class: "name2" text: "{{current-contact.name}}"]
+      [#div class: "info" text: "{{current-contact.title}}"]
+      [#div class: "info" text: "{{formatted-hours}}:{{formatted-minutes}}{{ampm}}, {{current-contact.location}}"]]
     [#div #content class: "content"]
     [#div class: "navigation" children:
-      [#div #about class: "nav-button", children:
+      [#div #about #nav contact: user, class: "nav-button", children:
         [#div class: "icon" text: "💁"]
         [#div class: "label" text: "ABOUT"]]
-      [#div #chats class: "nav-button middle", children:
-        [#div class: "icon" children: [#div class: "bubble" text: convos]]
-        [#div class: "label" text: "MESSAGES"]]
-      [#div #more class: "nav-button" children:
+      [#div #chats #nav class: "nav-button middle", children:
+        [#div class: "icon" children: [#div class: "bubble" text: threads]]
+        [#div class: "label" text: "THREADS"]]
+      [#div #contacts #nav class: "nav-button" children:
+        [#div class: "icon" text: "📇"]
+        [#div class: "label" text: "CONTACTS"]]
+      [#div #more #nav class: "nav-button" children:
         [#div class: "icon" text: "⋯"]
         [#div class: "label" text: "MORE"]]]]
 ```
@@ -173,7 +292,7 @@ commit
    phone: "555-555-5559"]          
 ```
 
-### conversations
+### threads
 
 ```
 search
@@ -184,34 +303,33 @@ search
   eric = [#user name: "Eric Hoffman"]
 
 commit
-  [#conversation users: (corey, chris) messages:
+  // Add contacts to users
+  corey.contacts := (chris, josh, rob, eric)
+  chris.contacts := (corey, josh, rob)
+  josh.contacts := (corey, rob, eric)
+  rob.contacts := (corey, josh, chris, eric)
+  eric.contacts := (josh, rob)
+
+  // Make some threads
+  [#thread users: (corey, chris) messages:
     [#message sender: corey, time: 1476821596000, text: "Hey"]
     [#message sender: chris, time: 1476821597000, text: "Hey, how are you."]
     [#message sender: corey, time: 1476821598000, text: "I'm fine, how are you?"]
     [#message sender: chris, time: 1476821599000, text: "Fine as well."]
-    [#message sender: corey, time: 1476821600000, text: "Glad we got that out of the way!"]]
+    [#message sender: chris, time: 1476821600000, text: "Glad we got that out of the way!"]]
 
-  [#conversation users: (corey, josh) messages:
+  [#thread users: (corey, josh) messages:
     [#message sender: josh, time: 1476735198000, text: "Hey"]
     [#message sender: corey, time: 1476735199000, text: "What's up Josh?"]
     [#message sender: josh, time: 1476735200000, text: "I need to tell you something...."]
     [#message sender: corey, time: 1476735201000, text: "Uh oh..."]
     [#message sender: corey, time: 1476735205000, text: "Well what is it? Don't leave me hanging!"]]
 
-  [#conversation users: (corey, rob) messages:
+  [#thread users: (corey, rob) messages:
     [#message sender: corey, time: 1476735420000, text: "Did Josh tell you what happened?"]
     [#message sender: rob, time: 1476735421000, text: "Yeah, don't worry, we took care of it. "]
     [#message sender: corey, time: 1476735422000, text: "Well what happened?"]
     [#message sender: rob, time: 1476735423000, text: "Like I said, don't worry about it."]
     [#message sender: corey, time: 1476735424000, text: "..."]
-    [#message sender: rob, time: 1476735451000, text: "🕴"]]    
-```
-
-### tags
-
-```
-commit
-  [#tag name: "VIP", color: "#DF65F8"]
-  [#tag name: "Tech Contact", color: "#30D3AD"]
-  [#tag name: "MVP", color: "#FF0000"]
+    [#message sender: rob, time: 1476735451000, text: "🔥"]]    
 ```
