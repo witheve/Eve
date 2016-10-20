@@ -2033,12 +2033,20 @@ export class IDE {
         let span = action.span && action.span[0];
         this.languageService.findSource({record, attribute, span}, this.languageService.unpackSource((records) => {
           console.log("SOURCE", records);
+          for(let record of records) {
+            record.tag.push("editor");
+          }
+          sendEvent(records);
         }));
       },
 
       "find-related": (action) => {
         this.languageService.findRelated({span: action.span, variable: action.variable}, this.languageService.unpackRelated((records) => {
           console.log("RELATED", records);
+          for(let record of records) {
+            record.tag.push("editor");
+          }
+          sendEvent(records);
         }));
       }
     },
@@ -2116,7 +2124,7 @@ export class IDE {
       let view = this.activeViews[recordId] = {record: recordId, container: document.createElement("div")};
       view.container.className = "view-container";
 
-      // this.attachView(recordId, record.node)
+      //this.attachView(recordId, record.node)
       // Find the source node for this view.
       send({type: "findNode", recordId, node: record.node[0]});
     }
@@ -2237,8 +2245,8 @@ class LanguageService {
     return (message:FindSourceArgs) => {
       let records:SourceRecord[] = [];
       for(let source of message.source) {
-        let spans:string[] = (message.span.constructor === Array) ? message.span as any : [message.span];
-        records.push({tag: ["source"], record: message.record, attribute: message.attribute, span: spans, block: source.block});
+        let span:any = message.span || source.span;
+        records.push({tag: ["source"], record: message.record, attribute: message.attribute, span, block: source.block});
       }
       callback(records);
     };

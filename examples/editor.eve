@@ -91,36 +91,55 @@ bind @browser
 
 ### Find Source
 
-`#find-source` will request the originating `source` token(s) for a given set of `target` (token(s) or element(s)) from the language service. Results will be returned in the format `[#source target source type]`, where `target` is the same as provided, `source` is one of it's creating token(s), and `type` is the type of the `source` token. These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
+`#find-source` will request the originating source span(s) for a given `record` id, `record`, `attribute` pair, or `span` ids. from the language service. Results will be returned in the format `[#source record? attribute? span? source: [block span?]]`, where `record`, `attribute`, and `span` are the same as provided, `source` is a set of records containing the origin `block` and `span`s. These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
 
 ```
 search @editor
-  action = [#find-source record]
+  action = [#find-source]
+  lookup[record: action, attribute, value]
 
 bind @browser
-  action <- [#editor #find-source record]
+  action <- [#editor]
+  lookup[record: action, attribute, value]
+```
+
+```
+search @event
+  event = [#editor #source]
+  lookup[record: event, attribute, value]
+bind @editor
+  lookup[record: event, attribute, value]
 ```
 
 ### Find Related
 
-`#find-related` will request all token(s) related to the `target` (token(s) or element(s)) from the language service. Related tokens are tokens which are directly joined to or unified with the target. if `block` is specified, the search will be restricted to tokens in the given `block`(s). Results will be returned in the format `[#related target token block type]`, where `target` and `block` are the same as provided, `token` is the related token, and `type` is the type of `token`. These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
+`#find-related` will request all related `span`(s) for a given `variable` or `variable`(s) for a `span` from the language service. Related tokens are tokens which are directly joined to or unified with the target.  Results will be returned in the format `[#related span? variable?]`, where the argument you provided is the same and the other is filled in. These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
 
 ```
 search @editor
-  action = [#find-related target]
+  action = [#find-related variable]
 
 bind @browser
-  action <- [#editor #find-related target]
-```
+  action <- [#editor #find-related variable]
 
-Include the optional `block` attribute, if provided.
+  [#div text: "RELATED {{action}} {{variable}}"]
+```
 
 ```
 search @editor
-  action = [#find-related block]
+  action = [#find-related span]
 
 bind @browser
-  action <- [block]
+  action <- [#editor #find-related span]
+  [#div text: "RELATED {{action}} {{span}}"]
+```
+
+```
+search @event
+  event = [#editor #related]
+  lookup[record: event, attribute, value]
+bind @editor
+  lookup[record: event, attribute, value]
 ```
 
 ### Find Value

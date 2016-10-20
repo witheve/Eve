@@ -70,7 +70,7 @@ search
   fruit = [#fruit name]
 
 bind @view
-  [#value value: name]
+  [#value | value: name]
 ```
 
 
@@ -111,7 +111,7 @@ commit @mock
     ("editor|block|18|token|7", "editor|block|18|token|18", "editor|block|18|token|21")]
 ```
 
-Mock sources and relateds for all the fruit divs.
+Mock sources for all the fruit divs. and relateds for all the fruit divs.
 
 ```
 search @browser
@@ -122,26 +122,26 @@ search @mock
   [#variable block token]
 
 commit @mock
-  [#source record: target source: block type: "code_block"]
+  [#source record: target block]
   [#related target type: "identifier" block | token]
 ```
 
 Respond to `#find-source` with mocked sources.
 
-```
+//```
 search @editor
   [#find-source record]
 
 search @mock
-  s = [#source record source type]
+  s = [#source record block]
 
 bind @editor
-  s <- [#source record source type]
-```
+  s <- [#source record block]
+//```
 
 Respond to `#find-related` with mocked relateds.
 
-```
+//```
 search @editor
   [#find-related target block]
 
@@ -150,7 +150,7 @@ search @mock
 
 bind @editor
   r <- [#related target block type token]
-```
+//```
 
 Mock up intermediate values for the fruit divs.
 @NOTE: We're mocking up the behavior of fixed `[variable: <fruit>, value: <inspector.target>]` here, we're just pretending that's being provided through magic.

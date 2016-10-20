@@ -81,7 +81,9 @@ search @inspector
   inspector = [#inspector state: "close-popout"]
 
 commit @inspector
-  inspector.state -= ("popout", "close-popout")
+  //inspector.state -= ("popout", "close-popout")
+  inspector.state -= "popout"
+  inspector.state -= "close-popout"
 ```
 
 When the `"focus-blocks"` state is active, elide everything but the originating blocks for the currently inspected token.
@@ -101,10 +103,10 @@ search @inspector
   inspector = [#inspector state: "focus-blocks" target]
 
 search @editor
-  [#source target source type: "code_block"]
+  [#source record: target block]
 
 bind @editor
-  [#mark-between inspector type: "elision_transient" | token: source]
+  [#mark-between inspector type: "elision_transient" | token: block]
 ```
 
 When the inspector is in a state requiring related tokens, request them from the editor.
@@ -115,10 +117,10 @@ search @inspector
               if i = [#inspector state: "shadow-unrelated"] then i
 
 search @editor
-  [#source target source type: "code_block"]
+  [#source record: target span]
 
 bind @editor
-  [#find-related target: inspector.target | block: source]
+  [#find-related | span]
 ```
 
 When the editor is in the `"highlight-related"` state, mark all related tokens highlighted.
@@ -128,10 +130,11 @@ search @inspector
   inspector = [#inspector state: "highlight-related" target]
 
 search @editor
-  [#related target token type: "identifier"]
+  [#source record: target span]
+  [#related span variable]
 
 bind @editor
-  [#mark-span inspector type: "highlight" | token]
+  [#mark-span inspector type: "highlight" | token: variable]
 ```
 
 When the editor is in the `"shadow-unrelated"` state, mark everything besides the related tokens shadowed.
@@ -141,11 +144,11 @@ search @inspector
   inspector = [#inspector state: "shadow-unrelated" target]
 
 search @editor
-  [#source target source type: "code_block"]
-  [#related target block: source token type: "identifier"]
+  [#source record: target block span]
+  [#related span variable]
 
 bind @editor
-  [#mark-between inspector type: "shadow" | token within: source]
+  [#mark-between inspector type: "shadow" | token: variable within: block]
 ```
 
 When the editor is in the `"show-values"` state, request the intermediate values from the editor.
@@ -156,11 +159,11 @@ search @inspector
 
 
 search @editor
-  [#source target source type: "code_block"]
-  [#related target block: source token type: "identifier"]
+  [#source record: target block span]
+  [#related target span variable]
 
 bind @editor
-  [#find-value variable: token]
+  [#find-value variable]
 ```
 
 When the editor is in the `"show-values"` state and intermediates have been found, badge them.
@@ -170,12 +173,12 @@ search @inspector
   inspector = [#inspector state: "show-values" target]
 
 search @editor
-  [#source target source type: "code_block"]
-  [#related target block: source token type: "identifier"]
-  [#value variable: token value row: 1]
+  [#source record: target block span]
+  [#related span variable]
+  [#value variable value row: 1]
 
 bind @editor
-  [#mark-span inspector type: "badge" kind: "intermediate" target message: value | token]
+  [#mark-span inspector type: "badge" kind: "intermediate" target message: value | token: variable]
 ```
 
 When the inspector is in the `"show-cardinality"` state, request the cardinalities from the editor.
@@ -185,11 +188,11 @@ search @inspector
   inspector = [#inspector state: "show-cardinality" target]
 
 search @editor
-  [#source target source type: "code_block"]
-  [#related target block: source token type: "identifier"]
+  [#source record: target block span]
+  [#related span variable]
 
 bind @editor
-  [#find-cardinality token]
+  [#find-cardinality token: variable]
 ```
 
 When the editor is in the `"show-cardinality"` state and cardinalities have been found, badge them.
@@ -199,12 +202,12 @@ search @inspector
   inspector = [#inspector state: "show-cardinality" target]
 
 search @editor
-  [#source target source type: "code_block"]
-  [#related target block: source token type: "identifier"]
-  [#cardinality token cardinality]
+  [#source record: target block span]
+  [#related span variable]
+  [#cardinality token: variable cardinality]
 
 bind @editor
-  [#mark-span inspector type: "badge" kind: "cardinality" target message: cardinality | token]
+  [#mark-span inspector type: "badge" kind: "cardinality" target message: cardinality | token: variable]
 ```
 
 ## Drawing
