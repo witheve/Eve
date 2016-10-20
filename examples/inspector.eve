@@ -24,15 +24,13 @@ When an inspector alt-click comes in, retarget the inspector to the alt-clicked 
 
 ```
 search @event
-  [#inspector #click #direct-target target type]
+  [#inspector #click #direct-target target type x y]
 
 search @inspector
   inspector = [#inspector]
 
 commit @inspector
-  inspector.target := target
-  inspector.type := type
-  inspector.state := "popout"
+  inspector <- [target type state: "popout" x y]
   inspector.avs := none
 ```
 
@@ -63,6 +61,8 @@ commit @inspector
   inspector.target := none
   inspector.type := none
   inspector.state := none
+  inspector.x := none
+  inspector.y := none
   inspector.avs := none
 ```
 
@@ -243,13 +243,13 @@ When an `#inspector` is open with type `"element"` and a target, show the elemen
 
 ```
 search @inspector
-  inspector = [#inspector state: "popout" target]
+  inspector = [#inspector state: "popout" target x y]
 
 bind @view
   attributes = [#attribute-table inspector entity: target]
 
 bind @browser
-  inspector <- [#div class: "flex-row inspector-pane" children:
+  inspector <- [#div #editor #inspector target x y class: "flex-row inspector-pane" children:
     [#div #options-panel children:
       [#button inspector text: "Who created this?" action: ("close-popout", "focus-blocks", "shadow-unrelated")]
       [#button inspector text: "Why aren't there more or less of these?" action: ("close-popout", "focus-blocks", "shadow-unrelated", "show-cardinality")]

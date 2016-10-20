@@ -2079,6 +2079,16 @@ export class IDE {
           }
           sendEvent(records);
         }));
+      },
+
+      "inspector": (action, actionId) => {
+        let inspectorElem:HTMLElement = activeElements[actionId] as any;
+
+        if(action.x && action.y) {
+          inspectorElem.style.position = "absolute";
+          inspectorElem.style.left = action.x[0];
+          inspectorElem.style.top = action.y[0];
+        }
       }
     },
 
@@ -2118,7 +2128,15 @@ export class IDE {
           if(span) bounds = span.find();
         }
 
-        let action = {tag: record.tag[0] === "editor" ? record.tag[1] : record.tag[0], bounds};
+        let action:any = {bounds};
+        for(let tag of record.tag) {
+          if(tag in this.actions.insert || tag in this.actions.remove) {
+            action.tag = tag;
+            break;
+          }
+        }
+        if(!action.tag) continue;
+
         for(let attr in record) {
           if(!action[attr]) action[attr] = record[attr];
         }
@@ -2234,9 +2252,12 @@ export class IDE {
       }
 
     } else if(pane === "application") {
+      let appContainer = document.querySelector(".application-root > .application-container > .program") as HTMLElement;
+      let x = event.clientX - appContainer.offsetLeft;
+      let y = event.clientY - appContainer.offsetTop;
       let current:any = event.target;
       while(current && current.entity) {
-        events.push({tag: ["inspector", "click", current === event.target ? "direct-target" : undefined], target: current.entity, type: "element"});
+        events.push({tag: ["inspector", "click", current === event.target ? "direct-target" : undefined], target: current.entity, type: "element", x, y});
         current = current.parentNode;
       }
     }
