@@ -203,7 +203,7 @@ search @editor
   [#value variable value row: 1]
 
 bind @editor
-  [#mark-span inspector type: "badge" kind: "intermediate" target message: value | token: variable]
+  [#mark-span inspector type: "badge" kind: "intermediate" target message: value token: variable]
 ```
 
 When the inspector is in the `"show-cardinality"` state, request the cardinalities from the editor.
