@@ -2048,6 +2048,26 @@ export class IDE {
           }
           sendEvent(records);
         }));
+      },
+
+      "find-value": (action) => {
+        this.languageService.findValue({variable: action.variable, given: action.given}, this.languageService.unpackValue((records) => {
+          console.log("VALUE", records);
+          for(let record of records) {
+            record.tag.push("editor");
+          }
+          sendEvent(records);
+        }));
+      },
+
+      "find-cardinality": (action) => {
+        this.languageService.findCardinality({variable: action.variable}, this.languageService.unpackCardinality((records) => {
+          console.log("CARDINALITY", records);
+          for(let record of records) {
+            record.tag.push("editor");
+          }
+          sendEvent(records);
+        }));
       }
     },
 
