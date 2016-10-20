@@ -35,7 +35,21 @@ commit @inspector
   inspector.state := "popout"
 ```
 
-When an inspector clear event comes in, remove all current inpection state.
+While the inspector is open on an element, update its avs to that element's avs. This will persist until it's no longer potentially relevant.
+@NOTE: This is kind of weird and it may be better to have multiple targets instead.
+
+```
+search @inspector
+  inspector = [#inspector target type: "element"]
+
+search @browser
+  lookup[record: target, attribute, value]
+
+commit @inspector
+  inspector.avs := [attribute value]
+```
+
+When an inspector clear event comes in, remove all current inspection state.
 
 ```
 search @event
@@ -155,15 +169,26 @@ When the editor is in the `"show-values"` state, request the intermediate values
 
 ```
 search @inspector
-  inspector = [#inspector state: "show-values" target]
-
+  inspector = [#inspector state: "show-values" target not(avs)]
 
 search @editor
   [#source record: target block span]
   [#related span variable]
 
 bind @editor
-  [#find-value variable]
+  [#find-value inspector | variable]
+```
+
+```
+search @inspector
+  inspector = [#inspector state: "show-values" target avs: [attribute value]]
+
+search @editor
+  [#source record: target block span]
+  [#related span variable]
+
+bind @editor
+  [#find-value inspector | variable given: [attribute value]]
 ```
 
 When the editor is in the `"show-values"` state and intermediates have been found, badge them.

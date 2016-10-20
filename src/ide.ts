@@ -2053,7 +2053,16 @@ export class IDE {
       },
 
       "find-value": (action) => {
-        this.languageService.findValue({variable: action.variable, given: action.given}, this.languageService.unpackValue((records) => {
+        let given;
+        if(action.given) {
+          given = {};
+          for(let avId of action.given) {
+            let av = indexes.records.index[avId];
+            given[av.attribute] = av.value;
+          }
+        }
+
+        this.languageService.findValue({variable: action.variable, given}, this.languageService.unpackValue((records) => {
           console.log("VALUE", records);
           for(let record of records) {
             record.tag.push("editor");

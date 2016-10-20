@@ -145,13 +145,23 @@ bind @editor
 
 ```
 search @editor
-  action = [#find-value variable]
-  lookup[record: action, attribute, value]
+  action = [#find-value variable not(given)]
 
 bind @browser
-  result = [#editor #find-value | variable]
-  lookup[record: result, attribute, value]
+  action <- [#editor #find-value variable]
 ```
+
+This flow really needs some love
+```
+search @editor
+  action = [#find-value variable given: [attribute value]]
+
+bind @browser
+  given = [attribute value]
+  action <- [#editor #find-value variable given]
+  [#div text: "{{given}} | {{attribute}}: {{value}}"]
+```
+
 
 ```
 search @event
