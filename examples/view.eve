@@ -14,7 +14,7 @@ search @view
 
 bind @browser
   wrapper <-
-    [#view #div node children:
+    [#view #div node class: "view" children:
       [#div sort: ix text: value]]
 ```
 
