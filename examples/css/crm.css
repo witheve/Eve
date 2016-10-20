@@ -89,13 +89,14 @@
   padding: 10px;
   border-top: 1px solid rgb(240,240,240);
   flex-grow: 1;
-  overflow: auto;
 }
 
 .convo {
   background-color: #FAFAFA;
   margin-bottom: 20px;
+  height: 270px;
   padding: 10px;
+  overflow: auto;
 }
 
 .msg-avatar {
@@ -155,4 +156,8 @@
   width: 40px;
   height: 40px;
   margin-right: 10px;
+}
+
+.msg-input {
+  width: 100%;
 }
