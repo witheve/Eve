@@ -1482,8 +1482,10 @@ export class Editor {
   }
 
   onChanges = (raws:CodeMirror.EditorChangeLinkedList[]) => {
-    for(let span of this.changingSpans) {
-      if(span.refresh) span.refresh();
+    if(this.changingSpans) {
+      for(let span of this.changingSpans) {
+        if(span.refresh) span.refresh();
+      }
     }
     this.changingSpans = undefined;
     this.changing = false;
