@@ -91,11 +91,12 @@ bind @browser
 
 ### Find Source
 
-`#find-source` will request the originating source span(s) for a given `record` id, `record`, `attribute` pair, or `span` ids. from the language service. Results will be returned in the format `[#source record? attribute? span? source: [block span?]]`, where `record`, `attribute`, and `span` are the same as provided, `source` is a set of records containing the origin `block` and `span`s. These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
+`#find-source` will request the originating source span(s) for a given `record` id, `record`, `attribute` pair, or `span` ids. from the language service. Results will be returned in the format `[#source record? attribute? span? block]`, where `record`, `attribute` are the same as provided. `span` is the same if provided or originating spans if not, and block is the set of source blocks. These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
 
 ```
 search @editor
   action = [#find-source]
+  attribute = ("record", "attribute", "span")
   lookup[record: action, attribute, value]
 
 bind @browser
@@ -103,12 +104,29 @@ bind @browser
   lookup[record: result, attribute, value]
 ```
 
+When a source event comes in, persist it into the editor and clear it from the event bag.
 ```
 search @event
-  event = [#editor #source]
+  event = [#editor #source action]
+  attribute = ("record", "attribute", "span", "block")
   lookup[record: event, attribute, value]
-bind @editor
+
+commit @editor
+  event <- [#source]
   lookup[record: event, attribute, value]
+
+commit @event
+  event := none
+```
+
+When a source's supporting action is removed, remove it.
+```
+search @editor @browser
+  source = [#source action]
+  not(action = [#find-source])
+
+commit @editor
+  source := none
 ```
 
 ### Find Related
@@ -131,17 +149,33 @@ bind @browser
   [#editor #find-related | span]
 ```
 
+When a related event comes in, persist it into the editor and clear it from the event bag.
 ```
 search @event
-  event = [#editor #related]
-  lookup[record: event, attribute, value]
-bind @editor
-  lookup[record: event, attribute, value]
+  event = [#editor #related action variable span]
+
+commit @editor
+  event <- [#related action variable span]
+
+commit @event
+  event := none
+```
+
+When a related's supporting action is removed, remove it.
+```
+search @editor @browser
+  related = [#related action]
+  not(action = [#find-related])
+
+commit @editor
+  related := none
 ```
 
 ### Find Value
 
 `#find-value` will request the intermediate value(s) for the given set of `variable`(s) from the language service. By default, all intermediates for the variables will be returned. If `given` is specified, containing a set of `[attribute value]` pairs, only values that exist in the same "row" as the fixed values will be returned. If multiple values are provided for a variable, the results for each will be logically unioned. Results will be returned in the format `[#value variable value row]`, where `variable` is one of the given `variable`s, `value` is the intermediate value of the variable, and `row` is the "row" the intermediate is from (for matching intermediates of different variables up). These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
+
+If given isn't specified, we'll find up to 100 rows out of all the rows from the block.
 
 ```
 search @editor
@@ -151,7 +185,8 @@ bind @browser
   action <- [#editor #find-value variable]
 ```
 
-This flow really needs some love
+If it is, we'll filter by it to only include relevant rows.
+
 ```
 search @editor
   action = [#find-value variable given: [attribute value]]
@@ -161,14 +196,28 @@ bind @browser
   action <- [#editor #find-value variable given]
 ```
 
-
+When a value event comes in, persist it into the editor and clear it from the event bag.
 ```
 search @event
-  event = [#editor #value]
-  lookup[record: event, attribute, value]
-bind @editor
-  lookup[record: event, attribute, value]
+  event = [#editor #value action variable value row]
+
+commit @editor
+  event <- [#value action variable value row]
+
+commit @event
+  event := none
 ```
+
+When a value's supporting action is removed, remove it.
+```
+search @editor @browser
+  value = [#value action]
+  not(action = [#find-value])
+
+commit @editor
+  value := none
+```
+
 
 ### Find Cardinality
 
@@ -182,10 +231,25 @@ bind @browser
   [#editor #find-cardinality | variable]
 ```
 
+
+When a value event comes in, persist it into the editor and clear it from the event bag.
 ```
 search @event
-  event = [#editor #cardinality]
-  lookup[record: event, attribute, value]
-bind @editor
-  lookup[record: event, attribute, value]
+  event = [#editor #cardinality action variable cardinality]
+
+commit @editor
+  event <- [#cardinality action variable cardinality]
+
+commit @event
+  event := none
+```
+
+When a value's supporting action is removed, remove it.
+```
+search @editor @browser
+  cardinality = [#cardinality action]
+  not(action = [#find-cardinality])
+
+commit @editor
+  cardinality := none
 ```

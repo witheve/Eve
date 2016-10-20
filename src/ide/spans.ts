@@ -95,7 +95,10 @@ export function compareSpans(a, b) {
   if(!aLoc && !bLoc) return 0;
   if(!aLoc) return -1;
   if(!bLoc) return 1;
-  if(aLoc.from.line === bLoc.from.line) return 0;
+  if(aLoc.from.line === bLoc.from.line) {
+    if(aLoc.from.ch === bLoc.from.ch) return 0;
+    return aLoc.from.ch < bLoc.from.ch ? -1 : 1;
+  }
   return aLoc.from.line < bLoc.from.line ? -1 : 1;
 }
 

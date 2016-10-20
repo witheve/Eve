@@ -33,6 +33,7 @@ commit @inspector
   inspector.target := target
   inspector.type := type
   inspector.state := "popout"
+  inspector.avs := none
 ```
 
 While the inspector is open on an element, update its avs to that element's avs. This will persist until it's no longer potentially relevant.
@@ -62,6 +63,7 @@ commit @inspector
   inspector.target := none
   inspector.type := none
   inspector.state := none
+  inspector.avs := none
 ```
 
 Clear the clear event
@@ -203,7 +205,7 @@ search @editor
   [#value variable value row: 1]
 
 bind @editor
-  [#mark-span inspector type: "badge" kind: "intermediate" target message: value | token: variable]
+  [#mark-span inspector type: "badge" kind: "intermediate" target message: value token: variable]
 ```
 
 When the inspector is in the `"show-cardinality"` state, request the cardinalities from the editor.

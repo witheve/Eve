@@ -2029,30 +2029,30 @@ export class IDE {
         this.editor.jumpTo(exec.token[0]);
       },
 
-      "find-source": (action) => {
+      "find-source": (action, actionId) => {
         let record = action.record && action.record[0];
         let attribute = action.attribute && action.attribute[0];
         let span = action.span && action.span[0];
         this.languageService.findSource({record, attribute, span}, this.languageService.unpackSource((records) => {
-          console.log("SOURCE", records);
           for(let record of records) {
             record.tag.push("editor");
+            record["action"] = actionId;
           }
           sendEvent(records);
         }));
       },
 
-      "find-related": (action) => {
+      "find-related": (action, actionId) => {
         this.languageService.findRelated({span: action.span, variable: action.variable}, this.languageService.unpackRelated((records) => {
-          console.log("RELATED", records);
           for(let record of records) {
             record.tag.push("editor");
+            record["action"] = actionId;
           }
           sendEvent(records);
         }));
       },
 
-      "find-value": (action) => {
+      "find-value": (action, actionId) => {
         let given;
         if(action.given) {
           given = {};
@@ -2063,19 +2063,19 @@ export class IDE {
         }
 
         this.languageService.findValue({variable: action.variable, given}, this.languageService.unpackValue((records) => {
-          console.log("VALUE", records);
           for(let record of records) {
             record.tag.push("editor");
+            record["action"] = actionId;
           }
           sendEvent(records);
         }));
       },
 
-      "find-cardinality": (action) => {
+      "find-cardinality": (action, actionId) => {
         this.languageService.findCardinality({variable: action.variable}, this.languageService.unpackCardinality((records) => {
-          console.log("CARDINALITY", records);
           for(let record of records) {
             record.tag.push("editor");
+            record["action"] = actionId;
           }
           sendEvent(records);
         }));
@@ -2104,12 +2104,10 @@ export class IDE {
       for(let recordId of removes) {
         let action = this.activeActions[recordId];
         if(!action) return;
-        console.log("Reverse", recordId, action.tag, action);
+        console.log("STOP", recordId, action.tag, action);
         let run = this.actions.remove[action.tag];
         if(run) run(action);
         delete this.activeActions[recordId];
-
-        console.log("End action", recordId, action.tag, action);
       }
 
       for(let recordId of inserts) {
@@ -2125,11 +2123,11 @@ export class IDE {
           if(!action[attr]) action[attr] = record[attr];
         }
         this.activeActions[recordId] = action;
+        console.log("START", recordId, action.tag, action);
 
-        console.log("Begin action", recordId, action.tag, action);
         let run = this.actions.insert[action.tag];
         if(!run) console.warn(`Unable to run unknown action type '${action.tag}'`, recordId, record);
-        else run(action);
+        else run(action, recordId);
       }
     });
   }
@@ -2317,7 +2315,7 @@ class LanguageService {
       for(let rowIx = 0, rowCount = message.rows.length; rowIx < rowCount; rowIx++) {
         let row = message.rows[rowIx];
         for(let variable in mappings) {
-          records.push({tag: ["value"], row: rowIx, variable, value: row[mappings[variable]]});
+          records.push({tag: ["value"], row: rowIx + 1, variable, value: row[mappings[variable]]});
         }
       }
       callback(records);

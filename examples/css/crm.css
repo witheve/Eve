@@ -89,13 +89,14 @@
   padding: 10px;
   border-top: 1px solid rgb(240,240,240);
   flex-grow: 1;
-  overflow: auto;
 }
 
 .convo {
   background-color: #FAFAFA;
   margin-bottom: 20px;
+  height: 270px;
   padding: 10px;
+  overflow: auto;
 }
 
 .msg-avatar {
@@ -111,4 +112,61 @@
 
 .msg {
   margin-bottom: 10px;
+}
+
+.thread {
+  height: 45px;
+  margin-bottom: 10px;
+  padding: 3px;
+  background-color: rgb(245,245,245);
+  display: flex;
+  flex-direction: row;
+  border: 1px solid rgb(235,235,235);
+}
+
+.thread-box {
+  flex-grow: 1;
+}
+
+.archive {
+  cursor: pointer;
+  padding-top: 6px;
+  border-left: 1px solid rgb(235,235,235);
+  padding-left: 5px;
+  padding-right: 2px;
+}
+
+.contact-avatar {
+  width: 80px;
+  height: 80px;
+  float: left;
+  margin-right: 10px;
+}
+
+.contact-name {
+  font-weight: bold;
+  font-size: 18px;
+}
+
+.contact {
+  height: 95px;
+}
+
+.recent-avatar {
+  width: 40px;
+  height: 40px;
+  margin-right: 10px;
+}
+
+.msg-input {
+  width: 100%;
+}
+
+.about-line {
+  line-height: 40px;
+  border-bottom: 1px solid rgb(240,240,240);
+}
+
+.about-label {
+  font-weight: bold;
 }

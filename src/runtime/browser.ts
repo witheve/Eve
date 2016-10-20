@@ -172,7 +172,6 @@ export function init(code) {
   let {blocks, errors: buildErrors} = build;
   responder.lastParse = results;
   analyzer.analyze(blocks.map((block) => block.parse), spans, extraInfo);
-  console.log("BLOCKS", blocks);
   responder.sendErrors(buildErrors);
   // analyzer.analyze(results.blocks, spans, extraInfo);
   let browser = new BrowserSessionDatabase(responder);
