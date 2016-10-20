@@ -159,7 +159,6 @@ search @editor
 bind @browser
   given = [attribute value]
   action <- [#editor #find-value variable given]
-  [#div text: "{{given}} | {{attribute}}: {{value}}"]
 ```
 
 
