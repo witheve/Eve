@@ -473,7 +473,6 @@ export function nodeIdToRecord(evaluation, nodeId, spans, extraInfo) {
 
   let sessionIndex = eve.getDatabase("session").index;
   let queryInfo = sessionIndex.alookup("tag", "query");
-  let evSession = evaluation.getDatabase("session");
   if(queryInfo) {
     let [entity] = queryInfo.toValues();
     let obj = sessionIndex.asObject(entity);

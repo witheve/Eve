@@ -349,3 +349,14 @@ search
 bind
   query.source += [span block start: span.start, stop: span.stop]
 ~~~
+
+## build-node to creator
+
+~~~
+search
+  query = [#query build-node]
+  [#action entity build-node]
+  record = [#record entity]
+commit
+  query.record := record
+~~~
