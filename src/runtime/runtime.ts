@@ -28,6 +28,7 @@ export class Database {
   blocks: Block[];
   index: TripleIndex;
   evaluations: Evaluation[];
+  nonExecuting: boolean;
 
   constructor() {
     this.id = `db|${Database.id}`;
@@ -127,6 +128,7 @@ export class Evaluation {
     let blocks = [];
     let index = this.multiIndex;
     for(let database of this.databases) {
+      if(database.nonExecuting) continue;
       for(let block of database.blocks) {
         if(block.dormant) continue;
         let checker = block.checker;
@@ -151,6 +153,7 @@ export class Evaluation {
   getAllBlocks() {
     let blocks = [];
     for(let database of this.databases) {
+      if(database.nonExecuting) continue;
       for(let block of database.blocks) {
         if(block.dormant) continue;
         blocks.push(block);

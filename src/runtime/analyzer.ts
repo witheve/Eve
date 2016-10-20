@@ -493,11 +493,15 @@ export function findSource(evaluation, info, spans, extraInfo) {
 
   let evSession = evaluation.getDatabase("session");
   let evBrowser = evaluation.getDatabase("browser");
+  evSession.nonExecuting = true;
+  evBrowser.nonExecuting = true;
   eve.registerDatabase("evaluation-session", evSession);
   eve.registerDatabase("evaluation-browser", evBrowser);
   doQuery(queryId, query, spans, extraInfo);
   eve.unregisterDatabase("evaluation-session");
   eve.unregisterDatabase("evaluation-browser");
+  evSession.nonExecuting = false;
+  evBrowser.nonExecuting = false;
 
   let sessionIndex = eve.getDatabase("session").index;
   let queryInfo = sessionIndex.alookup("tag", "findSource");
