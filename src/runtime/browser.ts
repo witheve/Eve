@@ -24,7 +24,9 @@ class Responder {
   }
 
   send(json) {
-    this.socket.onmessage({data: json});
+    setTimeout(() => {
+      this.socket.onmessage({data: json});
+    }, 0);
   }
 
   sendErrors(errors) {
