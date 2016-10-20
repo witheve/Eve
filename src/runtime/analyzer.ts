@@ -205,22 +205,21 @@ class Analysis {
   }
 
   _actionAction(context: AnalysisContext, node) {
-    let attribute = node.attribute;
+    let attribute = typeof node.attribute === "string" ? node.attribute : context.value(node.attribute);
     if(node.action === "erase") {
       // if(node.attribute === undefined) {
       //   context.provide(node.scopes, "any", "");
       // } else {
       //   context.provide(node.scopes, "all", "");
       // }
-    } else if(typeof node.attribute !== "string") {
-      attribute = context.value(node.attribute);
-    }
-    if(node.value.type === "parenthesis") {
-      for(let item of node.value.items) {
-        let id = context.provide(item, node.scopes, node.variable, attribute, context.value(item));
-      }
     } else {
-      let id = context.provide(node, node.scopes, node.variable, attribute, context.value(node.value));
+      if(node.value.type === "parenthesis") {
+        for(let item of node.value.items) {
+          let id = context.provide(item, node.scopes, node.entity, attribute, context.value(item));
+        }
+      } else {
+        let id = context.provide(node, node.scopes, node.entity, attribute, context.value(node.value));
+      }
     }
   }
 
