@@ -192,7 +192,7 @@ search @editor
   [#related span variable]
 
 bind @editor
-  [#find-cardinality token: variable]
+  [#find-cardinality variable]
 ```
 
 When the editor is in the `"show-cardinality"` state and cardinalities have been found, badge them.
@@ -204,7 +204,7 @@ search @inspector
 search @editor
   [#source record: target block span]
   [#related span variable]
-  [#cardinality token: variable cardinality]
+  [#cardinality variable cardinality]
 
 bind @editor
   [#mark-span inspector type: "badge" kind: "cardinality" target message: cardinality | token: variable]

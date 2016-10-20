@@ -179,7 +179,7 @@ Mock up cardinalities for the fruit divs.
 
 ```
 search @editor
-  [#find-cardinality token]
+  [#find-cardinality variable]
 
 search @mock
   [#variable block name token]
@@ -194,5 +194,5 @@ search
   cardinality = count[given: value per: token]
 
 bind @editor
-  [#cardinality token cardinality]
+  [#cardinality variable: token cardinality]
 ```
