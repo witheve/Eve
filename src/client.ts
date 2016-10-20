@@ -150,7 +150,6 @@ if(!global["local"]) {
 }
 socket.onmessage = function(msg) {
   let data = JSON.parse(msg.data);
-  console.log(data.type, data);
   if(data.type == "result") {
     let state = {entities: indexes.records.index, dirty: indexes.dirty.index};
     handleDiff(state, data);
