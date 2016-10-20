@@ -127,14 +127,17 @@ class Responder {
       let extraInfo = {};
       let spanId = analyzer.nodeIdToRecord(evaluation, data.node, spans, extraInfo);
       this.send(JSON.stringify({type: "findNode", recordId, spanId}));
-    } else if(data.type === "analyzerQuery") {
+    } else if(data.type === "findSource") {
       let spans = [];
       let extraInfo = {};
-      if(data.query === "nodeToRecord") {
-        analyzer.nodeIdToRecord(evaluation, data.nodeId, spans, extraInfo);
-      }
+      let spanId = analyzer.findSource(evaluation, data, spans, extraInfo);
+      this.send(JSON.stringify(data));
+    } else if(data.type === "findRelated") {
+      let spans = [];
+      let extraInfo = {};
+      let spanId = analyzer.findRelated(evaluation, data, spans, extraInfo);
+      this.send(JSON.stringify(data));
     }
-
   }
 }
 
@@ -176,4 +179,6 @@ export function init(code) {
   evaluation.fixpoint();
 
   client.socket.onopen();
+  // responder.handleEvent(JSON.stringify({type: "findSource", record: "43|28|papaya", requestId: 0}));
+  // responder.handleEvent(JSON.stringify({type: "findSource", span: "editor|block|18|node|19", requestId: 0}));
 }

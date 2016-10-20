@@ -242,17 +242,110 @@ search
   record = [#record entity start stop]
 bind
   query <- [entity entity-register: entity.register]
-bind @editor
-  [#comment record | start stop kind: "warning" message: "this is the record" ]
 ~~~
 
-## nodeId -> creator
+
+## find variables related to a span
 
 ~~~
 search
-  query = [#query build-node]
-  [#action entity build-node]
-  record = [#record entity]
-commit
-  query.record := record
+  query = [#findRelated for: "span" span]
+  span = if span = [#action] then span
+         else if span = [#scan] then span
+  variable = if span.entity = [#variable] then span.entity
+             if span.value = [#variable] then span.value
+bind
+  query.variable += variable
+~~~
+
+~~~
+search
+  query = [#findRelated for: "span" span]
+  span = [#record entity start stop]
+  scan = if action = [#action entity] then action
+         if scan = [#scan entity] then scan
+  scan.start >= start
+  scan.stop <= stop
+  scan.value = [#variable]
+bind
+  query.variable += entity
+  query.variable += scan.value
+~~~
+
+## find spans related to a variable
+
+~~~
+search
+  query = [#findRelated for: "variable" variable: token]
+  [#link a: variable b: token]
+  span = if span.entity = variable then span
+         if span.value = variable then span
+bind
+  query.span += span
+~~~
+
+## recordId ->  build-node
+
+~~~
+search
+  query = [#findSource recordId not(attribute)]
+search @evaluation-session @evaluation-browser
+  recordId = [tag]
+bind
+  query.cool += tag
+~~~
+
+Find out what nodes contribute to a record
+
+~~~
+search
+  query = [#findSource recordId not(attribute)]
+search @evaluation-session @evaluation-browser
+  lookup[record: recordId, attribute, value, node]
+bind
+  query.node += node
+~~~
+
+Find out what nodes contribute to a specific attribute on a record
+
+~~~
+search
+  query = [#findSource recordId attribute]
+search @evaluation-session @evaluation-browser
+  lookup[record: recordId, attribute, value, node]
+bind
+  query.node += node
+~~~
+
+We may also want to lookup what node created a complete eav
+
+~~~
+search
+  query = [#findSource recordId attribute value]
+search @evaluation-session @evaluation-browser
+  lookup[record: recordId, attribute, value, node]
+bind
+  query.node += node
+~~~
+
+## scan to block
+
+~~~
+search
+  query = [#findSource span: [block]]
+bind
+  query.block += block
+~~~
+
+## nodeId -> creator (aka findSource)
+
+~~~
+search
+  query = [#findSource node]
+  action = [#action entity build-node: node block]
+  span = if query.attribute then action
+         else if record = [#record entity] then record
+         else action
+bind
+  query.source += [span block start: span.start, stop: span.stop]
 ~~~

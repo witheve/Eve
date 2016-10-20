@@ -484,6 +484,81 @@ export function nodeIdToRecord(evaluation, nodeId, spans, extraInfo) {
   return;
 }
 
+export function findSource(evaluation, info, spans, extraInfo) {
+  let queryId = `query|${info.requestId}`;
+  let query: any = {tag: ["query", "findSource"]};
+  if(info.record) query.recordId = info.record;
+  if(info.attribute) query.attribute = info.attribute;
+  if(info.span) query.span = info.span;
+
+  let evSession = evaluation.getDatabase("session");
+  let evBrowser = evaluation.getDatabase("browser");
+  eve.registerDatabase("evaluation-session", evSession);
+  eve.registerDatabase("evaluation-browser", evBrowser);
+  doQuery(queryId, query, spans, extraInfo);
+  eve.unregisterDatabase("evaluation-session");
+  eve.unregisterDatabase("evaluation-browser");
+
+  let sessionIndex = eve.getDatabase("session").index;
+  let queryInfo = sessionIndex.alookup("tag", "findSource");
+  if(queryInfo) {
+    let [entity] = queryInfo.toValues();
+    let obj = sessionIndex.asObject(entity);
+    console.log("FIND SOURCE", obj);
+    if(obj.source) {
+      info.source = obj.source.map((source) => sessionIndex.asObject(source, false, true));
+      return info;
+    } else if(obj.block) {
+      info.block = obj.block;
+      return info;
+    } else {
+      info.block = [];
+      info.source = [];
+      return info;
+    }
+  }
+  return;
+}
+
+export function findRelated(evaluation, info, spans, extraInfo) {
+  let queryId = `query|${info.requestId}`;
+  let query: any = {tag: ["query", "findRelated"]};
+  let queryType;
+  if(info.span) {
+    query.span = info.span;
+    queryType = "span";
+  }
+  if(info.variable) {
+    query.variable = info.variable;
+    queryType = "variable"
+  }
+  query.for = queryType
+
+  let evSession = evaluation.getDatabase("session");
+  eve.registerDatabase("evaluation-session", evSession);
+  doQuery(queryId, query, spans, extraInfo);
+  eve.unregisterDatabase("evaluation-session");
+
+  let sessionIndex = eve.getDatabase("session").index;
+  let queryInfo = sessionIndex.alookup("tag", "findRelated");
+  if(queryInfo) {
+    let [entity] = queryInfo.toValues();
+    let obj = sessionIndex.asObject(entity);
+    if(queryType === "span" && obj.variable) {
+      info.variable = obj.variable;
+      return info;
+    } else if(queryType === "variable" && obj.span) {
+      info.span = obj.span;
+      return info;
+    } else {
+      info.variable = [];
+      info.span = [];
+      return info;
+    }
+  }
+  return;
+}
+
 function blockToFailingScan(block) {
   let scanId;
   for(let stratum of block.strata) {
