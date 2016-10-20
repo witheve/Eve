@@ -64,9 +64,6 @@ search @view
 search (@session, @browser)
   lookup[record: entity attribute: key value]
 
-commit @browser
-  [#div text: "GOT NODE {{node}}"]
-
 bind @view @browser
   wrapper.node := node
   wrapper.tag += "kv-table"
