@@ -224,10 +224,10 @@ bind @view
 bind @browser
   inspector <- [#div class: "flex-row inspector-pane" children:
     [#div #options-panel children:
-      [#button inspector action: ("close-popout", "focus-blocks", "highlight-related", "shadow-unrelated", "show-values") text: "Should this not show up?"]
-      [#button inspector action: ("close-popout", "focus-blocks", "highlight-related", "shadow-unrelated", "show-cardinality") text: "Are there too many/few of these?"]
-      [#button inspector text: "Does this have an incorrect value?"]
-      [#button inspector text: "Is something missing here?"]]
+      [#button inspector text: "Who created this?" action: ("close-popout", "focus-blocks", "shadow-unrelated")]
+      [#button inspector text: "Why aren't there more or less of these?" action: ("close-popout", "focus-blocks", "shadow-unrelated", "show-cardinality")]
+      [#button inspector text: "What values went into making this?", action: ("close-popout", "focus-blocks", "shadow-unrelated", "show-values")]
+      [#button inspector text: "Why is nothing here?"]]
     [#div #attributes-panel children: attributes]]
 ```
 
