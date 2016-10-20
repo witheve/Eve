@@ -2229,7 +2229,9 @@ type SourceRecord = {tag: string[], record?: string, attribute?: string, span: s
 type FindRelatedArgs = {span?: string[], variable?: string[]};
 type RelatedRecord = {tag: string[], span: string, variable: string[]};
 type FindValueArgs = {variable: string[], given: {[attribute: string]: any}, rows?: any[][], totalRows?: number, variableMappings?: {[span: string]: number}};
+type ValueRecord = {tag: string[], variable: string, value: any, row: number}
 type FindCardinalityArgs = {variable: string[], cardinality?: {[variable: string]: number}};
+type CardinalityRecord = {tag: string[], variable: string, cardinality: number};
 type FindAffectorArgs = {record?: string[], attribute?: string[], span?: string[], block?: string[], action: string[]};
 
 class LanguageService {
@@ -2263,6 +2265,7 @@ class LanguageService {
       for(let span of message.span) {
         records.push({tag: ["related"], span, variable: message.variable});
       }
+      callback(records);
     };
   }
 
@@ -2270,8 +2273,36 @@ class LanguageService {
     this.send("findValue", args, callback);
   }
 
+  unpackValue(callback:(args:ValueRecord[]) => void) {
+    return (message:FindValueArgs) => {
+      if(message.totalRows > message.rows.length) {
+        // @TODO: Turn this into a fact.
+        console.warn(`Too many possible values, showing {{message.rows.length}} of {{message.totalRows}}`);
+      }
+      let mappings = message.variableMappings;
+      let records:ValueRecord[] = [];
+      for(let rowIx = 0, rowCount = message.rows.length; rowIx < rowCount; rowIx++) {
+        let row = message.rows[rowIx];
+        for(let variable in mappings) {
+          records.push({tag: ["value"], row: rowIx, variable, value: row[mappings[variable]]});
+        }
+      }
+      callback(records);
+    };
+  }
+
   findCardinality(args:FindCardinalityArgs, callback:(args:FindCardinalityArgs) => void) {
     this.send("findCardinality", args, callback);
+  }
+
+  unpackCardinality(callback:(args:CardinalityRecord[]) => void) {
+    return (message:FindCardinalityArgs) => {
+      let records:CardinalityRecord[] = [];
+      for(let variable in message.cardinality) {
+        records.push({tag: ["cardinality"], variable, cardinality: message.cardinality[variable]});
+      }
+      callback(records);
+    };
   }
 
   findAffector(args:FindAffectorArgs, callback:(args:FindAffectorArgs) => void) {
