@@ -125,25 +125,6 @@ bind @editor
 
 # token query
 
-~~~
-search
-  query = [#query token]
-  link = [#query-link token to]
-search @browser
-  parent = [#query-div]
-bind @browser
-  parent.children += (
-      [#div sort: to.start children: [#div text: "{{to}} {{to.build-node}}"]]
-  )
-~~~
-
-~~~
-search
-  query = [#query token]
-bind @browser
-  [#div #query-div text: "Query for {{token}} {{token.start}}" sort: 0]
-~~~
-
 ## query links
 
 ~~~
@@ -168,10 +149,10 @@ bind
 ~~~
 search
   query = [#query token]
-  [#query-link token to]
+  [#link a: to b: token]
   to = [#variable register block]
 bind
-  query.register += [token register block]
+  query.register += [token variable: to register block]
 ~~~
 
 ## token -> scan
