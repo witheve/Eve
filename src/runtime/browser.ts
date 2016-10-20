@@ -17,7 +17,7 @@ let evaluation;
 
 class Responder {
   socket: any;
-  lastBuild: any;
+  lastParse: any;
 
   constructor(socket) {
     this.socket = socket;
@@ -62,7 +62,7 @@ class Responder {
       let build = builder.buildDoc(results);
       let {blocks, errors: buildErrors} = build;
       if(errors && errors.length) console.error(errors);
-      this.lastBuild = build;
+      this.lastParse = results;
       for(let error of buildErrors) {
         error.injectSpan(spans, extraInfo);
       }
@@ -77,7 +77,8 @@ class Responder {
             block.updateBinds({positions: {}, info: []}, changes);
           }
         }
-        let {blocks, errors} = this.lastBuild;
+        let build = builder.buildDoc(this.lastParse);
+        let {blocks, errors} = build;
         let spans = [];
         let extraInfo = {};
         analyzer.analyze(blocks.map((block) => block.parse), spans, extraInfo);
@@ -93,9 +94,12 @@ class Responder {
       } else {
         if(evaluation) evaluation.close();
         join.nextId(0);
-        let {blocks, errors} = this.lastBuild;
+        let build = builder.buildDoc(this.lastParse);
+        let {blocks, errors} = build;
         this.sendErrors(errors);
-        // analyzer.analyze(results.blocks);
+        let spans = [];
+        let extraInfo = {};
+        analyzer.analyze(blocks.map((block) => block.parse), spans, extraInfo);
         let browser = new BrowserSessionDatabase(responder);
         let event = new BrowserEventDatabase();
         let view = new BrowserViewDatabase();
@@ -149,13 +153,14 @@ export function init(code) {
   responder = new Responder(client.socket);
 
   global["browser"] = true;
+  join.nextId(0);
   let {results, errors} = parser.parseDoc(code || "", "editor");
   if(errors && errors.length) console.error(errors);
   let {text, spans, extraInfo} = results;
   responder.send(JSON.stringify({type: "parse", text, spans, extraInfo}));
   let build = builder.buildDoc(results);
   let {blocks, errors: buildErrors} = build;
-  responder.lastBuild = results;
+  responder.lastParse = results;
   analyzer.analyze(blocks.map((block) => block.parse), spans, extraInfo);
   console.log("BLOCKS", blocks);
   responder.sendErrors(buildErrors);
