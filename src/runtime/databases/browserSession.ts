@@ -76,7 +76,9 @@ export class BrowserSessionDatabase extends Database {
     super.onFixpoint(evaluation, changes);
     let name = evaluation.databaseToName(this);
     let result = changes.result({[name]: true});
-    this.client.send(JSON.stringify(result));
+    if(result.insert.length || result.remove.length) {
+      this.client.send(JSON.stringify(result));
+    }
   }
 
   unregister(evaluation: Evaluation) {
