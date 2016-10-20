@@ -513,8 +513,9 @@ export function findValue(evaluation: Evaluation, info: any, spans: any[], extra
   let sessionIndex = eve.getDatabase("session").index;
   let evSession = evaluation.getDatabase("session");
   let lookup = {};
-  let blockId;
+  let blockId, found;
   let rows = [];
+  let varToRegister = {};
 
   let queryInfo = sessionIndex.alookup("tag", "query");
   if(queryInfo) {
@@ -525,7 +526,6 @@ export function findValue(evaluation: Evaluation, info: any, spans: any[], extra
         let varObj = sessionIndex.asObject(variable);
         if(varObj) {
           if(!blockId) {
-            let found;
             blockId = varObj.block[0];
             for(let block of evSession.blocks) {
               if(block.id === blockId) {
@@ -533,17 +533,31 @@ export function findValue(evaluation: Evaluation, info: any, spans: any[], extra
                 break;
               }
             }
-            if(info.given) {
-              let keys = Object.keys(info.given);
-              rows = findResultRows(found.results, keys, keys.map((key) => info.give[key]));
-            } else {
-              rows = found.results;
+          }
+          if(varObj.attribute) {
+            for(let attribute of varObj.attribute) {
+              varToRegister[attribute] = varObj.register[0];
             }
           }
           lookup[varObj.token[0]] = varObj.register[0];
         }
       }
     }
+  }
+  if(info.given) {
+    let keys = Object.keys(info.given);
+    let registers = [];
+    let registerValues = [];
+    for(let key of keys) {
+      let reg = varToRegister[key];
+      if(reg !== undefined && registers.indexOf(reg) === -1) {
+        registers.push(reg);
+        registerValues.push(info.given[key][0]);
+      }
+    }
+    rows = findResultRows(found.results, registers, registerValues);
+  } else {
+    rows = found.results;
   }
   info.rows = rows.slice(0,100);
   info.totalRows = rows.length;

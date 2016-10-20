@@ -156,6 +156,16 @@ bind
   query.register += [token variable: to register block]
 ~~~
 
+We can also associate what attribute that variable is writing to if there is one
+
+~~~
+search
+  query = [#query register]
+  action = [#action attribute value: register.variable]
+bind
+  register.attribute += attribute
+~~~
+
 ## token -> scan
 
 ~~~
