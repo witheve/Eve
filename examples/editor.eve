@@ -99,8 +99,8 @@ search @editor
   lookup[record: action, attribute, value]
 
 bind @browser
-  action <- [#editor]
-  lookup[record: action, attribute, value]
+  result = [#editor #find-source]
+  lookup[record: result, attribute, value]
 ```
 
 ```
@@ -117,21 +117,18 @@ bind @editor
 
 ```
 search @editor
-  action = [#find-related variable]
+  [#find-related variable]
 
 bind @browser
-  action <- [#editor #find-related variable]
-
-  [#div text: "RELATED {{action}} {{variable}}"]
+  [#editor #find-related | variable]
 ```
 
 ```
 search @editor
-  action = [#find-related span]
+  [#find-related span]
 
 bind @browser
-  action <- [#editor #find-related span]
-  [#div text: "RELATED {{action}} {{span}}"]
+  [#editor #find-related | span]
 ```
 
 ```
@@ -149,20 +146,19 @@ bind @editor
 ```
 search @editor
   action = [#find-value variable]
+  lookup[record: action, attribute, value]
 
 bind @browser
-  action <- [#editor #find-value variable]
+  result = [#editor #find-value | variable]
+  lookup[record: result, attribute, value]
 ```
 
-Include the optional `fixed` attribute, if provided.
-
 ```
-search @editor
-  action = [#find-value given]
-
-bind @browser
-  given <- [attribute: given.attribute value: given.value]
-  action <- [given]
+search @event
+  event = [#editor #value]
+  lookup[record: event, attribute, value]
+bind @editor
+  lookup[record: event, attribute, value]
 ```
 
 ### Find Cardinality
@@ -174,5 +170,13 @@ search @editor
   action = [#find-cardinality variable]
 
 bind @browser
-  action <- [#editor #find-cardinality variable]
+  [#editor #find-cardinality | variable]
+```
+
+```
+search @event
+  event = [#editor #cardinality]
+  lookup[record: event, attribute, value]
+bind @editor
+  lookup[record: event, attribute, value]
 ```
