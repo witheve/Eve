@@ -466,6 +466,92 @@ export function tokenInfo(evaluation: Evaluation, tokenId: string, spans: any[],
   }
 }
 
+export function findCardinality(evaluation: Evaluation, info: any, spans: any[], extraInfo: any) {
+  let queryId = `query|${info.requestId}`;
+  let query = {tag: "query", token: info.variable};
+  let eve = doQuery(queryId, query, spans, extraInfo);
+
+  let sessionIndex = eve.getDatabase("session").index;
+  let evSession = evaluation.getDatabase("session");
+  let lookup = {};
+  let blockId;
+  let cardinalities;
+
+  let queryInfo = sessionIndex.alookup("tag", "query");
+  if(queryInfo) {
+    let [entity] = queryInfo.toValues();
+    let obj = sessionIndex.asObject(entity);
+    if(obj.register) {
+      for(let variable of obj.register) {
+        let varObj = sessionIndex.asObject(variable);
+        if(varObj) {
+          if(!blockId) {
+            let found;
+            blockId = varObj.block[0];
+            for(let block of evSession.blocks) {
+              if(block.id === blockId) {
+                found = block;
+                break;
+              }
+            }
+            cardinalities = resultsToCardinalities(found.results);
+          }
+          lookup[varObj.token[0]] = cardinalities[varObj.register[0]].cardinality;
+        }
+      }
+    }
+  }
+  info.cardinality = lookup;
+  return info;
+}
+
+export function findValue(evaluation: Evaluation, info: any, spans: any[], extraInfo: any) {
+  let queryId = `query|${info.requestId}`;
+  let query = {tag: "query", token: info.variable};
+  let eve = doQuery(queryId, query, spans, extraInfo);
+
+  let sessionIndex = eve.getDatabase("session").index;
+  let evSession = evaluation.getDatabase("session");
+  let lookup = {};
+  let blockId;
+  let rows = [];
+
+  let queryInfo = sessionIndex.alookup("tag", "query");
+  if(queryInfo) {
+    let [entity] = queryInfo.toValues();
+    let obj = sessionIndex.asObject(entity);
+    if(obj.register) {
+      for(let variable of obj.register) {
+        let varObj = sessionIndex.asObject(variable);
+        if(varObj) {
+          if(!blockId) {
+            let found;
+            blockId = varObj.block[0];
+            for(let block of evSession.blocks) {
+              if(block.id === blockId) {
+                found = block;
+                break;
+              }
+            }
+            if(info.given) {
+              let keys = Object.keys(info.given);
+              rows = findResultRows(found.results, keys, keys.map((key) => info.give[key]));
+            } else {
+              rows = found.results;
+            }
+          }
+          lookup[varObj.token[0]] = varObj.register[0];
+        }
+      }
+    }
+  }
+  info.rows = rows.slice(0,100);
+  info.totalRows = rows.length;
+  info.variableMappings = lookup;
+  return info;
+}
+
+
 export function nodeIdToRecord(evaluation, nodeId, spans, extraInfo) {
   let queryId = `query|${nodeId}`;
   let query = {tag: "query", "build-node": nodeId};
@@ -606,10 +692,19 @@ function resultsToCardinalities(results) {
   return cardinalities;
 }
 
-function findResultRows(results, register, value) {
+function findResultRows(results, registers, values) {
   let found = [];
   for(let result of results) {
-    if(result[register] === value) {
+    let skip;
+    let ix = 0;
+    for(let register of registers) {
+      if(result[register] !== values[ix]) {
+        skip = true;
+        break;
+      }
+      ix++;
+    }
+    if(!skip) {
       found.push(result);
     }
   }

@@ -169,9 +169,9 @@ bind
 search
   query = [#query token]
   [#query-link token to]
-  to = [#variable register]
+  to = [#variable register block]
 bind
-  query <- [variable: to, register]
+  query.register += [token register block]
 ~~~
 
 ## token -> scan
@@ -254,8 +254,9 @@ search
          else if span = [#scan] then span
   variable = if span.entity = [#variable] then span.entity
              if span.value = [#variable] then span.value
+  [#link a: variable b: token]
 bind
-  query.variable += variable
+  query.variable += token
 ~~~
 
 ~~~
@@ -267,9 +268,11 @@ search
   scan.start >= start
   scan.stop <= stop
   scan.value = [#variable]
+  [#link a: scan.value b: token]
+  [#link a: entity b: entity-token]
 bind
-  query.variable += entity
-  query.variable += scan.value
+  query.variable += entity-token
+  query.variable += token
 ~~~
 
 ## find spans related to a variable

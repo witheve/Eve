@@ -143,6 +143,16 @@ class Responder {
       let extraInfo = {};
       let spanId = analyzer.findRelated(evaluation, data, spans, extraInfo);
       this.send(JSON.stringify(data));
+    } else if(data.type === "findValue") {
+      let spans = [];
+      let extraInfo = {};
+      let spanId = analyzer.findValue(evaluation, data, spans, extraInfo);
+      this.send(JSON.stringify(data));
+    } else if(data.type === "findCardinality") {
+      let spans = [];
+      let extraInfo = {};
+      let spanId = analyzer.findCardinality(evaluation, data, spans, extraInfo);
+      this.send(JSON.stringify(data));
     }
   }
 }

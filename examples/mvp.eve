@@ -94,7 +94,7 @@ commit @browser
 
 Store id mappings for mocks.
 
-```
+|```
 search
   block = "editor|block|18"
   span = "editor|block|18|node|24"
@@ -111,11 +111,11 @@ commit @mock
 
   [#variable name: "name" block span token:
     ("editor|block|18|token|7", "editor|block|18|token|18", "editor|block|18|token|21")]
-```
+|```
 
 Mock sources for all the fruit divs. and relateds for all the fruit divs.
 
-```
+|```
 search @browser
   target = [#div fruit]
 
@@ -127,11 +127,11 @@ search @mock
 commit @mock
   [#source record: target block span]
   [#related span variable: token]
-```
+|```
 
 Respond to `#find-related` with mocked relateds.
 
-```
+|```
 search @editor
   [#find-related span]
 
@@ -140,9 +140,9 @@ search @mock
 
 bind @editor
   r <- [#related span variable]
-```
+|```
 
-```
+|```
 search @editor
   [#find-related variable]
 
@@ -151,12 +151,12 @@ search @mock
 
 bind @editor
   r <- [#related span variable]
-```
+|```
 
 Mock up intermediate values for the fruit divs.
 @NOTE: We're mocking up the behavior of fixed `[variable: <fruit>, value: <inspector.target>]` here, we're just pretending that's being provided through magic.
 
-```
+|```
 search @editor
   [#find-value variable]
 
@@ -175,10 +175,10 @@ search
 
 bind @editor
   [#value variable value row: 1]
-```
+|```
 Mock up cardinalities for the fruit divs.
 
-```
+|```
 search @editor
   [#find-cardinality variable]
 
@@ -196,4 +196,4 @@ search
 
 bind @editor
   [#cardinality variable: token cardinality]
-```
+|```
