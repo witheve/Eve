@@ -160,7 +160,7 @@ search @inspector
 
 search @editor
   [#source record: target block span]
-  [#related target span variable]
+  [#related span variable]
 
 bind @editor
   [#find-value variable]

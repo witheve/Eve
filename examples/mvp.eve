@@ -97,17 +97,19 @@ Store id mappings for mocks.
 ```
 search
   block = "editor|block|18"
+  span = "editor|block|18|node|24"
 
 commit @mock
   [#block #draw-fruits block]
+  [#span block span]
 
-  [#variable name: "fruit" block token:
+  [#variable name: "fruit" block span token:
     ("editor|block|18|token|1", "editor|block|18|token|15")]
 
-  [#variable name: "color" block token:
+  [#variable name: "color" block span token:
     ("editor|block|18|token|6", "editor|block|18|token|25")]
 
-  [#variable name: "name" block token:
+  [#variable name: "name" block span token:
     ("editor|block|18|token|7", "editor|block|18|token|18", "editor|block|18|token|21")]
 ```
 
@@ -119,38 +121,37 @@ search @browser
 
 search @mock
   [#block #draw-fruits block]
-  [#variable block token]
+  [#span block span]
+  [#variable span token]
 
 commit @mock
-  [#source record: target block]
-  [#related target type: "identifier" block | token]
+  [#source record: target block span]
+  [#related span variable: token]
 ```
-
-Respond to `#find-source` with mocked sources.
-
-//```
-search @editor
-  [#find-source record]
-
-search @mock
-  s = [#source record block]
-
-bind @editor
-  s <- [#source record block]
-//```
 
 Respond to `#find-related` with mocked relateds.
 
-//```
+```
 search @editor
-  [#find-related target block]
+  [#find-related span]
 
 search @mock
-  r = [#related target block type token]
+  r = [#related span variable]
 
 bind @editor
-  r <- [#related target block type token]
-//```
+  r <- [#related span variable]
+```
+
+```
+search @editor
+  [#find-related variable]
+
+search @mock
+  r = [#related span variable]
+
+bind @editor
+  r <- [#related span variable]
+```
 
 Mock up intermediate values for the fruit divs.
 @NOTE: We're mocking up the behavior of fixed `[variable: <fruit>, value: <inspector.target>]` here, we're just pretending that's being provided through magic.
