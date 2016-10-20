@@ -20,6 +20,28 @@ bind @browser
 
 ## Tables
 
+### Table
+
+A `#table` is a simple N-column N-row grid.
+
+Create the wrapper for the table.
+@NOTE: This needs to sort.
+
+```
+search @view
+  wrapper = [#table field row]
+  lookup[record: wrapper, attribute: "tag", value: "table", node]
+  lookup[record: row attribute: field value]
+
+bind @browser @view
+  wrapper <- [#view #table node class: "view" children:
+    [#thead wrapper sort: 0 children:
+      [#tr children:
+        [#td text: field]]]
+    [#tr row children:
+      [#td field text: value]]]
+```
+
 ### KV Table
 
 A `#kv-table` is a two-column table which may have many values per key. All values for the same key will be grouped.
@@ -32,7 +54,7 @@ search @view
   ix = sort[value: key]
 
 bind @browser
-  wrapper <- [#view #div #view class: "view kv-table" children:
+  wrapper <- [#view #div class: "view kv-table" children:
     [#div class: "kv-row" sort: ix wrapper children:
       [#div text: key]
       [#div #kv-values class: "kv-values" wrapper key]]]
