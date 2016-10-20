@@ -566,9 +566,11 @@ class ElisionSpan extends BlockSpan {
   clear(origin = "+delete") {
     let loc = this.find();
     super.clear(origin);
-    for(let span of this.editor.findSpansAt(loc.from).concat(this.editor.findSpans(loc.from, loc.to))) {
-      if(span === this) continue;
-      span.enable();
+    if(loc) {
+      for(let span of this.editor.findSpansAt(loc.from).concat(this.editor.findSpans(loc.from, loc.to))) {
+        if(span === this) continue;
+        span.enable();
+      }
     }
   }
 }
