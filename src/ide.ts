@@ -2028,7 +2028,10 @@ export class IDE {
       },
 
       "find-source": (action) => {
-        this.languageService.findSource({record: action.record, attribute: action.attribute, span: action.span}, this.languageService.unpackSource((records) => {
+        let record = action.record && action.record[0];
+        let attribute = action.attribute && action.attribute[0];
+        let span = action.span && action.span[0];
+        this.languageService.findSource({record, attribute, span}, this.languageService.unpackSource((records) => {
           console.log("SOURCE", records);
         }));
       },
@@ -2272,6 +2275,7 @@ class LanguageService {
     args.requestId = id;
     this._listeners[id] = callback;
     args.type = type;
+    console.log("SENT", args);
     send(args);
   }
 
