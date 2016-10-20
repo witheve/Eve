@@ -25,6 +25,15 @@ commit
 
 ### Drawing
 
+```
+search
+  row = [#fruit name color]
+
+bind @view
+  row = [name color]
+  [#table | field: ("name", "color") row]
+```
+
 1. Draw some stuff
 2. ...?
 3. Profit!
