@@ -208,6 +208,27 @@ bind @editor
   [#mark-span inspector type: "badge" kind: "intermediate" target message: value token: variable]
 ```
 
+When the editor is in the `"show-values"` state and intermediates have been found, make a table of them
+
+```
+search @inspector
+  inspector = [#inspector state: "show-values" target]
+
+search @editor
+  [#source record: target block span]
+  [#related span variable]
+  [#value variable value row]
+
+bind @view
+  row-guy = [row]
+  lookup[record: row-guy attribute: variable value]
+  table = [#table inspector | field: variable row: row-guy]
+
+bind @browser
+  [#div children: table]
+  [#div text: "COWS"]
+```
+
 When the inspector is in the `"show-cardinality"` state, request the cardinalities from the editor.
 
 ```
