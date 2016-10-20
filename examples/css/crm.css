@@ -161,3 +161,12 @@
 .msg-input {
   width: 100%;
 }
+
+.about-line {
+  line-height: 40px;
+  border-bottom: 1px solid rgb(240,240,240);
+}
+
+.about-label {
+  font-weight: bold;
+}
