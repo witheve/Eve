@@ -205,7 +205,6 @@ class Analysis {
   }
 
   _actionAction(context: AnalysisContext, node) {
-    let attribute = typeof node.attribute === "string" ? node.attribute : context.value(node.attribute);
     if(node.action === "erase") {
       // if(node.attribute === undefined) {
       //   context.provide(node.scopes, "any", "");
@@ -213,6 +212,7 @@ class Analysis {
       //   context.provide(node.scopes, "all", "");
       // }
     } else {
+      let attribute = typeof node.attribute === "string" ? node.attribute : context.value(node.attribute);
       if(node.value.type === "parenthesis") {
         for(let item of node.value.items) {
           let id = context.provide(item, node.scopes, node.entity, attribute, context.value(item));
@@ -373,7 +373,7 @@ function makeEveAnalyzer() {
   session.blocks = blocks;
   let evaluation = new Evaluation();
   evaluation.registerDatabase("session", session);
-  // evaluation.registerDatabase("browser", browserDb);
+  evaluation.registerDatabase("browser", browserDb);
   return evaluation;
 }
 
@@ -664,6 +664,61 @@ export function findRelated(evaluation, info, spans, extraInfo) {
   }
   return;
 }
+
+export function findAffector(evaluation, info, spans, extraInfo) {
+  let queryId = `query|${info.requestId}`;
+  let query: any = {tag: ["query", "findAffector"]};
+  if(info.record) query.recordId = info.record;
+  if(info.attribute) query.attribute = info.attribute;
+  if(info.span) query.span = info.span;
+
+  let evSession = evaluation.getDatabase("session");
+  let evBrowser = evaluation.getDatabase("browser");
+  evSession.nonExecuting = true;
+  evBrowser.nonExecuting = true;
+  eve.registerDatabase("evaluation-session", evSession);
+  eve.registerDatabase("evaluation-browser", evBrowser);
+  doQuery(queryId, query, spans, extraInfo);
+  eve.unregisterDatabase("evaluation-session");
+  eve.unregisterDatabase("evaluation-browser");
+  evSession.nonExecuting = false;
+  evBrowser.nonExecuting = false;
+
+  let sessionIndex = eve.getDatabase("session").index;
+  let queryInfo = sessionIndex.alookup("tag", "findAffector");
+  if(queryInfo) {
+    let [entity] = queryInfo.toValues();
+    let obj = sessionIndex.asObject(entity);
+    console.log("FIND AFFECTOR", obj);
+    if(obj.affector) {
+      info.source = obj.affector.map((affector) => sessionIndex.asObject(affector, false, true));
+      return info;
+    } else {
+      info.affector = [];
+      return info;
+    }
+  }
+  return;
+}
+
+export function findFailure(evaluation, info, spans, extraInfo) {
+  let evSession = evaluation.getDatabase("session");
+
+  let found;
+  for(let block of evSession.blocks) {
+    if(block.id === info.block) {
+      found = block;
+      break;
+    }
+  }
+  let span = blockToFailingScan(found);
+  info.span = [];
+  if(span) {
+    info.span.push(span)
+  }
+  return info;
+}
+
 
 function blockToFailingScan(block) {
   let scanId;

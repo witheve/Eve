@@ -153,6 +153,16 @@ class Responder {
       let extraInfo = {};
       let spanId = analyzer.findCardinality(evaluation, data, spans, extraInfo);
       this.send(JSON.stringify(data));
+    } else if(data.type === "findAffector") {
+      let spans = [];
+      let extraInfo = {};
+      let spanId = analyzer.findAffector(evaluation, data, spans, extraInfo);
+      this.send(JSON.stringify(data));
+    } else if(data.type === "findFailure") {
+      let spans = [];
+      let extraInfo = {};
+      let spanId = analyzer.findFailure(evaluation, data, spans, extraInfo);
+      this.send(JSON.stringify(data));
     }
   }
 }
@@ -195,6 +205,6 @@ export function init(code) {
   evaluation.fixpoint();
 
   client.socket.onopen();
-  // responder.handleEvent(JSON.stringify({type: "findSource", record: "43|28|papaya", requestId: 0}));
+  // responder.handleEvent(JSON.stringify({type: "findAffector", record: "408|501", attribute: "children", requestId: 0}));
   // responder.handleEvent(JSON.stringify({type: "findSource", span: "editor|block|18|node|19", requestId: 0}));
 }
