@@ -972,7 +972,7 @@ export class Editor {
       for(let range of ranges) {
         let from = doc.posFromIndex(doc.indexFromPos(range.from) - 1);
         if(comparePositions(start, from) < 0) {
-          createdSpans.push(this.markSpan(start, from, source));
+          createdSpans.push(this.markSpan(start, {line: from.line,  ch: 0}, source));
         }
 
         start = doc.posFromIndex(doc.indexFromPos(range.to) + 1);
