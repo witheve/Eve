@@ -90,11 +90,11 @@ export class Evaluation {
 
   unregisterDatabase(name) {
     let db = this.nameToDatabase[name];
+    delete this.nameToDatabase[name];
     if(!db) return;
 
     this.databases.splice(this.databases.indexOf(db), 1);
     delete this.databaseNames[db.id];
-    delete this.nameToDatabase[name];
     this.multiIndex.unregister(name);
     db.unregister(this);
   }
