@@ -123,6 +123,9 @@ search @editor
 
 bind @editor
   [#mark-between inspector type: "elision_transient" | token: block]
+
+bind @browser
+  [#div text: "yooo {{block}}"]
 ```
 
 When the inspector is in a state requiring related tokens, request them from the editor.
@@ -130,7 +133,8 @@ When the inspector is in a state requiring related tokens, request them from the
 ```
 search @inspector
   inspector = if i = [#inspector state: "highlight-related"] then i
-              if i = [#inspector state: "shadow-unrelated"] then i
+              else if i = [#inspector state: "show-values"] then i
+              else if i = [#inspector state: "show-cardinality"] then i
 
 search @editor
   [#source record: target span]
@@ -151,20 +155,6 @@ search @editor
 
 bind @editor
   [#mark-span inspector type: "highlight" | token: variable]
-```
-
-When the editor is in the `"shadow-unrelated"` state, mark everything besides the related tokens shadowed.
-
-```
-search @inspector
-  inspector = [#inspector state: "shadow-unrelated" target]
-
-search @editor
-  [#source record: target block span]
-  [#related span variable]
-
-bind @editor
-  [#mark-between inspector type: "shadow" | token: variable within: block]
 ```
 
 When the editor is in the `"show-values"` state, request the intermediate values from the editor.
@@ -278,7 +268,7 @@ search @editor
 
 bind @editor
   [#mark-between inspector type: "elision_transient" | token: block]
-  //[#mark-between inspector type: "shadow" | token: action]
+  [#mark-span inspector type: "highlight" | token: action]
 ```
 
 When the editor is in the `"show-failure"` state, request the failing reasons for blocks that could impact the target.
@@ -322,9 +312,9 @@ bind @view
 bind @browser
   inspector <- [#div #editor #inspector target x y class: "flex-row inspector-pane" children:
     [#div #options-panel children:
-      [#button inspector text: "Who created this?" action: ("close-popout", "focus-blocks", "shadow-unrelated")]
-      [#button inspector text: "Why aren't there more or less of these?" action: ("close-popout", "focus-blocks", "shadow-unrelated", "show-cardinality")]
-      [#button inspector text: "What values went into making this?" action: ("close-popout", "focus-blocks", "shadow-unrelated", "show-values")]
+      [#button inspector text: "Who created this?" action: ("close-popout", "focus-blocks")]
+      [#button inspector text: "Why aren't there more or less of these?" action: ("close-popout", "focus-blocks", "show-cardinality")]
+      [#button inspector text: "What values went into making this?" action: ("close-popout", "focus-blocks", "show-values")]
       [#button inspector text: "Why is nothing here?" action: ("close-popout", "show-affector", "show-failure")]]
     [#div #attributes-panel children: attributes]]
 ```
