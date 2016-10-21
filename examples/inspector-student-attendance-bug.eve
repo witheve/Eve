@@ -46,7 +46,7 @@ search
   app = [#app]
 
 bind @browser
-  content = [#div #content sort: 2]
+  content = [#div #content style: [min-height: 500] sort: 2]
   app <- [#div children:
     [#div style: [margin-bottom: 20] children:
       [#button #nav app text: "grades"]
