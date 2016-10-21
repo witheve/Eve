@@ -68,7 +68,7 @@ bind @browser
       [#div class: "info" text: "{{formatted-hours}}:{{formatted-minutes}} {{ampm}}, {{current-contact.location}}"]]
     [#div #content class: "content"]
     [#div class: "navigation" children:
-      [#div #about #nav contact: user, class: "nav-button middle", children:
+      [#div #about #nav class: "nav-button middle", children:
         [#div class: "icon" text: "💁"]
         [#div class: "label" text: "ABOUT"]]
       [#div #threads #nav class: "nav-button middle", children:
@@ -95,6 +95,8 @@ bind
 ```
 
 ## Pages
+
+The application is composed of various pages, that are injected into the main content area depending on the contents of #app.page. Only one page should be displayed at a time. 
 
 ### About Page
 
@@ -143,11 +145,22 @@ search @browser @session
   not([#thread users: user])
 
 bind @browser
-  // TODO Something strange is happening when this button is clicked; the page isn't being displayed, even though it's the same exact button that's at the buttom. The only difference is positioning, so perhaps the click event is bubbling to a different parent which is causing the page to not display.
   recent-div.children += [#div children:
     [#h3 text: "Recent Contacts (0):"]
     [#div #contacts #nav children:
       [#div text: "Send a message to a contact..."]]]
+```
+
+If there is no contact for the about page, then use the current user's info
+
+```
+search
+  [#app page user]
+  page = [#about]
+  not(page = [contact])
+
+commit
+  page.contact := user
 ```
 
 ### Messages Page
@@ -176,14 +189,14 @@ bind @browser
 
 ### Threads Page
 
-Each thread is shown with the contact's avatar and name, and the number of messages in the thread. An archive button allows users to remove the thread from this view.
+Each thread is shown with the contact's avatar and name, and the number of messages in the thread.
 
 ```
 search @browser @session
   content = [#content]
   app = [#app page: [#threads], user]
-  threads = [#thread users: user, messages]
   not(threads = [#archived])
+  threads = [#thread users: user, messages]
   contacts = threads.users != app.user
   message-count = count[given: threads.messages, per: threads.users]
 
@@ -240,7 +253,7 @@ search @event @browser @session
   app = [#app user]
 
 commit
-  app.page := element
+  app.page := [tag: element.tag]
   app.contact := none
 ```
 
@@ -355,8 +368,6 @@ commit
 
 ### threads
 
-
-
 ```
 search
   // Gather the users for easy reference
@@ -385,8 +396,8 @@ commit
     [#message sender: chris, time: [day month year hours minutes seconds: 1 ampm], text: "Hey, how are you."]
     [#message sender: corey, time: [day month year hours minutes seconds: 2 ampm], text: "I'm fine, how are you?"]
     [#message #unread sender: chris, time: [day month year hours minutes seconds: 3 ampm], text: "Fine as well."]
-    [#message #unread sender: chris, time: [day month year hours minutes seconds: 4 ampm], text: "Glad we got that out of the way!"]
-    [#message #unread sender: chris, time: [day month year hours minutes seconds: 5 ampm], text: "What did you work on yesterday?"]]
+    [#message #unread sender: chris, time: [day month year hours minutes: minutes + 1, seconds: 4 ampm], text: "Glad we got that out of the way!"]
+    [#message #unread sender: chris, time: [day month year hours minutes: minutes + 1 seconds: 5 ampm], text: "What did you work on yesterday?"]]
 
   [#thread users: (corey, josh) messages:
     [#message sender: josh, time: [day month year hours minutes seconds: 1 ampm], text: "Hey"]
