@@ -355,16 +355,23 @@ commit
 
 ### threads
 
+
+
 ```
 search
+  // Gather the users for easy reference
   corey = [#user name: "Corey Montella"]
   chris = [#user name: "Chris Granger"]
   josh = [#user name: "Josh Cole"]
   rob = [#user name: "Rob Attorri"]
   eric = [#user name: "Eric Hoffman"]
   [#app start-time: [#start-time day month year hours minutes seconds ampm]]
+  not([#injected])
 
 commit
+  // Since we're searching in this block, we need to make sure that threads are only added once to the database. Therefore, search for not([#injected]), which will pass in the first tick. Then we commit [#injected], which will cause this block to no longer execute.
+  [#injected]
+
   // Add contacts to users
   corey.contacts := (chris, josh, rob, eric)
   chris.contacts := (corey, josh, rob)
