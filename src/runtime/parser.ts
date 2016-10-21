@@ -7,7 +7,6 @@ import * as chev from "chevrotain";
 import * as join from "./join";
 import {parserErrors} from "./errors";
 import {buildDoc} from "./builder";
-import {inspect} from "util"
 import {time} from "./performance";
 var {Lexer} = chev;
 var Token = chev.Token;
@@ -407,7 +406,7 @@ class Parser extends chev.Parser {
       } else if(node.variable) {
         return node.variable;
       }
-      throw new Error("Tried to get value of a node that is neither a constant nor a variable.\n\n" + inspect(node));
+      throw new Error("Tried to get value of a node that is neither a constant nor a variable.\n\n" + JSON.stringify(node));
     }
     let ifOutputs = (expression) => {
       let outputs = [];
@@ -646,7 +645,16 @@ class Parser extends chev.Parser {
           return makeNode("action", {action: op.image, entity: asValue(parent), attribute: attribute.image, value: asValue(value), from: [mutator, op, value]});
         }},
         {ALT: () => {
+          let variable = self.block.toVariable(`${attribute.image}|${attribute.startLine}|${attribute.startColumn}`, true);
+          let scan = makeNode("scan", {entity: parent, attribute: makeNode("constant", {value: attribute.image, from: [attribute]}), value: variable, scopes: self.activeScopes, from: [mutator]});
+          self.block.addUsage(variable, scan);
+          self.block.scan(scan);
           let op = self.CONSUME(Mutate);
+          let tag : any = self.SUBRULE(self.tag);
+          return makeNode("action", {action: op.image, entity: variable, attribute: "tag", value: makeNode("constant", {value: tag.tag, from: [tag]}), from: [mutator, op, tag]});
+        }},
+        {ALT: () => {
+          let op = self.CONSUME2(Mutate);
           let value: any = self.SUBRULE2(self.actionAttributeExpression, [actionKey, op.image, parent]);
           if(value.type === "record" && !value.extraProjection) {
             value.extraProjection = [parent];
@@ -702,7 +710,6 @@ class Parser extends chev.Parser {
 
     rule("actionAttributeExpression", (actionKey, action, parent) => {
       return self.OR([
-        {ALT: () => { return self.SUBRULE(self.tag); }},
         {ALT: () => { return self.SUBRULE(self.record, [false, actionKey, action, parent]); }},
         {ALT: () => { return self.SUBRULE(self.infix); }},
       ])
