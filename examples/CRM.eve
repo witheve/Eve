@@ -88,7 +88,6 @@ As part of the main application, we display a count of unread messages in the na
 search
   app = [#app user]
   threads = [#thread users: user, messages]
-  not(threads = [#archived])
   messages = [#unread]
 
 bind
@@ -319,8 +318,7 @@ commit
    avatarURL: "https://avatars2.githubusercontent.com/u/10619266?v=3&s=466" 
    location: "San Francisco, CA"
    email: "corey@kodowa.com"
-   phone: "555-555-5555"
-   tags: [name: "VIP"][name: "Tech Contact"]]
+   phone: "555-555-5555"]
 
   [#user
    name: "Chris Granger"
@@ -365,6 +363,9 @@ search
   rob = [#user name: "Rob Attorri"]
   eric = [#user name: "Eric Hoffman"]
   [#app start-time: [day month year hours minutes seconds ampm]]
+
+commit @browser
+  [#div day month year hours minutes seconds ampm text: "{{seconds}}"]
 
 commit  
   // Add contacts to users
