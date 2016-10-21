@@ -253,3 +253,16 @@ search @editor @browser
 commit @editor
   cardinality := none
 ```
+
+### Find Affector
+
+```
+search @editor
+  action = [#find-affector]
+  attribute = ("record", "attribute", "span")
+  lookup[record: action, attribute, value]
+
+bind @browser
+  result = [#editor #find-affector]
+  lookup[record: result, attribute value]
+```

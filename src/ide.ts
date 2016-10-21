@@ -2063,9 +2063,17 @@ export class IDE {
         }
 
         this.languageService.findValue({variable: action.variable, given}, this.languageService.unpackValue((records) => {
+          let doc = this.editor.cm.getDoc();
           for(let record of records) {
             record.tag.push("editor");
             record["action"] = actionId;
+            let span = this.editor.getSpanBySourceId(record.variable);
+            if(span) {
+              let loc = span.find();
+              if(loc) {
+                record["name"] = doc.getRange(loc.from, loc.to);
+              }
+            }
           }
           sendEvent(records);
         }));
@@ -2079,6 +2087,23 @@ export class IDE {
           }
           sendEvent(records);
         }));
+      },
+
+      "find-affector": (action, actionId) => {
+        this.languageService.findAffector(
+          {
+            record: action.record && action.record[0],
+            attribute: action.attribute && action.attribute[0],
+            span: action.span && action.span[0]
+          },
+          this.languageService.unpackAffector((records) => {
+            for(let record of records) {
+              record.tag.push("editor");
+              record["action"] = actionId;
+            }
+            console.log("AFFECTOR", records);
+            sendEvent(records);
+          }));
       },
 
       "inspector": (action, actionId) => {
@@ -2175,6 +2200,10 @@ export class IDE {
 
       //this.attachView(recordId, record.node)
       // Find the source node for this view.
+      if(!record.node) {
+        console.warn("Unable to parent view that doesn't provide its origin node id", record);
+        return;
+      }
       send({type: "findNode", recordId, node: record.node[0]});
     }
   }
@@ -2284,7 +2313,8 @@ type FindValueArgs = {variable: string[], given: {[attribute: string]: any}, row
 type ValueRecord = {tag: string[], variable: string, value: any, row: number}
 type FindCardinalityArgs = {variable: string[], cardinality?: {[variable: string]: number}};
 type CardinalityRecord = {tag: string[], variable: string, cardinality: number};
-type FindAffectorArgs = {record?: string[], attribute?: string[], span?: string[], block?: string[], action: string[]};
+type FindAffectorArgs = {record?: string, attribute?: string, span?: string, affector?: {block?: string[], action: string[]}[]};
+type AffectorRecord = {tag: string[], record?: string, attribute?: string, span?: string, block: string[], action: string[]};
 
 class LanguageService {
   protected static _requestId = 0;
@@ -2359,6 +2389,16 @@ class LanguageService {
 
   findAffector(args:FindAffectorArgs, callback:(args:FindAffectorArgs) => void) {
     this.send("findAffector", args, callback);
+  }
+
+  unpackAffector(callback:(args:AffectorRecord[]) => void) {
+    return (message:FindAffectorArgs) => {
+      let records:AffectorRecord[] =[];
+      for(let affector of message.affector) {
+        records.push({tag: ["affector"], record: message.record, attribute: message.attribute, span: message.span, block: affector.block, action: affector.action});
+      }
+      callback(records);
+    };
   }
 
   send(type:string, args:any, callback:any) {
