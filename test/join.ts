@@ -47,7 +47,7 @@ function evaluate(assert, expected, code) {
   join.nextId(0);
   let parsed = parser.parseDoc(dedent(code), "0");
   let {blocks, errors} = builder.buildDoc(parsed.results);
-  if(assert.errors) {
+  if(expected.errors) {
     assert.true(parsed.errors.length > 0 || errors.length > 0);
   }
   let session = new BrowserSessionDatabase({send: () => {}});
@@ -2569,6 +2569,26 @@ test("not with no external dependencies", (assert) => {
       not (2 = 4 + 5)
     commit @browser
       [#success]
+    ~~~
+  `);
+  assert.end();
+})
+
+
+test("not can't provide a variable for an attribute access", (assert) => {
+  let expected = {
+    insert: [],
+    remove: [],
+    errors: true,
+  };
+  evaluate(assert, expected, `
+    foo bar
+    ~~~
+    search
+      not(threads = [#zom])
+      foo = threads.foo
+    bind
+      [#foo foo]
     ~~~
   `);
   assert.end();

@@ -183,7 +183,6 @@ export function init(code) {
   responder.lastParse = results;
   analyzer.analyze(blocks.map((block) => block.parse), spans, extraInfo);
   responder.sendErrors(buildErrors);
-  // analyzer.analyze(results.blocks, spans, extraInfo);
   let browser = new BrowserSessionDatabase(responder);
   let event = new BrowserEventDatabase();
   let view = new BrowserViewDatabase();
@@ -205,6 +204,6 @@ export function init(code) {
   evaluation.fixpoint();
 
   client.socket.onopen();
-  // responder.handleEvent(JSON.stringify({type: "findAffector", record: "408|501", attribute: "children", requestId: 0}));
+  responder.handleEvent(JSON.stringify({type: "findAffector", record: "362|455", attribute: "children", requestId: 0}));
   // responder.handleEvent(JSON.stringify({type: "findSource", span: "editor|block|18|node|19", requestId: 0}));
 }
