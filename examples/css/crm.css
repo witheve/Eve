@@ -175,3 +175,16 @@
 .about-label {
   font-weight: bold;
 }
+
+.plus {
+  background-color: rgb(111, 165, 81);
+  color: white;
+  width: 16px;
+  height: 16px;
+  float: left;
+  border-radius: 50%;
+  text-align: center;
+  font-size: 14px;
+  font-weight: bold;
+  margin-right: 5px;
+}
