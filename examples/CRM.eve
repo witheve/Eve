@@ -51,8 +51,7 @@ search
   // Handle the case when the user has no threads
   threads = if app.unread then app.unread
             else 0
-  // If the user is looking at a contact, display that contact's avatar and info.
-  // Otherwise, display the user's own avatar.
+  // If the user is looking at a contact, display that contact's avatar and info. Otherwise, display the user's own avatar.
   current-contact = if app.contact then app.contact
                     else user
 
@@ -208,6 +207,20 @@ bind @browser
       [#div class: "msg-name" text: contacts.name]
       [#div text: "{{message-count}} messages"]]
     [#div #archive-button thread: threads, class: "archive" text: "📥"]]
+```
+
+If the user has no threads, display a message prompting the user to start a conversation with a contact
+
+```
+search @browser @session
+  content = [#content]
+  app = [#app page: [#threads], user]
+  not(threads = [#thread users: user, messages])
+
+bind @browser
+  content.children := [#div #contacts #nav children:
+      [#div class: "plus" text: "+"]
+      [#div text: "Start a Thread"]]
 ```
 
 ### Contacts Page
