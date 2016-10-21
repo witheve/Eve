@@ -31,7 +31,7 @@ When the user clicks on a `#nav` button, set the app page to that button. We use
 ```
 search @event @browser @session
   [#click element]
-  element.tag = "nav"
+  element = [#nav]
   app = [#app user]
 
 commit
@@ -67,11 +67,19 @@ commit
 ### Send a message
 
 ```
+search 
+  [#time seconds]
+
+bind @browser
+  [#div text: seconds]
+```
+
+```
 search @event @browser @session
   [#keydown key: "enter" element: input]
   input = [#send-message thread value]
   [#app user]
-  time = 1476821600000 + 1 
+  time = 1476821600000 + 50000 
 
 commit @browser
   input.value := ""
@@ -86,10 +94,11 @@ When the user archives a thread, the `#archive` tag is added to that thread, whi
 ```
 search @event @browser @session
   [#click element: [#archive-button thread]]
+  messages = thread.messages
 
 commit @session
   thread += #archived
-  thread.messages -= #unread
+  messages -= #unread
 ```
 
 ## Pages
@@ -171,10 +180,13 @@ bind @browser
 
 ### Threads Page
 
+If there are threads, display them
+
 ```
 search @browser @session
   content = [#content]
   app = [#app page: [#threads]]
+  threads = [#thread users: user, messages]
   not(threads = [#archived])
   contacts = threads.users != app.user
   message-count = count[given: threads.messages, per: threads.users]
@@ -187,6 +199,8 @@ bind @browser
       [#div text: "{{message-count}} messages"]]
     [#div #archive-button thread: threads, class: "archive" text: "📥"]]
 ```
+
+
 
 ### Contacts Page
 
@@ -268,7 +282,7 @@ search
   app = [#app user]
   threads = [#thread users: user, messages]
   not(threads = [#archived])
-  messages.tag = "unread"
+  messages = [#unread]
 
 bind
   app.unread := count[given: messages]
