@@ -49,6 +49,9 @@ class TimeAgent {
     this.frames++;
     return [
       new InsertAction("time", "tag", "time"),
+      new SetAction("time", "year", time.getFullYear()),
+      new SetAction("time", "month", time.getMonth()),
+      new SetAction("time", "day", time.getDate()),
       new SetAction("time", "hours", time.getHours() % 12),
       new SetAction("time", "minutes", time.getMinutes()),
       new SetAction("time", "seconds", time.getSeconds()),

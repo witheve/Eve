@@ -7,6 +7,17 @@ commit
   [#app]
 ```
 
+```
+search
+  app = [#app]
+  not(app = [start-time])
+  [#time day month year hours minutes seconds ampm]
+
+commit
+  app.start-time := [day month year hours minutes seconds ampm]
+```
+
+
 Set the app user
 
 ```
@@ -67,24 +78,15 @@ commit
 ### Send a message
 
 ```
-search 
-  [#time seconds]
-
-bind @browser
-  [#div text: seconds]
-```
-
-```
 search @event @browser @session
   [#keydown key: "enter" element: input]
   input = [#send-message thread value]
   [#app user]
-  time = 1476821600000 + 50000 
+  time = [#time day month year hours minutes seconds ampm]
 
 commit @browser
   input.value := ""
   thread.messages += [#message sender: user, time, text: value]
-
 ```
 
 ### Archive a thread
@@ -167,13 +169,15 @@ search @browser @session
   msgs = thread.messages
   name = if msgs.sender.name = app.user.name then "Me"
          else msgs.sender.name
+  msgs.time = [hours minutes ampm]
 
 bind @browser
   content.children := [#div children:
     [#div #convo class: "convo" children:
       [#div sort: msgs.time class: "msg" message: msgs children:
         [#img class: "msg-avatar" src: msgs.sender.avatarURL]
-        [#div #contact contact: msgs.sender, class: "msg-name" text: name]
+        [#span #contact contact: msgs.sender, class: "msg-name" text: name]
+        [#span class: "msg-time" text: "{{hours}}:{{minutes}} {{ampm}}"]
         [#div class: "msg-text" text: msgs.text]]]
     [#input #send-message thread class: "msg-input"]]
 ```
@@ -185,7 +189,7 @@ If there are threads, display them
 ```
 search @browser @session
   content = [#content]
-  app = [#app page: [#threads]]
+  app = [#app page: [#threads], user]
   threads = [#thread users: user, messages]
   not(threads = [#archived])
   contacts = threads.users != app.user
@@ -199,8 +203,6 @@ bind @browser
       [#div text: "{{message-count}} messages"]]
     [#div #archive-button thread: threads, class: "archive" text: "📥"]]
 ```
-
-
 
 ### Contacts Page
 
@@ -258,7 +260,7 @@ bind @browser
         [#img class: "avatar", src: current-contact.avatarURL]]
       [#div class: "name2" text: "{{current-contact.name}}"]
       [#div class: "info" text: "{{current-contact.title}}"]
-      [#div class: "info" text: "{{formatted-hours}}:{{formatted-minutes}}{{ampm}}, {{current-contact.location}}"]]
+      [#div class: "info" text: "{{formatted-hours}}:{{formatted-minutes}} {{ampm}}, {{current-contact.location}}"]]
     [#div #content class: "content"]
     [#div class: "navigation" children:
       [#div #about #nav contact: user, class: "nav-button", children:
@@ -345,8 +347,9 @@ search
   josh = [#user name: "Josh Cole"]
   rob = [#user name: "Rob Attorri"]
   eric = [#user name: "Eric Hoffman"]
+  [#app start-time: [day month year hours minutes seconds ampm]]
 
-commit
+commit  
   // Add contacts to users
   corey.contacts := (chris, josh, rob, eric)
   chris.contacts := (corey, josh, rob)
@@ -356,25 +359,25 @@ commit
 
   // Make some threads
   [#thread #new-messages users: (corey, chris) messages:
-    [#message sender: corey, time: 1476821596000, text: "Hey"]
-    [#message sender: chris, time: 1476821597000, text: "Hey, how are you."]
-    [#message sender: corey, time: 1476821598000, text: "I'm fine, how are you?"]
-    [#message #unread sender: chris, time: 1476821599000, text: "Fine as well."]
-    [#message #unread sender: chris, time: 1476821600000, text: "Glad we got that out of the way!"]
-    [#message #unread sender: chris, time: 1476821601000, text: "What did you work on yesterday?"]]
+    [#message sender: corey, time: [day month year hours minutes seconds: 0 ampm], text: "Hey"]
+    [#message sender: chris, time: [day month year hours minutes seconds: 1 ampm], text: "Hey, how are you."]
+    [#message sender: corey, time: [day month year hours minutes seconds: 2 ampm], text: "I'm fine, how are you?"]
+    [#message #unread sender: chris, time: [day month year hours minutes seconds: 3 ampm], text: "Fine as well."]
+    [#message #unread sender: chris, time: [day month year hours minutes seconds: 4 ampm], text: "Glad we got that out of the way!"]
+    [#message #unread sender: chris, time: [day month year hours minutes seconds: 5 ampm], text: "What did you work on yesterday?"]]
 
   [#thread users: (corey, josh) messages:
-    [#message sender: josh, time: 1476735198000, text: "Hey"]
-    [#message sender: corey, time: 1476735199000, text: "What's up Josh?"]
-    [#message sender: josh, time: 1476735200000, text: "I need to tell you something...."]
-    [#message sender: corey, time: 1476735201000, text: "Uh oh..."]
-    [#message sender: corey, time: 1476735205000, text: "Well what is it? Don't leave me hanging!"]]
+    [#message sender: josh, time: [day month year hours minutes seconds: 1 ampm], text: "Hey"]
+    [#message sender: corey, time: [day month year hours minutes seconds: 2 ampm], text: "What's up Josh?"]
+    [#message sender: josh, time: [day month year hours minutes seconds: 3 ampm], text: "I need to tell you something...."]
+    [#message sender: corey, time: [day month year hours minutes seconds: 4 ampm], text: "Uh oh..."]
+    [#message sender: corey, time: [day month year hours minutes seconds: 5 ampm], text: "Well what is it? Don't leave me hanging!"]]
 
   [#thread #new-messages users: (corey, rob) messages:
-    [#message sender: corey, time: 1476735420000, text: "Did Josh tell you what happened?"]
-    [#message sender: rob, time: 1476735421000, text: "Yeah, don't worry, we took care of it. "]
-    [#message sender: corey, time: 1476735422000, text: "Well what happened?"]
-    [#message sender: rob, time: 1476735423000, text: "Like I said, don't worry about it."]
-    [#message sender: corey, time: 1476735424000, text: "..."]
-    [#message #unread sender: rob, time: 1476735451000, text: "🔥"]]    
+    [#message sender: corey, time: [day month year hours minutes seconds: 0 ampm], text: "Did Josh tell you what happened?"]
+    [#message sender: rob, time: [day month year hours minutes seconds: 1 ampm], text: "Yeah, don't worry, we took care of it. "]
+    [#message sender: corey, time: [day month year hours minutes seconds: 2 ampm], text: "Well what happened?"]
+    [#message sender: rob, time: [day month year hours minutes seconds: 3 ampm], text: "Like I said, don't worry about it."]
+    [#message sender: corey, time: [day month year hours minutes seconds: 4 ampm], text: "..."]
+    [#message #unread sender: rob, time: [day month year hours minutes seconds: 5 ampm], text: "🔥"]]    
 ```
