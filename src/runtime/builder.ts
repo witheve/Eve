@@ -78,6 +78,9 @@ class BuilderContext {
 
   provide(node) {
     if(join.isVariable(node)) {
+      if(this.nonProviding && !this.myRegisters[node.id]) {
+        return;
+      }
       this.unprovided[node.id] = false;
     }
   }
@@ -181,12 +184,10 @@ class BuilderContext {
       }
     }
 
-    if(!this.nonProviding) {
-      let unprovided = this.unprovided;
-      for(let ix = 0; ix < this.varIx; ix++) {
-        if(unprovided[ix] === undefined && this.myRegisters[ix]) {
-          unprovided[ix] = true;
-        }
+    let unprovided = this.unprovided;
+    for(let ix = 0; ix < this.varIx; ix++) {
+      if(unprovided[ix] === undefined && this.myRegisters[ix]) {
+        unprovided[ix] = true;
       }
     }
   }

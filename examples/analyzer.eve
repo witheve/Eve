@@ -52,6 +52,7 @@ commit
 
 ~~~
 search
+  [#findAffector]
   [#scan entity: [register] attribute: "tag" value block]
   scan = [#scan entity: [register] block]
 bind
@@ -60,6 +61,7 @@ bind
 
 ~~~
 search
+  [#findAffector]
   [#action entity: [register] attribute: "tag" value block]
   action = [#action entity: [register] block]
 bind
@@ -68,6 +70,7 @@ bind
 
 ~~~
 search
+  [#findAffector]
   [#scan entity: [register] record-tag block]
   action = [#action entity: [register] block]
 bind
@@ -76,6 +79,7 @@ bind
 
 ~~~
 search
+  [#findAffector]
   scan = [#scan not(record-tag)]
 bind
   scan += #analyzer/any
@@ -361,34 +365,28 @@ commit
 ~~~
 search
   query = [#findAffector recordId attribute]
-  action = [#action entity record-tag: tag, attribute block]
-  final = if record = [#record entity start stop]
+  scan = [#scan entity: [register] record-tag: tag block]
+  action = [#action entity: [register] block attribute]
+  final = if record = [#record entity: [register] start stop]
              action.start >= start
              action.stop <= stop then record
           else action
 search @evaluation-session @evaluation-browser
   tag = recordId.tag
-bind @browser
+bind
   query.affector := [action: final, block]
 ~~~
 
 ~~~
 search
   query = [#findAffector recordId attribute]
-  action = [#action record-tag, attribute block]
-//search @evaluation-browser
-//  tag = recordId.tag
+  scan = [#scan entity: [register] record-tag: tag block]
+  action = [#action entity: [register] attribute block ]
+search @evaluation-session @evaluation-browser
+  recordId = [tag]
 bind @browser
-  [#div text: "affector for {{recordId}} {{attribute}} {{record-tag}} {{action}}"]
-~~~
+  [#div text: "yo {{tag}}"]
 
 ~~~
-search
-  [#findAffector]
-  action = [#action entity: [register]]
-  scan = [#scan entity: [register]]
-//search @evaluation-browser
-//  tag = recordId.tag
-bind @browser
-  [#div text: "yo {{action}} {{scan}}"]
-~~~
+
+

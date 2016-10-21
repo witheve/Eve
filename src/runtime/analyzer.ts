@@ -691,7 +691,7 @@ export function findAffector(evaluation, info, spans, extraInfo) {
     let obj = sessionIndex.asObject(entity);
     console.log("FIND AFFECTOR", obj);
     if(obj.affector) {
-      info.source = obj.affector.map((affector) => sessionIndex.asObject(affector, false, true));
+      info.affector = obj.affector.map((affector) => sessionIndex.asObject(affector, false, true));
       return info;
     } else {
       info.affector = [];

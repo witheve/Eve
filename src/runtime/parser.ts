@@ -7,7 +7,6 @@ import * as chev from "chevrotain";
 import * as join from "./join";
 import {parserErrors} from "./errors";
 import {buildDoc} from "./builder";
-import {inspect} from "util"
 import {time} from "./performance";
 var {Lexer} = chev;
 var Token = chev.Token;
@@ -131,7 +130,7 @@ export class CloseFence extends Token {
 }
 
 // Comments
-export class CommentLine extends Token { static PATTERN = /\/\/.*\n/; label = "comment"; }
+export class CommentLine extends Token { static PATTERN = /\/\/.*\n/; label = "comment"; static GROUP = "comments"; }
 
 // Operators
 export class Equality extends Token { static PATTERN = /:|=/; label = "equality"; }
@@ -407,7 +406,7 @@ class Parser extends chev.Parser {
       } else if(node.variable) {
         return node.variable;
       }
-      throw new Error("Tried to get value of a node that is neither a constant nor a variable.\n\n" + inspect(node));
+      throw new Error("Tried to get value of a node that is neither a constant nor a variable.\n\n" + JSON.stringify(node));
     }
     let ifOutputs = (expression) => {
       let outputs = [];
@@ -558,7 +557,6 @@ class Parser extends chev.Parser {
       return self.OR([
         {ALT: () => { return self.SUBRULE(self.comparison); }},
         {ALT: () => { return self.SUBRULE(self.notStatement); }},
-        {ALT: () => { return self.CONSUME(CommentLine); }},
       ])
     });
 
@@ -600,7 +598,6 @@ class Parser extends chev.Parser {
           return record;
         }},
         {ALT: () => { return self.SUBRULE(self.actionLookup, [actionKey]); }},
-        {ALT: () => { return self.CONSUME(CommentLine); }},
       ])
     });
 
@@ -646,7 +643,16 @@ class Parser extends chev.Parser {
           return makeNode("action", {action: op.image, entity: asValue(parent), attribute: attribute.image, value: asValue(value), from: [mutator, op, value]});
         }},
         {ALT: () => {
+          let variable = self.block.toVariable(`${attribute.image}|${attribute.startLine}|${attribute.startColumn}`, true);
+          let scan = makeNode("scan", {entity: parent, attribute: makeNode("constant", {value: attribute.image, from: [attribute]}), value: variable, scopes: self.activeScopes, from: [mutator]});
+          self.block.addUsage(variable, scan);
+          self.block.scan(scan);
           let op = self.CONSUME(Mutate);
+          let tag : any = self.SUBRULE(self.tag);
+          return makeNode("action", {action: op.image, entity: variable, attribute: "tag", value: makeNode("constant", {value: tag.tag, from: [tag]}), from: [mutator, op, tag]});
+        }},
+        {ALT: () => {
+          let op = self.CONSUME2(Mutate);
           let value: any = self.SUBRULE2(self.actionAttributeExpression, [actionKey, op.image, parent]);
           if(value.type === "record" && !value.extraProjection) {
             value.extraProjection = [parent];
@@ -702,7 +708,6 @@ class Parser extends chev.Parser {
 
     rule("actionAttributeExpression", (actionKey, action, parent) => {
       return self.OR([
-        {ALT: () => { return self.SUBRULE(self.tag); }},
         {ALT: () => { return self.SUBRULE(self.record, [false, actionKey, action, parent]); }},
         {ALT: () => { return self.SUBRULE(self.infix); }},
       ])
@@ -1331,10 +1336,16 @@ let eveParser = new Parser([]);
 
 export function parseBlock(block, blockId, offset = 0, spans = [], extraInfo = {}) {
   let start = time();
-  let lex = EveBlockLexer.tokenize(block);
+  let lex: any = EveBlockLexer.tokenize(block);
   let token: any;
   let tokenIx = 0;
   for(token of lex.tokens) {
+    let tokenId = `${blockId}|token|${tokenIx++}`;
+    token.id = tokenId;
+    token.startOffset += offset;
+    spans.push(token.startOffset, token.startOffset + token.image.length, token.label, tokenId);
+  }
+  for(token of lex.groups.comments) {
     let tokenId = `${blockId}|token|${tokenIx++}`;
     token.id = tokenId;
     token.startOffset += offset;
