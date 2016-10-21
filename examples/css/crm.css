@@ -162,6 +162,12 @@
   width: 100%;
 }
 
+.msg-time {
+  color: rgb(175,175,175);
+  margin-left: 10px;
+  font-size: 12px;
+}
+
 .about-line {
   line-height: 40px;
   border-bottom: 1px solid rgb(240,240,240);
