@@ -2,7 +2,7 @@
 
 This DB allows Eve programs to interact directly with the editor.
 
-## Actions
+## Editor Actions
 
 Actions allow remotely controlling the editor.
 
@@ -32,6 +32,19 @@ search @editor
 bind @browser
   action <- [#editor #jump-to token]
 ```
+
+### Jump To Position
+
+`#jump-to-position` will scroll the editor viewport to bring the index `position` in the document into view. If multiple `position`s are specified, only the first will be scrolled to.
+
+```
+search @editor
+  action = [#jump-to-position position]
+
+bind @browser
+  action <- [#editor #jump-to-position position]
+```
+
 
 ### Mark Between
 
@@ -89,6 +102,37 @@ bind @browser
   action <- [kind]
 ```
 
+### Mark Range
+
+`#mark-range` will create a new span using `start` and `stop` as indexes into the text of the current document. When the action is removed, the associated span will be as well.
+
+```
+search @editor
+  action = [#mark-range type start stop]
+
+bind @browser
+  action <- [#editor #mark-range type start stop]
+```
+
+Copy any attributes besides tag over. They'll be used to populate the span's source.
+
+```
+search @editor
+  action = [#mark-range]
+  lookup[record: action, attribute, value]
+  attribute != "tag"
+  attribute != "type"
+  attribute != "start"
+  attribute != "stop"
+
+bind @browser
+  lookup[record: action, attribute, value]
+```
+
+## Language Service
+
+The Language Service allows Eve to query the analyzer for information about the currently running program.
+
 ### Find Source
 
 `#find-source` will request the originating source span(s) for a given `record` id, `record`, `attribute` pair, or `span` ids. from the language service. Results will be returned in the format `[#source record? attribute? span? block]`, where `record`, `attribute` are the same as provided. `span` is the same if provided or originating spans if not, and block is the set of source blocks. These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
@@ -96,8 +140,9 @@ bind @browser
 ```
 search @editor
   action = [#find-source]
-  attribute = ("record", "attribute", "span")
-  lookup[record: action, attribute, value]
+  (attribute, value) = if action.record then ("record", action.record)
+                       if action.attribute then ("attribute", action.attribute)
+                       if action.span then ("span", action.span)
 
 bind @browser
   result = [#editor #find-source]
@@ -105,11 +150,14 @@ bind @browser
 ```
 
 When a source event comes in, persist it into the editor and clear it from the event bag.
+
 ```
 search @event
   event = [#editor #source action]
-  attribute = ("record", "attribute", "span", "block")
-  lookup[record: event, attribute, value]
+  (attribute, value) = if action.record then ("record", action.record)
+                       if action.attribute then ("attribute", action.attribute)
+                       if action.span then ("span", action.span)
+                       if action.block then ("block", action.block)
 
 commit @editor
   event <- [#source]
@@ -259,10 +307,69 @@ commit @editor
 ```
 search @editor
   action = [#find-affector]
-  attribute = ("record", "attribute", "span")
-  lookup[record: action, attribute, value]
+  (attribute, value) = if action.record then ("record", action.record)
+                       if action.attribute then ("attribute", action.attribute)
+                       if action.span then ("span", action.span)
 
 bind @browser
   result = [#editor #find-affector]
   lookup[record: result, attribute value]
+```
+
+When an affector event comes in, persist it into the editor and clear it from the event bag.
+```
+search @event
+  event = [#editor #affector action]
+  (attribute, value) = if event.record then ("record", event.record)
+                       if event.attribute then ("attribute", event.attribute)
+                       if event.span then ("span", event.span)
+                       if event.block then ("block", event.block)
+                       if event.action then ("action", event.action)
+
+commit @editor
+  event <- [#affector action]
+  lookup[record: event, attribute, value]
+
+commit @event
+  event := none
+```
+
+When an affector's supporting action is removed, remove it.
+```
+search @editor @browser
+  affector = [#affector action]
+  not(action = [#find-affector])
+
+commit @editor
+  affector := none
+```
+
+### Find Failure
+
+```
+search @editor
+  action = [#find-failure block]
+
+bind @browser
+  [#editor #find-failure | block]
+```
+
+```
+search @event
+  event = [#editor #failure action block start stop]
+
+commit @editor
+  event <- [#failure action block start stop]
+
+commit @event
+  event := none
+```
+
+```
+search @editor @browser
+  failure = [#failure action]
+  not(action = [#find-failure])
+
+commit @editor
+  failure := none
 ```

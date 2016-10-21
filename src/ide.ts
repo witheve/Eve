@@ -2025,8 +2025,28 @@ export class IDE {
         }
       },
 
-      "jump-to": (exec) => {
-        this.editor.jumpTo(exec.token[0]);
+      "mark-range": (action) => {
+        let source = {type: action.type[0]};
+        for(let attribute in action) {
+          let value = action[attribute];
+          if(value === undefined) continue;
+          source[attribute] = value.length === 1 ? value[0] : value;
+        }
+
+        let doc = this.editor.cm.getDoc();
+        let start = doc.posFromIndex(action.start[0]);
+        let stop = doc.posFromIndex(action.stop[0]);
+        action.span = this.editor.markSpan(start, stop, source);
+      },
+
+      "jump-to": (action) => {
+        this.editor.jumpTo(action.token[0]);
+      },
+
+      "jump-to-position": (action) => {
+        let doc = this.editor.cm.getDoc();
+        let pos = doc.posFromIndex(action.position[0]);
+        this.editor.cm.scrollIntoView(pos);
       },
 
       "find-source": (action, actionId) => {
@@ -2106,6 +2126,17 @@ export class IDE {
           }));
       },
 
+      "find-failure": (action, actionId) => {
+        this.languageService.findFailure({block: action.block}, this.languageService.unpackFailure((records) => {
+          for(let record of records) {
+            record.tag.push("editor");
+            record["action"] = actionId;
+          }
+          console.log("FAILURE", records);
+          sendEvent(records);
+        }));
+      }
+
       "inspector": (action, actionId) => {
         let inspectorElem:HTMLElement = activeElements[actionId] as any;
 
@@ -2130,6 +2161,11 @@ export class IDE {
         for(let span of exec.spans) {
           span.clear();
         }
+      },
+
+      "mark-range": (action) => {
+        if(!action.span) return;
+        action.span.clear();
       }
     }
   };
@@ -2315,6 +2351,8 @@ type FindCardinalityArgs = {variable: string[], cardinality?: {[variable: string
 type CardinalityRecord = {tag: string[], variable: string, cardinality: number};
 type FindAffectorArgs = {record?: string, attribute?: string, span?: string, affector?: {block?: string[], action: string[]}[]};
 type AffectorRecord = {tag: string[], record?: string, attribute?: string, span?: string, block: string[], action: string[]};
+type FindFailureArgs = {block: string[], span?: {block: string, start: number, stop: number}[]};
+type FailureRecord = {tag: string[], block: string, start: number, stop: number};
 
 class LanguageService {
   protected static _requestId = 0;
@@ -2393,9 +2431,23 @@ class LanguageService {
 
   unpackAffector(callback:(args:AffectorRecord[]) => void) {
     return (message:FindAffectorArgs) => {
-      let records:AffectorRecord[] =[];
+      let records:AffectorRecord[] = [];
       for(let affector of message.affector) {
         records.push({tag: ["affector"], record: message.record, attribute: message.attribute, span: message.span, block: affector.block, action: affector.action});
+      }
+      callback(records);
+    };
+  }
+
+  findFailure(args:FindFailureArgs, callback:(args:FindFailureArgs) => void) {
+    this.send("findFailure", args, callback);
+  }
+
+  unpackFailure(callback:(args:FailureRecord[]) => void) {
+    return (message:FindFailureArgs) => {
+      let records:FailureRecord[] = [];
+      for(let failure of message.span) {
+        records.push({tag: ["failure"], block: failure.block, start: failure.start, stop: failure.stop});
       }
       callback(records);
     };
@@ -2412,7 +2464,7 @@ class LanguageService {
 
   handleMessage = (message) => {
     let type = message.type;
-    if(type === "findSource" || type === "findRelated" || type === "findValue" || type === "findCardinality" || type === "findAffector") {
+    if(type === "findSource" || type === "findRelated" || type === "findValue" || type === "findCardinality" || type === "findAffector" || type === "findFailure") {
       let id = message.requestId;
       let listener = this._listeners[id];
       if(listener) {

@@ -205,3 +205,4 @@ body { background: #f5f5f5; color: #555; }
 .CodeMirror .badge-widget { display: inline-block; margin-left: 2px; font-size: 10pt; color: #E91E63; padding: 0 3px; }
 .CodeMirror .badge-widget:before { content: "( "; }
 .CodeMirror .badge-widget:after { content: " )"; }
+.CodeMirror .cause-of-failure { background: rgba(255, 127, 127, 0.5); }
