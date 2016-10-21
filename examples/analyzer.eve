@@ -365,9 +365,9 @@ commit
 ~~~
 search
   query = [#findAffector recordId attribute]
-  scan = [#scan entity record-tag: tag block]
-  action = [#action entity block attribute]
-  final = if record = [#record entity start stop]
+  scan = [#scan entity: [register] record-tag: tag block]
+  action = [#action entity: [register] block attribute]
+  final = if record = [#record entity: [register] start stop]
              action.start >= start
              action.stop <= stop then record
           else action
@@ -380,7 +380,8 @@ bind
 ~~~
 search
   query = [#findAffector recordId attribute]
-  //action = [#action entity record-tag: tag, attribute block]
+  scan = [#scan entity: [register] record-tag: tag block]
+  action = [#action entity: [register] attribute block ]
 search @evaluation-session @evaluation-browser
   recordId = [tag]
 bind @browser

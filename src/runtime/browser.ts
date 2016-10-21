@@ -204,6 +204,6 @@ export function init(code) {
   evaluation.fixpoint();
 
   client.socket.onopen();
-  // responder.handleEvent(JSON.stringify({type: "findAffector", record: "362|455", attribute: "children", requestId: 0}));
+  // responder.handleEvent(JSON.stringify({type: "findAffector", record: "443|536", attribute: "children", requestId: 0}));
   // responder.handleEvent(JSON.stringify({type: "findSource", span: "editor|block|18|node|19", requestId: 0}));
 }
