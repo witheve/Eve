@@ -20,18 +20,6 @@ commit
   app.page := [#about contact: user]
 ```
 
-Set the threads
-
-
-search
-  app = [#app contact]
-  threads = [#thread users: contact messages]
-  not(threads = [#archived])
-
-bind
-  app.threads := threads
-
-
 ## Events
 
 We have several types of events that the app responds to.
@@ -101,6 +89,7 @@ search @event @browser @session
 
 commit @session
   thread += #archived
+  thread.messages -= #unread
 ```
 
 ## Pages
@@ -127,7 +116,7 @@ bind @browser @session
       [#img #contact contact: contact.contacts, class: "recent-avatar" src: contact.contacts.avatarURL]]]
 ```
 
-If the user has threads
+If the user has threads, then recent contacts are displayed
 
 ```
 search @browser @session
@@ -137,9 +126,27 @@ search @browser @session
   recent = threads.users != contact
 
 bind @browser @session
-  recent-div.children := [#div children:  
+  recent-div.children += [#div children:  
     [#h3 text: "Recent Contacts ({{count[given: recent]}}):"]
     [#img class: "recent-avatar" src: recent.avatarURL]]
+```
+
+If the user has no threads and is looking at his own about page, a message is displayed prompting the user to start a conversation with someone
+
+```
+search @browser @session
+  recent-div = [#recent-contacts]
+  [#app page: [#about contact], user]
+  user = contact
+  not([#thread users: user])
+
+bind @browser
+  // TODO Something strange is happening when this button is clicked; the page isn't being displayed, even though it's the same exact button that's at the buttom. The only difference is positioning, so perhaps the click event is bubbling to a different parent which is causing the page to not display.
+  recent-div.children += [#div children:
+    [#h3 text: "Recent Contacts (0):"]
+    [#div #contacts #nav class: "nav-button" children:
+      [#div class: "icon" text: "📇"]
+      [#div class: "label" text: "CONTACTS"]]]
 ```
 
 ### Messages Page
@@ -167,21 +174,19 @@ bind @browser
 ```
 search @browser @session
   content = [#content]
-  app = [#app page: [#threads] threads]
-  //not(threads = [#archived])
-  //contacts = threads.users != app.user
-  //message-count = count[given: threads.messages, per: threads.users]
+  app = [#app page: [#threads]]
+  not(threads = [#archived])
+  contacts = threads.users != app.user
+  message-count = count[given: threads.messages, per: threads.users]
 
 bind @browser
-  [#div text: "hello"]
-```
-
   content.children := [#div threads class: "thread" children:
     [#div #thread thread: threads, class: "thread-box" children: 
       [#img class: "msg-avatar" src: contacts.avatarURL]
       [#div class: "msg-name" text: contacts.name]
       [#div text: "{{message-count}} messages"]]
     [#div #archive-button thread: threads, class: "archive" text: "📥"]]
+```
 
 ### Contacts Page
 
@@ -223,8 +228,8 @@ search
   formatted-hours = if hours = 0 then "12"
                     else hours
   // Handle the case when the user has no threads
-  threads = if app.threads then count[given: app.threads]
-           else 0
+  threads = if app.unread then app.unread
+            else 0
   // If the user is looking at a contact, display that contact's avatar and info.
   // Otherwise, display the user's own avatar.
   current-contact = if app.contact then app.contact
@@ -247,13 +252,26 @@ bind @browser
         [#div class: "label" text: "ABOUT"]]
       [#div #threads #nav class: "nav-button middle", children:
         [#div class: "icon" children: [#div class: "bubble" text: threads]]
-        [#div class: "label" text: "THREADS"]]
+        [#div class: "label" text: "MESSAGES"]]
       [#div #contacts #nav class: "nav-button" children:
         [#div class: "icon" text: "📇"]
         [#div class: "label" text: "CONTACTS"]]
       [#div #more #nav class: "nav-button" children:
         [#div class: "icon" text: "⋯"]
         [#div class: "label" text: "MORE"]]]]
+```
+
+Count unread messages for the user
+
+```
+search
+  app = [#app user]
+  threads = [#thread users: user, messages]
+  not(threads = [#archived])
+  messages.tag = "unread"
+
+bind
+  app.unread := count[given: messages]
 ```
 
 ## Test Data
@@ -323,12 +341,13 @@ commit
   eric.contacts := (josh, rob)
 
   // Make some threads
-  [#thread users: (corey, chris) messages:
+  [#thread #new-messages users: (corey, chris) messages:
     [#message sender: corey, time: 1476821596000, text: "Hey"]
     [#message sender: chris, time: 1476821597000, text: "Hey, how are you."]
     [#message sender: corey, time: 1476821598000, text: "I'm fine, how are you?"]
-    [#message sender: chris, time: 1476821599000, text: "Fine as well."]
-    [#message sender: chris, time: 1476821600000, text: "Glad we got that out of the way!"]]
+    [#message #unread sender: chris, time: 1476821599000, text: "Fine as well."]
+    [#message #unread sender: chris, time: 1476821600000, text: "Glad we got that out of the way!"]
+    [#message #unread sender: chris, time: 1476821601000, text: "What did you work on yesterday?"]]
 
   [#thread users: (corey, josh) messages:
     [#message sender: josh, time: 1476735198000, text: "Hey"]
@@ -337,11 +356,11 @@ commit
     [#message sender: corey, time: 1476735201000, text: "Uh oh..."]
     [#message sender: corey, time: 1476735205000, text: "Well what is it? Don't leave me hanging!"]]
 
-  [#thread users: (corey, rob) messages:
+  [#thread #new-messages users: (corey, rob) messages:
     [#message sender: corey, time: 1476735420000, text: "Did Josh tell you what happened?"]
     [#message sender: rob, time: 1476735421000, text: "Yeah, don't worry, we took care of it. "]
     [#message sender: corey, time: 1476735422000, text: "Well what happened?"]
     [#message sender: rob, time: 1476735423000, text: "Like I said, don't worry about it."]
     [#message sender: corey, time: 1476735424000, text: "..."]
-    [#message sender: rob, time: 1476735451000, text: "🔥"]]    
+    [#message #unread sender: rob, time: 1476735451000, text: "🔥"]]    
 ```
