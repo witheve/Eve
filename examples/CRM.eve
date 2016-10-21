@@ -3,7 +3,7 @@
 This application demonstrates some basic patterns you might want to use in a mobile application or website. These concepts inclue:
 
 - architecting an application
-- navigating between pages 
+- navigating between pages
 - displaying lists of information
 - joining and filtering data
 - reusing interface components
@@ -19,19 +19,19 @@ commit
 ```
 
 Set some initial state on `#app` and mark it as `#init`. This block sets the start time of the app, so `#time` is brought into the search. Since we only want this to happen once, we search for `#app` that is not `#init`. Then, we mark the `#app` as `#init` to prevent the block from firing again due to a time update.
-  
+
 ```
 search
-  app = [#app] 
+  app = [#app]
   [#time day month year hours minutes seconds ampm]
   not(app = [#init])
   user = [#user name: "Corey Montella"]
   //user = [#user name: "Eric Hoffman"]
-  
+
 commit
-  app <- [#init user 
+  app <- [#init user
           page: [#about contact: user]
-          start-time: [day month year hours minutes seconds ampm]]
+          start-time: [#start-time day month year hours minutes seconds ampm]]
 ```
 
 ### Main App
@@ -60,8 +60,8 @@ bind @browser
   [#link rel: "stylesheet" href: "/examples/css/crm.css"]
   [#div #container class: "container" children:
     [#div class: "banner"]
-    [#div class: "bio-info" children: 
-      [#div class: "avatar-container" children: 
+    [#div class: "bio-info" children:
+      [#div class: "avatar-container" children:
         [#img class: "avatar", src: current-contact.avatarURL]]
       [#div class: "name2" text: "{{current-contact.name}}"]
       [#div class: "info" text: "{{current-contact.title}}"]
@@ -106,15 +106,15 @@ search @browser @session
   [#app page: [#about contact]]
 
 bind @browser @session
-  content.children := [#div class: "about" children: 
+  content.children := [#div class: "about" children:
     [#div class: "about-line", children:
-      [#span class: "about-label", text: "Phone: "] 
+      [#span class: "about-label", text: "Phone: "]
       [#span text: contact.phone]]
     [#div class: "about-line", children:
-      [#span class: "about-label", text: "E-mail: "] 
+      [#span class: "about-label", text: "E-mail: "]
       [#span text: contact.email]]
     [#div #recent-contacts children:
-      [#h3 text: "All Contacts ({{count[given: contact.contacts]}}):"] 
+      [#h3 text: "All Contacts ({{count[given: contact.contacts]}}):"]
       [#img #contact contact: contact.contacts, class: "recent-avatar" src: contact.contacts.avatarURL]]]
 ```
 
@@ -128,7 +128,7 @@ search @browser @session
   recent = threads.users != contact
 
 bind @browser @session
-  recent-div.children += [#div children:  
+  recent-div.children += [#div children:
     [#h3 text: "Recent Contacts ({{count[given: recent]}}):"]
     [#img class: "recent-avatar" src: recent.avatarURL]]
 ```
@@ -189,7 +189,7 @@ search @browser @session
 
 bind @browser
   content.children := [#div threads class: "thread" children:
-    [#div #thread thread: threads, class: "thread-box" children: 
+    [#div #thread thread: threads, class: "thread-box" children:
       [#img class: "msg-avatar" src: contacts.avatarURL]
       [#div class: "msg-name" text: contacts.name]
       [#div text: "{{message-count}} messages"]]
@@ -315,7 +315,7 @@ commit
   [#user
    name: "Corey Montella"
    title: "Software Engineer"
-   avatarURL: "https://avatars2.githubusercontent.com/u/10619266?v=3&s=466" 
+   avatarURL: "https://avatars2.githubusercontent.com/u/10619266?v=3&s=466"
    location: "San Francisco, CA"
    email: "corey@kodowa.com"
    phone: "555-555-5555"]
@@ -323,7 +323,7 @@ commit
   [#user
    name: "Chris Granger"
    title: "CEO"
-   avatarURL: "https://avatars3.githubusercontent.com/u/70036?v=3&s=466" 
+   avatarURL: "https://avatars3.githubusercontent.com/u/70036?v=3&s=466"
    location: "San Francisco, CA"
    email: "chris@kodowa.com"
    phone: "555-555-5556"]
@@ -331,7 +331,7 @@ commit
   [#user
    name: "Josh Cole"
    title: "Software Engineer"
-   avatarURL: "https://avatars2.githubusercontent.com/u/313870?v=3&s=466" 
+   avatarURL: "https://avatars2.githubusercontent.com/u/313870?v=3&s=466"
    location: "San Francisco, CA"
    email: "josh@kodowa.com"
    phone: "555-555-5557"]
@@ -339,7 +339,7 @@ commit
   [#user
    name: "Rob Attorri"
    title: "President"
-   avatarURL: "https://avatars1.githubusercontent.com/u/1314445?v=3&s=466" 
+   avatarURL: "https://avatars1.githubusercontent.com/u/1314445?v=3&s=466"
    location: "San Francisco, CA"
    email: "rob@kodowa.com"
    phone: "555-555-5558"]
@@ -347,10 +347,10 @@ commit
   [#user
    name: "Eric Hoffman"
    title: "Software Engineer"
-   avatarURL: "https://avatars3.githubusercontent.com/u/1807982?v=3&s=466" 
+   avatarURL: "https://avatars3.githubusercontent.com/u/1807982?v=3&s=466"
    location: "San Francisco, CA"
    email: "eric@kodowa.com"
-   phone: "555-555-5559"]          
+   phone: "555-555-5559"]
 ```
 
 ### threads
@@ -362,12 +362,12 @@ search
   josh = [#user name: "Josh Cole"]
   rob = [#user name: "Rob Attorri"]
   eric = [#user name: "Eric Hoffman"]
-  [#app start-time: [day month year hours minutes seconds ampm]]
+  [#app start-time: [#start-time day month year hours minutes seconds ampm]]
 
 commit @browser
   [#div day month year hours minutes seconds ampm text: "{{seconds}}"]
 
-commit  
+commit
   // Add contacts to users
   corey.contacts := (chris, josh, rob, eric)
   chris.contacts := (corey, josh, rob)
@@ -397,5 +397,5 @@ commit
     [#message sender: corey, time: [day month year hours minutes seconds: 2 ampm], text: "Well what happened?"]
     [#message sender: rob, time: [day month year hours minutes seconds: 3 ampm], text: "Like I said, don't worry about it."]
     [#message sender: corey, time: [day month year hours minutes seconds: 4 ampm], text: "..."]
-    [#message #unread sender: rob, time: [day month year hours minutes seconds: 5 ampm], text: "🔥"]]    
+    [#message #unread sender: rob, time: [day month year hours minutes seconds: 5 ampm], text: "🔥"]]
 ```

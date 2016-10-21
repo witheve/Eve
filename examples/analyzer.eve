@@ -157,7 +157,7 @@ search
   to = [#variable register block]
   token.block = block
 bind
-  query.register += [token variable: to register block]
+  query.register += [token variable: to register block name: to.name]
 ~~~
 
 We can also associate what attribute that variable is writing to if there is one
