@@ -130,7 +130,7 @@ export class CloseFence extends Token {
 }
 
 // Comments
-export class CommentLine extends Token { static PATTERN = /\/\/.*\n/; label = "comment"; }
+export class CommentLine extends Token { static PATTERN = /\/\/.*\n/; label = "comment"; static GROUP = "comments"; }
 
 // Operators
 export class Equality extends Token { static PATTERN = /:|=/; label = "equality"; }
@@ -557,7 +557,6 @@ class Parser extends chev.Parser {
       return self.OR([
         {ALT: () => { return self.SUBRULE(self.comparison); }},
         {ALT: () => { return self.SUBRULE(self.notStatement); }},
-        {ALT: () => { return self.CONSUME(CommentLine); }},
       ])
     });
 
@@ -599,7 +598,6 @@ class Parser extends chev.Parser {
           return record;
         }},
         {ALT: () => { return self.SUBRULE(self.actionLookup, [actionKey]); }},
-        {ALT: () => { return self.CONSUME(CommentLine); }},
       ])
     });
 
@@ -1338,10 +1336,16 @@ let eveParser = new Parser([]);
 
 export function parseBlock(block, blockId, offset = 0, spans = [], extraInfo = {}) {
   let start = time();
-  let lex = EveBlockLexer.tokenize(block);
+  let lex: any = EveBlockLexer.tokenize(block);
   let token: any;
   let tokenIx = 0;
   for(token of lex.tokens) {
+    let tokenId = `${blockId}|token|${tokenIx++}`;
+    token.id = tokenId;
+    token.startOffset += offset;
+    spans.push(token.startOffset, token.startOffset + token.image.length, token.label, tokenId);
+  }
+  for(token of lex.groups.comments) {
     let tokenId = `${blockId}|token|${tokenIx++}`;
     token.id = tokenId;
     token.startOffset += offset;
