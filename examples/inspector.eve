@@ -304,19 +304,22 @@ When an `#inspector` is open with type `"element"` and a target, show the elemen
 
 ```
 search @inspector
-  inspector = [#inspector state: "popout" target x y]
+  inspector = [#inspector state: "popout" target]
+  x = inspector.x
+  y = inspector.y + 15
 
 bind @view
   attributes = [#attribute-table inspector entity: target]
 
 bind @browser
-  inspector <- [#div #editor #inspector target x y class: "flex-row inspector-pane" children:
-    [#div #options-panel children:
-      [#button inspector text: "Who created this?" action: ("close-popout", "focus-blocks")]
-      [#button inspector text: "Why aren't there more or less of these?" action: ("close-popout", "focus-blocks", "show-cardinality")]
-      [#button inspector text: "What values went into making this?" action: ("close-popout", "focus-blocks", "show-values")]
-      [#button inspector text: "Why is nothing here?" action: ("close-popout", "show-affector", "show-failure")]]
-    [#div #attributes-panel children: attributes]]
+  inspector <-
+    [#div #editor #inspector target x y class: "inspector-pane" children:
+      [#div #attributes-panel children: attributes]
+      [#div #options-panel class: "buttons" children:
+        [#button inspector text: "Find events" action: ("close-popout", "focus-blocks")]
+        [#button inspector text: "Why this?" action: ("close-popout", "focus-blocks", "show-values")]
+        [#button inspector text: "Too few? Too many?" action: ("close-popout", "focus-blocks", "show-cardinality")]
+        [#button inspector text: "Not drawing?" action: ("close-popout", "show-affector", "show-failure")]]]
 ```
 
 

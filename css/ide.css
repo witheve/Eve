@@ -213,3 +213,15 @@ table.view td { padding: 0 5px; border: 1px solid #ccc; border-top: none; border
 .CodeMirror .badge-widget:before { content: "( "; }
 .CodeMirror .badge-widget:after { content: " )"; }
 .CodeMirror .cause-of-failure { background: rgba(255, 127, 127, 0.4); }
+
+.inspector-pane { overflow:hidden; display:flex; width:250px; background: #666; flex-direction: column; color: #eee; border-radius:2px; box-shadow: 0 2px 8px #aaa; }
+.inspector-pane .buttons { display:flex; flex-direction:column; }
+.inspector-pane .buttons button { background:none; border:none; color: #eee; font-size: 10pt; width: 100%; padding: 8px 15px; text-align:left; }
+.inspector-pane .buttons button + button { border-top:1px solid #555; }
+
+
+.inspector-pane .kv-table { border:none; width:100%; background: #777; border-radius: 2px 2px 0 0; }
+.inspector-pane .kv-key { color: #ddd; }
+.inspector-pane .kv-table .kv-values { border-left: 1px solid #555; }
+.inspector-pane .kv-table .kv-row > div { padding: 4px 15px; font-size:11pt; }
+.inspector-pane .kv-table .kv-row { border:none; border-bottom:1px solid #555; }

@@ -386,7 +386,7 @@ commit
     [#message sender: corey, time: [day month year hours minutes seconds: 2 ampm], text: "What's up Josh?"]
     [#message sender: josh, time: [day month year hours minutes seconds: 3 ampm], text: "I need to tell you something...."]
     [#message sender: corey, time: [day month year hours minutes seconds: 4 ampm], text: "Uh oh..."]
-    [#message sender: corey, time: [day month year hours minutes seconds: 5 ampm], text: "Well what is it? Don't leave me hanging!"]
+    [#message sender: corey, time: [day month year hours minutes seconds: 5 ampm], text: "Well what is it? Don't leave me hanging!"]]
 
   [#thread #new-messages users: (corey, rob) messages:
     [#message sender: corey, time: [day month year hours minutes seconds: 0 ampm], text: "Did Josh tell you what happened?"]

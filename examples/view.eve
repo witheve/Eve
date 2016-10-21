@@ -55,7 +55,7 @@ search @view
 bind @browser
   wrapper <- [#view #div class: "view kv-table" children:
     [#div class: "kv-row" sort: ix wrapper children:
-      [#div text: key]
+      [#div class: "kv-key" text: key]
       [#div #kv-values class: "kv-values" wrapper key]]]
 ```
 
