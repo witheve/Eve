@@ -1385,6 +1385,7 @@ export function parseBlock(block, blockId, offset = 0, spans = [], extraInfo = {
     }
   }
   let errors = parserErrors(eveParser.errors, {blockId, blockStart: offset, spans, extraInfo, tokens: lex.tokens});
+  lex.groups.comments.length = 0;
   return {
     results,
     lex,

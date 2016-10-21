@@ -161,9 +161,9 @@ Readjust the height of the gap every time the obstacle resets
 
 ```
 search
-  [#world screen: "game"]
+  [#world screen: "game" frame]
   obstacle = [#obstacle x > 90]
-  height = random[seed: obstacle] * 30 + 5
+  height = random[seed: frame] * 30 + 5
 
 commit
   obstacle.height := height

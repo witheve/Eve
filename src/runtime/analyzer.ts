@@ -519,6 +519,7 @@ export function findValue(evaluation: Evaluation, info: any, spans: any[], extra
   let blockId, found;
   let rows = [];
   let varToRegister = {};
+  let names = {};
 
   let queryInfo = sessionIndex.alookup("tag", "query");
   if(queryInfo) {
@@ -543,6 +544,7 @@ export function findValue(evaluation: Evaluation, info: any, spans: any[], extra
             }
           }
           lookup[varObj.token[0]] = varObj.register[0];
+          names[varObj.token[0]] = varObj.name[0];
         }
       }
     }
@@ -565,6 +567,7 @@ export function findValue(evaluation: Evaluation, info: any, spans: any[], extra
   info.rows = rows.slice(0,100);
   info.totalRows = rows.length;
   info.variableMappings = lookup;
+  info.variableNames = names;
   return info;
 }
 
