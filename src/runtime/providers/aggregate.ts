@@ -21,8 +21,8 @@ export abstract class Aggregate extends Constraint {
   aggregateResults: any;
   value: any;
 
-  constructor(args: any[], returns: any[]) {
-    super(args, returns);
+  constructor(id: string, args: any[], returns: any[]) {
+    super(id, args, returns);
     let [value, given, per] = args;
     if(given === undefined) {
       this.projectionVars = [];

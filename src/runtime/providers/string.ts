@@ -44,8 +44,8 @@ class Split extends Constraint {
 
   returnType: "both" | "index" | "token";
 
-  constructor(args: any[], returns: any[]) {
-    super(args, returns);
+  constructor(id: string, args: any[], returns: any[]) {
+    super(id, args, returns);
     if(this.returns[1] !== undefined && this.returns[0] !== undefined) {
       this.returnType = "both"
     } else if(this.returns[1] !== undefined) {

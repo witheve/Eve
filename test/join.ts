@@ -1,5 +1,5 @@
 import * as test from "tape";
-import {Evaluation} from "../src/runtime/runtime";
+import {Evaluation, Database} from "../src/runtime/runtime";
 import * as join from "../src/runtime/join";
 import * as parser from "../src/runtime/parser";
 import * as builder from "../src/runtime/builder";
@@ -22,36 +22,138 @@ function dedent(str) {
   return lines.join("\n");
 }
 
-function verify(assert, adds, removes, data) {
-  let addLookup = {};
-  for(let add of adds) {
-    addLookup[JSON.stringify(add)] = true;
+function eavsToComparables(eavs, entities, index = {}) {
+  let results = [];
+  for(let eav of eavs) {
+    let [e,a,v] = eav;
+    let cur = index[e];
+    if(!index[e]) {
+      cur = index[e] = {list: [], links: [], e};
+      results.push(cur);
+    }
+    if(entities[v]) {
+      cur.links.push([a, v]);
+    } else {
+      let avKey = `${a}, ${v}`;
+      cur.list.push(avKey);
+    }
   }
-  let removeLookup = {};
-  for(let remove of removes) {
-    removeLookup[JSON.stringify(remove)] = true;
+  return results;
+}
+
+function isSetEqual(as, bs) {
+  if(as.length !== bs.length) return false;
+  for(let a of as) {
+    if(bs.indexOf(a) === -1) return false;
   }
-  assert.equal(data.insert.length, adds.length, "Wrong number of inserts");
-  assert.equal(data.remove.length, removes.length, "Wrong number of removes");
-  for(let add of data.insert) {
-    let key = JSON.stringify(add);
-    assert.true(addLookup[key], "Unexpected insert: " + key)
+  return true;
+}
+
+function collectEntities(eavs, index = {}) {
+  for(let [e] of eavs) {
+    index[e] = true;
   }
-  for(let remove of data.remove) {
-    let key = JSON.stringify(remove);
-    assert.true(removeLookup[key], "Unexpected remove: " + key)
+  return index;
+}
+
+enum Resolution {
+  unknown,
+  resolved,
+  failed
+}
+
+function resolveLinks(aLinks, bLinks, entities) {
+  if(aLinks.length !== bLinks.length) return Resolution.failed;
+  for(let [a, v] of aLinks) {
+    let resolved = entities[v];
+    if(resolved === true) {
+      return Resolution.unknown;
+    } else if(resolved === undefined) {
+      throw new Error("Found a link for a non entity. " + [a,v])
+    }
+    if(bLinks.some(([a2,v2]) => a2 === a && v2 === resolved).length === 0) {
+      return Resolution.failed;
+    }
+  }
+  return Resolution.resolved;
+}
+
+function resolveActualExpected(assert, actuals, expecteds, entities) {
+  let ix = 0;
+  let max = actuals.length * actuals.length;
+  while(actuals[ix]) {
+    console.log("LOOPING", ix, actuals.length);
+    let actual = actuals[ix];
+    if(ix === max) {
+      assert.true(false, "Cyclic test found");
+      return;
+    }
+    ix++;
+    let found;
+    let expectedIx = 0;
+    for(let expected of expecteds) {
+      console.log(actual, expected);
+      let listEqual, linkEqual;
+      if(isSetEqual(expected.list, actual.list)) {
+        listEqual = true;
+      } else {
+        found = false;
+      }
+      if(actual.links || expected.links) {
+        let res = resolveLinks(actual.links, expected.links, entities);
+        if(res === Resolution.failed) {
+          linkEqual = false;
+        } else if(res === Resolution.resolved) {
+          linkEqual = true;
+        } else {
+          linkEqual = false;
+          actuals.push(actual);
+          break;
+        }
+      } else {
+        linkEqual = true;
+      }
+      if(listEqual && linkEqual) {
+        expecteds.splice(expectedIx, 1);
+        entities[actual.e] = expected.e;
+        found = true;
+        break;
+      }
+      expectedIx++;
+    }
+    if(found === false) {
+      assert.true(false, "No matching add found for object: " + JSON.stringify(actual.list))
+    }
   }
 }
 
-function evaluate(assert, expected, code) {
-  join.nextId(0);
+function verify(assert, adds, removes, data) {
+  assert.equal(data.insert.length, adds.length, "Wrong number of inserts");
+  assert.equal(data.remove.length, removes.length, "Wrong number of removes");
+
+  // get all the entities
+  let entities = collectEntities(adds);
+  entities = collectEntities(data.insert, entities);
+  entities = collectEntities(removes, entities);
+  entities = collectEntities(data.remove, entities);
+
+  //
+  let expectedAdd = eavsToComparables(adds, entities);
+  let expectedRemove = eavsToComparables(removes, entities);
+  let actualRemove = eavsToComparables(data.remove, entities);
+  let actualAdd = eavsToComparables(data.insert, entities);
+
+  resolveActualExpected(assert, actualAdd, expectedAdd, entities);
+  resolveActualExpected(assert, actualRemove, expectedRemove, entities);
+}
+
+function evaluate(assert, expected, code, session = new Database()) {
   let parsed = parser.parseDoc(dedent(code), "0");
   let {blocks, errors} = builder.buildDoc(parsed.results);
   if(expected.errors) {
     assert.true(parsed.errors.length > 0 || errors.length > 0);
   }
-  let session = new BrowserSessionDatabase({send: () => {}});
-  session.blocks = blocks;
+  session.blocks = session.blocks.concat(blocks);
   let evaluation = new Evaluation();
   evaluation.registerDatabase("session", session);
   let changes = evaluation.fixpoint();
@@ -60,7 +162,7 @@ function evaluate(assert, expected, code) {
     let changes = evaluation.executeActions(actions);
     verify(assert, expected.insert, expected.remove, changes.result());
     return next;
-  }};
+  }, session};
   return next;
 }
 
@@ -725,14 +827,14 @@ test("setting an attribute on an object with multiple complex values", (assert) 
 test("merging an attribute on an object with multiple complex values", (assert) => {
   let expected = {
     insert: [
-      ["2", "tag", "person"],
-      ["2", "name", "chris"],
-      ["7", "tag", "foo"],
-      ["7", "eve-auto-index", 1],
-      ["10", "tag", "bar"],
-      ["10", "eve-auto-index", 2],
-      ["2","dude","7"],
-      ["2","dude","10"],
+      ["a", "tag", "person"],
+      ["a", "name", "chris"],
+      ["b", "tag", "foo"],
+      ["b", "eve-auto-index", 1],
+      ["c", "tag", "bar"],
+      ["c", "eve-auto-index", 2],
+      ["a","dude","b"],
+      ["a","dude","c"],
     ],
     remove: []
   };
@@ -809,10 +911,10 @@ test("setting an attribute on click", (assert) => {
     ~~~
   `);
   let expected2 = {
-    insert: [ ["3", "dude", "chris"], ["click", "tag", "click"] ],
+    insert: [ ["3", "dude", "chris"], ["click-event", "tag", "click"] ],
     remove: [ ["3", "dude", "joe"], ]
   };
-  eve.execute(expected2, [new InsertAction("click", "tag", "click")]);
+  eve.execute(expected2, [new InsertAction("blah", "click-event", "tag", "click")]);
   assert.end();
 });
 
@@ -871,12 +973,12 @@ test("erase an attribute", (assert) => {
 test("sum constant", (assert) => {
   let expected = {
     insert: [
-      ["2", "tag", "person"],
-      ["2", "name", "joe"],
-      ["5", "tag", "person"],
-      ["5", "name", "chris"],
-      ["10|2", "tag", "total"],
-      ["10|2", "total", 2],
+      ["a", "tag", "person"],
+      ["a", "name", "joe"],
+      ["b", "tag", "person"],
+      ["b", "name", "chris"],
+      ["c", "tag", "total"],
+      ["c", "total", 2],
     ],
     remove: [
     ]
@@ -1125,9 +1227,9 @@ test("aggregate stratification with results", (assert) => {
 test("aggregate stratification with another aggregate", (assert) => {
   let expected = {
     insert: [
-      ["3", "tag", "person"],
-      ["3", "name", "joe"],
-      ["3", "age", 10],
+      ["a", "tag", "person"],
+      ["a", "name", "joe"],
+      ["a", "age", 10],
       ["7", "tag", "person"],
       ["7", "name", "chris"],
       ["7", "age", 20],
@@ -1446,8 +1548,10 @@ test("bind adds results", (assert) => {
 test("bind removes dead results", (assert) => {
   let expected = {
     insert: [
-      ["2", "tag", "foo"],  ["2", "value", "hi!"],
-      ["7|hi!", "tag", "result"],  ["7|hi!", "value", "hi!"]
+      ["2", "tag", "foo"],
+      ["2", "value", "hi!"],
+      ["7|hi!", "tag", "result"],
+      ["7|hi!", "value", "hi!"]
     ],
     remove: [ ]
   };
@@ -1468,9 +1572,22 @@ test("bind removes dead results", (assert) => {
   `);
   let expected2 = {
     insert: [],
-    remove: [ ["2", "tag", "foo"], ["7|hi!", "tag", "result"], ["7|hi!", "value", "hi!"] ]
+    remove: [
+      ["2", "tag", "foo"],
+      ["2", "value", "hi!"],
+      ["7|hi!", "tag", "result"],
+      ["7|hi!", "value", "hi!"]
+    ]
   };
-  eve.execute(expected2, [new RemoveAction("2", "tag", "foo")]);
+  evaluate(assert, expected2, `
+    remove foo
+    ~~~
+    search
+      foo = [#foo]
+    commit
+      foo := none
+    ~~~
+  `, eve.session);
   assert.end();
 });
 
@@ -1953,7 +2070,8 @@ test("lookup with bound attribute", (assert) => {
     insert: [
       ["2", "tag", "person"],
       ["2", "name", "chris"],
-      ["6", "info", "2 has name chris"],
+      ["6", "record", "2"],
+      ["6", "value", "chris"],
     ],
     remove: []
   };
@@ -1969,7 +2087,7 @@ test("lookup with bound attribute", (assert) => {
       search
         lookup[record, attribute: "name", value]
       commit
-        [| info: "{{record}} has name {{value}}"]
+        [| record value]
     ~~~
   `);
   assert.end();
@@ -1980,7 +2098,8 @@ test("lookup with free attribute, node and bound value", (assert) => {
     insert: [
       ["2", "tag", "person"],
       ["2", "name", "chris"],
-      ["7", "info", "2 has name with value \"chris\" from node 1"],
+      ["7", "record", "2"],
+      ["7", "attribute", "name"],
     ],
     remove: []
   };
@@ -1997,7 +2116,7 @@ test("lookup with free attribute, node and bound value", (assert) => {
         record = [#person]
         lookup[record, attribute, value: "chris", node]
       commit
-        [| info: "{{record}} has {{attribute}} with value \\"chris\\" from node {{node}}"]
+        [| record attribute]
     ~~~
   `);
   assert.end();
@@ -2008,7 +2127,9 @@ test("lookup on node", (assert) => {
     insert: [
       ["2", "tag", "person"],
       ["2", "name", "chris"],
-      ["6","info","node 1 produced: (2, name, chris)"],
+      ["6","record","2"],
+      ["6","attribute","tag"],
+      ["6","value","person"],
     ],
     remove: []
   };
@@ -2022,9 +2143,9 @@ test("lookup on node", (assert) => {
     foo bar
     ~~~
       search
-        lookup[record, attribute, value, node: 1]
+        lookup[record, attribute, value, node: "0|block|0|node|3|build"]
       commit
-        [| info: "node 1 produced: ({{record}}, {{attribute}}, {{value}})"]
+        [| record attribute value]
     ~~~
   `);
   assert.end();
@@ -2035,8 +2156,14 @@ test("lookup all free", (assert) => {
     insert: [
       ["2", "tag", "person"],
       ["2", "name", "chris"],
-      ["6","info","node 0 produced: (2, tag, person)"],
-      ["6","info","node 1 produced: (2, name, chris)"],
+      ["6","record","2"],
+      ["6","attribute","tag"],
+      ["6","value","person"],
+      ["6","node","0|block|0|node|3|build"],
+      ["6","attribute","name"],
+      ["6","value","chris"],
+      ["6","node","0|block|0|node|5|build"],
+
     ],
     remove: []
   };
@@ -2052,7 +2179,7 @@ test("lookup all free", (assert) => {
       search
         lookup[record, attribute, value, node]
       commit @foo
-        [| info: "node {{node}} produced: ({{record}}, {{attribute}}, {{value}})"]
+        [| record attribute value node]
     ~~~
   `);
   assert.end();
@@ -2383,11 +2510,11 @@ test("multiple inequalities in a row", (assert) => {
 test("range positive increment", (assert) => {
   let expected = {
     insert: [
-      ["2", "dude", 1],
-      ["2", "dude", 2],
-      ["2", "dude", 3],
-      ["2", "dude", 4],
-      ["2", "dude", 5],
+      ["a", "dude", 1],
+      ["a", "dude", 2],
+      ["a", "dude", 3],
+      ["a", "dude", 4],
+      ["a", "dude", 5],
     ],
     remove: []
   };
@@ -2485,12 +2612,12 @@ test("range with infinite increment", (assert) => {
 test("accessing the same attribute sequence natural joins instead of product joining", (assert) => {
   let expected = {
     insert: [
-      ["2","tag","user"],
-      ["2","name","Corey Montella"],
+      ["a","tag","user"],
+      ["a","name","Corey Montella"],
       ["5","tag","user"],
       ["5","name","Chris Granger"],
       ["14|2|23","tag","message"],
-      ["14|2|23","sender","2"],
+      ["14|2|23","sender","a"],
       ["14|2|23","text","Hello, Chris"],
       ["14|2|23","eve-auto-index",1],
       ["19|5|23","tag","message"],

@@ -220,14 +220,14 @@ function buildScans(block, context, scanLikes, outputScans) {
           for(let item of attribute.value.items) {
             let value = context.getValue(item)
             context.provide(value);
-            let final = join.scan(entity, attribute.attribute, value, undefined, scanLike.scopes);
+            let final = new join.Scan(item.id + "|build", entity, attribute.attribute, value, undefined, scanLike.scopes);
             outputScans.push(final);
             item.buildId = final;
           }
         } else {
           let value = context.getValue(attribute.value)
           context.provide(value);
-          let final = join.scan(entity, attribute.attribute, value, undefined, scanLike.scopes);
+          let final = new join.Scan(attribute.id + "|build", entity, attribute.attribute, value, undefined, scanLike.scopes);
           outputScans.push(final);
           attribute.buildId = final.id;
         }
@@ -255,7 +255,7 @@ function buildScans(block, context, scanLikes, outputScans) {
         node = context.getValue(scanLike.node)
         context.provide(node);
       }
-      let final = join.scan(entity, attribute, value, node, scanLike.scopes);
+      let final = new join.Scan(scanLike.id + "|build", entity, attribute, value, node, scanLike.scopes);
       outputScans.push(final);
       scanLike.buildId = final.id;
     } else if(scanLike.type === "not") {
@@ -274,7 +274,7 @@ function buildScans(block, context, scanLikes, outputScans) {
         }
       }
       let {strata} = buildStrata(scanLike, notContext);
-      let final = new join.NotScan(args, strata);
+      let final = new join.NotScan(scanLike.id + "|build", args, strata);
       outputScans.push(final);
       scanLike.buildId = final.id;
     } else if(scanLike.type === "ifExpression") {
@@ -317,7 +317,7 @@ function buildScans(block, context, scanLikes, outputScans) {
         if(strata.length > 1) {
           hasAggregate = true;
         }
-        let final = new join.IfBranch(strata, outputs, branch.exclusive);
+        let final = new join.IfBranch(branch.id + "|build", strata, outputs, branch.exclusive);
         branches.push(final);
         branch.buildId = final.id;
       }
@@ -327,7 +327,7 @@ function buildScans(block, context, scanLikes, outputScans) {
         outputs.push(resolved);
         context.provide(resolved);
       }
-      let ifScan = new join.IfScan(args, outputs, branches, hasAggregate);
+      let ifScan = new join.IfScan(scanLike.id + "|build", args, outputs, branches, hasAggregate);
       outputScans.push(ifScan)
       scanLike.buildId = ifScan.id;
     } else {
@@ -356,7 +356,7 @@ function buildExpressions(block, context, expressions, outputScans) {
       }
       let impl = providers.get(expression.op);
       if(impl) {
-        outputScans.push(new impl(args, results));
+        outputScans.push(new impl(`${expression.id}|build`, args, results));
       } else {
         context.errors.push(errors.unimplementedExpression(block, expression));
       }
@@ -398,13 +398,13 @@ function buildExpressions(block, context, expressions, outputScans) {
           // @TODO: mark this variable as generated?
           let variable = context.createVariable();
           let klass = providers.get("=");
-          outputScans.push(new klass([variable, resolved], []))
+          outputScans.push(new klass(`${resolved}|${resultIx}|equality|build`, [variable, resolved], []))
           resolved = results[resultIx] = variable;
         }
         resultIx++;
       }
 
-      outputScans.push(new impl(args, results));
+      outputScans.push(new impl(`${expression.id}|build`, args, results));
     } else {
       throw new Error("Not implemented: function type " + expression.type);
     }
@@ -449,7 +449,7 @@ function buildActions(block, context, actions, scans) {
                 projection[value.id] = value;
               }
             }
-            let final = new impl(entity, attribute.attribute, value, undefined, action.scopes);
+            let final = new impl(`${attribute.id}|${item.id}|build`, entity, attribute.attribute, value, undefined, action.scopes);
             actionObjects.push(final);
             item.buildId = final.id;
           }
@@ -460,7 +460,7 @@ function buildActions(block, context, actions, scans) {
               projection[value.id] = value;
             }
           }
-          let final = new impl(entity, attribute.attribute, value, undefined, action.scopes);
+          let final = new impl(`${attribute.id}|build`, entity, attribute.attribute, value, undefined, action.scopes);
           actionObjects.push(final);
           attribute.buildId = final.id;
         }
@@ -469,14 +469,14 @@ function buildActions(block, context, actions, scans) {
       if(unprovided[entity.id]) {
         projection = projection.filter((x) => x);
         let klass = providers.get("generateId");
-        scans.push(new klass(projection, [entity]));
+        scans.push(new klass(`${action.id}|${entity.id}|build`, projection, [entity]));
         context.provide(entity);
       }
     } else if(action.type === "action") {
       let {entity, value, attribute} = action;
       let impl = ActionImplementations[action.action];
       if(action.action === "erase") {
-        let final = new impl(context.getValue(entity), attribute, undefined, undefined, action.scopes);
+        let final = new impl(`${action.id}|build`, context.getValue(entity), attribute, undefined, undefined, action.scopes);
         actionObjects.push(final);
         action.buildId = final.id;
       } else {
@@ -487,12 +487,12 @@ function buildActions(block, context, actions, scans) {
         attribute = typeof attribute === "string" ? attribute : context.getValue(attribute);
         if(value.type === "parenthesis") {
           for(let item of value.items) {
-            let final = new impl(context.getValue(entity), attribute, context.getValue(item), undefined, action.scopes);
+            let final = new impl(`${action.id}|${item.id}|build`, context.getValue(entity), attribute, context.getValue(item), undefined, action.scopes);
             actionObjects.push(final);
             item.buildId = final.id;
           }
         } else {
-          let final = new impl(context.getValue(entity), attribute, context.getValue(value), undefined, action.scopes);
+          let final = new impl(`${action.id}|build`, context.getValue(entity), attribute, context.getValue(value), undefined, action.scopes);
           actionObjects.push(final);
           action.buildId = final.id;
         }

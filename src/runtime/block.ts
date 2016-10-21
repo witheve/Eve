@@ -2,7 +2,7 @@
 // Block
 //---------------------------------------------------------------------
 
-import {Variable, isVariable, Scan, NotScan, IfScan, ProposalProvider, JoinOptions, join, nextId} from "./join";
+import {Variable, isVariable, Scan, NotScan, IfScan, ProposalProvider, JoinOptions, join} from "./join";
 import {MultiIndex} from "./indexes";
 import {Changes, ChangesIndex, ChangeType} from "./changes";
 import {Action, executeActions} from "./actions";
@@ -198,7 +198,8 @@ export class BlockStratum {
 }
 
 export class Block {
-  id: number;
+  static BlockId = 0;
+  id: any;
   strata: BlockStratum[];
   commitActions: Action[];
   bindActions: Action[];
@@ -213,7 +214,7 @@ export class Block {
   results: any[];
 
   constructor(name: string, strata: BlockStratum[], commitActions: Action[], bindActions: Action[], parse?: any) {
-    this.id = parse.id || nextId();
+    this.id = parse.id || Block.BlockId++;
     this.name = name;
     this.strata = strata;
     this.commitActions = commitActions;
