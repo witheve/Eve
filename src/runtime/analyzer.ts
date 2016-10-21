@@ -725,7 +725,6 @@ export function findFailure(evaluation, info, spans, extraInfo) {
       }
     }
   }
-  console.log("FIND FAILURE", info);
   return info;
 }
 
@@ -745,6 +744,7 @@ function blockToFailingScan(block) {
         scanIx++;
       }
       scan = stratum.scans[maxIx];
+      break;
     }
   }
   return scan;
