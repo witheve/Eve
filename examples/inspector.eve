@@ -24,7 +24,7 @@ When an inspector alt-click comes in, retarget the inspector to the alt-clicked 
 
 ```
 search @event
-  [#inspector #click #direct-target target type x y]
+  event = [#inspector #inspect #direct-target target type x y]
 
 search @inspector
   inspector = [#inspector]
@@ -32,6 +32,9 @@ search @inspector
 commit @inspector
   inspector <- [target type state: "popout" x y]
   inspector.avs := none
+
+commit @event
+  event := none
 ```
 
 While the inspector is open on an element, update its avs to that element's avs. This will persist until it's no longer potentially relevant.

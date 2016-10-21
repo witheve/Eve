@@ -2316,7 +2316,7 @@ export class IDE {
       while(spans.length) {
         let span = spans.shift();
         if(!span.isEditorControlled() || span.type === "code_block") {
-          events.push({tag: ["inspector", "click", spans.length === 0 ? "direct-target" : undefined], target: span.source.id, type: span.source.type});
+          events.push({tag: ["inspector", "inspect", spans.length === 0 ? "direct-target" : undefined], target: span.source.id, type: span.source.type});
         }
       }
 
@@ -2326,7 +2326,7 @@ export class IDE {
       let y = event.clientY - appContainer.offsetTop;
       let current:any = event.target;
       while(current && current.entity) {
-        events.push({tag: ["inspector", "click", current === event.target ? "direct-target" : undefined], target: current.entity, type: "element", x, y});
+        events.push({tag: ["inspector", "inspect", current === event.target ? "direct-target" : undefined], target: current.entity, type: "element", x, y});
         current = current.parentNode;
       }
     }
