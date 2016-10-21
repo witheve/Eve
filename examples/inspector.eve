@@ -267,6 +267,47 @@ bind @editor
   [#find-affector record: target attribute: "children"]
 ```
 
+When we have some affectors, filter to their blocks and highlight them.
+
+```
+search @inspector
+  inspector = [#inspector state: "show-affector" target]
+
+search @editor
+  [#affector record: target block action]
+
+bind @editor
+  [#mark-between inspector type: "elision_transient" | token: block]
+  //[#mark-between inspector type: "shadow" | token: action]
+```
+
+When the editor is in the `"show-failure"` state, request the failing reasons for blocks that could impact the target.
+
+```
+search @inspector
+  inspector = [#inspector state: "show-failure" target]
+
+search @editor
+  [#affector record: target block]
+
+bind @editor
+  [#find-failure block]
+```
+
+When the editor is in the `"show-failure"` state, show the failing reasons for blocks that impact the target.
+
+```
+search @inspector
+  inspector = [#inspector state: "show-failure" target]
+
+search @editor
+  [#affector record: target block]
+  [#failure block start stop]
+
+bind @editor
+  [#mark-range type: "cause-of-failure" start stop]
+```
+
 ## Drawing
 
 When an `#inspector` is open with type `"element"` and a target, show the element popout.
@@ -284,7 +325,7 @@ bind @browser
       [#button inspector text: "Who created this?" action: ("close-popout", "focus-blocks", "shadow-unrelated")]
       [#button inspector text: "Why aren't there more or less of these?" action: ("close-popout", "focus-blocks", "shadow-unrelated", "show-cardinality")]
       [#button inspector text: "What values went into making this?" action: ("close-popout", "focus-blocks", "shadow-unrelated", "show-values")]
-      [#button inspector text: "Why is nothing here?" action: ("close-popout", "show-affector")]]
+      [#button inspector text: "Why is nothing here?" action: ("close-popout", "show-affector", "show-failure")]]
     [#div #attributes-panel children: attributes]]
 ```
 
