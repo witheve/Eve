@@ -96,7 +96,37 @@ bind @view @browser
 
 ### Bar Graph
 
+Since we don't have min/max yet, we calculate it separately with sort.
+
 ```
 search @view
-  wrapper = [#bar-graph]
+  wrapper = [#bar-graph bar: [height]]
+  sort[value: height, direction: "down"] = 1
+
+bind @view
+  wrapper.max-height := height
+```
+
+```
+search @view
+  wrapper = [#bar-graph bar max-height]
+  lookup[record: wrapper, attribute: "tag", value: "bar-graph", node]
+
+  graph-height = if wrapper.height then wrapper.height
+                 else 300
+
+  graph-width = if wrapper.width then wrapper.width
+                 else 500
+
+  bar = [label height]
+  sort = if bar.sort then bar.sort
+         else bar
+  bar-count = count[given: bar]
+  bar-width = graph-width / bar-count
+
+  bar-height = (height / max-height) * (graph-height - 10) // padding!
+
+bind @browser
+  wrapper <- [#view #div node class: "view bar-graph" style: [width: graph-width, height: graph-height] children:
+    [#div class: "bar-graph-bar" bar sort style: [width: bar-width height: bar-height] text: label]]
 ```

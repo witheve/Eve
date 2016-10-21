@@ -200,6 +200,9 @@ table.view td { padding: 0 5px; border: 1px solid #ccc; border-top: none; border
 .view.kv-table .kv-row > div { display: table-cell; padding: 0 5px; }
 .view.kv-table .kv-values { border-left: 1px solid #202020; }
 
+.view.bar-graph { position: relative; display: flex; flex-direction: row; align-items: flex-end; }
+.view.bar-graph .bar-graph-bar { display: flex; align-items: flex-end; justify-content: center; background: #BBDDFF; border-left: 1px solid #E4E4E4; border-right: 1px solid #E4E4E4; }
+
 /****************************************************************************\
  * Inspector
 \****************************************************************************/
