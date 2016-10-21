@@ -22,15 +22,6 @@ function makeUUID(idprefix, projection) {
   return items.join("|");
 }
 
-var currentId = 0;
-export function nextId(set?) {
-  if(set !== undefined) {
-    currentId = set;
-    return currentId;
-  }
-  return currentId++;
-}
-
 //---------------------------------------------------------------------
 // Variable
 //---------------------------------------------------------------------
@@ -38,7 +29,7 @@ export function nextId(set?) {
 // We'll use Variable to represent relational variables in our "queries."
 // These will be values used in both scans and constraints
 export class Variable {
-  id: number;
+  id: string;
   constant?: any;
   constructor(id) {
     this.id = id;
@@ -119,7 +110,7 @@ function fullyResolved(toCheck, prefix) {
 // You specify a triple that they should look for which can have variables
 // or constant values for e, a, or v that we'll attempt to solve for.
 export class Scan {
-  id: number;
+  id: string;
   // array representation of the eav
   eav: any[];
   // a "bitmap" for what variables this scan is solving for
@@ -134,8 +125,8 @@ export class Scan {
   resolved: any[];
   scopes: string[];
 
-  constructor(e,a,v,node?,scopes?) {
-    this.id = nextId();
+  constructor(id: string, e,a,v,node?,scopes?) {
+    this.id = id;
     this.resolved = [];
     this.eav = [e,a,v,node];
     this.e = e;
@@ -340,11 +331,6 @@ export class Scan {
   }
 }
 
-// Convenience method for creating scans
-export function scan(e,a,v,node?,scopes?) {
-  return new Scan(e,a,v,node,scopes);
-}
-
 //---------------------------------------------------------------------
 // Constraint
 //---------------------------------------------------------------------
@@ -353,7 +339,7 @@ export function scan(e,a,v,node?,scopes?) {
 // in our "queries". Constraints have both an array of args and an array of returns,
 // either of which can contain variables or constants.
 export abstract class Constraint {
-  id: number;
+  id: string;
   args: any[];
   returns: any[];
   proposalObject: Proposal;
@@ -364,8 +350,8 @@ export abstract class Constraint {
   // deals with. This includes vars from both args and returns.
   vars: Variable[];
 
-  constructor(args: any[], returns: any[]) {
-    this.id = nextId();
+  constructor(id: string, args: any[], returns: any[]) {
+    this.id = id;
     this.args = args;
     this.returns = returns;
     this.proposalObject = {providing: null, cardinality: 0}
@@ -472,15 +458,15 @@ providers.provide("generateId", GenerateId);
 //---------------------------------------------------------------------
 
 export class NotScan {
-  id: number;
+  id: string;
   strata: BlockStratum[];
   vars: Variable[];
   args: Variable[];
   internalVars: Variable[];
   resolved: any[];
 
-  constructor(args: Variable[], strata: BlockStratum[]) {
-    this.id = nextId();
+  constructor(id: string, args: Variable[], strata: BlockStratum[]) {
+    this.id = id;
     this.strata = strata;
     this.resolved = [];
     let blockVars = [];
@@ -527,15 +513,15 @@ export class NotScan {
 //---------------------------------------------------------------------
 
 export class IfBranch {
-  id: number;
+  id: string;
   outputs: any[];
   strata: BlockStratum[];
   prefix: any[];
   variables: any[];
   exclusive: boolean;
   constantReturn: boolean;
-  constructor(strata: BlockStratum[], outputs: any[], exclusive?: boolean) {
-    this.id = nextId();
+  constructor(id: string, strata: BlockStratum[], outputs: any[], exclusive?: boolean) {
+    this.id = id;
     this.strata = strata;
     this.outputs = outputs;
     this.exclusive = exclusive;
@@ -568,7 +554,7 @@ export class IfBranch {
 }
 
 export class IfScan implements ProposalProvider {
-  id: number;
+  id: string;
   branches: IfBranch[];
   vars: Variable[];
   args: Variable[];
@@ -579,8 +565,8 @@ export class IfScan implements ProposalProvider {
   hasAggregate: boolean;
   proposalObject: Proposal;
 
-  constructor(args: Variable[], outputs: Variable[], branches: IfBranch[], hasAggregate = false) {
-    this.id = nextId();
+  constructor(id: string, args: Variable[], outputs: Variable[], branches: IfBranch[], hasAggregate = false) {
+    this.id = id;
     this.branches = branches;
     this.outputs = outputs;
     this.hasAggregate = hasAggregate;

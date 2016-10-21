@@ -2128,7 +2128,7 @@ export class IDE {
           console.log("FAILURE", records);
           sendEvent(records);
         }));
-      }
+      },
 
       "inspector": (action, actionId) => {
         let inspectorElem:HTMLElement = activeElements[actionId] as any;

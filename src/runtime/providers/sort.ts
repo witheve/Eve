@@ -22,8 +22,8 @@ export class Sort extends Constraint {
   resolvedAggregate: {group: any[], value: any[], direction: any};
   aggregateResults: any;
 
-  constructor(args: any[], returns: any[]) {
-    super(args, returns);
+  constructor(id: string, args: any[], returns: any[]) {
+    super(id, args, returns);
     let [value, direction, per] = args;
     if(value === undefined) {
       this.valueVars = [];
