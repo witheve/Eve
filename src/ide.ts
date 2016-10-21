@@ -2087,13 +2087,6 @@ export class IDE {
           for(let record of records) {
             record.tag.push("editor");
             record["action"] = actionId;
-            let span = this.editor.getSpanBySourceId(record.variable);
-            if(span) {
-              let loc = span.find();
-              if(loc) {
-                record["name"] = doc.getRange(loc.from, loc.to);
-              }
-            }
           }
           sendEvent(records);
         }));
@@ -2236,11 +2229,14 @@ export class IDE {
 
       //this.attachView(recordId, record.node)
       // Find the source node for this view.
-      if(!record.node) {
-        console.warn("Unable to parent view that doesn't provide its origin node id", record);
-        return;
+      if(record.span) {
+        this.attachView(recordId, record.span[0]);
+      } else if(record.node) {
+        send({type: "findNode", recordId, node: record.node[0]});
+      } else {
+        console.warn("Unable to parent view that doesn't provide its origin node  or span id", record);
       }
-      send({type: "findNode", recordId, node: record.node[0]});
+
     }
   }
 
@@ -2259,7 +2255,9 @@ export class IDE {
 
     let loc = sourceSpan.find();
     if(!loc) return;
-    view.widget = this.editor.cm.addLineWidget(loc.to.line, view.container);
+    let line = loc.to.line;
+    if(sourceSpan.isBlock()) line -= 1;
+    view.widget = this.editor.cm.addLineWidget(line, view.container);
   }
 
   //-------------------------------------------------------
@@ -2345,8 +2343,8 @@ type FindSourceArgs = {record?: string, attribute?: string, span?:string|string[
 type SourceRecord = {tag: string[], record?: string, attribute?: string, span: string[], block: string[]};
 type FindRelatedArgs = {span?: string[], variable?: string[]};
 type RelatedRecord = {tag: string[], span: string, variable: string[]};
-type FindValueArgs = {variable: string[], given: {[attribute: string]: any}, rows?: any[][], totalRows?: number, variableMappings?: {[span: string]: number}};
-type ValueRecord = {tag: string[], variable: string, value: any, row: number}
+type FindValueArgs = {variable: string[], given: {[attribute: string]: any}, rows?: any[][], totalRows?: number, variableMappings?: {[span: string]: number}, variableNames?: {[span: string]: string}};
+type ValueRecord = {tag: string[], variable: string, value: any, row: number, name: string, register: number}
 type FindCardinalityArgs = {variable: string[], cardinality?: {[variable: string]: number}};
 type CardinalityRecord = {tag: string[], variable: string, cardinality: number};
 type FindAffectorArgs = {record?: string, attribute?: string, span?: string, affector?: {block?: string[], action: string[]}[]};
@@ -2400,11 +2398,13 @@ class LanguageService {
         console.warn(`Too many possible values, showing {{message.rows.length}} of {{message.totalRows}}`);
       }
       let mappings = message.variableMappings;
+      let names = message.variableNames;
       let records:ValueRecord[] = [];
       for(let rowIx = 0, rowCount = message.rows.length; rowIx < rowCount; rowIx++) {
         let row = message.rows[rowIx];
         for(let variable in mappings) {
-          records.push({tag: ["value"], row: rowIx + 1, variable, value: row[mappings[variable]]});
+          let register = mappings[variable];
+          records.push({tag: ["value"], row: rowIx + 1, variable, value: row[register], register, name: names[variable]});
         }
       }
       callback(records);
