@@ -154,10 +154,10 @@ When a source event comes in, persist it into the editor and clear it from the e
 ```
 search @event
   event = [#editor #source action]
-  (attribute, value) = if action.record then ("record", action.record)
-                       if action.attribute then ("attribute", action.attribute)
-                       if action.span then ("span", action.span)
-                       if action.block then ("block", action.block)
+  (attribute, value) = if event.record then ("record", event.record)
+                       if event.attribute then ("attribute", event.attribute)
+                       if event.span then ("span", event.span)
+                       if event.block then ("block", event.block)
 
 commit @editor
   event <- [#source]
