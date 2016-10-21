@@ -226,7 +226,6 @@ bind @view
 
 bind @browser
   [#div children: table]
-  [#div text: "COWS"]
 ```
 
 When the inspector is in the `"show-cardinality"` state, request the cardinalities from the editor.
@@ -258,6 +257,16 @@ bind @editor
   [#mark-span inspector type: "badge" kind: "cardinality" target message: cardinality | token: variable]
 ```
 
+When the editor is in the `"show-affector"` state, request the list of blocks and actions that could impact the target.
+
+```
+search @inspector
+  inspector = [#inspector state: "show-affector" target]
+
+bind @editor
+  [#find-affector record: target]
+```
+
 ## Drawing
 
 When an `#inspector` is open with type `"element"` and a target, show the element popout.
@@ -274,8 +283,8 @@ bind @browser
     [#div #options-panel children:
       [#button inspector text: "Who created this?" action: ("close-popout", "focus-blocks", "shadow-unrelated")]
       [#button inspector text: "Why aren't there more or less of these?" action: ("close-popout", "focus-blocks", "shadow-unrelated", "show-cardinality")]
-      [#button inspector text: "What values went into making this?", action: ("close-popout", "focus-blocks", "shadow-unrelated", "show-values")]
-      [#button inspector text: "Why is nothing here?"]]
+      [#button inspector text: "What values went into making this?" action: ("close-popout", "focus-blocks", "shadow-unrelated", "show-values")]
+      [#button inspector text: "Why is nothing here?" action: ("close-popout", "show-affector")]]
     [#div #attributes-panel children: attributes]]
 ```
 
