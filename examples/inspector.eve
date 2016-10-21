@@ -264,7 +264,7 @@ search @inspector
   inspector = [#inspector state: "show-affector" target]
 
 bind @editor
-  [#find-affector record: target]
+  [#find-affector record: target attribute: "children"]
 ```
 
 ## Drawing
