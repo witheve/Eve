@@ -380,13 +380,12 @@ bind
 ~~~
 search
   query = [#findAffector recordId attribute]
-  scan = [#scan entity: [register] record-tag: tag block]
-  action = [#action entity: [register] attribute block ]
+  //scan = [#scan entity: [register] record-tag: tag block]
+  //action = [#action entity: [register] attribute block ]
 search @evaluation-session @evaluation-browser
   recordId = [tag]
 bind @browser
-  [#div text: "yo {{tag}}"]
-
+  //[#div text: "yo {{tag}}"]
 ~~~
 
 

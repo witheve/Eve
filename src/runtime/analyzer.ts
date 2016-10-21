@@ -703,25 +703,32 @@ export function findAffector(evaluation, info, spans, extraInfo) {
 
 export function findFailure(evaluation, info, spans, extraInfo) {
   let evSession = evaluation.getDatabase("session");
+  let failingSpans = info.span = [];
+  let sessionIndex = eve.getDatabase("session").index;
 
-  let found;
-  for(let block of evSession.blocks) {
-    if(block.id === info.block) {
-      found = block;
-      break;
+  for(let queryBlockId of info.block) {
+    let found;
+    for(let block of evSession.blocks) {
+      if(block.id === queryBlockId) {
+        found = block;
+        break;
+      }
+    }
+    let scan = blockToFailingScan(found);
+    if(scan) {
+      let level = sessionIndex.alookup("build-node", scan.id);
+      let analyzerScanId = level.toValues()[0];
+      let analyzerScan = sessionIndex.asObject(analyzerScanId, false, true);
+
+      failingSpans.push({id: analyzerScanId, buildId: scan.id, block: found.id, start: analyzerScan.start, stop: analyzerScan.stop});
     }
   }
-  let span = blockToFailingScan(found);
-  info.span = [];
-  if(span) {
-    info.span.push(span)
-  }
+  console.log("FIND FAILURE", info);
   return info;
 }
 
-
 function blockToFailingScan(block) {
-  let scanId;
+  let scan;
   for(let stratum of block.strata) {
     if(stratum.resultCount === 0) {
       let {solverInfo} = stratum;
@@ -735,10 +742,10 @@ function blockToFailingScan(block) {
         }
         scanIx++;
       }
-      scanId = stratum.scans[maxIx].id;
+      scan = stratum.scans[maxIx];
     }
   }
-  return scanId;
+  return scan;
 }
 
 function resultsToCardinalities(results) {

@@ -180,6 +180,7 @@ export function init(code) {
   responder.send(JSON.stringify({type: "parse", text, spans, extraInfo}));
   let build = builder.buildDoc(results);
   let {blocks, errors: buildErrors} = build;
+  // console.log("PROGRAM BLOCKS", blocks);
   responder.lastParse = results;
   analyzer.analyze(blocks.map((block) => block.parse), spans, extraInfo);
   responder.sendErrors(buildErrors);
@@ -204,6 +205,6 @@ export function init(code) {
   evaluation.fixpoint();
 
   client.socket.onopen();
-  // responder.handleEvent(JSON.stringify({type: "findAffector", record: "443|536", attribute: "children", requestId: 0}));
+  // responder.handleEvent(JSON.stringify({type: "findFailure", block: ["editor|block|2", "editor|block|3"], requestId: 0}));
   // responder.handleEvent(JSON.stringify({type: "findSource", span: "editor|block|18|node|19", requestId: 0}));
 }
