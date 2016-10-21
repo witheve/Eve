@@ -2222,6 +2222,9 @@ export class IDE {
       // if the view already has a parent, leave it be.
       if(indexes.byChild.index[recordId]) continue;
 
+      // If the view is already active, he doesn't need inserted again.
+      if(this.activeViews[recordId] && this.activeViews[recordId].widget) continue;
+
       // Otherwise, we'll grab it and attach it to its creator in the editor.
       let record = records[recordId];
       let view = this.activeViews[recordId] = {record: recordId, container: document.createElement("div")};
@@ -2242,6 +2245,9 @@ export class IDE {
 
   attachView(recordId:string, spanId:string) {
     let view = this.activeViews[recordId];
+    // If the view is already active, he doesn't need inserted again.
+    if(this.activeViews[recordId] && this.activeViews[recordId].widget) return;
+
     // @NOTE: This isn't particularly kosher.
     let node = activeElements[recordId];
     if(!node) return;
