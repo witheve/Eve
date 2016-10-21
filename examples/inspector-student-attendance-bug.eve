@@ -46,25 +46,24 @@ search
   app = [#app]
 
 bind @browser
-  content = [#div #content style: [min-height: 500] sort: 2]
   app <- [#div children:
     [#div style: [margin-bottom: 20] children:
       [#button #nav app text: "grades"]
       [#button #nav app text: "syllabus"]
       [#button #nav app text: "attendance"]]
-    content]
-
-bind
-  app.content := content
+    [#div #content app style: [min-height: 500] sort: 2]]
 ```
 
 When the page is "grades", show the student's grades for the current teacher
 
 ```
 search
-  app = [#app page: "grades" user: teacher content]
+  app = [#app page: "grades" user: teacher]
   student = [#student name school: teacher.school class: teacher.class grade]
   ix = sort[value: name]
+
+search @browser
+  content = [#content app]
 
 bind @browser
   content <- [children:
@@ -77,8 +76,11 @@ When the page is "syllabus", show the syllabus for the current teacher's class
 
 ```
 search
-  app = [#app page: "syllabus" user: teacher content]
+  app = [#app page: "syllabus" user: teacher]
   syllabus = [#syllabus class: teacher.class assignment]
+
+search @browser
+  content = [#content app]
 
 bind @browser
   content <- [children:
@@ -90,10 +92,13 @@ When the page is "attendance", show each student's number of absences
 
 ```
 search
-  app = [#app page: "attendance" user: teacher content]
+  app = [#app page: "attendance" user: teacher]
   teacher.school = [#school name]
   student = [#student name school: teacher.school class: teacher.class grade]
   ix = sort[value: name]
+
+search @browser
+  content = [#content app]
 
 bind @browser
   content <- [children:
