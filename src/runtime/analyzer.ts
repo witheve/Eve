@@ -717,10 +717,12 @@ export function findFailure(evaluation, info, spans, extraInfo) {
     let scan = blockToFailingScan(found);
     if(scan) {
       let level = sessionIndex.alookup("build-node", scan.id);
-      let analyzerScanId = level.toValues()[0];
-      let analyzerScan = sessionIndex.asObject(analyzerScanId, false, true);
+      if(level) {
+        let analyzerScanId = level.toValues()[0];
+        let analyzerScan = sessionIndex.asObject(analyzerScanId, false, true);
 
-      failingSpans.push({id: analyzerScanId, buildId: scan.id, block: found.id, start: analyzerScan.start, stop: analyzerScan.stop});
+        failingSpans.push({id: analyzerScanId, buildId: scan.id, block: found.id, start: analyzerScan.start, stop: analyzerScan.stop});
+      }
     }
   }
   console.log("FIND FAILURE", info);
