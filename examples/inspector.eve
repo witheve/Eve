@@ -123,9 +123,6 @@ search @editor
 
 bind @editor
   [#mark-between inspector type: "elision_transient" | token: block]
-
-bind @browser
-  [#div text: "yooo {{block}}"]
 ```
 
 When the inspector is in a state requiring related tokens, request them from the editor.
@@ -207,15 +204,18 @@ search @inspector
 search @editor
   [#source record: target block span]
   [#related span variable]
-  [#value variable value row]
+  [#value variable value row name]
 
 bind @view
   row-guy = [row]
-  lookup[record: row-guy attribute: variable value]
-  table = [#table inspector | field: variable row: row-guy]
+  lookup[record: row-guy attribute: name value]
+  table = [#table inspector | field: name row: row-guy]
 
 bind @browser
-  [#div children: table]
+  table.span := block
+
+bind @browser
+  //[#div children: table]
 ```
 
 When the inspector is in the `"show-cardinality"` state, request the cardinalities from the editor.

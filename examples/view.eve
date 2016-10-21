@@ -13,9 +13,8 @@ search @view
   lookup[record: wrapper, attribute: "tag", value: "value", node]
 
 bind @browser
-  wrapper <-
-    [#view #div node class: "view" children:
-      [#div sort: ix text: value]]
+  wrapper <- [#view #div node class: "view" children:
+    [#div sort: ix text: value]]
 ```
 
 ## Tables
@@ -90,4 +89,14 @@ bind @view @browser
   wrapper.node := node
   wrapper.tag += "kv-table"
   wrapper.kvs := [key value]
+```
+
+
+## Charts & Graphs
+
+### Bar Graph
+
+```
+search @view
+  wrapper = [#bar-graph]
 ```

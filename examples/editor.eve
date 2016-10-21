@@ -247,10 +247,10 @@ bind @browser
 When a value event comes in, persist it into the editor and clear it from the event bag.
 ```
 search @event
-  event = [#editor #value action variable value row]
+  event = [#editor #value action variable value row name register]
 
 commit @editor
-  event <- [#value action variable value row]
+  event <- [#value action variable value row name register]
 
 commit @event
   event := none
