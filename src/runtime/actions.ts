@@ -2,7 +2,7 @@
 // Actions
 //---------------------------------------------------------------------
 
-import {Variable, isVariable, nextId, toValue} from "./join";
+import {Variable, isVariable, toValue} from "./join";
 import {MultiIndex} from "./indexes";
 import {Changes} from "./changes";
 
@@ -11,7 +11,7 @@ import {Changes} from "./changes";
 //---------------------------------------------------------------------
 
 export abstract class Action {
-  id: number;
+  id: string;
   e: any;
   a: any;
   v: any;
@@ -19,8 +19,8 @@ export abstract class Action {
   vars: Variable[];
   resolved: any[];
   scopes: string[];
-  constructor(e,a,v,node?,scopes?) {
-    this.id = nextId();
+  constructor(id: string, e,a,v,node?,scopes?) {
+    this.id = id;
     this.resolved = [];
     let eav = [e,a,v];
     this.e = e;

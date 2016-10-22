@@ -389,3 +389,45 @@ bind @browser
 ~~~
 
 
+## findRootDrawers
+
+~~~
+search
+  query = [#findRootDrawers]
+  action = [#action block entity: [register] scopes: "browser"]
+  not([#scan block entity: [register]])
+  not([#action block value: [register]])
+  final = if record = [#record entity: [register] start stop]
+             action.start >= start
+             action.stop <= stop then record
+          else action
+commit
+  query.drawer += [id: final start: final.start stop: final.stop]
+~~~
+
+
+## findMaybeDrawers
+
+~~~
+commit
+  [#drawing-tag tag: "div"]
+  [#drawing-tag tag: "span"]
+  [#drawing-tag tag: "img"]
+  [#drawing-tag tag: "input"]
+  [#drawing-tag tag: "button"]
+~~~
+
+~~~
+search
+  query = [#findMaybeDrawers]
+  [#drawing-tag tag: drawing-tag]
+  action = [#action entity: [register] block attribute: "tag" value: drawing-tag]
+  not(action.scopes = "browser")
+  final = if record = [#record entity: [register] start stop]
+             action.start >= start
+             action.stop <= stop then record
+          else action
+commit
+  query.drawer += [id: final start: final.start stop: final.stop ]
+~~~
+

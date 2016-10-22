@@ -81,7 +81,7 @@ let wss = new WebSocketServer({server: server});
 function handleEvent(evaluation, data) {
   let actions = [];
   for(let insert of data.insert) {
-    actions.push(new ActionImplementations["+="](insert[0], insert[1], insert[2]));
+    actions.push(new ActionImplementations["+="]("add", insert[0], insert[1], insert[2]));
   }
   evaluation.executeActions(actions);
 }

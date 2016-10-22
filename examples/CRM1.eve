@@ -42,9 +42,6 @@ The main application is a shell for all other pages in the app. This component d
 search
   app = [#app user]
   [#time time-string]
-  // Handle the case when the user has no threads
-  threads = if app.unread then app.unread
-            else 0
   // If the user is looking at a contact, display that contact's avatar and info. Otherwise, display the user's own avatar.
   current-contact = if app.contact then app.contact
                     else user
@@ -65,7 +62,7 @@ bind @browser
         [#div class: "icon" text: "💁"]
         [#div class: "label" text: "ABOUT"]]
       [#div #threads #nav class: "nav-button middle", children:
-        [#div class: "icon" children: [#div class: "bubble" text: threads]]
+        [#div class: "icon" children: [#div class: "bubble" text: app.unread]]
         [#div class: "label" text: "MESSAGES"]]
       [#div #contacts #nav class: "nav-button middle" children:
         [#div class: "icon" text: "📇"]
@@ -189,7 +186,6 @@ Each thread is shown with the contact's avatar and name, and the number of messa
 search @browser @session
   content = [#content]
   app = [#app page: [#threads], user]
-  not(threads = [#archived])
   threads = [#thread users: user, messages]
   contacts = threads.users != app.user
   message-count = count[given: threads.messages, per: threads.users]
@@ -199,22 +195,7 @@ bind @browser
     [#div #thread thread: threads, class: "thread-box" children:
       [#img class: "msg-avatar" src: contacts.avatarURL]
       [#div class: "msg-name" text: contacts.name]
-      [#div text: "{{message-count}} messages"]]
-    [#div #archive-button thread: threads, class: "archive" text: "📥"]]
-```
-
-If the user has no threads, display a message prompting the user to start a conversation with a contact
-
-```
-search @browser @session
-  content = [#content]
-  app = [#app page: [#threads], user]
-  not(threads = [#thread users: user, messages])
-
-bind @browser
-  content.children := [#div #contacts #nav children:
-      [#div class: "plus" text: "+"]
-      [#div text: "Start a Thread"]]
+      [#div text: "{{message-count}} messages"]]]
 ```
 
 ### Contacts Page
@@ -307,22 +288,6 @@ search @event @browser @session
 commit @browser
   input.value := ""
   thread.messages += [#message sender: user, time, text: value]
-```
-
-### Archive a thread
-
-When the user archives a thread, the `#archive` tag is added to that thread, which then exludes it from display in the main thread list. Archiving a thread also marks all unread messages as read.
-
-- TODO Add a place to see all archived threads
-
-```
-search @event @browser @session
-  [#click element: [#archive-button thread]]
-  messages = thread.messages
-
-commit @session
-  thread += #archived
-  messages -= #unread
 ```
 
 ## Test Data

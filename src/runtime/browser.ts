@@ -44,11 +44,11 @@ class Responder {
     let data = JSON.parse(json);
     if(data.type === "event") {
       if(!evaluation) return;
-      console.info("EVENT", json);
+      // console.info("EVENT", json);
       let scopes = ["event"];
       let actions = [];
       for(let insert of data.insert) {
-        actions.push(new ActionImplementations["+="](insert[0], insert[1], insert[2], "event", scopes));
+        actions.push(new ActionImplementations["+="]("event", insert[0], insert[1], insert[2], "event", scopes));
       }
       evaluation.executeActions(actions);
     } else if(data.type === "close") {
@@ -56,7 +56,6 @@ class Responder {
       evaluation.close();
       evaluation = undefined;
     } else if(data.type === "parse") {
-      join.nextId(0);
       let {results, errors} = parser.parseDoc(data.code || "", "editor");
       let {text, spans, extraInfo} = results;
       let build = builder.buildDoc(results);
@@ -71,7 +70,6 @@ class Responder {
       if(evaluation !== undefined && data.persist) {
         let changes = evaluation.createChanges();
         let session = evaluation.getDatabase("session");
-        join.nextId(0);
         for(let block of session.blocks) {
           if(block.bindActions.length) {
             block.updateBinds({positions: {}, info: []}, changes);
@@ -93,7 +91,6 @@ class Responder {
         evaluation.fixpoint(changes);
       } else {
         if(evaluation) evaluation.close();
-        join.nextId(0);
         let build = builder.buildDoc(this.lastParse);
         let {blocks, errors} = build;
         this.sendErrors(errors);
@@ -163,6 +160,16 @@ class Responder {
       let extraInfo = {};
       let spanId = analyzer.findFailure(evaluation, data, spans, extraInfo);
       this.send(JSON.stringify(data));
+    } else if(data.type === "findRootDrawers") {
+      let spans = [];
+      let extraInfo = {};
+      let spanId = analyzer.findRootDrawers(evaluation, data, spans, extraInfo);
+      this.send(JSON.stringify(data));
+    } else if(data.type === "findMaybeDrawers") {
+      let spans = [];
+      let extraInfo = {};
+      let spanId = analyzer.findMaybeDrawers(evaluation, data, spans, extraInfo);
+      this.send(JSON.stringify(data));
     }
   }
 }
@@ -173,14 +180,13 @@ export function init(code) {
   responder = new Responder(client.socket);
 
   global["browser"] = true;
-  join.nextId(0);
   let {results, errors} = parser.parseDoc(code || "", "editor");
   if(errors && errors.length) console.error(errors);
   let {text, spans, extraInfo} = results;
   responder.send(JSON.stringify({type: "parse", text, spans, extraInfo}));
   let build = builder.buildDoc(results);
   let {blocks, errors: buildErrors} = build;
-  // console.log("PROGRAM BLOCKS", blocks);
+  console.log("PROGRAM BLOCKS", blocks);
   responder.lastParse = results;
   analyzer.analyze(blocks.map((block) => block.parse), spans, extraInfo);
   responder.sendErrors(buildErrors);
@@ -205,6 +211,6 @@ export function init(code) {
   evaluation.fixpoint();
 
   client.socket.onopen();
-  // responder.handleEvent(JSON.stringify({type: "findFailure", block: ["editor|block|2", "editor|block|3"], requestId: 0}));
+  // responder.handleEvent(JSON.stringify({type: "findMaybeDrawers", requestId: 0}));
   // responder.handleEvent(JSON.stringify({type: "findSource", span: "editor|block|18|node|19", requestId: 0}));
 }

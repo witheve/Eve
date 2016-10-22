@@ -391,6 +391,7 @@ export function analyze(blocks: ParseBlock[], spans: any[], extraInfo: any) {
   let editorDb = new EditorDatabase(spans, extraInfo);
   eve.unregisterDatabase("editor");
   eve.registerDatabase("editor", editorDb);
+  eve.fixpoint();
   let changes = eve.createChanges();
   let analysis = new Analysis(changes);
   for(let block of blocks) {
@@ -730,6 +731,46 @@ export function findFailure(evaluation, info, spans, extraInfo) {
   }
   return info;
 }
+
+export function findRootDrawers(evaluation, info, spans, extraInfo) {
+  let queryId = `query|${info.requestId}`;
+  let query = {tag: "findRootDrawers"};
+  let eve = doQuery(queryId, query, spans, extraInfo);
+
+  let sessionIndex = eve.getDatabase("session").index;
+  let queryInfo = sessionIndex.alookup("tag", "findRootDrawers");
+  if(queryInfo) {
+    let [entity] = queryInfo.toValues();
+    let obj = sessionIndex.asObject(entity);
+    if(obj.drawer) {
+      info.drawers = obj.drawer.map((id) => sessionIndex.asObject(id, false, true));
+    } else {
+      info.drawers = [];
+    }
+  }
+  return info;
+}
+
+export function findMaybeDrawers(evaluation, info, spans, extraInfo) {
+  let queryId = `query|${info.requestId}`;
+  let query = {tag: "findMaybeDrawers"};
+  let eve = doQuery(queryId, query, spans, extraInfo);
+
+  let sessionIndex = eve.getDatabase("session").index;
+  let queryInfo = sessionIndex.alookup("tag", "findMaybeDrawers");
+  if(queryInfo) {
+    let [entity] = queryInfo.toValues();
+    let obj = sessionIndex.asObject(entity);
+    if(obj.drawer) {
+      info.drawers = obj.drawer.map((id) => sessionIndex.asObject(id, false, true));
+    } else {
+      info.drawers = [];
+    }
+  }
+  return info;
+}
+
+
 
 function blockToFailingScan(block) {
   let scan;

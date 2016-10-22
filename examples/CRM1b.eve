@@ -189,7 +189,6 @@ Each thread is shown with the contact's avatar and name, and the number of messa
 search @browser @session
   content = [#content]
   app = [#app page: [#threads], user]
-  not(threads = [#archived])
   threads = [#thread users: user, messages]
   contacts = threads.users != app.user
   message-count = count[given: threads.messages, per: threads.users]
@@ -199,22 +198,7 @@ bind @browser
     [#div #thread thread: threads, class: "thread-box" children:
       [#img class: "msg-avatar" src: contacts.avatarURL]
       [#div class: "msg-name" text: contacts.name]
-      [#div text: "{{message-count}} messages"]]
-    [#div #archive-button thread: threads, class: "archive" text: "📥"]]
-```
-
-If the user has no threads, display a message prompting the user to start a conversation with a contact
-
-```
-search @browser @session
-  content = [#content]
-  app = [#app page: [#threads], user]
-  not(threads = [#thread users: user, messages])
-
-bind @browser
-  content.children := [#div #contacts #nav children:
-      [#div class: "plus" text: "+"]
-      [#div text: "Start a Thread"]]
+      [#div text: "{{message-count}} messages"]]]
 ```
 
 ### Contacts Page
@@ -307,22 +291,6 @@ search @event @browser @session
 commit @browser
   input.value := ""
   thread.messages += [#message sender: user, time, text: value]
-```
-
-### Archive a thread
-
-When the user archives a thread, the `#archive` tag is added to that thread, which then exludes it from display in the main thread list. Archiving a thread also marks all unread messages as read.
-
-- TODO Add a place to see all archived threads
-
-```
-search @event @browser @session
-  [#click element: [#archive-button thread]]
-  messages = thread.messages
-
-commit @session
-  thread += #archived
-  messages -= #unread
 ```
 
 ## Test Data
