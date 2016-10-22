@@ -1,6 +1,6 @@
 import * as CodeMirror from "codemirror";
 import {Editor, Change, ChangeCancellable} from "../ide";
-import {Range, Position, isRange, comparePositions, samePosition, whollyEnclosed} from "../util";
+import {Range, Position, isRange, comparePositions, samePosition, whollyEnclosed, debounce} from "../util";
 
 type FormatAction = "add"|"remove"|"split"
 
@@ -655,7 +655,7 @@ export class ParserSpan extends Span {
   _spanStyle:"inline" = "inline";
 }
 
-interface DocumentCommentSpanSource extends SpanSource { kind: "string", message: "string" }
+interface DocumentCommentSpanSource extends SpanSource { kind: string, message: string, delay?: number }
 export class DocumentCommentSpan extends ParserSpan {
   source:DocumentCommentSpanSource;
 
@@ -680,6 +680,9 @@ export class DocumentCommentSpan extends ParserSpan {
       this.commentElem.className += " code-comment-widget";
     }
 
+    if(this.source.delay) {
+      this["updateWidget"] = debounce(this.updateWidget, this.source.delay);
+    }
     super.apply(from, to, origin);
   }
 
@@ -721,9 +724,16 @@ export class DocumentCommentSpan extends ParserSpan {
       if(loc.to.line !== this.widgetLine) {
         this.widgetLine = loc.to.line;
         if(this.commentWidget) this.commentWidget.clear();
-        this.commentWidget = this.editor.cm.addLineWidget(this.widgetLine, this.commentElem);
+        this.updateWidget();
       }
     }
+  }
+
+  updateWidget() {
+    if(this.commentWidget) this.commentWidget.clear();
+    let loc = this.find();
+    if(!loc) return;
+    this.commentWidget = this.editor.cm.addLineWidget(this.widgetLine, this.commentElem);
   }
 
   get kind() { return this.source.kind || "error"; }

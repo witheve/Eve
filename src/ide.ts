@@ -659,6 +659,8 @@ export class Editor {
       this.reloading = true;
       let doc = this.cm.getDoc();
 
+      let cursorLine = doc.getCursor().line;
+
       // Find all runtime-controlled spans (e.g. syntax highlighting, errors) that are unchanged and mark them as such.
       // Unmarked spans will be swept afterwards.
       // Set editor-controlled spans aside. We'll match them up to maintain id stability afterwards
@@ -683,6 +685,9 @@ export class Editor {
           let source = attributes[id] || {};
           source.type = type;
           source.id = id;
+          if(type === "document_comment") {
+            source.delay = 1000;
+          }
 
           let spans = this.findSpansAt(from, type);
           let unchanged = false;
@@ -691,6 +696,9 @@ export class Editor {
             if(loc && samePosition(to, loc.to) && span.sourceEquals(source)) {
               span.source = source;
               if(span.refresh) span.refresh();
+              if(type === "document_comment") {
+                (span as any).updateWidget();
+              }
               touchedIds[span.id] = true;
               unchanged = true;
               break;
