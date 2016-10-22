@@ -78,17 +78,30 @@ commit @event
   event := none
 ```
 
-When an inspector button is pressed, trigger the button's associated states.
+When an inspector button is pressed, activate any new states we want to transition into.
 
 ```
 search @event
   [#click #direct-target element]
 
 search @browser
-  element = [#button inspector action]
+  element = [#button inspector activate]
 
 commit @inspector
-  inspector.state += action
+  inspector.state += activate
+```
+
+When an inspector button is pressed, deactivate any old states we may have been in that want to leave.
+
+```
+search @event
+  [#click #direct-target element]
+
+search @browser
+  element = [#button inspector deactivate]
+
+commit @inspector
+  inspector.state -= deactivate
 ```
 
 
@@ -231,7 +244,6 @@ Certain states require data to be fetched.
 
 ```
 commit @inspector
-  [#state state: "close-popout"]
   [#state state: "focus-blocks" requires: "sources"]
   [#state state: "annotate-blocks" requires: "sources"]
   [#state state: "highlight-related" requires: "related"]
@@ -254,20 +266,6 @@ search @inspector
 
 bind @inspector
   inspector.data += requires
-```
-
-### Close Popout
-
-When the `"close-popout"` state is active, remove the `"popout"` state and the `"close-popout"` states.
-
-```
-search @inspector
-  inspector = [#inspector state: "close-popout"]
-
-commit @inspector
-  //inspector.state -= ("popout", "close-popout")
-  inspector.state -= "popout"
-  inspector.state -= "close-popout"
 ```
 
 ### Focus Blocks
@@ -473,10 +471,10 @@ bind @browser
     [#div #editor #inspector target x y class: "inspector-pane" children:
       [#div #attributes-panel children: attributes]
       [#div #options-panel class: "buttons" children:
-        [#button inspector text: "Find events" action: ("close-popout", "annotate-blocks")]
-        [#button inspector text: "Why this?" action: ("close-popout", "annotate-blocks", "show-values-table")]
-        [#button inspector text: "Too few? Too many?" action: ("close-popout", "focus-blocks", "show-cardinalities-inline")]
-        [#button inspector text: "Not drawing?" action: ("close-popout", "annotate-affectors", "highlight-failures")]]]
+        [#button inspector text: "Find events" deactivate: "popout"]
+        [#button inspector text: "Why this?" activate: "show-values-table" deactivate: "popout"]
+        [#button inspector text: "Too few? Too many?" activate: "show-cardinalities-inline" deactivate: "popout"]
+        [#button inspector text: "Not drawing?" activate: ("annotate-affectors", "highlight-failures") deactivate: ("annotate-blocks", "popout")]]]
 ```
 
 
