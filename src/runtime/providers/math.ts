@@ -292,6 +292,29 @@ class Range extends Constraint {
   }
 }
 
+class Round extends Constraint { 
+  static AttributeMapping = { 
+    "value": 0, 
+  } 
+  resolveProposal(proposal, prefix) { 
+    let {args} = this.resolve(prefix); 
+    return [Math.round(args[0])]; 
+  } 
+
+  test(prefix) { 
+    let {args, returns} = this.resolve(prefix); 
+    return Math.round(args[0]) === returns[0]; 
+  } 
+
+  getProposal(tripleIndex, proposed, prefix) { 
+    let proposal = this.proposalObject; 
+    proposal.providing = proposed; 
+    proposal.cardinality = 1; 
+    return proposal; 
+  } 
+} 
+
+
 providers.provide("+", Add);
 providers.provide("-", Subtract);
 providers.provide("*", Multiply);
@@ -303,3 +326,4 @@ providers.provide("abs", Abs);
 providers.provide("mod", Mod);
 providers.provide("random", Random);
 providers.provide("range", Range);
+providers.provide("round", Round);
