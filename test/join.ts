@@ -2720,7 +2720,7 @@ test("not can't provide a variable for an attribute access", (assert) => {
 })
 
 
-test.only("indirect constant equality in if", (assert) => {
+test("indirect constant equality in if", (assert) => {
   let expected = {
     insert: [
       ["a", "tag", "div"],

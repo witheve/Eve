@@ -66,13 +66,18 @@ class TimeAgent {
     ];
   }
 
-  setup(evaluation: Evaluation) {
+  run(evaluation: Evaluation) {
     let self = this;
+    this.timeout = setInterval(function() {
+      evaluation.executeActions(self.timeActions());
+      // self.run(evaluation);
+    }, this.interval);
+  }
+
+  setup(evaluation: Evaluation) {
     if(this.interval !== undefined) {
       evaluation.executeActions(this.timeActions());
-      this.timeout = setInterval(function() {
-        evaluation.executeActions(self.timeActions());
-      }, this.interval);
+      this.run(evaluation);
     }
   }
 

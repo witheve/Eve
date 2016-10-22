@@ -219,9 +219,9 @@ function checkSubBlockEqualities(context, block) {
     let needsEquality;
     let hasLeft = context.hasVariable(left);
     let hasRight = context.hasVariable(right);
-    if(left.type === "constant") {
+    if(left.type === "constant" && (hasRight || right.type === "constant")) {
       needsEquality = true;
-    } else if(right.type === "constant") {
+    } else if(right.type === "constant" && (hasLeft || left.type === "constant")) {
       needsEquality = true;
     } else if(hasLeft && hasRight) {
       needsEquality = true;

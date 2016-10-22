@@ -8,18 +8,23 @@ import {MultiIndex, TripleIndex} from "./indexes";
 import {Block, BlockStratum, scansToVars} from "./block";
 import {Changes} from "./changes";
 import {Aggregate} from "./providers/aggregate";
+import {ids} from "./id";
 import * as providers from "./providers/index";
 
 //---------------------------------------------------------------------
 // UUID
 //---------------------------------------------------------------------
 
+let _idArray = [];
 function makeUUID(idprefix, projection) {
-  let items = ["⦑", idprefix];
+  _idArray[0] = idprefix;
+  let ix = 1;
   for(let proj of projection) {
-    items.push(proj);
+    _idArray[ix] = proj;
+    ix++;
   }
-  return items.join("|");
+  _idArray.length = ix;
+  return ids.get(_idArray);
 }
 
 //---------------------------------------------------------------------

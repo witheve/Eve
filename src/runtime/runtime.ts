@@ -209,8 +209,8 @@ export class Evaluation {
       // console.groupEnd();
     }
     perf.fixpoint(start);
-    console.log("TOTAL ROUNDS", changes.round, runtimePerformance.time(start));
-    console.log(changes);
+    // console.log("TOTAL ROUNDS", changes.round, runtimePerformance.time(start));
+    // console.log(changes);
     for(let database of this.databases) {
       database.onFixpoint(this, changes);
     }
