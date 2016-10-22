@@ -243,24 +243,39 @@ bind
 
 ## find variables related to a span
 
+Determine the kind of span we're looking for
+
 ~~~
 search
   query = [#findRelated for: "span" span]
-  span = if span = [#action] then span
-         else if span = [#scan] then span
-  variable = if span.entity = [#variable] then span.entity
-             if span.value = [#variable] then span.value
+  kind = if span = [#action] then "action"
+         else if span = [#scan] then "scan"
+         else if span = [#record kind] then kind
+bind
+  query.kind := kind
+~~~
+
+If the span is an action, we need to find the variables related to both the
+value and the entity
+
+~~~
+search
+  query = [#findRelated for: "span" span kind]
+  span = [tag: kind entity value]
+  variable = if entity = [#variable] then entity
+             if value = [#variable] then value
   [#link a: variable b: token]
 bind
   query.variable += token
 ~~~
 
+If the span is a record, we need to find all the actions directly related to it
+
 ~~~
 search
   query = [#findRelated for: "span" span]
-  span = [#record entity start stop]
-  scan = if action = [#action entity] then action
-         if scan = [#scan entity] then scan
+  span = [#record entity start stop kind]
+  scan = [tag: kind, entity]
   scan.start >= start
   scan.stop <= stop
   scan.value = [#variable]
@@ -269,6 +284,18 @@ search
 bind
   query.variable += entity-token
   query.variable += token
+~~~
+
+if one of the variables we found is the entity for another scan/action, then we need
+to add him to the list of things we want to find relateds for
+
+~~~
+search
+  query = [#findRelated for: "span" kind variable]
+  [#link a: entity b: variable]
+  span = [tag: kind entity]
+bind
+  query.span += span
 ~~~
 
 ## find spans related to a variable

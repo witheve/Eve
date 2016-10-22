@@ -32,7 +32,7 @@ class AnalysisContext {
     this.extraInfo = extraInfo;
   }
 
-  record(parseNode: any) {
+  record(parseNode: any, kind: "action" | "scan") {
     let changes = this.changes;
     let recordId = parseNode.id;
     let [start, stop] = nodeToBoundaries(parseNode);
@@ -41,6 +41,7 @@ class AnalysisContext {
     changes.store("session", recordId, "start", start, "analyzer");
     changes.store("session", recordId, "stop", stop, "analyzer");
     changes.store("session", recordId, "entity", parseNode.variable.id, "analyzer");
+    changes.store("session", recordId, "kind", kind, "analyzer");
     for(let scope of parseNode.scopes) {
       changes.store("session", recordId, "scopes", scope, "analyzer");
     }
@@ -135,7 +136,7 @@ class Analysis {
   }
 
   _scanRecord(context: AnalysisContext, node) {
-    context.record(node);
+    context.record(node, "scan");
     for(let attr of node.attributes) {
       if(attr.value.type === "parenthesis") {
         for(let item of attr.value.items) {
@@ -192,7 +193,7 @@ class Analysis {
   }
 
   _actionRecord(context: AnalysisContext, node) {
-    context.record(node);
+    context.record(node, "action");
     for(let attr of node.attributes) {
       if(attr.value.type === "parenthesis") {
         for(let item of attr.value.items) {
@@ -367,7 +368,10 @@ function makeEveAnalyzer() {
   if(eve) return eve;
   let {results, errors} = parser.parseDoc(global["examples"]["analyzer.eve"]);
   let {text, spans, extraInfo} = results;
-  let {blocks} = builder.buildDoc(results);
+  let {blocks, errors: buildErrors} = builder.buildDoc(results);
+  if(errors.length || buildErrors.length) {
+    console.error("ANALYZER CREATION ERRORS", errors, buildErrors);
+  }
   let browserDb = new BrowserSessionDatabase(browser.responder);
   let session = new Database();
   session.blocks = blocks;
@@ -656,15 +660,13 @@ export function findRelated(evaluation, info, spans, extraInfo) {
     let obj = sessionIndex.asObject(entity);
     if(queryType === "span" && obj.variable) {
       info.variable = obj.variable;
-      return info;
     } else if(queryType === "variable" && obj.span) {
       info.span = obj.span;
-      return info;
     } else {
       info.variable = [];
       info.span = [];
-      return info;
     }
+    return info;
   }
   return;
 }
