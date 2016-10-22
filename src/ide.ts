@@ -2040,13 +2040,34 @@ export class IDE {
       },
 
       "jump-to": (action) => {
-        this.editor.jumpTo(action.token[0]);
+        if(!action.token || action.token.length === 0) return;
+        let from:Position;
+        let to:Position;
+
+        for(let spanId of action.token) {
+          let span = this.editor.getSpanBySourceId(spanId);
+          if(!span) continue;
+          let loc = span.find();
+          if(!loc) continue;
+          if(!from || comparePositions(loc.from, from) < 0) from = loc.from;
+          if(!to || comparePositions(loc.to, to) < 0) to = loc.to;
+        }
+        let range:Range = {from, to};
+        this.editor.cm.scrollIntoView(range, 20);
       },
 
       "jump-to-position": (action) => {
+        if(!action.position || action.position.length === 0) return;
+
         let doc = this.editor.cm.getDoc();
-        let pos = doc.posFromIndex(action.position[0]);
-        this.editor.cm.scrollIntoView(pos);
+        let min = Infinity;
+        let max = -Infinity;
+        for(let index of action.position) {
+          if(index < min) min = index;
+          if(index > max) max = index;
+        }
+        let range = {from: doc.posFromIndex(min), to: doc.posFromIndex(max)};
+        this.editor.cm.scrollIntoView(range, 20);
       },
 
       "find-source": (action, actionId) => {
