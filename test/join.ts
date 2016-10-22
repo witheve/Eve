@@ -82,7 +82,6 @@ function resolveActualExpected(assert, actuals, expecteds, entities) {
   let ix = 0;
   let max = actuals.length * actuals.length;
   while(actuals[ix]) {
-    console.log("LOOPING", ix, actuals.length);
     let actual = actuals[ix];
     if(ix === max) {
       assert.true(false, "Cyclic test found");
@@ -92,7 +91,6 @@ function resolveActualExpected(assert, actuals, expecteds, entities) {
     let found;
     let expectedIx = 0;
     for(let expected of expecteds) {
-      console.log(actual, expected);
       let listEqual, linkEqual;
       if(isSetEqual(expected.list, actual.list)) {
         listEqual = true;
@@ -151,7 +149,7 @@ function evaluate(assert, expected, code, session = new Database()) {
   let parsed = parser.parseDoc(dedent(code), "0");
   let {blocks, errors} = builder.buildDoc(parsed.results);
   if(expected.errors) {
-    assert.true(parsed.errors.length > 0 || errors.length > 0);
+    assert.true(parsed.errors.length > 0 || errors.length > 0, "This test is supposed to produce errors");
   }
   session.blocks = session.blocks.concat(blocks);
   let evaluation = new Evaluation();
