@@ -389,3 +389,18 @@ bind @browser
 ~~~
 
 
+## findRootDrawers
+
+~~~
+search
+  query = [#findRootDrawers]
+  action = [#action block entity: [register] scopes: "browser"]
+  not([#scan block entity: [register]])
+  not([#action block value: [register]])
+  final = if record = [#record entity: [register] start stop]
+             action.start >= start
+             action.stop <= stop then record
+          else action
+commit
+  query.drawer += final
+~~~

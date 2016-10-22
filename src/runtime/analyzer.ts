@@ -731,6 +731,23 @@ export function findFailure(evaluation, info, spans, extraInfo) {
   return info;
 }
 
+export function findRootDrawers(evaluation, info, spans, extraInfo) {
+  let queryId = `query|${info.requestId}`;
+  let query = {tag: "findRootDrawers"};
+  let eve = doQuery(queryId, query, spans, extraInfo);
+
+  let sessionIndex = eve.getDatabase("session").index;
+  let queryInfo = sessionIndex.alookup("tag", "findRootDrawers");
+  if(queryInfo) {
+    let [entity] = queryInfo.toValues();
+    let obj = sessionIndex.asObject(entity);
+    console.log("GOT ROOTS", obj);
+  }
+  return info;
+}
+
+
+
 function blockToFailingScan(block) {
   let scan;
   for(let stratum of block.strata) {
