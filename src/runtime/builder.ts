@@ -261,6 +261,15 @@ function buildScans(block, context, scanLikes, outputScans) {
     } else if(scanLike.type === "not") {
       let notContext = context.extendTo(scanLike);
       notContext.nonProviding = true;
+      // if we have an equality that is with a constant, then we need to add
+      // a node for that equality since we couldn't fold the constant into the variable
+      for(let equality of scanLike.equalities) {
+        let [left, right] = equality;
+        if(left.type === "constant" || right.type === "constant" || (context.hasVariable(left) && context.hasVariable(right))) {
+          let expression = {type: "expression", op: "=", args: equality};
+          scanLike.expressions.push(expression)
+        }
+      }
       let args = [];
       let seen = [];
       let blockVars = block.variables;

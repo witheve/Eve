@@ -15,7 +15,7 @@ import * as providers from "./providers/index";
 //---------------------------------------------------------------------
 
 function makeUUID(idprefix, projection) {
-  let items = [idprefix];
+  let items = ["⦑", idprefix];
   for(let proj of projection) {
     items.push(proj);
   }
