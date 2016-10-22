@@ -91,7 +91,172 @@ commit @inspector
   inspector.state += action
 ```
 
+
+## Data
+
+As the inspector states change, it will need to gather different data from the editor and language service. Data requests will be added to the `data` attribute and requests for that data will be bound for so long as those values exist. By gathering all the data in a separate pass, UI to display it can share the same data and be written immediate-mode style.
+
+Certain kinds of data depend on other data.
+
+```
+commit @inspector
+  [#data data: "sources"]
+  [#data data: "related" requires: "sources"]
+  [#data data: "cardinalities" requires: "related"]
+  [#data data: "values" requires: "related"]
+  [#data data: "all-values" requires: "related"]
+  [#data data: "affectors"]
+  [#data data: "affector-failures" requires: "affectors"]
+```
+
+If we need data that has a dependency, make sure we're fetching that too.
+
+```
+search @inspector
+  inspector = [#inspector data]
+  [#data data requires]
+
+bind @inspector
+  inspector.data += requires
+```
+
+### Sources
+
+Find source(s) for the current record.
+
+```
+search @inspector
+  [#inspector data: "sources" target: record]
+
+bind @editor
+  [#find-source record]
+```
+
+### Related
+
+Find related(s) for the current record's source action(s).
+
+```
+search @inspector
+  inspector = [#inspector data: "related" target: record]
+
+search @editor
+  [#source record span]
+
+bind @editor
+  [#find-related inspector | span]
+```
+
+### Values
+
+Find the intermediate values that contribute to the currently targeted record.
+
+```
+search @inspector
+  inspector = [#inspector data: "values" target avs: [attribute value]]
+
+search @editor
+  [#source record: target block span]
+  [#related span variable]
+
+bind @editor
+  [#find-value inspector | variable given: [attribute value]]
+```
+
+### All Values
+
+Find all intermediate values for the current target's related variable(s).
+
+```
+search @inspector
+  (inspector, target) = if i = [#inspector data: "all-values" target] then (i, target)
+                        else if i = [#inspector data: "values" target not(avs)] then (i, target)
+
+search @editor
+  [#source record: target block span]
+  [#related span variable]
+
+bind @editor
+  [#find-value inspector | variable]
+```
+
+### Cardinalities
+
+Find cardinalities for the current target's related variable(s).
+
+```
+search @inspector
+  inspector = [#inspector data: "cardinalities" target]
+
+search @editor
+  [#source record: target block span]
+  [#related span variable]
+
+bind @editor
+  [#find-cardinality inspector | variable]
+```
+
+### Affectors
+
+Find the set of blocks that could affect the currently targeted record.
+
+```
+search @inspector
+  inspector = [#inspector data: "affectors" target]
+
+bind @editor
+  [#find-affector record: target attribute: "children"]
+```
+
+### Affector Failures
+
+Find the reasons why affectors of the current target failed.
+
+```
+search @inspector
+  inspector = [#inspector data: "affector-failures" target]
+
+search @editor
+  [#affector record: target block]
+
+bind @editor
+  [#find-failure block]
+```
+
 ## States
+
+Inspector states control how the inspector interacts with the editor and presents itself to the user.
+
+Certain states require data to be fetched.
+
+```
+commit @inspector
+  [#state state: "close-popout"]
+  [#state state: "focus-blocks" requires: "sources"]
+  [#state state: "annotate-blocks" requires: "sources"]
+  [#state state: "highlight-related" requires: "related"]
+  [#state state: "show-values-inline" requires: "values"]
+  [#state state: "show-values-table" requires: "values"]
+  [#state state: "show-cardinalities-inline" requires: "cardinalities"]
+  [#state state: "focus-affectors" requires: "affectors"]
+  [#state state: "annotate-affectors" requires: "affectors"]
+  [#state state: "focus-failures" requires: "affector-failures"]
+  [#state state: "annotate-failures" requires: "affector-failures"]
+  [#state state: "highlight-failures" requires: "affector-failures"]
+```
+
+When the inspector is in a state that requires data, request that data.
+
+```
+search @inspector
+  [#state state requires]
+  inspector = [#inspector state]
+
+bind @inspector
+  inspector.data += requires
+```
+
+### Close Popout
 
 When the `"close-popout"` state is active, remove the `"popout"` state and the `"close-popout"` states.
 
@@ -105,17 +270,9 @@ commit @inspector
   inspector.state -= "close-popout"
 ```
 
-When the `"focus-blocks"` state is active, elide everything but the originating blocks for the currently inspected token.
+### Focus Blocks
 
-```
-search @inspector
-  inspector = [#inspector state: "focus-blocks" target]
-
-bind @editor
-  [#find-source record: target]
-```
-
-If sources have been found for the target in the `"focus-blocks"` state, elide everything besides those sources.
+When the `"focus-blocks"` state is active, elide everything but the originating blocks for the current target.
 
 ```
 search @inspector
@@ -128,22 +285,25 @@ bind @editor
   [#mark-between inspector type: "elision_transient" | token: block]
 ```
 
-When the inspector is in a state requiring related tokens, request them from the editor.
+### Annotate Blocks
+
+When the `"annotate-blocks"` state is active, annotate each source block for the current target.
 
 ```
 search @inspector
-  inspector = if i = [#inspector state: "highlight-related"] then i
-              else if i = [#inspector state: "show-values"] then i
-              else if i = [#inspector state: "show-cardinality"] then i
+  inspector = [#inspector state: "annotate-blocks" target]
 
 search @editor
-  [#source record: target span]
+  [#source record: target block]
 
 bind @editor
-  [#find-related | span]
+  [#mark-span inspector type: "block_annotation" token: block kind: "source" message: "This block provides the inspected value."]
+  [#jump-to token: block]
 ```
 
-When the editor is in the `"highlight-related"` state, mark all related tokens highlighted.
+### Highlight Related
+
+When the `"highlight-related"` state is active, mark all related tokens highlighted.
 
 ```
 search @inspector
@@ -157,37 +317,13 @@ bind @editor
   [#mark-span inspector type: "highlight" | token: variable]
 ```
 
-When the editor is in the `"show-values"` state, request the intermediate values from the editor.
+### Show Values Inline
+
+When the `"show-values-inline"` state is active, badge any found intermediate values.
 
 ```
 search @inspector
-  inspector = [#inspector state: "show-values" target not(avs)]
-
-search @editor
-  [#source record: target block span]
-  [#related span variable]
-
-bind @editor
-  [#find-value inspector | variable]
-```
-
-```
-search @inspector
-  inspector = [#inspector state: "show-values" target avs: [attribute value]]
-
-search @editor
-  [#source record: target block span]
-  [#related span variable]
-
-bind @editor
-  [#find-value inspector | variable given: [attribute value]]
-```
-
-When the editor is in the `"show-values"` state and intermediates have been found, badge them.
-
-```
-search @inspector
-  inspector = [#inspector state: "show-values" target]
+  inspector = [#inspector state: "show-values-inline" target]
 
 search @editor
   [#source record: target block span]
@@ -198,11 +334,13 @@ bind @editor
   [#mark-span inspector type: "badge" kind: "intermediate" target message: value token: variable]
 ```
 
-When the editor is in the `"show-values"` state and intermediates have been found, make a table of them
+### Show Values Table
+
+When the `"show-values-table"` state is active, embed a table of found intermediate values.
 
 ```
 search @inspector
-  inspector = [#inspector state: "show-values" target]
+  inspector = [#inspector state: "show-values-table" target]
 
 search @editor
   [#source record: target block span]
@@ -216,30 +354,15 @@ bind @view
 
 bind @browser
   table.span := block
-
-bind @browser
-  //[#div children: table]
 ```
 
-When the inspector is in the `"show-cardinality"` state, request the cardinalities from the editor.
+### Show Cardinalities Inline
 
-```
-search @inspector
-  inspector = [#inspector state: "show-cardinality" target]
-
-search @editor
-  [#source record: target block span]
-  [#related span variable]
-
-bind @editor
-  [#find-cardinality variable]
-```
-
-When the editor is in the `"show-cardinality"` state and cardinalities have been found, badge them.
+When the `"show-cardinalities-inline"` state is active, badge any found cardinalities.
 
 ```
 search @inspector
-  inspector = [#inspector state: "show-cardinality" target]
+  inspector = [#inspector state: "show-cardinalities-inline" target]
 
 search @editor
   [#source record: target block span]
@@ -250,21 +373,13 @@ bind @editor
   [#mark-span inspector type: "badge" kind: "cardinality" target message: cardinality | token: variable]
 ```
 
-When the editor is in the `"show-affector"` state, request the list of blocks and actions that could impact the target.
+### Focus Affectors
+
+When the `"focus-affectors"` state is active, elide everything but the blocks which could impact the target.
 
 ```
 search @inspector
-  inspector = [#inspector state: "show-affector" target]
-
-bind @editor
-  [#find-affector record: target attribute: "children"]
-```
-
-When we have some affectors, filter to their blocks and highlight them.
-
-```
-search @inspector
-  inspector = [#inspector state: "show-affector" target]
+  inspector = [#inspector state: "focus-affectors" target]
 
 search @editor
   [#affector record: target block action]
@@ -274,24 +389,63 @@ bind @editor
   [#mark-span inspector type: "highlight" | token: action]
 ```
 
-When the editor is in the `"show-failure"` state, request the failing reasons for blocks that could impact the target.
+### Annotate Affectors
+
+When the `"annotate-affectors"` state is active, annotate blocks which could impact the target.
 
 ```
 search @inspector
-  inspector = [#inspector state: "show-failure" target]
+  inspector = [#inspector state: "annotate-affectors" target]
 
 search @editor
-  [#affector record: target block]
+  [#affector record: target block action]
 
 bind @editor
-  [#find-failure block]
+  [#mark-span inspector type: "block_annotation" token: block kind: "affector" message: "This block affects the inspected value."]
+  [#jump-to token: block]
 ```
 
-When the editor is in the `"show-failure"` state, show the failing reasons for blocks that impact the target.
+### Focus Failures
+
+When the `"focus-failures"` state is active, elide everything but the blocks which could impact the target but did not.
 
 ```
 search @inspector
-  inspector = [#inspector state: "show-failure" target]
+  inspector = [#inspector state: "focus-failures" target]
+
+search @editor
+  [#affector record: target block action]
+  [#failure block]
+
+bind @editor
+  [#mark-between inspector type: "elision_transient" | token: block]
+  [#mark-span inspector type: "highlight" | token: action]
+```
+
+### Annotate Failures
+
+When the `"annotate-failures"` state is active, annotate the blocks which could impact the target.
+
+```
+search @inspector
+  inspector = [#inspector state: "annotate-failures" target]
+
+search @editor
+  [#affector record: target block action]
+  [#failure block]
+
+bind @editor
+  [#mark-span inspector type: "block_annotation" token: block kind: "failure" message: "This block could affect the inspected value but failed."]
+  [#jump-to token: block]
+```
+
+### Highlight Failures
+
+When the `"highlight-failures"` state is active, show the failing reasons for blocks that impact the target.
+
+```
+search @inspector
+  inspector = [#inspector state: "highlight-failures" target]
 
 search @editor
   [#affector record: target block]
@@ -319,13 +473,11 @@ bind @browser
     [#div #editor #inspector target x y class: "inspector-pane" children:
       [#div #attributes-panel children: attributes]
       [#div #options-panel class: "buttons" children:
-        [#button inspector text: "Find events" action: ("close-popout", "focus-blocks")]
-        [#button inspector text: "Why this?" action: ("close-popout", "focus-blocks", "show-values")]
-        [#button inspector text: "Too few? Too many?" action: ("close-popout", "focus-blocks", "show-cardinality")]
-        [#button inspector text: "Not drawing?" action: ("close-popout", "show-affector", "show-failure")]]]
+        [#button inspector text: "Find events" action: ("close-popout", "annotate-blocks")]
+        [#button inspector text: "Why this?" action: ("close-popout", "annotate-blocks", "show-values-table")]
+        [#button inspector text: "Too few? Too many?" action: ("close-popout", "focus-blocks", "show-cardinalities-inline")]
+        [#button inspector text: "Not drawing?" action: ("close-popout", "annotate-affectors", "highlight-failures")]]]
 ```
-
-
 
 
 
