@@ -60,7 +60,6 @@ class Responder {
       let {text, spans, extraInfo} = results;
       let build = builder.buildDoc(results);
       let {blocks, errors: buildErrors} = build;
-      if(errors && errors.length) console.error(errors);
       this.lastParse = results;
       for(let error of buildErrors) {
         error.injectSpan(spans, extraInfo);

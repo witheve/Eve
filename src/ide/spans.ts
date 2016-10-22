@@ -1,6 +1,6 @@
 import * as CodeMirror from "codemirror";
 import {Editor, Change, ChangeCancellable} from "../ide";
-import {Range, Position, isRange, comparePositions, samePosition, whollyEnclosed} from "../util";
+import {Range, Position, isRange, comparePositions, samePosition, whollyEnclosed, debounce} from "../util";
 
 type FormatAction = "add"|"remove"|"split"
 
@@ -607,6 +607,47 @@ class WhitespaceSpan extends LineSpan {
   }
 }
 
+export class BlockAnnotationSpan extends BlockSpan {
+  source:DocumentCommentSpanSource;
+  annotation?: CodeMirror.AnnotateScrollbar.Annotation;
+
+  apply(from:Position, to:Position, origin = "+input") {
+    this.lineBackgroundClass = "annotated annotated_" + this.source.kind;
+    this._attributes.className = null;
+    super.apply(from, to, origin);
+  }
+
+  clear(origin:string = "+delete") {
+    if(this.annotation) {
+      this.annotation.clear();
+      this.annotation = undefined;
+    }
+    if(!this.marker) return;
+    let loc = this.find();
+    if(loc) {
+      clearLineClasses(loc.from.line, loc.to.line, this.editor, this);
+    }
+    super.clear(origin);
+  }
+
+  refresh() {
+    let loc = this.find();
+    if(!loc) return this.clear();
+
+    if(!this.annotation) {
+      this.annotation = this.editor.cm.annotateScrollbar({className: `scrollbar-annotation ${this.source.kind}`});
+    }
+    if(loc) {
+      this.annotation.update([loc]);
+      if(!this.disabled) {
+        updateLineClasses(loc.from.line, loc.to.line, this.editor, this);
+      } else {
+        clearLineClasses(loc.from.line, loc.to.line, this.editor, this);
+      }
+    }
+  }
+}
+
 export class ParserSpan extends Span {
   protected static _editorControlled = false;
   protected _editorControlled = false;
@@ -614,7 +655,7 @@ export class ParserSpan extends Span {
   _spanStyle:"inline" = "inline";
 }
 
-interface DocumentCommentSpanSource extends SpanSource { kind: "string", message: "string" }
+interface DocumentCommentSpanSource extends SpanSource { kind: string, message: string, delay?: number }
 export class DocumentCommentSpan extends ParserSpan {
   source:DocumentCommentSpanSource;
 
@@ -639,6 +680,9 @@ export class DocumentCommentSpan extends ParserSpan {
       this.commentElem.className += " code-comment-widget";
     }
 
+    if(this.source.delay) {
+      this["updateWidget"] = debounce(this.updateWidget, this.source.delay);
+    }
     super.apply(from, to, origin);
   }
 
@@ -680,9 +724,16 @@ export class DocumentCommentSpan extends ParserSpan {
       if(loc.to.line !== this.widgetLine) {
         this.widgetLine = loc.to.line;
         if(this.commentWidget) this.commentWidget.clear();
-        this.commentWidget = this.editor.cm.addLineWidget(this.widgetLine, this.commentElem);
+        this.updateWidget();
       }
     }
+  }
+
+  updateWidget() {
+    if(this.commentWidget) this.commentWidget.clear();
+    let loc = this.find();
+    if(!loc) return;
+    this.commentWidget = this.editor.cm.addLineWidget(this.widgetLine, this.commentElem);
   }
 
   get kind() { return this.source.kind || "error"; }
@@ -747,6 +798,7 @@ export var spanTypes = {
   code_block: CodeBlockSpan,
 
   document_comment: DocumentCommentSpan,
+  block_annotation: BlockAnnotationSpan,
   badge: BadgeSpan,
   "default": ParserSpan
 }
