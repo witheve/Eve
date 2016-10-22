@@ -186,7 +186,7 @@ body { background: #f5f5f5; color: #555; }
 /****************************************************************************\
  * Views
 \****************************************************************************/
-.program > .view { display: none; }
+.program > .view { display: none !important; }
 
 .view-container { margin:10px 50px 0px 10px; padding-left: 20px; border-left:5px solid #ccc; background: #e4e4e4; }
 .CodeMirror-linewidget + .CodeMirror-linewidget .view-container { margin-top:0; }
