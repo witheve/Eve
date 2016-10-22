@@ -421,8 +421,8 @@ commit
 search
   query = [#findMaybeDrawers]
   [#drawing-tag tag: drawing-tag]
-  action = [#action entity: [register] block attribute: "tag" value: drawing-tag not(scopes = "browser")]
-  //not(action.scopes = "browser")
+  action = [#action entity: [register] block attribute: "tag" value: drawing-tag]
+  not(action.scopes = "browser")
   final = if record = [#record entity: [register] start stop]
              action.start >= start
              action.stop <= stop then record
