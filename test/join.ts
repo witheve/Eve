@@ -2718,3 +2718,35 @@ test("not can't provide a variable for an attribute access", (assert) => {
   `);
   assert.end();
 })
+
+
+test.only("indirect constant equality in if", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "tag", "div"],
+      ["a", "text", "1 is true"],
+      ["b", "tag", "div"],
+      ["b", "text", "2 is false"],
+      ["c", "tag", "div"],
+      ["c", "text", "3 is false"],
+    ],
+    remove: [],
+  };
+  evaluate(assert, expected, `
+    Now consider this:
+
+    ~~~
+      search
+        one = 1
+        x = range[from: 1, to: 3]
+        value = if x = one then "true" else "false"
+
+      bind @browser
+        [#div text: "{{x}} is {{value}}"]
+    ~~~
+  `);
+  assert.end();
+})
+
+
+

@@ -107,6 +107,7 @@ class BuilderContext {
     while(!finished) {
       finished = true;
       for(let equality of block.equalities) {
+        if(equality === undefined) continue;
         let [left, right] = equality;
 
         if(left.type === "constant" && right.type === "constant") {
@@ -209,6 +210,36 @@ class BuilderContext {
 // Scans
 //-----------------------------------------------------------
 
+function checkSubBlockEqualities(context, block) {
+  // if we have an equality that is with a constant, then we need to add
+  // a node for that equality since we couldn't fold the constant into the variable
+  let equalityIx = 0;
+  for(let equality of block.equalities) {
+    let [left, right] = equality;
+    let needsEquality;
+    let hasLeft = context.hasVariable(left);
+    let hasRight = context.hasVariable(right);
+    if(left.type === "constant") {
+      needsEquality = true;
+    } else if(right.type === "constant") {
+      needsEquality = true;
+    } else if(hasLeft && hasRight) {
+      needsEquality = true;
+    } else if(hasLeft && !join.isVariable(context.getValue(left))) {
+      needsEquality = true;
+    } else if(hasRight && !join.isVariable(context.getValue(right))) {
+      needsEquality = true;
+    }
+    // console.log("branch equality", left, right, leftVal, rightVal);
+    if(needsEquality) {
+      let expression = {type: "expression", op: "=", args: equality};
+      block.expressions.push(expression)
+      block.equalities[equalityIx] = undefined;
+    }
+    equalityIx++;
+  }
+}
+
 function buildScans(block, context, scanLikes, outputScans) {
   let {unprovided} = block;
   for(let scanLike of scanLikes) {
@@ -259,17 +290,11 @@ function buildScans(block, context, scanLikes, outputScans) {
       outputScans.push(final);
       scanLike.buildId = final.id;
     } else if(scanLike.type === "not") {
+      checkSubBlockEqualities(context, scanLike);
+
       let notContext = context.extendTo(scanLike);
       notContext.nonProviding = true;
-      // if we have an equality that is with a constant, then we need to add
-      // a node for that equality since we couldn't fold the constant into the variable
-      for(let equality of scanLike.equalities) {
-        let [left, right] = equality;
-        if(left.type === "constant" || right.type === "constant" || (context.hasVariable(left) && context.hasVariable(right))) {
-          let expression = {type: "expression", op: "=", args: equality};
-          scanLike.expressions.push(expression)
-        }
-      }
+
       let args = [];
       let seen = [];
       let blockVars = block.variables;
@@ -299,16 +324,9 @@ function buildScans(block, context, scanLikes, outputScans) {
         }
       }
       for(let branch of scanLike.branches) {
+        checkSubBlockEqualities(context, branch.block);
+
         let branchContext = context.extendTo(branch.block);
-        // if we have an equality that is with a constant, then we need to add
-        // a node for that equality since we couldn't fold the constant into the variable
-        for(let equality of branch.block.equalities) {
-          let [left, right] = equality;
-          if(left.type === "constant" || right.type === "constant" || (context.hasVariable(left) && context.hasVariable(right))) {
-            let expression = {type: "expression", op: "=", args: equality};
-            branch.block.expressions.push(expression)
-          }
-        }
         for(let variableName in branch.block.variables) {
           let cur = blockVars[variableName];
           if(!cur) continue;
