@@ -165,6 +165,11 @@ class Responder {
       let extraInfo = {};
       let spanId = analyzer.findRootDrawers(evaluation, data, spans, extraInfo);
       this.send(JSON.stringify(data));
+    } else if(data.type === "findMaybeDrawers") {
+      let spans = [];
+      let extraInfo = {};
+      let spanId = analyzer.findMaybeDrawers(evaluation, data, spans, extraInfo);
+      this.send(JSON.stringify(data));
     }
   }
 }
@@ -206,6 +211,6 @@ export function init(code) {
   evaluation.fixpoint();
 
   client.socket.onopen();
-  // responder.handleEvent(JSON.stringify({type: "findRootDrawers", requestId: 0}));
+  // responder.handleEvent(JSON.stringify({type: "findMaybeDrawers", requestId: 0}));
   // responder.handleEvent(JSON.stringify({type: "findSource", span: "editor|block|18|node|19", requestId: 0}));
 }
