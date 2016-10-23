@@ -201,7 +201,7 @@ export class Evaluation {
       for(let block of blocks) {
         let start = perf.time();
         block.execute(this.multiIndex, changes);
-        perf.block(block.name, start);
+        perf.block(block.id, start);
       }
       // console.log(changes);
       commit = changes.commit();

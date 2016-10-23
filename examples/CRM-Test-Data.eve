@@ -38,18 +38,29 @@ commit
 ```
 search
   users = [#user]
-  messages = [#message]
-  threads = [#thread]
   u = count[given: users]
-  m = count[given: messages]
-  t = count[given: threads]
 
 bind @browser
   [#div text: "total-users: {{u}}"]
-  [#div text: "total-messages: {{m}}"]
-  [#div text: "total-threads: {{t}}"]
 ```
 
+```
+search
+  messages = [#message]
+  m = count[given: messages]
+
+bind @browser
+  [#div text: "total-messages: {{m}}"]
+```
+
+```
+search
+  threads = [#thread]
+  t = count[given: threads]
+
+bind @browser
+  [#div text: "total-threads: {{t}}"]
+```
 
 Generate random users every second
 
@@ -74,7 +85,7 @@ search
   max = 8
   r = round[value: random[seed: seconds] * (max - min) + min]
   r2 = range[from: 1, to: r]
-  
+
 commit
   [#message i: "{{time-string}}:{{seconds}}:{{r2}}"]
 ```
@@ -82,7 +93,7 @@ commit
 Store some first names for fake users
 
 
-search 
+search
   test = [#test-data]
 
 commit
