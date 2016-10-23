@@ -81,3 +81,23 @@ search
 bind @view
   [#value value: name]
 ```
+
+
+```
+search @inspector
+  inspector = [#inspector]
+
+bind @view
+  [#inspector-debugger inspector]
+```
+
+```
+search @browser
+  div = [#div fruit]
+
+search
+  open = fruit.open
+
+bind @browser
+  div.open := open
+```
