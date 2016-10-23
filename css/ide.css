@@ -217,7 +217,7 @@ table.view td { padding: 0 5px; border: 1px solid #ccc; border-top: none; border
 .CodeMirror .badge-widget:after { content: " )"; }
 .CodeMirror .cause-of-failure { background: rgba(255, 127, 127, 0.4); }
 
-.inspector-pane { overflow:hidden; display:flex; width:250px; background: #666; flex-direction: column; color: #eee; border-radius:2px; box-shadow: 0 2px 8px #aaa; }
+.inspector-pane { overflow:hidden; display:flex; width:250px; background: #666; flex-direction: column; color: #eee; border-radius:2px; box-shadow: 0 2px 8px #aaa; z-index: 10; }
 .inspector-pane .buttons { display:flex; flex-direction:column; }
 .inspector-pane .buttons button { background:none; border:none; color: #eee; font-size: 10pt; width: 100%; padding: 8px 15px; text-align:left; }
 .inspector-pane .buttons button + button { border-top:1px solid #555; }
