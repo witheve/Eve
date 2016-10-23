@@ -380,7 +380,7 @@ function getFocusPath(target) {
   let root = activeElements.root;
   let current = target;
   let path:string[] = [];
-  while(current !== root && current) {
+  while(current !== root && current && current.parentElement) {
     let parent = current.parentElement;
     path.unshift(Array.prototype.indexOf.call(parent.children, current));
     current = parent;
