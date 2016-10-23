@@ -88,7 +88,7 @@ commit @inspector
   inspector := none
 ```
 
-### Option Click
+### Click Option
 
 When an inspector button is pressed, activate any new states we want to transition into.
 
@@ -116,7 +116,7 @@ commit @inspector
   inspector.state -= deactivate
 ```
 
-### Attribute Table Click
+### Click Attribute Table
 
 When a row in the attribute table is clicked, find the source of that particular attribute.
 
@@ -131,6 +131,26 @@ search @browser
 commit @inspector
   inspector.attribute := key
 ```
+
+### Click Elsewhere
+
+Any click that is entirely outside of the inspector will close it.
+
+|```
+search @inspector
+  inspector = [#inspector]
+
+search @event
+  event = [#click]
+  not([#click element: inspector])
+
+commit @inspector
+  inspector := none
+
+commit @browser
+  [#div text: event]
+|```
+
 
 While the inspector is open on an element, update its avs to that element's avs. This will persist until it's no longer potentially relevant.
 @NOTE: This is kind of weird and it may be better to have multiple targets instead.
