@@ -1590,10 +1590,14 @@ export class Editor {
 
   // @NOTE: Does this belong in the IDE?
   controls() {
+    let inspectorButton:Elem = {text: "inspect", click: () => this.ide.toggleInspecting()};
+    if(this.ide.inspectingClick) inspectorButton.text = "click to inspect";
+    else if(this.ide.inspecting) inspectorButton.text = "stop inspecting";
+
     return {c: "flex-row controls", children: [
       {text: "restart", click: () => this.ide.eval(false)},
       {text: "run", click: () => this.ide.eval(true)},
-      {text: this.ide.inspecting ? "stop inspecting" : "inspect", click: () => this.ide.toggleInspecting()}
+      inspectorButton
     ]};
   }
 
@@ -2160,6 +2164,7 @@ export class IDE {
       },
 
       "inspector": (action, actionId) => {
+        this.inspecting = true;
         let inspectorElem:HTMLElement = activeElements[actionId] as any;
         if(action["in-editor"]) this.editor.cm.getWrapperElement().appendChild(inspectorElem);
 
@@ -2168,6 +2173,7 @@ export class IDE {
           inspectorElem.style.left = action.x[0];
           inspectorElem.style.top = action.y[0];
         }
+        this.queueUpdate();
       }
     },
 
@@ -2189,8 +2195,13 @@ export class IDE {
       "mark-range": (action) => {
         if(!action.span) return;
         action.span.clear();
+      },
+
+      "inspector": (action, actionId) => {
+        this.inspecting = false;
+        this.queueUpdate();
       }
-    }
+    },
   };
 
   updateActions(inserts: string[], removes: string[], records) {
@@ -2198,8 +2209,8 @@ export class IDE {
       for(let recordId of removes) {
         let action = this.activeActions[recordId];
         if(!action) return;
-        console.log("STOP", recordId, action.tag, action);
         let run = this.actions.remove[action.tag];
+        console.log("STOP", action.tag, recordId, action, !!run);
         if(run) run(action);
         delete this.activeActions[recordId];
       }
@@ -2225,9 +2236,9 @@ export class IDE {
           if(!action[attr]) action[attr] = record[attr];
         }
         this.activeActions[recordId] = action;
-        console.log("START", recordId, action.tag, action);
 
         let run = this.actions.insert[action.tag];
+        console.log("START", action.tag, recordId, action, !!run);
         if(!run) console.warn(`Unable to run unknown action type '${action.tag}'`, recordId, record);
         else run(action, recordId);
       }
@@ -2340,7 +2351,6 @@ export class IDE {
     } else {
       this.inspectingClick = true;
     }
-    this.inspecting = !this.inspecting;
     this.queueUpdate();
   }
 
