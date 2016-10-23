@@ -145,8 +145,8 @@ search @editor
                        if action.span then ("span", action.span)
 
 bind @browser
-  result = [#editor #find-source]
-  lookup[record: result, attribute, value]
+  action = [#editor #find-source]
+  lookup[record: action, attribute, value]
 ```
 
 When a source event comes in, persist it into the editor and clear it from the event bag.
@@ -160,8 +160,8 @@ search @event
                        if event.block then ("block", event.block)
 
 commit @editor
-  event <- [#source]
-  lookup[record: event, attribute, value]
+  source = [#source action]
+  lookup[record: source, attribute, value]
 
 commit @event
   event := none
@@ -169,13 +169,14 @@ commit @event
 
 When a source's supporting action is removed, remove it.
 ```
-search @editor @browser
+search @editor
   source = [#source action]
   not(action = [#find-source])
 
 commit @editor
   source := none
 ```
+
 
 ### Find Related
 
