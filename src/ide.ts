@@ -2161,6 +2161,7 @@ export class IDE {
 
       "inspector": (action, actionId) => {
         let inspectorElem:HTMLElement = activeElements[actionId] as any;
+        if(action["in-editor"]) this.editor.cm.getWrapperElement().appendChild(inspectorElem);
 
         if(action.x && action.y) {
           inspectorElem.style.position = "absolute";
@@ -2352,10 +2353,15 @@ export class IDE {
       let pos = this.editor.cm.coordsChar({left: event.pageX, top: event.pageY});
       let spans = this.editor.findSpansAt(pos).sort(compareSpans);
 
+      let editorContainer = this.editor.cm.getWrapperElement();
+      let bounds = editorContainer.getBoundingClientRect();
+      let x = event.clientX - bounds.left;
+      let y = event.clientY - bounds.top;
+
       while(spans.length) {
         let span = spans.shift();
         if(!span.isEditorControlled() || span.type === "code_block") {
-          events.push({tag: ["inspector", "inspect", spans.length === 0 ? "direct-target" : undefined], target: span.source.id, type: span.source.type});
+          events.push({tag: ["inspector", "inspect", spans.length === 0 ? "direct-target" : undefined], target: span.source.id, type: span.source.type, x, y});
         }
       }
 
