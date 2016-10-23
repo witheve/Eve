@@ -324,7 +324,7 @@ window.addEventListener("click", function(event) {
       objs.push({tag, element: current.entity});
     }
     if(current === activeElements["root"]) {
-      objs.push({tag: objs.length === 0 ? ["click"] : ["click", "direct-target"]});
+      objs.push({tag: objs.length === 0 ? ["click"] : ["click", "direct-target"], root: true});
     }
     current = current.parentElement;
   }
