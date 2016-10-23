@@ -2163,6 +2163,17 @@ export class IDE {
         }));
       },
 
+      "find-root-drawers": (action, actionId) => {
+        this.languageService.findRootDrawer(null, this.languageService.unpackRootDrawer((records) => {
+          for(let record of records) {
+            record.tag.push("editor");
+            record["action"] = actionId;
+          }
+          console.log("ROOT DRAWER", records);
+          sendEvent(records);
+        }));
+      },
+
       "inspector": (action, actionId) => {
         this.inspecting = true;
         let inspectorElem:HTMLElement = activeElements[actionId] as any;
@@ -2384,6 +2395,11 @@ export class IDE {
         events.push({tag: ["inspector", "inspect", current === event.target ? "direct-target" : undefined], target: current.entity, type: "element", x, y});
         current = current.parentNode;
       }
+
+      // If we didn't click on an element, inspect the root.
+      if(events.length === 0) {
+        events.push({tag: ["inspector", "inspect", "direct-target"], type: "root", x, y});
+      }
     }
 
     this.queueUpdate();
@@ -2412,6 +2428,8 @@ type FindAffectorArgs = {record?: string, attribute?: string, span?: string, aff
 type AffectorRecord = {tag: string[], record?: string, attribute?: string, span?: string, block: string[], action: string[]};
 type FindFailureArgs = {block: string[], span?: {block: string, start: number, stop: number}[]};
 type FailureRecord = {tag: string[], block: string, start: number, stop: number};
+type FindRootDrawerArgs = {drawers?: {id: string, start: number, stop: number}[]};
+type RootDrawerRecord = {tag: string[], span: string, start: number, stop: number};
 
 class LanguageService {
   protected static _requestId = 0;
@@ -2514,6 +2532,20 @@ class LanguageService {
     };
   }
 
+  findRootDrawer(args:any, callback:(args:FindRootDrawerArgs) => void) {
+    this.send("findRootDrawers", args || {}, callback);
+  }
+
+  unpackRootDrawer(callback:(args:RootDrawerRecord[]) => void) {
+    return (message:FindRootDrawerArgs) => {
+      let records:RootDrawerRecord[] = [];
+      for(let drawer of message.drawers) {
+        records.push({tag: ["root-drawer"], span: drawer.id, start: drawer.start, stop: drawer.stop});
+      }
+      callback(records);
+    };
+  }
+
   send(type:string, args:any, callback:any) {
     let id = LanguageService._requestId++;
     args.requestId = id;
@@ -2525,7 +2557,7 @@ class LanguageService {
 
   handleMessage = (message) => {
     let type = message.type;
-    if(type === "findSource" || type === "findRelated" || type === "findValue" || type === "findCardinality" || type === "findAffector" || type === "findFailure") {
+    if(type === "findSource" || type === "findRelated" || type === "findValue" || type === "findCardinality" || type === "findAffector" || type === "findFailure" || type === "findRootDrawers") {
       let id = message.requestId;
       let listener = this._listeners[id];
       if(listener) {
