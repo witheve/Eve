@@ -57,6 +57,20 @@ commit @event
   event := none
 ```
 
+When the document root is targeted, inspect it.
+
+```
+search @event
+  event = [#inspector #inspect #direct-target type: "root" x y]
+
+
+commit @inspector
+  [#inspector root: "true" state: "popout" x y]
+
+commit @event
+  event := none
+```
+
 When a block is targeted, inspect it.
 
 ```
@@ -275,7 +289,7 @@ bind @editor
 
 ### Affectors
 
-Find the set of blocks that could affect the currently targeted record.
+Find the set of blocks that could affect the currently targeted element.
 
 ```
 search @inspector
@@ -283,6 +297,16 @@ search @inspector
 
 bind @editor
   [#find-affector record: element attribute: "children"]
+```
+
+Find the set of blocks that could draw into the document root
+
+```
+search @inspector
+  inspector = [#inspector data: "affectors" root]
+
+bind @editor
+  [#find-root-drawers]
 ```
 
 ### Affector Failures
@@ -469,7 +493,7 @@ bind @editor
 
 ### Annotate Affectors
 
-When the `"annotate-affectors"` state is active, annotate blocks which could impact the target.
+When the `"annotate-affectors"` state is active, annotate blocks which could impact the target element.
 
 ```
 search @inspector
@@ -481,6 +505,20 @@ search @editor
 bind @editor
   [#mark-span inspector type: "block_annotation" token: block kind: "affector" message: "This block affects the inspected value."]
   [#jump-to token: block]
+```
+
+When the `"annotate-affectors"` state is active, annotate blocks which could draw to the document root.
+
+```
+search @inspector
+  inspector = [#inspector state: "annotate-affectors" root]
+
+search @editor
+  [#root-drawer span start stop]
+
+bind @editor
+  [#mark-range inspector type: "annotation" span start stop kind: "affector" message: "This block could draw to the document root."]
+  [#jump-to-position position: start]
 ```
 
 ### Focus Failures
@@ -573,7 +611,22 @@ bind @browser
         [#button inspector text: "Not drawing?" activate: ("annotate-affectors", "highlight-failures") deactivate: ("annotate-blocks", "popout")]]]
 ```
 
+When an `#inspector` is open targeted to the document root, show the root popout.
+
+```
+search @inspector
+  inspector = [#inspector state: "popout" root]
+  x = inspector.x
+  y = inspector.y + 15
+
+bind @browser
+  inspector <- [#div #editor #inspector x y class: "inspector-pane" children:
+      [#div #options-panel inspector class: "buttons" children:
+        [#button inspector text: "Not drawing?" activate: ("annotate-affectors", "highlight-failures") deactivate: "popout"]]]
+```
+
 When an `#inspector` is open targeted to a block, show the block popout.
+@TODO: Just make this the popout for blocks.
 
 ```
 search @inspector
@@ -581,12 +634,10 @@ search @inspector
   x = inspector.x
   y = inspector.y + 15
 
-  bind @browser
-    inspector <-
-      [#div #editor #inspector in-editor: true x y class: "inspector-pane" children:
-      [#div #options-panel inspector class: "buttons" children:
-        [#button inspector text: "Did this fail?" activate: "highlight-block-failure" deactivate: "block-popout"]
-      ]]
+bind @browser
+  inspector <- [#div #editor #inspector in-editor: true x y class: "inspector-pane" children:
+    [#div #options-panel inspector class: "buttons" children:
+    [#button inspector text: "Did this fail?" activate: "highlight-block-failure" deactivate: "block-popout"]]]
 
 ```
 
