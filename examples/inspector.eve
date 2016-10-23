@@ -477,7 +477,23 @@ bind @browser
         [#button inspector text: "Not drawing?" activate: ("annotate-affectors", "highlight-failures") deactivate: ("annotate-blocks", "popout")]]]
 ```
 
+## Debug
 
+### Inspector Debugger
+
+```
+search @view
+  wrapper = [#inspector-debugger inspector]
+  lookup[record: wrapper, attribute: "tag", value: "inspector-debugger", node]
+
+search (@session, @browser, @inspector)
+  lookup[record: inspector attribute: key value]
+
+bind @view @browser
+  wrapper.node := node
+  wrapper.tag += "kv-table"
+  wrapper.kvs := [key value]
+```
 
 
 

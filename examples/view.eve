@@ -128,5 +128,5 @@ search @view
 
 bind @browser
   wrapper <- [#view #div node class: "view bar-graph" style: [width: graph-width, height: graph-height] children:
-    [#div class: "bar-graph-bar" bar sort style: [width: bar-width height: bar-height] text: label]]
+    [#div class: "bar-graph-bar" label | sort style: [width: bar-width height: bar-height] text: label]]
 ```

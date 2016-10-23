@@ -2244,7 +2244,7 @@ export class IDE {
       if(!view) continue;
       // Detach view
       if(view.widget) view.widget.clear();
-      delete this.activeViews[recordId];
+      view.widget = undefined;
     }
 
     for(let recordId of inserts) {
@@ -2256,7 +2256,7 @@ export class IDE {
 
       // Otherwise, we'll grab it and attach it to its creator in the editor.
       let record = records[recordId];
-      let view = this.activeViews[recordId] = {record: recordId, container: document.createElement("div")};
+      let view = this.activeViews[recordId] = this.activeViews[recordId] || {record: recordId, container: document.createElement("div")};
       view.container.className = "view-container";
 
       //this.attachView(recordId, record.node)
@@ -2274,24 +2274,34 @@ export class IDE {
 
   attachView(recordId:string, spanId:string) {
     let view = this.activeViews[recordId];
-    // If the view is already active, he doesn't need inserted again.
-    if(this.activeViews[recordId] && this.activeViews[recordId].widget) return;
 
     // @NOTE: This isn't particularly kosher.
     let node = activeElements[recordId];
     if(!node) return;
-    view.container.appendChild(node);
+    if(node !== view.container.firstChild) {
+      view.container.appendChild(node);
+    }
 
-    let sourceSpan:Span|undefined;
+    let sourceSpan:Span|undefined = view.span;
     if(spanId !== undefined) {
       sourceSpan = this.editor.getSpanBySourceId(spanId);
     }
+
     if(!sourceSpan) return;
+    view.span = sourceSpan;
 
     let loc = sourceSpan.find();
     if(!loc) return;
     let line = loc.to.line;
     if(sourceSpan.isBlock()) line -= 1;
+
+    if(view.widget && line === view.line) return;
+
+    if(view.widget) {
+      view.widget.clear();
+    }
+
+    view.line = line;
     view.widget = this.editor.cm.addLineWidget(line, view.container);
   }
 
