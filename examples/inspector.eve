@@ -68,9 +68,6 @@ commit @inspector
 
 commit @event
   event := none
-
-bind @browser
-  [#div text: "hello yes I am inspector"]
 ```
 
 ### Clear
@@ -136,7 +133,7 @@ commit @inspector
 
 Any click that is entirely outside of the inspector will close it.
 
-|```
+```
 search @inspector
   inspector = [#inspector]
 
@@ -146,11 +143,7 @@ search @event
 
 commit @inspector
   inspector := none
-
-commit @browser
-  [#div text: event]
-|```
-
+```
 
 While the inspector is open on an element, update its avs to that element's avs. This will persist until it's no longer potentially relevant.
 @NOTE: This is kind of weird and it may be better to have multiple targets instead.
@@ -165,7 +158,6 @@ search @browser
 commit @inspector
   inspector.avs := [attribute value]
 ```
-
 
 ## Data
 
@@ -573,8 +565,8 @@ bind (@view, @browser)
 bind @browser
   inspector <-
     [#div #editor #inspector element x y class: "inspector-pane" children:
-      [#div #attributes-panel children: attributes]
-      [#div #options-panel class: "buttons" children:
+      [#div #attributes-panel inspector children: attributes]
+      [#div #options-panel inspector class: "buttons" children:
         [#button inspector text: "Find events" deactivate: "popout"]
         [#button inspector text: "Why this?" activate: "show-values-table" deactivate: "popout"]
         [#button inspector text: "Too few? Too many?" activate: "show-cardinalities-inline" deactivate: "popout"]
