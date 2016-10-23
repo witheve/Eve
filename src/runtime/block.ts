@@ -242,18 +242,17 @@ export class Block {
     let {positions, info} = this.prevInserts;
     for(let key of Object.keys(positions)) {
       let pos = positions[key];
+      let type = info[pos];
+      let neuePos = newPositions[key];
+      let neueType = newInfo[neuePos];
       // if this was added
-      if(info[pos] === ChangeType.ADDED) {
-        let neuePos = newPositions[key];
-        // and it wasn't added in this one, we need to remove it
-        if(newInfo[neuePos] !== ChangeType.ADDED) {
-          let e = info[pos + 1];
-          let a = info[pos + 2];
-          let v = info[pos + 3];
-          let node = info[pos + 4];
-          let scope = info[pos + 5];
-          changes.unstore(scope,e,a,v,node);
-        }
+      if(neueType === undefined) {
+        let e = info[pos + 1];
+        let a = info[pos + 2];
+        let v = info[pos + 3];
+        let node = info[pos + 4];
+        let scope = info[pos + 5];
+        changes.unstore(scope,e,a,v,node);
       }
     }
   }
