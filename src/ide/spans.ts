@@ -648,6 +648,50 @@ export class BlockAnnotationSpan extends BlockSpan {
   }
 }
 
+export class AnnotationSpan extends Span {
+  lineTextClass?:string
+  lineBackgroundClass?:string
+
+  source:DocumentCommentSpanSource;
+  annotation?: CodeMirror.AnnotateScrollbar.Annotation;
+
+  apply(from:Position, to:Position, origin = "+input") {
+    this.lineBackgroundClass = "annotated annotated_" + this.source.kind;
+    this._attributes.className = null;
+    super.apply(from, to, origin);
+  }
+
+  clear(origin:string = "+delete") {
+    if(this.annotation) {
+      this.annotation.clear();
+      this.annotation = undefined;
+    }
+    if(!this.marker) return;
+    let loc = this.find();
+    if(loc) {
+      clearLineClasses(loc.from.line, loc.to.line, this.editor, this);
+    }
+    super.clear(origin);
+  }
+
+  refresh() {
+    let loc = this.find();
+    if(!loc) return this.clear();
+
+    if(!this.annotation) {
+      this.annotation = this.editor.cm.annotateScrollbar({className: `scrollbar-annotation ${this.source.kind}`});
+    }
+    if(loc) {
+      this.annotation.update([loc]);
+      if(!this.disabled) {
+        updateLineClasses(loc.from.line, loc.to.line, this.editor, this);
+      } else {
+        clearLineClasses(loc.from.line, loc.to.line, this.editor, this);
+      }
+    }
+  }
+}
+
 export class ParserSpan extends Span {
   protected static _editorControlled = false;
   protected _editorControlled = false;
@@ -798,6 +842,7 @@ export var spanTypes = {
   code_block: CodeBlockSpan,
 
   document_comment: DocumentCommentSpan,
+  annotation: AnnotationSpan,
   block_annotation: BlockAnnotationSpan,
   badge: BadgeSpan,
   "default": ParserSpan

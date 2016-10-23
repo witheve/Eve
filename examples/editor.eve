@@ -374,3 +374,30 @@ search @editor @browser
 commit @editor
   failure := none
 ```
+
+### Find Root Drawers
+
+```
+search @editor
+  action = [#find-root-drawers]
+
+bind @browser
+  action <- [#editor #find-root-drawers]
+```
+
+```
+search @event
+  event = [#editor #root-drawer action span start stop]
+
+commit @editor
+  event <- [#root-drawer action span start stop]
+```
+
+```
+search @editor @browser
+  drawer = [#drawer action]
+  not(action = [#find-drawer])
+
+commit @editor
+  drawer := none
+```

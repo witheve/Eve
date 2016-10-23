@@ -57,6 +57,20 @@ commit @event
   event := none
 ```
 
+When the document root is targeted, inspect it.
+
+```
+search @event
+  event = [#inspector #inspect #direct-target type: "root" x y]
+
+
+commit @inspector
+  [#inspector root: "true" state: "popout" x y]
+
+commit @event
+  event := none
+```
+
 When a block is targeted, inspect it.
 
 ```
@@ -68,9 +82,6 @@ commit @inspector
 
 commit @event
   event := none
-
-bind @browser
-  [#div text: "hello yes I am inspector"]
 ```
 
 ### Clear
@@ -136,7 +147,7 @@ commit @inspector
 
 Any click that is entirely outside of the inspector will close it.
 
-|```
+```
 search @inspector
   inspector = [#inspector]
 
@@ -146,11 +157,7 @@ search @event
 
 commit @inspector
   inspector := none
-
-commit @browser
-  [#div text: event]
-|```
-
+```
 
 While the inspector is open on an element, update its avs to that element's avs. This will persist until it's no longer potentially relevant.
 @NOTE: This is kind of weird and it may be better to have multiple targets instead.
@@ -165,7 +172,6 @@ search @browser
 commit @inspector
   inspector.avs := [attribute value]
 ```
-
 
 ## Data
 
@@ -283,7 +289,7 @@ bind @editor
 
 ### Affectors
 
-Find the set of blocks that could affect the currently targeted record.
+Find the set of blocks that could affect the currently targeted element.
 
 ```
 search @inspector
@@ -291,6 +297,16 @@ search @inspector
 
 bind @editor
   [#find-affector record: element attribute: "children"]
+```
+
+Find the set of blocks that could draw into the document root
+
+```
+search @inspector
+  inspector = [#inspector data: "affectors" root]
+
+bind @editor
+  [#find-root-drawers]
 ```
 
 ### Affector Failures
@@ -477,7 +493,7 @@ bind @editor
 
 ### Annotate Affectors
 
-When the `"annotate-affectors"` state is active, annotate blocks which could impact the target.
+When the `"annotate-affectors"` state is active, annotate blocks which could impact the target element.
 
 ```
 search @inspector
@@ -489,6 +505,20 @@ search @editor
 bind @editor
   [#mark-span inspector type: "block_annotation" token: block kind: "affector" message: "This block affects the inspected value."]
   [#jump-to token: block]
+```
+
+When the `"annotate-affectors"` state is active, annotate blocks which could draw to the document root.
+
+```
+search @inspector
+  inspector = [#inspector state: "annotate-affectors" root]
+
+search @editor
+  [#root-drawer span start stop]
+
+bind @editor
+  [#mark-range inspector type: "annotation" span start stop kind: "affector" message: "This block could draw to the document root."]
+  [#jump-to-position position: start]
 ```
 
 ### Focus Failures
@@ -573,15 +603,30 @@ bind (@view, @browser)
 bind @browser
   inspector <-
     [#div #editor #inspector element x y class: "inspector-pane" children:
-      [#div #attributes-panel children: attributes]
-      [#div #options-panel class: "buttons" children:
+      [#div #attributes-panel inspector children: attributes]
+      [#div #options-panel inspector class: "buttons" children:
         [#button inspector text: "Find events" deactivate: "popout"]
         [#button inspector text: "Why this?" activate: "show-values-table" deactivate: "popout"]
         [#button inspector text: "Too few? Too many?" activate: "show-cardinalities-inline" deactivate: "popout"]
         [#button inspector text: "Not drawing?" activate: ("annotate-affectors", "highlight-failures") deactivate: ("annotate-blocks", "popout")]]]
 ```
 
+When an `#inspector` is open targeted to the document root, show the root popout.
+
+```
+search @inspector
+  inspector = [#inspector state: "popout" root]
+  x = inspector.x
+  y = inspector.y + 15
+
+bind @browser
+  inspector <- [#div #editor #inspector x y class: "inspector-pane" children:
+      [#div #options-panel inspector class: "buttons" children:
+        [#button inspector text: "Not drawing?" activate: ("annotate-affectors", "highlight-failures") deactivate: "popout"]]]
+```
+
 When an `#inspector` is open targeted to a block, show the block popout.
+@TODO: Just make this the popout for blocks.
 
 ```
 search @inspector
@@ -589,12 +634,10 @@ search @inspector
   x = inspector.x
   y = inspector.y + 15
 
-  bind @browser
-    inspector <-
-      [#div #editor #inspector in-editor: true x y class: "inspector-pane" children:
-      [#div #options-panel inspector class: "buttons" children:
-        [#button inspector text: "Did this fail?" activate: "highlight-block-failure" deactivate: "block-popout"]
-      ]]
+bind @browser
+  inspector <- [#div #editor #inspector in-editor: true x y class: "inspector-pane" children:
+    [#div #options-panel inspector class: "buttons" children:
+    [#button inspector text: "Did this fail?" activate: "highlight-block-failure" deactivate: "block-popout"]]]
 
 ```
 

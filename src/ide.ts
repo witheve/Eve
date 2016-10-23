@@ -1590,10 +1590,14 @@ export class Editor {
 
   // @NOTE: Does this belong in the IDE?
   controls() {
+    let inspectorButton:Elem = {text: "inspect", click: () => this.ide.toggleInspecting()};
+    if(this.ide.inspectingClick) inspectorButton.text = "click to inspect";
+    else if(this.ide.inspecting) inspectorButton.text = "stop inspecting";
+
     return {c: "flex-row controls", children: [
       {text: "restart", click: () => this.ide.eval(false)},
       {text: "run", click: () => this.ide.eval(true)},
-      {text: this.ide.inspecting ? "stop inspecting" : "inspect", click: () => this.ide.toggleInspecting()}
+      inspectorButton
     ]};
   }
 
@@ -2159,7 +2163,19 @@ export class IDE {
         }));
       },
 
+      "find-root-drawers": (action, actionId) => {
+        this.languageService.findRootDrawer(null, this.languageService.unpackRootDrawer((records) => {
+          for(let record of records) {
+            record.tag.push("editor");
+            record["action"] = actionId;
+          }
+          console.log("ROOT DRAWER", records);
+          sendEvent(records);
+        }));
+      },
+
       "inspector": (action, actionId) => {
+        this.inspecting = true;
         let inspectorElem:HTMLElement = activeElements[actionId] as any;
         if(action["in-editor"]) this.editor.cm.getWrapperElement().appendChild(inspectorElem);
 
@@ -2168,6 +2184,7 @@ export class IDE {
           inspectorElem.style.left = action.x[0];
           inspectorElem.style.top = action.y[0];
         }
+        this.queueUpdate();
       }
     },
 
@@ -2189,8 +2206,13 @@ export class IDE {
       "mark-range": (action) => {
         if(!action.span) return;
         action.span.clear();
+      },
+
+      "inspector": (action, actionId) => {
+        this.inspecting = false;
+        this.queueUpdate();
       }
-    }
+    },
   };
 
   updateActions(inserts: string[], removes: string[], records) {
@@ -2198,8 +2220,8 @@ export class IDE {
       for(let recordId of removes) {
         let action = this.activeActions[recordId];
         if(!action) return;
-        console.log("STOP", recordId, action.tag, action);
         let run = this.actions.remove[action.tag];
+        console.log("STOP", action.tag, recordId, action, !!run);
         if(run) run(action);
         delete this.activeActions[recordId];
       }
@@ -2225,9 +2247,9 @@ export class IDE {
           if(!action[attr]) action[attr] = record[attr];
         }
         this.activeActions[recordId] = action;
-        console.log("START", recordId, action.tag, action);
 
         let run = this.actions.insert[action.tag];
+        console.log("START", action.tag, recordId, action, !!run);
         if(!run) console.warn(`Unable to run unknown action type '${action.tag}'`, recordId, record);
         else run(action, recordId);
       }
@@ -2340,7 +2362,6 @@ export class IDE {
     } else {
       this.inspectingClick = true;
     }
-    this.inspecting = !this.inspecting;
     this.queueUpdate();
   }
 
@@ -2374,6 +2395,11 @@ export class IDE {
         events.push({tag: ["inspector", "inspect", current === event.target ? "direct-target" : undefined], target: current.entity, type: "element", x, y});
         current = current.parentNode;
       }
+
+      // If we didn't click on an element, inspect the root.
+      if(events.length === 0) {
+        events.push({tag: ["inspector", "inspect", "direct-target"], type: "root", x, y});
+      }
     }
 
     this.queueUpdate();
@@ -2402,6 +2428,8 @@ type FindAffectorArgs = {record?: string, attribute?: string, span?: string, aff
 type AffectorRecord = {tag: string[], record?: string, attribute?: string, span?: string, block: string[], action: string[]};
 type FindFailureArgs = {block: string[], span?: {block: string, start: number, stop: number}[]};
 type FailureRecord = {tag: string[], block: string, start: number, stop: number};
+type FindRootDrawerArgs = {drawers?: {id: string, start: number, stop: number}[]};
+type RootDrawerRecord = {tag: string[], span: string, start: number, stop: number};
 
 class LanguageService {
   protected static _requestId = 0;
@@ -2504,6 +2532,20 @@ class LanguageService {
     };
   }
 
+  findRootDrawer(args:any, callback:(args:FindRootDrawerArgs) => void) {
+    this.send("findRootDrawers", args || {}, callback);
+  }
+
+  unpackRootDrawer(callback:(args:RootDrawerRecord[]) => void) {
+    return (message:FindRootDrawerArgs) => {
+      let records:RootDrawerRecord[] = [];
+      for(let drawer of message.drawers) {
+        records.push({tag: ["root-drawer"], span: drawer.id, start: drawer.start, stop: drawer.stop});
+      }
+      callback(records);
+    };
+  }
+
   send(type:string, args:any, callback:any) {
     let id = LanguageService._requestId++;
     args.requestId = id;
@@ -2515,7 +2557,7 @@ class LanguageService {
 
   handleMessage = (message) => {
     let type = message.type;
-    if(type === "findSource" || type === "findRelated" || type === "findValue" || type === "findCardinality" || type === "findAffector" || type === "findFailure") {
+    if(type === "findSource" || type === "findRelated" || type === "findValue" || type === "findCardinality" || type === "findAffector" || type === "findFailure" || type === "findRootDrawers") {
       let id = message.requestId;
       let listener = this._listeners[id];
       if(listener) {
