@@ -4,6 +4,8 @@
 
 import * as runtimePerformance from "./performance";
 
+const MAX_ROUNDS = 30;
+
 const capturePerformance = true;
 let perf = runtimePerformance.init(capturePerformance);
 
@@ -77,6 +79,7 @@ export class Evaluation {
   commitQueue: any[];
   multiIndex: MultiIndex;
   databases: Database[];
+  errorReporter: any;
   databaseNames: {[dbId: string]: string};
   nameToDatabase: {[name: string]: Database};
 
@@ -87,6 +90,18 @@ export class Evaluation {
     this.databaseNames = {};
     this.nameToDatabase = {};
     this.multiIndex = index || new MultiIndex();
+  }
+
+  error(error: string, kind = "Error") {
+    if(this.errorReporter) {
+      this.errorReporter(error, kind);
+    } else {
+      if(kind) {
+        console.error(kind + ":", error);
+      } else {
+        console.error(error);
+      }
+    }
   }
 
   unregisterDatabase(name) {
@@ -195,7 +210,7 @@ export class Evaluation {
     let start = runtimePerformance.time();
     let commit;
     changes.changed = true;
-    while(changes.changed && changes.round < 10) {
+    while(changes.changed && changes.round < MAX_ROUNDS) {
       changes.nextRound();
       // console.groupCollapsed("Round" + changes.round);
       for(let block of blocks) {
@@ -207,6 +222,9 @@ export class Evaluation {
       commit = changes.commit();
       blocks = this.blocksFromCommit(commit);
       // console.groupEnd();
+    }
+    if(changes.round > MAX_ROUNDS) {
+      this.error("Evaluation failed to fixpoint", "Fixpoint Error");
     }
     perf.fixpoint(start);
     // console.log("TOTAL ROUNDS", changes.round, runtimePerformance.time(start));

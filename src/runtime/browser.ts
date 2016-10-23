@@ -209,6 +209,10 @@ export function init(code) {
   evaluation.registerDatabase("http", new HttpDatabase());
   evaluation.fixpoint();
 
+  evaluation.errorReporter = (error, kind) => {
+    responder.send(JSON.stringify({type: "error", kind, message: error}));
+  }
+
   client.socket.onopen();
   // responder.handleEvent(JSON.stringify({type: "findMaybeDrawers", requestId: 0}));
   // responder.handleEvent(JSON.stringify({type: "findSource", span: "editor|block|18|node|19", requestId: 0}));
