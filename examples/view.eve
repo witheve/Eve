@@ -53,8 +53,8 @@ search @view
   ix = sort[value: key]
 
 bind @browser
-  wrapper <- [#view #div class: "view kv-table" children:
-    [#div class: "kv-row" sort: ix wrapper children:
+  wrapper <- [#kv-table #view #div class: "view kv-table" children:
+    [#div #kv-row key class: "kv-row" sort: ix wrapper children:
       [#div class: "kv-key" text: key]
       [#div #kv-values class: "kv-values" wrapper key]]]
 ```
