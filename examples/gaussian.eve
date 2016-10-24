@@ -1,12 +1,23 @@
 ```
    bind @browser
-     [#svg viewBox: "0 0 10 30" width:200 height:200]
+     [#div text:"click me alot"]
+     [#svg viewBox: "0 0 50 2" width:200 height:200]
+```
+
+
+rescale the svg area based on the maximum slot
+```
+  search [#slots x total]
+          m = max[value:total given:total]
+  search @browser s = [#svg]
+  bind @browser
+       s.viewBox := "0 0 50 {{m + 2}}"
 ```
 
 ```
   search @event @session
     e = [#click]
-    x = floor[value: gaussian[seed:e σ:2 μ:5]]
+    x = floor[value: gaussian[seed:e σ:4 μ:25]]
     total = if [#slots x total] then total + 1 else 1
   commit s = [#slots x]
          s.total := total
@@ -14,10 +25,11 @@
 
 ```
   search [#slots x total]
+            m = max[value:total given:total]
   search @browser s = [#svg]
   commit @browser
    k = [#rect x width:1 stroke-width:1 stroke:"black"]
-   k.y := 30 - total
+   k.y := m - total
    k.height := total
    s.children += k
 ```
