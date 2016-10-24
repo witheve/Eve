@@ -2,8 +2,6 @@
 // Indexes
 //---------------------------------------------------------------------
 
-let perf = global["perf"];
-
 export class MultiIndex {
   indexes: {[name: string]: TripleIndex};
   scopes: string[];

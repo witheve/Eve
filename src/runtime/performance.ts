@@ -2,21 +2,7 @@
 // Performance
 //---------------------------------------------------------------------
 
-class NoopPerformanceTracker {
-  constructor() { }
-  reset() { }
-  time(start?): number | number[] | string { return 0; }
-  lookup(start) { }
-  store(start) { }
-  block(name, start) { }
-  send(start) { }
-  blockCheck(start) { }
-  fixpoint(start) { }
-  report() { }
-}
-
-class PerformanceTracker {
-
+export class NoopPerformanceTracker {
   storeTime: number;
   storeCalls: number;
 
@@ -24,6 +10,8 @@ class PerformanceTracker {
   lookupCalls: number;
 
   blockTime: any;
+  blockTimeMax: any;
+  blockTimeMin: any;
   blockCalls: any;
 
   sendTime: number;
@@ -38,6 +26,24 @@ class PerformanceTracker {
   time: (start?) => number | number[] | string;
 
   constructor() {
+    this.time = () => 0;
+  }
+  reset() { }
+  lookup(start) { }
+  store(start) { }
+  block(name, start) { }
+  send(start) { }
+  blockCheck(start) { }
+  fixpoint(start) { }
+  report() { }
+}
+
+export class PerformanceTracker extends NoopPerformanceTracker {
+
+  time: (start?) => number | number[] | string;
+
+  constructor() {
+    super();
     this.reset();
     this.time = time;
   }
@@ -54,6 +60,8 @@ class PerformanceTracker {
     this.blockCheckTime = 0;
     this.blockCheckCalls = 0;
     this.blockTime = {};
+    this.blockTimeMax = {};
+    this.blockTimeMin = {};
     this.blockCalls = {};
   }
 
@@ -71,9 +79,18 @@ class PerformanceTracker {
     if(this.blockTime[name] === undefined) {
       this.blockTime[name] = 0;
       this.blockCalls[name] = 0;
+      this.blockTimeMax[name] = -Infinity;
+      this.blockTimeMin[name] = Infinity;
     }
-    this.blockTime[name] += time(start) as number;
+    let total = time(start) as number;
+    this.blockTime[name] += total;
     this.blockCalls[name]++;
+    if(total > this.blockTimeMax[name]) {
+      this.blockTimeMax[name] = total;
+    }
+    if(total < this.blockTimeMin[name]) {
+      this.blockTimeMin[name] = total;
+    }
   }
 
   send(start) {
@@ -108,12 +125,16 @@ class PerformanceTracker {
     for(let name of blocks) {
       let time = this.blockTime[name];
       let calls = this.blockCalls[name];
+      let max = this.blockTimeMax[name];
+      let min = this.blockTimeMin[name];
       let avg = time / calls;
       let color = avg > 5 ? "red" : (avg > 1 ? "orange" : "green");
       console.log(`    %c${name.substring(0,40)}`, "font-weight:bold;");
-      console.log(`        Time: ${time}`);
+      console.log(`        Time: ${time.toFixed(4)}`);
       console.log(`        Calls: ${calls}`);
-      console.log(`        Average: %c${avg}`, `color:${color};`);
+      console.log(`        Max: ${max.toFixed(4)}`);
+      console.log(`        Min: ${min.toFixed(4)}`);
+      console.log(`        Average: %c${avg.toFixed(4)}`, `color:${color};`);
       console.log(`        Fixpoint: %c${(time * 100 / this.fixpointTime).toFixed(1)}%`, `color:${color};`);
       console.log("");
     }
@@ -158,14 +179,3 @@ if(global.process) {
     return end - start;
   }
 }
-
-export function init(TRACK) {
-  let perf;
-  if(TRACK) {
-    perf = global["perf"] = new PerformanceTracker();
-  } else {
-    perf = global["perf"] = new NoopPerformanceTracker();
-  }
-  return perf;
-}
-

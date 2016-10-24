@@ -56,7 +56,7 @@ class Responder {
       evaluation.close();
       evaluation = undefined;
     } else if(data.type === "parse") {
-      let {results, errors} = parser.parseDoc(data.code || "", "editor");
+      let {results, errors} = parser.parseDoc(data.code || "", "user");
       let {text, spans, extraInfo} = results;
       let build = builder.buildDoc(results);
       let {blocks, errors: buildErrors} = build;
@@ -179,7 +179,7 @@ export function init(code) {
   responder = new Responder(client.socket);
 
   global["browser"] = true;
-  let {results, errors} = parser.parseDoc(code || "", "editor");
+  let {results, errors} = parser.parseDoc(code || "", "user");
   if(errors && errors.length) console.error(errors);
   let {text, spans, extraInfo} = results;
   responder.send(JSON.stringify({type: "parse", text, spans, extraInfo}));
@@ -208,6 +208,8 @@ export function init(code) {
   evaluation.registerDatabase("system", system.instance);
   evaluation.registerDatabase("http", new HttpDatabase());
   evaluation.fixpoint();
+
+  global["evaluation"] = evaluation;
 
   client.socket.onopen();
   // responder.handleEvent(JSON.stringify({type: "findMaybeDrawers", requestId: 0}));

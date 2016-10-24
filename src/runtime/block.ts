@@ -7,8 +7,7 @@ import {MultiIndex} from "./indexes";
 import {Changes, ChangesIndex, ChangeType} from "./changes";
 import {Action, executeActions} from "./actions";
 import {Aggregate} from "./providers/aggregate"
-
-let perf = global["perf"];
+import {PerformanceTracker} from "./performance";
 
 //---------------------------------------------------------------------
 // DependencyChecker
@@ -265,7 +264,6 @@ export class Block {
     }
     // console.groupCollapsed(this.name);
     // console.log("--- " + this.name + " --------------------------------");
-    let start = perf.time();
     let results = [[]];
     for(let stratum of this.strata) {
       results = stratum.execute(multiIndex, results);
@@ -281,7 +279,6 @@ export class Block {
     }
 
     if(this.bindActions.length !== 0) {
-      let start = perf.time();
       let diff = executeActions(multiIndex, this.bindActions, results, changes, true);
       this.updateBinds(diff, changes);
       this.prevInserts = diff;

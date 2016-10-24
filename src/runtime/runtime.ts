@@ -2,10 +2,9 @@
 // Runtime
 //---------------------------------------------------------------------
 
-import * as runtimePerformance from "./performance";
+import {PerformanceTracker, NoopPerformanceTracker} from "./performance";
 
-const capturePerformance = true;
-let perf = runtimePerformance.init(capturePerformance);
+const TRACK_PERFORMANCE = true;
 
 //---------------------------------------------------------------------
 // Setups
@@ -79,6 +78,7 @@ export class Evaluation {
   databases: Database[];
   databaseNames: {[dbId: string]: string};
   nameToDatabase: {[name: string]: Database};
+  perf: PerformanceTracker;
 
   constructor(index?) {
     this.queued = false;
@@ -87,6 +87,11 @@ export class Evaluation {
     this.databaseNames = {};
     this.nameToDatabase = {};
     this.multiIndex = index || new MultiIndex();
+    if(TRACK_PERFORMANCE) {
+      this.perf = new PerformanceTracker();
+    } else {
+      this.perf = new NoopPerformanceTracker();
+    }
   }
 
   unregisterDatabase(name) {
@@ -124,6 +129,7 @@ export class Evaluation {
   }
 
   blocksFromCommit(commit) {
+    let perf = this.perf;
     let start = perf.time();
     let blocks = [];
     let index = this.multiIndex;
@@ -192,7 +198,8 @@ export class Evaluation {
   }
 
   fixpoint(changes = new Changes(this.multiIndex), blocks = this.getAllBlocks()) {
-    let start = runtimePerformance.time();
+    let perf = this.perf;
+    let start = perf.time();
     let commit;
     changes.changed = true;
     while(changes.changed && changes.round < 10) {
@@ -209,7 +216,7 @@ export class Evaluation {
       // console.groupEnd();
     }
     perf.fixpoint(start);
-    // console.log("TOTAL ROUNDS", changes.round, runtimePerformance.time(start));
+    // console.log("TOTAL ROUNDS", changes.round, perf.time(start));
     // console.log(changes);
     for(let database of this.databases) {
       database.onFixpoint(this, changes);

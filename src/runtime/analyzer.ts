@@ -366,7 +366,7 @@ export class EditorDatabase extends Database {
 
 function makeEveAnalyzer() {
   if(eve) return eve;
-  let {results, errors} = parser.parseDoc(global["examples"]["analyzer.eve"]);
+  let {results, errors} = parser.parseDoc(global["examples"]["analyzer.eve"], "analyzer");
   let {text, spans, extraInfo} = results;
   let {blocks, errors: buildErrors} = builder.buildDoc(results);
   if(errors.length || buildErrors.length) {
