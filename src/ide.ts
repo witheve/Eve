@@ -887,6 +887,11 @@ export class Editor {
     }
   }
 
+  scrollToPosition(position:Position) {
+    let top = this.cm.heightAtLine(position.line, "local");
+    this.cm.scrollTo(0, Math.max(top - 30, 0));
+  }
+
   //-------------------------------------------------------
   // Spans
   //-------------------------------------------------------
@@ -1848,21 +1853,6 @@ function modalWrapper():Elem {
 // Root
 //---------------------------------------------------------
 
-var fakeComments:CommentMap = {
-  bar: {loc: {from: {line: 24, ch: 15}, to: {line: 24, ch: 26}}, type: "error", title: "Invalid tag location", actions: ["fix it"], description: unpad(`
-        '#department' tells me to search for a record tagged "department", but since it's not in a record, I don't know the full pattern to look for.
-
-        If you wrap it in square brackets, that tells me you're looking for a record with just that tag.`)},
-
-  catbug: {loc: {from: {line: 25, ch: 13}, to: {line: 25, ch: 52}}, type: "warning", title: "Unmatched pattern", actions: ["create it", "fake it", "dismiss"], description: unpad(`
-           No records currently in the database match this pattern, and no blocks are capable of providing one.
-
-           I can create a new block for you to produce records shaped like this; or add some fake records that match that pattern for testing purposes.`)},
-  dankeykang: {loc: {from: {line: 37, ch: 17}, to: {line: 37, ch: 21}}, type: "error", title: "Unbound variable", description: unpad(`
-               The variable 'nqme' was not bound in this block. Did you mean 'name'?
-               `)},
-};
-
 export class IDE {
   protected _fileCache:{[fileId:string]: string} = {};
 
@@ -1996,7 +1986,6 @@ export class IDE {
     keyboard.shift = neue;
   }
 
-
   //-------------------------------------------------------
   // Actions
   //-------------------------------------------------------
@@ -2054,7 +2043,6 @@ export class IDE {
       "jump-to": (action) => {
         if(!action.token || action.token.length === 0) return;
         let from:Position;
-        let to:Position;
 
         for(let spanId of action.token) {
           let span = this.editor.getSpanBySourceId(spanId);
@@ -2062,10 +2050,9 @@ export class IDE {
           let loc = span.find();
           if(!loc) continue;
           if(!from || comparePositions(loc.from, from) < 0) from = loc.from;
-          if(!to || comparePositions(loc.to, to) < 0) to = loc.to;
         }
-        let range:Range = {from, to};
-        this.editor.cm.scrollIntoView(range, 20);
+
+        this.editor.scrollToPosition(from);
       },
 
       "jump-to-position": (action) => {
@@ -2078,8 +2065,8 @@ export class IDE {
           if(index < min) min = index;
           if(index > max) max = index;
         }
-        let range = {from: doc.posFromIndex(min), to: doc.posFromIndex(max)};
-        this.editor.cm.scrollIntoView(range, 20);
+        let from = doc.posFromIndex(min)
+        this.editor.scrollToPosition(from);
       },
 
       "find-source": (action, actionId) => {
