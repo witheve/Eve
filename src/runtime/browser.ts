@@ -169,6 +169,11 @@ class Responder {
       let extraInfo = {};
       let spanId = analyzer.findMaybeDrawers(evaluation, data, spans, extraInfo);
       this.send(JSON.stringify(data));
+    } else if(data.type === "findRecordsFromToken") {
+      let spans = [];
+      let extraInfo = {};
+      let spanId = analyzer.findRecordsFromToken(evaluation, data, spans, extraInfo);
+      this.send(JSON.stringify(data));
     }
   }
 }
@@ -211,7 +216,11 @@ export function init(code) {
 
   global["evaluation"] = evaluation;
 
+  evaluation.errorReporter = (kind, error) => {
+    responder.send(JSON.stringify({type: "error", kind, message: error}));
+  }
+
   client.socket.onopen();
-  // responder.handleEvent(JSON.stringify({type: "findMaybeDrawers", requestId: 0}));
+  // responder.handleEvent(JSON.stringify({type: "findRecordsFromToken", token: ["editor|block|19|token|18"], requestId: 0}));
   // responder.handleEvent(JSON.stringify({type: "findSource", span: "editor|block|18|node|19", requestId: 0}));
 }

@@ -57,14 +57,16 @@ class AnalysisContext {
     changes.store("session", scanId, "start", start, "analyzer");
     changes.store("session", scanId, "stop", stop, "analyzer");
     changes.store("session", scanId, "entity", entity.id, "analyzer");
-    changes.store("session", scanId, "attribute", attribute, "analyzer");
+    if(attribute !== undefined) {
+      changes.store("session", scanId, "attribute", attribute, "analyzer");
+    }
     if(parseNode.buildId !== undefined) {
       changes.store("session", scanId, "build-node", parseNode.buildId, "analyzer");
     }
-    if(value.id !== undefined) {
+    if(value && value.id !== undefined) {
       changes.store("session", scanId, "value", value.id, "analyzer");
       changes.store("session", value.id, "tag", "variable", "analyzer");
-    } else {
+    } else if(value !== undefined) {
       changes.store("session", scanId, "value", value, "analyzer");
     }
     for(let scope of scopes) {
@@ -149,8 +151,12 @@ class Analysis {
   }
 
   _scanScan(context: AnalysisContext, node) {
-    if(node.attribute.type === "variable") {
-      let id = context.scan(node, node.scopes, context.value(node.entity), "any", context.value(node.value));
+    if(node.attribute === undefined || node.attribute.type === "variable") {
+      let value;
+      if(node.value !== undefined) {
+        value = context.value(node.value);
+      }
+      let id = context.scan(node, node.scopes, context.value(node.entity), undefined, value);
     } else {
       let id = context.scan(node, node.scopes, context.value(node.entity), context.value(node.attribute), context.value(node.value));
     }
@@ -476,7 +482,7 @@ export function tokenInfo(evaluation: Evaluation, tokenId: string, spans: any[],
 
 export function findCardinality(evaluation: Evaluation, info: any, spans: any[], extraInfo: any) {
   let queryId = `query|${info.requestId}`;
-  let query = {tag: "query", token: info.variable};
+  let query = {tag: ["query", "findCardinality"], token: info.variable};
   let eve = doQuery(queryId, query, spans, extraInfo);
 
   let sessionIndex = eve.getDatabase("session").index;
@@ -515,7 +521,7 @@ export function findCardinality(evaluation: Evaluation, info: any, spans: any[],
 
 export function findValue(evaluation: Evaluation, info: any, spans: any[], extraInfo: any) {
   let queryId = `query|${info.requestId}`;
-  let query = {tag: "query", token: info.variable};
+  let query = {tag: ["query", "findValue"], token: info.variable};
   let eve = doQuery(queryId, query, spans, extraInfo);
 
   let sessionIndex = eve.getDatabase("session").index;
@@ -587,12 +593,46 @@ export function nodeIdToRecord(evaluation, nodeId, spans, extraInfo) {
   if(queryInfo) {
     let [entity] = queryInfo.toValues();
     let obj = sessionIndex.asObject(entity);
-    if(obj.record) {
-      return obj.record[0]
+    if(obj.pattern) {
+      return obj.pattern[0]
     }
   }
   return;
 }
+
+export function findRecordsFromToken(evaluation, info, spans, extraInfo) {
+  let queryId = `query|${info.requestId}`;
+  let query: any = {tag: ["findRecordsFromToken"]};
+  if(info.token) query.token = info.token;
+
+  let evSession = evaluation.getDatabase("session");
+  let evBrowser = evaluation.getDatabase("browser");
+  evSession.nonExecuting = true;
+  evBrowser.nonExecuting = true;
+  eve.registerDatabase("evaluation-session", evSession);
+  eve.registerDatabase("evaluation-browser", evBrowser);
+  doQuery(queryId, query, spans, extraInfo);
+  eve.unregisterDatabase("evaluation-session");
+  eve.unregisterDatabase("evaluation-browser");
+  evSession.nonExecuting = false;
+  evBrowser.nonExecuting = false;
+
+  let sessionIndex = eve.getDatabase("session").index;
+  let queryInfo = sessionIndex.alookup("tag", "findRecordsFromToken");
+  if(queryInfo) {
+    let [entity] = queryInfo.toValues();
+    let obj = sessionIndex.asObject(entity);
+    console.log("FIND RECORDS", obj);
+    if(obj.record) {
+      return info.record = obj.record;
+    } else {
+      info.record = [];
+      return info;
+    }
+  }
+  return;
+}
+
 
 export function findSource(evaluation, info, spans, extraInfo) {
   let queryId = `query|${info.requestId}`;

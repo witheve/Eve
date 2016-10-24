@@ -46,7 +46,7 @@ body { background: #f5f5f5; color: #555; }
 .item-level-3 { margin-top:3px; }
 .item-level-3 > div > .label { color:#bbb; font-size: 11pt; }
 
-.tree-item .label { display: flex; flex: 1 1 auto; margin-left: 20px; user-select: none; -webkit-user-select: none; transition: opacity 0.15s; }
+.tree-item .label { display: flex; flex: 1 1 auto; margin-left: 20px; user-select: none; -webkit-user-select: none; transition: opacity 0.15s; cursor: pointer;}
 .tree-item .label:before { display: inline-block; margin-left: -15px; margin-right: 5px; height: 15px; width: 15px; text-align: center; }
 .tree-item.branch .label:before { opacity: 0.25; transition: opacity 0.15s, transform 0.15s; }
 .tree-item.branch.root > .flex-row > .label { opacity: 0; pointer-events: none; }
@@ -138,6 +138,7 @@ body { background: #f5f5f5; color: #555; }
 
 .editor-pane .new-block-bar > .new-block-bar-toggle,
 .editor-pane .new-block-bar > .controls > div { display:flex; padding: 5px 10px; align-items:center; cursor:pointer; }
+.editor-pane > .controls > div { cursor:pointer; }
 .editor-pane .new-block-bar > .new-block-bar-toggle:hover,
 .editor-pane .new-block-bar > .controls > div:hover{ background: #888; }
 .editor-pane .new-block-bar > .new-block-bar-toggle:before { transition: transform 0.15s; }
@@ -217,7 +218,7 @@ table.view td { padding: 0 5px; border: 1px solid #ccc; border-top: none; border
 .CodeMirror .badge-widget:after { content: " )"; }
 .CodeMirror .cause-of-failure { background: rgba(255, 127, 127, 0.4); }
 
-.inspector-pane { overflow:hidden; display:flex; width:250px; background: #666; flex-direction: column; color: #eee; border-radius:2px; box-shadow: 0 2px 8px #aaa; }
+.inspector-pane { overflow:hidden; display:flex; width:250px; background: #666; flex-direction: column; color: #eee; border-radius:2px; box-shadow: 0 2px 8px #aaa; z-index: 10; }
 .inspector-pane .buttons { display:flex; flex-direction:column; }
 .inspector-pane .buttons button { background:none; border:none; color: #eee; font-size: 10pt; width: 100%; padding: 8px 15px; text-align:left; }
 .inspector-pane .buttons button + button { border-top:1px solid #555; }

@@ -24,7 +24,7 @@ search
   threads = [#thread #test-data]
   not(threads.messages)
   // Enumerate the messages
-  r = round[value: random[seed: threads] * (10 - 1) + 1]
+  r = round[value: random[seed: threads] * (8 - 1) + 1]
   q = range[from: 1, to: r]
   // Generate a random time for each message
   hours = random[seed: q] * (23 - 0) + 0
@@ -34,6 +34,24 @@ search
 commit
   threads.messages := [#message #test-data q r time: [hours minutes day]]
 ```
+
+For threads with messages, maybe add a new message
+
+```
+search
+  [#time hours minutes seconds day]
+  threads = [#thread #test-data messages]
+  r = random[seed: "{{threads}}:{{day}}:{{minutes}}:{{seconds}}"]
+  message = if r > 0.8 then [#message #test-data time: [hours minutes day]]
+            else ""
+
+bind @browser
+  [#div text: message]
+
+commit 
+  //threads.message += message 
+```
+  
 
 ```
 search
@@ -68,7 +86,7 @@ Generate random users every second
 search
   [#time time-string seconds]
   min = 0
-  max = 8
+  max = 3
   r = round[value: random[seed: seconds] * (max - min) + min]
   r2 = range[from: 1, to: r]
 
@@ -76,18 +94,20 @@ commit
   [#user i: "{{time-string}}:{{seconds}}:{{r2}}"]
 ```
 
-Generate random messages every second
+Generate random threads every second
 
 ```
 search
   [#time seconds time-string]
+  users = [#user]
+  //u = count[given: users]
   min = 0
-  max = 8
+  max = 3
   r = round[value: random[seed: seconds] * (max - min) + min]
   r2 = range[from: 1, to: r]
 
 commit
-  [#message i: "{{time-string}}:{{seconds}}:{{r2}}"]
+  //[#thread #test-data i: "{{time-string}}:{{seconds}}:{{r2}}"]
 ```
 
 Store some first names for fake users

@@ -247,6 +247,15 @@ export class Scan {
         case "*av*":
           this.setProposal(curIndex.aveIndex.lookup(a,v), this.e, scopeIx);
           break;
+        case "***n":
+          this.setProposal(curIndex.neavIndex.lookup(node), this.e, scopeIx);
+          break;
+        case "e**n":
+          this.setProposal(curIndex.neavIndex.lookup(node,e), this.a, scopeIx);
+          break;
+        case "ea*n":
+          this.setProposal(curIndex.neavIndex.lookup(node,e,a), this.v, scopeIx);
+          break;
         default:
           if(proposal.providing === undefined) {
             let providing = proposal.providing = [];

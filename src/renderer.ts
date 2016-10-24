@@ -323,6 +323,9 @@ window.addEventListener("click", function(event) {
       }
       objs.push({tag, element: current.entity});
     }
+    if(current === activeElements["root"]) {
+      objs.push({tag: objs.length === 0 ? ["click"] : ["click", "direct-target"], root: true});
+    }
     current = current.parentElement;
   }
   sendEvent(objs);
@@ -380,7 +383,7 @@ function getFocusPath(target) {
   let root = activeElements.root;
   let current = target;
   let path:string[] = [];
-  while(current !== root && current) {
+  while(current !== root && current && current.parentElement) {
     let parent = current.parentElement;
     path.unshift(Array.prototype.indexOf.call(parent.children, current));
     current = parent;

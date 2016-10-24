@@ -120,6 +120,58 @@ class Sin extends Constraint {
 }
 
 
+class Log extends Constraint {
+  static AttributeMapping = {
+    "value": 0,
+  }
+  // log proposes the log of its arg as its value for the proposed variable.
+  resolveProposal(proposal, prefix) {
+    let {args} = this.resolve(prefix);
+    return [Math.log(args[0])/Math.log(10)];
+  }
+
+  // Check if our return is equivalent to multiplying our args
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    return Math.log(args[0])/Math.log(10) === returns[0];
+  }
+
+  // multiply always has a cardinality of 1
+  getProposal(tripleIndex, proposed, prefix) {
+    let proposal = this.proposalObject;
+    proposal.providing = proposed;
+    proposal.cardinality = 1;
+    return proposal;
+  }
+}
+
+class Pow extends Constraint {
+  static AttributeMapping = {
+    "value": 0,
+    "by": 1,
+  }
+  // log proposes the log of its arg as its value for the proposed variable.
+  resolveProposal(proposal, prefix) {
+    let {args} = this.resolve(prefix);
+    return [Math.pow(args[1], args[0])];
+  }
+
+  // Check if our return is equivalent to multiplying our args
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    return Math.pow(args[1], args[0]) === returns[0];
+  }
+
+  // multiply always has a cardinality of 1
+  getProposal(tripleIndex, proposed, prefix) {
+    let proposal = this.proposalObject;
+    proposal.providing = proposed;
+    proposal.cardinality = 1;
+    return proposal;
+  }
+}
+
+
 class Mod extends Constraint {
   static AttributeMapping = {
     "value": 0,
@@ -177,6 +229,28 @@ class Floor extends Constraint {
   test(prefix) {
     let {args, returns} = this.resolve(prefix);
     return Math.floor(args[0]) === returns[0];
+  }
+
+  getProposal(tripleIndex, proposed, prefix) {
+    let proposal = this.proposalObject;
+    proposal.providing = proposed;
+    proposal.cardinality = 1;
+    return proposal;
+  }
+}
+
+class Ceiling extends Constraint {
+  static AttributeMapping = {
+    "value": 0,
+  }
+  resolveProposal(proposal, prefix) {
+    let {args} = this.resolve(prefix);
+    return [Math.ceil(args[0])];
+  }
+
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    return Math.ceil(args[0]) === returns[0];
   }
 
   getProposal(tripleIndex, proposed, prefix) {
@@ -320,10 +394,13 @@ providers.provide("-", Subtract);
 providers.provide("*", Multiply);
 providers.provide("/", Divide);
 providers.provide("sin", Sin);
+providers.provide("log", Log);
 providers.provide("cos", Cos);
 providers.provide("floor", Floor);
+providers.provide("ceiling", Ceiling);
 providers.provide("abs", Abs);
 providers.provide("mod", Mod);
+providers.provide("pow", Pow);
 providers.provide("random", Random);
 providers.provide("range", Range);
 providers.provide("round", Round);

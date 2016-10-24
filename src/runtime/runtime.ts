@@ -5,6 +5,7 @@
 import {PerformanceTracker, NoopPerformanceTracker} from "./performance";
 
 const TRACK_PERFORMANCE = true;
+const MAX_ROUNDS = 30;
 
 //---------------------------------------------------------------------
 // Setups
@@ -76,6 +77,7 @@ export class Evaluation {
   commitQueue: any[];
   multiIndex: MultiIndex;
   databases: Database[];
+  errorReporter: any;
   databaseNames: {[dbId: string]: string};
   nameToDatabase: {[name: string]: Database};
   perf: PerformanceTracker;
@@ -91,6 +93,14 @@ export class Evaluation {
       this.perf = new PerformanceTracker();
     } else {
       this.perf = new NoopPerformanceTracker();
+    }
+  }
+
+  error(kind: string, error: string) {
+    if(this.errorReporter) {
+      this.errorReporter(kind, error);
+    } else {
+      console.error(kind + ":", error);
     }
   }
 
@@ -202,7 +212,7 @@ export class Evaluation {
     let start = perf.time();
     let commit;
     changes.changed = true;
-    while(changes.changed && changes.round < 10) {
+    while(changes.changed && changes.round < MAX_ROUNDS) {
       changes.nextRound();
       // console.groupCollapsed("Round" + changes.round);
       for(let block of blocks) {
@@ -214,6 +224,9 @@ export class Evaluation {
       commit = changes.commit();
       blocks = this.blocksFromCommit(commit);
       // console.groupEnd();
+    }
+    if(changes.round > MAX_ROUNDS) {
+      this.error("Fixpoint Error", "Evaluation failed to fixpoint");
     }
     perf.fixpoint(start);
     // console.log("TOTAL ROUNDS", changes.round, perf.time(start));
