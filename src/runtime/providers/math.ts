@@ -261,6 +261,7 @@ class Ceiling extends Constraint {
   }
 }
 
+
 class Cos extends Constraint {
   static AttributeMapping = {
     "angle": 0,
@@ -304,6 +305,48 @@ class Random extends Constraint {
   test(prefix) {
     let {args, returns} = this.resolve(prefix);
     return this.getRandom(args[0]) === returns[0];
+  }
+
+  getProposal(tripleIndex, proposed, prefix) {
+    let proposal = this.proposalObject;
+    proposal.providing = proposed;
+    proposal.cardinality = 1;
+    return proposal;
+  }
+}
+
+
+class Gaussian extends Constraint {
+  static AttributeMapping = {
+    "seed": 0,
+    "σ": 1,
+    "μ": 2
+  }
+
+  static cache = {};
+
+  getRandom(seed, sigma, mu) {
+    if (sigma === undefined) sigma = 1.0
+    if (mu === undefined) mu = 0.0
+    let found = Random.cache[seed];
+    if(found) return found;
+    let u1 = Math.random()
+    let u2 = Math.random()
+    let z0 = Math.sqrt(-2.0 * Math.log(u1) ) * Math.cos (Math.PI * 2 * u2)
+    let key =  "" + seed + sigma + mu
+    let res =  z0 * sigma + mu;
+    Random.cache[key] = res
+    return res
+  }
+
+  resolveProposal(proposal, prefix) {
+    let {args} = this.resolve(prefix);
+    return [this.getRandom(args[0], args[1], args[2])];
+  }
+
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    return this.getRandom(args[0], args[1], args[2]) === returns[0];
   }
 
   getProposal(tripleIndex, proposed, prefix) {
@@ -366,27 +409,27 @@ class Range extends Constraint {
   }
 }
 
-class Round extends Constraint { 
-  static AttributeMapping = { 
-    "value": 0, 
-  } 
-  resolveProposal(proposal, prefix) { 
-    let {args} = this.resolve(prefix); 
-    return [Math.round(args[0])]; 
-  } 
+class Round extends Constraint {
+  static AttributeMapping = {
+    "value": 0,
+  }
+  resolveProposal(proposal, prefix) {
+    let {args} = this.resolve(prefix);
+    return [Math.round(args[0])];
+  }
 
-  test(prefix) { 
-    let {args, returns} = this.resolve(prefix); 
-    return Math.round(args[0]) === returns[0]; 
-  } 
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    return Math.round(args[0]) === returns[0];
+  }
 
-  getProposal(tripleIndex, proposed, prefix) { 
-    let proposal = this.proposalObject; 
-    proposal.providing = proposed; 
-    proposal.cardinality = 1; 
-    return proposal; 
-  } 
-} 
+  getProposal(tripleIndex, proposed, prefix) {
+    let proposal = this.proposalObject;
+    proposal.providing = proposed;
+    proposal.cardinality = 1;
+    return proposal;
+  }
+}
 
 
 providers.provide("+", Add);
@@ -404,3 +447,4 @@ providers.provide("pow", Pow);
 providers.provide("random", Random);
 providers.provide("range", Range);
 providers.provide("round", Round);
+providers.provide("gaussian", Gaussian);
