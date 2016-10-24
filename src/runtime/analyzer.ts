@@ -482,7 +482,7 @@ export function tokenInfo(evaluation: Evaluation, tokenId: string, spans: any[],
 
 export function findCardinality(evaluation: Evaluation, info: any, spans: any[], extraInfo: any) {
   let queryId = `query|${info.requestId}`;
-  let query = {tag: "query", token: info.variable};
+  let query = {tag: ["query", "findCardinality"], token: info.variable};
   let eve = doQuery(queryId, query, spans, extraInfo);
 
   let sessionIndex = eve.getDatabase("session").index;
@@ -521,7 +521,7 @@ export function findCardinality(evaluation: Evaluation, info: any, spans: any[],
 
 export function findValue(evaluation: Evaluation, info: any, spans: any[], extraInfo: any) {
   let queryId = `query|${info.requestId}`;
-  let query = {tag: "query", token: info.variable};
+  let query = {tag: ["query", "findValue"], token: info.variable};
   let eve = doQuery(queryId, query, spans, extraInfo);
 
   let sessionIndex = eve.getDatabase("session").index;
