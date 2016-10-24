@@ -245,7 +245,19 @@ search @browser @session
   [#app page: [#more]]
 
 bind @browser
-  content.children := [#div text: "More"]
+  content.children := [#div #more children: 
+    [#h2 text: "Learn more about Eve"]
+    [#h2 text: "Resources"]
+    [#ul children:
+      [#li children: [#a href: "http://witheve.com" text: "Homepage"]]
+      [#li children: [#a href: "https://witheve.github.io/docs/guides/quickstart/" text: "Quick Start Tutorial"]]
+      [#li children: [#a href: "http://github.com/witheve" text: "GitHub Repository"]]]
+    [#h2 text: "Join the Community"]
+    [#ul children:
+      [#li children: [#a href: "http://blog.witheve.com" text: "Development Diary"]]
+      [#li children: [#a href: "https://github.com/witheve/rfcs" text: "Request for Comments"]]
+      [#li children: [#a href: "https://groups.google.com/forum/#!forum/eve-talk" text: "Mailing List"]]
+      [#li children: [#a href: "https://twitter.com/with_eve" text: "Twitter"]]]]
 ```
 
 ## Events
