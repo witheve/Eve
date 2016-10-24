@@ -1,0 +1,23 @@
+```
+   bind @browser
+     [#svg viewBox: "0 0 10 30" width:200 height:200]
+```
+
+```
+  search @event @session
+    e = [#click]
+    x = floor[value: gaussian[seed:e σ:2 μ:5]]
+    total = if [#slots x total] then total + 1 else 1
+  commit s = [#slots x]
+         s.total := total
+```
+
+```
+  search [#slots x total]
+  search @browser s = [#svg]
+  commit @browser
+   k = [#rect x width:1 stroke-width:1 stroke:"black"]
+   k.y := 30 - total
+   k.height := total
+   s.children += k
+```
