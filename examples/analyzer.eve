@@ -398,12 +398,44 @@ search
   [#action entity build-node]
   record = [#record entity]
 commit
-  query.record := record
+  query.pattern := record
+~~~
+
+## findRecordsFromToken
+
+Add the #query tag so that we find all the scans/actions related to the given
+token
+
+~~~
+search
+  query = [#findRecordsFromToken]
+commit
+  query += #query
+~~~
+
+~~~
+search
+  query = [#findRecordsFromToken token]
+  [#query-link token to]
+  to = [#action build-node]
+commit
+  query.build-node += build-node
+~~~
+
+~~~
+search
+  query = [#findRecordsFromToken token]
+  [#query-link token to]
+  to = [#action build-node]
+search @evaluation-session @evaluation-browser
+  lookup[node: build-node, record]
+commit
+  query.record += record
 ~~~
 
 ## findAffector
 
-Store what record-tag we need to computer providers and consumers for
+Store what record-tag we need to compute providers and consumers for
 
 ~~~
 search
