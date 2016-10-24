@@ -1,11 +1,13 @@
+Create an svg area
 ```
    bind @browser
-     [#div text:"click me alot"]
      [#svg viewBox: "0 0 50 2" width:200 height:200]
 ```
 
 
-rescale the svg area based on the maximum slot
+Rescale the svg area based on the maximum value
+in a histogram slot. Most browsers seem to also
+use this to rescale x to keep the aspect ratio constsant
 ```
   search [#slots x total]
           m = max[value:total given:total]
@@ -14,15 +16,19 @@ rescale the svg area based on the maximum slot
        s.viewBox := "0 0 50 {{m + 2}}"
 ```
 
+For each click, generate a gaussian sample, use
+floor to bin it into histogram by integer.
+
 ```
   search @event @session
     e = [#click]
-    x = floor[value: gaussian[seed:e σ:4 μ:25]]
+    x = floor[value: gaussian[seed:e σ:10 μ:25]]
     total = if [#slots x total] then total + 1 else 1
   commit s = [#slots x]
          s.total := total
 ```
 
+Draw the bins as black rectangles
 ```
   search [#slots x total]
             m = max[value:total given:total]
@@ -32,4 +38,13 @@ rescale the svg area based on the maximum slot
    k.y := m - total
    k.height := total
    s.children += k
+```
+
+
+Inject a click once for each 1/60s
+```
+search
+   [#time frames]
+bind @event
+   [#click frames]
 ```

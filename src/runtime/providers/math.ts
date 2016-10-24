@@ -333,8 +333,10 @@ class Gaussian extends Constraint {
     let u1 = Math.random()
     let u2 = Math.random()
     let z0 = Math.sqrt(-2.0 * Math.log(u1) ) * Math.cos (Math.PI * 2 * u2)
-    Random.cache[seed] = z0 * sigma + mu;
-    return [Random.cache[seed]]
+    let key =  "" + seed + sigma + mu
+    let res =  z0 * sigma + mu;
+    Random.cache[key] = res
+    return res
   }
 
   resolveProposal(proposal, prefix) {
