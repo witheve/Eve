@@ -2,9 +2,11 @@
 
 ```
 commit
+  [#app user-count: 0 thread-count: 0  message-count: 0]
   [#user]
 ```
 
+## Generate initial data
 
 Generate some threads
 
@@ -32,55 +34,12 @@ search
   day = random[seed: q] * (30 - 0) + 0
 
 commit
-  threads.messages := [#message #test-data q r time: [hours minutes day]]
+  threads.messages := [#message #test-data thread: threads q r time: [hours minutes day]]
 ```
 
-For threads with messages, maybe add a new message
+## Generate random data every second
 
-```
-search
-  [#time hours minutes seconds day]
-  threads = [#thread #test-data messages]
-  r = random[seed: "{{threads}}:{{day}}:{{minutes}}:{{seconds}}"]
-  message = if r > 0.8 then [#message #test-data time: [hours minutes day]]
-            else ""
-
-bind @browser
-  [#div text: message]
-
-commit 
-  //threads.message += message 
-```
-  
-
-```
-search
-  users = [#user]
-  u = count[given: users]
-
-bind @browser
-  [#div text: "total-users: {{u}}"]
-```
-
-```
-search
-  messages = [#message]
-  m = count[given: messages]
-
-bind @browser
-  [#div text: "total-messages: {{m}}"]
-```
-
-```
-search
-  threads = [#thread]
-  t = count[given: threads]
-
-bind @browser
-  [#div text: "total-threads: {{t}}"]
-```
-
-Generate random users every second
+Generate random users
 
 ```
 search
@@ -94,20 +53,77 @@ commit
   [#user i: "{{time-string}}:{{seconds}}:{{r2}}"]
 ```
 
-Generate random threads every second
+
+Generate random threads. A previous block adds messages to these threads automatically.
 
 ```
 search
   [#time seconds time-string]
   users = [#user]
-  //u = count[given: users]
+  u = log[value: count[given: users]]
   min = 0
-  max = 3
+  max = u
   r = round[value: random[seed: seconds] * (max - min) + min]
   r2 = range[from: 1, to: r]
 
 commit
-  //[#thread #test-data i: "{{time-string}}:{{seconds}}:{{r2}}"]
+  [#thread #test-data i: "{{time-string}}:{{seconds}}:{{r2}}"]
+```
+
+## Analytics
+
+### Count the number of users
+
+```
+search
+  users = [#user]
+  u = count[given: users]
+
+bind @browser
+  [#div sort: 1, text: "total users: {{u}}"]
+```
+
+Count the number of threads
+
+```
+search
+  threads = [#thread]
+  t = count[given: threads]
+
+bind @browser
+  [#div sort: 2, text: "total threads: {{t}}"]
+```
+
+Count the number of messages
+
+```
+search
+  messages = [#message]
+  m = count[given: messages]
+
+bind @browser
+  [#div sort: 3, text: "total messages: {{m}}"]
+```
+
+Average number of messages per thread
+
+```
+search
+  threads = [#thread messages]
+  messages-per-thread = count[given: messages] / count[given: threads] 
+  
+bind @browser
+  [#div sort: 4, text: "average messages per thread: {{messages-per-thread}}"]
+```
+
+Display the current time, to see that things are updating
+
+```
+search
+  [#time seconds]
+
+bind @browser
+  [#div text: seconds]
 ```
 
 Store some first names for fake users
