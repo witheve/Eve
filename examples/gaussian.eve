@@ -18,18 +18,20 @@ search @browser
   s = [#svg]
 
 bind @browser
-      s.viewBox := "0 0 50 {{m + 2}}"
+  s.viewBox := "0 0 50 {{m + 2}}"
 ```
 
 For each click, generate a gaussian sample, use floor to bin it into histogram by integer.
 
 ```
-  search @event @session
-    e = [#click]
-    x = floor[value: gaussian[seed:e σ:10 μ:25]]
-    total = if [#slots x total] then total + 1 else 1
-  commit s = [#slots x]
-         s.total := total
+search @event @session
+  e = [#click]
+  x = floor[value: gaussian[seed:e σ:10 μ:25]]
+  total = if [#slots x total] then total + 1 else 1
+
+commit 
+  s = [#slots x]
+  s.total := total
 ```
 
 Draw the bins as black rectangles
