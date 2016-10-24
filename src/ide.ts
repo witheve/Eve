@@ -289,11 +289,13 @@ class Navigator {
   header():Elem {
     let type = this.currentType();
     return {c: "navigator-header", children: [
-      {c: "label", text: this.labels[type], click: this.togglePane},
-      {c: "flex-spacer"},
       {c: "controls", children: [
-        this.open ? {c: `up-btn ion-ios-arrow-up ${(type === "folder") ? "disabled" : ""}`, click: this.navigate} : undefined,
-        {c: `${this.open ? "expand-btn" : "collapse-btn"} ion-ios-arrow-left`, click: this.togglePane},
+        this.open ? {c: `up-btn flex-row`, click: this.navigate, children: [
+          {c:  `up-btn ion-android-arrow-up ${(type === "folder") ? "disabled" : ""}`},
+          {c: "label", text: "examples"},
+        ]} : undefined,
+        {c: "flex-spacer"},
+        {c: `${this.open ? "expand-btn" : "collapse-btn"} ion-ios-arrow-back`, click: this.togglePane},
       ]}
     ]};
   }
@@ -1590,13 +1592,13 @@ export class Editor {
 
   // @NOTE: Does this belong in the IDE?
   controls() {
-    let inspectorButton:Elem = {text: "inspect", click: () => this.ide.toggleInspecting()};
-    if(this.ide.inspectingClick) inspectorButton.text = "click to inspect";
-    else if(this.ide.inspecting) inspectorButton.text = "stop inspecting";
+    let inspectorButton:Elem = {c: "inspector-button ion-wand", text: "", click: () => this.ide.toggleInspecting()};
+    if(this.ide.inspectingClick) inspectorButton.c += " waiting";
+    else if(this.ide.inspecting) inspectorButton.c += " inspecting";
 
     return {c: "flex-row controls", children: [
-      {text: "restart", click: () => this.ide.eval(false)},
-      {text: "run", click: () => this.ide.eval(true)},
+      {c: "ion-refresh", text: "", click: () => this.ide.eval(false)},
+      {c: "ion-ios-play", text: "", click: () => this.ide.eval(true)},
       inspectorButton
     ]};
   }
