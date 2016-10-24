@@ -189,3 +189,12 @@
   margin-right: 5px;
   cursor: pointer;
 }
+
+a {
+ color: rgb(0,158,224); 
+ line-height: 20px;
+}
+
+a:hover {
+  color: rgb(91,89,164);
+}

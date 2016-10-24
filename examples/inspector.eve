@@ -51,7 +51,7 @@ search @event
 
 
 commit @inspector
-  [#inspector element state: ("popout", "annotate-blocks") x y]
+  [#inspector element state: ("popout", "annotate-blocks") | x y]
 
 commit @event
   event := none
@@ -65,7 +65,7 @@ search @event
 
 
 commit @inspector
-  [#inspector root: "true" state: "popout" x y]
+  [#inspector root: "true" state: "popout" | x y]
 
 commit @event
   event := none
@@ -78,7 +78,7 @@ search @event
   event = [#inspector #inspect target: block type: "code_block" x y]
 
 commit @inspector
-  [#inspector block state: ("block-popout") x y]
+  [#inspector block state: ("block-popout") | x y]
 
 commit @event
   event := none
