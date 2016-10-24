@@ -312,6 +312,20 @@ bind
   query.span += span
 ~~~
 
+## findValue
+
+~~~
+search
+  query = [#findValue]
+~~~
+
+## findCardinality
+
+~~~
+search
+  query = [#findCardinality]
+~~~
+
 ## find spans related to a variable
 
 ~~~
