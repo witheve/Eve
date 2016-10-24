@@ -92,15 +92,11 @@ export class Evaluation {
     this.multiIndex = index || new MultiIndex();
   }
 
-  error(error: string, kind = "Error") {
+  error(kind: string, error: string) {
     if(this.errorReporter) {
-      this.errorReporter(error, kind);
+      this.errorReporter(kind, error);
     } else {
-      if(kind) {
-        console.error(kind + ":", error);
-      } else {
-        console.error(error);
-      }
+      console.error(kind + ":", error);
     }
   }
 
@@ -224,7 +220,7 @@ export class Evaluation {
       // console.groupEnd();
     }
     if(changes.round > MAX_ROUNDS) {
-      this.error("Evaluation failed to fixpoint", "Fixpoint Error");
+      this.error("Fixpoint Error", "Evaluation failed to fixpoint");
     }
     perf.fixpoint(start);
     // console.log("TOTAL ROUNDS", changes.round, runtimePerformance.time(start));

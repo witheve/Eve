@@ -50,39 +50,53 @@ commit
 
 ## associate record-tags to both actions and scans
 
+Any scan attached to a pattern that is looking for our record-tag is
+related to that tag.
+
 ~~~
 search
-  [#findAffector]
-  [#scan entity: [register] attribute: "tag" value block]
+  [#query record-tag]
+  [#scan entity: [register] attribute: "tag" value: record-tag block]
   scan = [#scan entity: [register] block]
 bind
-  scan.record-tag += value
+  scan.record-tag += record-tag
 ~~~
+
+Any action attached to a pattern that is looking for our record-tag is
+related to that tag.
 
 ~~~
 search
-  [#findAffector]
-  [#action entity: [register] attribute: "tag" value block]
+  [#query record-tag]
+  [#action entity: [register] attribute: "tag" value: record-tag block]
   action = [#action entity: [register] block]
 bind
-  action.record-tag += value
+  action.record-tag += record-tag
 ~~~
+
+
+Actions that are adding to an entity with our record tag, are also for the
+same record-tag.
 
 ~~~
 search
-  [#findAffector]
+  [#query record-tag]
   [#scan entity: [register] record-tag block]
   action = [#action entity: [register] block]
 bind
   action.record-tag += record-tag
 ~~~
 
+The inverse is true as well, if an action is for our record tag and the entity
+is used in a scan, then that scan is for this tag.
+
 ~~~
 search
-  [#findAffector]
-  scan = [#scan not(record-tag)]
+  [#query record-tag]
+  [#action entity: [register] record-tag block]
+  scan = [#scan entity: [register] block]
 bind
-  scan += #analyzer/any
+  scan.record-tag += record-tag
 ~~~
 
 ## tag equivalence
@@ -389,17 +403,29 @@ commit
 
 ## findAffector
 
+Store what record-tag we need to computer providers and consumers for
+
 ~~~
 search
-  query = [#findAffector recordId attribute]
-  scan = [#scan entity: [register] record-tag: tag block]
+  query = [#findAffector recordId]
+search @evaluation-session @evaluation-browser
+  tag = recordId.tag
+bind
+  query += #query
+  query.record-tag += tag
+~~~
+
+Find affectors based on what providers and consumers exist
+
+~~~
+search
+  query = [#findAffector recordId attribute record-tag]
+  scan = [#scan entity: [register] record-tag block]
   action = [#action entity: [register] block attribute]
   final = if record = [#record entity: [register] start stop]
              action.start >= start
              action.stop <= stop then record
           else action
-search @evaluation-session @evaluation-browser
-  tag = recordId.tag
 bind
   query.affector := [action: final, block]
 ~~~

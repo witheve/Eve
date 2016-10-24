@@ -209,7 +209,7 @@ export function init(code) {
   evaluation.registerDatabase("http", new HttpDatabase());
   evaluation.fixpoint();
 
-  evaluation.errorReporter = (error, kind) => {
+  evaluation.errorReporter = (kind, error) => {
     responder.send(JSON.stringify({type: "error", kind, message: error}));
   }
 
