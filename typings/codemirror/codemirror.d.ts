@@ -259,6 +259,12 @@ declare namespace CodeMirror {
         The optional mode parameter determines relative to what the coordinates are interpreted. It may be "window" , "page"(the default) , or "local". */
         coordsChar(object: { left: number; top: number; }, mode?: string): CodeMirror.Position;
 
+        /** Computes the line at the given pixel height. mode can be one of the same strings that coordsChar accepts. */
+        lineAtHeight(height: number, mode?: string): number;
+
+        /** Computes the height of the top of a line, in the coordinate system specified by mode (see coordsChar), which defaults to "page". When a line below the bottom of the document is specified, the returned value is the bottom of the last line in the document. */
+        heightAtLine(line: number|LineHandle, mode?: string): number;
+
         /** Returns the line height of the default font for the editor. */
         defaultTextHeight(): number;
 
