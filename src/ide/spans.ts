@@ -344,6 +344,7 @@ export class LineSpan extends Span {
     if(!loc) return;
     let doc = this.editor.cm.getDoc();
     let isEmpty = doc.getLine(loc.from.line) === "";
+
     //If we're at the beginning of an empty line and delete we mean to remove the span.
     if(samePosition(loc.from, change.to) && isEmpty && change.origin === "+delete") {
       this.clear();
@@ -361,6 +362,17 @@ export class LineSpan extends Span {
     } else if(samePosition(loc.from, change.from) && change.isNewlineChange() && isEmpty) {
       this.clear();
       change.cancel();
+    }
+  }
+
+  onChange(change:Change) {
+    let loc = this.find();
+    if(!loc) return;
+
+    // If we're normalizing to put some space between the line and another span, make sure the span tracks its content.
+    if(change.origin === "+normalize" && samePosition(loc.from, change.from) && samePosition(loc.from, change.to)) {
+      this.editor.markSpan(change.final, change.final, this.source);
+      this.clear();
     }
   }
 
@@ -457,6 +469,7 @@ export class BlockSpan extends Span {
 
 
     if(!samePosition(from, loc.from) || !samePosition(to, loc.to)) {
+      console.log("OC BLOCK M", this);
       this.clear();
       this.editor.markSpan(from, to, this.source);
     }
