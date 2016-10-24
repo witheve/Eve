@@ -1904,6 +1904,8 @@ export class IDE {
       this.generation++;
       if(this.onChange) this.onChange(this);
       this.editor.dirty = false;
+
+      sendEvent([{tag: ["inspector", "clear"]}]);
     }
   }, 1, true);
 
