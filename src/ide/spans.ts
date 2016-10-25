@@ -569,6 +569,8 @@ class ElisionSpan extends BlockSpan {
     this.element = document.createElement("div");
     this.element.className = "elision-marker";
     this._attributes.replacedWith = this.element;
+    if(from.ch !== 0) from = {line: from.line, ch: 0};
+    if(to.ch !== 0) to = {line: to.line, ch: 0};
     super.apply(from, to, origin);
 
     let doc = this.editor.cm.getDoc();
