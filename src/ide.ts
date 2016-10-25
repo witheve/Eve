@@ -332,7 +332,7 @@ class Navigator {
       {c: "flex-row", children: [
         {c: `label ${subtree && !node.level ? "ion-ios-arrow-down" : "no-icon"}`, text: node.name, nodeId, click: node.span ? this.gotoSpan : undefined}, // icon should be :before
         {c: "controls", children: [
-          {c: `elide-btn ${node.hidden ? "ion-android-done" : "ion-android-close"}`, nodeId, click: this.toggleElision},
+          {c: `elide-btn ${node.hidden ? "ion-android-checkbox-outline-blank" : "ion-android-checkbox-outline"}`, nodeId, click: this.toggleElision},
         ]}
       ]},
       subtree
