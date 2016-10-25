@@ -182,6 +182,7 @@ Certain kinds of data depend on other data.
 ```
 commit @inspector
   [#data data: "sources"]
+  [#data data: "source-sections", requires: "sources"]
   [#data data: "related" requires: "sources"]
   [#data data: "cardinalities" requires: "related"]
   [#data data: "values" requires: "related"]
@@ -221,6 +222,21 @@ search @inspector
 
 bind @editor
   [#find-source record attribute]
+```
+
+### Source Sections
+
+Find the section(s) containing the found source(s).
+
+```
+search @inspector
+  [#inspector data: "source-sections" element: record]
+
+search @editor
+  [#source record block]
+
+bind @editor
+  [#find-section span: block]
 ```
 
 ### Related
@@ -345,7 +361,7 @@ Certain states require data to be fetched.
 ```
 commit @inspector
   // Element States
-  [#state state: "focus-blocks" requires: "sources"]
+  [#state state: "focus-blocks" requires: ("sources", "source-sections")]
   [#state state: "annotate-blocks" requires: "sources"]
   [#state state: "highlight-related" requires: "related"]
   [#state state: "show-values-inline" requires: "values"]
@@ -382,9 +398,11 @@ search @inspector
 
 search @editor
   [#source record: element block]
+  [#section span: block start stop]
 
 bind @editor
-  [#mark-between inspector type: "elision_transient" | token: block]
+  [#mark-between inspector type: "elision" | range: [start stop]]
+  [#jump-to-position position: 0]
 ```
 
 ### Annotate Blocks
@@ -487,7 +505,7 @@ search @editor
   [#affector record: element block action]
 
 bind @editor
-  [#mark-between inspector type: "elision_transient" | token: block]
+  [#mark-between inspector type: "elision" | span: block]
   [#mark-span inspector type: "highlight" | token: action]
 ```
 
@@ -534,7 +552,7 @@ search @editor
   [#failure block]
 
 bind @editor
-  [#mark-between inspector type: "elision_transient" | token: block]
+  [#mark-between inspector type: "elision" | span: block]
   [#mark-span inspector type: "highlight" | token: action]
 ```
 
@@ -605,7 +623,7 @@ bind @browser
     [#div #editor #inspector element x y class: "inspector-pane" children:
       [#div #attributes-panel inspector children: attributes]
       [#div #options-panel inspector class: "buttons" children:
-        [#button inspector text: "Find events" deactivate: "popout"]
+        [#button inspector text: "Find events" activate: "focus-blocks", deactivate: "popout"]
         [#button inspector text: "Why this?" activate: "show-values-table" deactivate: "popout"]
         [#button inspector text: "Too few? Too many?" activate: "show-cardinalities-inline" deactivate: "popout"]
         [#button inspector text: "Not drawing?" activate: ("annotate-affectors", "highlight-failures") deactivate: ("annotate-blocks", "popout")]]]
