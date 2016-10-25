@@ -70,7 +70,9 @@ function handleDiff(state, diff) {
     else if(a === "name") indexes.byName.remove(v, e);
     else if(a === "class") indexes.byClass.remove(v, e);
     else if(a === "style") indexes.byStyle.remove(v, e);
-    else if(a === "children") indexes.byChild.remove(v, e);
+    // @NOTE: We intentionally leak children -> parent for now to easily restore
+    // children that get recreated with the same id which don't have an associated diff in their parent.
+    //else if(a === "children") indexes.byChild.remove(v, e);
     else if(a === "value") entitiesWithUpdatedValues[e] = true;
 
   }
