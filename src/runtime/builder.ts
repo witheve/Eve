@@ -215,6 +215,7 @@ function checkSubBlockEqualities(context, block) {
   // a node for that equality since we couldn't fold the constant into the variable
   let equalityIx = 0;
   for(let equality of block.equalities) {
+    if(!equality) continue;
     let [left, right] = equality;
     let needsEquality;
     let hasLeft = context.hasVariable(left);

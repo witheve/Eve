@@ -78,7 +78,9 @@ class TimeAgent {
 
   setup(evaluation: Evaluation) {
     if(this.interval !== undefined) {
-      evaluation.executeActions(this.timeActions());
+      setTimeout(() => {
+        evaluation.executeActions(this.timeActions());
+      }, 0)
       this.run(evaluation);
     }
   }

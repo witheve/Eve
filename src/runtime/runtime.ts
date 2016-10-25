@@ -16,6 +16,7 @@ import {MultiIndex, TripleIndex} from "./indexes"
 import {Block} from "./block"
 import {Changes} from "./changes"
 import {Action} from "./actions"
+import {ids} from "./id";
 
 //---------------------------------------------------------------------
 // Database
@@ -63,6 +64,10 @@ export class Database {
         evaluation.queue(commit);
       }
     }
+  }
+
+  toTriples() {
+    return this.index.toTriples(true);
   }
 
   analyze(e: Evaluation, d: Database) {}
@@ -235,6 +240,37 @@ export class Evaluation {
       database.onFixpoint(this, changes);
     }
     return changes;
+  }
+
+  save() {
+    let results = {};
+    for(let database of this.databases) {
+      let name = this.databaseToName(database);
+      let values = database.toTriples();
+      for(let value of values) {
+        let [e,a,v,n] = value;
+        if(ids.isId(e)) value[0] = ids.parts(e);
+        if(ids.isId(v)) value[2] = ids.parts(v);
+      }
+      results[name] = values;
+    }
+    return results;
+  }
+
+  load(dbs: Object) {
+    let changes = this.createChanges();
+    for(let databaseName of Object.keys(dbs)) {
+      let facts = dbs[databaseName];
+      let db = this.getDatabase(databaseName);
+      let index = db.index;
+      for(let fact of facts) {
+        let [e,a,v,n] = fact;
+        if(ids.isId(e)) e = ids.load(e);
+        if(ids.isId(v)) v = ids.load(v);
+        changes.store(databaseName,e,a,v,n);
+      }
+    }
+    this.executeActions([], changes);
   }
 
   close() {

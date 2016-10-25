@@ -376,3 +376,19 @@ _ide.onTokenInfo = (ide, tokenId) => {
     socket.send(JSON.stringify({type: "tokenInfo", tokenId}));
   }
 }
+
+window.document.body.addEventListener("dragover", (e) => {
+  e.preventDefault();
+})
+
+window.document.body.addEventListener("drop", (e) => {
+  if(e.dataTransfer.files.length) {
+    let reader = new FileReader();
+    reader.onload = function (event) {
+      socket.send(`{"type": "load", "info": ${reader.result}}`);
+    };
+    reader.readAsText(e.dataTransfer.files[0]);
+  }
+  e.preventDefault();
+  e.stopPropagation();
+});
