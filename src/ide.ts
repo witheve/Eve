@@ -2062,32 +2062,30 @@ export class IDE {
       },
 
       "jump-to": (action) => {
-        if(!action.token || action.token.length === 0) return;
         let from:Position;
 
-        for(let spanId of action.token) {
-          let span = this.editor.getSpanBySourceId(spanId);
-          if(!span) continue;
-          let loc = span.find();
-          if(!loc) continue;
-          if(!from || comparePositions(loc.from, from) < 0) from = loc.from;
+        if(action.position) {
+          let doc = this.editor.cm.getDoc();
+          let min = Infinity;
+          for(let index of action.position) {
+            if(index < min) min = index;
+          }
+          from = doc.posFromIndex(min)
         }
 
-        this.editor.scrollToPosition(from);
-      },
-
-      "jump-to-position": (action) => {
-        if(!action.position || action.position.length === 0) return;
-
-        let doc = this.editor.cm.getDoc();
-        let min = Infinity;
-        let max = -Infinity;
-        for(let index of action.position) {
-          if(index < min) min = index;
-          if(index > max) max = index;
+        if(action.span) {
+          for(let spanId of action.span) {
+            let span = this.editor.getSpanBySourceId(spanId);
+            if(!span) continue;
+            let loc = span.find();
+            if(!loc) continue;
+            if(!from || comparePositions(loc.from, from) < 0) from = loc.from;
+          }
         }
-        let from = doc.posFromIndex(min)
-        this.editor.scrollToPosition(from);
+
+        if(from) {
+          this.editor.scrollToPosition(from);
+        }
       },
 
       "find-section": (action, actionId) => {

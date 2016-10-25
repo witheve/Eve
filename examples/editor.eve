@@ -23,28 +23,18 @@ bind @browser
 
 ### Jump To
 
-`#jump-to` will scroll the editor viewport to bring the given `token` into view. If multiple `token`s are specified, the inclusive range between them will be scrolled to, favoring the top of the range if the range is larger than viewport.
+`#jump-to` will scroll the editor viewport to bring the given `span` or index `position` into view. If multiple `span` and/or `position`s are specified, the topmost will be scrolled to.
 
 ```
 search @editor
-  action = [#jump-to token]
+  action = [#jump-to]
+  (attribute, value) = if action.span then ("span", action.span)
+                       if action.position then ("position", action.position)
 
 bind @browser
-  [#editor #jump-to | token]
+  result = [#editor #jump-to]
+  lookup[record: result, attribute, value]
 ```
-
-### Jump To Position
-
-`#jump-to-position` will scroll the editor viewport to bring the index `position` in the document into view. If multiple `position`s are specified, the inclusive range between them will be scrolled to, favoring the top of the range is larger than viewport.
-
-```
-search @editor
-  action = [#jump-to-position position]
-
-bind @browser
-  [#editor #jump-to-position | position]
-```
-
 
 ### Mark Between
 

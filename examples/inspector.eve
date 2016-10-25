@@ -402,7 +402,7 @@ search @editor
 
 bind @editor
   [#mark-between inspector type: "elision" | range: [start stop]]
-  [#jump-to-position position: 0]
+  [#jump-to position: 0]
 ```
 
 ### Annotate Blocks
@@ -418,7 +418,7 @@ search @editor
 
 bind @editor
   [#mark-span inspector type: "block_annotation" token: block kind: "source" message: "This block provides the inspected value."]
-  [#jump-to token: block]
+  [#jump-to span: block]
 ```
 
 ### Highlight Related
@@ -522,7 +522,7 @@ search @editor
 
 bind @editor
   [#mark-span inspector type: "block_annotation" token: block kind: "affector" message: "This block affects the inspected value."]
-  [#jump-to token: block]
+  [#jump-to span: block]
 ```
 
 When the `"annotate-affectors"` state is active, annotate blocks which could draw to the document root.
@@ -536,7 +536,7 @@ search @editor
 
 bind @editor
   [#mark-range inspector type: "annotation" span start stop kind: "affector" message: "This block could draw to the document root."]
-  [#jump-to-position position: start]
+  [#jump-to position: start]
 ```
 
 ### Focus Failures
@@ -570,7 +570,7 @@ search @editor
 
 bind @editor
   [#mark-span inspector type: "block_annotation" token: block kind: "failure" message: "This block could affect the inspected value but failed."]
-  [#jump-to token: block]
+  [#jump-to span: block]
 ```
 
 ### Highlight Failures
