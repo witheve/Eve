@@ -64,8 +64,9 @@ button { font-family: "Avenir", "Helvetica neue", sans-serif; }
 .tree-item.branch:hover .label:before { opacity: 1; }
 .tree-item .label.no-icon:before { content: ""; }
 
-.tree-item .controls { display: flex; flex: 0 0 auto; margin-left: 5px; opacity: 0; transition: opacity 0.15s; user-select: none; -webkit-user-select: none; }
-.tree-item .controls > * { display: inline-block; width: 20px; text-align: center; }
+.tree-item .controls { display: flex; flex: 0 0 auto; color:#bbb; margin-left: 5px; opacity: 0; transition: opacity 0.15s; user-select: none; -webkit-user-select: none; }
+.tree-item .controls > * { cursor:pointer; display: inline-block; width: 20px; text-align: center; }
+.tree-item .controls > div:hover { color: #eee; }
 .tree-item:hover > .flex-row > .controls { opacity: 1; }
 
 .tree-item.hidden > .flex-row > .label { opacity: 0.5; }
