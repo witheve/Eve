@@ -52,27 +52,29 @@ search
 bind @browser
   [#link rel: "stylesheet" href: "/examples/css/crm.css"]
   [#div #container class: "container" children:
-    [#div class: "banner"]
-    [#div class: "bio-info" children:
-      [#div class: "avatar-container" children:
-        [#img class: "avatar", src: current-contact.avatarURL]]
-      [#div class: "name2" text: "{{current-contact.name}}"]
-      [#div class: "info" text: "{{current-contact.title}}"]
-      [#div class: "info" text: "{{time-string}}, {{current-contact.location}}"]]
-    [#div #content class: "content"]
+    [#div class: "scroll" children:
+      [#div class: "banner"]
+      [#div class: "bio-info" children:
+        [#div class: "avatar-container" children:
+          [#img class: "avatar", src: current-contact.avatarURL]]
+        [#div class: "name2" text: "{{current-contact.name}}"]
+        [#div class: "info" text: "{{current-contact.title}}"]
+        [#div class: "info" text: "{{time-string}}, {{current-contact.location}}"]]
+      [#div #content class: "content"]]
     [#div class: "navigation" children:
       [#div #about #nav class: "nav-button middle", children:
-        [#div class: "icon" text: "💁"]
-        [#div class: "label" text: "ABOUT"]]
+        [#div class: "icon ion-person"]
+        [#div class: "label" text: "profile"]]
       [#div #threads #nav class: "nav-button middle", children:
-        [#div class: "icon" children: [#div class: "bubble" text: threads]]
-        [#div class: "label" text: "MESSAGES"]]
+        [#div class: "icon ion-chatboxes"]
+        [#div class: "bubble" text: threads]
+        [#div class: "label" text: "messages"]]
       [#div #contacts #nav class: "nav-button middle" children:
-        [#div class: "icon" text: "📇"]
-        [#div class: "label" text: "CONTACTS"]]
+        [#div class: "icon ion-person-stalker" text: ""]
+        [#div class: "label" text: "contacts"]]
       [#div #more #nav class: "nav-button" children:
-        [#div class: "icon" text: "⋯"]
-        [#div class: "label" text: "MORE"]]]]
+        [#div class: "icon ion-android-more-horizontal" text: ""]
+        [#div class: "label" text: "more"]]]]
 ```
 
 As part of the main application, we display a count of unread messages in the navigation bar:
@@ -89,7 +91,7 @@ bind
 
 ## Pages
 
-The application is composed of various pages, that are injected into the main content area depending on the contents of #app.page. Only one page should be displayed at a time. 
+The application is composed of various pages, that are injected into the main content area depending on the contents of #app.page. Only one page should be displayed at a time.
 
 ### About Page
 
@@ -103,13 +105,13 @@ search @browser @session
 bind @browser @session
   content.children := [#div class: "about" children:
     [#div class: "about-line", children:
-      [#span class: "about-label", text: "Phone: "]
+      [#span class: "about-label", text: "Phone"]
       [#span text: contact.phone]]
     [#div class: "about-line", children:
-      [#span class: "about-label", text: "E-mail: "]
+      [#span class: "about-label", text: "Email"]
       [#span text: contact.email]]
     [#div #recent-contacts children:
-      [#h3 text: "All Contacts ({{count[given: contact.contacts]}}):"]
+      [#h3 text: "All Contacts ({{count[given: contact.contacts]}})"]
       [#img #contact contact: contact.contacts, class: "recent-avatar" src: contact.contacts.avatarURL]]]
 ```
 
@@ -124,7 +126,7 @@ search @browser @session
 
 bind @browser @session
   recent-div.children += [#div children:
-    [#h3 text: "Recent Contacts ({{count[given: recent]}}):"]
+    [#h3 text: "Recent Contacts ({{count[given: recent]}})"]
     [#img class: "recent-avatar" src: recent.avatarURL]]
 ```
 
@@ -139,7 +141,7 @@ search @browser @session
 
 bind @browser
   recent-div.children += [#div children:
-    [#h3 text: "Recent Contacts (0):"]
+    [#h3 text: "Recent Contacts (0)"]
     [#div #contacts #nav children:
       [#div class: "plus" text: "+"]
       [#div text: "Start a Thread"]]]
@@ -171,7 +173,7 @@ search @browser @session
   msgs.time = [hours minutes ampm]
 
 bind @browser
-  content.children := [#div children:
+  content.children := [#div class: "flex-spacer" children:
     [#div #convo class: "convo" children:
       [#div sort: msgs.time class: "msg" message: msgs children:
         [#img class: "msg-avatar" src: msgs.sender.avatarURL]
@@ -200,7 +202,7 @@ bind @browser
       [#img class: "msg-avatar" src: contacts.avatarURL]
       [#div class: "msg-name" text: contacts.name]
       [#div text: "{{message-count}} messages"]]
-    [#div #archive-button thread: threads, class: "archive" text: "📥"]]
+    [#div #archive-button thread: threads, class: "archive ion-archive"]]
 ```
 
 If the user has no threads, display a message prompting the user to start a conversation with a contact
@@ -232,7 +234,7 @@ bind @browser @session
     [#div class: "contact-name", text: user.contacts.name]
     [#div text: "Location: {{user.contacts.location}}"]
     [#div text: "Phone: {{user.contacts.phone}}"]
-    [#div text: "E-mail: {{user.contacts.email}}"]]
+    [#div text: "Email: {{user.contacts.email}}"]]
 ```
 
 ### More Page
@@ -245,9 +247,8 @@ search @browser @session
   [#app page: [#more]]
 
 bind @browser
-  content.children := [#div #more children: 
+  content.children := [#div #more class: "more" children:
     [#h2 text: "Learn more about Eve"]
-    [#h2 text: "Resources"]
     [#ul children:
       [#li children: [#a href: "http://witheve.com" text: "Homepage"]]
       [#li children: [#a href: "https://witheve.github.io/docs/guides/quickstart/" text: "Quick Start Tutorial"]]

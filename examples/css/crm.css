@@ -1,4 +1,7 @@
+h3, h4 { font-weight:normal; font-size:16px; }
+
 .container {
+  box-shadow: 0 3px 8px #bbb;
   width: 400px;
   height: 711px;
   background: white;
@@ -6,6 +9,13 @@
   font-size: 14px;
   display: flex;
   flex-direction: column;
+}
+
+.scroll {
+  flex: 1;
+  overflow: auto;
+  display:flex;
+  flex-direction:column;
 }
 
 .avatar {
@@ -17,6 +27,7 @@
   background: linear-gradient(-90deg, rgb(74,64,136), rgb(0,158,224));
   width: 100%;
   height: 150px;
+  flex:none;
 }
 
 .avatar-container {
@@ -31,7 +42,7 @@
 
 .name2 {
   width: 100%;
-  text-align: center;  
+  text-align: center;
   color: rgb(11,11,37);
   font-family: sans-serif;
   font-size: 20px;
@@ -41,8 +52,9 @@
 
 .info {
   width: 100%;
-  text-align: center;  
+  text-align: center;
   color: rgb(147,167,178);
+  color: #999;
   font-family: sans-serif;
   font-size: 14px;
   margin-top: 5px;
@@ -50,78 +62,88 @@
 
 .navigation {
   display: flex;
-  border-top: 1px solid rgb(240,240,240);
-  border-bottom: 1px solid rgb(240,240,240);
-  color: rgb(118, 148, 163);
-  margin-top: 20px;
+  flex:none;
+  border-top: 1px solid #eee;
+  padding:5px 0;
 }
 
 .nav-button {
+  position:relative;
   flex-grow: 1;
   text-align: center;
-  height: 57;
+  height: 60px;
   cursor: pointer;
+  color: #999;
 }
 
 .icon {
-  font-size: 24px;
+  font-size: 30px;
   padding: 3px;
-  height: 40px;
+  height: 35px;
+  margin-top:2px;
 }
 
 .middle {
-  border-right: 1px solid rgb(240,240,240);
+  border-right: 1px solid #eee;
 }
 
 .bubble {
+  position: absolute;
+  top:8px;
+  left: 56px;
   color: white;
-  background-color: rgb(226, 79, 94);
-  width: 30px;
-  height: 30px;
-  margin: auto;
-  border-radius: 50%;
   font-weight: bold;
 }
 
 .content {
   margin-top: 10px;
-  padding: 10px;
-  border-top: 1px solid rgb(240,240,240);
+  padding: 0px;
   flex-grow: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .convo {
-  background-color: #FAFAFA;
-  margin-bottom: 20px;
-  height: 270px;
-  padding: 10px;
+  height: 280px;
+  margin-bottom: 10px;
+  padding: 10px 20px;
   overflow: auto;
 }
 
 .msg-avatar {
   height: 40px;
   width: 40px;
-  margin-right: 10px;
+  margin-right: 15px;
   float: left;
+  border-radius: 4px;
+  border: 1px solid #ddd;
 }
 
 .msg-name {
   font-weight: bold;
+  color: #555;
+  margin-top:2px;
+  margin-bottom:2px;
 }
 
 .msg {
   margin-bottom: 10px;
+  min-height: 40px;
+  flex:none;
 }
 
+.thread:first-child { margin-top:30px; border-top:1px solid #eee; }
+
 .thread {
-  height: 45px;
-  margin-bottom: 10px;
-  padding: 3px;
-  background-color: rgb(245,245,245);
+  padding: 15px 20px;
   display: flex;
   flex-direction: row;
-  border: 1px solid rgb(235,235,235);
+  border-bottom: 1px solid #eee;
+  align-items: center;
+  color: #999;
 }
+
+.thread img {}
 
 .thread-box {
   flex-grow: 1;
@@ -129,10 +151,8 @@
 
 .archive {
   cursor: pointer;
-  padding-top: 6px;
-  border-left: 1px solid rgb(235,235,235);
-  padding-left: 5px;
-  padding-right: 2px;
+  color: #999;
+  font-size: 25px;
 }
 
 .contact-avatar {
@@ -140,16 +160,25 @@
   height: 80px;
   float: left;
   margin-right: 10px;
+  border-radius: 4px;
 }
 
 .contact-name {
   font-weight: bold;
   font-size: 18px;
+  margin-top:3px;
+  margin-bottom: 5px;
+  color: #666;
 }
 
 .contact {
-  height: 95px;
+  height: 115px;
+  padding: 10px 20px;
+  border-bottom: 1px solid #eee;
+  color: #999;
 }
+
+.contact:first-child { margin-top: 20px; border-top:1px solid #eee; }
 
 .recent-avatar {
   width: 40px;
@@ -158,7 +187,12 @@
 }
 
 .msg-input {
-  width: 100%;
+  width: 360px;
+  margin: 0 20px;
+  border: 1px solid #ddd;
+  border-radius: 2px;
+  padding: 5px;
+  font-size: 12pt;
 }
 
 .msg-time {
@@ -167,14 +201,23 @@
   font-size: 12px;
 }
 
+.about { padding: 0 40px; padding-top: 10px; }
+
 .about-line {
-  line-height: 40px;
-  border-bottom: 1px solid rgb(240,240,240);
+  display: flex;
+  flex-direction:column;
+  margin-top:20px;
 }
 
-.about-label {
-  font-weight: bold;
+.about-label, .about h3 {
+  color: rgb(152, 171, 181);
+  color: #999;
+  margin-bottom:6px;
+  font-size: 14px;
 }
+
+.about h3 { margin-top:20px; margin-bottom:10px; }
+.about img { border-radius:4px; border:1px solid #ddd; }
 
 .plus {
   background-color: rgb(111, 165, 81);
@@ -191,10 +234,21 @@
 }
 
 a {
- color: rgb(0,158,224); 
+ color: rgb(0,158,224);
  line-height: 20px;
+ text-decoration: none;
+ border-bottom: 1px dashed rgb(0,158,224);
 }
 
 a:hover {
   color: rgb(91,89,164);
 }
+
+.more {
+  padding: 0 40px;
+}
+
+.more h2 { font-weight: normal; font-size: 16pt; margin-top: 30px; margin-bottom: 10px; }
+
+.more ul { margin: 5px 0; }
+.more li { margin-bottom:8px; }
