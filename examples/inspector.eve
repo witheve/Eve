@@ -84,6 +84,24 @@ commit @event
   event := none
 ```
 
+### Focus Current
+
+When inspecting, the navigator will reveal a button which can be clicked to elide everything but the annotated sections of the document.
+
+```
+search @event
+  event = [#inspector #focus-current]
+
+search @inspector
+  inspector = [#inspector state]
+  focus-states = if state = "annotate-blocks" then "focus-blocks"
+                 if state = "annotate-affectors" then "focus-affectors"
+                 if state = "annotate-failures" then "focus-failures"
+
+commit @inspector
+  inspector.state += focus-states
+```
+
 ### Clear
 
 When an inspector clear event comes in, remove all current inspection state.
@@ -606,20 +624,28 @@ bind @editor
 
 ## Drawing
 
+While we have an inspector, notify the editor about its existence.
+
+```
+search @inspector
+  inspector = [#inspector x y]
+
+bind @browser
+  inspector <- [#editor #inspector x y: y + 15]
+```
+
 When an `#inspector` is open targeted to an element, show the element popout.
 
 ```
 search @inspector
   inspector = [#inspector state: "popout" element]
-  x = inspector.x
-  y = inspector.y + 15
 
 bind (@view, @browser)
   attributes = [#attribute-table inspector entity: element]
 
 bind @browser
   inspector <-
-    [#div #editor #inspector element x y class: "inspector-pane" children:
+    [#div element class: "inspector-pane" children:
       [#div #attributes-panel inspector children: attributes]
       [#div #options-panel inspector class: "buttons" children:
         [#button inspector text: "Find events" activate: "focus-blocks", deactivate: "popout"]
@@ -633,11 +659,9 @@ When an `#inspector` is open targeted to the document root, show the root popout
 ```
 search @inspector
   inspector = [#inspector state: "popout" root]
-  x = inspector.x
-  y = inspector.y + 15
 
 bind @browser
-  inspector <- [#div #editor #inspector x y class: "inspector-pane" children:
+  inspector <- [#div class: "inspector-pane" children:
       [#div #options-panel inspector class: "buttons" children:
         [#button inspector text: "Not drawing?" activate: ("annotate-affectors", "highlight-failures") deactivate: "popout"]]]
 ```
@@ -648,11 +672,9 @@ When an `#inspector` is open targeted to a block, show the block popout.
 ```
 search @inspector
   inspector = [#inspector state: "block-popout" block]
-  x = inspector.x
-  y = inspector.y + 15
 
 bind @browser
-  inspector <- [#div #editor #inspector in-editor: true x y class: "inspector-pane" children:
+  inspector <- [#div in-editor: true class: "inspector-pane" children:
     [#div #options-panel inspector class: "buttons" children:
     [#button inspector text: "Did this fail?" activate: "highlight-block-failure" deactivate: "block-popout"]]]
 
