@@ -30,7 +30,7 @@ commit @event
 
 When the inspect event comes in, open a new inspector targeted to the inspected element/record/span.
 
-If an inspector is already open, close it.
+If an inspector is already open, close it and nuke its state.
 
 ```
 search @event
@@ -39,8 +39,8 @@ search @event
 search @inspector
   inspector = [#inspector]
 
-commit @inspector
-  inspector := none
+bind @event
+  [#inspector #clear inspector]
 ```
 
 When an element is targeted, inspect it.
@@ -100,21 +100,25 @@ search @inspector
 
 commit @inspector
   inspector.state += focus-states
+
+commit @event
+  event := none
 ```
 
 ### Clear
 
-When an inspector clear event comes in, remove all current inspection state.
+When an inspector clear event comes in, remove open inspectors and all their state.
 
 ```
-search @event
-  [#inspector #clear]
-
-search @inspector
-  inspector = [#inspector]
+search @event @inspector
+  event = [#inspector #clear]
+  inspector = if event.inspector then event.inspector
+              else [#inspector]
 
 commit @inspector
   inspector := none
+  inspector.state := none
+  inspector.data := none
 ```
 
 ### Click Option
