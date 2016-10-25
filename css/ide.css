@@ -30,7 +30,7 @@ body { background: #f5f5f5; color: #555; }
 /****************************************************************************\
  * Navigator
 \****************************************************************************/
-.navigator-header { display: flex; flex-direction: row; padding:10px 5px; user-select: none; -webkit-user-select: none; margin-bottom:10px; font-size:18px; color: #555; transition:color 0.2s ease-in-out; }
+.navigator-header { display: flex; flex-direction: column; padding:10px 5px; user-select: none; -webkit-user-select: none; margin-bottom:10px; font-size:18px; color: #555; transition:color 0.2s ease-in-out; }
 .navigator-pane:hover .navigator-header { color: #aaa;  }
 .navigator-header > .controls { display:flex; flex-direction:row; flex:1; }
 .navigator-header > .controls > * { text-align: center; transition: transform 0.3s; cursor: pointer; }
@@ -39,6 +39,8 @@ body { background: #f5f5f5; color: #555; }
 .navigator-header .collapse-btn { transform: rotate(180deg); color: #999; }
 .navigator-header .up-btn .label { display: flex; font-size:16px; margin-left: 10px; }
 .navigator-header .label { white-space: pre; display:none; }
+
+.navigator-header .inspector-controls { margin-top: 35px; margin-bottom: -5px; }
 
 .tree-item { flex-direction: column; align-items: stretch; }
 .tree-item > .tree-items { display: flex; flex-direction: column; }

@@ -275,6 +275,10 @@ class Navigator {
     event.stopPropagation();
   }
 
+  inspectorFocus = () => {
+    sendEvent([{tag: ["inspector",  "focus-current"]}]);
+  }
+
   // Elements
   workspaceItem(nodeId:string):Elem {
     let node = this.nodes[nodeId];
@@ -335,6 +339,12 @@ class Navigator {
     ]};
   }
 
+  inspectorControls():Elem {
+    return {c: "inspector-controls", children: [
+      {t: "button", c: "inspector-hide", text: "hide unselected", click: this.inspectorFocus}
+    ]};
+  }
+
   header():Elem {
     let type = this.currentType();
     return {c: "navigator-header", children: [
@@ -345,7 +355,8 @@ class Navigator {
         ]} : undefined,
         {c: "flex-spacer"},
         {c: `${this.open ? "expand-btn" : "collapse-btn"} ion-ios-arrow-back`, click: this.togglePane},
-      ]}
+      ]},
+      this.ide.inspecting ? this.inspectorControls() : undefined,
     ]};
   }
 
@@ -2316,6 +2327,7 @@ export class IDE {
       "inspector": (action, actionId) => {
         this.inspecting = true;
         let inspectorElem:HTMLElement = activeElements[actionId] as any;
+        if(!inspectorElem) return;
         if(action["in-editor"]) this.editor.cm.getWrapperElement().appendChild(inspectorElem);
 
         if(action.x && action.y) {
