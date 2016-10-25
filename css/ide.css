@@ -144,14 +144,18 @@ button { font-family: "Avenir", "Helvetica neue", sans-serif; }
 /****************************************************************************\
  * Format Bars
 \****************************************************************************/
-.editor-pane .new-block-bar { position: absolute; top: 0; left: 0; margin-left: -32px; display: flex; flex-direction: row; width: 32px; overflow: hidden; background: #666; transition: width 0.15s; z-index: 5; color: #eee; border-radius:2px; }
+.editor-pane .new-block-bar { position: absolute; top: 0; left: 0; margin-left: -28px; display: flex; flex-direction: row; width: 28px; overflow: hidden; transition: width 0.15s; z-index: 5; color: #666; border-radius:5px; border:1px solid #ddd; font-size:10pt; background:white; }
 .editor-pane .new-block-bar.active { width: 246px; }
 
+
 .editor-pane .new-block-bar > .new-block-bar-toggle,
-.editor-pane .new-block-bar > .controls > div { display:flex; padding: 5px 10px; align-items:center; cursor:pointer; }
+.editor-pane .new-block-bar > .controls > div { display:flex; padding: 3px 10px; align-items:center; cursor:pointer; }
+
+.editor-pane .new-block-bar > .new-block-bar-toggle { padding: 3px 8px; }
+
 .editor-pane > .controls > div { cursor:pointer; }
 .editor-pane .new-block-bar > .new-block-bar-toggle:hover,
-.editor-pane .new-block-bar > .controls > div:hover{ background: #888; }
+.editor-pane .new-block-bar > .controls > div:hover{ background: #e4e4e4; }
 .editor-pane .new-block-bar > .new-block-bar-toggle:before { transition: transform 0.15s; }
 .editor-pane .new-block-bar.active > .new-block-bar-toggle:before { transform: rotate(45deg); }
 
