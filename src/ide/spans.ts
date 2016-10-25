@@ -550,14 +550,23 @@ export class HeadingSpan extends LineSpan {
     if(!loc) return;
     let from = {line: loc.from.line + 1, ch: 0};
     let to = {line: this.editor.cm.getDoc().lastLine() + 1, ch: 0};
-    let headings = this.editor.findSpans(from, to, "heading");
-    if(!headings.length) return {from: loc.from, to: {line: to.line - 1, ch: 0}};
+    let headings = this.editor.findSpans(from, to, "heading") as HeadingSpan[];
 
-    headings.sort(compareSpans);
-    let next = headings[0];
-    let nextLoc = next.find();
-    if(!nextLoc) return {from: loc.from, to: {line: to.line - 1, ch: 0}};
-    return {from: loc.from, to: nextLoc.from};
+    if(headings.length) {
+      headings.sort(compareSpans);
+      let nextIx = 0;
+      let next = headings[nextIx++];
+      while(next && next.source.level > this.source.level) {
+        next = headings[nextIx++];
+      }
+
+      if(next) {
+        let nextLoc = next.find();
+        if(nextLoc) return {from: loc.from, to: nextLoc.from};
+      }
+    }
+
+    return {from: loc.from, to: {line: to.line - 1, ch: 0}};
   }
 }
 
