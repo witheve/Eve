@@ -243,3 +243,5 @@ table.view td { padding: 0 5px; border: 1px solid #ccc; border-top: none; border
 .inspector-pane .kv-table .kv-values { border-left: 1px solid #555; }
 .inspector-pane .kv-table .kv-row > div { padding: 4px 15px; font-size:11pt; }
 .inspector-pane .kv-table .kv-row { border:none; border-bottom:1px solid #555; }
+
+.inspector-pane div[is-entity="true"] { color: #A6D0FF; }
