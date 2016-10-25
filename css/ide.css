@@ -12,6 +12,7 @@
 
 html, body, __root { height: 100%; }
 body { background: #f5f5f5; color: #555; }
+button { font-family: "Avenir", "Helvetica neue", sans-serif; }
 /****************************************************************************\
  * Root
 \****************************************************************************/
@@ -40,7 +41,11 @@ body { background: #f5f5f5; color: #555; }
 .navigator-header .up-btn .label { display: flex; font-size:16px; margin-left: 10px; }
 .navigator-header .label { white-space: pre; display:none; }
 
-.navigator-header .inspector-controls { margin-top: 35px; margin-bottom: -5px; }
+.navigator-header .inspector-controls { margin-top: 20px; }
+.navigator-header .inspector-controls button {border:none; color:#eee; outline:none; cursor:pointer; padding:3px 10px; font-size: 10pt; margin-left:20px; background:#666; border-radius:2px; margin-top: 20px; transition:background 0.1s ease-in-out; }
+.navigator-header .inspector-controls button:hover { background: #777; }
+
+
 
 .tree-item { flex-direction: column; align-items: stretch; }
 .tree-item > .tree-items { display: flex; flex-direction: column; }

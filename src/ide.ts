@@ -341,7 +341,7 @@ class Navigator {
 
   inspectorControls():Elem {
     return {c: "inspector-controls", children: [
-      {t: "button", c: "inspector-hide", text: "hide unselected", click: this.inspectorFocus}
+      {t: "button", c: "inspector-hide", text: "Filter to selected", click: this.inspectorFocus}
     ]};
   }
 
@@ -356,7 +356,7 @@ class Navigator {
         {c: "flex-spacer"},
         {c: `${this.open ? "expand-btn" : "collapse-btn"} ion-ios-arrow-back`, click: this.togglePane},
       ]},
-      this.ide.inspecting ? this.inspectorControls() : undefined,
+      this.ide.inspecting ? this.inspectorControls() : {c: "inspector-controls"},
     ]};
   }
 
