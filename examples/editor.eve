@@ -172,16 +172,6 @@ commit @editor
   lookup[record: section, attribute, value]
 ```
 
-
-```
-search @editor
-  [#section span start stop]
-
-commit @browser
-  [#div text: "{{span}} {{start}} {{stop}}"]
-```
-
-
 ```
 search @editor
   section = [#section action]
