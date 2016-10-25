@@ -121,10 +121,10 @@ search @view
   bar = [label height]
   sort = if bar.sort then bar.sort
          else bar
-  bar-count = count[given: bar]
+  bar-count = count[given: bar, per: wrapper]
   bar-width = graph-width / bar-count
 
-  bar-height = (height / max-height) * (graph-height - 10) // padding!
+  bar-height = (height / max-height) * (graph-height - 30) // padding!
 
 bind @browser
   wrapper <- [#view #div node class: "view bar-graph" style: [width: graph-width, height: graph-height] children:
