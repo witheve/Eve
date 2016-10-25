@@ -361,7 +361,7 @@ Certain states require data to be fetched.
 ```
 commit @inspector
   // Element States
-  [#state state: "focus-blocks" requires: ("sources", "source-sections")]
+  [#state state: "focus-blocks" requires: "sources"]
   [#state state: "annotate-blocks" requires: "sources"]
   [#state state: "highlight-related" requires: "related"]
   [#state state: "show-values-inline" requires: "values"]
@@ -398,10 +398,9 @@ search @inspector
 
 search @editor
   [#source record: element block]
-  [#section span: block start stop]
 
 bind @editor
-  [#mark-between inspector type: "elision" | range: [start stop]]
+  [#elide-between-sections inspector | span: block]
   [#jump-to position: 0]
 ```
 
@@ -505,7 +504,7 @@ search @editor
   [#affector record: element block action]
 
 bind @editor
-  [#mark-between inspector type: "elision" | span: block]
+  [#elide-between-sections inspector | span: block]
   [#mark-span inspector type: "highlight" | span: action]
 ```
 
@@ -552,7 +551,7 @@ search @editor
   [#failure block]
 
 bind @editor
-  [#mark-between inspector type: "elision" | span: block]
+  [#elide-between-sections inspector | span: block]
   [#mark-span inspector type: "highlight" | span: action]
 ```
 
