@@ -126,7 +126,6 @@ class Navigator {
       this.nodes[nodeId] = undefined;
 
     } else if(node) {
-      // @NOTE: we intentionally don't handle this case currently since updating here would conflict with the parser updates
       if(span.isDisabled() !== node.hidden) {
         node.hidden = span.isDisabled();
       }
@@ -156,6 +155,67 @@ class Navigator {
       }
       let doc = this.ide.editor.cm.getDoc();
       this.nodes[nodeId] = {id: nodeId, name: doc.getLine(loc.from.line), type: "section", level: span.source.level, span, open: true, hidden: span.isDisabled()};
+    }
+  }
+
+  updateElision() {
+    let sections:{nodeId: string, hidden: boolean, range:Range}[] = [];
+
+    for(let nodeId in this.nodes) {
+      let node = this.nodes[nodeId];
+      if(!node || node.type !== "section") continue;
+
+      let heading = node.span as HeadingSpan;
+      let range = heading.getSectionRange();
+      sections.push({nodeId, hidden: node.hidden, range});
+    }
+
+    if(!sections.length) {
+      // Only one source can be safely eliding at any given time.
+      for(let span of this.ide.editor.getAllSpans("elision")) {
+        span.clear();
+      }
+      return;
+    }
+
+    sections.sort((a, b) => {
+      let fromDir = comparePositions(a.range.from, b.range.from);
+      if(fromDir) return fromDir;
+      return comparePositions(a.range.to, b.range.to);
+    });
+
+    let visibleRanges = [];
+    let currentRange:Range|undefined;
+    for(let section of sections) {
+      if(!section.hidden) {
+        if(!currentRange) currentRange = {from: section.range.from, to: section.range.to};
+        else currentRange.to = section.range.to;
+
+      } else {
+        if(currentRange) {
+          if(comparePositions(section.range.from, currentRange.to) < 0) {
+            currentRange.to = section.range.from;
+          }
+          visibleRanges.push(currentRange);
+          currentRange = undefined;
+        }
+      }
+    }
+
+    if(currentRange) {
+      visibleRanges.push(currentRange);
+    }
+
+    // Only one source can be safely eliding at any given time.
+    for(let span of this.ide.editor.getAllSpans("elision")) {
+      span.clear();
+    }
+
+    if(visibleRanges.length) {
+      this.ide.editor.markBetween(visibleRanges, {type: "elision"});
+    } else {
+      let doc = this.ide.editor.cm.getDoc();
+      this.ide.editor.markSpan({line: 0, ch: 0}, {line: doc.lineCount(), ch: 0}, {type: "elision"});
     }
   }
 
@@ -195,33 +255,22 @@ class Navigator {
     this.ide.editor.cm.scrollIntoView(loc, 20);
   }
 
-  doElide(nodeId: string,  elide: boolean) {
-    let node = this.nodes[nodeId];
-    if(!node) return;
-    if(elide && !node.hidden) {
-      let heading = node.span as HeadingSpan;
-      let sectionRange = heading.getSectionRange();
-      if(sectionRange) {
-        node.elisionSpan = this.ide.editor.markSpan(sectionRange.from, sectionRange.to, {type: "elision"});
-      }
-    } else if(!elide && node.elisionSpan) {
-      node.elisionSpan.clear();
-      node.elisionSpan = undefined;
-    }
-    node.hidden = elide;
-  }
-
   _inheritParentElision = (nodeId: string, parentId?: string) => {
-    if(parentId) this.doElide(nodeId, this.nodes[parentId]!.hidden);
+    let node = this.nodes[nodeId];
+    let parent = this.nodes[parentId];
+    if(!node || !parent) return;
+    node.hidden = parent.hidden;
   }
 
   toggleElision = (event, {nodeId}) => {
     let node = this.nodes[nodeId];
     if(!node) return;
     this.ide.editor.cm.operation( () => {
-      this.doElide(nodeId, !node.hidden);
+      node.hidden = !node.hidden;
       this.walk(nodeId, this._inheritParentElision);
-    })
+      this.updateElision();
+    });
+
     this.ide.render();
     event.stopPropagation();
   }
