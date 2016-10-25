@@ -182,6 +182,7 @@ Certain kinds of data depend on other data.
 ```
 commit @inspector
   [#data data: "sources"]
+  [#data data: "source-sections", requires: "sources"]
   [#data data: "related" requires: "sources"]
   [#data data: "cardinalities" requires: "related"]
   [#data data: "values" requires: "related"]
@@ -221,6 +222,21 @@ search @inspector
 
 bind @editor
   [#find-source record attribute]
+```
+
+### Source Sections
+
+Find the section(s) containing the found source(s).
+
+```
+search @inspector
+  [#inspector data: "source-sections" element: record]
+
+search @editor
+  [#source record block]
+
+bind @editor
+  [#find-section span: block]
 ```
 
 ### Related
@@ -345,7 +361,7 @@ Certain states require data to be fetched.
 ```
 commit @inspector
   // Element States
-  [#state state: "focus-blocks" requires: "sources"]
+  [#state state: "focus-blocks" requires: ("sources", "source-sections")]
   [#state state: "annotate-blocks" requires: "sources"]
   [#state state: "highlight-related" requires: "related"]
   [#state state: "show-values-inline" requires: "values"]
@@ -382,9 +398,11 @@ search @inspector
 
 search @editor
   [#source record: element block]
+  [#section span: block start stop]
 
 bind @editor
-  [#mark-between inspector type: "elision_transient" | token: block]
+  [#mark-between inspector type: "elision" | range: [start stop]]
+  [#jump-to position: 0]
 ```
 
 ### Annotate Blocks
@@ -399,13 +417,13 @@ search @editor
   [#source record: element block]
 
 bind @editor
-  [#mark-span inspector type: "block_annotation" token: block kind: "source" message: "This block provides the inspected value."]
-  [#jump-to token: block]
+  [#mark-span inspector type: "block_annotation" span: block kind: "source" message: "This block provides the inspected value."]
+  [#jump-to span: block]
 ```
 
 ### Highlight Related
 
-When the `"highlight-related"` state is active, mark all related tokens highlighted.
+When the `"highlight-related"` state is active, mark all related spans highlighted.
 
 ```
 search @inspector
@@ -416,7 +434,7 @@ search @editor
   [#related span variable]
 
 bind @editor
-  [#mark-span inspector type: "highlight" | token: variable]
+  [#mark-span inspector type: "highlight" | span: variable]
 ```
 
 ### Show Values Inline
@@ -433,7 +451,7 @@ search @editor
   [#value variable value row: 1]
 
 bind @editor
-  [#mark-span inspector type: "badge" kind: "intermediate" target: element message: value token: variable]
+  [#mark-span inspector type: "badge" kind: "intermediate" target: element message: value span: variable]
 ```
 
 ### Show Values Table
@@ -472,7 +490,7 @@ search @editor
   [#cardinality variable cardinality]
 
 bind @editor
-  [#mark-span inspector type: "badge" kind: "cardinality" target: element message: cardinality | token: variable]
+  [#mark-span inspector type: "badge" kind: "cardinality" target: element message: cardinality | span: variable]
 ```
 
 ### Focus Affectors
@@ -487,8 +505,8 @@ search @editor
   [#affector record: element block action]
 
 bind @editor
-  [#mark-between inspector type: "elision_transient" | token: block]
-  [#mark-span inspector type: "highlight" | token: action]
+  [#mark-between inspector type: "elision" | span: block]
+  [#mark-span inspector type: "highlight" | span: action]
 ```
 
 ### Annotate Affectors
@@ -503,8 +521,8 @@ search @editor
   [#affector record: element block action]
 
 bind @editor
-  [#mark-span inspector type: "block_annotation" token: block kind: "affector" message: "This block affects the inspected value."]
-  [#jump-to token: block]
+  [#mark-span inspector type: "block_annotation" span: block kind: "affector" message: "This block affects the inspected value."]
+  [#jump-to span: block]
 ```
 
 When the `"annotate-affectors"` state is active, annotate blocks which could draw to the document root.
@@ -518,7 +536,7 @@ search @editor
 
 bind @editor
   [#mark-range inspector type: "annotation" span start stop kind: "affector" message: "This block could draw to the document root."]
-  [#jump-to-position position: start]
+  [#jump-to position: start]
 ```
 
 ### Focus Failures
@@ -534,8 +552,8 @@ search @editor
   [#failure block]
 
 bind @editor
-  [#mark-between inspector type: "elision_transient" | token: block]
-  [#mark-span inspector type: "highlight" | token: action]
+  [#mark-between inspector type: "elision" | span: block]
+  [#mark-span inspector type: "highlight" | span: action]
 ```
 
 ### Annotate Failures
@@ -551,8 +569,8 @@ search @editor
   [#failure block]
 
 bind @editor
-  [#mark-span inspector type: "block_annotation" token: block kind: "failure" message: "This block could affect the inspected value but failed."]
-  [#jump-to token: block]
+  [#mark-span inspector type: "block_annotation" span: block kind: "failure" message: "This block could affect the inspected value but failed."]
+  [#jump-to span: block]
 ```
 
 ### Highlight Failures
@@ -605,7 +623,7 @@ bind @browser
     [#div #editor #inspector element x y class: "inspector-pane" children:
       [#div #attributes-panel inspector children: attributes]
       [#div #options-panel inspector class: "buttons" children:
-        [#button inspector text: "Find events" deactivate: "popout"]
+        [#button inspector text: "Find events" activate: "focus-blocks", deactivate: "popout"]
         [#button inspector text: "Why this?" activate: "show-values-table" deactivate: "popout"]
         [#button inspector text: "Too few? Too many?" activate: "show-cardinalities-inline" deactivate: "popout"]
         [#button inspector text: "Not drawing?" activate: ("annotate-affectors", "highlight-failures") deactivate: ("annotate-blocks", "popout")]]]
