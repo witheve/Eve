@@ -891,7 +891,7 @@ export class Editor {
 
   scrollToPosition(position:Position) {
     let top = this.cm.heightAtLine(position.line, "local");
-    this.cm.scrollTo(0, Math.max(top - 30, 0));
+    this.cm.scrollTo(0, Math.max(top - 100, 0));
   }
 
   //-------------------------------------------------------
