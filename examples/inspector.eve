@@ -156,13 +156,38 @@ When a row in the attribute table is clicked, find the source of that particular
 ```
 search @event
   [#click element]
+  // If we're clicking on an entity value, we'll handle that elsewhere
+  [#click element: value-elem]
 
 search @browser
+  not(value-elem = [#value is-entity: true])
+
   element = [#kv-row key]
   [#kv-table inspector children: element]
 
 commit @inspector
   inspector.attribute := key
+```
+
+When we click a value in the attribute table, if it's an entity navigate to it.
+
+```
+search @event
+  [#click element]
+  [#click element: value-elem]
+
+search @browser
+  value-elem = [#value is-entity: true text: entity]
+
+  element = [#kv-row key]
+  [#kv-table inspector children: element]
+
+search @inspector
+  x = inspector.x
+  y = inspector.y
+
+bind @event
+  [#inspector #inspect #direct-target target: entity type: "element" x y]
 ```
 
 ### Click Elsewhere
