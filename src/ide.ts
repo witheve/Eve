@@ -2028,7 +2028,7 @@ export class IDE {
         action.spans = [];
 
         let ranges:Range[] = [];
-        if(action.token) {
+        if(action.span) {
           for(let spanId of action.span) {
             let span = this.editor.getSpanBySourceId(spanId);
             let range = span && span.find();
