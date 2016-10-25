@@ -48,14 +48,23 @@ bind @browser
 
 ### Mark Between
 
-`#mark-between` will create new spans *between* the given `token`s of the specified `type`. If `within` (another token id) is specified, it will constrain itself within that token. Otherwise it will go to the beginnning and end of the document. When the action is removed, the associated spans will be removed from the editor.
+`#mark-between` will create new spans of the specified `type` *between* the given `span`s or `range`s. If `within` (a span id) is specified, it will constrain itself within that span. Otherwise it will go to the beginnning and end of the document. When the action is removed, the associated spans will be removed from the editor.
 
 ```
 search @editor
-  action = [#mark-between type token]
+  action = [#mark-between type span]
 
 bind @browser
-  action <- [#editor #mark-between type token]
+  action <- [#editor #mark-between type span]
+```
+
+```
+search @editor
+  action = [#mark-between type range]
+
+bind @browser
+  range <- [start: range.start stop: range.stop]
+  action <- [#editor #mark-between type range]
 ```
 
 Include the optional within attribute, if specified.
@@ -127,6 +136,59 @@ search @editor
 
 bind @browser
   lookup[record: action, attribute, value]
+```
+
+### Find Section
+
+`#find-section` will find the section (region under the nearest heading) containing the given `position` (as an index into the document text) or `span` id. Results will be returned in the format `[#section position? span? heading start stop]` where `position` and `span` are as provided, heading is the id of the heading span for the section (if any), and `start` and `stop` are the indexes for the beginning and end of the section.
+
+```
+search @editor
+  action = [#find-section span]
+
+bind @browser
+  [#editor #find-section span]
+```
+
+```
+search @editor
+  action = [#find-section position]
+
+bind @browser
+  [#editor #find-section position]
+```
+
+```
+search @event
+  event = [#editor #section action]
+  (attribute, value) = if event.position then ("position", event.position)
+                       if event.span then ("span", event.span)
+                       if event.heading then ("heading", event.heading)
+                       if event.start then ("start", event.start)
+                       if event.stop then ("stop", event.stop)
+
+commit @editor
+  section = [#section action]
+  lookup[record: section, attribute, value]
+```
+
+
+```
+search @editor
+  [#section span start stop]
+
+commit @browser
+  [#div text: "{{span}} {{start}} {{stop}}"]
+```
+
+
+```
+search @editor
+  section = [#section action]
+  not(action = [#find-section])
+
+commit @editor
+  section := none
 ```
 
 ## Language Service

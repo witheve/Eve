@@ -1996,35 +1996,52 @@ export class IDE {
 
   actions = {
     insert: {
-      "mark-between": (exec) => {
-        let source = {type: exec.type[0]};
-        for(let attribute in exec) {
-          if(exec[attribute] === undefined) continue;
-          source[attribute] = exec[attribute].length === 1 ? exec[attribute][0] : exec[attribute];
+      "mark-between": (action) => {
+        let source = {type: action.type[0]};
+        for(let attribute in action) {
+          if(action[attribute] === undefined) continue;
+          source[attribute] = action[attribute].length === 1 ? action[attribute][0] : action[attribute];
         }
-        exec.spans = this.editor.markBetween(exec.token, source, exec.bounds);
+
+        if(action.span) {
+          action.spans = this.editor.markBetween(action.span, source, action.bounds);
+        }
+
+        if(action.range) {
+          let doc = this.editor.cm.getDoc();
+          action.spans = action.spans || [];
+          let ranges:Range[] = [];
+          for(let rangeId of action.range) {
+            let rangeRecord = indexes.records.index[rangeId];
+            console.log(rangeId, rangeRecord);
+            if(!rangeRecord || !rangeRecord.start || !rangeRecord.stop) continue;
+
+            ranges.push({from: doc.posFromIndex(rangeRecord.start[0]), to: doc.posFromIndex(rangeRecord.stop[0])});
+          }
+          action.spans.push.apply(action.spans, this.editor.markBetween(ranges, source, action.bounds));
+        }
       },
 
-      "mark-span": (exec) => {
-        exec.spans = [];
+      "mark-span": (action) => {
+        action.spans = [];
 
         let ranges:Range[] = [];
-        if(exec.token) {
-          for(let token of exec.token) {
+        if(action.token) {
+          for(let token of action.token) {
             let span = this.editor.getSpanBySourceId(token);
             let range = span && span.find();
             if(range) ranges.push(range);
           }
         }
 
-        let source = {type: exec.type[0]};
-        for(let attribute in exec) {
-          if(exec[attribute] === undefined) continue;
-          source[attribute] = exec[attribute].length === 1 ? exec[attribute][0] : exec[attribute];
+        let source = {type: action.type[0]};
+        for(let attribute in action) {
+          if(action[attribute] === undefined) continue;
+          source[attribute] = action[attribute].length === 1 ? action[attribute][0] : action[attribute];
         }
 
         for(let range of ranges) {
-          exec.spans.push(this.editor.markSpan(range.from, range.to, source));
+          action.spans.push(this.editor.markSpan(range.from, range.to, source));
         }
       },
 
@@ -2069,6 +2086,47 @@ export class IDE {
         }
         let from = doc.posFromIndex(min)
         this.editor.scrollToPosition(from);
+      },
+
+      "find-section": (action, actionId) => {
+        let doc = this.editor.cm.getDoc();
+        let records = [];
+        if(action.position) {
+          for(let index of action.position) {
+            let pos = doc.posFromIndex(index);
+            let heading = this.editor.findHeadingAt(pos);
+            if(heading) {
+              let range = heading.getSectionRange();
+              records.push({tag: ["section", "editor"], position: index, heading: heading.source.id, start: doc.indexFromPos(range.from), stop: doc.indexFromPos(range.to)});
+            } else {
+              records.push({tag: ["section", "editor"], position: index, start: 0, stop: doc.getValue().length});
+            }
+          }
+        }
+        if(action.span) {
+          for(let spanId of action.span as string[]) {
+            let span = this.editor.getSpanBySourceId(spanId);
+            if(!span) continue;
+            let loc = span.find();
+            if(!loc) continue;
+
+            let pos = loc.from;
+            let heading = this.editor.findHeadingAt(pos);
+            if(heading) {
+              let range = heading.getSectionRange();
+              records.push({tag: ["section", "editor"], span: spanId, heading: heading.source.id, start: doc.indexFromPos(range.from), stop: doc.indexFromPos(range.to)});
+            } else {
+              records.push({tag: ["section", "editor"], span: spanId, start: 0, stop: doc.getValue().length});
+            }
+          }
+        }
+
+        if(records.length) {
+          for(let record of records) {
+            record.action = actionId;
+          }
+          sendEvent(records);
+        }
       },
 
       "find-source": (action, actionId) => {
@@ -2178,16 +2236,16 @@ export class IDE {
     },
 
     remove: {
-      "mark-between": (exec) => {
-        if(!exec.spans) return;
-        for(let span of exec.spans) {
+      "mark-between": (action) => {
+        if(!action.spans) return;
+        for(let span of action.spans) {
           span.clear();
         }
       },
 
-      "mark-span": (exec) => {
-        if(!exec.spans) return;
-        for(let span of exec.spans) {
+      "mark-span": (action) => {
+        if(!action.spans) return;
+        for(let span of action.spans) {
           span.clear();
         }
       },
