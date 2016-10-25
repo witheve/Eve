@@ -233,6 +233,10 @@ class Navigator {
     }
   }
 
+  isFocused() {
+    return this.ide.editor.getAllSpans("elision").length;
+  }
+
   // Event Handlers
   togglePane = (event:MouseEvent, elem) => {
     this.open = !this.open;
@@ -289,8 +293,18 @@ class Navigator {
     event.stopPropagation();
   }
 
-  inspectorFocus = () => {
-    sendEvent([{tag: ["inspector",  "focus-current"]}]);
+  toggleInspectorFocus = () => {
+    if(this.isFocused()) {
+      sendEvent([{tag: ["inspector",  "unfocus-current"]}]);
+      for(let nodeId in this.nodes) {
+        let node = this.nodes[nodeId];
+        if(!node) continue;
+        if(node.hidden) node.hidden = false;
+      }
+      this.updateElision();
+    } else {
+      sendEvent([{tag: ["inspector",  "focus-current"]}]);
+    }
   }
 
   // Elements
@@ -355,7 +369,7 @@ class Navigator {
 
   inspectorControls():Elem {
     return {c: "inspector-controls", children: [
-      {t: "button", c: "inspector-hide", text: "Filter to selected", click: this.inspectorFocus}
+      {t: "button", c: "inspector-hide", text: this.isFocused() ? "Show all" : "Filter to selected", click: this.toggleInspectorFocus}
     ]};
   }
 
