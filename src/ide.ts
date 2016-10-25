@@ -2186,6 +2186,41 @@ export class IDE {
         }
       },
 
+      "elide-between-sections": (action, actionId) => {
+        let doc = this.editor.cm.getDoc();
+
+        let visibleHeadings:HeadingSpan[] = [];
+        if(action.position) {
+          for(let index of action.position) {
+            let pos = doc.posFromIndex(index);
+            let heading = this.editor.findHeadingAt(pos);
+            if(heading) visibleHeadings.push(heading);
+          }
+        }
+        if(action.span) {
+          for(let spanId of action.span as string[]) {
+            let span = this.editor.getSpanBySourceId(spanId);
+            if(!span) continue;
+            let loc = span.find();
+            if(!loc) continue;
+
+            let pos = loc.from;
+            let heading = this.editor.findHeadingAt(pos);
+            if(heading) visibleHeadings.push(heading);
+          }
+        }
+
+        let headings = this.editor.getAllSpans("heading") as HeadingSpan[];
+        for(let heading of headings) {
+          if(visibleHeadings.indexOf(heading) === -1) {
+            heading.disable();
+          } else {
+            heading.enable();
+          }
+        }
+        this.navigator.updateElision();
+      },
+
       "find-source": (action, actionId) => {
         let record = action.record && action.record[0];
         let attribute = action.attribute && action.attribute[0];
@@ -2310,6 +2345,12 @@ export class IDE {
       "mark-range": (action) => {
         if(!action.span) return;
         action.span.clear();
+      },
+
+      "elide-between-sections": (action, actionId) => {
+        for(let span of this.editor.getAllSpans("elision")) {
+          span.clear();
+        }
       },
 
       "inspector": (action, actionId) => {

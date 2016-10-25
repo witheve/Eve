@@ -128,6 +128,26 @@ bind @browser
   lookup[record: action, attribute, value]
 ```
 
+### Elide Between Sections
+
+`#elide-between-section` will elide all sections that do not contain at least one of the given `span`(s) or `position`(s). When the action is removed, these elisions will be cleared.
+
+```
+search @editor
+  action = [#elide-between-sections span]
+
+bind @browser
+  [#editor #elide-between-sections | span]
+```
+
+```
+search @editor
+  action = [#elide-between-sections position]
+
+bind @browser
+  [#editor #elide-between-sections | position]
+```
+
 ### Find Section
 
 `#find-section` will find the section (region under the nearest heading) containing the given `position` (as an index into the document text) or `span` id. Results will be returned in the format `[#section position? span? heading start stop]` where `position` and `span` are as provided, heading is the id of the heading span for the section (if any), and `start` and `stop` are the indexes for the beginning and end of the section.
