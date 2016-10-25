@@ -1,4 +1,3 @@
-
 //--------------------------------------------------------------
 // Errors
 //--------------------------------------------------------------
@@ -81,6 +80,7 @@ export function parserErrors(errors: any[], parseInfo: {blockId: string, blockSt
 
   for(let error of errors) {
     let {token, context, message, resyncedTokens, name} = error;
+
     let eveError: EveError;
     if(name === "MismatchedTokenException") {
       eveError = mismatchedToken(error, parseInfo);
@@ -110,7 +110,7 @@ function mismatchedToken(error, parseInfo) {
     "CloseString": parser.OpenString,
     "CloseBracket": parser.OpenBracket,
     "CloseParen": parser.OpenParen,
-  }
+  };
 
   let {blockId, blockStart, spans, extraInfo, tokens} = parseInfo;
   let {token, context, message, resyncedTokens, name} = error;
@@ -130,6 +130,17 @@ function mismatchedToken(error, parseInfo) {
       token = tokens[tokens.length - 1];
     }
     stop = blockEnd;
+  }
+
+  // We didn't find a matching pair, check if we're some other mistmatched bit of syntax.
+  if(stop === undefined) {
+    if(expectedType === "Tag") {
+      if(token.label === "identifier") {
+        message = messages.actionRawIdentifier(token.image);
+      } else {
+        message = messages.actionNonTag(token.image);
+      }
+    }
   }
 
   if(start === undefined) start = token.startOffset;
@@ -251,4 +262,6 @@ export var messages = {
   neverEqual: (left, right) => `${left} can never equal ${right}`,
   variableNeverEqual: (variable, value, right) => `${variable.name} is equivalent to ${value}, which can't be equal to ${right}`,
 
+  actionNonTag: (found) => `Looks like this should be a tag, change the ${found} to a #`,
+  actionRawIdentifier: (found) => `I can only add/remove tags directly on a record. If you meant to add ${found} as an attribute to the record, try 'my-record.found += ${found}'; if you meant to add the #${found} tag, add #.`
 };
