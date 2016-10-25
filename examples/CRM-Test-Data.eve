@@ -1,3 +1,98 @@
+# App Analytics
+
+total number of users
+
+```
+search
+  users = count[given: [#user]]
+
+bind @view
+  [#value | value: users]
+```
+
+number of threads
+
+```
+search
+  threads = count[given: [#thread]]
+
+bind @view
+  [#value | value: threads]
+```
+
+conversations per hour (bar chart)
+
+```
+search
+  threads = [#thread time: [hour]]
+  c = count[given: threads per: hour]
+  
+bind @view
+  [#bar-graph | bar: [label: hour, height: c, sort: hour]]
+```
+
+average messages per conversations
+
+```
+search
+  threads = [#thread messages]
+  messages-per-thread = count[given: messages] / count[given: threads]
+  
+bind @view
+  [#value | value: messages-per-thread]
+```
+
+messages per minute (line graph)
+
+```
+search
+  //[#time hours minutes]
+  m = [#message time: [day]]
+  c = count[given: m, per: day]
+
+bind @view
+  [#bar-graph | bar: [label: day, height: c, sort: day]]
+```
+
+
+
+send an alert when messages per minute becomes too high.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ```
@@ -6,16 +101,17 @@ commit
   [#user]
 ```
 
-## Generate initial data
+Generate initial data
 
 Generate some threads
 
 ```
 search
   r = range[from: 1, to: 10]
+  hour = abs[value: round[value: mod[value: gaussian[seed: r, σ: 5, μ: 12], by: 23]]]
 
 commit
-  [#thread #test-data r]
+  [#thread #test-data r time: [hour]]
 ```
 
 For threads without messages, generate a random number of messages
@@ -29,23 +125,28 @@ search
   r = round[value: random[seed: threads] * (8 - 1) + 1]
   q = range[from: 1, to: r]
   // Generate a random time for each message
-  hours = random[seed: q] * (23 - 0) + 0
-  minutes = random[seed: q] * (59 - 0) + 0
-  day = random[seed: q] * (30 - 0) + 0
+  random-hours = round[value: random[seed: q] * (23 - 0) + 0]  
+  random-day = round[value: random[seed: q] * (30 - 0) + 0]
+  random-minutes = round[value: random[seed: q] * (59 - 0) + 0]
+  [#time hours-24 minutes day]
+
+  (hour' minute' day') = if threads = [#new-data] then (hours-24 minutes day)
+                         else (random-hours, random-minutes, random-day)
+
 
 commit
-  threads.messages := [#message #test-data thread: threads q r time: [hours minutes day]]
+  threads.messages := [#message #test-data thread: threads q r time: [hours: hour' minutes: minute' day: day']]
 ```
 
-## Generate random data every second
+Generate random data every second
 
 Generate random users
 
 ```
 search
   [#time time-string seconds]
-  min = 0
-  max = 3
+  min = 1
+  max = 2
   r = round[value: random[seed: seconds] * (max - min) + min]
   r2 = range[from: 1, to: r]
 
@@ -53,68 +154,24 @@ commit
   [#user i: "{{time-string}}:{{seconds}}:{{r2}}"]
 ```
 
-
 Generate random threads. A previous block adds messages to these threads automatically.
 
 ```
 search
-  [#time seconds time-string]
-  users = [#user]
-  u = log[value: count[given: users]]
-  min = 0
-  max = u
+  [#time hours-24 seconds time-string]
+  min = 1
+  max = 3
   r = round[value: random[seed: seconds] * (max - min) + min]
   r2 = range[from: 1, to: r]
+  i = "{{time-string}}:{{seconds}}:{{r2}}"
 
 commit
-  [#thread #test-data i: "{{time-string}}:{{seconds}}:{{r2}}"]
+  [#thread #test-data #new-data i]
 ```
 
-## Analytics
 
-### Count the number of users
 
-```
-search
-  users = [#user]
-  u = count[given: users]
 
-bind @browser
-  [#div sort: 1, text: "total users: {{u}}"]
-```
-
-Count the number of threads
-
-```
-search
-  threads = [#thread]
-  t = count[given: threads]
-
-bind @browser
-  [#div sort: 2, text: "total threads: {{t}}"]
-```
-
-Count the number of messages
-
-```
-search
-  messages = [#message]
-  m = count[given: messages]
-
-bind @browser
-  [#div sort: 3, text: "total messages: {{m}}"]
-```
-
-Average number of messages per thread
-
-```
-search
-  threads = [#thread messages]
-  messages-per-thread = count[given: messages] / count[given: threads] 
-  
-bind @browser
-  [#div sort: 4, text: "average messages per thread: {{messages-per-thread}}"]
-```
 
 Display the current time, to see that things are updating
 
@@ -150,3 +207,6 @@ search
 
 bind @browser
   [#div text: "{{index}} {{r}} {{names}}"]
+
+
+
