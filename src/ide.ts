@@ -2029,8 +2029,8 @@ export class IDE {
 
         let ranges:Range[] = [];
         if(action.token) {
-          for(let token of action.token) {
-            let span = this.editor.getSpanBySourceId(token);
+          for(let spanId of action.span) {
+            let span = this.editor.getSpanBySourceId(spanId);
             let range = span && span.find();
             if(range) ranges.push(range);
           }

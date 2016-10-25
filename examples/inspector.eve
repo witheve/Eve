@@ -417,13 +417,13 @@ search @editor
   [#source record: element block]
 
 bind @editor
-  [#mark-span inspector type: "block_annotation" token: block kind: "source" message: "This block provides the inspected value."]
+  [#mark-span inspector type: "block_annotation" span: block kind: "source" message: "This block provides the inspected value."]
   [#jump-to span: block]
 ```
 
 ### Highlight Related
 
-When the `"highlight-related"` state is active, mark all related tokens highlighted.
+When the `"highlight-related"` state is active, mark all related spans highlighted.
 
 ```
 search @inspector
@@ -434,7 +434,7 @@ search @editor
   [#related span variable]
 
 bind @editor
-  [#mark-span inspector type: "highlight" | token: variable]
+  [#mark-span inspector type: "highlight" | span: variable]
 ```
 
 ### Show Values Inline
@@ -451,7 +451,7 @@ search @editor
   [#value variable value row: 1]
 
 bind @editor
-  [#mark-span inspector type: "badge" kind: "intermediate" target: element message: value token: variable]
+  [#mark-span inspector type: "badge" kind: "intermediate" target: element message: value span: variable]
 ```
 
 ### Show Values Table
@@ -490,7 +490,7 @@ search @editor
   [#cardinality variable cardinality]
 
 bind @editor
-  [#mark-span inspector type: "badge" kind: "cardinality" target: element message: cardinality | token: variable]
+  [#mark-span inspector type: "badge" kind: "cardinality" target: element message: cardinality | span: variable]
 ```
 
 ### Focus Affectors
@@ -506,7 +506,7 @@ search @editor
 
 bind @editor
   [#mark-between inspector type: "elision" | span: block]
-  [#mark-span inspector type: "highlight" | token: action]
+  [#mark-span inspector type: "highlight" | span: action]
 ```
 
 ### Annotate Affectors
@@ -521,7 +521,7 @@ search @editor
   [#affector record: element block action]
 
 bind @editor
-  [#mark-span inspector type: "block_annotation" token: block kind: "affector" message: "This block affects the inspected value."]
+  [#mark-span inspector type: "block_annotation" span: block kind: "affector" message: "This block affects the inspected value."]
   [#jump-to span: block]
 ```
 
@@ -553,7 +553,7 @@ search @editor
 
 bind @editor
   [#mark-between inspector type: "elision" | span: block]
-  [#mark-span inspector type: "highlight" | token: action]
+  [#mark-span inspector type: "highlight" | span: action]
 ```
 
 ### Annotate Failures
@@ -569,7 +569,7 @@ search @editor
   [#failure block]
 
 bind @editor
-  [#mark-span inspector type: "block_annotation" token: block kind: "failure" message: "This block could affect the inspected value but failed."]
+  [#mark-span inspector type: "block_annotation" span: block kind: "failure" message: "This block could affect the inspected value but failed."]
   [#jump-to span: block]
 ```
 

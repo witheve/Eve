@@ -8,7 +8,7 @@ Actions allow remotely controlling the editor.
 
 ### Inspect
 
-`#inspect` will enable inspector interactions in the editor. While this is on, additional mouse and cursor events will be attached to the editor to forward the user's current tokens / elements of interest to the `@inspector` DB. When the action is removed, inspector mode will be disabled.
+`#inspect` will enable inspector interactions in the editor. While this is on, additional mouse and cursor events will be attached to the editor to forward the user's current spans / elements of interest to the `@inspector` DB. When the action is removed, inspector mode will be disabled.
 
 ```
 search @editor
@@ -69,16 +69,16 @@ bind @browser
 
 ### Mark Span
 
-`#mark-span` will create a new span on the same range as the given `token`s of the specified `type`. When the action is removed, the associated spans will be removed from the editor.
+`#mark-span` will create a new span on the same range as the given `span`s of the specified `type`. When the action is removed, the associated spans will be removed from the editor.
 
 @NOTE: Mark span must be special cased to copy over all possible optional attributes right now. This is sad.
 
 ```
 search @editor
-  action = [#mark-span type token]
+  action = [#mark-span type span]
 
 bind @browser
-  action <- [#editor #mark-span type token]
+  action <- [#editor #mark-span type span]
 ```
 
 Copy optional `message` attribute over if provided.
@@ -222,7 +222,7 @@ commit @editor
 
 ### Find Related
 
-`#find-related` will request all related `span`(s) for a given `variable` or `variable`(s) for a `span` from the language service. Related tokens are tokens which are directly joined to or unified with the target.  Results will be returned in the format `[#related span? variable?]`, where the argument you provided is the same and the other is filled in. These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
+`#find-related` will request all related `span`(s) for a given `variable` or `variable`(s) for a `span` from the language service. Related spans are spans which are directly joined to or unified with the target.  Results will be returned in the format `[#related span? variable?]`, where the argument you provided is the same and the other is filled in. These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
 
 ```
 search @editor
