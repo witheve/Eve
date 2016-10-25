@@ -622,7 +622,7 @@ class Parser extends chev.Parser {
           self.block.addUsage(variable, scan);
           self.block.scan(scan);
           self.CONSUME(Merge);
-          let record = self.SUBRULE(self.record, [true, actionKey, "+="]) as any;
+          let record = self.SUBRULE(self.record, [true, actionKey, "+=", undefined, variable]) as any;
           record.variable = variable;
           record.action = "<-";
           return record;
@@ -679,10 +679,8 @@ class Parser extends chev.Parser {
         }},
         {ALT: () => {
           self.CONSUME(Merge);
-          let record = self.SUBRULE(self.record, [true, actionKey, "+="]) as any;
+          let record = self.SUBRULE(self.record, [true, actionKey, "+=", undefined, variable]) as any;
           record.needsEntity = true;
-          record.variable = variable;
-          variable.nonProjecting = true;
           record.action = "<-";
           return record;
         }},
@@ -726,7 +724,7 @@ class Parser extends chev.Parser {
     // Record + attribute
     //-----------------------------------------------------------
 
-    rule("record", (noVar = false, blockKey = "scan", action = false, parent?) => {
+    rule("record", (noVar = false, blockKey = "scan", action = false, parent?, passedVariable?) => {
       let attributes = [];
       let start = self.CONSUME(OpenBracket);
       let from: NodeDependent[] = [start];
@@ -734,7 +732,10 @@ class Parser extends chev.Parser {
       if(parent) {
         info.extraProjection = [parent];
       }
-      if(!noVar) {
+      if(passedVariable) {
+        info.variable = passedVariable;
+        info.variable.nonProjecting = true;
+      } else if(!noVar) {
         info.variable = self.block.toVariable(`record|${start.startLine}|${start.startColumn}`, true);
         info.variable.nonProjecting = true;
       }

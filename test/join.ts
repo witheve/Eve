@@ -724,6 +724,41 @@ test("merging multiple values into an attribute", (assert) => {
   assert.end();
 });
 
+test("merges with subobjects pick up the parent object as part of their projection", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "tag", "person"],
+      ["a", "name", "chris"],
+      ["b", "tag", "person"],
+      ["b", "name", "chris"],
+      ["a", "foo", "c"],
+      ["b", "foo", "d"],
+      ["c", "tag", "bar"],
+      ["c", "name", "chris"],
+      ["d", "tag", "bar"],
+      ["d", "name", "chris"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "chris"]
+        [#person name: "chris"]
+    ~~~
+
+    foo bar
+    ~~~
+      search
+        p = [#person name]
+      commit
+        p <- [foo: [#bar name]]
+    ~~~
+  `);
+  assert.end();
+});
+
 test("creating an object with multiple values for an attribute", (assert) => {
   let expected = {
     insert: [
