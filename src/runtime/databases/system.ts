@@ -11,12 +11,13 @@ import {Evaluation, Database} from "../runtime"
 
 class TimeAgent {
 
-  static attributeOrdering = ["year", "month", "day", "hours", "ampm", "minutes", "time-string", "seconds", "frames"];
+  static attributeOrdering = ["year", "month", "day", "hours", "hours-24", "ampm", "minutes", "time-string", "seconds", "frames"];
   static updateIntervals = {
     "year": 1000 * 60 * 60,
     "month": 1000 * 60 * 60,
     "day": 1000 * 60 * 60,
     "hours": 1000 * 60 * 60,
+    "hours-24": 1000 * 60 * 60,
     "ampm": 1000 * 60 * 60,
     "minutes": 1000 * 60,
     "time-string": 1000 * 60,
@@ -58,6 +59,7 @@ class TimeAgent {
       new SetAction("time|month","time", "month", time.getMonth()),
       new SetAction("time|day","time", "day", time.getDate()),
       new SetAction("time|hours","time", "hours", time.getHours() % 12),
+      new SetAction("time|hours","time", "hours-24", time.getHours()),
       new SetAction("time|minutes","time", "minutes", time.getMinutes()),
       new SetAction("time|minutes","time", "time-string", timeString),
       new SetAction("time|seconds","time", "seconds", time.getSeconds()),
