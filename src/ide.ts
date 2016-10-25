@@ -2083,7 +2083,6 @@ export class IDE {
           let ranges:Range[] = [];
           for(let rangeId of action.range) {
             let rangeRecord = indexes.records.index[rangeId];
-            console.log(rangeId, rangeRecord);
             if(!rangeRecord || !rangeRecord.start || !rangeRecord.stop) continue;
 
             ranges.push({from: doc.posFromIndex(rangeRecord.start[0]), to: doc.posFromIndex(rangeRecord.stop[0])});
@@ -2297,7 +2296,6 @@ export class IDE {
               record.tag.push("editor");
               record["action"] = actionId;
             }
-            console.log("AFFECTOR", records);
             sendEvent(records);
           }));
       },
@@ -2308,7 +2306,6 @@ export class IDE {
             record.tag.push("editor");
             record["action"] = actionId;
           }
-          console.log("FAILURE", records);
           sendEvent(records);
         }));
       },
@@ -2319,7 +2316,6 @@ export class IDE {
             record.tag.push("editor");
             record["action"] = actionId;
           }
-          console.log("ROOT DRAWER", records);
           sendEvent(records);
         }));
       },
@@ -2378,7 +2374,7 @@ export class IDE {
         let action = this.activeActions[recordId];
         if(!action) return;
         let run = this.actions.remove[action.tag];
-        console.log("STOP", action.tag, recordId, action, !!run);
+        //console.log("STOP", action.tag, recordId, action, !!run);
         if(run) run(action);
         delete this.activeActions[recordId];
       }
@@ -2406,7 +2402,7 @@ export class IDE {
         this.activeActions[recordId] = action;
 
         let run = this.actions.insert[action.tag];
-        console.log("START", action.tag, recordId, action, !!run);
+        //console.log("START", action.tag, recordId, action, !!run);
         if(!run) console.warn(`Unable to run unknown action type '${action.tag}'`, recordId, record);
         else run(action, recordId);
       }
