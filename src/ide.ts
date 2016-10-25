@@ -1494,6 +1494,14 @@ export class Editor {
         }
       }
     }
+
+    // We need to refresh in on change because line measurement information will get cached by CM before we hit onChanges.
+    // If we see lots of slowness when typing, this is a probable culprit and we can get smarter about this.
+    if(change.isNewlineChange()) {
+      for(let span of this.changingSpans) {
+        if(span.refresh) span.refresh();
+      }
+    }
   }
 
   onChanges = (raws:CodeMirror.EditorChangeLinkedList[]) => {
