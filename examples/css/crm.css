@@ -172,8 +172,8 @@ h3, h4 { font-weight:normal; font-size:16px; }
 }
 
 .contact {
-  height: 115px;
-  padding: 10px 20px;
+  flex: none;
+  padding: 15px 20px;
   border-bottom: 1px solid #eee;
   color: #999;
 }
