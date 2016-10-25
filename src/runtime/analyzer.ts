@@ -390,12 +390,12 @@ function makeEveAnalyzer() {
 let eve;
 
 export function analyze(blocks: ParseBlock[], spans: any[], extraInfo: any) {
-  console.time();
+  console.time("load analysis");
   eve = makeEveAnalyzer();
   let session = new Database();
   let prev = eve.getDatabase("session")
   session.blocks = prev.blocks;
-  console.log("ANALYZER BLOCKS", session.blocks);
+  // console.log("ANALYZER BLOCKS", session.blocks);
   eve.unregisterDatabase("session");
   eve.registerDatabase("session", session);
   let editorDb = new EditorDatabase(spans, extraInfo);
@@ -409,7 +409,7 @@ export function analyze(blocks: ParseBlock[], spans: any[], extraInfo: any) {
   }
   changes.commit();
   console.log(changes);
-  console.timeEnd();
+  console.timeEnd("load analysis");
   // eve.executeActions([], changes);
 }
 
