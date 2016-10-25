@@ -99,5 +99,50 @@ class Split extends Constraint {
   }
 }
 
+
+// substring over the field 'text', with the base index being 1, inclusive, 'from' defaulting
+// to the beginning of the string, and 'to' the end
+class Substring extends Constraint {
+  static AttributeMapping = {
+    "text": 0,
+    "from": 1,
+    "to": 2,
+  }
+  static ReturnMapping = {
+    "value": 0,
+  }
+  // To resolve a proposal, we concatenate our resolved args
+  resolveProposal(proposal, prefix) {
+    let {args, returns} = this.resolve(prefix);
+    let from = 0
+    let text = args[0]
+    let to = text.length
+    if (args[1] != undefined) from = args[1] - 1
+    if (args[2] != undefined) to = args[2]
+    console.log("subby string", text.substring(from, to), from, to)
+    return [text.substring(from, to)];
+  }
+
+ test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    let from = 0
+    let text = args[0]
+    let to = text.length
+    if (args[1] != undefined) from = args[1] - 1
+    if (args[2] != undefined) to = args[2]
+    console.log("test string", text.substring(from, to), from, to, returns[0])
+    return text.substring(from, to) === returns[0];
+  }
+
+  // substring always returns cardinality 1
+  getProposal(tripleIndex, proposed, prefix) {
+    let proposal = this.proposalObject;
+    proposal.providing = proposed;
+    proposal.cardinality = 1;
+    return proposal;
+  }
+}
+
 providers.provide("concat", Concat);
 providers.provide("split", Split);
+providers.provide("substring", Substring);
