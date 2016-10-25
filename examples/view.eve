@@ -4,7 +4,7 @@
 
 ### Value
 
-A `#value` view just embeds the `value`(s) its passed.
+A `#value` view just embeds the `value`(s) its passed. If those values happen to be entities, we'll tag them as such for composite views to mess with.
 
 ```
 search @view
@@ -12,9 +12,12 @@ search @view
   ix = sort[value]
   lookup[record: wrapper, attribute: "tag", value: "value", node]
 
+  is-entity = if substring[text: value to: 1] = "⦑" then true
+              else false
+
 bind @browser
   wrapper <- [#view #div node class: "view" children:
-    [#div sort: ix text: value]]
+    [#div #value sort: ix text: value is-entity]]
 ```
 
 ## Tables
@@ -69,8 +72,8 @@ search @view
 search @browser
   value-column = [#kv-values wrapper key]
 
-bind @browser
-  value-column.children += [#div value-column text: value sort: ix]
+bind @view @browser
+  value-column.children += [#value value-column value sort: ix]
 ```
 
 ### Attribute Table

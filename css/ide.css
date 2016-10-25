@@ -155,7 +155,7 @@ button { font-family: "Avenir", "Helvetica neue", sans-serif; }
 .editor-pane .new-block-bar > .new-block-bar-toggle:before { transition: transform 0.15s; }
 .editor-pane .new-block-bar.active > .new-block-bar-toggle:before { transform: rotate(45deg); }
 
-.editor-pane .format-bar { position: absolute; top: 0; left: 0; display: flex; flex-direction: row; background: #666; color: #eee; z-index: 5; border-radius:2px; overflow:hidden; }
+.editor-pane .format-bar { position: absolute; top: 0; left: 0; display: flex; flex-direction: row; background: #666; color: #eee; z-index: 9; border-radius:2px; overflow:hidden; }
 .editor-pane .format-bar > * { padding: 5px 10px; cursor:pointer; }
 .editor-pane .format-bar > div:hover { background: #888; color: #fff; }
 
@@ -243,3 +243,5 @@ table.view td { padding: 0 5px; border: 1px solid #ccc; border-top: none; border
 .inspector-pane .kv-table .kv-values { border-left: 1px solid #555; }
 .inspector-pane .kv-table .kv-row > div { padding: 4px 15px; font-size:11pt; }
 .inspector-pane .kv-table .kv-row { border:none; border-bottom:1px solid #555; }
+
+.inspector-pane div[is-entity="true"] { color: #A6D0FF; }
