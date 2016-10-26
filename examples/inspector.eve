@@ -708,7 +708,7 @@ search @editor
   max-time = to-fixed[value: perf.max, places: 2]
 
 bind @editor
-  [#mark-span inspector type: "document_widget" span: block kind: "performance" message: "{{fixedpoint}}% of total | average {{average}}ms | max {{max}}ms"]
+  [#mark-span inspector type: "document_widget" span: block kind: "performance" message: "{{total-percent}}% of total | average {{average-time}}ms | max {{max-time}}ms"]
 
 
 ```
