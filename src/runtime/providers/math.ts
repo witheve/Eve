@@ -471,4 +471,4 @@ providers.provide("random", Random);
 providers.provide("range", Range);
 providers.provide("round", Round);
 providers.provide("gaussian", Gaussian);
-providers.provide("toFixed", ToFixed);
+providers.provide("to-fixed", ToFixed);
