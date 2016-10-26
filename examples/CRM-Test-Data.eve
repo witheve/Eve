@@ -1,4 +1,4 @@
-# App Analytics
+App Analytics
 
 total number of users
 
@@ -8,27 +8,6 @@ search
 
 bind @view
   [#value | value: users]
-```
-
-number of threads
-
-```
-search
-  threads = count[given: [#thread]]
-
-bind @view
-  [#value | value: threads]
-```
-
-conversations per hour (bar chart)
-
-```
-search
-  threads = [#thread time: [hour]]
-  c = count[given: threads per: hour]
-  
-bind @view
-  [#bar-graph | bar: [label: hour, height: c, sort: hour]]
 ```
 
 average messages per conversations
@@ -42,171 +21,123 @@ bind @view
   [#value | value: messages-per-thread]
 ```
 
-messages per minute (line graph)
+conversations per hour (bar chart)
 
 ```
 search
-  //[#time hours minutes]
-  m = [#message time: [day]]
-  c = count[given: m, per: day]
+  threads = [#thread time: [hour]]
+  c = count[given: threads per: hour]
+  
+bind @view
+  [#value | value: "{{hour}} -> {{c}}"]
 
 bind @view
-  [#bar-graph | bar: [label: day, height: c, sort: day]]
+  [#bar-graph | bar: [label: hour, height: c, sort: hour]]
 ```
 
-
-
-send an alert when messages per minute becomes too high.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-```
-commit
-  [#app user-count: 0 thread-count: 0  message-count: 0]
-  [#user]
-```
-
-Generate initial data
-
-Generate some threads
+messages per second
 
 ```
 search
-  r = range[from: 1, to: 10]
-  hour = abs[value: round[value: mod[value: gaussian[seed: r, σ: 5, μ: 12], by: 23]]]
+  [#time timestamp]
+  messages = [#message time > timestamp - 1000]
+  message-count = count[given: messages]
+  
+bind @view
+  [#value value: message-count]
+  [#history | values: [timestamp | value: message-count], history-size: 30]
+```
+
+```
+search 
+  [#message-rate rate]
+  rate > 300
+
+commit @slack
+  [#message from: "Eve" to: "Lori" message: "Message rate ({{rate}}) exceeded threshold. Consider provisioning another server."]
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+To start, add a bunch of conversations and users
+
+```
+search
+  r = range[from: 1 to: 100]
+  hour = round[value: gaussian[seed: r, σ: 3, μ: 12]]
+  hour' = if hour > 23 then 23
+          else if hour < 0 then 0
+          else hour
 
 commit
   [#thread #test-data r time: [hour]]
+  [#user #test-data r]
 ```
 
-For threads without messages, generate a random number of messages
+Add messages to threads
 
 ```
 search
-  // threads without messages
-  threads = [#thread #test-data]
-  not(threads.messages)
-  // Enumerate the messages
-  r = round[value: random[seed: threads] * (8 - 1) + 1]
-  q = range[from: 1, to: r]
-  // Generate a random time for each message
-  random-hours = round[value: random[seed: q] * (23 - 0) + 0]  
-  random-day = round[value: random[seed: q] * (30 - 0) + 0]
-  random-minutes = round[value: random[seed: q] * (59 - 0) + 0]
-  [#time hours-24 minutes day]
-
-  (hour' minute' day') = if threads = [#new-data] then (hours-24 minutes day)
-                         else (random-hours, random-minutes, random-day)
-
+  threads = [#thread not(messages)]
+  [#time timestamp]
+  r = gaussian[seed: threads, σ: 1, μ: 6]
+  i = range[from: 1, to: r]
 
 commit
-  threads.messages := [#message #test-data thread: threads q r time: [hours: hour' minutes: minute' day: day']]
+  threads.messages += [#message i]
 ```
 
-Generate random data every second
-
-Generate random users
+Every second, add a random number of messages to a thread
 
 ```
 search
-  [#time time-string seconds]
-  min = 1
-  max = 2
-  r = round[value: random[seed: seconds] * (max - min) + min]
-  r2 = range[from: 1, to: r]
+  [#time time-string seconds timestamp frames]
+  thread = [#thread r: 1]
+  frames' = frames / 10 
+  r = gaussian[seed: timestamp, σ: 3, μ: frames' * frames']
+  r' = if r < 0 then 0 else r
+  i = range[from: 0, to: r']
 
 commit
-  [#user i: "{{time-string}}:{{seconds}}:{{r2}}"]
+  thread.messages += [#message i: "{{timestamp}}:{{i}}" time: timestamp]
 ```
 
-Generate random threads. A previous block adds messages to these threads automatically.
+Every second, add a random number of users
 
 ```
 search
-  [#time hours-24 seconds time-string]
+  t = [#time seconds]
   min = 1
   max = 3
-  r = round[value: random[seed: seconds] * (max - min) + min]
-  r2 = range[from: 1, to: r]
-  i = "{{time-string}}:{{seconds}}:{{r2}}"
+  r = random[seed: t.timestamp] * (max - min) + min
+  i = range[from: 1 to: r]
 
 commit
-  [#thread #test-data #new-data i]
+  [#user #test-data i: "{{t.timestamp}}:{{i}}"]
 ```
-
-
-
-
-
-Display the current time, to see that things are updating
-
-```
-search
-  [#time seconds]
-
-bind @browser
-  [#div text: seconds]
-```
-
-Store some first names for fake users
-
-
-search
-  test = [#test-data]
-
-commit
-  test.names := ("Sophia", "Emma", "Olivia", "Isabella", "Ava", "Lily", "Zoe", "Chloe", "Mia", "Madison", "Emily", "Ella", "Madelyn", "Abigail", "Aubrey", "Addison", "Avery", "Layla", "Hailey", "Amelia", "Hannah", "Charlotte", "Kaitlyn", "Harper", "Kaylee", "Sophie", "Mackenzie", "Peyton", "Riley", "Grace", "Brooklyn", "Sarah", "Aaliyah", "Anna", "Arianna", "Ellie", "Natalie", "Isabelle", "Lillian", "Evelyn", "Elizabeth", "Lyla", "Lucy", "Claire", "Makayla", "Kylie", "Audrey", "Maya", "Leah", "Gabriella", "Annabelle", "Savannah", "Nora", "Reagan", "Scarlett", "Samantha", "Alyssa", "Allison", "Elena", "Stella", "Alexis", "Victoria", "Aria", "Molly", "Maria", "Bailey", "Sydney", "Bella", "Mila", "Taylor", "Kayla", "Eva", "Jasmine", "Gianna", "Alexandra", "Julia", "Eliana", "Kennedy", "Brianna", "Ruby", "Lauren", "Alice", "Violet", "Kendall", "Morgan", "Caroline", "Piper", "Brooke", "Elise", "Alexa", "Sienna", "Reese", "Clara", "Paige", "Kate", "Nevaeh", "Sadie", "Quinn", "Isla", "Eleanor", "Aiden", "Jackson", "Ethan", "Liam", "Mason", "Noah", "Lucas", "Jacob", "Jayden", "Jack", "Logan", "Ryan", "Caleb", "Benjamin", "William", "Michael", "Alexander", "Elijah", "Matthew", "Dylan", "James", "Owen", "Connor", "Brayden", "Carter", "Landon", "Joshua", "Luke", "Daniel", "Gabriel", "Nicholas", "Nathan", "Oliver", "Henry", "Andrew", "Gavin", "Cameron", "Eli", "Max", "Isaac", "Evan", "Samuel", "Grayson", "Tyler", "Zachary", "Wyatt", "Joseph", "Charlie", "Hunter", "David", "Anthony", "Christian", "Colton", "Thomas", "Dominic", "Austin", "John", "Sebastian", "Cooper", "Levi", "Parker", "Isaiah", "Chase", "Blake", "Aaron", "Alex", "Adam", "Tristan", "Julian", "Jonathan", "Christopher", "Jace", "Nolan", "Miles", "Jordan", "Carson", "Colin", "Ian", "Riley", "Xavier", "Hudson", "Adrian", "Cole", "Brody", "Leo", "Jake", "Bentley", "Sean", "Jeremiah", "Asher", "Nathaniel", "Micah", "Jason", "Ryder", "Declan", "Hayden", "Brandon", "Easton", "Lincoln", "Harrison")
-
-
-Get a random name every second
-
-
-search
-  [#time seconds]
-  min = 1
-  max = 199
-  test = [#test-data names]
-  index = sort[value: names]
-  r = round[value: random[seed: seconds] * (max - min) + min]
-  index = r
-
-bind @browser
-  [#div text: "{{index}} {{r}} {{names}}"]
-
-
-

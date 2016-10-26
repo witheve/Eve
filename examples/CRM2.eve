@@ -1,14 +1,5 @@
 # Contact Application
 
-This application demonstrates some basic patterns you might want to use in a mobile application or website. These concepts inclue:
-
-- application architecture
-- navigating between pages
-- displaying lists of information
-- joining and filtering data
-- reusing interface components
-- responding to events
-
 ## The App Record
 
 `#app` stores some useful state for the application, including the current user, the current page, and the current contact.
@@ -25,8 +16,7 @@ search
   app = [#app]
   [#time day month year hours minutes seconds ampm]
   not(app = [#init])
-  user = [#user name: "Corey Montella"]
-  //user = [#user name: "Eric Hoffman"]
+  user = [#user name: "Eric Hoffman"]
 
 commit
   app <- [#init user
@@ -52,27 +42,29 @@ search
 bind @browser
   [#link rel: "stylesheet" href: "/examples/css/crm.css"]
   [#div #container class: "container" children:
-    [#div class: "banner"]
-    [#div class: "bio-info" children:
-      [#div class: "avatar-container" children:
-        [#img class: "avatar", src: current-contact.avatarURL]]
-      [#div class: "name2" text: "{{current-contact.name}}"]
-      [#div class: "info" text: "{{current-contact.title}}"]
-      [#div class: "info" text: "{{time-string}}, {{current-contact.location}}"]]
-    [#div #content class: "content"]
+    [#div class: "scroll" children:
+      [#div class: "banner"]
+      [#div class: "bio-info" children:
+        [#div class: "avatar-container" children:
+          [#img class: "avatar", src: current-contact.avatarURL]]
+        [#div class: "name2" text: "{{current-contact.name}}"]
+        [#div class: "info" text: "{{current-contact.title}}"]
+        [#div class: "info" text: "{{time-string}}, {{current-contact.location}}"]]
+      [#div #content class: "content"]]
     [#div class: "navigation" children:
       [#div #about #nav class: "nav-button middle", children:
-        [#div class: "icon" text: "💁"]
-        [#div class: "label" text: "ABOUT"]]
+        [#div class: "icon ion-person"]
+        [#div class: "label" text: "profile"]]
       [#div #threads #nav class: "nav-button middle", children:
-        [#div class: "icon" children: [#div class: "bubble" text: threads]]
-        [#div class: "label" text: "MESSAGES"]]
+        [#div class: "icon ion-chatboxes"]
+        [#div class: "bubble" text: threads]
+        [#div class: "label" text: "messages"]]
       [#div #contacts #nav class: "nav-button middle" children:
-        [#div class: "icon" text: "📇"]
-        [#div class: "label" text: "CONTACTS"]]
+        [#div class: "icon ion-person-stalker" text: ""]
+        [#div class: "label" text: "contacts"]]
       [#div #more #nav class: "nav-button" children:
-        [#div class: "icon" text: "⋯"]
-        [#div class: "label" text: "MORE"]]]]
+        [#div class: "icon ion-android-more-horizontal" text: ""]
+        [#div class: "label" text: "more"]]]]
 ```
 
 As part of the main application, we display a count of unread messages in the navigation bar:
@@ -89,7 +81,7 @@ bind
 
 ## Pages
 
-The application is composed of various pages, that are injected into the main content area depending on the contents of #app.page. Only one page should be displayed at a time. 
+The application is composed of various pages, that are injected into the main content area depending on the contents of #app.page. Only one page should be displayed at a time.
 
 ### About Page
 
@@ -103,13 +95,13 @@ search @browser @session
 bind @browser @session
   content.children := [#div class: "about" children:
     [#div class: "about-line", children:
-      [#span class: "about-label", text: "Phone: "]
+      [#span class: "about-label", text: "Phone"]
       [#span text: contact.phone]]
     [#div class: "about-line", children:
-      [#span class: "about-label", text: "E-mail: "]
+      [#span class: "about-label", text: "Email"]
       [#span text: contact.email]]
     [#div #recent-contacts children:
-      [#h3 text: "All Contacts ({{count[given: contact.contacts]}}):"]
+      [#h3 text: "All Contacts ({{count[given: contact.contacts]}})"]
       [#img #contact contact: contact.contacts, class: "recent-avatar" src: contact.contacts.avatarURL]]]
 ```
 
@@ -124,7 +116,7 @@ search @browser @session
 
 bind @browser @session
   recent-div.children += [#div children:
-    [#h3 text: "Recent Contacts ({{count[given: recent]}}):"]
+    [#h3 text: "Recent Contacts ({{count[given: recent]}})"]
     [#img class: "recent-avatar" src: recent.avatarURL]]
 ```
 
@@ -139,7 +131,7 @@ search @browser @session
 
 bind @browser
   recent-div.children += [#div children:
-    [#h3 text: "Recent Contacts (0):"]
+    [#h3 text: "Recent Contacts (0)"]
     [#div #contacts #nav children:
       [#div class: "plus" text: "+"]
       [#div text: "Start a Thread"]]]
@@ -171,7 +163,7 @@ search @browser @session
   msgs.time = [hours minutes ampm]
 
 bind @browser
-  content.children := [#div children:
+  content.children := [#div class: "flex-spacer" children:
     [#div #convo class: "convo" children:
       [#div sort: msgs.time class: "msg" message: msgs children:
         [#img class: "msg-avatar" src: msgs.sender.avatarURL]
@@ -189,6 +181,7 @@ Each thread is shown with the contact's avatar and name, and the number of messa
 search @browser @session
   content = [#content]
   app = [#app page: [#threads], user]
+  not(threads = [#archived])
   threads = [#thread users: user, messages]
   contacts = threads.users != app.user
   message-count = count[given: threads.messages, per: threads.users]
@@ -198,21 +191,8 @@ bind @browser
     [#div #thread thread: threads, class: "thread-box" children:
       [#img class: "msg-avatar" src: contacts.avatarURL]
       [#div class: "msg-name" text: contacts.name]
-      [#div text: "{{message-count}} messages"]]]
-```
-
-If the user has no threads, display a message prompting the user to start a conversation with a contact
-
-```
-search @browser @session
-  content = [#content]
-  app = [#app page: [#threads], user]
-  not(threads = [#thread users: user, messages])
-
-bind @browser
-  content.children := [#div #contacts #nav children:
-      [#div class: "plus" text: "+"]
-      [#div text: "Start a Thread"]]
+      [#div text: "{{message-count}} messages"]]
+    [#div #archive-button thread: threads, class: "archive ion-archive"]]
 ```
 
 ### Contacts Page
@@ -230,7 +210,7 @@ bind @browser @session
     [#div class: "contact-name", text: user.contacts.name]
     [#div text: "Location: {{user.contacts.location}}"]
     [#div text: "Phone: {{user.contacts.phone}}"]
-    [#div text: "E-mail: {{user.contacts.email}}"]]
+    [#div text: "Email: {{user.contacts.email}}"]]
 ```
 
 ### More Page
@@ -243,7 +223,18 @@ search @browser @session
   [#app page: [#more]]
 
 bind @browser
-  content.children := [#div text: "More"]
+  content.children := [#div #more class: "more" children:
+    [#h2 text: "Learn more about Eve"]
+    [#ul children:
+      [#li children: [#a href: "http://witheve.com" text: "Homepage"]]
+      [#li children: [#a href: "https://witheve.github.io/docs/guides/quickstart/" text: "Quick Start Tutorial"]]
+      [#li children: [#a href: "http://github.com/witheve" text: "GitHub Repository"]]]
+    [#h2 text: "Join the Community"]
+    [#ul children:
+      [#li children: [#a href: "http://blog.witheve.com" text: "Development Diary"]]
+      [#li children: [#a href: "https://github.com/witheve/rfcs" text: "Request for Comments"]]
+      [#li children: [#a href: "https://groups.google.com/forum/#!forum/eve-talk" text: "Mailing List"]]
+      [#li children: [#a href: "https://twitter.com/with_eve" text: "Twitter"]]]]
 ```
 
 ## Events
@@ -307,7 +298,68 @@ commit @browser
   thread.messages += [#message sender: user, time, text: value]
 ```
 
-## Test Data
+### Archive a thread
+
+When the user archives a thread, the `#archive` tag is added to that thread, which then exludes it from display in the main thread list. Archiving a thread also marks all unread messages as read.
+
+```
+search @event @browser @session
+  [#click element: [#archive-button thread]]
+  messages = thread.messages
+
+commit @session
+  thread += #archived
+  messages -= #unread
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Test Data
 
 The users and messages in this application are fabricated.
 
