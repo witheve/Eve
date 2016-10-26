@@ -151,15 +151,23 @@ search @view @stored
   history = [#history values]
   not(values = [#stored])
   values = [value]
-  ix = if history.ix then history.ix
+  ix = if history.ix then history.ix + 1
        else 1
 
 commit @stored
   history.values += values
-  values.value := value
   values.ix := ix
   values += #stored
-  history.ix := ix + 1
+  history.ix := ix
+~~~
+
+~~~
+search @view
+  history = [#history values]
+  values = [value]
+
+commit @stored
+  values.value := value
 ~~~
 
 Remove values as the history size grows
@@ -189,5 +197,5 @@ search @view @stored
 search @stored
   values.value
 bind @view
-  [#bar-graph history node | bar: [#unlabeled label: values.ix, height: values.value width: 15]]
+  [#bar-graph history node | bar: [#unlabeled label: values.ix, sort: values.ix, height: values.value width: 15]]
 ~~~

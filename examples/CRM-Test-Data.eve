@@ -16,7 +16,7 @@ average messages per conversations
 search
   threads = [#thread messages]
   messages-per-thread = count[given: messages] / count[given: threads]
-  
+
 bind @view
   [#value | value: messages-per-thread]
 ```
@@ -27,7 +27,7 @@ conversations per hour (bar chart)
 search
   threads = [#thread time: [hour]]
   c = count[given: threads per: hour]
-  
+
 bind @view
   [#value | value: "{{hour}} -> {{c}}"]
 
@@ -42,14 +42,14 @@ search
   [#time timestamp]
   messages = [#message time > timestamp - 1000]
   message-count = count[given: messages]
-  
+
 bind @view
-  [#value value: message-count]
+  [#value | value: message-count]
   [#history | values: [timestamp | value: message-count], history-size: 30]
 ```
 
 ```
-search 
+search
   [#message-rate rate]
   rate > 300
 
@@ -119,7 +119,7 @@ Every second, add a random number of messages to a thread
 search
   [#time time-string seconds timestamp frames]
   thread = [#thread r: 1]
-  frames' = frames / 10 
+  frames' = frames / 10
   r = gaussian[seed: timestamp, σ: 3, μ: frames' * frames']
   r' = if r < 0 then 0 else r
   i = range[from: 0, to: r']
