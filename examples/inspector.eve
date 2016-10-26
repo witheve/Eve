@@ -84,7 +84,7 @@ commit @event
   event := none
 ```
 
-### Focus Current
+### Focus/Unfocus Current
 
 When inspecting, the navigator will reveal a button which can be clicked to elide everything but the annotated sections of the document.
 
@@ -100,6 +100,23 @@ search @inspector
 
 commit @inspector
   inspector.state += focus-states
+
+commit @event
+  event := none
+```
+
+```
+search @event
+  event = [#inspector #unfocus-current]
+
+search @inspector
+  inspector = [#inspector state]
+  focus-states = if state = "annotate-blocks" then "focus-blocks"
+                 if state = "annotate-affectors" then "focus-affectors"
+                 if state = "annotate-failures" then "focus-failures"
+
+commit @inspector
+  inspector.state -= focus-states
 
 commit @event
   event := none
@@ -552,6 +569,7 @@ search @editor
 
 bind @editor
   [#elide-between-sections inspector | span: block]
+  [#jump-to position: 0]
   [#mark-span inspector type: "highlight" | span: action]
 ```
 
@@ -599,6 +617,7 @@ search @editor
 
 bind @editor
   [#elide-between-sections inspector | span: block]
+  [#jump-to position: 0]
   [#mark-span inspector type: "highlight" | span: action]
 ```
 

@@ -184,7 +184,7 @@ class Navigator {
       return comparePositions(a.range.to, b.range.to);
     });
 
-    let visibleRanges = [];
+    let visibleRanges:Range[] = [];
     let currentRange:Range|undefined;
     for(let section of sections) {
       if(!section.hidden) {
@@ -206,17 +206,35 @@ class Navigator {
       visibleRanges.push(currentRange);
     }
 
+    let editor = this.ide.editor;
+    let doc = editor.cm.getDoc();
+    // Capture the current topmost un-elided line in the viewport. We'll use this to maintain your scroll state (to some extent) when elisions are nuked.
     // Only one source can be safely eliding at any given time.
-    for(let span of this.ide.editor.getAllSpans("elision")) {
+    let topVisible:number|undefined;
+    for(let span of editor.getAllSpans("elision")) {
+      let loc = span.find();
+      if(loc && (!topVisible || loc.to.line < topVisible)) {
+        topVisible = loc.to.line;
+      }
       span.clear();
     }
 
     if(visibleRanges.length) {
-      this.ide.editor.markBetween(visibleRanges, {type: "elision"});
+      editor.markBetween(visibleRanges, {type: "elision"});
     } else {
-      let doc = this.ide.editor.cm.getDoc();
-      this.ide.editor.markSpan({line: 0, ch: 0}, {line: doc.lineCount(), ch: 0}, {type: "elision"});
+      editor.markSpan({line: 0, ch: 0}, {line: doc.lineCount(), ch: 0}, {type: "elision"});
     }
+
+    if(visibleRanges.length === 1 && topVisible) {
+      let firstRange = visibleRanges[0];
+      if(firstRange.from.line === 0 && firstRange.to.line >= doc.lastLine()) {
+        editor.scrollToPosition({line: topVisible + 1, ch: 0});
+      }
+    }
+  }
+
+  isFocused() {
+    return this.ide.editor.getAllSpans("elision").length;
   }
 
   // Event Handlers
@@ -275,8 +293,18 @@ class Navigator {
     event.stopPropagation();
   }
 
-  inspectorFocus = () => {
-    sendEvent([{tag: ["inspector",  "focus-current"]}]);
+  toggleInspectorFocus = () => {
+    if(this.isFocused()) {
+      sendEvent([{tag: ["inspector",  "unfocus-current"]}]);
+      for(let nodeId in this.nodes) {
+        let node = this.nodes[nodeId];
+        if(!node) continue;
+        if(node.hidden) node.hidden = false;
+      }
+      this.updateElision();
+    } else {
+      sendEvent([{tag: ["inspector",  "focus-current"]}]);
+    }
   }
 
   // Elements
@@ -341,7 +369,7 @@ class Navigator {
 
   inspectorControls():Elem {
     return {c: "inspector-controls", children: [
-      {t: "button", c: "inspector-hide", text: "Filter to selected", click: this.inspectorFocus}
+      {t: "button", c: "inspector-hide", text: this.isFocused() ? "Show all" : "Filter to selected", click: this.toggleInspectorFocus}
     ]};
   }
 
@@ -950,7 +978,7 @@ export class Editor {
   }
 
   scrollToPosition(position:Position) {
-    let top = this.cm.heightAtLine(position.line, "local");
+    let top = this.cm.cursorCoords(position, "local").top;
     this.cm.scrollTo(0, Math.max(top - 100, 0));
   }
 
