@@ -204,6 +204,16 @@ class Responder {
       let extraInfo = {};
       let spanId = analyzer.findMaybeDrawers(evaluation, data, spans, extraInfo);
       this.send(JSON.stringify(data));
+    } else if(data.type === "findPerformance") {
+      let perf = evaluation.perf;
+      let userBlocks = {};
+      for(let block of evaluation.getDatabase("session").blocks) {
+        userBlocks[block.id] = true;
+      }
+      let perfInfo = perf.asObject(userBlocks);
+      perfInfo.type = "findPerformance";
+      perfInfo.requestId = data.requestId;
+      this.send(JSON.stringify(perfInfo));
     } else if(data.type === "findRecordsFromToken") {
       let spans = [];
       let extraInfo = {};
@@ -262,5 +272,5 @@ export function init(code) {
   }
 
   client.socket.onopen();
-  // responder.handleEvent(JSON.stringify({type: "findSource", span: "editor|block|18|node|19", requestId: 0}));
+  // responder.handleEvent(JSON.stringify({type: "findPerformance", requestId: 2}));
 }

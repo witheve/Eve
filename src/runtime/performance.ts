@@ -35,6 +35,7 @@ export class NoopPerformanceTracker {
   send(start) { }
   blockCheck(start) { }
   fixpoint(start) { }
+  asObject(blockMap: Object): any {}
   report() { }
 }
 
@@ -106,6 +107,34 @@ export class PerformanceTracker extends NoopPerformanceTracker {
   fixpoint(start) {
     this.fixpointTime += time(start) as number;
     this.fixpointCalls++;
+  }
+
+  asObject(blockMap: Object) {
+    let info = {};
+    let blockInfo = {};
+    let blocks = Object.keys(this.blockTime);
+    blocks.sort((a,b) => {
+     return this.blockTime[b] - this.blockTime[a];
+    });
+    for(let name of blocks) {
+      if(!blockMap[name]) continue;
+      let time = this.blockTime[name];
+      let calls = this.blockCalls[name];
+      let max = this.blockTimeMax[name];
+      let min = this.blockTimeMin[name];
+      let avg = time / calls;
+      let color = avg > 5 ? "red" : (avg > 1 ? "orange" : "green");
+      let fixedpointPercent = (time * 100 / this.fixpointTime);
+      blockInfo[name] = {
+        time, calls, min, max, avg, color, percentFixpoint: fixedpointPercent
+      }
+    }
+    let fixpoint = {
+      time: this.fixpointTime,
+      count: this.fixpointCalls,
+      avg: this.fixpointTime / this.fixpointCalls,
+    }
+    return {fixpoint, blocks: blockInfo};
   }
 
   report() {

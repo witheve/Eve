@@ -431,6 +431,29 @@ class Round extends Constraint {
   }
 }
 
+class ToFixed extends Constraint {
+  static AttributeMapping = {
+    "value": 0,
+    "places": 1,
+  }
+  resolveProposal(proposal, prefix) {
+    let {args} = this.resolve(prefix);
+    return [args[0].toFixed(args[1])];
+  }
+
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    return args[0].toFixed(args[1]) === returns[0];
+  }
+
+  getProposal(tripleIndex, proposed, prefix) {
+    let proposal = this.proposalObject;
+    proposal.providing = proposed;
+    proposal.cardinality = 1;
+    return proposal;
+  }
+}
+
 
 providers.provide("+", Add);
 providers.provide("-", Subtract);
@@ -448,3 +471,4 @@ providers.provide("random", Random);
 providers.provide("range", Range);
 providers.provide("round", Round);
 providers.provide("gaussian", Gaussian);
+providers.provide("to-fixed", ToFixed);
