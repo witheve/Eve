@@ -262,6 +262,6 @@ export var messages = {
   neverEqual: (left, right) => `${left} can never equal ${right}`,
   variableNeverEqual: (variable, value, right) => `${variable.name} is equivalent to ${value}, which can't be equal to ${right}`,
 
-  actionNonTag: (found) => `Looks like this should be a tag, change the ${found} to a #`,
+  actionNonTag: (found) => `Looks like this should be a tag, try changing the ${found} to a #`,
   actionRawIdentifier: (found) => `I can only add/remove tags directly on a record. If you meant to add ${found} as an attribute to the record, try 'my-record.found += ${found}'; if you meant to add the #${found} tag, add #.`
 };
