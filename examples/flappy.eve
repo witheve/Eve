@@ -81,7 +81,7 @@ When the game is on the "menu" or "game over" screens, a click anywhere in the a
 
 ```
 search @event @session
-  [#click #direct-target]
+  [#click element: [#world]]
   world = if world = [#world screen: "menu"] then world
           else [#world screen: "game over"]
   new = if world = [#world score best] score > best then score
@@ -175,7 +175,7 @@ When a player clicks during gameplay, we give the bird some lift by setting its 
 
 ```
 search @event @session
-  [#click #direct-target]
+  [#click element: [#world]]
   [#world screen: "game"]
   player = [#player #self]
 
