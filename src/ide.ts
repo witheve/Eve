@@ -126,9 +126,7 @@ class Navigator {
       this.nodes[nodeId] = undefined;
 
     } else if(node) {
-      if(span.isDisabled() !== node.hidden) {
-        node.hidden = span.isDisabled();
-      }
+        node.hidden = span.isHidden();
 
     } else if(!node && loc) {
       let cur = loc.from;
@@ -154,7 +152,7 @@ class Navigator {
         parentNode.children.splice(ix, 0, nodeId);
       }
       let doc = this.ide.editor.cm.getDoc();
-      this.nodes[nodeId] = {id: nodeId, name: doc.getLine(loc.from.line), type: "section", level: span.source.level, span, open: true, hidden: span.isDisabled()};
+      this.nodes[nodeId] = {id: nodeId, name: doc.getLine(loc.from.line), type: "section", level: span.source.level, span, open: true, hidden: span.isHidden()};
     }
   }
 
@@ -1090,7 +1088,7 @@ export class Editor {
 
       for(let range of ranges) {
         for(let span of this.findSpans(range.from, range.to)) {
-          span.enable();
+          span.unhide();
           if(span.refresh) span.refresh();
 
         }
@@ -2254,9 +2252,9 @@ export class IDE {
         let headings = this.editor.getAllSpans("heading") as HeadingSpan[];
         for(let heading of headings) {
           if(visibleHeadings.indexOf(heading) === -1) {
-            heading.disable();
+            heading.hide();
           } else {
-            heading.enable();
+            heading.unhide();
           }
         }
         this.navigator.updateElision();

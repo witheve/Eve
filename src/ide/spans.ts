@@ -110,7 +110,8 @@ export class Span {
   protected static _spanStyle:"inline"|"line"|"block";
   protected _spanStyle:"inline"|"line"|"block";
 
-  protected disabled = false;
+  /** Whether the span is currently elided. */
+  protected hidden = false;
 
   id: string;
   editor: Editor;
@@ -187,21 +188,21 @@ export class Span {
     return {from: loc.from, to: loc.to, span: this};
   }
 
-  disable() {
-    if(!this.disabled) {
-      this.disabled = true;
+  hide() {
+    if(!this.hidden) {
+      this.hidden = true;
       if(this.refresh) this.refresh();
     }
   }
-  enable() {
-    if(this.disabled) {
-      this.disabled = false;
+  unhide() {
+    if(this.hidden) {
+      this.hidden = false;
       if(this.refresh) this.refresh();
     }
   }
 
-  isDisabled() {
-    return this.disabled;
+  isHidden() {
+    return this.hidden;
   }
 
   sourceEquals(other:SpanSource) {
@@ -332,7 +333,7 @@ export class LineSpan extends Span {
     if(!loc) return;
 
     let end = loc.to.line + ((loc.from.line === loc.to.line) ? 1 : 0);
-    if(!this.disabled) {
+    if(!this.hidden) {
       updateLineClasses(loc.from.line, end, this.editor, this);
     } else {
       clearLineClasses(loc.from.line, end, this.editor, this);
@@ -426,7 +427,7 @@ export class BlockSpan extends Span {
     let loc = this.find();
     if(!loc) return;
 
-    if(!this.disabled) {
+    if(!this.hidden) {
       updateLineClasses(loc.from.line, loc.to.line, this.editor, this);
     } else {
       clearLineClasses(loc.from.line, loc.to.line, this.editor, this);
@@ -585,7 +586,7 @@ class ElisionSpan extends BlockSpan {
 
     for(let span of this.editor.findSpansAt(from).concat(this.editor.findSpans(from, to))) {
       if(span === this) continue;
-      span.disable();
+      span.hide();
     }
   }
 
@@ -595,7 +596,7 @@ class ElisionSpan extends BlockSpan {
     if(loc) {
       for(let span of this.editor.findSpansAt(loc.from).concat(this.editor.findSpans(loc.from, loc.to))) {
         if(span === this) continue;
-        span.enable();
+        span.unhide();
       }
     }
   }
@@ -662,7 +663,7 @@ export class BlockAnnotationSpan extends BlockSpan {
     }
     if(loc) {
       this.annotation.update([loc]);
-      if(!this.disabled) {
+      if(!this.hidden) {
         updateLineClasses(loc.from.line, loc.to.line, this.editor, this);
       } else {
         clearLineClasses(loc.from.line, loc.to.line, this.editor, this);
@@ -706,7 +707,7 @@ export class AnnotationSpan extends Span {
     }
     if(loc) {
       this.annotation.update([loc]);
-      if(!this.disabled) {
+      if(!this.hidden) {
         updateLineClasses(loc.from.line, loc.to.line, this.editor, this);
       } else {
         clearLineClasses(loc.from.line, loc.to.line, this.editor, this);
@@ -782,7 +783,7 @@ export class DocumentCommentSpan extends ParserSpan {
     }
     if(loc) {
       this.annotation.update([loc]);
-      if(!this.disabled) {
+      if(!this.hidden) {
         updateLineClasses(loc.from.line, loc.to.line, this.editor, this);
       } else {
         clearLineClasses(loc.from.line, loc.to.line, this.editor, this);
@@ -859,7 +860,7 @@ export class DocumentWidgetSpan extends ParserSpan {
     if(!loc) return this.clear();
 
     if(loc) {
-      if(!this.disabled) {
+      if(!this.hidden) {
         updateLineClasses(loc.from.line, loc.to.line, this.editor, this);
       } else {
         clearLineClasses(loc.from.line, loc.to.line, this.editor, this);
