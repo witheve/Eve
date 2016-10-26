@@ -35,7 +35,7 @@ export class NoopPerformanceTracker {
   send(start) { }
   blockCheck(start) { }
   fixpoint(start) { }
-  asObject(blockMap: Object) {}
+  asObject(blockMap: Object): any {}
   report() { }
 }
 
