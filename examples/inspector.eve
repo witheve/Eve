@@ -97,6 +97,7 @@ search @inspector
   focus-states = if state = "annotate-blocks" then "focus-blocks"
                  if state = "annotate-affectors" then "focus-affectors"
                  if state = "annotate-failures" then "focus-failures"
+                 if state = "annotate-performance" then "focus-performance"
 
 commit @inspector
   inspector.state += focus-states
@@ -114,6 +115,7 @@ search @inspector
   focus-states = if state = "annotate-blocks" then "focus-blocks"
                  if state = "annotate-affectors" then "focus-affectors"
                  if state = "annotate-failures" then "focus-failures"
+                 if state = "annotate-performance" then "focus-performance"
 
 commit @inspector
   inspector.state -= focus-states
@@ -447,10 +449,11 @@ commit @inspector
   [#state state: "focus-failures" requires: "affector-failures"]
   [#state state: "annotate-failures" requires: "affector-failures"]
   [#state state: "highlight-failures" requires: "affector-failures"]
-  [#state state: "annotate-performance" requires: "performance-stats"]
 
   // Block States
   [#state state: "highlight-block-failure" requires: "block-failure"]
+  [#state state: "annotate-performance" requires: "performance-stats"]
+  [#state state: "focus-performance" requires: "performance-stats"]
 ```
 
 When the inspector is in a state that requires data, request that data.
@@ -708,7 +711,20 @@ search @editor
 bind @editor
   [#mark-span inspector type: "document_widget" span: block kind: "performance-{{color}}" message: "{{total-percent}}% of total | average {{average-time}}ms | max {{max-time}}ms"]
 
+```
 
+### Focus Performance
+
+```
+search @inspector
+  inspector = [#inspector state: "focus-performance"]
+
+search @editor
+  [#performance block color != "green"]
+
+bind @editor
+  [#elide-between-sections inspector | span: block]
+  [#jump-to position: 0]
 ```
 
 ## Drawing
