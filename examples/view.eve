@@ -113,7 +113,8 @@ bind @view
 ```
 search @view
   wrapper = [#bar-graph bar max-height]
-  lookup[record: wrapper, attribute: "tag", value: "bar-graph", node]
+  node = if wrapper.node then wrapper.node
+         else if lookup[record: wrapper, attribute: "tag", value: "bar-graph", node] then node
 
   graph-height = if wrapper.height then wrapper.height
                  else 300
@@ -122,14 +123,71 @@ search @view
                  else 500
 
   bar = [label height]
+
+  text = if bar = [#unlabeled] then ""
+         else label
+
   sort = if bar.sort then bar.sort
          else bar
   bar-count = count[given: bar, per: wrapper]
-  bar-width = graph-width / bar-count
 
-  bar-height = (height / max-height) * (graph-height - 30) // padding!
+  bar-width = if bar.width then bar.width
+              else graph-width / bar-count
+
+  bar-height = if max-height = 0 then 0
+               else (height / max-height) * (graph-height - 30) // padding!
 
 bind @browser
   wrapper <- [#view #div node class: "view bar-graph" style: [width: graph-width, height: graph-height] children:
-    [#div wrapper class: "bar-graph-bar" label | sort style: [width: bar-width height: bar-height] text: label]]
+    [#div wrapper class: "bar-graph-bar" label | sort style: [width: bar-width height: bar-height] text]]
 ```
+
+### history
+
+Commit the values so they stick around
+
+~~~
+search @view @stored
+  history = [#history values]
+  not(values = [#stored])
+  values = [value]
+  ix = if history.ix then history.ix
+       else 1
+
+commit @stored
+  history.values += values
+  values.value := value
+  values.ix := ix
+  values += #stored
+  history.ix := ix + 1
+~~~
+
+Remove values as the history size grows
+
+~~~
+search @view @stored
+  history = [#history values]
+  size = if history.history-size then history.history-size
+         else 30
+  not(not(values.ix))
+  total = count[given: values]
+  total > size
+  lowest = min[value: values.ix, given: values]
+  [#history values: values2]
+  values2 = [ix: lowest]
+
+commit @stored
+  values2 := none
+~~~
+
+History views are just special bar-graphs
+
+~~~
+search @view @stored
+  history = [#history values]
+  lookup[record: history, attribute: "tag", value: "history", node]
+search @stored
+  values.value
+bind @view
+  [#bar-graph history node | bar: [#unlabeled label: values.ix, height: values.value width: 15]]
+~~~

@@ -22,6 +22,7 @@ class TimeAgent {
     "minutes": 1000 * 60,
     "time-string": 1000 * 60,
     "seconds": 1000,
+    "timestamp": 1000,
     "frames": 16,
   };
 
@@ -59,10 +60,11 @@ class TimeAgent {
       new SetAction("time|month","time", "month", time.getMonth()),
       new SetAction("time|day","time", "day", time.getDate()),
       new SetAction("time|hours","time", "hours", time.getHours() % 12),
-      new SetAction("time|hours","time", "hours-24", time.getHours()),
+      new SetAction("time|hours-24","time", "hours-24", time.getHours()),
       new SetAction("time|minutes","time", "minutes", time.getMinutes()),
-      new SetAction("time|minutes","time", "time-string", timeString),
+      new SetAction("time|time-string","time", "time-string", timeString),
       new SetAction("time|seconds","time", "seconds", time.getSeconds()),
+      new SetAction("time|timestamp","time", "timestamp", time.getTime()),
       new SetAction("time|frames","time", "frames", this.frames),
       new SetAction("time|time","time", "ampm", ampm),
     ];
