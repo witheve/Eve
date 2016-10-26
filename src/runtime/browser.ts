@@ -272,5 +272,5 @@ export function init(code) {
   }
 
   client.socket.onopen();
-  responder.handleEvent(JSON.stringify({type: "findPerformance", requestId: 2}));
+  // responder.handleEvent(JSON.stringify({type: "findPerformance", requestId: 2}));
 }
