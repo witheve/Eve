@@ -2127,6 +2127,9 @@ export class IDE {
           for(let spanId of action.span) {
             let span = this.editor.getSpanBySourceId(spanId);
             let range = span && span.find();
+            if(span.isBlock() && action.type[0] === "document_widget") { // @FIXME: This is a horrible hack to deal with blocks ending on the next line.
+              range = {from: range.from, to: {line: range.to.line - 1, ch: 0}};
+            }
             if(range) ranges.push(range);
           }
         }

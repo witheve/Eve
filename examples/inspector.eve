@@ -253,6 +253,7 @@ commit @inspector
   [#data data: "all-values" requires: "related"]
   [#data data: "affectors"]
   [#data data: "affector-failures" requires: "affectors"]
+  [#data data: "performance-stats"]
 ```
 
 If we need data that has a dependency, make sure we're fetching that too.
@@ -416,6 +417,16 @@ bind @editor
   [#find-failure block]
 ```
 
+### Performance Stats
+
+```
+search @inspector
+  inspector = [#inspector data: "performance-stats"]
+
+bind @editor
+  [#find-performance]
+```
+
 ## States
 
 Inspector states control how the inspector interacts with the editor and presents itself to the user.
@@ -436,6 +447,7 @@ commit @inspector
   [#state state: "focus-failures" requires: "affector-failures"]
   [#state state: "annotate-failures" requires: "affector-failures"]
   [#state state: "highlight-failures" requires: "affector-failures"]
+  [#state state: "annotate-performance" requires: "performance-stats"]
 
   // Block States
   [#state state: "highlight-block-failure" requires: "block-failure"]
@@ -669,6 +681,37 @@ bind @editor
   [#mark-range type: "cause-of-failure" start stop]
 ```
 
+### Annotate Performance
+
+```
+search @inspector
+  inspector = [#inspector state: "annotate-performance"]
+
+search @editor
+  [#perf-stats block average max]
+  kind = if average > 4 then "very-slow"
+         else if max > 10 then "spiky"
+         else if average > 2 then "slow"
+
+bind @editor
+  [#mark-span inspector type: "block_annotation" span: block kind message: "This block has performance issues."]
+```
+
+```
+search @inspector
+  inspector = [#inspector state: "annotate-performance"]
+
+search @editor
+  perf = [#perf-stats block]
+  total-percent = to-fixed[value: perf.fixedpoint, places: 2]
+  average-time = to-fixed[value: perf.average, places: 2]
+  max-time = to-fixed[value: perf.max, places: 2]
+
+bind @editor
+  [#mark-span inspector type: "document_widget" span: block kind: "performance" message: "{{fixedpoint}}% of total | average {{average}}ms | max {{max}}ms"]
+
+
+```
 
 ## Drawing
 
@@ -724,7 +767,8 @@ search @inspector
 bind @browser
   inspector <- [#div in-editor: true class: "inspector-pane" children:
     [#div #options-panel inspector class: "buttons" children:
-    [#button inspector text: "Did this fail?" activate: "highlight-block-failure" deactivate: "block-popout"]]]
+    [#button inspector text: "Did this fail?" activate: "highlight-block-failure" deactivate: "block-popout"]
+    [#button inspector text: "Why is this slow?" activate: "annotate-performance" deactivate: "block-popout"]]]
 
 ```
 

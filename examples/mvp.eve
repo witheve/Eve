@@ -101,3 +101,58 @@ search
 bind @browser
   div.open := open
 ```
+
+
+```
+search
+  fp = 30 / 100
+
+commit @editor
+  [#perf-stats block: "user|block|13"
+    time: 0.5
+    calls: 1
+    max: 0.5
+    min: 0.5
+    average: 0.5
+    fixedpoint:  0.5 / fp]
+
+  [#perf-stats block: "user|block|15"
+    time: 8
+    calls: 2
+    max: 5
+    min: 3
+    average: 4
+    fixedpoint:  8 / fp]
+
+  [#perf-stats block: "user|block|19"
+    time: 5
+    calls: 2
+    max: 3.5
+    min: 1.5
+    average: 2.5
+    fixedpoint:  5 / fp]
+
+  [#perf-stats block: "user|block|21"
+    time: 1
+    calls: 1
+    max: 1
+    min: 1
+    average: 1
+    fixedpoint:  1 / fp]
+
+  [#perf-stats block: "user|block|22"
+    time: 12
+    calls: 1
+    max: 12
+    min: 12
+    average: 12
+    fixedpoint:  12 / fp]
+
+  [#perf-stats block: "user|block|23"
+    time: 3.5
+    calls: 2
+    max: 2.5
+    min: 1
+    average: 1.75
+    fixedpoint:  3.5 / fp]
+```

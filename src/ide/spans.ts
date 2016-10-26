@@ -469,7 +469,6 @@ export class BlockSpan extends Span {
 
 
     if(!samePosition(from, loc.from) || !samePosition(to, loc.to)) {
-      console.log("OC BLOCK M", this);
       this.clear();
       this.editor.markSpan(from, to, this.source);
     }
@@ -801,12 +800,92 @@ export class DocumentCommentSpan extends ParserSpan {
     if(this.commentWidget) this.commentWidget.clear();
     let loc = this.find();
     if(!loc) return;
+    this.widgetLine = loc.to.line;
+    this.commentElem.textContent = this.message;
     this.commentWidget = this.editor.cm.addLineWidget(this.widgetLine, this.commentElem);
   }
 
   get kind() { return this.source.kind || "error"; }
   get message() { return this.source.message; }
 }
+
+export class DocumentWidgetSpan extends ParserSpan {
+  source:DocumentCommentSpanSource;
+
+  lineBackgroundClass: string;
+
+  widgetLine?: number;
+  commentWidget?: CodeMirror.LineWidget;
+  commentElem?: HTMLElement;
+
+  apply(from:Position, to:Position, origin = "+input") {
+    this.lineBackgroundClass = "COMMENT_" + this.kind;
+    this._attributes.className = this.type + " " + this.kind;
+
+    if(!this.commentElem) {
+      this.commentElem = document.createElement("div");
+    }
+
+    this.commentElem.className = "comment-widget" + " " + this.kind;
+
+    if(this.editor.inCodeBlock(to)) {
+      this.commentElem.className += " code-comment-widget";
+    }
+
+    if(this.source.delay) {
+      this["updateWidget"] = debounce(this.updateWidget, this.source.delay);
+    }
+    super.apply(from, to, origin);
+  }
+
+  clear(origin:string = "+delete") {
+    if(!this.marker) return;
+
+    // If the line is still in the document, clear its classes.
+    let loc = this.find();
+    if(loc) {
+      clearLineClasses(loc.from.line, loc.to.line, this.editor, this);
+    }
+    super.clear(origin);
+
+    if(this.commentWidget) {
+      this.commentWidget.clear();
+      this.commentElem.textContent = "";
+    }
+  }
+
+  refresh() {
+    let loc = this.find();
+    if(!loc) return this.clear();
+
+    if(loc) {
+      if(!this.disabled) {
+        updateLineClasses(loc.from.line, loc.to.line, this.editor, this);
+      } else {
+        clearLineClasses(loc.from.line, loc.to.line, this.editor, this);
+      }
+
+      if(loc.to.line !== this.widgetLine) {
+        this.widgetLine = loc.to.line;
+        if(this.commentWidget) this.commentWidget.clear();
+        this.updateWidget();
+      }
+    }
+  }
+
+  updateWidget() {
+    if(this.commentWidget) this.commentWidget.clear();
+    let loc = this.find();
+    if(!loc) return;
+    this.widgetLine = loc.to.line;
+    this.commentElem.textContent = this.message;
+    this.commentWidget = this.editor.cm.addLineWidget(this.widgetLine, this.commentElem);
+  }
+
+  get kind() { return this.source.kind || "error"; }
+  get message() { return this.source.message; }
+}
+
 
 interface BadgeSpanSource extends SpanSource { kind: string, message: "string" }
 class BadgeSpan extends ParserSpan {
@@ -866,6 +945,7 @@ export var spanTypes = {
   code_block: CodeBlockSpan,
 
   document_comment: DocumentCommentSpan,
+  document_widget: DocumentWidgetSpan,
   annotation: AnnotationSpan,
   block_annotation: BlockAnnotationSpan,
   badge: BadgeSpan,
