@@ -688,13 +688,11 @@ search @inspector
   inspector = [#inspector state: "annotate-performance"]
 
 search @editor
-  [#perf-stats block average max]
-  kind = if average > 4 then "very-slow"
-         else if max > 10 then "spiky"
-         else if average > 2 then "slow"
+  [#performance block color]
+  color != "green"
 
 bind @editor
-  [#mark-span inspector type: "block_annotation" span: block kind message: "This block has performance issues."]
+  [#mark-span inspector type: "block_annotation" span: block kind: "performance-{{color}}" message: "This block has performance issues."]
 ```
 
 ```
@@ -702,13 +700,13 @@ search @inspector
   inspector = [#inspector state: "annotate-performance"]
 
 search @editor
-  perf = [#perf-stats block]
-  total-percent = to-fixed[value: perf.fixedpoint, places: 2]
+  perf = [#performance block color]
+  total-percent = to-fixed[value: perf.percent, places: 2]
   average-time = to-fixed[value: perf.average, places: 2]
   max-time = to-fixed[value: perf.max, places: 2]
 
 bind @editor
-  [#mark-span inspector type: "document_widget" span: block kind: "performance" message: "{{total-percent}}% of total | average {{average-time}}ms | max {{max-time}}ms"]
+  [#mark-span inspector type: "document_widget" span: block kind: "performance-{{color}}" message: "{{total-percent}}% of total | average {{average-time}}ms | max {{max-time}}ms"]
 
 
 ```

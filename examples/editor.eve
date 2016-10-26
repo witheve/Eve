@@ -453,13 +453,46 @@ search @event
 
 commit @editor
   event <- [#root-drawer action span start stop]
+
+commit @event
+  event := none
 ```
 
 ```
 search @editor @browser
   drawer = [#drawer action]
-  not(action = [#find-drawer])
+  not(action = [#find-root-drawer])
 
 commit @editor
   drawer := none
+```
+
+### Find Performance
+
+```
+search @editor
+  action = [#find-performance]
+
+bind @browser
+  action <- [#editor #find-performance]
+```
+
+```
+search @event
+  event = [#editor #performance action block average calls color max min percent total]
+
+commit @editor
+  event <- [#performance action block average calls color max min percent total]
+
+commit @event
+  event := none
+```
+
+```
+search @editor @browser
+  performance = [#performance action]
+  not(action = [#find-performance])
+
+commit @editor
+  performance := none
 ```

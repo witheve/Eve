@@ -227,12 +227,14 @@ table.view td { padding: 0 5px; border: 1px solid #ccc; border-top: none; border
 .editor-pane .controls .inspector-button.inspecting { color: #ff0028; background: #ffdde2; }
 
 .CodeMirror .code.annotated { border-left-color: #66b1e9; }
-.CodeMirror .code.annotated.annotated_very-slow { border-left-color: #c65555; }
-.CodeMirror .code.annotated.annotated_slow { border-left-color: #e9c070; }
-.CodeMirror .scrollbar-annotation.very-slow { background: #c65555; min-height: 5px; opacity: 1; transition: opacity 0.15s; z-index: 2; }
-.CodeMirror .scrollbar-annotation.slow { background: #e9c070; min-height: 5px; opacity: 1; transition: opacity 0.15s; z-index: 2; }
+.CodeMirror .code.annotated.annotated_performance-red { border-left-color: #c65555; }
+.CodeMirror .code.annotated.annotated_performance-orange { border-left-color: #e9c070; }
+.CodeMirror .scrollbar-annotation.performance-red { background: #c65555; min-height: 5px; opacity: 1; transition: opacity 0.15s; z-index: 2; }
+.CodeMirror .scrollbar-annotation.performance-orange { background: #e9c070; min-height: 5px; opacity: 1; transition: opacity 0.15s; z-index: 2; }
 
-.code-comment-widget.performance { white-space: pre; background: #FFFFDD; border-left: 5px solid #EEEEAA; }
+.code-comment-widget.performance-green { white-space: pre; background: #e0e0e0; border-left: 5px solid #EEEEAA; }
+.code-comment-widget.performance-orange { white-space: pre; background: #ffe9c0; border-left: 5px solid #e9c070; }
+.code-comment-widget.performance-red { white-space: pre; background: #f9cccc; border-left: 5px solid #c65555; }
 
 .CodeMirror .shadow { color: #999 !important; }
 .CodeMirror .highlight { background: rgba(127, 192, 255, 0.4); }

@@ -2351,6 +2351,16 @@ export class IDE {
         }));
       },
 
+      "find-performance": (action, actionId) => {
+        this.languageService.findPerformance(null, this.languageService.unpackPerformance((records) => {
+          for(let record of records) {
+            record.tag.push("editor");
+            record["action"] = actionId;
+          }
+          sendEvent(records);
+        }));
+      },
+
       "inspector": (action, actionId) => {
         this.inspecting = true;
         let inspectorElem:HTMLElement = activeElements[actionId] as any;
@@ -2614,6 +2624,8 @@ type FindFailureArgs = {block: string[], span?: {block: string, start: number, s
 type FailureRecord = {tag: string[], block: string, start: number, stop: number};
 type FindRootDrawerArgs = {drawers?: {id: string, start: number, stop: number}[]};
 type RootDrawerRecord = {tag: string[], span: string, start: number, stop: number};
+type FindPerformanceArgs = {blocks?: {[blockId:string]: {avg: number, calls: number, color: string, max: number, min: number, percentFixpoint: number, time: number}}, fixpoint: {avg: number, count: number, time: number}};
+type PerformanceRecord = {tag: string[], block: string, average: number, calls: number, color: string, max: number, min: number, percent: number, total: number};
 
 class LanguageService {
   protected static _requestId = 0;
@@ -2730,6 +2742,22 @@ class LanguageService {
     };
   }
 
+  findPerformance(args:any, callback:(args:FindPerformanceArgs) => void) {
+    this.send("findPerformance", args || {}, callback);
+  }
+
+  unpackPerformance(callback:(args:PerformanceRecord[]) => void) {
+    return (message:FindPerformanceArgs) => {
+      console.log("MESSAGE", message);
+      let records:PerformanceRecord[] = [];
+      for(let blockId in message.blocks) {
+        let block = message.blocks[blockId];
+        records.push({tag: ["performance"], block: blockId, average: block.avg, calls: block.calls, color: block.color, max: block.max, min: block.min, percent: block.percentFixpoint, total: block.time});
+      }
+      callback(records);
+    };
+  }
+
   send(type:string, args:any, callback:any) {
     let id = LanguageService._requestId++;
     args.requestId = id;
@@ -2741,7 +2769,7 @@ class LanguageService {
 
   handleMessage = (message) => {
     let type = message.type;
-    if(type === "findSource" || type === "findRelated" || type === "findValue" || type === "findCardinality" || type === "findAffector" || type === "findFailure" || type === "findRootDrawers") {
+    if(type === "findSource" || type === "findRelated" || type === "findValue" || type === "findCardinality" || type === "findAffector" || type === "findFailure" || type === "findRootDrawers" || type === "findPerformance") {
       let id = message.requestId;
       let listener = this._listeners[id];
       if(listener) {
