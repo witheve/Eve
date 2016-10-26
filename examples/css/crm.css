@@ -252,3 +252,19 @@ a:hover {
 
 .more ul { margin: 5px 0; }
 .more li { margin-bottom:8px; }
+
+.button {
+  background-color: rgb(111, 165, 81);
+  color: white;
+  width: 80%;
+  height: 25px;
+  border-radius: 10px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: bold;
+  margin-right: auto;
+  margin-left: auto;
+  margin-top: 10px;
+  padding-top: 4px;
+  cursor: pointer;
+}
