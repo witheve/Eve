@@ -1973,6 +1973,8 @@ export class IDE {
 
   renderer:Renderer = new Renderer();
 
+  notices:{message: string, type: string, time: number}[] = [];
+
   languageService:LanguageService = new LanguageService();
   navigator:Navigator = new Navigator(this);
   editor:Editor = new Editor(this);
@@ -1989,9 +1991,28 @@ export class IDE {
   elem() {
     return {c: `editor-root`, children: [
       this.navigator.render(),
-      this.editor.render(),
+      {c: "main-pane", children: [
+        this.noticesElem(),
+        this.editor.render(),
+      ]},
       this.comments.render()
     ]};
+  }
+
+  noticesElem() {
+    let items = [];
+    for(let notice of this.notices) {
+      let time = new Date(notice.time);
+
+      items.push({c: `notice ${notice.type} flex-row`, children: [
+        {c: "time", text: `${time.getHours()}:${time.getMinutes()}:${time.getSeconds()}`},
+        {c: "message", text: notice.message}
+      ]});
+    }
+
+    if(items.length) {
+      return {c: "notices", children: items};
+    }
   }
 
   render() {
@@ -2057,7 +2078,19 @@ export class IDE {
     this.render();
   }
 
+  injectNotice(type:string, message:string) {
+    let time = Date.now();
+    this.notices.push({type, message, time});
+    this.render();
+    this.editor.cm.refresh();
+  }
+
   eval(persist?: boolean) {
+    if(this.notices.length) {
+      this.notices = [];
+      this.render();
+      this.editor.cm.refresh();
+    }
     if(this.onEval) this.onEval(this, persist);
   }
 

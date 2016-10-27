@@ -200,7 +200,7 @@ socket.onmessage = function(msg) {
     _ide.attachView(data.recordId, data.spanId);
 
   } else if(data.type == "error") {
-    console.error(data.message, data);
+    _ide.injectNotice("error", data.message);
   } else if(_ide.languageService.handleMessage(data)) {
 
   } else {
