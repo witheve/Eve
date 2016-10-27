@@ -733,7 +733,6 @@ export class Editor {
     });
     this.reloading = false;
     this.history.transitioning = false;
-    //console.log(this.toMarkdown())
   }
 
   // This is an update to an existing document, so we need to figure out what got added and removed.
@@ -1553,7 +1552,6 @@ export class Editor {
           }
         }
         if(!handled) {
-          console.log("HAI", l, text);
           let span = this.markSpan(pos, pos, {type: "whitespace"});
           this.denormalizedSpans.push(span);
         }
@@ -1964,6 +1962,8 @@ export class IDE {
   loaded = false;
   /** The current editor generation. Used for imposing a relative ordering on parses. */
   generation = 0;
+  /** Whether the currently open document is a modified version of an example. */
+  modified = false;
 
   /** Whether the inspector is currently active. */
   inspecting = false;
@@ -2029,6 +2029,7 @@ export class IDE {
       this.editor.dirty = false;
 
       sendEvent([{tag: ["inspector", "clear"]}]);
+      this.saveDocument();
 
       if(shouldEval) {
         this.eval(true);
@@ -2038,7 +2039,14 @@ export class IDE {
 
   loadFile(docId:string) {
     if(this.documentId === docId) return;
-    let code = this._fileCache[docId];
+    let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
+    let code = saves[docId];
+    if(code) {
+      this.modified = true;
+    } else {
+      code = this._fileCache[docId];
+      this.modified = false;
+    }
     if(!code) throw new Error(`Unable to load uncached file: '${docId}'`);
     this.loaded = false;
     this.documentId = docId;
@@ -2053,6 +2061,7 @@ export class IDE {
 
   loadDocument(generation:number, text:string, packed:any[], attributes:{[id:string]: any|undefined}) {
     if(generation < this.generation && generation !== undefined) return;
+    console.log("LD");
     if(this.loaded) {
       this.editor.updateDocument(packed, attributes);
     } else {
@@ -2070,6 +2079,13 @@ export class IDE {
     }
 
     this.render();
+  }
+
+  saveDocument() {
+    if(!this.documentId || !this.loaded) return;
+    let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
+    saves[this.documentId] = this.editor.toMarkdown();
+    localStorage.setItem("eve-saves", JSON.stringify(saves));
   }
 
   injectSpans(packed:any[], attributes:{[id:string]: any|undefined}) {
@@ -2789,7 +2805,6 @@ class LanguageService {
 
   unpackPerformance(callback:(args:PerformanceRecord[]) => void) {
     return (message:FindPerformanceArgs) => {
-      console.log("MESSAGE", message);
       let records:PerformanceRecord[] = [];
       for(let blockId in message.blocks) {
         let block = message.blocks[blockId];
@@ -2804,7 +2819,7 @@ class LanguageService {
     args.requestId = id;
     this._listeners[id] = callback;
     args.type = type;
-    console.log("SENT", args);
+    //console.log("SENT", args);
     send(args);
   }
 

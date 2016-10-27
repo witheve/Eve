@@ -148,7 +148,7 @@ if(!global["local"]) {
       browser.responder.handleEvent(json);
     }
   }
-  browser.init(global["code"]);
+  browser.init("");
 }
 socket.onmessage = function(msg) {
   let data = JSON.parse(msg.data);
@@ -167,8 +167,8 @@ socket.onmessage = function(msg) {
         // we clone here to keep the entities fresh when you want to thumb through them in the log later (since they are rendered lazily)
         let copy = clone(state.entities);
 
-        console.log("Entities", copy);
-        console.log("Indexes", indexes);
+        console.info("Entities", copy);
+        console.info("Indexes", indexes);
       }
       console.groupEnd();
     }
@@ -185,13 +185,15 @@ socket.onmessage = function(msg) {
     socket = {
       readyState: 1,
       send: (json) => {
+        console.log("SENDING", json);
         browser.responder.handleEvent(json);
       },
       onmessage: socket.onmessage,
       onopen: socket.onopen
     }
-    browser.init(data.code);
+    browser.init("");
   } else if(data.type == "parse") {
+    console.log("PARSE");
     _ide.loadDocument(data.generation, data.text, data.spans, data.extraInfo); // @FIXME
   } else if(data.type == "comments") {
     _ide.injectSpans(data.spans, data.extraInfo);
@@ -204,7 +206,7 @@ socket.onmessage = function(msg) {
   } else if(_ide.languageService.handleMessage(data)) {
 
   } else {
-    console.log("UNKNOWN MESSAGE", data);
+    console.warn("UNKNOWN MESSAGE", data);
   }
 }
 socket.onopen = function() {
@@ -343,10 +345,6 @@ window.addEventListener("hashchange", onHashChange);
 // Initialize an IDE
 //---------------------------------------------------------
 let _ide = new IDE();
-_ide.documentId = location.pathname.split("/").pop();
-_ide.render();
-_ide.loadWorkspace("examples", window["examples"]);
-console.log(_ide);
 _ide.onChange = (ide:IDE) => {
   let generation = ide.generation;
   let md = ide.editor.toMarkdown();
@@ -364,6 +362,7 @@ _ide.onEval = (ide:IDE, persist) => {
 }
 _ide.onLoadFile = (ide, documentId, code) => {
   if(socket && socket.readyState == 1) {
+    console.log("OL");
     socket.send(JSON.stringify({type: "close"}));
     socket.send(JSON.stringify({scope: "root", type: "parse", code}))
     socket.send(JSON.stringify({type: "eval", persist: false}));
@@ -376,6 +375,21 @@ _ide.onTokenInfo = (ide, tokenId) => {
     socket.send(JSON.stringify({type: "tokenInfo", tokenId}));
   }
 }
+
+_ide.loadWorkspace("examples", window["examples"]);
+// @FIXME: need to get a queue up, but with the weird shimming going on that's gonna be a pain.
+// Client refactor inbound post-release.
+let waitForSocket = setInterval(() => {
+  if(socket.readyState == 1) {
+    console.log("START");
+    clearInterval(waitForSocket);
+    _ide.loadFile(location.pathname.split("/").pop());
+    _ide.render();
+  }
+}, 10);
+
+_ide.render();
+console.log(_ide);
 
 window.document.body.addEventListener("dragover", (e) => {
   e.preventDefault();
