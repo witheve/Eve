@@ -602,8 +602,10 @@ class ElisionSpan extends BlockSpan {
   }
 }
 
+interface CodeBlockSpanSource extends SpanSource { disabled?: boolean }
 export class CodeBlockSpan extends BlockSpan {
-  protected disabled = false;
+  source: CodeBlockSpanSource;
+  protected disabled:boolean;
 
   protected widgetLine:number;
   protected widget:CodeMirror.LineWidget;
@@ -617,6 +619,8 @@ export class CodeBlockSpan extends BlockSpan {
   apply(from:Position, to:Position, origin = "+input") {
     this.lineBackgroundClass = "code";
     this.lineTextClass = "code-text";
+    if(this.source.disabled) this.disabled = this.source.disabled;
+    else this.disabled = false;
     super.apply(from, to, origin);
 
     if(!this.widget) this.createWidgets();
