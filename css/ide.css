@@ -100,12 +100,19 @@ button { font-family: "Avenir", "Helvetica neue", sans-serif; }
 .CodeMirror .STRONG { font-weight:bold; }
 .CodeMirror .EMPH { font-style:italic; }
 .CodeMirror .CODE { margin-left: 10px; margin-right:50px; border-left:5px solid #eaeaea; background: #f4f4f4; font-family: "Inconsolata", "Monaco", "Consolas", "Ubuntu Mono", monospace;  }
-.CodeMirror .CODE-TEXT { line-height:19px; padding-left:30px; }
+.CodeMirror .CODE-TEXT { line-height:19px; padding-left:30px; transition: opacity 0.3s; }
+.CodeMirror .CODE-TEXT.CODE-DISABLED { opacity: 0.6; }
 .CodeMirror span.CODE { color: #0076ce; background:none; margin:0; padding:0; border:none; }
 
 .CodeMirror .CODE_BLOCK { font-family: "Inconsolata", "Monaco", "Consolas", "Ubuntu Mono", monospace; }
 .CodeMirror .CODE-TOP { border-radius:3px 3px 0 0; padding-top:8px; }
 .CodeMirror .CODE-BOTTOM { border-radius:0 0 3px 3px; padding-bottom:8px; }
+
+.CodeMirror .code-controls-widget { float: right; margin-right: 50px; padding: 5px 10px; padding-bottom: 0; font-size: 1.2rem; opacity: 0.5; transition: opacity 0.3s; }
+.CodeMirror .CodeMirror-linewidget:hover .code-controls-widget { opacity: 1; }
+
+.CodeMirror .code-footer-widget { height: 24px; }
+
 .CodeMirror .DOC { color: #d8d8d8; }
 .CodeMirror .HEADING1 { font-size:30px; padding-top:20px; padding-bottom: 30px;}
 .CodeMirror .HEADING2 { font-size:20px; padding-top:20px; padding-bottom: 10px; font-weight: bold; }
