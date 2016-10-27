@@ -733,6 +733,7 @@ export class Editor {
     });
     this.reloading = false;
     this.history.transitioning = false;
+    this.dirty = false;
   }
 
   // This is an update to an existing document, so we need to figure out what got added and removed.
@@ -927,7 +928,8 @@ export class Editor {
       } else if(type == "code") {
         pieces.push("`");
       } else if(type == "code_block" && mark.start) {
-        if((mark.span as CodeBlockSpan).isDisabled()) {
+        console.log("MSI", mark.source.info);
+        if ((mark.span as CodeBlockSpan).isDisabled()) {
           pieces.push("```eve disabled\n");
         } else {
           pieces.push("```\n");
