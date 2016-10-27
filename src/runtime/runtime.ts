@@ -230,7 +230,7 @@ export class Evaluation {
       blocks = this.blocksFromCommit(commit);
       // console.groupEnd();
     }
-    if(changes.round > MAX_ROUNDS) {
+    if(changes.round >= MAX_ROUNDS) {
       this.error("Fixpoint Error", "Evaluation failed to fixpoint");
     }
     perf.fixpoint(start);
@@ -279,5 +279,3 @@ export class Evaluation {
     }
   }
 }
-
-
