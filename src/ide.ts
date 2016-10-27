@@ -2061,7 +2061,6 @@ export class IDE {
 
   loadDocument(generation:number, text:string, packed:any[], attributes:{[id:string]: any|undefined}) {
     if(generation < this.generation && generation !== undefined) return;
-    console.log("LD");
     if(this.loaded) {
       this.editor.updateDocument(packed, attributes);
     } else {

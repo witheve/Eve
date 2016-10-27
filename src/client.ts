@@ -185,15 +185,14 @@ socket.onmessage = function(msg) {
     socket = {
       readyState: 1,
       send: (json) => {
-        console.log("SENDING", json);
         browser.responder.handleEvent(json);
       },
       onmessage: socket.onmessage,
       onopen: socket.onopen
     }
     browser.init("");
+    initializeIDE();
   } else if(data.type == "parse") {
-    console.log("PARSE");
     _ide.loadDocument(data.generation, data.text, data.spans, data.extraInfo); // @FIXME
   } else if(data.type == "comments") {
     _ide.injectSpans(data.spans, data.extraInfo);
@@ -362,7 +361,6 @@ _ide.onEval = (ide:IDE, persist) => {
 }
 _ide.onLoadFile = (ide, documentId, code) => {
   if(socket && socket.readyState == 1) {
-    console.log("OL");
     socket.send(JSON.stringify({type: "close"}));
     socket.send(JSON.stringify({scope: "root", type: "parse", code}))
     socket.send(JSON.stringify({type: "eval", persist: false}));
@@ -377,16 +375,15 @@ _ide.onTokenInfo = (ide, tokenId) => {
 }
 
 _ide.loadWorkspace("examples", window["examples"]);
-// @FIXME: need to get a queue up, but with the weird shimming going on that's gonna be a pain.
-// Client refactor inbound post-release.
-let waitForSocket = setInterval(() => {
+
+function initializeIDE() {
   if(socket.readyState == 1) {
-    console.log("START");
-    clearInterval(waitForSocket);
     _ide.loadFile(location.pathname.split("/").pop());
     _ide.render();
+  } else {
+    throw new Error("Cannot initialize until connected.");
   }
-}, 10);
+}
 
 _ide.render();
 console.log(_ide);
