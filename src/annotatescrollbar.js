@@ -77,6 +77,7 @@
         curLine = pos.line;
         curLineObj = cm.getLineHandle(curLine);
       }
+      if(!curLineObj) return;
       if (wrapping && curLineObj.height > singleLineH)
         return cm.charCoords(pos, "local")[top ? "top" : "bottom"];
       var topY = cm.heightAtLine(curLineObj, "local");
@@ -86,6 +87,7 @@
     if (cm.display.barWidth) for (var i = 0, nextTop; i < anns.length; i++) {
       var ann = anns[i];
       var top = nextTop || getY(ann.from, true) * hScale;
+      if(!curLineObj) return;
       var bottom = getY(ann.to, false) * hScale;
       while (i < anns.length - 1) {
         nextTop = getY(anns[i + 1].from, true) * hScale;
