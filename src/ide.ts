@@ -965,8 +965,8 @@ export class Editor {
     this.cm.refresh();
   }
 
-  queueUpdate = debounce(() => {
-    if(!this.reloading && this.denormalizedSpans.length === 0) this.ide.queueUpdate();
+  queueUpdate = debounce((shouldEval = false) => {
+    if(!this.reloading && this.denormalizedSpans.length === 0) this.ide.queueUpdate(shouldEval);
   }, 0);
 
   jumpTo(id:string) {
@@ -1998,7 +1998,7 @@ export class IDE {
     this.renderer.render([this.elem()]);
   }
 
-  queueUpdate = debounce(() => {
+  queueUpdate = debounce((shouldEval = false) => {
     this.render();
 
     if(this.editor.dirty) {
@@ -2007,6 +2007,10 @@ export class IDE {
       this.editor.dirty = false;
 
       sendEvent([{tag: ["inspector", "clear"]}]);
+
+      if(shouldEval) {
+        this.eval(true);
+      }
     }
   }, 1, true);
 

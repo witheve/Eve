@@ -654,7 +654,7 @@ export class CodeBlockSpan extends BlockSpan {
       this.refresh();
 
       this.editor.dirty = true;
-      this.editor.queueUpdate();
+      this.editor.queueUpdate(true);
     }
   }
 
@@ -664,7 +664,7 @@ export class CodeBlockSpan extends BlockSpan {
       this.refresh();
 
       this.editor.dirty = true;
-      this.editor.queueUpdate();
+      this.editor.queueUpdate(true);
     }
   }
 
