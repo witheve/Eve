@@ -3,7 +3,7 @@ import {Parser as MDParser} from "commonmark";
 import * as CodeMirror from "codemirror";
 import {debounce, uuid, unpad, Range, Position, isRange, compareRanges, comparePositions, samePosition, whollyEnclosed, adjustToWordBoundary} from "./util";
 
-import {Span, SpanMarker, isSpanMarker, isEditorControlled, spanTypes, compareSpans, SpanChange, isSpanChange, HeadingSpan, DocumentCommentSpan} from "./ide/spans";
+import {Span, SpanMarker, isSpanMarker, isEditorControlled, spanTypes, compareSpans, SpanChange, isSpanChange, HeadingSpan, CodeBlockSpan, DocumentCommentSpan} from "./ide/spans";
 import * as Spans from "./ide/spans";
 
 import {activeElements} from "./renderer";
@@ -886,12 +886,12 @@ export class Editor {
     let doc = cm.getDoc();
     let spans = this.getAllSpans();
     let fullText = cm.getValue();
-    let markers:{pos: number, start?:boolean, isBlock?:boolean, isLine?:boolean, source:any}[] = [];
+    let markers:{pos: number, start?:boolean, isBlock?:boolean, isLine?:boolean, source:any, span?:Span}[] = [];
     for(let span of spans) {
       let loc = span.find();
       if(!loc) continue;
-      markers.push({pos: doc.indexFromPos(loc.from), start: true, isBlock: span.isBlock(), isLine: span.isLine(), source: span.source});
-      markers.push({pos: doc.indexFromPos(loc.to), start: false, isBlock: span.isBlock(), isLine: span.isLine(), source: span.source});
+      markers.push({pos: doc.indexFromPos(loc.from), start: true, isBlock: span.isBlock(), isLine: span.isLine(), source: span.source, span});
+      markers.push({pos: doc.indexFromPos(loc.to), start: false, isBlock: span.isBlock(), isLine: span.isLine(), source: span.source, span});
     }
     markers.sort((a, b) => {
       let delta = a.pos - b.pos;
@@ -928,7 +928,12 @@ export class Editor {
       } else if(type == "code") {
         pieces.push("`");
       } else if(type == "code_block" && mark.start) {
-        pieces.push("```\n");
+        if((mark.span as CodeBlockSpan).isDisabled()) {
+          pieces.push("```eve disabled\n");
+        } else {
+          pieces.push("```\n");
+        }
+
       } else if(type == "code_block" && !mark.start) {
         // if the last character of the block is not a \n, we need to
         // add one since the closing fence must be on its own line.
