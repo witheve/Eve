@@ -3,6 +3,7 @@
     "@types/body-parser": "0.0.33",
     "@types/commonmark": "^0.22.29",
     "@types/express": "^4.0.33",
+    "@types/glob": "^5.0.30",
     "@types/node": "^6.0.41",
     "@types/request": "0.0.31",
     "@types/tape": "^4.2.28",
@@ -11,6 +12,7 @@
     "chevrotain": "^0.14.0",
     "commonmark": "^0.26.0",
     "express": "^4.14.0",
+    "glob": "^7.1.1",
     "request": "^2.75.0",
     "typescript": "^2.0.3",
     "ws": "^1.1.1"
@@ -20,9 +22,14 @@
     "tape": "^4.6.0"
   },
   "scripts": {
-    "build": "./node_modules/.bin/tsc && cp src/*.js build/src/ && cp ./node_modules/chevrotain/lib/chevrotain.js build/src/ && npm run examples",
-    "examples": "node build/scripts/package-examples.js",
-    "server": "node build/src/runtime/server.js",
+    "install": "./node_modules/.bin/tsc",
+
+    "postinstall": "node ./build/scripts/build.js",
+    "build": "node ./build/scripts/build.js",
+
+    "start": "node ./build/src/runtime/server.js",
+    "server": "node ./build/src/runtime/server.js",
+
     "test": "node ./build/test/all.js | faucet"
   }
 }
