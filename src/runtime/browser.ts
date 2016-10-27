@@ -259,13 +259,12 @@ export function init(code) {
   responder.send(JSON.stringify({type: "parse", text, spans, extraInfo}));
 
   evaluation = makeEvaluation(results, spans, extraInfo);
-  evaluation.fixpoint();
-
-  global["evaluation"] = evaluation;
-
   evaluation.errorReporter = (kind, error) => {
     responder.send(JSON.stringify({type: "error", kind, message: error}));
   }
+  evaluation.fixpoint();
+
+  global["evaluation"] = evaluation;
 
   global["save"] = () => {
     responder.handleEvent(JSON.stringify({type: "save"}));
