@@ -1134,7 +1134,7 @@ export class Editor {
     for(let span of this.getAllSpans("code_block")) {
       let loc = span.find();
       if(!loc) continue;
-      if(comparePositions(loc.from, pos) <= 0 && comparePositions(loc.to, pos) > 0) {
+      if(loc.from.line <= pos.line && comparePositions(loc.to, pos) > 0) {
         return true;
       }
     }
@@ -1553,6 +1553,7 @@ export class Editor {
           }
         }
         if(!handled) {
+          console.log("HAI", l, text);
           let span = this.markSpan(pos, pos, {type: "whitespace"});
           this.denormalizedSpans.push(span);
         }
