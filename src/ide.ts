@@ -928,7 +928,6 @@ export class Editor {
       } else if(type == "code") {
         pieces.push("`");
       } else if(type == "code_block" && mark.start) {
-        console.log("MSI", mark.source.info);
         if ((mark.span as CodeBlockSpan).isDisabled()) {
           pieces.push("```eve disabled\n");
         } else {
