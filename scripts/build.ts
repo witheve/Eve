@@ -54,7 +54,7 @@ export function build(callback:() => void) {
 
     for(let match of matches) {
       let relative = match.split("/").slice(1).join("/");
-      copy(match, "build/" + relative, track("copy static files"));
+      copy(match, "build/src/" + relative, track("copy static files"));
     }
   })
 
