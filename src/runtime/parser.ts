@@ -1403,6 +1403,9 @@ export function parseDoc(doc, docId = `doc|${docIx++}`) {
   let allErrors = [];
   for(let block of blocks) {
     let {results, lex, errors} = parseBlock(block.literal, block.id, block.startOffset, spans, extraInfo);
+    // if this block is disabled, we want the parsed spans and such, but we don't want
+    // the block to be in the set sent to the builder
+    if(block.info.indexOf("disabled") > -1) continue;
     if(errors.length) {
       allErrors.push(errors);
     } else {
