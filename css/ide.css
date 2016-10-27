@@ -171,7 +171,7 @@ button { font-family: "Avenir", "Helvetica neue", sans-serif; }
 .comment-widget { padding: 2px 0; }
 .code-comment-widget { padding-left: 30px; margin-top: 2px; margin-left: 10px; margin-right: 50px; border-left: 5px solid #ff7e92; }
 
-.comment-widget.error { background: rgb(255, 216, 222); }
+.comment-widget.error { background: rgb(255, 216, 222); color: #b7003e; }
 
 .comment-widget .comment { font-size: 10pt; }
 
