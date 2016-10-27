@@ -1700,8 +1700,9 @@ export class Editor {
     else if(this.ide.inspecting) inspectorButton.c += " inspecting";
 
     return {c: "flex-row controls", children: [
-      {c: "ion-refresh", text: "", click: () => this.ide.eval(false)},
-      {c: "ion-ios-play", text: "", click: () => this.ide.eval(true)},
+      this.ide.modified ? {c: "ion-ios-skipbackward", click: () => this.ide.revertDocument()} : undefined,
+      {c: "ion-refresh", click: () => this.ide.eval(false)},
+      {c: "ion-ios-play", click: () => this.ide.eval(true)},
       inspectorButton
     ]};
   }
@@ -2021,8 +2022,6 @@ export class IDE {
   }
 
   queueUpdate = debounce((shouldEval = false) => {
-    this.render();
-
     if(this.editor.dirty) {
       this.generation++;
       if(this.onChange) this.onChange(this);
@@ -2035,6 +2034,7 @@ export class IDE {
         this.eval(true);
       }
     }
+    this.render();
   }, 1, true);
 
   loadFile(docId:string) {
@@ -2083,8 +2083,24 @@ export class IDE {
   saveDocument() {
     if(!this.documentId || !this.loaded) return;
     let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
-    saves[this.documentId] = this.editor.toMarkdown();
+    let md = this.editor.toMarkdown();
+    if(md !== this._fileCache[this.documentId]) {
+      saves[this.documentId] = md;
+      this.modified = true;
+    } else {
+      this.modified = false;
+    }
     localStorage.setItem("eve-saves", JSON.stringify(saves));
+  }
+
+  revertDocument() {
+    if(!this.documentId || !this.loaded) return;
+    let docId = this.documentId;
+    let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
+    delete saves[docId];
+    localStorage.setItem("eve-saves", JSON.stringify(saves));
+    this.documentId = undefined;
+    this.loadFile(docId);
   }
 
   injectSpans(packed:any[], attributes:{[id:string]: any|undefined}) {
