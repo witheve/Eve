@@ -18,8 +18,9 @@ button { font-family: "Avenir", "Helvetica neue", sans-serif; }
 \****************************************************************************/
 .editor-root { display: flex; flex-direction: row; height: 100%; align-items: stretch; background: #fff; }
 
-.navigator-pane { width: 280px; flex: 0 0 auto; overflow-x: hidden; background:#555; color:#eee; transition: width 0.3s ease-in-out, background-color 0.3s ease-in-out; padding-bottom:30px; }
+.navigator-pane { width: 280px; flex: 0 0 auto; align-self: stretch; overflow-x: hidden; background:#555; color:#eee; transition: width 0.3s ease-in-out, background-color 0.2s ease-in-out; padding-bottom:30px; }
 .navigator-pane.collapsed { width: 20px; background-color: #fff; }
+.navigator-pane.collapsed:hover { background: #555; color: #eee; }
 .navigator-pane .navigator-pane-inner { width: 280px; padding: 0 5px; margin-left: 0; transition: margin-left 0.3s ease-in-out; }
 .navigator-pane.collapsed .navigator-pane-inner { margin-left: -255px; }
 .navigator-pane.collapsed .tree-item { pointer-events: none; }
@@ -34,8 +35,9 @@ button { font-family: "Avenir", "Helvetica neue", sans-serif; }
 .navigator-header { display: flex; flex-direction: column; padding:10px 5px; user-select: none; -webkit-user-select: none; margin-bottom:10px; font-size:18px; color: #555; transition:color 0.2s ease-in-out; }
 .navigator-pane:hover .navigator-header { color: #aaa;  }
 .navigator-header > .controls { display:flex; flex-direction:row; flex:1; }
-.navigator-header > .controls > * { text-align: center; transition: transform 0.3s; cursor: pointer; }
+.navigator-header > .controls > * { height: 20px; text-align: center; transition: transform 0.3s; cursor: pointer; }
 .navigator-header > .controls > div:hover { color: #eee; }
+.navigator-pane.collapsed:hover .navigator-header > .controls > div { color: #eee; }
 .navigator-header:hover > .controls > *:not(.disabled) {  }
 .navigator-header .collapse-btn { transform: rotate(180deg); color: #999; }
 .navigator-header .up-btn .label { display: flex; font-size:16px; margin-left: 10px; }
