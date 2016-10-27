@@ -110,7 +110,8 @@ export class Span {
   protected static _spanStyle:"inline"|"line"|"block";
   protected _spanStyle:"inline"|"line"|"block";
 
-  protected disabled = false;
+  /** Whether the span is currently elided. */
+  protected hidden = false;
 
   id: string;
   editor: Editor;
@@ -187,21 +188,21 @@ export class Span {
     return {from: loc.from, to: loc.to, span: this};
   }
 
-  disable() {
-    if(!this.disabled) {
-      this.disabled = true;
+  hide() {
+    if(!this.hidden) {
+      this.hidden = true;
       if(this.refresh) this.refresh();
     }
   }
-  enable() {
-    if(this.disabled) {
-      this.disabled = false;
+  unhide() {
+    if(this.hidden) {
+      this.hidden = false;
       if(this.refresh) this.refresh();
     }
   }
 
-  isDisabled() {
-    return this.disabled;
+  isHidden() {
+    return this.hidden;
   }
 
   sourceEquals(other:SpanSource) {
@@ -332,7 +333,7 @@ export class LineSpan extends Span {
     if(!loc) return;
 
     let end = loc.to.line + ((loc.from.line === loc.to.line) ? 1 : 0);
-    if(!this.disabled) {
+    if(!this.hidden) {
       updateLineClasses(loc.from.line, end, this.editor, this);
     } else {
       clearLineClasses(loc.from.line, end, this.editor, this);
@@ -426,7 +427,7 @@ export class BlockSpan extends Span {
     let loc = this.find();
     if(!loc) return;
 
-    if(!this.disabled) {
+    if(!this.hidden) {
       updateLineClasses(loc.from.line, loc.to.line, this.editor, this);
     } else {
       clearLineClasses(loc.from.line, loc.to.line, this.editor, this);
@@ -585,7 +586,7 @@ class ElisionSpan extends BlockSpan {
 
     for(let span of this.editor.findSpansAt(from).concat(this.editor.findSpans(from, to))) {
       if(span === this) continue;
-      span.disable();
+      span.hide();
     }
   }
 
@@ -595,20 +596,35 @@ class ElisionSpan extends BlockSpan {
     if(loc) {
       for(let span of this.editor.findSpansAt(loc.from).concat(this.editor.findSpans(loc.from, loc.to))) {
         if(span === this) continue;
-        span.enable();
+        span.unhide();
       }
     }
   }
 }
 
-class CodeBlockSpan extends BlockSpan {
+export class CodeBlockSpan extends BlockSpan {
+  protected disabled = false;
+
+  protected widgetLine:number;
+  protected widget:CodeMirror.LineWidget;
+  protected widgetElem:HTMLElement;
+  protected enableToggleElem:HTMLElement;
+
+  protected footerWidgetLine:number;
+  protected footerWidget:CodeMirror.LineWidget;
+  protected footerWidgetElem:HTMLElement;
+
   apply(from:Position, to:Position, origin = "+input") {
-    this.lineBackgroundClass = "CODE";
-    this.lineTextClass = "CODE-TEXT";
+    this.lineBackgroundClass = "code";
+    this.lineTextClass = "code-text";
     super.apply(from, to, origin);
+
+    if(!this.widget) this.createWidgets();
   }
 
   clear(origin = "+delete") {
+    this.clearWidgets();
+
     let loc = this.find();
     super.clear(origin);
 
@@ -618,6 +634,96 @@ class CodeBlockSpan extends BlockSpan {
       for(let span of this.editor.findSpans(loc.from, loc.to)) {
         if(span.isEditorControlled()) continue;
         span.clear();
+      }
+    }
+  }
+
+  refresh() {
+    super.refresh();
+    this.updateWidgets();
+  }
+
+  disable() {
+    if(!this.disabled) {
+      // @FIXME: We don't currently style this because of a bug in updateLineClasses.
+      // It's unable to intelligently remove unsupported classes, so we'd have to manually clear line classes.
+      // We can come back to this later if we care.
+      // this.lineBackgroundClass = "code code-disabled";
+      // this.lineTextClass = "code-text code-disabled";
+      this.disabled = true;
+      this.refresh();
+
+      this.editor.dirty = true;
+      this.editor.queueUpdate(true);
+    }
+  }
+
+  enable() {
+    if(this.disabled) {
+      this.disabled = false;
+      this.refresh();
+
+      this.editor.dirty = true;
+      this.editor.queueUpdate(true);
+    }
+  }
+
+  isDisabled() {
+    return this.disabled;
+  }
+
+  createWidgets() {
+    if(this.widget) this.widget.clear();
+    if(this.footerWidget) this.footerWidget.clear();
+
+    this.widgetElem = document.createElement("div");
+    this.widgetElem.className = "code-controls-widget";
+
+    this.enableToggleElem = document.createElement("div");
+    this.enableToggleElem.classList.add("enable-btn");
+    this.enableToggleElem.onclick = () => {
+      if(this.disabled)
+        this.enable();
+      else
+        this.disable();
+    };
+    this.widgetElem.appendChild(this.enableToggleElem);
+
+    this.footerWidgetElem = document.createElement("div");
+    this.footerWidgetElem.className = "code-footer-widget";
+
+    this.updateWidgets();
+  }
+
+  clearWidgets() {
+    this.widget.clear();
+    this.footerWidget.clear();
+    this.widget = this.widgetElem = this.widgetLine = undefined;
+    this.footerWidget = this.footerWidgetElem = this.footerWidgetLine = undefined;
+  }
+
+  updateWidgets() {
+    if(!this.widgetElem) return;
+
+    if(this.disabled) {
+      this.enableToggleElem.classList.remove("ion-android-checkbox-outline");
+      this.enableToggleElem.classList.add("disabled", "ion-android-checkbox-outline-blank");
+    } else {
+      this.enableToggleElem.classList.remove("disabled", "ion-android-checkbox-outline-blank");
+      this.enableToggleElem.classList.add("ion-android-checkbox-outline");
+    }
+
+    let loc = this.find();
+    if(loc) {
+      if(this.widgetLine !== loc.from.line) {
+        this.widgetLine = loc.from.line;
+        if(this.widget) this.widget.clear();
+        this.widget = this.editor.cm.addLineWidget(this.widgetLine, this.widgetElem, {above: true});
+      }
+      if(this.footerWidgetLine !== loc.to.line - 1) {
+        this.footerWidgetLine = loc.to.line - 1;
+        if(this.footerWidget) this.footerWidget.clear();
+        this.footerWidget = this.editor.cm.addLineWidget(this.footerWidgetLine, this.footerWidgetElem);
       }
     }
   }
@@ -662,7 +768,7 @@ export class BlockAnnotationSpan extends BlockSpan {
     }
     if(loc) {
       this.annotation.update([loc]);
-      if(!this.disabled) {
+      if(!this.hidden) {
         updateLineClasses(loc.from.line, loc.to.line, this.editor, this);
       } else {
         clearLineClasses(loc.from.line, loc.to.line, this.editor, this);
@@ -706,7 +812,7 @@ export class AnnotationSpan extends Span {
     }
     if(loc) {
       this.annotation.update([loc]);
-      if(!this.disabled) {
+      if(!this.hidden) {
         updateLineClasses(loc.from.line, loc.to.line, this.editor, this);
       } else {
         clearLineClasses(loc.from.line, loc.to.line, this.editor, this);
@@ -782,7 +888,7 @@ export class DocumentCommentSpan extends ParserSpan {
     }
     if(loc) {
       this.annotation.update([loc]);
-      if(!this.disabled) {
+      if(!this.hidden) {
         updateLineClasses(loc.from.line, loc.to.line, this.editor, this);
       } else {
         clearLineClasses(loc.from.line, loc.to.line, this.editor, this);
@@ -859,7 +965,7 @@ export class DocumentWidgetSpan extends ParserSpan {
     if(!loc) return this.clear();
 
     if(loc) {
-      if(!this.disabled) {
+      if(!this.hidden) {
         updateLineClasses(loc.from.line, loc.to.line, this.editor, this);
       } else {
         clearLineClasses(loc.from.line, loc.to.line, this.editor, this);

@@ -3,7 +3,7 @@ import {Parser as MDParser} from "commonmark";
 import * as CodeMirror from "codemirror";
 import {debounce, uuid, unpad, Range, Position, isRange, compareRanges, comparePositions, samePosition, whollyEnclosed, adjustToWordBoundary} from "./util";
 
-import {Span, SpanMarker, isSpanMarker, isEditorControlled, spanTypes, compareSpans, SpanChange, isSpanChange, HeadingSpan, DocumentCommentSpan} from "./ide/spans";
+import {Span, SpanMarker, isSpanMarker, isEditorControlled, spanTypes, compareSpans, SpanChange, isSpanChange, HeadingSpan, CodeBlockSpan, DocumentCommentSpan} from "./ide/spans";
 import * as Spans from "./ide/spans";
 
 import {activeElements} from "./renderer";
@@ -126,9 +126,7 @@ class Navigator {
       this.nodes[nodeId] = undefined;
 
     } else if(node) {
-      if(span.isDisabled() !== node.hidden) {
-        node.hidden = span.isDisabled();
-      }
+        node.hidden = span.isHidden();
 
     } else if(!node && loc) {
       let cur = loc.from;
@@ -154,7 +152,7 @@ class Navigator {
         parentNode.children.splice(ix, 0, nodeId);
       }
       let doc = this.ide.editor.cm.getDoc();
-      this.nodes[nodeId] = {id: nodeId, name: doc.getLine(loc.from.line), type: "section", level: span.source.level, span, open: true, hidden: span.isDisabled()};
+      this.nodes[nodeId] = {id: nodeId, name: doc.getLine(loc.from.line), type: "section", level: span.source.level, span, open: true, hidden: span.isHidden()};
     }
   }
 
@@ -735,7 +733,6 @@ export class Editor {
     });
     this.reloading = false;
     this.history.transitioning = false;
-    //console.log(this.toMarkdown())
   }
 
   // This is an update to an existing document, so we need to figure out what got added and removed.
@@ -888,12 +885,12 @@ export class Editor {
     let doc = cm.getDoc();
     let spans = this.getAllSpans();
     let fullText = cm.getValue();
-    let markers:{pos: number, start?:boolean, isBlock?:boolean, isLine?:boolean, source:any}[] = [];
+    let markers:{pos: number, start?:boolean, isBlock?:boolean, isLine?:boolean, source:any, span?:Span}[] = [];
     for(let span of spans) {
       let loc = span.find();
       if(!loc) continue;
-      markers.push({pos: doc.indexFromPos(loc.from), start: true, isBlock: span.isBlock(), isLine: span.isLine(), source: span.source});
-      markers.push({pos: doc.indexFromPos(loc.to), start: false, isBlock: span.isBlock(), isLine: span.isLine(), source: span.source});
+      markers.push({pos: doc.indexFromPos(loc.from), start: true, isBlock: span.isBlock(), isLine: span.isLine(), source: span.source, span});
+      markers.push({pos: doc.indexFromPos(loc.to), start: false, isBlock: span.isBlock(), isLine: span.isLine(), source: span.source, span});
     }
     markers.sort((a, b) => {
       let delta = a.pos - b.pos;
@@ -930,7 +927,12 @@ export class Editor {
       } else if(type == "code") {
         pieces.push("`");
       } else if(type == "code_block" && mark.start) {
-        pieces.push("```\n");
+        if((mark.span as CodeBlockSpan).isDisabled()) {
+          pieces.push("```eve disabled\n");
+        } else {
+          pieces.push("```\n");
+        }
+
       } else if(type == "code_block" && !mark.start) {
         // if the last character of the block is not a \n, we need to
         // add one since the closing fence must be on its own line.
@@ -962,8 +964,8 @@ export class Editor {
     this.cm.refresh();
   }
 
-  queueUpdate = debounce(() => {
-    if(!this.reloading && this.denormalizedSpans.length === 0) this.ide.queueUpdate();
+  queueUpdate = debounce((shouldEval = false) => {
+    if(!this.reloading && this.denormalizedSpans.length === 0) this.ide.queueUpdate(shouldEval);
   }, 0);
 
   jumpTo(id:string) {
@@ -1090,7 +1092,7 @@ export class Editor {
 
       for(let range of ranges) {
         for(let span of this.findSpans(range.from, range.to)) {
-          span.enable();
+          span.unhide();
           if(span.refresh) span.refresh();
 
         }
@@ -1131,7 +1133,7 @@ export class Editor {
     for(let span of this.getAllSpans("code_block")) {
       let loc = span.find();
       if(!loc) continue;
-      if(comparePositions(loc.from, pos) <= 0 && comparePositions(loc.to, pos) > 0) {
+      if(loc.from.line <= pos.line && comparePositions(loc.to, pos) > 0) {
         return true;
       }
     }
@@ -1698,8 +1700,9 @@ export class Editor {
     else if(this.ide.inspecting) inspectorButton.c += " inspecting";
 
     return {c: "flex-row controls", children: [
-      {c: "ion-refresh", text: "", click: () => this.ide.eval(false)},
-      {c: "ion-ios-play", text: "", click: () => this.ide.eval(true)},
+      this.ide.modified ? {c: "ion-ios-skipbackward", click: () => this.ide.revertDocument()} : undefined,
+      {c: "ion-refresh", click: () => this.ide.eval(false)},
+      {c: "ion-ios-play", click: () => this.ide.eval(true)},
       inspectorButton
     ]};
   }
@@ -1960,6 +1963,8 @@ export class IDE {
   loaded = false;
   /** The current editor generation. Used for imposing a relative ordering on parses. */
   generation = 0;
+  /** Whether the currently open document is a modified version of an example. */
+  modified = false;
 
   /** Whether the inspector is currently active. */
   inspecting = false;
@@ -1968,6 +1973,8 @@ export class IDE {
   inspectingClick = false;
 
   renderer:Renderer = new Renderer();
+
+  notices:{message: string, type: string, time: number}[] = [];
 
   languageService:LanguageService = new LanguageService();
   navigator:Navigator = new Navigator(this);
@@ -1985,9 +1992,28 @@ export class IDE {
   elem() {
     return {c: `editor-root`, children: [
       this.navigator.render(),
-      this.editor.render(),
+      {c: "main-pane", children: [
+        this.noticesElem(),
+        this.editor.render(),
+      ]},
       this.comments.render()
     ]};
+  }
+
+  noticesElem() {
+    let items = [];
+    for(let notice of this.notices) {
+      let time = new Date(notice.time);
+
+      items.push({c: `notice ${notice.type} flex-row`, children: [
+        {c: "time", text: `${time.getHours()}:${time.getMinutes()}:${time.getSeconds()}`},
+        {c: "message", text: notice.message}
+      ]});
+    }
+
+    if(items.length) {
+      return {c: "notices", children: items};
+    }
   }
 
   render() {
@@ -1995,21 +2021,32 @@ export class IDE {
     this.renderer.render([this.elem()]);
   }
 
-  queueUpdate = debounce(() => {
-    this.render();
-
+  queueUpdate = debounce((shouldEval = false) => {
     if(this.editor.dirty) {
       this.generation++;
       if(this.onChange) this.onChange(this);
       this.editor.dirty = false;
 
       sendEvent([{tag: ["inspector", "clear"]}]);
+      this.saveDocument();
+
+      if(shouldEval) {
+        this.eval(true);
+      }
     }
+    this.render();
   }, 1, true);
 
   loadFile(docId:string) {
     if(this.documentId === docId) return;
-    let code = this._fileCache[docId];
+    let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
+    let code = saves[docId];
+    if(code) {
+      this.modified = true;
+    } else {
+      code = this._fileCache[docId];
+      this.modified = false;
+    }
     if(!code) throw new Error(`Unable to load uncached file: '${docId}'`);
     this.loaded = false;
     this.documentId = docId;
@@ -2043,13 +2080,48 @@ export class IDE {
     this.render();
   }
 
+  saveDocument() {
+    if(!this.documentId || !this.loaded) return;
+    let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
+    let md = this.editor.toMarkdown();
+    if(md !== this._fileCache[this.documentId]) {
+      saves[this.documentId] = md;
+      this.modified = true;
+    } else {
+      this.modified = false;
+    }
+    localStorage.setItem("eve-saves", JSON.stringify(saves));
+  }
+
+  revertDocument() {
+    if(!this.documentId || !this.loaded) return;
+    let docId = this.documentId;
+    let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
+    delete saves[docId];
+    localStorage.setItem("eve-saves", JSON.stringify(saves));
+    this.documentId = undefined;
+    this.loadFile(docId);
+  }
+
   injectSpans(packed:any[], attributes:{[id:string]: any|undefined}) {
     this.editor.injectSpans(packed, attributes);
     this.comments.update();
     this.render();
   }
 
+  injectNotice(type:string, message:string) {
+    let time = Date.now();
+    this.notices.push({type, message, time});
+    this.render();
+    this.editor.cm.refresh();
+  }
+
   eval(persist?: boolean) {
+    if(this.notices.length) {
+      this.notices = [];
+      this.render();
+      this.editor.cm.refresh();
+    }
     if(this.onEval) this.onEval(this, persist);
   }
 
@@ -2254,9 +2326,9 @@ export class IDE {
         let headings = this.editor.getAllSpans("heading") as HeadingSpan[];
         for(let heading of headings) {
           if(visibleHeadings.indexOf(heading) === -1) {
-            heading.disable();
+            heading.hide();
           } else {
-            heading.enable();
+            heading.unhide();
           }
         }
         this.navigator.updateElision();
@@ -2748,7 +2820,6 @@ class LanguageService {
 
   unpackPerformance(callback:(args:PerformanceRecord[]) => void) {
     return (message:FindPerformanceArgs) => {
-      console.log("MESSAGE", message);
       let records:PerformanceRecord[] = [];
       for(let blockId in message.blocks) {
         let block = message.blocks[blockId];
@@ -2763,7 +2834,7 @@ class LanguageService {
     args.requestId = id;
     this._listeners[id] = callback;
     args.type = type;
-    console.log("SENT", args);
+    //console.log("SENT", args);
     send(args);
   }
 

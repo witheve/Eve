@@ -16,7 +16,7 @@ search
   app = [#app]
   [#time day month year hours minutes seconds ampm]
   not(app = [#init])
-  user = [#user name: "Eric Hoffman"]
+  user = [#user name: "Corey Montella"]
 
 commit
   app <- [#init user

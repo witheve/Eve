@@ -105,11 +105,10 @@ export class DependencyChecker {
     return deps;
   }
 
-  check(multiIndex: MultiIndex, change, e, a, v) {
+  check(multiIndex: MultiIndex, change, tags, e, a, v) {
     //multidb
     if(this.alwaysTrue) return true;
     let deps = this.dependencies;
-    let tags = multiIndex.dangerousMergeLookup(e,"tag",undefined);
     if(tags.length === 0) {
       let attrIndex = deps["any"];
       if(!attrIndex) return false;

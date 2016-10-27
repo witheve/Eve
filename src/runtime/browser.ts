@@ -43,7 +43,6 @@ function makeEvaluation(parse, spans, extraInfo) {
   }
   let build = builder.buildDoc(parse);
   let {blocks, errors} = build;
-  console.log("PROGRAM BLOCKS", blocks);
   responder.sendErrors(errors);
   analyzer.analyze(blocks.map((block) => block.parse), spans, extraInfo);
   let browser = new BrowserSessionDatabase(responder);
@@ -227,7 +226,6 @@ class Responder {
     } else if(data.type === "load") {
       let spans = [];
       let extraInfo = {};
-      console.log("GOT LOAD", data);
       evaluation = makeEvaluation(this.lastParse, spans, extraInfo);
       let blocks = evaluation.getDatabase("session").blocks;
       for(let block of blocks) {
@@ -256,16 +254,15 @@ export function init(code) {
   let {text, spans, extraInfo} = results;
   results.code = code;
   responder.lastParse = results;
-  responder.send(JSON.stringify({type: "parse", text, spans, extraInfo}));
+  //responder.send(JSON.stringify({type: "parse", text, spans, extraInfo}));
 
   evaluation = makeEvaluation(results, spans, extraInfo);
-  evaluation.fixpoint();
-
-  global["evaluation"] = evaluation;
-
   evaluation.errorReporter = (kind, error) => {
     responder.send(JSON.stringify({type: "error", kind, message: error}));
   }
+  evaluation.fixpoint();
+
+  global["evaluation"] = evaluation;
 
   global["save"] = () => {
     responder.handleEvent(JSON.stringify({type: "save"}));

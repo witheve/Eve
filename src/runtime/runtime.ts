@@ -148,6 +148,7 @@ export class Evaluation {
     let start = perf.time();
     let blocks = [];
     let index = this.multiIndex;
+    let tagsCache = {};
     for(let database of this.databases) {
       if(database.nonExecuting) continue;
       for(let block of database.blocks) {
@@ -158,7 +159,13 @@ export class Evaluation {
           let e = commit[ix + 1];
           let a = commit[ix + 2];
           let v = commit[ix + 3];
-          if(checker.check(index, change, e, a, v)) {
+
+          let tags = tagsCache[e];
+          if(tags === undefined) {
+            tags = tagsCache[e] = index.dangerousMergeLookup(e,"tag",undefined);
+          }
+
+          if(checker.check(index, change, tags, e, a, v)) {
             blocks.push(block);
             break;
           }
@@ -230,7 +237,7 @@ export class Evaluation {
       blocks = this.blocksFromCommit(commit);
       // console.groupEnd();
     }
-    if(changes.round > MAX_ROUNDS) {
+    if(changes.round >= MAX_ROUNDS) {
       this.error("Fixpoint Error", "Evaluation failed to fixpoint");
     }
     perf.fixpoint(start);
@@ -279,5 +286,3 @@ export class Evaluation {
     }
   }
 }
-
-

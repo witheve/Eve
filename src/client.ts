@@ -148,7 +148,7 @@ if(!global["local"]) {
       browser.responder.handleEvent(json);
     }
   }
-  browser.init(global["code"]);
+  browser.init("");
 }
 socket.onmessage = function(msg) {
   let data = JSON.parse(msg.data);
@@ -167,8 +167,8 @@ socket.onmessage = function(msg) {
         // we clone here to keep the entities fresh when you want to thumb through them in the log later (since they are rendered lazily)
         let copy = clone(state.entities);
 
-        console.log("Entities", copy);
-        console.log("Indexes", indexes);
+        console.info("Entities", copy);
+        console.info("Indexes", indexes);
       }
       console.groupEnd();
     }
@@ -190,7 +190,8 @@ socket.onmessage = function(msg) {
       onmessage: socket.onmessage,
       onopen: socket.onopen
     }
-    browser.init(data.code);
+    browser.init("");
+    initializeIDE();
   } else if(data.type == "parse") {
     _ide.loadDocument(data.generation, data.text, data.spans, data.extraInfo); // @FIXME
   } else if(data.type == "comments") {
@@ -200,11 +201,11 @@ socket.onmessage = function(msg) {
     _ide.attachView(data.recordId, data.spanId);
 
   } else if(data.type == "error") {
-    console.error(data.message, data);
+    _ide.injectNotice("error", data.message);
   } else if(_ide.languageService.handleMessage(data)) {
 
   } else {
-    console.log("UNKNOWN MESSAGE", data);
+    console.warn("UNKNOWN MESSAGE", data);
   }
 }
 socket.onopen = function() {
@@ -343,10 +344,6 @@ window.addEventListener("hashchange", onHashChange);
 // Initialize an IDE
 //---------------------------------------------------------
 let _ide = new IDE();
-_ide.documentId = location.pathname.split("/").pop();
-_ide.render();
-_ide.loadWorkspace("examples", window["examples"]);
-console.log(_ide);
 _ide.onChange = (ide:IDE) => {
   let generation = ide.generation;
   let md = ide.editor.toMarkdown();
@@ -376,6 +373,20 @@ _ide.onTokenInfo = (ide, tokenId) => {
     socket.send(JSON.stringify({type: "tokenInfo", tokenId}));
   }
 }
+
+_ide.loadWorkspace("examples", window["examples"]);
+
+function initializeIDE() {
+  if(socket.readyState == 1) {
+    _ide.loadFile(location.pathname.split("/").pop());
+    _ide.render();
+  } else {
+    throw new Error("Cannot initialize until connected.");
+  }
+}
+
+_ide.render();
+console.log(_ide);
 
 window.document.body.addEventListener("dragover", (e) => {
   e.preventDefault();

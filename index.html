@@ -20,18 +20,18 @@
   </head>
   <body>
     <script type="text/javascript" src="/build/examples.js"></script>
-    <script type="text/javascript" src="/src/uuid.js"></script>
-    <script type="text/javascript" src="/src/codemirror.js"></script>
-    <script type="text/javascript" src="/src/simplescrollbars.js"></script>
-    <script type="text/javascript" src="/src/annotatescrollbar.js"></script>
-    <script type="text/javascript" src="/src/commonmark.js"></script>
-    <script type="text/javascript" src="/src/microReact.js"></script>
-    <script type="text/javascript" src="/src/system.js"></script>
+    <script type="text/javascript" src="/build/src/uuid.js"></script>
+    <script type="text/javascript" src="/build/src/codemirror.js"></script>
+    <script type="text/javascript" src="/build/src/simplescrollbars.js"></script>
+    <script type="text/javascript" src="/build/src/annotatescrollbar.js"></script>
+    <script type="text/javascript" src="/build/src/commonmark.js"></script>
+    <script type="text/javascript" src="/build/src/microReact.js"></script>
+    <script type="text/javascript" src="/build/src/system.js"></script>
     <script>
       SystemJS.config({
         baseURL: "/build/src",
         defaultJSExtensions: true,
-        meta: {"/src/codemirror.js": { format: "cjs" }}
+        meta: {"/build/src/codemirror.js": { format: "cjs" }}
       });
 
       // Kicks off requiring everyone else
