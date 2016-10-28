@@ -219,6 +219,9 @@ socket.onopen = function() {
 socket.onclose = function() {
   console.log("Disconnected from eve server!");
 }
+socket.onerror = function(err) {
+  console.log(err);
+}
 
 function renderOnChange(index, dirty) {
   renderRecords();
@@ -324,6 +327,8 @@ export function sendEvent(records:any[]) {
 //---------------------------------------------------------
 
 function onHashChange(event) {
+  if(_ide.loaded) changeDocument();
+
   let hash = window.location.hash.substr(1).split("/#/").pop();
 
   if(hash) {
@@ -376,10 +381,15 @@ _ide.onTokenInfo = (ide, tokenId) => {
 _ide.loadWorkspace("examples", window["examples"]);
 
 function initializeIDE() {
+  changeDocument();
+}
+
+function changeDocument() {
   if(socket.readyState == 1) {
     let path = location.hash.split("/#/")[0];
     let docId = path.split("/").pop();
     if(!docId) return;
+    if(docId === _ide.documentId) return;
     try {
       _ide.loadFile(docId);
     } catch(err) {
