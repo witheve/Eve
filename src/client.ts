@@ -381,7 +381,7 @@ _ide.onLoadFile = (ide, documentId, code) => {
     socket.send(JSON.stringify({scope: "root", type: "parse", code}))
     socket.send(JSON.stringify({type: "eval", persist: false}));
   }
-  history.pushState({}, "", `/#/examples/${documentId}`);
+  history.pushState({}, "", location.pathname + `#/examples/${documentId}`);
 }
 
 _ide.onTokenInfo = (ide, tokenId) => {
