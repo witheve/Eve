@@ -900,6 +900,9 @@ export class Editor {
       if(b.isBlock && !a.isBlock) return 1;
       if(a.isLine && !b.isLine) return -1;
       if(b.isLine && !a.isLine) return 1;
+      if(a.source.type === b.source.type) return 0;
+      else if(a.source.type === "link" && a.start === false) return 1;
+      else if(b.source.type === "link" && b.start === false) return -1;
       return 0;
     });
 
