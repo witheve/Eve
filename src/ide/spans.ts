@@ -1034,13 +1034,51 @@ class BadgeSpan extends ParserSpan {
   }
 }
 
-interface LinkSpanSource extends SpanSource {}
+interface LinkSpanSource extends SpanSource { destination?: string; }
 class LinkSpan extends InlineSpan {
-  source:LinkSpanSource
+  source:LinkSpanSource;
+
+  linkWidget:HTMLAnchorElement;
+  bookmark:CodeMirror.TextMarker;
 
   apply(from:Position, to:Position, origin = "+input") {
     console.log(this.source);
+
+    if(this.bookmark) this.bookmark.clear();
+
+    this.linkWidget = document.createElement("a");
+    this.linkWidget.className = "ion-android-open link-widget";
+    this.linkWidget.target = "_blank";
+    this.linkWidget.href = this.source.destination;
+    this.updateBookmark();
+
     super.apply(from, to, origin);
+  }
+
+  refresh() {
+    this.updateBookmark();
+  }
+
+  updateBookmark() {
+    let loc = this.find();
+    if(!loc) return;
+    let to = {line: loc.to.line, ch: loc.to.ch + 1};
+
+    if(!this.bookmark) {
+      this.bookmark = this.editor.cm.getDoc().setBookmark(to, {widget: this.linkWidget});
+    } else {
+      let bookmarkPos = this.bookmark.find() as Position;
+      if(!loc || !bookmarkPos) return;
+      if(!samePosition(bookmarkPos, to)) {
+        this.bookmark.clear();
+        this.bookmark = this.editor.cm.getDoc().setBookmark(to, {widget: this.linkWidget});
+      }
+    }
+  }
+
+  clear(origin = "+delete") {
+    super.clear(origin);
+    if(this.bookmark) this.bookmark.clear();
   }
 }
 
