@@ -1,0 +1,436 @@
+# Inspector Log In Bug
+
+This example tests the inspector's ability to backtrack to a record missing an attribute somewhere up the chain.
+
+Create some test users.
+
+```
+commit
+  [#user name: "Jess" email: "jess@example.com"]
+  [#user name: "Bob"]
+```
+
+Create the application root, which will hold state like the current user and page.
+
+```
+commit
+  [#app page: "home"]
+```
+
+## Events
+
+Log a user in when they click the log-in button.
+
+```
+search @event
+  [#click element: button]
+
+search @browser
+  button = [#log-in #button app]
+  [#log-in #input app value]
+
+search
+  user = [#user name: value]
+
+commit
+ user.tag += "logged-in"
+ app.user := user
+```
+
+Log a user out and send them an email when they click the log-out button.
+
+```
+search @event
+  [#click element: button]
+
+search @browser
+  button = [#log-out #button app]
+
+search
+  user = app.user
+
+commit
+  user.tag -= "logged-in"
+  app.user := none
+
+commit @email
+  [#email to: user.email from: "admin@myapp.example.com" message: "Thanks for using my app!"]
+```
+
+## Drawing
+
+Draw the application.
+
+```
+search
+  app = [#app page]
+
+bind @browser
+  [#div style: [color: "#202020"] children:
+    [#header style: [display: "flex" flex-direction: "row"] children:
+      [#div text: "My App"]
+      [#div #login-controls app]]
+    [#div #page app]]
+```
+
+Draw the login controls. If a user is logged in she should see a "log out" button. If a user is logged out, she should see a "log in" button.
+
+```
+search @browser
+  container = [#login-controls app]
+
+search
+  app.user = [#logged-in]
+
+bind @browser
+  container.children += [#button #log-out app text: "log out"]
+```
+
+```
+search @browser
+  container = [#login-controls app]
+
+search
+  not(app.user)
+
+bind @browser
+  container.children += [#input #log-in sort: 1 app placeholder: "username"]
+  container.children += [#button #log-in sort: 2 app text: "log in"]
+```
+
+Draw the homepage into the `#page` if that's where the user is.
+
+```
+search @browser
+  container = [#page app]
+
+search
+  app.page = "home"
+
+bind @browser
+  container.tag += "found"
+  container.children +=
+    [#div text: "Welcome back!"]
+```
+
+Draw the 404 page if the user isn't on a known page.
+
+```
+search @browser
+  container = [#page not(#found) app]
+
+bind @browser
+  container.children +=
+    [#div text: "404 Error, I don't know about any page named {{app.page}}"]
+```
+
+# Embedded Views
+
+## KV Table
+
+Create the DOM structure for `#kv-table`s.
+
+```
+search @view
+  wrapper = [#kv-table kvs: [key]]
+  ix = sort[value: key]
+
+bind @browser
+  wrapper.tag += "div"
+  wrapper.class += ("view" "kv-table")
+  wrapper.children := [#div class: "kv-row" sort: ix wrapper children:
+    [#div text: key]
+    [#div #kv-values class: "kv-values" wrapper key]]
+```
+
+Inject the values for each key in the `#kv-table`.
+
+```
+search @view
+  wrapper = [#kv-table kvs: [key value]]
+  ix = sort[value per: key]
+
+search @browser
+  value-column = [#kv-values wrapper key]
+
+bind @browser
+  value-column.children += [#div value-column text: value sort: ix]
+```
+
+## Attribute Table
+
+```
+search @view
+  wrapper = [#attribute-table entity]
+
+search (@session, @browser)
+  lookup[record: entity attribute: key value]
+
+bind @view
+  wrapper.tag += "kv-table"
+  wrapper.kvs := [key value]
+```
+
+
+# Integrated Pretend Inspector
+
+## Mocking
+
+Populate some mock analyzer data for the pretend inspector to use.
+
+Grab all the elements
+
+```
+search @browser
+  (elem, tag) = if e = [#div] then (e, "div")
+                if e = [#button] then (e, "button")
+                if e = [#input] then (e, "input")
+
+bind @mock
+  [#entity entity: elem type: "element" dom-tag: tag]
+```
+
+Grab the elements' children
+
+```
+search @mock
+  [#entity entity]
+
+search @browser
+  entity = [children]
+
+bind
+  entity.children := children
+```
+
+Grab the attributes for each mocked entity
+
+```
+search @mock
+  mock = [#entity entity]
+
+search (@session, @browser, @mock)
+  lookup[record: entity attribute value]
+
+bind @mock
+  mock.attributes := attribute
+```
+
+Attach fake sources to known elements
+
+```
+commit @mock
+  [#source entity: "88|52|9|58|68|9" block: "editor|block|9"]
+  [#source entity: "95|52|9|58|68|9" block: "editor|block|9"]
+  [#source entity: "77|52|9|58|68|9" block: "editor|block|8"]
+  [#source entity: "103|63|9|68" block: "editor|block|11"]
+
+  [#source entity: "editor|block|8|token|13" block: ("editor|block|4", "editor|block|5")]
+  [#source entity: "editor|block|9|token|15" block: ("editor|block|4", "editor|block|5")]
+
+  [#related entity: "editor|block|8|token|13" block: "editor|block|4" token:
+    ("editor|block|4|token|31" "editor|block|4|token|38" "editor|block|4|token|28" "editor|block|4|token|52")]
+
+  [#value token: ("editor|block|4|token|38" "editor|block|4|token|28") | value: "Bob"]
+  [#value token: ("editor|block|4|token|31" "editor|block|4|token|52") | value: "7"]
+```
+
+## Setup
+
+```
+commit @inspector
+  [#option type: "element" sort: 2 id: "sources" text: "Should this not show up right now?"]
+  [#option type: "element" sort: 3 text: "Is something missing here?"]
+  [#option type: "element" sort: 4 text: "Are there too many/few of these?"]
+  [#option type: "element" sort: 5 text: "Does this have an incorrect value"]
+```
+
+## Events
+
+Open an inspector panel on double click of an element
+
+```
+search @event
+  [#double-click #direct-target element]
+
+commit @inspector
+  inspector = [#inspector pane: "inspect" target: element]
+
+commit @browser
+  [#editor #inspect inspector element]
+```
+
+There can only be one inspector panel at a time
+
+```
+search @event
+  [#double-click #direct-target element]
+
+search @inspector
+  inspector = [#inspector]
+
+commit @inspector
+  inspector := none
+
+// bind @browser
+  // Also nuke any weird state we don't want to leave the editor hanging in.
+  // [#editor #clear-spans type: "elision_transient"]
+```
+
+When a variable is clicked, find its block and navigate to it
+
+```
+search @event
+  [#inspector #click token type: "identifier"]
+
+search @inspector
+  inspector = [#inspector]
+
+commit @inspector
+  inspector.target := token
+  inspector.pane := "sources"
+```
+
+When "should this not show up" is pressed:
+- Find the block(s) that created the target
+  * Elide all other blocks
+- Highlight the node(s) interacting with the target
+- Open the sources panel
+
+```
+search @event
+  [#click #direct-target element]
+
+search @inspector
+  option = [#option id: "sources"]
+
+search @browser
+  element = [#button option inspector]
+
+commit @inspector
+  inspector.pane := "sources"
+```
+
+When the sources pane is open, elide any irrelevant blocks
+
+```
+search @inspector
+  inspector = [#inspector pane: "sources" target]
+
+search @mock
+  [#source entity: target block]
+
+bind @browser
+  [#editor #mark-between inspector type: "elision_transient" target | token: block]
+```
+
+When the sources pane is open, shadow any irrelevant code
+
+```
+search @inspector
+  inspector = [#inspector pane: "sources" target]
+
+search @mock
+  [#related entity: target block token]
+
+bind @browser
+  [#editor #mark-between inspector type: "shadow" target | within: block token]
+  [#editor #mark-span inspector type: "highlight" target | token]
+```
+
+When the sources pane is open, badge related intermediates
+
+```
+search @inspector
+  inspector = [#inspector pane: "sources" target]
+
+search @mock
+  [#related entity: target block token]
+  [#value token value]
+
+bind @browser
+  [#editor #mark-span inspector type: "badge" kind: "intermediate" target message: value | token]
+```
+
+## Piping
+
+The inspector type is the type of the targeted entity or unknown if the target can't be found in the mock data.
+
+```
+search @inspector
+  inspector = [#inspector target]
+
+search @mock
+  type = if [#entity entity: target type] then type
+         else "unknown"
+
+bind @inspector
+  inspector.type := type
+```
+
+The inspector attributes are the attributes of the targeted entity
+
+```
+search @inspector
+  inspector = [#inspector target]
+
+search @mock
+  [#entity entity: target attributes]
+
+bind @inspector
+  inspector.attributes := attributes
+```
+
+## Drawing
+
+Draw the inspector panel
+
+```
+search @inspector
+  inspector = [#inspector target type]
+
+bind @browser
+  [#div #inspector-panel inspector]
+```
+
+Draw the inspect pane
+
+```
+search @inspector
+  inspector = [#inspector pane: "inspect" target type]
+  option = [#option type]
+
+search @browser
+  wrapper = [#inspector-panel inspector]
+
+bind (@browser, @view)
+  wrapper.children := [#div inspector children:
+    [#div text: target]
+    [#div class: "flex-row" children:
+      [#div class: "options-panel" sort: 1 style: [margin-right: 10] children:
+        [#div text: "Options" sort: 1]
+        [#button inspector option style: [display: "block" width: 250] text: option.text sort: option.sort]]
+
+      [#div class: "attributes-panel" sort: 2 children:
+      [#div text: "Attributes"]
+      [#attribute-table inspector entity: target]]]]
+```
+
+Draw the sources pane
+
+```
+search @inspector
+  inspector = [#inspector pane: "sources" target type]
+
+search @mock
+  block = if [#source entity: target block] then block
+           else "No sources found"
+
+search @browser
+  wrapper = [#inspector-panel inspector]
+
+bind (@browser, @view)
+  wrapper.children := [#div inspector children:
+    [#div text: target]
+    [#div text: block]
+  ]

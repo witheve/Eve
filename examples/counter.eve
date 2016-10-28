@@ -1,26 +1,63 @@
-build the counter
+# Counter
+
+This program demonstrates:
+
+- responding to events
+- drawing elements on the screen
+- reusing elements programatically
+- extending an element
+
+## Increment a Counter
+
+Each button uses the referenced counter to increment itself. We need to search on three databases to accomplish this goal: 
+
+- `#click` is in `@event`.
+- `#button` is in `@browser`
+- `counter.count` is in `@session`
+
 ```
-  match
-    counter = [#counter count]
-  bind
-    [#div counter class: "counter-container", children:
-      [#div #count-button class: "button", sort: 0, text: "-", diff: -1, counter]
-      [#div class: "count", sort: 1, text: count]
-      [#div #count-button class: "button", sort: 2, text: "+", diff: 1, counter]]
+search @event @browser @session
+  [#click #direct-target element: [#button diff counter]]
+
+commit
+  counter.count := counter.count + diff
 ```
 
-increment the counter
+## Build a Counter
+
+For every `#counter`, we create a `#div` that contains the elements that draw the counter. The counters are added to the root of the DOM, but you could add them to a particular element in the DOM by specifying a parent element.
+
 ```
-  match
-    [#click element: [#count-button diff counter]]
-  commit
-    counter.count := counter.count + diff
+search
+  counter = [#counter count]
+
+bind @browser
+  [#div counter children:
+    [#div sort: 1, text: count]
+    [#button sort: 2, text: "-", diff: -1, counter]
+    [#button sort: 3, text: "+", diff: 1, counter]]
 ```
 
-go!
+Add some counters programatically. To make `n` unique and independent counters, we need to add something to the committed counter that makes it unique. Since `i` = `{1, 2, 3, 4}`, when we add it to the counter record we get 4 different counters. We also add one `#fancy` counter, which is a standard counter with new styling. 
+
 ```
-  match
-    [#session-connect]
-  commit
-    [#counter count: 0]
+search
+  i = range[from: 1 to: 4]
+
+commit
+  [#counter i count: 0]
+  [#counter #fancy count: 0]
+```
+
+## Extend the Counter
+
+This block says: "For every div with a counter that is tagged fancy, add a red border". Let's break it down. We search for all `#div`s with a counter attribute. The counter is constrained to be only counters with a `#fancy` tag. Then we bind a red border style to the those counter-elements. 
+
+```
+search @browser @session
+	counter-element = [#div counter]
+  counter.tag = "fancy"
+  
+bind @browser @session
+  counter-element.style := [border: "1px solid #FF0000"]
 ```

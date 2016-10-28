@@ -42,11 +42,17 @@ luac.out
 lua_modules/
 
 *~
-build/continuation_templates.h
-build/eve
-build/path.c
-build/Eve.xcodeproj/xcuserdata
-build/Eve.xcodeproj/*/xcuserdata
-build/lua
-build/luajit-2.0
+build/
+node_modules/
 
+experimental/build/continuation_templates.h
+experimental/build/eve
+experimental/build/path.c
+experimental/build/Eve.xcodeproj/xcuserdata
+experimental/build/Eve.xcodeproj/*/xcuserdata
+experimental/build/lua
+experimental/build/luajit-2.0
+experimental/build/*.js
+
+experimental/build/*.js
+experimental/build/*.js.map

@@ -1,6 +1,6 @@
 # Tic-Tac-Toe
 
-##  Game logic
+## Game logic
 
 Tic-Tac-Toe is a classic game played by two players, "X" and "O", who take turns marking their letter on a 3x3 grid. The first player to mark 3 adjacent cells in a line wins. The game can potentially result in a draw, where all grid cells are marked, but neither player has 3 adjacent cells. To build this game in Eve, we need several parts:
 
@@ -14,43 +14,41 @@ The game board is square, with a given `size`. It contains `size ^ 2 cells`,
 each with a row and column index.
 
 ```
-  match
-    [#session-connect]
-
+  search
     // board constants
     size = 3
     starting-player = "X"
 
     // generate the cells
-    i = range[from: 0, to: size]
-    j = range[from: 0, to: size]
+    i = range[from: 1, to: size]
+    j = range[from: 1, to: size]
 
  commit
-    board = [@board size player: starting-player]
+    board = [#board size player: starting-player]
     [#cell board row: i column: j]
 ```
 
-A subtlety here is the last line, `[#cell board row: i column: j]`. Thanks to our relational semantics, this line actually generates all 9 cells. Since the sets of values computed in `i` and `j` have no relation to each other, when we use them together we get the [cartesian product](https://en.wikipedia.org/wiki/Cartesian_product) of their values. This means that if `i = {0, 1, 2}` and `j = {0, 1, 2}`, then `i x j = {(0, 0), (0, 1), ... (2, 1), (2, 2)}`. These are exactly the indices we need for our grid!
+A subtlety here is the last line, `[#cell board row: i column: j]`. Thanks to our relational semantics, this line actually generates all 9 cells. Since the sets of values computed in `i` and `j` have no relation to each other, when we use them together we get the [cartesian product](https://en.wikipedia.org/wiki/Cartesian_product) of their values. This means that if `i = {0, 1, 2}` and `j = {0, 1, 2}`, then `i x j = {(1, 1), (1, 2), ... (3, 2), (3, 3)}`. These are exactly the indices we need for our grid!
 
-Now we tag some special cell groupings: diagonal and anti-diagonal cells. The diagonal cells are (0, 0), (1, 1), and (2, 2). From this we can see that diagonal cells have a row index equal to its column index
+Now we tag some special cell groupings: diagonal and anti-diagonal cells. The diagonal cells are (1, 1), (2, 2), and (3, 3). From this we can see that diagonal cells have a row index equal to its column index
 
 ```
-  match
+  search
     cells = [#cell row column]
     row = column
   bind
     cells += #diagonal
 ```
 
-Similarly, the anti-diagonal cells are (0, 2), (1, 1), and (2, 0).
+Similarly, the anti-diagonal cells are (1, 3), (2, 2), and (3, 1).
 
 Anti-diagonal cells satisfy the equation `row + col = N - 1`,
 where N is the size of the board.
 
 ```
-  match
+  search
     cells = [#cell row column]
-    [@board size: N]
+    [#board size: N]
     row + column = N - 1
   bind
     cells += #anti-diagonal
@@ -60,8 +58,8 @@ A game is won when a player marks N cells in a row, column, or diagonal.
 The game can end in a tie, where no player has N in a row.
 
 ```
-  match
-    board = [@board size: N, not(winner)]
+  search
+    board = [#board size: N, not(winner)]
                      // Check for a winning row
     (winner, cell) = if cell = [#cell row player]
                        N = count[given: cell, per: (row, player)] then (player, cell)
@@ -103,10 +101,10 @@ Then update the cell to reflect its new owner, and switch board's `player` to th
 Click on a cell to make your move
 
 ```
-  match
+  search @event @session @browser
     [#click #direct-target element: [#div cell]]
     not(cell.player)                               // Ensures the cell hasn't been played
-    board = [@board player: current, not(winner)]  // Ensures the game has not been won
+    board = [#board player: current, not(winner)]  // Ensures the game has not been won
     next_player = if current = "X" then "O"        // Switches to the next player
                   else "X"
   commit
@@ -122,9 +120,9 @@ A reset consists of:
 - Removing the `#winner` tag from the winning cell set
 
 ```
-  match
+  search @event @session
     [#click #direct-target]
-    board = [@board winner]
+    board = [#board winner]
     cell = [#cell player]
   commit
     board.winner -= winner
@@ -139,27 +137,27 @@ We've implemented the game logic, but now we need to actually draw the board so 
 Draw the board
 
 ```
-  match
-    board = [@board]
+  search
+    board = [#board]
     cell = [#cell board row column]
     contents = if cell.player then cell.player
               else ""
-  bind
-    [#div board @container style: [font-family: "sans-serif"], children:
-      [#div #status board class: "status", style: [text-align: "center", width: 150, padding-bottom: 10]]
+  bind @browser
+    [#div board #container style: [font-family: "sans-serif"], children:
+      [#div #status board class: "status", style: [text-align: "center" width: 150 height: 50 padding-bottom: 10]]
       [#div class: "board" style: [color: "black"] children:
         [#div class: "row" sort: row children:
           [#div #cell class: "cell" cell text: contents sort: column style:
-            [display: "inline-block" width: "50px" height: "50px" border: "1px solid black" background: "white" font-size: "2em" line-height: "50px" text-align: "center"]]]]
+            [display: "inline-block" width: 50 height: 50 border: "1px solid black" background: "white" font-size: "2em" line-height: "50px" text-align: "center" vertical-align: "top"]]]]]
 ```
 
 Winning cells are drawn in a different color
 
 ```
-  match
+  search @session @browser
     winning-cells = [#cell #winner]
-    cell-elements = [#div cell: winning-cells, style]
-  bind
+    cell-elements = [#div cell: winning-cells style]
+  bind @browser
     style.color := "blue"
 ```
 
@@ -168,19 +166,19 @@ Finally, we fill the previously mentioned `#status` div with our current game st
 Display the current player if the game isn't won
 
 ```
-  match
+  search @session @browser
     status = [#status board]
     not(board.winner)
-  bind
+  bind @browser
     status.text += "It's {{board.player}}'s turn!"
 ```
 
 When the game is won, display the winner
 
 ```
-  match
+  search @session @browser
     status = [#status board]
     winner = board.winner
-  bind
+  bind @browser
     status.text += "{{winner}} wins! Click anywhere to restart!"
 ```

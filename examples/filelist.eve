@@ -1,9 +1,0 @@
-try to dump a list of files
-
-```
-  match
-    [#session-connect]
-    [#root child: g]
-  commit 
-    [#div text: g.name]
-```

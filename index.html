@@ -1,111 +1,54 @@
 <html>
   <head>
     <title>Eve</title>
-    <link rel="stylesheet" type="text/css" href="jssrc/codemirror.css">
+    <link rel="stylesheet" type="text/css" href="/src/codemirror.css">
+    <link rel="stylesheet" type="text/css" href="/src/simplescrollbars.css">
+    <link rel="stylesheet" type="text/css" href="http://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css">
     <style>
       * { box-sizing:border-box; }
-      body { background: rgb(47,47,49); color: #d8d8d8; font-family: Avenir; display: flex; flex-direction: column; margin:0; width: 100%; }
+      body { background: rgb(47,47,49); color: #d8d8d8; font-family: Avenir, "Helvetica neue", sans-serif; display: flex; flex-direction: row; margin:0; width: 100%; }
       .__root { display: flex; flex-direction: column; align-self: stretch; }
-      .program-container { display: flex; flex: 1; }
+      .__root.ide-root { order: 1; flex: 0 1 auto; }
+      .__root.application-root { order: 2; flex: 1 1 auto; color: #555; }
+      .application-container { display: flex; flex-direction: column; flex: 1; }
       .program { position: relative; flex: 1; flex-direction: column; align-self: stretch; padding:20px; overflow: auto; margin-left:50px; display:flex; }
-      .graph-root { position:relative; display:flex; flex-direction:column; align-self: stretch; align-items:flex-start; margin-right:10px; padding:20px 40px; height:100%; overflow:hidden;  }
 
-      .parse-info { display:flex; flex-direction: row; align-self: stretch; height:100%; }
-      .parse-info > div { overflow: hidden; }
-      .parse-info + .parse-info { margin-top:50px; }
-
-      .node-text { padding: 3px 6px; background: rgb(44,72,97); flex:none; white-space:nowrap; }
-      .node-type { color: rgb(73, 158, 211); }
-
-      .node { display: flex; flex-direction:column; flex: 0 0 auto; margin:1px 0; }
-      .node-children { display: flex; flex-direction:column; align-items:stretch;  }
-      .fork-node-children { flex-direction:row; justify-content: center; }
-      .sub-node-children { margin-left: 0px; }
-
-      .parse-info > .graphs { font-size:10pt; background: rgba(0,0,0,0.4); display:flex; flex-direction:row; overflow:auto; margin-left:5px; padding:20px; border-radius:3px; }
-      .graphs > * + * { margin-left:40px; }
-
-      .ordered-node.ordered-query { background:none; padding: 0; }
-
-      .ordered-node { padding:5px; background: rgba(0,0,0,0.3); background: rgb(44,72,97); margin-bottom:1px; }
-      .ordered-node.subproject { background:none; padding:5px 0; }
-      .ordered-node.subproject > .row { padding:5px; margin-bottom: 1px; background: rgb(44,72,97); }
-
-      .ordered-object { display:flex; flex-direction: column; }
-      .ordered-object .eav { display:flex; flex-direction:row; }
-      .ordered-object .eav > * { margin-left: 10px; }
-
-      .subproject-children { display:flex; flex-direction:column; margin-left:20px; }
-
-      .subproject-projection, .expression-bindings { display: flex; flex-direction: row; }
-      .subproject-projection > *, .expression-bindings > * { margin-left: 5px }
-
-      .value + .value { margin-left: 5px; padding-left: 5px; border-left: 1px solid #202930; }
-
-      .active, .active * { background: #4D7598 !important; color: rgb(156,192,214);}
-      .row {display:flex; flex-direction:row; }
-
-      .run-info { display:flex; flex-direction: column; max-width: 800px; flex: 0 0 auto; }
-
-      .toolbar { display:flex; align-items:center; padding:10px; flex-direction:row; display:flex; border-radius: 0 0 3px 3px; }
-      .stats { flex:1; width:180px; }
-      .show-graphs { cursor: pointer; padding:3px 8px; border-radius:3px; color: #d8d8d8; background: rgba(255,255,255,0.1); margin-left:10px; }
-
-      .cm-container { position:relative; display:flex; flex-direction:column; flex:1; padding: 10px; border-radius:3px 3px 0 0; }
-      .CodeMirror { background:none; color: inherit; height:100%; font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:10pt;  }
-      .CodeMirror-scroll { height:100%; }
-      .CodeMirror-cursor { background: white; border-color:white; }
-
-      .errors { margin-left: 5px; font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:10pt; }
-      .error { background: rgba(0,0,0,0.4); border-radius:3px; padding:15px; display:flex; flex-direction:column; align-items:flex-start; }
-      .error + .error { margin-top: 5px; }
-      .error-title { color: rgb(73, 158, 211); }
-      .error-context { color: rgb(83, 117, 137); }
-      .error pre { font-family: "Monaco", "Consolas", "Ubuntu Mono", monospace; font-size:10pt; margin:0; margin-top:20px; margin-left:3px; }
-
-      .fix-it { padding:8px 12px; border-radius:3px; margin-top:17px; background: rgb(54, 62, 85); color: #c2e6ff; align-self:flex-end; cursor: pointer; }
-      .fix-it:hover { background: rgb(79, 92, 129); }
-
-      .ansi-gray { color: rgb(83, 117, 137); }
-      .ansi-red { color: red; }
-
-      .node-overlay { display: flex; flex-direction: column; font-size: 0.9em; }
-      .ordered-node > .node-overlay { padding: 1px 5px; }
-      .ordered-node.subproject > .node-overlay { margin-bottom: 1px; margin-top: -1px; background: rgb(44,72,97); }
-
-      .node-overlay .registers-overlay label { padding-right: 4px; color: #A0A0A0; align-self: center; }
-      .node-overlay .registers-overlay .register-pair { padding: 0 4px; border-left: 1px solid #202930 }
-
-      .pixel { margin:10px; padding:10px; background: rgba(255,255,255,0.05); align-self: flex-start; flex:none; }
-      .pixel .name { font-size:14pt; margin-bottom:8px; }
-      .pixel ul { margin:0; list-style:none; padding:0; font-size:10pt; }
-      .pixel li { display:flex; margin-bottom:2px; flex:none; }
-      .pixel li .attribute { display:flex; width: 80px; margin-right: 10px; color: #aaa; white-space:nowrap; overflow:hidden; text-align:right; }
-
-      .pixel-chart { display:flex; flex-direction:column; }
-      .pixel-chart .name { margin-bottom:12px; }
-      .pixel-chart ul { display:flex; position:relative; align-items: flex-end; flex:1 0 auto; }
-      .pixel-chart ul li { height:10px; width:10px; background: #d8d8d8; overflow:hidden; position:relative; margin-right:1px; flex:none; }
-
-      .CodeMirror { color: #c4c4c4; line-height:20px; }
-      .CodeMirror .CODE { background: rgba(255,255,255,0.05); background: rgba(0,0,0,0.2); }
-      .CodeMirror .CODE-TOP { border-radius:3px 3px 0 0; padding-top:8px; }
-      .CodeMirror .CODE-BOTTOM { border-radius:0 0 3px 3px; padding-bottom:8px; }
-      .CodeMirror .DOC { color: #d8d8d8; }
-      .CodeMirror .HEADER { font-size:14pt; padding-top:10px; padding-bottom:20px; }
-      .CodeMirror .COMMENT { color: #747474; }
-      .CodeMirror .TAG { color: #50edf6; color: #4bcbd3; }
-      .CodeMirror .NAME { color: #50edf6; color: #4bcbd3; }
-      .CodeMirror .IF, .ELSE, .THEN { color: gray; color: #63b6e7; }
-      .CodeMirror .COMMIT, .BIND, .MATCH { color: gray; color: #63b6e7; }
-      .CodeMirror .STRING, .STRING_OPEN, .STRING_CLOSE, .BOOLEAN, .NUMBER { color: #ff66ac; color: #acaaff; }
-      .CodeMirror .OPEN_BRACKET, .CodeMirror .DOT, .CodeMirror .CLOSE_BRACKET, .CodeMirror .OPEN_PAREN, .CodeMirror .CLOSE_PAREN, .CodeMirror .ALIAS, .CodeMirror .EQUALITY, .CodeMirror .SET, .CodeMirror .INSERT, .CodeMirror .REMOVE, .CodeMirror .INFIX, .CodeMirror .COMMA { color: gray; }
-      .CodeMirror .BLOCK_OPEN, .CodeMirror .BLOCK_CLOSE { color: gray; }
     </style>
+
+    <link rel="stylesheet" type="text/css" href="/css/ide.css">
+    <link href="https://witheve.github.io/assets/images/favicon.png" rel="icon" type="image/png" />
   </head>
   <body>
-    <script type="text/javascript" src="jssrc/codemirror.js"></script>
-    <script type="text/javascript" src="jssrc/microReact.js"></script>
-    <script type="text/javascript" src="jssrc/renderer.js"></script>
+    <script type="text/javascript" src="/build/examples.js"></script>
+    <script type="text/javascript" src="/build/src/uuid.js"></script>
+    <script type="text/javascript" src="/build/src/codemirror.js"></script>
+    <script type="text/javascript" src="/build/src/simplescrollbars.js"></script>
+    <script type="text/javascript" src="/build/src/annotatescrollbar.js"></script>
+    <script type="text/javascript" src="/build/src/commonmark.js"></script>
+    <script type="text/javascript" src="/build/src/microReact.js"></script>
+    <script type="text/javascript" src="/build/src/system.js"></script>
+    <script>
+      SystemJS.config({
+        baseURL: "/build/src",
+        defaultJSExtensions: true,
+        meta: {"/build/src/codemirror.js": { format: "cjs" }}
+      });
+
+      // Kicks off requiring everyone else
+      SystemJS.register("uuid", [], function($export) {
+        $export("default", uuid);
+        $export("v4", uuid);
+      });
+      SystemJS.registerDynamic("codemirror", [], false, function(require, exports, module) {
+        module.exports = window.CodeMirror;
+      });
+      SystemJS.register("microReact", [], function($export) {
+        $export("Renderer", Renderer);
+      });
+      SystemJS.register("commonmark", [], function($export) {
+        $export(commonmark);
+      });
+      SystemJS.import("client");
+    </script>
   </body>
 </html>

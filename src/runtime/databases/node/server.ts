@@ -1,0 +1,109 @@
+//---------------------------------------------------------------------
+// Node Server Database
+//---------------------------------------------------------------------
+
+import {InsertAction} from "../../actions"
+import {Changes} from "../../changes";
+import {Evaluation, Database} from "../../runtime";
+import * as request from "request";
+
+export class ServerDatabase extends Database {
+
+  receiving: boolean;
+  requestId: number;
+  requestToResponse: any;
+
+  constructor() {
+    super();
+    this.requestId = 0;
+    this.receiving = false;
+    this.requestToResponse = {};
+  }
+
+  handleHttpRequest(request, response) {
+    if(!this.receiving) {
+      // we need to 404
+      response.writeHead(404, {"Content-Type": "text/plain"});
+      return response.end("sad");
+    }
+
+    let scopes = ["server"];
+    let requestId = `request|${this.requestId++}|${(new Date()).getTime()}`
+    this.requestToResponse[requestId] = response;
+    let actions = [
+      new InsertAction(requestId, "tag", "request", undefined, scopes),
+      new InsertAction(requestId, "url", request.url, undefined, scopes),
+    ];
+    if(request.headers) {
+      let headerId = `${requestId}|body`;
+      for(let key of Object.keys(request.headers)) {
+        actions.push(new InsertAction(headerId, key, request.headers[key], undefined, scopes));
+      }
+      actions.push(new InsertAction(requestId, "headers", headerId, undefined, scopes))
+    }
+    if(request.body) {
+      let body = request.body;
+      if(typeof body === "string") {
+        // nothing we need to do
+      } else {
+        let bodyId = `${requestId}|body`;
+        for(let key of Object.keys(body)) {
+          actions.push(new InsertAction(bodyId, key, body[key], undefined, scopes));
+        }
+        body = bodyId;
+      }
+      actions.push(new InsertAction(requestId, "body", body, undefined, scopes))
+    }
+    let evaluation = this.evaluations[0];
+    evaluation.executeActions(actions);
+  }
+
+  analyze(evaluation: Evaluation, db: Database) {
+    for(let block of db.blocks) {
+      for(let scan of block.parse.scanLike) {
+        if(scan.type === "record" && scan.scopes.indexOf("server") > -1) {
+          for(let attribute of scan.attributes) {
+            if(attribute.attribute === "tag" && attribute.value.value === "request") {
+              this.receiving = true;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  sendResponse(requestId, status, body) {
+    let response = this.requestToResponse[requestId];
+    response.statusCode = status;
+    response.end(body);
+  }
+
+  onFixpoint(evaluation: Evaluation, changes: Changes) {
+    let name = evaluation.databaseToName(this);
+    let result = changes.result({[name]: true});
+    let handled = {};
+    let index = this.index;
+    let actions = [];
+    for(let insert of result.insert) {
+      let [e,a,v] = insert;
+      if(!handled[e]) {
+        handled[e] = true;
+        if(index.lookup(e,"tag", "request") && !index.lookup(e, "tag", "sent")) {
+          let responses = index.asValues(e, "response");
+          if(responses === undefined) continue;
+          let [response] = responses;
+          let {status, body} = index.asObject(response);
+          actions.push(new InsertAction(e, "tag", "sent", undefined, [name]));
+          this.sendResponse(e, status[0], body[0]);
+        }
+      }
+    }
+    if(actions.length) {
+      process.nextTick(() => {
+        evaluation.executeActions(actions);
+      })
+    }
+  }
+}
+
+

@@ -1,7 +1,0 @@
-This block is divergent in f (it will continuously insert and remove a `[#b]` object
-```
-match
-  not([#b])
-bind
-  [#b]
-```

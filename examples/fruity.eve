@@ -1,0 +1,40 @@
+Add some fruits to the system
+```
+commit
+  [#fruit name: "lemon" color: "yellow"]
+  [#fruit name: "cherry" color: "red"]
+  [#fruit name: "orange" color: "orange"]
+  [#fruit name: "apple" color: "green"]
+  [#fruit name: "banana" color: "yellow"]
+  [#fruit #exotic name: "lychee" color: "white"]
+  [#fruit name: "papaya" color: "yellow"]
+  [#fruit name: "kiwi" color: "green"]
+```
+
+Draw a list of fruits
+```
+search
+  [#fruit color name]
+bind @browser
+  [#div ix: name, text: name, style: [color]]
+```
+
+make yo
+```
+search @event @browser
+  v = [#click element]
+  element = [not(children) text]
+
+commit @browser
+    element.children += [#div element zig:v text:"yo"]
+```
+
+trash yo
+```
+search @event @browser
+  [#click element]
+  element = [children]
+
+commit @browser
+    element.children -= children
+```

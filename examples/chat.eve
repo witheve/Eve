@@ -3,16 +3,14 @@
 add a user for this sesion on connect
 
 ```
-  match
-    [#session-connect]
   commit
-    [#user @me]
+    [#user #me]
 ```
 
 build the chat pane
 
 ```
-  match
+  search
     channel = "general"
   bind
     [#div class: "chat-pane" children:
@@ -23,7 +21,7 @@ build the chat pane
 draw messages
 
 ```
-  match
+  search (@session, @shared)
     parent = [#chat-messages channel]
     id = [#message name time message channel]
   bind
@@ -36,13 +34,47 @@ draw messages
 handle chat keydowns
 
 ```
-  match
+  search
     event = [#keydown element, key: "enter"]
     element = [#channel-input channel value]
     [#user name]
     [#time hours minutes seconds]
   commit
     element.value := ""
-  commit global
+  commit @shared
     [#message event name, time: "{{hours}}:{{minutes}}", message: value, channel]
 ```
+
+
+remove events
+~~~
+  search
+    c = if event = [#keydown] then event
+        if event = [#keyup] then event
+        if event = [#click] then event
+        if event = [#double-click] then event
+        if event = [#change] then event
+        if event = [#blur] then event
+        if event = [#focus] then event
+  commit
+    c := none
+~~~
+
+hash changes
+~~~
+  search
+    change = [#url-change hash-segment]
+  commit
+    change := none
+    url = [#url]
+    url.hash-segment := hash-segment
+~~~
+
+update values
+~~~
+  search
+    [#change element value]
+  commit
+    element.value := value
+~~~
+

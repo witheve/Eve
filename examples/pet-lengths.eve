@@ -1,0 +1,27 @@
+```
+commit
+  [#pet name: "koala" length: 7]
+  [#pet name: "cat" length: 3]
+  [#pet name: "whale" length: 12]
+  [#pet name: "dog" length: 14]
+  [#pet name: "orangutan" length: 9]
+  [#pet name: "lemur" length: 5]
+```
+
+```
+search
+  [#pet name length]
+  ix = sort[value: name]
+
+bind @view
+  [#bar-graph | bar: [label: name height: length sort: ix]]
+```
+
+```
+search
+  [#time minutes seconds]
+  length = random[seed: minutes * seconds] * 30
+
+bind
+  [#pet name: "whargarbbl" length]
+```

@@ -1,0 +1,498 @@
+# Editor Bootstrap
+
+This DB allows Eve programs to interact directly with the editor.
+
+## Editor Actions
+
+Actions allow remotely controlling the editor.
+
+### Inspect
+
+`#inspect` will enable inspector interactions in the editor. While this is on, additional mouse and cursor events will be attached to the editor to forward the user's current spans / elements of interest to the `@inspector` DB. When the action is removed, inspector mode will be disabled.
+
+```
+search @editor
+  action = [#inspect]
+
+bind @inspector
+  action <- [#inspector]
+
+bind @browser
+  action <- [#editor #inspect]
+```
+
+### Jump To
+
+`#jump-to` will scroll the editor viewport to bring the given `span` or index `position` into view. If multiple `span` and/or `position`s are specified, the topmost will be scrolled to.
+
+```
+search @editor
+  action = [#jump-to]
+  (attribute, value) = if action.span then ("span", action.span)
+                       if action.position then ("position", action.position)
+
+bind @browser
+  result = [#editor #jump-to]
+  lookup[record: result, attribute, value]
+```
+
+### Mark Between
+
+`#mark-between` will create new spans of the specified `type` *between* the given `span`s or `range`s. If `within` (a span id) is specified, it will constrain itself within that span. Otherwise it will go to the beginnning and end of the document. When the action is removed, the associated spans will be removed from the editor.
+
+```
+search @editor
+  action = [#mark-between type span]
+
+bind @browser
+  action <- [#editor #mark-between type span]
+```
+
+```
+search @editor
+  action = [#mark-between type range]
+
+bind @browser
+  range <- [start: range.start stop: range.stop]
+  action <- [#editor #mark-between type range]
+```
+
+Include the optional within attribute, if specified.
+
+```
+search @editor
+  action = [#mark-between within]
+
+bind @browser
+  action <- [within]
+```
+
+### Mark Span
+
+`#mark-span` will create a new span on the same range as the given `span`s of the specified `type`. When the action is removed, the associated spans will be removed from the editor.
+
+@NOTE: Mark span must be special cased to copy over all possible optional attributes right now. This is sad.
+
+```
+search @editor
+  action = [#mark-span type span]
+
+bind @browser
+  action <- [#editor #mark-span type span]
+```
+
+Copy optional `message` attribute over if provided.
+
+```
+search @editor
+  action = [#mark-span message]
+
+bind @browser
+  action <- [message]
+```
+
+Copy optional `kind` attribute over if provided.
+
+```
+search @editor
+  action = [#mark-span kind]
+
+bind @browser
+  action <- [kind]
+```
+
+### Mark Range
+
+`#mark-range` will create a new span using `start` and `stop` as indexes into the text of the current document. When the action is removed, the associated span will be as well.
+
+```
+search @editor
+  action = [#mark-range type start stop]
+
+bind @browser
+  action <- [#editor #mark-range type start stop]
+```
+
+Copy any attributes besides tag over. They'll be used to populate the span's source.
+
+```
+search @editor
+  action = [#mark-range]
+  lookup[record: action, attribute, value]
+  attribute != "tag"
+  attribute != "type"
+  attribute != "start"
+  attribute != "stop"
+
+bind @browser
+  lookup[record: action, attribute, value]
+```
+
+### Elide Between Sections
+
+`#elide-between-section` will elide all sections that do not contain at least one of the given `span`(s) or `position`(s). When the action is removed, these elisions will be cleared.
+
+```
+search @editor
+  action = [#elide-between-sections span]
+
+bind @browser
+  [#editor #elide-between-sections | span]
+```
+
+```
+search @editor
+  action = [#elide-between-sections position]
+
+bind @browser
+  [#editor #elide-between-sections | position]
+```
+
+### Find Section
+
+`#find-section` will find the section (region under the nearest heading) containing the given `position` (as an index into the document text) or `span` id. Results will be returned in the format `[#section position? span? heading start stop]` where `position` and `span` are as provided, heading is the id of the heading span for the section (if any), and `start` and `stop` are the indexes for the beginning and end of the section.
+
+```
+search @editor
+  action = [#find-section span]
+
+bind @browser
+  [#editor #find-section span]
+```
+
+```
+search @editor
+  action = [#find-section position]
+
+bind @browser
+  [#editor #find-section position]
+```
+
+```
+search @event
+  event = [#editor #section action]
+  (attribute, value) = if event.position then ("position", event.position)
+                       if event.span then ("span", event.span)
+                       if event.heading then ("heading", event.heading)
+                       if event.start then ("start", event.start)
+                       if event.stop then ("stop", event.stop)
+
+commit @editor
+  section = [#section action]
+  lookup[record: section, attribute, value]
+```
+
+```
+search @editor
+  section = [#section action]
+  not(action = [#find-section])
+
+commit @editor
+  section := none
+```
+
+## Language Service
+
+The Language Service allows Eve to query the analyzer for information about the currently running program.
+
+### Find Source
+
+`#find-source` will request the originating source span(s) for a given `record` id, `record`, `attribute` pair, or `span` ids. from the language service. Results will be returned in the format `[#source record? attribute? span? block]`, where `record`, `attribute` are the same as provided. `span` is the same if provided or originating spans if not, and block is the set of source blocks. These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
+
+```
+search @editor
+  action = [#find-source]
+  (attribute, value) = if action.record then ("record", action.record)
+                       if action.attribute then ("attribute", action.attribute)
+                       if action.span then ("span", action.span)
+
+bind @browser
+  action = [#editor #find-source]
+  lookup[record: action, attribute, value]
+```
+
+When a source event comes in, persist it into the editor and clear it from the event bag.
+
+```
+search @event
+  event = [#editor #source action]
+  (attribute, value) = if event.record then ("record", event.record)
+                       if event.attribute then ("attribute", event.attribute)
+                       if event.span then ("span", event.span)
+                       if event.block then ("block", event.block)
+
+commit @editor
+  source = [#source action]
+  lookup[record: source, attribute, value]
+
+commit @event
+  event := none
+```
+
+When a source's supporting action is removed, remove it.
+```
+search @editor
+  source = [#source action]
+  not(action = [#find-source])
+
+commit @editor
+  source := none
+```
+
+
+### Find Related
+
+`#find-related` will request all related `span`(s) for a given `variable` or `variable`(s) for a `span` from the language service. Related spans are spans which are directly joined to or unified with the target.  Results will be returned in the format `[#related span? variable?]`, where the argument you provided is the same and the other is filled in. These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
+
+```
+search @editor
+  [#find-related variable]
+
+bind @browser
+  [#editor #find-related | variable]
+```
+
+```
+search @editor
+  [#find-related span]
+
+bind @browser
+  [#editor #find-related | span]
+```
+
+When a related event comes in, persist it into the editor and clear it from the event bag.
+```
+search @event
+  event = [#editor #related action variable span]
+
+commit @editor
+  event <- [#related action variable span]
+
+commit @event
+  event := none
+```
+
+When a related's supporting action is removed, remove it.
+```
+search @editor @browser
+  related = [#related action]
+  not(action = [#find-related])
+
+commit @editor
+  related := none
+```
+
+### Find Value
+
+`#find-value` will request the intermediate value(s) for the given set of `variable`(s) from the language service. By default, all intermediates for the variables will be returned. If `given` is specified, containing a set of `[attribute value]` pairs, only values that exist in the same "row" as the fixed values will be returned. If multiple values are provided for a variable, the results for each will be logically unioned. Results will be returned in the format `[#value variable value row]`, where `variable` is one of the given `variable`s, `value` is the intermediate value of the variable, and `row` is the "row" the intermediate is from (for matching intermediates of different variables up). These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
+
+If given isn't specified, we'll find up to 100 rows out of all the rows from the block.
+
+```
+search @editor
+  action = [#find-value variable not(given)]
+
+bind @browser
+  action <- [#editor #find-value variable]
+```
+
+If it is, we'll filter by it to only include relevant rows.
+
+```
+search @editor
+  action = [#find-value variable given: [attribute value]]
+
+bind @browser
+  given = [attribute value]
+  action <- [#editor #find-value variable given]
+```
+
+When a value event comes in, persist it into the editor and clear it from the event bag.
+```
+search @event
+  event = [#editor #value action variable value row name register]
+
+commit @editor
+  event <- [#value action variable value row name register]
+
+commit @event
+  event := none
+```
+
+When a value's supporting action is removed, remove it.
+```
+search @editor @browser
+  value = [#value action]
+  not(action = [#find-value])
+
+commit @editor
+  value := none
+```
+
+
+### Find Cardinality
+
+`#find-cardinality` will request the cardinalities for the given set of `variable`(s) from the language service. The cardinality is the number of unique values that could satisfy `variable`. Results will be returned in the format `[#cardinality variable cardinality]` where `variable` is as given and cardinality is the count of satisfying values available. These records will be maintained by the editor until the action is removed, at which point they will be removed from the DB.
+
+```
+search @editor
+  action = [#find-cardinality variable]
+
+bind @browser
+  [#editor #find-cardinality | variable]
+```
+
+
+When a value event comes in, persist it into the editor and clear it from the event bag.
+```
+search @event
+  event = [#editor #cardinality action variable cardinality]
+
+commit @editor
+  event <- [#cardinality action variable cardinality]
+
+commit @event
+  event := none
+```
+
+When a value's supporting action is removed, remove it.
+```
+search @editor @browser
+  cardinality = [#cardinality action]
+  not(action = [#find-cardinality])
+
+commit @editor
+  cardinality := none
+```
+
+### Find Affector
+
+```
+search @editor
+  action = [#find-affector]
+  (attribute, value) = if action.record then ("record", action.record)
+                       if action.attribute then ("attribute", action.attribute)
+                       if action.span then ("span", action.span)
+
+bind @browser
+  result = [#editor #find-affector]
+  lookup[record: result, attribute value]
+```
+
+When an affector event comes in, persist it into the editor and clear it from the event bag.
+```
+search @event
+  event = [#editor #affector action]
+  (attribute, value) = if event.record then ("record", event.record)
+                       if event.attribute then ("attribute", event.attribute)
+                       if event.span then ("span", event.span)
+                       if event.block then ("block", event.block)
+                       if event.action then ("action", event.action)
+
+commit @editor
+  event <- [#affector action]
+  lookup[record: event, attribute, value]
+
+commit @event
+  event := none
+```
+
+When an affector's supporting action is removed, remove it.
+```
+search @editor @browser
+  affector = [#affector action]
+  not(action = [#find-affector])
+
+commit @editor
+  affector := none
+```
+
+### Find Failure
+
+```
+search @editor
+  action = [#find-failure block]
+
+bind @browser
+  [#editor #find-failure | block]
+```
+
+```
+search @event
+  event = [#editor #failure action block start stop]
+
+commit @editor
+  event <- [#failure action block start stop]
+
+commit @event
+  event := none
+```
+
+```
+search @editor @browser
+  failure = [#failure action]
+  not(action = [#find-failure])
+
+commit @editor
+  failure := none
+```
+
+### Find Root Drawers
+
+```
+search @editor
+  action = [#find-root-drawers]
+
+bind @browser
+  action <- [#editor #find-root-drawers]
+```
+
+```
+search @event
+  event = [#editor #root-drawer action span start stop]
+
+commit @editor
+  event <- [#root-drawer action span start stop]
+
+commit @event
+  event := none
+```
+
+```
+search @editor @browser
+  drawer = [#drawer action]
+  not(action = [#find-root-drawer])
+
+commit @editor
+  drawer := none
+```
+
+### Find Performance
+
+```
+search @editor
+  action = [#find-performance]
+
+bind @browser
+  action <- [#editor #find-performance]
+```
+
+```
+search @event
+  event = [#editor #performance action block average calls color max min percent total]
+
+commit @editor
+  event <- [#performance action block average calls color max min percent total]
+
+commit @event
+  event := none
+```
+
+```
+search @editor @browser
+  performance = [#performance action]
+  not(action = [#find-performance])
+
+commit @editor
+  performance := none
+```

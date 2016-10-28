@@ -1,0 +1,282 @@
+.flex-spacer { flex: 1; }
+.flex-row { display: flex; flex: 1; flex-direction: row; }
+
+@keyframes hide-delayed {
+    from { opacity: 1; }
+    99% { opacity: 1; }
+    to { opacity: 0; }
+}
+
+* { box-sizing: border-box; }
+
+
+html, body, __root { height: 100%; }
+body { background: #f5f5f5; color: #555; }
+button { font-family: "Avenir", "Helvetica neue", sans-serif; }
+/****************************************************************************\
+ * Root
+\****************************************************************************/
+.editor-root { display: flex; flex-direction: row; height: 100%; align-items: stretch; background: #fff; }
+
+.navigator-pane { width: 280px; flex: 0 0 auto; align-self: stretch; overflow-x: hidden; background:#555; color:#eee; transition: width 0.3s ease-in-out, background-color 0.2s ease-in-out; padding-bottom:30px; }
+.navigator-pane.collapsed { width: 20px; background-color: #fff; }
+.navigator-pane.collapsed:hover { background: #555; color: #eee; }
+.navigator-pane .navigator-pane-inner { width: 280px; padding: 0 5px; margin-left: 0; transition: margin-left 0.3s ease-in-out; }
+.navigator-pane.collapsed .navigator-pane-inner { margin-left: -255px; }
+.navigator-pane.collapsed .tree-item { pointer-events: none; }
+
+.editor-pane { position: relative; flex: 1; }
+
+.CodeMirror-sizer > div:first-child { width: 650px; min-height: 100%; }
+
+/****************************************************************************\
+ * Navigator
+\****************************************************************************/
+.navigator-header { display: flex; flex-direction: column; padding:10px 5px; user-select: none; -webkit-user-select: none; margin-bottom:10px; font-size:18px; color: #555; transition:color 0.2s ease-in-out; }
+.navigator-pane:hover .navigator-header { color: #aaa;  }
+.navigator-header > .controls { display:flex; flex-direction:row; flex:1; }
+.navigator-header > .controls > * { height: 20px; text-align: center; transition: transform 0.3s; cursor: pointer; }
+.navigator-header > .controls > div:hover { color: #eee; }
+.navigator-pane.collapsed:hover .navigator-header > .controls > div { color: #eee; }
+.navigator-header:hover > .controls > *:not(.disabled) {  }
+.navigator-header .collapse-btn { transform: rotate(180deg); color: #999; }
+.navigator-header .up-btn .label { display: flex; font-size:16px; margin-left: 10px; }
+.navigator-header .label { white-space: pre; display:none; }
+
+.navigator-header .inspector-controls { margin-top: 20px; }
+.navigator-header .inspector-controls button {border:none; color:#eee; outline:none; cursor:pointer; padding:3px 10px; font-size: 10pt; margin-left:20px; background:#666; border-radius:2px; margin-top: 20px; transition:background 0.1s ease-in-out; }
+.navigator-header .inspector-controls button:hover { background: #777; }
+
+
+
+.tree-item { flex-direction: column; align-items: stretch; }
+.tree-item > .tree-items { display: flex; flex-direction: column; }
+
+.item-level-1 > div > .label { font-size:14pt; margin-bottom:25px; }
+.item-level-2 { margin-bottom:25px; margin-left:3px; }
+.item-level-2 > div > .label { font-weight: bold; margin-bottom:5px; }
+.item-level-3 { margin-top:3px; }
+.item-level-3 > div > .label { color:#bbb; font-size: 11pt; }
+
+.tree-item .label { display: flex; flex: 1 1 auto; margin-left: 20px; user-select: none; -webkit-user-select: none; transition: opacity 0.15s; cursor: pointer;}
+.tree-item .label:before { display: inline-block; margin-left: -15px; margin-right: 5px; height: 15px; width: 15px; text-align: center; }
+.tree-item.branch .label:before { opacity: 0.25; transition: transform 0.15s; }
+.tree-item.branch.root > .flex-row > .label { opacity: 0; pointer-events: none; }
+.tree-item.branch.collapsed .label:before { transform: rotate(-90deg); opacity: 0.5; }
+.tree-item.branch:hover .label:before { opacity: 1; }
+.tree-item .label.no-icon:before { content: ""; }
+
+.tree-item .controls { display: flex; flex: 0 0 auto; color:#bbb; margin-left: 5px; opacity: 0; transition: opacity 0.15s; user-select: none; -webkit-user-select: none; }
+.tree-item .controls > * { cursor:pointer; display: inline-block; width: 20px; text-align: center; }
+.tree-item .controls > div:hover { color: #eee; }
+.tree-item:hover > .flex-row > .controls { opacity: 1; }
+
+.tree-item.hidden > .flex-row > .label { opacity: 0.5; }
+
+/****************************************************************************\
+ * Notices
+\****************************************************************************/
+.main-pane { display: flex; flex-direction: column; justify-content: stretch; overflow-y: hidden; }
+.main-pane .notices { display: flex; flex: 0 0 auto; }
+
+.main-pane .notices > .notice { padding: 5px 60px; background: #e0e0e0; }
+.main-pane .notices > .notice + .notice { border-bottom: 1px solid #d0d0d0; }
+.main-pane .notices > .notice > .time { margin-right: 10px;  }
+
+.main-pane .notices > .notice.error { background: rgb(255, 216, 222); }
+
+/****************************************************************************\
+ * Editor
+\****************************************************************************/
+.editor-pane { display: flex; margin-left: 50px; }
+
+.editor-pane > .controls { position: absolute; top: 10px; right: 30px; z-index: 10; background: rgba(255, 255, 255, 1); }
+.editor-pane > .controls > div { padding: 5px 10px; font-size:22px; color: #999; border-radius:2px; }
+.editor-pane > .controls > div:hover { background: #eee; color: #555; }
+
+.CodeMirror-lines { padding-top:30px; }
+
+.CodeMirror { background:none; color: inherit; height:100%; font-size:11pt;  }
+.CodeMirror-scroll, .CodeMirror-gutters { height:100%; }
+.CodeMirror-cursor { background: #555; border-color:#555; }
+
+.CodeMirror { color: #555; line-height:25px; font-family: Avenir, "Helvetica Neue", sans-serif; }
+.CodeMirror pre { padding-left: 8px; padding-right:50px; }
+.CodeMirror-scroll { scroll-behavior: smooth; }
+.CodeMirror-gutters { background: #303030; border-right: none; padding-right: 5px; }
+.CodeMirror-selected { background: rgba(0,117,255,0.1); }
+.CodeMirror-focused .CodeMirror-selected { background: rgba(0,117,255,0.2); }
+
+.CodeMirror-simplescroll-vertical { width:14px; background: #fff; border-left:1px solid #ddd; border-right:1px solid #ddd; }
+.CodeMirror-simplescroll-vertical div { border:none; border-radius:0; background: #f4f4f4; border-top:1px solid #ddd; border-bottom:1px solid #ddd; }
+.CodeMirror .scrollbar-annotation { width: 8px !important; min-height:3px !important; height:3px !important; right: 3px !important; }
+
+.CodeMirror .STRONG { font-weight:bold; }
+.CodeMirror .EMPH { font-style:italic; }
+.CodeMirror .CODE { margin-left: 10px; margin-right:50px; border-left:5px solid #eaeaea; background: #f4f4f4; font-family: "Inconsolata", "Monaco", "Consolas", "Ubuntu Mono", monospace;  }
+.CodeMirror .CODE-TEXT { line-height:19px; padding-left:30px; transition: opacity 0.3s; }
+.CodeMirror .CODE-TEXT.CODE-DISABLED { opacity: 0.6; }
+.CodeMirror span.CODE { color: #0076ce; background:none; margin:0; padding:0; border:none; }
+
+.CodeMirror .CODE_BLOCK { font-family: "Inconsolata", "Monaco", "Consolas", "Ubuntu Mono", monospace; }
+.CodeMirror .CODE-TOP { border-radius:3px 3px 0 0; padding-top:8px; }
+.CodeMirror .CODE-BOTTOM { border-radius:0 0 3px 3px; padding-bottom:8px; }
+
+.CodeMirror .code-controls-widget { cursor:pointer; float: right; margin-right: 50px; padding: 5px 10px; padding-bottom: 0; font-size: 1.2rem; opacity: 0.2; transition: opacity 0.3s; }
+.CodeMirror .CodeMirror-linewidget:hover .code-controls-widget { opacity: 1; }
+
+.CodeMirror .code-footer-widget { height: 24px; }
+
+.CodeMirror .DOC { color: #d8d8d8; }
+.CodeMirror .HEADING1 { font-size:30px; padding-top:20px; padding-bottom: 30px;}
+.CodeMirror .HEADING2 { font-size:20px; padding-top:20px; padding-bottom: 10px; font-weight: bold; }
+.CodeMirror .HEADING3 { font-size:16px; padding-top:20px; padding-bottom: 10px; font-weight: bold; }
+.CodeMirror .HEADING4 { font-size:12pt;}
+
+.CodeMirror .link { color: #0079d3; }
+.CodeMirror .link-widget { margin-right: 8px; }
+
+/* Syntax Styles */
+
+.CodeMirror .COMMENT { color: #747474; }
+
+/* Variables/Attributes */
+.CodeMirror .ALIAS { }
+.CodeMirror .TAG, .CodeMirror .TAG + .IDENTIFIER { color: #50edf6; color: #4bcbd3; color: #0076ce; }
+.CodeMirror .NAME, .CodeMirror .NAME + .IDENTIFIER { color: #50edf6; color: #4bcbd3; color: #0076ce; }
+/* Phases */
+.CodeMirror .ACTION, .SEARCH { color: black; }
+/* Statements */
+.CodeMirror .IF, .ELSE, .THEN { color: black; }
+/* Literals */
+.CodeMirror .STRING, .QUOTE, .BOOL, .NUM { color: #00a588; }
+/* Brackets */
+.CodeMirror .OPEN-BRACKET, .CodeMirror .CLOSE-BRACKET, .CodeMirror .OPEN-PAREN, .CodeMirror .CLOSE-PAREN { color: gray; }
+.CodeMirror .STRING-EMBED-OPEN, .CodeMirror .STRING-EMBED-CLOSE { color: gray; }
+.CodeMirror .DOT, .CodeMirror .COMMA { color: gray; }
+/* Binding/Action Operators */
+.CodeMirror .EQUALITY, .CodeMirror .MERGE, .CodeMirror .SET, .CodeMirror .MUTATE { color: gray; }
+/* Infix Operators */
+.CodeMirror .INFIX, .CodeMirror .COMPARISON { color: gray; }
+
+/****************************************************************************\
+ * Elision
+\****************************************************************************/
+
+.elision { border-top:1px solid #ddd; }
+
+/****************************************************************************\
+ * Format Bars
+\****************************************************************************/
+.editor-pane .new-block-bar { position: absolute; top: 0; left: 0; margin-left: -28px; display: flex; flex-direction: row; width: 28px; overflow: hidden; transition: width 0.15s; z-index: 5; color: #666; border-radius:5px; border:1px solid #ddd; font-size:10pt; background:white; }
+.editor-pane .new-block-bar.active { width: 246px; }
+
+
+.editor-pane .new-block-bar > .new-block-bar-toggle,
+.editor-pane .new-block-bar > .controls > div { display:flex; padding: 3px 10px; align-items:center; cursor:pointer; }
+
+.editor-pane .new-block-bar > .new-block-bar-toggle { padding: 3px 8px; }
+
+.editor-pane > .controls > div { cursor:pointer; }
+.editor-pane .new-block-bar > .new-block-bar-toggle:hover,
+.editor-pane .new-block-bar > .controls > div:hover{ background: #e4e4e4; }
+.editor-pane .new-block-bar > .new-block-bar-toggle:before { transition: transform 0.15s; }
+.editor-pane .new-block-bar.active > .new-block-bar-toggle:before { transform: rotate(45deg); }
+
+.editor-pane .format-bar { position: absolute; top: 0; left: 0; display: flex; flex-direction: row; background: #666; color: #eee; z-index: 9; border-radius:2px; overflow:hidden; }
+.editor-pane .format-bar > * { padding: 5px 10px; cursor:pointer; }
+.editor-pane .format-bar > div:hover { background: #888; color: #fff; }
+
+
+/****************************************************************************\
+ * Comments
+\****************************************************************************/
+
+.comment-widget { padding: 2px 0; }
+.code-comment-widget { padding-left: 30px; margin-top: 2px; margin-left: 10px; margin-right: 50px; border-left: 5px solid #ff7e92; }
+
+.comment-widget.error { background: rgb(255, 216, 222); color: #b7003e; }
+
+.comment-widget .comment { font-size: 10pt; }
+
+.comment-widget .comment-inner { display: block; }
+.comment-inner { display: none; }
+
+.comment-widget .quick-actions { display: flex; flex-direction: row; flex-wrap: wrap; opacity: 0.5; transition: opacity 0.15s; }
+.comment-widget:hover .quick-actions { opacity: 1; }
+.comment-widget .quick-actions > .comment-action { flex: 1 0 auto; max-width: 50%; padding: 2px 5px; margin-top: 5px; text-align: center; background: #404040; }
+.comment-widget .quick-actions > .comment-action + .comment-action { margin-left: 1px; }
+.comment-widget .quick-actions > .comment-action:hover { background: #505050; }
+
+.comment.error { border-color: #F06060; color: #b7003e; }
+.comment.warning { border-color: #C0C060; }
+
+.CodeMirror .document_comment { }
+.CodeMirror .document_comment.error { border-bottom: 1px solid #ff7e92; }
+.CodeMirror .document_comment.warning { border-bottom: 1px solid #C0C060; }
+
+.CodeMirror .scrollbar-annotation { background: #AAA; min-height: 5px; opacity: 1; transition: opacity 0.15s; z-index: 2; }
+.CodeMirror .scrollbar-annotation:hover { opacity: 0.5; }
+.CodeMirror .scrollbar-annotation.error { background: #ff7e92; }
+.CodeMirror .scrollbar-annotation.warning { background: #C0C060; }
+.CodeMirror .scrollbar-annotation.affector, .CodeMirror .scrollbar-annotation.source { background: #66b1e9; }
+
+/* .CodeMirror .COMMENT_error { border-color: #ff7e92; } */
+
+/****************************************************************************\
+ * Views
+\****************************************************************************/
+.program > .view { display: none !important; }
+
+.view-container { margin:10px 50px 0px 10px; padding-left: 20px; border-left:5px solid #96e4d7; background: #d1f5eb; }
+.CodeMirror-linewidget + .CodeMirror-linewidget .view-container { margin-top:0; }
+
+table.view { border-collapse: collapse; }
+table.view thead { border: 1px solid #ccc; }
+table.view td { padding: 0 5px; border: 1px solid #ccc; border-top: none; border-bottom: none; }
+
+.view.kv-table { display: table; border-collapse: collapse; border: 1px solid #202020; }
+.view.kv-table .kv-row { display: table-row; }
+.view.kv-table .kv-row + .kv-row { border-top: 1px solid #606060; }
+.view.kv-table .kv-row > div { display: table-cell; padding: 0 5px; }
+.view.kv-table .kv-values { border-left: 1px solid #202020; }
+
+.view.bar-graph { position: relative; display: flex; flex-direction: row; align-items: flex-end; }
+.view.bar-graph .bar-graph-bar { display: flex; align-items: flex-end; margin:10px 0; justify-content: center; background: #6ed2c1; margin-right: 2px; transition: 0.3s width, 0.3s height; }
+
+/****************************************************************************\
+ * Inspector
+\****************************************************************************/
+.editor-pane .controls .inspector-button.waiting { color: #ff0028; background: #ffdde2; }
+.editor-pane .controls .inspector-button.inspecting { color: #ff0028; background: #ffdde2; }
+
+.CodeMirror .code.annotated { border-left-color: #66b1e9; }
+.CodeMirror .code.annotated.annotated_performance-red { border-left-color: #c65555; }
+.CodeMirror .code.annotated.annotated_performance-orange { border-left-color: #e9c070; }
+.CodeMirror .scrollbar-annotation.performance-red { background: #c65555; min-height: 5px; opacity: 1; transition: opacity 0.15s; z-index: 2; }
+.CodeMirror .scrollbar-annotation.performance-orange { background: #e9c070; min-height: 5px; opacity: 1; transition: opacity 0.15s; z-index: 2; }
+
+.code-comment-widget.performance-green { white-space: pre; background: #e0e0e0; border-left: 5px solid #EEEEAA; }
+.code-comment-widget.performance-orange { white-space: pre; background: #ffe9c0; border-left: 5px solid #e9c070; }
+.code-comment-widget.performance-red { white-space: pre; background: #f9cccc; border-left: 5px solid #c65555; }
+
+.CodeMirror .shadow { color: #999 !important; }
+.CodeMirror .highlight { background: rgba(127, 192, 255, 0.4); }
+.CodeMirror .badge {  }
+.CodeMirror .badge-widget { display: inline-block; margin-left: 2px; font-size: 10pt; color: #E91E63; padding: 0 3px; }
+.CodeMirror .badge-widget:before { content: "( "; }
+.CodeMirror .badge-widget:after { content: " )"; }
+.CodeMirror .cause-of-failure { background: rgb(255, 200, 215); }
+
+.inspector-pane { overflow:hidden; display:flex; width:250px; background: #666; flex-direction: column; color: #eee; border-radius:2px; box-shadow: 0 2px 8px #aaa; z-index: 10; }
+.inspector-pane .buttons { display:flex; flex-direction:column; }
+.inspector-pane .buttons button { background:none; border:none; color: #eee; font-size: 10pt; width: 100%; padding: 8px 15px; text-align:left; }
+.inspector-pane .buttons button + button { border-top:1px solid #555; }
+
+.inspector-pane .kv-table { border:none; width:100%; background: #777; border-radius: 2px 2px 0 0; }
+.inspector-pane .kv-key { color: #ddd; }
+.inspector-pane .kv-table .kv-values { border-left: 1px solid #555; }
+.inspector-pane .kv-table .kv-row > div { padding: 4px 15px; font-size:11pt; }
+.inspector-pane .kv-table .kv-row { border:none; border-bottom:1px solid #555; }
+
+.inspector-pane div[is-entity="true"] { color: #A6D0FF; }

@@ -1,0 +1,447 @@
+# Contact Application
+
+## The App Record
+
+`#app` stores some useful state for the application, including the current user, the current page, and the current contact.
+
+```
+commit
+  [#app]
+```
+
+Set some initial state on `#app` and mark it as `#init`. This block sets the start time of the app, so `#time` is brought into the search. Since we only want this to happen once, we search for `#app` that is not `#init`. Then, we mark the `#app` as `#init` to prevent the block from firing again due to a time update.
+
+```
+search
+  app = [#app]
+  [#time day month year hours minutes seconds ampm]
+  not(app = [#init])
+  user = [#user name: "Corey Montella"]
+
+commit
+  app <- [#init user
+          page: [#about contact: user]
+          start-time: [#start-time day month year hours minutes seconds ampm]]
+```
+
+### Main App
+
+The main application is a shell for all other pages in the app. This component draws the main interface, navigation buttons, and provides a "content" div into which other pages are injected.
+
+```
+search
+  app = [#app user]
+  [#time time-string]
+  // Handle the case when the user has no threads
+  threads = if app.unread then app.unread
+            else 0
+  // If the user is looking at a contact, display that contact's avatar and info. Otherwise, display the user's own avatar.
+  current-contact = if app.contact then app.contact
+                    else user
+
+bind @browser
+  [#link rel: "stylesheet" href: "/examples/css/crm.css"]
+  [#div #container class: "container" children:
+    [#div class: "scroll" children:
+      [#div class: "banner"]
+      [#div class: "bio-info" children:
+        [#div class: "avatar-container" children:
+          [#img class: "avatar", src: current-contact.avatarURL]]
+        [#div class: "name2" text: "{{current-contact.name}}"]
+        [#div class: "info" text: "{{current-contact.title}}"]
+        [#div class: "info" text: "{{time-string}}, {{current-contact.location}}"]]
+      [#div #content class: "content"]]
+    [#div class: "navigation" children:
+      [#div #about #nav class: "nav-button middle", children:
+        [#div class: "icon ion-person"]
+        [#div class: "label" text: "profile"]]
+      [#div #threads #nav class: "nav-button middle", children:
+        [#div class: "icon ion-chatboxes"]
+        [#div class: "bubble" text: threads]
+        [#div class: "label" text: "messages"]]
+      [#div #contacts #nav class: "nav-button middle" children:
+        [#div class: "icon ion-person-stalker" text: ""]
+        [#div class: "label" text: "contacts"]]
+      [#div #more #nav class: "nav-button" children:
+        [#div class: "icon ion-android-more-horizontal" text: ""]
+        [#div class: "label" text: "more"]]]]
+```
+
+As part of the main application, we display a count of unread messages in the navigation bar:
+
+```
+search
+  app = [#app user]
+  threads = [#thread users: user, messages]
+  messages = [#unread]
+
+bind
+  app.unread := count[given: messages]
+```
+
+## Pages
+
+The application is composed of various pages, that are injected into the main content area depending on the contents of #app.page. Only one page should be displayed at a time.
+
+### About Page
+
+Displays information relating to a contact. This page is constructed in three parts. The first part displays phone and email for the contact:
+
+```
+search @browser @session
+  content = [#content]
+  [#app page: [#about contact]]
+
+bind @browser @session
+  content.children := [#div class: "about" children:
+    [#div class: "about-line", children:
+      [#span class: "about-label", text: "Phone"]
+      [#span text: contact.phone]]
+    [#div class: "about-line", children:
+      [#span class: "about-label", text: "Email"]
+      [#span text: contact.email]]
+    [#div #recent-contacts children:
+      [#h3 text: "All Contacts ({{count[given: contact.contacts]}})"]
+      [#img #contact contact: contact.contacts, class: "recent-avatar" src: contact.contacts.avatarURL]]]
+```
+
+If the user has threads, then recent contacts are displayed:
+
+```
+search @browser @session
+  recent-div = [#recent-contacts]
+  [#app page: [#about contact], user]
+  threads = [#thread users: contact messages]
+  recent = threads.users != contact
+
+bind @browser @session
+  recent-div.children += [#div children:
+    [#h3 text: "Recent Contacts ({{count[given: recent]}})"]
+    [#img class: "recent-avatar" src: recent.avatarURL]]
+```
+
+If the user has no threads and is looking at his own about page, a message is displayed prompting the user to start a conversation with someone:
+
+```
+search @browser @session
+  recent-div = [#recent-contacts]
+  [#app page: [#about contact], user]
+  user = contact
+  not([#thread users: user])
+
+bind @browser
+  recent-div.children += [#div children:
+    [#h3 text: "Recent Contacts (0)"]
+    [#div #contacts #nav children:
+      [#div class: "plus" text: "+"]
+      [#div text: "Start a Thread"]]]
+```
+
+If there is no contact for the about page, then use the current user's info
+
+```
+search
+  [#app page user]
+  page = [#about]
+  not(page = [contact])
+
+commit
+  page.contact := user
+```
+
+### Messages Page
+
+Each message is displayed with the user's avatar and name. An abbreviated timestamp is also displayed.
+
+```
+search @browser @session
+  content = [#content]
+  app = [#app page: [#thread thread]]
+  msgs = thread.messages
+  name = if msgs.sender.name = app.user.name then "Me"
+         else msgs.sender.name
+  msgs.time = [hours minutes ampm]
+
+bind @browser
+  content.children := [#div class: "flex-spacer" children:
+    [#div #convo class: "convo" children:
+      [#div sort: msgs.time class: "msg" message: msgs children:
+        [#img class: "msg-avatar" src: msgs.sender.avatarURL]
+        [#span #contact contact: msgs.sender, class: "msg-name" text: name]
+        [#span class: "msg-time" text: "{{hours}}:{{minutes}} {{ampm}}"]
+        [#div class: "msg-text" text: msgs.text]]]
+    [#input #send-message thread class: "msg-input"]]
+```
+
+### Threads Page
+
+Each thread is shown with the contact's avatar and name, and the number of messages in the thread.
+
+```
+search @browser @session
+  content = [#content]
+  app = [#app page: [#threads], user]
+  not(threads = [#archived])
+  threads = [#thread users: user, messages]
+  contacts = threads.users != app.user
+  message-count = count[given: threads.messages, per: threads.users]
+
+bind @browser
+  content.children := [#div threads class: "thread" children:
+    [#div #thread thread: threads, class: "thread-box" children:
+      [#img class: "msg-avatar" src: contacts.avatarURL]
+      [#div class: "msg-name" text: contacts.name]
+      [#div text: "{{message-count}} messages"]]
+    [#div #archive-button thread: threads, class: "archive ion-archive"]]
+```
+
+### Contacts Page
+
+Contacts are shown with all their contact details. Clicking on a contact opens up a detailed contact page.
+
+```
+search @browser @session
+  content = [#content]
+  [#app user page: [#contacts]]
+
+bind @browser @session
+  content.children := [#div #contact contact: user.contacts, class: "contact" contact: user.contacts, children:
+    [#img class: "contact-avatar" src: user.contacts.avatarURL]
+    [#div class: "contact-name", text: user.contacts.name]
+    [#div text: "Location: {{user.contacts.location}}"]
+    [#div text: "Phone: {{user.contacts.phone}}"]
+    [#div text: "Email: {{user.contacts.email}}"]]
+```
+
+### More Page
+
+More information about Eve!
+
+```
+search @browser @session
+  content = [#content]
+  [#app page: [#more]]
+
+bind @browser
+  content.children := [#div #more class: "more" children:
+    [#h2 text: "Learn more about Eve"]
+    [#ul children:
+      [#li children: [#a href: "http://witheve.com" text: "Homepage"]]
+      [#li children: [#a href: "https://witheve.github.io/docs/guides/quickstart/" text: "Quick Start Tutorial"]]
+      [#li children: [#a href: "http://github.com/witheve" text: "GitHub Repository"]]]
+    [#h2 text: "Join the Community"]
+    [#ul children:
+      [#li children: [#a href: "http://blog.witheve.com" text: "Development Diary"]]
+      [#li children: [#a href: "https://github.com/witheve/rfcs" text: "Request for Comments"]]
+      [#li children: [#a href: "https://groups.google.com/forum/#!forum/eve-talk" text: "Mailing List"]]
+      [#li children: [#a href: "https://twitter.com/with_eve" text: "Twitter"]]]]
+```
+
+## Events
+
+### Set current page
+
+When the user clicks on a `#nav` button, set the app page to that element. We use this in subsequent blocks to fill the `#content` area of the app.
+
+```
+search @event @browser @session
+  [#click element]
+  element = [#nav]
+  app = [#app user]
+
+commit
+  app.page := [tag: element.tag]
+  app.contact := none
+```
+
+### Display contact
+
+When the user clicks on a contact's name, their "About" page is displayed. Otherwise, the user's own "About" page is displayed.
+
+```
+search @event @browser @session
+  [#click element: [#contact contact]]
+  app = [#app]
+
+commit
+  app.contact := contact
+  app.page := [#about contact]
+```
+
+### Display messages
+
+Messages are displayed for a current thread. By displaying messages, they are automatically marked as read, which decrements the count on the navigation bar.
+
+```
+search @event @browser @session
+  [#click element: [#thread thread]]
+  app = [#app]
+
+commit
+  app.page := [#thread thread]
+  thread.messages -= #unread
+```
+
+### Send a message
+
+When the user presses "enter" in the message input box, a message is added to the current thread, with the current time. This event should also clear the input box.
+
+```
+search @event @browser @session
+  [#keydown key: "enter" element: input]
+  input = [#send-message thread value]
+  [#app user]
+  time = [#time day month year hours minutes seconds ampm]
+
+commit @browser
+  input.value := ""
+  thread.messages += [#message sender: user, time, text: value]
+```
+
+### Archive a thread
+
+When the user archives a thread, the `#archive` tag is added to that thread, which then exludes it from display in the main thread list. Archiving a thread also marks all unread messages as read.
+
+```
+search @event @browser @session
+  [#click element: [#archive-button thread]]
+  messages = thread.messages
+
+commit @session
+  thread += #archived
+  messages -= #unread
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Test Data
+
+The users and messages in this application are fabricated.
+
+```
+search
+  year: 2017
+  month: 10
+  day: 20
+  hours: 10
+  minutes: 20
+  seconds: 30
+  ampm: "PM"
+
+commit
+  corey = [#user
+   name: "Corey Montella"
+   title: "Software Engineer"
+   avatarURL: "https://avatars2.githubusercontent.com/u/10619266?v=3&s=466"
+   location: "San Francisco, CA"
+   email: "corey@kodowa.com"
+   phone: "555-555-5555"]
+
+  chris = [#user
+   name: "Chris Granger"
+   title: "CEO"
+   avatarURL: "https://avatars3.githubusercontent.com/u/70036?v=3&s=466"
+   location: "San Francisco, CA"
+   email: "chris@kodowa.com"
+   phone: "555-555-5556"]
+
+  josh = [#user
+   name: "Josh Cole"
+   title: "Software Engineer"
+   avatarURL: "https://avatars2.githubusercontent.com/u/313870?v=3&s=466"
+   location: "San Francisco, CA"
+   email: "josh@kodowa.com"
+   phone: "555-555-5557"]
+
+  rob = [#user
+   name: "Rob Attorri"
+   title: "President"
+   avatarURL: "https://avatars1.githubusercontent.com/u/1314445?v=3&s=466"
+   location: "San Francisco, CA"
+   email: "rob@kodowa.com"
+   phone: "555-555-5558"]
+
+  eric = [#user
+   name: "Eric Hoffman"
+   title: "Software Engineer"
+   avatarURL: "https://avatars3.githubusercontent.com/u/1807982?v=3&s=466"
+   location: "San Francisco, CA"
+   email: "eric@kodowa.com"
+   phone: "555-555-5559"]
+
+  // Add contacts to users
+  corey.contacts := (chris, josh, rob, eric)
+  chris.contacts := (corey, josh, rob)
+  josh.contacts := (corey, rob, eric)
+  rob.contacts := (corey, josh, chris, eric)
+  eric.contacts := (josh, rob)
+
+  // Make some threads
+  [#thread #new-messages users: (corey, chris) messages:
+    [#message sender: corey, time: [day month year hours minutes seconds: 0 ampm], text: "Hey"]
+    [#message sender: chris, time: [day month year hours minutes seconds: 1 ampm], text: "Hey, how are you."]
+    [#message sender: corey, time: [day month year hours minutes seconds: 2 ampm], text: "I'm fine, how are you?"]
+    [#message #unread sender: chris, time: [day month year hours minutes seconds: 3 ampm], text: "Fine as well."]
+    [#message #unread sender: chris, time: [day month year hours minutes: minutes + 1, seconds: 4 ampm], text: "Glad we got that out of the way!"]
+    [#message #unread sender: chris, time: [day month year hours minutes: minutes + 1 seconds: 5 ampm], text: "What did you work on yesterday?"]]
+
+  [#thread users: (corey, josh) messages:
+    [#message sender: josh, time: [day month year hours minutes seconds: 1 ampm], text: "Hey"]
+    [#message sender: corey, time: [day month year hours minutes seconds: 2 ampm], text: "What's up Josh?"]
+    [#message sender: josh, time: [day month year hours minutes seconds: 3 ampm], text: "I need to tell you something...."]
+    [#message sender: corey, time: [day month year hours minutes seconds: 4 ampm], text: "Uh oh..."]
+    [#message sender: corey, time: [day month year hours minutes seconds: 5 ampm], text: "Well what is it? Don't leave me hanging!"]]
+
+  [#thread #new-messages users: (corey, rob) messages:
+    [#message sender: corey, time: [day month year hours minutes seconds: 0 ampm], text: "Did Josh tell you what happened?"]
+    [#message sender: rob, time: [day month year hours minutes seconds: 1 ampm], text: "Yeah, don't worry, we took care of it. "]
+    [#message sender: corey, time: [day month year hours minutes seconds: 2 ampm], text: "Well what happened?"]
+    [#message sender: rob, time: [day month year hours minutes seconds: 3 ampm], text: "Like I said, don't worry about it."]
+    [#message sender: corey, time: [day month year hours minutes seconds: 4 ampm], text: "..."]
+    [#message #unread sender: rob, time: [day month year hours minutes seconds: 5 ampm], text: "🔥"]]
+```

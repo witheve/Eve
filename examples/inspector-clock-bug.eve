@@ -21,7 +21,7 @@ draw a clock
   bind @browser
     [#svg viewBox: "0 0 100 100", width: "300px", children:
       [#circle cx: 50, cy: 50, r: 45, fill: "#0B79CE"]
-      [#clock-hand #hour-hand angle: 30 * hours, length: 30, stroke: "#023963"]
+      [#clock-hand #hour-hand angle: 60 * hours, length: 30, stroke: "#023963"]
       [#clock-hand #minute-hand angle: 6 * minutes, length: 40, stroke: "#023963"]
       [#clock-hand #second-hand angle: 6 * seconds, length: 40, stroke: "#ce0b46"]]
 

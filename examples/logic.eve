@@ -1,7 +1,0 @@
-simple logic filters
-```
-  match
-    5 != 5
-  bind
-    [#div #num text: "If you see this, it's an error."]
-```
