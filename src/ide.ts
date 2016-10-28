@@ -2052,6 +2052,7 @@ export class IDE {
     this.loaded = false;
     this.documentId = docId;
     this.editor.reset();
+    this.notices = [];
     this.onLoadFile(this, docId, code);
   }
 
