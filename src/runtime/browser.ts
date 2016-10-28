@@ -106,8 +106,8 @@ class Responder {
         let [e, a, v] = insert;
         // @TODO: this is a hack to deal with external ids. We should really generate
         // a local id for them
-        if(ids.isId(e)) e = e.substring(1);
-        if(ids.isId(v)) v = v.substring(1);
+        if(e[0] === "⍦") e = ids.get([e]);
+        if(v[0] === "⍦") v = ids.get([v]);
         actions.push(new ActionImplementations["+="]("event", e, a, v, "event", scopes));
       }
       evaluation.executeActions(actions);
