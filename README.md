@@ -7,29 +7,29 @@
 Eve is a set of tools to help us think. Currently, these tools include: a temporal query language, a compiler, and a database.
 
 <p align="center">
-  <img src="https://github.com/witheve/assets/blob/master/images/eveclock.gif?raw=true" alt="Eve Clock" width="80%"/>
+  <img src="https://witheve.github.io/assets/images/editor.png" alt="Eve Clock" width="80%"/>
 </p>
 
 ## Installation
 
 ### From Source
 
-You'll need a recent node.js and then:
+You'll need a recent [node.js](https://nodejs.org) and then:
 
 ```
 npm install
-npm run build
-npm run server
+npm run start
 ```
 
-Then open `http://localhost:8080/examples/clock.eve`.
+Then open `http://localhost:8080/` in your browser.
 
 ## How to use Eve
 
 You can learn about Eve with the following resources:
 
-- [Syntax Quick Reference](https://github.com/witheve/assets/blob/master/docs/SyntaxReference.pdf)
-- [Eve Language Handbook (draft)](https://github.com/witheve/docs/blob/master/drafts/handbook/contents.md)
+- [Quick Start Tutorial](http://docs.witheve.com/guides/quickstart/)
+- [Syntax Quick Reference](https://witheve.github.io/assets/docs/SyntaxReference.pdf)
+- [Eve Language Handbook (draft)](http://docs.witheve.com)
 
 *Please let us know what kind of documents would be the most helpful as you begin your journey with Eve*. We want our documentation to be a highlight of the Eve experience, so any suggestions are greatly appreciated.
 
