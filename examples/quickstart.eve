@@ -260,7 +260,7 @@ We also invite you to join the Eve community! There are several ways to get invo
 [commit]: https://witheve.github.io/docs/handbook/commit/
 [string-interpolation]: https://witheve.github.io/docs/handbook/string-interpolation/
 [joins]: https://witheve.github.io/docs/handbook/joins/
-[quickstart-source]: https://raw.githubusercontent.com/witheve/docs/src/guides/quickstart.md
+[quickstart-source]: https://github.com/witheve/Eve/blob/ts-merge/examples/quickstart.eve
 [tags]: https://witheve.github.io/docs/handbook/tags/
 [merge]: https://witheve.github.io/docs/handbook/merge/
 [sets]: https://witheve.github.io/docs/handbook/sets/
