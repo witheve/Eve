@@ -148,6 +148,73 @@ class Substring extends Constraint {
   }
 }
 
+class Convert extends Constraint {
+  static AttributeMapping = {
+    "value": 0,
+    "to": 1,
+  }
+  static ReturnMapping = {
+    "converted": 0,
+  }
+
+  resolveProposal(proposal, prefix) {
+    let {args, returns} = this.resolve(prefix);
+    let from = 0;
+    let value = args[0];
+    let to = args[1];
+    let converted;
+    if(to === "number") {
+      converted = +value;
+      if(isNaN(converted)) throw new Error("Unable to deal with NaN in the proposal stage.");
+    } else if(to === "string") {
+      converted = ""+value;
+    }
+    return [converted];
+  }
+
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    let value = args[0];
+    let to = args[1];
+
+    let converted;
+    if(to === "number") {
+      converted = +value;
+      if(isNaN(converted)) return false;
+      if(converted === "") return false;
+      return
+    } else if(to === "string") {
+      converted = ""+value;
+    } else {
+      return false;
+    }
+
+    return converted === returns[0];
+  }
+
+  // 1 if valid, 0 otherwise
+  getProposal(tripleIndex, proposed, prefix) {
+    let proposal = this.proposalObject;
+    let {args} = this.resolve(prefix);
+    let value = args[0];
+    let to = args[1];
+
+    proposal.cardinality = 1;
+    proposal.providing = proposed;
+
+    if(to === "number") {
+      if(isNaN(+value) || value === "") proposal.cardinality = 0;
+    } else if(to === "string") {
+    } else {
+      proposal.cardinality = 0;
+    }
+
+    return proposal;
+  }
+}
+
+
 providers.provide("concat", Concat);
 providers.provide("split", Split);
 providers.provide("substring", Substring);
+providers.provide("convert", Convert);

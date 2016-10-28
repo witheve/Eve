@@ -133,6 +133,9 @@ button { font-family: "Avenir", "Helvetica neue", sans-serif; }
 .CodeMirror .HEADING3 { font-size:16px; padding-top:20px; padding-bottom: 10px; font-weight: bold; }
 .CodeMirror .HEADING4 { font-size:12pt;}
 
+.CodeMirror .link { color: #0079d3; }
+.CodeMirror .link-widget { margin-right: 8px; }
+
 /* Syntax Styles */
 
 .CodeMirror .COMMENT { color: #747474; }
