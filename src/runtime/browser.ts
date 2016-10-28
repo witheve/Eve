@@ -103,8 +103,12 @@ class Responder {
       let scopes = ["event"];
       let actions = [];
       for(let insert of data.insert) {
-        let e = insert[0].substring(1);
-        actions.push(new ActionImplementations["+="]("event", e, insert[1], insert[2], "event", scopes));
+        let [e, a, v] = insert;
+        // @TODO: this is a hack to deal with external ids. We should really generate
+        // a local id for them
+        if(ids.isId(e)) e = e.substring(1);
+        if(ids.isId(v)) v = v.substring(1);
+        actions.push(new ActionImplementations["+="]("event", e, a, v, "event", scopes));
       }
       evaluation.executeActions(actions);
     } else if(data.type === "close") {
