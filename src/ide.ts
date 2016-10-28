@@ -1702,7 +1702,6 @@ export class Editor {
     else if(this.ide.inspecting) inspectorButton.c += " inspecting";
 
     return {c: "flex-row controls", children: [
-      this.ide.modified ? {c: "ion-ios-skipbackward", click: () => this.ide.revertDocument()} : undefined,
       {c: "ion-refresh", click: () => this.ide.eval(false)},
       {c: "ion-ios-play", click: () => this.ide.eval(true)},
       inspectorButton
