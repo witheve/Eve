@@ -27,7 +27,7 @@ Then open `http://localhost:8080/` in your browser.
 
 You can learn about Eve with the following resources:
 
-- [Quick Start Tutorial](play.witheve.com)
+- [Quick Start Tutorial](http://play.witheve.com/)
 - [Syntax Quick Reference](https://witheve.github.io/assets/docs/SyntaxReference.pdf)
 - [Eve Language Handbook (draft)](http://docs.witheve.com)
 
