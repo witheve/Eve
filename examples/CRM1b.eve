@@ -50,7 +50,7 @@ search
                     else user
 
 bind @browser
-  [#link rel: "stylesheet" href: "/examples/css/crm.css"]
+  [#link rel: "stylesheet" href: "examples/css/crm.css"]
   [#div #container class: "container" children:
     [#div class: "banner"]
     [#div class: "bio-info" children:
@@ -89,7 +89,7 @@ bind
 
 ## Pages
 
-The application is composed of various pages, that are injected into the main content area depending on the contents of #app.page. Only one page should be displayed at a time. 
+The application is composed of various pages, that are injected into the main content area depending on the contents of #app.page. Only one page should be displayed at a time.
 
 ### About Page
 

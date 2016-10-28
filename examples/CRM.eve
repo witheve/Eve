@@ -50,7 +50,7 @@ search
                     else user
 
 bind @browser
-  [#link rel: "stylesheet" href: "/examples/css/crm.css"]
+  [#link rel: "stylesheet" href: "examples/css/crm.css"]
   [#div #container class: "container" children:
     [#div class: "scroll" children:
       [#div class: "banner"]
