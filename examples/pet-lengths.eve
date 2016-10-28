@@ -1,3 +1,9 @@
+# Pet Lengths
+
+Demonstration of the bar graph view.
+
+Create some pets with rigorously measured lengths.
+
 ```
 commit
   [#pet name: "koala" length: 7]
@@ -8,6 +14,8 @@ commit
   [#pet name: "lemur" length: 5]
 ```
 
+Each pet is a single bar on our graph. The bar's label is the pet's name, it's height is the pet's length. The sort property tells the bar graph to draw the bar in alphabetical order based on the pets' names.
+
 ```
 search
   [#pet name length]
@@ -16,6 +24,8 @@ search
 bind @view
   [#bar-graph | bar: [label: name height: length sort: ix]]
 ```
+
+A team of scientists work tirelessly around the clock to keep the mysterious whargarbbl's length updated. Since each bar in the bar chart is bound above, the whargarbbl's bar will stay in sync.
 
 ```
 search
