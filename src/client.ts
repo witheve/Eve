@@ -324,8 +324,7 @@ export function sendEvent(records:any[]) {
 //---------------------------------------------------------
 
 function onHashChange(event) {
-  let hash = window.location.hash.substr(1);
-  if(hash[0] == "/") hash = hash.substr(1);
+  let hash = window.location.hash.substr(1).split("/#/").pop();
 
   if(hash) {
     let segments = hash.split("/").map(function(seg, ix) {
@@ -365,7 +364,7 @@ _ide.onLoadFile = (ide, documentId, code) => {
     socket.send(JSON.stringify({scope: "root", type: "parse", code}))
     socket.send(JSON.stringify({type: "eval", persist: false}));
   }
-  history.pushState({}, "", `/examples/${documentId}`);
+  history.pushState({}, "", `/#/examples/${documentId}`);
 }
 
 _ide.onTokenInfo = (ide, tokenId) => {
@@ -378,7 +377,14 @@ _ide.loadWorkspace("examples", window["examples"]);
 
 function initializeIDE() {
   if(socket.readyState == 1) {
-    _ide.loadFile(location.pathname.split("/").pop());
+    let path = location.hash.split("/#/")[0];
+    let docId = path.split("/").pop();
+    if(!docId) return;
+    try {
+      _ide.loadFile(docId);
+    } catch(err) {
+      _ide.injectNotice("info", "Unable to load unknown file: " + docId);
+    }
     _ide.render();
   } else {
     throw new Error("Cannot initialize until connected.");
