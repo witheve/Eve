@@ -1958,6 +1958,8 @@ export class IDE {
   documentId?:string;
   /** Whether the active document has been loaded. */
   loaded = false;
+  /** Whether the IDE is currently loading a new document. */
+  loading = false;
   /** The current editor generation. Used for imposing a relative ordering on parses. */
   generation = 0;
   /** Whether the currently open document is a modified version of an example. */
@@ -2039,7 +2041,7 @@ export class IDE {
   }, 1, true);
 
   loadFile(docId:string) {
-    if(this.documentId === docId) return;
+    if(this.loading || this.documentId === docId) return;
     let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
     let code = saves[docId];
     if(code) {
@@ -2053,6 +2055,7 @@ export class IDE {
     this.documentId = docId;
     this.editor.reset();
     this.notices = [];
+    this.loading = true;
     this.onLoadFile(this, docId, code);
   }
 
@@ -2068,6 +2071,7 @@ export class IDE {
     } else {
       this.editor.loadDocument(this.documentId, text, packed, attributes);
       this.loaded = true;
+      this.loading = false;
     }
 
     if(this.documentId) {
