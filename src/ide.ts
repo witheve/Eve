@@ -921,6 +921,8 @@ export class Editor {
           pieces.push("#");
         }
         pieces.push(" ");
+      } else if(type == "link" && !mark.start) {
+        pieces.push(`](${mark.source.destination})`);
       } else if(type === "emph") {
         pieces.push("*");
       } else if(type == "strong") {
@@ -928,11 +930,7 @@ export class Editor {
       } else if(type == "code") {
         pieces.push("`");
       } else if(type == "code_block" && mark.start) {
-        if ((mark.span as CodeBlockSpan).isDisabled()) {
-          pieces.push("```eve disabled\n");
-        } else {
-          pieces.push("```\n");
-        }
+        pieces.push("```" + (mark.source.info || "") + "\n");
 
       } else if(type == "code_block" && !mark.start) {
         // if the last character of the block is not a \n, we need to
@@ -948,8 +946,6 @@ export class Editor {
         pieces.push(`${mark.source.listData.start}. `);
       } else if(type == "link" && mark.start) {
         pieces.push("[");
-      } else if(type == "link" && !mark.start) {
-        pieces.push(`](${mark.source.destination})`);
       }
     }
 
@@ -2032,7 +2028,11 @@ export class IDE {
       this.saveDocument();
 
       if(shouldEval) {
-        this.eval(true);
+        if(this.documentId === "quickstart.eve") {
+          this.eval(false);
+        } else {
+          this.eval(true);
+        }
       }
     }
     this.render();
