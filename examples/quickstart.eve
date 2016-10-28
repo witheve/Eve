@@ -154,7 +154,7 @@ search
   calculated-age = if student.age then student.age
                    else if student.grade then student.grade + 5
 
-bind @browser
+bind
   student.age := calculated-age
 ```
 
@@ -169,7 +169,7 @@ search
   students = [#student]
   total-students = count[given: students]
 
-bind
+bind @browser
   [#div text: "{{total-students}} are in the school district"]
 ```
 
@@ -182,7 +182,7 @@ search
   students = [#student school]
   students-per-school = count[given: students, per: school]
 
-bind
+bind @browser
   [#div text: "{{students-per-school}} attend {{school}}"]
 ```
 
