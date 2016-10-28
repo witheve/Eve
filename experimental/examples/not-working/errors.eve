@@ -1,7 +1,0 @@
-a
-```
-  match ("wooohoo")
-    [#foo]
-  bind
-    [#zomg]
-```

@@ -1,6 +1,0 @@
-get people!
-```
-  match
-    [#person name age]
-    x = age * 10
-```

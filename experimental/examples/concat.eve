@@ -1,9 +1,0 @@
-test concat
-```
-  match
-    [#session-connect]
-    greeting = "Hello"
-    target = "World"
-  commit
-    [#div text: "{{greeting}}, {{target}}!"]
-```

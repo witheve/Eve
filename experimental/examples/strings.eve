@@ -1,8 +1,0 @@
-string tests even with multi-line
-query names
-```
-  match
-    [#person age]
-  bind
-    [#dude name: "cool {{age}} \"asdofij\" {{age}} asodijf"]
-```
