@@ -1,6 +1,9 @@
 # App Analytics
 
-### total number of users
+The `@view` database contains a number of handy canned visualizations that we can use. If they aren't inserted explicitly into the document, they'll attach themselves under the action that created them. We'll use a few of these views to keep track of our new application's pulse.
+
+
+### Total number of users
 
 ```
 search
@@ -10,7 +13,7 @@ bind @view
   [#value | value: users]
 ```
 
-### average messages per conversations
+### Average messages per conversations
 
 ```
 search
@@ -21,7 +24,7 @@ bind @view
   [#value | value: msgs-per-thread]
 ```
 
-### conversations per hour
+### Conversations per hour
 
 ```
 search
@@ -35,31 +38,28 @@ bind @view
   [#bar-graph | bar: [label: hour, height: c, sort: hour]]
 ```
 
-### messages per second
+### Messages per second
+
+Count all the messages that occurred in the last second and add them to a historical graph.
 
 ```
 search
   [#time timestamp]
-  messages = [#message time > timestamp - 1000]
-  message-count = count[given: messages]
+  message-count = if messages = [#message time > timestamp - 1000]
+                     message-count = count[given: messages]
+                  then message-count
+                  else 0
 
 bind @view
   [#value | value: message-count]
-  [#history | values: [timestamp | value: message-count]]
+  [#history #messages-per-second values: [timestamp | value: message-count]]
 ```
 
-```
-search
-  [#message-rate rate]
-  rate > 300
+# Mock data generation
 
-commit @slack
-  [#message 
-    to: "ops" 
-    message: "@everyone warning: message rate exceeded threshold: ({{rate}})"]
-```
+### Starting data
 
-To start, add a bunch of conversations and users
+First, create a bunch of random users and conversations.
 
 ```
 search
@@ -74,7 +74,7 @@ commit
   [#user #test-data r]
 ```
 
-Add messages to threads
+Next, prepopulate the threads with a set of initial messages.
 
 ```
 search
@@ -87,15 +87,17 @@ commit
   threads.messages += [#message i]
 ```
 
-Every second, add a random number of messages to a thread
+### Live data
+
+Every few seconds, add a random number of messages to a thread. All the math here is just fudge to make the pattern of messages more interesting.
 
 ```
 search
-  [#time time-string seconds timestamp frames]
-  thread = [#thread r: 1]
-  mod[value: seconds, by: 5] = 0
+  [#time minutes seconds timestamp frames]
+  mod[value: seconds, by: floor[value: random[seed: minutes * seconds] * 5 + 5]] = 0
+  thread = [#thread r: floor[value: random[seed: frames] * 100]]
   frames' = frames / 7
-  r = gaussian[seed: timestamp, σ: frames', μ: frames' * frames']
+  r = gaussian[seed: timestamp, σ: frames', μ: frames']
   r' = if r < 0 then 0 else r
   i = range[from: 0, to: r']
 
@@ -103,7 +105,7 @@ commit
   thread.messages += [#message i: "{{timestamp}}:{{i}}" time: timestamp]
 ```
 
-Every 5 seconds, add a random number of users
+Every few seconds, add a random number of users
 
 ```
 search
@@ -112,7 +114,7 @@ search
   max = 10
   r = random[seed: t.timestamp] * (max - min) + min
   i = range[from: 1 to: r]
-  mod[value: seconds, by: 5] = 0
+  mod[value: seconds, by: floor[value: random[seed: seconds] * 8 + 5]] = 0
 
 commit
   [#user #test-data i: "{{t.timestamp}}:{{i}}"]

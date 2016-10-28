@@ -42,6 +42,7 @@ luac.out
 lua_modules/
 
 *~
+dist/
 build/
 node_modules/
 

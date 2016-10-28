@@ -900,6 +900,11 @@ export class Editor {
       if(b.isBlock && !a.isBlock) return 1;
       if(a.isLine && !b.isLine) return -1;
       if(b.isLine && !a.isLine) return 1;
+      if(a.start && !b.start) return 1;
+      if(b.start && !a.start) return -1;
+      if(a.source.type === b.source.type) return 0;
+      else if(a.source.type === "link") return a.start ? 1 : -1;
+      else if(b.source.type === "link") return b.start ? -1 : 1;
       return 0;
     });
 
@@ -1697,7 +1702,6 @@ export class Editor {
     else if(this.ide.inspecting) inspectorButton.c += " inspecting";
 
     return {c: "flex-row controls", children: [
-      this.ide.modified ? {c: "ion-ios-skipbackward", click: () => this.ide.revertDocument()} : undefined,
       {c: "ion-refresh", click: () => this.ide.eval(false)},
       {c: "ion-ios-play", click: () => this.ide.eval(true)},
       inspectorButton
@@ -1958,6 +1962,8 @@ export class IDE {
   documentId?:string;
   /** Whether the active document has been loaded. */
   loaded = false;
+  /** Whether the IDE is currently loading a new document. */
+  loading = false;
   /** The current editor generation. Used for imposing a relative ordering on parses. */
   generation = 0;
   /** Whether the currently open document is a modified version of an example. */
@@ -2039,7 +2045,7 @@ export class IDE {
   }, 1, true);
 
   loadFile(docId:string) {
-    if(this.documentId === docId) return;
+    if(this.loading || this.documentId === docId) return;
     let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
     let code = saves[docId];
     if(code) {
@@ -2053,6 +2059,7 @@ export class IDE {
     this.documentId = docId;
     this.editor.reset();
     this.notices = [];
+    this.loading = true;
     this.onLoadFile(this, docId, code);
   }
 
@@ -2068,6 +2075,7 @@ export class IDE {
     } else {
       this.editor.loadDocument(this.documentId, text, packed, attributes);
       this.loaded = true;
+      this.loading = false;
     }
 
     if(this.documentId) {

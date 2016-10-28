@@ -5,6 +5,9 @@ import * as browser from "./runtime/browser";
 
 import {IndexScalar, IndexList, EAV, Record} from "./db"
 
+// @NOTE: Intrepid user: Please don't change this. It won't work just yet!
+window["local"] = true;
+
 //---------------------------------------------------------
 // Utilities
 //---------------------------------------------------------
@@ -133,24 +136,41 @@ function handleDiff(state, diff) {
 let prerendering = false;
 var frameRequested = false;
 
-export var socket;
-if(!global["local"]) {
-  // socket = new WebSocket("ws://" + window.location.host + window.location.pathname, "eve-json");
-  if(location.protocol.indexOf("https") > -1) {
-    socket = new WebSocket("wss://" + window.location.host +"/ws");
+
+function createSocket(local = false) {
+  socket;
+  if(!local) {
+    // socket = new WebSocket("ws://" + window.location.host + window.location.pathname, "eve-json");
+    if(location.protocol.indexOf("https") > -1) {
+      socket = new WebSocket("wss://" + window.location.host +"/ws");
+    } else {
+      socket = new WebSocket("ws://" + window.location.host +"/ws");
+    }
   } else {
-    socket = new WebSocket("ws://" + window.location.host +"/ws");
-  }
-} else {
-  socket = {
-    readyState: 1,
-    send: (json) => {
-      browser.responder.handleEvent(json);
+    socket = {
+      readyState: 1,
+      send: (json) => {
+        browser.responder.handleEvent(json);
+      }
     }
   }
-  browser.init("");
+  socket.onopen = onOpen;
+  socket.onclose = onClose;
+  socket.onmessage = onMessage;
+
+  if(local) {
+    browser.init("");
+  }
+
+  return socket;
 }
-socket.onmessage = function(msg) {
+
+// @FIXME: This is just so bad.
+// We'll create the socket at the end to kick off this whole ball of earwax and nail clippings.
+export var socket;
+
+
+function onMessage(msg) {
   let data = JSON.parse(msg.data);
   if(data.type == "result") {
     let state = {entities: indexes.records.index, dirty: indexes.dirty.index};
@@ -182,16 +202,8 @@ socket.onmessage = function(msg) {
       });
     }
   } else if(data.type == "initLocal") {
-    socket = {
-      readyState: 1,
-      send: (json) => {
-        browser.responder.handleEvent(json);
-      },
-      onmessage: socket.onmessage,
-      onopen: socket.onopen
-    }
+    socket = createSocket(true);
     browser.init("");
-    initializeIDE();
   } else if(data.type == "parse") {
     _ide.loadDocument(data.generation, data.text, data.spans, data.extraInfo); // @FIXME
   } else if(data.type == "comments") {
@@ -208,20 +220,21 @@ socket.onmessage = function(msg) {
     console.warn("UNKNOWN MESSAGE", data);
   }
 }
-socket.onopen = function() {
+
+function onOpen() {
   console.log("Connected to eve server!");
+  initializeIDE();
   socket.send(JSON.stringify({type: "init", url: location.pathname}))
   onHashChange({});
   setInterval(() => {
     socket.send("\"PING\"");
   }, 30000);
 }
-socket.onclose = function() {
+
+function onClose () {
   console.log("Disconnected from eve server!");
 }
-socket.onerror = function(err) {
-  console.log(err);
-}
+
 
 function renderOnChange(index, dirty) {
   renderRecords();
@@ -328,8 +341,7 @@ export function sendEvent(records:any[]) {
 
 function onHashChange(event) {
   if(_ide.loaded) changeDocument();
-
-  let hash = window.location.hash.substr(1).split("/#/").pop();
+  let hash = window.location.hash.split("#/")[2];
 
   if(hash) {
     let segments = hash.split("/").map(function(seg, ix) {
@@ -369,7 +381,7 @@ _ide.onLoadFile = (ide, documentId, code) => {
     socket.send(JSON.stringify({scope: "root", type: "parse", code}))
     socket.send(JSON.stringify({type: "eval", persist: false}));
   }
-  history.pushState({}, "", `/#/examples/${documentId}`);
+  history.pushState({}, "", location.pathname + `#/examples/${documentId}`);
 }
 
 _ide.onTokenInfo = (ide, tokenId) => {
@@ -386,8 +398,12 @@ function initializeIDE() {
 
 function changeDocument() {
   if(socket.readyState == 1) {
-    let path = location.hash.split("/#/")[0];
-    let docId = path.split("/").pop();
+    let docId = "quickstart.eve";
+    let path = location.hash.split("#/")[1];
+    if(path) {
+      if(path[path.length - 1] === "/") path = path.slice(0, -1);
+      docId = path.split("/").pop();
+    }
     if(!docId) return;
     if(docId === _ide.documentId) return;
     try {
@@ -419,3 +435,5 @@ window.document.body.addEventListener("drop", (e) => {
   e.preventDefault();
   e.stopPropagation();
 });
+
+createSocket(global["local"]);

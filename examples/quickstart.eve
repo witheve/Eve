@@ -7,7 +7,7 @@ bind @browser
 
 Hello world! At its core, Eve is a pattern matching language. You match patterns of data by searching a database, then update or create new data according to what you've found. In this example, we created a [record][records] that has two attributes: a tag attribute with the value `"div"`, and a text attribute with the value `"Hello, world"`. We [bound][bind] this record to the browser, which is how we displayed our venerable message.
 
-The three backticks ``` are called a code fence, and they allow us to denote blocks of code. This gives us the ability to embed Eve code in normal documents written in Markdown. This is how Eve programs are written: everything in a code fence is a [block][blocks] of Eve code, while everything outside is prose describing the program. In fact, this quick start tutorial is an example of an executable Eve program! In the subsequent blocks, you won't see any code fences, but they still exist in the [document's source][quickstart-source].
+The three backticks ``` are called a code fence, and they allow us to denote blocks of code. This gives us the ability to embed Eve code in normal documents written in Markdown. This is how Eve programs are written: everything in a code fence is a [block][blocks] of Eve code, while everything outside is prose describing the program. In fact, this quick start tutorial is an example of an executable Eve program! In the subsequent blocks, you won't see any code fences, but they still exist in the [document's source][quickstart-source]. You may have noticed the checkbox in the top right corner of the code block. In Eve, any block can be disabled in one click. As you work through the quickstart, enable each block you reach to follow along.
 
 So far we've created a record that displays "Hello, world!" but as I said, Eve is a pattern matching language. Let's explore that by searching for something:
 
@@ -16,23 +16,23 @@ search
   [name]
 
 bind @browser
-  [tag: "div", text: "Hello, world"]
+  [tag: "div", text: "Ciao, world"]
 ```
 
-Our message disappeared! Before, we bound without searching, so the message displayed by default. Now we're binding in the presence of a [search][search] action, so the bound record only exists if all the searched records are matched. Here, we're searching for all records with a `name` attribute, but we haven't added any records like that to Eve so none are matched. With no matching records, the `bind` cannot execute, and the message disappears from the screen.
+Our message never appeared! Before, we bound without searching, so the message displayed by default. Now we're binding in the presence of a [search][search] action, so the bound record only exists if all the searched records are matched. Here, we're searching for all records with a `name` attribute, but we haven't added any records like that to Eve; so none are matched. With no matching records, the `bind` cannot execute, and the message disappears from the screen.
 
 This is the flow of an Eve block: you search for records in a database, and if all the records you searched for are matched, you can modify the matched records or create new ones. If any part of your search is not matched, then no records will be created or updated.
 
-To get our message back, all we need is a record with a name attribute. We can create one permanently with the [commit][commit] action:
+To get our new message to show up, all we need is a record with a name attribute. We can create one permanently with the [commit][commit] action:
 
 ```eve disabled
 commit
   [name: "Celia"]
 ```
 
-Hello, world… again! Commit permanently updates or creates a record that will persist even if its matched records (the records matched in a search action) change. Since we aren't searching for anything in this block, the commit executes by default and adds a record with a name attribute of `"Celia"`. The addition of this new record satisfies the search in the previous block, so "Hello, world!" appears on the screen again.
+Hello, world… again! Commit permanently updates or creates a record that will persist even if its matched records (the records matched in a search action) change. Since we aren't searching for anything in this block, the commit executes by default and adds a record with a name attribute of `"Celia"`. The addition of this new record satisfies the search in the previous block, so "Ciao, world!" appears on the screen along with the first message.
 
-But what else can you do with matched records? For starters, we can use them to create new records:
+But what else can you do with matched records? For starters, we can use them to create more records:
 
 ```eve disabled
 search
@@ -42,7 +42,7 @@ bind @browser
   [#div, text: "Hello, {{name}}"]
 ```
 
-Since we matched on a record with a name attribute, we now have a reference to that name, and we can inject it into a string using [{{ ... }}][string-interpolation] embedding. We can also swap out `tag: "div"` for the sugared `#div`. [Tags][tags] are used a lot in Eve to talk about collections of related records. For example, we could search for all records with a `#student` tag, with name, grade, and school attributes.
+Since we matched on a record with a name attribute, we now have a reference to that name, and we can inject it into a string using [{{ ... }}][string-interpolation] embedding. Since tags are used so commonly in Eve, we can swap out `tag: "div"` for its syntax-sugared form `#div`. [Tags][tags] are often used to talk about groups of related records. For example, we could search for all records with a `#student` tag, with name, grade, and school attributes.
 
 ```eve disabled
 search
@@ -52,7 +52,7 @@ bind @browser
   [#div text: "{{name}} is a {{grade}}th grade student at {{school}}."]
 ```
 
-Since we're matching on more attributes, this block is no longer satisfied by the record we added earlier; we're missing a `#student` tag, as well as grade and school attributes. Even though these are currently missing, we can still write the code that would display them.
+Since we're matching on more attributes, this block is no longer satisfied by the record we added earlier. We're missing a `#student` tag, as well as grade and school attributes. Even though these are currently missing, we can still write the code that would display them as if they existed.
 
 Let's display this new message by adding the missing attributes to Celia. We could add them to the block where we comitted Celia originally, but we can also do it programatically:
 
@@ -66,7 +66,7 @@ bind
 
 You can define variables within blocks, which act as handles on records that allow you to change them. In this case, we're using the [merge operator][merge] `<-` to combine two records. With the addition of this block, the sentence "Celia is a 10th grade student at East." appears in the browser.
 
-Celia is cool and all, but let's add some more students to our database:
+Celia is cool and all, but let's add a few more students to our database:
 
 ```eve disabled
 commit
@@ -154,7 +154,7 @@ search
   calculated-age = if student.age then student.age
                    else if student.grade then student.grade + 5
 
-bind @browser
+bind
   student.age := calculated-age
 ```
 
@@ -169,7 +169,7 @@ search
   students = [#student]
   total-students = count[given: students]
 
-bind
+bind @browser
   [#div text: "{{total-students}} are in the school district"]
 ```
 
@@ -182,7 +182,7 @@ search
   students = [#student school]
   students-per-school = count[given: students, per: school]
 
-bind
+bind @browser
   [#div text: "{{students-per-school}} attend {{school}}"]
 ```
 
@@ -260,7 +260,7 @@ We also invite you to join the Eve community! There are several ways to get invo
 [commit]: https://witheve.github.io/docs/handbook/commit/
 [string-interpolation]: https://witheve.github.io/docs/handbook/string-interpolation/
 [joins]: https://witheve.github.io/docs/handbook/joins/
-[quickstart-source]: https://raw.githubusercontent.com/witheve/docs/src/guides/quickstart.md
+[quickstart-source]: https://github.com/witheve/Eve/blob/ts-merge/examples/quickstart.eve
 [tags]: https://witheve.github.io/docs/handbook/tags/
 [merge]: https://witheve.github.io/docs/handbook/merge/
 [sets]: https://witheve.github.io/docs/handbook/sets/

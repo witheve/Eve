@@ -1042,8 +1042,6 @@ class LinkSpan extends InlineSpan {
   bookmark:CodeMirror.TextMarker;
 
   apply(from:Position, to:Position, origin = "+input") {
-    console.log(this.source);
-
     if(this.bookmark) this.bookmark.clear();
 
     this.linkWidget = document.createElement("a");

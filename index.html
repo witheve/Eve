@@ -1,9 +1,9 @@
 <html>
   <head>
     <title>Eve</title>
-    <link rel="stylesheet" type="text/css" href="/src/codemirror.css">
-    <link rel="stylesheet" type="text/css" href="/src/simplescrollbars.css">
-    <link rel="stylesheet" type="text/css" href="http://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css">
+    <link rel="stylesheet" type="text/css" href="src/codemirror.css">
+    <link rel="stylesheet" type="text/css" href="src/simplescrollbars.css">
+    <link rel="stylesheet" type="text/css" href="https://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css">
     <style>
       * { box-sizing:border-box; }
       body { background: rgb(47,47,49); color: #d8d8d8; font-family: Avenir, "Helvetica neue", sans-serif; display: flex; flex-direction: row; margin:0; width: 100%; }
@@ -15,23 +15,23 @@
 
     </style>
 
-    <link rel="stylesheet" type="text/css" href="/css/ide.css">
+    <link rel="stylesheet" type="text/css" href="css/ide.css">
     <link href="https://witheve.github.io/assets/images/favicon.png" rel="icon" type="image/png" />
   </head>
   <body>
-    <script type="text/javascript" src="/build/examples.js"></script>
-    <script type="text/javascript" src="/build/src/uuid.js"></script>
-    <script type="text/javascript" src="/build/src/codemirror.js"></script>
-    <script type="text/javascript" src="/build/src/simplescrollbars.js"></script>
-    <script type="text/javascript" src="/build/src/annotatescrollbar.js"></script>
-    <script type="text/javascript" src="/build/src/commonmark.js"></script>
-    <script type="text/javascript" src="/build/src/microReact.js"></script>
-    <script type="text/javascript" src="/build/src/system.js"></script>
+    <script type="text/javascript" src="build/examples.js"></script>
+    <script type="text/javascript" src="build/src/uuid.js"></script>
+    <script type="text/javascript" src="build/src/codemirror.js"></script>
+    <script type="text/javascript" src="build/src/simplescrollbars.js"></script>
+    <script type="text/javascript" src="build/src/annotatescrollbar.js"></script>
+    <script type="text/javascript" src="build/src/commonmark.js"></script>
+    <script type="text/javascript" src="build/src/microReact.js"></script>
+    <script type="text/javascript" src="build/src/system.js"></script>
     <script>
       SystemJS.config({
-        baseURL: "/build/src",
+        baseURL: "build/src",
         defaultJSExtensions: true,
-        meta: {"/build/src/codemirror.js": { format: "cjs" }}
+        meta: {"build/src/codemirror.js": { format: "cjs" }}
       });
 
       // Kicks off requiring everyone else

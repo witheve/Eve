@@ -1,9 +1,0 @@
-
-Awesome memory dude
-
-```
-  search
-    [#memory rss]
-  bind @browser
-    [#div text: "Current memory: {{rss}}"]
-```
