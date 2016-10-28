@@ -602,7 +602,7 @@ class ElisionSpan extends BlockSpan {
   }
 }
 
-interface CodeBlockSpanSource extends SpanSource { disabled?: boolean }
+interface CodeBlockSpanSource extends SpanSource { disabled?: boolean, info?: string }
 export class CodeBlockSpan extends BlockSpan {
   source: CodeBlockSpanSource;
   protected disabled:boolean;
@@ -649,6 +649,7 @@ export class CodeBlockSpan extends BlockSpan {
 
   disable() {
     if(!this.disabled) {
+      this.source.info = "eve disabled";
       // @FIXME: We don't currently style this because of a bug in updateLineClasses.
       // It's unable to intelligently remove unsupported classes, so we'd have to manually clear line classes.
       // We can come back to this later if we care.
@@ -664,6 +665,7 @@ export class CodeBlockSpan extends BlockSpan {
 
   enable() {
     if(this.disabled) {
+      this.source.info = "eve";
       this.disabled = false;
       this.refresh();
 
@@ -1032,6 +1034,16 @@ class BadgeSpan extends ParserSpan {
   }
 }
 
+interface LinkSpanSource extends SpanSource {}
+class LinkSpan extends InlineSpan {
+  source:LinkSpanSource
+
+  apply(from:Position, to:Position, origin = "+input") {
+    console.log(this.source);
+    super.apply(from, to, origin);
+  }
+}
+
 //---------------------------------------------------------
 // Span Types
 //---------------------------------------------------------
@@ -1045,6 +1057,7 @@ export var spanTypes = {
   strong: InlineSpan,
   emph: InlineSpan,
   code: InlineSpan,
+  link: LinkSpan,
 
   heading: HeadingSpan,
   item: ListItemSpan,
