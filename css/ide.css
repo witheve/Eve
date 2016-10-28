@@ -134,7 +134,7 @@ button { font-family: "Avenir", "Helvetica neue", sans-serif; }
 .CodeMirror .HEADING4 { font-size:12pt;}
 
 .CodeMirror .link { color: #0079d3; }
-.CodeMirror .link-widget { margin: 0 5px; }
+.CodeMirror .link-widget { margin-right: 8px; }
 
 /* Syntax Styles */
 
