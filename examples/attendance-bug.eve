@@ -1,6 +1,8 @@
-# Inspector Student Attendance Bug
+# Attendance Bug
 
-This example tests the inspector's ability to find a bad join somewhere up the chain.
+This is a simple webapp with an equally simple issue: When navigated to the "attendance" page, nothing shows up! It provides a playground for using the inspector (the magic wand button in the top right of the editor). By clicking the inspect button and then anything in the IDE, Eve will tell you what it knows about your target. From there, it works with you to understand both what was intended and what's actually happening. The inspector is still in its infancy, so the UX is pretty rough. Any and all feedback is welcome on the [mailing list](https://groups.google.com/forum/#!forum/eve-talk).
+
+### Setup
 
 Create some students, teachers, syllabi, and schools.
 
@@ -22,9 +24,9 @@ commit
   [#app page: "grades" user]
 ```
 
-## Events
+### Events
 
-When a nav button is clicked, update the app's page
+When a `#nav` button is clicked, update the app's current page.
 
 ```
 search @event
@@ -37,9 +39,9 @@ commit
   app.page := page
 ```
 
-## Drawing
+### Drawing
 
-Draw the application root
+Draw the page template. The specific page will be drawn into `#content` later on.
 
 ```
 search
@@ -54,7 +56,9 @@ bind @browser
     [#div #content app style: [min-height: 500] sort: 2]]
 ```
 
-When the page is "grades", show the student's grades for the current teacher
+### Pages
+
+When the page is "grades", show the student's grades for the current teacher.
 
 ```
 search
@@ -72,7 +76,7 @@ bind @browser
 
 ```
 
-When the page is "syllabus", show the syllabus for the current teacher's class
+When the page is "syllabus", show the syllabus for the current teacher's class.
 
 ```
 search
@@ -88,7 +92,7 @@ bind @browser
     [#div text: assignment]]
 ```
 
-When the page is "attendance", show each student's number of absences
+When the page is "attendance", show each student's number of absences.
 
 ```
 search
