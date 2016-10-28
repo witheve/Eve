@@ -84,6 +84,6 @@ if(require.main === module) {
   console.log("Building...")
   build(() => {
     console.log("done.")
-    console.log("To run eve, type `npm run`");
+    console.log("To run eve, type `npm start`");
   });
 }
