@@ -242,7 +242,7 @@ table.view td { padding: 0 5px; border: 1px solid #ccc; border-top: none; border
 .view.kv-table .kv-values { border-left: 1px solid #202020; }
 
 .view.bar-graph { position: relative; display: flex; flex-direction: row; align-items: flex-end; }
-.view.bar-graph .bar-graph-bar { display: flex; align-items: flex-end; margin:10px 0; justify-content: center; background: #6ed2c1; margin-right: 2px; transition: 0.3s width, 0.3s height; }
+.view.bar-graph .bar-graph-bar { display: flex; align-items: flex-end; margin:10px 0; justify-content: center; min-height: 1px; background: #6ed2c1; margin-right: 2px; transition: 0.3s width, 0.3s height; }
 
 /****************************************************************************\
  * Inspector
