@@ -398,11 +398,12 @@ function initializeIDE() {
 
 function changeDocument() {
   if(socket.readyState == 1) {
+    let docId = "quickstart.eve";
     let path = location.hash.split("#/")[1];
-    if(!path) return;
-
-    if(path[path.length - 1] === "/") path = path.slice(0, -1);
-    let docId = path.split("/").pop();
+    if(path) {
+      if(path[path.length - 1] === "/") path = path.slice(0, -1);
+      docId = path.split("/").pop();
+    }
     if(!docId) return;
     if(docId === _ide.documentId) return;
     try {
