@@ -124,10 +124,12 @@ button { font-family: "Avenir", "Helvetica neue", sans-serif; }
 .CodeMirror .CODE-TOP { border-radius:3px 3px 0 0; padding-top:8px; }
 .CodeMirror .CODE-BOTTOM { border-radius:0 0 3px 3px; padding-bottom:8px; }
 
-.CodeMirror .code-controls-widget { cursor:pointer; float: right; margin-right: 50px; padding: 5px 10px; padding-bottom: 0; font-size: 1.2rem; opacity: 0.2; transition: opacity 0.3s; }
+.CodeMirror .CodeMirror-linewidget { overflow: visible; z-index: 3; }
+.CodeMirror .code-controls-widget { display: flex; flex-direction: row; justify-content: flex-end; margin-right: 50px; padding: 5px 10px; padding-bottom: 0; height: 15px; font-size: 1.2rem; opacity: 0.2; transition: opacity 0.3s; }
+.CodeMirror .code-controls-widget > * { cursor:pointer; }
 .CodeMirror .CodeMirror-linewidget:hover .code-controls-widget { opacity: 1; }
 
-.CodeMirror .code-footer-widget { height: 24px; }
+.CodeMirror .code-footer-widget { height: 15px; }
 
 .CodeMirror .DOC { color: #d8d8d8; }
 .CodeMirror .HEADING1 { font-size:30px; padding-top:20px; padding-bottom: 30px;}
