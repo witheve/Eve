@@ -5,6 +5,14 @@ import * as browser from "./runtime/browser";
 
 import {IndexScalar, IndexList, EAV, Record} from "./db"
 
+
+function analyticsEvent(kind: string, label?: string, value?: number) {
+  let ga = window["ga"];
+  if(!ga) return;
+
+  ga("send", "event", "ide", kind, label, value);
+}
+
 // @NOTE: Intrepid user: Please don't change this. It won't work just yet!
 window["local"] = true;
 
@@ -382,6 +390,7 @@ _ide.onLoadFile = (ide, documentId, code) => {
     socket.send(JSON.stringify({type: "eval", persist: false}));
   }
   history.pushState({}, "", location.pathname + `#/examples/${documentId}`);
+  analyticsEvent("load-document", documentId);
 }
 
 _ide.onTokenInfo = (ide, tokenId) => {
