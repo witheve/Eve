@@ -4,36 +4,36 @@
 
 For every variable there is a group
 
-...
+```
 search
   variable = [#variable]
   number = random[seed: variable]
 commit
   [#group number variable]
-...
+```
 
-...
+```
 search
   variable = [#variable not(group)]
   group = [#group variable]
 commit
   variable.group := group
-...
+```
 
 Handle a constant equivalence
 
-...
+```
 search
   eq = [#equality]
   (a, b) = if eq.a.tag, not(eq.b.tag) then (eq.a, eq.b)
             else if eq.b.tag, not(eq.a.tag) then (eq.b, eq.a)
 bind
   a.constant += b
-...
+```
 
 Handle variable equivalence
 
-...
+```
 search
   [#equality a b]
   a.group != b.group
@@ -46,73 +46,73 @@ search
   var = [#variable group: old]
 commit
   var.group := new
-...
+```
 
 ## associate record-tags to both actions and scans
 
 Any scan attached to a pattern that is looking for our record-tag is
 related to that tag.
 
-~~~
+```
 search
   [#query record-tag]
   [#scan entity: [register] attribute: "tag" value: record-tag block]
   scan = [#scan entity: [register] block]
 bind
   scan.record-tag += record-tag
-~~~
+```
 
 Any action attached to a pattern that is looking for our record-tag is
 related to that tag.
 
-~~~
+```
 search
   [#query record-tag]
   [#action entity: [register] attribute: "tag" value: record-tag block]
   action = [#action entity: [register] block]
 bind
   action.record-tag += record-tag
-~~~
+```
 
 
 Actions that are adding to an entity with our record tag, are also for the
 same record-tag.
 
-~~~
+```
 search
   [#query record-tag]
   [#scan entity: [register] record-tag block]
   action = [#action entity: [register] block]
 bind
   action.record-tag += record-tag
-~~~
+```
 
 The inverse is true as well, if an action is for our record tag and the entity
 is used in a scan, then that scan is for this tag.
 
-~~~
+```
 search
   [#query record-tag]
   [#action entity: [register] record-tag block]
   scan = [#scan entity: [register] block]
 bind
   scan.record-tag += record-tag
-~~~
+```
 
 ## tag equivalence
 
-~~~
+```
   search
     attribute = "tag"
     [#scan block entity: [register] attribute value: tag]
     [#action block entity: [register] attribute value: tag2]
   bind
     [#tag-equivalence tag tag2]
-~~~
+```
 
 ## unprovided scans
 
-...
+```
   search
     scan = [#scan record-tag attribute]
     not( action = [#action record-tag attribute]
@@ -121,9 +121,9 @@ bind
                 else if action.value = [#variable] then true )
   bind
     scan += #unprovided
-...
+```
 
-...
+```
   search
     scan = [#scan #analyzer/any attribute]
     not( action = [#action attribute]
@@ -132,39 +132,39 @@ bind
                 else if action.value = [#variable] then true )
   bind
     scan += #unprovided
-...
+```
 
-...
+```
 search
   scan = [#scan #unprovided start stop record-tag attribute block]
 bind @editor
   [#comment scan | block start stop message: "{{attribute}} is never added to {{record-tag}} records, so this will always be empty"]
-...
+```
 
 # token query
 
 ## query links
 
-~~~
+```
 search
   query = [#query token]
   [#link a: to b: token]
 bind
   [#query-link token to distance: 1]
-~~~
+```
 
-~~~
+```
 search
   query = [#query token]
   link = [#query-link token distance]
   [#link a: to b: link.to]
 bind
   [#query-link token to distance: distance + 1]
-~~~
+```
 
 ## token -> variable
 
-~~~
+```
 search
   query = [#query token]
   [#link a: to b: token]
@@ -172,21 +172,21 @@ search
   token.block = block
 bind
   query.register += [token variable: to register block name: to.name]
-~~~
+```
 
 We can also associate what attribute that variable is writing to if there is one
 
-~~~
+```
 search
   query = [#query register]
   action = [#action attribute value: register.variable]
 bind
   register.attribute += attribute
-~~~
+```
 
 ## token -> scan
 
-~~~
+```
 search
   query = [#query token]
   [#query-link token to]
@@ -194,9 +194,9 @@ search
   start <= token.start <= stop
 bind
   query.scan += to
-~~~
+```
 
-~~~
+```
 search
   [#query token scan: [#scan record-tag attribute value]]
   provider = [#action record-tag attribute start stop]
@@ -204,18 +204,18 @@ bind @editor
   [#comment provider | start stop kind: "warning" message: "this is providing it" ]
 bind @browser
   [#div text: "provided by: {{provider}}"]
-~~~
+```
 
-~~~
+```
 search
   [#query token scan: [#scan record-tag attribute]]
 bind @browser
   [#div text: "{{token}} scans #{{record-tag}} {{attribute}}"]
-~~~
+```
 
 ## token -> action
 
-~~~
+```
 search
   query = [#query token]
   [#query-link token to]
@@ -223,9 +223,9 @@ search
   start <= token.start <= stop
 bind
   query.action += to
-~~~
+```
 
-~~~
+```
 search
   [#query token action: [#action record-tag attribute]]
   consumer = [#scan record-tag attribute start stop]
@@ -233,18 +233,18 @@ bind @editor
   [#comment consumer | start stop kind: "warning" message: "This is consuming" ]
 bind @browser
   [#div text: "consumed by: {{consumer}}"]
-~~~
+```
 
-~~~
+```
 search
   [#query token action: [#action record-tag attribute]]
 bind @browser
   [#div text: "{{token}} actions #{{record-tag}} {{attribute}}"]
-~~~
+```
 
 ## token -> record
 
-~~~
+```
 search
   query = [#query]
   entity = if query.scan then query.scan.entity
@@ -252,14 +252,14 @@ search
   record = [#record entity start stop]
 bind
   query <- [entity entity-register: entity.register]
-~~~
+```
 
 
 ## find variables related to a span
 
 Determine the kind of span we're looking for
 
-~~~
+```
 search
   query = [#findRelated for: "span" span]
   kind = if span = [#action] then "action"
@@ -267,12 +267,12 @@ search
          else if span = [#record kind] then kind
 bind
   query.kind := kind
-~~~
+```
 
 If the span is an action, we need to find the variables related to both the
 value and the entity
 
-~~~
+```
 search
   query = [#findRelated for: "span" span kind]
   span = [tag: kind entity value]
@@ -281,11 +281,11 @@ search
   [#link a: variable b: token]
 bind
   query.variable += token
-~~~
+```
 
 If the span is a record, we need to find all the actions directly related to it
 
-~~~
+```
 search
   query = [#findRelated for: "span" span]
   span = [#record entity start stop kind]
@@ -298,37 +298,37 @@ search
 bind
   query.variable += entity-token
   query.variable += token
-~~~
+```
 
 if one of the variables we found is the entity for another scan/action, then we need
 to add him to the list of things we want to find relateds for
 
-~~~
+```
 search
   query = [#findRelated for: "span" kind variable]
   [#link a: entity b: variable]
   span = [tag: kind entity]
 bind
   query.span += span
-~~~
+```
 
 ## findValue
 
-~~~
+```
 search
   query = [#findValue]
-~~~
+```
 
 ## findCardinality
 
-~~~
+```
 search
   query = [#findCardinality]
-~~~
+```
 
 ## find spans related to a variable
 
-~~~
+```
 search
   query = [#findRelated for: "variable" variable: token]
   [#link a: variable b: token]
@@ -336,64 +336,64 @@ search
          if span.value = variable then span
 bind
   query.span += span
-~~~
+```
 
 ## recordId ->  build-node
 
-~~~
+```
 search
   query = [#findSource recordId not(attribute)]
 search @evaluation-session @evaluation-browser
   recordId = [tag]
 bind
   query.cool += tag
-~~~
+```
 
 Find out what nodes contribute to a record
 
-~~~
+```
 search
   query = [#findSource recordId not(attribute)]
 search @evaluation-session @evaluation-browser
   lookup[record: recordId, attribute, value, node]
 bind
   query.node += node
-~~~
+```
 
 Find out what nodes contribute to a specific attribute on a record
 
-~~~
+```
 search
   query = [#findSource recordId attribute]
 search @evaluation-session @evaluation-browser
   lookup[record: recordId, attribute, value, node]
 bind
   query.node += node
-~~~
+```
 
 We may also want to lookup what node created a complete eav
 
-~~~
+```
 search
   query = [#findSource recordId attribute value]
 search @evaluation-session @evaluation-browser
   lookup[record: recordId, attribute, value, node]
 bind
   query.node += node
-~~~
+```
 
 ## scan to block
 
-~~~
+```
 search
   query = [#findSource span: [block]]
 bind
   query.block += block
-~~~
+```
 
 ## nodeId -> creator (aka findSource)
 
-~~~
+```
 search
   query = [#findSource node]
   action = [#action entity build-node: node block]
@@ -402,41 +402,41 @@ search
          else action
 bind
   query.source += [span block start: span.start, stop: span.stop]
-~~~
+```
 
 ## build-node to creator
 
-~~~
+```
 search
   query = [#query build-node]
   [#action entity build-node]
   record = [#record entity]
 commit
   query.pattern := record
-~~~
+```
 
 ## findRecordsFromToken
 
 Add the #query tag so that we find all the scans/actions related to the given
 token
 
-~~~
+```
 search
   query = [#findRecordsFromToken]
 commit
   query += #query
-~~~
+```
 
-~~~
+```
 search
   query = [#findRecordsFromToken token]
   [#query-link token to]
   to = [#action build-node]
 commit
   query.build-node += build-node
-~~~
+```
 
-~~~
+```
 search
   query = [#findRecordsFromToken token]
   [#query-link token to]
@@ -445,13 +445,13 @@ search @evaluation-session @evaluation-browser
   lookup[node: build-node, record]
 commit
   query.record += record
-~~~
+```
 
 ## findAffector
 
 Store what record-tag we need to compute providers and consumers for
 
-~~~
+```
 search
   query = [#findAffector recordId]
 search @evaluation-session @evaluation-browser
@@ -459,11 +459,11 @@ search @evaluation-session @evaluation-browser
 bind
   query += #query
   query.record-tag += tag
-~~~
+```
 
 Find affectors based on what providers and consumers exist
 
-~~~
+```
 search
   query = [#findAffector recordId attribute record-tag]
   scan = [#scan entity: [register] record-tag block]
@@ -474,9 +474,9 @@ search
           else action
 bind
   query.affector := [action: final, block]
-~~~
+```
 
-~~~
+```
 search
   query = [#findAffector recordId attribute]
   //scan = [#scan entity: [register] record-tag: tag block]
@@ -485,12 +485,12 @@ search @evaluation-session @evaluation-browser
   recordId = [tag]
 bind @browser
   //[#div text: "yo {{tag}}"]
-~~~
+```
 
 
 ## findRootDrawers
 
-~~~
+```
 search
   query = [#findRootDrawers]
   action = [#action block entity: [register] scopes: "browser"]
@@ -502,21 +502,21 @@ search
           else action
 commit
   query.drawer += [id: final start: final.start stop: final.stop]
-~~~
+```
 
 
 ## findMaybeDrawers
 
-~~~
+```
 commit
   [#drawing-tag tag: "div"]
   [#drawing-tag tag: "span"]
   [#drawing-tag tag: "img"]
   [#drawing-tag tag: "input"]
   [#drawing-tag tag: "button"]
-~~~
+```
 
-~~~
+```
 search
   query = [#findMaybeDrawers]
   [#drawing-tag tag: drawing-tag]
@@ -528,5 +528,5 @@ search
           else action
 commit
   query.drawer += [id: final start: final.start stop: final.stop ]
-~~~
+```
 
