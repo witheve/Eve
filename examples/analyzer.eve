@@ -112,7 +112,7 @@ bind
 
 ## unprovided scans
 
-...
+~~~ eve disabled
   search
     scan = [#scan record-tag attribute]
     not( action = [#action record-tag attribute]
@@ -121,9 +121,9 @@ bind
                 else if action.value = [#variable] then true )
   bind
     scan += #unprovided
-...
+~~~
 
-...
+~~~ eve disabled
   search
     scan = [#scan #analyzer/any attribute]
     not( action = [#action attribute]
@@ -132,14 +132,14 @@ bind
                 else if action.value = [#variable] then true )
   bind
     scan += #unprovided
-...
+~~~
 
-...
+~~~ eve disabled
 search
   scan = [#scan #unprovided start stop record-tag attribute block]
 bind @editor
   [#comment scan | block start stop message: "{{attribute}} is never added to {{record-tag}} records, so this will always be empty"]
-...
+~~~
 
 # token query
 
