@@ -4,36 +4,36 @@
 
 For every variable there is a group
 
-...
+~~~eve disabled
 search
   variable = [#variable]
   number = random[seed: variable]
 commit
   [#group number variable]
-...
+~~~
 
-...
+~~~eve disabled
 search
   variable = [#variable not(group)]
   group = [#group variable]
 commit
   variable.group := group
-...
+~~~
 
 Handle a constant equivalence
 
-...
+~~~eve disabled
 search
   eq = [#equality]
   (a, b) = if eq.a.tag, not(eq.b.tag) then (eq.a, eq.b)
             else if eq.b.tag, not(eq.a.tag) then (eq.b, eq.a)
 bind
   a.constant += b
-...
+~~~
 
 Handle variable equivalence
 
-...
+~~~eve disabled
 search
   [#equality a b]
   a.group != b.group
@@ -46,7 +46,7 @@ search
   var = [#variable group: old]
 commit
   var.group := new
-...
+~~~
 
 ## associate record-tags to both actions and scans
 
