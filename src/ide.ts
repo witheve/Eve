@@ -1697,13 +1697,13 @@ export class Editor {
 
   // @NOTE: Does this belong in the IDE?
   controls() {
-    let inspectorButton:Elem = {c: "inspector-button ion-wand", text: "", click: () => this.ide.toggleInspecting()};
+    let inspectorButton:Elem = {c: "inspector-button ion-wand", text: "", title: "Inspect", click: () => this.ide.toggleInspecting()};
     if(this.ide.inspectingClick) inspectorButton.c += " waiting";
     else if(this.ide.inspecting) inspectorButton.c += " inspecting";
 
     return {c: "flex-row controls", children: [
-      {c: "ion-refresh", click: () => this.ide.eval(false)},
-      {c: "ion-ios-play", click: () => this.ide.eval(true)},
+      {c: "ion-refresh", title: "Reset (⌃⇧⏎ or ⇧⌘⏎ )", click: () => this.ide.eval(false)},
+      {c: "ion-ios-play", title: "Run (⌃⏎ or ⌘⏎)", click: () => this.ide.eval(true)},
       inspectorButton
     ]};
   }
