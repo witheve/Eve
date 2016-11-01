@@ -31,15 +31,15 @@ export class ServerDatabase extends Database {
     let requestId = `request|${this.requestId++}|${(new Date()).getTime()}`
     this.requestToResponse[requestId] = response;
     let actions = [
-      new InsertAction(requestId, "tag", "request", undefined, scopes),
-      new InsertAction(requestId, "url", request.url, undefined, scopes),
+      new InsertAction("server|tag", requestId, "tag", "request", undefined, scopes),
+      new InsertAction("server|url", requestId, "url", request.url, undefined, scopes),
     ];
     if(request.headers) {
       let headerId = `${requestId}|body`;
       for(let key of Object.keys(request.headers)) {
-        actions.push(new InsertAction(headerId, key, request.headers[key], undefined, scopes));
+        actions.push(new InsertAction("server|header", headerId, key, request.headers[key], undefined, scopes));
       }
-      actions.push(new InsertAction(requestId, "headers", headerId, undefined, scopes))
+      actions.push(new InsertAction("server|headers", requestId, "headers", headerId, undefined, scopes))
     }
     if(request.body) {
       let body = request.body;
@@ -48,11 +48,11 @@ export class ServerDatabase extends Database {
       } else {
         let bodyId = `${requestId}|body`;
         for(let key of Object.keys(body)) {
-          actions.push(new InsertAction(bodyId, key, body[key], undefined, scopes));
+          actions.push(new InsertAction("server|request-body-entry", bodyId, key, body[key], undefined, scopes));
         }
         body = bodyId;
       }
-      actions.push(new InsertAction(requestId, "body", body, undefined, scopes))
+      actions.push(new InsertAction("server|request-body", requestId, "body", body, undefined, scopes))
     }
     let evaluation = this.evaluations[0];
     evaluation.executeActions(actions);
@@ -93,7 +93,7 @@ export class ServerDatabase extends Database {
           if(responses === undefined) continue;
           let [response] = responses;
           let {status, body} = index.asObject(response);
-          actions.push(new InsertAction(e, "tag", "sent", undefined, [name]));
+          actions.push(new InsertAction("server|sender", e, "tag", "sent", undefined, [name]));
           this.sendResponse(e, status[0], body[0]);
         }
       }
