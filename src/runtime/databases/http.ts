@@ -63,7 +63,7 @@ export class HttpDatabase extends Database {
         if(index.lookup(e,"tag", "request") && !index.lookup(e, "tag", "sent")) {
           let request = index.asObject(e);
           if(request.url) {
-            actions.push(new InsertAction(e, "tag", "sent", undefined, [name]));
+            actions.push(new InsertAction("http|sender", e, "tag", "sent", undefined, [name]));
             this.sendRequest(evaluation, e, request);
           }
         }
