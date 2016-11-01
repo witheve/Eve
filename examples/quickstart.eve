@@ -220,15 +220,18 @@ Remember, everything in Eve is a record, so the `#click` event is no different. 
 This record exists only for an instant, but we can react to it by searching for `[#click element: [#submit]]`. This record represents a `#click` on our `#submit` button. Then, all we need to do is capture the values of the input boxes and save them as a `#student` record:
 
 ```eve disabled
-search @event @browser
+search @browser @event
   [#click element: [#submit]]
   name = [#name-input]
   grade = [#grade-input]
   school = [#school-input]
+  grade-number = convert[value: grade.value to: "number"]
 
 commit
   // save the new student
-  [#student name: name.value, grade: grade.value, school: school.value]
+  [#student name: name.value, grade: grade-number, school: school.value]
+
+commit @browser
   // reset the form
   name.value := ""
   grade.value := ""
