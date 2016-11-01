@@ -7,7 +7,7 @@ bind @browser
 
 Hello world! At its core, Eve is a pattern matching language. You match patterns of data by searching a database, then update or create new data according to what you've found. In this example, we created a [record][records] that has two attributes: a tag attribute with the value `"div"`, and a text attribute with the value `"Hello, world"`. We [bound][bind] this record to the browser, which is how we displayed our venerable message.
 
-The three backticks ``` are called a code fence, and they allow us to denote blocks of code. This gives us the ability to embed Eve code in normal documents written in Markdown. This is how Eve programs are written: everything in a code fence is a [block][blocks] of Eve code, while everything outside is prose describing the program. In fact, this quick start tutorial is an example of an executable Eve program! In the subsequent blocks, you won't see any code fences, but they still exist in the [document's source][quickstart-source]. You may have noticed the checkbox in the top right corner of the code block. In Eve, any block can be disabled in one click. As you work through the quickstart, enable each block you reach to follow along.
+Eve code is fenced off in blocks, which can be written in any order and embedded in Markdown documents. This is how Eve programs are written: everything in a code fence is a [block][blocks] of Eve code, while everything outside is prose describing the program. In fact, this quick start tutorial is an example of an executable Eve program! In the subsequent blocks, you won't see any code fences, but they still exist in the [document's source][quickstart-source]. You may have noticed the checkbox in the top right corner of the code block. In Eve, any block can be disabled in one click. As you work through the quickstart, enable each block you reach to follow along.
 
 So far we've created a record that displays "Hello, world!" but as I said, Eve is a pattern matching language. Let's explore that by searching for something:
 
@@ -220,7 +220,7 @@ Remember, everything in Eve is a record, so the `#click` event is no different. 
 This record exists only for an instant, but we can react to it by searching for `[#click element: [#submit]]`. This record represents a `#click` on our `#submit` button. Then, all we need to do is capture the values of the input boxes and save them as a `#student` record:
 
 ```eve disabled
-search
+search @event @browser
   [#click element: [#submit]]
   name = [#name-input]
   grade = [#grade-input]

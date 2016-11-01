@@ -157,6 +157,8 @@ var Renderer = (function () {
                 div.textContent = cur.text === undefined ? "" : cur.text;
             if (cur.tabindex !== prev.tabindex)
                 div.setAttribute("tabindex", cur.tabindex);
+            if (cur.title !== prev.title)
+                div.setAttribute("title", cur.title);
             if (cur.href !== prev.href)
                 div.setAttribute("href", cur.href);
             if (cur.src !== prev.src)
@@ -423,6 +425,7 @@ var Renderer = (function () {
                 && curA.key === curB.key
                 && curA.dangerouslySetInnerHTML === curB.dangerouslySetInnerHTML
                 && curA.tabindex === curB.tabindex
+                && curA.title === curB.title
                 && curA.href === curB.href
                 && curA.src === curB.src
                 && curA.data === curB.data
