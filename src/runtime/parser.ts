@@ -699,7 +699,17 @@ class Parser extends chev.Parser {
       for(let attribute of record.attributes) {
         info[attribute.attribute] = attribute.value;
       }
-      let action = makeNode("action", {action: "+=", entity: info.record, attribute: info.attribute, value: info.value, node: info.node, scopes: self.activeScopes, from: [lookup, record]});
+      let actionType = "+=";
+      self.OPTION(() => {
+        self.CONSUME(Set);
+        self.CONSUME(None);
+        if(info["value"] !== undefined) {
+          actionType = "-=";
+        } else {
+          actionType = "erase";
+        }
+      })
+      let action = makeNode("action", {action: actionType, entity: info.record, attribute: info.attribute, value: info.value, node: info.node, scopes: self.activeScopes, from: [lookup, record]});
       self.block[actionKey](action);
       return action;
     });

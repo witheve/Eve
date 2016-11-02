@@ -2276,6 +2276,61 @@ test("lookup action without value errors", (assert) => {
   assert.end();
 })
 
+
+test("lookup action remove", (assert) => {
+  let expected = {
+    insert: [
+      ["2", "tag", "person"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "chris"]
+    ~~~
+
+    foo bar
+    ~~~
+      search
+        record = [#person]
+        attribute = "name"
+        value = "chris"
+      commit
+        lookup[record, attribute, value] := none
+    ~~~
+  `);
+  assert.end();
+})
+
+test("lookup action remove free value", (assert) => {
+  let expected = {
+    insert: [
+      ["2", "tag", "person"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "chris"]
+    ~~~
+
+    foo bar
+    ~~~
+      search
+        record = [#person]
+        attribute = "name"
+      commit
+        lookup[record, attribute] := none
+    ~~~
+  `);
+  assert.end();
+})
+
+
 test("an identifier followed by whitespace should not be interpreted as a function", (assert) => {
   let expected = {
     insert: [

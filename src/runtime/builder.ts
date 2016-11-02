@@ -504,7 +504,8 @@ function buildActions(block, context, actions, scans) {
       let {entity, value, attribute} = action;
       let impl = ActionImplementations[action.action];
       if(action.action === "erase") {
-        let final = new impl(`${action.id}|build`, context.getValue(entity), attribute, undefined, undefined, action.scopes);
+        let attributeValue = attribute && attribute.type !== undefined ? context.getValue(attribute) : attribute;
+        let final = new impl(`${action.id}|build`, context.getValue(entity), attributeValue, undefined, undefined, action.scopes);
         actionObjects.push(final);
         action.buildId = final.id;
       } else {
