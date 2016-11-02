@@ -56,6 +56,8 @@ var svgs = {"svg": true, "circle": true, "line": true, "rect": true, "polygon":t
 var lastFocusPath:string[]|null = null;
 var selectableTypes = {"": true, undefined: true, text: true, search: true, password: true, tel: true, url: true};
 
+var previousCheckedRadios = {};
+
 function insertSorted(parent:Node, child:RecordElement) {
   let current;
   for(let curIx = 0; curIx < parent.childNodes.length; curIx++) {
@@ -210,6 +212,10 @@ export function renderRecords() {
           console.error("Unable to set 'checked' multiple times on entity", entity, value);
         } else if(value && value[0]) {
           elem.setAttribute("checked", "true");
+          if (elem.getAttribute("type") == "radio") {
+            var name = elem.getAttribute("name") || "";
+            previousCheckedRadios[name] = entityId;
+          }
         } else {
           elem.removeAttribute("checked");
         }
@@ -357,8 +363,22 @@ window.addEventListener("input", function(event) {
 });
 window.addEventListener("change", function(event) {
   let target = event.target as (RecordElement & (HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement));
-  if(target.tagName == "INPUT" || target.tagName == "TEXTAREA") return;
-  if(target.entity) {
+  if(target.tagName == "TEXTAREA") return;
+  if(target.tagName == "INPUT") {
+    let type = target.getAttribute("type");
+    if(type != "checkbox" && type != "radio") return;
+    let tickbox = target as (RecordElement & HTMLInputElement);
+    if(!tickbox.entity) return;
+    sendEvent([{["change", "direct-target"], element: tickbox.entity,
+                checked: tickbox.checked}]);
+    if(type == "radio") {
+      var name = target.getAttribute("name") || "";
+      if(name in previousCheckedRadios) {
+        var previousEntity = previousCheckedRadios[name];
+        sendEvent([{["change"], element: previousEntity, checked: false}]);
+      }
+    }
+  } else if(target.entity) {
     if(!sentInputValues[target.entity]) {
       sentInputValues[target.entity] = [];
     }
