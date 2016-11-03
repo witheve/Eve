@@ -2839,7 +2839,7 @@ test("indirect constant equality in if", (assert) => {
 })
 
 
-test.only("constant filter in if", (assert) => {
+test("constant filter in if", (assert) => {
   let expected = {
     insert: [
       ["a", "tag", "div"],

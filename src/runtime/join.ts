@@ -591,6 +591,9 @@ export class IfScan implements ProposalProvider {
     this.hasResolvedOutputs = false;
     let blockVars = [];
     this.vars = args.slice();
+    for(let branch of branches) {
+      if(branch.exclusive) this.exclusive = true;
+    }
     for(let output of outputs) {
       if(output !== undefined && isVariable(output)) {
         this.vars[output.id] = output;
