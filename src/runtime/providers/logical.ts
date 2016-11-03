@@ -6,7 +6,6 @@ import {Constraint} from "../join";
 import * as providers from "./index";
 
 abstract class BooleanOperation extends Constraint {
-  // Greater than never proposes new values for a variable
   resolveProposal(proposal, prefix) {
     let {args} = this.resolve(prefix);
     return [this.compare(args[0], args[1])];
@@ -22,8 +21,6 @@ abstract class BooleanOperation extends Constraint {
     return;
   }
 
-  // We accept if our first resolved arg is greater than our
-  // second
   test(prefix) {
     let {args, returns} = this.resolve(prefix);
     let result = this.compare(args[0], args[1]);

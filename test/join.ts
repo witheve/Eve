@@ -2839,4 +2839,26 @@ test("indirect constant equality in if", (assert) => {
 })
 
 
+test.only("constant filter in if", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "tag", "div"],
+      ["a", "text", 3],
+    ],
+    remove: [],
+  };
+  evaluate(assert, expected, `
+    Now consider this:
 
+    ~~~
+      search
+        x = 3
+        "woohoo" = if x < 3 then "cool"
+                   else if x >= 3 then "woohoo"
+
+      bind @browser
+        [#div text: x]
+    ~~~
+  `);
+  assert.end();
+})

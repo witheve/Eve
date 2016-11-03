@@ -352,8 +352,16 @@ function buildScans(block, context, scanLikes, outputScans) {
       let outputs = [];
       for(let output of scanLike.outputs) {
         let resolved = context.getValue(output);
-        outputs.push(resolved);
-        context.provide(resolved);
+        if(!join.isVariable(resolved)) {
+          let variable = context.createVariable();
+          let impl = providers.get("=");
+          outputScans.push(new impl(`${output.id}|equality|build`, [variable, resolved], []));
+          outputs.push(variable);
+          context.provide(variable);
+        } else {
+          outputs.push(resolved);
+          context.provide(resolved);
+        }
       }
       let ifScan = new join.IfScan(scanLike.id + "|build", args, outputs, branches, hasAggregate);
       outputScans.push(ifScan)

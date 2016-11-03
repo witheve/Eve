@@ -575,8 +575,10 @@ export class IfScan implements ProposalProvider {
   outputs: Variable[];
   internalVars: Variable[];
   resolved: any[];
+  resolvedOutputs: any[];
   exclusive: boolean;
   hasAggregate: boolean;
+  hasResolvedOutputs: boolean;
   proposalObject: Proposal;
 
   constructor(id: string, args: Variable[], outputs: Variable[], branches: IfBranch[], hasAggregate = false) {
@@ -585,15 +587,19 @@ export class IfScan implements ProposalProvider {
     this.outputs = outputs;
     this.hasAggregate = hasAggregate;
     this.resolved = [];
+    this.resolvedOutputs = [];
+    this.hasResolvedOutputs = false;
     let blockVars = [];
-    for(let branch of branches) {
-      if(branch.exclusive) this.exclusive = true;
-      scansToVars(branch.strata, blockVars);
-    }
     this.vars = args.slice();
     for(let output of outputs) {
-      if(output !== undefined) {
+      if(output !== undefined && isVariable(output)) {
         this.vars[output.id] = output;
+        blockVars[output.id] = output;
+      }
+    }
+    for(let arg of args) {
+      if(isVariable(arg)) {
+        blockVars[arg.id] = arg;
       }
     }
     this.args = args;
@@ -605,10 +611,33 @@ export class IfScan implements ProposalProvider {
     return resolve(this.args, prefix, this.resolved);
   }
 
+  resolveOutputs(prefix) {
+    this.hasResolvedOutputs = false;
+    let resolved = resolve(this.outputs, prefix, this.resolvedOutputs);
+    for(let item of resolved) {
+      if(item !== undefined) {
+        this.hasResolvedOutputs = true;
+        break;
+      }
+    }
+    return resolved;
+  }
+
+  checkOutputs(resolved, row) {
+    if(!this.hasResolvedOutputs) return true;
+    let ix = 0;
+    for(let item of resolved) {
+      if(item !== undefined && item !== row[ix]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   getProposal(multiIndex: MultiIndex, proposed, proposedIx, prefix) {
     let proposalValues = [];
     let cardinality = 0;
-    let outputs = this.outputs;
+    let resolvedOutputs = this.resolveOutputs(prefix);
     let projection = {};
     for(let branch of this.branches) {
       let branchPrefix = branch.resolve(prefix);
@@ -620,6 +649,9 @@ export class IfScan implements ProposalProvider {
           for(let output of branch.outputs) {
             let value = toValue(output, row);
             outputRow.push(value);
+          }
+          if(!this.checkOutputs(resolvedOutputs, outputRow)) {
+            continue;
           }
           let key = outputRow.join("|");
           if(projection[key] === undefined) {
@@ -657,22 +689,20 @@ export class IfScan implements ProposalProvider {
 
      return this.getProposal(multiIndex, proposed, proposedIx, prefix);
   }
+
   resolveProposal(proposal, prefix) {
     return proposal.index;
   }
 
   accept(multiIndex: MultiIndex, prefix, solvingFor, force?) {
     if(!force && !this.internalVars[solvingFor.id] || !fullyResolved(this.args, prefix)) return true;
-    let resolved = this.resolve(prefix);
     for(let branch of this.branches) {
-      let branchPrefix = branch.resolve(prefix);
-      let accepted = true;
       for(let stratum of branch.strata) {
-        let result = preJoinAccept(multiIndex, stratum.scans, stratum.vars, branchPrefix);
-        accepted = result.accepted;
-        if(!accepted) break;
+        let result = preJoinAccept(multiIndex, stratum.scans, stratum.vars, prefix);
+        if(result.accepted) {
+          return true;
+        }
       }
-      if(accepted) return true;
     }
     return false;
   }

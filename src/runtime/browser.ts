@@ -52,6 +52,7 @@ function makeEvaluation(parse, spans, extraInfo) {
   let inspector = new BrowserInspectorDatabase();
   let session = new Database();
   session.blocks = blocks;
+  // console.log(blocks);
   let ev = new Evaluation();
   ev.registerDatabase("session", session);
   ev.registerDatabase("browser", browser);
