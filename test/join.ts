@@ -2862,3 +2862,41 @@ test("constant filter in if", (assert) => {
   `);
   assert.end();
 })
+
+test("length function", (assert) => {
+  let expected = {
+    insert: [
+      ["1", "len", "5" ],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    foo bar
+    ~~~
+      search
+        len = length[text: "hello"]
+      commit
+        [len: len]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("length function", (assert) => {
+  let expected = {
+    insert: [
+      ["1", "len", "0" ],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    foo bar
+    ~~~
+      search
+        len = length[text: ""]
+      commit
+        [len: len]
+    ~~~
+  `);
+  assert.end();
+})

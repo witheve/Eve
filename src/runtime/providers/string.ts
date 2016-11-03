@@ -100,6 +100,104 @@ class Split extends Constraint {
 }
 
 
+class Replace extends Constraint {
+  static AttributeMapping = {
+    "text": 0,
+    "subtext": 1,
+    "with": 2,
+  }
+
+  resolveProposal(proposal, prefix) {
+    let {args, returns} = this.resolve(prefix);
+    let [text, subtext, _with] = args; // with is a reserved word
+    return [text.replace(subtext, _with)];
+  }
+
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    let [text, subtext, _with] = args;
+    if(typeof text !== "string") return false;
+    return text.replace(subtext, _with) === returns[0];
+  }
+
+  getProposal(tripleIndex, proposed, prefix) {
+    let proposal = this.proposalObject;
+    let {args} = this.resolve(prefix);
+    if(typeof args[0] !== "string") {
+      proposal.cardinality = 0;
+    } else {
+      proposal.providing = proposed;
+      proposal.cardinality = 1;
+    }
+    return proposal;
+  }
+}
+
+class Length extends Constraint {
+  static AttributeMapping = {
+    "text": 0,
+  }
+  resolveProposal(proposal, prefix) {
+    let {args} = this.resolve(prefix);
+    let [text] = args;
+    return [text.length];
+  }
+
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    let text = args[0];
+    if(typeof text !== "string") return false;
+    return text.length === returns[0];
+  }
+
+  getProposal(tripleIndex, proposed, prefix) {
+    let proposal = this.proposalObject;
+    let {args} = this.resolve(prefix);
+    if(typeof args[0] !== "string") {
+      proposal.cardinality = 0;
+    } else {
+      proposal.providing = proposed;
+      proposal.cardinality = 1;
+    }
+    return proposal;
+  }
+}
+
+
+class CharAt extends Constraint {
+  static AttributeMapping = {
+    "text": 0,
+    "index": 1,
+  }
+  resolveProposal(proposal, prefix) {
+    let {args} = this.resolve(prefix);
+    let [text, index] = args;
+    return [text[index]];
+  }
+
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    let [text, index] = args;
+    if(typeof text !== "string") return false;
+    if(returns[0] < 0 || returns[0] > text.length) return false;
+    return text[index] === text[returns[0]];
+  }
+
+  getProposal(tripleIndex, proposed, prefix) {
+    let proposal = this.proposalObject;
+    let {args, returns} = this.resolve(prefix);
+    let [text] = args;
+    if(typeof text !== "string" || returns[0] < 0 || returns[0] > text.length) {
+      proposal.cardinality = 0;
+    } else {
+      proposal.providing = proposed;
+      proposal.cardinality = 1;
+    }
+    return proposal;
+  }
+}
+
+
 // substring over the field 'text', with the base index being 1, inclusive, 'from' defaulting
 // to the beginning of the string, and 'to' the end
 class Substring extends Constraint {
@@ -213,7 +311,9 @@ class Convert extends Constraint {
   }
 }
 
-
+providers.provide("char-at", CharAt);
+providers.provide("replace", Replace);
+providers.provide("length", Length);
 providers.provide("concat", Concat);
 providers.provide("split", Split);
 providers.provide("substring", Substring);
