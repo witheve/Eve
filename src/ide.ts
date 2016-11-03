@@ -1968,6 +1968,8 @@ export class IDE {
   generation = 0;
   /** Whether the currently open document is a modified version of an example. */
   modified = false;
+  /** Whether or not files are stored and operated on purely locally */
+  local = false;
 
   /** Whether the inspector is currently active. */
   inspecting = false;
@@ -2044,8 +2046,21 @@ export class IDE {
     this.render();
   }, 1, true);
 
-  loadFile(docId:string) {
-    if(this.loading || this.documentId === docId) return;
+  loadFile(docId:string, content?:string) {
+    // if we're not in local mode, file content is going to come from
+    // some other source and we should just load it directly
+    if(!this.local && content !== undefined) {
+      this.documentId = docId;
+      this.editor.reset();
+      this.notices = [];
+      this.loading = true;
+      return this.onLoadFile(this, docId, content);
+    } else if(this.loading || this.documentId === docId) {
+      return;
+    }
+
+    // Otherwise we load the file from either localstorage or from the supplied
+    // examples object
     let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
     let code = saves[docId];
     if(code) {
@@ -2092,8 +2107,17 @@ export class IDE {
 
   saveDocument() {
     if(!this.documentId || !this.loaded) return;
-    let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
+
     let md = this.editor.toMarkdown();
+
+    // if we're not local, we notify the outside world that we're trying
+    // to save
+    if(!this.local) {
+      return this.onSaveDocument(this, this.documentId, md);
+    }
+
+    // othewise, save it to local storage
+    let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
     if(md !== this._fileCache[this.documentId]) {
       saves[this.documentId] = md;
       this.modified = true;
@@ -2690,6 +2714,7 @@ export class IDE {
   onEval?:(self:IDE, persist?: boolean) => void
   onLoadFile?:(self:IDE, documentId:string, code:string) => void
   onTokenInfo?:(self:IDE, tokenId:string) => void
+  onSaveDocument?:(self:IDE, documentId:string, code:string) => void
 }
 
 type FindSourceArgs = {record?: string, attribute?: string, span?:string|string[], source?: {block?: string[], span?: string[]}[]};

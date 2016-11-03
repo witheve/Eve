@@ -21,7 +21,11 @@ import {PersistedDatabase} from "./databases/persisted";
 import {HttpDatabase} from "./databases/node/http";
 import {ServerDatabase} from "./databases/node/server";
 
-let contentTypes = {
+//---------------------------------------------------------------------
+// Constants
+//---------------------------------------------------------------------
+
+const contentTypes = {
   ".html": "text/html",
   ".js": "application/javascript",
   ".map": "application/javascript",
@@ -31,10 +35,14 @@ let contentTypes = {
 }
 
 const PORT= process.env.PORT || 8080;
+const serverDatabase = new ServerDatabase();
+const shared = new PersistedDatabase();
 
-let serverDatabase = new ServerDatabase();
+//---------------------------------------------------------------------
+// Express app
+//---------------------------------------------------------------------
 
-var app = express();
+const app = express();
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended: true}));
@@ -73,10 +81,9 @@ app.post("*", (request, response) => {
   return serverDatabase.handleHttpRequest(request, response);
 });
 
-let server = http.createServer(app);
-
-let WebSocketServer = require('ws').Server;
-let wss = new WebSocketServer({server: server});
+//---------------------------------------------------------------------
+// Websocket
+//---------------------------------------------------------------------
 
 function handleEvent(evaluation, data) {
   let actions = [];
@@ -86,55 +93,79 @@ function handleEvent(evaluation, data) {
   evaluation.executeActions(actions);
 }
 
-let shared = new PersistedDatabase();
+function initWebsocket(wss) {
+  wss.on('connection', function connection(ws) {
+    let queue = [];
+    let evaluation;
+    ws.on('message', function incoming(message) {
+      let data = JSON.parse(message);
+      if(data.type === "init") {
+        let {url, hash} = data;
+        let path = hash !== "" ? hash : url;
+        console.log("PATH", path)
+        fs.stat("." + path, (err, stats) => {
+          if(err || !stats.isFile()) {
+            ws.send(JSON.stringify({type: "initLocal"}));
 
-wss.on('connection', function connection(ws) {
-  let queue = [];
-  let evaluation;
-  ws.on('message', function incoming(message) {
-    let data = JSON.parse(message);
-    if(data.type === "init") {
-      let {url} = data;
-      fs.stat("." + url, (err, stats) => {
-        if(err || !stats.isFile()) {
-          ws.send(JSON.stringify({type: "initLocal"}));
-
+          } else {
+            let content = fs.readFileSync("." + path).toString();
+            ws.send(JSON.stringify({type: "initLocal", path, code: content}));
+            // let parsed = parser.parseDoc(content);
+            // console.log(parsed.errors);
+            // let {blocks} = builder.buildDoc(parsed.results);
+            // console.log(blocks);
+            // let session = new BrowserSessionDatabase(ws);
+            // session.blocks = blocks;
+            // evaluation = new Evaluation();
+            // evaluation.registerDatabase("session", session);
+            // evaluation.registerDatabase("system", system.instance);
+            // evaluation.registerDatabase("shared", shared);
+            // evaluation.registerDatabase("http", new HttpDatabase());
+            // evaluation.registerDatabase("server", serverDatabase);
+            // evaluation.fixpoint();
+            // for(let queued of queue) {
+            //   handleEvent(evaluation, queued);
+            // }
+          }
+        });
+      } else if(data.type === "event") {
+        if(!evaluation) {
+          queue.push(data);
         } else {
-          let content = fs.readFileSync("." + url).toString();
-          ws.send(JSON.stringify({type: "initLocal", code: content}));
-          // let parsed = parser.parseDoc(content);
-          // console.log(parsed.errors);
-          // let {blocks} = builder.buildDoc(parsed.results);
-          // console.log(blocks);
-          // let session = new BrowserSessionDatabase(ws);
-          // session.blocks = blocks;
-          // evaluation = new Evaluation();
-          // evaluation.registerDatabase("session", session);
-          // evaluation.registerDatabase("system", system.instance);
-          // evaluation.registerDatabase("shared", shared);
-          // evaluation.registerDatabase("http", new HttpDatabase());
-          // evaluation.registerDatabase("server", serverDatabase);
-          // evaluation.fixpoint();
-          // for(let queued of queue) {
-          //   handleEvent(evaluation, queued);
-          // }
+          handleEvent(evaluation, data);
         }
-      });
-    } else if(data.type === "event") {
-      if(!evaluation) {
-        queue.push(data);
+      } else if(data.type === "save"){
+        fs.stat("." + data.path, (err, stats) => {
+          if(err || !stats.isFile()) {
+            console.log("trying to save to bad file: " + data.path);
+
+          } else {
+            fs.writeFileSync("." + data.path, data.code);
+          }
+        });
+
       } else {
-        handleEvent(evaluation, data);
+        console.log("GOT MESSAGE", data.type, data);
       }
-    }
-    // console.log('received: %s', message);
+      // console.log('received: %s', message);
+    });
+    ws.on("close", function() {
+      if(evaluation) {
+        evaluation.close();
+      }
+    });
   });
-  ws.on("close", function() {
-    if(evaluation) {
-      evaluation.close();
-    }
-  });
-});
+}
+
+//---------------------------------------------------------------------
+// Go!
+//---------------------------------------------------------------------
+
+let server = http.createServer(app);
+
+let WebSocketServer = require('ws').Server;
+let wss = new WebSocketServer({server: server});
+initWebsocket(wss);
 
 server.listen(PORT, function(){
   console.log("Server listening on: http://localhost:%s", PORT);

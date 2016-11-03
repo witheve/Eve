@@ -4,7 +4,7 @@
 
 import {Evaluation, Database} from "./runtime";
 import * as join from "./join";
-import * as client from "../client";
+import {EveClient, client} from "../client";
 import * as parser from "./parser";
 import * as builder from "./builder";
 import {ActionImplementations} from "./actions";
@@ -72,16 +72,16 @@ function makeEvaluation(parse, spans, extraInfo) {
 //---------------------------------------------------------------------
 
 class Responder {
-  socket: any;
+  client: EveClient;
   lastParse: any;
 
-  constructor(socket) {
-    this.socket = socket;
+  constructor(client:EveClient) {
+    this.client = client;
   }
 
   send(json) {
     setTimeout(() => {
-      this.socket.onmessage({data: json});
+      this.client.onMessage({data: json});
     }, 0);
   }
 
@@ -155,7 +155,6 @@ class Responder {
         let extraInfo = {};
         evaluation = makeEvaluation(this.lastParse, spans, extraInfo);
         evaluation.fixpoint();
-        client.socket.onopen();
       }
     } else if(data.type === "tokenInfo") {
       let spans = [];
@@ -223,7 +222,7 @@ class Responder {
       let extraInfo = {};
       let spanId = analyzer.findRecordsFromToken(evaluation, data, spans, extraInfo);
       this.send(JSON.stringify(data));
-    } else if(data.type === "save") {
+    } else if(data.type === "dumpState") {
       let dbs = evaluation.save();
       let code = this.lastParse.code;
       let output = JSON.stringify({code, databases: {"session": dbs.session}});
@@ -252,7 +251,7 @@ export var responder: Responder;
 export function init(code) {
   global["browser"] = true;
 
-  responder = new Responder(client.socket);
+  responder = new Responder(client);
 
   let {results, errors} : {results: any, errors: any[]} = parser.parseDoc(code || "", "user");
   if(errors && errors.length) console.error(errors);
@@ -273,6 +272,6 @@ export function init(code) {
     responder.handleEvent(JSON.stringify({type: "save"}));
   }
 
-  client.socket.onopen();
+  // client.socket.onopen();
   // responder.handleEvent(JSON.stringify({type: "findPerformance", requestId: 2}));
 }
