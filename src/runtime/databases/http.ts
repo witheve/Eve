@@ -20,7 +20,7 @@ export class HttpDatabase extends Database {
       changes.store(scope, responseId, "tag", "response", this.id);
       changes.store(scope, responseId, "body", body, this.id);
       let contentType = oReq.getResponseHeader("content-type");
-      if(contentType && contentType.indexOf("application/json") > -1) {
+      if(contentType && contentType.indexOf("application/json") > -1 && body) {
         let id = eavs.fromJS(changes, JSON.parse(body), this.id, scope, `${responseId}|json`);
         changes.store(scope, responseId, "json", id, this.id);
       }
