@@ -30,14 +30,15 @@ export class HttpDatabase extends Database {
     if(request.method) {
       method = request.method[0];
     }
+
+    oReq.open(method, request.url[0]);
+
     if(request.headers) {
       let headers = this.index.asObject(request.headers[0]);
       for(let header in headers) {
         oReq.setRequestHeader(header, headers[header][0]);
       }
     }
-
-    oReq.open(method, request.url[0]);
 
     if(request.body) {
       oReq.send(request.body[0]);

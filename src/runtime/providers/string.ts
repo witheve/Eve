@@ -213,8 +213,47 @@ class Convert extends Constraint {
   }
 }
 
+// Urlencode a string
+class Urlencode extends Constraint {
+  static AttributeMapping = {
+    "text": 0
+  }
+  static ReturnMapping = {
+    "value": 0,
+  }
+
+  // To resolve a proposal, we urlencode a text
+  resolveProposal(proposal, prefix) {
+    let {args, returns} = this.resolve(prefix);
+    let value = args[0];
+    let converted;
+    converted = encodeURIComponent(value);
+    return [converted];
+  }
+
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    let value = args[0];
+
+    let converted = encodeURIComponent(value);
+
+    return converted === returns[0];
+  }
+
+  // Urlencode always returns cardinality 1
+  getProposal(tripleIndex, proposed, prefix) {
+    let proposal = this.proposalObject;
+    let {args} = this.resolve(prefix);
+    let value = args[0];
+    proposal.cardinality = 1;
+    proposal.providing = proposed;
+    return proposal;
+  }
+}
+
 
 providers.provide("concat", Concat);
 providers.provide("split", Split);
 providers.provide("substring", Substring);
 providers.provide("convert", Convert);
+providers.provide("urlencode", Urlencode);
