@@ -4,6 +4,7 @@
 
 import {Constraint} from "../join";
 import * as providers from "./index";
+import {deprecated} from "../util/deprecated";
 
 class Add extends Constraint {
   // Add proposes the addition of its args as its value for the
@@ -99,11 +100,32 @@ class Divide extends Constraint {
 
 class Sin extends Constraint {
   static AttributeMapping = {
-    "angle": 0,
+    "degrees": 0,
+    "radians": 1,
+    "angle": 2
   }
+
+  @deprecated('Please use degrees instead of angle')
+  getAngle(angle) {
+    return [Math.sin(angle * (Math.PI / 180))];
+  }
+
+  getSin(degrees, radians) {
+    if (degrees !== undefined) {
+      return [Math.sin(degrees * (Math.PI / 180))];
+    } else {
+      return [Math.sin(radians)];
+    }
+  }
+
   resolveProposal(proposal, prefix) {
     let {args} = this.resolve(prefix);
-    return [Math.sin(args[0] * (Math.PI / 180))];
+
+    if(args[2]) {
+      return this.getAngle(args[2]);
+    } else {
+      return this.getSin(args[0], args[1]);
+    }
   }
 
   test(prefix) {
@@ -264,11 +286,32 @@ class Ceiling extends Constraint {
 
 class Cos extends Constraint {
   static AttributeMapping = {
-    "angle": 0,
+    "degrees": 0,
+    "radians": 1,
+    "angle": 2
   }
+
+  @deprecated('Please use degrees instead of angle')
+  getAngle(angle) {
+    return [Math.cos(angle * (Math.PI / 180))];
+  }
+
+  getCos(degrees, radians) {
+    if(degrees !== undefined) {
+      return [Math.cos(degrees * (Math.PI / 180))];
+    } else {
+      return [Math.cos(radians)];
+    }
+  }
+
   resolveProposal(proposal, prefix) {
     let {args} = this.resolve(prefix);
-    return [Math.cos(args[0] * (Math.PI / 180))];
+
+    if(args[2]) {
+      return this.getAngle(args[2])
+    } else {
+      return this.getCos(args[0], args[1]);
+    }
   }
 
   test(prefix) {
