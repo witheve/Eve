@@ -140,7 +140,9 @@ function initWebsocket(wss) {
       // console.log('received: %s', message);
     });
     ws.on("close", function() {
-      client.evaluation.close();
+      if(client.evaluation) {
+        client.evaluation.close();
+      }
     });
   });
 }
