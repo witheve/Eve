@@ -4,9 +4,9 @@ Draw an appropriately positioned line into `#clock-hand`s.
 
 ```
   search @browser
-    hand = [#clock-hand angle length]
-    x2 = 50 + (length * sin[angle])
-    y2 = 50 - (length * cos[angle])
+    hand = [#clock-hand degrees length]
+    x2 = 50 + (length * sin[degrees])
+    y2 = 50 - (length * cos[degrees])
   bind @browser
     hand <- [#line, x1: 50, y1: 50, x2, y2]
 ```
@@ -19,7 +19,7 @@ Draw a clock using SVG. We find the angle for each hand using time and let the `
   bind @browser
     [#svg viewBox: "0 0 100 100", width: "300px", children:
       [#circle cx: 50, cy: 50, r: 45, fill: "#0B79CE"]
-      [#clock-hand #hour-hand angle: 30 * hours, length: 30, stroke: "#023963"]
-      [#clock-hand #minute-hand angle: 6 * minutes, length: 40, stroke: "#023963"]
-      [#clock-hand #second-hand angle: 6 * seconds, length: 40, stroke: "#ce0b46"]]
+      [#clock-hand #hour-hand degrees: 30 * hours, length: 30, stroke: "#023963"]
+      [#clock-hand #minute-hand degrees: 6 * minutes, length: 40, stroke: "#023963"]
+      [#clock-hand #second-hand degrees: 6 * seconds, length: 40, stroke: "#ce0b46"]]
 ```
