@@ -5,7 +5,7 @@ export function packageExamples(callback:() => void) {
   let files = {};
   for(let file of fs.readdirSync("examples/")) {
     if(path.extname(file) === ".eve") {
-      files[file] = fs.readFileSync(path.join("examples", file)).toString();
+      files["/examples/" + file] = fs.readFileSync(path.join("examples", file)).toString();
     }
   }
 

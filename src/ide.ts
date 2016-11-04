@@ -67,7 +67,7 @@ class Navigator {
 
     let parent = root;
     for(let curId in files) {
-      let node:TreeNode = {id: curId, name: curId, type: "document"};
+      let node:TreeNode = {id: curId, name: curId.split("/").pop(), type: "document"};
       this.nodes[curId] = node;
       if(!parent.children) parent.children = [curId];
       else parent.children.push(curId);
