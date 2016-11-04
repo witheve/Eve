@@ -15,6 +15,7 @@
     "express": "^4.14.0",
     "glob": "^7.1.1",
     "mkdirp": "^0.5.1",
+    "node-uuid": "^1.4.7",
     "request": "^2.75.0",
     "typescript": "^2.0.3",
     "ws": "^1.1.1"

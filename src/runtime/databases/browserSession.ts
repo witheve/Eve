@@ -7,6 +7,7 @@ import * as builder from "../builder";
 import {InsertAction, SetAction} from "../actions";
 import {Changes} from "../changes";
 import {Evaluation, Database} from "../runtime";
+import * as eveSource from "../eveSource";
 
 interface BrowserClient {
   send(json: string);
@@ -15,8 +16,9 @@ interface BrowserClient {
 export class BrowserEventDatabase extends Database {
   constructor() {
     super();
-    if(global["examples"]["event.eve"]) {
-      let {results, errors} = parser.parseDoc(global["examples"]["event.eve"], "event");
+    let source = eveSource.get("event.eve");
+    if(source) {
+      let {results, errors} = parser.parseDoc(source, "event");
       if(errors && errors.length) console.error("EVENT ERRORS", errors);
       let {blocks, errors: buildErrors} = builder.buildDoc(results);
       if(buildErrors && buildErrors.length) console.error("EVENT ERRORS", buildErrors);
@@ -28,8 +30,9 @@ export class BrowserEventDatabase extends Database {
 export class BrowserViewDatabase extends Database {
   constructor() {
     super();
-    if(global["examples"]["view.eve"]) {
-      let {results, errors} = parser.parseDoc(global["examples"]["view.eve"], "view");
+    let source = eveSource.get("view.eve");
+    if(source) {
+      let {results, errors} = parser.parseDoc(source, "view");
       if(errors && errors.length) console.error("View DB Errors", errors);
       let {blocks, errors: buildErrors} = builder.buildDoc(results);
       if(buildErrors && buildErrors.length) console.error("View DB Errors", buildErrors);
@@ -41,8 +44,9 @@ export class BrowserViewDatabase extends Database {
 export class BrowserEditorDatabase extends Database {
   constructor() {
     super();
-    if(global["examples"]["editor.eve"]) {
-      let {results, errors} = parser.parseDoc(global["examples"]["editor.eve"], "editor");
+    let source = eveSource.get("editor.eve");
+    if(source) {
+      let {results, errors} = parser.parseDoc(source, "editor");
       if(errors && errors.length) console.error("Editor DB Errors", errors);
       let {blocks, errors: buildErrors} = builder.buildDoc(results);
       if(buildErrors && buildErrors.length) console.error("Editor DB Errors", buildErrors);
@@ -54,8 +58,9 @@ export class BrowserEditorDatabase extends Database {
 export class BrowserInspectorDatabase extends Database {
   constructor() {
     super();
-    if(global["examples"]["inspector.eve"]) {
-      let {results, errors} = parser.parseDoc(global["examples"]["inspector.eve"], "inspector");
+    let source = eveSource.get("inspector.eve");
+    if(source) {
+      let {results, errors} = parser.parseDoc(source, "inspector");
       if(errors && errors.length) console.error("Inspector DB Errors", errors);
       let {blocks, errors: buildErrors} = builder.buildDoc(results);
       if(buildErrors && buildErrors.length) console.error("Inspector DB Errors", buildErrors);
@@ -82,14 +87,11 @@ export class BrowserSessionDatabase extends Database {
   }
 
   unregister(evaluation: Evaluation) {
-    console.log("UNREGISTERING!");
     let ix = this.evaluations.indexOf(evaluation);
     if(ix > -1) {
       this.evaluations.splice(ix, 1);
     }
-    console.log("evals", this.evaluations);
     if(this.evaluations.length === 0) {
-      console.log("TRIPLES", this.index.toTriples());
       this.client.send(JSON.stringify({type: "result", insert: [], remove: this.index.toTriples()}))
     }
   }

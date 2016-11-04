@@ -9,17 +9,11 @@ import * as ws from "ws";
 import * as express from "express";
 import * as bodyParser from "body-parser";
 
-import {Evaluation} from "./runtime";
-import * as join from "./join";
-import * as client from "../client";
-import * as parser from "./parser";
-import * as builder from "./builder";
 import {ActionImplementations} from "./actions";
-import {BrowserSessionDatabase} from "./databases/browserSession";
-import * as system from "./databases/system";
 import {PersistedDatabase} from "./databases/persisted";
 import {HttpDatabase} from "./databases/node/http";
 import {ServerDatabase} from "./databases/node/server";
+import {RuntimeClient} from "./runtimeClient";
 
 //---------------------------------------------------------------------
 // Constants
@@ -34,9 +28,15 @@ const contentTypes = {
   ".png": "image/png",
 }
 
-const PORT= process.env.PORT || 8080;
+const BROWSER = false;
+const PORT = process.env.PORT || 8080;
 const serverDatabase = new ServerDatabase();
 const shared = new PersistedDatabase();
+
+global["browser"] = false;
+global["fileFetcher"] = (name) => {
+  return fs.readFileSync(path.join("./examples/", name)).toString();
+}
 
 //---------------------------------------------------------------------
 // Express app
@@ -85,18 +85,26 @@ app.post("*", (request, response) => {
 // Websocket
 //---------------------------------------------------------------------
 
-function handleEvent(evaluation, data) {
-  let actions = [];
-  for(let insert of data.insert) {
-    actions.push(new ActionImplementations["+="]("add", insert[0], insert[1], insert[2]));
+class ServerRuntimeClient extends RuntimeClient {
+  socket: WebSocket;
+
+  constructor(socket:WebSocket, withIDE = true) {
+    const dbs = {
+      "http": new HttpDatabase(),
+      "shared": shared,
+    }
+    super(dbs, withIDE);
+    this.socket = socket;
   }
-  evaluation.executeActions(actions);
+
+  send(json) {
+    this.socket.send(json);
+  }
 }
 
 function initWebsocket(wss) {
   wss.on('connection', function connection(ws) {
-    let queue = [];
-    let evaluation;
+    let client = new ServerRuntimeClient(ws);
     ws.on('message', function incoming(message) {
       let data = JSON.parse(message);
       if(data.type === "init") {
@@ -109,31 +117,13 @@ function initWebsocket(wss) {
 
           } else {
             let content = fs.readFileSync("." + path).toString();
-            ws.send(JSON.stringify({type: "initLocal", path, code: content}));
-            // let parsed = parser.parseDoc(content);
-            // console.log(parsed.errors);
-            // let {blocks} = builder.buildDoc(parsed.results);
-            // console.log(blocks);
-            // let session = new BrowserSessionDatabase(ws);
-            // session.blocks = blocks;
-            // evaluation = new Evaluation();
-            // evaluation.registerDatabase("session", session);
-            // evaluation.registerDatabase("system", system.instance);
-            // evaluation.registerDatabase("shared", shared);
-            // evaluation.registerDatabase("http", new HttpDatabase());
-            // evaluation.registerDatabase("server", serverDatabase);
-            // evaluation.fixpoint();
-            // for(let queued of queue) {
-            //   handleEvent(evaluation, queued);
-            // }
+            if(BROWSER) {
+              ws.send(JSON.stringify({type: "initLocal", path, code: content}));
+            } else {
+              client.load(content, "user");
+            }
           }
         });
-      } else if(data.type === "event") {
-        if(!evaluation) {
-          queue.push(data);
-        } else {
-          handleEvent(evaluation, data);
-        }
       } else if(data.type === "save"){
         fs.stat("." + data.path, (err, stats) => {
           if(err || !stats.isFile()) {
@@ -145,14 +135,12 @@ function initWebsocket(wss) {
         });
 
       } else {
-        console.log("GOT MESSAGE", data.type, data);
+        client.handleEvent(message);
       }
       // console.log('received: %s', message);
     });
     ws.on("close", function() {
-      if(evaluation) {
-        evaluation.close();
-      }
+      client.evaluation.close();
     });
   });
 }

@@ -7,7 +7,7 @@ import {Span, SpanMarker, isSpanMarker, isEditorControlled, spanTypes, compareSp
 import * as Spans from "./ide/spans";
 
 import {activeElements} from "./renderer";
-import {send, sendEvent, indexes} from "./client";
+import {client, indexes} from "./client";
 
 //---------------------------------------------------------
 // Navigator
@@ -293,7 +293,7 @@ class Navigator {
 
   toggleInspectorFocus = () => {
     if(this.isFocused()) {
-      sendEvent([{tag: ["inspector",  "unfocus-current"]}]);
+      client.sendEvent([{tag: ["inspector",  "unfocus-current"]}]);
       for(let nodeId in this.nodes) {
         let node = this.nodes[nodeId];
         if(!node) continue;
@@ -301,7 +301,7 @@ class Navigator {
       }
       this.updateElision();
     } else {
-      sendEvent([{tag: ["inspector",  "focus-current"]}]);
+      client.sendEvent([{tag: ["inspector",  "focus-current"]}]);
     }
   }
 
@@ -2032,7 +2032,7 @@ export class IDE {
       if(this.onChange) this.onChange(this);
       this.editor.dirty = false;
 
-      sendEvent([{tag: ["inspector", "clear"]}]);
+      client.sendEvent([{tag: ["inspector", "clear"]}]);
       this.saveDocument();
 
       if(shouldEval) {
@@ -2329,7 +2329,7 @@ export class IDE {
           for(let record of records) {
             record.action = actionId;
           }
-          sendEvent(records);
+          client.sendEvent(records);
         }
       },
 
@@ -2377,7 +2377,7 @@ export class IDE {
             record.tag.push("editor");
             record["action"] = actionId;
           }
-          sendEvent(records);
+          client.sendEvent(records);
         }));
       },
 
@@ -2387,7 +2387,7 @@ export class IDE {
             record.tag.push("editor");
             record["action"] = actionId;
           }
-          sendEvent(records);
+          client.sendEvent(records);
         }));
       },
 
@@ -2407,7 +2407,7 @@ export class IDE {
             record.tag.push("editor");
             record["action"] = actionId;
           }
-          sendEvent(records);
+          client.sendEvent(records);
         }));
       },
 
@@ -2417,7 +2417,7 @@ export class IDE {
             record.tag.push("editor");
             record["action"] = actionId;
           }
-          sendEvent(records);
+          client.sendEvent(records);
         }));
       },
 
@@ -2433,7 +2433,7 @@ export class IDE {
               record.tag.push("editor");
               record["action"] = actionId;
             }
-            sendEvent(records);
+            client.sendEvent(records);
           }));
       },
 
@@ -2443,7 +2443,7 @@ export class IDE {
             record.tag.push("editor");
             record["action"] = actionId;
           }
-          sendEvent(records);
+          client.sendEvent(records);
         }));
       },
 
@@ -2453,7 +2453,7 @@ export class IDE {
             record.tag.push("editor");
             record["action"] = actionId;
           }
-          sendEvent(records);
+          client.sendEvent(records);
         }));
       },
 
@@ -2463,7 +2463,7 @@ export class IDE {
             record.tag.push("editor");
             record["action"] = actionId;
           }
-          sendEvent(records);
+          client.sendEvent(records);
         }));
       },
 
@@ -2587,7 +2587,7 @@ export class IDE {
       if(record.span) {
         this.attachView(recordId, record.span[0]);
       } else if(record.node) {
-        send({type: "findNode", recordId, node: record.node[0]});
+        client.send(JSON.stringify({type: "findNode", recordId, node: record.node[0]}));
       } else {
         console.warn("Unable to parent view that doesn't provide its origin node  or span id", record);
       }
@@ -2658,7 +2658,7 @@ export class IDE {
 
   toggleInspecting() {
     if(this.inspecting) {
-      sendEvent([{tag: ["inspector", "clear"]}]);
+      client.sendEvent([{tag: ["inspector", "clear"]}]);
     } else {
       this.inspectingClick = true;
     }
@@ -2704,7 +2704,7 @@ export class IDE {
 
     this.queueUpdate();
     if(events.length) {
-      sendEvent(events);
+      client.sendEvent(events);
       event.preventDefault();
       event.stopPropagation();
     }
@@ -2870,7 +2870,7 @@ class LanguageService {
     this._listeners[id] = callback;
     args.type = type;
     //console.log("SENT", args);
-    send(args);
+    client.send(args);
   }
 
   handleMessage = (message) => {

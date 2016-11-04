@@ -2,7 +2,6 @@
 // Builder
 //-----------------------------------------------------------
 
-import {inspect} from "util";
 import * as join from "./join";
 import * as providers from "./providers/index";
 import "./providers/math";

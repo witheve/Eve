@@ -132,6 +132,7 @@ var frameRequested = false;
 
 export class EveClient {
   socket: WebSocket;
+  socketQueue: string[] = [];
   localEve:boolean = false;
   localControl:boolean = false;
   showIDE:boolean = true;
@@ -166,7 +167,11 @@ export class EveClient {
   }
 
   socketSend(message:string) {
-    this.socket.send(message);
+    if(this.socket && this.socket.readyState === 1) {
+      this.socket.send(message);
+    } else {
+      this.socketQueue.push(message);
+    }
   }
 
   send(message:string) {
@@ -185,6 +190,15 @@ export class EveClient {
     }
   }
 
+  sendEvent(records:any[]) {
+    if(!records || !records.length) return;
+    let eavs = [];
+    for(let record of records) {
+      eavs.push.apply(eavs, recordToEAVs(record));
+    }
+    this.send(JSON.stringify({type: "event", insert: eavs}))
+  }
+
   onError() {
     this.localControl = true;
     this.localEve = true;
@@ -193,6 +207,9 @@ export class EveClient {
 
   onOpen() {
     this.socketSend(JSON.stringify({type: "init", url: location.pathname, hash: location.hash.substring(1)}))
+    for(let queued of this.socketQueue) {
+      this.socketSend(queued);
+    }
     // ping the server so that the connection isn't overzealously
     // closed
     setInterval(() => {
@@ -375,44 +392,6 @@ function recordToEAVs(record) {
   return eavs;
 }
 
-export function send(message) {
-  if(socket && socket.readyState == 1) {
-    socket.send(JSON.stringify(message))
-  }
-}
-
-export function sendEvent(records:any[]) {
-  if(!records || !records.length) return;
-  let eavs = [];
-  for(let record of records) {
-    eavs.push.apply(eavs, recordToEAVs(record));
-  }
-  if(socket && socket.readyState == 1) {
-    socket.send(JSON.stringify({type: "event", insert: eavs}))
-  }
-}
-
-//---------------------------------------------------------
-// Handlers
-//---------------------------------------------------------
-
-function onHashChange(event) {
-  if(ide.loaded) changeDocument();
-  let hash = window.location.hash.split("#/")[2];
-
-  if(hash) {
-    let segments = hash.split("/").map(function(seg, ix) {
-      return {id: uuid(), index: ix + 1, value: seg};
-    });
-
-    sendEvent([
-      {tag: "url-change", "hash-segment": segments}
-    ]);
-  }
-}
-
-window.addEventListener("hashchange", onHashChange);
-
 //---------------------------------------------------------
 // Initialize an IDE
 //---------------------------------------------------------
@@ -435,12 +414,10 @@ function initIDE(ide:IDE, client:EveClient) {
     client.send(JSON.stringify({type: "close"}));
     client.send(JSON.stringify({scope: "root", type: "parse", code}))
     client.send(JSON.stringify({type: "eval", persist: false}));
-    console.log("GOT ID", documentId);
     let url = `${location.pathname}#${documentId}`;
     if(documentId.indexOf("/examples/") === -1) {
       url = `${location.pathname}#/examples/${documentId}`;
     }
-    console.log("URL", url);
     history.pushState({}, "", url);
     analyticsEvent("load-document", documentId);
   }
@@ -457,27 +434,44 @@ function initIDE(ide:IDE, client:EveClient) {
 }
 
 function changeDocument() {
-  if(socket.readyState == 1) {
-    let docId = "quickstart.eve";
-    let path = location.hash.split("#/")[1];
-    if(path) {
-      if(path[path.length - 1] === "/") path = path.slice(0, -1);
-      docId = path.split("/").pop();
-    }
-    if(!docId) return;
-    if(docId === ide.documentId) return;
-    try {
-      ide.loadFile(docId);
-    } catch(err) {
-      ide.injectNotice("info", "Unable to load unknown file: " + docId);
-    }
-    ide.render();
-  } else {
-    throw new Error("Cannot initialize until connected.");
+  let docId = "quickstart.eve";
+  let path = location.hash.split("#/")[1];
+  if(path) {
+    if(path[path.length - 1] === "/") path = path.slice(0, -1);
+    docId = path.split("/").pop();
   }
+  if(!docId) return;
+  if(docId === ide.documentId) return;
+  try {
+    ide.loadFile(docId);
+  } catch(err) {
+    ide.injectNotice("info", "Unable to load unknown file: " + docId);
+  }
+  ide.render();
 }
 
 console.log(ide);
+
+//---------------------------------------------------------
+// Handlers
+//---------------------------------------------------------
+
+function onHashChange(event) {
+  if(ide.loaded) changeDocument();
+  let hash = window.location.hash.split("#/")[2];
+
+  if(hash) {
+    let segments = hash.split("/").map(function(seg, ix) {
+      return {id: uuid(), index: ix + 1, value: seg};
+    });
+
+    client.sendEvent([
+      {tag: "url-change", "hash-segment": segments}
+    ]);
+  }
+}
+
+window.addEventListener("hashchange", onHashChange);
 
 window.document.body.addEventListener("dragover", (e) => {
   e.preventDefault();

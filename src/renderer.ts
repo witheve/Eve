@@ -2,7 +2,7 @@
 
 import {Renderer} from "microReact";
 import {clone} from "./util";
-import {sendEvent, indexes} from "./client";
+import {client, indexes} from "./client";
 
 //type RecordElementCollection = HTMLCollection | SVGColl
 interface RecordElement extends Element { entity?: string, sort?: any, _parent?: RecordElement|null, style?: CSSStyleDeclaration };
@@ -326,7 +326,7 @@ window.addEventListener("click", function(event) {
     }
     current = current.parentElement;
   }
-  sendEvent(objs);
+  client.sendEvent(objs);
 });
 window.addEventListener("dblclick", function(event) {
   let {target} = event;
@@ -342,7 +342,7 @@ window.addEventListener("dblclick", function(event) {
     }
     current = current.parentElement;
   }
-  sendEvent(objs);
+  client.sendEvent(objs);
 });
 
 window.addEventListener("input", function(event) {
@@ -352,7 +352,7 @@ window.addEventListener("input", function(event) {
       sentInputValues[target.entity] = [];
     }
     sentInputValues[target.entity].push(target.value);
-    sendEvent([{tag: ["change"], element: target.entity, value: target.value}]);
+    client.sendEvent([{tag: ["change"], element: target.entity, value: target.value}]);
   }
 });
 window.addEventListener("change", function(event) {
@@ -373,7 +373,7 @@ window.addEventListener("change", function(event) {
     if(target == target) {
       tag.push("direct-target");
     }
-    sendEvent([{tag, element: target.entity, value: target.value}]);
+    client.sendEvent([{tag, element: target.entity, value: target.value}]);
   }
 });
 
@@ -393,7 +393,7 @@ window.addEventListener("focus", function(event) {
   let target = event.target as RecordElement;
   if(target.entity) {
     let objs = [{tag: ["focus"], element: target.entity}];
-    sendEvent(objs);
+    client.sendEvent(objs);
     lastFocusPath = getFocusPath(target);
   }
 }, true);
@@ -406,7 +406,7 @@ window.addEventListener("blur", function(event) {
   let target = event.target as RecordElement;
   if(target.entity) {
     let objs = [{tag: ["blur"], element: target.entity}];
-    sendEvent(objs);
+    client.sendEvent(objs);
 
     if(lastFocusPath) {
       let curFocusPath = getFocusPath(target);
@@ -443,7 +443,7 @@ window.addEventListener("keydown", function(event) {
     }
     current = current.parentElement;
   }
-  sendEvent(objs);
+  client.sendEvent(objs);
 });
 
 window.addEventListener("keyup", function(event) {
@@ -462,7 +462,7 @@ window.addEventListener("keyup", function(event) {
     current = current.parentElement;
   }
   objs.push({tag: ["keyup"], element: "window", key});
-  sendEvent(objs);
+  client.sendEvent(objs);
 });
 
 
