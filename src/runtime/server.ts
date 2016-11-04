@@ -28,7 +28,7 @@ const contentTypes = {
   ".png": "image/png",
 }
 
-const BROWSER = false;
+const BROWSER = true;
 const PORT = process.env.PORT || 8080;
 const serverDatabase = new ServerDatabase();
 const shared = new PersistedDatabase();
