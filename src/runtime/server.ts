@@ -55,7 +55,7 @@ app.get("/build/examples.js", (request, response) => {
 });
 
 app.get("*", (request, response) => {
-  let url = request.url;
+  let url = request['_parsedUrl'].pathname;
   if(url === "/" || url.indexOf(".eve") > -1) {
     url = "/index.html";
   }
