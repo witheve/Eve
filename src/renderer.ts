@@ -369,13 +369,13 @@ window.addEventListener("change", function(event) {
     if(type != "checkbox" && type != "radio") return;
     let tickbox = target as (RecordElement & HTMLInputElement);
     if(!tickbox.entity) return;
-    sendEvent([{["change", "direct-target"], element: tickbox.entity,
+    sendEvent([{tag: ["change", "direct-target"], element: tickbox.entity,
                 checked: tickbox.checked}]);
     if(type == "radio") {
       var name = target.getAttribute("name") || "";
       if(name in previousCheckedRadios) {
         var previousEntity = previousCheckedRadios[name];
-        sendEvent([{["change"], element: previousEntity, checked: false}]);
+        sendEvent([{tag: ["change"], element: previousEntity, checked: false}]);
       }
     }
   } else if(target.entity) {
