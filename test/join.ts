@@ -2944,3 +2944,38 @@ test("Should still be able to use the trig function with angle - deprecated", (a
   `);
   assert.end();
 })
+
+test("nested if/not expressions correctly get their args set", (assert) => {
+  let expected = {
+    insert: [
+      ["c", "tag", "item"],
+      ["c", "idx", 0],
+      ["c", "title", "title 0"],
+      ["d", "tag", "item"],
+      ["d", "idx", 1],
+      ["a", "tag", "div"],
+      ["a", "text", "0 - title 0"],
+      ["b", "tag", "div"],
+      ["b", "text", "1 - no title"],
+    ],
+    remove: [],
+  };
+  evaluate(assert, expected, `
+    add a foo
+    ~~~
+    search
+      item = [#item idx]
+      title = if not(item.title) then "no title" else item.title
+    bind @browser
+      [#div text: "{{idx}} - {{title}}"]
+    ~~~
+
+    is test
+    ~~~
+    commit
+      [#item idx: 0 title: "title 0"]
+      [#item idx: 1]
+    ~~~
+  `);
+  assert.end();
+})
