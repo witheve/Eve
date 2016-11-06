@@ -21,7 +21,8 @@
     "@types/tape": "^4.2.28",
     "@types/ws": "0.0.33",
     "faucet": "0.0.1",
-    "tape": "^4.6.0"
+    "tape": "^4.6.0",
+    "tsc": "^1.20150623.0"
   },
   "scripts": {
     "install": "./node_modules/.bin/tsc",

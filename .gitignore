@@ -43,8 +43,8 @@ lua_modules/
 
 *~
 dist/
-build/
 node_modules/
+.DS_Store
 
 experimental/build/continuation_templates.h
 experimental/build/eve
