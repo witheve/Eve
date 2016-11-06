@@ -418,7 +418,7 @@ function initIDE(ide:IDE, client:EveClient) {
     if(documentId.indexOf("/examples/") === -1) {
       url = `${location.pathname}#/examples/${documentId}`;
     }
-    history.pushState({}, "", url);
+    history.pushState({}, "", url + location.search);
     analyticsEvent("load-document", documentId);
   }
 
@@ -435,7 +435,8 @@ function initIDE(ide:IDE, client:EveClient) {
 
 function changeDocument() {
   let docId = "quickstart.eve";
-  let path = location.hash.split("#/")[1];
+  let path = "/" + location.hash.split('?')[0].split("#/")[1];
+  console.log("PATH", path, location.hash);
   if(path) {
     if(path[path.length - 1] === "/") path = path.slice(0, -1);
     docId = path;
@@ -459,14 +460,18 @@ console.log(ide);
 function onHashChange(event) {
   if(ide.loaded) changeDocument();
   let hash = window.location.hash.split("#/")[2];
+  let queryParam = window.location.hash.split('?')[1];
 
-  if(hash) {
-    let segments = hash.split("/").map(function(seg, ix) {
+  if(hash || queryParam) {
+    let segments = (hash||'').split("/").map(function(seg, ix) {
       return {id: uuid(), index: ix + 1, value: seg};
+    }), queries = (queryParam||'').split('&').map(function (kv) {
+      let [k, v] = kv.split('=',2);
+      return {id: uuid(), key: k, value: v};
     });
 
     client.sendEvent([
-      {tag: "url-change", "hash-segment": segments}
+      {tag: "url-change", "hash-segment": segments, "query-param": queries}
     ]);
   }
 }

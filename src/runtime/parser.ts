@@ -260,6 +260,7 @@ export class ParseBlock {
   links: string[] = [];
   tokens: chev.Token[];
   searchScopes: string[] = [];
+  parent: ParseBlock | undefined;
 
   constructor(id, variableLookup?) {
     this.id = id;
@@ -333,6 +334,7 @@ export class ParseBlock {
 
   subBlock() {
     let neue = new ParseBlock(`${this.id}|sub${this.nodeId++}`, this.variableLookup);
+    neue.parent = this;
     return neue;
   }
 }

@@ -880,15 +880,15 @@ bind @view @browser
   - Gray out the patterns that do not contribute to the `x2` attribute.
   - Embed value badges for each relevant variable.
   - Summary
-    - `[#clock-hand angle` (70) `length` (30) `]`.
-    - `x2` (78.19) `= 50 + (length` (30) `* sin[angle` (70) `]` (0.94) `)`.
+    - `[#clock-hand degrees` (70) `length` (30) `]`.
+    - `x2` (78.19) `= 50 + (length` (30) `* sin[degrees` (70) `]` (0.94) `)`.
     - `hand <- [#line x1: 50, y1: 50, x2` (78.19) `y2]`.
-4. Click the `angle` attribute.
-  - Filter code to the blocks affecting the `angle` attribute of the `[#clock-hand]`
-  - Gray out the patterns that do not contribute to the `angle attribute`.
+4. Click the `degrees` attribute.
+  - Filter code to the blocks affecting the `degrees` attribute of the `[#clock-hand]`
+  - Gray out the patterns that do not contribute to the `degrees attribute`.
   - Embed value badges for each relevant variable.
   - Summary
-    - `[#clock-hand #hour-hand angle` (900)`: 60 * hours` (15) `, length: 30, stroke: "#023963"]`
+    - `[#clock-hand #hour-hand degrees` (900)`: 60 * hours` (15) `, length: 30, stroke: "#023963"]`
 
 ### Performance
 

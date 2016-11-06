@@ -1,0 +1,48 @@
+Input value
+```
+commit @browser
+  [#label text: "Enter your name: " children: [#input type: "text" name: "name" value: "bill"]]
+```
+```
+search @browser
+  [#input name: "name" value]
+bind @browser
+  [#div text: "Hi there {{value}}."]
+```
+Radio buttons
+```
+commit @browser
+  [#div text: "What's your favorite flavor of ice cream?"]
+  [#label text: "Vanilla" children: [#input type: "radio" name: "flavor" value: "vanilla"]]
+  [#label text: "Chocolate" children: [#input type: "radio" name: "flavor" value: "chocolate"]]
+  [#label text: "Matcha" children: [#input type: "radio" name: "flavor" value: "matcha"]]
+```
+```
+search @browser
+  [#input name: "flavor" checked value != "matcha"]
+bind @browser
+  [#div text: "Good choice!"]
+```
+```
+search @browser
+  [#input name: "flavor" value: "matcha" checked]
+bind @browser
+  [#div text: "Each to their own I guess."]
+```
+Checkboxes
+```
+commit @browser
+  [#div text: "What's would you like to eat?"]
+  [#label text: "Rice" children: [#input type: "checkbox" name: "food" value: "rice"]]
+  [#label text: "Meat" children: [#input type: "checkbox" name: "food" value: "meat"]]
+  [#label text: "Pickles" children: [#input type: "checkbox" name: "food" value: "pickles"]]
+  [#label text: "Soup" children: [#input type: "checkbox" name: "food" value: "soup"]]
+```
+```
+search @browser
+  [#input name: "food" value checked]
+bind @browser
+  [#div text: "There are some bowls here containing:" children:
+    [#ul children:
+      [#li text: value]]]
+```

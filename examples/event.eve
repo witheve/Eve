@@ -30,3 +30,19 @@ update values
   commit @browser
     element.value := value
 ~~~
+
+add checked
+~~~
+  search @event
+    c = [#change element checked: true]
+  commit @browser
+    element.checked := true
+~~~
+
+remove checked
+~~~
+  search @event
+    c = [#change element checked: false]
+  commit @browser
+    element.checked := none
+~~~

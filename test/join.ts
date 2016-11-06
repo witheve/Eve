@@ -2862,3 +2862,120 @@ test("constant filter in if", (assert) => {
   `);
   assert.end();
 })
+
+test("Should be able to use the sin function with degrees and radians", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "tag", "div"],
+      ["a", "text", "1"],
+      ["b", "tag", "div"],
+      ["b", "text", "0.9999996829318346"],
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    Now consider this:
+
+    ~~~
+    search
+      y = sin[degrees: 90]
+      x = sin[radians: 3.14 / 2]
+
+    bind @browser
+      [#div text: y]
+      [#div text: x]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("Should be able to use the cos function with degrees and radians", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "tag", "div"],
+      ["a", "text", "1"],
+      ["b", "tag", "div"],
+      ["b", "text", "-0.9999987317275395"],
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    Now consider this:
+
+    ~~~
+    search
+      y = cos[degrees: 0]
+      x = cos[radians: 3.14]
+
+    bind @browser
+      [#div text: y]
+      [#div text: x]
+    ~~~
+  `);
+  assert.end();
+})
+
+//TODO : Remove this test when angle parameter is removed
+test("Should still be able to use the trig function with angle - deprecated", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "tag", "div"],
+      ["a", "text", "1"],
+      ["b", "tag", "div"],
+      ["b", "text", "0.7071067811865476"],
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    Now consider this:
+
+    ~~~
+    search
+      y = sin[angle: 90]
+      x = cos[angle: 45]
+
+    bind @browser
+      [#div text: y]
+      [#div text: x]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("nested if/not expressions correctly get their args set", (assert) => {
+  let expected = {
+    insert: [
+      ["c", "tag", "item"],
+      ["c", "idx", 0],
+      ["c", "title", "title 0"],
+      ["d", "tag", "item"],
+      ["d", "idx", 1],
+      ["a", "tag", "div"],
+      ["a", "text", "0 - title 0"],
+      ["b", "tag", "div"],
+      ["b", "text", "1 - no title"],
+    ],
+    remove: [],
+  };
+  evaluate(assert, expected, `
+    add a foo
+    ~~~
+    search
+      item = [#item idx]
+      title = if not(item.title) then "no title" else item.title
+    bind @browser
+      [#div text: "{{idx}} - {{title}}"]
+    ~~~
+
+    is test
+    ~~~
+    commit
+      [#item idx: 0 title: "title 0"]
+      [#item idx: 1]
+    ~~~
+  `);
+  assert.end();
+})
