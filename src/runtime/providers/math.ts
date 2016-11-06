@@ -175,13 +175,13 @@ class Pow extends Constraint {
   // log proposes the log of its arg as its value for the proposed variable.
   resolveProposal(proposal, prefix) {
     let {args} = this.resolve(prefix);
-    return [Math.pow(args[1], args[0])];
+    return [Math.pow(args[0], args[1])];
   }
 
   // Check if our return is equivalent to multiplying our args
   test(prefix) {
     let {args, returns} = this.resolve(prefix);
-    return Math.pow(args[1], args[0]) === returns[0];
+    return Math.pow(args[0], args[1]) === returns[0];
   }
 
   // multiply always has a cardinality of 1
