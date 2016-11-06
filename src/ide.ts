@@ -305,6 +305,15 @@ class Navigator {
     }
   }
 
+  createDocument = (event:MouseEvent, {nodeId}) => {
+    // @FIXME: This needs to be keyed off nodeId, not name for multi-level workspaces.
+    // Top level node id is currently hardwired for what I imagine seemed like a good reason at the time.
+    let node = this.nodes[nodeId];
+    if(!node) return;
+    this.ide.createDocument(node.name);
+    node.name
+  }
+
   // Elements
   workspaceItem(nodeId:string):Elem {
     let node = this.nodes[nodeId];
@@ -325,7 +334,7 @@ class Navigator {
       {c: "flex-row", children: [
         {c: `label ${subtree ? "ion-ios-arrow-down" : "no-icon"}`, text: node.name, nodeId, click: subtree ? this.toggleBranch : this.navigate}, // icon should be :before
         {c: "controls", children: [
-          subtree ? {c: "new-btn ion-ios-plus-empty", click: () => console.log("new folder or document")} : undefined,
+          subtree ? {c: "new-btn ion-ios-plus-empty", nodeId, click: this.createDocument} : undefined,
           {c: "delete-btn ion-ios-close-empty", click: () => console.log("delete folder or document w/ confirmation")}
         ]}
       ]},
@@ -2135,6 +2144,23 @@ export class IDE {
     localStorage.setItem("eve-saves", JSON.stringify(saves));
     this.documentId = undefined;
     this.loadFile(docId);
+  }
+
+  createDocument(folder:string) {
+    let newId:string|undefined;
+    let ix = 0;
+    while(!newId) {
+      newId = `/${folder}/untitled${ix ? "-" + ix : ""}.eve`;
+      if(this._fileCache[newId]) newId = undefined;
+    }
+    let emptyTemplate = `# Untitled`;
+    this._fileCache[newId] = emptyTemplate;
+    // @FIXME: Need a way to side-load a single node that isn't hardwired to a span.
+    // Split the current updateNode up.
+    // @FIXME: This won't work with multiple workspaces obviously.
+    this.loadWorkspace("examples", this._fileCache);
+    if(this.onSaveDocument) this.onSaveDocument(this, newId, emptyTemplate);
+    this.loadFile(newId);
   }
 
   injectSpans(packed:any[], attributes:{[id:string]: any|undefined}) {
