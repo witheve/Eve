@@ -179,15 +179,15 @@ class CharAt extends Constraint {
     let {args, returns} = this.resolve(prefix);
     let [text, index] = args;
     if(typeof text !== "string") return false;
-    if(returns[0] < 0 || returns[0] > text.length) return false;
-    return text[index] === text[returns[0]];
+    if(index < 0 || index >= text.length) return false;
+    return text[index] === returns[0];
   }
 
   getProposal(tripleIndex, proposed, prefix) {
     let proposal = this.proposalObject;
     let {args, returns} = this.resolve(prefix);
-    let [text] = args;
-    if(typeof text !== "string" || returns[0] < 0 || returns[0] > text.length) {
+    let [text, index] = args;
+    if(typeof text !== "string" || index < 0 || index >= text.length) {
       proposal.cardinality = 0;
     } else {
       proposal.providing = proposed;
