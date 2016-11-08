@@ -198,6 +198,65 @@ class CharAt extends Constraint {
 }
 
 
+class Find extends Constraint {
+  static AttributeMapping = {
+    "text": 0,
+    "subtext": 1,
+    "case-sensitive": 2,
+  }
+
+  findAll(text, subtext, caseSensitive) {
+    text = caseSensitive ? text.toLowerCase() : text;
+    subtext = caseSensitive ? subtext.toLowerCase() : subtext;
+    let temp = [];
+    for (let i = 0; i < text.length; i ++) {
+      if (text.substring(i, i + subtext.length) === subtext) {
+         temp.push(i);
+      }
+    }
+    return temp;
+  }
+
+  testAll(text, subtext, indexes, caseSensitive) {
+    text = caseSensitive ? text.toLowerCase() : text;
+    subtext = caseSensitive ? subtext.toLowerCase() : subtext;
+    for (let i of indexes) {
+      if (i < 0 || i > text.length || text.substring(i, i + subtext.length) !== subtext) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  resolveProposal(proposal, prefix) {
+    let {args} = this.resolve(prefix);
+    let [text, subtext, caseSensitive=true] = args;
+    return this.findAll(text, subtext, caseSensitive);
+  }
+
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    let [text, subtext, caseSensitive=true] = args;
+    console.log('test', returns)
+    let [indexes] = returns;
+    if(typeof text !== "string") return false;
+    return this.testAll(text, subtext, indexes, caseSensitive);
+  }
+
+  getProposal(tripleIndex, proposed, prefix) {
+    let proposal = this.proposalObject;
+    let {args,} = this.resolve(prefix);
+    let [text, subtext, caseSensitive=true] = args;
+    if(typeof text !== "string") {
+      proposal.cardinality = 0;
+    } else {
+      proposal.providing = proposed;
+      proposal.cardinality = this.findAll(text, subtext, caseSensitive).length;
+    }
+    return proposal;
+  }
+}
+
 // substring over the field 'text', with the base index being 1, inclusive, 'from' defaulting
 // to the beginning of the string, and 'to' the end
 class Substring extends Constraint {
@@ -311,6 +370,7 @@ class Convert extends Constraint {
   }
 }
 
+providers.provide("find", Find);
 providers.provide("char-at", CharAt);
 providers.provide("replace", Replace);
 providers.provide("length", Length);
