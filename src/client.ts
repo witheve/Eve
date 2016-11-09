@@ -231,16 +231,6 @@ export class EveClient {
     }
   }
 
-  initEve(code:string) {
-    browser.init(code);
-    if(this.showIDE) {
-      // @TODO: initialize the ide
-      initIDE(this.ide, this);
-      this.ide.render();
-    }
-    onHashChange({});
-  }
-
   _result(data) {
     let state = {entities: indexes.records.index, dirty: indexes.dirty.index};
     handleDiff(state, data);
@@ -272,12 +262,17 @@ export class EveClient {
     }
   }
 
-  _initLocal(data) {
-    this.localEve = true;
-    this.initEve(data.code);
+  _initProgram(data) {
+    this.localEve = data.local;
+    if(data.local) {
+      browser.init(data.code);
+    }
     if(this.showIDE) {
+      initIDE(this.ide, this);
+      this.ide.render();
       this.ide.loadFile(data.path, data.code);
     }
+    onHashChange({});
   }
 
   _parse(data) {
