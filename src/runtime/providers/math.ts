@@ -371,14 +371,14 @@ class Gaussian extends Constraint {
   getRandom(seed, sigma, mu) {
     if (sigma === undefined) sigma = 1.0
     if (mu === undefined) mu = 0.0
-    let found = Random.cache[seed];
+    let found = Gaussian.cache[seed];
     if(found) return found;
     let u1 = Math.random()
     let u2 = Math.random()
     let z0 = Math.sqrt(-2.0 * Math.log(u1) ) * Math.cos (Math.PI * 2 * u2)
     let key =  "" + seed + sigma + mu
     let res =  z0 * sigma + mu;
-    Random.cache[key] = res
+    Gaussian.cache[key] = res
     return res
   }
 
