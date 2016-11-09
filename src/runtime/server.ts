@@ -35,7 +35,7 @@ const shared = new PersistedDatabase();
 
 global["browser"] = false;
 global["fileFetcher"] = (name) => {
-  return fs.readFileSync(path.join("./examples/", name)).toString();
+  return fs.readFileSync(path.join("./", name)).toString();
 }
 
 //---------------------------------------------------------------------
@@ -98,7 +98,9 @@ class ServerRuntimeClient extends RuntimeClient {
   }
 
   send(json) {
-    this.socket.send(json);
+    if(this.socket && this.socket.readyState === 1) {
+      this.socket.send(json);
+    }
   }
 }
 
@@ -117,9 +119,8 @@ function initWebsocket(wss) {
 
           } else {
             let content = fs.readFileSync("." + path).toString();
-            if(BROWSER) {
-              ws.send(JSON.stringify({type: "initLocal", path, code: content}));
-            } else {
+            ws.send(JSON.stringify({type: "initProgram", local: BROWSER, path, code: content}));
+            if(!BROWSER) {
               client.load(content, "user");
             }
           }
