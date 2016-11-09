@@ -6,21 +6,23 @@ import {Constraint} from "../join";
 import * as providers from "./index";
 import {deprecated} from "../util/deprecated";
 
-class Add extends Constraint {
-  // Add proposes the addition of its args as its value for the
+abstract class TotalFunctionConstraint extends Constraint {
+  abstract getReturnValue(args: any[]) : any;
+
+  // Proposes the return value of the total function as the value for the
   // proposed variable.
   resolveProposal(proposal, prefix) {
     let {args} = this.resolve(prefix);
-    return [args[0] + args[1]];
+    return [this.getReturnValue(args)];
   }
 
-  // Check if our return is equivalent to adding our args
+  // Check if our return is equivalent to the result of the total function.
   test(prefix) {
     let {args, returns} = this.resolve(prefix);
-    return args[0] + args[1] === returns[0];
+    return this.getReturnValue(args) === returns[0];
   }
 
-  // Add always has a cardinality of 1
+  // Total functions always have a cardinality of 1
   getProposal(tripleIndex, proposed, prefix) {
     let proposal = this.proposalObject;
     proposal.providing = proposed;
@@ -29,337 +31,157 @@ class Add extends Constraint {
   }
 }
 
-class Subtract extends Constraint {
-  // subtract proposes the subtractition of its args as its value for the
-  // proposed variable.
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [args[0] - args[1]];
-  }
-
-  // Check if our return is equivalent to subtracting our args
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return args[0] - args[1] === returns[0];
-  }
-
-  // subtract always has a cardinality of 1
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
+class Add extends TotalFunctionConstraint {
+  getReturnValue(args) {
+    return args[0] + args[1];
   }
 }
 
-class Multiply extends Constraint {
-  // multiply proposes the multiplyition of its args as its value for the
-  // proposed variable.
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [args[0] * args[1]];
-  }
-
-  // Check if our return is equivalent to multiplying our args
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return args[0] * args[1] === returns[0];
-  }
-
-  // multiply always has a cardinality of 1
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
+class Subtract extends TotalFunctionConstraint {
+  getReturnValue(args) {
+    return args[0] - args[1];
   }
 }
 
-class Divide extends Constraint {
-  // divide proposes the divideition of its args as its value for the
-  // proposed variable.
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [args[0] / args[1]];
-  }
-
-  // Check if our return is equivalent to divideing our args
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return args[0] / args[1] === returns[0];
-  }
-
-  // divide always has a cardinality of 1
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
+class Multiply extends TotalFunctionConstraint {
+  getReturnValue(args) {
+    return args[0] * args[1];
   }
 }
 
-class Sin extends Constraint {
+class Divide extends TotalFunctionConstraint {
+  getReturnValue(args) {
+    return args[0] / args[1];
+  }
+}
+
+class Sin extends TotalFunctionConstraint {
   static AttributeMapping = {
     "degrees": 0,
     "radians": 1,
     "angle": 2
   }
 
+  getReturnValue(args) {
+    let [degrees, radians, angle] = args;
+    if (angle !== undefined) {
+      return this.getAngle(angle);
+    } else if (degrees !== undefined) {
+      return Math.sin(degrees * (Math.PI / 180));
+    } else {
+      return Math.sin(radians);
+    }
+  }
+
   @deprecated('Please use degrees instead of angle')
   getAngle(angle) {
-    return [Math.sin(angle * (Math.PI / 180))];
-  }
-
-  getSin(degrees, radians) {
-    if (degrees !== undefined) {
-      return [Math.sin(degrees * (Math.PI / 180))];
-    } else {
-      return [Math.sin(radians)];
-    }
-  }
-
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-
-    if(args[2]) {
-      return this.getAngle(args[2]);
-    } else {
-      return this.getSin(args[0], args[1]);
-    }
-  }
-
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return Math.sin(args[0] * (Math.PI / 180)) === returns[0];
-  }
-
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
+    return Math.sin(angle * (Math.PI / 180));
   }
 }
 
-
-class Log extends Constraint {
-  static AttributeMapping = {
-    "value": 0,
-  }
-  // log proposes the log of its arg as its value for the proposed variable.
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [Math.log(args[0])/Math.log(10)];
-  }
-
-  // Check if our return is equivalent to multiplying our args
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return Math.log(args[0])/Math.log(10) === returns[0];
-  }
-
-  // multiply always has a cardinality of 1
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
-  }
-}
-
-class Pow extends Constraint {
-  static AttributeMapping = {
-    "value": 0,
-    "by": 1,
-  }
-  // log proposes the log of its arg as its value for the proposed variable.
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [Math.pow(args[1], args[0])];
-  }
-
-  // Check if our return is equivalent to multiplying our args
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return Math.pow(args[1], args[0]) === returns[0];
-  }
-
-  // multiply always has a cardinality of 1
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
-  }
-}
-
-
-class Mod extends Constraint {
-  static AttributeMapping = {
-    "value": 0,
-    "by": 1,
-  }
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [args[0] % args[1]];
-  }
-
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return args[0] % args[1] === returns[0];
-  }
-
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
-  }
-}
-
-class Abs extends Constraint {
-  static AttributeMapping = {
-    "value": 0,
-  }
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [Math.abs(args[0])];
-  }
-
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return Math.abs(args[0]) === returns[0];
-  }
-
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
-  }
-}
-
-class Floor extends Constraint {
-  static AttributeMapping = {
-    "value": 0,
-  }
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [Math.floor(args[0])];
-  }
-
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return Math.floor(args[0]) === returns[0];
-  }
-
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
-  }
-}
-
-class Ceiling extends Constraint {
-  static AttributeMapping = {
-    "value": 0,
-  }
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [Math.ceil(args[0])];
-  }
-
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return Math.ceil(args[0]) === returns[0];
-  }
-
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
-  }
-}
-
-
-class Cos extends Constraint {
+class Cos extends TotalFunctionConstraint {
   static AttributeMapping = {
     "degrees": 0,
     "radians": 1,
     "angle": 2
   }
 
+  getReturnValue(args) {
+    let [degrees, radians, angle] = args;
+    if (angle !== undefined) {
+      return this.getAngle(angle);
+    } else if (degrees !== undefined) {
+      return Math.cos(degrees * (Math.PI / 180));
+    } else {
+      return Math.cos(radians);
+    }
+  }
+
   @deprecated('Please use degrees instead of angle')
   getAngle(angle) {
-    return [Math.cos(angle * (Math.PI / 180))];
-  }
-
-  getCos(degrees, radians) {
-    if(degrees !== undefined) {
-      return [Math.cos(degrees * (Math.PI / 180))];
-    } else {
-      return [Math.cos(radians)];
-    }
-  }
-
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-
-    if(args[2]) {
-      return this.getAngle(args[2])
-    } else {
-      return this.getCos(args[0], args[1]);
-    }
-  }
-
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return Math.cos(args[0] * (Math.PI / 180)) === returns[0];
-  }
-
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
+    return Math.cos(angle * (Math.PI / 180));
   }
 }
 
-class Random extends Constraint {
+class Log extends TotalFunctionConstraint {
+  static AttributeMapping = {
+    "value": 0,
+  }
+
+  getReturnValue(args) {
+    return Math.log(args[0])/Math.log(10);
+  }
+}
+
+class Pow extends TotalFunctionConstraint {
+  static AttributeMapping = {
+    "value": 0,
+    "by": 1,
+  }
+
+  getReturnValue(args) {
+    return Math.pow(args[0], args[1]);
+  }
+}
+
+
+class Mod extends TotalFunctionConstraint {
+  static AttributeMapping = {
+    "value": 0,
+    "by": 1,
+  }
+
+  getReturnValue(args) {
+    return args[0] % args[1];
+  }
+}
+
+class Abs extends TotalFunctionConstraint {
+  static AttributeMapping = {
+    "value": 0,
+  }
+
+  getReturnValue(args) {
+    return Math.abs(args[0]);
+  }
+}
+
+class Floor extends TotalFunctionConstraint {
+  static AttributeMapping = {
+    "value": 0,
+  }
+
+  getReturnValue(args) {
+    return Math.floor(args[0]);
+  }
+}
+
+class Ceiling extends TotalFunctionConstraint {
+  static AttributeMapping = {
+    "value": 0,
+  }
+
+  getReturnValue(args) {
+    return Math.ceil(args[0]);
+  }
+}
+
+class Random extends TotalFunctionConstraint {
   static AttributeMapping = {
     "seed": 0,
   }
 
   static cache = {};
 
-  getRandom(seed) {
+  getReturnValue(args) {
+    let [seed] = args;
     let found = Random.cache[seed];
     if(found) return found;
     return Random.cache[seed] = Math.random();
   }
-
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [this.getRandom(args[0])];
-  }
-
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return this.getRandom(args[0]) === returns[0];
-  }
-
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
-  }
 }
 
-
-class Gaussian extends Constraint {
+class Gaussian extends TotalFunctionConstraint {
   static AttributeMapping = {
     "seed": 0,
     "σ": 1,
@@ -368,35 +190,40 @@ class Gaussian extends Constraint {
 
   static cache = {};
 
-  getRandom(seed, sigma, mu) {
+  getReturnValue(args) {
+    let [seed, sigma, mu] = args;
     if (sigma === undefined) sigma = 1.0
     if (mu === undefined) mu = 0.0
-    let found = Random.cache[seed];
+    let found = Gaussian.cache[seed];
     if(found) return found;
     let u1 = Math.random()
     let u2 = Math.random()
     let z0 = Math.sqrt(-2.0 * Math.log(u1) ) * Math.cos (Math.PI * 2 * u2)
     let key =  "" + seed + sigma + mu
     let res =  z0 * sigma + mu;
-    Random.cache[key] = res
+    Gaussian.cache[key] = res
     return res
   }
+}
 
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [this.getRandom(args[0], args[1], args[2])];
+class Round extends TotalFunctionConstraint {
+  static AttributeMapping = {
+    "value": 0,
   }
 
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return this.getRandom(args[0], args[1], args[2]) === returns[0];
+  getReturnValue(args) {
+    return Math.round(args[0]);
+  }
+}
+
+class ToFixed extends TotalFunctionConstraint {
+  static AttributeMapping = {
+    "value": 0,
+    "places": 1,
   }
 
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
+  getReturnValue(args) {
+    return args[0].toFixed(args[1]);
   }
 }
 
@@ -452,66 +279,20 @@ class Range extends Constraint {
   }
 }
 
-class Round extends Constraint {
-  static AttributeMapping = {
-    "value": 0,
-  }
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [Math.round(args[0])];
-  }
-
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return Math.round(args[0]) === returns[0];
-  }
-
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
-  }
-}
-
-class ToFixed extends Constraint {
-  static AttributeMapping = {
-    "value": 0,
-    "places": 1,
-  }
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [args[0].toFixed(args[1])];
-  }
-
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return args[0].toFixed(args[1]) === returns[0];
-  }
-
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
-  }
-}
-
-
 providers.provide("+", Add);
 providers.provide("-", Subtract);
 providers.provide("*", Multiply);
 providers.provide("/", Divide);
 providers.provide("sin", Sin);
-providers.provide("log", Log);
 providers.provide("cos", Cos);
+providers.provide("log", Log);
 providers.provide("floor", Floor);
 providers.provide("ceiling", Ceiling);
 providers.provide("abs", Abs);
 providers.provide("mod", Mod);
 providers.provide("pow", Pow);
 providers.provide("random", Random);
-providers.provide("range", Range);
-providers.provide("round", Round);
 providers.provide("gaussian", Gaussian);
+providers.provide("round", Round);
 providers.provide("to-fixed", ToFixed);
+providers.provide("range", Range);
