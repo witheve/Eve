@@ -118,7 +118,7 @@ function initWebsocket(wss) {
         console.log("PATH", path)
         fs.stat("." + path, (err, stats) => {
           if(err || !stats.isFile()) {
-            ws.send(JSON.stringify({type: "initLocal"}));
+            ws.send(JSON.stringify({type: "initProgram", local: true}));
 
           } else {
             let content = fs.readFileSync("." + path).toString();
