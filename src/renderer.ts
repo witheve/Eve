@@ -315,6 +315,29 @@ export function renderRecords() {
 // Event bindings to forward events to the server
 //---------------------------------------------------------
 
+function addSVGCoods(elem, event, eveEvent) {
+  if(elem.tagName != "svg") return;
+
+  var pt = elem.createSVGPoint();
+  pt.x = event.clientX;
+  pt.y = event.clientY;
+  let coords = pt.matrixTransform(elem.getScreenCTM().inverse());
+  eveEvent.x = coords.x;
+  eveEvent.y = coords.y;
+}
+
+function addRootEvent(elem, event, objs) {
+  if(elem !== activeElements["root"]) return;
+
+  let eveEvent = {
+    tag: objs.length === 0 ? ["click"] : ["click", "direct-target"],
+    root: true,
+    x: event.clientX,
+    y: event.clientY
+  };
+  objs.push(eveEvent);
+}
+
 window.addEventListener("click", function(event) {
   let {target} = event;
   let current = target as RecordElement;
@@ -325,11 +348,11 @@ window.addEventListener("click", function(event) {
       if(current == target) {
         tag.push("direct-target");
       }
-      objs.push({tag, element: current.entity});
+      let eveEvent = {tag, element: current.entity};
+      addSVGCoods(current, event, eveEvent)
+      objs.push(eveEvent);
     }
-    if(current === activeElements["root"]) {
-      objs.push({tag: objs.length === 0 ? ["click"] : ["click", "direct-target"], root: true});
-    }
+    addRootEvent(current, event, objs);
     current = current.parentElement;
   }
   sendEvent(objs);
@@ -344,8 +367,11 @@ window.addEventListener("dblclick", function(event) {
       if(current == target) {
         tag.push("direct-target");
       }
-      objs.push({tag, element: current.entity});
+      let eveEvent = {tag, element: current.entity};
+      addSVGCoods(current, event, eveEvent)
+      objs.push(eveEvent);
     }
+    addRootEvent(current, event, objs);
     current = current.parentElement;
   }
   sendEvent(objs);
