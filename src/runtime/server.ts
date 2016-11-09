@@ -8,6 +8,7 @@ import * as path from "path";
 import * as ws from "ws";
 import * as express from "express";
 import * as bodyParser from "body-parser";
+import * as minimist from "minimist";
 
 import {ActionImplementations} from "./actions";
 import {PersistedDatabase} from "./databases/persisted";
@@ -19,6 +20,8 @@ import {RuntimeClient} from "./runtimeClient";
 // Constants
 //---------------------------------------------------------------------
 
+const argv = minimist(process.argv.slice(2));
+
 const contentTypes = {
   ".html": "text/html",
   ".js": "application/javascript",
@@ -28,7 +31,7 @@ const contentTypes = {
   ".png": "image/png",
 }
 
-const BROWSER = true;
+const BROWSER = !argv["server"];
 const PORT = process.env.PORT || 8080;
 const serverDatabase = new ServerDatabase();
 const shared = new PersistedDatabase();
