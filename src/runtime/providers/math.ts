@@ -130,7 +130,6 @@ class ATan extends ValueOnlyConstraint {
   }
 }
 
-
 class ATan2 extends TotalFunctionConstraint {
   static AttributeMapping = {
     "x": 0,
@@ -216,9 +215,6 @@ class ATanH extends ValueOnlyConstraint {
   }
 }
 
-
-
-
 class Log extends TotalFunctionConstraint {
   static AttributeMapping = {
     "value": 0,
@@ -240,7 +236,6 @@ class Exp extends ValueOnlyConstraint {
   }
 }
 
-
 class Pow extends TotalFunctionConstraint {
   static AttributeMapping = {
     "value": 0,
@@ -251,7 +246,6 @@ class Pow extends TotalFunctionConstraint {
     return Math.pow(args[0], args[1]);
   }
 }
-
 
 class Mod extends TotalFunctionConstraint {
   static AttributeMapping = {
@@ -392,7 +386,6 @@ class Range extends Constraint {
 }
 
 //Constants
-
 class PI extends TotalFunctionConstraint {
   getReturnValue(args) {
     return [Math.PI];
@@ -441,7 +434,6 @@ class SQRT2 extends TotalFunctionConstraint {
   }
 }
 
-
 providers.provide("+", Add);
 providers.provide("-", Subtract);
 providers.provide("*", Multiply);
@@ -469,8 +461,6 @@ providers.provide("asinh", ASinH);
 providers.provide("acosh", ACosH);
 providers.provide("atanh", ATanH);
 
-
-
 providers.provide("floor", Floor);
 providers.provide("ceiling", Ceiling);
 
@@ -485,11 +475,6 @@ providers.provide("to-fixed", ToFixed);
 
 //Constants
 providers.provide("pi", PI);
-
-//The below works, but you have constants of the form π[] which would probably be confusing to math geeks and
-//infurating to everyone who has to look up the unicode for pi.
-//providers.provide("π", PI);
-
 providers.provide("e", E);
 providers.provide("ln2", LN2);
 providers.provide("ln10", LN10);
