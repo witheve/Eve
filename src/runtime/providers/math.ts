@@ -31,6 +31,45 @@ abstract class TotalFunctionConstraint extends Constraint {
   }
 }
 
+abstract class TrigConstraint extends TotalFunctionConstraint{
+  static AttributeMapping = {
+    "angle": 0,
+    "degrees": 1,
+    "radians": 2
+  }
+
+  @deprecated('Please use degrees instead of angle')
+  getAngle(angle) {
+    return angle;
+  }
+
+  resolveTrigAttributes(args) : any {
+    let angle = args[0];
+    let degrees = args[1];
+    let radians = args[2];
+
+    //Angle over-rides degrees which overrides radians. 
+    if (! isNaN(angle)){ degrees = this.getAngle(angle);}
+    if (! isNaN(degrees)){ radians = degreesToRadians(degrees);}
+    return radians;
+  }
+}
+
+abstract class ValueOnlyConstraint extends TotalFunctionConstraint{
+  static AttributeMapping = {
+      "value": 0
+  }
+}
+
+function radiansToDegrees(radians:number){
+  return radians * (180 / Math.PI);
+}
+
+
+function degreesToRadians(degrees:number){
+  return degrees * (Math.PI / 180);
+}
+
 class Add extends TotalFunctionConstraint {
   getReturnValue(args) {
     return args[0] + args[1];
@@ -55,63 +94,152 @@ class Divide extends TotalFunctionConstraint {
   }
 }
 
-class Sin extends TotalFunctionConstraint {
-  static AttributeMapping = {
-    "degrees": 0,
-    "radians": 1,
-    "angle": 2
-  }
-
+class Sin extends TrigConstraint {
   getReturnValue(args) {
-    let [degrees, radians, angle] = args;
-    if (angle !== undefined) {
-      return this.getAngle(angle);
-    } else if (degrees !== undefined) {
-      return Math.sin(degrees * (Math.PI / 180));
-    } else {
-      return Math.sin(radians);
-    }
-  }
-
-  @deprecated('Please use degrees instead of angle')
-  getAngle(angle) {
-    return Math.sin(angle * (Math.PI / 180));
+      return Math.sin(this.resolveTrigAttributes(args));
   }
 }
 
-class Cos extends TotalFunctionConstraint {
+class Cos extends TrigConstraint {
+  getReturnValue(args) {
+      return Math.cos(this.resolveTrigAttributes(args));
+  }
+}
+
+class Tan extends TrigConstraint {
+  getReturnValue(args) {
+      return Math.tan(this.resolveTrigAttributes(args));
+  }
+}
+
+class ASin extends ValueOnlyConstraint {
+  getReturnValue(args) {
+    return Math.asin(args[0]);
+  }
+}
+
+class ACos extends ValueOnlyConstraint {
+  getReturnValue(args) {
+    return Math.acos(args[0]);
+  }
+}
+
+class ATan extends ValueOnlyConstraint {
+  getReturnValue(args) {
+    return Math.atan(args[0]);
+  }
+}
+
+
+class ATan2 extends TotalFunctionConstraint {
   static AttributeMapping = {
-    "degrees": 0,
-    "radians": 1,
-    "angle": 2
+    "x": 0,
+    "y": 1
+  }
+  getReturnValue(args) {
+    return [Math.atan2(args[0] ,args[1])];
+  }
+}
+
+//Hyperbolic Functions
+class SinH extends ValueOnlyConstraint {
+  sinh (x: number):number{
+    var y = Math.exp(x);
+    return (y - 1 / y) / 2;
+  }
+  getReturnValue(args) {
+    return [this.sinh(args[0])];
+  }
+}
+
+class CosH extends ValueOnlyConstraint {
+  cosh (x: number):number{
+    var y = Math.exp(x);
+    return (y + 1 / y) / 2;
+  }
+  getReturnValue(args) {
+    return [this.cosh(args[0])];
+  }
+}
+
+class TanH extends ValueOnlyConstraint {
+  tanh(x : number) : number {
+    if (x === Infinity) {
+      return 1;
+    } else if (x === -Infinity) {
+      return -1;
+    } else {
+      let y = Math.exp(2 * x);
+      return (y - 1) / (y + 1);
+    }
+  }
+  getReturnValue(args) {
+    return [this.tanh(args[0])];
+  }
+}
+
+//Inverse Hyperbolic
+class ASinH extends ValueOnlyConstraint {
+  asinh (x: number):number{
+    if (x === -Infinity) {
+      return x;
+    } else {
+      return Math.log(x + Math.sqrt(x * x + 1));
+    }
+  }
+  getReturnValue(args) {
+    return [this.asinh(args[0])];
+  }
+}
+
+class ACosH extends ValueOnlyConstraint {
+  acosh (x: number):number{
+    //How do we handle number outside of range in Eve? 
+    if (x < 1) {return NaN}
+    return Math.log(x + Math.sqrt(x * x - 1));
   }
 
   getReturnValue(args) {
-    let [degrees, radians, angle] = args;
-    if (angle !== undefined) {
-      return this.getAngle(angle);
-    } else if (degrees !== undefined) {
-      return Math.cos(degrees * (Math.PI / 180));
-    } else {
-      return Math.cos(radians);
-    }
-  }
-
-  @deprecated('Please use degrees instead of angle')
-  getAngle(angle) {
-    return Math.cos(angle * (Math.PI / 180));
+    return [this.acosh(args[0])];
   }
 }
+
+class ATanH extends ValueOnlyConstraint {
+  atanh(x : number) : number {
+    //How do we handle number outside of range in Eve? 
+    if (Math.abs(x) > 1) {return NaN}
+    return Math.log((1+x)/(1-x)) / 2;
+  }
+
+  getReturnValue(args) {
+    return [this.atanh(args[0])];
+  }
+}
+
+
+
 
 class Log extends TotalFunctionConstraint {
   static AttributeMapping = {
     "value": 0,
+    "base" : 1
   }
 
   getReturnValue(args) {
-    return Math.log(args[0])/Math.log(10);
+    let baselog = 1;        
+    if (! (isNaN(args[1]))){
+      baselog = Math.log(args[1]);
+    }
+    return [Math.log(args[0])/baselog];
   }
 }
+
+class Exp extends ValueOnlyConstraint {
+  getReturnValue(args) {
+    return [Math.exp(args[0])];
+  }
+}
+
 
 class Pow extends TotalFunctionConstraint {
   static AttributeMapping = {
@@ -136,31 +264,19 @@ class Mod extends TotalFunctionConstraint {
   }
 }
 
-class Abs extends TotalFunctionConstraint {
-  static AttributeMapping = {
-    "value": 0,
-  }
-
+class Abs extends ValueOnlyConstraint {
   getReturnValue(args) {
     return Math.abs(args[0]);
   }
 }
 
-class Floor extends TotalFunctionConstraint {
-  static AttributeMapping = {
-    "value": 0,
-  }
-
+class Floor extends ValueOnlyConstraint {
   getReturnValue(args) {
     return Math.floor(args[0]);
   }
 }
 
-class Ceiling extends TotalFunctionConstraint {
-  static AttributeMapping = {
-    "value": 0,
-  }
-
+class Ceiling extends ValueOnlyConstraint {
   getReturnValue(args) {
     return Math.ceil(args[0]);
   }
@@ -206,11 +322,7 @@ class Gaussian extends TotalFunctionConstraint {
   }
 }
 
-class Round extends TotalFunctionConstraint {
-  static AttributeMapping = {
-    "value": 0,
-  }
-
+class Round extends ValueOnlyConstraint {
   getReturnValue(args) {
     return Math.round(args[0]);
   }
@@ -279,20 +391,109 @@ class Range extends Constraint {
   }
 }
 
+//Constants
+
+class PI extends TotalFunctionConstraint {
+  getReturnValue(args) {
+    return [Math.PI];
+  }
+}
+
+class E extends TotalFunctionConstraint {
+  getReturnValue(args) {
+    return [Math.E];
+  }
+}
+
+class LN2 extends TotalFunctionConstraint {
+  getReturnValue(args) {
+    return [Math.LN2];
+  }
+}
+
+class LN10 extends TotalFunctionConstraint {
+  getReturnValue(args) {
+    return [Math.LN10];
+  }
+}
+
+class LOG2E extends TotalFunctionConstraint {
+  getReturnValue(args) {
+    return [Math.LOG2E];
+  }
+}
+
+class LOG10E extends TotalFunctionConstraint {
+  getReturnValue(args) {
+    return [Math.LOG10E];
+  }
+}
+
+class SQRT1_2 extends TotalFunctionConstraint {
+  getReturnValue(args) {
+    return [Math.SQRT1_2];
+  }
+}
+
+class SQRT2 extends TotalFunctionConstraint {
+  getReturnValue(args) {
+    return [Math.SQRT2];
+  }
+}
+
+
 providers.provide("+", Add);
 providers.provide("-", Subtract);
 providers.provide("*", Multiply);
 providers.provide("/", Divide);
+
+providers.provide("log", Log);
+providers.provide("exp", Exp);
+
+//Trig and Inverse Trig
 providers.provide("sin", Sin);
 providers.provide("cos", Cos);
-providers.provide("log", Log);
+providers.provide("tan", Tan);
+
+providers.provide("asin", ASin);
+providers.provide("acos", ACos);
+providers.provide("atan", ATan);
+
+providers.provide("atan2", ATan2);
+
+//Hyperbolic Functions.
+providers.provide("sinh", SinH);
+providers.provide("cosh", CosH);
+providers.provide("tanh", TanH);
+providers.provide("asinh", ASinH);
+providers.provide("acosh", ACosH);
+providers.provide("atanh", ATanH);
+
+
+
 providers.provide("floor", Floor);
 providers.provide("ceiling", Ceiling);
+
 providers.provide("abs", Abs);
 providers.provide("mod", Mod);
 providers.provide("pow", Pow);
 providers.provide("random", Random);
-providers.provide("gaussian", Gaussian);
-providers.provide("round", Round);
-providers.provide("to-fixed", ToFixed);
 providers.provide("range", Range);
+providers.provide("round", Round);
+providers.provide("gaussian", Gaussian);
+providers.provide("to-fixed", ToFixed);
+
+//Constants
+providers.provide("pi", PI);
+
+//The below works, but you have constants of the form π[] which would probably be confusing to math geeks and
+//infurating to everyone who has to look up the unicode for pi.
+//providers.provide("π", PI);
+
+providers.provide("e", E);
+providers.provide("ln2", LN2);
+providers.provide("ln10", LN10);
+providers.provide("log2e",LOG2E );
+providers.provide("log10e",LOG10E );
+providers.provide("sqrt1/2", SQRT1_2);
+providers.provide("sqrt2", SQRT2);
