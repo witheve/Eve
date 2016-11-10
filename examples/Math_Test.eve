@@ -1,0 +1,273 @@
+# Math Module
+## Constants
+### PI
+```
+search @session
+  value = pi[]
+bind @view
+  [#value value:"PI = {{value}}"]
+```
+
+This won't work as I removed the providor. Was a test for unicode symbol function names
+```eve disabled
+search @session
+  value = π[]
+bind @view
+[#value value:"PI = {{value}}"]
+```
+
+### E
+```
+search @session
+  value = e[]
+bind @view
+  [#value value:"E = {{value}}"]
+```
+
+### Natural Log of 2
+```
+search @session
+  value = ln2[]
+bind @view
+  [#value value:"ln2 = {{value}}"]
+```
+
+### Base 2 logarithm of e
+```
+search @session
+  value = log2e[]
+bind @view
+  [#value value:"log2e = {{value}}"]
+```
+
+### Base 10 logarithm of e
+```
+search @session
+  value = log10e[]
+bind @view
+  [#value value:"log10e = {{value}}"]
+```
+
+### Square root of 1/2
+```
+search @session
+  value = sqrt1/2[]
+bind @view
+  [#value value:"sqrt1/2 = {{value}}"]
+```
+
+### Square Root of 2
+```
+search @session
+  value = sqrt2[]
+bind @view
+  [#value value:"sqrt2 = {{value}}"]
+```
+
+## Mathmatical Functions.
+## Power Functions.
+### Log
+
+```
+search @session
+  value = log[value: e[] ]
+bind @view
+    [#value value:"Log e = {{value}}"]
+```
+
+
+```
+search @session
+  value = log[value:10 base:10]
+bind @view
+  [#value value:"Log 10 in base 10 = {{value}}"]
+```
+
+### Pow
+```
+search @session
+  value = pow[value:2, by:3]
+bind @view
+    [#value value:"Pow 2 by 3 = {{value}}"]
+```
+### 
+```
+search @session
+  value = pow[value:9, by:1 / 2]
+bind @view
+  [#value value:"Square root of 9 = {{value}}"]
+```
+
+## Trig Functions.
+### Sin
+```
+search @session
+  value = sin[angle:45]
+bind @view
+  [#value value:"Sin 45 = {{value}}"]
+```
+
+```
+search @session
+  value = sin[angle:45 degrees:60]
+bind @view
+  [#value value:"Sin 45 or 60 = {{value}}"]
+```
+
+```
+search @session
+  value = sin[degrees:45 radians:1.5]
+bind @view
+  [#value value:"Sin degrees 45 or Radians 1.5 = {{value}}"]
+```
+
+```
+search @session
+  value = sin[radians:1.5]
+bind @view
+  [#value value:"Sin Radians 1.5 = {{value}}"]
+```
+
+```
+search @session
+  value = sin[radians: pi[] / 2 ]
+bind @view
+[#value value:"Sin Radians pi/2 = {{value}}"]
+```
+
+### Cos
+```
+search @session
+  value = cos[angle:45]
+bind @view
+  [#value value:"Cos 45 = {{value}}"]
+
+```
+
+### Tan
+Shouldn't Tan of 90 degrees give NaN or undefined mathematically?
+Checked with Wolfram, Tan(90) gives complex infinity.
+```
+search @session
+  value = tan[angle:90]
+bind @view
+  [#value value:"Tan 90 = {{value}}"]
+```
+
+
+Should give 1, rounding appears to give 0.99 recurring.
+```
+search @session
+  value = tan[angle:45]
+bind @view
+  [#value value:"Tan 45 = {{value}}"]
+```
+
+## Inverse Trig Functions.
+
+### Asin
+```
+search @session
+  value = asin[value:1]
+bind @view
+  [#value value:"ASin 1 = {{value}}"]
+```
+
+### ACos
+```
+search @session
+  value = acos[value:1]
+bind @view
+  [#value value:"ACos 1 = {{value}}"]
+```
+
+
+### ATan
+
+```
+search @session
+  value = atan[value:1]
+bind @view
+  [#value value:"Atan 1 = {{value}}"]
+```
+
+
+### Atan2
+```
+search @session
+  value = atan2[x:1 y:1]
+bind @view
+  [#value value:"Atan2 1,1 = {{value}}"]
+```
+
+## Hyperbolic Finctions.
+### SinH
+```
+search @session
+  value = sinh[value:1]
+bind @view
+  [#value value:"SinH 1 = {{value}}"]
+```
+### CosH
+```
+search @session
+  value = cosh[value:1]
+bind @view
+  [#value value:"CosH 1 = {{value}}"]
+```
+
+### TanH
+```
+search @session
+  value = tanh[value:1]
+bind @view
+  [#value value:"TanH 1 = {{value}}"]
+```
+
+Eve needs a symbol for Infinity? How should that be managed?
+```
+search @session
+  value = tanh[value:"Infinity"]
+bind @view
+  [#value value:"TanH Infinity = {{value}}"]
+```
+
+### ASinh
+```eve disabled
+search @session
+  value = asinh[value:1]
+bind @view
+  [#value value:"ASinH 1 = {{value}}"]
+```
+
+### ACosH
+```eve
+search @session
+  value = acosh[value:1]
+bind @view
+  [#value value:"ACosH 1 = {{value}}"]
+```
+
+Test for  < 1 return NaN
+```
+search @session
+  value = acosh[value:0.9999999999999999]
+bind @view
+  [#value value:"ATanH 1 = {{value}}"]
+```
+
+### ATanH
+```eve
+search @session
+  value = atanh[value:1]
+bind @view
+  [#value value:"ATanH 1 = {{value}}"]
+```
+
+Test for  > 1 return NaN
+```
+search @session
+  value = atanh[value:1.0000000000000002]
+bind @view
+  [#value value:"ATanH 1 = {{value}}"]
+```
