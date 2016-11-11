@@ -3,12 +3,10 @@
 </p>
 
 ---
-
+ 
 Eve is a programming language and IDE based on years of research into building a human-first programming platform. You can play with Eve online here: [play.witehve.com](http://play.witheve.com/).
 
-<p align="center">
-  <iframe width="560" height="315" src="https://www.youtube.com/embed/TWAMr72VaaU?rel=0&amp;controls=0&amp;showinfo=0" frameborder="0" allowfullscreen></iframe>
-</p>
+[![Play With Eve](http://programming.witheve.com/images/eve.png)](http://play.witheve.com/)
 
 ## Installation
 
@@ -27,7 +25,7 @@ Then open `http://localhost:8080/` in your browser.
 
 You can learn about Eve with the following resources:
 
-- [Quick Start Tutorial](http://play.witheve.com/)
+- [Play with Eve in your browser](http://play.witheve.com/) (use Chrome for best results)
 - [Syntax Quick Reference](https://witheve.github.io/assets/docs/SyntaxReference.pdf)
 - [Eve Language Handbook (draft)](http://docs.witheve.com)
 
@@ -39,10 +37,10 @@ You can learn about Eve with the following resources:
 
 The Eve community is small but constantly growing, and everyone is welcome!
 
-- Join our [mailing list](https://groups.google.com/forum/#!forum/eve-talk) and get involved with the latest discussions on Eve.
+- Join or start a discussion on our [mailing list](https://groups.google.com/forum/#!forum/eve-talk).
 - Impact the future of Eve by getting involved with our [Request for Comments](https://github.com/witheve/rfcs) process.
-- Read our [development diary](http://incidentalcomplexity.com/).
-- Follow us on [twitter](https://twitter.com/with_eve).
+- Read our [development blog](http://incidentalcomplexity.com/).
+- Follow us on [Twitter](https://twitter.com/with_eve).
 
 ### How to Contribute
 
@@ -64,6 +62,6 @@ Eve is licensed under the Apache 2.0 license, see [LICENSE](https://github.com/w
 
 ## Disclaimer
 
-Eve is currently at a very early, "pre-alpha" stage of development. This means the language, tools, and docs are largely incomplete, but undergoing rapid and continuous development. If you encounter errors while using Eve, don't worry: it's likely our fault. Please bring the problem to our attention by [filing an issue](https://github.com/witheve/eve#how-to-file-an-issue).
+Eve is currently at a very early, "alpha" stage of development. This means the language, tools, and docs are largely incomplete, but undergoing rapid and continuous development. If you encounter errors while using Eve, don't worry: it's likely our fault. Please bring the problem to our attention by [filing an issue](https://github.com/witheve/eve#how-to-file-an-issue).
 
 As always, with pre-release software, don’t use this for anything important. We are continuously pushing to this codebase, so you can expect very rapid changes. At this time, we’re not prepared make the commitment that our changes will not break your code, but we’ll do our best to [update you](https://groups.google.com/forum/#!forum/eve-talk) on the biggest changes.
