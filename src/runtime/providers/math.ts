@@ -7,7 +7,7 @@ import * as providers from "./index";
 import {deprecated} from "../util/deprecated";
 
 abstract class TotalFunctionConstraint extends Constraint {
-  abstract getReturnValue(args: any[]) : any;
+  abstract getReturnValue(args: any[]) : number;
 
   // Proposes the return value of the total function as the value for the
   // proposed variable.
@@ -136,7 +136,7 @@ class ATan2 extends TotalFunctionConstraint {
     "y": 1
   }
   getReturnValue(args) {
-    return [Math.atan2(args[0] ,args[1])];
+    return (Math.atan2(args[0] ,args[1]));
   }
 }
 
@@ -147,7 +147,7 @@ class SinH extends ValueOnlyConstraint {
     return (y - 1 / y) / 2;
   }
   getReturnValue(args) {
-    return [this.sinh(args[0])];
+    return (this.sinh(args[0]));
   }
 }
 
@@ -157,7 +157,7 @@ class CosH extends ValueOnlyConstraint {
     return (y + 1 / y) / 2;
   }
   getReturnValue(args) {
-    return [this.cosh(args[0])];
+    return (this.cosh(args[0]));
   }
 }
 
@@ -173,7 +173,7 @@ class TanH extends ValueOnlyConstraint {
     }
   }
   getReturnValue(args) {
-    return [this.tanh(args[0])];
+    return (this.tanh(args[0]));
   }
 }
 
@@ -187,7 +187,7 @@ class ASinH extends ValueOnlyConstraint {
     }
   }
   getReturnValue(args) {
-    return [this.asinh(args[0])];
+    return this.asinh(args[0]);
   }
 }
 
@@ -199,7 +199,7 @@ class ACosH extends ValueOnlyConstraint {
   }
 
   getReturnValue(args) {
-    return [this.acosh(args[0])];
+    return this.acosh(args[0]);
   }
 }
 
@@ -211,7 +211,7 @@ class ATanH extends ValueOnlyConstraint {
   }
 
   getReturnValue(args) {
-    return [this.atanh(args[0])];
+    return this.atanh(args[0]);
   }
 }
 
@@ -226,13 +226,13 @@ class Log extends TotalFunctionConstraint {
     if (! (isNaN(args[1]))){
       baselog = Math.log(args[1]);
     }
-    return [Math.log(args[0])/baselog];
+    return (Math.log(args[0])/baselog);
   }
 }
 
 class Exp extends ValueOnlyConstraint {
   getReturnValue(args) {
-    return [Math.exp(args[0])];
+    return (Math.exp(args[0]));
   }
 }
 
@@ -388,49 +388,49 @@ class Range extends Constraint {
 //Constants
 class PI extends TotalFunctionConstraint {
   getReturnValue(args) {
-    return [Math.PI];
+    return Math.PI;
   }
 }
 
 class E extends TotalFunctionConstraint {
   getReturnValue(args) {
-    return [Math.E];
+    return Math.E;
   }
 }
 
 class LN2 extends TotalFunctionConstraint {
   getReturnValue(args) {
-    return [Math.LN2];
+    return Math.LN2;
   }
 }
 
 class LN10 extends TotalFunctionConstraint {
   getReturnValue(args) {
-    return [Math.LN10];
+    return Math.LN10;
   }
 }
 
 class LOG2E extends TotalFunctionConstraint {
   getReturnValue(args) {
-    return [Math.LOG2E];
+    return Math.LOG2E;
   }
 }
 
 class LOG10E extends TotalFunctionConstraint {
   getReturnValue(args) {
-    return [Math.LOG10E];
+    return Math.LOG10E;
   }
 }
 
 class SQRT1_2 extends TotalFunctionConstraint {
   getReturnValue(args) {
-    return [Math.SQRT1_2];
+    return Math.SQRT1_2;
   }
 }
 
 class SQRT2 extends TotalFunctionConstraint {
   getReturnValue(args) {
-    return [Math.SQRT2];
+    return Math.SQRT2;
   }
 }
 
