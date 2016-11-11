@@ -4,10 +4,10 @@
 
 ---
 
-Eve is a set of tools to help us think. Currently, these tools include: a temporal query language, a compiler, and a database.
+Eve is a programming language and IDE based on years of research into building a human-first programming platform. You can play with Eve online here: [play.witehve.com](http://play.witheve.com/).
 
 <p align="center">
-  <img src="https://witheve.github.io/assets/images/editor.png" alt="Eve Clock" width="80%"/>
+  <iframe width="560" height="315" src="https://www.youtube.com/embed/TWAMr72VaaU?rel=0&amp;controls=0&amp;showinfo=0" frameborder="0" allowfullscreen></iframe>
 </p>
 
 ## Installation
