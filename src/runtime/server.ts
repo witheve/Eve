@@ -162,13 +162,5 @@ let wss = new WebSocketServer({server: server});
 initWebsocket(wss);
 
 server.listen(PORT, function(){
-  console.log(`Server listening on: http://localhost:${PORT}`);
-});
-
-// If the port is already in use, display an error message
-process.on('uncaughtException', function(err) {
-    if(err.errno === 'EADDRINUSE') {
-      console.log(`ERROR: Port ${PORT} is already in use. Close the process using this port and try again.`);
-    }
-    process.exit(1);
+  console.log("Server listening on: http://localhost:%s", PORT);
 });
