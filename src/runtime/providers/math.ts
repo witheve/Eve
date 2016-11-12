@@ -33,23 +33,15 @@ abstract class TotalFunctionConstraint extends Constraint {
 
 abstract class TrigConstraint extends TotalFunctionConstraint{
   static AttributeMapping = {
-    "angle": 0,
-    "degrees": 1,
-    "radians": 2
-  }
-
-  @deprecated('Please use degrees instead of angle')
-  getAngle(angle) {
-    return angle;
+    "degrees": 0,
+    "radians": 1
   }
 
   resolveTrigAttributes(args) : any {
-    let angle = args[0];
-    let degrees = args[1];
-    let radians = args[2];
+    let degrees = args[0];
+    let radians = args[1];
 
-    //Angle over-rides degrees which overrides radians. 
-    if (! isNaN(angle)){ degrees = this.getAngle(angle);}
+    //degrees which overrides radians. 
     if (! isNaN(degrees)){ radians = degreesToRadians(degrees);}
     return radians;
   }
@@ -207,7 +199,7 @@ class ATanH extends ValueOnlyConstraint {
   atanh(x : number) : number {
     //How do we handle number outside of range in Eve? 
     if (Math.abs(x) > 1) {return NaN}
-    return Math.log((1+x)/(1-x)) / 2;
+    return Math.log((1 + x) / (1 - x)) / 2;
   }
 
   getReturnValue(args) {
@@ -226,7 +218,7 @@ class Log extends TotalFunctionConstraint {
     if (! (isNaN(args[1]))){
       baselog = Math.log(args[1]);
     }
-    return (Math.log(args[0])/baselog);
+    return (Math.log(args[0]) / baselog);
   }
 }
 
