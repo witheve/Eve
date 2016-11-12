@@ -31,6 +31,15 @@ You can learn about Eve with the following resources:
 
 *Please let us know what kind of documents would be the most helpful as you begin your journey with Eve*. We want our documentation to be a highlight of the Eve experience, so any suggestions are greatly appreciated.
 
+### Running programs on Node.js
+
+By default, Eve serves the IDE with the browser as the runtime (executing the program).
+To instead have the program execute on the server-side, in Node.js use:
+
+```
+npm start -- --server
+```
+
 ## Get Involved
 
 ### Join the Community
