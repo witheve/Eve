@@ -218,7 +218,7 @@ class Log extends TotalFunctionConstraint {
     if (! (isNaN(args[1]))){
       baselog = Math.log(args[1]);
     }
-    return (Math.log(args[0])/baselog);
+    return (Math.log(args[0]) / baselog);
   }
 }
 
