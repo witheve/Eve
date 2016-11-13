@@ -8,10 +8,10 @@ bind @browser
   [#div text: "MQTT message at {{topic}} : {{payload}}"]
 ```
 
-```eve disabled
+```eve
 search
-  i = range[from: 1 to: 2]
+  i = range[from: 1 to: 5]
 
 commit @mqtt
-  [#message topic: "gpio/test/" + i, payload: false]
+  [#message #outgoing topic: "gpio/test/" + i, payload: i]
 ```

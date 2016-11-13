@@ -63,14 +63,17 @@ export class MqttDatabase extends Database {
       parsed = true;
     } else if (payload == 'false') {
       parsed = false;
-    } else if (payload[0] == '{') {
+    } else if (payload[0] == '{' || payload[0] == '[') {
       try {
         parsed = JSON.parse(payload);
       } catch (err) {
         console.error("JSON parsing of MQTT message failed", err);
       }
     } else {
-
+      try {
+        parsed = parseFloat(payload);
+      } catch (_) {
+      }
     }
 
     let scopes = ["mqtt"];
@@ -109,11 +112,19 @@ export class MqttDatabase extends Database {
     }
   }
 
-  sendMessage(requestId, msg) {
-    console.log('MQTT senc message');
-//    let response = this.requestToResponse[requestId];
-//    response.statusCode = status;
-//    response.end(body);
+  sendMessage(requestId, topic, payload) {
+    console.log('MQTT sendMessage', topic);
+
+    let serialized = payload.toString();
+    if (typeof payload == 'boolean') {
+      serialized = payload ? 'true' : 'false';
+    } else if (typeof payload == 'object') {
+      serialized = (payload) ? JSON.stringify(payload) : 'null';
+    } else {
+      // treat as string
+    }
+
+    this.client.publish(topic, serialized);
   }
 
   onFixpoint(evaluation: Evaluation, changes: Changes) {
@@ -127,17 +138,26 @@ export class MqttDatabase extends Database {
       let [e,a,v] = insert;
       if(!handled[e]) {
         handled[e] = true;
-        if(index.lookup(e,"tag", "message") && !index.lookup(e, "tag", "sent")) {
-          console.log('MQTT insert msg', e, a, v);
+        let isOutgoingMessage = index.lookup(e,"tag", "message") && index.lookup(e,"tag", "outgoing");
+        let isSent = index.lookup(e, "tag", "sent");
+        if(isOutgoingMessage && !isSent) {
+          console.log('MQTT outgoing msg');
 
+          // TODO: error/warn if multiple payloads (not supported)
+          let payloads = index.asValues(e, "payload");
+          if (payloads === undefined) {
+            console.error("no payloads for outgoing message")
+            continue;
+          }
+          let [payload] = payloads;
 
-//          let responses = index.asValues(e, "response");
-//          if(responses === undefined) continue;
-//          let [response] = responses;
-//          let {topic, payload} = index.asObject(response);
-//          actions.push(new InsertAction("server|sender", e, "tag", "sent", undefined, [name]));
-          let msg = "HARDCODED";
-          this.sendMessage(e, msg);
+          // TODO: support multiple topics, or error/warn
+          let topics = index.asValues(e, "topic");
+          let [topic] = topics;
+
+          actions.push(new InsertAction("mqtt|message-sent", e, "tag", "sent", undefined, [name]));
+
+          this.sendMessage(e, topic, payload);
         }
       }
     }
