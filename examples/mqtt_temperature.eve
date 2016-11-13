@@ -1,0 +1,40 @@
+
+# MQTT
+## Temperature
+From mqtt://mqtt.bitraf.no see http://iot.bitraf.no
+### Define the sensors
+```eve
+commit @shared
+  [#bitraf #temperature name: "lab" topic: "bitraf/temperature/1"]
+  [#bitraf #temperature name: "office" topic: "bitraf/temperature/2/value"]
+  [#bitraf #temperature name: "outside" topic: "bitraf/temperature/3/value"]
+```
+### Show latest sensor values
+```eve
+search @shared
+  sensor = [#bitraf #temperature name topic]
+search @mqtt
+  message = [#message #incoming topic: topic, payload]
+  sort[value: payload, per: topic] = 1
+bind @browser
+  [#div text: "{{name}}: {{payload}} C"]
+```
+
+## Testing
+
+```eve disabled
+search @shared @mqtt
+  sensor = [#bitraf #temperature name topic]
+  message = [#message #incoming topic: topic, payload]
+  ix = sort[value: name]
+bind @view
+  [#history | values: payload]
+```
+
+```eve disabled
+search
+  i = range[from: 1 to: 3]
+
+commit @mqtt
+  [#message #outgoing topic: "eve/test/" + i, payload: i]
+```
