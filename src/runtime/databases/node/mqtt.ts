@@ -95,6 +95,7 @@ export class MqttDatabase extends Database {
     let requestId = `request|${this.requestId++}|${(new Date()).getTime()}`
     let actions = [
       new InsertAction("mqtt|tag", requestId, "tag", "message", undefined, scopes),
+      new InsertAction("mqtt|tag", requestId, "tag", "incoming", undefined, scopes),
       new InsertAction("mqtt|topic", requestId, "topic", topic, undefined, scopes),
     ];
 
