@@ -9,6 +9,39 @@ import {Evaluation, Database} from "../../runtime";
 import * as url from "url";
 import * as mqtt from "mqtt";
 
+
+function serializeMessage(payload : any) : string {
+    let serialized = payload.toString();
+    if (typeof payload == 'boolean') {
+      serialized = payload ? 'true' : 'false';
+    } else if (typeof payload == 'object') {
+      serialized = (payload) ? JSON.stringify(payload) : 'null';
+    } else {
+      // treat as string
+    }
+    return serialized;
+}
+
+function deserializeMessage(payload : string) : any {
+  let parsed : any = payload;
+  if (payload == 'true') {
+    parsed = true;
+  } else if (payload == 'false') {
+    parsed = false;
+  } else if (payload[0] == '{' || payload[0] == '[') {
+    try {
+      parsed = JSON.parse(payload);
+    } catch (_) {
+    }
+  } else {
+    try {
+      parsed = parseFloat(payload);
+    } catch (_) {
+    }
+  }
+  return parsed;
+}
+
 export class MqttDatabase extends Database {
 
   receiving: boolean;
@@ -23,58 +56,40 @@ export class MqttDatabase extends Database {
   }
 
   setup() {
-    console.log('mqttdatabase setting up');
     let broker = process.env.EVE_MQTT_BROKER || 'mqtt://localhost:1883';
     let parsed = url.parse(broker);
     let auth = (parsed.auth || ':').split(':');
     let options = {
-      port: parsed.port,
+      port: parsed.port || 1883,
       clientId: 'eve' + Math.random().toString(16).substr(2, 8),
       username: auth[0],
       password: auth[1]
     };
-    let u = "mqtt://"+parsed.host;
-    let client = mqtt.connect(u, options);
+    let cleanedUrl = "mqtt://"+parsed.host;
+    let client = mqtt.connect(cleanedUrl, options);
     let onMessage = this.handleMqttMessage.bind(this);
     this.client = client;
     client.on('error', function(err) {
       console.error('MQTT error', err);
     }); 
     client.on('connect', function() {
-      console.log('MQTT connected');
       // TODO: be smarter, only subscribe to things there are bindings against
       client.subscribe("#", function(s) {
         client.on('message', onMessage);
-        console.log('MQTT subscribed', s);
+        console.log('MQTT subscribed to', cleanedUrl);
       });
     });
   }
 
   handleMqttMessage(topic, message, packet) {
-    console.log('MQTT got message', topic, message);
+    console.log('MQTT got message', topic, message.length);
 
     if(!this.receiving) {
       return console.log("Nothing is listening to MQTT messages");
     }
 
-    let payload = message.toString();
-    let parsed = payload;
-    if (payload == 'true') {
-      parsed = true;
-    } else if (payload == 'false') {
-      parsed = false;
-    } else if (payload[0] == '{' || payload[0] == '[') {
-      try {
-        parsed = JSON.parse(payload);
-      } catch (err) {
-        console.error("JSON parsing of MQTT message failed", err);
-      }
-    } else {
-      try {
-        parsed = parseFloat(payload);
-      } catch (_) {
-      }
-    }
+    // NOTE: assumes UTF-8, no support for binary/Buffer data
+    let parsed = deserializeMessage(message.toString());
 
     let scopes = ["mqtt"];
     let requestId = `request|${this.requestId++}|${(new Date()).getTime()}`
@@ -114,21 +129,11 @@ export class MqttDatabase extends Database {
 
   sendMessage(requestId, topic, payload) {
     console.log('MQTT sendMessage', topic);
-
-    let serialized = payload.toString();
-    if (typeof payload == 'boolean') {
-      serialized = payload ? 'true' : 'false';
-    } else if (typeof payload == 'object') {
-      serialized = (payload) ? JSON.stringify(payload) : 'null';
-    } else {
-      // treat as string
-    }
-
+    const serialized = serializeMessage(payload);
     this.client.publish(topic, serialized);
   }
 
   onFixpoint(evaluation: Evaluation, changes: Changes) {
-    console.log('MQTT fixpoint');
     let name = evaluation.databaseToName(this);
     let result = changes.result({[name]: true});
     let handled = {};
@@ -141,8 +146,6 @@ export class MqttDatabase extends Database {
         let isOutgoingMessage = index.lookup(e,"tag", "message") && index.lookup(e,"tag", "outgoing");
         let isSent = index.lookup(e, "tag", "sent");
         if(isOutgoingMessage && !isSent) {
-          console.log('MQTT outgoing msg');
-
           // TODO: error/warn if multiple payloads (not supported)
           let payloads = index.asValues(e, "payload");
           if (payloads === undefined) {
