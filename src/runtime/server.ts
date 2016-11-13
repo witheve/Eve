@@ -14,6 +14,7 @@ import {ActionImplementations} from "./actions";
 import {PersistedDatabase} from "./databases/persisted";
 import {HttpDatabase} from "./databases/node/http";
 import {ServerDatabase} from "./databases/node/server";
+import {MqttDatabase} from "./databases/node/mqtt";
 import {RuntimeClient} from "./runtimeClient";
 
 //---------------------------------------------------------------------
@@ -34,6 +35,8 @@ const contentTypes = {
 const BROWSER = !argv["server"];
 const PORT = process.env.PORT || 8080;
 const serverDatabase = new ServerDatabase();
+const mqttDatabase = new MqttDatabase();
+mqttDatabase.setup();
 const shared = new PersistedDatabase();
 
 global["browser"] = false;
@@ -94,6 +97,7 @@ class ServerRuntimeClient extends RuntimeClient {
   constructor(socket:WebSocket, withIDE = true) {
     const dbs = {
       "http": new HttpDatabase(),
+      "mqtt": mqttDatabase,
       "shared": shared,
     }
     super(dbs, withIDE);
