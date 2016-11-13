@@ -1,0 +1,17 @@
+
+# MQTT GPIO
+
+```eve
+search @mqtt
+  m = [#message topic payload]
+bind @browser
+  [#div text: "MQTT message at {{topic}} : {{payload}}"]
+```
+
+```eve disabled
+search
+  i = range[from: 1 to: 2]
+
+commit @mqtt
+  [#message topic: "gpio/test/" + i, payload: false]
+```
