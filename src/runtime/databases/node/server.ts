@@ -24,7 +24,7 @@ export class ServerDatabase extends Database {
     if(!this.receiving) {
       // we need to 404
       response.writeHead(404, {"Content-Type": "text/plain"});
-      return response.end("sad");
+      return response.end("Nothing is listening to HTTP requests");
     }
 
     let scopes = ["server"];
