@@ -162,5 +162,13 @@ let wss = new WebSocketServer({server: server});
 initWebsocket(wss);
 
 server.listen(PORT, function(){
-  console.log("Server listening on: http://localhost:%s", PORT);
+  console.log(`Eve is available at http://localhost:${PORT}. Point your browser there to access the Eve editor.`);
+});
+
+// If the port is already in use, display an error message
+process.on('uncaughtException', function(err) {
+    if(err.errno === 'EADDRINUSE') {
+      console.log(`ERROR: Eve couldn't start because port ${PORT} is already in use. Close the process using this port and try again.`);
+    }
+    process.exit(1);
 });
