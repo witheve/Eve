@@ -95,8 +95,9 @@ export abstract class RuntimeClient {
     return true;
   }
 
-  handleEvent(json) {
+  handleEvent(json:string) {
     let data = JSON.parse(json);
+    if(typeof data !== "object") throw new Error(data);
     if(data.type === "event") {
       if(!this.evaluation) return;
       // console.info("EVENT", json);

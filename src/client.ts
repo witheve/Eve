@@ -174,7 +174,8 @@ export class EveClient {
     }
   }
 
-  send(message:string) {
+  send(payload:{type: string, [attributes:string]: any}) {
+    let message = JSON.stringify(payload);
     if(!this.localEve) {
       this.socketSend(message);
     } else {
@@ -196,7 +197,7 @@ export class EveClient {
     for(let record of records) {
       eavs.push.apply(eavs, recordToEAVs(record));
     }
-    this.send(JSON.stringify({type: "event", insert: eavs}))
+    this.send({type: "event", insert: eavs})
   }
 
   onError() {
@@ -400,15 +401,15 @@ function initIDE(ide:IDE, client:EveClient) {
     console.groupCollapsed(`SENT ${generation}`);
     console.info(md);
     console.groupEnd();
-    client.send(JSON.stringify({scope: "root", type: "parse", generation, code: md}));
+    client.send({scope: "root", type: "parse", generation, code: md});
   }
   ide.onEval = (ide:IDE, persist) => {
-    client.send(JSON.stringify({type: "eval", persist}));
+    client.send({type: "eval", persist});
   }
   ide.onLoadFile = (ide, documentId, code) => {
-    client.send(JSON.stringify({type: "close"}));
-    client.send(JSON.stringify({scope: "root", type: "parse", code}))
-    client.send(JSON.stringify({type: "eval", persist: false}));
+    client.send({type: "close"});
+    client.send({scope: "root", type: "parse", code})
+    client.send({type: "eval", persist: false});
     let url = `${location.pathname}#${documentId}`;
     if(documentId.indexOf("/examples/") === -1) {
       url = `${location.pathname}#/examples/${documentId}`;
@@ -422,7 +423,7 @@ function initIDE(ide:IDE, client:EveClient) {
   }
 
   ide.onTokenInfo = (ide, tokenId) => {
-    client.send(JSON.stringify({type: "tokenInfo", tokenId}));
+    client.send({type: "tokenInfo", tokenId});
   }
 
   ide.loadWorkspace("examples", window["examples"]);

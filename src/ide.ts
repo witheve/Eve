@@ -2613,7 +2613,7 @@ export class IDE {
       if(record.span) {
         this.attachView(recordId, record.span[0]);
       } else if(record.node) {
-        client.send(JSON.stringify({type: "findNode", recordId, node: record.node[0]}));
+        client.send({type: "findNode", recordId, node: record.node[0]});
       } else {
         console.warn("Unable to parent view that doesn't provide its origin node  or span id", record);
       }
