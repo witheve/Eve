@@ -88,7 +88,7 @@ Eve is built using the following technologies generously supplied by their attri
 - TypeScript definitions for codemirror
 - By mihailik (https://github.com/mihailik)
 - [MIT][MIT] License
-- https://github.com/codemirror/CodeMirror
+- [https://github.com/DefinitelyTyped/DefinitelyTyped](https://github.com/DefinitelyTyped/DefinitelyTyped/blob/03b3450d08a0b0a1b9e820e581a52c8e6c21f32e/codemirror/codemirror.d.ts)
 
 -------------------------------------------------------------------------------
 
