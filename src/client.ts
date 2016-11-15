@@ -214,7 +214,7 @@ export class EveClient {
     // ping the server so that the connection isn't overzealously
     // closed
     setInterval(() => {
-      this.socketSend("\"PING\"");
+      this.socketSend(JSON.stringify({type: "ping"}));
     }, 30000);
   }
 
