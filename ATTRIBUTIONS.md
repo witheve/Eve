@@ -70,7 +70,7 @@ Eve is built using the following technologies generously supplied by their attri
 
 ### @types/tape
 - TypeScript definitions for tape v4.2.2
-- By Bart van der Schoor https://github.com/Bartvds, Haoqun Jiang https://github.com/sodatea.
+- By Bart van der Schoor (https://github.com/Bartvds), Haoqun Jiang (https://github.com/sodatea)
 - [MIT][MIT] License
 - https://www.npmjs.com/package/@types/tape
 
@@ -78,9 +78,24 @@ Eve is built using the following technologies generously supplied by their attri
 
 ### @types/ws 
 - TypeScript definitions for ws
-- By Paul Loyd https://github.com/loyd.
+- By Paul Loyd (https://github.com/loyd)
 - [MIT][MIT] License
 - https://www.npmjs.com/package/@types/ws
+
+-------------------------------------------------------------------------------
+
+### @types/codemirror
+- TypeScript definitions for codemirror
+- By mihailik (https://github.com/mihailik)
+- [MIT][MIT] License
+- https://github.com/codemirror/CodeMirror
+
+-------------------------------------------------------------------------------
+
+### System.js
+- Universal dynamic module loader 
+- [MIT][MIT] License
+- https://github.com/systemjs/systemjs
 
 -------------------------------------------------------------------------------
 
@@ -162,18 +177,35 @@ Eve is built using the following technologies generously supplied by their attri
 
 -------------------------------------------------------------------------------
 
+### uuid.js
+- Simple, fast generation of RFC4122 UUIDS.
+- By Robert Kieffer (https://github.com/broofa)
+- [MIT][MIT] License
+- https://github.com/broofa/node-uuid
+
+-------------------------------------------------------------------------------
+
 ### Codemirror
-- By Marijn Haverbeke
+- In-browser code editor 
+- By Marijn Haverbeke (https://github.com/marijnh)
 - [MIT][MIT] License
 - https://github.com/codemirror/codemirror
 
 -------------------------------------------------------------------------------
 
-### uuid.js
-
-- By Robert Kieffer (https://github.com/broofa)
+### Simple Scrollbars
+- Addon for CodeMirror
+- By Marijn Haverbeke (https://github.com/marijnh)
 - [MIT][MIT] License
-- https://github.com/broofa/node-uuid
+- https://codemirror.net/doc/manual.html#addon_simplescrollbars
+
+-------------------------------------------------------------------------------
+
+### Annotate Scrollbar
+- Addon for CodeMirror
+- By Marijn Haverbeke (https://github.com/marijnh)
+- [MIT][MIT] License
+- https://codemirror.net/doc/manual.html#addon_annotatescrollbar
 
 -------------------------------------------------------------------------------
 
