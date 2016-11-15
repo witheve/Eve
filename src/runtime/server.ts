@@ -94,6 +94,7 @@ class ServerRuntimeClient extends RuntimeClient {
   constructor(socket:WebSocket, withIDE = true) {
     const dbs = {
       "http": new HttpDatabase(),
+      "server": serverDatabase,
       "shared": shared,
     }
     super(dbs, withIDE);

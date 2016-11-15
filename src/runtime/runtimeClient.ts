@@ -95,8 +95,16 @@ export abstract class RuntimeClient {
     return true;
   }
 
-  handleEvent(json) {
+  handleEvent(json:string) {
     let data = JSON.parse(json);
+
+    // Events are expected to be objects that have a type property
+    // if they aren't, we toss the event out
+    if(typeof data !== "object" || data.type === undefined) {
+      console.error("Got invalid JSON event: " + json);
+      return;
+    }
+
     if(data.type === "event") {
       if(!this.evaluation) return;
       // console.info("EVENT", json);

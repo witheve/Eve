@@ -488,6 +488,7 @@ window.addEventListener("keydown", function(event) {
     }
     current = current.parentElement;
   }
+  objs.push({tag: ["keydown"], element: "window", key});
   client.sendEvent(objs);
 });
 
