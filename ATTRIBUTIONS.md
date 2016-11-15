@@ -209,6 +209,14 @@ Eve is built using the following technologies generously supplied by their attri
 
 -------------------------------------------------------------------------------
 
+### ionicons
+The premium icon font for Ionic
+- [MIT][MIT] License
+- by Ben Sperry (https://twitter.com/benjsperry)
+- https://github.com/driftyco/ionicons
+
+-------------------------------------------------------------------------------
+
 [BSD]: https://spdx.org/licenses/BSD-2-Clause
 [MIT]: https://spdx.org/licenses/MIT
 [Apache]: https://spdx.org/licenses/Apache-2.0
