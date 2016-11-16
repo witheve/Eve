@@ -25,8 +25,8 @@ search
   app = [#app]
   [#time day month year hours minutes seconds ampm]
   not(app = [#init])
-  //user = [#user name: "Corey Montella"]
-  user = [#user name: "Eric Hoffman"]
+  user = [#user name: "Corey Montella"]
+  //user = [#user name: "Eric Hoffman"]
 
 commit
   app <- [#init user
@@ -170,15 +170,15 @@ search @browser @session
   msgs = thread.messages
   name = if msgs.sender.name = app.user.name then "Me"
          else msgs.sender.name
-  msgs.time = [hours minutes ampm]
+  msgs.time = [timestamp timestring]
 
 bind @browser
   content.children := [#div class: "flex-spacer" children:
     [#div #convo class: "convo" children:
-      [#div sort: msgs.time class: "msg" message: msgs children:
+      [#div sort: msgs.time.timestamp class: "msg" message: msgs children:
         [#img class: "msg-avatar" src: msgs.sender.avatarURL]
         [#span #contact contact: msgs.sender, class: "msg-name" text: name]
-        [#span class: "msg-time" text: "{{hours}}:{{minutes}} {{ampm}}"]
+        [#span class: "msg-time" text: timestring]
         [#div class: "msg-text" text: msgs.text]]]
     [#input #send-message thread class: "msg-input"]]
 ```
@@ -312,11 +312,11 @@ search @event @browser @session
   [#keydown key: "enter" element: input]
   input = [#send-message thread value]
   [#app user]
-  time = [#time day month year hours minutes seconds ampm]
+  time = [#time timestamp time-string]
 
 commit @browser
   input.value := ""
-  thread.messages += [#message sender: user, time, text: value]
+  thread.messages += [#message sender: user, time: [timestamp time-string], text: value]
 ```
 
 ### Archive a thread
@@ -341,14 +341,14 @@ The users and messages in this application are fabricated.
 
 ```
 search
-  year: 2017
-  month: 10
-  day: 20
-  hours: 10
-  minutes: 20
-  seconds: 30
-  ampm: "PM"
-
+  t1 = 1479258949716
+  t2 = t1 + 1000
+  t3 = t2 + 1000
+  t4 = t3 + 1000
+  t5 = t4 + 1000
+  t6 = t5 + 1000
+  time-string = "5:15 PM"
+  
 commit
   corey = [#user
    name: "Corey Montella"
@@ -399,25 +399,25 @@ commit
 
   // Make some threads
   [#thread #new-messages users: (corey, chris) messages:
-    [#message sender: corey, time: [day month year hours minutes seconds: 0 ampm], text: "Hey"]
-    [#message sender: chris, time: [day month year hours minutes seconds: 1 ampm], text: "Hey, how are you."]
-    [#message sender: corey, time: [day month year hours minutes seconds: 2 ampm], text: "I'm fine, how are you?"]
-    [#message #unread sender: chris, time: [day month year hours minutes seconds: 3 ampm], text: "Fine as well."]
-    [#message #unread sender: chris, time: [day month year hours minutes: minutes + 1, seconds: 4 ampm], text: "Glad we got that out of the way!"]
-    [#message #unread sender: chris, time: [day month year hours minutes: minutes + 1 seconds: 5 ampm], text: "What did you work on yesterday?"]]
+    [#message sender: corey, time: [timestamp: t1, time-string], text: "Hey"]
+    [#message sender: chris, time: [timestamp: t2, time-string], text: "Hey, how are you."]
+    [#message sender: corey, time: [timestamp: t3, time-string], text: "I'm fine, how are you?"]
+    [#message #unread sender: chris, time: [timestamp: t4, time-string], text: "Fine as well."]
+    [#message #unread sender: chris, time: [timestamp: t5, time-string], text: "Glad we got that out of the way!"]
+    [#message #unread sender: chris, time: [timestamp: t6, time-string], text: "What did you work on yesterday?"]]
 
   [#thread users: (corey, josh) messages:
-    [#message sender: josh, time: [day month year hours minutes seconds: 1 ampm], text: "Hey"]
-    [#message sender: corey, time: [day month year hours minutes seconds: 2 ampm], text: "What's up Josh?"]
-    [#message sender: josh, time: [day month year hours minutes seconds: 3 ampm], text: "I need to tell you something...."]
-    [#message sender: corey, time: [day month year hours minutes seconds: 4 ampm], text: "Uh oh..."]
-    [#message sender: corey, time: [day month year hours minutes seconds: 5 ampm], text: "Well what is it? Don't leave me hanging!"]]
+    [#message sender: josh, time: [timestamp: t1, time-string], text: "Hey"]
+    [#message sender: corey, time: [timestamp: t2, time-string], text: "What's up Josh?"]
+    [#message sender: josh, time: [timestamp: t3, time-string], text: "I need to tell you something...."]
+    [#message sender: corey, time: [timestamp: t4, time-string], text: "Uh oh..."]
+    [#message sender: corey, time: [timestamp: t5, time-string], text: "Well what is it? Don't leave me hanging!"]]
 
   [#thread #new-messages users: (corey, rob) messages:
-    [#message sender: corey, time: [day month year hours minutes seconds: 0 ampm], text: "Did Josh tell you what happened?"]
-    [#message sender: rob, time: [day month year hours minutes seconds: 1 ampm], text: "Yeah, don't worry, we took care of it. "]
-    [#message sender: corey, time: [day month year hours minutes seconds: 2 ampm], text: "Well what happened?"]
-    [#message sender: rob, time: [day month year hours minutes seconds: 3 ampm], text: "Like I said, don't worry about it."]
-    [#message sender: corey, time: [day month year hours minutes seconds: 4 ampm], text: "..."]
-    [#message #unread sender: rob, time: [day month year hours minutes seconds: 5 ampm], text: "🔥"]]
+    [#message sender: corey, time: [timestamp: t1, time-string], text: "Did Josh tell you what happened?"]
+    [#message sender: rob, time: [timestamp: t2, time-string], text: "Yeah, don't worry, we took care of it. "]
+    [#message sender: corey, time: [timestamp: t3, time-string], text: "Well what happened?"]
+    [#message sender: rob, time: [timestamp: t4, time-string], text: "Like I said, don't worry about it."]
+    [#message sender: corey, time: [timestamp: t5, time-string], text: "..."]
+    [#message #unread sender: rob, time: [timestamp: t6, time-string], text: "🔥"]]
 ```
