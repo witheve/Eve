@@ -12,7 +12,14 @@ Eve is a programming language and IDE based on years of research into building a
 
 ### From Source
 
-You'll need a recent [node.js](https://nodejs.org) and then:
+You'll need a recent [node.js](https://nodejs.org) for your platform. Download the Eve source either by cloning this repository:
+
+
+```
+git clone https://github.com/witheve/Eve.git
+```
+
+or you can [download](https://github.com/witheve/Eve/archive/master.zip) the Eve source directly. To build and run Eve, run the following commands in the root Eve directory:
 
 ```
 npm install
@@ -20,6 +27,14 @@ npm start
 ```
 
 Then open `http://localhost:8080/` in your browser.
+
+### From Docker
+
+First, [download](https://www.docker.com/products/docker) and install Docker for your platform. To download and install the Eve container, run the following command:
+
+```
+docker run -p 8080:8080 witheve/eve
+```
 
 ## How to use Eve
 
