@@ -170,7 +170,7 @@ search @browser @session
   msgs = thread.messages
   name = if msgs.sender.name = app.user.name then "Me"
          else msgs.sender.name
-  msgs.time = [timestamp timestring]
+  msgs.time = [timestamp time-string]
 
 bind @browser
   content.children := [#div class: "flex-spacer" children:
@@ -178,7 +178,7 @@ bind @browser
       [#div sort: msgs.time.timestamp class: "msg" message: msgs children:
         [#img class: "msg-avatar" src: msgs.sender.avatarURL]
         [#span #contact contact: msgs.sender, class: "msg-name" text: name]
-        [#span class: "msg-time" text: timestring]
+        [#span class: "msg-time" text: time-string]
         [#div class: "msg-text" text: msgs.text]]]
     [#input #send-message thread class: "msg-input"]]
 ```
