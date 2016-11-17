@@ -4,7 +4,7 @@
 
 ---
  
-Eve is a programming language and IDE based on years of research into building a human-first programming platform. You can play with Eve online here: [play.witehve.com](http://play.witheve.com/).
+Eve is a programming language and IDE based on years of research into building a human-first programming platform. You can play with Eve online here: [play.witheve.com](http://play.witheve.com/).
 
 [![Play With Eve](http://programming.witheve.com/images/eve.png)](http://play.witheve.com/)
 
