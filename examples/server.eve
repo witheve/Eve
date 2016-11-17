@@ -1,24 +1,31 @@
-dude
+# Server Example
 
-```
-  search @server
-    r = [#request url headers: [user-agent]]
-  commit @server
-    r.response := [#response status: 200, body: "yo!"]
-  bind @browser
-    [#div text: "Request for: {{url}} - {{user-agent}}"]
-```
+When `@server` receives a `#request`, it responds with a "yo!" and displays the requsted URL and who requested it.
 
+~~~
+search @server
+  r = [#request url headers: [user-agent]]
 
-```
-  search @server
-    r = [#request url: "/slack-message" body: [text user_name]]
-  bind @browser
-    [#div text: "Body for slack message is {{user_name}}: \"{{text}}\""]
-  commit @http
-    [#request from: r,
-      headers: [meep: "moop", beep: "boop"]
-      method: "POST"
-      url: "https://hooks.slack.com/services/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"
-      json: [text: "{{user_name}} said: `{{text}}`", icon_emoji: ":wizard:", username: "meep"]]
-```
+commit @server
+  r.response := [#response status: 200, body: "yo!"]
+
+bind @browser
+  [#div text: "Request for: {{url}} - {{user-agent}}"]
+~~~
+
+When the server gets a `#request` from slack, it's assumed to be a message with some text from a user, which is echoed back to the server from user `meep`. 
+
+~~~
+search @server
+  r = [#request url: "/slack-message" body: [text user_name]]
+
+bind @browser
+  [#div text: "Body for slack message is {{user_name}}: \"{{text}}\""]
+
+commit @http
+  [#request from: r,
+    headers: [meep: "moop", beep: "boop"]
+    method: "POST"
+    url: "https://hooks.slack.com/services/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"
+    json: [text: "{{user_name}} said: `{{text}}`", icon_emoji: ":wizard:", username: "meep"]]
+~~~

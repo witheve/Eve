@@ -15,19 +15,19 @@ Each button uses the referenced counter to increment itself. We need to search o
 - `#button` is in `@browser`
 - `counter.count` is in `@session`
 
-```
+~~~
 search @event @browser @session
   [#click #direct-target element: [#button diff counter]]
 
 commit
   counter.count := counter.count + diff
-```
+~~~
 
 ### Build a Counter
 
 For every `#counter`, we create a `#div` that contains the elements that draw the counter. The counters are added to the root of the DOM, but you could add them to a particular element in the DOM by specifying a parent element.
 
-```
+~~~
 search
   counter = [#counter count]
 
@@ -36,28 +36,28 @@ bind @browser
     [#button text: "-", diff: -1, counter]
     [#div text: count counter style: [padding: "0 6px" flex: 1]]
     [#button text: "+", diff: 1, counter]]
-```
+~~~
 
 Add some counters programatically. To make `n` unique and independent counters, we need to add something to the committed counter that makes it unique. Since `i` = `{1, 2, 3, 4}`, when we add it to the counter record we get 4 different counters. We also add one `#fancy` counter, which is a standard counter with new styling.
 
-```
+~~~
 search
   i = range[from: 1 to: 4]
 
 commit
   [#counter i count: 0]
   [#counter #fancy count: 0]
-```
+~~~
 
 ### Extend the Counter
 
 This block says: "For every div with a counter that is tagged fancy, add a style with a black background and pink text". Let's break it down. We search for all `#div`s with a counter attribute. The counter is constrained to be only counters with a `#fancy` tag. Then we bind a new style to each.
 
-```
+~~~
 search @browser @session
   counter-element = [#div counter]
   counter.tag = "fancy"
 
 bind @browser @session
   counter-element.style += [background: "black" color: "#FFD0E0"]
-```
+~~~
