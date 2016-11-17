@@ -138,8 +138,7 @@ export class EveClient {
   showIDE:boolean = true;
   ide:IDE;
 
-  constructor(ide:IDE, url?:string) {
-    this.ide = ide;
+  constructor(url?:string) {
     let loc = url ? url : this.getUrl();
     let self = this;
 
@@ -203,7 +202,10 @@ export class EveClient {
   onError() {
     this.localControl = true;
     this.localEve = true;
-    this.ide.local = true;
+    if(this.showIDE) {
+      this.ide = new IDE();
+      this.ide.local = true;
+    }
   }
 
   onOpen() {
@@ -265,11 +267,13 @@ export class EveClient {
 
   _initProgram(data) {
     this.localEve = data.local;
+    this.showIDE = data.withIDE;
     if(data.local) {
       browser.init(data.code);
     }
     if(this.showIDE) {
-      initIDE(this.ide, this);
+      this.ide = new IDE();
+      initIDE(this);
       this.ide.render();
       this.ide.loadFile(data.path, data.code);
     }
@@ -277,18 +281,22 @@ export class EveClient {
   }
 
   _parse(data) {
+    if(!this.showIDE) return;
     this.ide.loadDocument(data.generation, data.text, data.spans, data.extraInfo); // @FIXME
   }
 
   _comments(data) {
+    if(!this.showIDE) return;
     this.ide.injectSpans(data.spans, data.extraInfo);
   }
 
   _findNode(data) {
+    if(!this.showIDE) return;
     this.ide.attachView(data.recordId, data.spanId);
   }
 
   _error(data) {
+    if(!this.showIDE) return;
     this.ide.injectNotice("error", data.message);
   }
 
@@ -347,9 +355,15 @@ function subscribeToTagDiff(tag:string, callback: (inserts: string[], removes: s
   });
 }
 
-subscribeToTagDiff("editor", (inserts, removes, records) => ide.updateActions(inserts, removes, records));
+subscribeToTagDiff("editor", (inserts, removes, records) => {
+  if(!client.showIDE) return;
+  client.ide.updateActions(inserts, removes, records);
+});
 
-subscribeToTagDiff("view", (inserts, removes, records) => ide.updateViews(inserts, removes, records));
+subscribeToTagDiff("view", (inserts, removes, records) => {
+  if(!client.showIDE) return;
+  client.ide.updateViews(inserts, removes, records)
+});
 
 //---------------------------------------------------------
 // Communication helpers
@@ -391,10 +405,10 @@ function recordToEAVs(record) {
 //---------------------------------------------------------
 // Initialize an IDE
 //---------------------------------------------------------
-let ide = new IDE();
-export let client = new EveClient(ide);
+export let client = new EveClient();
 
-function initIDE(ide:IDE, client:EveClient) {
+function initIDE(client:EveClient) {
+  let ide = client.ide;
   ide.onChange = (ide:IDE) => {
     let generation = ide.generation;
     let md = ide.editor.toMarkdown();
@@ -430,6 +444,8 @@ function initIDE(ide:IDE, client:EveClient) {
 }
 
 function changeDocument() {
+  if(!client.showIDE) return;
+  let ide = client.ide;
   let docId = "quickstart.eve";
   let path = "/" + location.hash.split('?')[0].split("#/")[1];
   console.log("PATH", path, location.hash);
@@ -447,14 +463,12 @@ function changeDocument() {
   ide.render();
 }
 
-console.log(ide);
-
 //---------------------------------------------------------
 // Handlers
 //---------------------------------------------------------
 
 function onHashChange(event) {
-  if(ide.loaded) changeDocument();
+  if(client.ide && client.ide.loaded) changeDocument();
   let hash = window.location.hash.split("#/")[2];
   let queryParam = window.location.hash.split('?')[1];
 

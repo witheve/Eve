@@ -122,7 +122,7 @@ export class Evaluation {
 
   registerDatabase(name: string, db: Database) {
     if(this.nameToDatabase[name]) {
-      throw new Error("Trying to register a database name that is already registered");
+      throw new Error("Trying to register a database name that is already registered: " + name);
     }
     for(let database of this.databases) {
       db.analyze(this, database);
