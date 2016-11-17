@@ -85,7 +85,7 @@ search @view
   wrapper = [#attribute-table entity]
   lookup[record: wrapper, attribute: "tag", value: "attribute-table", node]
 
-search (@session, @browser)
+search @session @browser
   lookup[record: entity attribute: key value]
 
 bind @view @browser
@@ -120,7 +120,7 @@ search @view
                  else 300
 
   graph-width = if wrapper.width then wrapper.width
-                 else 500
+                else 500
 
   bar = [label height]
 
@@ -194,8 +194,10 @@ History views are just special bar-graphs
 search @view @stored
   history = [#history values]
   lookup[record: history, attribute: "tag", value: "history", node]
+
 search @stored
   values.value
+
 bind @view
   [#bar-graph history node | bar: [#unlabeled label: values.ix, sort: values.ix, height: values.value width: 15]]
 ~~~
