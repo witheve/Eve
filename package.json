@@ -1,4 +1,31 @@
 {
+  "name": "witheve",
+  "version": "0.2.1",
+  "description": "Programming designed for humans",
+  "keywords": ["language", "ide", "relational", "database", "dataflow"],
+  "homepage": "http://witheve.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/witheve/Eve"
+  },
+  "bugs": {
+    "url": "https://github.com/witheve/Eve/issues",
+  },
+  "license": "Apache-2.0",
+
+  "bin": {
+    "eve": "./build/src/runtime/server.js"
+  },
+  "scripts": {
+    "install": "./node_modules/.bin/tsc",
+    "postinstall": "node ./build/scripts/build.js",
+    "build": "node ./build/scripts/build.js",
+    "build-dist": "node ./build/scripts/build-dist.js",
+    "start": "node ./build/src/runtime/server.js",
+    "server": "node ./build/src/runtime/server.js",
+    "test": "node ./build/test/all.js | faucet"
+  },
+
   "dependencies": {
     "@types/body-parser": "0.0.33",
     "@types/commonmark": "^0.22.29",
@@ -25,19 +52,5 @@
   "devDependencies": {
     "faucet": "0.0.1",
     "tape": "^4.6.0"
-  },
-  "scripts": {
-    "install": "./node_modules/.bin/tsc",
-    "postinstall": "node ./build/scripts/build.js",
-    "build": "node ./build/scripts/build.js",
-    "build-dist": "node ./build/scripts/build-dist.js",
-    "start": "node ./build/src/runtime/server.js",
-    "server": "node ./build/src/runtime/server.js",
-    "test": "node ./build/test/all.js | faucet"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/witheve/Eve.git"
-  },
-  "license": "Apache-2.0"
+  }
 }
