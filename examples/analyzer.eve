@@ -8,6 +8,7 @@ For every variable there is a group
 search
   variable = [#variable]
   number = random[seed: variable]
+
 commit
   [#group number variable]
 ~~~
@@ -16,6 +17,7 @@ commit
 search
   variable = [#variable not(group)]
   group = [#group variable]
+
 commit
   variable.group := group
 ~~~
@@ -26,7 +28,8 @@ Handle a constant equivalence
 search
   eq = [#equality]
   (a, b) = if eq.a.tag, not(eq.b.tag) then (eq.a, eq.b)
-            else if eq.b.tag, not(eq.a.tag) then (eq.b, eq.a)
+           else if eq.b.tag, not(eq.a.tag) then (eq.b, eq.a)
+
 bind
   a.constant += b
 ~~~
@@ -42,7 +45,8 @@ search
   a-group = [#group number: min-a]
   b-group = [#group number: min-b]
   (new, old) = if min-a < min-b then (a-group, b-group)
-                else if min-b < min-a then (b-group, a-group)
+               else if min-b < min-a then (b-group, a-group)
+
   var = [#variable group: old]
 commit
   var.group := new
@@ -58,6 +62,7 @@ search
   [#query record-tag]
   [#scan entity: [register] attribute: "tag" value: record-tag block]
   scan = [#scan entity: [register] block]
+
 bind
   scan.record-tag += record-tag
 ~~~
@@ -70,6 +75,7 @@ search
   [#query record-tag]
   [#action entity: [register] attribute: "tag" value: record-tag block]
   action = [#action entity: [register] block]
+
 bind
   action.record-tag += record-tag
 ~~~
@@ -95,6 +101,7 @@ search
   [#query record-tag]
   [#action entity: [register] record-tag block]
   scan = [#scan entity: [register] block]
+
 bind
   scan.record-tag += record-tag
 ~~~
@@ -106,6 +113,7 @@ bind
     attribute = "tag"
     [#scan block entity: [register] attribute value: tag]
     [#action block entity: [register] attribute value: tag2]
+
   bind
     [#tag-equivalence tag tag2]
 ~~~
@@ -113,30 +121,33 @@ bind
 ## unprovided scans
 
 ~~~ eve disabled
-  search
-    scan = [#scan record-tag attribute]
-    not( action = [#action record-tag attribute]
+search
+  scan = [#scan record-tag attribute]
+  not( action = [#action record-tag attribute]
         value = if scan.value = action.value then true
                 else if scan.value = [#variable] then true
                 else if action.value = [#variable] then true )
-  bind
-    scan += #unprovided
+              
+bind
+  scan += #unprovided
 ~~~
 
 ~~~ eve disabled
-  search
-    scan = [#scan #analyzer/any attribute]
-    not( action = [#action attribute]
+search
+  scan = [#scan #analyzer/any attribute]
+  not( action = [#action attribute]
         value = if scan.value = action.value then true
                 else if scan.value = [#variable] then true
                 else if action.value = [#variable] then true )
-  bind
-    scan += #unprovided
+
+bind
+  scan += #unprovided
 ~~~
 
 ~~~ eve disabled
 search
   scan = [#scan #unprovided start stop record-tag attribute block]
+
 bind @editor
   [#comment scan | block start stop message: "{{attribute}} is never added to {{record-tag}} records, so this will always be empty"]
 ~~~
@@ -149,6 +160,7 @@ bind @editor
 search
   query = [#query token]
   [#link a: to b: token]
+
 bind
   [#query-link token to distance: 1]
 ~~~
@@ -158,6 +170,7 @@ search
   query = [#query token]
   link = [#query-link token distance]
   [#link a: to b: link.to]
+
 bind
   [#query-link token to distance: distance + 1]
 ~~~
@@ -170,6 +183,7 @@ search
   [#link a: to b: token]
   to = [#variable register block]
   token.block = block
+
 bind
   query.register += [token variable: to register block name: to.name]
 ~~~
@@ -180,6 +194,7 @@ We can also associate what attribute that variable is writing to if there is one
 search
   query = [#query register]
   action = [#action attribute value: register.variable]
+
 bind
   register.attribute += attribute
 ~~~
@@ -192,6 +207,7 @@ search
   [#query-link token to]
   to = [#scan start stop]
   start <= token.start <= stop
+
 bind
   query.scan += to
 ~~~
@@ -200,8 +216,10 @@ bind
 search
   [#query token scan: [#scan record-tag attribute value]]
   provider = [#action record-tag attribute start stop]
+
 bind @editor
   [#comment provider | start stop kind: "warning" message: "this is providing it" ]
+
 bind @browser
   [#div text: "provided by: {{provider}}"]
 ~~~
@@ -209,6 +227,7 @@ bind @browser
 ~~~
 search
   [#query token scan: [#scan record-tag attribute]]
+
 bind @browser
   [#div text: "{{token}} scans #{{record-tag}} {{attribute}}"]
 ~~~
@@ -221,6 +240,7 @@ search
   [#query-link token to]
   to = [#action start stop]
   start <= token.start <= stop
+
 bind
   query.action += to
 ~~~
@@ -229,8 +249,10 @@ bind
 search
   [#query token action: [#action record-tag attribute]]
   consumer = [#scan record-tag attribute start stop]
+
 bind @editor
   [#comment consumer | start stop kind: "warning" message: "This is consuming" ]
+
 bind @browser
   [#div text: "consumed by: {{consumer}}"]
 ~~~
@@ -238,6 +260,7 @@ bind @browser
 ~~~
 search
   [#query token action: [#action record-tag attribute]]
+
 bind @browser
   [#div text: "{{token}} actions #{{record-tag}} {{attribute}}"]
 ~~~
@@ -250,6 +273,7 @@ search
   entity = if query.scan then query.scan.entity
            else if query.action then query.action.entity
   record = [#record entity start stop]
+
 bind
   query <- [entity entity-register: entity.register]
 ~~~
@@ -265,6 +289,7 @@ search
   kind = if span = [#action] then "action"
          else if span = [#scan] then "scan"
          else if span = [#record kind] then kind
+
 bind
   query.kind := kind
 ~~~
@@ -279,6 +304,7 @@ search
   variable = if entity = [#variable] then entity
              if value = [#variable] then value
   [#link a: variable b: token]
+
 bind
   query.variable += token
 ~~~
@@ -295,6 +321,7 @@ search
   scan.value = [#variable]
   [#link a: scan.value b: token]
   [#link a: entity b: entity-token]
+
 bind
   query.variable += entity-token
   query.variable += token
@@ -308,6 +335,7 @@ search
   query = [#findRelated for: "span" kind variable]
   [#link a: entity b: variable]
   span = [tag: kind entity]
+
 bind
   query.span += span
 ~~~
@@ -334,6 +362,7 @@ search
   [#link a: variable b: token]
   span = if span.entity = variable then span
          if span.value = variable then span
+
 bind
   query.span += span
 ~~~
@@ -343,8 +372,10 @@ bind
 ~~~
 search
   query = [#findSource recordId not(attribute)]
+
 search @evaluation-session @evaluation-browser
   recordId = [tag]
+
 bind
   query.cool += tag
 ~~~
@@ -354,8 +385,10 @@ Find out what nodes contribute to a record
 ~~~
 search
   query = [#findSource recordId not(attribute)]
+
 search @evaluation-session @evaluation-browser
   lookup[record: recordId, attribute, value, node]
+
 bind
   query.node += node
 ~~~
@@ -365,8 +398,10 @@ Find out what nodes contribute to a specific attribute on a record
 ~~~
 search
   query = [#findSource recordId attribute]
+
 search @evaluation-session @evaluation-browser
   lookup[record: recordId, attribute, value, node]
+
 bind
   query.node += node
 ~~~
@@ -376,8 +411,10 @@ We may also want to lookup what node created a complete eav
 ~~~
 search
   query = [#findSource recordId attribute value]
+
 search @evaluation-session @evaluation-browser
   lookup[record: recordId, attribute, value, node]
+
 bind
   query.node += node
 ~~~
@@ -387,6 +424,7 @@ bind
 ~~~
 search
   query = [#findSource span: [block]]
+
 bind
   query.block += block
 ~~~
@@ -400,6 +438,7 @@ search
   span = if query.attribute then action
          else if record = [#record entity] then record
          else action
+
 bind
   query.source += [span block start: span.start, stop: span.stop]
 ~~~
@@ -411,6 +450,7 @@ search
   query = [#query build-node]
   [#action entity build-node]
   record = [#record entity]
+
 commit
   query.pattern := record
 ~~~
@@ -423,6 +463,7 @@ token
 ~~~
 search
   query = [#findRecordsFromToken]
+
 commit
   query += #query
 ~~~
@@ -432,6 +473,7 @@ search
   query = [#findRecordsFromToken token]
   [#query-link token to]
   to = [#action build-node]
+
 commit
   query.build-node += build-node
 ~~~
@@ -441,8 +483,10 @@ search
   query = [#findRecordsFromToken token]
   [#query-link token to]
   to = [#action build-node]
+
 search @evaluation-session @evaluation-browser
   lookup[node: build-node, record]
+
 commit
   query.record += record
 ~~~
@@ -454,8 +498,10 @@ Store what record-tag we need to compute providers and consumers for
 ~~~
 search
   query = [#findAffector recordId]
+
 search @evaluation-session @evaluation-browser
   tag = recordId.tag
+
 bind
   query += #query
   query.record-tag += tag
@@ -472,6 +518,7 @@ search
              action.start >= start
              action.stop <= stop then record
           else action
+
 bind
   query.affector := [action: final, block]
 ~~~
@@ -481,8 +528,10 @@ search
   query = [#findAffector recordId attribute]
   //scan = [#scan entity: [register] record-tag: tag block]
   //action = [#action entity: [register] attribute block ]
+
 search @evaluation-session @evaluation-browser
   recordId = [tag]
+  
 bind @browser
   //[#div text: "yo {{tag}}"]
 ~~~
@@ -500,6 +549,7 @@ search
              action.start >= start
              action.stop <= stop then record
           else action
+
 commit
   query.drawer += [id: final start: final.start stop: final.stop]
 ~~~
@@ -526,6 +576,7 @@ search
              action.start >= start
              action.stop <= stop then record
           else action
+          
 commit
   query.drawer += [id: final start: final.start stop: final.stop ]
 ~~~

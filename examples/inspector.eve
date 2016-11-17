@@ -17,14 +17,14 @@ When you've arrived at the root of the problem, the inspector provides tools to 
 
 Clean the events we care about up.
 
-```
+~~~
 search @event
   event = if e = [#inspector #inspect] then e
           if e = [#inspector #clear] then e
 
 commit @event
   event := none
-```
+~~~
 
 ### Inspect
 
@@ -32,7 +32,7 @@ When the inspect event comes in, open a new inspector targeted to the inspected 
 
 If an inspector is already open, close it and nuke its state.
 
-```
+~~~
 search @event
   [#inspector #inspect]
 
@@ -41,11 +41,11 @@ search @inspector
 
 bind @event
   [#inspector #clear inspector]
-```
+~~~
 
 When an element is targeted, inspect it.
 
-```
+~~~
 search @event
   event = [#inspector #inspect #direct-target target: element type: "element" x y]
 
@@ -55,11 +55,11 @@ commit @inspector
 
 commit @event
   event := none
-```
+~~~
 
 When the document root is targeted, inspect it.
 
-```
+~~~
 search @event
   event = [#inspector #inspect #direct-target type: "root" x y]
 
@@ -69,11 +69,11 @@ commit @inspector
 
 commit @event
   event := none
-```
+~~~
 
 When a block is targeted, inspect it.
 
-```
+~~~
 search @event
   event = [#inspector #inspect target: block type: "code_block" x y]
 
@@ -82,13 +82,13 @@ commit @inspector
 
 commit @event
   event := none
-```
+~~~
 
 ### Focus/Unfocus Current
 
 When inspecting, the navigator will reveal a button which can be clicked to elide everything but the annotated sections of the document.
 
-```
+~~~
 search @event
   event = [#inspector #focus-current]
 
@@ -104,9 +104,9 @@ commit @inspector
 
 commit @event
   event := none
-```
+~~~
 
-```
+~~~
 search @event
   event = [#inspector #unfocus-current]
 
@@ -122,13 +122,13 @@ commit @inspector
 
 commit @event
   event := none
-```
+~~~
 
 ### Clear
 
 When an inspector clear event comes in, remove open inspectors and all their state.
 
-```
+~~~
 search @event @inspector
   event = [#inspector #clear]
   inspector = if event.inspector then event.inspector
@@ -138,13 +138,13 @@ commit @inspector
   inspector := none
   inspector.state := none
   inspector.data := none
-```
+~~~
 
 ### Click Option
 
 When an inspector button is pressed, activate any new states we want to transition into.
 
-```
+~~~
 search @event
   [#click #direct-target element]
 
@@ -153,11 +153,11 @@ search @browser
 
 commit @inspector
   inspector.state += activate
-```
+~~~
 
 When an inspector button is pressed, deactivate any old states we may have been in that want to leave.
 
-```
+~~~
 search @event
   [#click #direct-target element]
 
@@ -166,13 +166,13 @@ search @browser
 
 commit @inspector
   inspector.state -= deactivate
-```
+~~~
 
 ### Click Attribute Table
 
 When a row in the attribute table is clicked, find the source of that particular attribute.
 
-```
+~~~
 search @event
   [#click element]
   // If we're clicking on an entity value, we'll handle that elsewhere
@@ -186,11 +186,11 @@ search @browser
 
 commit @inspector
   inspector.attribute := key
-```
+~~~
 
 When we click a value in the attribute table, if it's an entity navigate to it.
 
-```
+~~~
 search @event
   [#click element]
   [#click element: value-elem]
@@ -207,13 +207,13 @@ search @inspector
 
 bind @event
   [#inspector #inspect #direct-target target: entity type: "element" x y]
-```
+~~~
 
 ### Click Elsewhere
 
 Any click that is entirely outside of the inspector will close it.
 
-```
+~~~
 search @inspector
   inspector = [#inspector]
 
@@ -223,12 +223,12 @@ search @event
 
 commit @inspector
   inspector := none
-```
+~~~
 
 While the inspector is open on an element, update its avs to that element's avs. This will persist until it's no longer potentially relevant.
 @NOTE: This is kind of weird and it may be better to have multiple targets instead.
 
-```
+~~~
 search @inspector
   inspector = [#inspector element]
 
@@ -237,7 +237,7 @@ search @browser
 
 commit @inspector
   inspector.avs := [attribute value]
-```
+~~~
 
 ## Data
 
@@ -245,7 +245,7 @@ As the inspector states change, it will need to gather different data from the e
 
 Certain kinds of data depend on other data.
 
-```
+~~~
 commit @inspector
   [#data data: "sources"]
   [#data data: "source-sections", requires: "sources"]
@@ -256,46 +256,46 @@ commit @inspector
   [#data data: "affectors"]
   [#data data: "affector-failures" requires: "affectors"]
   [#data data: "performance-stats"]
-```
+~~~
 
 If we need data that has a dependency, make sure we're fetching that too.
 
-```
+~~~
 search @inspector
   inspector = [#inspector data]
   [#data data requires]
 
 bind @inspector
   inspector.data += requires
-```
+~~~
 
 ### Sources
 
 Find source(s) for the current record.
 
-```
+~~~
 search @inspector
   [#inspector data: "sources" element: record not(attribute)]
 
 bind @editor
   [#find-source record]
-```
+~~~
 
 Find source(s) for a specific attribute of the current record.
 
-```
+~~~
 search @inspector
   [#inspector data: "sources" element: record attribute]
 
 bind @editor
   [#find-source record attribute]
-```
+~~~
 
 ### Source Sections
 
 Find the section(s) containing the found source(s).
 
-```
+~~~
 search @inspector
   [#inspector data: "source-sections" element: record]
 
@@ -304,13 +304,13 @@ search @editor
 
 bind @editor
   [#find-section span: block]
-```
+~~~
 
 ### Related
 
 Find related(s) for the current record's source action(s).
 
-```
+~~~
 search @inspector
   inspector = [#inspector data: "related" element: record]
 
@@ -319,13 +319,13 @@ search @editor
 
 bind @editor
   [#find-related inspector | span]
-```
+~~~
 
 ### Values
 
 Find the intermediate values that contribute to the currently targeted record.
 
-```
+~~~
 search @inspector
   inspector = [#inspector data: "values" element avs: [attribute value]]
 
@@ -335,13 +335,13 @@ search @editor
 
 bind @editor
   [#find-value inspector | variable given: [attribute value]]
-```
+~~~
 
 ### All Values
 
 Find all intermediate values for the current target's related variable(s).
 
-```
+~~~
 search @inspector
   (inspector, element) = if i = [#inspector data: "all-values" element] then (i, element)
                         else if i = [#inspector data: "values" element not(avs)] then (i, element)
@@ -352,13 +352,13 @@ search @editor
 
 bind @editor
   [#find-value inspector | variable]
-```
+~~~
 
 ### Cardinalities
 
 Find cardinalities for the current target's related variable(s).
 
-```
+~~~
 search @inspector
   inspector = [#inspector data: "cardinalities" element]
 
@@ -368,35 +368,35 @@ search @editor
 
 bind @editor
   [#find-cardinality inspector | variable]
-```
+~~~
 
 ### Affectors
 
 Find the set of blocks that could affect the currently targeted element.
 
-```
+~~~
 search @inspector
   inspector = [#inspector data: "affectors" element]
 
 bind @editor
   [#find-affector record: element attribute: "children"]
-```
+~~~
 
 Find the set of blocks that could draw into the document root
 
-```
+~~~
 search @inspector
   inspector = [#inspector data: "affectors" root]
 
 bind @editor
   [#find-root-drawers]
-```
+~~~
 
 ### Affector Failures
 
 Find the reasons why affectors of the current target failed.
 
-```
+~~~
 search @inspector
   inspector = [#inspector data: "affector-failures" element]
 
@@ -405,29 +405,29 @@ search @editor
 
 bind @editor
   [#find-failure block]
-```
+~~~
 
 ### Block Failure
 
 Find the reason why the targeted block failed.
 
-```
+~~~
 search @inspector
   inspector = [#inspector data: "block-failure" block]
 
 bind @editor
   [#find-failure block]
-```
+~~~
 
 ### Performance Stats
 
-```
+~~~
 search @inspector
   inspector = [#inspector data: "performance-stats"]
 
 bind @editor
   [#find-performance]
-```
+~~~
 
 ## States
 
@@ -435,7 +435,7 @@ Inspector states control how the inspector interacts with the editor and present
 
 Certain states require data to be fetched.
 
-```
+~~~
 commit @inspector
   // Element States
   [#state state: "focus-blocks" requires: "sources"]
@@ -454,24 +454,24 @@ commit @inspector
   [#state state: "highlight-block-failure" requires: "block-failure"]
   [#state state: "annotate-performance" requires: "performance-stats"]
   [#state state: "focus-performance" requires: "performance-stats"]
-```
+~~~
 
 When the inspector is in a state that requires data, request that data.
 
-```
+~~~
 search @inspector
   [#state state requires]
   inspector = [#inspector state]
 
 bind @inspector
   inspector.data += requires
-```
+~~~
 
 ### Focus Blocks
 
 When the `"focus-blocks"` state is active, elide everything but the originating blocks for the current target.
 
-```
+~~~
 search @inspector
   inspector = [#inspector state: "focus-blocks" element]
 
@@ -481,13 +481,13 @@ search @editor
 bind @editor
   [#elide-between-sections inspector | span: block]
   [#jump-to position: 0]
-```
+~~~
 
 ### Annotate Blocks
 
 When the `"annotate-blocks"` state is active, annotate each source block for the current target.
 
-```
+~~~
 search @inspector
   inspector = [#inspector state: "annotate-blocks" element]
 
@@ -497,13 +497,13 @@ search @editor
 bind @editor
   [#mark-span inspector type: "block_annotation" span: block kind: "source" message: "This block provides the inspected value."]
   [#jump-to span: block]
-```
+~~~
 
 ### Highlight Related
 
 When the `"highlight-related"` state is active, mark all related spans highlighted.
 
-```
+~~~
 search @inspector
   inspector = [#inspector state: "highlight-related" element]
 
@@ -513,13 +513,13 @@ search @editor
 
 bind @editor
   [#mark-span inspector type: "highlight" | span: variable]
-```
+~~~
 
 ### Show Values Inline
 
 When the `"show-values-inline"` state is active, badge any found intermediate values.
 
-```
+~~~
 search @inspector
   inspector = [#inspector state: "show-values-inline" element]
 
@@ -530,13 +530,13 @@ search @editor
 
 bind @editor
   [#mark-span inspector type: "badge" kind: "intermediate" target: element message: value span: variable]
-```
+~~~
 
 ### Show Values Table
 
 When the `"show-values-table"` state is active, embed a table of found intermediate values.
 
-```
+~~~
 search @inspector
   inspector = [#inspector state: "show-values-table" element]
 
@@ -552,13 +552,13 @@ bind @view
 
 bind @browser
   table.span := block
-```
+~~~
 
 ### Show Cardinalities Inline
 
 When the `"show-cardinalities-inline"` state is active, badge any found cardinalities.
 
-```
+~~~
 search @inspector
   inspector = [#inspector state: "show-cardinalities-inline" element]
 
@@ -569,13 +569,13 @@ search @editor
 
 bind @editor
   [#mark-span inspector type: "badge" kind: "cardinality" target: element message: cardinality | span: variable]
-```
+~~~
 
 ### Focus Affectors
 
 When the `"focus-affectors"` state is active, elide everything but the blocks which could impact the target.
 
-```
+~~~
 search @inspector
   inspector = [#inspector state: "focus-affectors" element]
 
@@ -586,13 +586,13 @@ bind @editor
   [#elide-between-sections inspector | span: block]
   [#jump-to position: 0]
   [#mark-span inspector type: "highlight" | span: action]
-```
+~~~
 
 ### Annotate Affectors
 
 When the `"annotate-affectors"` state is active, annotate blocks which could impact the target element.
 
-```
+~~~
 search @inspector
   inspector = [#inspector state: "annotate-affectors" element]
 
@@ -602,11 +602,11 @@ search @editor
 bind @editor
   [#mark-span inspector type: "block_annotation" span: block kind: "affector" message: "This block affects the inspected value."]
   [#jump-to span: block]
-```
+~~~
 
 When the `"annotate-affectors"` state is active, annotate blocks which could draw to the document root.
 
-```
+~~~
 search @inspector
   inspector = [#inspector state: "annotate-affectors" root]
 
@@ -616,13 +616,13 @@ search @editor
 bind @editor
   [#mark-range inspector type: "annotation" span start stop kind: "affector" message: "This block could draw to the document root."]
   [#jump-to position: start]
-```
+~~~
 
 ### Focus Failures
 
 When the `"focus-failures"` state is active, elide everything but the blocks which could impact the target but did not.
 
-```
+~~~
 search @inspector
   inspector = [#inspector state: "focus-failures" element]
 
@@ -634,13 +634,13 @@ bind @editor
   [#elide-between-sections inspector | span: block]
   [#jump-to position: 0]
   [#mark-span inspector type: "highlight" | span: action]
-```
+~~~
 
 ### Annotate Failures
 
 When the `"annotate-failures"` state is active, annotate the blocks which could impact the target.
 
-```
+~~~
 search @inspector
   inspector = [#inspector state: "annotate-failures" element]
 
@@ -651,13 +651,13 @@ search @editor
 bind @editor
   [#mark-span inspector type: "block_annotation" span: block kind: "failure" message: "This block could affect the inspected value but failed."]
   [#jump-to span: block]
-```
+~~~
 
 ### Highlight Failures
 
 When the `"highlight-failures"` state is active, show the failing reasons for blocks that impact the target.
 
-```
+~~~
 search @inspector
   inspector = [#inspector state: "highlight-failures" element]
 
@@ -667,13 +667,13 @@ search @editor
 
 bind @editor
   [#mark-range type: "cause-of-failure" start stop]
-```
+~~~
 
 ### Highlight Block Failure
 
 When the `"highlight-block-failure"` state is active, show the failing reason for the targeted block.
 
-```
+~~~
 search @inspector
   inspector = [#inspector state: "highlight-block-failure" block]
 
@@ -682,11 +682,11 @@ search @editor
 
 bind @editor
   [#mark-range type: "cause-of-failure" start stop]
-```
+~~~
 
 ### Annotate Performance
 
-```
+~~~
 search @inspector
   inspector = [#inspector state: "annotate-performance"]
 
@@ -696,9 +696,9 @@ search @editor
 
 bind @editor
   [#mark-span inspector type: "block_annotation" span: block kind: "performance-{{color}}" message: "This block has performance issues."]
-```
+~~~
 
-```
+~~~
 search @inspector
   inspector = [#inspector state: "annotate-performance"]
 
@@ -711,11 +711,11 @@ search @editor
 bind @editor
   [#mark-span inspector type: "document_widget" span: block kind: "performance-{{color}}" message: "{{total-percent}}% of total | average {{average-time}}ms | max {{max-time}}ms"]
 
-```
+~~~
 
 ### Focus Performance
 
-```
+~~~
 search @inspector
   inspector = [#inspector state: "focus-performance"]
 
@@ -725,23 +725,23 @@ search @editor
 bind @editor
   [#elide-between-sections inspector | span: block]
   [#jump-to position: 0]
-```
+~~~
 
 ## Drawing
 
 While we have an inspector, notify the editor about its existence.
 
-```
+~~~
 search @inspector
   inspector = [#inspector x y]
 
 bind @browser
   inspector <- [#editor #inspector x y: y + 15]
-```
+~~~
 
 When an `#inspector` is open targeted to an element, show the element popout.
 
-```
+~~~
 search @inspector
   inspector = [#inspector state: "popout" element]
 
@@ -757,11 +757,11 @@ bind @browser
         [#button inspector text: "Why this?" activate: "show-values-table" deactivate: "popout"]
         [#button inspector text: "Too few? Too many?" activate: "show-cardinalities-inline" deactivate: "popout"]
         [#button inspector text: "Not drawing?" activate: ("annotate-affectors", "highlight-failures") deactivate: ("annotate-blocks", "popout")]]]
-```
+~~~
 
 When an `#inspector` is open targeted to the document root, show the root popout.
 
-```
+~~~
 search @inspector
   inspector = [#inspector state: "popout" root]
 
@@ -769,12 +769,12 @@ bind @browser
   inspector <- [#div class: "inspector-pane" children:
       [#div #options-panel inspector class: "buttons" children:
         [#button inspector text: "Not drawing?" activate: ("annotate-affectors", "highlight-failures") deactivate: "popout"]]]
-```
+~~~
 
 When an `#inspector` is open targeted to a block, show the block popout.
 @TODO: Just make this the popout for blocks.
 
-```
+~~~
 search @inspector
   inspector = [#inspector state: "block-popout" block]
 
@@ -784,13 +784,13 @@ bind @browser
     [#button inspector text: "Did this fail?" activate: "highlight-block-failure" deactivate: "block-popout"]
     [#button inspector text: "Why is this slow?" activate: "annotate-performance" deactivate: "block-popout"]]]
 
-```
+~~~
 
 ## Debug
 
 ### Inspector Debugger
 
-```
+~~~
 search @view
   wrapper = [#inspector-debugger inspector]
   lookup[record: wrapper, attribute: "tag", value: "inspector-debugger", node]
@@ -802,7 +802,7 @@ bind @view @browser
   wrapper.node := node
   wrapper.tag += "kv-table"
   wrapper.kvs := [key value]
-```
+~~~
 
 
 

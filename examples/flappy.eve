@@ -10,19 +10,19 @@ When a player starts the game, we commit a `#world`, a `#player`, and some `#obs
 
 Add a flappy eve and a world for it to flap in:
 
-```
+~~~
 commit
   [#player #self name: "eve" x: 25 y: 50 velocity: 0]
   [#world screen: "menu" frame: 0 distance: 0 best: 0 gravity: -0.061]
   [#obstacle gap: 35 offset: 0]
   [#obstacle gap: 35 offset: -1]
-```
+~~~
 
 Next we draw the backdrop of the world. The player and obstacle will be drawn later based on their current state. Throughout the app we use resources from [@bhauman's flappy bird demo in clojure][1]. Since none of these things change over time, we commit them once when the player starts the game.
 
 ### Draw the game world!
 
-```
+~~~
 search
   world = [#world]
 
@@ -32,7 +32,7 @@ commit @browser
       [#rect x: 0 y: 0 width: 100 height: 53 fill: "rgb(112, 197, 206)" sort: 0]
       [#image x: 0 y: 52 width: 100 height: 43 preserveAspectRatio: "xMinYMin slice" href: "https://cdn.rawgit.com/bhauman/flappy-bird-demo/master/resources/public/imgs/background.png" sort: 1]
       [#rect x: 0 y: 95 width: 100 height: 5 fill: "rgb(222, 216, 149)" sort: 0]]]
-```
+~~~
 
 ## Game menus
 
@@ -40,18 +40,18 @@ These following blocks handle drawing the game's other screens (such as the main
 
 The main menu displays a message instructing the player how to start the game.
 
-```
+~~~
 search @browser @session
   [#world screen: "menu"]
   svg = [#game-window]
 
 bind @browser
   svg.children += [#text x: 50 y: 45 text-anchor: "middle" font-size: 6 text: "Click the screen to begin!" sort: 10]
-```
+~~~
 
 The "game over" screen displays the final score of the last game, the high score of all games, and a message inviting the player to play the game again.
 
-```
+~~~
 search @session @browser
   [#world screen: "game over" score best]
   svg = [#game-window]
@@ -61,25 +61,25 @@ bind @browser
   svg.children += [#text x: 50 y: 55 text-anchor: "middle" font-size: 6 text: "Score {{score}}" sort: 10]
   svg.children += [#text x: 50 y: 65 text-anchor: "middle" font-size: 6 text: "Best {{best}}" sort: 10]
   svg.children += [#text x: 50 y: 85 text-anchor: "middle" font-size: 4 text: "Click to play again!" sort: 10]
-```
+~~~
 
 ### Score calculation
 
 We haven't calculated the score yet, so let's do that. We calculate the score as the `floor` of the distance, meaning we just round the distance down to the nearest integer. If the distance between pipes is changed, this value can be scaled to search.
 
-```
+~~~
 search
   world = [#world distance]
 
 bind
   world.score := floor[value: distance]
-```
+~~~
 
 ### Start a new game
 
 When the game is on the "menu" or "game over" screens, a click anywhere in the application will (re)start the game. Additionally, if the current score is better than the current best, we'll swap them out now. Along with starting the game, we make sure to reset the distance and player positions in the came of a restart.
 
-```
+~~~
 search @event @session
   [#click element: [#world]]
   world = if world = [#world screen: "menu"] then world
@@ -91,7 +91,7 @@ search @event @session
 commit
   world <- [screen: "game" distance: 0 best: new]
   player <- [x: 25 y: 50 velocity: 0]
-```
+~~~
 
 ## Drawing
 
@@ -101,7 +101,7 @@ Next we draw the `#player` at its (x,y) coordinates. Since the player is station
 
 Draw the player
 
-```
+~~~
 search @session @browser
   svg = [#game-window]
   player = [#player x y]
@@ -111,7 +111,7 @@ bind @browser
   sprite.x := x - 5
   sprite.y := y - 5
   svg.children += sprite
-```
+~~~
 
 ### Obstacles
 
@@ -119,7 +119,7 @@ Drawing obstacles is much the same process as drawing the player, but we encapsu
 
 Draw the obstacles
 
-```
+~~~
 search @session @browser
   svg = [#game-window]
   obstacle = [#obstacle x height gap]
@@ -134,7 +134,7 @@ bind @browser
     [#image x: -1 y: bottom-height width: 12 height: 5 href: "{{imgs}}/lower-pillar-head.png" sort: 2]]
   sprite-group.x := x
   svg.children += sprite-group
-```
+~~~
 
 ## Game Logic
 
@@ -144,7 +144,7 @@ Now we need some logic to actually play the game. We slide obstacles along propo
 
 Every 2 distance a wild obstacle appears
 
-```
+~~~
 search
   [#world distance]
   obstacle = [#obstacle offset]
@@ -153,13 +153,13 @@ search
 
 bind
   obstacle <- [x: 100 - (50 * mod[value: obstacle-distance, by: 2])]
-```
+~~~
 
 When the obstacle is offscreen (`x > 90`), we randomly adjust the height of its gap to ensure the game doesn't play the same way twice. Eve's current random implementation yields a single result per seed per evaluation, so you can ask for `random[seed: "foo"]` in multiple queries and get the same result in that evaluation. In practice, this means that for every unique sample of randomness you care about in a program at a fixed time, you should use a unique seed. In this case, since we want one sample per obstacle, we just use the obstacle UUIDs as our seeds. The magic numbers in the equation just keep the gap from being at the very top of the screen or underground.
 
 Readjust the height of the gap every time the obstacle resets
 
-```
+~~~
 search
   [#world screen: "game" frame]
   obstacle = [#obstacle x > 90]
@@ -167,13 +167,13 @@ search
 
 commit
   obstacle.height := height
-```
+~~~
 
 ### Flapping the player
 
 When a player clicks during gameplay, we give the bird some lift by setting its velocity.
 
-```
+~~~
 search @event @session
   [#click element: [#world]]
   [#world screen: "game"]
@@ -181,13 +181,13 @@ search @event @session
 
 commit
   player.velocity := 1.17
-```
+~~~
 
 ### Scroll the world
 
 Next, we scroll the world in time with frame updates. Eve is currently locked to 60fps updates here, but this will probably be configurable in the future. Importantly, we only want to update the world state once per frame, so to ensure that we note the offset of the frame we last computed in `world.frame` and ensure we’re not recomputing for the same offset.
 
-```
+~~~
 search @session @event
   [#time frames]
   world = [#world screen: "game" frame != frames gravity]
@@ -198,7 +198,7 @@ commit
   world.frame := frames
   world.distance := world.distance + 1 / 60
   player <- [y: y - velocity, velocity: velocity + gravity]
-```
+~~~
 
 ### Collision
 
@@ -206,19 +206,20 @@ Checking collision with the ground is very simple. Since we know the y height of
 
 The game is lost if the player hits the ground.
 
-```
+~~~
 search
   world = [#world screen: "game"]
   [#player y > 85] // ground height + player radius
 
 commit
   world.screen := "game over"
-```
+~~~
+
 Collision with the pipes is only slightly harder. Since they come in pairs, we first determine if the player is horizontally in a slice that may contain pipes and if so, whether we're above or below the gap. If neither, we're in the clear, otherwise we've collided.
 
 The game is lost if the player hits an `#obstacle`
 
-```
+~~~
 search
   world = [#world screen: "game"]
   [#player x y]
@@ -230,6 +231,6 @@ search
 
 commit
   world.screen := "game over"
-```
+~~~
 
 [1]: https://github.com/bhauman/flappy-bird-demo

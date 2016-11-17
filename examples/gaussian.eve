@@ -4,14 +4,14 @@ This program demonstrates event injection and drawing with SVGs.
 
 Create an svg to draw into.
 
-```
+~~~
 bind @browser
   [#svg viewBox: "0 0 50 2", width: 200, height: 200]
-```
+~~~
 
 Rescale the svg area based on the maximum value in a histogram slot. Most browsers seem to also use this to rescale x to keep the aspect ratio constant.
 
-```
+~~~
 search
   [#slots x total]
   m = max[value: total, given: total]
@@ -21,11 +21,11 @@ search @browser
 
 bind @browser
   s.viewBox := "0 0 50 {{m + 2}}"
-```
+~~~
 
 For each click, generate a gaussian sample, use floor to bin it into histogram by integer.
 
-```
+~~~
 search @event @session
   e = [#click]
   x = floor[value: gaussian[seed: e, σ: 10, μ: 25]]
@@ -34,11 +34,11 @@ search @event @session
 commit
   s = [#slots x]
   s.total := total
-```
+~~~
 
 Draw the bins as black rectangles.
 
-```
+~~~
 search
   [#slots x total]
   m = max[value: total, given: total]
@@ -51,14 +51,14 @@ commit @browser
   k.y := m - total
   k.height := total
   s.children += k
-```
+~~~
 
 Inject a click once for each 1/60s.
 
-```
+~~~
 search
    [#time frames]
 
 bind @event
    [#click frames]
-```
+~~~
