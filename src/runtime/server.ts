@@ -131,7 +131,6 @@ function initWebsocket(wss) {
         });
       } else if(data.type === "save"){
         fs.stat("." + path.dirname(data.path), (err, stats) => {
-          console.log(err, stats);
           if(err || !stats.isDirectory()) {
             console.log("trying to save to bad path: " + data.path);
           } else {
