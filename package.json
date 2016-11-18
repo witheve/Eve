@@ -9,13 +9,11 @@
     "url": "https://github.com/witheve/Eve"
   },
   "bugs": {
-    "url": "https://github.com/witheve/Eve/issues",
+    "url": "https://github.com/witheve/Eve/issues"
   },
   "license": "Apache-2.0",
 
-  "bin": {
-    "eve": "./build/src/runtime/server.js"
-  },
+
   "scripts": {
     "install": "./node_modules/.bin/tsc",
     "postinstall": "node ./build/scripts/build.js",
