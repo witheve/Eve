@@ -4,8 +4,8 @@ import {evaluate} from "./shared_functions";
 test("Should be able to use the convert function to convert from string to number", (assert) => {
   let expected = {
     insert: [
-      ["2", "tag", "foo"],  ["2", "value", "1"],
-      ["11|1", "tag", "result"],  ["11|1", "result", 1],
+      ["a", "tag", "foo"],  ["a", "value", "1"],
+      ["b", "tag", "result"],  ["b", "result", 1],
     ],
     remove: [ ]
   };
@@ -31,8 +31,8 @@ test("Should be able to use the convert function to convert from string to numbe
 test("Should be able to use the convert function to convert from number to string", (assert) => {
   let expected = {
     insert: [
-      ["2", "tag", "foo"],  ["2", "value", 1],
-      ["11|1", "tag", "result"],  ["11|1", "result", "1"],
+      ["a", "tag", "foo"],  ["a", "value", 1],
+      ["b", "tag", "result"],  ["b", "result", "1"],
     ],
     remove: [ ]
   };
@@ -58,8 +58,8 @@ test("Should be able to use the convert function to convert from number to strin
 test("Should be able to use the convert function to convert from meters to feets", (assert) => {
   let expected = {
     insert: [
-      ["2", "tag", "foo"],  ["2", "value", 1],
-      ["11|1", "tag", "result"],  ["11|1", "result", 3.281],
+      ["a", "tag", "foo"],  ["a", "value", 1],
+      ["b", "tag", "result"],  ["b", "result", 3.281],
     ],
     remove: [ ]
   };
@@ -85,8 +85,8 @@ test("Should be able to use the convert function to convert from meters to feets
 test("Should be able to use the convert function to convert from feets to meters", (assert) => {
   let expected = {
     insert: [
-      ["2", "tag", "foo"],  ["2", "value", 3.281],
-      ["11|1", "tag", "result"],  ["11|1", "result", 1],
+      ["a", "tag", "foo"],  ["a", "value", 3.281],
+      ["b", "tag", "result"],  ["b", "result", 1],
     ],
     remove: [ ]
   };
