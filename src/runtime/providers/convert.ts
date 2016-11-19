@@ -5,6 +5,7 @@ class Convert extends Constraint {
   static AttributeMapping = {
     "value": 0,
     "to": 1,
+    "from": 2
   }
   static ReturnMapping = {
     "converted": 0,
@@ -12,10 +13,11 @@ class Convert extends Constraint {
 
   resolveProposal(proposal, prefix) {
     let {args, returns} = this.resolve(prefix);
-    let from = 0;
     let value = args[0];
     let to = args[1];
+    let from = args[2];
     let converted;
+
     if(to === "number") {
       converted = +value;
       if(isNaN(converted)) throw new Error("Unable to deal with NaN in the proposal stage.");
@@ -30,6 +32,7 @@ class Convert extends Constraint {
       if(isNaN(converted)) throw new Error("Unable to deal with NaN in the proposal stage.");
       converted = value / 3.281;
     }
+
     return [converted];
   }
 
@@ -37,8 +40,9 @@ class Convert extends Constraint {
     let {args, returns} = this.resolve(prefix);
     let value = args[0];
     let to = args[1];
-
+    let from = args[2];
     let converted;
+
     if(to === "number") {
       converted = +value;
       if(isNaN(converted)) return false;
