@@ -46,7 +46,7 @@ var supportedTags = {
   "h1": true, "h2": true, "h3": true, "h4": true, "h5": true, "h6": true,
   "ol": true, "p": true, "pre": true, "em": true, "img": true, "canvas": true, "script": true, "style": true, "video": true,
   "table": true, "tbody": true, "thead": true, "tr": true, "th": true, "td": true,
-  "form": true, "optgroup": true, "option": true, "select": true, "textarea": true,
+  "form": true, "optgroup": true, "option": true, "select": true, "textarea": true, "datalist": true,
   "title": true, "meta": true, "link": true,
   "svg": true, "circle": true, "line": true, "rect": true, "polygon":true, "text": true, "image": true, "defs": true, "pattern": true, "linearGradient": true, "g": true, "path": true
 };
