@@ -168,6 +168,8 @@ class Convert extends Constraint {
       if(isNaN(converted)) throw new Error("Unable to deal with NaN in the proposal stage.");
     } else if(to === "string") {
       converted = ""+value;
+    } else if(to === "feets") {
+      converted = value * 3.5;
     }
     return [converted];
   }
@@ -181,10 +183,11 @@ class Convert extends Constraint {
     if(to === "number") {
       converted = +value;
       if(isNaN(converted)) return false;
-      if(converted === "") return false;
       return
     } else if(to === "string") {
       converted = ""+value;
+    } else if(to === "feets") {
+      converted = value * 3.5;
     } else {
       return false;
     }
@@ -205,6 +208,7 @@ class Convert extends Constraint {
     if(to === "number") {
       if(isNaN(+value) || value === "") proposal.cardinality = 0;
     } else if(to === "string") {
+    } else if(to === "feets") {
     } else {
       proposal.cardinality = 0;
     }

@@ -53,4 +53,31 @@ test("Should be able to use the cos function with degrees and radians", (assert)
     ~~~
   `);
   assert.end();
-})
+});
+
+test("Should be able to use the convert function to convert from meters to feets", (assert) => {
+  let expected = {
+    insert: [
+      ["2", "tag", "foo"],  ["2", "val", 1],
+      ["11|1", "tag", "result"],  ["11|1", "result", 3.5],
+    ],
+    remove: [ ]
+  };
+  evaluate(assert, expected, `
+    add a foo
+    ~~~
+      commit
+        [#foo val: "1"]
+    ~~~
+
+    is test
+    ~~~
+      search
+        [#foo val]
+        result = convert[value: val to: "feets"]
+      commit
+        [#result result]
+    ~~~
+  `);
+  assert.end();
+});
