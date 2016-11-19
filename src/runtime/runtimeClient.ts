@@ -81,7 +81,19 @@ export abstract class RuntimeClient {
     }
 
     this.evaluation = ev;
+
+    this.updateStyles();
+
     return ev;
+  }
+
+  updateStyles() {
+    var css = "";
+    this.lastParse.code.replace(/```css\n([\w\W]*?)```/g, (g0, g1) => { // \n excludes disabled blocks
+      css += g1;
+    });
+
+    document.getElementById("app-styles").innerHTML = css;
   }
 
   sendErrors(errors) {
@@ -157,13 +169,8 @@ export abstract class RuntimeClient {
         this.evaluation.registerDatabase("session", session);
         changes.commit();
         this.evaluation.fixpoint(changes);
- 
-        var css = "";
-        this.lastParse.code.replace(/```css\n([\w\W]*?)```/g, (g0, g1) => { // \n excludes disabled blocks
-          css += g1;
-        });
- 
-        document.getElementById("app-styles").innerHTML = css;
+
+        this.updateStyles();
       } else {
         let spans = [];
         let extraInfo = {};
