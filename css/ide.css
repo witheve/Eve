@@ -119,6 +119,7 @@ body { justify-content: stretch; }
 .CodeMirror .STRONG { font-weight:bold; }
 .CodeMirror .EMPH { font-style:italic; }
 .CodeMirror .CODE { margin-left: 10px; margin-right:50px; border-left:5px solid #eaeaea; background: #f4f4f4; font-family: "Inconsolata", "Monaco", "Consolas", "Ubuntu Mono", monospace;  }
+.CodeMirror .CODE.css { background: #fff7e9; border-left-color: #ffedcc;}
 .CodeMirror .CODE-TEXT { line-height:19px; padding-left:30px; transition: opacity 0.3s; }
 .CodeMirror .CODE-TEXT.CODE-DISABLED { opacity: 0.6; }
 .CodeMirror span.CODE { color: #0076ce; background:none; margin:0; padding:0; border:none; }
@@ -176,7 +177,7 @@ body { justify-content: stretch; }
  * Format Bars
 \****************************************************************************/
 .editor-pane .new-block-bar { position: absolute; top: 0; left: 0; margin-left: -28px; display: flex; flex-direction: row; width: 28px; overflow: hidden; transition: width 0.15s; z-index: 5; color: #666; border-radius:5px; border:1px solid #ddd; font-size:10pt; background:white; }
-.editor-pane .new-block-bar.active { width: 246px; }
+.editor-pane .new-block-bar.active { width: initial; }
 
 
 .editor-pane .new-block-bar > .new-block-bar-toggle,

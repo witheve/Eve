@@ -1415,17 +1415,20 @@ export function parseDoc(doc, docId = `doc|${docIx++}`) {
   let allErrors = [];
   for(let block of blocks) {
     extraInfo[block.id] = {info: block.info};
+    if(block.info.indexOf("disabled") > -1) {
+      extraInfo[block.id].disabled = true;
+    }
     if(block.info !== "" && block.info.indexOf("eve") === -1) continue;
     let {results, lex, errors} = parseBlock(block.literal, block.id, block.startOffset, spans, extraInfo);
     // if this block is disabled, we want the parsed spans and such, but we don't want
     // the block to be in the set sent to the builder
-    if(block.info.indexOf("disabled") > -1) {
-      extraInfo[block.id].disabled = true;
-    } else if(errors.length) {
-      allErrors.push(errors);
-    } else {
-      results.endOffset = block.endOffset;
-      parsedBlocks.push(results);
+    if(!extraInfo[block.id].disabled) {
+      if(errors.length) {
+        allErrors.push(errors);
+      } else {
+        results.endOffset = block.endOffset;
+        parsedBlocks.push(results);
+      }
     }
   }
   return {

@@ -157,6 +157,13 @@ export abstract class RuntimeClient {
         this.evaluation.registerDatabase("session", session);
         changes.commit();
         this.evaluation.fixpoint(changes);
+ 
+        var css = "";
+        this.lastParse.code.replace(/```css\n([\w\W]*?)```/g, (g0, g1) => { // \n excludes disabled blocks
+          css += g1;
+        });
+ 
+        document.getElementById("app-styles").innerHTML = css;
       } else {
         let spans = [];
         let extraInfo = {};
