@@ -81,6 +81,7 @@ test("Divide by zero should return nothing.", (assert) => {
   let expected = {
     insert: [],
     remove: [],
+    errors: true,
   };
 
   evaluate(assert, expected, `
@@ -140,6 +141,7 @@ test("ATanH < -1 and > 1 should return nothing.", (assert) => {
   let expected = {
     insert: [],
     remove: [],
+    errors: true,
   };
 
   evaluate(assert, expected, `
