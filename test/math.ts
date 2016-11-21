@@ -123,6 +123,7 @@ test("ACosh < 1 should return nothing.", (assert) => {
   let expected = {
     insert: [],
     remove: [],
+    errors: true,
   };
 
   evaluate(assert, expected, `
