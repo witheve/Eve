@@ -7,6 +7,7 @@ import * as providers from "./providers/index";
 import "./providers/math";
 import "./providers/logical";
 import "./providers/string";
+import "./providers/convert";
 import * as errors from "./errors";
 import {Sort} from "./providers/sort";
 import {Aggregate} from "./providers/aggregate";

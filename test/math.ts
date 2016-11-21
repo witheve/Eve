@@ -1,5 +1,5 @@
 import * as test from "tape";
-import {evaluate,verify,dedent} from "./shared_functions";
+import {evaluate} from "./shared_functions";
 
 test("Should be able to use the sin function with degrees and radians", (assert) => {
   let expected = {
@@ -53,4 +53,4 @@ test("Should be able to use the cos function with degrees and radians", (assert)
     ~~~
   `);
   assert.end();
-})
+});
