@@ -2088,6 +2088,7 @@ export class IDE {
   }
 
   loadWorkspace(directory:string, files:{[filename:string]: string}) {
+    // @FIXME: un-hardcode root to enable multiple WS's.
     this._fileCache = files;
     this.navigator.loadWorkspace("root", directory, files);
   }

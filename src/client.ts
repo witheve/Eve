@@ -425,9 +425,10 @@ function initIDE(client:EveClient) {
     client.send({scope: "root", type: "parse", code})
     client.send({type: "eval", persist: false});
     let url = `${location.pathname}#${documentId}`;
-    if(documentId.indexOf("/examples/") === -1) {
-      url = `${location.pathname}#/examples/${documentId}`;
-    }
+    // @FIXME: I think this is vestigial, but need to confirm this.
+    // if(documentId.indexOf("/examples/") === -1) {
+    //   url = `${location.pathname}#/examples/${documentId}`;
+    // }
     history.pushState({}, "", url + location.search);
     analyticsEvent("load-document", documentId);
   }
@@ -440,13 +441,17 @@ function initIDE(client:EveClient) {
     client.send({type: "tokenInfo", tokenId});
   }
 
-  ide.loadWorkspace("examples", window["examples"]);
+  let cache = window["_workspaceCache"];
+  for(let workspace in cache || {}) {
+    ide.loadWorkspace(workspace, cache[workspace]);
+  }
 }
 
 function changeDocument() {
   if(!client.showIDE) return;
   let ide = client.ide;
-  let docId = "quickstart.eve";
+  // @FIXME: This is not right in the non-internal case.
+  let docId = "/examples/quickstart.eve";
   let path = "/" + location.hash.split('?')[0].split("#/")[1];
   console.log("PATH", path, location.hash);
   if(path) {

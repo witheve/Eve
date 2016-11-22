@@ -17,12 +17,13 @@ import {ServerDatabase} from "./databases/node/server";
 import {Database} from "./runtime";
 import {RuntimeClient} from "./runtimeClient";
 import {BrowserViewDatabase, BrowserEditorDatabase, BrowserInspectorDatabase} from "./databases/browserSession";
+import * as eveSource from "./eveSource";
+
+interface CLIOptions {path?:string, browser?: boolean, port?:number, editor?: boolean, root?: string, eveRoot?: string, internal?: boolean}
 
 //---------------------------------------------------------------------
 // Constants
 //---------------------------------------------------------------------
-
-const argv = minimist(process.argv.slice(2));
 
 const contentTypes = {
   ".html": "text/html",
@@ -33,28 +34,13 @@ const contentTypes = {
   ".png": "image/png",
 }
 
-const BROWSER = !argv["server"];
-const PORT = process.env.PORT || argv["port"] || 8080;
 const shared = new PersistedDatabase();
-const PATH = argv["_"][0] || "examples/clock.eve";
 
-// If a file was passed in, we need to make sure it actually exists
-// now instead of waiting for the user to submit a request and then
-// blowing up
-if(PATH) {
-  try {
-    fs.statSync(PATH);
-  } catch(e) {
-    throw new Error("Can't load " + PATH);
-  }
-}
-
-const WITH_IDE = !argv["_"][0];
 
 global["browser"] = false;
-global["fileFetcher"] = (name) => {
-  return fs.readFileSync(path.join("./", name)).toString();
-}
+
+// @FIXME: Move this to something less kludgy.
+var __kludgeConfig:CLIOptions;
 
 //---------------------------------------------------------------------
 // HTTPRuntimeClient
@@ -87,83 +73,105 @@ class HTTPRuntimeClient extends RuntimeClient {
 // Express app
 //---------------------------------------------------------------------
 
-const app = express();
-
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({extended: true}));
-
-app.get("/build/examples.js", (request, response) => {
-  let files = {};
-  for(let file of fs.readdirSync("examples/")) {
-    if(path.extname(file) === ".eve") {
-      try {
-        files["/examples/" + file] = fs.readFileSync(path.join("examples", file)).toString();
-      } catch(err) {}
-    }
-  }
-
-  fs.writeFileSync("build/examples.js", `var examples = ${JSON.stringify(files)}`)
-  response.setHeader("Content-Type", `application/javascript; charset=utf-8`);
-  response.end(`var examples = ${JSON.stringify(files)}`);
-});
-
 function handleStatic(request, response) {
   let url = request['_parsedUrl'].pathname;
-  fs.stat("." + url, (err, result) => {
-    if(err) {
-      return response.status(404).send("Looks like that asset is missing.");
-    }
-    response.setHeader("Content-Type", `${contentTypes[path.extname(url)]}; charset=utf-8`);
-    response.end(fs.readFileSync("." + url));
-  });
+  let roots = [".", __kludgeConfig.eveRoot];
+  let completed = 0;
+  let results = {};
+  for(let root of roots) {
+    let filepath = path.join(root, url);
+    fs.stat(filepath, (err, result) => {
+      completed += 1;
+      if(!err) results[root] = fs.readFileSync(filepath);
+
+      if(completed === roots.length) {
+        for(let root of roots) {
+          if(results[root]) {
+            response.setHeader("Content-Type", `${contentTypes[path.extname(url)]}; charset=utf-8`);
+            response.end(results[root]);
+            return;
+          }
+        }
+
+        return response.status(404).send("Looks like that asset is missing.");
+      }
+    });
+  };
 }
 
-app.get("/assets/*", handleStatic);
-app.get("/build/*", handleStatic);
-app.get("/src/*", handleStatic);
-app.get("/css/*", handleStatic);
-app.get("/fonts/*", handleStatic);
+function createExpressApp(opts:CLIOptions) {
+  let filepath = opts.path;
+  console.log(filepath, opts.path, opts.internal);
 
-app.get("*", (request, response) => {
-  let client = new HTTPRuntimeClient();
-  let content = fs.readFileSync(PATH).toString();
-  client.load(content, "user");
-  client.handle(request, response);
-  if(!client.server.handling) {
-    response.setHeader("Content-Type", `${contentTypes["html"]}; charset=utf-8`);
-    response.end(fs.readFileSync("index.html"));
-  }
-});
+  const app = express();
 
-app.post("*", (request, response) => {
-  let client = new HTTPRuntimeClient();
-  let content = fs.readFileSync(PATH).toString();
-  client.load(content, "user");
-  client.handle(request, response);
-  if(!client.server.handling) {
-    return response.status(404).send("Looks like that asset is missing.");
-  }
-});
+  app.use(bodyParser.json());
+  app.use(bodyParser.urlencoded({extended: true}));
+
+  app.get("/build/examples.js", (request, response) => {
+    let packaged = eveSource.pack();
+
+    // @FIXME: Is rewriting the file really needed here..?
+    fs.writeFileSync("build/examples.js", packaged);
+    response.setHeader("Content-Type", `application/javascript; charset=utf-8`);
+    response.end(packaged);
+  });
+
+  app.get("/assets/*", handleStatic);
+  app.get("/build/*", handleStatic);
+  app.get("/src/*", handleStatic);
+  app.get("/css/*", handleStatic);
+  app.get("/fonts/*", handleStatic);
+
+  app.get("*", (request, response) => {
+    let client = new HTTPRuntimeClient();
+    let content = "";
+    if(filepath) content = fs.readFileSync(filepath).toString();
+    client.load(content, "user");
+    client.handle(request, response);
+    if(!client.server.handling) {
+      response.setHeader("Content-Type", `${contentTypes["html"]}; charset=utf-8`);
+      response.end(fs.readFileSync(path.join(opts.eveRoot, "index.html")));
+    }
+  });
+
+  app.post("*", (request, response) => {
+    let client = new HTTPRuntimeClient();
+    let content = "";
+    if(filepath) content = fs.readFileSync(filepath).toString();
+    client.load(content, "user");
+    client.handle(request, response);
+    if(!client.server.handling) {
+      return response.status(404).send("Looks like that asset is missing.");
+    }
+  });
+
+  return app;
+}
 
 //---------------------------------------------------------------------
 // Websocket
 //---------------------------------------------------------------------
 
+
+
 class SocketRuntimeClient extends RuntimeClient {
   socket: WebSocket;
+  options:CLIOptions;
 
-  constructor(socket:WebSocket, withIDE = true) {
+  constructor(socket:WebSocket, options:CLIOptions) {
     const dbs = {
       "http": new HttpDatabase(),
       "shared": shared,
     }
-    if(withIDE) {
+    if(options.editor) {
       dbs["view"] = new BrowserViewDatabase();
       dbs["editor"] = new BrowserEditorDatabase();
       dbs["inspector"] = new BrowserInspectorDatabase();
     }
     super(dbs);
     this.socket = socket;
+    this.options = options;
   }
 
   send(json) {
@@ -173,20 +181,21 @@ class SocketRuntimeClient extends RuntimeClient {
   }
 }
 
-function IDEMessageHandler(client, message) {
+function IDEMessageHandler(client:SocketRuntimeClient, message) {
   let ws = client.socket;
   let data = JSON.parse(message);
   if(data.type === "init") {
+    let {editor, browser} = client.options;
     let {url, hash} = data;
     let path = hash !== "" ? hash : url;
     fs.stat("." + path, (err, stats) => {
       if(err || !stats.isFile()) {
-        ws.send(JSON.stringify({type: "initProgram", local: true, withIDE: WITH_IDE}));
+        ws.send(JSON.stringify({type: "initProgram", local: true, withIDE: editor}));
 
       } else {
         let content = fs.readFileSync("." + path).toString();
-        ws.send(JSON.stringify({type: "initProgram", local: BROWSER, path, code: content, withIDE: WITH_IDE}));
-        if(!BROWSER) {
+        ws.send(JSON.stringify({type: "initProgram", local: browser, path, code: content, withIDE: editor}));
+        if(!browser) {
           client.load(content, "user");
         }
       }
@@ -208,14 +217,15 @@ function IDEMessageHandler(client, message) {
   }
 }
 
-function MessageHandler(client, message) {
+function MessageHandler(client:SocketRuntimeClient, message) {
   let ws = client.socket;
   let data = JSON.parse(message);
   if(data.type === "init") {
+    let {editor, browser, path:filepath} = client.options;
     // we do nothing here since the server is in charge of handling init.
-    let content = fs.readFileSync(PATH).toString();
-    ws.send(JSON.stringify({type: "initProgram", local: BROWSER, path: PATH, code: content, withIDE: WITH_IDE}));
-    if(!BROWSER) {
+    let content = fs.readFileSync(filepath).toString();
+    ws.send(JSON.stringify({type: "initProgram", local: browser, path: filepath, code: content, withIDE: editor}));
+    if(!browser) {
       client.load(content, "user");
     }
   } else if(data.type === "event") {
@@ -228,11 +238,11 @@ function MessageHandler(client, message) {
   }
 }
 
-function initWebsocket(wss) {
+function initWebsocket(wss, opts:CLIOptions) {
   wss.on('connection', function connection(ws) {
-    let client = new SocketRuntimeClient(ws, WITH_IDE);
-    let handler = WITH_IDE ? IDEMessageHandler : MessageHandler;
-    if(!WITH_IDE) {
+    let client = new SocketRuntimeClient(ws, opts);
+    let handler = opts.editor ? IDEMessageHandler : MessageHandler;
+    if(!opts.editor) {
       // we need to initialize
     }
     ws.on('message', (message) => {
@@ -250,20 +260,49 @@ function initWebsocket(wss) {
 // Go!
 //---------------------------------------------------------------------
 
-let server = http.createServer(app);
+export function run(opts:CLIOptions) {
+  __kludgeConfig = opts;
+  console.log(opts);
 
-let WebSocketServer = require('ws').Server;
-let wss = new WebSocketServer({server: server});
-initWebsocket(wss);
+  if(!opts.internal) {
+    eveSource.add(opts.root.split(path.sep).pop(), opts.root);
+  } else {
+    eveSource.add("examples", path.join(opts.eveRoot, "examples"));
+  }
+  // @FIXME: Split these out!
+  eveSource.add("eve", path.join(opts.eveRoot, "examples"));
 
-server.listen(PORT, function(){
-  console.log(`Eve is available at http://localhost:${PORT}. Point your browser there to access the Eve editor.`);
-});
+  // If a file was passed in, we need to make sure it actually exists
+  // now instead of waiting for the user to submit a request and then
+  // blowing up
+  if(opts.path) {
+    try {
+      fs.statSync(opts.path);
+    } catch(e) {
+      throw new Error("Can't load " + opts.path);
+    }
+  }
 
-// If the port is already in use, display an error message
-process.on('uncaughtException', function(err) {
+  let app = createExpressApp(opts);
+  let server = http.createServer(app);
+
+  let WebSocketServer = require('ws').Server;
+  let wss = new WebSocketServer({server});
+  initWebsocket(wss, opts);
+
+  server.listen(opts.port, function(){
+    console.log(`Eve is available at http://localhost:${opts.port}. Point your browser there to access the Eve editor.`);
+  });
+
+  // If the port is already in use, display an error message
+  process.on('uncaughtException', function(err) {
     if(err.errno === 'EADDRINUSE') {
-      console.log(`ERROR: Eve couldn't start because port ${PORT} is already in use.\n\nYou can select a different port for Eve using the "port" argument.\nFor example:\n\n> npm start -- --port 1234`);
+      console.log(`ERROR: Eve couldn't start because port ${opts.port} is already in use.\n\nYou can select a different port for Eve using the "port" argument.\nFor example:\n\n> npm start -- --port 1234`);
     }
     process.exit(1);
-});
+  });
+}
+
+if(require.main === module) {
+  console.error("Please run eve using the installed eve binary.");
+}

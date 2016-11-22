@@ -30,7 +30,8 @@
     <script>
       SystemJS.config({
         baseURL: "build/src",
-        defaultJSExtensions: true,
+      defaultJSExtensions: true,
+        map: {fs: "@empty", path: "@empty", glob: "@empty"},
         meta: {"build/src/codemirror.js": { format: "cjs" }}
       });
 

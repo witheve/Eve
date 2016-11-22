@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as glob from "glob";
-import {packageExamples} from "./package-examples";
+import {packageWorkspaces} from "./package-workspaces";
 
 export function onError(err) {
   throw err;
@@ -74,8 +74,8 @@ export function build(callback:() => void) {
     copy(dep, "build/src/" + base, tracker.track("copy node module files"));
   }
 
-  // Package examples.
-  packageExamples(tracker.track("package examples"));
+  // Package workspaces.
+  packageWorkspaces(tracker.track("package workspaces"));
 
   tracker.finishedStartingTasks();
 }
