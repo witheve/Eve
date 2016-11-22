@@ -219,7 +219,7 @@ export class EveClient {
   }
 
   onClose() {
-
+    ide.injectNotice("warning", "The editor has lost connection to the Eve server. All changes will be made locally.");
   }
 
   onMessage(event) {
