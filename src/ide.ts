@@ -2018,9 +2018,10 @@ export class IDE {
     let items = [];
     for(let notice of this.notices) {
       let time = new Date(notice.time);
-
+      let formattedMinutes = time.getMinutes() >= 10 ? time.getMinutes() : `0${time.getMinutes()}`;
+      let formattedSeconds = time.getSeconds() >= 10 ? time.getMinutes() : `0${time.getSeconds()}`;
       items.push({c: `notice ${notice.type} flex-row`, children: [
-        {c: "time", text: `${time.getHours()}:${time.getMinutes()}:${time.getSeconds()}`},
+        {c: "time", text: `${time.getHours()}:${formattedMinutes}:${formattedSeconds}`},
         {c: "message", text: notice.message}
       ]});
     }
