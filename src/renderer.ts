@@ -127,7 +127,14 @@ export function renderRecords() {
         }
         elem.entity = entityId;
         activeElements[entityId] = elem;
-        elem.sort = entity.sort || entity["eve-auto-index"] || "";
+        if(entity.sort && entity.sort.length > 1) console.error("Unable to set 'sort' multiple times on entity", entity, entity.sort);
+        if(entity.sort !== undefined && entity.sort[0] !== undefined) {
+          elem.sort = entity.sort[0];
+        } else if(entity["eve-auto-index"] !== undefined && entity["eve-auto-index"][0] !== undefined) {
+          elem.sort = entity["eve-auto-index"][0];
+        } else {
+          elem.sort = "";
+        }
         if(parent) insertSorted(parent, elem)
 
 
@@ -140,7 +147,13 @@ export function renderRecords() {
         elem.entity = entityId;
         activeElements[entityId] = elem;
         if(entity.sort && entity.sort.length > 1) console.error("Unable to set 'sort' multiple times on entity", entity, entity.sort);
-        elem.sort = (entity.sort && entity.sort[0]) || (entity["eve-auto-index"] && entity["eve-auto-index"][0]) || "";
+        if(entity.sort !== undefined && entity.sort[0] !== undefined) {
+          elem.sort = entity.sort[0];
+        } else if(entity["eve-auto-index"] !== undefined && entity["eve-auto-index"][0] !== undefined) {
+          elem.sort = entity["eve-auto-index"][0];
+        } else {
+          elem.sort = "";
+        }
         let parent = activeElements[activeChildren[entityId] || "root"];
         if(parent) insertSorted(parent, elem);
       }
@@ -527,3 +540,4 @@ function injectProgram(node, elem) {
 export function renderEve() {
   renderer.render([{c: "application-container", postRender: injectProgram}]);
 }
+
