@@ -26,7 +26,7 @@ export function fromJS(changes: Changes, json: any, node: string, scope: string,
     let objectId = `${idPrefix}|object`;
     for(let key of Object.keys(json)) {
       let value = json[key];
-      if(value.constructor === Array || typeof value === "object") {
+      if(value !== null && (value.constructor === Array || typeof value === "object")) {
         value = fromJS(changes, value, node, scope, `${objectId}|${key}`);
       }
       changes.store(scope, objectId, key, value, node);
