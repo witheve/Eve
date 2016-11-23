@@ -272,10 +272,19 @@ export class EveClient {
       browser.init(data.code);
     }
     if(this.showIDE) {
+      // Ensure the URL bar is in sync with the server.
+      // @FIXME: This back and forth of control over where we are
+      // is an Escherian nightmare.
+      if(!data.path) {
+        history.pushState({}, "", window.location.pathname);
+      }
+
       this.ide = new IDE();
       initIDE(this);
       this.ide.render();
-      this.ide.loadFile(data.path, data.code);
+      if(!this.ide.loadFile(data.path, data.code)) {
+
+      }
     }
     onHashChange({});
   }
@@ -453,7 +462,6 @@ function changeDocument() {
   // @FIXME: This is not right in the non-internal case.
   let docId = "/examples/quickstart.eve";
   let path = "/" + location.hash.split('?')[0].split("#/")[1];
-  console.log("PATH", path, location.hash);
   if(path) {
     if(path[path.length - 1] === "/") path = path.slice(0, -1);
     docId = path;

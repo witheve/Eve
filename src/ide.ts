@@ -2056,6 +2056,7 @@ export class IDE {
   }, 1, true);
 
   loadFile(docId:string, content?:string) {
+    if(!docId) return false;
     // if we're not in local mode, file content is going to come from
     // some other source and we should just load it directly
     if(!this.local && content !== undefined) {
@@ -2063,9 +2064,10 @@ export class IDE {
       this.editor.reset();
       this.notices = [];
       this.loading = true;
-      return this.onLoadFile(this, docId, content);
+      this.onLoadFile(this, docId, content);
+      return true;
     } else if(this.loading || this.documentId === docId) {
-      return;
+      return false;
     }
 
     // Otherwise we load the file from either localstorage or from the supplied
@@ -2085,6 +2087,8 @@ export class IDE {
     this.notices = [];
     this.loading = true;
     this.onLoadFile(this, docId, code);
+
+    return true;
   }
 
   loadWorkspace(directory:string, files:{[filename:string]: string}) {

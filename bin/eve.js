@@ -3,6 +3,8 @@
 var path = require("path");
 var fs = require("fs");
 var minimist = require("minimist");
+
+var config = require("../build/src/config");
 var server = require("../build/src/runtime/server");
 
 const argv = minimist(process.argv.slice(2));
@@ -43,4 +45,7 @@ if(!filepath) {
   if(internal) filepath = "examples/quickstart.eve";
 }
 
-server.run({internal: internal, browser: browser, editor: editor, port: port, path: filepath, internal: internal, root: root, eveRoot: eveRoot});
+var opts = {internal: internal, browser: browser, editor: editor, port: port, path: filepath, internal: internal, root: root, eveRoot: eveRoot};
+config.init(opts);
+
+server.run(opts);

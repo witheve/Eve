@@ -1,3 +1,4 @@
+import * as path from "path";
 import * as fs from "fs";
 import * as glob from "glob";
 import {packageWorkspaces} from "./package-workspaces";
@@ -70,7 +71,10 @@ export function build(callback:() => void) {
     "node_modules/chevrotain/lib/chevrotain.js"
   ];
   for(let dep of deps) {
+    dep = path.resolve(dep);
     let base = dep.split("/").pop();
+    console.log("COPYING", dep);
+    console.log("NM", fs.readdirSync("node_modules"));
     copy(dep, "build/src/" + base, tracker.track("copy node module files"));
   }
 

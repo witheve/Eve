@@ -18,12 +18,13 @@
   },
 
   "scripts": {
-    "install": "./node_modules/.bin/tsc",
-    "postinstall": "node ./build/scripts/build.js",
-    "build": "node ./build/scripts/build.js",
-    "build-dist": "node ./build/scripts/build-dist.js",
-    "start": "node ./bin/eve.js",
+    "build": "./node_modules/.bin/tsc && node ./build/scripts/build.js",
+    "start": "./node_modules/.bin/tsc && node ./bin/eve.js",
     "server": "node ./bin/eve.js",
+
+    "prepublish": "./node_modules/.bin/tsc && node ./build/scripts/build.js",
+    "build-dist": "node ./build/scripts/build-dist.js",
+
     "test": "node ./build/test/all.js | faucet"
   },
 
