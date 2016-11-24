@@ -2080,7 +2080,10 @@ export class IDE {
       code = this._fileCache[docId];
       this.modified = false;
     }
-    if(code === undefined) throw new Error(`Unable to load uncached file: '${docId}'`);
+    if(code === undefined) {
+      console.error(`Unable to load uncached file: '${docId}'`);
+      return false;
+    }
     this.loaded = false;
     this.documentId = docId;
     this.editor.reset();
