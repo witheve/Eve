@@ -25,7 +25,7 @@ function findRoot(root) {
 
 var browser = !argv["server"];
 var port = process.env.PORT || argv["port"] || 8080;
-var filepath = argv["_"][0];
+var filepath = argv["_"][0]; // @FIXME: This should really be the first positional argument, not the first of any argument. (undefined if a user flags first).
 var editor = argv["editor"] || false;
 var internal = false;
 
@@ -43,6 +43,8 @@ if(root === eveRoot) internal = true;
 if(!filepath) {
   editor = true;
   if(internal) filepath = "examples/quickstart.eve";
+} else {
+  filepath = path.resolve(filepath);
 }
 
 var opts = {internal: internal, browser: browser, editor: editor, port: port, path: filepath, internal: internal, root: root, eveRoot: eveRoot};
