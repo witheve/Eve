@@ -104,9 +104,6 @@ function createExpressApp() {
 
   app.get("/build/workspaces.js", (request, response) => {
     let packaged = eveSource.pack();
-
-    // @FIXME: Is rewriting the file really needed here..?
-    fs.writeFileSync(path.join(config.eveRoot, "build/workspaces.js"), packaged);
     response.setHeader("Content-Type", `application/javascript; charset=utf-8`);
     response.end(packaged);
   });
