@@ -285,8 +285,8 @@ export class EveClient {
       this.ide.local = data.local;
       initIDE(this);
       this.ide.render();
-      if(!this.ide.loadFile(data.path, data.code)) {
-        console.log("YO");
+      if(data.path && data.path.length > 2) {
+        this.ide.loadFile(data.path, data.code);
       }
     }
     onHashChange({});
