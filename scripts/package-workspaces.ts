@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as eveSource from "../src/runtime/eveSource";
 
+eveSource.add("eve", "./examples");
 eveSource.add("examples", "./examples");
 
 export function packageWorkspaces(callback:() => void) {
