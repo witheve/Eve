@@ -173,15 +173,17 @@ class SocketRuntimeClient extends RuntimeClient {
 function IDEMessageHandler(client:SocketRuntimeClient, message) {
   let ws = client.socket;
   let data = JSON.parse(message);
+
   if(data.type === "init") {
     let {editor, browser} = config;
     let {url, hash} = data;
     let path = hash !== "" ? hash : url;
 
-    // @FIXME: get doesn't really work this way atm.
-    // We need to be able to match the url to any workspace,
-    // not just eve.
-    let content = eveSource.find(path);
+    // @FIXME: This hard-coding isn't technically wrong right now, but it's brittle and poor practice.
+    if(config.path && !config.internal) path = eveSource.getRelativePath(config.path, "root");
+    else if(config.path) path = eveSource.getRelativePath(config.path, "examples");
+
+    let content = path && eveSource.find(path);
     if(content) {
       ws.send(JSON.stringify({type: "initProgram", local: browser, path, code: content, withIDE: editor}));
       if(!browser) {
@@ -195,7 +197,7 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
         } else if(config.internal) {
           ws.send(JSON.stringify({type: "initProgram", local: browser, path: "/examples/quickstart.eve", code: eveSource.get("quickstart.eve", "examples"), withIDE: editor}));
         } else {
-          ws.send(JSON.stringify({type: "initProgram", local: true, withIDE: editor}));
+          ws.send(JSON.stringify({type: "initProgram", local: true, path, withIDE: editor}));
         }
 
         if(!browser) {
@@ -205,7 +207,6 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
     }
   } else if(data.type === "save"){
     fs.stat("." + path.dirname(data.path), (err, stats) => {
-      console.log(err, stats);
       if(err || !stats.isDirectory()) {
         console.log("trying to save to bad path: " + data.path);
       } else {
@@ -264,13 +265,14 @@ function initWebsocket(wss, inEditor:boolean) {
 //---------------------------------------------------------------------
 
 export function run() {
-  if(!config.internal) {
-    eveSource.add(config.root.split(path.sep).pop(), config.root);
-  } else {
-    eveSource.add("examples", path.join(config.eveRoot, "examples"));
-  }
   // @FIXME: Split these out!
   eveSource.add("eve", path.join(config.eveRoot, "examples"));
+  if(config.internal) {
+    eveSource.add("examples", path.join(config.eveRoot, "examples"));
+  } else {
+    eveSource.add("root", config.root);
+  }
+
 
   // If a file was passed in, we need to make sure it actually exists
   // now instead of waiting for the user to submit a request and then
@@ -299,7 +301,7 @@ export function run() {
     if(err.errno === 'EADDRINUSE') {
       console.log(`ERROR: Eve couldn't start because port ${config.port} is already in use.\n\nYou can select a different port for Eve using the "port" argument.\nFor example:\n\n> npm start -- --port 1234`);
     } else {
-      console.error(err);
+      throw err;
     }
     process.exit(1);
   });
