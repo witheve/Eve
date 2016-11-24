@@ -13,6 +13,18 @@ export function get(file:string, workspace = "eve"):string|undefined {
   return fetchFile(file, workspace);
 }
 
+export function find(file:string):string|undefined {
+  var parts = file.split("/");
+  var basename = parts.pop();
+  var workspace = parts[1];
+  if(!basename || !workspace) return;
+  if(!workspaces[workspace]) {
+    console.error(`Unable to get '${file}' from unregistered workspace '${workspace}'`);
+  }
+
+  return get(file, workspace);
+}
+
 // If we're running on the client, we use the global _workspaceCache, created in the build phase or served by the server.
 var fetchFile = function(file:string, workspace:string):string|undefined {
   let cache = global["_workspaceCache"][workspace];

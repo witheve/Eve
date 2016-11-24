@@ -181,7 +181,7 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
     // @FIXME: get doesn't really work this way atm.
     // We need to be able to match the url to any workspace,
     // not just eve.
-    let content = eveSource.get(path);
+    let content = eveSource.find(path);
     if(content) {
       ws.send(JSON.stringify({type: "initProgram", local: browser, path, code: content, withIDE: editor}));
       if(!browser) {
