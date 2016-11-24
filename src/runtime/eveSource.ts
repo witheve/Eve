@@ -8,7 +8,10 @@ export function add(name: string, directory: string) {
 }
 
 export function get(file:string, workspace = "eve"):string|undefined {
-  if(!workspaces[workspace]) throw new Error(`Unable to get '${file}' from unregistered workspace '${workspace}'`);
+  if(!workspaces[workspace]) {
+    console.error(`Unable to get '${file}' from unregistered workspace '${workspace}'`);
+    return;
+  }
 
   return fetchFile(file, workspace);
 }
@@ -23,6 +26,23 @@ export function find(file:string):string|undefined {
   }
 
   return get(file, workspace);
+}
+
+export function getRelativePath(file:string, workspace:string) {
+  let root = workspaces[workspace];
+  if(!root) {
+    console.error(`Unable to get relative path for '${file}' in unregistered workspace '${workspace}'`);
+    return;
+  }
+
+  if(file.indexOf("./") === 0) {
+    file = file.slice(2);
+  }
+
+  if(file.indexOf(root) === 0) {
+    file = file.slice(root.length + 1);
+  }
+  return "/" + workspace + "/" + file;
 }
 
 // If we're running on the client, we use the global _workspaceCache, created in the build phase or served by the server.
@@ -60,7 +80,7 @@ if(typeof window === "undefined") {
   fetchWorkspace = function(workspace:string) {
     let directory = workspaces[workspace];
     let files = {};
-    for(let file of glob.sync(directory + "/**/*.eve")) {
+    for(let file of glob.sync(directory + "/**/*.eve", {ignore: directory + "**/node_modules/**/*.eve"})) {
       let rel = path.relative(directory, file);
       files["/" + workspace + "/" + rel] = fs.readFileSync(file).toString();
     }
