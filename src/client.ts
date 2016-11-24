@@ -140,14 +140,13 @@ export class EveClient {
 
   constructor(url?:string) {
     let loc = url ? url : this.getUrl();
-    let self = this;
 
     this.socket = new WebSocket(loc);
     this.socket.onerror = (event) => {
-      self.onError();
+      this.onError();
     }
     this.socket.onopen = (event) => {
-      self.onOpen();
+      this.onOpen();
     }
     this.socket.onmessage = (event) => {
       this.onMessage(event);
@@ -202,9 +201,12 @@ export class EveClient {
   onError() {
     this.localControl = true;
     this.localEve = true;
-    if(this.showIDE) {
-      this.ide = new IDE();
-      this.ide.local = true;
+    if(!this.ide) {
+      this._initProgram({local: true, withIDE: true, path: (window.location.hash || "").slice(1) || "/examples/quickstart.eve"});
+    } else if(this.showIDE) {
+      this.ide.injectNotice("error", "Unexpectedly disconnected from the server. Please refresh the page.");
+    } else {
+      console.error("Unexpectedly disconnected from the server. Please refresh the page.");
     }
   }
 
@@ -280,10 +282,11 @@ export class EveClient {
       }
 
       this.ide = new IDE();
+      this.ide.local = data.local;
       initIDE(this);
       this.ide.render();
       if(!this.ide.loadFile(data.path, data.code)) {
-
+        console.log("YO");
       }
     }
     onHashChange({});
