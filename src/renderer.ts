@@ -217,7 +217,7 @@ export function renderRecords() {
         } else if(value.length > 1) {
           console.error("Unable to set 'value' multiple times on entity", entity, JSON.stringify(value));
         } else {
-          input.value = value[0]; // @FIXME: Should this really be setAttribute?
+          input.setAttribute('value', value[0]);
         }
 
       } else if(attribute === "checked") {
