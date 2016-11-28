@@ -149,12 +149,12 @@ function createExpressApp() {
 class SocketRuntimeClient extends RuntimeClient {
   socket: WebSocket;
 
-  constructor(socket:WebSocket, inEditor:boolean) {
+  constructor(socket:WebSocket, withIDE:boolean) {
     const dbs = {
       "http": new HttpDatabase(),
       "shared": shared,
     }
-    if(inEditor) {
+    if(withIDE) {
       dbs["view"] = new BrowserViewDatabase();
       dbs["editor"] = new BrowserEditorDatabase();
       dbs["inspector"] = new BrowserInspectorDatabase();
@@ -242,11 +242,11 @@ function MessageHandler(client:SocketRuntimeClient, message) {
   }
 }
 
-function initWebsocket(wss, inEditor:boolean) {
+function initWebsocket(wss, withIDE:boolean) {
   wss.on('connection', function connection(ws) {
-    let client = new SocketRuntimeClient(ws, inEditor);
-    let handler = inEditor ? IDEMessageHandler : MessageHandler;
-    if(!inEditor) {
+    let client = new SocketRuntimeClient(ws, withIDE);
+    let handler = withIDE ? IDEMessageHandler : MessageHandler;
+    if(!withIDE) {
       // we need to initialize
     }
     ws.on('message', (message) => {
