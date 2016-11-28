@@ -7,7 +7,7 @@ var minimist = require("minimist");
 var config = require("../build/src/config");
 var server = require("../build/src/runtime/server");
 
-const argv = minimist(process.argv.slice(2));
+const argv = minimist(process.argv.slice(2), {boolean: ["server", "editor"]});
 
 // Since our current development pattern uses npm as its package repository, we treat the nearest ancestor directory with a package.json (inclusive) as the directory's "root".
 function findRoot(root) {
@@ -23,10 +23,10 @@ function findRoot(root) {
 }
 
 
+var port = argv["port"] || process.env.PORT || 8080;
 var browser = !argv["server"];
-var port = process.env.PORT || argv["port"] || 8080;
-var filepath = argv["_"][0]; // @FIXME: This should really be the first positional argument, not the first of any argument. (undefined if a user flags first).
 var editor = argv["editor"] || false;
+var filepath = argv["_"][0];
 var internal = false;
 
 var root = findRoot(process.cwd());
