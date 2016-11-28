@@ -73,8 +73,6 @@ export function build(callback:() => void) {
   for(let dep of deps) {
     dep = path.resolve(dep);
     let base = dep.split("/").pop();
-    console.log("COPYING", dep);
-    console.log("NM", fs.readdirSync("node_modules"));
     copy(dep, "build/src/" + base, tracker.track("copy node module files"));
   }
 
