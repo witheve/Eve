@@ -437,10 +437,6 @@ function initIDE(client:EveClient) {
     client.send({scope: "root", type: "parse", code})
     client.send({type: "eval", persist: false});
     let url = `${location.pathname}#${documentId}`;
-    // @FIXME: I think this is vestigial, but need to confirm this.
-    // if(documentId.indexOf("/examples/") === -1) {
-    //   url = `${location.pathname}#/examples/${documentId}`;
-    // }
     history.pushState({}, "", url + location.search);
     analyticsEvent("load-document", documentId);
   }
