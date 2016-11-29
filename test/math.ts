@@ -192,7 +192,6 @@ let ceiling_list : any = [
   ]
 testSingleExpressionByList(ceiling_list);
 
-
 // Test ABS Function
 let abs_list : any = [
   {"Expression":"abs[ value: -1 ]", "Value":"1"},
@@ -200,14 +199,12 @@ let abs_list : any = [
   ]
 testSingleExpressionByList(abs_list);
 
-
 // Test Mod Function
 let mod_list : any = [
   {"Expression":"mod[ value: 7 by: 3]", "Value":"1"},
   {"Expression":"mod[ value: 6 by: 3]", "Value":"0"},
   ]
 testSingleExpressionByList(mod_list);
-
 
 // Test Round Function
 let round_list : any = [
