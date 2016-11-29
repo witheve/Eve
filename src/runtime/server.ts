@@ -179,23 +179,33 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
     let {url, hash} = data;
     let path = hash !== "" ? hash : url;
 
-    // @FIXME: This hard-coding isn't technically wrong right now, but it's brittle and poor practice.
-    if(config.path && !config.internal) path = eveSource.getRelativePath(config.path, "root");
-    else if(config.path) path = eveSource.getRelativePath(config.path, "examples");
 
     let content = path && eveSource.find(path);
+
+    if(!content && config.path) {
+      let workspace = config.internal ? "examples" : "root";
+      // @FIXME: This hard-coding isn't technically wrong right now, but it's brittle and poor practice.
+      content = eveSource.get(config.path, workspace);
+      if(content) path = eveSource.getRelativePath(config.path, workspace);
+    }
+
+
+    if(!content && config.internal) {
+      content = eveSource.get("quickstart.eve", "examples");
+      if(content) path = eveSource.getRelativePath("quickstart.eve", "examples");
+    }
+
     if(content) {
       ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, code: content, withIDE: editor}));
       if(runtimeOwner === Owner.server) {
         client.load(content, "user");
       }
     } else {
+      // @FIXME: Do we still need this fallback for anything? Cases where we need to run an eve file outside of a project?
       fs.stat("." + path, (err, stats) => {
         if(!err && stats.isFile()) {
           let content = fs.readFileSync("." + path).toString();
           ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, code: content, withIDE: editor}));
-        } else if(config.internal) {
-          ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path: "/examples/quickstart.eve", code: eveSource.get("quickstart.eve", "examples"), withIDE: editor}));
         } else {
           ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, withIDE: editor}));
         }
