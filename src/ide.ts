@@ -90,7 +90,10 @@ class Navigator {
     headings.sort(compareSpans);
 
     let root:TreeNode = this.nodes[id];
-    if(!root) throw new Error("Cannot load non-existent document.");
+    if(!root) {
+      console.error("Cannot load non-existent document.");
+      return;
+    }
     root.open = true;
     root.children = undefined;
 
