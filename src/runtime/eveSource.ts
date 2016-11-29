@@ -12,6 +12,8 @@ export function add(name: string, directory: string) {
     }
   }
 
+  if(directory[directory.length - 1] !== "/") directory += "/";
+
   if(workspaces[name] && workspaces[name] !== directory)
     throw new Error(`Unable to link pre-existing workspace '$[name}' to '${directory}' (currently '${workspaces[name]}')`);
 
@@ -72,8 +74,8 @@ export function getWorkspaceFromPath(file:string):string|undefined {
 }
 
 export function getRelativePath(file:string, workspace:string):string|undefined {
-  let root = workspaces[workspace];
-  if(!root) {
+  let directory = workspaces[workspace];
+  if(!directory) {
     console.error(`Unable to get relative path for '${file}' in unregistered workspace '${workspace}'`);
     return;
   }
@@ -82,16 +84,18 @@ export function getRelativePath(file:string, workspace:string):string|undefined 
     file = file.slice(2);
   }
 
-  if(file.indexOf(root) === 0) {
-    file = file.slice(root.length + 1);
+  if(file.indexOf(directory) === 0) {
+    file = file.slice(directory.length);
   }
   return "/" + workspace + "/" + file;
 }
 
 export function getAbsolutePath(file:string, workspace:string) {
   let directory = workspaces[workspace];
-  if(file.indexOf("/" + workspace) === 0) file = file.slice(workspace.length + 1);
-  return directory + "/" +  file;
+  if(file.indexOf(directory) === 0) return file;
+
+  if(file.indexOf("/" + workspace + "/") === 0) file = file.slice(workspace.length + 2);
+  return directory + file;
 }
 
 //---------------------------------------------------------
@@ -101,14 +105,14 @@ export function getAbsolutePath(file:string, workspace:string) {
 var saveFile = function(file:string, content:string, workspace:string) {
   let cache = global["_workspaceCache"][workspace];
   cache = global["_workspaceCache"][workspace] = {};
-  if(file.indexOf("/" + workspace) !== 0) file = "/" + workspace + "/" + file;
+  file = getRelativePath(file, workspace);
   cache[file] = content;
 }
 
 // If we're running on the client, we use the global _workspaceCache, created in the build phase or served by the server.
 var fetchFile = function(file:string, workspace:string):string|undefined {
   let cache = global["_workspaceCache"][workspace];
-  if(file.indexOf("/" + workspace) !== 0) file = "/" + workspace + "/" + file;
+  file = getRelativePath(file, workspace);
   return cache && cache[file];
 }
 
