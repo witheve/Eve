@@ -170,21 +170,18 @@ export function testSingleExpressionByList(list:any[]){
     test(`Is ${list_item.Expression} returning ${list_item.Value}?`, (assert) => {
       let expected = {
         insert: [
-          ["a", "tag", "div"],
-          ["a", "text", list_item.Value],
+          ["a", "result", list_item.Value],
         ],
         remove: [],
       };
 
       evaluate(assert, expected, `
-        Now consider this:
-
         ~~~
         search
           x = ${list_item.Expression}
 
-        bind @browser
-          [#div text: x]
+        bind
+          [result: x]
         ~~~
       `);
       assert.end();

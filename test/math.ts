@@ -45,25 +45,21 @@ testSingleExpressionByList(trig_list);
 test("Should be able to use the sin function with degrees and radians", (assert) => {
   let expected = {
     insert: [
-      ["a", "tag", "div"],
-      ["a", "text", "1"],
-      ["b", "tag", "div"],
-      ["b", "text", "0.9999996829318346"],
+      ["a", "result", "1"],
+      ["b", "result", "0.9999996829318346"],
     ],
     remove: [],
   };
 
   evaluate(assert, expected, `
-    Now consider this:
-
     ~~~
     search
       y = sin[degrees: 90]
       x = sin[radians: 3.14 / 2]
 
-    bind @browser
-      [#div text: y]
-      [#div text: x]
+    bind
+      [result: y]
+      [result: x]
     ~~~
   `);
   assert.end();
@@ -72,25 +68,21 @@ test("Should be able to use the sin function with degrees and radians", (assert)
 test("Should be able to use the cos function with degrees and radians", (assert) => {
   let expected = {
     insert: [
-      ["a", "tag", "div"],
-      ["a", "text", "1"],
-      ["b", "tag", "div"],
-      ["b", "text", "-0.9999987317275395"],
+      ["a", "result", "1"],
+      ["b", "result", "-0.9999987317275395"],
     ],
     remove: [],
   };
 
   evaluate(assert, expected, `
-    Now consider this:
-
     ~~~
     search
       y = cos[degrees: 0]
       x = cos[radians: 3.14]
 
-    bind @browser
-      [#div text: y]
-      [#div text: x]
+    bind
+      [result: y]
+      [result: x]
     ~~~
   `);
   assert.end();
@@ -99,25 +91,21 @@ test("Should be able to use the cos function with degrees and radians", (assert)
 test("Should be able to use the tan function with degrees and radians", (assert) => {
   let expected = {
     insert: [
-      ["a", "tag", "div"],
-      ["a", "text", "0.5773502691896257"],
-      ["b", "tag", "div"],
-      ["b", "text", "0.5463024898437905"],
+      ["a", "result", "0.5773502691896257"],
+      ["b", "result", "0.5463024898437905"],
     ],
     remove: [],
   };
 
   evaluate(assert, expected, `
-    Now consider this:
-
     ~~~
     search
       y = tan[degrees: 30]
       x = tan[radians: 0.5]
 
-    bind @browser
-      [#div text: y]
-      [#div text: x]
+    bind
+      [result: y]
+      [result: x]
     ~~~
   `);
   assert.end();
@@ -148,28 +136,43 @@ let ahyp_list : any = [
   ]
 testSingleExpressionByList(ahyp_list);
 
-test("Range and function within function", (assert) => {
+test("Test range", (assert) => {
   let expected = {
     insert: [
-      ["a", "tag", "div"],
-      ["a", "text", "1"],
-      ["b", "tag", "div"],
-      ["b", "text", "2"],
-      ["c", "tag", "div"],
-      ["c", "text", "3"],
+      ["a", "result", "1"],
+      ["b", "result", "2"],
+      ["c", "result", "3"],
     ],
     remove: [],
   };
 
   evaluate(assert, expected, `
-    Now consider this:
-
     ~~~
     search
-      x = range[from:1 to: pi[] increment: 1 ]
+      x = range[from:1 to: 3 increment: 1 ]
 
-    bind @browser
-      [#div text:x]
+    bind
+      [result: x]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("Test nested functions", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "result", "1"],
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+    search
+      x = sin[radians: pi[] / 2]
+
+    bind
+      [result: x]
     ~~~
   `);
   assert.end();
@@ -215,6 +218,6 @@ testSingleExpressionByList(round_list);
 
 // Test Round Function
 let toFixed_list : any = [
-  {"Expression":"to-fixed[ value: 1.499 places:2 ]", "Value":"1.50"},
+  {"Expression":"to-fixed[ value: 1.499 places: 2 ]", "Value":"1.50"},
   ]
 testSingleExpressionByList(toFixed_list );
