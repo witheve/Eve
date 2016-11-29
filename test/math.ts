@@ -114,7 +114,6 @@ test("Should be able to use the tan function with degrees and radians", (assert)
 // Test inverse Trig
 let atrig_list : any = [
   {"Expression":"asin[ value: 0.8414709848078965 ]", "Value":"1"},
-  // Does Eve need an implicit round under the hood? The below should be 1
   {"Expression":"acos[ value: 0.5403023058681398 ]", "Value":"0.9999999999999999"},
   {"Expression":"atan[ value: 1.5574077246549023 ]", "Value":"1"},
   ]
