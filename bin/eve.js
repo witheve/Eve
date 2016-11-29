@@ -5,6 +5,7 @@ var fs = require("fs");
 var minimist = require("minimist");
 
 var config = require("../build/src/config");
+var Owner = config.Owner;
 var server = require("../build/src/runtime/server");
 
 const argv = minimist(process.argv.slice(2), {boolean: ["server", "editor"]});
@@ -24,7 +25,8 @@ function findRoot(root) {
 
 
 var port = argv["port"] || process.env.PORT || 8080;
-var browser = !argv["server"];
+var runtimeOwner = argv["server"] ? Owner.server : Owner.client;
+var controlOwner = argv["localControl"] ? Owner.client : Owner.server;
 var editor = argv["editor"] || false;
 var filepath = argv["_"][0];
 var internal = false;
@@ -47,7 +49,7 @@ if(!filepath) {
   filepath = path.resolve(filepath);
 }
 
-var opts = {internal: internal, browser: browser, editor: editor, port: port, path: filepath, internal: internal, root: root, eveRoot: eveRoot};
+var opts = {internal: internal, runtimeOwner: runtimeOwner, controlOwner: controlOwner, editor: editor, port: port, path: filepath, internal: internal, root: root, eveRoot: eveRoot};
 config.init(opts);
 
 server.run(opts);

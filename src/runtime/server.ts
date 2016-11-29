@@ -10,7 +10,7 @@ import * as express from "express";
 import * as bodyParser from "body-parser";
 import * as minimist from "minimist";
 
-import {config, Config} from "../config";
+import {config, Config, Owner} from "../config";
 import {ActionImplementations} from "./actions";
 import {PersistedDatabase} from "./databases/persisted";
 import {HttpDatabase} from "./databases/node/http";
@@ -175,7 +175,7 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
   let data = JSON.parse(message);
 
   if(data.type === "init") {
-    let {editor, browser} = config;
+    let {editor, runtimeOwner, controlOwner} = config;
     let {url, hash} = data;
     let path = hash !== "" ? hash : url;
 
@@ -185,34 +185,28 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
 
     let content = path && eveSource.find(path);
     if(content) {
-      ws.send(JSON.stringify({type: "initProgram", local: browser, path, code: content, withIDE: editor}));
-      if(!browser) {
+      ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, code: content, withIDE: editor}));
+      if(runtimeOwner === Owner.server) {
         client.load(content, "user");
       }
     } else {
       fs.stat("." + path, (err, stats) => {
         if(!err && stats.isFile()) {
           let content = fs.readFileSync("." + path).toString();
-          ws.send(JSON.stringify({type: "initProgram", local: browser, path, code: content, withIDE: editor}));
+          ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, code: content, withIDE: editor}));
         } else if(config.internal) {
-          ws.send(JSON.stringify({type: "initProgram", local: browser, path: "/examples/quickstart.eve", code: eveSource.get("quickstart.eve", "examples"), withIDE: editor}));
+          ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path: "/examples/quickstart.eve", code: eveSource.get("quickstart.eve", "examples"), withIDE: editor}));
         } else {
-          ws.send(JSON.stringify({type: "initProgram", local: true, path, withIDE: editor}));
+          ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, withIDE: editor}));
         }
 
-        if(!browser) {
+        if(runtimeOwner === Owner.server) {
           client.load(content, "user");
         }
       });
     }
   } else if(data.type === "save"){
-    fs.stat("." + path.dirname(data.path), (err, stats) => {
-      if(err || !stats.isDirectory()) {
-        console.log("trying to save to bad path: " + data.path);
-      } else {
-        fs.writeFileSync("." + data.path, data.code);
-      }
-    });
+    eveSource.save(data.path, data.code);
   } else if(data.type === "ping") {
     // we don't need to do anything with pings, they're just to make sure hosts like
     // Heroku don't shutdown our server.
@@ -225,11 +219,11 @@ function MessageHandler(client:SocketRuntimeClient, message) {
   let ws = client.socket;
   let data = JSON.parse(message);
   if(data.type === "init") {
-    let {editor, browser, path:filepath} = config;
+    let {editor, runtimeOwner, controlOwner, path:filepath} = config;
     // we do nothing here since the server is in charge of handling init.
     let content = fs.readFileSync(filepath).toString();
-    ws.send(JSON.stringify({type: "initProgram", local: browser, path: filepath, code: content, withIDE: editor}));
-    if(!browser) {
+    ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path: filepath, code: content, withIDE: editor}));
+    if(runtimeOwner === Owner.server) {
       client.load(content, "user");
     }
   } else if(data.type === "event") {

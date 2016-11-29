@@ -1,4 +1,5 @@
 import {clone, debounce, uuid, sortComparator} from "./util";
+import {Owner} from "./config";
 import {sentInputValues, activeIds, renderRecords, renderEve} from "./renderer"
 import {IDE} from "./ide";
 import * as browser from "./runtime/browser";
@@ -202,7 +203,7 @@ export class EveClient {
     this.localControl = true;
     this.localEve = true;
     if(!this.ide) {
-      this._initProgram({local: true, withIDE: true, path: (window.location.hash || "").slice(1) || "/examples/quickstart.eve"});
+      this._initProgram({runtimeOwner: Owner.client, controlOwner: Owner.client, withIDE: true, path: (window.location.hash || "").slice(1) || "/examples/quickstart.eve"});
     } else if(this.showIDE) {
       this.ide.injectNotice("error", "Unexpectedly disconnected from the server. Please refresh the page.");
     } else {
@@ -268,9 +269,10 @@ export class EveClient {
   }
 
   _initProgram(data) {
-    this.localEve = data.local;
+    this.localEve = data.runtimeOwner === Owner.client;
+    this.localControl = data.controlOwner === Owner.client;
     this.showIDE = data.withIDE;
-    if(data.local) {
+    if(this.localEve) {
       browser.init(data.code);
     }
     if(this.showIDE) {
@@ -282,7 +284,7 @@ export class EveClient {
       }
 
       this.ide = new IDE();
-      this.ide.local = data.local;
+      this.ide.local = this.localControl;
       initIDE(this);
       this.ide.render();
       if(data.path && data.path.length > 2) {

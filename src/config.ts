@@ -1,4 +1,6 @@
-export interface Config {path?:string, browser?: boolean, port?:number, editor?: boolean, root?: string, eveRoot?: string, internal?: boolean}
+export enum Owner {client, server};
+
+export interface Config {path?:string, runtimeOwner?: Owner, controlOwner?: Owner, port?:number, editor?: boolean, root?: string, eveRoot?: string, internal?: boolean}
 
 export var config:Config = {};
 

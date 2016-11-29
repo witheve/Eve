@@ -1,12 +1,24 @@
 export let workspaces:{[name:string]: string} = {};
 
+//---------------------------------------------------------
+// Public
+//---------------------------------------------------------
+
 export function add(name: string, directory: string) {
+  // If we're running on a windows server, normalize slashes
+  if(typeof window === undefined) {
+    if(process.platform.search(/^win/)) {
+      directory = directory.replace("\\", "/");
+    }
+  }
+
   if(workspaces[name] && workspaces[name] !== directory)
     throw new Error(`Unable to link pre-existing workspace '$[name}' to '${directory}' (currently '${workspaces[name]}')`);
 
   workspaces[name] = directory;
 }
 
+/** Given an explicit workspace, return the contents of the file. */
 export function get(file:string, workspace = "eve"):string|undefined {
   if(!workspaces[workspace]) {
     console.error(`Unable to get '${file}' from unregistered workspace '${workspace}'`);
@@ -16,7 +28,38 @@ export function get(file:string, workspace = "eve"):string|undefined {
   return fetchFile(file, workspace);
 }
 
+/** Using the inferred workspace from the file path, return the contents of the file. */
 export function find(file:string):string|undefined {
+  let workspace = getWorkspaceFromPath(file);
+  if(!workspace) return;
+
+  return get(file, workspace);
+}
+
+/** Given an explicit workspace, update the contents of the file. */
+export function set(file:string, content:string, workspace = "eve") {
+  if(!workspaces[workspace]) {
+    console.error(`Unable to set '${file}' from unregistered workspace '${workspace}'`);
+    return;
+  }
+
+  saveFile(file, content, workspace);
+}
+
+/** Using the inferred workspace from the file path, update the contents of the file. */
+export function save(file:string, content:string) {
+  let workspace = getWorkspaceFromPath(file);
+  if(!workspace) return;
+
+  return set(file, content, workspace);
+}
+
+//---------------------------------------------------------
+// Utilities
+//---------------------------------------------------------
+
+
+export function getWorkspaceFromPath(file:string):string|undefined {
   var parts = file.split("/");
   var basename = parts.pop();
   var workspace = parts[1];
@@ -25,10 +68,10 @@ export function find(file:string):string|undefined {
     console.error(`Unable to get '${file}' from unregistered workspace '${workspace}'`);
   }
 
-  return get(file, workspace);
+  return workspace;
 }
 
-export function getRelativePath(file:string, workspace:string) {
+export function getRelativePath(file:string, workspace:string):string|undefined {
   let root = workspaces[workspace];
   if(!root) {
     console.error(`Unable to get relative path for '${file}' in unregistered workspace '${workspace}'`);
@@ -43,6 +86,23 @@ export function getRelativePath(file:string, workspace:string) {
     file = file.slice(root.length + 1);
   }
   return "/" + workspace + "/" + file;
+}
+
+export function getAbsolutePath(file:string, workspace:string) {
+  let directory = workspaces[workspace];
+  if(file.indexOf("/" + workspace) === 0) file = file.slice(workspace.length + 1);
+  return directory + "/" +  file;
+}
+
+//---------------------------------------------------------
+// Server/Client Implementations
+//---------------------------------------------------------
+
+var saveFile = function(file:string, content:string, workspace:string) {
+  let cache = global["_workspaceCache"][workspace];
+  cache = global["_workspaceCache"][workspace] = {};
+  if(file.indexOf("/" + workspace) !== 0) file = "/" + workspace + "/" + file;
+  cache[file] = content;
 }
 
 // If we're running on the client, we use the global _workspaceCache, created in the build phase or served by the server.
@@ -61,11 +121,17 @@ if(typeof window === "undefined") {
   let glob = require("glob");
   let fs = require("fs");
   let path = require("path");
+  let mkdirp = require("mkdirp");
 
-  var getAbsolutePath = function(file:string, workspace:string) {
-    let directory = workspaces[workspace];
-    if(file.indexOf("/" + workspace) === 0) file = file.slice(workspace.length + 1);
-    return path.join(directory, file).replace("/", path.sep);
+  saveFile = function(file:string, content:string, workspace:string) {
+    try {
+      let filepath = getAbsolutePath(file, workspace);
+      let dirname = path.dirname(filepath);
+      mkdirp.sync(dirname);
+      fs.writeFileSync(filepath, content);
+    } catch(err) {
+      console.warn(`Unable to save file '${file}' in '${workspace}' containing:\n${content}`);
+    }
   }
 
   fetchFile = function(file:string, workspace:string):string|undefined {
