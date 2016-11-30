@@ -41,18 +41,216 @@ export var activeIds = {};
 export var activeElements:{[id : string]: RecordElement|null, root: RecordElement} = {"root": document.createElement("div")};
 activeElements.root.className = "program";
 
-var supportedTags = {
-  "div": true, "span": true, "input": true, "ul": true, "li": true, "label": true, "button": true, "header": true, "footer": true, "a": true, "strong": true,
-  "h1": true, "h2": true, "h3": true, "h4": true, "h5": true, "h6": true,
-  "ol": true, "p": true, "pre": true, "em": true, "img": true, "canvas": true, "script": true, "style": true, "video": true,
-  "table": true, "tbody": true, "thead": true, "tr": true, "th": true, "td": true,
-  "form": true, "optgroup": true, "option": true, "select": true, "textarea": true,
-  "title": true, "meta": true, "link": true,
-  "svg": true, "circle": true, "line": true, "rect": true, "polygon":true, "text": true, "image": true, "defs": true, "pattern": true, "linearGradient": true, "g": true, "path": true
-};
-var svgs = {"svg": true, "circle": true, "line": true, "rect": true, "polygon":true, "text": true, "image": true, "defs": true, "pattern": true, "linearGradient": true, "g": true, "path": true};
-// Map of input entities to a queue of their values which originated from the client and have not been received from the server yet.
+// Obtained from http://w3c.github.io/html-reference/elements.html
+var supportedTagsArr = [
+  "a",
+  "abbr",
+  "address",
+  "area",
+  "article",
+  "aside",
+  "audio",
+  "b",
+  "base",
+  "bdi",
+  "bdo",
+  "blockquote",
+  "body",
+  "br",
+  "button",
+  "canvas",
+  "caption",
+  "cite",
+  "code",
+  "col",
+  "colgroup",
+  "command",
+  "datalist",
+  "dd",
+  "del",
+  "details",
+  "dfn",
+  "div",
+  "dl",
+  "dt",
+  "em",
+  "embed",
+  "fieldset",
+  "figcaption",
+  "figure",
+  "footer",
+  "form",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "head",
+  "header",
+  "hgroup",
+  "hr",
+  "html",
+  "i",
+  "iframe",
+  "img",
+  "input",
+  "ins",
+  "kbd",
+  "keygen",
+  "label",
+  "legend",
+  "li",
+  "link",
+  "map",
+  "mark",
+  "menu",
+  "meta",
+  "meter",
+  "nav",
+  "noscript",
+  "object",
+  "ol",
+  "optgroup",
+  "option",
+  "output",
+  "p",
+  "param",
+  "pre",
+  "progress",
+  "q",
+  "rp",
+  "rt",
+  "ruby",
+  "s",
+  "samp",
+  "script",
+  "section",
+  "select",
+  "small",
+  "source",
+  "span",
+  "strong",
+  "style",
+  "sub",
+  "summary",
+  "sup",
+  "table",
+  "tbody",
+  "td",
+  "textarea",
+  "tfoot",
+  "th",
+  "thead",
+  "time",
+  "title",
+  "tr",
+  "track",
+  "u",
+  "ul",
+  "var",
+  "video",
+  "wbr"
+];
 
+// Obtained from https://www.w3.org/TR/SVG/eltindex.html
+var svgsArr = [
+  "a",
+  "altGlyph",
+  "altGlyphDef",
+  "altGlyphItem",
+  "animate",
+  "animateColor",
+  "animateMotion",
+  "animateTransform",
+  "circle",
+  "clipPath",
+  "color-profile",
+  "cursor",
+  "defs",
+  "desc",
+  "ellipse",
+  "feBlend",
+  "feColorMatrix",
+  "feComponentTransfer",
+  "feComposite",
+  "feConvolveMatrix",
+  "feDiffuseLighting",
+  "feDisplacementMap",
+  "feDistantLight",
+  "feFlood",
+  "feFuncA",
+  "feFuncB",
+  "feFuncG",
+  "feFuncR",
+  "feGaussianBlur",
+  "feImage",
+  "feMerge",
+  "feMergeNode",
+  "feMorphology",
+  "feOffset",
+  "fePointLight",
+  "feSpecularLighting",
+  "feSpotLight",
+  "feTile",
+  "feTurbulence",
+  "filter",
+  "font",
+  "font-face",
+  "font-face-format",
+  "font-face-name",
+  "font-face-src",
+  "font-face-uri",
+  "foreignObject",
+  "g",
+  "glyph",
+  "glyphRef",
+  "hkern",
+  "image",
+  "line",
+  "linearGradient",
+  "marker",
+  "mask",
+  "metadata",
+  "missing-glyph",
+  "mpath",
+  "path",
+  "pattern",
+  "polygon",
+  "polyline",
+  "radialGradient",
+  "rect",
+  "script",
+  "set",
+  "stop",
+  "style",
+  "svg",
+  "switch",
+  "symbol",
+  "text",
+  "textPath",
+  "title",
+  "tref",
+  "tspan",
+  "use",
+  "view",
+  "vkern"
+];
+
+supportedTagsArr.push.apply(supportedTagsArr, svgsArr);
+
+function toKeys(arr) {
+  var obj = {};
+  for (var el of arr) {
+    obj[el] = true;
+  }
+  return obj
+}
+
+var supportedTags = toKeys(supportedTagsArr);
+var svgs = toKeys(svgsArr);
+
+// Map of input entities to a queue of their values which originated from the client and have not been received from the server yet.
 var lastFocusPath:string[]|null = null;
 var selectableTypes = {"": true, undefined: true, text: true, search: true, password: true, tel: true, url: true};
 
@@ -127,7 +325,14 @@ export function renderRecords() {
         }
         elem.entity = entityId;
         activeElements[entityId] = elem;
-        elem.sort = entity.sort || entity["eve-auto-index"] || "";
+        if(entity.sort && entity.sort.length > 1) console.error("Unable to set 'sort' multiple times on entity", entity, entity.sort);
+        if(entity.sort !== undefined && entity.sort[0] !== undefined) {
+          elem.sort = entity.sort[0];
+        } else if(entity["eve-auto-index"] !== undefined && entity["eve-auto-index"][0] !== undefined) {
+          elem.sort = entity["eve-auto-index"][0];
+        } else {
+          elem.sort = "";
+        }
         if(parent) insertSorted(parent, elem)
 
 
@@ -140,7 +345,13 @@ export function renderRecords() {
         elem.entity = entityId;
         activeElements[entityId] = elem;
         if(entity.sort && entity.sort.length > 1) console.error("Unable to set 'sort' multiple times on entity", entity, entity.sort);
-        elem.sort = (entity.sort && entity.sort[0]) || (entity["eve-auto-index"] && entity["eve-auto-index"][0]) || "";
+        if(entity.sort !== undefined && entity.sort[0] !== undefined) {
+          elem.sort = entity.sort[0];
+        } else if(entity["eve-auto-index"] !== undefined && entity["eve-auto-index"][0] !== undefined) {
+          elem.sort = entity["eve-auto-index"][0];
+        } else {
+          elem.sort = "";
+        }
         let parent = activeElements[activeChildren[entityId] || "root"];
         if(parent) insertSorted(parent, elem);
       }
@@ -204,7 +415,7 @@ export function renderRecords() {
         } else if(value.length > 1) {
           console.error("Unable to set 'value' multiple times on entity", entity, JSON.stringify(value));
         } else {
-          input.value = value[0]; // @FIXME: Should this really be setAttribute?
+          input.setAttribute('value', value[0]);
         }
 
       } else if(attribute === "checked") {
@@ -527,3 +738,4 @@ function injectProgram(node, elem) {
 export function renderEve() {
   renderer.render([{c: "application-container", postRender: injectProgram}]);
 }
+

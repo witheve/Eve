@@ -189,7 +189,6 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
       if(content) path = eveSource.getRelativePath(config.path, workspace);
     }
 
-
     if(!content && config.internal) {
       content = eveSource.get("quickstart.eve", "examples");
       if(content) path = eveSource.getRelativePath("quickstart.eve", "examples");

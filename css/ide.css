@@ -89,6 +89,7 @@ body { justify-content: stretch; }
 .main-pane .notices > .notice > .time { margin-right: 10px;  }
 
 .main-pane .notices > .notice.error { background: rgb(255, 216, 222); }
+.main-pane .notices > .notice.warning { background: rgb(255, 247, 217); }
 
 /****************************************************************************\
  * Editor
