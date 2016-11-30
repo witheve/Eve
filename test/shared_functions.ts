@@ -6,7 +6,6 @@ import * as builder from "../src/runtime/builder";
 import {InsertAction, RemoveAction} from "../src/runtime/actions";
 import {BrowserSessionDatabase} from "../src/runtime/databases/browserSession";
 
-
 export function dedent(str) {
   let lines = [];
   let indent;
@@ -127,8 +126,8 @@ export function resolveActualExpected(assert, actuals, expecteds, entities) {
 }
 
 export function verify(assert, adds, removes, data) {
-  assert.equal(data.insert.length, adds.length, "Wrong number of inserts");
-  assert.equal(data.remove.length, removes.length, "Wrong number of removes");
+  assert.equal(data.insert.length, adds.length, "Correct number of inserts");
+  assert.equal(data.remove.length, removes.length, "Correct number of removes");
 
   // get all the entities
   let entities = collectEntities(adds);
@@ -165,7 +164,7 @@ export function evaluate(assert, expected, code, session = new Database()) {
   return next;
 }
 
-export function testSingleExpressionByList(list:any[]){
+export function testSingleExpressionByList(list:any[]){   
   list.forEach((list_item,index) =>{
     test(`Is ${list_item.Expression} returning ${list_item.Value}?`, (assert) => {
       let expected = {
