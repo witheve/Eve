@@ -10,6 +10,7 @@ import * as express from "express";
 import * as bodyParser from "body-parser";
 import * as minimist from "minimist";
 
+import {config, Config, Owner} from "../config";
 import {ActionImplementations} from "./actions";
 import {PersistedDatabase} from "./databases/persisted";
 import {HttpDatabase} from "./databases/node/http";
@@ -17,12 +18,11 @@ import {ServerDatabase} from "./databases/node/server";
 import {Database} from "./runtime";
 import {RuntimeClient} from "./runtimeClient";
 import {BrowserViewDatabase, BrowserEditorDatabase, BrowserInspectorDatabase} from "./databases/browserSession";
+import * as eveSource from "./eveSource";
 
 //---------------------------------------------------------------------
 // Constants
 //---------------------------------------------------------------------
-
-const argv = minimist(process.argv.slice(2));
 
 const contentTypes = {
   ".html": "text/html",
@@ -33,28 +33,10 @@ const contentTypes = {
   ".png": "image/png",
 }
 
-const BROWSER = !argv["server"];
-const PORT = process.env.PORT || argv["port"] || 8080;
 const shared = new PersistedDatabase();
-const PATH = argv["_"][0] || "examples/clock.eve";
 
-// If a file was passed in, we need to make sure it actually exists
-// now instead of waiting for the user to submit a request and then
-// blowing up
-if(PATH) {
-  try {
-    fs.statSync(PATH);
-  } catch(e) {
-    throw new Error("Can't load " + PATH);
-  }
-}
-
-const WITH_IDE = !argv["_"][0];
 
 global["browser"] = false;
-global["fileFetcher"] = (name) => {
-  return fs.readFileSync(path.join("./", name)).toString();
-}
 
 //---------------------------------------------------------------------
 // HTTPRuntimeClient
@@ -87,72 +69,87 @@ class HTTPRuntimeClient extends RuntimeClient {
 // Express app
 //---------------------------------------------------------------------
 
-const app = express();
-
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({extended: true}));
-
-app.get("/build/examples.js", (request, response) => {
-  let files = {};
-  for(let file of fs.readdirSync("examples/")) {
-    if(path.extname(file) === ".eve") {
-      try {
-        files["/examples/" + file] = fs.readFileSync(path.join("examples", file)).toString();
-      } catch(err) {}
-    }
-  }
-
-  fs.writeFileSync("build/examples.js", `var examples = ${JSON.stringify(files)}`)
-  response.setHeader("Content-Type", `application/javascript; charset=utf-8`);
-  response.end(`var examples = ${JSON.stringify(files)}`);
-});
-
 function handleStatic(request, response) {
   let url = request['_parsedUrl'].pathname;
-  fs.stat("." + url, (err, result) => {
-    if(err) {
-      return response.status(404).send("Looks like that asset is missing.");
-    }
-    response.setHeader("Content-Type", `${contentTypes[path.extname(url)]}; charset=utf-8`);
-    response.end(fs.readFileSync("." + url));
-  });
+  let roots = [".", config.eveRoot];
+  let completed = 0;
+  let results = {};
+  for(let root of roots) {
+    let filepath = path.join(root, url);
+    fs.stat(filepath, (err, result) => {
+      completed += 1;
+      if(!err) results[root] = fs.readFileSync(filepath);
+
+      if(completed === roots.length) {
+        for(let root of roots) {
+          if(results[root]) {
+            response.setHeader("Content-Type", `${contentTypes[path.extname(url)]}; charset=utf-8`);
+            response.end(results[root]);
+            return;
+          }
+        }
+
+        return response.status(404).send("Looks like that asset is missing.");
+      }
+    });
+  };
 }
 
-app.get("/assets/*", handleStatic);
-app.get("/build/*", handleStatic);
-app.get("/src/*", handleStatic);
-app.get("/css/*", handleStatic);
-app.get("/fonts/*", handleStatic);
+function createExpressApp() {
+  let filepath = config.path;
+  const app = express();
 
-app.get("*", (request, response) => {
-  let client = new HTTPRuntimeClient();
-  let content = fs.readFileSync(PATH).toString();
-  client.load(content, "user");
-  client.handle(request, response);
-  if(!client.server.handling) {
-    response.setHeader("Content-Type", `${contentTypes["html"]}; charset=utf-8`);
-    response.end(fs.readFileSync("index.html"));
-  }
-});
+  app.use(bodyParser.json());
+  app.use(bodyParser.urlencoded({extended: true}));
 
-app.post("*", (request, response) => {
-  let client = new HTTPRuntimeClient();
-  let content = fs.readFileSync(PATH).toString();
-  client.load(content, "user");
-  client.handle(request, response);
-  if(!client.server.handling) {
-    return response.status(404).send("Looks like that asset is missing.");
-  }
-});
+  app.get("/build/workspaces.js", (request, response) => {
+    let packaged = eveSource.pack();
+    response.setHeader("Content-Type", `application/javascript; charset=utf-8`);
+    response.end(packaged);
+  });
+
+  app.get("/assets/*", handleStatic);
+  app.get("/build/*", handleStatic);
+  app.get("/src/*", handleStatic);
+  app.get("/css/*", handleStatic);
+  app.get("/fonts/*", handleStatic);
+
+  app.get("*", (request, response) => {
+    let client = new HTTPRuntimeClient();
+    let content = "";
+    if(filepath) content = fs.readFileSync(filepath).toString();
+    client.load(content, "user");
+    client.handle(request, response);
+    if(!client.server.handling) {
+      response.setHeader("Content-Type", `${contentTypes["html"]}; charset=utf-8`);
+      response.end(fs.readFileSync(path.join(config.eveRoot, "index.html")));
+    }
+  });
+
+  app.post("*", (request, response) => {
+    let client = new HTTPRuntimeClient();
+    let content = "";
+    if(filepath) content = fs.readFileSync(filepath).toString();
+    client.load(content, "user");
+    client.handle(request, response);
+    if(!client.server.handling) {
+      return response.status(404).send("Looks like that asset is missing.");
+    }
+  });
+
+  return app;
+}
 
 //---------------------------------------------------------------------
 // Websocket
 //---------------------------------------------------------------------
 
+
+
 class SocketRuntimeClient extends RuntimeClient {
   socket: WebSocket;
 
-  constructor(socket:WebSocket, withIDE = true) {
+  constructor(socket:WebSocket, withIDE:boolean) {
     const dbs = {
       "http": new HttpDatabase(),
       "shared": shared,
@@ -173,33 +170,53 @@ class SocketRuntimeClient extends RuntimeClient {
   }
 }
 
-function IDEMessageHandler(client, message) {
+function IDEMessageHandler(client:SocketRuntimeClient, message) {
   let ws = client.socket;
   let data = JSON.parse(message);
+
   if(data.type === "init") {
+    let {editor, runtimeOwner, controlOwner} = config;
     let {url, hash} = data;
     let path = hash !== "" ? hash : url;
-    fs.stat("." + path, (err, stats) => {
-      if(err || !stats.isFile()) {
-        ws.send(JSON.stringify({type: "initProgram", local: true, withIDE: WITH_IDE}));
 
-      } else {
-        let content = fs.readFileSync("." + path).toString();
-        ws.send(JSON.stringify({type: "initProgram", local: BROWSER, path, code: content, withIDE: WITH_IDE}));
-        if(!BROWSER) {
+
+    let content = path && eveSource.find(path);
+
+    if(!content && config.path) {
+      let workspace = config.internal ? "examples" : "root";
+      // @FIXME: This hard-coding isn't technically wrong right now, but it's brittle and poor practice.
+      content = eveSource.get(config.path, workspace);
+      if(content) path = eveSource.getRelativePath(config.path, workspace);
+    }
+
+
+    if(!content && config.internal) {
+      content = eveSource.get("quickstart.eve", "examples");
+      if(content) path = eveSource.getRelativePath("quickstart.eve", "examples");
+    }
+
+    if(content) {
+      ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, code: content, withIDE: editor}));
+      if(runtimeOwner === Owner.server) {
+        client.load(content, "user");
+      }
+    } else {
+      // @FIXME: Do we still need this fallback for anything? Cases where we need to run an eve file outside of a project?
+      fs.stat("." + path, (err, stats) => {
+        if(!err && stats.isFile()) {
+          let content = fs.readFileSync("." + path).toString();
+          ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, code: content, withIDE: editor}));
+        } else {
+          ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, withIDE: editor}));
+        }
+
+        if(runtimeOwner === Owner.server) {
           client.load(content, "user");
         }
-      }
-    });
+      });
+    }
   } else if(data.type === "save"){
-    fs.stat("." + path.dirname(data.path), (err, stats) => {
-      console.log(err, stats);
-      if(err || !stats.isDirectory()) {
-        console.log("trying to save to bad path: " + data.path);
-      } else {
-        fs.writeFileSync("." + data.path, data.code);
-      }
-    });
+    eveSource.save(data.path, data.code);
   } else if(data.type === "ping") {
     // we don't need to do anything with pings, they're just to make sure hosts like
     // Heroku don't shutdown our server.
@@ -208,14 +225,15 @@ function IDEMessageHandler(client, message) {
   }
 }
 
-function MessageHandler(client, message) {
+function MessageHandler(client:SocketRuntimeClient, message) {
   let ws = client.socket;
   let data = JSON.parse(message);
   if(data.type === "init") {
+    let {editor, runtimeOwner, controlOwner, path:filepath} = config;
     // we do nothing here since the server is in charge of handling init.
-    let content = fs.readFileSync(PATH).toString();
-    ws.send(JSON.stringify({type: "initProgram", local: BROWSER, path: PATH, code: content, withIDE: WITH_IDE}));
-    if(!BROWSER) {
+    let content = fs.readFileSync(filepath).toString();
+    ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path: filepath, code: content, withIDE: editor}));
+    if(runtimeOwner === Owner.server) {
       client.load(content, "user");
     }
   } else if(data.type === "event") {
@@ -228,11 +246,11 @@ function MessageHandler(client, message) {
   }
 }
 
-function initWebsocket(wss) {
+function initWebsocket(wss, withIDE:boolean) {
   wss.on('connection', function connection(ws) {
-    let client = new SocketRuntimeClient(ws, WITH_IDE);
-    let handler = WITH_IDE ? IDEMessageHandler : MessageHandler;
-    if(!WITH_IDE) {
+    let client = new SocketRuntimeClient(ws, withIDE);
+    let handler = withIDE ? IDEMessageHandler : MessageHandler;
+    if(!withIDE) {
       // we need to initialize
     }
     ws.on('message', (message) => {
@@ -250,20 +268,49 @@ function initWebsocket(wss) {
 // Go!
 //---------------------------------------------------------------------
 
-let server = http.createServer(app);
+export function run() {
+  // @FIXME: Split these out!
+  eveSource.add("eve", path.join(config.eveRoot, "examples"));
+  if(config.internal) {
+    eveSource.add("examples", path.join(config.eveRoot, "examples"));
+  } else {
+    eveSource.add("root", config.root);
+  }
 
-let WebSocketServer = require('ws').Server;
-let wss = new WebSocketServer({server: server});
-initWebsocket(wss);
 
-server.listen(PORT, function(){
-  console.log(`Eve is available at http://localhost:${PORT}. Point your browser there to access the Eve editor.`);
-});
+  // If a file was passed in, we need to make sure it actually exists
+  // now instead of waiting for the user to submit a request and then
+  // blowing up
+  if(config.path) {
+    try {
+      fs.statSync(config.path);
+    } catch(e) {
+      throw new Error("Can't load " + config.path);
+    }
+  }
 
-// If the port is already in use, display an error message
-process.on('uncaughtException', function(err) {
+  let app = createExpressApp();
+  let server = http.createServer(app);
+
+  let WebSocketServer = require('ws').Server;
+  let wss = new WebSocketServer({server});
+  initWebsocket(wss, config.editor);
+
+  server.listen(config.port, function(){
+    console.log(`Eve is available at http://localhost:${config.port}. Point your browser there to access the Eve editor.`);
+  });
+
+  // If the port is already in use, display an error message
+  process.on('uncaughtException', function handleAddressInUse(err) {
     if(err.errno === 'EADDRINUSE') {
-      console.log(`ERROR: Eve couldn't start because port ${PORT} is already in use.\n\nYou can select a different port for Eve using the "port" argument.\nFor example:\n\n> npm start -- --port 1234`);
+      console.log(`ERROR: Eve couldn't start because port ${config.port} is already in use.\n\nYou can select a different port for Eve using the "port" argument.\nFor example:\n\n> npm start -- --port 1234`);
+    } else {
+      throw err;
     }
     process.exit(1);
-});
+  });
+}
+
+if(require.main === module) {
+  console.error("Please run eve using the installed eve binary.");
+}

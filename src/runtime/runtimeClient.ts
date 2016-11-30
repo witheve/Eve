@@ -28,6 +28,7 @@ export abstract class RuntimeClient {
   abstract send(json): void;
 
   load(code:string, context:string) {
+    code = code || "";
     let {results, errors} : {results: any, errors: any[]} = parser.parseDoc(code, context);
     if(errors && errors.length) console.error(errors);
     results.code = code;

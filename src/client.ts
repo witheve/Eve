@@ -1,4 +1,5 @@
 import {clone, debounce, uuid, sortComparator} from "./util";
+import {Owner} from "./config";
 import {sentInputValues, activeIds, renderRecords, renderEve} from "./renderer"
 import {IDE} from "./ide";
 import * as browser from "./runtime/browser";
@@ -140,14 +141,13 @@ export class EveClient {
 
   constructor(url?:string) {
     let loc = url ? url : this.getUrl();
-    let self = this;
 
     this.socket = new WebSocket(loc);
     this.socket.onerror = (event) => {
-      self.onError();
+      this.onError();
     }
     this.socket.onopen = (event) => {
-      self.onOpen();
+      this.onOpen();
     }
     this.socket.onmessage = (event) => {
       this.onMessage(event);
@@ -202,9 +202,12 @@ export class EveClient {
   onError() {
     this.localControl = true;
     this.localEve = true;
-    if(this.showIDE) {
-      this.ide = new IDE();
-      this.ide.local = true;
+    if(!this.ide) {
+      this._initProgram({runtimeOwner: Owner.client, controlOwner: Owner.client, withIDE: true, path: (window.location.hash || "").slice(1) || "/examples/quickstart.eve"});
+    } else if(this.showIDE) {
+      this.ide.injectNotice("error", "Unexpectedly disconnected from the server. Please refresh the page.");
+    } else {
+      console.error("Unexpectedly disconnected from the server. Please refresh the page.");
     }
   }
 
@@ -266,16 +269,27 @@ export class EveClient {
   }
 
   _initProgram(data) {
-    this.localEve = data.local;
+    this.localEve = data.runtimeOwner === Owner.client;
+    this.localControl = data.controlOwner === Owner.client;
     this.showIDE = data.withIDE;
-    if(data.local) {
+    if(this.localEve) {
       browser.init(data.code);
     }
     if(this.showIDE) {
+      // Ensure the URL bar is in sync with the server.
+      // @FIXME: This back and forth of control over where we are
+      // is an Escherian nightmare.
+      if(!data.path) {
+        history.pushState({}, "", window.location.pathname);
+      }
+
       this.ide = new IDE();
+      this.ide.local = this.localControl;
       initIDE(this);
       this.ide.render();
-      this.ide.loadFile(data.path, data.code);
+      if(data.path && data.path.length > 2) {
+        this.ide.loadFile(data.path, data.code);
+      }
     }
     onHashChange({});
   }
@@ -425,9 +439,6 @@ function initIDE(client:EveClient) {
     client.send({scope: "root", type: "parse", code})
     client.send({type: "eval", persist: false});
     let url = `${location.pathname}#${documentId}`;
-    if(documentId.indexOf("/examples/") === -1) {
-      url = `${location.pathname}#/examples/${documentId}`;
-    }
     history.pushState({}, "", url + location.search);
     analyticsEvent("load-document", documentId);
   }
@@ -440,18 +451,21 @@ function initIDE(client:EveClient) {
     client.send({type: "tokenInfo", tokenId});
   }
 
-  ide.loadWorkspace("examples", window["examples"]);
+  let cache = window["_workspaceCache"];
+  for(let workspace in cache || {}) {
+    ide.loadWorkspace(workspace, cache[workspace]);
+  }
 }
 
 function changeDocument() {
   if(!client.showIDE) return;
   let ide = client.ide;
-  let docId = "quickstart.eve";
-  let path = "/" + location.hash.split('?')[0].split("#/")[1];
-  console.log("PATH", path, location.hash);
-  if(path) {
+  // @FIXME: This is not right in the non-internal case.
+  let docId = "/examples/quickstart.eve";
+  let path = location.hash && location.hash.split('?')[0].split("#/")[1];
+  if(path && path.length > 2) {
     if(path[path.length - 1] === "/") path = path.slice(0, -1);
-    docId = path;
+    docId = "/" + path;
   }
   if(!docId) return;
   if(docId === ide.documentId) return;
