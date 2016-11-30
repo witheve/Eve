@@ -125,8 +125,6 @@ export abstract class RuntimeClient {
       let scopes = [data.database];
       let actions = [];
       for(let insert of data.insert) {
-        // @TODO: right now these ids are coming across already munged, we should at some point
-        // send de-munged ids
         let [e, a, v] = insert;
         if(ids.isId(e)) e = ids.load(e);
         if(ids.isId(v)) v = ids.load(v);
