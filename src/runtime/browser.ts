@@ -10,7 +10,7 @@ import * as builder from "./builder";
 import {ids} from "./id";
 import {RuntimeClient} from "./runtimeClient";
 import {HttpDatabase} from "./databases/http";
-import {BrowserViewDatabase, BrowserEditorDatabase, BrowserInspectorDatabase} from "./databases/browserSession";
+import {BrowserViewDatabase, BrowserEditorDatabase, BrowserInspectorDatabase, BrowserServerDatabase} from "./databases/browserSession";
 
 //---------------------------------------------------------------------
 // Utils
@@ -42,6 +42,7 @@ class BrowserRuntimeClient extends RuntimeClient {
       dbs["view"] = new BrowserViewDatabase();
       dbs["editor"] = new BrowserEditorDatabase();
       dbs["inspector"] = new BrowserInspectorDatabase();
+      dbs["server"] = new BrowserServerDatabase(client);
     }
     super(dbs);
     this.client = client;

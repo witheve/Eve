@@ -8,7 +8,7 @@ var config = require("../build/src/config");
 var Owner = config.Owner;
 var server = require("../build/src/runtime/server");
 
-const argv = minimist(process.argv.slice(2), {boolean: ["server", "editor"]});
+const argv = minimist(process.argv.slice(2), {boolean: ["server", "editor", "clientAndServer"]});
 
 // Since our current development pattern uses npm as its package repository, we treat the nearest ancestor directory with a package.json (inclusive) as the directory's "root".
 function findRoot(root) {
@@ -26,6 +26,7 @@ function findRoot(root) {
 
 var port = argv["port"] || process.env.PORT || 8080;
 var runtimeOwner = argv["server"] ? Owner.server : Owner.client;
+runtimeOwner = argv["clientAndServer"] ? Owner.both : runtimeOwner;
 var controlOwner = argv["localControl"] ? Owner.client : Owner.server;
 var editor = argv["editor"] || false;
 var filepath = argv["_"][0];

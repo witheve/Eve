@@ -255,7 +255,7 @@ export class Changes {
     return commit;
   }
 
-  result(scopeLookup?: Object) {
+  result(scopeLookup?: Object, withoutCheck?: boolean) {
     let insert = [];
     let remove = [];
     let {positions, info} = this.finalChanges;
@@ -269,9 +269,9 @@ export class Changes {
       let v = info[pos + 3];
       let scope = info[pos + 5];
       if(scopeLookup === undefined || scopeLookup[scope]) {
-        if(count < 0 && indexes[scope].lookup(e,a,v) === undefined) {
+        if(count < 0 && (withoutCheck || indexes[scope].lookup(e,a,v) === undefined)) {
           remove.push([e,a,v]);
-        } else if(count > 0 && indexes[scope].lookup(e,a,v) !== undefined) {
+        } else if(count > 0 && (withoutCheck || indexes[scope].lookup(e,a,v) !== undefined)) {
           insert.push([e,a,v]);
         }
       }

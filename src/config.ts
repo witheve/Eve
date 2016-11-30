@@ -1,4 +1,4 @@
-export enum Owner {client, server};
+export enum Owner {client, server, both};
 
 export interface Config {path?:string, runtimeOwner?: Owner, controlOwner?: Owner, port?:number, editor?: boolean, root?: string, eveRoot?: string, internal?: boolean}
 

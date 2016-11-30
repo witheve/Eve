@@ -118,6 +118,21 @@ export abstract class RuntimeClient {
         actions.push(new ActionImplementations["+="]("event", e, a, v, "event", scopes));
       }
       this.evaluation.executeActions(actions);
+    } else if(data.type === "result" && (data.database === "server" || data.database === "browser-session")) {
+      // @TODO: should we allow databases other than server at some point?
+      if(!this.evaluation) return;
+      // console.info("EVENT", json);
+      let scopes = [data.database];
+      let actions = [];
+      for(let insert of data.insert) {
+        // @TODO: right now these ids are coming across already munged, we should at some point
+        // send de-munged ids
+        let [e, a, v] = insert;
+        if(ids.isId(e)) e = ids.load(e);
+        if(ids.isId(v)) v = ids.load(v);
+        actions.push(new ActionImplementations["+="]("result", e, a, v, "result", scopes));
+      }
+      this.evaluation.executeActions(actions);
     } else if(data.type === "close") {
       if(!this.evaluation) return;
       this.evaluation.close();

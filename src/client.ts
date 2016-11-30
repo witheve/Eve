@@ -238,6 +238,10 @@ export class EveClient {
   }
 
   _result(data) {
+    if(data.database && data.database === "browser-session") {
+      this.send(data);
+      return;
+    }
     let state = {entities: indexes.records.index, dirty: indexes.dirty.index};
     handleDiff(state, data);
 
@@ -269,7 +273,7 @@ export class EveClient {
   }
 
   _initProgram(data) {
-    this.localEve = data.runtimeOwner === Owner.client;
+    this.localEve = data.runtimeOwner === Owner.client || data.runtimeOwner === Owner.both;
     this.localControl = data.controlOwner === Owner.client;
     this.showIDE = data.withIDE;
     if(this.localEve) {

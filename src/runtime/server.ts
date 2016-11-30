@@ -17,7 +17,7 @@ import {HttpDatabase} from "./databases/node/http";
 import {ServerDatabase} from "./databases/node/server";
 import {Database} from "./runtime";
 import {RuntimeClient} from "./runtimeClient";
-import {BrowserViewDatabase, BrowserEditorDatabase, BrowserInspectorDatabase} from "./databases/browserSession";
+import {BrowserViewDatabase, BrowserEditorDatabase, BrowserInspectorDatabase, BrowserServerDatabase} from "./databases/browserSession";
 import * as eveSource from "./eveSource";
 
 //---------------------------------------------------------------------
@@ -159,6 +159,12 @@ class SocketRuntimeClient extends RuntimeClient {
       dbs["editor"] = new BrowserEditorDatabase();
       dbs["inspector"] = new BrowserInspectorDatabase();
     }
+    // in the case where we're running on both the client and the server,
+    // we need to change the way our bags work
+    if(config.runtimeOwner === Owner.both) {
+      dbs["browser-session"] = new BrowserServerDatabase({socketSend: (json) => {this.send(json)}});
+      dbs["browser"] = new Database();
+    }
     super(dbs);
     this.socket = socket;
   }
@@ -196,7 +202,7 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
 
     if(content) {
       ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, code: content, withIDE: editor}));
-      if(runtimeOwner === Owner.server) {
+      if(runtimeOwner === Owner.server || runtimeOwner === Owner.both) {
         client.load(content, "user");
       }
     } else {
@@ -209,7 +215,7 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
           ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, withIDE: editor}));
         }
 
-        if(runtimeOwner === Owner.server) {
+        if(runtimeOwner === Owner.server || runtimeOwner === Owner.both) {
           client.load(content, "user");
         }
       });
@@ -232,10 +238,12 @@ function MessageHandler(client:SocketRuntimeClient, message) {
     // we do nothing here since the server is in charge of handling init.
     let content = fs.readFileSync(filepath).toString();
     ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path: filepath, code: content, withIDE: editor}));
-    if(runtimeOwner === Owner.server) {
+    if(runtimeOwner === Owner.server || runtimeOwner === Owner.both) {
       client.load(content, "user");
     }
   } else if(data.type === "event") {
+    client.handleEvent(message);
+  } else if(data.type === "result") {
     client.handleEvent(message);
   } else if(data.type === "ping") {
     // we don't need to do anything with pings, they're just to make sure hosts like
