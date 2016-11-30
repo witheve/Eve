@@ -19,7 +19,7 @@
     <link href="favicon.png" rel="icon" type="image/png" />
   </head>
   <body>
-    <script type="text/javascript" src="build/examples.js"></script>
+    <script type="text/javascript" src="build/workspaces.js"></script>
     <script type="text/javascript" src="build/src/uuid.js"></script>
     <script type="text/javascript" src="build/src/codemirror.js"></script>
     <script type="text/javascript" src="build/src/simplescrollbars.js"></script>
@@ -30,7 +30,8 @@
     <script>
       SystemJS.config({
         baseURL: "build/src",
-        defaultJSExtensions: true,
+      defaultJSExtensions: true,
+        map: {fs: "@empty", path: "@empty", glob: "@empty", mkdirp: "@empty"},
         meta: {"build/src/codemirror.js": { format: "cjs" }}
       });
 

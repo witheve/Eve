@@ -1,4 +1,5 @@
 import {clone, debounce, uuid, sortComparator} from "./util";
+import {Owner} from "./config";
 import {sentInputValues, activeIds, renderRecords, renderEve} from "./renderer"
 import {IDE} from "./ide";
 import * as browser from "./runtime/browser";
@@ -138,17 +139,15 @@ export class EveClient {
   showIDE:boolean = true;
   ide:IDE;
 
-  constructor(ide:IDE, url?:string) {
-    this.ide = ide;
+  constructor(url?:string) {
     let loc = url ? url : this.getUrl();
-    let self = this;
 
     this.socket = new WebSocket(loc);
     this.socket.onerror = (event) => {
-      self.onError();
+      this.onError();
     }
     this.socket.onopen = (event) => {
-      self.onOpen();
+      this.onOpen();
     }
     this.socket.onmessage = (event) => {
       this.onMessage(event);
@@ -203,7 +202,13 @@ export class EveClient {
   onError() {
     this.localControl = true;
     this.localEve = true;
-    this.ide.local = true;
+    if(!this.ide) {
+      this._initProgram({runtimeOwner: Owner.client, controlOwner: Owner.client, withIDE: true, path: (window.location.hash || "").slice(1) || "/examples/quickstart.eve"});
+    } else if(this.showIDE) {
+      this.ide.injectNotice("error", "Unexpectedly disconnected from the server. Please refresh the page.");
+    } else {
+      console.error("Unexpectedly disconnected from the server. Please refresh the page.");
+    }
   }
 
   onOpen() {
@@ -219,7 +224,7 @@ export class EveClient {
   }
 
   onClose() {
-    ide.injectNotice("warning", "The editor has lost connection to the Eve server. All changes will be made locally.");
+    this.ide.injectNotice("warning", "The editor has lost connection to the Eve server. All changes will be made locally.");
   }
 
   onMessage(event) {
@@ -264,31 +269,48 @@ export class EveClient {
   }
 
   _initProgram(data) {
-    this.localEve = data.local;
-    if(data.local) {
+    this.localEve = data.runtimeOwner === Owner.client;
+    this.localControl = data.controlOwner === Owner.client;
+    this.showIDE = data.withIDE;
+    if(this.localEve) {
       browser.init(data.code);
     }
     if(this.showIDE) {
-      initIDE(this.ide, this);
+      // Ensure the URL bar is in sync with the server.
+      // @FIXME: This back and forth of control over where we are
+      // is an Escherian nightmare.
+      if(!data.path) {
+        history.pushState({}, "", window.location.pathname);
+      }
+
+      this.ide = new IDE();
+      this.ide.local = this.localControl;
+      initIDE(this);
       this.ide.render();
-      this.ide.loadFile(data.path, data.code);
+      if(data.path && data.path.length > 2) {
+        this.ide.loadFile(data.path, data.code);
+      }
     }
     onHashChange({});
   }
 
   _parse(data) {
+    if(!this.showIDE) return;
     this.ide.loadDocument(data.generation, data.text, data.spans, data.extraInfo); // @FIXME
   }
 
   _comments(data) {
+    if(!this.showIDE) return;
     this.ide.injectSpans(data.spans, data.extraInfo);
   }
 
   _findNode(data) {
+    if(!this.showIDE) return;
     this.ide.attachView(data.recordId, data.spanId);
   }
 
   _error(data) {
+    if(!this.showIDE) return;
     this.ide.injectNotice("error", data.message);
   }
 
@@ -347,9 +369,15 @@ function subscribeToTagDiff(tag:string, callback: (inserts: string[], removes: s
   });
 }
 
-subscribeToTagDiff("editor", (inserts, removes, records) => ide.updateActions(inserts, removes, records));
+subscribeToTagDiff("editor", (inserts, removes, records) => {
+  if(!client.showIDE) return;
+  client.ide.updateActions(inserts, removes, records);
+});
 
-subscribeToTagDiff("view", (inserts, removes, records) => ide.updateViews(inserts, removes, records));
+subscribeToTagDiff("view", (inserts, removes, records) => {
+  if(!client.showIDE) return;
+  client.ide.updateViews(inserts, removes, records)
+});
 
 //---------------------------------------------------------
 // Communication helpers
@@ -391,10 +419,10 @@ function recordToEAVs(record) {
 //---------------------------------------------------------
 // Initialize an IDE
 //---------------------------------------------------------
-let ide = new IDE();
-export let client = new EveClient(ide);
+export let client = new EveClient();
 
-function initIDE(ide:IDE, client:EveClient) {
+function initIDE(client:EveClient) {
+  let ide = client.ide;
   ide.onChange = (ide:IDE) => {
     let generation = ide.generation;
     let md = ide.editor.toMarkdown();
@@ -411,9 +439,6 @@ function initIDE(ide:IDE, client:EveClient) {
     client.send({scope: "root", type: "parse", code})
     client.send({type: "eval", persist: false});
     let url = `${location.pathname}#${documentId}`;
-    if(documentId.indexOf("/examples/") === -1) {
-      url = `${location.pathname}#/examples/${documentId}`;
-    }
     history.pushState({}, "", url + location.search);
     analyticsEvent("load-document", documentId);
   }
@@ -426,16 +451,21 @@ function initIDE(ide:IDE, client:EveClient) {
     client.send({type: "tokenInfo", tokenId});
   }
 
-  ide.loadWorkspace("examples", window["examples"]);
+  let cache = window["_workspaceCache"];
+  for(let workspace in cache || {}) {
+    ide.loadWorkspace(workspace, cache[workspace]);
+  }
 }
 
 function changeDocument() {
-  let docId = "quickstart.eve";
-  let path = "/" + location.hash.split('?')[0].split("#/")[1];
-  console.log("PATH", path, location.hash);
-  if(path) {
+  if(!client.showIDE) return;
+  let ide = client.ide;
+  // @FIXME: This is not right in the non-internal case.
+  let docId = "/examples/quickstart.eve";
+  let path = location.hash && location.hash.split('?')[0].split("#/")[1];
+  if(path && path.length > 2) {
     if(path[path.length - 1] === "/") path = path.slice(0, -1);
-    docId = path;
+    docId = "/" + path;
   }
   if(!docId) return;
   if(docId === ide.documentId) return;
@@ -447,14 +477,12 @@ function changeDocument() {
   ide.render();
 }
 
-console.log(ide);
-
 //---------------------------------------------------------
 // Handlers
 //---------------------------------------------------------
 
 function onHashChange(event) {
-  if(ide.loaded) changeDocument();
+  if(client.ide && client.ide.loaded) changeDocument();
   let hash = window.location.hash.split("#/")[2];
   let queryParam = window.location.hash.split('?')[1];
 
