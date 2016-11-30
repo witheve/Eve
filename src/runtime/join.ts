@@ -831,12 +831,22 @@ function preJoinAccept(multiIndex: MultiIndex, providers : ProposalProvider[], v
     if(value !== undefined && vars[ix] !== undefined) {
       presolved++;
       for(let provider of providers) {
-        if(!provider.accept(multiIndex, prefix, solvingFor)) {
+        if(!provider.accept(multiIndex, prefix, solvingFor, false, true)) {
           return {accepted: false, presolved};
         }
       }
     }
     ix++;
+  }
+  // if we haven't presolved anything, we still need to do a single prejoin pass
+  // to make sure that any nots that may have no external dependencies are
+  // given a chance to end this evaluation
+  if(presolved === 0) {
+    for(let provider of providers) {
+      if(provider instanceof NotScan && !provider.accept(multiIndex, prefix, {id: "0"}, false, true)) {
+        return {accepted: false, presolved};
+      }
+    }
   }
   return {accepted: true, presolved};
 }
