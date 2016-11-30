@@ -503,7 +503,7 @@ export class NotScan {
     // nots won't get evaluated during Generic Join since we're never solving for a
     // variable that this scan cares about.
     if((!prejoin || this.args.length)
-       // if we are forcing and not solving for the current variable, then we just accept
+       // if we aren't forcing and not solving for the current variable, then we just accept
        // as it is
        && (!force && !this.internalVars[solvingFor.id] && this.internalVars.length)
        // we also blind accept if we have args that haven't been filled in yet, as we don't
