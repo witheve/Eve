@@ -2647,6 +2647,29 @@ test("not can't provide a variable for an attribute access", (assert) => {
   assert.end();
 })
 
+test("not without dependencies filters correctly", (assert) => {
+  let expected = {
+    insert: [[1, "tag", "foo"]],
+    remove: [],
+  };
+  evaluate(assert, expected, `
+    add some stuff
+    ~~~
+    commit
+      [#foo]
+    ~~~
+
+    foo bar
+    ~~~
+    search
+      not([#foo])
+    bind
+      [#bar]
+    ~~~
+  `);
+  assert.end();
+})
+
 
 test("indirect constant equality in if", (assert) => {
   let expected = {
