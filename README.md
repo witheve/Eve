@@ -34,7 +34,7 @@ Then open `http://localhost:8080/` in your browser.
 Alternatively, you can download Eve directly from npm with the following command:
 
 ```
-npm install witheve
+npm install witheve/eve
 ```
 
 ### From Docker
