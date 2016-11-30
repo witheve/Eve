@@ -62,6 +62,7 @@ export function build(callback:() => void) {
   // Copy static JS files into build.
   let matches = glob.sync("src/*.js");
   for(let match of matches) {
+    if(path.sep !== "/") match = match.replace("/", path.sep);
     let relative = match.split(path.sep).slice(1).join(path.sep);
     copy(match, path.join("build", "src", relative), tracker.track("copy static files"));
   }
