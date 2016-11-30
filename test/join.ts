@@ -2647,7 +2647,7 @@ test("not can't provide a variable for an attribute access", (assert) => {
   assert.end();
 })
 
-test.only("not without dependencies filters correctly", (assert) => {
+test("not without dependencies filters correctly", (assert) => {
   let expected = {
     insert: [[1, "tag", "foo"]],
     remove: [],
