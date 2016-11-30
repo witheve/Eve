@@ -503,7 +503,11 @@ export class NotScan {
     // nots won't get evaluated during Generic Join since we're never solving for a
     // variable that this scan cares about.
     if((!prejoin || this.args.length)
+       // if we are forcing and not solving for the current variable, then we just accept
+       // as it is
        && (!force && !this.internalVars[solvingFor.id] && this.internalVars.length)
+       // we also blind accept if we have args that haven't been filled in yet, as we don't
+       // have the dependencies necessary to make a decision
        || !fullyResolved(this.args, prefix)) return true;
     let resolved = this.resolve(prefix);
     let notPrefix = [];
@@ -838,14 +842,13 @@ function preJoinAccept(multiIndex: MultiIndex, providers : ProposalProvider[], v
     }
     ix++;
   }
-  // if we haven't presolved anything, we still need to do a single prejoin pass
-  // to make sure that any nots that may have no external dependencies are
-  // given a chance to end this evaluation
-  if(presolved === 0) {
-    for(let provider of providers) {
-      if(provider instanceof NotScan && !provider.accept(multiIndex, prefix, {id: "0"}, false, true)) {
-        return {accepted: false, presolved};
-      }
+  // we still need to do a single prejoin pass to make sure that any nots
+  // that may have no external dependencies are given a chance to end this
+  // evaluation
+  let fakeVar = new Variable(0);
+  for(let provider of providers) {
+    if(provider instanceof NotScan && !provider.accept(multiIndex, prefix, fakeVar, false, true)) {
+      return {accepted: false, presolved};
     }
   }
   return {accepted: true, presolved};
