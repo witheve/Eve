@@ -52,15 +52,15 @@ export function isSetEqual(as, bs, assert) {
     let attributeA = avA[0];
     let valueA = avA[1];
     // If the attribute is called "floatTest" we know to compare
-    // the values to within some delta. Otherwise, we can
+    // the values to within some epsilon. Otherwise, we can
     // do a straight lookup of the key
-    let delta = 0.00000000001;
+    let epsilon = 0.00000000001;
     if (attributeA === "floatTest") {
       for (let b of bs) {
         let avB = b.split(", ");
         let attributeB = avB[0];
         let valueB = avB[1];
-        if (attributeB === "floatTest" && Math.abs(valueB - valueA) < delta) {
+        if (attributeB === "floatTest" && Math.abs(valueB - valueA) < epsilon) {
           return true;
         } 
       }
