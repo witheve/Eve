@@ -160,7 +160,9 @@ class SocketRuntimeClient extends RuntimeClient {
       dbs["inspector"] = new BrowserInspectorDatabase();
     }
     // in the case where we're running on both the client and the server,
-    // we need to change the way our bags work
+    // we need to add a browser-session bag and also make our local browser bag
+    // be a normal database that way we don't send UI that is already being handled
+    // by the client
     if(config.runtimeOwner === Owner.both) {
       dbs["browser-session"] = new BrowserServerDatabase({socketSend: (json) => {this.send(json)}});
       dbs["browser"] = new Database();
