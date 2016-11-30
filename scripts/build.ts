@@ -1,6 +1,7 @@
+import * as path from "path";
 import * as fs from "fs";
 import * as glob from "glob";
-import {packageExamples} from "./package-examples";
+import {packageWorkspaces} from "./package-workspaces";
 
 export function onError(err) {
   throw err;
@@ -70,12 +71,13 @@ export function build(callback:() => void) {
     "node_modules/chevrotain/lib/chevrotain.js"
   ];
   for(let dep of deps) {
+    dep = path.resolve(dep);
     let base = dep.split("/").pop();
     copy(dep, "build/src/" + base, tracker.track("copy node module files"));
   }
 
-  // Package examples.
-  packageExamples(tracker.track("package examples"));
+  // Package workspaces.
+  packageWorkspaces(tracker.track("package workspaces"));
 
   tracker.finishedStartingTasks();
 }
