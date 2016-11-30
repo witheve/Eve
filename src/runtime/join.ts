@@ -71,7 +71,7 @@ export interface ProposalProvider {
   // Check if a prefix of solved variables is a valid potential solution
   // for this provider. SolvingFor is used to ignore accept calls that
   // aren't related to variables the provider is solving for.
-  accept(index: MultiIndex, prefix: any[], solvingFor: Variable, force?: boolean): boolean
+  accept(index: MultiIndex, prefix: any[], solvingFor: Variable, force?: boolean, prejoin?: boolean): boolean
 }
 
 //---------------------------------------------------------------------
@@ -497,8 +497,14 @@ export class NotScan {
   propose() { return; }
   resolveProposal() { throw new Error("Resolving a not proposal"); }
 
-  accept(multiIndex: MultiIndex, prefix, solvingFor, force?) {
-    if(!force && !this.internalVars[solvingFor.id] && this.internalVars.length || !fullyResolved(this.args, prefix)) return true;
+  accept(multiIndex: MultiIndex, prefix, solvingFor, force?, prejoin?) {
+    // if we're in the prejoin phase and this not has no args, then we need
+    // to evaluate the not to see if we should run. If we didn't do this, arg-less
+    // nots won't get evaluated during Generic Join since we're never solving for a
+    // variable that this scan cares about.
+    if((!prejoin || this.args.length)
+       && (!force && !this.internalVars[solvingFor.id] && this.internalVars.length)
+       || !fullyResolved(this.args, prefix)) return true;
     let resolved = this.resolve(prefix);
     let notPrefix = [];
     let ix = 0;
