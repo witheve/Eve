@@ -223,8 +223,7 @@ testSingleExpressionByList(toFixed_list );
 test("Test that string concatenation is still working after NaN change.", (assert) => {
   let expected = {
     insert: [
-      ["a", "tag", "div"],
-      ["a", "text", "Test Testy"],
+      ["a", "result", "Test Testy"],
     ],
     remove: [],
   };
@@ -235,8 +234,9 @@ test("Test that string concatenation is still working after NaN change.", (asser
       a = "Test "
       b = "Testy"
       x =  a + b
-    bind @browser
-    [#div text: x]
+
+    bind
+      [result: x]
     ~~~
   `);
   assert.end();
@@ -249,12 +249,12 @@ test("Divide by zero should return nothing.", (assert) => {
   };
 
   evaluate(assert, expected, `
-    Now consider this:
     ~~~
     search
       x = 1 / 0
-    bind @browser
-      [#div text:x]
+
+    bind
+      [result: x]
     ~~~
   `);
   assert.end();
@@ -263,8 +263,7 @@ test("Divide by zero should return nothing.", (assert) => {
 test("Divide by zero in an if statement should be detectable.", (assert) => {
   let expected = {
     insert: [
-      ["a", "tag", "div"],
-      ["a", "text", "Divide by zero"],
+      ["a", "result", "Divide by zero"],
     ],
     remove: [],
   };
@@ -276,8 +275,9 @@ test("Divide by zero in an if statement should be detectable.", (assert) => {
       b = 0
       x = if a / b then "Ooops"
           else "Divide by zero"
-    bind @browser
-    [#div text: x]
+
+    bind
+      [result: x]
     ~~~
   `);
   assert.end();
@@ -290,12 +290,12 @@ test("ACosh < 1 should return nothing.", (assert) => {
   };
 
   evaluate(assert, expected, `
-    Now consider this:
     ~~~
     search
       x = acosh[value: 0.999999999999999]
-    bind @browser
-      [#div text:x]
+
+    bind
+      [result: x]
     ~~~
   `);
   assert.end();
@@ -308,12 +308,12 @@ test("ATanH < -1 and > 1 should return nothing.", (assert) => {
   };
 
   evaluate(assert, expected, `
-    Now consider this:
     ~~~
     search
       x = atanh[value: 1.000000000000001]
-    bind @browser
-      [#div text:x]
+
+    bind
+      [result: x]
     ~~~
   `);
   assert.end();
