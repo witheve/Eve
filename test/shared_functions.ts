@@ -165,29 +165,5 @@ export function evaluate(assert, expected, code, session = new Database()) {
   return next;
 }
 
-export function testSingleExpressionByList(list:any[]){
-  list.forEach((list_item,index) =>{
-    test(`Is ${list_item.Expression} returning ${list_item.Value}?`, (assert) => {
-      let expected = {
-        insert: [
-          ["a", "tag", "div"],
-          ["a", "text", list_item.Value],
-        ],
-        remove: [],
-      };
 
-      evaluate(assert, expected, `
-        Now consider this:
 
-        ~~~
-        search
-          x = ${list_item.Expression}
-
-        bind @browser
-          [#div text: x]
-        ~~~
-      `);
-      assert.end();
-    });
-  });
-}
