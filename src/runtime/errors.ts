@@ -198,6 +198,12 @@ export function unprovidedVariableGroup(block, variables) {
   return new EveError(id, start, stop, messages.unprovidedVariable(found.name));
 }
 
+export function blankScan(block, scan) {
+  let {id, start: blockStart} = block;
+  let [start, stop] = parser.nodeToBoundaries(scan, blockStart);
+  return new EveError(id, start, stop, messages.blankScan());
+}
+
 export function invalidLookupAction(block, action) {
   let {id, start: blockStart} = block;
   let [start, stop] = parser.nodeToBoundaries(action, blockStart);
@@ -257,6 +263,7 @@ export var messages = {
 
   unimplementedExpression: (op) => `There's no definition for the function ${op}`,
 
+  blankScan: () => 'Lookup requires at least one attribute: record, attribute, value, or node',
   invalidLookupAction: (missing) => `Updating a lookup requires that record, attribute, and value all be provided. Looks like ${missing.join("and")} is missing.`,
 
   neverEqual: (left, right) => `${left} can never equal ${right}`,
