@@ -1907,6 +1907,21 @@ test("pipe allows you to select ", (assert) => {
   assert.end();
 })
 
+test("blank lookup errors", (assert) => {
+  let expected = {
+    insert: [],
+    remove: [],
+    errors: true
+  };
+  evaluate(assert, expected, `
+    ~~~
+      search
+        lookup[]
+    ~~~
+  `);
+  assert.end();
+})
+
 test("lookup with bound record", (assert) => {
   let expected = {
     insert: [
