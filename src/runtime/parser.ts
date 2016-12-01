@@ -235,7 +235,7 @@ let EveBlockLexer = new Lexer({modes: LexerModes, defaultMode: "code"});
 // Parse Nodes
 //-----------------------------------------------------------
 
-export type NodeDependent = chev.Token | ParseNode;
+export type NodeDependent = chev.ISimpleTokenOrIToken | ParseNode;
 
 export interface ParseNode {
   type?: string
