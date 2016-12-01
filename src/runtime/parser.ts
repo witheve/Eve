@@ -344,7 +344,7 @@ export class ParseBlock {
 // Parser
 //-----------------------------------------------------------
 
-class Parser extends chev.Parser {
+export class Parser extends chev.Parser {
   block: ParseBlock;
   activeScopes: string[];
   currentAction: string;
