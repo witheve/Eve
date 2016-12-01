@@ -25,7 +25,8 @@
     "prepublish": "./node_modules/.bin/tsc && node ./build/scripts/build.js",
     "build-dist": "node ./build/scripts/build-dist.js",
 
-    "test": "node ./build/test/all.js | faucet"
+    "test": "node ./build/test/all.js | faucet",
+    "diagrams": "node ./build/scripts/build-syntax-diagrams.js"
   },
 
   "dependencies": {
