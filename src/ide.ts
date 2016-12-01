@@ -2028,7 +2028,6 @@ export class IDE {
         {c: "message", text: notice.message}
       ]});
     }
-
     if(items.length) {
       return {c: "notices", children: items};
     }
@@ -2183,7 +2182,17 @@ export class IDE {
 
   injectNotice(type:string, message:string) {
     let time = Date.now();
-    this.notices.push({type, message, time});
+    let existing;
+    for(let notice of this.notices) {
+      if(notice.type === type && notice.message === message) {
+        existing = notice;
+        existing.time = time;
+        break;
+      }
+    }
+    if(!existing) {
+      this.notices.push({type, message, time});
+    }
     this.render();
     this.editor.cm.refresh();
   }
