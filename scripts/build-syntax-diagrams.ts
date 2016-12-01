@@ -6,5 +6,5 @@ let eveParser = require("../src/runtime/parser").Parser;
 
 let parserInstance = new eveParser([]);
 let outPath = path.join(__dirname, '../syntax_diagrams/serialized_syntax.js');
-mkdirp.sync("../syntax_diagrams");
+mkdirp.sync("build/syntax_diagrams");
 serializer.serializeGrammarToFile(outPath, "serializedGrammar", parserInstance);
