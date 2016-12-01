@@ -82,14 +82,13 @@ body { justify-content: stretch; }
  * Notices
 \****************************************************************************/
 .main-pane { display: flex; flex-direction: column; justify-content: stretch; overflow-y: hidden; }
-.main-pane .notices { display: flex; flex: 0 0 auto; flex-direction: column; }
+.main-pane .notices { display: flex; flex: 0 0 auto; }
 
-.main-pane .notices > .notice { padding: 5px 60px; background: #e0e0e0; flex: 0 0 auto; }
+.main-pane .notices > .notice { padding: 5px 60px; background: #e0e0e0; }
 .main-pane .notices > .notice + .notice { border-bottom: 1px solid #d0d0d0; }
 .main-pane .notices > .notice > .time { margin-right: 10px;  }
 
 .main-pane .notices > .notice.error { background: rgb(255, 216, 222); }
-.main-pane .notices > .notice.warning { background: rgb(255, 247, 217); }
 
 /****************************************************************************\
  * Editor

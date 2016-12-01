@@ -5,7 +5,7 @@
 import {PerformanceTracker, NoopPerformanceTracker} from "./performance";
 
 const TRACK_PERFORMANCE = true;
-const MAX_ROUNDS = 300;
+const MAX_ROUNDS = 30;
 
 //---------------------------------------------------------------------
 // Setups
@@ -122,7 +122,7 @@ export class Evaluation {
 
   registerDatabase(name: string, db: Database) {
     if(this.nameToDatabase[name]) {
-      throw new Error("Trying to register a database name that is already registered: " + name);
+      throw new Error("Trying to register a database name that is already registered");
     }
     for(let database of this.databases) {
       db.analyze(this, database);

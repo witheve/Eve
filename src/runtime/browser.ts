@@ -10,7 +10,6 @@ import * as builder from "./builder";
 import {ids} from "./id";
 import {RuntimeClient} from "./runtimeClient";
 import {HttpDatabase} from "./databases/http";
-import {BrowserViewDatabase, BrowserEditorDatabase, BrowserInspectorDatabase} from "./databases/browserSession";
 
 //---------------------------------------------------------------------
 // Utils
@@ -35,15 +34,7 @@ class BrowserRuntimeClient extends RuntimeClient {
   client: EveClient;
 
   constructor(client:EveClient) {
-    let dbs = {
-      "http": new HttpDatabase()
-    }
-    if(client.showIDE) {
-      dbs["view"] = new BrowserViewDatabase();
-      dbs["editor"] = new BrowserEditorDatabase();
-      dbs["inspector"] = new BrowserInspectorDatabase();
-    }
-    super(dbs);
+    super({"http": new HttpDatabase()}, client.showIDE);
     this.client = client;
   }
 
