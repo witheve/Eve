@@ -36,13 +36,13 @@ class BrowserRuntimeClient extends RuntimeClient {
 
   constructor(client:EveClient) {
     let dbs = {
-      "http": new HttpDatabase()
+      "http": new HttpDatabase(),
+      "server": new BrowserServerDatabase(client)
     }
     if(client.showIDE) {
       dbs["view"] = new BrowserViewDatabase();
       dbs["editor"] = new BrowserEditorDatabase();
       dbs["inspector"] = new BrowserInspectorDatabase();
-      dbs["server"] = new BrowserServerDatabase(client);
     }
     super(dbs);
     this.client = client;
