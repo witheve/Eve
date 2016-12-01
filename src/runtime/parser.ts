@@ -228,8 +228,8 @@ let LexerModes:any = {
 
 let allTokens: any[] = codeTokens.concat([Fence, DocContent, CloseString, StringEmbedOpen, StringEmbedClose, StringChars]);
 
-let EveDocLexer = new Lexer({modes: LexerModes, defaultMode: "doc"}, true);
-let EveBlockLexer = new Lexer({modes: LexerModes, defaultMode: "code"}, true);
+let EveDocLexer = new Lexer({modes: LexerModes, defaultMode: "doc"});
+let EveBlockLexer = new Lexer({modes: LexerModes, defaultMode: "code"});
 
 //-----------------------------------------------------------
 // Parse Nodes
