@@ -91,16 +91,7 @@ class Multiply extends TotalFunctionConstraint {
 }
 
 class Divide extends TotalFunctionConstraint {
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    //Handle divide by zero
-    if (args[1] === 0) {return[]};
-
-    return [this.getReturnValue(args)];
-  }
-
   getReturnValue(args) {
-    if (args[1] === 0) {return};
     return args[0] / args[1];
   }
 }
