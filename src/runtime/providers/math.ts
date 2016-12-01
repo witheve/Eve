@@ -13,7 +13,9 @@ abstract class TotalFunctionConstraint extends Constraint {
   // proposed variable.
   resolveProposal(proposal, prefix) {
     let {args} = this.resolve(prefix);
-    return [this.getReturnValue(args)];
+    let result = this.getReturnValue(args);
+    if (isNaN(result)) {return [];}
+    return [result];
   }
 
   // Check if our return is equivalent to the result of the total function.
@@ -63,6 +65,11 @@ function degreesToRadians(degrees:number){
 }
 
 class Add extends TotalFunctionConstraint {
+  resolveProposal(proposal, prefix) {
+    let {args} = this.resolve(prefix);
+    return [this.getReturnValue(args)];
+  }
+
   getReturnValue(args) {
     return args[0] + args[1];
   }
@@ -81,7 +88,14 @@ class Multiply extends TotalFunctionConstraint {
 }
 
 class Divide extends TotalFunctionConstraint {
+  resolveProposal(proposal, prefix) {
+     let {args} = this.resolve(prefix);
+     //Handle divide by zero
+     if (args[1] === 0) {return[]};
+     return [this.getReturnValue(args)];
+  }
   getReturnValue(args) {
+    if (args[1] === 0) {return};
     return args[0] / args[1];
   }
 }
