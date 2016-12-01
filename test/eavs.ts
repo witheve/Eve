@@ -48,11 +48,3 @@ test("converting nested js objects and arrays", (assert) => {
   }, assert);
   assert.end();
 })
-
-test("converting with null roundtrips", (assert) => {
-  convert({
-    beep: null,
-    foo: [1, null, 2]
-  }, assert);
-  assert.end();
-})

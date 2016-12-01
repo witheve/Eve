@@ -1,34 +1,4 @@
 {
-  "name": "witheve",
-  "version": "0.2.2",
-  "description": "Programming designed for humans",
-  "keywords": ["language", "ide", "relational", "database", "dataflow"],
-  "homepage": "http://witheve.com",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/witheve/Eve"
-  },
-  "bugs": {
-    "url": "https://github.com/witheve/Eve/issues"
-  },
-  "license": "Apache-2.0",
-
-  "bin": {
-    "eve": "./bin/eve.js"
-  },
-
-  "scripts": {
-    "build": "./node_modules/.bin/tsc && node ./build/scripts/build.js",
-    "start": "./node_modules/.bin/tsc && node ./bin/eve.js",
-    "server": "node ./bin/eve.js",
-
-    "prepublish": "./node_modules/.bin/tsc && node ./build/scripts/build.js",
-    "build-dist": "node ./build/scripts/build-dist.js",
-
-    "test": "node ./build/test/all.js | faucet",
-    "diagrams": "node ./build/scripts/build-syntax-diagrams.js"
-  },
-
   "dependencies": {
     "@types/body-parser": "0.0.33",
     "@types/commonmark": "^0.22.29",
@@ -41,7 +11,7 @@
     "@types/tape": "^4.2.28",
     "@types/ws": "0.0.33",
     "body-parser": "^1.15.2",
-    "chevrotain": "^0.18.0",
+    "chevrotain": "^0.14.0",
     "commonmark": "^0.26.0",
     "express": "^4.14.0",
     "glob": "^7.1.1",
@@ -55,5 +25,19 @@
   "devDependencies": {
     "faucet": "0.0.1",
     "tape": "^4.6.0"
-  }
+  },
+  "scripts": {
+    "install": "./node_modules/.bin/tsc",
+    "postinstall": "node ./build/scripts/build.js",
+    "build": "node ./build/scripts/build.js",
+    "build-dist": "node ./build/scripts/build-dist.js",
+    "start": "node ./build/src/runtime/server.js",
+    "server": "node ./build/src/runtime/server.js",
+    "test": "node ./build/test/all.js | faucet"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/witheve/Eve.git"
+  },
+  "license": "Apache-2.0"
 }

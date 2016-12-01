@@ -9,21 +9,23 @@ import * as request from "request";
 
 export class ServerDatabase extends Database {
 
-  handling: boolean;
   receiving: boolean;
   requestId: number;
   requestToResponse: any;
 
   constructor() {
     super();
-    this.handling = false;
     this.requestId = 0;
     this.receiving = false;
     this.requestToResponse = {};
   }
 
   handleHttpRequest(request, response) {
-    if(!this.receiving) return;
+    if(!this.receiving) {
+      // we need to 404
+      response.writeHead(404, {"Content-Type": "text/plain"});
+      return response.end("Nothing is listening to HTTP requests");
+    }
 
     let scopes = ["server"];
     let requestId = `request|${this.requestId++}|${(new Date()).getTime()}`
@@ -70,7 +72,7 @@ export class ServerDatabase extends Database {
     }
   }
 
-  sendResponse(evaluation, requestId, status, body) {
+  sendResponse(requestId, status, body) {
     let response = this.requestToResponse[requestId];
     response.statusCode = status;
     response.end(body);
@@ -88,22 +90,17 @@ export class ServerDatabase extends Database {
         handled[e] = true;
         if(index.lookup(e,"tag", "request") && !index.lookup(e, "tag", "sent")) {
           let responses = index.asValues(e, "response");
-          if(responses || index.lookup(e, "tag", "handling")) this.handling = true;
           if(responses === undefined) continue;
           let [response] = responses;
           let {status, body} = index.asObject(response);
           actions.push(new InsertAction("server|sender", e, "tag", "sent", undefined, [name]));
-          this.sendResponse(evaluation, e, status[0], body[0]);
+          this.sendResponse(e, status[0], body[0]);
         }
       }
     }
     if(actions.length) {
       process.nextTick(() => {
         evaluation.executeActions(actions);
-        // because this database is created per http request, we need to destroy this
-        // evaluation once a response has been sent and we've dealt with any consequences
-        // of the send.
-        evaluation.close();
       })
     }
   }

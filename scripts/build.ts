@@ -1,7 +1,6 @@
-import * as path from "path";
 import * as fs from "fs";
 import * as glob from "glob";
-import {packageWorkspaces} from "./package-workspaces";
+import {packageExamples} from "./package-examples";
 
 export function onError(err) {
   throw err;
@@ -62,9 +61,8 @@ export function build(callback:() => void) {
   // Copy static JS files into build.
   let matches = glob.sync("src/*.js");
   for(let match of matches) {
-    if(path.sep !== "/") match = match.replace("/", path.sep);
-    let relative = match.split(path.sep).slice(1).join(path.sep);
-    copy(match, path.join("build", "src", relative), tracker.track("copy static files"));
+    let relative = match.split("/").slice(1).join("/");
+    copy(match, "build/src/" + relative, tracker.track("copy static files"));
   }
 
   // Copy node dependencies required by the browser.
@@ -72,16 +70,12 @@ export function build(callback:() => void) {
     "node_modules/chevrotain/lib/chevrotain.js"
   ];
   for(let dep of deps) {
-    if(path.sep !== "/") {
-      dep = dep.replace("/", path.sep);
-    }
-    dep = path.resolve(dep);
-    let base = dep.split(path.sep).pop();
-    copy(dep, path.join("build", "src", base), tracker.track("copy node module files"));
+    let base = dep.split("/").pop();
+    copy(dep, "build/src/" + base, tracker.track("copy node module files"));
   }
 
-  // Package workspaces.
-  packageWorkspaces(tracker.track("package workspaces"));
+  // Package examples.
+  packageExamples(tracker.track("package examples"));
 
   tracker.finishedStartingTasks();
 }

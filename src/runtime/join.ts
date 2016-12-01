@@ -71,7 +71,7 @@ export interface ProposalProvider {
   // Check if a prefix of solved variables is a valid potential solution
   // for this provider. SolvingFor is used to ignore accept calls that
   // aren't related to variables the provider is solving for.
-  accept(index: MultiIndex, prefix: any[], solvingFor: Variable, force?: boolean, prejoin?: boolean): boolean
+  accept(index: MultiIndex, prefix: any[], solvingFor: Variable, force?: boolean): boolean
 }
 
 //---------------------------------------------------------------------
@@ -184,7 +184,11 @@ export class Scan {
     let solving = [];
     let solveNode = this.node !== undefined;
     let depth = solveNode ? 4 : 3;
-    this._fullScanLookup(index.eavIndex, solving, results, resolved, 0, 0, depth);
+    if(a !== undefined) {
+      this._fullScanLookup(index.aveIndex, solving, results, [a,v,e,node], 0, 0, depth);
+    } else  {
+      this._fullScanLookup(index.eavIndex, solving, results, resolved, 0, 0, depth);
+    }
     return results;
   }
 
@@ -493,18 +497,8 @@ export class NotScan {
   propose() { return; }
   resolveProposal() { throw new Error("Resolving a not proposal"); }
 
-  accept(multiIndex: MultiIndex, prefix, solvingFor, force?, prejoin?) {
-    // if we're in the prejoin phase and this not has no args, then we need
-    // to evaluate the not to see if we should run. If we didn't do this, arg-less
-    // nots won't get evaluated during Generic Join since we're never solving for a
-    // variable that this scan cares about.
-    if((!prejoin || this.args.length)
-       // if we aren't forcing and not solving for the current variable, then we just accept
-       // as it is
-       && (!force && !this.internalVars[solvingFor.id] && this.internalVars.length)
-       // we also blind accept if we have args that haven't been filled in yet, as we don't
-       // have the dependencies necessary to make a decision
-       || !fullyResolved(this.args, prefix)) return true;
+  accept(multiIndex: MultiIndex, prefix, solvingFor, force?) {
+    if(!force && !this.internalVars[solvingFor.id] && this.internalVars.length || !fullyResolved(this.args, prefix)) return true;
     let resolved = this.resolve(prefix);
     let notPrefix = [];
     let ix = 0;
@@ -831,21 +825,12 @@ function preJoinAccept(multiIndex: MultiIndex, providers : ProposalProvider[], v
     if(value !== undefined && vars[ix] !== undefined) {
       presolved++;
       for(let provider of providers) {
-        if(!provider.accept(multiIndex, prefix, solvingFor, false, true)) {
+        if(!provider.accept(multiIndex, prefix, solvingFor)) {
           return {accepted: false, presolved};
         }
       }
     }
     ix++;
-  }
-  // we still need to do a single prejoin pass to make sure that any nots
-  // that may have no external dependencies are given a chance to end this
-  // evaluation
-  let fakeVar = new Variable(0);
-  for(let provider of providers) {
-    if(provider instanceof NotScan && !provider.accept(multiIndex, prefix, fakeVar, false, true)) {
-      return {accepted: false, presolved};
-    }
   }
   return {accepted: true, presolved};
 }

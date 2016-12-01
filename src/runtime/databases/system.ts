@@ -11,7 +11,7 @@ import {Evaluation, Database} from "../runtime"
 
 class TimeAgent {
 
-  static attributeOrdering = ["year", "month", "day", "hours", "hours-24", "ampm", "minutes", "time-string", "seconds", "timestamp", "frames"];
+  static attributeOrdering = ["year", "month", "day", "hours", "hours-24", "ampm", "minutes", "time-string", "seconds", "frames"];
   static updateIntervals = {
     "year": 1000 * 60 * 60,
     "month": 1000 * 60 * 60,

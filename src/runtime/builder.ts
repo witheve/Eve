@@ -296,11 +296,6 @@ function buildScans(block, context, scanLikes, outputScans) {
         node = context.getValue(scanLike.node)
         context.provide(node);
       }
-
-      if(!(entity || attribute || value || node)) {
-        context.errors.push(errors.blankScan(block, scanLike));
-      }
-
       let final = new join.Scan(scanLike.id + "|build", entity, attribute, value, node, scanLike.scopes);
       outputScans.push(final);
       scanLike.buildId = final.id;

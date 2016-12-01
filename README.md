@@ -28,14 +28,6 @@ npm start
 
 Then open `http://localhost:8080/` in your browser.
 
-### From npm
-
-Alternatively, you can download Eve directly from npm with the following command:
-
-```
-npm install witheve
-```
-
 ### From Docker
 
 First, [download](https://www.docker.com/products/docker) and install Docker for your platform. To download and install the Eve container, run the following command:
@@ -54,9 +46,10 @@ You can learn about Eve with the following resources:
 
 *Please let us know what kind of documents would be the most helpful as you begin your journey with Eve*. We want our documentation to be a highlight of the Eve experience, so any suggestions are greatly appreciated.
 
-### Running Eve Programs in Server Mode
+### Running programs on Node.js
 
-By default, Eve executes on the client browser. To instead execute your program on the server, launch Eve with the `--server` flag:   
+By default, Eve serves the IDE with the browser as the runtime (executing the program).
+To instead have the program execute on the server-side, in Node.js use:
 
 ```
 npm start -- --server
