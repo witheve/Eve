@@ -5,11 +5,14 @@
 import {Changes} from "../changes";
 import {TripleIndex} from "../indexes";
 
+const JSON_NULL_ID = "external|json|null";
+
 //---------------------------------------------------------------------
 // JS conversion
 //---------------------------------------------------------------------
 
 export function fromJS(changes: Changes, json: any, node: string, scope: string, idPrefix: string = "js") {
+  if(json === null || json === undefined) return JSON_NULL_ID;
   if(json.constructor === Array) {
     let arrayId = `${idPrefix}|array`;
     changes.store(scope, arrayId, "tag", "array", node);
@@ -26,10 +29,15 @@ export function fromJS(changes: Changes, json: any, node: string, scope: string,
     let objectId = `${idPrefix}|object`;
     for(let key of Object.keys(json)) {
       let value = json[key];
-      if(value.constructor === Array || typeof value === "object") {
-        value = fromJS(changes, value, node, scope, `${objectId}|${key}`);
+      if(value === null || value === undefined) {
+        changes.store(scope, JSON_NULL_ID, "tag", "json-null", node);
+        changes.store(scope, objectId, key, JSON_NULL_ID, node);
+      } else {
+        if(value.constructor === Array || typeof value === "object") {
+          value = fromJS(changes, value, node, scope, `${objectId}|${key}`);
+        }
+        changes.store(scope, objectId, key, value, node);
       }
-      changes.store(scope, objectId, key, value, node);
     }
     return objectId;
   } else {
@@ -39,6 +47,7 @@ export function fromJS(changes: Changes, json: any, node: string, scope: string,
 
 export function toJS(index: TripleIndex, recordId) {
   let result;
+  if(recordId === JSON_NULL_ID) return null;
   let isArray = index.lookup(recordId, "tag", "array");
   if(isArray !== undefined) {
     result = [];

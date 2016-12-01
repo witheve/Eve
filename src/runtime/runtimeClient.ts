@@ -19,17 +19,16 @@ import {ids} from "./id";
 export abstract class RuntimeClient {
   lastParse: any;
   evaluation: Evaluation;
-  withIDE: boolean;
   extraDBs: any;
 
-  constructor(extraDBs:any = {}, withIDE = true) {
-    this.withIDE = withIDE;
+  constructor(extraDBs:any = {}) {
     this.extraDBs = extraDBs;
   }
 
   abstract send(json): void;
 
   load(code:string, context:string) {
+    code = code || "";
     let {results, errors} : {results: any, errors: any[]} = parser.parseDoc(code, context);
     if(errors && errors.length) console.error(errors);
     results.code = code;
@@ -47,32 +46,32 @@ export abstract class RuntimeClient {
     let build = builder.buildDoc(parse);
     let {blocks, errors} = build;
     this.sendErrors(errors);
-    analyzer.analyze(blocks.map((block) => block.parse), parse.spans, parse.extraInfo);
-    let browser = new BrowserSessionDatabase(this);
-    let event = new BrowserEventDatabase();
-    let session = new Database();
-    session.blocks = blocks;
-    // console.log(blocks);
-    let ev = new Evaluation();
-
-    ev.registerDatabase("session", session);
-    ev.registerDatabase("browser", browser);
-    ev.registerDatabase("event", event);
-
-    if(this.withIDE) {
-      let view = new BrowserViewDatabase();
-      let editor = new BrowserEditorDatabase();
-      let inspector = new BrowserInspectorDatabase();
-
-      ev.registerDatabase("view", view);
-      ev.registerDatabase("editor", editor);
-      ev.registerDatabase("inspector", inspector);
+    // TODO: What is the right way to gate analysis? This seems hacky, but I'm not sure
+    // that the RuntimeClient should really know/care about whether or not the editor is
+    // hooked up. Maybe there should be a flag for analysis instead?
+    if(this.extraDBs["editor"]) {
+      analyzer.analyze(blocks.map((block) => block.parse), parse.spans, parse.extraInfo);
     }
 
-    ev.registerDatabase("system", system.instance);
+    let ev = new Evaluation();
+    let session = new Database();
+    session.blocks = blocks;
+    ev.registerDatabase("session", session);
+
+    let extraDBs = this.extraDBs;
+    if(!extraDBs["browser"]) {
+      ev.registerDatabase("browser", new BrowserSessionDatabase(this));
+    }
+    if(!extraDBs["event"]) {
+      ev.registerDatabase("event", new BrowserEventDatabase());
+    }
+
+    if(!extraDBs["system"]) {
+      ev.registerDatabase("system", system.instance);
+    }
 
     for(let dbName of Object.keys(this.extraDBs)) {
-      let db = this.extraDBs[dbName];
+      let db = extraDBs[dbName];
       ev.registerDatabase(dbName, db);
     }
 
@@ -147,7 +146,9 @@ export abstract class RuntimeClient {
         let {blocks, errors} = build;
         let spans = [];
         let extraInfo = {};
-        analyzer.analyze(blocks.map((block) => block.parse), spans, extraInfo);
+        if(this.extraDBs["editor"]) {
+          analyzer.analyze(blocks.map((block) => block.parse), spans, extraInfo);
+        }
         this.sendErrors(errors);
         for(let block of blocks) {
           if(block.singleRun) block.dormant = true;
@@ -245,6 +246,8 @@ export abstract class RuntimeClient {
         }
       }
       this.evaluation.load(data.info.databases);
+    } else {
+      console.error("Unhandled message type: " + json);
     }
   }
 }
