@@ -248,7 +248,7 @@ bind @browser
     [#h2 text: "Learn more about Eve"]
     [#ul children:
       [#li children: [#a href: "http://witheve.com" text: "Homepage"]]
-      [#li children: [#a href: "https://witheve.github.io/docs/guides/quickstart/" text: "Quick Start Tutorial"]]
+      [#li children: [#a href: "https://witheve.github.io/docs/tutorials/quickstart/" text: "Quick Start Tutorial"]]
       [#li children: [#a href: "http://github.com/witheve" text: "GitHub Repository"]]]
     [#h2 text: "Join the Community"]
     [#ul children:

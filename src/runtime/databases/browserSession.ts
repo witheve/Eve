@@ -16,7 +16,7 @@ interface BrowserClient {
 export class BrowserEventDatabase extends Database {
   constructor() {
     super();
-    let source = eveSource.get("/examples/event.eve");
+    let source = eveSource.get("event.eve");
     if(source) {
       let {results, errors} = parser.parseDoc(source, "event");
       if(errors && errors.length) console.error("EVENT ERRORS", errors);
@@ -30,7 +30,7 @@ export class BrowserEventDatabase extends Database {
 export class BrowserViewDatabase extends Database {
   constructor() {
     super();
-    let source = eveSource.get("/examples/view.eve");
+    let source = eveSource.get("view.eve");
     if(source) {
       let {results, errors} = parser.parseDoc(source, "view");
       if(errors && errors.length) console.error("View DB Errors", errors);
@@ -44,7 +44,7 @@ export class BrowserViewDatabase extends Database {
 export class BrowserEditorDatabase extends Database {
   constructor() {
     super();
-    let source = eveSource.get("/examples/editor.eve");
+    let source = eveSource.get("editor.eve");
     if(source) {
       let {results, errors} = parser.parseDoc(source, "editor");
       if(errors && errors.length) console.error("Editor DB Errors", errors);
@@ -58,7 +58,7 @@ export class BrowserEditorDatabase extends Database {
 export class BrowserInspectorDatabase extends Database {
   constructor() {
     super();
-    let source = eveSource.get("/examples/inspector.eve");
+    let source = eveSource.get("inspector.eve");
     if(source) {
       let {results, errors} = parser.parseDoc(source, "inspector");
       if(errors && errors.length) console.error("Inspector DB Errors", errors);

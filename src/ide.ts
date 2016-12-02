@@ -90,7 +90,10 @@ class Navigator {
     headings.sort(compareSpans);
 
     let root:TreeNode = this.nodes[id];
-    if(!root) throw new Error("Cannot load non-existent document.");
+    if(!root) {
+      console.error("Cannot load non-existent document.");
+      return;
+    }
     root.open = true;
     root.children = undefined;
 
@@ -2019,13 +2022,13 @@ export class IDE {
     let items = [];
     for(let notice of this.notices) {
       let time = new Date(notice.time);
-
+      let formattedMinutes = time.getMinutes() >= 10 ? time.getMinutes() : `0${time.getMinutes()}`;
+      let formattedSeconds = time.getSeconds() >= 10 ? time.getMinutes() : `0${time.getSeconds()}`;
       items.push({c: `notice ${notice.type} flex-row`, children: [
-        {c: "time", text: `${time.getHours()}:${time.getMinutes()}:${time.getSeconds()}`},
+        {c: "time", text: `${time.getHours()}:${formattedMinutes}:${formattedSeconds}`},
         {c: "message", text: notice.message}
       ]});
     }
-
     if(items.length) {
       return {c: "notices", children: items};
     }
@@ -2057,6 +2060,7 @@ export class IDE {
   }, 1, true);
 
   loadFile(docId:string, content?:string) {
+    if(!docId) return false;
     // if we're not in local mode, file content is going to come from
     // some other source and we should just load it directly
     if(!this.local && content !== undefined) {
@@ -2064,9 +2068,10 @@ export class IDE {
       this.editor.reset();
       this.notices = [];
       this.loading = true;
-      return this.onLoadFile(this, docId, content);
+      this.onLoadFile(this, docId, content);
+      return true;
     } else if(this.loading || this.documentId === docId) {
-      return;
+      return false;
     }
 
     // Otherwise we load the file from either localstorage or from the supplied
@@ -2079,16 +2084,22 @@ export class IDE {
       code = this._fileCache[docId];
       this.modified = false;
     }
-    if(code === undefined) throw new Error(`Unable to load uncached file: '${docId}'`);
+    if(code === undefined) {
+      console.error(`Unable to load uncached file: '${docId}'`);
+      return false;
+    }
     this.loaded = false;
     this.documentId = docId;
     this.editor.reset();
     this.notices = [];
     this.loading = true;
     this.onLoadFile(this, docId, code);
+
+    return true;
   }
 
   loadWorkspace(directory:string, files:{[filename:string]: string}) {
+    // @FIXME: un-hardcode root to enable multiple WS's.
     this._fileCache = files;
     this.navigator.loadWorkspace("root", directory, files);
   }
@@ -2119,6 +2130,14 @@ export class IDE {
     if(!this.documentId || !this.loaded) return;
 
     let md = this.editor.toMarkdown();
+
+    // @NOTE: We sync this here to prevent a terrible reload bug that occurs when saving to the file system.
+    // This isn't really the right fix, but it's a quick one that helps prevent lost work in trivial cases
+    // like navigating the workspace.
+    // @TODO: This logic needs ripped out entirely and replaced with a saner abstraction that keeps the
+    // file system and workspace in sync.
+    // @TODO: localStorage also needs to get synced and cleared lest it permanently overrule other sources of truth.
+    this._fileCache[this.documentId] = md;
 
     // if we're not local, we notify the outside world that we're trying
     // to save
@@ -2172,7 +2191,17 @@ export class IDE {
 
   injectNotice(type:string, message:string) {
     let time = Date.now();
-    this.notices.push({type, message, time});
+    let existing;
+    for(let notice of this.notices) {
+      if(notice.type === type && notice.message === message) {
+        existing = notice;
+        existing.time = time;
+        break;
+      }
+    }
+    if(!existing) {
+      this.notices.push({type, message, time});
+    }
     this.render();
     this.editor.cm.refresh();
   }
