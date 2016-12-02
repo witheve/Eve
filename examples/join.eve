@@ -1,0 +1,16 @@
+```
+  commit
+       [#foo name:"a" level:2]
+       [#foo name:"zkp" level:3]
+       [#foo name:"parg" level:0]
+       [#foo name:"naxxo" level:1]
+```
+
+```
+   search [#foo name level]
+       ordinal = sort[value:name given:name]
+   commit @browser
+       [#div text:join[value:name ordinal given:name separator:"/"]]
+       [#div text:join[value:name ordinal:0 given:name separator:"/"]]
+       [#div text:join[value:name ordinal:level given:name separator:"/"]]
+```
