@@ -616,8 +616,12 @@ export class CodeBlockSpan extends BlockSpan {
   protected footerWidget:CodeMirror.LineWidget;
   protected footerWidgetElem:HTMLElement;
 
+  syntax() : string {
+    return this.source.info ? this.source.info.toLowerCase().split(" ")[0] : "eve";
+  }
+
   apply(from:Position, to:Position, origin = "+input") {
-    this.lineBackgroundClass = "code" + ((this.source.info && this.source.info.toLowerCase().indexOf("css") === 0) ? " css" : "");
+    this.lineBackgroundClass = "code " + this.syntax();
     this.lineTextClass = "code-text";
     if(this.source.disabled) this.disabled = this.source.disabled;
     else this.disabled = false;
@@ -649,7 +653,7 @@ export class CodeBlockSpan extends BlockSpan {
 
   disable() {
     if(!this.disabled) {
-      this.source.info = (this.source.info ? this.source.info : "eve") + " disabled";
+      this.source.info = this.syntax() + " disabled";
       // @FIXME: We don't currently style this because of a bug in updateLineClasses.
       // It's unable to intelligently remove unsupported classes, so we'd have to manually clear line classes.
       // We can come back to this later if we care.
@@ -665,7 +669,7 @@ export class CodeBlockSpan extends BlockSpan {
 
   enable() {
     if(this.disabled) {
-      this.source.info = this.source.info.replace(/ disabled/, "");
+      this.source.info = this.syntax();
       this.disabled = false;
       this.refresh();
 
