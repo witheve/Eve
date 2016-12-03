@@ -7,8 +7,10 @@
 ```
 
 ```
-   search [#foo name level]
+   search
+       [#foo name level]
        ordinal = sort[value:name given:name]
+
    commit @browser
        [#div text:join[value:name ordinal given:name separator:"/"]]
        [#div text:join[value:name ordinal:0 given:name separator:"/"]]
