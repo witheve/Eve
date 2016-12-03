@@ -81,18 +81,7 @@ export abstract class RuntimeClient {
 
     this.evaluation = ev;
 
-    this.updateStyles();
-
     return ev;
-  }
-
-  updateStyles() {
-    var css = "";
-    this.lastParse.code.replace(/```css\n([\w\W]*?)```/g, (g0, g1) => { // \n excludes disabled blocks
-      css += g1;
-    });
-
-    document.getElementById("app-styles").innerHTML = css;
   }
 
   sendErrors(errors) {
@@ -144,7 +133,11 @@ export abstract class RuntimeClient {
       for(let error of buildErrors) {
         error.injectSpan(spans, extraInfo);
       }
-      this.send(JSON.stringify({type: "parse", generation: data.generation, text, spans, extraInfo}));
+      var css = "";
+      this.lastParse.code.replace(/(?:```|~~~)css\n([\w\W]*?)(?:```|~~~)/g, (g0, g1) => { // \n excludes disabled blocks
+        css += g1;
+      });
+      this.send(JSON.stringify({type: "parse", generation: data.generation, text, spans, extraInfo, css}));
     } else if(data.type === "eval") {
       if(this.evaluation !== undefined && data.persist) {
         let changes = this.evaluation.createChanges();
@@ -170,8 +163,6 @@ export abstract class RuntimeClient {
         this.evaluation.registerDatabase("session", session);
         changes.commit();
         this.evaluation.fixpoint(changes);
-
-        this.updateStyles();
       } else {
         let spans = [];
         let extraInfo = {};

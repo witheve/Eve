@@ -2104,7 +2104,7 @@ export class IDE {
     this.navigator.loadWorkspace("root", directory, files);
   }
 
-  loadDocument(generation:number, text:string, packed:any[], attributes:{[id:string]: any|undefined}) {
+  loadDocument(generation:number, text:string, packed:any[], attributes:{[id:string]: any|undefined}, css:string) {
     if(generation < this.generation && generation !== undefined) return;
     if(this.loaded) {
       this.editor.updateDocument(packed, attributes);
@@ -2122,6 +2122,8 @@ export class IDE {
     } else {
       // Empty file
     }
+
+    document.getElementById("app-styles").innerHTML = css;
 
     this.render();
   }
