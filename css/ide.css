@@ -120,7 +120,7 @@ body { justify-content: stretch; }
 .CodeMirror .STRONG { font-weight:bold; }
 .CodeMirror .EMPH { font-style:italic; }
 .CodeMirror .CODE { margin-left: 10px; margin-right:50px; border-left:5px solid #eaeaea; background: #f4f4f4; font-family: "Inconsolata", "Monaco", "Consolas", "Ubuntu Mono", monospace;  }
-.CodeMirror .CODE.css { background: #fff7e9; border-left-color: #ffedcc;}
+.CodeMirror .CODE.css { background: #f0f5ff; border-left-color: #e1ebff;}
 .CodeMirror .CODE-TEXT { line-height:19px; padding-left:30px; transition: opacity 0.3s; }
 .CodeMirror .CODE-TEXT.CODE-DISABLED { opacity: 0.6; }
 .CodeMirror span.CODE { color: #0076ce; background:none; margin:0; padding:0; border:none; }
