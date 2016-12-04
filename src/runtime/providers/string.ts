@@ -251,7 +251,37 @@ class Urlencode extends Constraint {
   }
 }
 
+class Length extends Constraint {
+  static AttributeMapping = {
+    "text": 0,
+  }
+  resolveProposal(proposal, prefix) {
+    let {args} = this.resolve(prefix);
+    let [text] = args;
+    return [text.length];
+  }
 
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    let text = args[0];
+    if(typeof text !== "string") return false;
+    return text.length === returns[0];
+  }
+
+  getProposal(tripleIndex, proposed, prefix) {
+    let proposal = this.proposalObject;
+    let {args} = this.resolve(prefix);
+    if(typeof args[0] !== "string") {
+      proposal.cardinality = 0;
+    } else {
+      proposal.providing = proposed;
+      proposal.cardinality = 1;
+    }
+    return proposal;
+  }
+}
+
+providers.provide("length", Length);
 providers.provide("concat", Concat);
 providers.provide("split", Split);
 providers.provide("substring", Substring);

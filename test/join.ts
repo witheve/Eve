@@ -2695,3 +2695,80 @@ test("nested if/not expressions correctly get their args set", (assert) => {
   `);
   assert.end();
 })
+
+test("check length of hello", (assert) => {
+  let expected = {
+    insert: [
+      ["1", "len", "5" ],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    foo bar
+    ~~~
+      search
+        len = length[text: "hello"]
+      commit
+        [len: len]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("check length empty string", (assert) => {
+  let expected = {
+    insert: [
+      ["1", "len", "0" ],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    foo bar
+    ~~~
+      search
+        len = length[text: ""]
+      commit
+        [len: len]
+    ~~~
+  `);
+  assert.end();
+})
+
+
+test("test length equality", (assert) => {
+  let expected = {
+    insert: [
+      ["1", "len", "4" ],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    foo bar
+    ~~~
+      search
+        len = length[text: "test"]
+        len = 4
+      commit
+        [len: len]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("test length equality", (assert) => {
+  let expected = {
+    insert: [],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    foo bar
+    ~~~
+      search
+        len = length[text: "test"]
+        len = 3
+      commit
+        [len: len]
+    ~~~
+  `);
+  assert.end();
+})
