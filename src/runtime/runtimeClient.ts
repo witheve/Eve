@@ -137,9 +137,9 @@ export abstract class RuntimeClient {
       this.lastParse.code.replace(/(?:```|~~~)css\n([\w\W]*?)\n(?:```|~~~)/g, (g0, g1) => { // \n excludes disabled blocks
         css += g1;
       });
-      css = css.split("\n").map(function(line) {
+      css = css ? css.split("\n").map(function(line) {
         return ".application-container > .program " + line;
-      }).join("\n");
+      }).join("\n") : "";
       this.send(JSON.stringify({type: "parse", generation: data.generation, text, spans, extraInfo, css}));
     } else if(data.type === "eval") {
       if(this.evaluation !== undefined && data.persist) {
