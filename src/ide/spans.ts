@@ -620,9 +620,14 @@ export class CodeBlockSpan extends BlockSpan {
     return this.source.info ? this.source.info.toLowerCase().split(" ")[0] : "eve";
   }
 
+  syntaxHighlight() : string {
+    // provide codemirror syntax highlight indications for css blocks only
+    return this.syntax() === "css" ? "cm-s-default" : "";
+  }
+
   apply(from:Position, to:Position, origin = "+input") {
     this.lineBackgroundClass = "code " + this.syntax();
-    this.lineTextClass = "code-text";
+    this.lineTextClass = "code-text " + this.syntaxHighlight();
     if(this.source.disabled) this.disabled = this.source.disabled;
     else this.disabled = false;
     super.apply(from, to, origin);

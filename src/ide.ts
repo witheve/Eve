@@ -2124,6 +2124,7 @@ export class IDE {
     }
 
     document.getElementById("app-styles").innerHTML = css;
+    document.getElementsByClassName("CodeMirror")[0].classList.remove("cm-s-default");
 
     this.render();
   }
