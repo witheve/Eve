@@ -1,168 +1,6 @@
 import * as test from "tape";
-import {Evaluation, Database} from "../src/runtime/runtime";
-import * as join from "../src/runtime/join";
-import * as parser from "../src/runtime/parser";
-import * as builder from "../src/runtime/builder";
 import {InsertAction, RemoveAction} from "../src/runtime/actions";
-import {BrowserSessionDatabase} from "../src/runtime/databases/browserSession";
-
-function dedent(str) {
-  let lines = [];
-  let indent;
-  for(let line of str.split("\n")) {
-    let match = line.match(/^[ \t]+/);
-    if(match) {
-      if(!indent) {
-        indent = match[0].length;
-      }
-      line = line.substr(indent);
-    }
-    lines.push(line);
-  }
-  return lines.join("\n");
-}
-
-function eavsToComparables(eavs, entities, index = {}) {
-  let results = [];
-  for(let eav of eavs) {
-    let [e,a,v] = eav;
-    let cur = index[e];
-    if(!index[e]) {
-      cur = index[e] = {list: [], links: [], e};
-      results.push(cur);
-    }
-    if(entities[v]) {
-      cur.links.push([a, v]);
-    } else {
-      let avKey = `${a}, ${v}`;
-      cur.list.push(avKey);
-    }
-  }
-  return results;
-}
-
-function isSetEqual(as, bs) {
-  if(as.length !== bs.length) return false;
-  for(let a of as) {
-    if(bs.indexOf(a) === -1) return false;
-  }
-  return true;
-}
-
-function collectEntities(eavs, index = {}) {
-  for(let [e] of eavs) {
-    index[e] = true;
-  }
-  return index;
-}
-
-enum Resolution {
-  unknown,
-  resolved,
-  failed
-}
-
-function resolveLinks(aLinks, bLinks, entities) {
-  if(aLinks.length !== bLinks.length) return Resolution.failed;
-  for(let [a, v] of aLinks) {
-    let resolved = entities[v];
-    if(resolved === true) {
-      return Resolution.unknown;
-    } else if(resolved === undefined) {
-      throw new Error("Found a link for a non entity. " + [a,v])
-    }
-    if(bLinks.some(([a2,v2]) => a2 === a && v2 === resolved).length === 0) {
-      return Resolution.failed;
-    }
-  }
-  return Resolution.resolved;
-}
-
-function resolveActualExpected(assert, actuals, expecteds, entities) {
-  let ix = 0;
-  let max = actuals.length * actuals.length;
-  while(actuals[ix]) {
-    let actual = actuals[ix];
-    if(ix === max) {
-      assert.true(false, "Cyclic test found");
-      return;
-    }
-    ix++;
-    let found;
-    let expectedIx = 0;
-    for(let expected of expecteds) {
-      let listEqual, linkEqual;
-      if(isSetEqual(expected.list, actual.list)) {
-        listEqual = true;
-      } else {
-        found = false;
-      }
-      if(actual.links || expected.links) {
-        let res = resolveLinks(actual.links, expected.links, entities);
-        if(res === Resolution.failed) {
-          linkEqual = false;
-        } else if(res === Resolution.resolved) {
-          linkEqual = true;
-        } else {
-          linkEqual = false;
-          actuals.push(actual);
-          break;
-        }
-      } else {
-        linkEqual = true;
-      }
-      if(listEqual && linkEqual) {
-        expecteds.splice(expectedIx, 1);
-        entities[actual.e] = expected.e;
-        found = true;
-        break;
-      }
-      expectedIx++;
-    }
-    if(found === false) {
-      assert.true(false, "No matching add found for object: " + JSON.stringify(actual.list))
-    }
-  }
-}
-
-function verify(assert, adds, removes, data) {
-  assert.equal(data.insert.length, adds.length, "Wrong number of inserts");
-  assert.equal(data.remove.length, removes.length, "Wrong number of removes");
-
-  // get all the entities
-  let entities = collectEntities(adds);
-  entities = collectEntities(data.insert, entities);
-  entities = collectEntities(removes, entities);
-  entities = collectEntities(data.remove, entities);
-
-  //
-  let expectedAdd = eavsToComparables(adds, entities);
-  let expectedRemove = eavsToComparables(removes, entities);
-  let actualRemove = eavsToComparables(data.remove, entities);
-  let actualAdd = eavsToComparables(data.insert, entities);
-
-  resolveActualExpected(assert, actualAdd, expectedAdd, entities);
-  resolveActualExpected(assert, actualRemove, expectedRemove, entities);
-}
-
-function evaluate(assert, expected, code, session = new Database()) {
-  let parsed = parser.parseDoc(dedent(code), "0");
-  let {blocks, errors} = builder.buildDoc(parsed.results);
-  if(expected.errors) {
-    assert.true(parsed.errors.length > 0 || errors.length > 0, "This test is supposed to produce errors");
-  }
-  session.blocks = session.blocks.concat(blocks);
-  let evaluation = new Evaluation();
-  evaluation.registerDatabase("session", session);
-  let changes = evaluation.fixpoint();
-  verify(assert, expected.insert, expected.remove, changes.result());
-  let next = {execute: (expected, actions) => {
-    let changes = evaluation.executeActions(actions);
-    verify(assert, expected.insert, expected.remove, changes.result());
-    return next;
-  }, session};
-  return next;
-}
+import {evaluate,verify,dedent} from "./shared_functions";
 
 test("create a record", (assert) => {
   let expected = {
@@ -199,7 +37,6 @@ test("search and create a record", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person]
@@ -229,7 +66,6 @@ test("search with constant filter", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -261,7 +97,6 @@ test("search with constant attribute", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name: "chris"]
@@ -292,7 +127,6 @@ test("search with attribute having multiple values", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name: "chris" name: "michael"]
@@ -320,7 +154,6 @@ test("search with attribute having multiple values in parenthesis", (assert) => 
         [#person name: "chris" name: "michael"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name: ("chris", "michael")]
@@ -348,7 +181,6 @@ test("search with attribute having multiple values in parenthesis with a functio
         [#person name: "chris" name: 13]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name: ("chris", 4 + 9)]
@@ -427,7 +259,6 @@ test("search with incompatible filters", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -459,7 +290,6 @@ test("search with unprovided variable", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         [#person]
@@ -490,7 +320,6 @@ test("search with unprovided root in an attribute access", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         [#person]
@@ -518,7 +347,6 @@ test("search with escaped strings", (assert) => {
         [#person name: "chris" info: "{\\"age\\": 10, \\"school\\": \\"Lincoln\\"}"]
     ~~~
 
-    foo bar
     ~~~
       search
         [#person info]
@@ -545,7 +373,6 @@ test("search with escaped embeds", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         [#person name]
@@ -576,7 +403,6 @@ test("setting an attribute", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -608,7 +434,6 @@ test("setting an attribute to itself", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -642,7 +467,6 @@ test("setting an attribute in multiple blocks", (assert) => {
         p.meep := "moop"
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person meep]
@@ -678,7 +502,6 @@ test("setting an attribute to multiple values", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -713,7 +536,6 @@ test("merging multiple values into an attribute", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -748,7 +570,6 @@ test("merges with subobjects pick up the parent object as part of their projecti
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -785,7 +606,6 @@ test("creating an object with multiple values for an attribute", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -816,7 +636,6 @@ test("creating an object with multiple complex values for an attribute", (assert
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -846,7 +665,6 @@ test("setting an attribute on an object with multiple complex values", (assert) 
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -878,7 +696,6 @@ test("merging an attribute on an object with multiple complex values", (assert) 
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -906,7 +723,6 @@ test("setting an attribute that removes a previous value", (assert) => {
         [#person name: "chris" dude: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -934,7 +750,6 @@ test("setting an attribute on click", (assert) => {
         [#person name: "chris" dude: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         [#click]
@@ -966,7 +781,6 @@ test("erase a record", (assert) => {
         [#person name: "chris" dude: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -992,7 +806,6 @@ test("erase an attribute", (assert) => {
         [#person age: 19 age: 21 age: 30]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person]
@@ -1024,7 +837,6 @@ test("sum constant", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person]
@@ -1059,7 +871,6 @@ test("sum variable", (assert) => {
         [#person name: "chris" age: 20]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person age]
@@ -1094,7 +905,6 @@ test("sum variable with multiple givens", (assert) => {
         [#person name: "chris" age: 20]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person age]
@@ -1135,7 +945,6 @@ test("sum groups", (assert) => {
         [#person name: "mike" age: 20]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person age]
@@ -1176,7 +985,6 @@ test("sum groups with multiple pers", (assert) => {
         [#person name: "mike" age: 20]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person age]
@@ -1209,7 +1017,6 @@ test("aggregate stratification", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person]
@@ -1244,7 +1051,6 @@ test("aggregate stratification with results", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person]
@@ -1284,7 +1090,6 @@ test("aggregate stratification with another aggregate", (assert) => {
         [#person name: "mike" age: 20]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person age]
@@ -1313,7 +1118,7 @@ test("unstratifiable aggregate", (assert) => {
           [#person name: "mike" age: 20]
       ~~~
 
-      foo bar
+ 
       ~~~
         search
           p = [#person age]
@@ -1645,7 +1450,6 @@ test("you only search facts in the specified database", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search @foo
         p = [#person]
@@ -1678,7 +1482,6 @@ test("you can search from multiple databases", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search (@foo, @session)
         p = [#person]
@@ -1709,7 +1512,6 @@ test("writing is scoped to databases", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person]
@@ -1744,7 +1546,6 @@ test("you can write into multiple databases", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person]
@@ -1775,7 +1576,6 @@ test("reading in a scoped write uses the search scope", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person]
@@ -1811,7 +1611,6 @@ test("reading in multiple scopes write uses the search scope", (assert) => {
         [#person name: "woop"]
     ~~~
 
-    foo bar
     ~~~
       search (@blah, @session)
         p = [#person]
@@ -1841,7 +1640,6 @@ test("scoped attribute mutators pick up the search scope", (assert) => {
         [#person name: "chris" brother: [#person name: "ryan"]]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person]
@@ -1872,7 +1670,6 @@ test("multi-level attribute accesses", (assert) => {
         [#person name: "chris" brother: [#person name: "ryan"]]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person]
@@ -1894,7 +1691,6 @@ test("split function", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
       search
         token = split[text: "foo|bar|baz" by: "|"]
@@ -1919,7 +1715,6 @@ test("split function with multiple returns", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
       search
         (token, index) = split[text: "foo|bar|baz" by: "|"]
@@ -1944,7 +1739,6 @@ test("split function with attribute returns", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
       search
          split[text: "foo|bar|baz" by: "|", token, index]
@@ -1964,7 +1758,6 @@ test("split function with fixed return", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
       search
         (token, 2) = split[text: "foo|bar|baz" by: "|"]
@@ -1984,7 +1777,6 @@ test("split function with fixed return attribute", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
       search
         split[text: "foo|bar|baz" by: "|", token, index: 2]
@@ -2004,7 +1796,6 @@ test("split function with fixed token", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
       search
         split[text: "foo|bar|baz" by: "|", token: "bar", index]
@@ -2025,7 +1816,6 @@ test("split function with both fixed", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
       search
         split[text: "foo|bar|baz" by: "|", token: "bar", index: 2]
@@ -2058,12 +1848,26 @@ test("pipe allows you to select ", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
       commit
         [dude: p | name]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("blank lookup errors", (assert) => {
+  let expected = {
+    insert: [],
+    remove: [],
+    errors: true
+  };
+  evaluate(assert, expected, `
+    ~~~
+      search
+        lookup[]
     ~~~
   `);
   assert.end();
@@ -2086,7 +1890,6 @@ test("lookup with bound record", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         lookup[record: [#person], attribute, value]
@@ -2115,7 +1918,6 @@ test("lookup with bound attribute", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         lookup[record, attribute: "name", value]
@@ -2143,7 +1945,6 @@ test("lookup with free attribute, node and bound value", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         record = [#person]
@@ -2173,7 +1974,6 @@ test("lookup on node", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         lookup[record, attribute, value, node: "0|block|0|node|3|build"]
@@ -2207,7 +2007,6 @@ test("lookup all free", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         lookup[record, attribute, value, node]
@@ -2234,7 +2033,6 @@ test("lookup action", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         record = [#person]
@@ -2263,7 +2061,6 @@ test("lookup action without value errors", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         record = [#person]
@@ -2291,7 +2088,6 @@ test("lookup action remove", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         record = [#person]
@@ -2318,7 +2114,6 @@ test("lookup action remove free value", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         record = [#person]
@@ -2352,7 +2147,6 @@ test("an identifier followed by whitespace should not be interpreted as a functi
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -2376,7 +2170,6 @@ test("indented code blocks are not evaled", (assert) => {
           [#person name: "chris"]
           [#person name: "joe"]
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -2412,7 +2205,6 @@ test("single value sort", (assert) => {
         [#person name: "c"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -2451,7 +2243,6 @@ test("multi value sort", (assert) => {
         [#person name: "b" age: 1]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name age]
@@ -2490,7 +2281,6 @@ test("multi value sort with multiple directions", (assert) => {
         [#person name: "b" age: 1]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name age]
@@ -2529,7 +2319,6 @@ test("sort with group", (assert) => {
         [#person name: "b" age: 1]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name age]
@@ -2583,7 +2372,6 @@ test("multiple inequalities in a row", (assert) => {
         [#person name: "joe" age: 10]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name age]
@@ -2607,7 +2395,6 @@ test("range positive increment", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
       search
         i = range[from: 1 to: 5]
@@ -2630,7 +2417,6 @@ test("range negative increment", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
       search
         i = range[from: -1 to: -5 increment: -1]
@@ -2650,7 +2436,6 @@ test("range increment on an edge boundary", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
       search
         i = range[from: 1 to: 5 increment: 3]
@@ -2669,7 +2454,6 @@ test("range with a single increment", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
       search
         i = range[from: 1 to: 5 increment: 10]
@@ -2686,7 +2470,6 @@ test("range with infinite increment", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
       search
         i = range[from: -1 to: -5 increment: 1]
@@ -2763,7 +2546,6 @@ test("not with no external dependencies", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
     search
       not (9 = 4 + 5)
@@ -2778,7 +2560,6 @@ test("not with no external dependencies", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
     search
       not (2 = 4 + 5)
@@ -2797,13 +2578,34 @@ test("not can't provide a variable for an attribute access", (assert) => {
     errors: true,
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
     search
       not(threads = [#zom])
       foo = threads.foo
     bind
       [#foo foo]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("not without dependencies filters correctly", (assert) => {
+  let expected = {
+    insert: [[1, "tag", "foo"]],
+    remove: [],
+  };
+  evaluate(assert, expected, `
+    add some stuff
+    ~~~
+    commit
+      [#foo]
+    ~~~
+
+    ~~~
+    search
+      not([#foo])
+    bind
+      [#bar]
     ~~~
   `);
   assert.end();
@@ -2823,8 +2625,6 @@ test("indirect constant equality in if", (assert) => {
     remove: [],
   };
   evaluate(assert, expected, `
-    Now consider this:
-
     ~~~
       search
         one = 1
@@ -2848,8 +2648,6 @@ test("constant filter in if", (assert) => {
     remove: [],
   };
   evaluate(assert, expected, `
-    Now consider this:
-
     ~~~
       search
         x = 3
@@ -2863,39 +2661,36 @@ test("constant filter in if", (assert) => {
   assert.end();
 })
 
-test("length function", (assert) => {
+test("nested if/not expressions correctly get their args set", (assert) => {
   let expected = {
     insert: [
-      ["1", "len", "5" ],
+      ["c", "tag", "item"],
+      ["c", "idx", 0],
+      ["c", "title", "title 0"],
+      ["d", "tag", "item"],
+      ["d", "idx", 1],
+      ["a", "tag", "div"],
+      ["a", "text", "0 - title 0"],
+      ["b", "tag", "div"],
+      ["b", "text", "1 - no title"],
     ],
-    remove: []
+    remove: [],
   };
   evaluate(assert, expected, `
-    foo bar
+    add a foo
     ~~~
-      search
-        len = length[text: "hello"]
-      commit
-        [len: len]
+    search
+      item = [#item idx]
+      title = if not(item.title) then "no title" else item.title
+    bind @browser
+      [#div text: "{{idx}} - {{title}}"]
     ~~~
-  `);
-  assert.end();
-})
 
-test("length function", (assert) => {
-  let expected = {
-    insert: [
-      ["1", "len", "0" ],
-    ],
-    remove: []
-  };
-  evaluate(assert, expected, `
-    foo bar
+    is test
     ~~~
-      search
-        len = length[text: ""]
-      commit
-        [len: len]
+    commit
+      [#item idx: 0 title: "title 0"]
+      [#item idx: 1]
     ~~~
   `);
   assert.end();

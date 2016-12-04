@@ -100,163 +100,6 @@ class Split extends Constraint {
 }
 
 
-class Replace extends Constraint {
-  static AttributeMapping = {
-    "text": 0,
-    "subtext": 1,
-    "with": 2,
-  }
-
-  resolveProposal(proposal, prefix) {
-    let {args, returns} = this.resolve(prefix);
-    let [text, subtext, _with] = args; // with is a reserved word
-    return [text.replace(subtext, _with)];
-  }
-
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    let [text, subtext, _with] = args;
-    if(typeof text !== "string") return false;
-    return text.replace(subtext, _with) === returns[0];
-  }
-
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    let {args} = this.resolve(prefix);
-    if(typeof args[0] !== "string") {
-      proposal.cardinality = 0;
-    } else {
-      proposal.providing = proposed;
-      proposal.cardinality = 1;
-    }
-    return proposal;
-  }
-}
-
-class Length extends Constraint {
-  static AttributeMapping = {
-    "text": 0,
-  }
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    let [text] = args;
-    return [text.length];
-  }
-
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    let text = args[0];
-    if(typeof text !== "string") return false;
-    return text.length === returns[0];
-  }
-
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    let {args} = this.resolve(prefix);
-    if(typeof args[0] !== "string") {
-      proposal.cardinality = 0;
-    } else {
-      proposal.providing = proposed;
-      proposal.cardinality = 1;
-    }
-    return proposal;
-  }
-}
-
-
-class CharAt extends Constraint {
-  static AttributeMapping = {
-    "text": 0,
-    "index": 1,
-  }
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    let [text, index] = args;
-    return [text[index]];
-  }
-
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    let [text, index] = args;
-    if(typeof text !== "string") return false;
-    if(index < 0 || index >= text.length) return false;
-    return text[index] === returns[0];
-  }
-
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    let {args, returns} = this.resolve(prefix);
-    let [text, index] = args;
-    if(typeof text !== "string" || index < 0 || index >= text.length) {
-      proposal.cardinality = 0;
-    } else {
-      proposal.providing = proposed;
-      proposal.cardinality = 1;
-    }
-    return proposal;
-  }
-}
-
-
-class Find extends Constraint {
-  static AttributeMapping = {
-    "text": 0,
-    "subtext": 1,
-    "case-sensitive": 2,
-  }
-
-  findAll(text, subtext, caseSensitive) {
-    text = caseSensitive ? text.toLowerCase() : text;
-    subtext = caseSensitive ? subtext.toLowerCase() : subtext;
-    let temp = [];
-    for (let i = 0; i < text.length; i ++) {
-      if (text.substring(i, i + subtext.length) === subtext) {
-         temp.push(i);
-      }
-    }
-    return temp;
-  }
-
-  testAll(text, subtext, indexes, caseSensitive) {
-    text = caseSensitive ? text.toLowerCase() : text;
-    subtext = caseSensitive ? subtext.toLowerCase() : subtext;
-    for (let i of indexes) {
-      if (i < 0 || i > text.length || text.substring(i, i + subtext.length) !== subtext) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    let [text, subtext, caseSensitive=true] = args;
-    return this.findAll(text, subtext, caseSensitive);
-  }
-
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    let [text, subtext, caseSensitive=true] = args;
-    console.log('test', returns)
-    let [indexes] = returns;
-    if(typeof text !== "string") return false;
-    return this.testAll(text, subtext, indexes, caseSensitive);
-  }
-
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    let {args,} = this.resolve(prefix);
-    let [text, subtext, caseSensitive=true] = args;
-    if(typeof text !== "string") {
-      proposal.cardinality = 0;
-    } else {
-      proposal.providing = proposed;
-      proposal.cardinality = this.findAll(text, subtext, caseSensitive).length;
-    }
-    return proposal;
-  }
-}
-
 // substring over the field 'text', with the base index being 1, inclusive, 'from' defaulting
 // to the beginning of the string, and 'to' the end
 class Substring extends Constraint {
@@ -370,11 +213,47 @@ class Convert extends Constraint {
   }
 }
 
-providers.provide("find", Find);
-providers.provide("char-at", CharAt);
-providers.provide("replace", Replace);
-providers.provide("length", Length);
+// Urlencode a string
+class Urlencode extends Constraint {
+  static AttributeMapping = {
+    "text": 0
+  }
+  static ReturnMapping = {
+    "value": 0,
+  }
+
+  // To resolve a proposal, we urlencode a text
+  resolveProposal(proposal, prefix) {
+    let {args, returns} = this.resolve(prefix);
+    let value = args[0];
+    let converted;
+    converted = encodeURIComponent(value);
+    return [converted];
+  }
+
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    let value = args[0];
+
+    let converted = encodeURIComponent(value);
+
+    return converted === returns[0];
+  }
+
+  // Urlencode always returns cardinality 1
+  getProposal(tripleIndex, proposed, prefix) {
+    let proposal = this.proposalObject;
+    let {args} = this.resolve(prefix);
+    let value = args[0];
+    proposal.cardinality = 1;
+    proposal.providing = proposed;
+    return proposal;
+  }
+}
+
+
 providers.provide("concat", Concat);
 providers.provide("split", Split);
 providers.provide("substring", Substring);
 providers.provide("convert", Convert);
+providers.provide("urlencode", Urlencode);

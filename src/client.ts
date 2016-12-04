@@ -1,4 +1,5 @@
 import {clone, debounce, uuid, sortComparator} from "./util";
+import {Owner} from "./config";
 import {sentInputValues, activeIds, renderRecords, renderEve} from "./renderer"
 import {IDE} from "./ide";
 import * as browser from "./runtime/browser";
@@ -13,28 +14,10 @@ function analyticsEvent(kind: string, label?: string, value?: number) {
   ga("send", "event", "ide", kind, label, value);
 }
 
-// @NOTE: Intrepid user: Please don't change this. It won't work just yet!
-window["local"] = true;
-
-//---------------------------------------------------------
-// Utilities
-//---------------------------------------------------------
-function safeEav(eav:[any, any, any]):EAV {
-  if(eav[0].type == "uuid")  {
-    eav[0] = `⦑${eav[0].value}⦒`
-  }
-  if(eav[1].type == "uuid")  {
-    eav[1] = `⦑${eav[1].value}⦒`
-  }
-  if(eav[2].type == "uuid")  {
-    eav[2] = `⦑${eav[2].value}⦒`
-  }
-  return eav;
-}
-
 //---------------------------------------------------------
 // Connect the websocket, send the ui code
 //---------------------------------------------------------
+
 export var DEBUG:string|boolean = false;
 
 export var indexes = {
@@ -57,7 +40,7 @@ function handleDiff(state, diff) {
   let dirty = indexes.dirty;
 
   for(let remove of diff.remove) {
-    let [e, a, v] = safeEav(remove);
+    let [e, a, v] = remove;
     if(!records.index[e]) {
       console.error(`Attempting to remove an attribute of an entity that doesn't exist: ${e}`);
       continue;
@@ -89,7 +72,7 @@ function handleDiff(state, diff) {
   }
 
   for(let insert of diff.insert) {
-    let [e, a, v] = safeEav(insert);
+    let [e, a, v] = insert;
     let entity = records.index[e];
     if(!entity) {
       entity = {};
@@ -144,43 +127,125 @@ function handleDiff(state, diff) {
 let prerendering = false;
 var frameRequested = false;
 
+//---------------------------------------------------------
+// EveClient
+//---------------------------------------------------------
 
-function createSocket(local = false) {
-  socket;
-  if(!local) {
-    // socket = new WebSocket("ws://" + window.location.host + window.location.pathname, "eve-json");
+export class EveClient {
+  socket: WebSocket;
+  socketQueue: string[] = [];
+  localEve:boolean = false;
+  localControl:boolean = false;
+  showIDE:boolean = true;
+  ide:IDE;
+
+  constructor(url?:string) {
+    let loc = url ? url : this.getUrl();
+
+    this.socket = new WebSocket(loc);
+    this.socket.onerror = (event) => {
+      this.onError();
+    }
+    this.socket.onopen = (event) => {
+      this.onOpen();
+    }
+    this.socket.onmessage = (event) => {
+      this.onMessage(event);
+    }
+    this.socket.onclose = (event) => {
+      this.onClose();
+    }
+  }
+
+  getUrl() {
+    let protocol = "ws://";
     if(location.protocol.indexOf("https") > -1) {
-      socket = new WebSocket("wss://" + window.location.host +"/ws");
+      protocol = "wss://";
+    }
+    return protocol + window.location.host +"/ws";
+  }
+
+  socketSend(message:string) {
+    if(this.socket && this.socket.readyState === 1) {
+      this.socket.send(message);
     } else {
-      socket = new WebSocket("ws://" + window.location.host +"/ws");
-    }
-  } else {
-    socket = {
-      readyState: 1,
-      send: (json) => {
-        browser.responder.handleEvent(json);
-      }
+      this.socketQueue.push(message);
     }
   }
-  socket.onopen = onOpen;
-  socket.onclose = onClose;
-  socket.onmessage = onMessage;
 
-  if(local) {
-    browser.init("");
+  send(payload:{type: string, [attributes:string]: any}) {
+    let message = JSON.stringify(payload);
+    if(!this.localEve) {
+      this.socketSend(message);
+    } else {
+      browser.responder.handleEvent(message);
+    }
   }
 
-  return socket;
-}
+  sendControl(message:string) {
+    if(!this.localControl) {
+      this.socketSend(message);
+    } else {
+      // @TODO where do local control messages go?
+    }
+  }
 
-// @FIXME: This is just so bad.
-// We'll create the socket at the end to kick off this whole ball of earwax and nail clippings.
-export var socket;
+  sendEvent(records:any[]) {
+    if(!records || !records.length) return;
+    let eavs = [];
+    for(let record of records) {
+      eavs.push.apply(eavs, recordToEAVs(record));
+    }
+    this.send({type: "event", insert: eavs})
+  }
 
+  injectNotice(type:string, message:string) {
+    if(this.ide) {
+      this.ide.injectNotice(type, message);
+    } else {
+      if(type === "error") console.error(message);
+      else if(type === "warning") console.warn(message);
+      else console.info(message);
+    }
+  }
 
-function onMessage(msg) {
-  let data = JSON.parse(msg.data);
-  if(data.type == "result") {
+  onError() {
+    this.localControl = true;
+    this.localEve = true;
+    if(!this.ide) {
+      this._initProgram({runtimeOwner: Owner.client, controlOwner: Owner.client, withIDE: true, path: (window.location.hash || "").slice(1) || "/examples/quickstart.eve"});
+    } else {
+      this.injectNotice("error", "Unexpectedly disconnected from the server. Please refresh the page.");
+    }
+  }
+
+  onOpen() {
+    this.socketSend(JSON.stringify({type: "init", url: location.pathname, hash: location.hash.substring(1)}))
+    for(let queued of this.socketQueue) {
+      this.socketSend(queued);
+    }
+    // ping the server so that the connection isn't overzealously
+    // closed
+    setInterval(() => {
+      this.socketSend(JSON.stringify({type: "ping"}));
+    }, 30000);
+  }
+
+  onClose() {
+    this.injectNotice("warning", "The editor has lost connection to the Eve server. All changes will be made locally.");
+  }
+
+  onMessage(event) {
+    let data = JSON.parse(event.data);
+    let handler = this["_" + data.type];
+    if(handler) {
+      handler.call(this, data);
+    } else if(!this.ide || !this.ide.languageService.handleMessage(data)) {
+      console.error(`Unknown client message type: ${data.type}`);
+    }
+  }
+
+  _result(data) {
     let state = {entities: indexes.records.index, dirty: indexes.dirty.index};
     handleDiff(state, data);
 
@@ -209,40 +274,66 @@ function onMessage(msg) {
         renderEve();
       });
     }
-  } else if(data.type == "initLocal") {
-    socket = createSocket(true);
-    browser.init("");
-  } else if(data.type == "parse") {
-    _ide.loadDocument(data.generation, data.text, data.spans, data.extraInfo); // @FIXME
-  } else if(data.type == "comments") {
-    _ide.injectSpans(data.spans, data.extraInfo);
-
-  } else if(data.type == "findNode") {
-    _ide.attachView(data.recordId, data.spanId);
-
-  } else if(data.type == "error") {
-    _ide.injectNotice("error", data.message);
-  } else if(_ide.languageService.handleMessage(data)) {
-
-  } else {
-    console.warn("UNKNOWN MESSAGE", data);
   }
+
+  _initProgram(data) {
+    this.localEve = data.runtimeOwner === Owner.client;
+    this.localControl = data.controlOwner === Owner.client;
+    this.showIDE = data.withIDE;
+    if(this.localEve) {
+      browser.init(data.code);
+    }
+    if(this.showIDE) {
+      // Ensure the URL bar is in sync with the server.
+      // @FIXME: This back and forth of control over where we are
+      // is an Escherian nightmare.
+      if(!data.path) {
+        history.pushState({}, "", window.location.pathname);
+      }
+
+      this.ide = new IDE();
+      this.ide.local = this.localControl;
+      initIDE(this);
+      this.ide.render();
+      if(data.path && data.path.length > 2) {
+        this.ide.loadFile(data.path, data.code);
+      }
+    }
+    onHashChange({});
+  }
+
+  _parse(data) {
+    if(!this.showIDE) return;
+    this.ide.loadDocument(data.generation, data.text, data.spans, data.extraInfo); // @FIXME
+  }
+
+  _comments(data) {
+    if(!this.showIDE) return;
+    this.ide.injectSpans(data.spans, data.extraInfo);
+  }
+
+  _findNode(data) {
+    if(!this.showIDE) return;
+    this.ide.attachView(data.recordId, data.spanId);
+  }
+
+  _error(data) {
+    this.injectNotice("error", data.message);
+  }
+
 }
 
-function onOpen() {
-  console.log("Connected to eve server!");
-  initializeIDE();
-  socket.send(JSON.stringify({type: "init", url: location.pathname}))
-  onHashChange({});
-  setInterval(() => {
-    socket.send("\"PING\"");
-  }, 30000);
-}
+//---------------------------------------------------------
+// create socket
+//---------------------------------------------------------
 
-function onClose () {
-  console.log("Disconnected from eve server!");
-}
+// @FIXME: This is just so bad.
+// We'll create the socket at the end to kick off this whole ball of earwax and nail clippings.
+export var socket;
 
+//---------------------------------------------------------
+// Index handlers
+//---------------------------------------------------------
 
 function renderOnChange(index, dirty) {
   renderRecords();
@@ -285,9 +376,15 @@ function subscribeToTagDiff(tag:string, callback: (inserts: string[], removes: s
   });
 }
 
-subscribeToTagDiff("editor", (inserts, removes, records) => _ide.updateActions(inserts, removes, records));
+subscribeToTagDiff("editor", (inserts, removes, records) => {
+  if(!client.showIDE) return;
+  client.ide.updateActions(inserts, removes, records);
+});
 
-subscribeToTagDiff("view", (inserts, removes, records) => _ide.updateViews(inserts, removes, records));
+subscribeToTagDiff("view", (inserts, removes, records) => {
+  if(!client.showIDE) return;
+  client.ide.updateViews(inserts, removes, records)
+});
 
 //---------------------------------------------------------
 // Communication helpers
@@ -326,21 +423,65 @@ function recordToEAVs(record) {
   return eavs;
 }
 
-export function send(message) {
-  if(socket && socket.readyState == 1) {
-    socket.send(JSON.stringify(message))
+//---------------------------------------------------------
+// Initialize an IDE
+//---------------------------------------------------------
+export let client = new EveClient();
+
+function initIDE(client:EveClient) {
+  let ide = client.ide;
+  ide.onChange = (ide:IDE) => {
+    let generation = ide.generation;
+    let md = ide.editor.toMarkdown();
+    console.groupCollapsed(`SENT ${generation}`);
+    console.info(md);
+    console.groupEnd();
+    client.send({scope: "root", type: "parse", generation, code: md});
+  }
+  ide.onEval = (ide:IDE, persist) => {
+    client.send({type: "eval", persist});
+  }
+  ide.onLoadFile = (ide, documentId, code) => {
+    client.send({type: "close"});
+    client.send({scope: "root", type: "parse", code})
+    client.send({type: "eval", persist: false});
+    let url = `${location.pathname}#${documentId}`;
+    history.pushState({}, "", url + location.search);
+    analyticsEvent("load-document", documentId);
+  }
+
+  ide.onSaveDocument = (ide, documentId, code) => {
+    client.sendControl(JSON.stringify({type: "save", path: documentId, code}));
+  }
+
+  ide.onTokenInfo = (ide, tokenId) => {
+    client.send({type: "tokenInfo", tokenId});
+  }
+
+  let cache = window["_workspaceCache"];
+  for(let workspace in cache || {}) {
+    ide.loadWorkspace(workspace, cache[workspace]);
   }
 }
 
-export function sendEvent(records:any[]) {
-  if(!records || !records.length) return;
-  let eavs = [];
-  for(let record of records) {
-    eavs.push.apply(eavs, recordToEAVs(record));
+function changeDocument() {
+  if(!client.showIDE) return;
+  let ide = client.ide;
+  // @FIXME: This is not right in the non-internal case.
+  let docId = "/examples/quickstart.eve";
+  let path = location.hash && location.hash.split('?')[0].split("#/")[1];
+  if(path && path.length > 2) {
+    if(path[path.length - 1] === "/") path = path.slice(0, -1);
+    docId = "/" + path;
   }
-  if(socket && socket.readyState == 1) {
-    socket.send(JSON.stringify({type: "event", insert: eavs}))
+  if(!docId) return;
+  if(docId === ide.documentId) return;
+  try {
+    ide.loadFile(docId);
+  } catch(err) {
+    client.injectNotice("info", "Unable to load unknown file: " + docId);
   }
+  ide.render();
 }
 
 //---------------------------------------------------------
@@ -348,86 +489,25 @@ export function sendEvent(records:any[]) {
 //---------------------------------------------------------
 
 function onHashChange(event) {
-  if(_ide.loaded) changeDocument();
+  if(client.ide && client.ide.loaded) changeDocument();
   let hash = window.location.hash.split("#/")[2];
+  let queryParam = window.location.hash.split('?')[1];
 
-  if(hash) {
-    let segments = hash.split("/").map(function(seg, ix) {
+  if(hash || queryParam) {
+    let segments = (hash||'').split("/").map(function(seg, ix) {
       return {id: uuid(), index: ix + 1, value: seg};
+    }), queries = (queryParam||'').split('&').map(function (kv) {
+      let [k, v] = kv.split('=',2);
+      return {id: uuid(), key: k, value: v};
     });
 
-    sendEvent([
-      {tag: "url-change", "hash-segment": segments}
+    client.sendEvent([
+      {tag: "url-change", "hash-segment": segments, "query-param": queries}
     ]);
   }
 }
 
 window.addEventListener("hashchange", onHashChange);
-
-//---------------------------------------------------------
-// Initialize an IDE
-//---------------------------------------------------------
-let _ide = new IDE();
-_ide.onChange = (ide:IDE) => {
-  let generation = ide.generation;
-  let md = ide.editor.toMarkdown();
-  console.groupCollapsed(`SENT ${generation}`);
-  console.info(md);
-  console.groupEnd();
-  if(socket && socket.readyState == 1) {
-    socket.send(JSON.stringify({scope: "root", type: "parse", generation, code: md}))
-  }
-}
-_ide.onEval = (ide:IDE, persist) => {
-  if(socket && socket.readyState == 1) {
-    socket.send(JSON.stringify({type: "eval", persist}));
-  }
-}
-_ide.onLoadFile = (ide, documentId, code) => {
-  if(socket && socket.readyState == 1) {
-    socket.send(JSON.stringify({type: "close"}));
-    socket.send(JSON.stringify({scope: "root", type: "parse", code}))
-    socket.send(JSON.stringify({type: "eval", persist: false}));
-  }
-  history.pushState({}, "", location.pathname + `#/examples/${documentId}`);
-  analyticsEvent("load-document", documentId);
-}
-
-_ide.onTokenInfo = (ide, tokenId) => {
-  if(socket && socket.readyState == 1) {
-    socket.send(JSON.stringify({type: "tokenInfo", tokenId}));
-  }
-}
-
-_ide.loadWorkspace("examples", window["examples"]);
-
-function initializeIDE() {
-  changeDocument();
-}
-
-function changeDocument() {
-  if(socket.readyState == 1) {
-    let docId = "quickstart.eve";
-    let path = location.hash.split("#/")[1];
-    if(path) {
-      if(path[path.length - 1] === "/") path = path.slice(0, -1);
-      docId = path.split("/").pop();
-    }
-    if(!docId) return;
-    if(docId === _ide.documentId) return;
-    try {
-      _ide.loadFile(docId);
-    } catch(err) {
-      _ide.injectNotice("info", "Unable to load unknown file: " + docId);
-    }
-    _ide.render();
-  } else {
-    throw new Error("Cannot initialize until connected.");
-  }
-}
-
-_ide.render();
-console.log(_ide);
 
 window.document.body.addEventListener("dragover", (e) => {
   e.preventDefault();
@@ -444,5 +524,3 @@ window.document.body.addEventListener("drop", (e) => {
   e.preventDefault();
   e.stopPropagation();
 });
-
-createSocket(global["local"]);

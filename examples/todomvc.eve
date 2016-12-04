@@ -19,7 +19,7 @@ We draw Todo MVC here. All styling is handled in a separate CSS file. The app co
 
 In this block, we do a little work to determine todo-count, all-checked, and none-checked. Other than that, this block simply lays out the major control elements of TodoMVC. A key aspect of this block is the `bind` keyword. This denotes the beginning of the action phase of the block, and tells Eve that to update records as data changes. This is the key component that enables Eve to react to user interaction and update the display.
 
-```
+~~~
 search
   [#app filter]
 
@@ -61,7 +61,7 @@ bind @browser
             [#span #clear-completed text: "Clear completed"
                                                         class: [clear-completed: true,
                                                 hidden: none-checked]]]]
-```
+~~~
 
 ### Drawing the Todo List
 
@@ -72,7 +72,7 @@ Now we look at how the todos are actually displayed in the application. We attac
 - an **input textbox** for editing the text of the todo
 - a **button** for deleting the todo
 
-```
+~~~
 search @session @browser
   [#app filter]
   parent = [#todo-list]
@@ -97,7 +97,7 @@ bind @browser
                                                 class: [edit: true,
                                             hidden: toggle[value: editing]]]
             [#button #remove-todo, class: [destroy: true, hidden: editing], todo]]
-```
+~~~
 
 Thanks to Eve's set semantics, we don't need any loops here; for every unique `#todo` in the database, Eve will do the work of adding another `#li` as a child of `#todo-list`.
 
@@ -107,7 +107,7 @@ Thanks to Eve's set semantics, we don't need any loops here; for every unique `#
 
 A user can interact with TodoMVC in several ways. First and foremost, the user can create new todos. When the `@new-todo` input box is focused and the user presses enter, the value of the input is captured and a new todo is created.
 
-```
+~~~
 search @event @session @browser
   element = [#new-todo value]
   kd = [#keydown element, key: "enter"]
@@ -117,7 +117,7 @@ commit
 
 commit @browser
   element.value := ""
-```
+~~~
 
 Of note here is the record `[#todo body: value, editing: false, completed: false, kd]`. The inclusion of the `kd` attribute might seem strange, but its purpose is to guarantee the uniqueness of the todo. Let’s say we want to add two todos with the same body. If `kd` were not an attribute, then the two todos would be exactly the same and Eve’s set semantics would collapse them into a single todo. Therefore, we need some way to distinguish todos with identical bodies. Adding `kd` allows for this.
 
@@ -127,15 +127,13 @@ Here we handle all the ways we edit a todo. Editing includes changing the body a
 
 - click `#todo-checkbox` - toggles the completed status of the checkbox.
 - click `#toggle-all` - marks all todos as complete or incomplete, depending on the initial value. If all todos are marked incomplete, clicking `#toggle-all` will mark them complete. If only some are marked complete, then clicking `#toggle-all` will mark the rest complete. If all todos are marked as complete, then clicking `#toggle-all` will mark them all as incomplete.
-- blur `#todo-editor` - blurring the `#todo-editor` will cancel the edit
-- escape `#todo-editor` - this has the same effect as blurring
+- escape `#todo-editor` - cancels the edit
 - enter `#todo-editor` - commits the new text in `#todo-editor`, replacing the original body
+- blur `#todo-editor` - has the same effect as enter
 
-```
+~~~
 search @event @session @browser
-
   (todo, body, editing, completed) =
-
     if [#click element: [#todo-checkbox todo]]
         then (todo, todo.body, todo.editing, toggle[value: todo.completed])
 
@@ -156,24 +154,22 @@ search @event @session @browser
 
 commit
   todo <- [body, completed, editing]
-```
+~~~
 
 ### Deleting Todos
 
 We remove a todo from the list by setting the todo's record to special `none` value. Doing so completely erases that todo from the database.
 
-```
+~~~
 search @event @session @browser
-  todo =
-    if [#click element: [#remove-todo todo]]
+  todo = if [#click element: [#remove-todo todo]]
             then todo
-
         else if [#click element: [#clear-completed]]
             then [#todo completed: true]
 
 commit
   todo := none
-```
+~~~
 
 ### Filtering Todos (Routing)
 
@@ -185,13 +181,13 @@ The TodoMVC specification requires filtering via the URL. This is actually how t
 
 We can extract this value using `#url`, which has a hash-segment attribute that automatically parses the URL for us, returning the `value` (expected to be any one of the above). Any other value will fail to show any todos, but the application will not break.
 
-```
+~~~
 search @browser
   value = if [#url hash-segment: [index: 1, value]]
-                    then value
+            then value
           else "all"
 bind
   [#app filter: value]
-```
+~~~
 
 [1]: http://todomvc.com/

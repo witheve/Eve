@@ -7,11 +7,9 @@ import {Evaluation, Database} from "./runtime"
 import {TripleIndex} from "./indexes"
 import {Changes} from "./changes"
 import * as join from "./join"
-import * as client from "../client"
 import * as parser from "./parser"
 import * as builder from "./builder"
-import * as analyzer from "./analyzer"
-import * as browser from "./browser"
+import * as eveSource from "./eveSource";
 import {BrowserSessionDatabase} from "./databases/browserSession"
 
 enum ActionType { Bind, Commit }
@@ -372,18 +370,18 @@ export class EditorDatabase extends Database {
 
 function makeEveAnalyzer() {
   if(eve) return eve;
-  let {results, errors} = parser.parseDoc(global["examples"]["analyzer.eve"], "analyzer");
+  let {results, errors} = parser.parseDoc(eveSource.get("analyzer.eve"), "analyzer");
   let {text, spans, extraInfo} = results;
   let {blocks, errors: buildErrors} = builder.buildDoc(results);
   if(errors.length || buildErrors.length) {
     console.error("ANALYZER CREATION ERRORS", errors, buildErrors);
   }
-  let browserDb = new BrowserSessionDatabase(browser.responder);
+  // let browserDb = new BrowserSessionDatabase(browser.responder);
   let session = new Database();
   session.blocks = blocks;
   let evaluation = new Evaluation();
   evaluation.registerDatabase("session", session);
-  evaluation.registerDatabase("browser", browserDb);
+  // evaluation.registerDatabase("browser", browserDb);
   return evaluation;
 }
 
@@ -408,7 +406,7 @@ export function analyze(blocks: ParseBlock[], spans: any[], extraInfo: any) {
     analysis.block(block, spans, extraInfo);
   }
   changes.commit();
-  console.log(changes);
+  // console.log(changes);
   console.timeEnd("load analysis");
   // eve.executeActions([], changes);
 }

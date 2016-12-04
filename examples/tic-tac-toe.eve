@@ -8,45 +8,47 @@ Tic-Tac-Toe is a classic game played by two players, "X" and "O", who take turns
 - A way to mark a cell as "X" or "O"
 - A way to recognize that a player has won the game.
 
-To begin, we initialize the board. We commit an object named `@board` to hold our global state and create a set of `#cell`s. These `#cell`s will keep track of the moves players have made. Common connect-N games (a generalized tic-tac-toe for any NxN grid) are scored along 4 axes (horizontal, vertical, the diagonal, and the anti-diagonal). We group cells together along each axis up front to make scoring easier later.
+### Game settings
 
-The game board is square, with a given `size`. It contains `size ^ 2 cells`,
+To begin, we initialize the board. We commit an object named @board to hold our global state and create a set of #cells. These #cells will keep track of the moves players have made. Common connect-N games (a generalized tic-tac-toe for any `NxN` grid) are scored along 4 axes (horizontal, vertical, the diagonal, and the anti-diagonal). We group cells together along each axis up front to make scoring easier later.
+
+The game board is square, with a given size. It contains size ^ 2 cells,
 each with a row and column index.
 
-```
-  search
-    // board constants
-    size = 3
-    starting-player = "X"
+~~~
+search
+  // board constants
+  size = 3
+  starting-player = "X"
 
-    // generate the cells
-    i = range[from: 1, to: size]
-    j = range[from: 1, to: size]
+  // generate the cells
+  i = range[from: 1, to: size]
+  j = range[from: 1, to: size]
 
- commit
-    board = [#board size player: starting-player]
-    [#cell board row: i column: j]
-```
+commit
+  board = [#board size player: starting-player]
+  [#cell board row: i column: j]
+~~~
 
-A subtlety here is the last line, `[#cell board row: i column: j]`. Thanks to our relational semantics, this line actually generates all 9 cells. Since the sets of values computed in `i` and `j` have no relation to each other, when we use them together we get the [cartesian product](https://en.wikipedia.org/wiki/Cartesian_product) of their values. This means that if `i = {0, 1, 2}` and `j = {0, 1, 2}`, then `i x j = {(1, 1), (1, 2), ... (3, 2), (3, 3)}`. These are exactly the indices we need for our grid!
+A subtlety here is the last line, [#cell board row: i column: j]. Thanks to our relational semantics, this line actually generates all 9 cells. Since the sets of values computed in i and j have no relation to each other, when we use them together we get the cartesian product of their values. This means that if `i = {0, 1, 2}` and `j = {0, 1, 2}`, then `i x j = {(1, 1), (1, 2), ... (3, 2), (3, 3)}`. These are exactly the indices we need for our grid!
 
-Now we tag some special cell groupings: diagonal and anti-diagonal cells. The diagonal cells are (1, 1), (2, 2), and (3, 3). From this we can see that diagonal cells have a row index equal to its column index
+Now we tag some special cell groupings: diagonal and anti-diagonal cells. The diagonal cells are `(1, 1)`, `(2, 2)`, and `(3, 3)`. From this we can see that diagonal cells have a row index equal to its column index
 
-```
-  search
-    cells = [#cell row column]
-    row = column
+~~~
+search
+  cells = [#cell row column]
+  row = column
 
-  bind
-    cells += #diagonal
-```
+bind
+  cells += #diagonal
+~~~
 
-Similarly, the anti-diagonal cells are (1, 3), (2, 2), and (3, 1).
+Similarly, the anti-diagonal cells are `(1, 3)`, `(2, 2)`, and `(3, 1)`.
 
 Anti-diagonal cells satisfy the equation `row + col = N + 1`,
-where N is the size of the board.
+where `N` is the size of the board.
 
-```
+~~~
   search
     cells = [#cell row column]
     [#board size: N]
@@ -54,140 +56,159 @@ where N is the size of the board.
 
   bind
     cells += #anti-diagonal
-```
+~~~
+
+### Winning condition
 
 A game is won when a player marks N cells in a row, column, or diagonal.
 The game can end in a tie, where no player has N in a row.
 
-```
-  search
-    board = [#board size: N, not(winner)]
-                     // Check for a winning row
-    (winner, cell) = if cell = [#cell row player]
-                       N = count[given: cell, per: (row, player)] then (player, cell)
-                     // Check for a winning column
-                     else if cell = [#cell column player]
-                       N = count[given: cell, per: (column, player)] then (player, cell)
-                     // Check for a diagonal win
-                     else if cell = [#diagonal row column player]
-                       N = count[given: cell, per: player] then (player, cell)
-                     // Check for an anti-diagonal win
-                     else if cell = [#anti-diagonal row column player]
-                       N = count[given: cell, per: player] then (player, cell)
-                     // If all cells are filled but there are no winners
-                     else if cell = [#cell player]
-                       N * N = count[given: cell] then ("nobody", cell)
+~~~
+search
+  board = [#board size: N, not(winner)]
 
-  commit
-    board.winner := winner
-    cell += #winner
-```
+  (winner, cell) = 
+    // Check for a winning row
+    if cell = [#cell row player] 
+       N = count[given: cell, per: (row, player)] 		
+    then (player, cell)
+    // Check for a winning column
+    else if cell = [#cell column player]
+            N = count[given: cell, per: (column, player)] 
+    then (player, cell)
+    // Check for a diagonal win
+    else if cell = [#diagonal row column player]
+            N = count[given: cell, per: player] 
+    then (player, cell)
+    // Check for an anti-diagonal win
+    else if cell = [#anti-diagonal row column player]
+            N = count[given: cell, per: player] 
+    then (player, cell)
+    // If all cells are filled but there are no winners
+    else if cell = [#cell player]
+            N * N = count[given: cell] 
+    then ("nobody", cell)
 
-We use the `count` aggregate in the above block. Count returns the number of discrete values (the cardinality) of the variables in `given`. The optional `per` attribute allows you to specify groupings, which yield one result for each set of values in the group.
+commit
+  board.winner := winner
+  cell += #winner
+~~~
 
-For example, in `count[given: cell, per: player]` we group by `player`, which returns two values: the count of cells marked by player `X` and those marked by `O`. This can be read "count the cells per player". In the scoring block, we group by `column` and `player`. This will return the count of cells marked by a player in a particular column. Like wise with the row case. By equating this with N, we ensure the winning player is only returned when she has marked N cells in the given direction.
+We use the count aggregate in the above block. Count returns the number of discrete values (the cardinality) of the variables in given. The optional per attribute allows you to specify groupings, which yield one result for each set of values in the group.
 
-This is how Eve works without looping. Rather than writing a nested `for` loop and iterating over the cells, we can use Eve's semantics to our advantage.
+For example, in count[given: cell, per: player] we group by player, which returns two values: the count of cells marked by player X and those marked by O. This can be read "count the cells per player". In the scoring block, we group by column and player. This will return the count of cells marked by a player in a particular column. Like wise with the row case. By equating this with N, we ensure the winning player is only returned when she has marked N cells in the given direction.
 
-We first search every row, then every column. Finally we check the diagonal and anti-diagonal. To do this, we leverage the `#diagonal` and `#anti-diagonal` tags we created earlier; instead of selecting `[#cell]`, we can select on `[#diagonal]` and `[#anti-diagonal]` to select only a subset of cells.
+This is how Eve works without looping. Rather than writing a nested for loop and iterating over the cells, we can use Eve's semantics to our advantage.
 
-### React to Events
+We first search every row, then every column. Finally we check the diagonal and anti-diagonal. To do this, we leverage the `#diagonal` and `#anti-diagonal` tags we created earlier; instead of searching for `#cell`, we can search for these new tags to select only a subset of cells.
+
+## React to Events
 
 Next, we handle user input. Any time a cell is directly clicked, we:
 
-1. Ensure the cell hasn't already been played
-2. Check for a winner
-3. Switch to the next player
+- Ensure the cell hasn't already been played
+- Check for a winner
+- Switch to the next player
 
-Then update the cell to reflect its new owner, and switch board's `player` to the next player.
+Then update the cell to reflect its new owner, and switch board's player to the next player.
+
+### Marking a cell
 
 Click on a cell to make your move
 
-```
-  search @event @session @browser
-    [#click #direct-target element: [#div cell]]
-    not(cell.player)                               // Ensures the cell hasn't been played
-    board = [#board player: current, not(winner)]  // Ensures the game has not been won
-    next_player = if current = "X" then "O"        // Switches to the next player
-                  else "X"
+~~~
+search @event @session @browser
+  [#click #direct-target element: [#div cell]]
+  // Ensures the cell hasn't been played
+  not(cell.player)                               
+  // Ensures the game has not been won
+  board = [#board player: current, not(winner)]  
+  // Switches to the next player
+  next_player = if current = "X" then "O"
+  							else "X"
 
-  commit
-    board.player := next_player
-    cell.player := current
-```
+commit
+  board.player := next_player
+  cell.player := current
+~~~
 
-Since games of tic-tac-toe are often very short and extremely competitive, it's imperative that it be quick and easy to begin a new match. When the game is over (the board has a `winner` attribute), a click anywhere on the drawing area will reset the game for another round of play.
+### Reset the game
+
+Since games of tic-tac-toe are often very short and extremely competitive, it's imperative that it be quick and easy to begin a new match. When the game is over (the board has a winner attribute), a click anywhere on the drawing area will reset the game for another round of play.
 
 A reset consists of:
-- Clearing the board of a `winner`
+
+- Clearing the board of a winner
 - Clearing all of the cells
-- Removing the `#winner` tag from the winning cell set
+- Removing the #winner tag from the winning cell set
 
-```
-  search @event @browser @session
-    [#click element: [#div board]]
-    board = [#board winner]
-    cell = [#cell player]
+~~~
+search @event @browser @session
+  [#click element: [#div board]]
+  board = [#board winner]
+  cell = [#cell player]
 
-  commit
-    board.winner -= winner
-    cell.player -= player
-    cell -= #winner
-```
+commit
+  board.winner -= winner
+  cell.player -= player
+  cell -= #winner
+~~~
 
-## Drawing the Game Board
+## Drawing the Game
 
-We've implemented the game logic, but now we need to actually draw the board so players have something to see and interact with. Our general strategy will be that the game board is a `#div` with one child `#div` for each cell. Each cell will be drawn with an "X", "O", or empty string as text. We also add a `#status` div, which we'll write game state into later. Our cells have the CSS inlined, but you could just as easily link to an external file.
+We've implemented the game logic, but now we need to actually draw the board so players have something to see and interact with. Our general strategy will be that the game board is a #div with one child `#div` for each cell. Each cell will be drawn with an "X", "O", or empty string as text. We also add a `#status` div, which we'll write game state into later. Our cells have the CSS inlined, but you could just as easily link to an external file.
 
-Draw the board
+### Draw the board
 
-```
-  search
-    board = [#board]
-    cell = [#cell board row column]
-    contents = if cell.player then cell.player
-              else ""
+~~~
+search
+  board = [#board]
+  cell = [#cell board row column]
+  contents = if cell.player then cell.player
+  					 else ""
 
-  bind @browser
-    [#div board #container style: [font-family: "sans-serif"], children:
-      [#div #status board class: "status", style: [text-align: "center" width: 150 height: 50 padding-bottom: 10]]
-      [#div class: "board" style: [color: "black"] children:
-        [#div class: "row" sort: row children:
-          [#div #cell class: "cell" cell text: contents sort: column style:
-            [display: "inline-block" width: 50 height: 50 border: "1px solid black" background: "white" font-size: "2em" line-height: "50px" text-align: "center" vertical-align: "top"]]]]]
-```
+bind @browser
+	[#div board #container style: [font-family: "sans-serif"], children:
+		[#div #status board class: "status", style: [text-align: "center" width: 150 height: 50, padding-bottom: 10]]
+		[#div class: "board", style: [color: "black"] children:
+			[#div class: "row", sort: row, children:
+				[#div #cell cell class: "cell", text: contents, sort: column,
+         style: [display: "inline-block", width: 50, height: 50, border: "1px solid black", background: "white", font-size: "2em", line-height: "50px", text-align: "center", vertical-align: "top"]]]]]
+~~~
 
 Winning cells are drawn in a different color
 
-```
-  search @session @browser
-    winning-cells = [#cell #winner]
-    cell-elements = [#div cell: winning-cells style]
+~~~
+search @session @browser
+  winning-cells = [#cell #winner]
+  cell-elements = [#div cell: winning-cells style]
 
-  bind @browser
-    style.color := "blue"
-```
+bind @browser
+  style.color := "blue"
+~~~
 
-Finally, we fill the previously mentioned `#status` div with our current game state. If no winner has been declared, we remind the competitors of whose turn it is, and once a winner is found we announce her newly-acquired bragging rights.
+### Draw status message
+
+Finally, we fill the previously mentioned #status div with our current game state. If no winner has been declared, we remind the competitors of whose turn it is, and once a winner is found we announce her newly-acquired bragging rights.
 
 Display the current player if the game isn't won
 
-```
-  search @session @browser
-    status = [#status board]
-    not(board.winner)
+~~~
+search @session @browser
+  status = [#status board]
+  not(board.winner)
 
-  bind @browser
-    status.text += "It's {{board.player}}'s turn!"
-```
+bind @browser
+  status.text += "It's {{board.player}}'s turn!"
+~~~
 
 When the game is won, display the winner
 
-```
-  search @session @browser
-    status = [#status board]
-    winner = board.winner
+~~~
+search @session @browser
+  status = [#status board]
+  winner = board.winner
 
-  bind @browser
-    status.text += "{{winner}} wins! Click anywhere to restart!"
-```
+bind @browser
+  status.text += "{{winner}} wins! Click anywhere to restart!"
+~~~

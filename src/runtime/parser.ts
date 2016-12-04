@@ -228,14 +228,14 @@ let LexerModes:any = {
 
 let allTokens: any[] = codeTokens.concat([Fence, DocContent, CloseString, StringEmbedOpen, StringEmbedClose, StringChars]);
 
-let EveDocLexer = new Lexer({modes: LexerModes, defaultMode: "doc"}, true);
-let EveBlockLexer = new Lexer({modes: LexerModes, defaultMode: "code"}, true);
+let EveDocLexer = new Lexer({modes: LexerModes, defaultMode: "doc"});
+let EveBlockLexer = new Lexer({modes: LexerModes, defaultMode: "code"});
 
 //-----------------------------------------------------------
 // Parse Nodes
 //-----------------------------------------------------------
 
-export type NodeDependent = chev.Token | ParseNode;
+export type NodeDependent = chev.ISimpleTokenOrIToken | ParseNode;
 
 export interface ParseNode {
   type?: string
@@ -260,6 +260,7 @@ export class ParseBlock {
   links: string[] = [];
   tokens: chev.Token[];
   searchScopes: string[] = [];
+  parent: ParseBlock | undefined;
 
   constructor(id, variableLookup?) {
     this.id = id;
@@ -333,6 +334,7 @@ export class ParseBlock {
 
   subBlock() {
     let neue = new ParseBlock(`${this.id}|sub${this.nodeId++}`, this.variableLookup);
+    neue.parent = this;
     return neue;
   }
 }
@@ -342,7 +344,7 @@ export class ParseBlock {
 // Parser
 //-----------------------------------------------------------
 
-class Parser extends chev.Parser {
+export class Parser extends chev.Parser {
   block: ParseBlock;
   activeScopes: string[];
   currentAction: string;
@@ -1412,9 +1414,9 @@ export function parseDoc(doc, docId = `doc|${docIx++}`) {
   let parsedBlocks = [];
   let allErrors = [];
   for(let block of blocks) {
+    extraInfo[block.id] = {info: block.info};
     if(block.info !== "" && block.info.indexOf("eve") === -1) continue;
     let {results, lex, errors} = parseBlock(block.literal, block.id, block.startOffset, spans, extraInfo);
-    extraInfo[block.id] = {info: block.info};
     // if this block is disabled, we want the parsed spans and such, but we don't want
     // the block to be in the set sent to the builder
     if(block.info.indexOf("disabled") > -1) {

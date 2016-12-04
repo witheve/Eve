@@ -2,7 +2,6 @@
 // Builder
 //-----------------------------------------------------------
 
-import {inspect} from "util";
 import * as join from "./join";
 import * as providers from "./providers/index";
 import "./providers/math";
@@ -210,6 +209,16 @@ class BuilderContext {
 // Scans
 //-----------------------------------------------------------
 
+function checkBlockForVariable(block, variableName) {
+  let curBlock = block;
+  while(curBlock) {
+    let found = curBlock.variables[variableName];
+    if(found) return found;
+    curBlock = curBlock.parent;
+  }
+  return;
+}
+
 function checkSubBlockEqualities(context, block) {
   // if we have an equality that is with a constant, then we need to add
   // a node for that equality since we couldn't fold the constant into the variable
@@ -287,6 +296,11 @@ function buildScans(block, context, scanLikes, outputScans) {
         node = context.getValue(scanLike.node)
         context.provide(node);
       }
+
+      if(!(entity || attribute || value || node)) {
+        context.errors.push(errors.blankScan(block, scanLike));
+      }
+
       let final = new join.Scan(scanLike.id + "|build", entity, attribute, value, node, scanLike.scopes);
       outputScans.push(final);
       scanLike.buildId = final.id;
@@ -298,9 +312,8 @@ function buildScans(block, context, scanLikes, outputScans) {
 
       let args = [];
       let seen = [];
-      let blockVars = block.variables;
       for(let variableName in scanLike.variables) {
-        let cur = blockVars[variableName];
+        let cur = checkBlockForVariable(block, variableName);
         if(!cur) continue;
         let value = notContext.getValue(cur);
         if(join.isVariable(value)) {
@@ -316,7 +329,6 @@ function buildScans(block, context, scanLikes, outputScans) {
       let seen = [];
       let args = [];
       let branches = [];
-      let blockVars = block.variables;
       let hasAggregate = false;
       for(let variable of scanLike.outputs) {
         let value = context.getValue(variable);
@@ -329,7 +341,7 @@ function buildScans(block, context, scanLikes, outputScans) {
 
         let branchContext = context.extendTo(branch.block);
         for(let variableName in branch.block.variables) {
-          let cur = blockVars[variableName];
+          let cur = checkBlockForVariable(branch.block.parent, variableName);
           if(!cur) continue;
           let value = branchContext.getValue(cur);
           if(join.isVariable(value) && !seen[value.id]) {

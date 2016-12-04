@@ -20,7 +20,7 @@ export class HttpDatabase extends Database {
       changes.store(scope, responseId, "tag", "response", this.id);
       changes.store(scope, responseId, "body", body, this.id);
       let contentType = oReq.getResponseHeader("content-type");
-      if(contentType && contentType.indexOf("application/json") > -1) {
+      if(contentType && contentType.indexOf("application/json") > -1 && body) {
         let id = eavs.fromJS(changes, JSON.parse(body), this.id, scope, `${responseId}|json`);
         changes.store(scope, responseId, "json", id, this.id);
       }
@@ -30,14 +30,15 @@ export class HttpDatabase extends Database {
     if(request.method) {
       method = request.method[0];
     }
+
+    oReq.open(method, request.url[0]);
+
     if(request.headers) {
       let headers = this.index.asObject(request.headers[0]);
       for(let header in headers) {
         oReq.setRequestHeader(header, headers[header][0]);
       }
     }
-
-    oReq.open(method, request.url[0]);
 
     if(request.body) {
       oReq.send(request.body[0]);

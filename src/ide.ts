@@ -7,7 +7,7 @@ import {Span, SpanMarker, isSpanMarker, isEditorControlled, spanTypes, compareSp
 import * as Spans from "./ide/spans";
 
 import {activeElements} from "./renderer";
-import {send, sendEvent, indexes} from "./client";
+import {client, indexes} from "./client";
 
 //---------------------------------------------------------
 // Navigator
@@ -67,7 +67,7 @@ class Navigator {
 
     let parent = root;
     for(let curId in files) {
-      let node:TreeNode = {id: curId, name: curId, type: "document"};
+      let node:TreeNode = {id: curId, name: curId.split("/").pop(), type: "document"};
       this.nodes[curId] = node;
       if(!parent.children) parent.children = [curId];
       else parent.children.push(curId);
@@ -90,7 +90,10 @@ class Navigator {
     headings.sort(compareSpans);
 
     let root:TreeNode = this.nodes[id];
-    if(!root) throw new Error("Cannot load non-existent document.");
+    if(!root) {
+      console.error("Cannot load non-existent document.");
+      return;
+    }
     root.open = true;
     root.children = undefined;
 
@@ -293,7 +296,7 @@ class Navigator {
 
   toggleInspectorFocus = () => {
     if(this.isFocused()) {
-      sendEvent([{tag: ["inspector",  "unfocus-current"]}]);
+      client.sendEvent([{tag: ["inspector",  "unfocus-current"]}]);
       for(let nodeId in this.nodes) {
         let node = this.nodes[nodeId];
         if(!node) continue;
@@ -301,8 +304,17 @@ class Navigator {
       }
       this.updateElision();
     } else {
-      sendEvent([{tag: ["inspector",  "focus-current"]}]);
+      client.sendEvent([{tag: ["inspector",  "focus-current"]}]);
     }
+  }
+
+  createDocument = (event:MouseEvent, {nodeId}) => {
+    // @FIXME: This needs to be keyed off nodeId, not name for multi-level workspaces.
+    // Top level node id is currently hardwired for what I imagine seemed like a good reason at the time.
+    let node = this.nodes[nodeId];
+    if(!node) return;
+    this.ide.createDocument(node.name);
+    node.name
   }
 
   // Elements
@@ -325,7 +337,7 @@ class Navigator {
       {c: "flex-row", children: [
         {c: `label ${subtree ? "ion-ios-arrow-down" : "no-icon"}`, text: node.name, nodeId, click: subtree ? this.toggleBranch : this.navigate}, // icon should be :before
         {c: "controls", children: [
-          subtree ? {c: "new-btn ion-ios-plus-empty", click: () => console.log("new folder or document")} : undefined,
+          subtree ? {c: "new-btn ion-ios-plus-empty", nodeId, click: this.createDocument} : undefined,
           {c: "delete-btn ion-ios-close-empty", click: () => console.log("delete folder or document w/ confirmation")}
         ]}
       ]},
@@ -1968,6 +1980,8 @@ export class IDE {
   generation = 0;
   /** Whether the currently open document is a modified version of an example. */
   modified = false;
+  /** Whether or not files are stored and operated on purely locally */
+  local = false;
 
   /** Whether the inspector is currently active. */
   inspecting = false;
@@ -2007,13 +2021,13 @@ export class IDE {
     let items = [];
     for(let notice of this.notices) {
       let time = new Date(notice.time);
-
+      let formattedMinutes = time.getMinutes() >= 10 ? time.getMinutes() : `0${time.getMinutes()}`;
+      let formattedSeconds = time.getSeconds() >= 10 ? time.getMinutes() : `0${time.getSeconds()}`;
       items.push({c: `notice ${notice.type} flex-row`, children: [
-        {c: "time", text: `${time.getHours()}:${time.getMinutes()}:${time.getSeconds()}`},
+        {c: "time", text: `${time.getHours()}:${formattedMinutes}:${formattedSeconds}`},
         {c: "message", text: notice.message}
       ]});
     }
-
     if(items.length) {
       return {c: "notices", children: items};
     }
@@ -2030,7 +2044,7 @@ export class IDE {
       if(this.onChange) this.onChange(this);
       this.editor.dirty = false;
 
-      sendEvent([{tag: ["inspector", "clear"]}]);
+      client.sendEvent([{tag: ["inspector", "clear"]}]);
       this.saveDocument();
 
       if(shouldEval) {
@@ -2044,8 +2058,23 @@ export class IDE {
     this.render();
   }, 1, true);
 
-  loadFile(docId:string) {
-    if(this.loading || this.documentId === docId) return;
+  loadFile(docId:string, content?:string) {
+    if(!docId) return false;
+    // if we're not in local mode, file content is going to come from
+    // some other source and we should just load it directly
+    if(!this.local && content !== undefined) {
+      this.documentId = docId;
+      this.editor.reset();
+      this.notices = [];
+      this.loading = true;
+      this.onLoadFile(this, docId, content);
+      return true;
+    } else if(this.loading || this.documentId === docId) {
+      return false;
+    }
+
+    // Otherwise we load the file from either localstorage or from the supplied
+    // examples object
     let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
     let code = saves[docId];
     if(code) {
@@ -2054,16 +2083,22 @@ export class IDE {
       code = this._fileCache[docId];
       this.modified = false;
     }
-    if(!code) throw new Error(`Unable to load uncached file: '${docId}'`);
+    if(code === undefined) {
+      console.error(`Unable to load uncached file: '${docId}'`);
+      return false;
+    }
     this.loaded = false;
     this.documentId = docId;
     this.editor.reset();
     this.notices = [];
     this.loading = true;
     this.onLoadFile(this, docId, code);
+
+    return true;
   }
 
   loadWorkspace(directory:string, files:{[filename:string]: string}) {
+    // @FIXME: un-hardcode root to enable multiple WS's.
     this._fileCache = files;
     this.navigator.loadWorkspace("root", directory, files);
   }
@@ -2092,8 +2127,25 @@ export class IDE {
 
   saveDocument() {
     if(!this.documentId || !this.loaded) return;
-    let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
+
     let md = this.editor.toMarkdown();
+
+    // @NOTE: We sync this here to prevent a terrible reload bug that occurs when saving to the file system.
+    // This isn't really the right fix, but it's a quick one that helps prevent lost work in trivial cases
+    // like navigating the workspace.
+    // @TODO: This logic needs ripped out entirely and replaced with a saner abstraction that keeps the
+    // file system and workspace in sync.
+    // @TODO: localStorage also needs to get synced and cleared lest it permanently overrule other sources of truth.
+    this._fileCache[this.documentId] = md;
+
+    // if we're not local, we notify the outside world that we're trying
+    // to save
+    if(!this.local) {
+      return this.onSaveDocument(this, this.documentId, md);
+    }
+
+    // othewise, save it to local storage
+    let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
     if(md !== this._fileCache[this.documentId]) {
       saves[this.documentId] = md;
       this.modified = true;
@@ -2113,6 +2165,23 @@ export class IDE {
     this.loadFile(docId);
   }
 
+  createDocument(folder:string) {
+    let newId:string|undefined;
+    let ix = 0;
+    while(!newId) {
+      newId = `/${folder}/untitled${ix ? "-" + ix : ""}.eve`;
+      if(this._fileCache[newId]) newId = undefined;
+    }
+    let emptyTemplate = `# Untitled`;
+    this._fileCache[newId] = emptyTemplate;
+    // @FIXME: Need a way to side-load a single node that isn't hardwired to a span.
+    // Split the current updateNode up.
+    // @FIXME: This won't work with multiple workspaces obviously.
+    this.loadWorkspace("examples", this._fileCache);
+    if(this.onSaveDocument) this.onSaveDocument(this, newId, emptyTemplate);
+    this.loadFile(newId);
+  }
+
   injectSpans(packed:any[], attributes:{[id:string]: any|undefined}) {
     this.editor.injectSpans(packed, attributes);
     this.comments.update();
@@ -2121,7 +2190,17 @@ export class IDE {
 
   injectNotice(type:string, message:string) {
     let time = Date.now();
-    this.notices.push({type, message, time});
+    let existing;
+    for(let notice of this.notices) {
+      if(notice.type === type && notice.message === message) {
+        existing = notice;
+        existing.time = time;
+        break;
+      }
+    }
+    if(!existing) {
+      this.notices.push({type, message, time});
+    }
     this.render();
     this.editor.cm.refresh();
   }
@@ -2305,7 +2384,7 @@ export class IDE {
           for(let record of records) {
             record.action = actionId;
           }
-          sendEvent(records);
+          client.sendEvent(records);
         }
       },
 
@@ -2353,7 +2432,7 @@ export class IDE {
             record.tag.push("editor");
             record["action"] = actionId;
           }
-          sendEvent(records);
+          client.sendEvent(records);
         }));
       },
 
@@ -2363,7 +2442,7 @@ export class IDE {
             record.tag.push("editor");
             record["action"] = actionId;
           }
-          sendEvent(records);
+          client.sendEvent(records);
         }));
       },
 
@@ -2383,7 +2462,7 @@ export class IDE {
             record.tag.push("editor");
             record["action"] = actionId;
           }
-          sendEvent(records);
+          client.sendEvent(records);
         }));
       },
 
@@ -2393,7 +2472,7 @@ export class IDE {
             record.tag.push("editor");
             record["action"] = actionId;
           }
-          sendEvent(records);
+          client.sendEvent(records);
         }));
       },
 
@@ -2409,7 +2488,7 @@ export class IDE {
               record.tag.push("editor");
               record["action"] = actionId;
             }
-            sendEvent(records);
+            client.sendEvent(records);
           }));
       },
 
@@ -2419,7 +2498,7 @@ export class IDE {
             record.tag.push("editor");
             record["action"] = actionId;
           }
-          sendEvent(records);
+          client.sendEvent(records);
         }));
       },
 
@@ -2429,7 +2508,7 @@ export class IDE {
             record.tag.push("editor");
             record["action"] = actionId;
           }
-          sendEvent(records);
+          client.sendEvent(records);
         }));
       },
 
@@ -2439,7 +2518,7 @@ export class IDE {
             record.tag.push("editor");
             record["action"] = actionId;
           }
-          sendEvent(records);
+          client.sendEvent(records);
         }));
       },
 
@@ -2563,7 +2642,7 @@ export class IDE {
       if(record.span) {
         this.attachView(recordId, record.span[0]);
       } else if(record.node) {
-        send({type: "findNode", recordId, node: record.node[0]});
+        client.send({type: "findNode", recordId, node: record.node[0]});
       } else {
         console.warn("Unable to parent view that doesn't provide its origin node  or span id", record);
       }
@@ -2634,7 +2713,7 @@ export class IDE {
 
   toggleInspecting() {
     if(this.inspecting) {
-      sendEvent([{tag: ["inspector", "clear"]}]);
+      client.sendEvent([{tag: ["inspector", "clear"]}]);
     } else {
       this.inspectingClick = true;
     }
@@ -2680,7 +2759,7 @@ export class IDE {
 
     this.queueUpdate();
     if(events.length) {
-      sendEvent(events);
+      client.sendEvent(events);
       event.preventDefault();
       event.stopPropagation();
     }
@@ -2690,6 +2769,7 @@ export class IDE {
   onEval?:(self:IDE, persist?: boolean) => void
   onLoadFile?:(self:IDE, documentId:string, code:string) => void
   onTokenInfo?:(self:IDE, tokenId:string) => void
+  onSaveDocument?:(self:IDE, documentId:string, code:string) => void
 }
 
 type FindSourceArgs = {record?: string, attribute?: string, span?:string|string[], source?: {block?: string[], span?: string[]}[]};
@@ -2845,7 +2925,7 @@ class LanguageService {
     this._listeners[id] = callback;
     args.type = type;
     //console.log("SENT", args);
-    send(args);
+    client.send(args);
   }
 
   handleMessage = (message) => {

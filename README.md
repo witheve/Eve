@@ -3,18 +3,23 @@
 </p>
 
 ---
+ 
+Eve is a programming language and IDE based on years of research into building a human-first programming platform. You can play with Eve online here: [play.witheve.com](http://play.witheve.com/).
 
-Eve is a set of tools to help us think. Currently, these tools include: a temporal query language, a compiler, and a database.
-
-<p align="center">
-  <img src="https://witheve.github.io/assets/images/editor.png" alt="Eve Clock" width="80%"/>
-</p>
+[![Play With Eve](http://programming.witheve.com/images/eve.png)](http://play.witheve.com/)
 
 ## Installation
 
 ### From Source
 
-You'll need a recent [node.js](https://nodejs.org) and then:
+You'll need a recent [node.js](https://nodejs.org) for your platform. Download the Eve source either by cloning this repository:
+
+
+```
+git clone https://github.com/witheve/Eve.git
+```
+
+or you can [download](https://github.com/witheve/Eve/archive/master.zip) the Eve source directly. To build and run Eve, run the following commands in the root Eve directory:
 
 ```
 npm install
@@ -23,15 +28,39 @@ npm start
 
 Then open `http://localhost:8080/` in your browser.
 
+### From npm
+
+Alternatively, you can download Eve directly from npm with the following command:
+
+```
+npm install witheve
+```
+
+### From Docker
+
+First, [download](https://www.docker.com/products/docker) and install Docker for your platform. To download and install the Eve container, run the following command:
+
+```
+docker run -p 8080:8080 witheve/eve
+```
+
 ## How to use Eve
 
 You can learn about Eve with the following resources:
 
-- [Quick Start Tutorial](http://play.witheve.com/)
+- [Play with Eve in your browser](http://play.witheve.com/) (use Chrome for best results)
 - [Syntax Quick Reference](https://witheve.github.io/assets/docs/SyntaxReference.pdf)
 - [Eve Language Handbook (draft)](http://docs.witheve.com)
 
 *Please let us know what kind of documents would be the most helpful as you begin your journey with Eve*. We want our documentation to be a highlight of the Eve experience, so any suggestions are greatly appreciated.
+
+### Running Eve Programs in Server Mode
+
+By default, Eve executes on the client browser. To instead execute your program on the server, launch Eve with the `--server` flag:   
+
+```
+npm start -- --server
+```
 
 ## Get Involved
 
@@ -39,10 +68,10 @@ You can learn about Eve with the following resources:
 
 The Eve community is small but constantly growing, and everyone is welcome!
 
-- Join our [mailing list](https://groups.google.com/forum/#!forum/eve-talk) and get involved with the latest discussions on Eve.
+- Join or start a discussion on our [mailing list](https://groups.google.com/forum/#!forum/eve-talk).
 - Impact the future of Eve by getting involved with our [Request for Comments](https://github.com/witheve/rfcs) process.
-- Read our [development diary](http://incidentalcomplexity.com/).
-- Follow us on [twitter](https://twitter.com/with_eve).
+- Read our [development blog](http://incidentalcomplexity.com/).
+- Follow us on [Twitter](https://twitter.com/with_eve).
 
 ### How to Contribute
 
@@ -64,6 +93,6 @@ Eve is licensed under the Apache 2.0 license, see [LICENSE](https://github.com/w
 
 ## Disclaimer
 
-Eve is currently at a very early, "pre-alpha" stage of development. This means the language, tools, and docs are largely incomplete, but undergoing rapid and continuous development. If you encounter errors while using Eve, don't worry: it's likely our fault. Please bring the problem to our attention by [filing an issue](https://github.com/witheve/eve#how-to-file-an-issue).
+Eve is currently at a very early, "alpha" stage of development. This means the language, tools, and docs are largely incomplete, but undergoing rapid and continuous development. If you encounter errors while using Eve, don't worry: it's likely our fault. Please bring the problem to our attention by [filing an issue](https://github.com/witheve/eve#how-to-file-an-issue).
 
 As always, with pre-release software, don’t use this for anything important. We are continuously pushing to this codebase, so you can expect very rapid changes. At this time, we’re not prepared make the commitment that our changes will not break your code, but we’ll do our best to [update you](https://groups.google.com/forum/#!forum/eve-talk) on the biggest changes.

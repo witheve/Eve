@@ -4,22 +4,27 @@
 
 import {Constraint} from "../join";
 import * as providers from "./index";
+import {deprecated} from "../util/deprecated";
 
-class Add extends Constraint {
-  // Add proposes the addition of its args as its value for the
+abstract class TotalFunctionConstraint extends Constraint {
+  abstract getReturnValue(args: any[]) : number;
+
+  // Proposes the return value of the total function as the value for the
   // proposed variable.
   resolveProposal(proposal, prefix) {
     let {args} = this.resolve(prefix);
-    return [args[0] + args[1]];
+    let result = this.getReturnValue(args);
+    if (isNaN(result)) {return [];}
+    return [result];
   }
 
-  // Check if our return is equivalent to adding our args
+  // Check if our return is equivalent to the result of the total function.
   test(prefix) {
     let {args, returns} = this.resolve(prefix);
-    return args[0] + args[1] === returns[0];
+    return this.getReturnValue(args) === returns[0];
   }
 
-  // Add always has a cardinality of 1
+  // Total functions always have a cardinality of 1
   getProposal(tripleIndex, proposed, prefix) {
     let proposal = this.proposalObject;
     proposal.providing = proposed;
@@ -28,295 +33,271 @@ class Add extends Constraint {
   }
 }
 
-class Subtract extends Constraint {
-  // subtract proposes the subtractition of its args as its value for the
-  // proposed variable.
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [args[0] - args[1]];
-  }
-
-  // Check if our return is equivalent to subtracting our args
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return args[0] - args[1] === returns[0];
-  }
-
-  // subtract always has a cardinality of 1
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
-  }
-}
-
-class Multiply extends Constraint {
-  // multiply proposes the multiplyition of its args as its value for the
-  // proposed variable.
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [args[0] * args[1]];
-  }
-
-  // Check if our return is equivalent to multiplying our args
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return args[0] * args[1] === returns[0];
-  }
-
-  // multiply always has a cardinality of 1
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
-  }
-}
-
-class Divide extends Constraint {
-  // divide proposes the divideition of its args as its value for the
-  // proposed variable.
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [args[0] / args[1]];
-  }
-
-  // Check if our return is equivalent to divideing our args
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return args[0] / args[1] === returns[0];
-  }
-
-  // divide always has a cardinality of 1
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
-  }
-}
-
-class Sin extends Constraint {
+abstract class TrigConstraint extends TotalFunctionConstraint{
   static AttributeMapping = {
-    "angle": 0,
-  }
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [Math.sin(args[0] * (Math.PI / 180))];
+    "degrees": 0,
+    "radians": 1
   }
 
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return Math.sin(args[0] * (Math.PI / 180)) === returns[0];
-  }
+  resolveTrigAttributes(args) : any {
+    let degrees = args[0];
+    let radians = args[1];
 
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
+    //degrees which overrides radians. 
+    if (! isNaN(degrees)){ radians = degreesToRadians(degrees);}
+    return radians;
   }
 }
 
+abstract class ValueOnlyConstraint extends TotalFunctionConstraint{
+  static AttributeMapping = {
+      "value": 0
+  }
+}
 
-class Log extends Constraint {
+function radiansToDegrees(radians:number){
+  return radians * (180 / Math.PI);
+}
+
+
+function degreesToRadians(degrees:number){
+  return degrees * (Math.PI / 180);
+}
+
+class Add extends TotalFunctionConstraint {
+  resolveProposal(proposal, prefix) {
+    let {args} = this.resolve(prefix);
+    return [this.getReturnValue(args)];
+  }
+
+  getReturnValue(args) {
+    return args[0] + args[1];
+  }
+}
+
+class Subtract extends TotalFunctionConstraint {
+  getReturnValue(args) {
+    return args[0] - args[1];
+  }
+}
+
+class Multiply extends TotalFunctionConstraint {
+  getReturnValue(args) {
+    return args[0] * args[1];
+  }
+}
+
+class Divide extends TotalFunctionConstraint {
+  resolveProposal(proposal, prefix) {
+     let {args} = this.resolve(prefix);
+     //Handle divide by zero
+     if (args[1] === 0) {return[]};
+     return [this.getReturnValue(args)];
+  }
+  getReturnValue(args) {
+    if (args[1] === 0) {return};
+    return args[0] / args[1];
+  }
+}
+
+class Sin extends TrigConstraint {
+  getReturnValue(args) {
+      return Math.sin(this.resolveTrigAttributes(args));
+  }
+}
+
+class Cos extends TrigConstraint {
+  getReturnValue(args) {
+      return Math.cos(this.resolveTrigAttributes(args));
+  }
+}
+
+class Tan extends TrigConstraint {
+  getReturnValue(args) {
+      return Math.tan(this.resolveTrigAttributes(args));
+  }
+}
+
+class ASin extends ValueOnlyConstraint {
+  getReturnValue(args) {
+    return Math.asin(args[0]);
+  }
+}
+
+class ACos extends ValueOnlyConstraint {
+  getReturnValue(args) {
+    return Math.acos(args[0]);
+  }
+}
+
+class ATan extends ValueOnlyConstraint {
+  getReturnValue(args) {
+    return Math.atan(args[0]);
+  }
+}
+
+class ATan2 extends TotalFunctionConstraint {
+  static AttributeMapping = {
+    "x": 0,
+    "y": 1
+  }
+  getReturnValue(args) {
+    return (Math.atan2(args[0] ,args[1]));
+  }
+}
+
+//Hyperbolic Functions
+class SinH extends ValueOnlyConstraint {
+  sinh (x: number):number{
+    var y = Math.exp(x);
+    return (y - 1 / y) / 2;
+  }
+  getReturnValue(args) {
+    return (this.sinh(args[0]));
+  }
+}
+
+class CosH extends ValueOnlyConstraint {
+  cosh (x: number):number{
+    var y = Math.exp(x);
+    return (y + 1 / y) / 2;
+  }
+  getReturnValue(args) {
+    return (this.cosh(args[0]));
+  }
+}
+
+class TanH extends ValueOnlyConstraint {
+  tanh(x : number) : number {
+    if (x === Infinity) {
+      return 1;
+    } else if (x === -Infinity) {
+      return -1;
+    } else {
+      let y = Math.exp(2 * x);
+      return (y - 1) / (y + 1);
+    }
+  }
+  getReturnValue(args) {
+    return (this.tanh(args[0]));
+  }
+}
+
+//Inverse Hyperbolic
+class ASinH extends ValueOnlyConstraint {
+  asinh (x: number):number{
+    if (x === -Infinity) {
+      return x;
+    } else {
+      return Math.log(x + Math.sqrt(x * x + 1));
+    }
+  }
+  getReturnValue(args) {
+    return this.asinh(args[0]);
+  }
+}
+
+class ACosH extends ValueOnlyConstraint {
+  acosh (x: number):number{
+    //How do we handle number outside of range in Eve? 
+    if (x < 1) {return NaN}
+    return Math.log(x + Math.sqrt(x * x - 1));
+  }
+
+  getReturnValue(args) {
+    return this.acosh(args[0]);
+  }
+}
+
+class ATanH extends ValueOnlyConstraint {
+  atanh(x : number) : number {
+    //How do we handle number outside of range in Eve? 
+    if (Math.abs(x) > 1) {return NaN}
+    return Math.log((1 + x) / (1 - x)) / 2;
+  }
+
+  getReturnValue(args) {
+    return this.atanh(args[0]);
+  }
+}
+
+class Log extends TotalFunctionConstraint {
   static AttributeMapping = {
     "value": 0,
-  }
-  // log proposes the log of its arg as its value for the proposed variable.
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [Math.log(args[0])/Math.log(10)];
+    "base" : 1
   }
 
-  // Check if our return is equivalent to multiplying our args
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return Math.log(args[0])/Math.log(10) === returns[0];
-  }
-
-  // multiply always has a cardinality of 1
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
+  getReturnValue(args) {
+    let baselog = 1;        
+    if (! (isNaN(args[1]))){
+      baselog = Math.log(args[1]);
+    }
+    return (Math.log(args[0]) / baselog);
   }
 }
 
-class Pow extends Constraint {
+class Exp extends ValueOnlyConstraint {
+  getReturnValue(args) {
+    return (Math.exp(args[0]));
+  }
+}
+
+class Pow extends TotalFunctionConstraint {
   static AttributeMapping = {
     "value": 0,
     "by": 1,
   }
-  // log proposes the log of its arg as its value for the proposed variable.
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [Math.pow(args[1], args[0])];
-  }
 
-  // Check if our return is equivalent to multiplying our args
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return Math.pow(args[1], args[0]) === returns[0];
-  }
-
-  // multiply always has a cardinality of 1
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
+  getReturnValue(args) {
+    return Math.pow(args[0], args[1]);
   }
 }
 
-
-class Mod extends Constraint {
+class Mod extends TotalFunctionConstraint {
   static AttributeMapping = {
     "value": 0,
     "by": 1,
   }
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [args[0] % args[1]];
-  }
 
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return args[0] % args[1] === returns[0];
-  }
-
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
+  getReturnValue(args) {
+    return args[0] % args[1];
   }
 }
 
-class Abs extends Constraint {
-  static AttributeMapping = {
-    "value": 0,
-  }
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [Math.abs(args[0])];
-  }
-
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return Math.abs(args[0]) === returns[0];
-  }
-
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
+class Abs extends ValueOnlyConstraint {
+  getReturnValue(args) {
+    return Math.abs(args[0]);
   }
 }
 
-class Floor extends Constraint {
-  static AttributeMapping = {
-    "value": 0,
-  }
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [Math.floor(args[0])];
-  }
-
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return Math.floor(args[0]) === returns[0];
-  }
-
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
+class Floor extends ValueOnlyConstraint {
+  getReturnValue(args) {
+    return Math.floor(args[0]);
   }
 }
 
-class Ceiling extends Constraint {
-  static AttributeMapping = {
-    "value": 0,
-  }
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [Math.ceil(args[0])];
-  }
-
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return Math.ceil(args[0]) === returns[0];
-  }
-
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
+class Ceiling extends ValueOnlyConstraint {
+  getReturnValue(args) {
+    return Math.ceil(args[0]);
   }
 }
 
-
-class Cos extends Constraint {
-  static AttributeMapping = {
-    "angle": 0,
-  }
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [Math.cos(args[0] * (Math.PI / 180))];
-  }
-
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return Math.cos(args[0] * (Math.PI / 180)) === returns[0];
-  }
-
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
-  }
-}
-
-class Random extends Constraint {
+class Random extends TotalFunctionConstraint {
   static AttributeMapping = {
     "seed": 0,
   }
 
   static cache = {};
 
-  getRandom(seed) {
+  getReturnValue(args) {
+    let [seed] = args;
     let found = Random.cache[seed];
     if(found) return found;
     return Random.cache[seed] = Math.random();
   }
-
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [this.getRandom(args[0])];
-  }
-
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return this.getRandom(args[0]) === returns[0];
-  }
-
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
-  }
 }
 
-
-class Gaussian extends Constraint {
+class Gaussian extends TotalFunctionConstraint {
   static AttributeMapping = {
     "seed": 0,
     "σ": 1,
@@ -325,35 +306,36 @@ class Gaussian extends Constraint {
 
   static cache = {};
 
-  getRandom(seed, sigma, mu) {
+  getReturnValue(args) {
+    let [seed, sigma, mu] = args;
     if (sigma === undefined) sigma = 1.0
     if (mu === undefined) mu = 0.0
-    let found = Random.cache[seed];
+    let found = Gaussian.cache[seed];
     if(found) return found;
     let u1 = Math.random()
     let u2 = Math.random()
     let z0 = Math.sqrt(-2.0 * Math.log(u1) ) * Math.cos (Math.PI * 2 * u2)
     let key =  "" + seed + sigma + mu
     let res =  z0 * sigma + mu;
-    Random.cache[key] = res
+    Gaussian.cache[key] = res
     return res
   }
+}
 
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [this.getRandom(args[0], args[1], args[2])];
+class Round extends ValueOnlyConstraint {
+  getReturnValue(args) {
+    return Math.round(args[0]);
+  }
+}
+
+class ToFixed extends TotalFunctionConstraint {
+  static AttributeMapping = {
+    "value": 0,
+    "places": 1,
   }
 
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return this.getRandom(args[0], args[1], args[2]) === returns[0];
-  }
-
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
+  getReturnValue(args) {
+    return args[0].toFixed(args[1]);
   }
 }
 
@@ -409,61 +391,85 @@ class Range extends Constraint {
   }
 }
 
-class Round extends Constraint {
-  static AttributeMapping = {
-    "value": 0,
-  }
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [Math.round(args[0])];
-  }
-
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return Math.round(args[0]) === returns[0];
-  }
-
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
+//Constants
+class PI extends TotalFunctionConstraint {
+  getReturnValue(args) {
+    return Math.PI;
   }
 }
 
-class ToFixed extends Constraint {
-  static AttributeMapping = {
-    "value": 0,
-    "places": 1,
-  }
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [args[0].toFixed(args[1])];
-  }
-
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return args[0].toFixed(args[1]) === returns[0];
-  }
-
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
+class E extends TotalFunctionConstraint {
+  getReturnValue(args) {
+    return Math.E;
   }
 }
 
+class LN2 extends TotalFunctionConstraint {
+  getReturnValue(args) {
+    return Math.LN2;
+  }
+}
+
+class LN10 extends TotalFunctionConstraint {
+  getReturnValue(args) {
+    return Math.LN10;
+  }
+}
+
+class LOG2E extends TotalFunctionConstraint {
+  getReturnValue(args) {
+    return Math.LOG2E;
+  }
+}
+
+class LOG10E extends TotalFunctionConstraint {
+  getReturnValue(args) {
+    return Math.LOG10E;
+  }
+}
+
+class SQRT1_2 extends TotalFunctionConstraint {
+  getReturnValue(args) {
+    return Math.SQRT1_2;
+  }
+}
+
+class SQRT2 extends TotalFunctionConstraint {
+  getReturnValue(args) {
+    return Math.SQRT2;
+  }
+}
 
 providers.provide("+", Add);
 providers.provide("-", Subtract);
 providers.provide("*", Multiply);
 providers.provide("/", Divide);
-providers.provide("sin", Sin);
+
 providers.provide("log", Log);
+providers.provide("exp", Exp);
+
+//Trig and Inverse Trig
+providers.provide("sin", Sin);
 providers.provide("cos", Cos);
+providers.provide("tan", Tan);
+
+providers.provide("asin", ASin);
+providers.provide("acos", ACos);
+providers.provide("atan", ATan);
+
+providers.provide("atan2", ATan2);
+
+//Hyperbolic Functions.
+providers.provide("sinh", SinH);
+providers.provide("cosh", CosH);
+providers.provide("tanh", TanH);
+providers.provide("asinh", ASinH);
+providers.provide("acosh", ACosH);
+providers.provide("atanh", ATanH);
+
 providers.provide("floor", Floor);
 providers.provide("ceiling", Ceiling);
+
 providers.provide("abs", Abs);
 providers.provide("mod", Mod);
 providers.provide("pow", Pow);
@@ -472,3 +478,13 @@ providers.provide("range", Range);
 providers.provide("round", Round);
 providers.provide("gaussian", Gaussian);
 providers.provide("to-fixed", ToFixed);
+
+//Constants
+providers.provide("pi", PI);
+providers.provide("e", E);
+providers.provide("ln2", LN2);
+providers.provide("ln10", LN10);
+providers.provide("log2e",LOG2E );
+providers.provide("log10e",LOG10E );
+providers.provide("sqrt1/2", SQRT1_2);
+providers.provide("sqrt2", SQRT2);

@@ -31,7 +31,7 @@ function buildDist(callback:() => void) {
     fs.writeFileSync("./dist/index.html", index);
 
     //copy("./index.html", "./dist/index.html", tracker.track("copy index"));
-    copy("./build/examples.js", "./dist/build/examples.js", tracker.track("copy packaged examples"));
+    copy("./build/workspaces.js", "./dist/build/workspaces.js", tracker.track("copy packaged workspaces"));
 
 
     for(let pattern of ["build/src/**/*.js", "build/src/**/*.js.map", "src/**/*.css", "css/**/*.css", "examples/**/*.css"]) {

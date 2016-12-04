@@ -6,7 +6,7 @@ This is a simple webapp with an equally simple issue: When navigated to the "att
 
 Create some students, teachers, syllabi, and schools.
 
-```
+~~~
 commit
   middlington = [#school name: "Middlington Jr. High"]
 
@@ -22,13 +22,13 @@ commit
   [#syllabus name: "Advanced Rocket Surgery" class: 2 | assignment: ("self study", "group project", "finals")]
 
   [#app page: "grades" user]
-```
+~~~
 
 ### Events
 
 When a `#nav` button is clicked, update the app's current page.
 
-```
+~~~
 search @event
   [#click #direct-target element]
 
@@ -37,13 +37,13 @@ search @browser
 
 commit
   app.page := page
-```
+~~~
 
 ### Drawing
 
 Draw the page template. The specific page will be drawn into `#content` later on.
 
-```
+~~~
 search
   app = [#app]
 
@@ -54,13 +54,13 @@ bind @browser
       [#button #nav app text: "syllabus"]
       [#button #nav app text: "attendance"]]
     [#div #content app style: [min-height: 500] sort: 2]]
-```
+~~~
 
 ### Pages
 
 When the page is "grades", show the student's grades for the current teacher.
 
-```
+~~~
 search
   app = [#app page: "grades" user: teacher]
   student = [#student name school: teacher.school class: teacher.class grade]
@@ -74,11 +74,11 @@ bind @browser
     [#header sort: 0 text: "Grades for {{teacher.name}}'s class"]
     [#div sort: ix text: "{{name}}'s grade is {{grade}}"]]
 
-```
+~~~
 
 When the page is "syllabus", show the syllabus for the current teacher's class.
 
-```
+~~~
 search
   app = [#app page: "syllabus" user: teacher]
   syllabus = [#syllabus class: teacher.class assignment]
@@ -90,11 +90,11 @@ bind @browser
   content <- [children:
     [#header sort: 0 text: "Syllabus for {{syllabus.name}}"]
     [#div text: assignment]]
-```
+~~~
 
 When the page is "attendance", show each student's number of absences.
 
-```
+~~~
 search
   app = [#app page: "attendance" user: teacher]
   teacher.school = [#school name]
@@ -108,4 +108,4 @@ bind @browser
   content <- [children:
     [#header sort: 0 text: "Attendance for {{name}}"]
     [#div sort: ix text: "{{name}}'s grade is {{grade}}"]]
-```
+~~~
