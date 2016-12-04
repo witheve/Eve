@@ -610,6 +610,7 @@ export class CodeBlockSpan extends BlockSpan {
   protected widgetLine:number;
   protected widget:CodeMirror.LineWidget;
   protected widgetElem:HTMLElement;
+  protected languageLabelElem:HTMLElement;
   protected enableToggleElem:HTMLElement;
 
   protected footerWidgetLine:number;
@@ -693,6 +694,13 @@ export class CodeBlockSpan extends BlockSpan {
 
     this.widgetElem = document.createElement("div");
     this.widgetElem.className = "code-controls-widget";
+
+    if (this.syntax() !== "eve") {
+      this.languageLabelElem = document.createElement("div");
+      this.languageLabelElem.className = "code-language-label";
+      this.languageLabelElem.textContent = this.syntax().toUpperCase();
+      this.widgetElem.appendChild(this.languageLabelElem);
+    }
 
     this.enableToggleElem = document.createElement("div");
     this.enableToggleElem.classList.add("enable-btn");
