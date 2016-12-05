@@ -1,0 +1,58 @@
+{
+  "name": "witheve",
+  "version": "0.2.2",
+  "description": "Programming designed for humans",
+  "keywords": ["language", "ide", "relational", "database", "dataflow"],
+  "homepage": "http://witheve.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/witheve/Eve"
+  },
+  "bugs": {
+    "url": "https://github.com/witheve/Eve/issues"
+  },
+  "license": "Apache-2.0",
+
+  "bin": {
+    "eve": "./bin/eve.js"
+  },
+
+  "scripts": {
+    "build": "./node_modules/.bin/tsc && node ./build/scripts/build.js",
+    "start": "./node_modules/.bin/tsc && node ./bin/eve.js",
+    "server": "node ./bin/eve.js",
+
+    "prepublish": "./node_modules/.bin/tsc && node ./build/scripts/build.js",
+    "build-dist": "node ./build/scripts/build-dist.js",
+
+    "test": "node ./build/test/all.js | faucet"
+  },
+
+  "dependencies": {
+    "@types/body-parser": "0.0.33",
+    "@types/commonmark": "^0.22.29",
+    "@types/express": "^4.0.33",
+    "@types/glob": "^5.0.30",
+    "@types/minimist": "^1.1.29",
+    "@types/mkdirp": "^0.3.29",
+    "@types/node": "^6.0.41",
+    "@types/request": "0.0.31",
+    "@types/tape": "^4.2.28",
+    "@types/ws": "0.0.33",
+    "body-parser": "^1.15.2",
+    "chevrotain": "^0.14.0",
+    "commonmark": "^0.26.0",
+    "express": "^4.14.0",
+    "glob": "^7.1.1",
+    "minimist": "^1.2.0",
+    "mkdirp": "^0.5.1",
+    "node-uuid": "^1.4.7",
+    "request": "^2.75.0",
+    "typescript": "^2.0.3",
+    "ws": "^1.1.1"
+  },
+  "devDependencies": {
+    "faucet": "0.0.1",
+    "tape": "^4.6.0"
+  }
+}

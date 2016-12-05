@@ -1,0 +1,59 @@
+# Compiled Lua sources
+luac.out
+
+# luarocks build files
+*.src.rock
+*.zip
+*.tar.gz
+
+# Object files
+*.o
+*.os
+*.ko
+*.obj
+*.elf
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Libraries
+*.lib
+*.a
+*.la
+*.lo
+*.def
+*.exp
+
+# Shared objects (inc. Windows DLLs)
+*.dll
+*.so
+*.so.*
+*.dylib
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+
+lua_modules/
+
+*~
+dist/
+build/
+node_modules/
+
+experimental/build/continuation_templates.h
+experimental/build/eve
+experimental/build/path.c
+experimental/build/Eve.xcodeproj/xcuserdata
+experimental/build/Eve.xcodeproj/*/xcuserdata
+experimental/build/lua
+experimental/build/luajit-2.0
+experimental/build/*.js
+
+experimental/build/*.js
+experimental/build/*.js.map

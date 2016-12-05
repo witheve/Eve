@@ -1,0 +1,69 @@
+# Working With Forms
+
+## Inputs
+
+Display a textbox
+
+```
+commit @browser
+  [#label text: "Enter your name: " children: [#input type: "text" name: "name" value: "Bill"]]
+```
+
+Get the value of the textbox and display it in a message
+
+```
+search @browser
+  [#input name: "name" value]
+
+bind @browser
+  [#div text: "Hi there {{value}}."]
+```
+
+## Radio buttons
+
+Display radio buttons
+
+```
+commit @browser
+  [#h3 text: "What's your favorite flavor of ice cream?"]
+  [#label text: "Vanilla" children: [#input type: "radio" name: "flavor" value: "vanilla"]]
+  [#label text: "Chocolate" children: [#input type: "radio" name: "flavor" value: "chocolate"]]
+  [#label text: "Matcha" children: [#input type: "radio" name: "flavor" value: "matcha"]]
+```
+
+All flavors except Matcha are a good choice
+
+```
+search @browser
+  [#input name: "flavor" checked value]
+  text = if value != "matcha" then "Good choice!"
+         else "To each their own I guess."
+        
+bind @browser
+  [#div text: "Good choice!"]
+```
+
+## Checkboxes
+
+Display checkboxes
+
+```
+commit @browser
+  [#h3 text: "What's would you like to eat?"]
+  [#label text: "Rice" children: [#input type: "checkbox" name: "food" value: "rice"]]
+  [#label text: "Meat" children: [#input type: "checkbox" name: "food" value: "meat"]]
+  [#label text: "Pickles" children: [#input type: "checkbox" name: "food" value: "pickles"]]
+  [#label text: "Soup" children: [#input type: "checkbox" name: "food" value: "soup"]]
+```
+
+Search for inputs named "food" that are checked, and bind them display them in a list
+
+```
+search @browser
+  [#input name: "food" value checked]
+  
+bind @browser
+  [#div text: "There are some bowls here containing:" children:
+    [#ul children:
+      [#li text: value]]]
+```
