@@ -98,11 +98,11 @@ export class Sort extends Constraint {
   }
 
   test(prefix) {
-    let {group} = this.resolveAggregate(prefix);
+    let {group, value} = this.resolveAggregate(prefix);
     let resultGroup = this.aggregateResults[JSON.stringify(group)];
     if(resultGroup !== undefined) {
       let returns = resolve(this.returns, prefix, this.resolvedReturns);
-      return returns[0] === resultGroup.result;
+      return returns[0] === resultGroup[JSON.stringify(value)];
     }
   }
 

@@ -318,3 +318,55 @@ test("ATanH < -1 and > 1 should return nothing.", (assert) => {
   `);
   assert.end();
 });
+
+test("Test random seed", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "same-seed", "true"],
+      ["b", "different-seed", "false"],
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+    search
+      r1 = random[seed:0]
+      r2 = random[seed:0]
+      r3 = random[seed:1]
+      same-seed = if r1 = r2 then "true" else "false"
+      different-seed = if r1 = r3 then "true" else "false"
+
+    bind
+      [same-seed]
+      [different-seed]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("Test gaussian seed", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "same-seed", "true"],
+      ["b", "different-seed", "false"],
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+    search
+      g1 = gaussian[seed:0, σ:1.0, µ:0.0]
+      g2 = gaussian[seed:0, σ:1.0, µ:0.0]
+      g3 = gaussian[seed:1, σ:1.0, µ:0.0]
+      same-seed = if g1 = g2 then "true" else "false"
+      different-seed = if g1 = g3 then "true" else "false"
+
+    bind
+      [same-seed]
+      [different-seed]
+    ~~~
+  `);
+  assert.end();
+})
