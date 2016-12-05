@@ -184,11 +184,7 @@ export class Scan {
     let solving = [];
     let solveNode = this.node !== undefined;
     let depth = solveNode ? 4 : 3;
-    if(a !== undefined) {
-      this._fullScanLookup(index.aveIndex, solving, results, [a,v,e,node], 0, 0, depth);
-    } else  {
-      this._fullScanLookup(index.eavIndex, solving, results, resolved, 0, 0, depth);
-    }
+    this._fullScanLookup(index.eavIndex, solving, results, resolved, 0, 0, depth);
     return results;
   }
 

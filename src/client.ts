@@ -199,15 +199,23 @@ export class EveClient {
     this.send({type: "event", insert: eavs})
   }
 
+  injectNotice(type:string, message:string) {
+    if(this.ide) {
+      this.ide.injectNotice(type, message);
+    } else {
+      if(type === "error") console.error(message);
+      else if(type === "warning") console.warn(message);
+      else console.info(message);
+    }
+  }
+
   onError() {
     this.localControl = true;
     this.localEve = true;
     if(!this.ide) {
       this._initProgram({runtimeOwner: Owner.client, controlOwner: Owner.client, withIDE: true, path: (window.location.hash || "").slice(1) || "/examples/quickstart.eve"});
-    } else if(this.showIDE) {
-      this.ide.injectNotice("error", "Unexpectedly disconnected from the server. Please refresh the page.");
     } else {
-      console.error("Unexpectedly disconnected from the server. Please refresh the page.");
+      this.injectNotice("error", "Unexpectedly disconnected from the server. Please refresh the page.");
     }
   }
 
@@ -224,7 +232,7 @@ export class EveClient {
   }
 
   onClose() {
-    this.ide.injectNotice("warning", "The editor has lost connection to the Eve server. All changes will be made locally.");
+    this.injectNotice("warning", "The editor has lost connection to the Eve server. All changes will be made locally.");
   }
 
   onMessage(event) {
@@ -310,8 +318,7 @@ export class EveClient {
   }
 
   _error(data) {
-    if(!this.showIDE) return;
-    this.ide.injectNotice("error", data.message);
+    this.injectNotice("error", data.message);
   }
 
 }
@@ -472,7 +479,7 @@ function changeDocument() {
   try {
     ide.loadFile(docId);
   } catch(err) {
-    ide.injectNotice("info", "Unable to load unknown file: " + docId);
+    client.injectNotice("info", "Unable to load unknown file: " + docId);
   }
   ide.render();
 }

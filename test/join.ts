@@ -37,7 +37,6 @@ test("search and create a record", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person]
@@ -67,7 +66,6 @@ test("search with constant filter", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -99,7 +97,6 @@ test("search with constant attribute", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name: "chris"]
@@ -130,7 +127,6 @@ test("search with attribute having multiple values", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name: "chris" name: "michael"]
@@ -158,7 +154,6 @@ test("search with attribute having multiple values in parenthesis", (assert) => 
         [#person name: "chris" name: "michael"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name: ("chris", "michael")]
@@ -186,7 +181,6 @@ test("search with attribute having multiple values in parenthesis with a functio
         [#person name: "chris" name: 13]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name: ("chris", 4 + 9)]
@@ -265,7 +259,6 @@ test("search with incompatible filters", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -297,7 +290,6 @@ test("search with unprovided variable", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         [#person]
@@ -328,7 +320,6 @@ test("search with unprovided root in an attribute access", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         [#person]
@@ -356,7 +347,6 @@ test("search with escaped strings", (assert) => {
         [#person name: "chris" info: "{\\"age\\": 10, \\"school\\": \\"Lincoln\\"}"]
     ~~~
 
-    foo bar
     ~~~
       search
         [#person info]
@@ -383,7 +373,6 @@ test("search with escaped embeds", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         [#person name]
@@ -414,7 +403,6 @@ test("setting an attribute", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -446,7 +434,6 @@ test("setting an attribute to itself", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -480,7 +467,6 @@ test("setting an attribute in multiple blocks", (assert) => {
         p.meep := "moop"
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person meep]
@@ -516,7 +502,6 @@ test("setting an attribute to multiple values", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -551,7 +536,6 @@ test("merging multiple values into an attribute", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -586,7 +570,6 @@ test("merges with subobjects pick up the parent object as part of their projecti
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -623,7 +606,6 @@ test("creating an object with multiple values for an attribute", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -654,7 +636,6 @@ test("creating an object with multiple complex values for an attribute", (assert
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -684,7 +665,6 @@ test("setting an attribute on an object with multiple complex values", (assert) 
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -716,7 +696,6 @@ test("merging an attribute on an object with multiple complex values", (assert) 
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -744,7 +723,6 @@ test("setting an attribute that removes a previous value", (assert) => {
         [#person name: "chris" dude: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -772,7 +750,6 @@ test("setting an attribute on click", (assert) => {
         [#person name: "chris" dude: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         [#click]
@@ -804,7 +781,6 @@ test("erase a record", (assert) => {
         [#person name: "chris" dude: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -830,7 +806,6 @@ test("erase an attribute", (assert) => {
         [#person age: 19 age: 21 age: 30]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person]
@@ -862,7 +837,6 @@ test("sum constant", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person]
@@ -897,7 +871,6 @@ test("sum variable", (assert) => {
         [#person name: "chris" age: 20]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person age]
@@ -932,7 +905,6 @@ test("sum variable with multiple givens", (assert) => {
         [#person name: "chris" age: 20]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person age]
@@ -973,7 +945,6 @@ test("sum groups", (assert) => {
         [#person name: "mike" age: 20]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person age]
@@ -1014,7 +985,6 @@ test("sum groups with multiple pers", (assert) => {
         [#person name: "mike" age: 20]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person age]
@@ -1047,7 +1017,6 @@ test("aggregate stratification", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person]
@@ -1082,7 +1051,6 @@ test("aggregate stratification with results", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person]
@@ -1122,7 +1090,6 @@ test("aggregate stratification with another aggregate", (assert) => {
         [#person name: "mike" age: 20]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person age]
@@ -1151,7 +1118,7 @@ test("unstratifiable aggregate", (assert) => {
           [#person name: "mike" age: 20]
       ~~~
 
-      foo bar
+ 
       ~~~
         search
           p = [#person age]
@@ -1483,7 +1450,6 @@ test("you only search facts in the specified database", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search @foo
         p = [#person]
@@ -1516,7 +1482,6 @@ test("you can search from multiple databases", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search (@foo, @session)
         p = [#person]
@@ -1547,7 +1512,6 @@ test("writing is scoped to databases", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person]
@@ -1582,7 +1546,6 @@ test("you can write into multiple databases", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person]
@@ -1613,7 +1576,6 @@ test("reading in a scoped write uses the search scope", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person]
@@ -1649,7 +1611,6 @@ test("reading in multiple scopes write uses the search scope", (assert) => {
         [#person name: "woop"]
     ~~~
 
-    foo bar
     ~~~
       search (@blah, @session)
         p = [#person]
@@ -1679,7 +1640,6 @@ test("scoped attribute mutators pick up the search scope", (assert) => {
         [#person name: "chris" brother: [#person name: "ryan"]]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person]
@@ -1710,7 +1670,6 @@ test("multi-level attribute accesses", (assert) => {
         [#person name: "chris" brother: [#person name: "ryan"]]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person]
@@ -1732,7 +1691,6 @@ test("split function", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
       search
         token = split[text: "foo|bar|baz" by: "|"]
@@ -1757,7 +1715,6 @@ test("split function with multiple returns", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
       search
         (token, index) = split[text: "foo|bar|baz" by: "|"]
@@ -1782,7 +1739,6 @@ test("split function with attribute returns", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
       search
          split[text: "foo|bar|baz" by: "|", token, index]
@@ -1802,7 +1758,6 @@ test("split function with fixed return", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
       search
         (token, 2) = split[text: "foo|bar|baz" by: "|"]
@@ -1822,7 +1777,6 @@ test("split function with fixed return attribute", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
       search
         split[text: "foo|bar|baz" by: "|", token, index: 2]
@@ -1842,7 +1796,6 @@ test("split function with fixed token", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
       search
         split[text: "foo|bar|baz" by: "|", token: "bar", index]
@@ -1863,7 +1816,6 @@ test("split function with both fixed", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
       search
         split[text: "foo|bar|baz" by: "|", token: "bar", index: 2]
@@ -1896,12 +1848,26 @@ test("pipe allows you to select ", (assert) => {
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
       commit
         [dude: p | name]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("blank lookup errors", (assert) => {
+  let expected = {
+    insert: [],
+    remove: [],
+    errors: true
+  };
+  evaluate(assert, expected, `
+    ~~~
+      search
+        lookup[]
     ~~~
   `);
   assert.end();
@@ -1924,7 +1890,6 @@ test("lookup with bound record", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         lookup[record: [#person], attribute, value]
@@ -1953,7 +1918,6 @@ test("lookup with bound attribute", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         lookup[record, attribute: "name", value]
@@ -1981,7 +1945,6 @@ test("lookup with free attribute, node and bound value", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         record = [#person]
@@ -2011,7 +1974,6 @@ test("lookup on node", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         lookup[record, attribute, value, node: "0|block|0|node|3|build"]
@@ -2045,7 +2007,6 @@ test("lookup all free", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         lookup[record, attribute, value, node]
@@ -2072,7 +2033,6 @@ test("lookup action", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         record = [#person]
@@ -2101,7 +2061,6 @@ test("lookup action without value errors", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         record = [#person]
@@ -2129,7 +2088,6 @@ test("lookup action remove", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         record = [#person]
@@ -2156,7 +2114,6 @@ test("lookup action remove free value", (assert) => {
         [#person name: "chris"]
     ~~~
 
-    foo bar
     ~~~
       search
         record = [#person]
@@ -2190,7 +2147,6 @@ test("an identifier followed by whitespace should not be interpreted as a functi
         [#person name: "joe"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -2214,7 +2170,6 @@ test("indented code blocks are not evaled", (assert) => {
           [#person name: "chris"]
           [#person name: "joe"]
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -2250,7 +2205,6 @@ test("single value sort", (assert) => {
         [#person name: "c"]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name]
@@ -2289,7 +2243,6 @@ test("multi value sort", (assert) => {
         [#person name: "b" age: 1]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name age]
@@ -2328,7 +2281,6 @@ test("multi value sort with multiple directions", (assert) => {
         [#person name: "b" age: 1]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name age]
@@ -2367,7 +2319,6 @@ test("sort with group", (assert) => {
         [#person name: "b" age: 1]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name age]
@@ -2421,7 +2372,6 @@ test("multiple inequalities in a row", (assert) => {
         [#person name: "joe" age: 10]
     ~~~
 
-    foo bar
     ~~~
       search
         p = [#person name age]
@@ -2445,7 +2395,6 @@ test("range positive increment", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
       search
         i = range[from: 1 to: 5]
@@ -2468,7 +2417,6 @@ test("range negative increment", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
       search
         i = range[from: -1 to: -5 increment: -1]
@@ -2488,7 +2436,6 @@ test("range increment on an edge boundary", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
       search
         i = range[from: 1 to: 5 increment: 3]
@@ -2507,7 +2454,6 @@ test("range with a single increment", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
       search
         i = range[from: 1 to: 5 increment: 10]
@@ -2524,7 +2470,6 @@ test("range with infinite increment", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
       search
         i = range[from: -1 to: -5 increment: 1]
@@ -2601,7 +2546,6 @@ test("not with no external dependencies", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
     search
       not (9 = 4 + 5)
@@ -2616,7 +2560,6 @@ test("not with no external dependencies", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
     search
       not (2 = 4 + 5)
@@ -2635,7 +2578,6 @@ test("not can't provide a variable for an attribute access", (assert) => {
     errors: true,
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
     search
       not(threads = [#zom])
@@ -2659,7 +2601,6 @@ test("not without dependencies filters correctly", (assert) => {
       [#foo]
     ~~~
 
-    foo bar
     ~~~
     search
       not([#foo])
@@ -2684,8 +2625,6 @@ test("indirect constant equality in if", (assert) => {
     remove: [],
   };
   evaluate(assert, expected, `
-    Now consider this:
-
     ~~~
       search
         one = 1
@@ -2709,8 +2648,6 @@ test("constant filter in if", (assert) => {
     remove: [],
   };
   evaluate(assert, expected, `
-    Now consider this:
-
     ~~~
       search
         x = 3
