@@ -223,8 +223,7 @@ testSingleExpressionByList(toFixed_list );
 test("Test that string concatenation is still working after NaN change.", (assert) => {
   let expected = {
     insert: [
-      ["a", "tag", "div"],
-      ["a", "text", "Test Testy"],
+      ["a", "result", "Test Testy"],
     ],
     remove: [],
   };
@@ -235,8 +234,9 @@ test("Test that string concatenation is still working after NaN change.", (asser
       a = "Test "
       b = "Testy"
       x =  a + b
-    bind @browser
-    [#div text: x]
+
+    bind
+      [result: x]
     ~~~
   `);
   assert.end();
@@ -249,12 +249,12 @@ test("Divide by zero should return nothing.", (assert) => {
   };
 
   evaluate(assert, expected, `
-    Now consider this:
     ~~~
     search
       x = 1 / 0
-    bind @browser
-      [#div text:x]
+
+    bind
+      [result: x]
     ~~~
   `);
   assert.end();
@@ -263,8 +263,7 @@ test("Divide by zero should return nothing.", (assert) => {
 test("Divide by zero in an if statement should be detectable.", (assert) => {
   let expected = {
     insert: [
-      ["a", "tag", "div"],
-      ["a", "text", "Divide by zero"],
+      ["a", "result", "Divide by zero"],
     ],
     remove: [],
   };
@@ -276,8 +275,9 @@ test("Divide by zero in an if statement should be detectable.", (assert) => {
       b = 0
       x = if a / b then "Ooops"
           else "Divide by zero"
-    bind @browser
-    [#div text: x]
+
+    bind
+      [result: x]
     ~~~
   `);
   assert.end();
@@ -290,12 +290,12 @@ test("ACosh < 1 should return nothing.", (assert) => {
   };
 
   evaluate(assert, expected, `
-    Now consider this:
     ~~~
     search
       x = acosh[value: 0.999999999999999]
-    bind @browser
-      [#div text:x]
+
+    bind
+      [result: x]
     ~~~
   `);
   assert.end();
@@ -308,13 +308,65 @@ test("ATanH < -1 and > 1 should return nothing.", (assert) => {
   };
 
   evaluate(assert, expected, `
-    Now consider this:
     ~~~
     search
       x = atanh[value: 1.000000000000001]
-    bind @browser
-      [#div text:x]
+
+    bind
+      [result: x]
     ~~~
   `);
   assert.end();
 });
+
+test("Test random seed", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "same-seed", "true"],
+      ["b", "different-seed", "false"],
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+    search
+      r1 = random[seed:0]
+      r2 = random[seed:0]
+      r3 = random[seed:1]
+      same-seed = if r1 = r2 then "true" else "false"
+      different-seed = if r1 = r3 then "true" else "false"
+
+    bind
+      [same-seed]
+      [different-seed]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("Test gaussian seed", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "same-seed", "true"],
+      ["b", "different-seed", "false"],
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+    search
+      g1 = gaussian[seed:0, σ:1.0, µ:0.0]
+      g2 = gaussian[seed:0, σ:1.0, µ:0.0]
+      g3 = gaussian[seed:1, σ:1.0, µ:0.0]
+      same-seed = if g1 = g2 then "true" else "false"
+      different-seed = if g1 = g3 then "true" else "false"
+
+    bind
+      [same-seed]
+      [different-seed]
+    ~~~
+  `);
+  assert.end();
+})
