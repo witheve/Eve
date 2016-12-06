@@ -181,17 +181,20 @@ export class Join extends Aggregate {
     "value": 0,
     "given": 1,
     "per": 2,
-    "ordinal": 3,
-    "separator": 4,
+    "index": 3,
+    "with": 4,
+    "token":0
   }
 
-  ordinal : any;
-  separator : any;
+  token : any;
+  index : any;
+  sepwith : any;
 
-  constructor(id: string, args: any[], returns: any[]) {
+constructor(id: string, args: any[], returns: any[]) {
     super(id, args, returns);
-    this.ordinal = args[3]
-    this.separator = args[4]
+    this.token = args[0]    
+    this.index = args[3]
+    this.sepwith = args[4]
   }
 
   aggregate(rows: any[]) {
@@ -202,11 +205,11 @@ export class Join extends Aggregate {
       resolve(this.groupVars, row, this.resolvedGroup)
       let group = this.resolvedAggregate.group;
       let projection = this.resolvedAggregate.projection;
-      let value = toValue(this.value, row);
-      let ordinal = toValue(this.ordinal, row);
-      let separator = toValue(this.separator, row);
+      let token = toValue(this.token, row);
+      let index = toValue(this.index, row);
+      let sepwith = toValue(this.sepwith, row);
 
-      if (separator === undefined) separator = "";
+      if (sepwith === undefined) sepwith = "";
 
       let groupKey = "[]";
       if(group.length !== 0) {
@@ -220,22 +223,22 @@ export class Join extends Aggregate {
       let projectionKey = JSON.stringify(projection);
       if(groupValues[projectionKey] === undefined) {
         groupValues[projectionKey] = true;
-        groupValues.result.push({value: value, ordinal:ordinal, separator:separator})
+        groupValues.result.push({token: token, index:index, sepwith:sepwith})
       }
     }
 
     for (let g in groups) {
         let s = groups[g].result.sort((a, b) => 
-                                      {if (a.ordinal > b.ordinal) return 1;
-                                       if (a.ordinal === b.ordinal) return 0;
+                                      {if (a.index > b.index) return 1;
+                                       if (a.index === b.index) return 0;
                                        return -1;})
         let len = s.length
         let result = ""
         for (var i=0; i<len; ++i) {
             // this means that the sep assocated with a value
             // is the one which occurs before the value
-            if (i != 0) result += s[i].separator
-            result += s[i].value 
+            if (i != 0) result += s[i].sepwith
+            result += s[i].token 
         }
         groups[g].result = result;
     }
