@@ -115,24 +115,32 @@ function createExpressApp() {
   app.get("/fonts/*", handleStatic);
 
   app.get("*", (request, response) => {
-    let client = new HTTPRuntimeClient();
-    let content = "";
-    if(filepath) content = fs.readFileSync(filepath).toString();
-    client.load(content, "user");
-    client.handle(request, response);
-    if(!client.server.handling) {
+    let client;
+    // @FIXME: When Owner.both is added this needs updated.
+    if(config.runtimeOwner === Owner.server) {
+      client = new HTTPRuntimeClient();
+      let content = "";
+      if(filepath) content = fs.readFileSync(filepath).toString();
+      client.load(content, "user");
+      client.handle(request, response);
+    }
+    if(config.runtimeOwner === Owner.client || client && !client.server.handling) {
       response.setHeader("Content-Type", `${contentTypes["html"]}; charset=utf-8`);
       response.end(fs.readFileSync(path.join(config.eveRoot, "index.html")));
     }
   });
 
   app.post("*", (request, response) => {
-    let client = new HTTPRuntimeClient();
-    let content = "";
-    if(filepath) content = fs.readFileSync(filepath).toString();
-    client.load(content, "user");
-    client.handle(request, response);
-    if(!client.server.handling) {
+    let client;
+    // @FIXME: When Owner.both is added this needs updated.
+    if(config.runtimeOwner === Owner.server) {
+      client = new HTTPRuntimeClient();
+      let content = "";
+      if(filepath) content = fs.readFileSync(filepath).toString();
+      client.load(content, "user");
+      client.handle(request, response);
+    }
+    if(config.runtimeOwner === Owner.client || client && !client.server.handling) {
       return response.status(404).send("Looks like that asset is missing.");
     }
   });
