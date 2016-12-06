@@ -168,7 +168,13 @@ export function whollyEnclosed(inner:Range, outer:Range) {
 // Net utilities
 //---------------------------------------------------------
 
+export function dasherize(text:string) {
+  if(text[0] === "/") text = text.slice(1);
+  return text.replace(/\//g, "-");
+}
+
 export function writeToGist(name:string, content:string, callback:(error:Error, url?:string) => void) {
+  name = dasherize(name);
   let request = new XMLHttpRequest();
   request.onreadystatechange = function() {
     if(request.readyState === 4) {
