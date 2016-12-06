@@ -1,7 +1,7 @@
 import {Renderer, Element as Elem, RenderHandler} from "microReact";
 import {Parser as MDParser} from "commonmark";
 import * as CodeMirror from "codemirror";
-import {debounce, uuid, unpad, Range, Position, isRange, compareRanges, comparePositions, samePosition, whollyEnclosed, adjustToWordBoundary} from "./util";
+import {debounce, uuid, unpad, Range, Position, isRange, compareRanges, comparePositions, samePosition, whollyEnclosed, adjustToWordBoundary, writeToGist, readFromGist} from "./util";
 
 import {Span, SpanMarker, isSpanMarker, isEditorControlled, spanTypes, compareSpans, SpanChange, isSpanChange, HeadingSpan, CodeBlockSpan, DocumentCommentSpan} from "./ide/spans";
 import * as Spans from "./ide/spans";
@@ -1714,6 +1714,8 @@ export class Editor {
     else if(this.ide.inspecting) inspectorButton.c += " inspecting";
 
     return {c: "flex-row controls", children: [
+      {c: "ion-ios-cloud-upload-outline", title: "Save to Gist", click: () => this.ide.saveToGist()},
+      {c: "ion-ios-cloud-download-outline", title: "Load from Gist", click: () => this.ide.loadFromGist()},
       {c: "ion-refresh", title: "Reset (⌃⇧⏎ or ⇧⌘⏎ )", click: () => this.ide.eval(false)},
       {c: "ion-ios-play", title: "Run (⌃⏎ or ⌘⏎)", click: () => this.ide.eval(true)},
       inspectorButton
@@ -2163,6 +2165,24 @@ export class IDE {
     localStorage.setItem("eve-saves", JSON.stringify(saves));
     this.documentId = undefined;
     this.loadFile(docId);
+  }
+
+  saveToGist() {
+    // @FIXME: We really need a display name setup for documents.
+    writeToGist(this.documentId || "Untitled.eve", this.editor.toMarkdown(), (err, url) => {
+      if(err) {
+        this.injectNotice("error", "Unable to save file to gist. Check the developer console for more information.");
+        console.error(err);
+      } else {
+        // @FIXME: This needs to be an anchor tag.
+        // @FIXME: info notices need to be dismissible.
+        this.injectNotice("info", `Saved to: ${url}`);
+      }
+    });
+  }
+
+  loadFromGist() {
+    console.error("@TODO: Implement me!");
   }
 
   createDocument(folder:string) {
