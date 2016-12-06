@@ -149,8 +149,8 @@ export function resolveActualExpected(assert, actuals, expecteds, entities) {
 }
 
 export function verify(assert, adds, removes, data) {
-  assert.equal(data.insert.length, adds.length, "Correct number of inserts");
-  assert.equal(data.remove.length, removes.length, "Correct number of removes");
+  assert.equal(data.insert.length, adds.length, "Wrong number of inserts");
+  assert.equal(data.remove.length, removes.length, "Wrong number of removes");
 
   // get all the entities
   let entities = collectEntities(adds);

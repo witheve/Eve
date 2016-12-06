@@ -110,9 +110,6 @@ function createExpressApp() {
 
   app.get("/assets/*", handleStatic);
   app.get("/build/*", handleStatic);
-  app.get("/src/*", handleStatic);
-  app.get("/css/*", handleStatic);
-  app.get("/fonts/*", handleStatic);
 
   app.get("*", (request, response) => {
     let client;
