@@ -561,6 +561,7 @@ function buildActions(block, context, actions, scans) {
 function stratify(scans) {
   if(!scans.length) return [new BlockStratum([], [])];
 
+  let aggregates = [];
   let variableInfo = {};
   let blockLevel = {};
 
@@ -579,10 +580,10 @@ function stratify(scans) {
       let info = variableInfo[variable.id]
       let minLevel = level;
       for(let provider of info.providers) {
-        let providerLevel = blockLevel[scan.id] || 0;
+        let providerLevel = blockLevel[provider.id] || 0;
         minLevel = Math.min(minLevel, providerLevel);
       }
-      info.level = level;
+      info.level = minLevel;
     }
   }
 
@@ -592,12 +593,10 @@ function stratify(scans) {
       provide(scan.a, scan);
       provide(scan.v, scan);
     } else if(scan instanceof Aggregate || scan instanceof Sort) {
+      aggregates.push(scan);
+      blockLevel[scan.id] = 1;
       for(let ret of scan.returns) {
         provide(ret, scan);
-        blockLevel[scan.id] = 1;
-        if(join.isVariable(ret)) {
-          variableInfo[ret.id].level = 1;
-        }
       }
     } else if(scan instanceof join.Constraint) {
       for(let ret of scan.returns) {
@@ -610,6 +609,18 @@ function stratify(scans) {
     } else if(scan instanceof join.NotScan) {
       // not can never provide a variable, so there's nothing
       // we need to do here
+    }
+  }
+
+  // Before we start to stratify, we need to run through all the aggregates
+  // to determine what level their returns should be at. If the aggregate is
+  // the only provider for the return, then it should be at the same level as
+  // the aggregate itself. If, however, there are other scans that provide the
+  // return, we want to pick up their level instead.
+  for(let aggregate of aggregates) {
+    let level = blockLevel[aggregate.id];
+    for(let variable of aggregate.returns) {
+      maybeLevelVariable(aggregate, level, variable);
     }
   }
 
