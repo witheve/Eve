@@ -668,7 +668,9 @@ function stratify(scans) {
             infoLevel = info.level
           }
           // if this is an aggregate, we always have to be in the level that is
-          // one greater than all our dependencies
+          // one greater than all our dependencies.
+          // In the event that one of our dependencies is filtered by an aggregate,
+          // we stratify ourselves behind it.
           if(isAgg) {
             for(let provider of info.providers) {
               if(isAggregate(provider) && provider !== scan) {
