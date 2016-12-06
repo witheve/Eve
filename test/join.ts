@@ -1063,6 +1063,75 @@ test("aggregate stratification with results", (assert) => {
   assert.end();
 });
 
+test("aggregate stratification result joined with an object", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "tag", "person"],
+      ["a", "name", "joe"],
+      ["b", "tag", "person"],
+      ["b", "name", "chris"],
+      ["c", "tag", "expected"],
+      ["c", "total", 2],
+      ["d", "tag", "success"],
+    ],
+    remove: [
+    ]
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#expected total: 2]
+        [#person name: "joe"]
+        [#person name: "chris"]
+    ~~~
+
+    ~~~
+      search
+        expected = [#expected]
+        p = [#person]
+        expected.total = count[given: p]
+      commit
+        [#success]
+    ~~~
+  `);
+  assert.end();
+});
+
+test("aggregate stratification result fails to join with an object", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "tag", "person"],
+      ["a", "name", "joe"],
+      ["b", "tag", "person"],
+      ["b", "name", "chris"],
+      ["c", "tag", "expected"],
+      ["c", "total", 3],
+    ],
+    remove: [
+    ]
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#expected total: 3]
+        [#person name: "joe"]
+        [#person name: "chris"]
+    ~~~
+
+    ~~~
+      search
+        expected = [#expected]
+        p = [#person]
+        expected.total = count[given: p]
+      commit
+        [#success]
+    ~~~
+  `);
+  assert.end();
+});
+
 test("aggregate stratification with another aggregate", (assert) => {
   let expected = {
     insert: [
@@ -1118,7 +1187,7 @@ test("unstratifiable aggregate", (assert) => {
           [#person name: "mike" age: 20]
       ~~~
 
- 
+
       ~~~
         search
           p = [#person age]
@@ -2692,6 +2761,48 @@ test("nested if/not expressions correctly get their args set", (assert) => {
       [#item idx: 0 title: "title 0"]
       [#item idx: 1]
     ~~~
+  `);
+  assert.end();
+})
+
+test("interdependent aggregates are appropriately stratified", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "tag", "foo"],
+      ["a", "a", 3],
+      ["a", "a", 5],
+
+      ["b", "tag", "bar"],
+      ["b", "b", 1],
+      ["b", "b", 2],
+      ["b", "b", 3],
+
+      ["c", "tag", "result"],
+      ["c", "value", 3]
+    ],
+    remove: [],
+  };
+  evaluate(assert, expected, `
+    Add some test data
+    ~~~ eve
+    commit
+      [#foo a: (3, 5)]
+      [#bar b: (1, 2, 3)]
+    ~~~
+
+
+    ~~~ eve
+    search
+      [#foo a]
+      [#bar b]
+
+      a = count[given: b]
+      final = sum[value: a, given: a]
+
+    bind
+      [#result value: final]
+    ~~~
+
   `);
   assert.end();
 })
