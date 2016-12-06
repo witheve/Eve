@@ -198,7 +198,6 @@ export function evaluates(assert, code, session = new Database()) {
   var success = false
   var inserts = changes.result().insert
   for(let triple of inserts) {
-    console.log("ko", triple[1], triple[2])
     if ((triple[1] === "tag") && (triple[2] === "success")) 
       success = true;
   }
