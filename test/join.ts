@@ -2764,3 +2764,45 @@ test("nested if/not expressions correctly get their args set", (assert) => {
   `);
   assert.end();
 })
+
+test("interdependent aggregates are appropriately stratified", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "tag", "foo"],
+      ["a", "a", 3],
+      ["a", "a", 5],
+
+      ["b", "tag", "bar"],
+      ["b", "b", 1],
+      ["b", "b", 2],
+      ["b", "b", 3],
+
+      ["c", "tag", "result"],
+      ["c", "value", 3]
+    ],
+    remove: [],
+  };
+  evaluate(assert, expected, `
+    Add some test data
+    ~~~ eve
+    commit
+      [#foo a: (3, 5)]
+      [#bar b: (1, 2, 3)]
+    ~~~
+
+
+    ~~~ eve
+    search
+      [#foo a]
+      [#bar b]
+
+      a = count[given: b]
+      final = sum[value: a, given: a]
+
+    bind
+      [#result value: final]
+    ~~~
+
+  `);
+  assert.end();
+})
