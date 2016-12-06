@@ -34,7 +34,7 @@ search
 
 bind @browser
     // Links to an external stylesheet
-  [#link rel: "stylesheet" href: "examples/css/todomvc.css"]
+  [#link rel: "stylesheet" href: "assets/css/examples/todomvc.css"]
   [#div class: "todoapp" children:
 
     [#header children:
