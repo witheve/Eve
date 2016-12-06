@@ -558,6 +558,16 @@ function buildActions(block, context, actions, scans) {
 // Stratifier
 //-----------------------------------------------------------
 
+function isAggregate(scan) {
+  if(scan instanceof Aggregate ||
+     scan instanceof Sort ||
+     scan.hasAggregate ||
+     (scan.strata && scan.strata.length > 1)) {
+    return true;
+  }
+  return false;
+}
+
 function stratify(scans) {
   if(!scans.length) return [new BlockStratum([], [])];
 
@@ -634,13 +644,7 @@ function stratify(scans) {
     // provider or if all the providers are now in a higher level. If so,
     // the variable's level is set to the scan's new level.
     for(let scan of scans) {
-      let isAggregate = false;
-      if(scan instanceof Aggregate ||
-         scan instanceof Sort ||
-         scan.hasAggregate ||
-         (scan.strata && scan.strata.length > 1)) {
-        isAggregate = true;
-      }
+      let isAgg = isAggregate(scan);
 
       let levelMax = 0;
       let scanLevel = blockLevel[scan.id] || 0;
@@ -665,7 +669,15 @@ function stratify(scans) {
           }
           // if this is an aggregate, we always have to be in the level that is
           // one greater than all our dependencies
-          if(isAggregate) {
+          if(isAgg) {
+            for(let provider of info.providers) {
+              if(isAggregate(provider) && provider !== scan) {
+                if(blockLevel[provider.id] > infoLevel) {
+                  infoLevel = blockLevel[provider.id];
+                }
+              }
+            }
+
             infoLevel += 1;
           }
           levelMax = Math.max(levelMax, infoLevel);
@@ -703,7 +715,6 @@ function stratify(scans) {
       strata[0].scans.push(scan);
     }
   }
-  // console.log(inspect(strata, {colors: true, depth: 10}));
 
   let built = [];
   for(let level of strata) {
