@@ -328,6 +328,13 @@ class Round extends ValueOnlyConstraint {
   }
 }
 
+class Fix extends ValueOnlyConstraint {
+  getReturnValue(args) {
+    let x = args[0];
+    return x - x % 1;
+  }
+}
+
 class ToFixed extends TotalFunctionConstraint {
   static AttributeMapping = {
     "value": 0,
@@ -476,6 +483,7 @@ providers.provide("pow", Pow);
 providers.provide("random", Random);
 providers.provide("range", Range);
 providers.provide("round", Round);
+providers.provide("fix", Fix);
 providers.provide("gaussian", Gaussian);
 providers.provide("to-fixed", ToFixed);
 
