@@ -657,7 +657,15 @@ export class Editor {
       "Cmd-1": () => this.format({type: "heading", level: 1}),
       "Cmd-2": () => this.format({type: "heading", level: 2}),
       "Cmd-3": () => this.format({type: "heading", level: 3}),
-      "Cmd-L": () => this.format({type: "item"})
+      "Cmd-L": () => this.format({type: "item"}),
+      "Tab": (cm) => {
+        if (cm.somethingSelected()) {
+          cm.indentSelection("add");
+        } else {
+          cm.replaceSelection(cm.getOption("indentWithTabs")? "\t":
+          Array(cm.getOption("indentUnit") + 1).join(" "), "end", "+input");
+        }
+      }
     })
   };
 
@@ -2028,7 +2036,6 @@ export class IDE {
         {c: "message", text: notice.message}
       ]});
     }
-
     if(items.length) {
       return {c: "notices", children: items};
     }
@@ -2131,6 +2138,14 @@ export class IDE {
 
     let md = this.editor.toMarkdown();
 
+    // @NOTE: We sync this here to prevent a terrible reload bug that occurs when saving to the file system.
+    // This isn't really the right fix, but it's a quick one that helps prevent lost work in trivial cases
+    // like navigating the workspace.
+    // @TODO: This logic needs ripped out entirely and replaced with a saner abstraction that keeps the
+    // file system and workspace in sync.
+    // @TODO: localStorage also needs to get synced and cleared lest it permanently overrule other sources of truth.
+    this._fileCache[this.documentId] = md;
+
     // if we're not local, we notify the outside world that we're trying
     // to save
     if(!this.local) {
@@ -2183,7 +2198,17 @@ export class IDE {
 
   injectNotice(type:string, message:string) {
     let time = Date.now();
-    this.notices.push({type, message, time});
+    let existing;
+    for(let notice of this.notices) {
+      if(notice.type === type && notice.message === message) {
+        existing = notice;
+        existing.time = time;
+        break;
+      }
+    }
+    if(!existing) {
+      this.notices.push({type, message, time});
+    }
     this.render();
     this.editor.cm.refresh();
   }

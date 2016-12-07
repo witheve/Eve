@@ -25,7 +25,8 @@
     "prepublish": "./node_modules/.bin/tsc && node ./build/scripts/build.js",
     "build-dist": "node ./build/scripts/build-dist.js",
 
-    "test": "node ./build/test/all.js | faucet"
+    "test": "node ./build/test/all.js | faucet",
+    "diagrams": "node ./build/scripts/build-syntax-diagrams.js"
   },
 
   "dependencies": {
@@ -40,7 +41,7 @@
     "@types/tape": "^4.2.28",
     "@types/ws": "0.0.33",
     "body-parser": "^1.15.2",
-    "chevrotain": "^0.14.0",
+    "chevrotain": "^0.18.0",
     "commonmark": "^0.26.0",
     "express": "^4.14.0",
     "glob": "^7.1.1",

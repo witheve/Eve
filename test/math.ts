@@ -1,43 +1,45 @@
 import * as test from "tape";
-import {evaluate,verify,dedent,testSingleExpressionByList} from "./shared_functions";
+import {evaluate, verify, dedent, testSingleExpressionByList, valueTest} from "./shared_functions";
 
 // Test Constants
-// Would this fail on different architectures than mine? Not according to dcmumentation Maybe we Should
+// Would this fail on different architectures than mine? Not according to documentation Maybe we Should
 // flush out that implicit assumption.
 
-let constants_list : any = [
-  {"Expression":"pi[]",      "Value":"3.141592653589793"},
-  {"Expression":"e[]",       "Value":"2.718281828459045"},
-  {"Expression":"ln2[]",     "Value":"0.6931471805599453"},
-  {"Expression":"log2e[]",   "Value":"1.4426950408889634"},
-  {"Expression":"log10e[]",  "Value":"0.4342944819032518"},
-  {"Expression":"sqrt1/2[]", "Value":"0.7071067811865476"},
-  {"Expression":"sqrt2[]",   "Value":"1.4142135623730951"}
+let delta = 0.00000000001;
+
+let constants_list : valueTest[] = [
+  {expression: "pi[]",      expectedValue: 3.141592653589793},
+  {expression: "e[]",       expectedValue: 2.718281828459045},
+  {expression: "ln2[]",     expectedValue: 0.6931471805599453},
+  {expression: "log2e[]",   expectedValue: 1.4426950408889634},
+  {expression: "log10e[]",  expectedValue: 0.4342944819032518},
+  {expression: "sqrt1/2[]", expectedValue: 0.7071067811865476},
+  {expression: "sqrt2[]",   expectedValue: 1.4142135623730951}
 ]
 testSingleExpressionByList(constants_list);
 
 // Test Power Function
-let pow_list : any = [
-  {"Expression":"pow[ value:2 by:3 ]",     "Value":"8"},
-  {"Expression":"pow[ value:9 by:1 / 2 ]", "Value":"3"}]
+let pow_list : valueTest[]  = [
+  {expression: "pow[ value:2 by:3 ]",     expectedValue: 8},
+  {expression: "pow[ value:9 by:1 / 2 ]", expectedValue: 3}]
 testSingleExpressionByList(pow_list);
 
 // Test Log Function
-let log_list : any = [
-  {"Expression":"log[ value: e[] ]", "Value":"1"},
-  {"Expression":"log[ value: 10 base: 10 ]", "Value":"1"}]
+let log_list : valueTest[]  = [
+  {expression: "log[ value: e[] ]", expectedValue: 1},
+  {expression: "log[ value: 10 base: 10 ]", expectedValue: 1}]
 testSingleExpressionByList(log_list);
 
 // Test Exp Function
-let exp_list : any = [
-  {"Expression":"exp[ value: 1 ]", "Value":"2.718281828459045"}]
+let exp_list : valueTest[]  = [
+  {expression: "exp[ value: 1 ]", expectedValue: 2.718281828459045}]
 testSingleExpressionByList(exp_list);
 
 // Test Trig Functions
-let trig_list : any = [
-  {"Expression":"sin[ radians: 1 ]", "Value":"0.8414709848078965"},
-  {"Expression":"cos[ radians: 1 ]", "Value":"0.5403023058681398"},
-  {"Expression":"tan[ radians: 1 ]", "Value":"1.5574077246549023"}
+let trig_list : valueTest[]  = [
+  {expression: "sin[ radians: 1 ]", expectedValue: 0.8414709848078965},
+  {expression: "cos[ radians: 1 ]", expectedValue: 0.5403023058681398},
+  {expression: "tan[ radians: 1 ]", expectedValue: 1.5574077246549023}
   ]
 testSingleExpressionByList(trig_list);
 
@@ -45,25 +47,21 @@ testSingleExpressionByList(trig_list);
 test("Should be able to use the sin function with degrees and radians", (assert) => {
   let expected = {
     insert: [
-      ["a", "tag", "div"],
-      ["a", "text", "1"],
-      ["b", "tag", "div"],
-      ["b", "text", "0.9999996829318346"],
+      ["a", "floatTest", "1"],
+      ["b", "floatTest", "0.9999996829318346"],
     ],
     remove: [],
   };
 
   evaluate(assert, expected, `
-    Now consider this:
-
     ~~~
     search
       y = sin[degrees: 90]
       x = sin[radians: 3.14 / 2]
 
-    bind @browser
-      [#div text: y]
-      [#div text: x]
+    bind
+      [floatTest: y]
+      [floatTest: x]
     ~~~
   `);
   assert.end();
@@ -72,25 +70,21 @@ test("Should be able to use the sin function with degrees and radians", (assert)
 test("Should be able to use the cos function with degrees and radians", (assert) => {
   let expected = {
     insert: [
-      ["a", "tag", "div"],
-      ["a", "text", "1"],
-      ["b", "tag", "div"],
-      ["b", "text", "-0.9999987317275395"],
+      ["a", "floatTest", "1"],
+      ["b", "floatTest", "-0.9999987317275395"],
     ],
     remove: [],
   };
 
   evaluate(assert, expected, `
-    Now consider this:
-
     ~~~
     search
       y = cos[degrees: 0]
       x = cos[radians: 3.14]
 
-    bind @browser
-      [#div text: y]
-      [#div text: x]
+    bind
+      [floatTest: y]
+      [floatTest: x]
     ~~~
   `);
   assert.end();
@@ -99,122 +93,280 @@ test("Should be able to use the cos function with degrees and radians", (assert)
 test("Should be able to use the tan function with degrees and radians", (assert) => {
   let expected = {
     insert: [
-      ["a", "tag", "div"],
-      ["a", "text", "0.5773502691896257"],
-      ["b", "tag", "div"],
-      ["b", "text", "0.5463024898437905"],
+      ["a", "floatTest", "0.5773502691896257"],
+      ["b", "floatTest", "0.5463024898437905"],
     ],
     remove: [],
   };
 
   evaluate(assert, expected, `
-    Now consider this:
-
     ~~~
     search
       y = tan[degrees: 30]
       x = tan[radians: 0.5]
 
-    bind @browser
-      [#div text: y]
-      [#div text: x]
+    bind
+      [floatTest: y]
+      [floatTest: x]
     ~~~
   `);
   assert.end();
 })
 
 // Test inverse Trig
-let atrig_list : any = [
-  {"Expression":"asin[ value: 0.8414709848078965 ]", "Value":"1"},
-  // Does Eve need an implicit round under the hood? The below should be 1
-  {"Expression":"acos[ value: 0.5403023058681398 ]", "Value":"0.9999999999999999"},
-  {"Expression":"atan[ value: 1.5574077246549023 ]", "Value":"1"},
+let atrig_list : valueTest[]  = [
+  {expression: "asin[ value: 0.8414709848078965 ]", expectedValue: 1},
+  {expression: "acos[ value: 0.5403023058681398 ]", expectedValue: 0.9999999999999999},
+  {expression: "atan[ value: 1.5574077246549023 ]", expectedValue: 1},
   ]
 testSingleExpressionByList(atrig_list);
 
 // Test Hyperbolic Functions
-let hyp_list : any = [
-  {"Expression":"sinh[ value: 1 ]", "Value":"1.1752011936438014"},
-  {"Expression":"cosh[ value: 1 ]", "Value":"1.5430806348152437"},
-  {"Expression":"tanh[ value: 1 ]", "Value":"0.7615941559557649"},
+let hyp_list : valueTest[]  = [
+  {expression: "sinh[ value: 1 ]", expectedValue: 1.1752011936438014},
+  {expression: "cosh[ value: 1 ]", expectedValue: 1.5430806348152437},
+  {expression: "tanh[ value: 1 ]", expectedValue: 0.7615941559557649},
   ]
 testSingleExpressionByList(hyp_list);
 
 // Test Inverse Hyperbolic Functions
-let ahyp_list : any = [
-  {"Expression":"asinh[ value: 1.1752011936438014 ]", "Value":"1"},
-  {"Expression":"acosh[ value: 1.5430806348152437 ]", "Value":"1"},
-  {"Expression":"atanh[ value: 0.7615941559557649 ]", "Value":"0.9999999999999999"},
+let ahyp_list : valueTest[]  = [
+  {expression: "asinh[ value: 1.1752011936438014 ]", expectedValue: 1},
+  {expression: "acosh[ value: 1.5430806348152437 ]", expectedValue: 1},
+  {expression: "atanh[ value: 0.7615941559557649 ]", expectedValue: 0.9999999999999999},
   ]
 testSingleExpressionByList(ahyp_list);
 
-test("Range and function within function", (assert) => {
+test("Test range", (assert) => {
   let expected = {
     insert: [
-      ["a", "tag", "div"],
-      ["a", "text", "1"],
-      ["b", "tag", "div"],
-      ["b", "text", "2"],
-      ["c", "tag", "div"],
-      ["c", "text", "3"],
+      ["a", "result", "1"],
+      ["b", "result", "2"],
+      ["c", "result", "3"],
     ],
     remove: [],
   };
 
   evaluate(assert, expected, `
-    Now consider this:
-
     ~~~
     search
-      x = range[from:1 to: pi[] increment: 1 ]
+      x = range[from:1 to: 3 increment: 1 ]
 
-    bind @browser
-      [#div text:x]
+    bind
+      [result: x]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("Test nested functions", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "floatTest", "1"],
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+    search
+      x = sin[radians: pi[] / 2]
+
+    bind
+      [floatTest: x]
     ~~~
   `);
   assert.end();
 })
 
 // Test Floor Function
-let floor_list : any = [
-  {"Expression":"floor[ value: 1.0000000000000001 ]", "Value":"1"},
-  {"Expression":"floor[ value: 1.999999999999999 ]", "Value":"1"},
+let floor_list : valueTest[]  = [
+  {expression: "floor[ value: 1.0000000000000001 ]", expectedValue: 1},
+  {expression: "floor[ value: 1.999999999999999 ]", expectedValue: 1},
   ]
 testSingleExpressionByList(floor_list);
 
 // Test Ceiling Function
-let ceiling_list : any = [
-  {"Expression":"ceiling[ value: 1.000000000000001 ]", "Value":"2"},
-  {"Expression":"ceiling[ value: 1.999999999999999 ]", "Value":"2"},
+let ceiling_list : valueTest[]  = [
+  {expression: "ceiling[ value: 1.000000000000001 ]", expectedValue: 2},
+  {expression: "ceiling[ value: 1.999999999999999 ]", expectedValue: 2},
   ]
 testSingleExpressionByList(ceiling_list);
 
-
 // Test ABS Function
-let abs_list : any = [
-  {"Expression":"abs[ value: -1 ]", "Value":"1"},
-  {"Expression":"abs[ value: 1 ]", "Value":"1"},
+let abs_list : valueTest[]  = [
+  {expression: "abs[ value: -1 ]", expectedValue: 1},
+  {expression: "abs[ value: 1 ]", expectedValue: 1},
   ]
 testSingleExpressionByList(abs_list);
 
-
 // Test Mod Function
-let mod_list : any = [
-  {"Expression":"mod[ value: 7 by: 3]", "Value":"1"},
-  {"Expression":"mod[ value: 6 by: 3]", "Value":"0"},
+let mod_list : valueTest[]  = [
+  {expression: "mod[ value: 7 by: 3]", expectedValue: 1},
+  {expression: "mod[ value: 6 by: 3]", expectedValue: 0},
   ]
 testSingleExpressionByList(mod_list);
 
-
 // Test Round Function
-let round_list : any = [
-  {"Expression":"round[ value: 1.49999999999999 ]", "Value":"1"},
-  {"Expression":"round[ value: 1.5 ]", "Value":"2"}
+let round_list : valueTest[]  = [
+  {expression: "round[ value: 1.49999999999999 ]", expectedValue: 1},
+  {expression: "round[ value: 1.5 ]", expectedValue: 2}
   ]
 testSingleExpressionByList(round_list);
 
 // Test Round Function
-let toFixed_list : any = [
-  {"Expression":"to-fixed[ value: 1.499 places:2 ]", "Value":"1.50"},
+let toFixed_list : valueTest[]  = [
+  {expression: "to-fixed[ value: 1.499 places: 2 ]", expectedValue: 1.50},
   ]
 testSingleExpressionByList(toFixed_list );
+
+test("Test that string concatenation is still working after NaN change.", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "result", "Test Testy"],
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+    search
+      a = "Test "
+      b = "Testy"
+      x =  a + b
+
+    bind
+      [result: x]
+    ~~~
+  `);
+  assert.end();
+});
+
+test("Divide by zero should return nothing.", (assert) => {
+  let expected = {
+    insert: [],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+    search
+      x = 1 / 0
+
+    bind
+      [result: x]
+    ~~~
+  `);
+  assert.end();
+});
+
+test("Divide by zero in an if statement should be detectable.", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "result", "Divide by zero"],
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+    search
+      a = 1
+      b = 0
+      x = if a / b then "Ooops"
+          else "Divide by zero"
+
+    bind
+      [result: x]
+    ~~~
+  `);
+  assert.end();
+});
+
+test("ACosh < 1 should return nothing.", (assert) => {
+  let expected = {
+    insert: [],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+    search
+      x = acosh[value: 0.999999999999999]
+
+    bind
+      [result: x]
+    ~~~
+  `);
+  assert.end();
+});
+
+test("ATanH < -1 and > 1 should return nothing.", (assert) => {
+  let expected = {
+    insert: [],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+    search
+      x = atanh[value: 1.000000000000001]
+
+    bind
+      [result: x]
+    ~~~
+  `);
+  assert.end();
+});
+
+test("Test random seed", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "same-seed", "true"],
+      ["b", "different-seed", "false"],
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+    search
+      r1 = random[seed:0]
+      r2 = random[seed:0]
+      r3 = random[seed:1]
+      same-seed = if r1 = r2 then "true" else "false"
+      different-seed = if r1 = r3 then "true" else "false"
+
+    bind
+      [same-seed]
+      [different-seed]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("Test gaussian seed", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "same-seed", "true"],
+      ["b", "different-seed", "false"],
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+    search
+      g1 = gaussian[seed:0, σ:1.0, µ:0.0]
+      g2 = gaussian[seed:0, σ:1.0, µ:0.0]
+      g3 = gaussian[seed:1, σ:1.0, µ:0.0]
+      same-seed = if g1 = g2 then "true" else "false"
+      different-seed = if g1 = g3 then "true" else "false"
+
+    bind
+      [same-seed]
+      [different-seed]
+    ~~~
+  `);
+  assert.end();
+})

@@ -228,14 +228,14 @@ let LexerModes:any = {
 
 let allTokens: any[] = codeTokens.concat([Fence, DocContent, CloseString, StringEmbedOpen, StringEmbedClose, StringChars]);
 
-let EveDocLexer = new Lexer({modes: LexerModes, defaultMode: "doc"}, true);
-let EveBlockLexer = new Lexer({modes: LexerModes, defaultMode: "code"}, true);
+let EveDocLexer = new Lexer({modes: LexerModes, defaultMode: "doc"});
+let EveBlockLexer = new Lexer({modes: LexerModes, defaultMode: "code"});
 
 //-----------------------------------------------------------
 // Parse Nodes
 //-----------------------------------------------------------
 
-export type NodeDependent = chev.Token | ParseNode;
+export type NodeDependent = chev.ISimpleTokenOrIToken | ParseNode;
 
 export interface ParseNode {
   type?: string
@@ -344,7 +344,7 @@ export class ParseBlock {
 // Parser
 //-----------------------------------------------------------
 
-class Parser extends chev.Parser {
+export class Parser extends chev.Parser {
   block: ParseBlock;
   activeScopes: string[];
   currentAction: string;

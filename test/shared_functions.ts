@@ -6,7 +6,6 @@ import * as builder from "../src/runtime/builder";
 import {InsertAction, RemoveAction} from "../src/runtime/actions";
 import {BrowserSessionDatabase} from "../src/runtime/databases/browserSession";
 
-
 export function dedent(str) {
   let lines = [];
   let indent;
@@ -42,10 +41,33 @@ export function eavsToComparables(eavs, entities, index = {}) {
   return results;
 }
 
-export function isSetEqual(as, bs) {
+// Tests if the elements of `as` are in `bs` by comparing keys in a list. In
+// the case of floating points, we want the comparison to be looser, to account
+// for floating point rounding errors, which can vary by platform.
+
+export function isSetEqual(as, bs, assert) {
   if(as.length !== bs.length) return false;
   for(let a of as) {
-    if(bs.indexOf(a) === -1) return false;
+    let avA = a.split(", ");
+    let attributeA = avA[0];
+    let valueA = avA[1];
+    // If the attribute is called "floatTest" we know to compare
+    // the values to within some epsilon. Otherwise, we can
+    // do a straight lookup of the key
+    let epsilon = 0.00000000001;
+    if (attributeA === "floatTest") {
+      for (let b of bs) {
+        let avB = b.split(", ");
+        let attributeB = avB[0];
+        let valueB = avB[1];
+        if (attributeB === "floatTest" && Math.abs(valueB - valueA) < epsilon) {
+          return true;
+        } 
+      }
+      return false;
+    } else {
+      if(bs.indexOf(a) === -1) return false;
+    }
   }
   return true;
 }
@@ -93,7 +115,7 @@ export function resolveActualExpected(assert, actuals, expecteds, entities) {
     let expectedIx = 0;
     for(let expected of expecteds) {
       let listEqual, linkEqual;
-      if(isSetEqual(expected.list, actual.list)) {
+      if(isSetEqual(expected.list, actual.list, assert)) {
         listEqual = true;
       } else {
         found = false;
@@ -121,7 +143,7 @@ export function resolveActualExpected(assert, actuals, expecteds, entities) {
       expectedIx++;
     }
     if(found === false) {
-      assert.true(false, "No matching add found for object: " + JSON.stringify(actual.list))
+      assert.true(false, "No matching add found for actual record: " + JSON.stringify(actual.list))
     }
   }
 }
@@ -165,26 +187,49 @@ export function evaluate(assert, expected, code, session = new Database()) {
   return next;
 }
 
-export function testSingleExpressionByList(list:any[]){
+export function evaluates(assert, code, session = new Database()) {
+  let parsed = parser.parseDoc(dedent(code), "0");
+  let {blocks, errors} = builder.buildDoc(parsed.results);
+  session.blocks = session.blocks.concat(blocks);
+  let evaluation = new Evaluation();
+  evaluation.registerDatabase("session", session);
+  let changes = evaluation.fixpoint();
+
+  var success = false
+  var inserts = changes.result().insert
+  for(let triple of inserts) {
+    if ((triple[1] === "tag") && (triple[2] === "success")) 
+      success = true;
+  }
+  if (success) {
+    assert.true(true, "test complete");
+  }  else {
+    assert.true(false, "test failed");
+  }
+}
+
+export interface valueTest {
+  expression: string;
+  expectedValue: number;
+};
+
+export function testSingleExpressionByList(list: valueTest[]){   
   list.forEach((list_item,index) =>{
-    test(`Is ${list_item.Expression} returning ${list_item.Value}?`, (assert) => {
+    test(`Is ${list_item.expression} returning ${list_item.expectedValue}?`, (assert) => {
       let expected = {
         insert: [
-          ["a", "tag", "div"],
-          ["a", "text", list_item.Value],
+          ["a", "floatTest", list_item.expectedValue],
         ],
         remove: [],
       };
 
       evaluate(assert, expected, `
-        Now consider this:
-
         ~~~
         search
-          x = ${list_item.Expression}
+          x = ${list_item.expression}
 
-        bind @browser
-          [#div text: x]
+        bind
+          [floatTest: x]
         ~~~
       `);
       assert.end();

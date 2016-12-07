@@ -34,7 +34,7 @@ search
 
 bind @browser
     // Links to an external stylesheet
-  [#link rel: "stylesheet" href: "examples/css/todomvc.css"]
+  [#link rel: "stylesheet" href: "assets/css/examples/todomvc.css"]
   [#div class: "todoapp" children:
 
     [#header children:
@@ -127,9 +127,9 @@ Here we handle all the ways we edit a todo. Editing includes changing the body a
 
 - click `#todo-checkbox` - toggles the completed status of the checkbox.
 - click `#toggle-all` - marks all todos as complete or incomplete, depending on the initial value. If all todos are marked incomplete, clicking `#toggle-all` will mark them complete. If only some are marked complete, then clicking `#toggle-all` will mark the rest complete. If all todos are marked as complete, then clicking `#toggle-all` will mark them all as incomplete.
-- blur `#todo-editor` - blurring the `#todo-editor` will cancel the edit
-- escape `#todo-editor` - this has the same effect as blurring
+- escape `#todo-editor` - cancels the edit
 - enter `#todo-editor` - commits the new text in `#todo-editor`, replacing the original body
+- blur `#todo-editor` - has the same effect as enter
 
 ~~~
 search @event @session @browser
@@ -144,6 +144,7 @@ search @event @session @browser
         then (todo, todo.body, true, todo.completed)
 
     else if [#blur element: [#todo-editor todo value]]
+        todo.editing = true
         then (todo, value, false, todo.completed)
 
     else if [#keydown element: [#todo-editor todo] key: "escape"]

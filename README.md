@@ -23,7 +23,6 @@ or you can [download](https://github.com/witheve/Eve/archive/master.zip) the Eve
 
 ```
 npm install
-npm run build
 npm start
 ```
 

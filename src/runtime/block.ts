@@ -141,8 +141,14 @@ function hasDatabaseScan(strata) {
   for(let stratum of strata) {
     for(let scan of stratum.scans) {
       if(scan instanceof Scan) return true;
-      if(scan instanceof IfScan) return true;
-      if(scan instanceof NotScan) return true;
+      if(scan instanceof IfScan) {
+        for(let branch of scan.branches) {
+          if(hasDatabaseScan(branch.strata)) return true;
+        }
+      }
+      if(scan instanceof NotScan) {
+        if(hasDatabaseScan(scan.strata)) return true;
+      }
     }
   }
   return false;
