@@ -113,8 +113,7 @@ function createExpressApp() {
 
   app.get("*", (request, response) => {
     let client;
-    // @FIXME: When Owner.both is added this needs updated.
-    if(config.runtimeOwner === Owner.server) {
+    if ((config.runtimeOwner === Owner.both) || (config.runtimeOwner === Owner.server)) {
       client = new HTTPRuntimeClient();
       let content = "";
       if(filepath) content = fs.readFileSync(filepath).toString();
@@ -129,8 +128,7 @@ function createExpressApp() {
 
   app.post("*", (request, response) => {
     let client;
-    // @FIXME: When Owner.both is added this needs updated.
-    if(config.runtimeOwner === Owner.server) {
+    if((config.runtimeOwner === Owner.both) || (config.runtimeOwner === Owner.server)) {
       client = new HTTPRuntimeClient();
       let content = "";
       if(filepath) content = fs.readFileSync(filepath).toString();
@@ -209,7 +207,7 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
 
     if(content) {
       ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, code: content, withIDE: editor}));
-      if(runtimeOwner === Owner.server || runtimeOwner === Owner.both) {
+      if((runtimeOwner === Owner.server) || (runtimeOwner === Owner.both)) {
         client.load(content, "user");
       }
     } else {
