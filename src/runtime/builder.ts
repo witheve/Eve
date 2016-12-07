@@ -671,7 +671,7 @@ function stratify(scans) {
           // one greater than all our dependencies.
           // In the event that one of our dependencies is filtered by an aggregate,
           // we stratify ourselves behind it.
-          if(isAgg) {
+          if(isAgg && info) {
             for(let provider of info.providers) {
               if(isAggregate(provider) && provider !== scan) {
                 if(blockLevel[provider.id] > infoLevel) {
