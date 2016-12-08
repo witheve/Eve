@@ -82,11 +82,15 @@ body { justify-content: stretch; }
  * Notices
 \****************************************************************************/
 .main-pane { display: flex; flex-direction: column; justify-content: stretch; overflow-y: hidden; }
-.main-pane .notices { display: flex; flex: 0 0 auto; flex-direction: column; }
+.main-pane .notices { display: flex; flex: 0 0 auto; flex-direction: column; border-right: 1px solid #ddd; border-bottom: 1px solid #ddd; }
 
-.main-pane .notices > .notice { padding: 5px 60px; background: #e0e0e0; flex: 0 0 auto; }
-.main-pane .notices > .notice + .notice { border-bottom: 1px solid #d0d0d0; }
+.main-pane .notices > .notice { padding: 5px 60px; background: #f5f5f5; flex: 0 0 auto; }
+.main-pane .notices > .notice + .notice { border-top: 1px solid #ddd; }
 .main-pane .notices > .notice > .time { margin-right: 10px;  }
+
+.main-pane .notices > .notice > .dismiss-btn { margin-left: 10px; vertical-align: bottom; align-self: center; opacity: 0; transition: opacity 0.2s; }
+.main-pane .notices:hover > .notice > .dismiss-btn { opacity: 1; }
+.main-pane .notices > .notice > .dismiss-btn:hover { background: #eee; }
 
 .main-pane .notices > .notice.error { background: rgb(255, 216, 222); }
 .main-pane .notices > .notice.warning { background: rgb(255, 247, 217); }

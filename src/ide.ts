@@ -1972,6 +1972,7 @@ function modalWrapper():Elem {
   return {};
 }
 
+type ElemGen = () => Elem;
 
 //---------------------------------------------------------
 // Root
@@ -2001,7 +2002,7 @@ export class IDE {
 
   renderer:Renderer = new Renderer();
 
-  notices:{message: string, type: string, time: number}[] = [];
+  notices:{message: string|ElemGen, type: string, time: number}[] = [];
 
   languageService:LanguageService = new LanguageService();
   navigator:Navigator = new Navigator(this);
@@ -2035,7 +2036,9 @@ export class IDE {
       let formattedSeconds = time.getSeconds() >= 10 ? time.getMinutes() : `0${time.getSeconds()}`;
       items.push({c: `notice ${notice.type} flex-row`, children: [
         {c: "time", text: `${time.getHours()}:${formattedMinutes}:${formattedSeconds}`},
-        {c: "message", text: notice.message}
+        {c: "message", children: [(typeof notice.message === "function") ? notice.message() : {text: notice.message}]},
+        {c: "flex-spacer"},
+        {c: "dismiss-btn ion-close-round", notice, click: (event, elem) => this.dismissNotice(elem.notice)}
       ]});
     }
     if(items.length) {
@@ -2184,7 +2187,7 @@ export class IDE {
       } else {
         // @FIXME: This needs to be an anchor tag.
         // @FIXME: info notices need to be dismissible.
-        this.injectNotice("info", `Saved to: ${url}`);
+        this.injectNotice("info", () => ({c: "flex-row", children: [{text: "Saved to", style: "padding-right: 5px;"}, {t: "a", href: url, target: "_blank", text: "gist"}]}));
       }
     });
   }
@@ -2216,7 +2219,7 @@ export class IDE {
     this.render();
   }
 
-  injectNotice(type:string, message:string) {
+  injectNotice(type:string, message:string|ElemGen) {
     let time = Date.now();
     let existing;
     for(let notice of this.notices) {
@@ -2229,6 +2232,14 @@ export class IDE {
     if(!existing) {
       this.notices.push({type, message, time});
     }
+    this.render();
+    this.editor.cm.refresh();
+  }
+
+  dismissNotice(notice) {
+    let ix = this.notices.indexOf(notice);
+    if(ix === -1) return;
+    this.notices.splice(ix, 1);
     this.render();
     this.editor.cm.refresh();
   }
