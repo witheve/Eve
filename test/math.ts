@@ -214,11 +214,19 @@ let round_list : valueTest[]  = [
   ]
 testSingleExpressionByList(round_list);
 
-// Test Round Function
+// Test To Fixed Function
 let toFixed_list : valueTest[]  = [
   {expression: "to-fixed[ value: 1.499 places: 2 ]", expectedValue: 1.50},
   ]
 testSingleExpressionByList(toFixed_list );
+
+// Test Fix Function
+let Fix_list : valueTest[]  = [
+  {expression: "fix[ value: 1.99999999999999]", expectedValue: 1},
+  {expression: "fix[ value: -1.99999999999999]", expectedValue: -1},
+  ]
+testSingleExpressionByList(Fix_list );
+
 
 test("Test that string concatenation is still working after NaN change.", (assert) => {
   let expected = {
