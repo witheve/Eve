@@ -42,6 +42,9 @@ class Navigator {
   };
   open: boolean = true;
 
+  loadDialogOpen = false;
+  loadDialogValue:string;
+
   constructor(public ide:IDE, public rootId = "root", public nodes:TreeMap = {root: {type: "folder", name: "/", children: []}}, public currentId:string = rootId) {}
 
   currentType():string {
@@ -317,6 +320,23 @@ class Navigator {
     node.name
   }
 
+  openLoadDialog = () => {
+    this.loadDialogOpen = true;
+    this.ide.render();
+  }
+
+  loadDialogInput = (event) => {
+    let input = event.target as HTMLInputElement;
+    this.loadDialogValue = input.value;
+  }
+
+  loadFromDialog = () => {
+    this.ide.loadFromGist(this.loadDialogValue);
+    this.loadDialogValue = undefined;
+    this.loadDialogOpen = false;
+    this.ide.render();
+  }
+
   // Elements
   workspaceItem(nodeId:string):Elem {
     let node = this.nodes[nodeId];
@@ -388,13 +408,24 @@ class Navigator {
     return {c: "navigator-header", children: [
       {c: "controls", children: [
         this.open ? {c: `up-btn flex-row`, click: this.navigate, children: [
-          {c:  `up-btn ion-android-arrow-up ${(type === "folder") ? "disabled" : ""}`},
-          {c: "label", text: "examples"},
+          type === "document" ? {c:  `up-btn ion-android-arrow-up ${(type === "folder") ? "disabled" : ""}`} : undefined,
+          {c: "label", text: "examples"}
         ]} : undefined,
         {c: "flex-spacer"},
-        {c: `${this.open ? "expand-btn" : "collapse-btn"} ion-ios-arrow-back`, click: this.togglePane},
+
+        this.open && type === "document" ? {c: "ion-ios-cloud-upload-outline btn", title: "Save to Gist", click: () => this.ide.saveToGist()} : undefined,
+        this.open && type === "document" ? {c: "ion-ios-cloud-download-outline btn", title: "Load from Gist", click: this.openLoadDialog} : undefined,
+
+        {c: `${this.open ? "expand-btn" : "collapse-btn"} ion-ios-arrow-back btn`, title: this.open ? "Expand" : "Collapse", click: this.togglePane},
       ]},
       this.ide.inspecting ? this.inspectorControls() : {c: "inspector-controls"},
+    ]};
+  }
+
+  loadDialog():Elem {
+    return {c: "load-dialog flex-row", children: [
+      {t: "input", c: "flex-spacer", type: "url", placeholder: "Enter gist url...", input: this.loadDialogInput},
+      {c: "btn load-btn ion-arrow-right-b", style: "padding: 0 10", click: this.loadFromDialog}
     ]};
   }
 
@@ -404,6 +435,7 @@ class Navigator {
     if(!root) return {c: "navigator-pane", children: [
       {c: "navigator-pane-inner", children: [
         this.header(),
+        this.loadDialogOpen ? this.loadDialog() : undefined,
         {c: "new-btn ion-ios-plus-empty", click: () => console.log("new folder or document")}
       ]}
     ]};
@@ -417,6 +449,7 @@ class Navigator {
     return {c: `navigator-pane ${this.open ? "" : "collapsed"}`, click: this.open ? undefined : this.togglePane, children: [
       {c: "navigator-pane-inner", children: [
         this.header(),
+        this.loadDialogOpen ? this.loadDialog() : undefined,
         tree
       ]}
     ]};
@@ -1722,8 +1755,6 @@ export class Editor {
     else if(this.ide.inspecting) inspectorButton.c += " inspecting";
 
     return {c: "flex-row controls", children: [
-      {c: "ion-ios-cloud-upload-outline", title: "Save to Gist", click: () => this.ide.saveToGist()},
-      {c: "ion-ios-cloud-download-outline", title: "Load from Gist", click: () => this.ide.loadFromGist(undefined)}, // @FIXME
       {c: "ion-refresh", title: "Reset (⌃⇧⏎ or ⇧⌘⏎ )", click: () => this.ide.eval(false)},
       {c: "ion-ios-play", title: "Run (⌃⏎ or ⌘⏎)", click: () => this.ide.eval(true)},
       inspectorButton
@@ -2194,10 +2225,9 @@ export class IDE {
 
   loadFromGist(url:string) {
     if(!url) {
-      console.error("@TODO: Implement me!", this);
+      this.injectNotice("warning", "Unable to open gist: No URL provided.");
       return;
     }
-
     readFromGist(url, (err, content) => {
       if(err) {
         this.injectNotice("error", "Unable to read gist. Check the developer console for more information.");

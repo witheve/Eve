@@ -43,6 +43,7 @@ body { justify-content: stretch; }
 .navigator-pane.collapsed:hover .navigator-header > .controls > div { color: #eee; }
 .navigator-header:hover > .controls > *:not(.disabled) {  }
 .navigator-header .collapse-btn { transform: rotate(180deg); color: #999; }
+.navigator-header .btn { padding: 0 5px; }
 .navigator-header .up-btn .label { display: flex; font-size:16px; margin-left: 10px; }
 .navigator-header .label { white-space: pre; display:none; }
 
