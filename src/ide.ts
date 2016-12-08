@@ -1723,7 +1723,7 @@ export class Editor {
 
     return {c: "flex-row controls", children: [
       {c: "ion-ios-cloud-upload-outline", title: "Save to Gist", click: () => this.ide.saveToGist()},
-      {c: "ion-ios-cloud-download-outline", title: "Load from Gist", click: () => this.ide.loadFromGist()},
+      {c: "ion-ios-cloud-download-outline", title: "Load from Gist", click: () => this.ide.loadFromGist(undefined)}, // @FIXME
       {c: "ion-refresh", title: "Reset (⌃⇧⏎ or ⇧⌘⏎ )", click: () => this.ide.eval(false)},
       {c: "ion-ios-play", title: "Run (⌃⏎ or ⌘⏎)", click: () => this.ide.eval(true)},
       inspectorButton
@@ -2077,9 +2077,11 @@ export class IDE {
     // some other source and we should just load it directly
     if(!this.local && content !== undefined) {
       this.documentId = docId;
+      this._fileCache[docId] = content;
       this.editor.reset();
       this.notices = [];
       this.loading = true;
+      this.loaded = false;
       this.onLoadFile(this, docId, content);
       return true;
     } else if(this.loading || this.documentId === docId) {
@@ -2185,15 +2187,28 @@ export class IDE {
         this.injectNotice("error", "Unable to save file to gist. Check the developer console for more information.");
         console.error(err);
       } else {
-        // @FIXME: This needs to be an anchor tag.
-        // @FIXME: info notices need to be dismissible.
         this.injectNotice("info", () => ({c: "flex-row", children: [{text: "Saved to", style: "padding-right: 5px;"}, {t: "a", href: url, target: "_blank", text: "gist"}]}));
       }
     });
   }
 
-  loadFromGist() {
-    console.error("@TODO: Implement me!");
+  loadFromGist(url:string) {
+    if(!url) {
+      console.error("@TODO: Implement me!", this);
+      return;
+    }
+
+    readFromGist(url, (err, content) => {
+      if(err) {
+        this.injectNotice("error", "Unable to read gist. Check the developer console for more information.");
+        console.error(err);
+      } else {
+        //console.log(content);
+        // @FIXME: Need the filename metadata here.
+        // @FIXME: Should really be more flexible and provide all the files attached (can load a workspace from gist).
+        this.loadFile("Gist", content);
+      }
+    });
   }
 
   createDocument(folder:string) {
