@@ -332,7 +332,15 @@ class Navigator {
     this.loadDialogValue = input.value;
   }
 
-  loadFromDialog = () => {
+  loadFromDialog = (event) => {
+    if(event instanceof KeyboardEvent) {
+      if(event.keyCode === 27) { // Escape
+        this.loadDialogValue = undefined;
+        this.loadDialogOpen = false;
+        this.ide.render();
+      }
+      if(event.keyCode !== 13) return; // Enter
+    }
     this.ide.loadFromGist(this.loadDialogValue);
     this.loadDialogValue = undefined;
     this.loadDialogOpen = false;
@@ -426,7 +434,7 @@ class Navigator {
 
   loadDialog():Elem {
     return {c: "load-dialog flex-row", children: [
-      {t: "input", c: "flex-spacer", type: "url", placeholder: "Enter gist url...", input: this.loadDialogInput},
+      {t: "input", c: "flex-spacer", type: "url", autofocus: true, placeholder: "Enter gist url...", input: this.loadDialogInput, keydown: this.loadFromDialog},
       {c: "btn load-btn ion-arrow-right-b", style: "padding: 0 10", click: this.loadFromDialog}
     ]};
   }
@@ -2106,6 +2114,15 @@ export class IDE {
 
   loadFile(docId:string, content?:string) {
     if(!docId) return false;
+
+    // We're loading from a remote gist
+    if(docId.indexOf("gist:") === 0 && !content) {
+      let gistId = docId.slice(5);
+      if(gistId.indexOf("-")) gistId = gistId.slice(0, gistId.indexOf("-"));
+      let gistUrl = `https://gist.githubusercontent.com/raw/${gistId}`;
+      return this.loadFromGist(gistUrl);
+    }
+
     // if we're not in local mode, file content is going to come from
     // some other source and we should just load it directly
     if(!this.local && content !== undefined) {
