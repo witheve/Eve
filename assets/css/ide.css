@@ -38,12 +38,12 @@ body { justify-content: stretch; }
 .navigator-header { display: flex; flex-direction: column; padding:10px 5px; user-select: none; -webkit-user-select: none; margin-bottom:10px; font-size:18px; color: #555; transition:color 0.2s ease-in-out; }
 .navigator-pane:hover .navigator-header { color: #aaa;  }
 .navigator-header > .controls { display:flex; flex-direction:row; flex:1; }
-.navigator-header > .controls > * { height: 20px; text-align: center; transition: transform 0.3s; cursor: pointer; }
-.navigator-header > .controls > div:hover { color: #eee; }
+.navigator-header > .controls > * { height: 20px; padding-left: 10px; text-align: center; transition: transform 0.3s; cursor: pointer; }
+.navigator-header > .controls > div:not(.disabled):hover { color: #eee; }
 .navigator-pane.collapsed:hover .navigator-header > .controls > div { color: #eee; }
-.navigator-header:hover > .controls > *:not(.disabled) {  }
 .navigator-header .collapse-btn { transform: rotate(180deg); color: #999; }
-.navigator-header .btn { padding: 0 5px; }
+.navigator-header .up-btn.disabled > .up-icon { opacity: 0; }
+
 .navigator-header .up-btn .label { display: flex; font-size:16px; margin-left: 10px; }
 .navigator-header .label { white-space: pre; display:none; }
 

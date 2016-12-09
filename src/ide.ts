@@ -94,8 +94,10 @@ class Navigator {
 
     let root:TreeNode = this.nodes[id];
     if(!root) {
-      console.error("Cannot load non-existent document.");
-      return;
+      //console.error("Cannot load non-existent document.");
+      //return;
+
+      root = this.nodes[id] = {id, type: "document", name};
     }
     root.open = true;
     root.children = undefined;
@@ -407,8 +409,8 @@ class Navigator {
     let type = this.currentType();
     return {c: "navigator-header", children: [
       {c: "controls", children: [
-        this.open ? {c: `up-btn flex-row`, click: this.navigate, children: [
-          type === "document" ? {c:  `up-btn ion-android-arrow-up ${(type === "folder") ? "disabled" : ""}`} : undefined,
+        this.open ? {c: `up-btn flex-row  ${(this.currentId === this.rootId) ? "disabled" : ""}`, click: this.navigate, children: [
+          {c:  "up-icon ion-android-arrow-up"},
           {c: "label", text: "examples"}
         ]} : undefined,
         {c: "flex-spacer"},
@@ -2228,7 +2230,7 @@ export class IDE {
       this.injectNotice("warning", "Unable to open gist: No URL provided.");
       return;
     }
-    readFromGist(url, (err, content) => {
+    readFromGist(url, (err, gist) => {
       if(err) {
         this.injectNotice("error", "Unable to read gist. Check the developer console for more information.");
         console.error(err);
@@ -2236,7 +2238,11 @@ export class IDE {
         //console.log(content);
         // @FIXME: Need the filename metadata here.
         // @FIXME: Should really be more flexible and provide all the files attached (can load a workspace from gist).
-        this.loadFile("Gist", content);
+        for(let filename in gist.files) {
+          let content = gist.files[filename].content;
+          let docId = `gist:${gist.id}-${filename}`;
+          this.loadFile(docId, content);
+        }
       }
     });
   }

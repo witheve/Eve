@@ -173,6 +173,12 @@ export function dasherize(text:string) {
   return text.replace(/\//g, "-");
 }
 
+function gistIdFromUrl(url:string) {
+  if(url.indexOf("gist.github.com") !== -1 ||
+     url.indexOf("gist.githubusercontent.com")) return url.split("/").pop();
+
+}
+
 export function writeToGist(name:string, content:string, callback:(error:Error, url?:string) => void) {
   name = dasherize(name);
   let request = new XMLHttpRequest();
@@ -198,7 +204,15 @@ export function writeToGist(name:string, content:string, callback:(error:Error, 
   request.send(JSON.stringify(payload));
 }
 
-export function readFromGist(url:string, callback:(error:Error, content?:string) => void) {
+interface GistResponse {id: string, url: string, files: {[name:string]: {content: string}}}
+
+export function readFromGist(url:string, callback:(error:Error, content?:GistResponse) => void) {
+  let gistId = gistIdFromUrl(url);
+
+  if(!gistId) return callback(new Error(`Invalid gist url: '${url}'.`));
+
+  let apiUrl = `https://api.github.com/gists/${gistId}`;
+
   let request = new XMLHttpRequest();
   request.onreadystatechange = function() {
     if(request.readyState === 4) {
@@ -206,9 +220,11 @@ export function readFromGist(url:string, callback:(error:Error, content?:string)
         return callback(new Error(`HTTP Response: ${request.status}`));
       }
 
-      callback(undefined, request.responseText);
+      let response = JSON.parse(request.responseText);
+
+      callback(undefined, response);
     }
   }
-  request.open("GET", url);
+  request.open("GET", apiUrl);
   request.send();
 }
