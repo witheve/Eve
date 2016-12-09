@@ -2120,7 +2120,8 @@ export class IDE {
       let gistId = docId.slice(5);
       if(gistId.indexOf("-") !== -1) gistId = gistId.slice(0, gistId.indexOf("-"));
       let gistUrl = `https://gist.githubusercontent.com/raw/${gistId}`;
-      return this.loadFromGist(gistUrl);
+      this.loadFromGist(gistUrl);
+      return true;
     }
 
     // if we're not in local mode, file content is going to come from
