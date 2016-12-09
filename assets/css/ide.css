@@ -38,7 +38,8 @@ body { justify-content: stretch; }
 .navigator-header { display: flex; flex-direction: column; padding:10px 5px; user-select: none; -webkit-user-select: none; margin-bottom:10px; font-size:18px; color: #555; transition:color 0.2s ease-in-out; }
 .navigator-pane:hover .navigator-header { color: #aaa;  }
 .navigator-header > .controls { display:flex; flex-direction:row; flex:1; }
-.navigator-header > .controls > * { height: 20px; padding-left: 10px; text-align: center; transition: transform 0.3s; cursor: pointer; }
+.navigator-header > .controls > * {height: 20px; text-align: center; padding: 0 5px; transition: transform 0.3s; cursor: pointer; }
+.navigator-header > .controls > *:last-child { margin-right: -5px; }
 .navigator-header > .controls > div:not(.disabled):hover { color: #eee; }
 .navigator-pane.collapsed:hover .navigator-header > .controls > div { color: #eee; }
 .navigator-header .collapse-btn { transform: rotate(180deg); color: #999; }
