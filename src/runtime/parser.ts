@@ -887,7 +887,6 @@ export class Parser extends chev.Parser {
           // down to them. If we don't do this, we'll end up with children that are shared between
           // the parents instead of one child per parent.
           if(result.type === "parenthesis") {
-          console.log("HERE")
             for(let item of result.items) {
               // this is a bit sad, but by the time we see the parenthesis, the records have been replaced
               // with their variables. Those variables are created from the record object though, so we can
