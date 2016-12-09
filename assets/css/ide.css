@@ -44,6 +44,13 @@ body { justify-content: stretch; }
 .navigator-header .collapse-btn { transform: rotate(180deg); color: #999; }
 .navigator-header .up-btn.disabled > .up-icon { opacity: 0; }
 
+.navigator-pane .load-dialog { padding: 10 25; color: #555; margin-top: -10px; margin-bottom: 10px; }
+.navigator-pane .load-dialog input { padding: 5px; outline: none; border-top-left-radius: 2px; border: 1px solid #CCC; border-bottom-left-radius: 2px; }
+.navigator-pane .load-dialog .load-btn { padding: 5px; background: white; border: 1px solid #CCC; border-left-color: transparent; border-top-right-radius: 2px; border-bottom-right-radius: 2px; }
+.navigator-pane .load-dialog .load-btn:before { position: relative; top: 3px; }
+.navigator-pane .load-dialog .load-btn:hover { background: #EEE; }
+.navigator-pane .load-dialog .load-btn:active { background: #DDD; }
+
 .navigator-header .up-btn .label { display: flex; font-size:16px; margin-left: 10px; }
 .navigator-header .label { white-space: pre; display:none; }
 

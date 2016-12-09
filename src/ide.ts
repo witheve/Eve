@@ -434,7 +434,7 @@ class Navigator {
 
   loadDialog():Elem {
     return {c: "load-dialog flex-row", children: [
-      {t: "input", c: "flex-spacer", type: "url", autofocus: true, placeholder: "Enter gist url...", input: this.loadDialogInput, keydown: this.loadFromDialog},
+      {t: "input", c: "flex-spacer", type: "url", autofocus: true, placeholder: "Enter gist url to load...", input: this.loadDialogInput, keydown: this.loadFromDialog},
       {c: "btn load-btn ion-arrow-right-b", style: "padding: 0 10", click: this.loadFromDialog}
     ]};
   }
