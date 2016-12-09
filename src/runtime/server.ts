@@ -182,9 +182,17 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
   if(data.type === "init") {
     let {editor, runtimeOwner, controlOwner} = config;
     let {url, hash} = data;
-    let path = hash !== "" ? hash : url;
 
-    let content = path && eveSource.find(path);
+
+    let path = url;
+    let filepath = path;
+    if(hash) {
+      path = hash;
+      filepath = hash.split("#")[0];
+      if(filepath[filepath.length - 1] === "/") filepath = filepath.slice(0, -1);
+    }
+
+    let content = filepath && eveSource.find(filepath);
 
     if(!content && config.path && path.indexOf("gist:") === -1) {
       let workspace = config.internal ? "examples" : "root";

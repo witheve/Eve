@@ -471,6 +471,7 @@ function changeDocument() {
   // @FIXME: This is not right in the non-internal case.
   let docId = "/examples/quickstart.eve";
   let path = location.hash && location.hash.split('?')[0].split("#")[1];
+  if(path[path.length - 1] === "/") path = path.slice(0, -1);
   if(path && path.length > 2) {
     if(path[path.length - 1] === "/") path = path.slice(0, -1);
     docId = path;
