@@ -2233,7 +2233,9 @@ export class IDE {
 
   saveToGist() {
     // @FIXME: We really need a display name setup for documents.
+    let savingNotice = this.injectNotice("info", "Saving...");
     writeToGist(this.documentId || "Untitled.eve", this.editor.toMarkdown(), (err, url) => {
+      this.dismissNotice(savingNotice);
       if(err) {
         this.injectNotice("error", "Unable to save file to gist. Check the developer console for more information.");
         console.error(err);
@@ -2299,10 +2301,12 @@ export class IDE {
       }
     }
     if(!existing) {
-      this.notices.push({type, message, time});
+      existing = {type, message, time};
+      this.notices.push(existing);
     }
     this.render();
     this.editor.cm.refresh();
+    return existing;
   }
 
   dismissNotice(notice) {
