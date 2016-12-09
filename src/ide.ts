@@ -2118,7 +2118,7 @@ export class IDE {
     // We're loading from a remote gist
     if(docId.indexOf("gist:") === 0 && !content) {
       let gistId = docId.slice(5);
-      if(gistId.indexOf("-")) gistId = gistId.slice(0, gistId.indexOf("-"));
+      if(gistId.indexOf("-") !== -1) gistId = gistId.slice(0, gistId.indexOf("-"));
       let gistUrl = `https://gist.githubusercontent.com/raw/${gistId}`;
       return this.loadFromGist(gistUrl);
     }

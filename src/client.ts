@@ -287,6 +287,7 @@ export class EveClient {
       // Ensure the URL bar is in sync with the server.
       // @FIXME: This back and forth of control over where we are
       // is an Escherian nightmare.
+
       if(!data.path) {
         history.pushState({}, "", window.location.pathname);
       }
@@ -469,11 +470,12 @@ function changeDocument() {
   let ide = client.ide;
   // @FIXME: This is not right in the non-internal case.
   let docId = "/examples/quickstart.eve";
-  let path = location.hash && location.hash.split('?')[0].split("#/")[1];
+  let path = location.hash && location.hash.split('?')[0].split("#")[1];
   if(path && path.length > 2) {
     if(path[path.length - 1] === "/") path = path.slice(0, -1);
-    docId = "/" + path;
+    docId = path;
   }
+
   if(!docId) return;
   if(docId === ide.documentId) return;
   try {

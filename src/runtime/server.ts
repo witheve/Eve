@@ -184,19 +184,13 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
     let {url, hash} = data;
     let path = hash !== "" ? hash : url;
 
-
     let content = path && eveSource.find(path);
 
-    if(!content && config.path) {
+    if(!content && config.path && path.indexOf("gist:") === -1) {
       let workspace = config.internal ? "examples" : "root";
       // @FIXME: This hard-coding isn't technically wrong right now, but it's brittle and poor practice.
       content = eveSource.get(config.path, workspace);
       if(content) path = eveSource.getRelativePath(config.path, workspace);
-    }
-
-    if(!content && config.internal) {
-      content = eveSource.get("quickstart.eve", "examples");
-      if(content) path = eveSource.getRelativePath("quickstart.eve", "examples");
     }
 
     if(content) {
@@ -211,6 +205,7 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
           let content = fs.readFileSync("." + path).toString();
           ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, code: content, withIDE: editor}));
         } else {
+          path = hash || url;
           ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, withIDE: editor}));
         }
 
