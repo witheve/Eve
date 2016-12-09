@@ -899,7 +899,7 @@ export class Parser extends chev.Parser {
                 } else if(parent) {
                   record.extraProjection.push(parent);
                 }
-                // Lastly we need add the eve-auto-index attribute to make sure this is consistent with the case
+                // Lastly we need to add the eve-auto-index attribute to make sure this is consistent with the case
                 // where we leave the parenthesis off and just put records one after another.
                 record.attributes.push(makeNode("attribute", {attribute: "eve-auto-index", value: makeNode("constant", {value: autoIndex, from: [record]}), from: [record]}));
                 autoIndex++;
