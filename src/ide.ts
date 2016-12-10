@@ -2125,9 +2125,12 @@ export class IDE {
       return true;
     }
 
-    // if we're not in local mode, file content is going to come from
-    // some other source and we should just load it directly
-    if(!this.local && content !== undefined) {
+    if(content !== undefined) {
+      // @FIXME: It's bad. I know. It will be better when I can swap it all out for the global FileStore guy. I promise.
+      // If we're running locally, we may need to ignore the content the server sends us, since our local content is fresher.
+      if(this.local && this._fileCache[docId]) {
+        content = this._fileCache[docId];
+      }
       this.documentId = docId;
       this._fileCache[docId] = content;
       this.editor.reset();
@@ -2167,6 +2170,13 @@ export class IDE {
   loadWorkspace(directory:string, files:{[filename:string]: string}) {
     // @FIXME: un-hardcode root to enable multiple WS's.
     this._fileCache = files;
+    if(this.local) {
+      // Mix in any saved documents in localStorage.
+      let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
+      for(let save in saves) {
+        files[save] = saves[save];
+      }
+    }
     this.navigator.loadWorkspace("root", directory, files);
   }
 
@@ -2195,6 +2205,9 @@ export class IDE {
   saveDocument() {
     if(!this.documentId || !this.loaded) return;
 
+    let md = this.editor.toMarkdown();
+    let isDirty = md !== this._fileCache[this.documentId];
+
     // When we try to edit a gist-backed file we need to fork it and save the new file to disk.
     // @FIXME: This is all terribly hacky, and needs to be cleaned up as part of the FileStore rework.
     if(this.documentId.indexOf("gist:") === 0) {
@@ -2219,8 +2232,6 @@ export class IDE {
       location.hash = modified;
     }
 
-    let md = this.editor.toMarkdown();
-
     // @NOTE: We sync this here to prevent a terrible reload bug that occurs when saving to the file system.
     // This isn't really the right fix, but it's a quick one that helps prevent lost work in trivial cases
     // like navigating the workspace.
@@ -2237,11 +2248,12 @@ export class IDE {
 
     // othewise, save it to local storage
     let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
-    if(md !== this._fileCache[this.documentId]) {
+    if(isDirty) {
       saves[this.documentId] = md;
       this.modified = true;
     } else {
       this.modified = false;
+      saves[this.documentId] = undefined;
     }
     localStorage.setItem("eve-saves", JSON.stringify(saves));
   }

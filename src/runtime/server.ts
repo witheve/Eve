@@ -192,6 +192,11 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
       if(filepath[filepath.length - 1] === "/") filepath = filepath.slice(0, -1);
     }
 
+    if(config.controlOwner === Owner.client) {
+      ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, withIDE: editor}));
+      return;
+    }
+
     let content = filepath && eveSource.find(filepath);
 
     if(!content && config.path && path.indexOf("gist:") === -1) {
