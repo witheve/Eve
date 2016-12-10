@@ -106,7 +106,9 @@ export abstract class RuntimeClient {
 
       css = css.split("\n").map(function(line) {
         var trimmedLine = line.trim();
-        if ((line.indexOf("{") !== -1) && (trimmedLine[0] !== "@") && (["from", "to"].indexOf(trimmedLine.split(" ")[0]) === -1)) {
+        if ((line.indexOf("{") !== -1) && // selector line
+          ("0123456789@".indexOf(trimmedLine[0]) === -1) && // no animation percentages or @-rules
+          (["from", "to"].indexOf(trimmedLine.split(" ")[0]) === -1)) { // exclude animation instructions
           return trimmedLine.split(",").map(function(section) {
             return ".application-container > .program " + section;
           }).join(", ");
