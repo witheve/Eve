@@ -155,7 +155,8 @@ var supportedTagsArr = [
 
 // Obtained from https://www.w3.org/TR/SVG/eltindex.html
 var svgsArr = [
-  "a",
+  // we can't have tags in both the html set and the svg set
+  // "a",
   "altGlyph",
   "altGlyphDef",
   "altGlyphItem",

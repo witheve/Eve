@@ -6,9 +6,9 @@ export let workspaces:{[name:string]: string} = {};
 
 export function add(name: string, directory: string) {
   // If we're running on a windows server, normalize slashes
-  if(typeof window === undefined) {
-    if(process.platform.search(/^win/)) {
-      directory = directory.replace("\\", "/");
+  if(typeof window === "undefined") {
+    if(process.platform.indexOf("win") === 0) {
+      directory = directory.replace(/\\/g, "/");
     }
   }
 

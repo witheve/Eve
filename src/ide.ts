@@ -657,7 +657,15 @@ export class Editor {
       "Cmd-1": () => this.format({type: "heading", level: 1}),
       "Cmd-2": () => this.format({type: "heading", level: 2}),
       "Cmd-3": () => this.format({type: "heading", level: 3}),
-      "Cmd-L": () => this.format({type: "item"})
+      "Cmd-L": () => this.format({type: "item"}),
+      "Tab": (cm) => {
+        if (cm.somethingSelected()) {
+          cm.indentSelection("add");
+        } else {
+          cm.replaceSelection(cm.getOption("indentWithTabs")? "\t":
+          Array(cm.getOption("indentUnit") + 1).join(" "), "end", "+input");
+        }
+      }
     })
   };
 

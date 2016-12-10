@@ -53,6 +53,9 @@ if(!filepath) {
   if(internal) filepath = eveRoot + "/" + "examples/quickstart.eve";
 } else {
   filepath = path.resolve(filepath);
+  if(process.platform.indexOf("win") === 0) {
+    filepath = filepath.replace(/\\/g, "/");
+  }
 }
 
 var opts = {internal: internal, runtimeOwner: runtimeOwner, controlOwner: controlOwner, editor: editor, port: port, path: filepath, internal: internal, root: root, eveRoot: eveRoot};

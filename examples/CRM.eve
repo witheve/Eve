@@ -50,7 +50,7 @@ search
                     else user
 
 bind @browser
-  [#link rel: "stylesheet" href: "examples/css/crm.css"]
+  [#link rel: "stylesheet" href: "assets/css/examples/crm.css"]
   [#div #container class: "container" children:
     [#div class: "scroll" children:
       [#div class: "banner"]
@@ -348,7 +348,7 @@ search
   t5 = t4 + 1000
   t6 = t5 + 1000
   time-string = "5:15 PM"
-  
+
 commit
   corey = [#user
    name: "Corey Montella"

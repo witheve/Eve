@@ -187,6 +187,27 @@ export function evaluate(assert, expected, code, session = new Database()) {
   return next;
 }
 
+export function evaluates(assert, code, session = new Database()) {
+  let parsed = parser.parseDoc(dedent(code), "0");
+  let {blocks, errors} = builder.buildDoc(parsed.results);
+  session.blocks = session.blocks.concat(blocks);
+  let evaluation = new Evaluation();
+  evaluation.registerDatabase("session", session);
+  let changes = evaluation.fixpoint();
+
+  var success = false
+  var inserts = changes.result().insert
+  for(let triple of inserts) {
+    if ((triple[1] === "tag") && (triple[2] === "success")) 
+      success = true;
+  }
+  if (success) {
+    assert.true(true, "test complete");
+  }  else {
+    assert.true(false, "test failed");
+  }
+}
+
 export interface valueTest {
   expression: string;
   expectedValue: number;

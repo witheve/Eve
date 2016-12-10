@@ -176,8 +176,82 @@ export class Max extends Aggregate {
   }
 }
 
+export class Join extends Aggregate {
+  static AttributeMapping = {
+    "value": 0,
+    "given": 1,
+    "per": 2,
+    "index": 3,
+    "with": 4,
+    "token":0
+  }
+
+  token : any;
+  index : any;
+  sepwith : any;
+
+constructor(id: string, args: any[], returns: any[]) {
+    super(id, args, returns);
+    this.token = args[0]    
+    this.index = args[3]
+    this.sepwith = args[4]
+  }
+
+  aggregate(rows: any[]) {
+    let groupKeys = [];
+    let groups = {};
+    for(let row of rows) {
+      resolve(this.projectionVars, row, this.resolvedProjection)
+      resolve(this.groupVars, row, this.resolvedGroup)
+      let group = this.resolvedAggregate.group;
+      let projection = this.resolvedAggregate.projection;
+      let token = toValue(this.token, row);
+      let index = toValue(this.index, row);
+      let sepwith = toValue(this.sepwith, row);
+
+      if (sepwith === undefined) sepwith = "";
+
+      let groupKey = "[]";
+      if(group.length !== 0) {
+        groupKey = JSON.stringify(group);
+      }
+      let groupValues = groups[groupKey];
+      if(groupValues === undefined) {
+        groupKeys.push(groupKey);
+        groupValues = groups[groupKey] = {result:[]};
+      }
+      let projectionKey = JSON.stringify(projection);
+      if(groupValues[projectionKey] === undefined) {
+        groupValues[projectionKey] = true;
+        groupValues.result.push({token: token, index:index, sepwith:sepwith})
+      }
+    }
+
+    for (let g in groups) {
+        let s = groups[g].result.sort((a, b) => 
+                                      {if (a.index > b.index) return 1;
+                                       if (a.index === b.index) return 0;
+                                       return -1;})
+        let len = s.length
+        let result = ""
+        for (var i=0; i<len; ++i) {
+            // this means that the sep assocated with a value
+            // is the one which occurs before the value
+            if (i != 0) result += s[i].sepwith
+            result += s[i].token 
+        }
+        groups[g].result = result;
+    }
+    this.aggregateResults = groups;
+    return groups;
+  }
+  // unused but to keep mr. class happy
+  adjustAggregate(group, value, projection) {}
+}
+
 providers.provide("sum", Sum);
 providers.provide("count", Count);
 providers.provide("average", Average);
+providers.provide("join", Join);
 providers.provide("min", Min);
 providers.provide("max", Max);

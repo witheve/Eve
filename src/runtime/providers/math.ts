@@ -310,12 +310,12 @@ class Gaussian extends TotalFunctionConstraint {
     let [seed, sigma, mu] = args;
     if (sigma === undefined) sigma = 1.0
     if (mu === undefined) mu = 0.0
-    let found = Gaussian.cache[seed];
+    let key =  "" + seed + sigma + mu
+    let found = Gaussian.cache[key];
     if(found) return found;
     let u1 = Math.random()
     let u2 = Math.random()
     let z0 = Math.sqrt(-2.0 * Math.log(u1) ) * Math.cos (Math.PI * 2 * u2)
-    let key =  "" + seed + sigma + mu
     let res =  z0 * sigma + mu;
     Gaussian.cache[key] = res
     return res
@@ -325,6 +325,13 @@ class Gaussian extends TotalFunctionConstraint {
 class Round extends ValueOnlyConstraint {
   getReturnValue(args) {
     return Math.round(args[0]);
+  }
+}
+
+class Fix extends ValueOnlyConstraint {
+  getReturnValue(args) {
+    let x = args[0];
+    return x - x % 1;
   }
 }
 
@@ -476,6 +483,7 @@ providers.provide("pow", Pow);
 providers.provide("random", Random);
 providers.provide("range", Range);
 providers.provide("round", Round);
+providers.provide("fix", Fix);
 providers.provide("gaussian", Gaussian);
 providers.provide("to-fixed", ToFixed);
 
