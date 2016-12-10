@@ -2152,7 +2152,6 @@ export class IDE {
     }
     if(code === undefined) {
       console.error(`Unable to load uncached file: '${docId}'`);
-      debugger;
       return false;
     }
     this.loaded = false;
