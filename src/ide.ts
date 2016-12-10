@@ -2132,7 +2132,7 @@ export class IDE {
     }
 
     document.getElementById("app-styles").innerHTML = css;
-    document.getElementsByClassName("CodeMirror")[0].classList.remove("cm-s-default");
+    document.getElementsByClassName("CodeMirror")[0].classList.remove("cm-s-default"); // remove document wide code-styling
 
     this.render();
   }

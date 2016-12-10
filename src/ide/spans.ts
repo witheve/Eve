@@ -621,6 +621,7 @@ export class CodeBlockSpan extends BlockSpan {
     return this.source.info ? this.source.info.toLowerCase().split(" ")[0] : "eve";
   }
 
+  // @TODO: replace with style-by-block when multi-language styling can be integrated
   syntaxHighlight() : string {
     // provide codemirror syntax highlight indications for css blocks only
     return this.syntax() === "css" ? "cm-s-default" : "";
