@@ -2114,6 +2114,7 @@ export class IDE {
 
   loadFile(docId:string, content?:string) {
     if(!docId) return false;
+    if(docId === this.documentId) return false;
 
     // We're loading from a remote gist
     if(docId.indexOf("gist:") === 0 && !content) {
@@ -2151,6 +2152,7 @@ export class IDE {
     }
     if(code === undefined) {
       console.error(`Unable to load uncached file: '${docId}'`);
+      debugger;
       return false;
     }
     this.loaded = false;
@@ -2193,6 +2195,30 @@ export class IDE {
 
   saveDocument() {
     if(!this.documentId || !this.loaded) return;
+
+    // When we try to edit a gist-backed file we need to fork it and save the new file to disk.
+    // @FIXME: This is all terribly hacky, and needs to be cleaned up as part of the FileStore rework.
+    if(this.documentId.indexOf("gist:") === 0) {
+      let oldId = this.documentId;
+
+      let neueId = oldId.slice(5);
+      neueId = neueId.slice(0, 7) + neueId.slice(32);
+      neueId = `/root/${neueId}`;
+      this.documentId = neueId;
+
+      let navNode = this.navigator.nodes[oldId];
+      if(navNode) navNode.id = neueId;
+      this.navigator.nodes[oldId] = undefined;
+      this.navigator.nodes[neueId] = navNode;
+      if(this.navigator.currentId === oldId) this.navigator.currentId = neueId;
+
+      let currentHashChunks = location.hash.split("#").slice(1);
+      let modified = neueId;
+      if(currentHashChunks[1]) {
+        modified += `/#` + currentHashChunks[1];
+      }
+      location.hash = modified;
+    }
 
     let md = this.editor.toMarkdown();
 
