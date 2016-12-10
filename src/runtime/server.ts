@@ -195,7 +195,7 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
     let content = filepath && eveSource.find(filepath);
 
     if(!content && config.path && path.indexOf("gist:") === -1) {
-      let workspace = config.internal ? "examples" : "root";
+      let workspace = "root";
       // @FIXME: This hard-coding isn't technically wrong right now, but it's brittle and poor practice.
       content = eveSource.get(config.path, workspace);
       if(content) path = eveSource.getRelativePath(config.path, workspace);
@@ -279,6 +279,7 @@ export function run() {
   // @FIXME: Split these out!
   eveSource.add("eve", path.join(config.eveRoot, "examples"));
   if(config.internal) {
+    eveSource.add("root", path.join(config.eveRoot, "examples"));
     eveSource.add("examples", path.join(config.eveRoot, "examples"));
   } else {
     eveSource.add("root", config.root);
