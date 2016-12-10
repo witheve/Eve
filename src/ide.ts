@@ -2028,6 +2028,10 @@ export class IDE {
   loaded = false;
   /** Whether the IDE is currently loading a new document. */
   loading = false;
+
+  /** When attempting to overwrite an existing document with a new one, the ID of the document to overwrite. */
+  overwriteId:string;
+
   /** The current editor generation. Used for imposing a relative ordering on parses. */
   generation = 0;
   /** Whether the currently open document is a modified version of an example. */
@@ -2064,6 +2068,7 @@ export class IDE {
       {c: "main-pane", children: [
         this.noticesElem(),
         this.editor.render(),
+        this.overwriteId ? this.overwritePrompt() : undefined,
       ]},
       this.comments.render()
     ]};
@@ -2085,6 +2090,37 @@ export class IDE {
     if(items.length) {
       return {c: "notices", children: items};
     }
+  }
+
+  overwritePrompt():Elem {
+    return {c: "modal-overlay", children: [
+      {c: "modal-window", children: [
+        {t: "h3", text: "Overwrite existing copy?"},
+        {c: "flex-row controls", children: [
+          {c: "btn load-btn", text: "load existing", click: this.loadExisting},
+          {c: "btn danger overwrite-btn", text: "overwrite", click: this.overwriteDocument},
+        ]}
+      ]}
+    ]};
+  }
+
+  loadExisting = () => {
+    let id = this.overwriteId;
+    this.overwriteId = undefined;
+    this.loadFile(id);
+    this.render();
+  }
+
+  overwriteDocument = () => {
+    let id = this.overwriteId;
+    this.overwriteId = undefined;
+    this.cloneDocument(id);
+    this.render();
+  }
+
+  promptOverwrite(neueId:string) {
+    this.overwriteId = neueId;
+    this.render();
   }
 
   render() {
@@ -2143,13 +2179,16 @@ export class IDE {
       return false;
     }
 
-    // Otherwise we load the file from either localstorage or from the supplied
-    // examples object
-    let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
-    let code = saves[docId];
-    if(code) {
-      this.modified = true;
-    } else {
+    // Otherwise find the content locally.
+    let code;
+    if(this.local) {
+      let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
+      code = saves[docId];
+      if(code) {
+        this.modified = true;
+      }
+    }
+    if(!code) {
       code = this._fileCache[docId];
       this.modified = false;
     }
@@ -2205,9 +2244,6 @@ export class IDE {
   saveDocument() {
     if(!this.documentId || !this.loaded) return;
 
-    let md = this.editor.toMarkdown();
-    let isDirty = md !== this._fileCache[this.documentId];
-
     // When we try to edit a gist-backed file we need to fork it and save the new file to disk.
     // @FIXME: This is all terribly hacky, and needs to be cleaned up as part of the FileStore rework.
     if(this.documentId.indexOf("gist:") === 0) {
@@ -2216,21 +2252,16 @@ export class IDE {
       let neueId = oldId.slice(5);
       neueId = neueId.slice(0, 7) + neueId.slice(32);
       neueId = `/root/${neueId}`;
-      this.documentId = neueId;
 
-      let navNode = this.navigator.nodes[oldId];
-      if(navNode) navNode.id = neueId;
-      this.navigator.nodes[oldId] = undefined;
-      this.navigator.nodes[neueId] = navNode;
-      if(this.navigator.currentId === oldId) this.navigator.currentId = neueId;
-
-      let currentHashChunks = location.hash.split("#").slice(1);
-      let modified = neueId;
-      if(currentHashChunks[1]) {
-        modified += `/#` + currentHashChunks[1];
+      if(this._fileCache[neueId]) {
+        return this.promptOverwrite(neueId);
+      } else {
+        return this.cloneDocument(neueId);
       }
-      location.hash = modified;
     }
+
+    let md = this.editor.toMarkdown();
+    let isDirty = md !== this._fileCache[this.documentId];
 
     // @NOTE: We sync this here to prevent a terrible reload bug that occurs when saving to the file system.
     // This isn't really the right fix, but it's a quick one that helps prevent lost work in trivial cases
@@ -2266,6 +2297,33 @@ export class IDE {
     localStorage.setItem("eve-saves", JSON.stringify(saves));
     this.documentId = undefined;
     this.loadFile(docId);
+  }
+
+  cloneDocument(neueId:string) {
+    let oldId = this.documentId;
+    this.documentId = neueId;
+
+    let navNode = this.navigator.nodes[oldId];
+    if(navNode) {
+      let neueNode:TreeNode = {} as any;
+      for(let attr in navNode) {
+        neueNode[attr] = navNode[attr];
+      }
+      neueNode.id = neueId;
+      neueNode.children = [];
+      this.navigator.nodes[neueId] = neueNode;
+    }
+
+    if(this.navigator.currentId === oldId) this.navigator.currentId = neueId;
+
+    let currentHashChunks = location.hash.split("#").slice(1);
+    let modified = neueId;
+    if(currentHashChunks[1]) {
+      modified += `/#` + currentHashChunks[1];
+    }
+    location.hash = modified;
+
+    this.saveDocument();
   }
 
   saveToGist() {
