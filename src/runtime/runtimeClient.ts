@@ -137,9 +137,11 @@ export abstract class RuntimeClient {
       this.lastParse.code.replace(/(?:```|~~~)css\n([\w\W]*?)\n(?:```|~~~)/g, (g0, g1) => { // \n excludes disabled blocks
         css += g1;
       });
-      css = css ? css.split("\n").map(function(line) {
-        return ".application-container > .program " + line;
-      }).join("\n") : "";
+      css = css ? css.split("}").slice(0, -1).map(function(block) {
+        return block.split(",").map(function(selector) {
+          return ".application-container > .program " + selector.trim();
+        }).join(", ");
+      }).join("}\n") + "}" : "";
       this.send(JSON.stringify({type: "parse", generation: data.generation, text, spans, extraInfo, css}));
     } else if(data.type === "eval") {
       if(this.evaluation !== undefined && data.persist) {
