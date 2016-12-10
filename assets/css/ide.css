@@ -35,10 +35,10 @@ body { justify-content: stretch; }
 /****************************************************************************\
  * Navigator
 \****************************************************************************/
-.navigator-header { display: flex; flex-direction: column; padding:10px 5px; user-select: none; -webkit-user-select: none; margin-bottom:10px; font-size:18px; color: #555; transition:color 0.2s ease-in-out; }
-.navigator-pane:hover .navigator-header { color: #aaa;  }
+.navigator-header { display: flex; flex-direction: column; padding:10px 5px; user-select: none; -webkit-user-select: none; margin-bottom:10px; font-size:18px; color: #aaa; transition:color 0.2s ease-in-out; }
 .navigator-header > .controls { display:flex; flex-direction:row; flex:1; }
-.navigator-header > .controls > * { height: 20px; padding-left: 10px; text-align: center; transition: transform 0.3s; cursor: pointer; }
+.navigator-header > .controls > * {height: 20px; text-align: center; padding: 0 5px; transition: transform 0.3s; cursor: pointer; }
+.navigator-header > .controls > *:last-child { margin-right: -5px; }
 .navigator-header > .controls > div:not(.disabled):hover { color: #eee; }
 .navigator-pane.collapsed:hover .navigator-header > .controls > div { color: #eee; }
 .navigator-header .collapse-btn { transform: rotate(180deg); color: #999; }
@@ -89,7 +89,7 @@ body { justify-content: stretch; }
 /****************************************************************************\
  * Notices
 \****************************************************************************/
-.main-pane { display: flex; flex-direction: column; justify-content: stretch; overflow-y: hidden; }
+.main-pane { display: flex; flex-direction: column; justify-content: stretch; overflow-y: hidden; position: relative; }
 .main-pane .notices { display: flex; flex: 0 0 auto; flex-direction: column; border-right: 1px solid #ddd; border-bottom: 1px solid #ddd; }
 
 .main-pane .notices > .notice { padding: 5px 60px; background: #f5f5f5; flex: 0 0 auto; }
@@ -102,6 +102,21 @@ body { justify-content: stretch; }
 
 .main-pane .notices > .notice.error { background: rgb(255, 216, 222); }
 .main-pane .notices > .notice.warning { background: rgb(255, 247, 217); }
+
+/****************************************************************************\
+ * Modals
+\****************************************************************************/
+.main-pane > .modal-overlay {display: flex;justify-content: center;align-items: center;position: absolute;top: 0;left: 0;bottom: 0;right: 0;z-index: 5;background: rgba(0, 0, 0, 0.1);}
+.main-pane > .modal-overlay .modal-window { display: flex; flex-direction: column; width: 320; padding: 20; background: #FFF; border-radius: 4px; z-index: 10; box-shadow: 0 4px 5px rgba(0, 0, 0, 0.25); }
+.main-pane > .modal-overlay .modal-window h3 { align-self: center; margin-top: 0; }
+.main-pane > .modal-overlay .modal-window .controls { flex: 0 0 auto; }
+.main-pane > .modal-overlay .modal-window .btn { flex: 1; text-align: center; padding: 5 10; border: 1px solid #DDD; border-radius: 4px; -webkit-user-select: none; -moz-webkit-user-select: none; }
+.main-pane > .modal-overlay .modal-window .btn + .btn { margin-left: 10; }
+.main-pane > .modal-overlay .modal-window .btn:hover { background: #EEE; }
+.main-pane > .modal-overlay .modal-window .btn:active {background: #DDD; }
+.main-pane > .modal-overlay .modal-window .btn.danger { background: #EE5555; color: white; border: #CC3333; }
+.main-pane > .modal-overlay .modal-window .btn.danger:hover { background: #DD4444; }
+.main-pane > .modal-overlay .modal-window .btn.danger:active { background: #CC3333; }
 
 /****************************************************************************\
  * Editor

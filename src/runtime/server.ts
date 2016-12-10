@@ -182,12 +182,25 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
   if(data.type === "init") {
     let {editor, runtimeOwner, controlOwner} = config;
     let {url, hash} = data;
-    let path = hash !== "" ? hash : url;
 
-    let content = path && eveSource.find(path);
+
+    let path = url;
+    let filepath = path;
+    if(hash) {
+      path = hash;
+      filepath = hash.split("#")[0];
+      if(filepath[filepath.length - 1] === "/") filepath = filepath.slice(0, -1);
+    }
+
+    if(config.controlOwner === Owner.client) {
+      ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, withIDE: editor}));
+      return;
+    }
+
+    let content = filepath && eveSource.find(filepath);
 
     if(!content && config.path && path.indexOf("gist:") === -1) {
-      let workspace = config.internal ? "examples" : "root";
+      let workspace = "root";
       // @FIXME: This hard-coding isn't technically wrong right now, but it's brittle and poor practice.
       content = eveSource.get(config.path, workspace);
       if(content) path = eveSource.getRelativePath(config.path, workspace);
@@ -271,6 +284,7 @@ export function run() {
   // @FIXME: Split these out!
   eveSource.add("eve", path.join(config.eveRoot, "examples"));
   if(config.internal) {
+    eveSource.add("root", path.join(config.eveRoot, "examples"));
     eveSource.add("examples", path.join(config.eveRoot, "examples"));
   } else {
     eveSource.add("root", config.root);

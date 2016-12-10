@@ -423,8 +423,8 @@ class Navigator {
         ]} : undefined,
         {c: "flex-spacer"},
 
-        this.open && type === "document" ? {c: "ion-ios-cloud-upload-outline btn", title: "Save to Gist", click: () => this.ide.saveToGist()} : undefined,
-        this.open && type === "document" ? {c: "ion-ios-cloud-download-outline btn", title: "Load from Gist", click: this.openLoadDialog} : undefined,
+        this.open ? {c: "ion-ios-cloud-upload-outline btn", title: "Save to Gist", click: () => this.ide.saveToGist()} : undefined,
+        this.open ? {c: "ion-ios-cloud-download-outline btn", title: "Load from Gist", click: this.openLoadDialog} : undefined,
 
         {c: `${this.open ? "expand-btn" : "collapse-btn"} ion-ios-arrow-back btn`, title: this.open ? "Expand" : "Collapse", click: this.togglePane},
       ]},
@@ -2028,6 +2028,10 @@ export class IDE {
   loaded = false;
   /** Whether the IDE is currently loading a new document. */
   loading = false;
+
+  /** When attempting to overwrite an existing document with a new one, the ID of the document to overwrite. */
+  overwriteId:string;
+
   /** The current editor generation. Used for imposing a relative ordering on parses. */
   generation = 0;
   /** Whether the currently open document is a modified version of an example. */
@@ -2064,6 +2068,7 @@ export class IDE {
       {c: "main-pane", children: [
         this.noticesElem(),
         this.editor.render(),
+        this.overwriteId ? this.overwritePrompt() : undefined,
       ]},
       this.comments.render()
     ]};
@@ -2085,6 +2090,37 @@ export class IDE {
     if(items.length) {
       return {c: "notices", children: items};
     }
+  }
+
+  overwritePrompt():Elem {
+    return {c: "modal-overlay", children: [
+      {c: "modal-window", children: [
+        {t: "h3", text: "Overwrite existing copy?"},
+        {c: "flex-row controls", children: [
+          {c: "btn load-btn", text: "load existing", click: this.loadExisting},
+          {c: "btn danger overwrite-btn", text: "overwrite", click: this.overwriteDocument},
+        ]}
+      ]}
+    ]};
+  }
+
+  loadExisting = () => {
+    let id = this.overwriteId;
+    this.overwriteId = undefined;
+    this.loadFile(id);
+    this.render();
+  }
+
+  overwriteDocument = () => {
+    let id = this.overwriteId;
+    this.overwriteId = undefined;
+    this.cloneDocument(id);
+    this.render();
+  }
+
+  promptOverwrite(neueId:string) {
+    this.overwriteId = neueId;
+    this.render();
   }
 
   render() {
@@ -2114,6 +2150,7 @@ export class IDE {
 
   loadFile(docId:string, content?:string) {
     if(!docId) return false;
+    if(docId === this.documentId) return false;
 
     // We're loading from a remote gist
     if(docId.indexOf("gist:") === 0 && !content) {
@@ -2124,9 +2161,12 @@ export class IDE {
       return true;
     }
 
-    // if we're not in local mode, file content is going to come from
-    // some other source and we should just load it directly
-    if(!this.local && content !== undefined) {
+    if(content !== undefined) {
+      // @FIXME: It's bad. I know. It will be better when I can swap it all out for the global FileStore guy. I promise.
+      // If we're running locally, we may need to ignore the content the server sends us, since our local content is fresher.
+      if(this.local && this._fileCache[docId]) {
+        content = this._fileCache[docId];
+      }
       this.documentId = docId;
       this._fileCache[docId] = content;
       this.editor.reset();
@@ -2139,13 +2179,16 @@ export class IDE {
       return false;
     }
 
-    // Otherwise we load the file from either localstorage or from the supplied
-    // examples object
-    let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
-    let code = saves[docId];
-    if(code) {
-      this.modified = true;
-    } else {
+    // Otherwise find the content locally.
+    let code;
+    if(this.local) {
+      let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
+      code = saves[docId];
+      if(code) {
+        this.modified = true;
+      }
+    }
+    if(!code) {
       code = this._fileCache[docId];
       this.modified = false;
     }
@@ -2166,6 +2209,13 @@ export class IDE {
   loadWorkspace(directory:string, files:{[filename:string]: string}) {
     // @FIXME: un-hardcode root to enable multiple WS's.
     this._fileCache = files;
+    if(this.local) {
+      // Mix in any saved documents in localStorage.
+      let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
+      for(let save in saves) {
+        files[save] = saves[save];
+      }
+    }
     this.navigator.loadWorkspace("root", directory, files);
   }
 
@@ -2194,7 +2244,24 @@ export class IDE {
   saveDocument() {
     if(!this.documentId || !this.loaded) return;
 
+    // When we try to edit a gist-backed file we need to fork it and save the new file to disk.
+    // @FIXME: This is all terribly hacky, and needs to be cleaned up as part of the FileStore rework.
+    if(this.documentId.indexOf("gist:") === 0) {
+      let oldId = this.documentId;
+
+      let neueId = oldId.slice(5);
+      neueId = neueId.slice(0, 7) + neueId.slice(32);
+      neueId = `/root/${neueId}`;
+
+      if(this._fileCache[neueId]) {
+        return this.promptOverwrite(neueId);
+      } else {
+        return this.cloneDocument(neueId);
+      }
+    }
+
     let md = this.editor.toMarkdown();
+    let isDirty = md !== this._fileCache[this.documentId];
 
     // @NOTE: We sync this here to prevent a terrible reload bug that occurs when saving to the file system.
     // This isn't really the right fix, but it's a quick one that helps prevent lost work in trivial cases
@@ -2212,11 +2279,12 @@ export class IDE {
 
     // othewise, save it to local storage
     let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
-    if(md !== this._fileCache[this.documentId]) {
+    if(isDirty) {
       saves[this.documentId] = md;
       this.modified = true;
     } else {
       this.modified = false;
+      saves[this.documentId] = undefined;
     }
     localStorage.setItem("eve-saves", JSON.stringify(saves));
   }
@@ -2231,9 +2299,38 @@ export class IDE {
     this.loadFile(docId);
   }
 
+  cloneDocument(neueId:string) {
+    let oldId = this.documentId;
+    this.documentId = neueId;
+
+    let navNode = this.navigator.nodes[oldId];
+    if(navNode) {
+      let neueNode:TreeNode = {} as any;
+      for(let attr in navNode) {
+        neueNode[attr] = navNode[attr];
+      }
+      neueNode.id = neueId;
+      neueNode.children = [];
+      this.navigator.nodes[neueId] = neueNode;
+    }
+
+    if(this.navigator.currentId === oldId) this.navigator.currentId = neueId;
+
+    let currentHashChunks = location.hash.split("#").slice(1);
+    let modified = neueId;
+    if(currentHashChunks[1]) {
+      modified += `/#` + currentHashChunks[1];
+    }
+    location.hash = modified;
+
+    this.saveDocument();
+  }
+
   saveToGist() {
     // @FIXME: We really need a display name setup for documents.
+    let savingNotice = this.injectNotice("info", "Saving...");
     writeToGist(this.documentId || "Untitled.eve", this.editor.toMarkdown(), (err, url) => {
+      this.dismissNotice(savingNotice);
       if(err) {
         this.injectNotice("error", "Unable to save file to gist. Check the developer console for more information.");
         console.error(err);
@@ -2299,10 +2396,12 @@ export class IDE {
       }
     }
     if(!existing) {
-      this.notices.push({type, message, time});
+      existing = {type, message, time};
+      this.notices.push(existing);
     }
     this.render();
     this.editor.cm.refresh();
+    return existing;
   }
 
   dismissNotice(notice) {
