@@ -2310,6 +2310,7 @@ export class IDE {
         neueNode[attr] = navNode[attr];
       }
       neueNode.id = neueId;
+      neueNode.name = neueId.split("/").pop();
       neueNode.children = [];
       this.navigator.nodes[neueId] = neueNode;
     }
@@ -2325,6 +2326,9 @@ export class IDE {
 
     this.saveDocument();
     this.navigator.loadDocument(neueId, neueId);
+
+    // @FIXME: Will break in multi-workspace.
+    this.navigator.nodes[this.navigator.rootId].children.push(neueId);
   }
 
   saveToGist() {
