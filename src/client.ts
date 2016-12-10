@@ -297,7 +297,10 @@ export class EveClient {
       initIDE(this);
       this.ide.render();
       if(data.path && data.path.length > 2) {
-        this.ide.loadFile(data.path, data.code);
+        let currentHashChunks = location.hash.split("#").slice(1);
+        let docId = currentHashChunks[0];
+        if(docId && docId[docId.length - 1] === "/") docId = docId.slice(0, -1);
+        this.ide.loadFile(docId, data.code);
       }
     }
     onHashChange({});
@@ -446,7 +449,15 @@ function initIDE(client:EveClient) {
     client.send({type: "close"});
     client.send({scope: "root", type: "parse", code})
     client.send({type: "eval", persist: false});
+
     let url = `${location.pathname}#${documentId}`;
+    let currentHashChunks = location.hash.split("#").slice(1);
+    let curId = currentHashChunks[0];
+    if(curId && curId[curId.length - 1] === "/") curId = curId.slice(0, -1);
+    if(curId === documentId && currentHashChunks[1]) {
+      url += "/#" + currentHashChunks[1];
+    }
+
     history.pushState({}, "", url + location.search);
     analyticsEvent("load-document", documentId);
   }
