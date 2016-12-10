@@ -2324,6 +2324,7 @@ export class IDE {
     location.hash = modified;
 
     this.saveDocument();
+    this.navigator.loadDocument(neueId, neueId);
   }
 
   saveToGist() {
