@@ -720,6 +720,7 @@ export class CodeBlockSpan extends BlockSpan {
   }
 
   clearWidgets() {
+    if(!this.widget) return;
     this.widget.clear();
     this.footerWidget.clear();
     this.widget = this.widgetElem = this.widgetLine = undefined;
