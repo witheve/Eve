@@ -7,6 +7,7 @@ var minimist = require("minimist");
 
 var config = require("../build/src/config");
 var Owner = config.Owner;
+var Mode = config.Mode;
 var server = require("../build/src/runtime/server");
 
 const argv = minimist(process.argv.slice(2), {boolean: ["help", "version", "localControl", "server", "editor"]});
@@ -94,6 +95,9 @@ if(!filepath) {
     filepath = filepath.replace(/\\/g, "/");
   }
 }
+
+let mode = Mode.workspace;
+if(filepath) mode = Mode.file
 
 var opts = {internal: internal, runtimeOwner: runtimeOwner, controlOwner: controlOwner, editor: editor, port: port, path: filepath, internal: internal, root: root, eveRoot: eveRoot};
 config.init(opts);
