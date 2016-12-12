@@ -419,7 +419,7 @@ class Navigator {
       {c: "controls", children: [
         this.open ? {c: `up-btn flex-row  ${(this.currentId === this.rootId) ? "disabled" : ""}`, click: this.navigate, children: [
           {c:  "up-icon ion-android-arrow-up"},
-          {c: "label", text: "examples"}
+          {c: "label", text: "workspaces"}
         ]} : undefined,
         {c: "flex-spacer"},
 
