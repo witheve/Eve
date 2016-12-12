@@ -610,15 +610,26 @@ export class CodeBlockSpan extends BlockSpan {
   protected widgetLine:number;
   protected widget:CodeMirror.LineWidget;
   protected widgetElem:HTMLElement;
+  protected languageLabelElem:HTMLElement;
   protected enableToggleElem:HTMLElement;
 
   protected footerWidgetLine:number;
   protected footerWidget:CodeMirror.LineWidget;
   protected footerWidgetElem:HTMLElement;
 
+  syntax() : string {
+    return this.source.info ? this.source.info.toLowerCase().split(" ")[0] : "eve";
+  }
+
+  // @TODO: replace with style-by-block when multi-language styling can be integrated
+  syntaxHighlight() : string {
+    // provide codemirror syntax highlight indications for css blocks only
+    return this.syntax() === "css" ? "cm-s-default" : "";
+  }
+
   apply(from:Position, to:Position, origin = "+input") {
-    this.lineBackgroundClass = "code";
-    this.lineTextClass = "code-text";
+    this.lineBackgroundClass = "code " + this.syntax();
+    this.lineTextClass = "code-text " + this.syntaxHighlight();
     if(this.source.disabled) this.disabled = this.source.disabled;
     else this.disabled = false;
     super.apply(from, to, origin);
@@ -649,7 +660,7 @@ export class CodeBlockSpan extends BlockSpan {
 
   disable() {
     if(!this.disabled) {
-      this.source.info = "eve disabled";
+      this.source.info = this.syntax() + " disabled";
       // @FIXME: We don't currently style this because of a bug in updateLineClasses.
       // It's unable to intelligently remove unsupported classes, so we'd have to manually clear line classes.
       // We can come back to this later if we care.
@@ -665,7 +676,7 @@ export class CodeBlockSpan extends BlockSpan {
 
   enable() {
     if(this.disabled) {
-      this.source.info = "eve";
+      this.source.info = this.syntax();
       this.disabled = false;
       this.refresh();
 
@@ -685,6 +696,13 @@ export class CodeBlockSpan extends BlockSpan {
     this.widgetElem = document.createElement("div");
     this.widgetElem.className = "code-controls-widget";
 
+    if (this.syntax() !== "eve") {
+      this.languageLabelElem = document.createElement("div");
+      this.languageLabelElem.className = "code-language-label";
+      this.languageLabelElem.textContent = this.syntax().toUpperCase();
+      this.widgetElem.appendChild(this.languageLabelElem);
+    }
+
     this.enableToggleElem = document.createElement("div");
     this.enableToggleElem.classList.add("enable-btn");
     this.enableToggleElem.onclick = () => {
@@ -702,6 +720,7 @@ export class CodeBlockSpan extends BlockSpan {
   }
 
   clearWidgets() {
+    if(!this.widget) return;
     this.widget.clear();
     this.footerWidget.clear();
     this.widget = this.widgetElem = this.widgetLine = undefined;

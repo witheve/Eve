@@ -1255,7 +1255,7 @@ export class Editor {
     return neue;
   }
 
-  format(source:{type:string, level?: number, listData?: {type:"ordered"|"bullet", start?: number}}, refocus = false) {
+  format(source:{type:string, info?:string, level?: number, listData?: {type:"ordered"|"bullet", start?: number}}, refocus = false) {
     let SpanClass:(typeof Span) = spanTypes[source.type] || spanTypes["default"];
 
     let style = SpanClass.style();
@@ -1989,7 +1989,8 @@ function newBlockBar(elem:EditorBarElem):Elem {
       editor.queueUpdate();
     }},
     {c: "flex-row controls", children: [
-      {text: "block", click: () => editor.format({type: "code_block"}, true)},
+      {text: "Eve", click: () => editor.format({type: "code_block"}, true)},
+      {text: "CSS", click: () => editor.format({type: "code_block", info: "css"}, true)},
       {text: "list", click: () => editor.format({type: "item"}, true)},
       {text: "H1", click: () => editor.format({type: "heading", level: 1}, true)},
       {text: "H2", click: () => editor.format({type: "heading", level: 2}, true)},
@@ -2219,7 +2220,7 @@ export class IDE {
     this.navigator.loadWorkspace("root", directory, files);
   }
 
-  loadDocument(generation:number, text:string, packed:any[], attributes:{[id:string]: any|undefined}) {
+  loadDocument(generation:number, text:string, packed:any[], attributes:{[id:string]: any|undefined}, css:string) {
     if(generation < this.generation && generation !== undefined) return;
     if(this.loaded) {
       this.editor.updateDocument(packed, attributes);
@@ -2237,6 +2238,9 @@ export class IDE {
     } else {
       // Empty file
     }
+
+    document.getElementById("app-styles").innerHTML = css;
+    document.getElementsByClassName("CodeMirror")[0].classList.remove("cm-s-default"); // remove document wide code-styling
 
     this.render();
   }

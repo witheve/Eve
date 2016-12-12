@@ -120,7 +120,7 @@ export class DependencyChecker {
     if(deps["any"]) {
       let attr = deps["any"][a];
       if(attr === true) return true;
-      if(attr === true && attr[v] === true) return true
+      if(attr && attr[v] === true) return true
     }
     for(let tag of tags) {
       let attrIndex = deps[tag];

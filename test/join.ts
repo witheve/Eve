@@ -191,6 +191,63 @@ test("search with attribute having multiple values in parenthesis with a functio
   assert.end();
 })
 
+test.only("sub-records in a parenthesis pick up their parent as part of their identity", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "tag", "person"],
+      ["a", "name", "chris"],
+      ["a", "age", 20],
+
+      ["b", "tag", "person"],
+      ["b", "name", "joe"],
+      ["b", "age", 20],
+
+      ["c", "tag", "div"],
+      ["c", "p", "a"],
+      ["c", "children", "d"],
+      ["c", "children", "e"],
+
+      ["d", "tag", "div"],
+      ["d", "text", "age"],
+      ["d", "eve-auto-index", 1],
+
+      ["e", "tag", "div"],
+      ["e", "text", 20],
+      ["e", "eve-auto-index", 2],
+
+      ["f", "tag", "div"],
+      ["f", "p", "b"],
+      ["f", "children", "g"],
+      ["f", "children", "h"],
+
+      ["g", "tag", "div"],
+      ["g", "text", "age"],
+      ["g", "eve-auto-index", 1],
+
+      ["h", "tag", "div"],
+      ["h", "text", 20],
+      ["h", "eve-auto-index", 2],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "chris" age: 20]
+        [#person name: "joe" age: 20]
+    ~~~
+
+    ~~~
+      search
+        p = [#person name age]
+      commit
+           [#div p children: ([#div text: "age"], [#div text: age])]
+    ~~~
+  `);
+  assert.end();
+})
+
 test("create a record with numeric attributes", (assert) => {
   let expected = {
     insert: [
