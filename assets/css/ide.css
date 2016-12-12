@@ -120,6 +120,7 @@ body { justify-content: stretch; }
 .CodeMirror .STRONG { font-weight:bold; }
 .CodeMirror .EMPH { font-style:italic; }
 .CodeMirror .CODE { margin-left: 10px; margin-right:50px; border-left:5px solid #eaeaea; background: #f4f4f4; font-family: "Inconsolata", "Monaco", "Consolas", "Ubuntu Mono", monospace;  }
+.CodeMirror .CODE.css { background: #f0f5ff; border-left-color: #e1ebff;}
 .CodeMirror .CODE-TEXT { line-height:19px; padding-left:30px; transition: opacity 0.3s; }
 .CodeMirror .CODE-TEXT.CODE-DISABLED { opacity: 0.6; }
 .CodeMirror span.CODE { color: #0076ce; background:none; margin:0; padding:0; border:none; }
@@ -129,9 +130,10 @@ body { justify-content: stretch; }
 .CodeMirror .CODE-BOTTOM { border-radius:0 0 3px 3px; padding-bottom:8px; }
 
 .CodeMirror .CodeMirror-linewidget { overflow: visible; z-index: 3; }
-.CodeMirror .code-controls-widget { display: flex; flex-direction: row; justify-content: flex-end; margin-right: 50px; padding: 5px 10px; padding-bottom: 0; height: 15px; font-size: 1.2rem; opacity: 0.2; transition: opacity 0.3s; }
-.CodeMirror .code-controls-widget > * { cursor:pointer; }
-.CodeMirror .CodeMirror-linewidget:hover .code-controls-widget { opacity: 1; }
+.CodeMirror .code-controls-widget { display: flex; flex-direction: row; justify-content: flex-end; margin-right: 50px; padding: 3px 6px; padding-bottom: 0; height: 20px; font-size: 1.2rem; transition: opacity 0.3s; }
+.CodeMirror .code-controls-widget .enable-btn { cursor:pointer; opacity: 0.2; }
+.CodeMirror .CodeMirror-linewidget .code-controls-widget .enable-btn:hover { opacity: 1; }
+.CodeMirror .CodeMirror-linewidget .code-controls-widget .code-language-label {font-size: 1.0rem; margin-top: -2px; margin-right: 5px; opacity: 0.5;}
 
 .CodeMirror .code-footer-widget { height: 15px; }
 
@@ -177,7 +179,7 @@ body { justify-content: stretch; }
  * Format Bars
 \****************************************************************************/
 .editor-pane .new-block-bar { position: absolute; top: 0; left: 0; margin-left: -28px; display: flex; flex-direction: row; width: 28px; overflow: hidden; transition: width 0.15s; z-index: 5; color: #666; border-radius:5px; border:1px solid #ddd; font-size:10pt; background:white; }
-.editor-pane .new-block-bar.active { width: 246px; }
+.editor-pane .new-block-bar.active { width: 267px; }
 
 
 .editor-pane .new-block-bar > .new-block-bar-toggle,

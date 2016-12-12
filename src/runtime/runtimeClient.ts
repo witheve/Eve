@@ -80,6 +80,7 @@ export abstract class RuntimeClient {
     }
 
     this.evaluation = ev;
+
     return ev;
   }
 
@@ -92,6 +93,31 @@ export abstract class RuntimeClient {
     }
     this.send(JSON.stringify({type: "comments", spans, extraInfo}))
     return true;
+  }
+
+  enabledCss() {
+      var css = "";
+      this.lastParse.code.replace(/(?:```|~~~)css\n([\w\W]*?)\n(?:```|~~~)/g, (g0, g1) => { // \n excludes disabled blocks
+        css += g1;
+      });
+
+      // remove whitespace before open braces, and add a newline after open brace
+      css = css.replace(/\s*{\s*/g, " {\n");
+
+      css = css.split("\n").map(function(line) {
+        var trimmedLine = line.trim();
+        if ((line.indexOf("{") !== -1) && // selector line
+          ("0123456789@".indexOf(trimmedLine[0]) === -1) && // no animation percentages or @-rules
+          (["from", "to"].indexOf(trimmedLine.split(" ")[0]) === -1)) { // exclude animation instructions
+          return trimmedLine.split(",").map(function(section) {
+            return ".application-container > .program " + section;
+          }).join(", ");
+        }
+
+        return trimmedLine;
+      }).join("\n");
+
+      return css;
   }
 
   handleEvent(json:string) {
@@ -132,7 +158,7 @@ export abstract class RuntimeClient {
       for(let error of buildErrors) {
         error.injectSpan(spans, extraInfo);
       }
-      this.send(JSON.stringify({type: "parse", generation: data.generation, text, spans, extraInfo}));
+      this.send(JSON.stringify({type: "parse", generation: data.generation, text, spans, extraInfo, css: this.enabledCss()}));
     } else if(data.type === "eval") {
       if(this.evaluation !== undefined && data.persist) {
         let changes = this.evaluation.createChanges();

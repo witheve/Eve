@@ -304,7 +304,7 @@ export class EveClient {
 
   _parse(data) {
     if(!this.showIDE) return;
-    this.ide.loadDocument(data.generation, data.text, data.spans, data.extraInfo); // @FIXME
+    this.ide.loadDocument(data.generation, data.text, data.spans, data.extraInfo, data.css); // @FIXME
   }
 
   _comments(data) {
