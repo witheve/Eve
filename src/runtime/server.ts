@@ -185,6 +185,7 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
 
     let content:string;
     let path:string;
+    let isLocal = hash.indexOf("gist:") === 0;
 
     // If we're in file mode, the only valid file to serve is the one specified in `config.path`.
     if(mode === Mode.file) {
@@ -193,7 +194,7 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
     }
 
     // Otherwise, anything goes. First we check if the client has requested a specific file in the URL hash.
-    if(mode === Mode.workspace && hash) {
+    if(!isLocal && mode === Mode.workspace && hash) {
       // @FIXME: This code to strip the editor hash segment out really needs to be abstacted.
       let filepath = hash.split("#")[0];
       if(filepath[filepath.length - 1] === "/") filepath = filepath.slice(0, -1);
@@ -203,7 +204,7 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
     }
 
     // If we've got a path to run with, use it as the default.
-    if(!content && config.path) {
+    if(!isLocal && !content && config.path) {
       let workspace = "root";
       // @FIXME: This hard-coding isn't technically wrong right now, but it's brittle and poor practice.
       content = eveSource.get(config.path, workspace);
@@ -211,7 +212,7 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
     }
 
     // If we can't find the config path in a workspace, try finding it on disk.
-    if(!content && config.path && fs.existsSync("." + path)) {
+    if(!isLocal && !content && config.path && fs.existsSync("." + path)) {
       content = fs.readFileSync("." + path).toString();
     }
 
