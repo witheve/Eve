@@ -6,61 +6,35 @@
  
 Eve is a programming language and IDE based on years of research into building a human-first programming platform. You can play with Eve online here: [play.witheve.com](http://play.witheve.com/).
 
-[![Play With Eve](http://programming.witheve.com/images/eve.png)](http://play.witheve.com/)
-
-## Installation
-
-### From Source
-
-You'll need a recent [node.js](https://nodejs.org) for your platform. Download the Eve source either by cloning this repository:
-
-
-```
-git clone https://github.com/witheve/Eve.git
-```
-
-or you can [download](https://github.com/witheve/Eve/archive/master.zip) the Eve source directly. To build and run Eve, run the following commands in the root Eve directory:
-
-```
-npm install
-npm start
-```
-
-Then open `http://localhost:8080/` in your browser.
-
-### From npm
-
-Alternatively, you can download Eve directly from npm with the following command:
-
-```
-npm install witheve
-```
-
-### From Docker
-
-First, [download](https://www.docker.com/products/docker) and install Docker for your platform. To download and install the Eve container, run the following command:
-
-```
-docker run -p 8080:8080 witheve/eve
-```
+[![Play With Eve](http://witheve.github.io/assets/images/editor.png)](http://play.witheve.com/#/examples/flappy.eve)
 
 ## How to use Eve
 
+Install [Node](https://nodejs.org/en/download/) for your platform, then install Eve:
+
+```
+npm install -g witheve
+```
+
+Use the `eve` command to run a `*.eve` program:
+
+```
+eve myProgram.eve
+```
+
+For more on running Eve, see the [documentation](http://docs.witheve.com/handbook/running/).
+
+You can alternatively install Eve from source ([mac](http://docs.witheve.com/handbook/mac/), [windows](http://docs.witheve.com/handbook/windows/), [linux](http://docs.witheve.com/handbook/linux/)), or with [Docker](http://docs.witheve.com/handbook/docker/). 
+
+## Learning Eve
+
 You can learn about Eve with the following resources:
 
-- [Play with Eve in your browser](http://play.witheve.com/) (use Chrome for best results)
+- [Read the Quick Start Tutorial](http://play.witheve.com/) (use Chrome for best results)
 - [Syntax Quick Reference](https://witheve.github.io/assets/docs/SyntaxReference.pdf)
-- [Eve Language Handbook (draft)](http://docs.witheve.com)
+- [Language Handbook (draft)](http://docs.witheve.com)
 
-*Please let us know what kind of documents would be the most helpful as you begin your journey with Eve*. We want our documentation to be a highlight of the Eve experience, so any suggestions are greatly appreciated.
-
-### Running Eve Programs in Server Mode
-
-By default, Eve executes on the client browser. To instead execute your program on the server, launch Eve with the `--server` flag:   
-
-```
-npm start -- --server
-```
+Also, the [mailing list archive](https://groups.google.com/forum/#!forum/eve-talk) is a good resource for help and inspiration. In particular, the [Puzzles & Paradoxes series](https://groups.google.com/forum/#!searchin/eve-talk/Puzzles$20$26$20Paradoxes%7Csort:date) answers a lot of questions beginners face about the Eve langauge.
 
 ## Get Involved
 
@@ -75,9 +49,7 @@ The Eve community is small but constantly growing, and everyone is welcome!
 
 ### How to Contribute
 
-The best way to contribute right now is to write Eve code and report your experiences. Let us know what kind of programs you’re trying to write, what barriers you are facing in writing code (both mental and technological), and any errors you encounter along the way. Also, let us know what you love! What features are your favorite?
-
-Another way to really help us is to host your `*.eve` files on Github, so we can get Eve recognized as an official language in the eyes of Github. Be sure to also send us a link to your repo!
+The best way to contribute right now is to write Eve code and report your experiences. [Let us know](https://groups.google.com/forum/#!forum/eve-talk) what kind of programs you’re trying to write, what barriers you are facing in writing code (both mental and technological), and any errors you encounter along the way.
 
 ### How to File an Issue
 
@@ -85,7 +57,7 @@ Please file any issues in this repository. Before you file an issue, please take
 
 1. The steps needed to reproduce the bug
 2. Your operating system and browser.
-3. If applicable, the .*eve file that causes the bug.
+3. If applicable, the `.*eve` file that causes the bug.
 
 ## License
 
