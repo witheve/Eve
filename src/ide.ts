@@ -2152,6 +2152,7 @@ export class IDE {
   loadFile(docId:string, content?:string) {
     if(!docId) return false;
     if(docId === this.documentId) return false;
+    if(this.loading) return false;
 
     // We're loading from a remote gist
     if(docId.indexOf("gist:") === 0 && !content) {
@@ -2162,38 +2163,20 @@ export class IDE {
       return true;
     }
 
-    if(content !== undefined) {
-      // @FIXME: It's bad. I know. It will be better when I can swap it all out for the global FileStore guy. I promise.
-      // If we're running locally, we may need to ignore the content the server sends us, since our local content is fresher.
-      if(this.local && this._fileCache[docId]) {
-        content = this._fileCache[docId];
-      }
-      this.documentId = docId;
-      this._fileCache[docId] = content;
-      this.editor.reset();
-      this.notices = [];
-      this.loading = true;
-      this.loaded = false;
-      this.onLoadFile(this, docId, content);
-      return true;
-    } else if(this.loading || this.documentId === docId) {
-      return false;
-    }
+    let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
+    if(this.local && saves[docId]) {
+      content = saves[docId];
+      this.modified = true;
 
-    // Otherwise find the content locally.
-    let code;
-    if(this.local) {
-      let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
-      code = saves[docId];
-      if(code) {
-        this.modified = true;
-      }
-    }
-    if(!code) {
-      code = this._fileCache[docId];
+    } else if(content) {
+      this._fileCache[docId] = content;
+
+    } else if(this._fileCache[docId]) {
+      content = this._fileCache[docId];
       this.modified = false;
     }
-    if(code === undefined) {
+
+    if(content === undefined) {
       console.error(`Unable to load uncached file: '${docId}'`);
       return false;
     }
@@ -2202,7 +2185,7 @@ export class IDE {
     this.editor.reset();
     this.notices = [];
     this.loading = true;
-    this.onLoadFile(this, docId, code);
+    this.onLoadFile(this, docId, content);
 
     return true;
   }

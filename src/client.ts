@@ -284,23 +284,23 @@ export class EveClient {
       browser.init(data.code);
     }
     if(this.showIDE) {
-      // Ensure the URL bar is in sync with the server.
-      // @FIXME: This back and forth of control over where we are
-      // is an Escherian nightmare.
-
-      if(!data.path) {
-        history.pushState({}, "", window.location.pathname);
-      }
+      let path = data.path;
+      if(path === undefined) path = location.hash && location.hash.slice(1);
+      //history.replaceState({}, "", window.location.pathname);
 
       this.ide = new IDE();
       this.ide.local = this.localControl;
       initIDE(this);
       this.ide.render();
-      if(data.path && data.path.length > 2) {
-        let currentHashChunks = location.hash.split("#").slice(1);
+      let found = false;
+      if(path && path.length > 2) {
+        let currentHashChunks = path.split("#");//.slice(1);
         let docId = currentHashChunks[0];
         if(docId && docId[docId.length - 1] === "/") docId = docId.slice(0, -1);
-        this.ide.loadFile(docId, data.code);
+        found = this.ide.loadFile(docId, data.code);
+      }
+      if(!found && data.internal) {
+        this.ide.loadFile("/examples/quickstart.eve");
       }
     }
     onHashChange({});
