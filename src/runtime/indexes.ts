@@ -293,3 +293,12 @@ class IndexLevel {
     return next;
   }
 }
+
+// This is used in the cases where we want to capture writes to a database
+// (via Changes), but don't want the writes to actually be readable. An example
+// of this is the first-pass version of client-server interaction where the client
+// can write to @server, but shouldn't read those writes.
+export class NoopTripleIndex extends TripleIndex {
+  store(e,a,v,node = "user") {
+  }
+}
