@@ -186,14 +186,6 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
     let content:string;
     let path:string;
 
-    // If the client is locally controlled it's in charge of its own file management.
-    // If it's requesting a gist, it needs to fetch elsewhere too.
-    // This is pretty hacky, but we'll clean it up in post.
-    if(config.controlOwner === Owner.client ||
-       hash && hash.indexOf("gist:") === 0) {
-      return ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, internal, withIDE: editor}));
-    }
-
     // If we're in file mode, the only valid file to serve is the one specified in `config.path`.
     if(mode === Mode.file) {
       content = eveSource.find(config.path);
@@ -201,7 +193,7 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
     }
 
     // Otherwise, anything goes. First we check if the client has requested a specific file in the URL hash.
-    if(!content && hash) {
+    if(mode === Mode.workspace && hash) {
       // @FIXME: This code to strip the editor hash segment out really needs to be abstacted.
       let filepath = hash.split("#")[0];
       if(filepath[filepath.length - 1] === "/") filepath = filepath.slice(0, -1);

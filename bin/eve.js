@@ -97,9 +97,9 @@ if(!filepath) {
 }
 
 let mode = Mode.workspace;
-if(filepath) mode = Mode.file
+if(filepath && !editor) mode = Mode.file
 
-var opts = {internal: internal, runtimeOwner: runtimeOwner, controlOwner: controlOwner, editor: editor, port: port, path: filepath, internal: internal, root: root, eveRoot: eveRoot};
+var opts = {internal: internal, runtimeOwner: runtimeOwner, controlOwner: controlOwner, editor: editor, port: port, path: filepath, internal: internal, root: root, eveRoot: eveRoot, mode};
 config.init(opts);
 
 server.run(opts);
