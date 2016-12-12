@@ -1,7 +1,7 @@
 import {Renderer, Element as Elem, RenderHandler} from "microReact";
 import {Parser as MDParser} from "commonmark";
 import * as CodeMirror from "codemirror";
-import {debounce, uuid, unpad, Range, Position, isRange, compareRanges, comparePositions, samePosition, whollyEnclosed, adjustToWordBoundary} from "./util";
+import {debounce, uuid, unpad, Range, Position, isRange, compareRanges, comparePositions, samePosition, whollyEnclosed, adjustToWordBoundary, writeToGist, readFromGist} from "./util";
 
 import {Span, SpanMarker, isSpanMarker, isEditorControlled, spanTypes, compareSpans, SpanChange, isSpanChange, HeadingSpan, CodeBlockSpan, DocumentCommentSpan} from "./ide/spans";
 import * as Spans from "./ide/spans";
@@ -41,6 +41,9 @@ class Navigator {
     document: "Table of Contents"
   };
   open: boolean = true;
+
+  loadDialogOpen = false;
+  loadDialogValue:string;
 
   constructor(public ide:IDE, public rootId = "root", public nodes:TreeMap = {root: {type: "folder", name: "/", children: []}}, public currentId:string = rootId) {}
 
@@ -91,8 +94,10 @@ class Navigator {
 
     let root:TreeNode = this.nodes[id];
     if(!root) {
-      console.error("Cannot load non-existent document.");
-      return;
+      //console.error("Cannot load non-existent document.");
+      //return;
+
+      root = this.nodes[id] = {id, type: "document", name};
     }
     root.open = true;
     root.children = undefined;
@@ -317,6 +322,31 @@ class Navigator {
     node.name
   }
 
+  openLoadDialog = () => {
+    this.loadDialogOpen = true;
+    this.ide.render();
+  }
+
+  loadDialogInput = (event) => {
+    let input = event.target as HTMLInputElement;
+    this.loadDialogValue = input.value;
+  }
+
+  loadFromDialog = (event) => {
+    if(event instanceof KeyboardEvent) {
+      if(event.keyCode === 27) { // Escape
+        this.loadDialogValue = undefined;
+        this.loadDialogOpen = false;
+        this.ide.render();
+      }
+      if(event.keyCode !== 13) return; // Enter
+    }
+    this.ide.loadFromGist(this.loadDialogValue);
+    this.loadDialogValue = undefined;
+    this.loadDialogOpen = false;
+    this.ide.render();
+  }
+
   // Elements
   workspaceItem(nodeId:string):Elem {
     let node = this.nodes[nodeId];
@@ -387,14 +417,25 @@ class Navigator {
     let type = this.currentType();
     return {c: "navigator-header", children: [
       {c: "controls", children: [
-        this.open ? {c: `up-btn flex-row`, click: this.navigate, children: [
-          {c:  `up-btn ion-android-arrow-up ${(type === "folder") ? "disabled" : ""}`},
-          {c: "label", text: "examples"},
+        this.open ? {c: `up-btn flex-row  ${(this.currentId === this.rootId) ? "disabled" : ""}`, click: this.navigate, children: [
+          {c:  "up-icon ion-android-arrow-up"},
+          {c: "label", text: "examples"}
         ]} : undefined,
         {c: "flex-spacer"},
-        {c: `${this.open ? "expand-btn" : "collapse-btn"} ion-ios-arrow-back`, click: this.togglePane},
+
+        this.open ? {c: "ion-ios-cloud-upload-outline btn", title: "Save to Gist", click: () => this.ide.saveToGist()} : undefined,
+        this.open ? {c: "ion-ios-cloud-download-outline btn", title: "Load from Gist", click: this.openLoadDialog} : undefined,
+
+        {c: `${this.open ? "expand-btn" : "collapse-btn"} ion-ios-arrow-back btn`, title: this.open ? "Expand" : "Collapse", click: this.togglePane},
       ]},
       this.ide.inspecting ? this.inspectorControls() : {c: "inspector-controls"},
+    ]};
+  }
+
+  loadDialog():Elem {
+    return {c: "load-dialog flex-row", children: [
+      {t: "input", c: "flex-spacer", type: "url", autofocus: true, placeholder: "Enter gist url to load...", input: this.loadDialogInput, keydown: this.loadFromDialog},
+      {c: "btn load-btn ion-arrow-right-b", style: "padding: 0 10", click: this.loadFromDialog}
     ]};
   }
 
@@ -404,6 +445,7 @@ class Navigator {
     if(!root) return {c: "navigator-pane", children: [
       {c: "navigator-pane-inner", children: [
         this.header(),
+        this.loadDialogOpen ? this.loadDialog() : undefined,
         {c: "new-btn ion-ios-plus-empty", click: () => console.log("new folder or document")}
       ]}
     ]};
@@ -417,6 +459,7 @@ class Navigator {
     return {c: `navigator-pane ${this.open ? "" : "collapsed"}`, click: this.open ? undefined : this.togglePane, children: [
       {c: "navigator-pane-inner", children: [
         this.header(),
+        this.loadDialogOpen ? this.loadDialog() : undefined,
         tree
       ]}
     ]};
@@ -1971,6 +2014,7 @@ function modalWrapper():Elem {
   return {};
 }
 
+type ElemGen = () => Elem;
 
 //---------------------------------------------------------
 // Root
@@ -1985,6 +2029,10 @@ export class IDE {
   loaded = false;
   /** Whether the IDE is currently loading a new document. */
   loading = false;
+
+  /** When attempting to overwrite an existing document with a new one, the ID of the document to overwrite. */
+  overwriteId:string;
+
   /** The current editor generation. Used for imposing a relative ordering on parses. */
   generation = 0;
   /** Whether the currently open document is a modified version of an example. */
@@ -2000,7 +2048,7 @@ export class IDE {
 
   renderer:Renderer = new Renderer();
 
-  notices:{message: string, type: string, time: number}[] = [];
+  notices:{message: string|ElemGen, type: string, time: number}[] = [];
 
   languageService:LanguageService = new LanguageService();
   navigator:Navigator = new Navigator(this);
@@ -2021,6 +2069,7 @@ export class IDE {
       {c: "main-pane", children: [
         this.noticesElem(),
         this.editor.render(),
+        this.overwriteId ? this.overwritePrompt() : undefined,
       ]},
       this.comments.render()
     ]};
@@ -2034,12 +2083,45 @@ export class IDE {
       let formattedSeconds = time.getSeconds() >= 10 ? time.getMinutes() : `0${time.getSeconds()}`;
       items.push({c: `notice ${notice.type} flex-row`, children: [
         {c: "time", text: `${time.getHours()}:${formattedMinutes}:${formattedSeconds}`},
-        {c: "message", text: notice.message}
+        {c: "message", children: [(typeof notice.message === "function") ? notice.message() : {text: notice.message}]},
+        {c: "flex-spacer"},
+        {c: "dismiss-btn ion-close-round", notice, click: (event, elem) => this.dismissNotice(elem.notice)}
       ]});
     }
     if(items.length) {
       return {c: "notices", children: items};
     }
+  }
+
+  overwritePrompt():Elem {
+    return {c: "modal-overlay", children: [
+      {c: "modal-window", children: [
+        {t: "h3", text: "Overwrite existing copy?"},
+        {c: "flex-row controls", children: [
+          {c: "btn load-btn", text: "load existing", click: this.loadExisting},
+          {c: "btn danger overwrite-btn", text: "overwrite", click: this.overwriteDocument},
+        ]}
+      ]}
+    ]};
+  }
+
+  loadExisting = () => {
+    let id = this.overwriteId;
+    this.overwriteId = undefined;
+    this.loadFile(id);
+    this.render();
+  }
+
+  overwriteDocument = () => {
+    let id = this.overwriteId;
+    this.overwriteId = undefined;
+    this.cloneDocument(id);
+    this.render();
+  }
+
+  promptOverwrite(neueId:string) {
+    this.overwriteId = neueId;
+    this.render();
   }
 
   render() {
@@ -2069,26 +2151,45 @@ export class IDE {
 
   loadFile(docId:string, content?:string) {
     if(!docId) return false;
-    // if we're not in local mode, file content is going to come from
-    // some other source and we should just load it directly
-    if(!this.local && content !== undefined) {
+    if(docId === this.documentId) return false;
+
+    // We're loading from a remote gist
+    if(docId.indexOf("gist:") === 0 && !content) {
+      let gistId = docId.slice(5);
+      if(gistId.indexOf("-") !== -1) gistId = gistId.slice(0, gistId.indexOf("-"));
+      let gistUrl = `https://gist.githubusercontent.com/raw/${gistId}`;
+      this.loadFromGist(gistUrl);
+      return true;
+    }
+
+    if(content !== undefined) {
+      // @FIXME: It's bad. I know. It will be better when I can swap it all out for the global FileStore guy. I promise.
+      // If we're running locally, we may need to ignore the content the server sends us, since our local content is fresher.
+      if(this.local && this._fileCache[docId]) {
+        content = this._fileCache[docId];
+      }
       this.documentId = docId;
+      this._fileCache[docId] = content;
       this.editor.reset();
       this.notices = [];
       this.loading = true;
+      this.loaded = false;
       this.onLoadFile(this, docId, content);
       return true;
     } else if(this.loading || this.documentId === docId) {
       return false;
     }
 
-    // Otherwise we load the file from either localstorage or from the supplied
-    // examples object
-    let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
-    let code = saves[docId];
-    if(code) {
-      this.modified = true;
-    } else {
+    // Otherwise find the content locally.
+    let code;
+    if(this.local) {
+      let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
+      code = saves[docId];
+      if(code) {
+        this.modified = true;
+      }
+    }
+    if(!code) {
       code = this._fileCache[docId];
       this.modified = false;
     }
@@ -2109,6 +2210,13 @@ export class IDE {
   loadWorkspace(directory:string, files:{[filename:string]: string}) {
     // @FIXME: un-hardcode root to enable multiple WS's.
     this._fileCache = files;
+    if(this.local) {
+      // Mix in any saved documents in localStorage.
+      let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
+      for(let save in saves) {
+        files[save] = saves[save];
+      }
+    }
     this.navigator.loadWorkspace("root", directory, files);
   }
 
@@ -2140,7 +2248,24 @@ export class IDE {
   saveDocument() {
     if(!this.documentId || !this.loaded) return;
 
+    // When we try to edit a gist-backed file we need to fork it and save the new file to disk.
+    // @FIXME: This is all terribly hacky, and needs to be cleaned up as part of the FileStore rework.
+    if(this.documentId.indexOf("gist:") === 0) {
+      let oldId = this.documentId;
+
+      let neueId = oldId.slice(5);
+      neueId = neueId.slice(0, 7) + neueId.slice(32);
+      neueId = `/root/${neueId}`;
+
+      if(this._fileCache[neueId]) {
+        return this.promptOverwrite(neueId);
+      } else {
+        return this.cloneDocument(neueId);
+      }
+    }
+
     let md = this.editor.toMarkdown();
+    let isDirty = md !== this._fileCache[this.documentId];
 
     // @NOTE: We sync this here to prevent a terrible reload bug that occurs when saving to the file system.
     // This isn't really the right fix, but it's a quick one that helps prevent lost work in trivial cases
@@ -2158,11 +2283,12 @@ export class IDE {
 
     // othewise, save it to local storage
     let saves = JSON.parse(localStorage.getItem("eve-saves") || "{}");
-    if(md !== this._fileCache[this.documentId]) {
+    if(isDirty) {
       saves[this.documentId] = md;
       this.modified = true;
     } else {
       this.modified = false;
+      saves[this.documentId] = undefined;
     }
     localStorage.setItem("eve-saves", JSON.stringify(saves));
   }
@@ -2175,6 +2301,74 @@ export class IDE {
     localStorage.setItem("eve-saves", JSON.stringify(saves));
     this.documentId = undefined;
     this.loadFile(docId);
+  }
+
+  cloneDocument(neueId:string) {
+    let oldId = this.documentId;
+    this.documentId = neueId;
+
+    let navNode = this.navigator.nodes[oldId];
+    if(navNode) {
+      let neueNode:TreeNode = {} as any;
+      for(let attr in navNode) {
+        neueNode[attr] = navNode[attr];
+      }
+      neueNode.id = neueId;
+      neueNode.name = neueId.split("/").pop();
+      neueNode.children = [];
+      this.navigator.nodes[neueId] = neueNode;
+    }
+
+    if(this.navigator.currentId === oldId) this.navigator.currentId = neueId;
+
+    let currentHashChunks = location.hash.split("#").slice(1);
+    let modified = neueId;
+    if(currentHashChunks[1]) {
+      modified += `/#` + currentHashChunks[1];
+    }
+    location.hash = modified;
+
+    this.saveDocument();
+    this.navigator.loadDocument(neueId, neueId);
+
+    // @FIXME: Will break in multi-workspace.
+    this.navigator.nodes[this.navigator.rootId].children.push(neueId);
+  }
+
+  saveToGist() {
+    // @FIXME: We really need a display name setup for documents.
+    let savingNotice = this.injectNotice("info", "Saving...");
+    writeToGist(this.documentId || "Untitled.eve", this.editor.toMarkdown(), (err, url) => {
+      this.dismissNotice(savingNotice);
+      if(err) {
+        this.injectNotice("error", "Unable to save file to gist. Check the developer console for more information.");
+        console.error(err);
+      } else {
+        this.injectNotice("info", () => ({c: "flex-row", children: [{text: "Saved to", style: "padding-right: 5px;"}, {t: "a", href: url, target: "_blank", text: "gist"}]}));
+      }
+    });
+  }
+
+  loadFromGist(url:string) {
+    if(!url) {
+      this.injectNotice("warning", "Unable to open gist: No URL provided.");
+      return;
+    }
+    readFromGist(url, (err, gist) => {
+      if(err) {
+        this.injectNotice("error", "Unable to read gist. Check the developer console for more information.");
+        console.error(err);
+      } else {
+        //console.log(content);
+        // @FIXME: Need the filename metadata here.
+        // @FIXME: Should really be more flexible and provide all the files attached (can load a workspace from gist).
+        for(let filename in gist.files) {
+          let content = gist.files[filename].content;
+          let docId = `gist:${gist.id}-${filename}`;
+          this.loadFile(docId, content);
+        }
+      }
+    });
   }
 
   createDocument(folder:string) {
@@ -2200,7 +2394,7 @@ export class IDE {
     this.render();
   }
 
-  injectNotice(type:string, message:string) {
+  injectNotice(type:string, message:string|ElemGen) {
     let time = Date.now();
     let existing;
     for(let notice of this.notices) {
@@ -2211,8 +2405,18 @@ export class IDE {
       }
     }
     if(!existing) {
-      this.notices.push({type, message, time});
+      existing = {type, message, time};
+      this.notices.push(existing);
     }
+    this.render();
+    this.editor.cm.refresh();
+    return existing;
+  }
+
+  dismissNotice(notice) {
+    let ix = this.notices.indexOf(notice);
+    if(ix === -1) return;
+    this.notices.splice(ix, 1);
     this.render();
     this.editor.cm.refresh();
   }
