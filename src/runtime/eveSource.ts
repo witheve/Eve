@@ -150,9 +150,12 @@ if(typeof window === "undefined") {
   fetchWorkspace = function(workspace:string) {
     let directory = workspaces[workspace];
     let files = {};
-    for(let file of glob.sync(directory + "/**/*.eve", {ignore: directory + "**/node_modules/**/*.eve"})) {
-      let rel = path.relative(directory, file);
-      files["/" + workspace + "/" + rel] = fs.readFileSync(file).toString();
+    let patterns = ["/**/*.eve", "/**/*.eve.md"];
+    for(let pattern of patterns) {
+      for(let file of glob.sync(directory + pattern, {ignore: directory + "**/node_modules" + pattern})) {
+        let rel = path.relative(directory, file);
+        files["/" + workspace + "/" + rel] = fs.readFileSync(file).toString();
+      }
     }
 
     return files;
