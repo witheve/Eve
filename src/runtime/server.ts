@@ -307,7 +307,7 @@ export function run() {
   // If the port is already in use, display an error message
   process.on('uncaughtException', function handleAddressInUse(err) {
     if(err.errno === 'EADDRINUSE') {
-      console.log(`ERROR: Eve couldn't start because port ${config.port} is already in use.\n\nYou can select a different port for Eve using the "port" argument.\nFor example:\n\n> npm start -- --port 1234`);
+      console.log(`ERROR: Eve couldn't start because port ${config.port} is already in use.\n\nYou can select a different port for Eve using the "port" argument.\nFor example:\n\n> eve --port 1234`);
     } else {
       throw err;
     }
