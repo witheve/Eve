@@ -10,7 +10,7 @@ Tic-Tac-Toe is a classic game played by two players, "X" and "O", who take turns
 
 ### Game settings
 
-To begin, we initialize the board. We commit an object named @board to hold our global state and create a set of #cells. These #cells will keep track of the moves players have made. Common connect-N games (a generalized tic-tac-toe for any `NxN` grid) are scored along 4 axes (horizontal, vertical, the diagonal, and the anti-diagonal). We group cells together along each axis up front to make scoring easier later.
+To begin, we initialize the board. We commit a `#board` record to hold our global state and create a set of `#cell`s, which will keep track of the moves players have made. Common connect-N games (a generalized tic-tac-toe for any `NxN` grid) are scored along 4 axes (horizontal, vertical, the diagonal, and the anti-diagonal). We group cells together along each axis up front to make scoring easier later.
 
 The game board is square, with a given size. It contains size ^ 2 cells,
 each with a row and column index.
@@ -30,7 +30,7 @@ commit
   [#cell board row: i column: j]
 ~~~
 
-A subtlety here is the last line, [#cell board row: i column: j]. Thanks to our relational semantics, this line actually generates all 9 cells. Since the sets of values computed in i and j have no relation to each other, when we use them together we get the cartesian product of their values. This means that if `i = {0, 1, 2}` and `j = {0, 1, 2}`, then `i x j = {(1, 1), (1, 2), ... (3, 2), (3, 3)}`. These are exactly the indices we need for our grid!
+A subtlety here is the last line, [#cell board row: i column: j]. Thanks to our relational semantics, this line actually generates all 9 cells. Since the sets of values computed in i and j have no relation to each other, when we use them together we get the cartesian product of their values. This means that if `i = {1, 2, 3}` and `j = {1, 2, 3}`, then `i x j = {(1, 1), (1, 2), ... (3, 2), (3, 3)}`. These are exactly the indices we need for our grid!
 
 Now we tag some special cell groupings: diagonal and anti-diagonal cells. The diagonal cells are `(1, 1)`, `(2, 2)`, and `(3, 3)`. From this we can see that diagonal cells have a row index equal to its column index
 

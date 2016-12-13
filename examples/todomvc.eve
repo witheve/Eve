@@ -34,7 +34,7 @@ search
 
 bind @browser
     // Links to an external stylesheet
-  [#link rel: "stylesheet" href: "examples/css/todomvc.css"]
+  [#link rel: "stylesheet" href: "assets/css/examples/todomvc.css"]
   [#div class: "todoapp" children:
 
     [#header children:
@@ -52,11 +52,11 @@ bind @browser
             [#strong text: todo-count]
         [#span text: " items left"]]
         [#ul #filters, class: "filters", children:
-        [#li children: [#a href: "#/examples/todomvc.eve/#/all" text: "all"
+        [#li children: [#a href: "#/all" text: "all"
                                              class: [selected: is(filter = "all")]]]
-        [#li children: [#a href: "#/examples/todomvc.eve/#/active" text: "active"
+        [#li children: [#a href: "#/active" text: "active"
                                              class: [selected: is(filter = "active")]]]
-        [#li children: [#a href: "#/examples/todomvc.eve/#/completed" text: "completed"
+        [#li children: [#a href: "#/completed" text: "completed"
                                              class: [selected: is(filter = "completed")]]]]
             [#span #clear-completed text: "Clear completed"
                                                         class: [clear-completed: true,
@@ -144,6 +144,7 @@ search @event @session @browser
         then (todo, todo.body, true, todo.completed)
 
     else if [#blur element: [#todo-editor todo value]]
+        todo.editing = true
         then (todo, value, false, todo.completed)
 
     else if [#keydown element: [#todo-editor todo] key: "escape"]

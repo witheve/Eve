@@ -1,0 +1,18 @@
+```
+  commit
+       [#foo token:"a" level:2]
+       [#foo token:"zkp" level:3]
+       [#foo token:"parg" level:0]
+       [#foo token:"naxxo" level:1]
+```
+
+```
+   search
+       [#foo token level]
+       index = sort[value:token given:token]
+
+   commit @browser
+       [#div text:join[token index given:token with:"/"]]
+       [#div text:join[token index:0 given:token with:"/"]]
+       [#div text:join[token index:level given:token with:"/"]]
+```

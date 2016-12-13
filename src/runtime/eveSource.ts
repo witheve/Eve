@@ -6,9 +6,9 @@ export let workspaces:{[name:string]: string} = {};
 
 export function add(name: string, directory: string) {
   // If we're running on a windows server, normalize slashes
-  if(typeof window === undefined) {
-    if(process.platform.search(/^win/)) {
-      directory = directory.replace("\\", "/");
+  if(typeof window === "undefined") {
+    if(process.platform.indexOf("win") === 0) {
+      directory = directory.replace(/\\/g, "/");
     }
   }
 
@@ -150,9 +150,12 @@ if(typeof window === "undefined") {
   fetchWorkspace = function(workspace:string) {
     let directory = workspaces[workspace];
     let files = {};
-    for(let file of glob.sync(directory + "/**/*.eve", {ignore: directory + "**/node_modules/**/*.eve"})) {
-      let rel = path.relative(directory, file);
-      files["/" + workspace + "/" + rel] = fs.readFileSync(file).toString();
+    let patterns = ["/**/*.eve", "/**/*.eve.md"];
+    for(let pattern of patterns) {
+      for(let file of glob.sync(directory + pattern, {ignore: directory + "**/node_modules" + pattern})) {
+        let rel = path.relative(directory, file);
+        files["/" + workspace + "/" + rel] = fs.readFileSync(file).toString();
+      }
     }
 
     return files;

@@ -158,7 +158,7 @@ bind
   student.age := calculated-age
 ~~~
 
-This block selects all students, and uses and [if-then][if-then] expression to set the student's calculated age. If the student already has an age, we set it to that. Otherwise, if the student has no age, we can calculate it with some arithmetic. The [set operator][set] `:=` sets an attribute to a specified value regardless of what it was before the block executed. That value can be anything, from a number to a string to another record.
+This block selects all students, and uses an [if-then][if-then] expression to set the student's calculated age. If the student already has an age, we set it to that. Otherwise, if the student has no age, we can calculate it with some arithmetic. The [set operator][set] `:=` sets an attribute to a specified value regardless of what it was before the block executed. That value can be anything, from a number to a string to another record.
 
 ### Aggregates
 
@@ -263,7 +263,7 @@ We also invite you to join the Eve community! There are several ways to get invo
 [commit]: https://witheve.github.io/docs/handbook/commit/
 [string-interpolation]: https://witheve.github.io/docs/handbook/string-interpolation/
 [joins]: https://witheve.github.io/docs/handbook/joins/
-[quickstart-source]: https://github.com/witheve/Eve/blob/ts-merge/examples/quickstart.eve
+[quickstart-source]: https://github.com/witheve/Eve/blob/master/examples/quickstart.eve
 [tags]: https://witheve.github.io/docs/handbook/tags/
 [merge]: https://witheve.github.io/docs/handbook/merge/
 [sets]: https://witheve.github.io/docs/handbook/sets/

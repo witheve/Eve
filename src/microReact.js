@@ -171,6 +171,8 @@ var Renderer = (function () {
                 div.setAttribute("download", cur.download);
             if (cur.allowfullscreen !== prev.allowfullscreen)
                 div.setAttribute("allowfullscreen", cur.allowfullscreen);
+            if (cur.autofocus !== prev.autofocus)
+                div.setAttribute("autofocus", cur.autofocus ? true : undefined);
             // animateable properties
             var tween = cur.tween || tempTween;
             if (cur.flex !== prev.flex) {
@@ -431,6 +433,7 @@ var Renderer = (function () {
                 && curA.data === curB.data
                 && curA.download === curB.download
                 && curA.allowfullscreen === curB.allowfullscreen
+                && curA.autofocus === curB.autofocus
                 && curA.placeholder === curB.placeholder
                 && curA.selected === curB.selected
                 && curA.draggable === curB.draggable
@@ -573,4 +576,3 @@ var Renderer = (function () {
     Renderer._compileRenderer = {};
     return Renderer;
 })();
-
