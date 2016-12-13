@@ -284,19 +284,23 @@ export class EveClient {
       browser.init(data.code);
     }
     if(this.showIDE) {
-      // Ensure the URL bar is in sync with the server.
-      // @FIXME: This back and forth of control over where we are
-      // is an Escherian nightmare.
-      if(!data.path) {
-        history.pushState({}, "", window.location.pathname);
-      }
+      let path = data.path;
+      if(path === undefined) path = location.hash && location.hash.slice(1);
+      //history.replaceState({}, "", window.location.pathname);
 
       this.ide = new IDE();
       this.ide.local = this.localControl;
       initIDE(this);
       this.ide.render();
-      if(data.path && data.path.length > 2) {
-        this.ide.loadFile(data.path, data.code);
+      let found = false;
+      if(path && path.length > 2) {
+        let currentHashChunks = path.split("#");//.slice(1);
+        let docId = currentHashChunks[0];
+        if(docId && docId[docId.length - 1] === "/") docId = docId.slice(0, -1);
+        found = this.ide.loadFile(docId, data.code);
+      }
+      if(!found && data.internal) {
+        this.ide.loadFile("/examples/quickstart.eve");
       }
     }
     onHashChange({});
@@ -304,7 +308,7 @@ export class EveClient {
 
   _parse(data) {
     if(!this.showIDE) return;
-    this.ide.loadDocument(data.generation, data.text, data.spans, data.extraInfo); // @FIXME
+    this.ide.loadDocument(data.generation, data.text, data.spans, data.extraInfo, data.css); // @FIXME
   }
 
   _comments(data) {
@@ -445,7 +449,15 @@ function initIDE(client:EveClient) {
     client.send({type: "close"});
     client.send({scope: "root", type: "parse", code})
     client.send({type: "eval", persist: false});
+
     let url = `${location.pathname}#${documentId}`;
+    let currentHashChunks = location.hash.split("#").slice(1);
+    let curId = currentHashChunks[0];
+    if(curId && curId[curId.length - 1] === "/") curId = curId.slice(0, -1);
+    if(curId === documentId && currentHashChunks[1]) {
+      url += "/#" + currentHashChunks[1];
+    }
+
     history.pushState({}, "", url + location.search);
     analyticsEvent("load-document", documentId);
   }
@@ -469,11 +481,13 @@ function changeDocument() {
   let ide = client.ide;
   // @FIXME: This is not right in the non-internal case.
   let docId = "/examples/quickstart.eve";
-  let path = location.hash && location.hash.split('?')[0].split("#/")[1];
+  let path = location.hash && location.hash.split('?')[0].split("#")[1];
+  if(path[path.length - 1] === "/") path = path.slice(0, -1);
   if(path && path.length > 2) {
     if(path[path.length - 1] === "/") path = path.slice(0, -1);
-    docId = "/" + path;
+    docId = path;
   }
+
   if(!docId) return;
   if(docId === ide.documentId) return;
   try {

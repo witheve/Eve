@@ -882,6 +882,30 @@ export class Parser extends chev.Parser {
       self.OR2([
         {ALT: () => {
           result = self.SUBRULE(self.infix);
+          // if the result is a parenthesis, we have to make sure that if there are sub-records
+          // inside that they get eve-auto-index set on them and they also have the parent transfered
+          // down to them. If we don't do this, we'll end up with children that are shared between
+          // the parents instead of one child per parent.
+          if(result.type === "parenthesis") {
+            for(let item of result.items) {
+              // this is a bit sad, but by the time we see the parenthesis, the records have been replaced
+              // with their variables. Those variables are created from the record object though, so we can
+              // check the from of the variable for a reference to the record.
+              if(item.type === "variable" && item.from[0] && item.from[0].type === "record") {
+                let record = item.from[0];
+                // if we have a parent, we need to make sure it ends up part of our extraProjection set
+                if(parent && !item.extraProjection) {
+                  record.extraProjection = [parent];
+                } else if(parent) {
+                  record.extraProjection.push(parent);
+                }
+                // Lastly we need to add the eve-auto-index attribute to make sure this is consistent with the case
+                // where we leave the parenthesis off and just put records one after another.
+                record.attributes.push(makeNode("attribute", {attribute: "eve-auto-index", value: makeNode("constant", {value: autoIndex, from: [record]}), from: [record]}));
+                autoIndex++;
+              }
+            }
+          }
         }},
         {ALT: () => {
           result = self.SUBRULE(self.record, [noVar, blockKey, action, parent]);
@@ -1415,17 +1439,20 @@ export function parseDoc(doc, docId = `doc|${docIx++}`) {
   let allErrors = [];
   for(let block of blocks) {
     extraInfo[block.id] = {info: block.info};
+    if(block.info.indexOf("disabled") > -1) {
+      extraInfo[block.id].disabled = true;
+    }
     if(block.info !== "" && block.info.indexOf("eve") === -1) continue;
     let {results, lex, errors} = parseBlock(block.literal, block.id, block.startOffset, spans, extraInfo);
     // if this block is disabled, we want the parsed spans and such, but we don't want
     // the block to be in the set sent to the builder
-    if(block.info.indexOf("disabled") > -1) {
-      extraInfo[block.id].disabled = true;
-    } else if(errors.length) {
-      allErrors.push(errors);
-    } else {
-      results.endOffset = block.endOffset;
-      parsedBlocks.push(results);
+    if(!extraInfo[block.id].disabled) {
+      if(errors.length) {
+        allErrors.push(errors);
+      } else {
+        results.endOffset = block.endOffset;
+        parsedBlocks.push(results);
+      }
     }
   }
   return {

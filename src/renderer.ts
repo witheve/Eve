@@ -155,7 +155,8 @@ var supportedTagsArr = [
 
 // Obtained from https://www.w3.org/TR/SVG/eltindex.html
 var svgsArr = [
-  "a",
+  // we can't have tags in both the html set and the svg set
+  // "a",
   "altGlyph",
   "altGlyphDef",
   "altGlyphItem",
@@ -567,6 +568,24 @@ window.addEventListener("click", function(event) {
     current = current.parentElement;
   }
   client.sendEvent(objs);
+
+  if((target as Element).tagName === "A") {
+    let elem = target as HTMLAnchorElement;
+    // Target location is internal, so we need to rewrite it to respect the IDE's hash segment structure.
+    if(elem.href.indexOf(location.origin) === 0) {
+      let relative = elem.href.slice(location.origin.length + 1);
+      if(relative[0] === "#") relative = relative.slice(1);
+
+
+      let currentHashChunks = location.hash.split("#").slice(1);
+      let ideHash = currentHashChunks[0];
+      if(ideHash[ideHash.length - 1] === "/") ideHash = ideHash.slice(0, -1);
+
+      let modified = "#" + ideHash + "/#" + relative;
+      location.hash = modified;
+      event.preventDefault();
+    }
+  }
 });
 window.addEventListener("dblclick", function(event) {
   let {target} = event;
@@ -738,4 +757,3 @@ function injectProgram(node, elem) {
 export function renderEve() {
   renderer.render([{c: "application-container", postRender: injectProgram}]);
 }
-

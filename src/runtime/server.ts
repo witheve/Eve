@@ -10,7 +10,7 @@ import * as express from "express";
 import * as bodyParser from "body-parser";
 import * as minimist from "minimist";
 
-import {config, Config, Owner} from "../config";
+import {config, Config, Owner, Mode} from "../config";
 import {ActionImplementations} from "./actions";
 import {PersistedDatabase} from "./databases/persisted";
 import {HttpDatabase} from "./databases/node/http";
@@ -110,29 +110,34 @@ function createExpressApp() {
 
   app.get("/assets/*", handleStatic);
   app.get("/build/*", handleStatic);
-  app.get("/src/*", handleStatic);
-  app.get("/css/*", handleStatic);
-  app.get("/fonts/*", handleStatic);
 
   app.get("*", (request, response) => {
-    let client = new HTTPRuntimeClient();
-    let content = "";
-    if(filepath) content = fs.readFileSync(filepath).toString();
-    client.load(content, "user");
-    client.handle(request, response);
-    if(!client.server.handling) {
+    let client;
+    // @FIXME: When Owner.both is added this needs updated.
+    if(config.runtimeOwner === Owner.server) {
+      client = new HTTPRuntimeClient();
+      let content = "";
+      if(filepath) content = fs.readFileSync(filepath).toString();
+      client.load(content, "user");
+      client.handle(request, response);
+    }
+    if(config.runtimeOwner === Owner.client || client && !client.server.handling) {
       response.setHeader("Content-Type", `${contentTypes["html"]}; charset=utf-8`);
       response.end(fs.readFileSync(path.join(config.eveRoot, "index.html")));
     }
   });
 
   app.post("*", (request, response) => {
-    let client = new HTTPRuntimeClient();
-    let content = "";
-    if(filepath) content = fs.readFileSync(filepath).toString();
-    client.load(content, "user");
-    client.handle(request, response);
-    if(!client.server.handling) {
+    let client;
+    // @FIXME: When Owner.both is added this needs updated.
+    if(config.runtimeOwner === Owner.server) {
+      client = new HTTPRuntimeClient();
+      let content = "";
+      if(filepath) content = fs.readFileSync(filepath).toString();
+      client.load(content, "user");
+      client.handle(request, response);
+    }
+    if(config.runtimeOwner === Owner.client || client && !client.server.handling) {
       return response.status(404).send("Looks like that asset is missing.");
     }
   });
@@ -175,44 +180,45 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
   let data = JSON.parse(message);
 
   if(data.type === "init") {
-    let {editor, runtimeOwner, controlOwner} = config;
-    let {url, hash} = data;
-    let path = hash !== "" ? hash : url;
+    let {editor, runtimeOwner, controlOwner, internal, mode} = config;
+    let {hash} = data;
 
+    let content:string;
+    let path:string;
+    let isLocal = hash.indexOf("gist:") === 0;
 
-    let content = path && eveSource.find(path);
+    // If we're in file mode, the only valid file to serve is the one specified in `config.path`.
+    if(mode === Mode.file) {
+      content = eveSource.find(config.path);
+      path = config.path;
+    }
 
-    if(!content && config.path) {
-      let workspace = config.internal ? "examples" : "root";
+    // Otherwise, anything goes. First we check if the client has requested a specific file in the URL hash.
+    if(!isLocal && mode === Mode.workspace && hash) {
+      // @FIXME: This code to strip the editor hash segment out really needs to be abstacted.
+      let filepath = hash.split("#")[0];
+      if(filepath[filepath.length - 1] === "/") filepath = filepath.slice(0, -1);
+
+      content = filepath && eveSource.find(filepath);
+      path = hash;
+    }
+
+    // If we've got a path to run with, use it as the default.
+    if(!isLocal && !content && config.path) {
+      let workspace = "root";
       // @FIXME: This hard-coding isn't technically wrong right now, but it's brittle and poor practice.
       content = eveSource.get(config.path, workspace);
-      if(content) path = eveSource.getRelativePath(config.path, workspace);
+      path = eveSource.getRelativePath(config.path, workspace);
     }
 
-    if(!content && config.internal) {
-      content = eveSource.get("quickstart.eve", "examples");
-      if(content) path = eveSource.getRelativePath("quickstart.eve", "examples");
+    // If we can't find the config path in a workspace, try finding it on disk.
+    if(!isLocal && !content && config.path && fs.existsSync("." + path)) {
+      content = fs.readFileSync("." + path).toString();
     }
 
-    if(content) {
-      ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, code: content, withIDE: editor}));
-      if(runtimeOwner === Owner.server) {
-        client.load(content, "user");
-      }
-    } else {
-      // @FIXME: Do we still need this fallback for anything? Cases where we need to run an eve file outside of a project?
-      fs.stat("." + path, (err, stats) => {
-        if(!err && stats.isFile()) {
-          let content = fs.readFileSync("." + path).toString();
-          ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, code: content, withIDE: editor}));
-        } else {
-          ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, withIDE: editor}));
-        }
-
-        if(runtimeOwner === Owner.server) {
-          client.load(content, "user");
-        }
-      });
+    ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, code: content, internal, withIDE: editor}));
+    if(runtimeOwner === Owner.server) {
+      client.load(content, "user");
     }
   } else if(data.type === "save"){
     eveSource.save(data.path, data.code);
@@ -271,6 +277,7 @@ export function run() {
   // @FIXME: Split these out!
   eveSource.add("eve", path.join(config.eveRoot, "examples"));
   if(config.internal) {
+    eveSource.add("root", path.join(config.eveRoot, "examples"));
     eveSource.add("examples", path.join(config.eveRoot, "examples"));
   } else {
     eveSource.add("root", config.root);
@@ -302,7 +309,7 @@ export function run() {
   // If the port is already in use, display an error message
   process.on('uncaughtException', function handleAddressInUse(err) {
     if(err.errno === 'EADDRINUSE') {
-      console.log(`ERROR: Eve couldn't start because port ${config.port} is already in use.\n\nYou can select a different port for Eve using the "port" argument.\nFor example:\n\n> npm start -- --port 1234`);
+      console.log(`ERROR: Eve couldn't start because port ${config.port} is already in use.\n\nYou can select a different port for Eve using the "port" argument.\nFor example:\n\n> eve --port 1234`);
     } else {
       throw err;
     }
