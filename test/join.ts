@@ -2772,3 +2772,57 @@ test("test length equality", (assert) => {
   `);
   assert.end();
 })
+
+test("test length equality with as", (assert) => {
+  let expected = {
+    insert: [],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    foo bar
+    ~~~
+      search
+        len = length[text: "test" as: "symbol"]
+        len = 3
+      commit
+        [len: len]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("check of as symbol", (assert) => {
+  let expected = {
+    insert: [
+      ["1", "len", "5" ],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    foo bar
+    ~~~
+      search
+        len = length[text: "hello" as: "symbol"]
+      commit
+        [len: len]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("none inserted if as is incorrect", (assert) => {
+  let expected = {
+    insert: [],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    foo bar
+    ~~~
+      search
+        len = length[text: "hello" as: "asdfasdf"]
+      commit
+        [len: len]
+    ~~~
+  `);
+  assert.end();
+})
