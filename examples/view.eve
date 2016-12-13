@@ -76,6 +76,16 @@ bind @view @browser
   value-column.children += [#value value-column value sort: ix]
 ~~~
 
+~~~
+search @view
+  table = [#kv-table]
+  node = if table.node then table.node
+         else if lookup[record: wrapper, attribute: "tag", value: "kv-table", node] then node
+
+bind @view @browser
+  table.node := node
+~~~
+
 ### Attribute Table
 
 **DEPRECATED** This is a hack, since we do not support dynamic scoping, you cannot control what scope it finds EAVs in. Do not use this.
