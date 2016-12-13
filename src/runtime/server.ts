@@ -19,6 +19,9 @@ import {Database} from "./runtime";
 import {RuntimeClient} from "./runtimeClient";
 import {BrowserViewDatabase, BrowserEditorDatabase, BrowserInspectorDatabase} from "./databases/browserSession";
 import * as eveSource from "./eveSource";
+import {Changes} from "./changes";
+import {MultiIndex} from "./indexes";
+import {fromJS} from "./util/eavs";
 
 //---------------------------------------------------------------------
 // Constants
@@ -44,7 +47,7 @@ global["browser"] = false;
 
 class HTTPRuntimeClient extends RuntimeClient {
   server: ServerDatabase;
-  constructor() {
+  constructor(databases) {
     let server = new ServerDatabase();
     const dbs = {
       "http": new HttpDatabase(),
@@ -52,7 +55,10 @@ class HTTPRuntimeClient extends RuntimeClient {
       "shared": shared,
       "browser": new Database(),
     }
-    super(dbs);
+    var uniondb = {}
+    for (var key in dbs) uniondb[key] = dbs[key];
+    for (var key in databases) uniondb[key] = databases[key];
+    super(uniondb);
     this.server = server;
   }
 
@@ -95,7 +101,7 @@ function handleStatic(request, response) {
   };
 }
 
-function createExpressApp() {
+function createExpressApp(databases) {
   let filepath = config.path;
   const app = express();
 
@@ -115,7 +121,7 @@ function createExpressApp() {
     let client;
     // @FIXME: When Owner.both is added this needs updated.
     if(config.runtimeOwner === Owner.server) {
-      client = new HTTPRuntimeClient();
+      client = new HTTPRuntimeClient(databases);
       let content = "";
       if(filepath) content = fs.readFileSync(filepath).toString();
       client.load(content, "user");
@@ -131,7 +137,7 @@ function createExpressApp() {
     let client;
     // @FIXME: When Owner.both is added this needs updated.
     if(config.runtimeOwner === Owner.server) {
-      client = new HTTPRuntimeClient();
+      client = new HTTPRuntimeClient(databases);
       let content = "";
       if(filepath) content = fs.readFileSync(filepath).toString();
       client.load(content, "user");
@@ -154,7 +160,7 @@ function createExpressApp() {
 class SocketRuntimeClient extends RuntimeClient {
   socket: WebSocket;
 
-  constructor(socket:WebSocket, withIDE:boolean) {
+  constructor(socket:WebSocket, databases, withIDE:boolean) {
     const dbs = {
       "http": new HttpDatabase(),
       "shared": shared,
@@ -164,7 +170,10 @@ class SocketRuntimeClient extends RuntimeClient {
       dbs["editor"] = new BrowserEditorDatabase();
       dbs["inspector"] = new BrowserInspectorDatabase();
     }
-    super(dbs);
+    var uniondb = {}
+    for (var key in dbs) uniondb[key] = dbs[key];
+    for (var key in databases) uniondb[key] = databases[key]
+    super(uniondb);
     this.socket = socket;
   }
 
@@ -251,9 +260,9 @@ function MessageHandler(client:SocketRuntimeClient, message) {
   }
 }
 
-function initWebsocket(wss, withIDE:boolean) {
+function initWebsocket(wss, databases, withIDE:boolean) {
   wss.on('connection', function connection(ws) {
-    let client = new SocketRuntimeClient(ws, withIDE);
+    let client = new SocketRuntimeClient(ws, databases, withIDE);
     let handler = withIDE ? IDEMessageHandler : MessageHandler;
     if(!withIDE) {
       // we need to initialize
@@ -268,6 +277,38 @@ function initWebsocket(wss, withIDE:boolean) {
     });
   });
 }
+
+function loadDatabases(description) {
+  var databases = {};
+  var dbs = description;
+  if (!Array.isArray(dbs)) dbs = [dbs];
+  var arrayLength = dbs.length;
+  let multi = new MultiIndex();
+  let changes =  new Changes(multi);
+
+  for (var i = 0; i < arrayLength; i++) {
+    var database = "init";
+    var prefix = undefined;
+    var terms = dbs[i].split(":")
+    var count = 0;
+
+    if (terms.length == 3) prefix = terms[count++];
+    if (terms.length == 2) database = terms[count++];
+    var data = fs.readFileSync(terms[count]).toString();
+
+    if (!databases[database]) {
+      databases[database] = new Database;
+      multi.register(database, databases[database].index)
+    }
+    let id = fromJS(changes, JSON.parse(data), databases[database].id, database);
+    if (prefix) {
+      changes.store(database, id, "tag", prefix, "prefix");
+    }
+  }
+  changes.commit();
+  return databases;
+}
+
 
 //---------------------------------------------------------------------
 // Go!
@@ -295,12 +336,17 @@ export function run() {
     }
   }
 
-  let app = createExpressApp();
+  var databases;
+  if (config.initJsonDB) {
+    databases = loadDatabases(config.initJsonDB);
+  }
+
+  let app = createExpressApp(databases);
   let server = http.createServer(app);
 
   let WebSocketServer = require('ws').Server;
   let wss = new WebSocketServer({server});
-  initWebsocket(wss, config.editor);
+  initWebsocket(wss, databases, config.editor);
 
   server.listen(config.port, function(){
     console.log(`Eve is available at http://localhost:${config.port}. Point your browser there to access the Eve editor.`);

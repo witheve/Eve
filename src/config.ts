@@ -10,7 +10,8 @@ export interface Config {
   root?: string,
   eveRoot?: string,
   internal?: boolean,
-  mode?: Mode
+  mode?: Mode,
+  initJsonDB? : any
 }
 
 export var config:Config = {};
