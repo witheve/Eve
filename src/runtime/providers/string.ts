@@ -251,7 +251,56 @@ class Urlencode extends Constraint {
   }
 }
 
+class Length extends Constraint {
+  static AttributeMapping = {
+    "text": 0,
+    "as": 1,
+  }
 
+  validAsOption(az="symbol") {
+    return az === "symbol";
+  }
+
+  getLength(text, az="symbol") {
+    if (az === "symbol") {
+      return [text.length];
+    }
+    return undefined;
+  }
+
+  resolveProposal(proposal, prefix) {
+    let {args} = this.resolve(prefix);
+    let [text, az="symbol"] = args;
+    console.log(text, az)
+
+    return this.getLength(text, az);
+  }
+
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    let [text, az] = args;
+    if(!this.validAsOption(az)) return false;
+    if(typeof text !== "string") return false;
+    return this.getLength(text, az) === returns[0];
+  }
+
+  getProposal(tripleIndex, proposed, prefix) {
+    let proposal = this.proposalObject;
+    let {args} = this.resolve(prefix);
+    let [text, az] = args;
+    if(typeof args[0] !== "string") {
+      proposal.cardinality = 0;
+    } else if (!this.validAsOption(az)) {
+      proposal.cardinality = 0;
+    } else {
+      proposal.providing = proposed;
+      proposal.cardinality = 1;
+    }
+    return proposal;
+  }
+}
+
+providers.provide("length", Length);
 providers.provide("concat", Concat);
 providers.provide("split", Split);
 providers.provide("substring", Substring);
