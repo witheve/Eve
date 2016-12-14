@@ -2830,12 +2830,12 @@ test("check length of hello", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
-      search
-        len = length[text: "hello"]
-      commit
-        [len: len]
+    search
+      len = length[text: "hello"]
+
+    commit
+      [len: len]
     ~~~
   `);
   assert.end();
@@ -2849,12 +2849,12 @@ test("check length empty string", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
-      search
-        len = length[text: ""]
-      commit
-        [len: len]
+    search
+      len = length[text: ""]
+
+    commit
+      [len: len]
     ~~~
   `);
   assert.end();
@@ -2869,31 +2869,13 @@ test("test length equality", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
-      search
-        len = length[text: "test"]
-        len = 4
-      commit
-        [len: len]
-    ~~~
-  `);
-  assert.end();
-})
-
-test("test length equality", (assert) => {
-  let expected = {
-    insert: [],
-    remove: []
-  };
-  evaluate(assert, expected, `
-    foo bar
-    ~~~
-      search
-        len = length[text: "test"]
-        len = 3
-      commit
-        [len: len]
+    search
+      len = length[text: "test"]
+      len = 
+      
+    commit
+      [len: len]
     ~~~
   `);
   assert.end();
@@ -2905,19 +2887,19 @@ test("test length equality with as", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
-      search
-        len = length[text: "test" as: "symbol"]
-        len = 3
-      commit
-        [len: len]
+    search
+      len = length[text: "test" as: "symbols"]
+      len = 3
+
+    commit
+      [len: len]
     ~~~
   `);
   assert.end();
 })
 
-test("check of as symbol", (assert) => {
+test("check length of string as symbol", (assert) => {
   let expected = {
     insert: [
       ["1", "len", "5" ],
@@ -2925,29 +2907,67 @@ test("check of as symbol", (assert) => {
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
-      search
-        len = length[text: "hello" as: "symbol"]
-      commit
-        [len: len]
+    search
+      len = length[text: "hello" as: "symbols"]
+
+    commit
+      [len: len]
     ~~~
   `);
   assert.end();
 })
 
-test("none inserted if as is incorrect", (assert) => {
+test("nothing is inserted if with invalid as", (assert) => {
   let expected = {
     insert: [],
     remove: []
   };
   evaluate(assert, expected, `
-    foo bar
     ~~~
-      search
-        len = length[text: "hello" as: "asdfasdf"]
-      commit
-        [len: len]
+    search
+      len = length[text: "hello" as: "asdfasdf"]
+
+    commit
+      [len: len]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("length of multi-byte characters as symbols", (assert) => {
+  let expected = {
+    insert: [
+      ["1", "len", "1" ],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    ~~~
+    search
+      len = length[text: "𝐁" as: "symbol"]
+      
+    commit
+      [len: len]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("length of multi-byte characters as code-points", (assert) => {
+  let expected = {
+    insert: [
+      ["1", "len", "2" ],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    ~~~
+    search
+      len = length[text: "𝐁" as: "code-points"]
+      
+    commit
+      [len: len]
     ~~~
   `);
   assert.end();
