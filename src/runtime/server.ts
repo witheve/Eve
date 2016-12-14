@@ -280,27 +280,37 @@ function initWebsocket(wss, databases, withIDE:boolean) {
 
 function loadDatabases(descriptions) {
   let databases = {};
-  let arrayLength = descriptions.length;
+  let desc = descriptions.length;
   let multi = new MultiIndex();
   let changes =  new Changes(multi);
 
-  for (let i = 0; i < arrayLength; i++) {
+  for (let i = 0; i < desc; i++) {
     let database = "init";
     let tag = undefined;
     let terms = descriptions[i].split(":")
     let count = 0;
 
     if (terms.length == 3) tag = terms[2];
-    if (terms.length == 2) database = terms[1];
+    if (terms.length >= 2) database = terms[1];
     let data = fs.readFileSync(terms[0]).toString();
 
     if (!databases[database]) {
       databases[database] = new Database;
       multi.register(database, databases[database].index)
     }
-    let id = fromJS(changes, JSON.parse(data), databases[database].id, database);
-    if (tag) {
-      changes.store(database, id, "tag", tag, "init");
+
+    let f = (obj) => {
+      let id = fromJS(changes, obj, databases[database].id, database, "js" + count++);
+      if (tag) changes.store(database, id, "tag", tag, "init");
+    }
+
+    let jobj = JSON.parse(data)
+    console.log("arra", Array.isArray(jobj))
+    if (Array.isArray(jobj)) {
+      let jobjlen = jobj.length
+      for (let i = 0; i < jobjlen; i++) f(jobj[i]);
+    } else {
+      f(jobj);
     }
   }
   changes.commit();
