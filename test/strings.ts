@@ -1,5 +1,5 @@
 import * as test from "tape";
-import {evaluates} from "./shared_functions";
+import {evaluates, evaluate} from "./shared_functions";
 
 test("test string join ordering", (assert) => {
   evaluates(assert, `
