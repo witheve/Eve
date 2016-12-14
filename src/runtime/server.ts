@@ -55,9 +55,9 @@ class HTTPRuntimeClient extends RuntimeClient {
       "shared": shared,
       "browser": new Database(),
     }
-    var uniondb = {}
-    for (var key in dbs) uniondb[key] = dbs[key];
-    for (var key in databases) uniondb[key] = databases[key];
+    let uniondb = {}
+    for (let key in dbs) uniondb[key] = dbs[key];
+    for (let key in databases) uniondb[key] = databases[key];
     super(uniondb);
     this.server = server;
   }
@@ -170,9 +170,9 @@ class SocketRuntimeClient extends RuntimeClient {
       dbs["editor"] = new BrowserEditorDatabase();
       dbs["inspector"] = new BrowserInspectorDatabase();
     }
-    var uniondb = {}
-    for (var key in dbs) uniondb[key] = dbs[key];
-    for (var key in databases) uniondb[key] = databases[key]
+    let uniondb = {}
+    for (let key in dbs) uniondb[key] = dbs[key];
+    for (let key in databases) uniondb[key] = databases[key]
     super(uniondb);
     this.socket = socket;
   }
@@ -278,31 +278,29 @@ function initWebsocket(wss, databases, withIDE:boolean) {
   });
 }
 
-function loadDatabases(description) {
-  var databases = {};
-  var dbs = description;
-  if (!Array.isArray(dbs)) dbs = [dbs];
-  var arrayLength = dbs.length;
+function loadDatabases(descriptions) {
+  let databases = {};
+  let arrayLength = descriptions.length;
   let multi = new MultiIndex();
   let changes =  new Changes(multi);
 
-  for (var i = 0; i < arrayLength; i++) {
-    var database = "init";
-    var prefix = undefined;
-    var terms = dbs[i].split(":")
-    var count = 0;
+  for (let i = 0; i < arrayLength; i++) {
+    let database = "init";
+    let tag = undefined;
+    let terms = descriptions[i].split(":")
+    let count = 0;
 
-    if (terms.length == 3) prefix = terms[count++];
-    if (terms.length == 2) database = terms[count++];
-    var data = fs.readFileSync(terms[count]).toString();
+    if (terms.length == 3) tag = terms[2];
+    if (terms.length == 2) database = terms[1];
+    let data = fs.readFileSync(terms[0]).toString();
 
     if (!databases[database]) {
       databases[database] = new Database;
       multi.register(database, databases[database].index)
     }
     let id = fromJS(changes, JSON.parse(data), databases[database].id, database);
-    if (prefix) {
-      changes.store(database, id, "tag", prefix, "prefix");
+    if (tag) {
+      changes.store(database, id, "tag", tag, "init");
     }
   }
   changes.commit();
@@ -336,7 +334,7 @@ export function run() {
     }
   }
 
-  var databases;
+  let databases;
   if (config.initJsonDB) {
     databases = loadDatabases(config.initJsonDB);
   }

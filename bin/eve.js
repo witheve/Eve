@@ -104,6 +104,8 @@ if(!filepath) {
 let mode = Mode.workspace;
 if(filepath && !editor) mode = Mode.file
 
+if (!Array.isArray(initJsonDB) && initJsonDB) initJsonDB = [initJsonDB];
+
 var opts = {internal: internal, runtimeOwner: runtimeOwner, controlOwner: controlOwner, editor: editor, port: port, path: filepath, internal: internal, root: root, eveRoot: eveRoot, mode, initJsonDB:initJsonDB};
 config.init(opts);
 

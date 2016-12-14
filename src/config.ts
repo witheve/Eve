@@ -11,7 +11,7 @@ export interface Config {
   eveRoot?: string,
   internal?: boolean,
   mode?: Mode,
-  initJsonDB? : any
+  initJsonDB? : string[]
 }
 
 export var config:Config = {};
