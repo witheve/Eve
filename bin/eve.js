@@ -54,7 +54,7 @@ if(argv["help"]) {
     --json          Load the passed json file into @init. One additional
                     colon separated argument to specify the target database,
                     an additional to add the passed tag to each json record
-                    [[tag:]database]:filename
+                    filename[:database[:tag]]
 
     If the Eve binary is run in a project directory (a directory containing a
     package.json file), it will use that directory as your workspace. Otherwise
