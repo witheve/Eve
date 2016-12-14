@@ -1,3 +1,5 @@
+import {Database} from "./runtime/runtime";
+
 export enum Owner {client, server};
 export enum Mode {workspace, file};
 
@@ -11,7 +13,8 @@ export interface Config {
   eveRoot?: string,
   internal?: boolean,
   mode?: Mode,
-  initJsonDB? : string[]
+  initJsonDB? : string[],
+  databases? : {[name:string]:Database}
 }
 
 export var config:Config = {};
