@@ -251,7 +251,85 @@ class Urlencode extends Constraint {
   }
 }
 
+class Length extends Constraint {
+  static AttributeMapping = {
+    "text": 0,
+    "as": 1,
+  }
 
+  validAsOption(az) {
+    if (az === undefined || az === "symbols" || az === "code-points") {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  getLength(text, az) {
+    if (az === "symbols") {
+      return [this.countSymbols(text)];
+    } else if (az === "code-points") {
+      return [text.length];
+    }
+    return undefined;
+  }
+
+  resolveProposal(proposal, prefix) {
+    let {args} = this.resolve(prefix);
+    let [text, az] = args;
+    if (az === undefined) {
+      az = "symbols"
+    }
+    return this.getLength(text, az);
+  }
+
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    let [text, az] = args;   
+    if(!this.validAsOption(az)) return false;
+    if(typeof text !== "string") return false;
+    return this.getLength(text, az) === returns[0];
+  }
+
+  getProposal(tripleIndex, proposed, prefix) {
+    let proposal = this.proposalObject;
+    let {args} = this.resolve(prefix);
+    let [text, az] = args;
+    if(typeof args[0] !== "string") {
+      proposal.cardinality = 0;
+    } else if (!this.validAsOption(az)) {
+      proposal.cardinality = 0;
+    } else {
+      proposal.providing = proposed;
+      proposal.cardinality = 1;
+    }
+    return proposal;
+  }
+
+  // Adapted from: https://mathiasbynens.be/notes/javascript-unicode
+  countSymbols(string) {
+    let index;
+    let symbolCount = 0;
+    for (index = 0; index < string.length - 1; ++index) {
+      var charCode = string.charCodeAt(index);
+      if (charCode >= 0xD800 && charCode <= 0xDBFF) {
+        charCode = string.charCodeAt(index + 1);
+        if (charCode >= 0xDC00 && charCode <= 0xDFFF) {
+          index++;
+          symbolCount++;
+          continue;
+        }
+      }
+      symbolCount++;
+    }
+    if (string.charAt(index) !== "") {
+      symbolCount++;
+    }
+    return symbolCount;
+  }
+}
+
+providers.provide("length", Length);
 providers.provide("concat", Concat);
 providers.provide("split", Split);
 providers.provide("substring", Substring);
