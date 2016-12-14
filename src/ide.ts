@@ -322,8 +322,8 @@ class Navigator {
     node.name
   }
 
-  openLoadDialog = () => {
-    this.loadDialogOpen = true;
+  toggleLoadDialog = () => {
+    this.loadDialogOpen = !this.loadDialogOpen;
     this.ide.render();
   }
 
@@ -424,7 +424,7 @@ class Navigator {
         {c: "flex-spacer"},
 
         this.open ? {c: "ion-ios-cloud-upload-outline btn", title: "Save to Gist", click: () => this.ide.saveToGist()} : undefined,
-        this.open ? {c: "ion-ios-cloud-download-outline btn", title: "Load from Gist", click: this.openLoadDialog} : undefined,
+        this.open ? {c: "ion-ios-cloud-download-outline btn", title: "Load from Gist", click: this.toggleLoadDialog} : undefined,
 
         {c: `${this.open ? "expand-btn" : "collapse-btn"} ion-ios-arrow-back btn`, title: this.open ? "Expand" : "Collapse", click: this.togglePane},
       ]},

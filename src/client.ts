@@ -232,7 +232,9 @@ export class EveClient {
   }
 
   onClose() {
-    this.injectNotice("warning", "The editor has lost connection to the Eve server. All changes will be made locally.");
+    if(!this.localControl) {
+      this.injectNotice("warning", "The editor has lost connection to the Eve server. All changes will be made locally.");
+    }
   }
 
   onMessage(event) {
