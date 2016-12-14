@@ -277,7 +277,9 @@ class Length extends Constraint {
   resolveProposal(proposal, prefix) {
     let {args} = this.resolve(prefix);
     let [text, az] = args;
-    if (az === undefined) {az = "symbols"};
+    if (az === undefined) {
+      az = "symbols"
+    }
     return this.getLength(text, az);
   }
 
@@ -313,7 +315,7 @@ class Length extends Constraint {
       if (charCode >= 0xD800 && charCode <= 0xDBFF) {
         charCode = string.charCodeAt(index + 1);
         if (charCode >= 0xDC00 && charCode <= 0xDFFF) {
-          ++index;
+          index++;
           symbolCount++;
           continue;
         }

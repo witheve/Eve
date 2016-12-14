@@ -161,14 +161,14 @@ test("check length multi-byte characters as symbols", (assert) => {
 test("length of multi-byte characters as code-points", (assert) => {
   let expected = {
     insert: [
-      ["1", "len", "2" ],
+      ["1", "len", "3" ],
     ],
     remove: []
   };
   evaluate(assert, expected, `
     ~~~
     search
-      len = length[text: "𝐁" as: "code-points"]
+      len = length[text: "𝐁b" as: "code-points"]
       
     commit
       [len: len]
