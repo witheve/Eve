@@ -76,78 +76,6 @@ class AssertValue extends Constraint {
   }
 }
 
-class And extends Constraint {
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    let result = true;
-    for(let arg of args) {
-      if(arg === false) {
-        result = false;
-        break;
-      }
-    }
-    return [result];
-  }
-
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    let result = true;
-    for(let arg of args) {
-      if(arg === false) {
-        result = false;
-        break;
-      }
-    }
-    return result === returns[0];
-  }
-
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
-  }
-}
-
-
-class Or extends Constraint {
-  // To resolve a proposal, we concatenate our resolved args
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    let result = false;
-    for(let arg of args) {
-      if(arg !== false) {
-        result = true;
-        break;
-      }
-    }
-    return [result];
-  }
-
-  // We accept a prefix if the return is equivalent to concatentating
-  // all the args
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    let result = false;
-    for(let arg of args) {
-      if(arg !== false) {
-        result = true;
-        break;
-      }
-    }
-    return result === returns[0];
-  }
-
-  // concat always returns cardinality 1
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
-  }
-}
-
-
 class Toggle extends Constraint {
   static AttributeMapping = {
     "value": 0,
@@ -170,12 +98,56 @@ class Toggle extends Constraint {
   }
 }
 
+//---------------------------------------------------------------------
+// Internal logical providers
+//---------------------------------------------------------------------
+
+// InternalAnd is used as the function that is evaluated for is() forms.
+// Is causes all boolean operators to return and then we wrap the returned
+// values in InternalAnd
+class InternalAnd extends Constraint {
+  resolveProposal(proposal, prefix) {
+    let {args} = this.resolve(prefix);
+    let result = true;
+    for(let arg of args) {
+      if(arg === false) {
+        result = false;
+        break;
+      }
+    }
+    return [result];
+  }
+
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    let result = true;
+    for(let arg of args) {
+      if(arg === false) {
+        result = false;
+        break;
+      }
+    }
+    return result === returns[0];
+  }
+
+  getProposal(tripleIndex, proposed, prefix) {
+    let proposal = this.proposalObject;
+    proposal.providing = proposed;
+    proposal.cardinality = 1;
+    return proposal;
+  }
+}
+
+//---------------------------------------------------------------------
+// Mappings
+//---------------------------------------------------------------------
+
 providers.provide(">", GreaterThan);
 providers.provide("<", LessThan);
 providers.provide("<=", LessThanEqualTo);
 providers.provide(">=", GreaterThanEqualTo);
 providers.provide("!=", NotEqual);
 providers.provide("=", Equal);
-providers.provide("and", And);
-providers.provide("or", Or);
 providers.provide("toggle", Toggle);
+
+providers.provide("eve-internal/and", InternalAnd);

@@ -1098,7 +1098,7 @@ export class Parser extends chev.Parser {
       });
       from.push(self.CONSUME(CloseParen));
       let variable = self.block.toVariable(`is|${op.startLine}|${op.startColumn}`, true);
-      let is = makeNode("expression", {variable, op: "and", args: expressions, from});
+      let is = makeNode("expression", {variable, op: "eve-internal/and", args: expressions, from});
       self.block.addUsage(variable, is);
       self.block.expression(is);
       return is;
@@ -1329,7 +1329,7 @@ export class Parser extends chev.Parser {
         return args[0];
       }
       let variable = self.block.toVariable(`concat|${start.startLine}|${start.startColumn}`, true);
-      let expression = makeNode("expression", {op: "concat", args, variable, from});
+      let expression = makeNode("expression", {op: "eve-internal/concat", args, variable, from});
       self.block.addUsage(variable, expression);
       self.block.expression(expression);
       return expression;

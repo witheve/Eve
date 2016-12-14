@@ -5,32 +5,9 @@
 import {Constraint} from "../join";
 import * as providers from "./index";
 
-// Concat strings together. Args expects a set of variables/string constants
-// to concatenate together and an array with a single return variable
-class Concat extends Constraint {
-  // To resolve a proposal, we concatenate our resolved args
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [args.join("")];
-  }
-
-  // We accept a prefix if the return is equivalent to concatentating
-  // all the args
-  test(prefix) {
-    let {args, returns} = this.resolve(prefix);
-    return args.join("") === returns[0];
-  }
-
-  // concat always returns cardinality 1
-  getProposal(tripleIndex, proposed, prefix) {
-    let proposal = this.proposalObject;
-    proposal.providing = proposed;
-    proposal.cardinality = 1;
-    return proposal;
-  }
-}
-
-
+//---------------------------------------------------------------------
+// Providers
+//---------------------------------------------------------------------
 
 class Split extends Constraint {
   static AttributeMapping = {
@@ -285,7 +262,7 @@ class Length extends Constraint {
 
   test(prefix) {
     let {args, returns} = this.resolve(prefix);
-    let [text, az] = args;   
+    let [text, az] = args;
     if(!this.validAsOption(az)) return false;
     if(typeof text !== "string") return false;
     return this.getLength(text, az) === returns[0];
@@ -329,9 +306,44 @@ class Length extends Constraint {
   }
 }
 
-providers.provide("length", Length);
-providers.provide("concat", Concat);
+//---------------------------------------------------------------------
+// Internal providers
+//---------------------------------------------------------------------
+
+// InternalConcat is used for the implementation of string embedding, e.g.
+// "foo {{name}}". Args expects a set of variables/string constants
+// to concatenate together and an array with a single return variable
+class InternalConcat extends Constraint {
+  // To resolve a proposal, we concatenate our resolved args
+  resolveProposal(proposal, prefix) {
+    let {args} = this.resolve(prefix);
+    return [args.join("")];
+  }
+
+  // We accept a prefix if the return is equivalent to concatentating
+  // all the args
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    return args.join("") === returns[0];
+  }
+
+  // concat always returns cardinality 1
+  getProposal(tripleIndex, proposed, prefix) {
+    let proposal = this.proposalObject;
+    proposal.providing = proposed;
+    proposal.cardinality = 1;
+    return proposal;
+  }
+}
+
+//---------------------------------------------------------------------
+// Mappings
+//---------------------------------------------------------------------
+
 providers.provide("split", Split);
 providers.provide("substring", Substring);
 providers.provide("convert", Convert);
 providers.provide("urlencode", Urlencode);
+providers.provide("length", Length);
+
+providers.provide("eve-internal/concat", InternalConcat);
