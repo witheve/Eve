@@ -2874,7 +2874,7 @@ test("test length equality", (assert) => {
     ~~~
     search
       len = length[text: "test"]
-      len = 
+      len = 4
       
     commit
       [len: len]
@@ -2937,18 +2937,18 @@ test("nothing is inserted if with invalid as", (assert) => {
   assert.end();
 })
 
-test("length of multi-byte characters as symbols", (assert) => {
+test("check length multi-byte characters as symbols", (assert) => {
   let expected = {
     insert: [
-      ["1", "len", "1" ],
+      ["1", "len", "2" ],
     ],
     remove: []
   };
   evaluate(assert, expected, `
     ~~~
     search
-      len = length[text: "𝐁" as: "symbol"]
-      
+      len = length[text: "𝐁B" as: "symbols"]
+
     commit
       [len: len]
     ~~~
