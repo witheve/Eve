@@ -61,6 +61,9 @@ export function onmessage(event) {
   }
 
   if(data.type === "init") {
+    // since we're working in a totally different context, we need to load the
+    // workspace information that the browser normally has into the webworker
+    // context
     eveSource.loadWorkspaces(data.workspaces);
     global["_workspaceCache"] = data.workspaceCache;
     init(data.code, data.showIDE);
