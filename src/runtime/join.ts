@@ -750,6 +750,10 @@ function joinRound(multiIndex: MultiIndex, providers: ProposalProvider[], prefix
       bestProposal = proposed;
       bestProvider = provider;
       bestProviderIx = ix;
+      if(proposed.cardinality === 0) {
+        solverInfo[ix]++;
+        break;
+      }
     }
     ix++;
   }
@@ -758,7 +762,6 @@ function joinRound(multiIndex: MultiIndex, providers: ProposalProvider[], prefix
   // if we never found a provider that means we have no more valid solutions
   // and we have nothing more to do
   if(bestProvider === undefined || bestProposal.cardinality === 0) {
-    if(bestProviderIx !== undefined) solverInfo[bestProviderIx]++;
     return;
   }
 
