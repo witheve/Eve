@@ -377,7 +377,6 @@ export class Parser extends chev.Parser {
   attributeAccess: any;
   actionStatement: any;
   actionEqualityRecord: any;
-  actionAttributeExpression: any;
   actionOperation: any;
   actionLookup: any;
   variable: any;
@@ -651,7 +650,7 @@ export class Parser extends chev.Parser {
         }},
         {ALT: () => {
           let op = self.CONSUME2(Mutate);
-          let value: any = self.SUBRULE2(self.actionAttributeExpression, [op.image, parent]);
+          let value: any = self.SUBRULE2(self.expression, [op.image, parent]);
           if(value.type === "record" && !value.extraProjection) {
             value.extraProjection = [parent];
           }
@@ -711,13 +710,6 @@ export class Parser extends chev.Parser {
       self.block[self.currentAction](action);
       return action;
     });
-
-    self.RULE("actionAttributeExpression", (action, parent) => {
-      return self.OR([
-        {ALT: () => { return self.SUBRULE(self.record, [false, action, parent]); }},
-        {ALT: () => { return self.SUBRULE(self.infix); }},
-      ])
-    })
 
     self.RULE("actionEqualityRecord", () => {
       let variable = self.SUBRULE(self.variable);
@@ -1273,14 +1265,13 @@ export class Parser extends chev.Parser {
     // Expression
     //-----------------------------------------------------------
 
-    self.RULE("expression", () => {
-      let action;
+    self.RULE("expression", (action?, parent?) => {
       if(self.currentAction !== "match") {
-        action = "+=";
+        action = action || "+=";
       }
       return self.OR([
         {ALT: () => { return self.SUBRULE(self.infix); }},
-        {ALT: () => { return self.SUBRULE(self.record, [false, action]); }},
+        {ALT: () => { return self.SUBRULE(self.record, [false, action, parent]); }},
       ]);
     });
 
