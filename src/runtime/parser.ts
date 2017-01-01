@@ -831,17 +831,14 @@ export class Parser extends chev.Parser {
       return makeNode("attributeMutator", {attribute: attribute, parent: entity, from});
     });
 
-    self.RULE("attributeAccess", () => {
-      let scans = [];
-      let entity, attribute, value;
+    self.RULE("attributeAccess", (entity) => {
       let needsEntity = true;
-      entity = self.SUBRULE(self.variable);
       let parentId = entity.name;
       self.AT_LEAST_ONE(() => {
         let dot = self.CONSUME(Dot);
-        attribute = self.CONSUME(Identifier);
+        let attribute = self.CONSUME(Identifier);
         parentId = `${parentId}|${attribute.image}`;
-        value = self.block.toVariable(parentId, true);
+        let value = self.block.toVariable(parentId, true);
         self.block.addUsage(value, attribute);
         let scopes = self.activeScopes;
         if(self.currentAction !== "match") {
@@ -852,7 +849,7 @@ export class Parser extends chev.Parser {
         needsEntity = false;
         entity = value;
       });
-      return value;
+      return entity;
     });
 
     self.RULE("attributeEquality", (noVar, action, parent) => {
@@ -1252,12 +1249,17 @@ export class Parser extends chev.Parser {
 
     self.RULE("infixValue", () => {
       return self.OR([
-        {ALT: () => { return self.SUBRULE(self.attributeAccess); }},
         {ALT: () => { return self.SUBRULE(self.functionRecord); }},
         {ALT: () => { return self.SUBRULE(self.isExpression); }},
-        {ALT: () => { return self.SUBRULE(self.variable); }},
         {ALT: () => { return self.SUBRULE(self.value); }},
         {ALT: () => { return self.SUBRULE(self.parenthesis); }},
+        {ALT: () => {
+          let variable = self.SUBRULE(self.variable);
+          self.OPTION(() => {
+            variable = self.SUBRULE(self.attributeAccess, [variable]) as any;
+          });
+          return variable
+        }},
       ]);
     })
 
