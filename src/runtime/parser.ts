@@ -832,7 +832,6 @@ export class Parser extends chev.Parser {
     });
 
     self.RULE("attributeAccess", (entity) => {
-      let needsEntity = true;
       let parentId = entity.name;
       self.AT_LEAST_ONE(() => {
         let dot = self.CONSUME(Dot);
@@ -844,9 +843,14 @@ export class Parser extends chev.Parser {
         if(self.currentAction !== "match") {
           scopes = self.block.searchScopes;
         }
-        let scan = makeNode("scan", {entity, attribute: makeNode("constant", {value: attribute.image, from: [attribute]}), value, needsEntity, scopes, from: [entity, dot, attribute]});
+        let scan = makeNode("scan", {
+          entity: asValue(entity),
+          attribute: makeNode("constant", {value: attribute.image, from: [attribute]}),
+          needsEntity: true,
+          from: [entity, dot, attribute],
+          value, scopes
+        });
         self.block.scan(scan);
-        needsEntity = false;
         entity = value;
       });
       return entity;
@@ -1273,7 +1277,13 @@ export class Parser extends chev.Parser {
       }
       return self.OR([
         {ALT: () => { return self.SUBRULE(self.infix); }},
-        {ALT: () => { return self.SUBRULE(self.record, [false, action, parent]); }},
+        {ALT: () => {
+          let entity = self.SUBRULE(self.record, [false, action, parent]);
+          self.OPTION(() => {
+            entity = self.SUBRULE(self.attributeAccess, [entity, false]) as any;
+          });
+          return entity
+        }},
       ]);
     });
 
