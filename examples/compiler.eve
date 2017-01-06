@@ -1,0 +1,23 @@
+# Eve Code as records
+
+Create a transform that looks for `#foo` records and adds a div with their `value` attribute as its text
+
+```
+commit @compiler
+  var1 = [#compiler/variable]
+  var2 = [#compiler/variable]
+  [#compiler/transform
+    name: "cool stuff"
+    description: "this is a test transform for us to use"
+    scans: [#compiler/scan e:var1, a:"value", v:var2, scopes: "session"]
+           [#compiler/scan e:var1 a:"tag" v:"foo", scopes: "session"]
+    binds: [#compiler/insert e:"foo", a:"tag", v:"div", scopes: "browser"]
+           [#compiler/insert e:"foo", a:"text", v:var2, scopes: "browser"]]
+```
+
+Add some test data
+
+```
+bind
+  [#foo value: "hey what's up?"]
+```

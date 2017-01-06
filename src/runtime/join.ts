@@ -140,7 +140,10 @@ export class Scan {
     this.node = node;
     this.proposalObject = {providing: null, index: [], cardinality: 0};
     this.scopes = scopes || ["session"];
+    this.setVars();
+  }
 
+  setVars() {
     // check if any of the supplied params are variables and store them
     this.vars = [];
     for(let register of this.eav) {

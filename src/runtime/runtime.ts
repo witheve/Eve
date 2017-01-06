@@ -78,6 +78,7 @@ export class Database {
 //---------------------------------------------------------------------
 
 export class Evaluation {
+  closed: boolean = false;
   queued: boolean;
   commitQueue: any[];
   multiIndex: MultiIndex;
@@ -281,6 +282,8 @@ export class Evaluation {
   }
 
   close() {
+    this.closed = true;
+    this.fixpoint = (changes = new Changes(this.multiIndex), blocks) => { return changes; };
     for(let database of this.databases) {
       database.unregister(this);
     }

@@ -8,6 +8,7 @@ import * as parser from "./parser";
 import * as builder from "./builder";
 import {ActionImplementations} from "./actions";
 import {BrowserSessionDatabase, BrowserEventDatabase, BrowserViewDatabase, BrowserEditorDatabase, BrowserInspectorDatabase} from "./databases/browserSession";
+import {CompilerDatabase} from "./databases/compiler";
 import * as system from "./databases/system";
 import * as analyzer from "./analyzer";
 import {ids} from "./id";
@@ -64,6 +65,9 @@ export abstract class RuntimeClient {
     }
     if(!extraDBs["event"]) {
       ev.registerDatabase("event", new BrowserEventDatabase());
+    }
+    if(!extraDBs["compiler"]) {
+      ev.registerDatabase("compiler", new CompilerDatabase());
     }
 
     if(!extraDBs["system"]) {
@@ -164,6 +168,12 @@ export abstract class RuntimeClient {
         let changes = this.evaluation.createChanges();
         let session = this.evaluation.getDatabase("session");
         for(let block of session.blocks) {
+          if(block.bindActions.length) {
+            block.updateBinds({positions: {}, info: []}, changes);
+          }
+        }
+        let compiler = this.evaluation.getDatabase("compiler");
+        for(let block of compiler.blocks) {
           if(block.bindActions.length) {
             block.updateBinds({positions: {}, info: []}, changes);
           }
