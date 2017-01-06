@@ -35,6 +35,61 @@ bind @compiler
   transform.binds += [#compiler/insert binding e:var, a, v, scopes]
 ```
 
+Draw a transform
+
+```
+search @compiler
+  transform = [#compiler/transform name description]
+bind @browser
+  [#div class:"transform" transform children:
+    [#div class:"name" text: name]
+    [#div class:"description" text: description]
+    [#div #transform-code transform]
+    [#div text: "into"]
+    [#div #transform-result transform]]
+```
+
+```
+search @compiler @browser
+  parent = [#transform-code transform: [scans]]
+  scans = [#compiler/record attributes]
+  lookup[record: attributes, attribute, value]
+  attribute != "tag"
+  display-value = if value = [#compiler/variable] then attribute
+                  else "{{attribute}}: {{value}}"
+bind @browser
+  parent.children +=
+    [#div class:"record" scans children:
+      [#div children:
+        [#span text: "#{{attributes.tag}}"]]
+      [#div children:
+        [#div text: display-value]]]
+```
+
+```
+search @compiler @browser
+  parent = [#transform-result transform: [binds]]
+  binds = [#compiler/record attributes]
+  lookup[record: attributes, attribute, value]
+  attribute != "tag"
+  display-value = if value = [#compiler/variable] then attribute
+                  else "{{attribute}}: {{value}}"
+bind @browser
+  parent.children +=
+    [#div class:"record" binds children:
+      [#div children:
+        [#span text: "#{{attributes.tag}}"]]
+      [#div children:
+        [#div text: display-value]]]
+```
+
+```css
+.transform { background:#222; color:#ccc; padding:20px; }
+.transform .name { font-size:14pt; margin-bottom:10px; }
+.transform .description { color: #aaf; margin-bottom:20px; }
+.record { border: 1px solid #999; padding:10px; margin-top:10px; margin-bottom: 10px; }
+```
+
 Add some test data
 
 ```
