@@ -4,6 +4,13 @@ export let workspaces:{[name:string]: string} = {};
 // Public
 //---------------------------------------------------------
 
+export function loadWorkspaces(neue) {
+  for(let key in neue) {
+    let value = neue[key];
+    workspaces[key] = value;
+  }
+}
+
 export function add(name: string, directory: string) {
   // If we're running on a windows server, normalize slashes
   if(typeof window === "undefined") {
@@ -120,10 +127,10 @@ var fetchWorkspace = function(workspace:string) {
   return global["_workspaceCache"][workspace];
 }
 
+let fs = require("fs");
 // If we're running on the server, we use the actual file-system.
-if(typeof window === "undefined") {
+if(fs.readFileSync) {
   let glob = require("glob");
-  let fs = require("fs");
   let path = require("path");
   let mkdirp = require("mkdirp");
 

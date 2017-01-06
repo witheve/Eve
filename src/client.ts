@@ -138,6 +138,7 @@ export class EveClient {
   localControl:boolean = false;
   showIDE:boolean = true;
   ide:IDE;
+  worker: Worker;
 
   constructor(url?:string) {
     let loc = url ? url : this.getUrl();
@@ -178,7 +179,7 @@ export class EveClient {
     if(!this.localEve) {
       this.socketSend(message);
     } else {
-      browser.responder.handleEvent(message);
+      this.worker.postMessage(message);
     }
   }
 
@@ -283,7 +284,11 @@ export class EveClient {
     this.localControl = data.controlOwner === Owner.client;
     this.showIDE = data.withIDE;
     if(this.localEve) {
-      browser.init(data.code);
+      this.worker = new Worker("/build/src/loadWorker.js");
+      this.worker.onmessage = (event) => {
+       this.onMessage(event);
+      }
+      this.send({type: "init", code: data.code, showIDE: data.withIDE, workspaces: data.workspaces, workspaceCache: window["_workspaceCache"]});
     }
     if(this.showIDE) {
       let path = data.path;
