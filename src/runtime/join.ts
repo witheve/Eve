@@ -184,7 +184,7 @@ export class Scan {
     let solving = [];
     let solveNode = this.node !== undefined;
     let depth = solveNode ? 4 : 3;
-    this._fullScanLookup(index.eavIndex, solving, results, resolved, 0, 0, depth);
+    this._fullScanLookup(index.aveIndex, solving, results, [a,v,e,node], 0, 0, depth);
     return results;
   }
 
@@ -255,9 +255,9 @@ export class Scan {
         default:
           if(proposal.providing === undefined) {
             let providing = proposal.providing = [];
-            if(e === undefined) providing.push(this.e);
             if(a === undefined) providing.push(this.a);
             if(v === undefined) providing.push(this.v);
+            if(e === undefined) providing.push(this.e);
             if(node === undefined && this.node !== undefined) providing.push(this.node);
           }
           // full scan
