@@ -1386,10 +1386,15 @@ export function parseBlock(block, blockId, offset = 0, spans = [], extraInfo = {
     spans.push(token.startOffset, token.startOffset + token.image.length, token.label, tokenId);
   }
   eveParser.input = lex.tokens;
-  // The parameters here are a strange quirk of how Chevrotain works, I believe the
-  // 1 tells chevrotain what level the rule is starting at, we then pass our params
-  // to the codeBlock parser function as an array
-  let results = eveParser.codeBlock(1, [blockId]);
+  let results;
+  try {
+    // The parameters here are a strange quirk of how Chevrotain works, I believe the
+    // 1 tells chevrotain what level the rule is starting at, we then pass our params
+    // to the codeBlock parser function as an array
+    results = eveParser.codeBlock(1, [blockId]);
+  } catch(e) {
+    console.error("The parser threw an error: " + e);
+  }
   if(results) {
     results.start = offset;
     results.startOffset = offset;
@@ -1446,7 +1451,7 @@ export function parseDoc(doc, docId = `doc|${docIx++}`) {
     if(!extraInfo[block.id].disabled) {
       if(errors.length) {
         allErrors.push(errors);
-      } else {
+      } else if(results) {
         results.endOffset = block.endOffset;
         parsedBlocks.push(results);
       }
