@@ -9,10 +9,30 @@ commit @compiler
   [#compiler/transform
     name: "cool stuff"
     description: "this is a test transform for us to use"
-    scans: [#compiler/scan e:var1, a:"value", v:var2, scopes: "session"]
-           [#compiler/scan e:var1 a:"tag" v:"foo", scopes: "session"]
-    binds: [#compiler/insert e:"foo", a:"tag", v:"div", scopes: "browser"]
-           [#compiler/insert e:"foo", a:"text", v:var2, scopes: "browser"]]
+    scans: [#compiler/record attributes: [value:var2, tag:"foo"] scopes: "session"]
+    binds: [#compiler/record attributes: [tag:"div", text:var2] scopes: "browser"]]
+```
+
+```
+search @compiler
+  transform = [#compiler/transform scans: scan]
+  scan = [#compiler/record attributes scopes]
+  lookup[record: attributes, attribute: a, value: v]
+bind @compiler
+  var = [#compiler/variable scan]
+  transform.scans += [#compiler/scan scan e:var, a, v, scopes]
+```
+
+```
+search @compiler
+  transform = [#compiler/transform binds: binding]
+  binding = [#compiler/record attributes scopes]
+  lookup[record: attributes, attribute: a, value: v]
+  index = sort[value: a per: binding]
+bind @compiler
+  var = [#compiler/variable binding]
+  transform.expressions += [#compiler/expression binding operation:"generateId" | args: [index, v] results: [index:1, v: var]]
+  transform.binds += [#compiler/insert binding e:var, a, v, scopes]
 ```
 
 Add some test data

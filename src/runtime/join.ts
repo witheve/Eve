@@ -371,6 +371,10 @@ export abstract class Constraint {
     this.resolvedArgs = [];
     this.resolvedReturns = [];
     this.resolved = {args: null, returns: null};
+    this.setVars();
+  }
+
+  setVars() {
     this.vars = [];
     // capture our variables
     for(let register of this.args) {

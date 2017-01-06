@@ -7,6 +7,7 @@ import {Evaluation, Database} from "../runtime";
 import {Block, BlockStratum} from "../block";
 import {Scan, Variable, isVariable} from "../join";
 import {InsertAction} from "../actions";
+import * as providers from "../providers/index";
 
 export class CompilerDatabase extends Database {
 
@@ -36,7 +37,7 @@ export class CompilerDatabase extends Database {
     // assign register numbers to variables
     for(let scanId of transform.scans) {
       let scan = this.objectCache[scanId];
-      if(!scan) throw new Error("Missing scan for transform");
+      if(!scan) continue;
 
       curVar = assignVariable(scan.e, curVar);
       curVar = assignVariable(scan.a, curVar);
@@ -46,9 +47,21 @@ export class CompilerDatabase extends Database {
       scan.setVars();
       scans.push(scan);
     }
+    for(let expId of transform.expressions) {
+      let expression = this.objectCache[expId];
+      if(!expression) continue;
+      for(let arg of expression.args) {
+        curVar = assignVariable(arg, curVar);
+      }
+      for(let arg of expression.returns) {
+        curVar = assignVariable(arg, curVar);
+      }
+      expression.setVars();
+      scans.push(expression);
+    }
     for(let bindId of transform.binds) {
       let bind = this.objectCache[bindId];
-      if(!bind) throw new Error("Missing bind for transform");
+      if(!bind) continue;
 
       curVar = assignVariable(bind.e, curVar);
       curVar = assignVariable(bind.a, curVar);
@@ -106,6 +119,27 @@ export class CompilerDatabase extends Database {
     this.objectCache[id] = neueAction;
   }
 
+  updateExpression(id, expression) {
+    let index = this.index;
+    let args = [];
+    let results = [];
+    for(let arg of expression.args) {
+      let obj = index.asObject(arg)
+      let ix = obj.index[0];
+      let v = obj.v[0];
+      args[ix - 1] = this.checkForVariable(v);
+    }
+    for(let result of expression.results) {
+      let obj = index.asObject(result)
+      let ix = obj.index[0];
+      let v = obj.v[0];
+      results[ix - 1] = this.checkForVariable(v);
+    }
+    let klass = providers.get(expression.operation[0]);
+    let neueExpression = new klass(id, args, results)
+    this.objectCache[id] = neueExpression;
+  }
+
   onFixpoint(evaluation: Evaluation, changes: Changes) {
     super.onFixpoint(evaluation, changes);
 
@@ -128,6 +162,8 @@ export class CompilerDatabase extends Database {
           this.updateAction(e, record);
         } else if(index.lookup(e, "tag", "compiler/variable")) {
           this.updateVariable(e, record);
+        } else if(index.lookup(e, "tag", "compiler/expression")) {
+          this.updateExpression(e, record);
         }
       }
     }
