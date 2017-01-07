@@ -25,7 +25,6 @@ export class CompilerDatabase extends Database {
   }
 
   updateTransform(transform, changes) {
-    console.log("transform!", transform);
   // constructor(name: string, strata: BlockStratum[], commitActions: Action[], bindActions: Action[], parse?: any) {
   // constructor(scans, aggregates = []) {
     let {assignVariable} = this;
@@ -88,11 +87,9 @@ export class CompilerDatabase extends Database {
     this.objectCache[id] = block;
     this.blocks.push(block);
     console.log("MADE BLOCK!", block);
-    console.log(this.blocks);
   }
 
   updateVariable(id, variable) {
-    console.log("GOT VAR!", variable);
     this.objectCache[id] = new Variable(-1);
   }
 
@@ -103,19 +100,16 @@ export class CompilerDatabase extends Database {
     let v = this.checkForVariable(scan.v && scan.v[0]);
     let n = this.checkForVariable(scan.n && scan.n[0]);
     let neueScan = new Scan(id, e, a, v, n, scopes);
-    console.log("scan!", neueScan);
     this.objectCache[id] = neueScan;
   }
 
   updateAction(id, action) {
-    console.log("action!", action);
     let {scopes} = action;
     let e = this.checkForVariable(action.e && action.e[0]);
     let a = this.checkForVariable(action.a && action.a[0]);
     let v = this.checkForVariable(action.v && action.v[0]);
     let n = this.checkForVariable(action.n && action.n[0]);
     let neueAction = new InsertAction(id, e, a, v, n, scopes);
-    console.log("action!", neueAction);
     this.objectCache[id] = neueAction;
   }
 
