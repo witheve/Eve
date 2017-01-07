@@ -399,9 +399,6 @@ export class Parser extends chev.Parser {
   constructor(input) {
     super(input, allTokens, {});
     let self = this;
-    let rule = (name, func) => {
-      self[name] = self.RULE(name, func);
-    }
     let asValue = (node) => {
       if(node.type === "constant" || node.type === "variable" || node.type === "parenthesis") {
         return node;
@@ -450,7 +447,7 @@ export class Parser extends chev.Parser {
     // Doc rules
     //-----------------------------------------------------------
 
-    rule("doc", () => {
+    self.RULE("doc", () => {
       let doc = {
         full: [],
         content: [],
@@ -478,7 +475,7 @@ export class Parser extends chev.Parser {
       return doc;
     });
 
-    rule("fencedBlock", () => {
+    self.RULE("fencedBlock", () => {
       self.CONSUME(Fence);
       let block = self.SUBRULE(self.codeBlock);
       let fence = self.CONSUME(CloseFence);
@@ -489,14 +486,14 @@ export class Parser extends chev.Parser {
     // Blocks
     //-----------------------------------------------------------
 
-    rule("codeBlock", (blockId = "block") => {
+    self.RULE("codeBlock", (blockId = "block") => {
       blockStack = [];
       let block = pushBlock(blockId);
       self.MANY(() => { self.SUBRULE(self.section) })
       return popBlock();
     })
 
-    rule("section", () => {
+    self.RULE("section", () => {
       return self.OR([
         {ALT: () => { return self.SUBRULE(self.searchSection) }},
         {ALT: () => { return self.SUBRULE(self.actionSection) }},
@@ -509,7 +506,7 @@ export class Parser extends chev.Parser {
     // Scope declaration
     //-----------------------------------------------------------
 
-    rule("scopeDeclaration", () => {
+    self.RULE("scopeDeclaration", () => {
       let scopes = [];
       self.OR([
         {ALT: () => {
@@ -535,7 +532,7 @@ export class Parser extends chev.Parser {
     // Search section
     //-----------------------------------------------------------
 
-    rule("searchSection", () => {
+    self.RULE("searchSection", () => {
       // @TODO fill in from
       let from = [];
       self.CONSUME(Search);
@@ -555,7 +552,7 @@ export class Parser extends chev.Parser {
       return makeNode("searchSection", {statements, scopes, from});
     });
 
-    rule("statement", () => {
+    self.RULE("statement", () => {
       return self.OR([
         {ALT: () => { return self.SUBRULE(self.comparison); }},
         {ALT: () => { return self.SUBRULE(self.notStatement); }},
@@ -566,7 +563,7 @@ export class Parser extends chev.Parser {
     // Action section
     //-----------------------------------------------------------
 
-    rule("actionSection", () => {
+    self.RULE("actionSection", () => {
       // @TODO fill in from
       let from = [];
       let action = self.CONSUME(Action).image;
@@ -587,7 +584,7 @@ export class Parser extends chev.Parser {
     });
 
 
-    rule("actionStatement", (actionKey) => {
+    self.RULE("actionStatement", (actionKey) => {
       return self.OR([
         {ALT: () => {
           let record = self.SUBRULE(self.record, [false, actionKey, "+="]);
@@ -607,14 +604,14 @@ export class Parser extends chev.Parser {
     // Action operations
     //-----------------------------------------------------------
 
-    rule("actionOperation", (actionKey) => {
+    self.RULE("actionOperation", (actionKey) => {
       return self.OR([
         {ALT: () => { return self.SUBRULE(self.recordOperation, [actionKey]) }},
         {ALT: () => { return self.SUBRULE(self.attributeOperation, [actionKey]) }},
       ]);
     });
 
-    rule("attributeOperation", (actionKey) => {
+    self.RULE("attributeOperation", (actionKey) => {
       let mutator = self.SUBRULE(self.attributeMutator) as any;
       let {attribute, parent} = mutator;
       return self.OR([
@@ -671,7 +668,7 @@ export class Parser extends chev.Parser {
       ])
     });
 
-    rule("recordOperation", (actionKey) => {
+    self.RULE("recordOperation", (actionKey) => {
       let variable = self.SUBRULE(self.variable) as any;
       return self.OR([
         {ALT: () => {
@@ -694,7 +691,7 @@ export class Parser extends chev.Parser {
       ])
     });
 
-    rule("actionLookup", (actionKey) => {
+    self.RULE("actionLookup", (actionKey) => {
       let lookup = self.CONSUME(Lookup);
       let record: any = self.SUBRULE(self.record, [true]);
       let info: any = {};
@@ -716,14 +713,14 @@ export class Parser extends chev.Parser {
       return action;
     });
 
-    rule("actionAttributeExpression", (actionKey, action, parent) => {
+    self.RULE("actionAttributeExpression", (actionKey, action, parent) => {
       return self.OR([
         {ALT: () => { return self.SUBRULE(self.record, [false, actionKey, action, parent]); }},
         {ALT: () => { return self.SUBRULE(self.infix); }},
       ])
     })
 
-    rule("actionEqualityRecord", (actionKey) => {
+    self.RULE("actionEqualityRecord", (actionKey) => {
       let variable = self.SUBRULE(self.variable);
       self.CONSUME(Equality);
       let record : any = self.SUBRULE(self.record, [true, actionKey, "+="]);
@@ -736,7 +733,7 @@ export class Parser extends chev.Parser {
     // Record + attribute
     //-----------------------------------------------------------
 
-    rule("record", (noVar = false, blockKey = "scan", action = false, parent?, passedVariable?) => {
+    self.RULE("record", (noVar = false, blockKey = "scan", action = false, parent?, passedVariable?) => {
       let attributes = [];
       let start = self.CONSUME(OpenBracket);
       let from: NodeDependent[] = [start];
@@ -789,7 +786,7 @@ export class Parser extends chev.Parser {
       return record;
     });
 
-    rule("attribute", (noVar, blockKey, action, recordVariable) => {
+    self.RULE("attribute", (noVar, blockKey, action, recordVariable) => {
       return self.OR([
         {ALT: () => { return self.SUBRULE(self.attributeEquality, [noVar, blockKey, action, recordVariable]); }},
         {ALT: () => { return self.SUBRULE(self.attributeComparison); }},
@@ -798,7 +795,7 @@ export class Parser extends chev.Parser {
       ]);
     });
 
-    rule("singularAttribute", (forceGenerate) => {
+    self.RULE("singularAttribute", (forceGenerate) => {
       return self.OR([
         {ALT: () => {
           let tag : any = self.SUBRULE(self.tag);
@@ -811,7 +808,7 @@ export class Parser extends chev.Parser {
       ]);
     });
 
-    rule("attributeMutator", () => {
+    self.RULE("attributeMutator", () => {
       let scans = [];
       let entity, attribute, value;
       let needsEntity = true;
@@ -839,7 +836,7 @@ export class Parser extends chev.Parser {
       return makeNode("attributeMutator", {attribute: attribute, parent: entity, from});
     });
 
-    rule("attributeAccess", () => {
+    self.RULE("attributeAccess", () => {
       let scans = [];
       let entity, attribute, value;
       let needsEntity = true;
@@ -863,7 +860,7 @@ export class Parser extends chev.Parser {
       return value;
     });
 
-    rule("attributeEquality", (noVar, blockKey, action, parent) => {
+    self.RULE("attributeEquality", (noVar, blockKey, action, parent) => {
       let attributes = [];
       let autoIndex = 1;
       let attributeNode;
@@ -924,7 +921,7 @@ export class Parser extends chev.Parser {
       return attributes;
     });
 
-    rule("attributeComparison", () => {
+    self.RULE("attributeComparison", () => {
       let attribute = self.CONSUME(Identifier);
       let comparator = self.CONSUME(Comparison);
       let result = self.SUBRULE(self.expression);
@@ -935,7 +932,7 @@ export class Parser extends chev.Parser {
       return makeNode("attribute", {attribute: attribute.image, value: variable, from: [attribute, comparator, expression]});
     });
 
-    rule("attributeNot", (recordVariable) => {
+    self.RULE("attributeNot", (recordVariable) => {
       let block = pushBlock();
       block.type = "not";
       let not = self.CONSUME(Not);
@@ -961,13 +958,13 @@ export class Parser extends chev.Parser {
     // Name and tag
     //-----------------------------------------------------------
 
-    rule("name", () => {
+    self.RULE("name", () => {
       let at = self.CONSUME(Name);
       let name = self.CONSUME(Identifier);
       return makeNode("name", {name: name.image, from: [at, name]});
     });
 
-    rule("tag", () => {
+    self.RULE("tag", () => {
       let hash = self.CONSUME(Tag);
       let tag = self.CONSUME(Identifier);
       return makeNode("tag", {tag: tag.image, from: [hash, tag]});
@@ -977,7 +974,7 @@ export class Parser extends chev.Parser {
     // Function
     //-----------------------------------------------------------
 
-    rule("functionRecord", (): any => {
+    self.RULE("functionRecord", (): any => {
       let name = self.OR([
           {ALT: () => { return self.CONSUME(FunctionIdentifier); }},
           {ALT: () => { return self.CONSUME(Lookup); }}
@@ -1004,7 +1001,7 @@ export class Parser extends chev.Parser {
     // Comparison
     //-----------------------------------------------------------
 
-    rule("comparison", (nonFiltering) : any => {
+    self.RULE("comparison", (nonFiltering) : any => {
       let left = self.SUBRULE(self.expression);
       let from = [left];
       let rights = [];
@@ -1063,7 +1060,7 @@ export class Parser extends chev.Parser {
     // Special Forms
     //-----------------------------------------------------------
 
-    rule("notStatement", () => {
+    self.RULE("notStatement", () => {
       let block = pushBlock();
       block.type = "not";
       let from: NodeDependent[] = [
@@ -1082,7 +1079,7 @@ export class Parser extends chev.Parser {
       return;
     });
 
-    rule("isExpression", () => {
+    self.RULE("isExpression", () => {
       let op = self.CONSUME(Is);
       let from: NodeDependent[] = [
         op,
@@ -1098,7 +1095,7 @@ export class Parser extends chev.Parser {
       });
       from.push(self.CONSUME(CloseParen));
       let variable = self.block.toVariable(`is|${op.startLine}|${op.startColumn}`, true);
-      let is = makeNode("expression", {variable, op: "and", args: expressions, from});
+      let is = makeNode("expression", {variable, op: "eve-internal/and", args: expressions, from});
       self.block.addUsage(variable, is);
       self.block.expression(is);
       return is;
@@ -1108,7 +1105,7 @@ export class Parser extends chev.Parser {
     // If ... then
     //-----------------------------------------------------------
 
-    rule("ifExpression", () => {
+    self.RULE("ifExpression", () => {
       let branches = [];
       let from = branches;
       branches.push(self.SUBRULE(self.ifBranch));
@@ -1124,7 +1121,7 @@ export class Parser extends chev.Parser {
       return makeNode("ifExpression", {branches, from});
     });
 
-    rule("ifBranch", () => {
+    self.RULE("ifBranch", () => {
       let block = pushBlock();
       let from: NodeDependent[] = [
         self.CONSUME(If)
@@ -1144,7 +1141,7 @@ export class Parser extends chev.Parser {
       return makeNode("ifBranch", {block, outputs: ifOutputs(expression), exclusive: false, from});
     });
 
-    rule("elseIfBranch", () => {
+    self.RULE("elseIfBranch", () => {
       let block = pushBlock();
       let from: NodeDependent[] = [
         self.CONSUME(Else),
@@ -1165,7 +1162,7 @@ export class Parser extends chev.Parser {
       return makeNode("ifBranch", {block, outputs: ifOutputs(expression), exclusive: true, from});
     });
 
-    rule("elseBranch", () => {
+    self.RULE("elseBranch", () => {
       let block = pushBlock();
       let from: NodeDependent[] = [self.CONSUME(Else)];
       let expression = self.SUBRULE(self.expression) as ParseNode;
@@ -1180,11 +1177,11 @@ export class Parser extends chev.Parser {
     // Infix and operator precedence
     //-----------------------------------------------------------
 
-    rule("infix", () => {
+    self.RULE("infix", () => {
       return self.SUBRULE(self.addition);
     });
 
-    rule("addition", () : any => {
+    self.RULE("addition", () : any => {
       let left = self.SUBRULE(self.multiplication);
       let from = [left];
       let ops = [];
@@ -1213,7 +1210,7 @@ export class Parser extends chev.Parser {
       }
     });
 
-    rule("multiplication", () : any => {
+    self.RULE("multiplication", () : any => {
       let left = self.SUBRULE(self.infixValue);
       let from = [left];
       let ops = [];
@@ -1242,7 +1239,7 @@ export class Parser extends chev.Parser {
       }
     });
 
-    rule("parenthesis", () => {
+    self.RULE("parenthesis", () => {
       let items = [];
       let from = [];
       from.push(self.CONSUME(OpenParen));
@@ -1258,7 +1255,7 @@ export class Parser extends chev.Parser {
       return makeNode("parenthesis", {items, from});
     });
 
-    rule("infixValue", () => {
+    self.RULE("infixValue", () => {
       return self.OR([
         {ALT: () => { return self.SUBRULE(self.attributeAccess); }},
         {ALT: () => { return self.SUBRULE(self.functionRecord); }},
@@ -1273,7 +1270,7 @@ export class Parser extends chev.Parser {
     // Expression
     //-----------------------------------------------------------
 
-    rule("expression", () => {
+    self.RULE("expression", () => {
       let blockKey, action;
       if(self.currentAction !== "match") {
         blockKey = self.currentAction;
@@ -1289,7 +1286,7 @@ export class Parser extends chev.Parser {
     // Variable
     //-----------------------------------------------------------
 
-    rule("variable", (forceGenerate = false) => {
+    self.RULE("variable", (forceGenerate = false) => {
       let token = self.CONSUME(Identifier);
       let name = token.image;
       if(forceGenerate) {
@@ -1304,7 +1301,7 @@ export class Parser extends chev.Parser {
     // Values
     //-----------------------------------------------------------
 
-    rule("stringInterpolation", () : any => {
+    self.RULE("stringInterpolation", () : any => {
       let args = [];
       let start = self.CONSUME(OpenString);
       let from: NodeDependent[] = [start];
@@ -1329,13 +1326,13 @@ export class Parser extends chev.Parser {
         return args[0];
       }
       let variable = self.block.toVariable(`concat|${start.startLine}|${start.startColumn}`, true);
-      let expression = makeNode("expression", {op: "concat", args, variable, from});
+      let expression = makeNode("expression", {op: "eve-internal/concat", args, variable, from});
       self.block.addUsage(variable, expression);
       self.block.expression(expression);
       return expression;
     });
 
-    rule("value", () => {
+    self.RULE("value", () => {
       return self.OR([
         {ALT: () => { return self.SUBRULE(self.stringInterpolation) }},
         {ALT: () => { return self.SUBRULE(self.num) }},
@@ -1343,12 +1340,12 @@ export class Parser extends chev.Parser {
       ])
     })
 
-    rule("bool", () => {
+    self.RULE("bool", () => {
       let value = self.CONSUME(Bool);
       return makeNode("constant", {value: value.image === "true", from: [value]});
     })
 
-    rule("num", () => {
+    self.RULE("num", () => {
       let num = self.CONSUME(Num);
       return makeNode("constant", {value: parseFloat(num.image), from: [num]}) ;
     });
@@ -1389,10 +1386,15 @@ export function parseBlock(block, blockId, offset = 0, spans = [], extraInfo = {
     spans.push(token.startOffset, token.startOffset + token.image.length, token.label, tokenId);
   }
   eveParser.input = lex.tokens;
-  // The parameters here are a strange quirk of how Chevrotain works, I believe the
-  // 1 tells chevrotain what level the rule is starting at, we then pass our params
-  // to the codeBlock parser function as an array
-  let results = eveParser.codeBlock(1, [blockId]);
+  let results;
+  try {
+    // The parameters here are a strange quirk of how Chevrotain works, I believe the
+    // 1 tells chevrotain what level the rule is starting at, we then pass our params
+    // to the codeBlock parser function as an array
+    results = eveParser.codeBlock(1, [blockId]);
+  } catch(e) {
+    console.error("The parser threw an error: " + e);
+  }
   if(results) {
     results.start = offset;
     results.startOffset = offset;
@@ -1449,7 +1451,7 @@ export function parseDoc(doc, docId = `doc|${docIx++}`) {
     if(!extraInfo[block.id].disabled) {
       if(errors.length) {
         allErrors.push(errors);
-      } else {
+      } else if(results) {
         results.endOffset = block.endOffset;
         parsedBlocks.push(results);
       }
