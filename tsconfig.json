@@ -5,6 +5,7 @@
     "outDir": "build",
     "target": "es5",
     "sourceMap": true,
+    "inlineSources": true,
     "skipDefaultLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "experimentalDecorators" : true
