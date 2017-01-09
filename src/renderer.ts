@@ -587,25 +587,10 @@ window.addEventListener("click", function(event) {
     }
   }
 });
-window.addEventListener("dblclick", function(event) {
-  let {target} = event;
-  let current = target as RecordElement;
-  let objs:any[] = [];
-  while(current) {
-    if(current.entity) {
-      let tag = ["double-click"];
-      if(current == target) {
-        tag.push("direct-target");
-      }
-      let eveEvent = {tag, element: current.entity};
-      addSVGCoods(current, event, eveEvent)
-      objs.push(eveEvent);
-    }
-    addRootEvent(current, event, objs);
-    current = current.parentElement;
-  }
-  client.sendEvent(objs);
-});
+
+window.addEventListener("dblclick", handleBasicEventWithTarget("dblclick"));
+window.addEventListener("mousedown", handleBasicEventWithTarget("mousedown"));
+window.addEventListener("mouseup", handleBasicEventWithTarget("mouseup"));
 
 window.addEventListener("input", function(event) {
   let target = event.target as (RecordElement & HTMLInputElement);
@@ -662,6 +647,28 @@ function getFocusPath(target) {
     current = parent;
   }
   return path;
+}
+
+function handleBasicEventWithTarget(name) {
+  return (event) => {
+    let {target} = event;
+    let current = target as RecordElement;
+    let objs: any[] = [];
+    while (current) {
+      if (current.entity) {
+        let tag = [name];
+        if (current == target) {
+          tag.push("direct-target");
+        }
+        let eveEvent = {tag, element: current.entity};
+        addSVGCoods(current, event, eveEvent);
+        objs.push(eveEvent);
+      }
+      addRootEvent(current, event, objs);
+      current = current.parentElement;
+    }
+    client.sendEvent(objs);
+  };
 }
 
 window.addEventListener("focus", function(event) {
