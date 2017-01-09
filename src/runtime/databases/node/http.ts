@@ -32,6 +32,7 @@ export class HttpDatabase extends Database {
     httpRequest(options, (error, response, body) => {
       if(error || !response) {
         // @TODO: expose errors and other weirdness into Eve instead of just bailing here.
+        console.error(error || "ERROR: No response received from HTTP request");
         return;
       }
       let scope = "http";
