@@ -22,7 +22,6 @@ function buildDist(callback:() => void) {
   let tracker = new Tracker(callback);
   build(() => {
     mkdirp.sync("dist/build");
-    mkdirp.sync("dist/css");
 
     var index = fs.readFileSync("./index.html", "utf-8");
     if(ENABLE_ANALYTICS) {
@@ -34,13 +33,16 @@ function buildDist(callback:() => void) {
     copy("./build/workspaces.js", "./dist/build/workspaces.js", tracker.track("copy packaged workspaces"));
 
 
-    for(let pattern of ["build/src/**/*.js", "build/src/**/*.js.map", "src/**/*.css", "css/**/*.css", "examples/**/*.css"]) {
+    for(let pattern of ["build/src/**/*", "assets/**/*"]) {
       let matches = glob.sync(pattern);
       for(let match of matches) {
+        if(fs.statSync(match).isDirectory()) continue;
         let pathname = match.split("/").slice(0, -1).join("/");
 
         // @NOTE: Arghhh
-        mkdirp.sync("dist/" + pathname);
+        if(!fs.existsSync("dist/" + pathname)) {
+          mkdirp.sync("dist/" + pathname);
+        }
         copy(match, "dist/" + match, tracker.track("copy build artifacts"));
       }
     }

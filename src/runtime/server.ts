@@ -10,7 +10,7 @@ import * as express from "express";
 import * as bodyParser from "body-parser";
 import * as minimist from "minimist";
 
-import {config, Config, Owner} from "../config";
+import {config, Config, Owner, Mode} from "../config";
 import {ActionImplementations} from "./actions";
 import {PersistedDatabase} from "./databases/persisted";
 import {HttpDatabase} from "./databases/node/http";
@@ -180,52 +180,45 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
   let data = JSON.parse(message);
 
   if(data.type === "init") {
-    let {editor, runtimeOwner, controlOwner} = config;
-    let {url, hash} = data;
+    let {editor, runtimeOwner, controlOwner, internal, mode} = config;
+    let {hash} = data;
 
+    let content:string;
+    let path:string;
+    let isLocal = hash.indexOf("gist:") === 0;
 
-    let path = url;
-    let filepath = path;
-    if(hash) {
-      path = hash;
-      filepath = hash.split("#")[0];
+    // If we're in file mode, the only valid file to serve is the one specified in `config.path`.
+    if(mode === Mode.file) {
+      content = eveSource.find(config.path);
+      path = config.path;
+    }
+
+    // Otherwise, anything goes. First we check if the client has requested a specific file in the URL hash.
+    if(!isLocal && mode === Mode.workspace && hash) {
+      // @FIXME: This code to strip the editor hash segment out really needs to be abstacted.
+      let filepath = hash.split("#")[0];
       if(filepath[filepath.length - 1] === "/") filepath = filepath.slice(0, -1);
+
+      content = filepath && eveSource.find(filepath);
+      path = hash;
     }
 
-    if(config.controlOwner === Owner.client) {
-      ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, withIDE: editor}));
-      return;
-    }
-
-    let content = filepath && eveSource.find(filepath);
-
-    if(!content && config.path && path.indexOf("gist:") === -1) {
+    // If we've got a path to run with, use it as the default.
+    if(!isLocal && !content && config.path) {
       let workspace = "root";
       // @FIXME: This hard-coding isn't technically wrong right now, but it's brittle and poor practice.
       content = eveSource.get(config.path, workspace);
-      if(content) path = eveSource.getRelativePath(config.path, workspace);
+      path = eveSource.getRelativePath(config.path, workspace);
     }
 
-    if(content) {
-      ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, code: content, withIDE: editor}));
-      if(runtimeOwner === Owner.server) {
-        client.load(content, "user");
-      }
-    } else {
-      // @FIXME: Do we still need this fallback for anything? Cases where we need to run an eve file outside of a project?
-      fs.stat("." + path, (err, stats) => {
-        if(!err && stats.isFile()) {
-          let content = fs.readFileSync("." + path).toString();
-          ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, code: content, withIDE: editor}));
-        } else {
-          path = hash || url;
-          ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, withIDE: editor}));
-        }
+    // If we can't find the config path in a workspace, try finding it on disk.
+    if(!isLocal && !content && config.path && fs.existsSync("." + path)) {
+      content = fs.readFileSync("." + path).toString();
+    }
 
-        if(runtimeOwner === Owner.server) {
-          client.load(content, "user");
-        }
-      });
+    ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, code: content, internal, withIDE: editor, workspaces: eveSource.workspaces}));
+    if(runtimeOwner === Owner.server) {
+      client.load(content, "user");
     }
   } else if(data.type === "save"){
     eveSource.save(data.path, data.code);
@@ -244,7 +237,7 @@ function MessageHandler(client:SocketRuntimeClient, message) {
     let {editor, runtimeOwner, controlOwner, path:filepath} = config;
     // we do nothing here since the server is in charge of handling init.
     let content = fs.readFileSync(filepath).toString();
-    ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path: filepath, code: content, withIDE: editor}));
+    ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path: filepath, code: content, withIDE: editor, workspaces: eveSource.workspaces}));
     if(runtimeOwner === Owner.server) {
       client.load(content, "user");
     }

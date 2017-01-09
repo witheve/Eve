@@ -234,7 +234,7 @@ var svgsArr = [
   "tref",
   "tspan",
   "use",
-  "view",
+  //"view",
   "vkern"
 ];
 
