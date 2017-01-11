@@ -44,6 +44,8 @@ bind @compiler
   transform.binds += [#compiler/insert binding e:variable, a, v, scopes]
 ```
 
+## Transform ui
+
 Draw a transform
 
 ```
@@ -133,12 +135,56 @@ bind @browser
         [#div text: display-value]]]
 ```
 
+### joining
+
+```
+search @event @browser @compiler
+  dragging = [#event/dragging]
+  d = [#drop element]
+  element = [#record-attribute record attribute]
+bind
+  [#compiler/event/link from: dragging to: element]
+```
+
+```
+search @session @compiler @browser
+  [#compiler/event/link from to]
+  lookup[record: to.record.attributes, attribute: to.attribute, value]
+commit @compiler
+  value := none
+  lookup[record: to.record.attributes, attribute: to.attribute, value] := none
+```
+
+```
+search @session @compiler @browser
+  [#compiler/event/link from to]
+  lookup[record: from.record.attributes, attribute: from.attribute, value]
+commit @compiler
+  lookup[record: to.record.attributes, attribute: to.attribute, value]
+```
+
+```
+search @session @compiler @browser
+  c = [#compiler/event/link from to]
+  from-attrs = from.record.attributes
+  not(lookup[record: from-attrs, attribute: from.attribute, value])
+commit @compiler
+  value = [#compiler/variable from:c]
+  lookup[record: from-attrs, attribute: from.attribute, value]
+  lookup[record: to.record.attributes, attribute: to.attribute, value]
+```
+
+
+### drag and drop handling
+
 ```
 search @browser
   d = [#result-div dragover:true class]
 bind @browser
   class.dropping += true
 ```
+
+Track elements that are being dragged over
 
 ```
 search @browser @event
@@ -155,6 +201,24 @@ search @browser @event
 commit @browser
   element.dragover -= true
 ```
+
+Track elements that are being dragged
+
+```
+search @browser @event
+  d = [#dragstart element]
+commit @browser
+  element += #event/dragging
+```
+
+```
+search @browser @event
+  d = [#dragend element]
+commit @browser
+  element -= #event/dragging
+```
+
+## Styling
 
 ```css
 {background: black; color: #ccc; }
@@ -295,7 +359,7 @@ bind
   [#person name:"rob" age:29]
   [#person name:"corey" age:30]
   [#person name:"jjosh" age:23]
-  [#person name:"joey" pet: [#dog name:"beep"]]
+  [#person name:"joey" pet: [#dog name:"rob"]]
 ```
 
 Create a transform that looks for `#foo` records and adds a div with their `value` attribute as its text
