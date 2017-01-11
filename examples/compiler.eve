@@ -144,7 +144,7 @@ commit @browser
   .transform { background:#222; color:#ccc; padding:20px; width:300px; position:absolute; right:40px; }
 .transform .name { font-size:14pt; margin-bottom:10px; }
 .transform .description { color: #aaf; margin-bottom:20px; }
-.record { border: 1px solid #999; padding:5px 8px; margin-top:10px; margin-bottom: 10px; flex-direction:row; }
+.record { border: 1px solid #999; padding:5px 8px; margin-top:5px; margin-bottom: 5px; flex-direction:row; }
 .record .attributes { flex-direction:row; margin-left: 10px; border-left:1px solid #666; padding-left:10px }
 .record .attributes * + * { margin-left:10px }
 
