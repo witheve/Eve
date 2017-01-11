@@ -717,6 +717,9 @@ export class Editor {
   /** Whether the editor has changed since the last update. */
   dirty = false;
 
+  /** The current cached Markdown representation of the document. */
+  _md:string;
+
   /** Whether the editor is being externally updated with new content. */
   reloading = false;
 
@@ -797,6 +800,7 @@ export class Editor {
     this.reloading = false;
     this.history.transitioning = false;
     this.dirty = false;
+    this._md = undefined;
   }
 
   // This is an update to an existing document, so we need to figure out what got added and removed.
@@ -945,6 +949,8 @@ export class Editor {
   }
 
   toMarkdown() {
+    if(this._md) return this._md;
+
     let cm = this.cm;
     let doc = cm.getDoc();
     let spans = this.getAllSpans();
@@ -1022,7 +1028,8 @@ export class Editor {
       pieces.push(fullText.substring(pos));
     }
 
-    return pieces.join("");
+    this._md = pieces.join("");
+    return this._md;
   }
 
   refresh() {
@@ -1667,6 +1674,7 @@ export class Editor {
     }
     this.changingSpans = undefined;
     this.changing = false;
+    this._md = undefined;
     this.history.transitioning = false;
     this.formatting = {};
     this.queueUpdate();
