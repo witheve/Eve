@@ -175,6 +175,16 @@ export class CompilerDatabase extends Database {
       let [e,a,v] = remove;
       if(!handled[e]) {
         handled[e] = true;
+        let justRemove = {"compiler/scan": true, "compiler/insert": true, "compiler/expression": true};
+        if(a === "tag" && justRemove[v]) {
+          this.objectCache[e] = undefined;
+        } else if(a === "tag" && v === "compiler/transform") {
+          // @TODO: remove a block
+        } else if(index.lookup(e, "tag", "compiler/transform")) {
+          let record = index.asObject(e);
+          record["_eveId"] = e;
+          dirty.push(record);
+        }
       }
     }
 
@@ -186,7 +196,9 @@ export class CompilerDatabase extends Database {
     }
     if(dirty.length) {
       setTimeout(() => {
+        nextChanges.commit();
         evaluation.fixpoint(nextChanges);
+        console.log(nextChanges);
       });
     }
   }
