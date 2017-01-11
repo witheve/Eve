@@ -17,9 +17,10 @@ export class CompilerDatabase extends Database {
     return this.objectCache[field] || field;
   }
 
-  assignVariable(field, curVar) {
-    if(isVariable(field) && field.id === -1) {
+  assignVariable(field, curVar, seenVars) {
+    if(isVariable(field) && (field.id === -1 || !seenVars[field.info])) {
       field.id = curVar++;
+      seenVars[field.info] = true;
     }
     return curVar;
   }
@@ -30,43 +31,51 @@ export class CompilerDatabase extends Database {
     let {assignVariable} = this;
     let id = transform["_eveId"];
     let curVar = 0;
+    let seenVars = {};
     let scans = [];
     let binds = [];
     let commits = [];
     // assign register numbers to variables
-    for(let scanId of transform.scans) {
-      let scan = this.objectCache[scanId];
-      if(!scan) continue;
+    if(transform.scans) {
+      for(let scanId of transform.scans) {
+        let scan = this.objectCache[scanId];
+        if(!scan) continue;
+        console.log(scan);
 
-      curVar = assignVariable(scan.e, curVar);
-      curVar = assignVariable(scan.a, curVar);
-      curVar = assignVariable(scan.v, curVar);
-      curVar = assignVariable(scan.n, curVar);
+        curVar = assignVariable(scan.e, curVar, seenVars);
+        curVar = assignVariable(scan.a, curVar, seenVars);
+        curVar = assignVariable(scan.v, curVar, seenVars);
+        curVar = assignVariable(scan.n, curVar, seenVars);
 
-      scan.setVars();
-      scans.push(scan);
-    }
-    for(let expId of transform.expressions) {
-      let expression = this.objectCache[expId];
-      if(!expression) continue;
-      for(let arg of expression.args) {
-        curVar = assignVariable(arg, curVar);
+        scan.setVars();
+        scans.push(scan);
       }
-      for(let arg of expression.returns) {
-        curVar = assignVariable(arg, curVar);
-      }
-      expression.setVars();
-      scans.push(expression);
     }
-    for(let bindId of transform.binds) {
-      let bind = this.objectCache[bindId];
-      if(!bind) continue;
+    if(transform.expressions) {
+      for(let expId of transform.expressions) {
+        let expression = this.objectCache[expId];
+        if(!expression) continue;
+        for(let arg of expression.args) {
+          curVar = assignVariable(arg, curVar, seenVars);
+        }
+        for(let arg of expression.returns) {
+          curVar = assignVariable(arg, curVar, seenVars);
+        }
+        expression.setVars();
+        scans.push(expression);
+      }
+    }
+    if(transform.binds) {
+      for(let bindId of transform.binds) {
+        let bind = this.objectCache[bindId];
+        if(!bind) continue;
 
-      curVar = assignVariable(bind.e, curVar);
-      curVar = assignVariable(bind.a, curVar);
-      curVar = assignVariable(bind.v, curVar);
+        curVar = assignVariable(bind.e, curVar, seenVars);
+        curVar = assignVariable(bind.a, curVar, seenVars);
+        curVar = assignVariable(bind.v, curVar, seenVars);
 
-      binds.push(bind);
+        binds.push(bind);
+      }
     }
 
     // build the strata for this block
@@ -86,15 +95,16 @@ export class CompilerDatabase extends Database {
     }
     this.objectCache[id] = block;
     this.blocks.push(block);
-    console.log("MADE BLOCK!", block);
+    console.log("MADE BLOCK!", transform, block);
   }
 
   updateVariable(id, variable) {
-    this.objectCache[id] = new Variable(-1);
+    this.objectCache[id] = new Variable(-1, id);
   }
 
   updateScan(id, scan) {
     let {scopes} = scan;
+    console.log("UPDATE SCAN", scan);
     let e = this.checkForVariable(scan.e && scan.e[0]);
     let a = this.checkForVariable(scan.a && scan.a[0]);
     let v = this.checkForVariable(scan.v && scan.v[0]);

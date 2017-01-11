@@ -6,6 +6,11 @@ search @event
       if event = [#keyup] then event
       if event = [#mousedown] then event
       if event = [#mouseup] then event
+      if event = [#dragenter] then event
+      if event = [#dragleave] then event
+      if event = [#dragstart] then event
+      if event = [#dragend] then event
+      if event = [#drop] then event
       if event = [#click] then event
       if event = [#double-click] then event
       if event = [#change] then event

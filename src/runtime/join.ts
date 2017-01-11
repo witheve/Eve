@@ -35,9 +35,11 @@ function makeUUID(idprefix, projection) {
 // These will be values used in both scans and constraints
 export class Variable {
   id: string;
+  info?: any;
   constant?: any;
-  constructor(id) {
+  constructor(id, info?) {
     this.id = id;
+    this.info = info;
   }
 }
 

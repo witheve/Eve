@@ -535,7 +535,7 @@ window.document.body.addEventListener("dragover", (e) => {
 })
 
 window.document.body.addEventListener("drop", (e) => {
-  if(e.dataTransfer.files.length) {
+  if(!e.defaultPrevented && e.dataTransfer.files.length) {
     let reader = new FileReader();
     reader.onload = function (event) {
       socket.send(`{"type": "load", "info": ${reader.result}}`);
@@ -543,5 +543,4 @@ window.document.body.addEventListener("drop", (e) => {
     reader.readAsText(e.dataTransfer.files[0]);
   }
   e.preventDefault();
-  e.stopPropagation();
 });

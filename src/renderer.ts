@@ -591,6 +591,80 @@ window.addEventListener("click", function(event) {
 window.addEventListener("dblclick", handleBasicEventWithTarget("dblclick"));
 window.addEventListener("mousedown", handleBasicEventWithTarget("mousedown"));
 window.addEventListener("mouseup", handleBasicEventWithTarget("mouseup"));
+window.addEventListener("drop", handleBasicEventWithTarget("drop"));
+
+window.addEventListener("drop", function(event) {
+  let {target} = event;
+  let current = target as RecordElement;
+  let objs: any[] = [];
+  while (current) {
+    if (current.entity) {
+      let tag = ["drop"];
+      if (current === target) {
+        tag.push("direct-target");
+      }
+      let eveEvent = {tag, element: current.entity};
+      addSVGCoods(current, event, eveEvent);
+      objs.push(eveEvent);
+    }
+    addRootEvent(current, event, objs);
+    current = current.parentElement;
+  }
+  for(let potentialLeave of dragEnterSet) {
+    objs.push({tag: ["dragleave"], element: potentialLeave.entity});
+  }
+  client.sendEvent(objs);
+});
+
+window.addEventListener("dragstart", function(event) {
+  event.dataTransfer.setData("text", "foo");
+  let target = event.target as (RecordElement);
+  if(target.entity) {
+    client.sendEvent([{tag: ["dragstart"], element: target.entity}]);
+  }
+});
+
+window.addEventListener("dragend", function(event) {
+  let target = event.target as (RecordElement);
+  if(target.entity) {
+    client.sendEvent([{tag: ["dragend"], element: target.entity}]);
+  }
+});
+
+let dragEnterSet = [];
+
+window.addEventListener("dragenter", function(event) {
+  let objects = [];
+  event.preventDefault();
+  let target = event.target as (RecordElement);
+  if(target.entity && dragEnterSet.indexOf(target) === -1) {
+    console.log("enter", target.entity, target);
+    dragEnterSet.push(target);
+    objects.push({tag: ["dragenter"], element: target.entity})
+  }
+  if(target.entity) {
+    // collect all the parents of the element currently being dragged over
+    let validEntities = {};
+    let current = target;
+    while(current && current.entity) {
+      validEntities[current.entity] = true;
+      current = current.parentNode as RecordElement;
+    }
+    let updated = [];
+    for(let potentialLeave of dragEnterSet) {
+      if(!validEntities[potentialLeave.entity]) {
+        console.log("leave", potentialLeave.entity, potentialLeave);
+        objects.push({tag: ["dragleave"], element: potentialLeave.entity});
+      } else {
+        updated.push(potentialLeave);
+      }
+    }
+    dragEnterSet = updated;
+  }
+  if(objects.length) {
+    client.sendEvent(objects);
+  }
+});
 
 window.addEventListener("input", function(event) {
   let target = event.target as (RecordElement & HTMLInputElement);

@@ -50,31 +50,43 @@ Draw a transform
 
 ```
 search @compiler
-  transform = [#compiler/transform name description]
+  transform = [#compiler/transform name]
+  description = if transform.description then transform.description
+                else "Descriptions are pretty cool, you should add one"
 bind @browser
   [#div class:"transform" transform children:
     [#div class:"name" text: name]
     [#div class:"description" text: description]
     [#div #transform-code transform]
-    [#div text: "into"]
+    [#div text: "=>"]
     [#div #transform-result transform]]
 ```
+
+Draw record container with tags
 
 ```
 search @compiler @browser
   parent = [#transform-code transform: [scans]]
+  scans = [#compiler/record attributes: [tag]]
+bind @browser
+  parent.children +=
+    [#div #record-div class:"record" scans children:
+      [#div children:
+        [#span draggable:"true" text: "{{tag}}"]]]
+```
+
+
+```
+search @compiler @browser
+  parent = [#record-div scans]
   scans = [#compiler/record attributes]
   lookup[record: attributes, attribute, value]
   attribute != "tag"
   display-value = if value = [#compiler/variable] then attribute
                   else "{{attribute}}: {{value}}"
 bind @browser
-  parent.children +=
-    [#div class:"record" scans children:
-      [#div children:
-        [#span text: "#{{attributes.tag}}"]]
-      [#div children:
-        [#div text: display-value]]]
+  parent.children += [#div children:
+                      [#div text: display-value]]
 ```
 
 ```
@@ -87,18 +99,65 @@ search @compiler @browser
                   else "{{attribute}}: {{value}}"
 bind @browser
   parent.children +=
-    [#div class:"record" binds children:
+    [#div #result-div class:[record:true] binds children:
       [#div children:
-        [#span text: "#{{attributes.tag}}"]]
-      [#div children:
+        [#span text: "{{attributes.tag}}"]]
+      [#div class:"attributes" children:
         [#div text: display-value]]]
 ```
 
+```
+search @browser
+  d = [#result-div dragover:true class]
+bind @browser
+  [#div text: "DROPPING! {{d}}"]
+  class.dropping += true
+```
+
+```
+search @browser @event
+  d = [#drop element]
+commit @browser
+  [#div d text: "dropped on: {{element}}"]
+```
+
+```
+search @browser @event
+  d = [#dragenter element]
+  element = [#result-div]
+commit @browser
+  [#div d text: "ENTER {{element}}"]
+  element.dragover += true
+```
+
+```
+search @browser @event
+  d = [#dragleave element]
+  element = [#result-div]
+commit @browser
+  [#div d text: "LEAVE {{element}}"]
+  element.dragover -= true
+```
+
 ```css
-.transform { background:#222; color:#ccc; padding:20px; }
+  div { display:flex; flex-direction:column;}
+  .transform { background:#222; color:#ccc; padding:20px; width:300px; position:absolute; right:40px; }
 .transform .name { font-size:14pt; margin-bottom:10px; }
 .transform .description { color: #aaf; margin-bottom:20px; }
-.record { border: 1px solid #999; padding:10px; margin-top:10px; margin-bottom: 10px; }
+.record { border: 1px solid #999; padding:5px 8px; margin-top:10px; margin-bottom: 10px; flex-direction:row; }
+.record .attributes { flex-direction:row; margin-left: 10px; border-left:1px solid #666; padding-left:10px }
+.record .attributes * + * { margin-left:10px }
+
+.dropping { background: red; }
+
+.pixel { width:50px; height:50px; background: #555; color: #ccc; margin:10px; }
+```
+
+Add some state for the editor
+
+```
+commit @compiler
+  [#editor/app transform: [#compiler/transform name: "current query"]]
 ```
 
 Make a tag explorer
@@ -111,10 +170,16 @@ bind @browser
 ```
 
 ```
-search @event @browser
-  [#click element: [#tag-button text]]
-commit @browser
-  [#div text: "CLICKED! {{text}}"]
+search @event @browser @compiler
+  c = [#click element: [#tag-button text]]
+  [#editor/app transform]
+commit @compiler
+  variable = [#compiler/variable from:c]
+  scan = [#compiler/record variable attributes: [tag:text] scopes: "session"]
+  transform.scans += scan
+  text-variable = [#compiler/variable from:c]
+  transform.expressions += [#compiler/expression c operation:"eve-internal/concat" | args: [index: 1, v: text] [index:2, v: " "] [index:3, v: variable] results: [index:1, v: text-variable]]
+  transform.binds += [#compiler/record from:scan attributes: [related:variable tag:"div" class:"pixel" text: text-variable] scopes: "browser"]
 ```
 
 Add some test data
@@ -126,11 +191,12 @@ bind
   [#person name:"rob" age:29]
   [#person name:"corey" age:30]
   [#person name:"jjosh" age:23]
+  [#person name:"joey" pet: [#dog name:"beep"]]
 ```
 
 Create a transform that looks for `#foo` records and adds a div with their `value` attribute as its text
 
-```
+```eve disabled
 commit @compiler
   var1 = [#compiler/variable]
   var2 = [#compiler/variable]
