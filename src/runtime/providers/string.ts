@@ -152,7 +152,7 @@ class Find extends Constraint {
   }
 
   getIndexes(text, subtext, from, caseSensitive, withIx) {
-    let start = from || 0;
+    let start = (from || 1) - 1;
     let currentIndex;
     let ixs = [];
     let subLength = subtext.length;
