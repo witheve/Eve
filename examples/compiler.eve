@@ -120,7 +120,7 @@ commit @compiler
 ```
 search @compiler @browser
   parent = [#transform-result transform: [binds]]
-  binds = [#compiler/record from: [index] attributes]
+  binds = [#compiler/record from: [index] attributes not(#compiler/pixel) not(#compiler/pixel-container)]
   lookup[record: attributes, attribute, value]
   attribute != "tag"
   display-value = if value = [#compiler/variable] then attribute
@@ -283,8 +283,10 @@ commit @compiler
   text-variable = [#compiler/variable from:c]
   transform.expressions += [#compiler/expression c operation:"eve-internal/concat" | args: [index: 1, v: text] [index:2, v: " "] [index:3, v: variable] results: [index:1, v: text-variable]]
   child-var = [#compiler/variable from:scan]
-  child = [#compiler/record variable:child-var from:scan attributes: [related:variable tag:("div","editor/pixel") editor-index:ix class:"pixel"] scopes: "browser"]
-  parent = [#compiler/record from:scan attributes: [related:scan tag:("div") class: "pixel-container"] non-projecting-attributes: [children:child-var] scopes: "browser"]
+  child = [#compiler/record #compiler/pixel variable:child-var from:scan
+              attributes: [related:variable tag:("div","editor/pixel") editor-index:ix class:"pixel"]
+              scopes: "browser"]
+  parent = [#compiler/record #compiler/pixel-container from:scan attributes: [related:scan tag:("div") class: "pixel-container"] non-projecting-attributes: [children:child-var] scopes: "browser"]
   transform.binds += child
   transform.binds += parent
 ```
@@ -349,6 +351,25 @@ search @event @browser
 commit @browser
   element -= #editor/pixel/expanded
 ```
+
+### Compiler pixels
+
+This code draws the pixel representation that shows up in a transform
+
+```
+search @compiler @browser
+  parent = [#transform-result transform: [binds]]
+  binds = [#compiler/pixel from: [index]]
+  [#editor/color index color]
+bind @browser
+  parent.children +=
+    [#div #pixel-record class:[pixel:true] style: [background: color] binds children:
+      [#div class:"attributes" children:
+        [#div text: "pixel!"]]]
+
+```
+
+## Test data
 
 Add some test data
 
