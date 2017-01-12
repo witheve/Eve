@@ -182,7 +182,6 @@ class Find extends Constraint {
     return text.indexOf(subtext, returns[0] - 1) === returns[0];
   }
 
-  // substring always returns cardinality 1
   getProposal(tripleIndex, proposed, prefix) {
     let proposal = this.proposalObject;
     let {args} = this.resolve(prefix);
