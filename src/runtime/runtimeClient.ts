@@ -168,7 +168,7 @@ export abstract class RuntimeClient {
         let documents = eveSource.fetchAll("root");
         for(let documentId in documents) {
           code += `# !!! ${documentId} !!! \n`;
-          code += (documentId === data.documentId ? this.lastParse.code : documents[documentId]) + "\n\n";
+          code += documents[documentId] + "\n\n";
         }
 
         let {results, errors}: {results: any, errors: any[]} = parser.parseDoc(code || "", "user");
