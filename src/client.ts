@@ -313,6 +313,10 @@ export class EveClient {
     onHashChange({});
   }
 
+  _css(data) {
+    document.getElementById("app-styles").innerHTML = data.css;
+  }
+
   _parse(data) {
     if(!this.showIDE) return;
     this.ide.loadDocument(data.generation, data.text, data.spans, data.extraInfo, data.css); // @FIXME

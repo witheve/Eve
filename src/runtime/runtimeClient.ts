@@ -33,6 +33,7 @@ export abstract class RuntimeClient {
     if(errors && errors.length) console.error(errors);
     results.code = code;
     this.lastParse = results;
+    this.send(JSON.stringify({type: "css", css: this.enabledCss()}));
     this.makeEvaluation();
     this.evaluation.fixpoint();
   }
@@ -98,7 +99,7 @@ export abstract class RuntimeClient {
   enabledCss() {
       var css = "";
       this.lastParse.code.replace(/(?:```|~~~)css\n([\w\W]*?)\n(?:```|~~~)/g, (g0, g1) => { // \n excludes disabled blocks
-        css += g1;
+        css += g1 + "\n";
       });
 
       // remove whitespace before open braces, and add a newline after open brace
