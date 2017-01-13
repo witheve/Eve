@@ -20,6 +20,7 @@ import * as eveSource from "./eveSource";
 
 export abstract class RuntimeClient {
   lastParse: any;
+  lastCss: string;
   evaluation: Evaluation;
   extraDBs: any;
 
@@ -98,10 +99,12 @@ export abstract class RuntimeClient {
     return true;
   }
 
-  enabledCss() {
+  enabledCss(code:string = "") {
+      if(!code && this.lastParse) code = this.lastParse.code;
       var css = "";
-      this.lastParse.code.replace(/(?:```|~~~)css\n([\w\W]*?)\n(?:```|~~~)/g, (g0, g1) => { // \n excludes disabled blocks
+      code.replace(/(?:```|~~~)css\n([\w\W]*?)\n(?:```|~~~)/g, (g0, g1) => { // \n excludes disabled blocks
         css += g1 + "\n";
+        return "";
       });
 
       // remove whitespace before open braces, and add a newline after open brace
@@ -158,18 +161,27 @@ export abstract class RuntimeClient {
       let {blocks, errors: buildErrors} = build;
       results.code = data.code;
       this.lastParse = results;
+      this.lastParse.documentId = data.documentId;
       for(let error of buildErrors) {
         error.injectSpan(spans, extraInfo);
       }
-      this.send(JSON.stringify({type: "parse", generation: data.generation, text, spans, extraInfo, css: this.enabledCss()}));
+      this.send(JSON.stringify({type: "parse", generation: data.generation, text, spans, extraInfo, css: this.lastCss + this.enabledCss()}));
     } else if(data.type === "eval") {
       let parse = this.lastParse;
       if(config.multiDoc) {
         let code = "";
         let documents = eveSource.fetchAll("root");
+        let css = "";
+        let currentCss = "";
         for(let documentId in documents) {
           code += `# !!! ${documentId} !!! \n`;
           code += documents[documentId] + "\n\n";
+
+          if(this.lastParse && documentId !== this.lastParse.documentId) {
+            css += this.enabledCss(documents[documentId]) + "\n\n";
+          } else {
+            currentCss = this.enabledCss(documents[documentId]) + "\n\n";
+          }
         }
 
         let {results, errors}: {results: any, errors: any[]} = parser.parseDoc(code || "", "user");
@@ -182,6 +194,10 @@ export abstract class RuntimeClient {
         for(let error of buildErrors) {
           error.injectSpan(spans, extraInfo);
         }
+
+        this.lastCss = css;
+
+        this.send(JSON.stringify({type: "css", css: css + currentCss}));
       }
 
       if(this.evaluation !== undefined && data.persist) {
