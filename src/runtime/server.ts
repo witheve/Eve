@@ -216,7 +216,7 @@ function IDEMessageHandler(client:SocketRuntimeClient, message) {
       content = fs.readFileSync("." + path).toString();
     }
 
-    ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path, code: content, internal, withIDE: editor, workspaces: eveSource.workspaces}));
+    ws.send(JSON.stringify({type: "initProgram", path, code: content, config, workspaces: eveSource.workspaces}));
     if(runtimeOwner === Owner.server) {
       client.load(content, "user");
     }
@@ -237,7 +237,7 @@ function MessageHandler(client:SocketRuntimeClient, message) {
     let {editor, runtimeOwner, controlOwner, path:filepath} = config;
     // we do nothing here since the server is in charge of handling init.
     let content = fs.readFileSync(filepath).toString();
-    ws.send(JSON.stringify({type: "initProgram", runtimeOwner, controlOwner, path: filepath, code: content, withIDE: editor, workspaces: eveSource.workspaces}));
+    ws.send(JSON.stringify({type: "initProgram", path: filepath, code: content, config, workspaces: eveSource.workspaces}));
     if(runtimeOwner === Owner.server) {
       client.load(content, "user");
     }
