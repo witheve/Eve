@@ -607,7 +607,7 @@ window.addEventListener("drop", function(event) {
       addSVGCoods(current, event, eveEvent);
       objs.push(eveEvent);
     }
-    addRootEvent(current, event, objs);
+    addRootEvent(current, event, objs, "drop");
     current = current.parentElement;
   }
   for(let potentialLeave of dragEnterSet) {

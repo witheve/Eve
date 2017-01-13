@@ -44,22 +44,34 @@ bind @compiler
   transform.binds += [#compiler/insert binding e:variable, a, v, scopes]
 ```
 
+## Page chrome
+
+```
+bind @browser
+ [#div #page class:"page" children:
+   [#div #tag-explorer]
+   [#div #pixels-canvas]
+   [#div #transform-container]]
+```
+
 ## Transform ui
 
 Draw a transform
 
 ```
-search @compiler
+search @compiler @browser
+  parent = [#transform-container]
   transform = [#compiler/transform name]
   description = if transform.description then transform.description
                 else "Descriptions are pretty cool, you should add one"
 bind @browser
-  [#div class:"transform" transform children:
-    [#div class:"name" text: name]
-    [#div class:"description" text: description]
-    [#div #transform-code transform]
-    [#div text: "=>"]
-    [#div #transform-result transform]]
+  parent.children +=
+    [#div class:"transform" transform children:
+      [#div class:"name" text: name]
+      [#div class:"description" text: description]
+      [#div #transform-code transform]
+      [#div text: "=>"]
+      [#div #transform-result transform]]
 ```
 
 Draw record container with tags
@@ -264,9 +276,12 @@ commit @compiler
 ```
 search
   lookup[record, attribute: "tag", value]
+search @browser
+  parent = [#tag-explorer]
 bind @browser
-  [#div #tag-browser class:"tag-browser" children:
-    [#div #tag-button text: value]]
+  parent.children +=
+    [#div #tag-browser class:"tag-browser" children:
+      [#div #tag-button text: value]]
 ```
 
 ```
@@ -286,7 +301,7 @@ commit @compiler
   child = [#compiler/record #compiler/pixel variable:child-var from:scan
               attributes: [related:variable tag:("div","editor/pixel") editor-index:ix class:"pixel"]
               scopes: "browser"]
-  parent = [#compiler/record #compiler/pixel-container from:scan attributes: [related:scan tag:("div") class: "pixel-container"] non-projecting-attributes: [children:child-var] scopes: "browser"]
+  parent = [#compiler/record #compiler/pixel-container from:scan attributes: [related:scan tag:("div", "editor/pixel-container") class: "pixel-container"] non-projecting-attributes: [children:child-var] scopes: "browser"]
   transform.binds += child
   transform.binds += parent
 ```
@@ -300,6 +315,16 @@ bind @browser
 ```
 
 ## Pixels
+
+Drop all the pixels in the pixel container
+
+```
+search @browser
+  parent = [#pixels-canvas]
+  pixel-container = [#editor/pixel-container]
+bind @browser
+  parent.children += pixel-container
+```
 
 Pixels by default list the id they're associated with
 
