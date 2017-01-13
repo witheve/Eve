@@ -19,6 +19,9 @@ import {Database} from "./runtime";
 import {RuntimeClient} from "./runtimeClient";
 import {BrowserViewDatabase, BrowserEditorDatabase, BrowserInspectorDatabase} from "./databases/browserSession";
 import * as eveSource from "./eveSource";
+import {Changes} from "./changes";
+import {MultiIndex} from "./indexes";
+import {fromJS} from "./util/eavs";
 
 //---------------------------------------------------------------------
 // Constants
@@ -52,7 +55,10 @@ class HTTPRuntimeClient extends RuntimeClient {
       "shared": shared,
       "browser": new Database(),
     }
-    super(dbs);
+    let uniondb = {}
+    for (let key in dbs) uniondb[key] = dbs[key];
+    for (let key in config.databases) uniondb[key] = config.databases[key];
+    super(uniondb);
     this.server = server;
   }
 
@@ -164,7 +170,10 @@ class SocketRuntimeClient extends RuntimeClient {
       dbs["editor"] = new BrowserEditorDatabase();
       dbs["inspector"] = new BrowserInspectorDatabase();
     }
-    super(dbs);
+    let uniondb = {}
+    for (let key in dbs) uniondb[key] = dbs[key];
+    for (let key in config.databases) uniondb[key] = config.databases[key]
+    super(uniondb);
     this.socket = socket;
   }
 
@@ -269,6 +278,45 @@ function initWebsocket(wss, withIDE:boolean) {
   });
 }
 
+function loadDatabases(descriptions) {
+  let databases = {};
+  let desc = descriptions.length;
+  let multi = new MultiIndex();
+  let changes =  new Changes(multi);
+
+  for (let i = 0; i < desc; i++) {
+    let database = "init";
+    let tag = undefined;
+    let terms = descriptions[i].split(":")
+    let count = 0;
+
+    if (terms.length == 3) tag = terms[2];
+    if (terms.length >= 2) database = terms[1];
+    let data = fs.readFileSync(terms[0]).toString();
+
+    if (!databases[database]) {
+      databases[database] = new Database;
+      multi.register(database, databases[database].index)
+    }
+
+    let f = (obj) => {
+      let id = fromJS(changes, obj, databases[database].id, database, "js" + count++);
+      if (tag) changes.store(database, id, "tag", tag, "init");
+    }
+
+    let jobj = JSON.parse(data)
+    if (Array.isArray(jobj)) {
+      let jobjlen = jobj.length
+      for (let i = 0; i < jobjlen; i++) f(jobj[i]);
+    } else {
+      f(jobj);
+    }
+  }
+  changes.commit();
+  return databases;
+}
+
+
 //---------------------------------------------------------------------
 // Go!
 //---------------------------------------------------------------------
@@ -293,6 +341,10 @@ export function run() {
     } catch(e) {
       throw new Error("Can't load " + config.path);
     }
+  }
+
+  if (config.initJsonDB) {
+    config.databases = loadDatabases(config.initJsonDB);
   }
 
   let app = createExpressApp();

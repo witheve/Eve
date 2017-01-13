@@ -10,7 +10,8 @@ var Owner = config.Owner;
 var Mode = config.Mode;
 var server = require("../build/src/runtime/server");
 
-const argv = minimist(process.argv.slice(2), {boolean: ["help", "version", "localControl", "server", "editor"]});
+const argv = minimist(process.argv.slice(2), {boolean: ["help", "version", "localControl", "server", "editor"],
+                                              string:["json"]});
 
 // Since our current development pattern uses npm as its package repository, we treat the nearest ancestor directory with a package.json (inclusive) as the directory's "root".
 function findRoot(root) {
@@ -32,7 +33,7 @@ var controlOwner = argv["localControl"] ? Owner.client : Owner.server;
 var editor = argv["editor"] || false;
 var filepath = argv["_"][0];
 var internal = false;
-
+var initJsonDB = argv["json"]
 var root = findRoot(process.cwd());
 var eveRoot = findRoot(__dirname);
 
@@ -50,6 +51,10 @@ if(argv["help"]) {
     --port <number> Change the port the Eve server listens to (default 8080).
     --localControl  Entirely disable server interaction. File changes will be
                     stored in localStorage.
+    --json          Load the passed json file into @init. One additional
+                    colon separated argument to specify the target database,
+                    an additional to add the passed tag to each json record
+                    filename[:database[:tag]]
 
     If the Eve binary is run in a project directory (a directory containing a
     package.json file), it will use that directory as your workspace. Otherwise
@@ -99,7 +104,9 @@ if(!filepath) {
 let mode = Mode.workspace;
 if(filepath && !editor) mode = Mode.file
 
-var opts = {internal: internal, runtimeOwner: runtimeOwner, controlOwner: controlOwner, editor: editor, port: port, path: filepath, internal: internal, root: root, eveRoot: eveRoot, mode};
+if (!Array.isArray(initJsonDB) && initJsonDB) initJsonDB = [initJsonDB];
+
+var opts = {internal: internal, runtimeOwner: runtimeOwner, controlOwner: controlOwner, editor: editor, port: port, path: filepath, internal: internal, root: root, eveRoot: eveRoot, mode, initJsonDB:initJsonDB};
 config.init(opts);
 
 server.run(opts);
