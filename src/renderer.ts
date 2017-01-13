@@ -538,11 +538,11 @@ function addSVGCoods(elem, event, eveEvent) {
   eveEvent.y = coords.y;
 }
 
-function addRootEvent(elem, event, objs) {
+function addRootEvent(elem, event, objs, eventName) {
   if(elem !== activeElements["root"]) return;
 
   let eveEvent = {
-    tag: objs.length === 0 ? ["click"] : ["click", "direct-target"],
+    tag: objs.length === 0 ? [eventName] : [eventName, "direct-target"],
     root: true,
     x: event.clientX,
     y: event.clientY
@@ -564,7 +564,7 @@ window.addEventListener("click", function(event) {
       addSVGCoods(current, event, eveEvent)
       objs.push(eveEvent);
     }
-    addRootEvent(current, event, objs);
+    addRootEvent(current, event, objs, "click");
     current = current.parentElement;
   }
   client.sendEvent(objs);
@@ -738,7 +738,7 @@ function handleBasicEventWithTarget(name) {
         addSVGCoods(current, event, eveEvent);
         objs.push(eveEvent);
       }
-      addRootEvent(current, event, objs);
+      addRootEvent(current, event, objs, name);
       current = current.parentElement;
     }
     client.sendEvent(objs);
