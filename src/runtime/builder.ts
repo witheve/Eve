@@ -430,7 +430,7 @@ function buildExpressions(block, context, expressions, outputScans) {
         } else if(impl.ReturnMapping && (ix = impl.ReturnMapping[attribute.attribute]) !== undefined) {
           results[ix] = attribute.value;
         } else {
-          // @TODO: error - unknown arg/return for the function call
+          context.errors.push(errors.unrecognisedFunctionAttribute(block , expression,attribute));
         }
 
       }
