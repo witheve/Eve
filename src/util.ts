@@ -163,3 +163,68 @@ export function whollyEnclosed(inner:Range, outer:Range) {
   let right = comparePositions(inner.to, outer.to);
   return (left === 1 || left === 0) && (right === -1 || right === 0);
 }
+
+//---------------------------------------------------------
+// Net utilities
+//---------------------------------------------------------
+
+export function dasherize(text:string) {
+  if(text[0] === "/") text = text.slice(1);
+  return text.replace(/\//g, "-");
+}
+
+function gistIdFromUrl(url:string) {
+  if(url.indexOf("gist.github.com") !== -1 ||
+     url.indexOf("gist.githubusercontent.com")) return url.split("/").pop();
+
+}
+
+export function writeToGist(name:string, content:string, callback:(error:Error, url?:string) => void) {
+  name = dasherize(name);
+  let request = new XMLHttpRequest();
+  request.onreadystatechange = function() {
+    if(request.readyState === 4) {
+      if(request.status !== 201) {
+        return callback(new Error(`HTTP Response: ${request.status}`));
+      }
+      let response:any = JSON.parse(request.responseText);
+      let file = response.files[name];
+      let url = file.raw_url.split("/raw/")[0];
+      let err = (file.truncated) ? new Error("File to large: Maximum gist size is 10mb") : undefined;
+      callback(err, url);
+    }
+  };
+  let payload = {
+    public: true,
+    description: "",
+    files: {}
+  }
+  payload.files[name] = {content: content};
+  request.open("POST", "https://api.github.com/gists");
+  request.send(JSON.stringify(payload));
+}
+
+interface GistResponse {id: string, url: string, files: {[name:string]: {content: string}}}
+
+export function readFromGist(url:string, callback:(error:Error, content?:GistResponse) => void) {
+  let gistId = gistIdFromUrl(url);
+
+  if(!gistId) return callback(new Error(`Invalid gist url: '${url}'.`));
+
+  let apiUrl = `https://api.github.com/gists/${gistId}`;
+
+  let request = new XMLHttpRequest();
+  request.onreadystatechange = function() {
+    if(request.readyState === 4) {
+      if(request.status !== 200) {
+        return callback(new Error(`HTTP Response: ${request.status}`));
+      }
+
+      let response = JSON.parse(request.responseText);
+
+      callback(undefined, response);
+    }
+  }
+  request.open("GET", apiUrl);
+  request.send();
+}

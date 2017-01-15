@@ -191,6 +191,63 @@ test("search with attribute having multiple values in parenthesis with a functio
   assert.end();
 })
 
+test("sub-records in a parenthesis pick up their parent as part of their identity", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "tag", "person"],
+      ["a", "name", "chris"],
+      ["a", "age", 20],
+
+      ["b", "tag", "person"],
+      ["b", "name", "joe"],
+      ["b", "age", 20],
+
+      ["c", "tag", "div"],
+      ["c", "p", "a"],
+      ["c", "children", "d"],
+      ["c", "children", "e"],
+
+      ["d", "tag", "div"],
+      ["d", "text", "age"],
+      ["d", "eve-auto-index", 1],
+
+      ["e", "tag", "div"],
+      ["e", "text", 20],
+      ["e", "eve-auto-index", 2],
+
+      ["f", "tag", "div"],
+      ["f", "p", "b"],
+      ["f", "children", "g"],
+      ["f", "children", "h"],
+
+      ["g", "tag", "div"],
+      ["g", "text", "age"],
+      ["g", "eve-auto-index", 1],
+
+      ["h", "tag", "div"],
+      ["h", "text", 20],
+      ["h", "eve-auto-index", 2],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    people
+    ~~~
+      commit
+        [#person name: "chris" age: 20]
+        [#person name: "joe" age: 20]
+    ~~~
+
+    ~~~
+      search
+        p = [#person name age]
+      commit
+           [#div p children: ([#div text: "age"], [#div text: age])]
+    ~~~
+  `);
+  assert.end();
+})
+
 test("create a record with numeric attributes", (assert) => {
   let expected = {
     insert: [
@@ -619,10 +676,12 @@ test("creating an object with multiple values for an attribute", (assert) => {
 test("creating an object with multiple complex values for an attribute", (assert) => {
   let expected = {
     insert: [
-      ["2", "tag", "person"],
-      ["2", "name", "chris"],
+      ["4", "tag", "person"],
+      ["4", "name", "chris"],
       ["6", "tag", "foo"],
+      ["6", "eve-auto-index", 1],
       ["8", "tag", "bar"],
+      ["8", "eve-auto-index", 2],
       ["12","tag","dude"],
       ["12","dude","6"],
       ["12","dude","8"],
@@ -1992,6 +2051,70 @@ test("lookup with bound attribute", (assert) => {
         lookup[record, attribute: "name", value]
       commit
         [| record value]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("lookup with missing value", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "tag", "person"],
+      ["a", "name", "chris"],
+      ["b", "tag", "result"],
+      ["b", "record", "a"],
+      ["b", "attribute", "tag"],
+      ["c", "tag", "result"],
+      ["c", "record", "a"],
+      ["c", "attribute", "name"]
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    prepare data
+    ~~~
+      commit
+        [#person name: "chris"]
+    ~~~
+
+    test
+    ~~~
+      search
+        lookup[record attribute]
+        not(record.tag = "result")
+      commit
+        [#result record attribute]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("lookup with missing record and attribute", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "tag", "result"],
+      ["b", "tag", "person"],
+      ["b", "name", "chris"],
+      ["a", "value", "result"],
+      ["a", "value", "person"],
+      ["a", "value", "chris"]
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    prepare data
+    ~~~
+      commit
+        [#result]
+        [#person name: "chris"]
+    ~~~
+    test
+    ~~~
+      search
+        lookup[value]
+        result = [#result]
+      commit
+        result.value := value
     ~~~
   `);
   assert.end();

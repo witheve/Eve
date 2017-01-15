@@ -15,6 +15,8 @@
 
     </style>
 
+    <style id="app-styles"></style>
+
     <link rel="stylesheet" type="text/css" href="assets/css/ide.css">
     <link href="assets/favicon.png" rel="icon" type="image/png" />
   </head>
@@ -22,33 +24,14 @@
     <script type="text/javascript" src="build/workspaces.js"></script>
     <script type="text/javascript" src="build/src/uuid.js"></script>
     <script type="text/javascript" src="build/src/codemirror.js"></script>
+    <script type="text/javascript" src="build/src/css.js"></script>
     <script type="text/javascript" src="build/src/simplescrollbars.js"></script>
     <script type="text/javascript" src="build/src/annotatescrollbar.js"></script>
     <script type="text/javascript" src="build/src/commonmark.js"></script>
     <script type="text/javascript" src="build/src/microReact.js"></script>
     <script type="text/javascript" src="build/src/system.js"></script>
+    <script type="text/javascript" src="build/src/systemJSConfig.js"></script>
     <script>
-      SystemJS.config({
-        baseURL: "build/src",
-      defaultJSExtensions: true,
-        map: {fs: "@empty", path: "@empty", glob: "@empty", mkdirp: "@empty"},
-        meta: {"build/src/codemirror.js": { format: "cjs" }}
-      });
-
-      // Kicks off requiring everyone else
-      SystemJS.register("uuid", [], function($export) {
-        $export("default", uuid);
-        $export("v4", uuid);
-      });
-      SystemJS.registerDynamic("codemirror", [], false, function(require, exports, module) {
-        module.exports = window.CodeMirror;
-      });
-      SystemJS.register("microReact", [], function($export) {
-        $export("Renderer", Renderer);
-      });
-      SystemJS.register("commonmark", [], function($export) {
-        $export(commonmark);
-      });
       SystemJS.import("client");
     </script>
     <!-- PRODUCTION ANALYTICS -->

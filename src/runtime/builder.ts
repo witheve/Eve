@@ -299,6 +299,10 @@ function buildScans(block, context, scanLikes, outputScans) {
 
       if(!(entity || attribute || value || node)) {
         context.errors.push(errors.blankScan(block, scanLike));
+      } else {
+        entity = entity || context.createVariable();
+        attribute = attribute || context.createVariable();
+        value = value || context.createVariable();
       }
 
       let final = new join.Scan(scanLike.id + "|build", entity, attribute, value, node, scanLike.scopes);

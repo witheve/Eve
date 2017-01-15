@@ -10,7 +10,7 @@ Tic-Tac-Toe is a classic game played by two players, "X" and "O", who take turns
 
 ### Game settings
 
-To begin, we initialize the board. We commit an object named @board to hold our global state and create a set of #cells. These #cells will keep track of the moves players have made. Common connect-N games (a generalized tic-tac-toe for any `NxN` grid) are scored along 4 axes (horizontal, vertical, the diagonal, and the anti-diagonal). We group cells together along each axis up front to make scoring easier later.
+To begin, we initialize the board. We commit a `#board` record to hold our global state and create a set of `#cell`s, which will keep track of the moves players have made. Common connect-N games (a generalized tic-tac-toe for any `NxN` grid) are scored along 4 axes (horizontal, vertical, the diagonal, and the anti-diagonal). We group cells together along each axis up front to make scoring easier later.
 
 The game board is square, with a given size. It contains size ^ 2 cells,
 each with a row and column index.

@@ -234,7 +234,7 @@ var svgsArr = [
   "tref",
   "tspan",
   "use",
-  "view",
+  //"view",
   "vkern"
 ];
 
@@ -568,26 +568,29 @@ window.addEventListener("click", function(event) {
     current = current.parentElement;
   }
   client.sendEvent(objs);
-});
-window.addEventListener("dblclick", function(event) {
-  let {target} = event;
-  let current = target as RecordElement;
-  let objs:any[] = [];
-  while(current) {
-    if(current.entity) {
-      let tag = ["double-click"];
-      if(current == target) {
-        tag.push("direct-target");
-      }
-      let eveEvent = {tag, element: current.entity};
-      addSVGCoods(current, event, eveEvent)
-      objs.push(eveEvent);
+
+  if((target as Element).tagName === "A") {
+    let elem = target as HTMLAnchorElement;
+    // Target location is internal, so we need to rewrite it to respect the IDE's hash segment structure.
+    if(elem.href.indexOf(location.origin) === 0) {
+      let relative = elem.href.slice(location.origin.length + 1);
+      if(relative[0] === "#") relative = relative.slice(1);
+
+
+      let currentHashChunks = location.hash.split("#").slice(1);
+      let ideHash = currentHashChunks[0];
+      if(ideHash[ideHash.length - 1] === "/") ideHash = ideHash.slice(0, -1);
+
+      let modified = "#" + ideHash + "/#" + relative;
+      location.hash = modified;
+      event.preventDefault();
     }
-    addRootEvent(current, event, objs);
-    current = current.parentElement;
   }
-  client.sendEvent(objs);
 });
+
+window.addEventListener("dblclick", handleBasicEventWithTarget("dblclick"));
+window.addEventListener("mousedown", handleBasicEventWithTarget("mousedown"));
+window.addEventListener("mouseup", handleBasicEventWithTarget("mouseup"));
 
 window.addEventListener("input", function(event) {
   let target = event.target as (RecordElement & HTMLInputElement);
@@ -644,6 +647,28 @@ function getFocusPath(target) {
     current = parent;
   }
   return path;
+}
+
+function handleBasicEventWithTarget(name) {
+  return (event) => {
+    let {target} = event;
+    let current = target as RecordElement;
+    let objs: any[] = [];
+    while (current) {
+      if (current.entity) {
+        let tag = [name];
+        if (current == target) {
+          tag.push("direct-target");
+        }
+        let eveEvent = {tag, element: current.entity};
+        addSVGCoods(current, event, eveEvent);
+        objs.push(eveEvent);
+      }
+      addRootEvent(current, event, objs);
+      current = current.parentElement;
+    }
+    client.sendEvent(objs);
+  };
 }
 
 window.addEventListener("focus", function(event) {
@@ -739,4 +764,3 @@ function injectProgram(node, elem) {
 export function renderEve() {
   renderer.render([{c: "application-container", postRender: injectProgram}]);
 }
-
