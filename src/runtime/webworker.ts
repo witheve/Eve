@@ -7,6 +7,7 @@ import * as join from "./join";
 import * as parser from "./parser";
 import * as builder from "./builder";
 import * as eveSource from "./eveSource";
+import {config, init as initConfig} from "../config";
 import {ids} from "./id";
 import {RuntimeClient} from "./runtimeClient";
 import {HttpDatabase} from "./databases/http";
@@ -66,7 +67,11 @@ export function onmessage(event) {
     // context
     eveSource.loadWorkspaces(data.workspaces);
     global["_workspaceCache"] = data.workspaceCache;
+    initConfig(data.config);
     init(data.code, data.showIDE);
+  } else if(data.type === "save") {
+    let workspace = eveSource.getWorkspaceFromPath(data.path);
+    global["_workspaceCache"][workspace][data.path] = data.code;
   } else if(data.type !== undefined) {
     responder.handleEvent(event.data);
   } else {

@@ -178,6 +178,10 @@ export function pack() {
   return `var _workspaceCache = ${JSON.stringify(packaged, null, 2)};\n`;
 }
 
+export function fetchAll(workspace:string) {
+  return fetchWorkspace(workspace);
+}
+
 // If we're running on the client, load the server's workspaces from the cache it passes us.
 if(global["_workspaceCache"]) {
   for(let workspace in global["_workspaceCache"]) {

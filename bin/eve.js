@@ -10,7 +10,7 @@ var Owner = config.Owner;
 var Mode = config.Mode;
 var server = require("../build/src/runtime/server");
 
-const argv = minimist(process.argv.slice(2), {boolean: ["help", "version", "localControl", "server", "editor"]});
+const argv = minimist(process.argv.slice(2), {boolean: ["help", "version", "localControl", "server", "editor", "multiDoc"]});
 
 // Since our current development pattern uses npm as its package repository, we treat the nearest ancestor directory with a package.json (inclusive) as the directory's "root".
 function findRoot(root) {
@@ -30,6 +30,7 @@ var port = argv["port"] || process.env.PORT || 8080;
 var runtimeOwner = argv["server"] ? Owner.server : Owner.client;
 var controlOwner = argv["localControl"] ? Owner.client : Owner.server;
 var editor = argv["editor"] || false;
+var multiDoc = argv["multiDoc"] || false;
 var filepath = argv["_"][0];
 var internal = false;
 
@@ -99,7 +100,7 @@ if(!filepath) {
 let mode = Mode.workspace;
 if(filepath && !editor) mode = Mode.file
 
-var opts = {internal: internal, runtimeOwner: runtimeOwner, controlOwner: controlOwner, editor: editor, port: port, path: filepath, internal: internal, root: root, eveRoot: eveRoot, mode};
+var opts = {internal: internal, runtimeOwner: runtimeOwner, controlOwner: controlOwner, editor: editor, port: port, path: filepath, internal: internal, root: root, eveRoot: eveRoot, mode: mode, multiDoc: multiDoc};
 config.init(opts);
 
 server.run(opts);

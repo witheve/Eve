@@ -11,6 +11,8 @@ import {BrowserSessionDatabase, BrowserEventDatabase, BrowserViewDatabase, Brows
 import * as system from "./databases/system";
 import * as analyzer from "./analyzer";
 import {ids} from "./id";
+import {config} from "../config";
+import * as eveSource from "./eveSource";
 
 //---------------------------------------------------------------------
 // Responder
@@ -33,16 +35,17 @@ export abstract class RuntimeClient {
     if(errors && errors.length) console.error(errors);
     results.code = code;
     this.lastParse = results;
+    this.send(JSON.stringify({type: "css", css: this.enabledCss()}));
     this.makeEvaluation();
     this.evaluation.fixpoint();
   }
 
-  makeEvaluation() {
+  makeEvaluation(parse = this.lastParse) {
     if(this.evaluation) {
       this.evaluation.close();
       this.evaluation = undefined;
     }
-    let parse = this.lastParse;
+
     let build = builder.buildDoc(parse);
     let {blocks, errors} = build;
     this.sendErrors(errors);
@@ -98,7 +101,7 @@ export abstract class RuntimeClient {
   enabledCss() {
       var css = "";
       this.lastParse.code.replace(/(?:```|~~~)css\n([\w\W]*?)\n(?:```|~~~)/g, (g0, g1) => { // \n excludes disabled blocks
-        css += g1;
+        css += g1 + "\n";
       });
 
       // remove whitespace before open braces, and add a newline after open brace
@@ -160,6 +163,27 @@ export abstract class RuntimeClient {
       }
       this.send(JSON.stringify({type: "parse", generation: data.generation, text, spans, extraInfo, css: this.enabledCss()}));
     } else if(data.type === "eval") {
+      let parse = this.lastParse;
+      if(config.multiDoc) {
+        let code = "";
+        let documents = eveSource.fetchAll("root");
+        for(let documentId in documents) {
+          code += `# !!! ${documentId} !!! \n`;
+          code += documents[documentId] + "\n\n";
+        }
+
+        let {results, errors}: {results: any, errors: any[]} = parser.parseDoc(code || "", "user");
+        let {text, spans, extraInfo} = results;
+        let build = builder.buildDoc(results);
+        let {blocks, errors: buildErrors} = build;
+        results.code = code;
+        parse = results;
+
+        for(let error of buildErrors) {
+          error.injectSpan(spans, extraInfo);
+        }
+      }
+
       if(this.evaluation !== undefined && data.persist) {
         let changes = this.evaluation.createChanges();
         let session = this.evaluation.getDatabase("session");
@@ -168,7 +192,8 @@ export abstract class RuntimeClient {
             block.updateBinds({positions: {}, info: []}, changes);
           }
         }
-        let build = builder.buildDoc(this.lastParse);
+
+        let build = builder.buildDoc(parse);
         let {blocks, errors} = build;
         let spans = [];
         let extraInfo = {};
@@ -187,7 +212,7 @@ export abstract class RuntimeClient {
       } else {
         let spans = [];
         let extraInfo = {};
-        this.makeEvaluation();
+        this.makeEvaluation(parse);
         this.evaluation.fixpoint();
       }
     } else if(data.type === "tokenInfo") {
