@@ -622,7 +622,6 @@ export class Parser extends chev.Parser {
           self.block.scan(scan);
           self.CONSUME(Merge);
           let record = self.SUBRULE(self.record, [true, actionKey, "+=", undefined, variable]) as any;
-          record.variable = variable;
           record.action = "<-";
           return record;
         }},
@@ -679,7 +678,6 @@ export class Parser extends chev.Parser {
         {ALT: () => {
           self.CONSUME(Merge);
           let record = self.SUBRULE(self.record, [true, actionKey, "+=", undefined, variable]) as any;
-          record.needsEntity = true;
           record.action = "<-";
           return record;
         }},
