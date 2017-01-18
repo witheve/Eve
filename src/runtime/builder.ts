@@ -297,6 +297,15 @@ function buildScans(block, context, scanLikes, outputScans) {
         context.provide(node);
       }
 
+      for (let action of (block.commits.concat(block.binds))) {
+        if (action.type === "record" &&
+            context.getValue(action.variable) === entity &&
+            action.action !== "<-") {
+          context.errors.push(errors.scanWithNotYetCreatedEntity(block, scanLike));
+          return;
+        }
+      }
+
       if(!(entity || attribute || value || node)) {
         context.errors.push(errors.blankScan(block, scanLike));
       } else {

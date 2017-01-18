@@ -204,6 +204,12 @@ export function blankScan(block, scan) {
   return new EveError(id, start, stop, messages.blankScan());
 }
 
+export function scanWithNotYetCreatedEntity(block, scan) {
+  let {id, start: blockStart} = block;
+  let [start, stop] = parser.nodeToBoundaries(scan, blockStart);
+  return new EveError(id, start, stop, messages.notYetCreatedEntity());
+}
+
 export function invalidLookupAction(block, action) {
   let {id, start: blockStart} = block;
   let [start, stop] = parser.nodeToBoundaries(action, blockStart);
@@ -262,6 +268,8 @@ export var messages = {
   unprovidedVariable: (varName) => `Nothing is providing a value for ${varName}`,
 
   unimplementedExpression: (op) => `There's no definition for the function ${op}`,
+
+  notYetCreatedEntity: () => "The record can't be searched in the same instant it's been created",
 
   blankScan: () => 'Lookup requires at least one attribute: record, attribute, value, or node',
   invalidLookupAction: (missing) => `Updating a lookup requires that record, attribute, and value all be provided. Looks like ${missing.join("and")} is missing.`,
