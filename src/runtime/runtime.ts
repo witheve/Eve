@@ -69,6 +69,82 @@ export class Interner {
 
 export var GlobalInterner = new Interner();
 
+class EAVN {
+  constructor(public e:ID, public a:ID, public v:ID, public n:ID) {}
+};
+type ResolvedValue = ID|undefined|IgnoreRegister;
+type EAVNField = "e"|"a"|"v"|"n";
+
+interface Proposal {
+  cardinality:number,
+  for:EAVNField[],
+  info?:any,
+}
+
+interface Index {
+  insert(change:Change):void;
+  propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):Proposal;
+  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[];
+}
+
+class ListIndex implements Index {
+  changes: Change[] = [];
+  insert(change:Change) {
+     this.changes.push(change);
+  }
+
+  resolveProposal(proposal:Proposal) {
+    return proposal.info;
+  }
+
+  propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction = Infinity, round = Infinity) {
+    let final = [];
+    let forFields:EAVNField[] = [];
+    let seen = createHash();
+
+    if(a === undefined) forFields.push("a");
+    else if(v === undefined) forFields.push("v");
+    else if(e === undefined) forFields.push("e");
+    else if(n === undefined) forFields.push("n");
+
+    for(let change of this.changes) {
+      console.log("looking at", change, e,a,v,n,transaction,round)
+      if((e === undefined || e === IGNORE_REG || e === change.e) &&
+         (a === undefined || a === IGNORE_REG || a === change.a) &&
+         (v === undefined || v === IGNORE_REG || v === change.v) &&
+         (n === undefined || n === IGNORE_REG || n === change.n) &&
+         (change.transaction <= transaction) &&
+         (change.round <= round)) {
+        let current = change[forFields[0]];
+        if(!seen[current]) {
+          seen[current] = true;
+          final.push(current);
+        }
+      }
+    }
+
+    proposal.cardinality = final.length;
+    proposal.info = final;
+    proposal.for = forFields;
+    return proposal;
+  }
+
+  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction = Infinity, round = Infinity):EAVN[] {
+    let final = [];
+    for(let change of this.changes) {
+      if((e === undefined || e === IGNORE_REG || e === change.e) &&
+         (a === undefined || a === IGNORE_REG || a === change.a) &&
+         (v === undefined || v === IGNORE_REG || v === change.v) &&
+         (n === undefined || n === IGNORE_REG || n === change.n) &&
+         (change.transaction <= transaction) &&
+         (change.round <= round)) {
+        final.push(new EAVN(change.e, change.a, change.v, change.n))
+      }
+    }
+    return final;
+  }
+}
+
 /**
  * A change is a single changed EAV row of a changeset.
  *  E.g., if we add [#person name: "josh"] then
@@ -112,7 +188,7 @@ let IGNORE_REG:IgnoreRegister = null;
 /** A scan field may contain a register, a static interned value, or the IGNORE_REG sentinel value. */
 type ScanField = Register|ID|IgnoreRegister;
 
-type ResolvedEAVN = {e:ID|undefined|IgnoreRegister, a:ID|undefined|IgnoreRegister, v:ID|undefined|IgnoreRegister, n:ID|undefined|IgnoreRegister};
+type ResolvedEAVN = {e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue};
 
 /**
  * A scan maps a set of bound variables to unbound variables.
@@ -364,3 +440,19 @@ for(let changeset of changes) {
     currentState.push(change);
   }
 }
+
+let index = new ListIndex();
+let indexChanges =
+  [Change.fromValues("<1>", "tag", "person", 1, 1, 1, 1), Change.fromValues("<1>", "name", "RAB", 1, 1, 1, 1),
+    Change.fromValues("<2>", "tag", "person", 1, 1, 1, 1), Change.fromValues("<2>", "name", "KERY", 1, 1, 1, 1),
+    Change.fromValues("<3>", "tag", "dog", 1, 1, 1, 1), Change.fromValues("<3>", "name", "jeff", 1, 1, 1, 1),
+    Change.fromValues("<4>", "tag", "person", 1, 1, 1, 1),
+    Change.fromValues("<4>", "name", "BORSCHT", 1, 1, 1, 1)];
+
+for(let change of indexChanges) {
+  index.insert(change);
+}
+let proposal = index.propose({for: [] as EAVNField[],cardinality:0}, GlobalInterner.get("<1>"), GlobalInterner.get("name"), undefined, undefined);
+console.log("PROPOSE", proposal.info.map((x:ID) => GlobalInterner.reverse(x)));
+
+console.log("GET", index.get(GlobalInterner.get("<4>"), undefined, undefined, undefined))
