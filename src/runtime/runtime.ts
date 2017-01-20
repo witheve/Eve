@@ -545,32 +545,20 @@ makeFunction({
 /**
  * Base class for nodes, the building blocks of blocks.
  */
-abstract class Node {
-
-  // @TODO: REMOVE ME
-  registerLength: number;
-
-  abstract presolveCheck(index:Index, input:Change, prefix:ID[], transaction:number, round:number):boolean;
-
-  /**
-   * See Scan.applyInput()
-   */
-  abstract applyInput(input:Change, prefix:ID[]):ApplyInputState;
-
+interface Node {
   /**
    * See Scan.exec()
    * @NOTE: The result format is slightly different. Rather than a packed list of EAVNs, we instead return a set of valid prefixes.
    */
-  abstract exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results?:ID[][]):boolean;
+  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results?:ID[][]):boolean;
 }
 
-class JoinNode extends Node {
+class JoinNode implements Node {
   registerLength = 0;
   registerArrays:ID[][] = [];
   emptyProposal:Proposal = {cardinality: Infinity, forFields: [], forRegisters: [], skip: true, proposer: {} as Constraint};
 
   constructor(public constraints:Constraint[]) {
-    super();
     // We need to find all the registers contained in our scans so that
     // we know how many rounds of Generic Join we need to do.
     let registers = createArray() as ID[][];
@@ -686,7 +674,33 @@ class JoinNode extends Node {
       return true;
     }
   }
+}
 
+class InsertNode implements Node {
+  constructor(public e:ID|Register,
+              public a:ID|Register,
+              public v:ID|Register,
+              public n:ID|Register) {}
+
+  protected resolved:ResolvedEAVN = {e: undefined, a: undefined, v:undefined, n: undefined};
+
+  resolve = Scan.prototype.resolve;
+
+  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results?:ID[][]):boolean {
+    let resolved = this.resolve(prefix);
+
+    // @FIXME: This is pretty wasteful to copy one by one here.
+    results!.push(prefix);
+
+    if(resolved.e === undefined || resolved.a === undefined || resolved.v === undefined || resolved.n === undefined) {
+      return false;
+    }
+
+    let change = new Change(resolved.e!, resolved.a!, resolved.v!, resolved.n!, transaction, round + 1, 1);
+    console.log(""+change);
+
+    return true;
+  }
 }
 
 //------------------------------------------------------------------------------
@@ -698,11 +712,12 @@ let currentState:ChangeSet = [];
 
 // A list of changesets to stream into the program. Each changeset corresponds to an input event.
 let changes:ChangeSet[] = [
-  [Change.fromValues("<1>", "tag", "person", 1, 0, 0, 1), Change.fromValues("<1>", "name", "RAB", 1, 0, 0, 1)],
-  [Change.fromValues("<2>", "tag", "person", 1, 1, 0, 1), Change.fromValues("<2>", "name", "KERY", 1, 1, 0, 1)],
-  [Change.fromValues("<3>", "tag", "dog", 1, 2, 0, 1), Change.fromValues("<3>", "name", "jeff", 1, 2, 0, 1)],
-  [Change.fromValues("<4>", "name", "BORSCHT", 1, 3, 0, 1)],
-  [Change.fromValues("<4>", "tag", "person", 1, 4, 0, 1)],
+  [Change.fromValues("<1>", "tag", "person", 1, 0, 0, 1)],
+  [Change.fromValues("<1>", "name", "RAB", 1, 1, 0, 1)],
+  [Change.fromValues("<2>", "tag", "person", 1, 2, 0, 1), Change.fromValues("<2>", "name", "KERY", 1, 2, 0, 1)],
+  [Change.fromValues("<3>", "tag", "dog", 1, 3, 0, 1), Change.fromValues("<3>", "name", "jeff", 1, 3, 0, 1)],
+  [Change.fromValues("<4>", "name", "BORSCHT", 1, 4, 0, 1)],
+  [Change.fromValues("<4>", "tag", "person", 1, 5, 0, 1)],
 ];
 
 // Manually created registers for the testing program below.
@@ -713,34 +728,46 @@ let vReg = new Register(0);
 // search
 //   eid = [#person name]
 // bind
-//   [0: name, 1: eid]
+//   [#div | text: name]
 let nodes:Node[] = [
   new JoinNode([
     new Scan(eReg, GlobalInterner.intern("tag"), GlobalInterner.intern("person"), null),
     new Scan(eReg, GlobalInterner.intern("name"), vReg, null),
-  ])
+  ]),
+  new InsertNode(GlobalInterner.intern("floopy div"), GlobalInterner.intern("tag"), GlobalInterner.intern("div"), GlobalInterner.intern(2)),
+  new InsertNode(GlobalInterner.intern("floopy div"), GlobalInterner.intern("text"), vReg, GlobalInterner.intern(2)),
 ];
 
 let index = new ListIndex();
 let transaction = 0;
 let round = 0;
-let results:ID[][] = [];
+
+// We're going to essentially double-buffer the result arrays so we can avoid allocating in the hotpath.
+let results:ID[][];
+let nextResults:ID[][] = [];
 
 for(let changeset of changes) {
   for(let change of changeset) {
     console.log("Applying", ""+change);
 
-    // For each change (remember, a single EAVNTFC), we evaluate the program with a fresh prefix.
-    let prefix:ID[] = createArray();
+    results = [[]];
     let blockState = ApplyInputState.none;
 
     // We populate the prefix with values from the input change so we only derive the
     // results affected by it.
     for(let node of nodes) {
-      let valid = node.exec(index, change, prefix, transaction, round, results);
-      if(!valid) {
-        break;
+      for(let prefix of results) {
+        //console.log("P", prefix);
+        let valid = node.exec(index, change, prefix, transaction, round, nextResults);
+        if(!valid) {
+          break;
+        }
       }
+      let tmp = results;
+      results = nextResults;
+      nextResults = tmp;
+      // @NOTE: We don't really want to shrink this array probably.
+      nextResults.length = 0;
     }
 
     // Finally, add the new change to the current state and repeat.
@@ -749,4 +776,4 @@ for(let changeset of changes) {
   }
   transaction++;
 }
-console.log(results.map((prefix) => prefix.map((x) => GlobalInterner.reverse(x))));
+//console.log(results.map((prefix) => prefix.map((x) => GlobalInterner.reverse(x))));
