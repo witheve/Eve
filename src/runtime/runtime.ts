@@ -953,7 +953,6 @@ class JoinNode implements Node {
     this.applyInput(input, prefix);
     let ok = this.inputState.state;
     let ix = this.inputState.constraintIx;
-    let foo = 0;
     while(ix < this.constraints.length) {
       if(ok === ApplyInputState.pass) {
         let countOfSolved = 0;
