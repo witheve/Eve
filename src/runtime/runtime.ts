@@ -2,6 +2,7 @@
 // Runtime
 //------------------------------------------------------------------------
 
+type RawValue = string|number;
 type ID = number;
 type Multiplicity = number;
 
@@ -13,7 +14,7 @@ function createArray() {
   return [];
 }
 
-function isNumber(thing:any) {
+function isNumber(thing:any): thing is number {
   return typeof thing === "number";
 }
 
@@ -24,7 +25,7 @@ function isNumber(thing:any) {
 export class Interner {
   strings: {[value:string]: ID|undefined} = createHash();
   numbers: {[value:number]: ID|undefined} = createHash();
-  IDs: (string|number)[] = createArray();
+  IDs: RawValue[] = createArray();
   IDRefCount: number[] = createArray();
   IDFreeList: number[] = createArray();
   ix: number = 0;
@@ -33,7 +34,7 @@ export class Interner {
     return this.IDFreeList.pop() || this.ix++;
   }
 
-  intern(value: (string|number)): ID {
+  intern(value: RawValue): ID {
     let coll;
     if(isNumber(value)) {
       coll = this.numbers;
@@ -52,7 +53,7 @@ export class Interner {
     return found;
   }
 
-  get(value: (string|number)): ID|undefined {
+  get(value: RawValue): ID|undefined {
     let coll;
     if(isNumber(value)) {
       coll = this.numbers;
@@ -62,7 +63,7 @@ export class Interner {
     return coll[value];
   }
 
-  reverse(id: ID): (string|number) {
+  reverse(id: ID): RawValue {
     return this.IDs[id];
   }
 
