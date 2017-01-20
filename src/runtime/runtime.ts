@@ -463,16 +463,16 @@ type ConstraintFieldMap = {[name:string]: ScanField};
 type ResolvedFields = {[fieldName:string]: ResolvedValue};
 
 abstract class FunctionConstraint implements Constraint {
-  static registered: {[name:string]: new (args:ConstraintFieldMap, returns:ConstraintFieldMap) => FunctionConstraint} = {};
-  static register(name:string, klass: new (args:ConstraintFieldMap, returns:ConstraintFieldMap) => FunctionConstraint) {
+  static registered: {[name:string]: typeof FunctionConstraintInstance} = {};
+  static register(name:string, klass: typeof FunctionConstraintInstance) {
     FunctionConstraint.registered[name] = klass;
   }
 
-  static create(name:string, args:ConstraintFieldMap, returns:ConstraintFieldMap):FunctionConstraint|undefined {
+  // @FIXME: This whole setup is a little weird.
+  static create(name:string, fields:ConstraintFieldMap):FunctionConstraint|undefined {
     let cur = FunctionConstraint.registered[name];
     if(!cur) return;
-    let created = new cur(args, returns);
-    created.setup();
+    let created = new cur(fields);
     return created;
   }
 
@@ -495,7 +495,6 @@ abstract class FunctionConstraint implements Constraint {
   protected applyInputs:RawValue[] = [];
 
   setup() {
-    console.log(this.args);
     for(let fieldName of Object.keys(this.fields)) {
       let field = this.fields[fieldName];
       if(isRegister(field)) this.registers.push(field);
@@ -504,6 +503,8 @@ abstract class FunctionConstraint implements Constraint {
     for(let register of this.registers) {
       this.registerLookup[register.offset] = true;
     }
+
+    if(this.name === "+") console.log(this.name, this.registers);
   }
 
   getRegisters() {
@@ -536,6 +537,7 @@ abstract class FunctionConstraint implements Constraint {
   // @TODO: fill this in
   propose(index:Index, prefix:ID[], transaction:number, round:number, results:any[]):Proposal {
     let proposal = this.proposal;
+    proposal.forRegisters.length = 0;
     let resolved = this.resolve(prefix);
 
     // If none of our returns are unbound
@@ -544,11 +546,13 @@ abstract class FunctionConstraint implements Constraint {
     for(let output of this.returnNames) {
       if(resolved[output] === undefined) {
         unresolvedOutput = true;
-        break;
+        let field = this.fields[output];
+        if(isRegister(field)) {
+          proposal.forRegisters.push(field);
+        }
       }
     }
     if(!unresolvedOutput) {
-      console.log("    * skip: resolved all outputs", prefix);
       proposal.skip = true;
       return proposal;
     }
@@ -558,7 +562,6 @@ abstract class FunctionConstraint implements Constraint {
     // co-inhabit the args object.
     for(let input of this.argNames) {
       if(resolved[input] === undefined) {
-        console.log("    * skip: unresolved input", prefix);
         proposal.skip = true;
         return proposal;
       }
@@ -613,13 +616,13 @@ abstract class FunctionConstraint implements Constraint {
     if(!outputs) return results;
 
     // Finally, if we had results, we create the result prefixes and pass them along.
-    let result = prefix.slice() as ID[];
+    let result = createArray() as ID[];
 
     let ix = 0;
     for(let returnName of this.returnNames) {
       let field = this.fields[returnName];
       if(isRegister(field) && !resolved[returnName]) {
-        result[field.offset] = outputs[ix];
+        result[ix] = outputs[ix];
       }
       ix++;
     }
@@ -635,8 +638,6 @@ abstract class FunctionConstraint implements Constraint {
     for(let argName of this.argNames) {
       if(resolved[argName] === undefined) return true;
     }
-
-
 
     // First we build the args array to provide the apply function.
     let inputs = this.packInputs(resolved);
@@ -676,6 +677,12 @@ abstract class FunctionConstraint implements Constraint {
   }
 }
 
+class FunctionConstraintInstance extends FunctionConstraint {
+  constructor(fields:ConstraintFieldMap) {
+    super(fields);
+  }
+}
+
 interface FunctionSetup {
   name:string,
   args:{[argName:string]: string},
@@ -712,6 +719,15 @@ makeFunction({
   returns: {},
   apply: (a:number, b:number) => {
     return (a === b) ? [] : undefined;
+  }
+});
+
+makeFunction({
+  name: "+",
+  args: {a: "number", b: "number"},
+  returns: {result: "number"},
+  apply: (a:number, b:number) => {
+    return [a + b];
   }
 });
 
@@ -787,7 +803,6 @@ class JoinNode implements Node {
         bestProposal = current;
       }
     }
-
 
     if(bestProposal.skip) {
       return results;
@@ -895,7 +910,6 @@ class Block {
     // results affected by it.
     for(let node of this.nodes) {
       for(let prefix of this.results) {
-        //console.log("P", prefix);
         let valid = node.exec(index, input, prefix, transaction, round, this.nextResults);
         if(!valid) {
           return false;
@@ -952,6 +966,7 @@ let p1Reg = new Register(0);
 let p2Reg = new Register(1);
 let age1Reg = new Register(2);
 let age2Reg = new Register(3);
+let resultReg = new Register(4);
 
 // Test program. It evaluates:
 // search
@@ -959,31 +974,41 @@ let age2Reg = new Register(3);
 // bind
 //   [#div | text: name]
 let blocks:Block[] = [
-  // new Block("things are happening", [
-  //   new JoinNode([
-  //     new Scan(eReg, GlobalInterner.intern("tag"), GlobalInterner.intern("person"), null),
-  //     new Scan(eReg, GlobalInterner.intern("name"), nameReg, null),
-  //   ]),
-  //   new InsertNode(GlobalInterner.intern("floopy div"), GlobalInterner.intern("tag"), GlobalInterner.intern("div"), GlobalInterner.intern(2)),
-  //   new InsertNode(GlobalInterner.intern("floopy div"), GlobalInterner.intern("text"), nameReg, GlobalInterner.intern(2)),
-  // ]),
+  new Block("things are happening", [
+    new JoinNode([
+      new Scan(eReg, GlobalInterner.intern("tag"), GlobalInterner.intern("person"), null),
+      new Scan(eReg, GlobalInterner.intern("name"), nameReg, null),
+    ]),
+    new InsertNode(GlobalInterner.intern("floopy div"), GlobalInterner.intern("tag"), GlobalInterner.intern("div"), GlobalInterner.intern(2)),
+    new InsertNode(GlobalInterner.intern("floopy div"), GlobalInterner.intern("text"), nameReg, GlobalInterner.intern(2)),
+  ]),
   new Block("> filters are cool", [
     new JoinNode([
       new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
       new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
-      FunctionConstraint.create(">", {a: age1Reg, b: age2Reg}, {})!
+      FunctionConstraint.create(">", {a: age1Reg, b: age2Reg})!
     ]),
-    new InsertNode(GlobalInterner.intern("doory-hoo"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
-    new InsertNode(GlobalInterner.intern("doory-hoo"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(77)),
+    new InsertNode(GlobalInterner.intern("is-greater-than"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
+    new InsertNode(GlobalInterner.intern("is-greater-than"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
   ]),
   new Block("= filters are cool", [
     new JoinNode([
       new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
       new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
-      FunctionConstraint.create("=", {a: age1Reg, b: age2Reg}, {})!
+      FunctionConstraint.create("=", {a: age1Reg, b: age2Reg})!
     ]),
-    new InsertNode(GlobalInterner.intern("equals-bibimbop"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
-    new InsertNode(GlobalInterner.intern("equals-bibimbop"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(77)),
+    new InsertNode(GlobalInterner.intern("is-equal"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
+    new InsertNode(GlobalInterner.intern("is-equal"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
+  ]),
+  new Block("There's a + function in there and it knows whats up", [
+    new JoinNode([
+      new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
+      new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
+      FunctionConstraint.create("+", {a: age1Reg, b: age2Reg, result: resultReg})!
+    ]),
+    new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
+    new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
+    new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("result"), resultReg, GlobalInterner.intern(76)),
   ]),
 ];
 
