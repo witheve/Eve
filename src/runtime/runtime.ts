@@ -462,9 +462,9 @@ interface Constraint {
 type ConstraintFieldMap = {[name:string]: ScanField};
 type ResolvedFields = {[fieldName:string]: ResolvedValue};
 
-abstract class FunctionConstraint implements Constraint {
-  static registered: {[name:string]: typeof FunctionConstraintInstance} = {};
-  static register(name:string, klass: typeof FunctionConstraintInstance) {
+class FunctionConstraint implements Constraint {
+  static registered: {[name:string]: typeof FunctionConstraint} = {};
+  static register(name:string, klass: typeof FunctionConstraint) {
     FunctionConstraint.registered[name] = klass;
   }
 
@@ -674,12 +674,6 @@ abstract class FunctionConstraint implements Constraint {
     // @TODO: Implement the logic for sorting function constraints or re-accepting after scan constraints to ensure prefix is filled.
     // @NOTE: Can we be smarter than solving for all registers here?
     return this.accept(index, prefix, transaction, round, this.registers);
-  }
-}
-
-class FunctionConstraintInstance extends FunctionConstraint {
-  constructor(fields:ConstraintFieldMap) {
-    super(fields);
   }
 }
 
