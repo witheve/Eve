@@ -752,7 +752,6 @@ class Transaction {
       let change = changes[changeIx];
       this.round = change.round;
       for(let block of blocks) {
-        // Finally, add the new change to the current state and repeat.
         block.exec(index, change, transaction, this.round, changes);
       }
       index.insert(change);
