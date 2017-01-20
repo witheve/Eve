@@ -767,18 +767,33 @@ class Transaction {
 // Testing logic
 //------------------------------------------------------------------------------
 
+type RawEAVN = [RawValue, RawValue, RawValue, RawValue];
+type RawEAVNC = [RawValue, RawValue, RawValue, RawValue, number];
+
+let _currentTransaction = 0;
+function createChangeSet(...eavns:(RawEAVN|RawEAVNC)[]) {
+  let changes:ChangeSet = [];
+  for(let [e, a, v, n, c = 1] of eavns as RawEAVNC[]) {
+    changes.push(Change.fromValues(e, a, v, n, _currentTransaction, 0, c));
+  }
+  _currentTransaction++;
+
+  return changes;
+}
+
 // We'll accumulate the current program state here as we stream in changes.
 let currentState:ChangeSet = [];
 
 // A list of changesets to stream into the program. Each changeset corresponds to an input event.
-let changes:ChangeSet[] = [
-  [Change.fromValues("<1>", "tag", "person", 1, 0, 0, 1)],
-  [Change.fromValues("<1>", "name", "RAB", 1, 1, 0, 1)],
-  [Change.fromValues("<2>", "tag", "person", 1, 2, 0, 1), Change.fromValues("<2>", "name", "KERY", 1, 2, 0, 1)],
-  [Change.fromValues("<3>", "tag", "dog", 1, 3, 0, 1), Change.fromValues("<3>", "name", "jeff", 1, 3, 0, 1)],
-  [Change.fromValues("<4>", "name", "BORSCHT", 1, 4, 0, 1)],
-  [Change.fromValues("<4>", "tag", "person", 1, 5, 0, 1)],
-];
+let changes:ChangeSet[] = [];
+changes.push(
+  createChangeSet(["<1>", "tag", "person", 1]),
+  createChangeSet(["<1>", "name", "RAB", 1]),
+  createChangeSet(["<1>", "age", 7, 1]),
+  createChangeSet(["<2>", "tag", "person", 1], ["<2>", "name", "KERY", 1], ["<2>", "age", 41, 1]),
+  createChangeSet(["<3>", "tag", "dog", 1], ["<3>", "name", "jeff", 1], ["<3>", "age", 3, 1]),
+  createChangeSet(["<4>", "name", "BORSCHT", 1], ["<4>", "tag", "person", 1]),
+);
 
 // Manually created registers for the testing program below.
 let eReg = new Register(1);
