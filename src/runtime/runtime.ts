@@ -703,6 +703,38 @@ class InsertNode implements Node {
   }
 }
 
+class Block {
+  constructor(public name:string, public nodes:Node[]) {}
+
+  // We're going to essentially double-buffer the result arrays so we can avoid allocating in the hotpath.
+  results:ID[][];
+  protected nextResults:ID[][];
+
+  exec(index:Index, input:Change, transaction:number, round:number):boolean {
+    let blockState = ApplyInputState.none;
+    this.results = [[]];
+    this.nextResults = [];
+    // We populate the prefix with values from the input change so we only derive the
+    // results affected by it.
+    for(let node of this.nodes) {
+      for(let prefix of this.results) {
+        //console.log("P", prefix);
+        let valid = node.exec(index, input, prefix, transaction, round, this.nextResults);
+        if(!valid) {
+          return false;
+        }
+      }
+      let tmp = this.results;
+      this.results = this.nextResults;
+      this.nextResults = tmp;
+      // @NOTE: We don't really want to shrink this array probably.
+      this.nextResults.length = 0;
+    }
+
+    return true;
+  }
+}
+
 //------------------------------------------------------------------------------
 // Testing logic
 //------------------------------------------------------------------------------
@@ -729,49 +761,30 @@ let vReg = new Register(0);
 //   eid = [#person name]
 // bind
 //   [#div | text: name]
-let nodes:Node[] = [
-  new JoinNode([
-    new Scan(eReg, GlobalInterner.intern("tag"), GlobalInterner.intern("person"), null),
-    new Scan(eReg, GlobalInterner.intern("name"), vReg, null),
-  ]),
-  new InsertNode(GlobalInterner.intern("floopy div"), GlobalInterner.intern("tag"), GlobalInterner.intern("div"), GlobalInterner.intern(2)),
-  new InsertNode(GlobalInterner.intern("floopy div"), GlobalInterner.intern("text"), vReg, GlobalInterner.intern(2)),
+let blocks:Block[] = [
+  new Block("things are happening", [
+    new JoinNode([
+      new Scan(eReg, GlobalInterner.intern("tag"), GlobalInterner.intern("person"), null),
+      new Scan(eReg, GlobalInterner.intern("name"), vReg, null),
+    ]),
+    new InsertNode(GlobalInterner.intern("floopy div"), GlobalInterner.intern("tag"), GlobalInterner.intern("div"), GlobalInterner.intern(2)),
+    new InsertNode(GlobalInterner.intern("floopy div"), GlobalInterner.intern("text"), vReg, GlobalInterner.intern(2)),
+  ])
 ];
 
 let index = new ListIndex();
 let transaction = 0;
 let round = 0;
 
-// We're going to essentially double-buffer the result arrays so we can avoid allocating in the hotpath.
-let results:ID[][];
-let nextResults:ID[][] = [];
-
 for(let changeset of changes) {
   for(let change of changeset) {
     console.log("Applying", ""+change);
 
-    results = [[]];
-    let blockState = ApplyInputState.none;
-
-    // We populate the prefix with values from the input change so we only derive the
-    // results affected by it.
-    for(let node of nodes) {
-      for(let prefix of results) {
-        //console.log("P", prefix);
-        let valid = node.exec(index, change, prefix, transaction, round, nextResults);
-        if(!valid) {
-          break;
-        }
-      }
-      let tmp = results;
-      results = nextResults;
-      nextResults = tmp;
-      // @NOTE: We don't really want to shrink this array probably.
-      nextResults.length = 0;
+    for(let block of blocks) {
+      // Finally, add the new change to the current state and repeat.
+      // @NOTE: This doesn't currently respect transaction boundaries.
+      block.exec(index, change, transaction, round);
     }
-
-    // Finally, add the new change to the current state and repeat.
-    // @NOTE: This doesn't currently respect transaction boundaries.
     index.insert(change);
   }
   transaction++;
