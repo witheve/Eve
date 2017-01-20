@@ -365,9 +365,9 @@ test("Test gaussian seed", (assert) => {
   evaluate(assert, expected, `
     ~~~
     search
-      g1 = gaussian[seed:0, σ:1.0, µ:0.0]
-      g2 = gaussian[seed:0, σ:1.0, µ:0.0]
-      g3 = gaussian[seed:1, σ:1.0, µ:0.0]
+      g1 = gaussian[seed:0, stdev:1.0, mean:0.0]
+      g2 = gaussian[seed:0, stdev:1.0, mean:0.0]
+      g3 = gaussian[seed:1, stdev:1.0, mean:0.0]
       same-seed = if g1 = g2 then "true" else "false"
       different-seed = if g1 = g3 then "true" else "false"
 
