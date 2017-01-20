@@ -550,7 +550,7 @@ interface Node {
    * See Scan.exec()
    * @NOTE: The result format is slightly different. Rather than a packed list of EAVNs, we instead return a set of valid prefixes.
    */
-  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results?:ID[][]):boolean;
+  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results?:ID[][], changes?:Change[]):boolean;
 }
 
 class JoinNode implements Node {
@@ -686,7 +686,7 @@ class InsertNode implements Node {
 
   resolve = Scan.prototype.resolve;
 
-  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results?:ID[][]):boolean {
+  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results?:ID[][], changes:Change[]):boolean {
     let resolved = this.resolve(prefix);
 
     // @FIXME: This is pretty wasteful to copy one by one here.
@@ -698,6 +698,7 @@ class InsertNode implements Node {
 
     let change = new Change(resolved.e!, resolved.a!, resolved.v!, resolved.n!, transaction, round + 1, 1);
     console.log(""+change);
+    changes.push(change);
 
     return true;
   }
@@ -710,7 +711,7 @@ class Block {
   results:ID[][];
   protected nextResults:ID[][];
 
-  exec(index:Index, input:Change, transaction:number, round:number):boolean {
+  exec(index:Index, input:Change, transaction:number, round:number, changes:Change[]):boolean {
     let blockState = ApplyInputState.none;
     this.results = [[]];
     this.nextResults = [];
@@ -719,7 +720,7 @@ class Block {
     for(let node of this.nodes) {
       for(let prefix of this.results) {
         //console.log("P", prefix);
-        let valid = node.exec(index, input, prefix, transaction, round, this.nextResults);
+        let valid = node.exec(index, input, prefix, transaction, round, this.nextResults, changes);
         if(!valid) {
           return false;
         }
@@ -733,6 +734,32 @@ class Block {
 
     return true;
   }
+}
+
+//------------------------------------------------------------------------------
+// Transaction
+//------------------------------------------------------------------------------
+
+class Transaction {
+
+  round = 0;
+  constructor(public transaction:number, public blocks:Block[], public changes:Change[]) {}
+
+  exec(index:Index) {
+    let {changes, transaction, round} = this;
+    let changeIx = 0;
+    while(changeIx < changes.length) {
+      let change = changes[changeIx];
+      this.round = change.round;
+      for(let block of blocks) {
+        // Finally, add the new change to the current state and repeat.
+        block.exec(index, change, transaction, this.round, changes);
+      }
+      index.insert(change);
+      changeIx++;
+    }
+  }
+
 }
 
 //------------------------------------------------------------------------------
@@ -774,19 +801,11 @@ let blocks:Block[] = [
 
 let index = new ListIndex();
 let transaction = 0;
-let round = 0;
 
 for(let changeset of changes) {
-  for(let change of changeset) {
-    console.log("Applying", ""+change);
-
-    for(let block of blocks) {
-      // Finally, add the new change to the current state and repeat.
-      // @NOTE: This doesn't currently respect transaction boundaries.
-      block.exec(index, change, transaction, round);
-    }
-    index.insert(change);
-  }
+  let trans = new Transaction(transaction, blocks, changeset);
+  trans.exec(index);
+  console.log(trans.changes);
   transaction++;
 }
 //console.log(results.map((prefix) => prefix.map((x) => GlobalInterner.reverse(x))));
