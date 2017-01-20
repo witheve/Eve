@@ -245,8 +245,8 @@ class Scan implements Constraint {
               public n:ScanField) {}
 
   protected resolved:ResolvedEAVN = {e: undefined, a: undefined, v:undefined, n: undefined};
-  protected registers:Register[] = [];
-  protected registerLookup:boolean[] = [];
+  protected registers:Register[] = createArray();
+  protected registerLookup:boolean[] = createArray();
 
   proposal:Proposal = {cardinality: 0, forFields: [], forRegisters: [], proposer: this};
 
@@ -555,7 +555,7 @@ interface Node {
 
 class JoinNode implements Node {
   registerLength = 0;
-  registerArrays:ID[][] = [];
+  registerArrays:ID[][] = createArray();
   emptyProposal:Proposal = {cardinality: Infinity, forFields: [], forRegisters: [], skip: true, proposer: {} as Constraint};
 
   constructor(public constraints:Constraint[]) {
@@ -713,8 +713,9 @@ class Block {
 
   exec(index:Index, input:Change, transaction:number, round:number, changes:Change[]):boolean {
     let blockState = ApplyInputState.none;
-    this.results = [[]];
-    this.nextResults = [];
+    this.results = createArray();
+    this.results.push(createArray());
+    this.nextResults = createArray();
     // We populate the prefix with values from the input change so we only derive the
     // results affected by it.
     for(let node of this.nodes) {
