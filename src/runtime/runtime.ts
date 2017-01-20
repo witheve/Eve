@@ -488,6 +488,7 @@ abstract class FunctionConstraint implements Constraint {
   apply: (... things: any[]) => undefined|(number|string)[]; // @FIXME: Not supporting multi-return yet.
   estimate?:(index:Index, prefix:ID[], transaction:number, round:number) => number
 
+  fieldNames:string[];
   proposal:Proposal = {cardinality:0, forFields: createArray(), forRegisters: createArray(), proposer: this};
   protected resolved:ResolvedFields = {};
   protected registers:Register[] = createArray();
@@ -495,7 +496,9 @@ abstract class FunctionConstraint implements Constraint {
   protected applyInputs:RawValue[] = createArray();
 
   setup() {
-    for(let fieldName of Object.keys(this.fields)) {
+    this.fieldNames = Object.keys(this.fields);
+
+    for(let fieldName of this.fieldNames) {
       let field = this.fields[fieldName];
       if(isRegister(field)) this.registers.push(field);
     }
@@ -514,7 +517,7 @@ abstract class FunctionConstraint implements Constraint {
   resolve(prefix:ID[]) {
     let resolved = this.resolved;
 
-    for(let fieldName of Object.keys(this.fields)) {
+    for(let fieldName of this.fieldNames) {
       let field = this.fields[fieldName];
       if(isRegister(field)) {
         resolved[fieldName] = prefix[field.offset];
