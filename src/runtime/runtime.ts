@@ -775,7 +775,7 @@ class JoinNode implements Node {
     if(ix !== 0) {
       let prevConstraint = constraints[ix - 1];
       for(let register of prevConstraint.getRegisters()) {
-        prefix[register.offset] = undefined;
+        prefix[register.offset] = undefined as any;
       }
     }
     for(let len = constraints.length; ix < len; ix++) {
