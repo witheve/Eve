@@ -490,9 +490,9 @@ abstract class FunctionConstraint implements Constraint {
 
   proposal:Proposal = {cardinality:0, forFields: createArray(), forRegisters: createArray(), proposer: this};
   protected resolved:ResolvedFields = {};
-  protected registers:Register[] = [];
-  protected registerLookup:boolean[] = [];
-  protected applyInputs:RawValue[] = [];
+  protected registers:Register[] = createArray();
+  protected registerLookup:boolean[] = createArray();
+  protected applyInputs:RawValue[] = createArray();
 
   setup() {
     for(let fieldName of Object.keys(this.fields)) {
