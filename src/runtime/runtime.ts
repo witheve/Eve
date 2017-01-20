@@ -635,6 +635,16 @@ class FunctionConstraint implements Constraint {
   }
 
   accept(index:Index, prefix:ID[], transaction:number, round:number, solvingFor:Register[]):boolean {
+    // If none of the registers we're solving for intersect our inputs or outputs, we're not relevant to the solution.
+    let isRelevant = false;
+    for(let register of solvingFor) {
+      if(this.registerLookup[register.offset]) {
+        isRelevant = true;
+        break;
+      }
+    }
+    if(!isRelevant) return true;
+
     let resolved = this.resolve(prefix);
 
     // If we're missing an argument, we can't run yet so we preliminarily accept.
