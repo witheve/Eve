@@ -384,7 +384,7 @@ class Scan implements Constraint {
     return proposal;
   }
 
-  resolveProposal(index:Index, proposal:Proposal, transaction:number, round:number, results:any[]):ID[][] {
+  resolveProposal(index:Index, prefix:ID[], proposal:Proposal, transaction:number, round:number, results:any[]):ID[][] {
     return index.resolveProposal(proposal);
   }
 
@@ -450,7 +450,7 @@ interface Constraint {
   getRegisters():Register[];
   applyInput(input:Change, prefix:ID[]):ApplyInputState;
   propose(index:Index, prefix:ID[], transaction:number, round:number, results:any[]):Proposal;
-  resolveProposal(index:Index, proposal:Proposal, transaction:number, round:number, results:any[]):ID[][];
+  resolveProposal(index:Index, prefix:ID[], proposal:Proposal, transaction:number, round:number, results:any[]):ID[][];
   accept(index:Index, prefix:ID[], transaction:number, round:number, solvingFor:Register[]):boolean;
   acceptInput(index:Index, input:Change, prefix:ID[], transaction:number, round:number):boolean;
 }
@@ -460,6 +460,7 @@ interface Constraint {
 //------------------------------------------------------------------------
 
 type ConstraintFieldMap = {[name:string]: ScanField};
+type ResolvedFields = {[fieldName:string]: ResolvedValue};
 
 abstract class FunctionConstraint implements Constraint {
   static registered: {[name:string]: new (args:ConstraintFieldMap, returns:ConstraintFieldMap) => FunctionConstraint} = {};
@@ -475,24 +476,58 @@ abstract class FunctionConstraint implements Constraint {
     return created;
   }
 
-  constructor(args:ConstraintFieldMap, returns:ConstraintFieldMap) {
+  constructor(public fields:ConstraintFieldMap) {
 
   }
 
+  name:string;
+  args:{[name:string]: string};
+  returns:{[name:string]: string};
+  argNames:string[];
+  returnNames:string[];
+  apply: (... things: any[]) => undefined|(number|string)[]; // @FIXME: Not supporting multi-return yet.
+  estimate?:(index:Index, prefix:ID[], transaction:number, round:number) => number
+
   proposal:Proposal = {cardinality:0, forFields: createArray(), forRegisters: createArray(), proposer: this};
+  protected resolved:ResolvedFields = {};
+  protected registers:Register[] = [];
+  protected registerLookup:boolean[] = [];
+  protected applyInputs:RawValue[] = [];
 
   setup() {
     console.log(this.args);
+    for(let fieldName of Object.keys(this.fields)) {
+      let field = this.fields[fieldName];
+      if(isRegister(field)) this.registers.push(field);
+    }
+
+    for(let register of this.registers) {
+      this.registerLookup[register.offset] = true;
+    }
   }
 
-  // @TODO
   getRegisters() {
-    return createArray();
+    return this.registers;
   }
 
-  args: any;
-  returns: any;
-  apply: (... things: any[]) => any;
+  resolve(prefix:ID[]) {
+    let resolved = this.resolved;
+
+    for(let fieldName of Object.keys(this.fields)) {
+      let field = this.fields[fieldName];
+      if(isRegister(field)) {
+        resolved[fieldName] = prefix[field.offset];
+      } else {
+        resolved[fieldName] = field;
+      }
+    }
+
+    return resolved;
+  }
+
+  isFilter():boolean {
+    return this.returnNames.length === 0;
+  }
 
   // Function constraints have nothing to apply to the input, so they
   // always return ApplyInputState.none
@@ -500,30 +535,162 @@ abstract class FunctionConstraint implements Constraint {
 
   // @TODO: fill this in
   propose(index:Index, prefix:ID[], transaction:number, round:number, results:any[]):Proposal {
-    // we should only attempt to propose if our args are filled and at least one
-    // return is not
-    this.proposal.skip = true;
-    return this.proposal;
+    let proposal = this.proposal;
+    let resolved = this.resolve(prefix);
+
+    // If none of our returns are unbound
+    // @NOTE: We don't need to worry about the filter case here, since he'll be
+    let unresolvedOutput = false;
+    for(let output of this.returnNames) {
+      if(resolved[output] === undefined) {
+        unresolvedOutput = true;
+        break;
+      }
+    }
+    if(!unresolvedOutput) {
+      console.log("    * skip: resolved all outputs", prefix);
+      proposal.skip = true;
+      return proposal;
+    }
+
+    // If any of our args aren't resolved yet, we can't compute results either.
+    // @NOTE: This'll need to be touched up when we add optional support if they
+    // co-inhabit the args object.
+    for(let input of this.argNames) {
+      if(resolved[input] === undefined) {
+        console.log("    * skip: unresolved input", prefix);
+        proposal.skip = true;
+        return proposal;
+      }
+    }
+
+    // Otherwise, we're ready to propose.
+    proposal.skip = false;
+
+    if(this.estimate) {
+      // If the function provides a cardinality estimator, invoke that.
+      proposal.cardinality = this.estimate(index, prefix, transaction, round);
+
+    } else {
+      // Otherwise, we'll just return 1 for now, since computing a function is almost always cheaper than a scan.
+      // @NOTE: If this is an issue, we can just behave like scans and compute ourselves here, caching the results.
+      proposal.cardinality = 1;
+    }
+
+    return proposal;
   }
 
-  resolveProposal(index:Index, proposal:Proposal, transaction:number, round:number, results:any[]):ID[][] {
+  /** Pack the resolved register values for the functions argument fields into an array. */
+  packInputs(resolved:ResolvedFields) {
+    let inputs = this.applyInputs;
+    let ix = 0;
+    for(let argName of this.argNames) {
+      // If we're asked to resolve the propoal we know that we've proposed, and we'll only propose if these are resolved.
+      inputs[ix] = GlobalInterner.reverse(resolved[argName]!);
+      ix++;
+    }
+    return inputs;
+  }
+
+  unpackOutputs(outputs:undefined|RawValue[]) {
+    if(!outputs) return;
+    for(let ix = 0; ix < outputs.length; ix++) {
+      outputs[ix] = GlobalInterner.intern(outputs[ix]);
+    }
+    return outputs as ID[];
+  }
+
+  resolveProposal(index:Index, prefix:ID[], proposal:Proposal, transaction:number, round:number, results:any[]):ID[][] {
+    let resolved = this.resolve(prefix);
+
+    // First we build the args array to provide the apply function.
+    let inputs = this.packInputs(resolved);
+
+    // Then we actually apply it and then unpack the outputs.
+    // @FIXME: We don't have any intelligent support for not computing unnecessary returns atm.
+    // @FIXME: We only support single-return atm.
+    let outputs = this.unpackOutputs(this.apply.apply(this, inputs));
+    if(!outputs) return results;
+
+    // Finally, if we had results, we create the result prefixes and pass them along.
+    let result = prefix.slice() as ID[];
+
+    let ix = 0;
+    for(let returnName of this.returnNames) {
+      let field = this.fields[returnName];
+      if(isRegister(field) && !resolved[returnName]) {
+        result[field.offset] = outputs[ix];
+      }
+      ix++;
+    }
+    results.push(result);
+
     return results;
   }
 
   accept(index:Index, prefix:ID[], transaction:number, round:number, solvingFor:Register[]):boolean {
+    let resolved = this.resolve(prefix);
+
+    // If we're missing an argument, we can't run yet so we preliminarily accept.
+    for(let argName of this.argNames) {
+      if(resolved[argName] === undefined) return true;
+    }
+
+
+
+    // First we build the args array to provide the apply function.
+    let inputs = this.packInputs(resolved);
+
+    // Then we actually apply it and then unpack the outputs.
+    // @FIXME: We don't have any intelligent support for not computing unnecessary returns atm.
+    // @FIXME: We only support single-return atm.
+    let outputs = this.unpackOutputs(this.apply.apply(this, inputs));
+    if(!outputs) {
+      console.log("    * accepting", this.name, resolved, false);
+      return false;
+    }
+
+    // Finally, we make sure every return register matches up with our outputs.
+    // @NOTE: If we just use solvingFor then we don't know the offsets into the outputs array,
+    // so we check everything...
+    let ix = 0;
+    for(let returnName of this.returnNames) {
+      let field = this.fields[returnName];
+      if(isRegister(field) && resolved[returnName]) {
+        if(resolved[returnName] !== outputs[ix]) {
+          console.log("    * accepting", this.name, resolved, false);
+          return false;
+        }
+      }
+      ix++;
+    }
+
+    console.log("    * accepting", this.name, resolved, true);
     return true;
   }
 
   acceptInput(index:Index, input:Change, prefix:ID[], transaction:number, round:number):boolean {
-    return true;
+    // @TODO: Implement the logic for sorting function constraints or re-accepting after scan constraints to ensure prefix is filled.
+    // @NOTE: Can we be smarter than solving for all registers here?
+    return this.accept(index, prefix, transaction, round, this.registers);
   }
-
 }
 
-function makeFunction({name,args,returns,apply,cardinality}:{name:string, args:any, returns:any, apply:(... things: any[]) => any, cardinality?:Function}) {
+interface FunctionSetup {
+  name:string,
+  args:{[argName:string]: string},
+  returns:{[argName:string]: string},
+  apply:(... things: any[]) => undefined|(number|string)[],
+  estimate?:(index:Index, prefix:ID[], transaction:number, round:number) => number
+}
+
+function makeFunction({name, args, returns, apply, estimate}:FunctionSetup) {
   class NewFunctionConstraint extends FunctionConstraint {
+    name = name;
     args = args;
     returns = returns;
+    argNames = Object.keys(args);
+    returnNames = Object.keys(returns);
     apply = apply;
   }
   FunctionConstraint.register(name, NewFunctionConstraint);
@@ -531,13 +698,22 @@ function makeFunction({name,args,returns,apply,cardinality}:{name:string, args:a
 
 
 makeFunction({
-  name: "<",
+  name: ">",
   args: {a: "number", b: "number"},
-  returns: {c: "number"},
+  returns: {},
   apply: (a:number, b:number) => {
-    return a < b;
-  }});
+    return (a > b) ? [] : undefined;
+  }
+});
 
+makeFunction({
+  name: "=",
+  args: {a: "number", b: "number"},
+  returns: {},
+  apply: (a:number, b:number) => {
+    return (a === b) ? [] : undefined;
+  }
+});
 
 //------------------------------------------------------------------------
 // Nodes
@@ -618,7 +794,7 @@ class JoinNode implements Node {
     }
 
     let {forRegisters, proposer} = bestProposal;
-    let resolved = proposer.resolveProposal(index, bestProposal, transaction, round, proposedResults);
+    let resolved = proposer.resolveProposal(index, prefix, bestProposal, transaction, round, proposedResults);
     resultLoop: for(let result of resolved) {
       let ix = 0;
       for(let register of forRegisters) {
@@ -698,7 +874,6 @@ class InsertNode implements Node {
     }
 
     let change = new Change(resolved.e!, resolved.a!, resolved.v!, resolved.n!, transaction, round + 1, 1);
-    console.log(""+change);
     changes.push(change);
 
     return true;
@@ -796,8 +971,13 @@ changes.push(
 );
 
 // Manually created registers for the testing program below.
+let nameReg = new Register(0);
 let eReg = new Register(1);
-let vReg = new Register(0);
+
+let p1Reg = new Register(0);
+let p2Reg = new Register(1);
+let age1Reg = new Register(2);
+let age2Reg = new Register(3);
 
 // Test program. It evaluates:
 // search
@@ -805,23 +985,44 @@ let vReg = new Register(0);
 // bind
 //   [#div | text: name]
 let blocks:Block[] = [
-  new Block("things are happening", [
+  // new Block("things are happening", [
+  //   new JoinNode([
+  //     new Scan(eReg, GlobalInterner.intern("tag"), GlobalInterner.intern("person"), null),
+  //     new Scan(eReg, GlobalInterner.intern("name"), nameReg, null),
+  //   ]),
+  //   new InsertNode(GlobalInterner.intern("floopy div"), GlobalInterner.intern("tag"), GlobalInterner.intern("div"), GlobalInterner.intern(2)),
+  //   new InsertNode(GlobalInterner.intern("floopy div"), GlobalInterner.intern("text"), nameReg, GlobalInterner.intern(2)),
+  // ]),
+  new Block("> filters are cool", [
     new JoinNode([
-      new Scan(eReg, GlobalInterner.intern("tag"), GlobalInterner.intern("person"), null),
-      new Scan(eReg, GlobalInterner.intern("name"), vReg, null),
+      new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
+      new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
+      FunctionConstraint.create(">", {a: age1Reg, b: age2Reg}, {})!
     ]),
-    new InsertNode(GlobalInterner.intern("floopy div"), GlobalInterner.intern("tag"), GlobalInterner.intern("div"), GlobalInterner.intern(2)),
-    new InsertNode(GlobalInterner.intern("floopy div"), GlobalInterner.intern("text"), vReg, GlobalInterner.intern(2)),
-  ])
+    new InsertNode(GlobalInterner.intern("doory-hoo"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
+    new InsertNode(GlobalInterner.intern("doory-hoo"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(77)),
+  ]),
+  new Block("= filters are cool", [
+    new JoinNode([
+      new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
+      new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
+      FunctionConstraint.create("=", {a: age1Reg, b: age2Reg}, {})!
+    ]),
+    new InsertNode(GlobalInterner.intern("equals-bibimbop"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
+    new InsertNode(GlobalInterner.intern("equals-bibimbop"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(77)),
+  ]),
 ];
 
 let index = new ListIndex();
 let transaction = 0;
 
 for(let changeset of changes) {
+
   let trans = new Transaction(transaction, blocks, changeset);
+  console.log(`TX ${trans.transaction}\n` + changeset.map((change, ix) => `  -> ${change}`).join("\n"));
   trans.exec(index);
-  console.log(trans.changes);
+  console.log(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
+
   transaction++;
 }
 //console.log(results.map((prefix) => prefix.map((x) => GlobalInterner.reverse(x))));
