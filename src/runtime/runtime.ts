@@ -55,7 +55,7 @@ export class Interner {
   }
 
   release(id: ID|undefined) {
-    if(!id) return;
+    if(id === undefined) return;
 
     this.IDRefCount[id]--;
     if(!this.IDRefCount[id]) {
