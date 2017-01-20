@@ -647,7 +647,6 @@ abstract class FunctionConstraint implements Constraint {
     // @FIXME: We only support single-return atm.
     let outputs = this.unpackOutputs(this.apply.apply(this, inputs));
     if(!outputs) {
-      console.log("    * accepting", this.name, resolved, inputs, false);
       return false;
     }
 
@@ -659,14 +658,12 @@ abstract class FunctionConstraint implements Constraint {
       let field = this.fields[returnName];
       if(isRegister(field) && resolved[returnName]) {
         if(resolved[returnName] !== outputs[ix]) {
-          console.log("    * accepting", this.name, resolved, inputs, false);
           return false;
         }
       }
       ix++;
     }
 
-    console.log("    * accepting", this.name, resolved, inputs, true);
     return true;
   }
 
