@@ -647,7 +647,7 @@ abstract class FunctionConstraint implements Constraint {
     // @FIXME: We only support single-return atm.
     let outputs = this.unpackOutputs(this.apply.apply(this, inputs));
     if(!outputs) {
-      console.log("    * accepting", this.name, resolved, false);
+      console.log("    * accepting", this.name, resolved, inputs, false);
       return false;
     }
 
@@ -659,14 +659,14 @@ abstract class FunctionConstraint implements Constraint {
       let field = this.fields[returnName];
       if(isRegister(field) && resolved[returnName]) {
         if(resolved[returnName] !== outputs[ix]) {
-          console.log("    * accepting", this.name, resolved, false);
+          console.log("    * accepting", this.name, resolved, inputs, false);
           return false;
         }
       }
       ix++;
     }
 
-    console.log("    * accepting", this.name, resolved, true);
+    console.log("    * accepting", this.name, resolved, inputs, true);
     return true;
   }
 
@@ -750,6 +750,7 @@ class JoinNode implements Node {
   registerLength = 0;
   registerArrays:ID[][] = [];
   emptyProposal:Proposal = {cardinality: Infinity, forFields: [], forRegisters: [], skip: true, proposer: {} as Constraint};
+  inputState = {constraintIx: 0, state: ApplyInputState.none}
 
   constructor(public constraints:Constraint[]) {
     // We need to find all the registers contained in our scans so that
@@ -766,13 +767,31 @@ class JoinNode implements Node {
   }
 
   applyInput(input:Change, prefix:ID[]) {
-    let handled = ApplyInputState.none;
-    for(let constraint of this.constraints) {
-      let result = constraint.applyInput(input, prefix);
-      if(result === ApplyInputState.fail) return ApplyInputState.fail;
-      else if(result === ApplyInputState.pass) handled = ApplyInputState.pass;
+    let {inputState, constraints} = this;
+    inputState.state = ApplyInputState.none;
+    let ix = inputState.constraintIx;
+    // if we're not starting at the first constraint, that means we've applied
+    // one already, we need to unapply it in order to make sure things work out
+    if(ix !== 0) {
+      let prevConstraint = constraints[ix - 1];
+      for(let register of prevConstraint.getRegisters()) {
+        prefix[register.offset] = undefined;
+      }
     }
-    return handled;
+    for(let len = constraints.length; ix < len; ix++) {
+      let constraint = constraints[ix];
+      let result = constraint.applyInput(input, prefix);
+      if(result === ApplyInputState.fail) {
+        inputState.state = ApplyInputState.fail;
+        break;
+      }
+      else if(result === ApplyInputState.pass) {
+        inputState.state = ApplyInputState.pass;
+        break;
+      }
+    }
+    inputState.constraintIx = ix + 1;
+    return inputState;
   }
 
   presolveCheck(index:Index, input:Change, prefix:ID[], transaction:number, round:number):boolean {
@@ -808,7 +827,10 @@ class JoinNode implements Node {
       return results;
     }
 
-    let {forRegisters, proposer} = bestProposal;
+    let {proposer} = bestProposal;
+    // We have to slice here because we need to keep a reference to this even if later
+    // rounds might overwrite the proposal
+    let forRegisters = bestProposal.forRegisters.slice();
     let resolved = proposer.resolveProposal(index, prefix, bestProposal, transaction, round, proposedResults);
     resultLoop: for(let result of resolved) {
       let ix = 0;
@@ -839,33 +861,44 @@ class JoinNode implements Node {
   }
 
   exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:ID[][] = createArray()):boolean {
-    let ok = this.applyInput(input, prefix);
-    let countOfSolved = 0;
-    for(let elem of prefix) {
-      if(elem !== undefined) countOfSolved++;
+    let didSomething = false;
+    this.inputState.constraintIx = 0;
+    // we need to apply input for each constraint individually and then run genericJoin to
+    // see if it produces any output. This handles the case where a single input might apply
+    // to several constraints in the block and we need to make sure we cover every permutation.
+    // @TODO: handle the case where all the constraints have applied a change.
+    this.applyInput(input, prefix);
+    let ok = this.inputState.state;
+    let ix = this.inputState.constraintIx;
+    let foo = 0;
+    while(ix < this.constraints.length) {
+      if(ok === ApplyInputState.pass) {
+        let countOfSolved = 0;
+        for(let elem of prefix) {
+          if(elem !== undefined) countOfSolved++;
+        }
+        let remainingToSolve = this.registerLength - countOfSolved;
+        let valid = this.presolveCheck(index, input, prefix, transaction, round);
+        if(!valid) {
+          // do nothing
+        } else if(!remainingToSolve) {
+          // if it is valid and there's nothing left to solve, then we've found
+          // a full result and we should just continue
+          results.push(prefix.slice());
+          didSomething = true;
+        } else {
+          // For each node, find the new results that match the prefix.
+          this.genericJoin(index, prefix, transaction, round, results, remainingToSolve);
+          didSomething = true;
+        }
+      }
+      this.applyInput(input, prefix);
+      ok = this.inputState.state;
+      ix = this.inputState.constraintIx;
     }
-    let remainingToSolve = this.registerLength - countOfSolved;
-    let valid = this.presolveCheck(index, input, prefix, transaction, round);
-    if(!valid) {
-      return false;
-    } else if(!remainingToSolve) {
-      // if it is valid and there's nothing left to solve, then we've found
-      // a full result and we chould just continue
-      results.push(prefix.slice());
-      return true;
-    }
-
-    if(ok === ApplyInputState.fail) {
-      return false;
-    } else if(ok === ApplyInputState.pass && remainingToSolve) {
-      // For each node, find the new results that match the prefix.
-      this.genericJoin(index, prefix, transaction, round, results, remainingToSolve);
-      return true;
-    } else {
-      // If there is no affected prefix then tautologically there is no affected result, so we skip execution.
-      return true;
-    }
+    return didSomething;
   }
+
 }
 
 class InsertNode implements Node {
