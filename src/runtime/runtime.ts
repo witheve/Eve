@@ -686,7 +686,7 @@ class InsertNode implements Node {
 
   resolve = Scan.prototype.resolve;
 
-  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results?:ID[][], changes:Change[]):boolean {
+  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:ID[][], changes:Change[]):boolean {
     let resolved = this.resolve(prefix);
 
     // @FIXME: This is pretty wasteful to copy one by one here.
