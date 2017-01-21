@@ -791,7 +791,7 @@ makeFunction({
 });
 
 makeFunction({
-  name: "gen-id",
+  name: "eve-internal/gen-id",
   args: {},
   variadic: true,
   returns: {result: "string"},
@@ -801,6 +801,16 @@ makeFunction({
     // This means aggregate cardinality will disagree with action node cardinality.
 
     return [values.join("|")];
+  }
+});
+
+makeFunction({
+  name: "eve-internal/concat",
+  args: {},
+  variadic: true,
+  returns: {result: "string"},
+  apply: (values:RawValue[]) => {
+    return [values.join("")];
   }
 });
 
@@ -1094,6 +1104,7 @@ changes.push(
 let nameReg = new Register(0);
 let eReg = new Register(1);
 let idReg = new Register(2);
+let textReg = new Register(3);
 
 let p1Reg = new Register(0);
 let p2Reg = new Register(1);
@@ -1111,10 +1122,11 @@ let blocks:Block[] = [
     new JoinNode([
       new Scan(eReg, GlobalInterner.intern("tag"), GlobalInterner.intern("person"), null),
       new Scan(eReg, GlobalInterner.intern("name"), nameReg, null),
-      FunctionConstraint.create("gen-id", {result: idReg}, [eReg, nameReg])!
+      FunctionConstraint.create("eve-internal/gen-id", {result: idReg}, [eReg, nameReg])!,
+      FunctionConstraint.create("eve-internal/concat", {result: textReg}, [GlobalInterner.intern("name: "), nameReg])!
     ]),
     new InsertNode(idReg, GlobalInterner.intern("tag"), GlobalInterner.intern("div"), GlobalInterner.intern(2)),
-    new InsertNode(idReg, GlobalInterner.intern("text"), nameReg, GlobalInterner.intern(2)),
+    new InsertNode(idReg, GlobalInterner.intern("text"), textReg, GlobalInterner.intern(2)),
   ]),
   // new Block("> filters are cool", [
   //   new JoinNode([
