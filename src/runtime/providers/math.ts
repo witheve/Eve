@@ -300,8 +300,8 @@ class Random extends TotalFunctionConstraint {
 class Gaussian extends TotalFunctionConstraint {
   static AttributeMapping = {
     "seed": 0,
-    "σ": 1,
-    "μ": 2
+    "stdev": 1,
+    "mean": 2
   }
 
   static cache = {};
