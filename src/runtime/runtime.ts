@@ -468,17 +468,26 @@ class FunctionConstraint implements Constraint {
     FunctionConstraint.registered[name] = klass;
   }
 
+  static variadic = false;
+
   // @FIXME: This whole setup is a little weird.
-  static create(name:string, fields:ConstraintFieldMap):FunctionConstraint|undefined {
+  static create(name:string, fields:ConstraintFieldMap, restFields:(ID|Register)[] = createArray()):FunctionConstraint|undefined {
     let cur = FunctionConstraint.registered[name];
-    if(!cur) return;
-    let created = new cur(fields);
+    if(!cur) {
+      console.error(`No function named ${name} is registered.`);
+      return;
+    }
+
+    if(restFields.length && !cur.variadic) {
+      console.error(`The ${name} function is not variadic, so may not accept restFields.`);
+      restFields = createArray();
+    }
+
+    let created = new cur(fields, restFields);
     return created;
   }
 
-  constructor(public fields:ConstraintFieldMap) {
-
-  }
+  constructor(public fields:ConstraintFieldMap, public restFields:(ID|Register)[]) {}
 
   name:string;
   args:{[name:string]: string};
@@ -491,15 +500,21 @@ class FunctionConstraint implements Constraint {
   fieldNames:string[];
   proposal:Proposal = {cardinality:0, forFields: createArray(), forRegisters: createArray(), proposer: this};
   protected resolved:ResolvedFields = {};
+  protected resolvedRest:(number|undefined)[] = createArray();
   protected registers:Register[] = createArray();
   protected registerLookup:boolean[] = createArray();
-  protected applyInputs:RawValue[] = createArray();
+  protected applyInputs:(RawValue|RawValue[])[] = createArray();
+  protected applyRestInputs:RawValue[] = createArray();
 
   setup() {
     this.fieldNames = Object.keys(this.fields);
 
     for(let fieldName of this.fieldNames) {
       let field = this.fields[fieldName];
+      if(isRegister(field)) this.registers.push(field);
+    }
+
+    for(let field of this.restFields) {
       if(isRegister(field)) this.registers.push(field);
     }
 
@@ -529,8 +544,20 @@ class FunctionConstraint implements Constraint {
     return resolved;
   }
 
-  isFilter():boolean {
-    return this.returnNames.length === 0;
+  resolveRest(prefix:ID[]) {
+    let resolvedRest = this.resolvedRest;
+
+    let ix = 0;
+    for(let field of this.restFields) {
+      if(isRegister(field)) {
+        resolvedRest[ix] = prefix[field.offset];
+      } else {
+        resolvedRest[ix] = field;
+      }
+      ix++;
+    }
+
+    return resolvedRest;
   }
 
   // Function constraints have nothing to apply to the input, so they
@@ -570,6 +597,19 @@ class FunctionConstraint implements Constraint {
       }
     }
 
+    // Similarly, if we're variadic we need to check that all of our variadic inputs bound to registers are
+    // resolved too.
+    // We really need to bend over backwards at the moment to convince TS to check a static member of the current class...
+    if((this.constructor as (typeof FunctionConstraint)).variadic) {
+      let resolvedRest = this.resolveRest(prefix);
+      for(let field of resolvedRest) {
+        if(field === undefined) {
+          proposal.skip = true;
+          return proposal;
+        }
+      }
+    }
+
     // Otherwise, we're ready to propose.
     proposal.skip = false;
 
@@ -587,13 +627,29 @@ class FunctionConstraint implements Constraint {
   }
 
   /** Pack the resolved register values for the functions argument fields into an array. */
-  packInputs(resolved:ResolvedFields) {
+  packInputs(prefix:ID[]) {
+    let resolved = this.resolve(prefix);
     let inputs = this.applyInputs;
     let ix = 0;
     for(let argName of this.argNames) {
       // If we're asked to resolve the propoal we know that we've proposed, and we'll only propose if these are resolved.
       inputs[ix] = GlobalInterner.reverse(resolved[argName]!);
       ix++;
+    }
+
+    // If we're variadic, we also need to pack our var-args up and attach them as the last argument.
+    if((this.constructor as (typeof FunctionConstraint)).variadic) {
+      let resolvedRest = this.resolveRest(prefix);
+      let restInputs = this.applyRestInputs;
+      let ix = 0;
+      for(let value of resolvedRest) {
+        if(value !== undefined) {
+          restInputs[ix] = GlobalInterner.reverse(value);
+        }
+        ix++;
+      }
+
+      inputs.push(restInputs);
     }
     return inputs;
   }
@@ -607,10 +663,8 @@ class FunctionConstraint implements Constraint {
   }
 
   resolveProposal(index:Index, prefix:ID[], proposal:Proposal, transaction:number, round:number, results:any[]):ID[][] {
-    let resolved = this.resolve(prefix);
-
     // First we build the args array to provide the apply function.
-    let inputs = this.packInputs(resolved);
+    let inputs = this.packInputs(prefix);
 
     // Then we actually apply it and then unpack the outputs.
     // @FIXME: We don't have any intelligent support for not computing unnecessary returns atm.
@@ -624,7 +678,7 @@ class FunctionConstraint implements Constraint {
     let ix = 0;
     for(let returnName of this.returnNames) {
       let field = this.fields[returnName];
-      if(isRegister(field) && !resolved[returnName]) {
+      if(isRegister(field) && !prefix[field.offset]) {
         result[ix] = outputs[ix];
       }
       ix++;
@@ -645,15 +699,14 @@ class FunctionConstraint implements Constraint {
     }
     if(!isRelevant) return true;
 
-    let resolved = this.resolve(prefix);
-
     // If we're missing an argument, we can't run yet so we preliminarily accept.
     for(let argName of this.argNames) {
-      if(resolved[argName] === undefined) return true;
+      let field = this.args[argName];
+      if(isRegister(field) && prefix[field.offset] === undefined) return true;
     }
 
     // First we build the args array to provide the apply function.
-    let inputs = this.packInputs(resolved);
+    let inputs = this.packInputs(prefix);
 
     // Then we actually apply it and then unpack the outputs.
     // @FIXME: We don't have any intelligent support for not computing unnecessary returns atm.
@@ -669,8 +722,8 @@ class FunctionConstraint implements Constraint {
     let ix = 0;
     for(let returnName of this.returnNames) {
       let field = this.fields[returnName];
-      if(isRegister(field) && resolved[returnName]) {
-        if(resolved[returnName] !== outputs[ix]) {
+      if(isRegister(field) && prefix[field.offset]) {
+        if(prefix[field.offset] !== outputs[ix]) {
           return false;
         }
       }
@@ -689,14 +742,16 @@ class FunctionConstraint implements Constraint {
 
 interface FunctionSetup {
   name:string,
+  variadic?: boolean,
   args:{[argName:string]: string},
   returns:{[argName:string]: string},
   apply:(... things: any[]) => undefined|(number|string)[],
   estimate?:(index:Index, prefix:ID[], transaction:number, round:number) => number
 }
 
-function makeFunction({name, args, returns, apply, estimate}:FunctionSetup) {
+function makeFunction({name, variadic = false, args, returns, apply, estimate}:FunctionSetup) {
   class NewFunctionConstraint extends FunctionConstraint {
+    static variadic = variadic;
     name = name;
     args = args;
     returns = returns;
@@ -732,6 +787,20 @@ makeFunction({
   returns: {result: "number"},
   apply: (a:number, b:number) => {
     return [a + b];
+  }
+});
+
+makeFunction({
+  name: "gen-id",
+  args: {},
+  variadic: true,
+  returns: {result: "string"},
+  apply: (values:RawValue[]) => {
+    // @FIXME: This is going to be busted in subtle cases.
+    // If a record exists with a "1" and 1 value for the same attribute, they'll collapse for gen-id, but won't join elsewhere.
+    // This means aggregate cardinality will disagree with action node cardinality.
+
+    return [values.join("|")];
   }
 });
 
@@ -1024,6 +1093,7 @@ changes.push(
 // Manually created registers for the testing program below.
 let nameReg = new Register(0);
 let eReg = new Register(1);
+let idReg = new Register(2);
 
 let p1Reg = new Register(0);
 let p2Reg = new Register(1);
@@ -1041,38 +1111,40 @@ let blocks:Block[] = [
     new JoinNode([
       new Scan(eReg, GlobalInterner.intern("tag"), GlobalInterner.intern("person"), null),
       new Scan(eReg, GlobalInterner.intern("name"), nameReg, null),
+      FunctionConstraint.create("gen-id", {result: idReg}, [eReg, nameReg])!
     ]),
-    new InsertNode(GlobalInterner.intern("floopy div"), GlobalInterner.intern("tag"), GlobalInterner.intern("div"), GlobalInterner.intern(2)),
-    new InsertNode(GlobalInterner.intern("floopy div"), GlobalInterner.intern("text"), nameReg, GlobalInterner.intern(2)),
+    new InsertNode(idReg, GlobalInterner.intern("tag"), GlobalInterner.intern("div"), GlobalInterner.intern(2)),
+    new InsertNode(idReg, GlobalInterner.intern("text"), nameReg, GlobalInterner.intern(2)),
   ]),
-  new Block("> filters are cool", [
-    new JoinNode([
-      new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
-      new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
-      FunctionConstraint.create(">", {a: age1Reg, b: age2Reg})!
-    ]),
-    new InsertNode(GlobalInterner.intern("is-greater-than"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
-    new InsertNode(GlobalInterner.intern("is-greater-than"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
-  ]),
-  new Block("= filters are cool", [
-    new JoinNode([
-      new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
-      new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
-      FunctionConstraint.create("=", {a: age1Reg, b: age2Reg})!
-    ]),
-    new InsertNode(GlobalInterner.intern("is-equal"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
-    new InsertNode(GlobalInterner.intern("is-equal"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
-  ]),
-  new Block("There's a + function in there and it knows whats up", [
-    new JoinNode([
-      new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
-      new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
-      FunctionConstraint.create("+", {a: age1Reg, b: age2Reg, result: resultReg})!
-    ]),
-    new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
-    new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
-    new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("result"), resultReg, GlobalInterner.intern(76)),
-  ]),
+  // new Block("> filters are cool", [
+  //   new JoinNode([
+  //     new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
+  //     new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
+  //     FunctionConstraint.create(">", {a: age1Reg, b: age2Reg})!
+  //   ]),
+  //   new InsertNode(GlobalInterner.intern("is-greater-than"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
+  //   new InsertNode(GlobalInterner.intern("is-greater-than"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
+  // ]),
+  // new Block("= filters are cool", [
+  //   new JoinNode([
+  //     new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
+  //     new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
+  //     FunctionConstraint.create("=", {a: age1Reg, b: age2Reg})!
+  //   ]),
+  //   new InsertNode(GlobalInterner.intern("is-equal"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
+  //   new InsertNode(GlobalInterner.intern("is-equal"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
+  // ]),
+  // new Block("There's a + function in there and it knows whats up", [
+  //   new JoinNode([
+  //     new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
+  //     new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
+  //     FunctionConstraint.create("+", {a: age1Reg, b: age2Reg, result: resultReg})!
+  //   ]),
+  //   new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
+  //   new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
+  //   new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("result"), resultReg, GlobalInterner.intern(76)),
+  // ]),
+
 ];
 
 let index = new ListIndex();
