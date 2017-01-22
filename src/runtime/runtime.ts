@@ -1,3 +1,5 @@
+import {Index, ListIndex, HashIndex} from "./indexes";
+
 //------------------------------------------------------------------------
 // Debugging
 //------------------------------------------------------------------------
@@ -33,15 +35,34 @@ function printConstraint(constraint:Constraint) {
 //------------------------------------------------------------------------
 
 type RawValue = string|number;
-type ID = number;
+export type ID = number;
 type Multiplicity = number;
 
-function createHash() {
+export var ALLOCATION_COUNT:any = {};
+
+export function createHash() {
   return Object.create(null);
 }
 
-function createArray() {
+export function createArray(place = "unknown") {
+  if(!ALLOCATION_COUNT[place]) ALLOCATION_COUNT[place] = 0;
+  ALLOCATION_COUNT[place]++;
   return [];
+}
+
+export function copyArray(arr:any[], place = "unknown") {
+  if(!ALLOCATION_COUNT[place]) ALLOCATION_COUNT[place] = 0;
+  ALLOCATION_COUNT[place]++;
+  return arr.slice();
+}
+
+export function moveArray(arr:any[], arr2:any[]) {
+  let ix = 0;
+  for(let elem of arr) {
+    arr2[ix] = arr[ix];
+  }
+  if(arr2.length === arr.length) arr2.length = arr.length;
+  return arr2;
 }
 
 function isNumber(thing:any): thing is number {
@@ -116,8 +137,8 @@ export var GlobalInterner = new Interner();
 // EAVNs
 //------------------------------------------------------------------------
 
-type EAVNField = "e"|"a"|"v"|"n";
-class EAVN {
+export type EAVNField = "e"|"a"|"v"|"n";
+export class EAVN {
   constructor(public e:ID, public a:ID, public v:ID, public n:ID) {}
 };
 
@@ -125,13 +146,13 @@ class EAVN {
 // Values
 //------------------------------------------------------------------------
 
-type ResolvedValue = ID|undefined|IgnoreRegister;
+export type ResolvedValue = ID|undefined|IgnoreRegister;
 
 //------------------------------------------------------------------------
 // Proposal
 //------------------------------------------------------------------------
 
-interface Proposal {
+export interface Proposal {
   cardinality:number,
   forFields:EAVNField[],
   forRegisters:Register[],
@@ -140,73 +161,6 @@ interface Proposal {
   info?:any,
 }
 
-//------------------------------------------------------------------------
-// Indexes
-//------------------------------------------------------------------------
-
-interface Index {
-  insert(change:Change):void;
-  propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):Proposal;
-  resolveProposal(proposal:Proposal):any[][];
-  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[];
-}
-
-class ListIndex implements Index {
-  changes: Change[] = createArray();
-  insert(change:Change) {
-     this.changes.push(change);
-  }
-
-  resolveProposal(proposal:Proposal) {
-    return proposal.info;
-  }
-
-  propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction = Infinity, round = Infinity) {
-    let final = createArray() as ID[][];
-    let forFields:EAVNField[] = createArray();
-    let seen = createHash();
-
-    if(a === undefined) forFields.push("a");
-    else if(v === undefined) forFields.push("v");
-    else if(e === undefined) forFields.push("e");
-    else if(n === undefined) forFields.push("n");
-
-    for(let change of this.changes) {
-      if((e === undefined || e === IGNORE_REG || e === change.e) &&
-         (a === undefined || a === IGNORE_REG || a === change.a) &&
-         (v === undefined || v === IGNORE_REG || v === change.v) &&
-         (n === undefined || n === IGNORE_REG || n === change.n) &&
-         (change.transaction <= transaction) &&
-         (change.round <= round)) {
-        let current = change[forFields[0]];
-        if(!seen[current]) {
-          seen[current] = true;
-          final.push([current]);
-        }
-      }
-    }
-
-    proposal.cardinality = final.length;
-    proposal.info = final;
-    proposal.forFields = forFields;
-    return proposal;
-  }
-
-  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction = Infinity, round = Infinity):EAVN[] {
-    let final = createArray() as EAVN[];
-    for(let change of this.changes) {
-      if((e === undefined || e === IGNORE_REG || e === change.e) &&
-         (a === undefined || a === IGNORE_REG || a === change.a) &&
-         (v === undefined || v === IGNORE_REG || v === change.v) &&
-         (n === undefined || n === IGNORE_REG || n === change.n) &&
-         (change.transaction <= transaction) &&
-         (change.round <= round)) {
-        final.push(new EAVN(change.e, change.a, change.v, change.n))
-      }
-    }
-    return final;
-  }
-}
 
 //------------------------------------------------------------------------
 // Changes
@@ -219,7 +173,7 @@ class ListIndex implements Index {
  *  (<1>, "name", "josh", ...) are each separate changes.
  */
 
-class Change {
+export class Change {
   constructor(public e: ID, public a: ID, public v: ID, public n: ID, public transaction:number, public round:number, public count:Multiplicity) {}
 
   static fromValues(e: any, a: any, v: any, n: any, transaction: number, round: number, count:Multiplicity) {
@@ -244,7 +198,7 @@ type ChangeSet = Change[];
  * tell the difference between static numbers and registers in scans.
  */
 
-class Register {
+export class Register {
   constructor(public offset:number) {}
 }
 
@@ -254,7 +208,7 @@ function isRegister(x: any): x is Register {
 
 /** The ignore register is a sentinel value for ScanFields that tell the scan to completely ignore that field. */
 type IgnoreRegister = null;
-let IGNORE_REG:IgnoreRegister = null;
+export var IGNORE_REG:IgnoreRegister = null;
 
 /** A scan field may contain a register, a static interned value, or the IGNORE_REG sentinel value. */
 type ScanField = Register|ID|IgnoreRegister;
@@ -331,37 +285,6 @@ class Scan implements Constraint {
   }
 
   /**
-   * Given the set of changes that have happened over the lifetime of the program (the `state`)
-   * and the current prefix of already-solved registers, return every set of values that fill
-   * our outputs (undefined registers) without violating the prefix. These will be added to the
-   * prefix for scans that follow us. The result format is a sparse list of EAVNS, which is pretty
-   * inefficient, but this code will change significantly when GenericJoin is re-implemented, so it's
-   * not worth optimizing yet.
-   */
-  exec(state:ChangeSet, prefix:ID[], results:ID[][] = createArray()) {
-    let resolved = this.resolve(prefix);
-
-    for(let change of state) {
-      // For each field that has a pre-existing static or prefix value, bail if the value doesn't match the current change.
-      if(!this.fieldUnresolved(resolved, "e") && change.e !== resolved.e) continue;
-      if(!this.fieldUnresolved(resolved, "a") && change.a !== resolved.a) continue;
-      if(!this.fieldUnresolved(resolved, "v") && change.v !== resolved.v) continue;
-      if(!this.fieldUnresolved(resolved, "n") && change.n !== resolved.n) continue;
-
-      // The current change is a match for this scan + prefix, so we'll create a new EAVN containing its values for our output fields.
-      let result = createArray() as ID[];
-      if(resolved.e === undefined) result[0] = change.e;
-      if(resolved.a === undefined) result[1] = change.a;
-      if(resolved.v === undefined) result[2] = change.v;
-      if(resolved.n === undefined) result[3] = change.n;
-
-      results.push(result);
-    }
-
-    return results;
-  }
-
-  /**
    * Apply new changes that may affect this scan to the prefix to derive only the results affected by this change.
    * If the change was successfully applied or irrelevant we'll return true. If the change was relevant but invalid
    * (i.e., this scan could not be satisfied due to proposals from previous scans) we'll return false.
@@ -431,8 +354,7 @@ class Scan implements Constraint {
     // if we aren't looking at any of these registers, then we just say we accept
     if(!solving) return true;
     let {e,a,v,n} = this.resolve(prefix);
-    let results = index.get(e, a, v, n, transaction, round)
-    return results.length > 0;
+    return index.check(e, a, v, n, transaction, round);
   }
 
   acceptInput(index:Index, input:Change, prefix:ID[], transaction:number, round:number):boolean {
@@ -475,7 +397,7 @@ enum ApplyInputState {
   none,
 }
 
-interface Constraint {
+export interface Constraint {
   setup():void;
   getRegisters():Register[];
   applyInput(input:Change, prefix:ID[]):ApplyInputState;
@@ -500,7 +422,6 @@ class FunctionConstraint implements Constraint {
 
   static variadic = false;
 
-  // @FIXME: This whole setup is a little weird.
   static create(name:string, fields:ConstraintFieldMap, restFields:(ID|Register)[] = createArray()):FunctionConstraint|undefined {
     let cur = FunctionConstraint.registered[name];
     if(!cur) {
@@ -658,11 +579,11 @@ class FunctionConstraint implements Constraint {
   packInputs(prefix:ID[]) {
     let resolved = this.resolve(prefix);
     let inputs = this.applyInputs;
-    let ix = 0;
+    let argIx = 0;
     for(let argName of this.argNames) {
       // If we're asked to resolve the propoal we know that we've proposed, and we'll only propose if these are resolved.
-      inputs[ix] = GlobalInterner.reverse(resolved[argName]!);
-      ix++;
+      inputs[argIx] = GlobalInterner.reverse(resolved[argName]!);
+      argIx++;
     }
 
     // If we're variadic, we also need to pack our var-args up and attach them as the last argument.
@@ -677,7 +598,7 @@ class FunctionConstraint implements Constraint {
         ix++;
       }
 
-      inputs.push(restInputs);
+      inputs[argIx] = restInputs;
     }
     return inputs;
   }
@@ -701,7 +622,7 @@ class FunctionConstraint implements Constraint {
     if(!outputs) return results;
 
     // Finally, if we had results, we create the result prefixes and pass them along.
-    let result = createArray() as ID[];
+    let result = createArray("functionResult") as ID[];
 
     let ix = 0;
     for(let returnName of this.returnNames) {
@@ -727,9 +648,9 @@ class FunctionConstraint implements Constraint {
     }
     if(!isRelevant) return true;
 
-    // If we're missing an argument, we can't run yet so we preliminarily accept.
-    for(let argName of this.argNames) {
-      let field = this.fields[argName];
+    // If we're missing a field, we can't verify our output yet so we preliminarily accept.
+    for(let fieldName of this.fieldNames) {
+      let field = this.fields[fieldName];
       if(isRegister(field) && prefix[field.offset] === undefined) return true;
     }
 
@@ -827,7 +748,6 @@ makeFunction({
     // @FIXME: This is going to be busted in subtle cases.
     // If a record exists with a "1" and 1 value for the same attribute, they'll collapse for gen-id, but won't join elsewhere.
     // This means aggregate cardinality will disagree with action node cardinality.
-
     return [values.join("|")];
   }
 });
@@ -859,7 +779,8 @@ interface Node {
 
 class JoinNode implements Node {
   registerLength = 0;
-  registerArrays:ID[][] = createArray();
+  registerArrays:Register[][];
+  proposedResultsArrays:ID[][];
   emptyProposal:Proposal = {cardinality: Infinity, forFields: [], forRegisters: [], skip: true, proposer: {} as Constraint};
   inputState = {constraintIx: 0, state: ApplyInputState.none};
   protected affectedConstraints:Constraint[] = createArray();
@@ -867,15 +788,18 @@ class JoinNode implements Node {
   constructor(public constraints:Constraint[]) {
     // We need to find all the registers contained in our scans so that
     // we know how many rounds of Generic Join we need to do.
-    let registers = createArray() as ID[][];
+    let registers = createArray() as Register[][];
+    let proposedResultsArrays = createArray() as ID[][];
     for(let constraint of constraints) {
       constraint.setup();
       for(let register of constraint.getRegisters()) {
-        registers[register.offset] = createArray() as ID[];
+        registers[register.offset] = createArray() as Register[];
+        proposedResultsArrays[register.offset] = createArray() as ID[];
       }
     }
     this.registerArrays = registers;
     this.registerLength = registers.length;
+    this.proposedResultsArrays = proposedResultsArrays;
   }
 
   findAffectedConstraints(input:Change, prefix:ID[]) {
@@ -894,7 +818,7 @@ class JoinNode implements Node {
     return affectedConstraints;
   }
 
-  applyCombination(input:Change, prefix:ID[], transaction:number, round:number, results:ID[][]) {
+  applyCombination(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:ID[][]) {
     let countOfSolved = 0;
     for(let field of prefix) {
       if(field !== undefined) countOfSolved++;
@@ -908,7 +832,7 @@ class JoinNode implements Node {
     } else if(!remainingToSolve) {
       // if it is valid and there's nothing left to solve, then we've found
       // a full result and we should just continue
-      results.push(prefix.slice());
+      results.push(copyArray(prefix, "results"));
       return true;
 
     } else {
@@ -937,10 +861,11 @@ class JoinNode implements Node {
     return true;
   }
 
-  genericJoin(index:Index, prefix:ID[], transaction:number, round:number, results:ID[][] = createArray(), roundIx:number = this.registerLength):ID[][] {
+  genericJoin(index:Index, prefix:ID[], transaction:number, round:number, results:ID[][] = createArray("gjResultsArray"), roundIx:number = this.registerLength):ID[][] {
     // console.log("GJ: ", roundIx, printPrefix(prefix));
     let {constraints, emptyProposal} = this;
-    let proposedResults = this.registerArrays[roundIx - 1];
+    let proposedResults = this.proposedResultsArrays[roundIx - 1];
+    let forRegisters:Register[] = this.registerArrays[roundIx - 1];
     proposedResults.length = 0;
 
     let bestProposal:Proposal = emptyProposal;
@@ -961,7 +886,7 @@ class JoinNode implements Node {
     let {proposer} = bestProposal;
     // We have to slice here because we need to keep a reference to this even if later
     // rounds might overwrite the proposal
-    let forRegisters = bestProposal.forRegisters.slice();
+    moveArray(bestProposal.forRegisters, forRegisters);
     let resolved = proposer.resolveProposal(index, prefix, bestProposal, transaction, round, proposedResults);
     resultLoop: for(let result of resolved) {
       let ix = 0;
@@ -976,7 +901,7 @@ class JoinNode implements Node {
         }
       }
       if(roundIx === 1) {
-        results.push(prefix.slice());
+        results.push(copyArray(prefix, "gjResults"));
       } else {
         this.genericJoin(index, prefix, transaction, round, results, roundIx - 1);
       }
@@ -991,7 +916,7 @@ class JoinNode implements Node {
     return results;
   }
 
-  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:ID[][] = createArray()):boolean {
+  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:ID[][] = createArray("joinNodeExec")):boolean {
     let didSomething = false;
     let affectedConstraints = this.findAffectedConstraints(input, prefix);
 
@@ -1022,7 +947,7 @@ class JoinNode implements Node {
       }
 
       //console.log("    ", printPrefix(prefix));
-      didSomething = this.applyCombination(input, prefix, transaction, round, results) || didSomething;
+      didSomething = this.applyCombination(index, input, prefix, transaction, round, results) || didSomething;
     }
 
     return didSomething;
@@ -1061,14 +986,16 @@ class Block {
   constructor(public name:string, public nodes:Node[]) {}
 
   // We're going to essentially double-buffer the result arrays so we can avoid allocating in the hotpath.
-  results:ID[][];
-  protected nextResults:ID[][];
+  results:ID[][] = createArray();
+  initial:ID[] = createArray();
+  protected nextResults:ID[][] = createArray();
 
   exec(index:Index, input:Change, transaction:number, round:number, changes:Change[]):boolean {
     let blockState = ApplyInputState.none;
-    this.results = createArray();
-    this.results.push(createArray());
-    this.nextResults = createArray();
+    this.results.length = 0;
+    this.initial.length = 0;
+    this.results.push(this.initial);
+    this.nextResults.length = 0;
     // We populate the prefix with values from the input change so we only derive the
     // results affected by it.
     for(let node of this.nodes) {
@@ -1177,47 +1104,67 @@ let blocks:Block[] = [
     new InsertNode(idReg, GlobalInterner.intern("tag"), GlobalInterner.intern("div"), GlobalInterner.intern(2)),
     new InsertNode(idReg, GlobalInterner.intern("text"), textReg, GlobalInterner.intern(2)),
   ]),
-  new Block("> filters are cool", [
-    new JoinNode([
-      new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
-      new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
-      FunctionConstraint.create(">", {a: age1Reg, b: age2Reg})!
-    ]),
-    new InsertNode(GlobalInterner.intern("is-greater-than"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
-    new InsertNode(GlobalInterner.intern("is-greater-than"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
-  ]),
-  new Block("= filters are cool", [
-    new JoinNode([
-      new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
-      new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
-      FunctionConstraint.create("=", {a: age1Reg, b: age2Reg})!
-    ]),
-    new InsertNode(GlobalInterner.intern("is-equal"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
-    new InsertNode(GlobalInterner.intern("is-equal"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
-  ]),
-  new Block("There's a + function in there and it knows whats up", [
-    new JoinNode([
-      new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
-      new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
-      FunctionConstraint.create("+", {a: age1Reg, b: age2Reg, result: resultReg})!
-    ]),
-    new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
-    new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
-    new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("result"), resultReg, GlobalInterner.intern(76)),
-  ]),
+  // new Block("> filters are cool", [
+  //   new JoinNode([
+  //     new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
+  //     new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
+  //     FunctionConstraint.create(">", {a: age1Reg, b: age2Reg})!
+  //   ]),
+  //   new InsertNode(GlobalInterner.intern("is-greater-than"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
+  //   new InsertNode(GlobalInterner.intern("is-greater-than"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
+  // ]),
+  // new Block("= filters are cool", [
+  //   new JoinNode([
+  //     new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
+  //     new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
+  //     FunctionConstraint.create("=", {a: age1Reg, b: age2Reg})!
+  //   ]),
+  //   new InsertNode(GlobalInterner.intern("is-equal"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
+  //   new InsertNode(GlobalInterner.intern("is-equal"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
+  // ]),
+  // new Block("There's a + function in there and it knows whats up", [
+  //   new JoinNode([
+  //     new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
+  //     new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
+  //     FunctionConstraint.create("+", {a: age1Reg, b: age2Reg, result: resultReg})!
+  //   ]),
+  //   new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
+  //   new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
+  //   new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("result"), resultReg, GlobalInterner.intern(76)),
+  // ]),
 
 ];
 
-let index = new ListIndex();
-let transaction = 0;
+export function doIt() {
+  _currentTransaction = 0;
+  changes = [];
+  let size = 10000;
+  for(let i = 0; i < size; i++) {
+    changes.push(createChangeSet([i - 1, "name", i - 1, 1], [i, "tag", "person", 1]));
+  }
+  let index = new HashIndex();
+  ALLOCATION_COUNT = {};
+  console.time("do it");
 
-for(let changeset of changes) {
+  for(let changeset of changes) {
 
-  let trans = new Transaction(transaction, blocks, changeset);
-  console.log(`TX ${trans.transaction}\n` + changeset.map((change, ix) => `  -> ${change}`).join("\n"));
-  trans.exec(index);
-  console.log(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
+    let trans = new Transaction(changeset[0].transaction, blocks, changeset);
+    // console.log(`TX ${trans.transaction}\n` + changeset.map((change, ix) => `  -> ${change}`).join("\n"));
+    trans.exec(index);
+    // console.log(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
+  }
+  console.timeEnd("do it");
+  // console.log(changes);
 
-  transaction++;
+  console.log("INDEX SIZE", index.cardinality);
+  console.log("TOTAL ALLOCS", ALLOCATION_COUNT);
 }
-//console.log(results.map((prefix) => prefix.map((x) => GlobalInterner.reverse(x))));
+
+for(let ix = 0; ix < 1; ix++) {
+  doIt();
+}
+
+if(typeof window === "object") {
+  (window as any)["doit"] = doIt as any;
+}
+
