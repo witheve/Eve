@@ -28,7 +28,7 @@ For each click, generate a gaussian sample, use floor to bin it into histogram b
 ~~~
 search @event @session
   e = [#click]
-  x = floor[value: gaussian[seed: e, σ: 10, μ: 25]]
+  x = floor[value: gaussian[seed: e, stdev: 10, mean: 25]]
   total = if [#slots x total] then total + 1 else 1
 
 commit
