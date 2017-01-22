@@ -66,11 +66,8 @@ function degreesToRadians(degrees:number){
 
 class Add extends TotalFunctionConstraint {
   getReturnValue(args) {
-    let a = parseFloat(args[0]);
-    let b = parseFloat(args[1]);
-    
-    if ((!isNaN(a)) && (!isNaN(b))) {
-    return a + b;
+    if ((typeof(args[0]) === "number") && (typeof(args[1]) === "number")) {
+      return args[0] + args[1];
     } else {
       return NaN
     }

@@ -249,10 +249,9 @@ test("Test that string concatenation with plus does not work.", (assert) => {
   assert.end();
 });
 
-test("Test that that plus with string numbers does work.", (assert) => {
+test("Test that that plus with string numbers filters.", (assert) => {
   let expected = {
     insert: [
-      ["a", "result", "2"],
     ],
     remove: [],
   };
@@ -271,10 +270,9 @@ test("Test that that plus with string numbers does work.", (assert) => {
   assert.end();
 });
 
-test("Test that plus with string + number does work.", (assert) => {
+test("Test that plus with string + number filters.", (assert) => {
   let expected = {
     insert: [
-      ["a", "result", "2"],
     ],
     remove: [],
   };
@@ -293,10 +291,9 @@ test("Test that plus with string + number does work.", (assert) => {
   assert.end();
 });
 
-test("Test that plus with number + string does work.", (assert) => {
+test("Test that plus with number + string filters..", (assert) => {
   let expected = {
     insert: [
-      ["a", "result", "2"],
     ],
     remove: [],
   };
@@ -328,7 +325,7 @@ test("Test that that plus with number + number does work.", (assert) => {
     ~~~
     search
       a = 1
-      b = "1"
+      b = 1
       x =  a + b
 
     bind
