@@ -1,11 +1,10 @@
 import {clone, debounce, uuid, sortComparator} from "./util";
-import {Owner} from "./config";
+import {Owner, config, Config, init as initConfig} from "./config";
 import {sentInputValues, activeIds, renderRecords, renderEve} from "./renderer"
 import {IDE} from "./ide";
 import * as browser from "./runtime/browser";
 
 import {IndexScalar, IndexList, EAV, Record} from "./db"
-
 
 function analyticsEvent(kind: string, label?: string, value?: number) {
   let ga = window["ga"];
@@ -191,6 +190,13 @@ export class EveClient {
     }
   }
 
+  save(documentId:string, code:string) {
+    this.sendControl(JSON.stringify({type: "save", path: documentId, code}));
+    if(this.worker) {
+      this.worker.postMessage(JSON.stringify({type: "save", path: documentId, code}));
+    }
+  }
+
   sendEvent(records:any[]) {
     if(!records || !records.length) return;
     let eavs = [];
@@ -213,8 +219,10 @@ export class EveClient {
   onError() {
     this.localControl = true;
     this.localEve = true;
+
     if(!this.ide) {
-      this._initProgram({runtimeOwner: Owner.client, controlOwner: Owner.client, withIDE: true, path: (window.location.hash || "").slice(1) || "/examples/quickstart.eve"});
+      let path = (window.location.hash || "").slice(1) || "/examples/quickstart.eve";;
+      this._initProgram({config: {runtimeOwner: Owner.client, controlOwner: Owner.client, editor: true, path}, path: (window.location.hash || "").slice(1) || "/examples/quickstart.eve", code: "", workspaces: window["_workspaceCache"]});
     } else {
       this.injectNotice("error", "Unexpectedly disconnected from the server. Please refresh the page.");
     }
@@ -279,16 +287,18 @@ export class EveClient {
     }
   }
 
-  _initProgram(data) {
-    this.localEve = data.runtimeOwner === Owner.client;
-    this.localControl = data.controlOwner === Owner.client;
-    this.showIDE = data.withIDE;
+  _initProgram(data:{config:Config, path:string, code:string, workspaces}) {
+    initConfig(data.config);
+
+    this.localEve = config.runtimeOwner === Owner.client;
+    this.localControl = config.controlOwner === Owner.client;
+    this.showIDE = config.editor;
     if(this.localEve) {
       this.worker = new Worker("/build/src/loadWorker.js");
       this.worker.onmessage = (event) => {
        this.onMessage(event);
       }
-      this.send({type: "init", code: data.code, showIDE: data.withIDE, workspaces: data.workspaces, workspaceCache: window["_workspaceCache"]});
+      this.send({type: "init", code: data.code, showIDE: data.config.editor, workspaces: data.workspaces, config, workspaceCache: window["_workspaceCache"]});
     }
     if(this.showIDE) {
       let path = data.path;
@@ -306,11 +316,15 @@ export class EveClient {
         if(docId && docId[docId.length - 1] === "/") docId = docId.slice(0, -1);
         found = this.ide.loadFile(docId, data.code);
       }
-      if(!found && data.internal) {
+      if(!found && config.internal) {
         this.ide.loadFile("/examples/quickstart.eve");
       }
     }
     onHashChange({});
+  }
+
+  _css(data) {
+    document.getElementById("app-styles").innerHTML = data.css;
   }
 
   _parse(data) {
@@ -447,15 +461,15 @@ function initIDE(client:EveClient) {
     console.groupCollapsed(`SENT ${generation}`);
     console.info(md);
     console.groupEnd();
-    client.send({scope: "root", type: "parse", generation, code: md});
+    client.send({scope: "root", type: "parse", generation, code: md, documentId: ide.documentId});
   }
   ide.onEval = (ide:IDE, persist) => {
-    client.send({type: "eval", persist});
+    client.send({type: "eval", persist, documentId: ide.documentId});
   }
   ide.onLoadFile = (ide, documentId, code) => {
     client.send({type: "close"});
-    client.send({scope: "root", type: "parse", code})
-    client.send({type: "eval", persist: false});
+    client.send({scope: "root", type: "parse", code, documentId: ide.documentId})
+    client.send({type: "eval", persist: false, documentId: ide.documentId});
 
     let url = `${location.pathname}#${documentId}`;
     let currentHashChunks = location.hash.split("#").slice(1);
@@ -470,7 +484,7 @@ function initIDE(client:EveClient) {
   }
 
   ide.onSaveDocument = (ide, documentId, code) => {
-    client.sendControl(JSON.stringify({type: "save", path: documentId, code}));
+    client.save(documentId, code);
   }
 
   ide.onTokenInfo = (ide, tokenId) => {

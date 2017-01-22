@@ -14,11 +14,11 @@ test("test string join ordering", (assert) => {
                 ~~~
                 search
                   [#foo token level]
-                  index = sort[value:token given:token]                 
+                  index = sort[value:token given:token]
                   a = join[token index given:token with:"/"]
                   a = "a/naxxo/parg/zkp"
                   b = join[token index:level given:token with:"/"]
-                  b = "parg/naxxo/a/zkp"                  
+                  b = "parg/naxxo/a/zkp"
                 commit
                   [#success]
                 ~~~
@@ -77,7 +77,7 @@ test("test length equality", (assert) => {
     search
       len = length[text: "test"]
       len = 4
-      
+
     commit
       [len: len]
     ~~~
@@ -169,9 +169,98 @@ test("length of multi-byte characters as code-points", (assert) => {
     ~~~
     search
       len = length[text: "𝐁b" as: "code-points"]
-      
+
     commit
       [len: len]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("find occurrences in a string", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "at", "3"],
+      ["b", "at", "26"],
+      ["c", "at", "28"],
+      ["d", "at", "34"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    ~~~
+    search
+      at = find[text: "I learned to play the Ukulele in Lebanon.", subtext: "le"]
+
+    commit
+      [at]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("find occurrences in a string case sensitive", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "at", "3"],
+      ["b", "at", "26"],
+      ["c", "at", "28"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    ~~~
+    search
+      at = find[text: "I learned to play the Ukulele in Lebanon.", subtext: "le", case-sensitive: true]
+
+    commit
+      [at]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("find occurrences in a string with index", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "at", "3"],
+      ["a", "ix", "1"],
+      ["b", "at", "26"],
+      ["b", "ix", "2"],
+      ["c", "at", "28"],
+      ["c", "ix", "3"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    ~~~
+    search
+      (at, ix) = find[text: "I learned to play the Ukulele in Lebanon.", subtext: "le", case-sensitive: true]
+
+    commit
+      [at, ix]
+    ~~~
+  `);
+  assert.end();
+})
+
+test("find occurrences in a string with index and a starting position", (assert) => {
+  let expected = {
+    insert: [
+      ["b", "at", "26"],
+      ["b", "ix", "1"],
+      ["c", "at", "28"],
+      ["c", "ix", "2"],
+    ],
+    remove: []
+  };
+  evaluate(assert, expected, `
+    ~~~
+    search
+      (at, ix) = find[text: "I learned to play the Ukulele in Lebanon.", subtext: "le", case-sensitive: true, from: 20]
+
+    commit
+      [at, ix]
     ~~~
   `);
   assert.end();

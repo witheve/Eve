@@ -107,7 +107,6 @@ class Substring extends Constraint {
     let to = text.length;
     if (args[1] != undefined) from = args[1] - 1;
     if (args[2] != undefined) to = args[2];
-    console.log("test string", text.substring(from, to), from, to, returns[0]);
     return text.substring(from, to) === returns[0];
   }
 
@@ -124,6 +123,89 @@ class Substring extends Constraint {
     return proposal;
   }
 }
+
+class Find extends Constraint {
+  static AttributeMapping = {
+    "text": 0,
+    "subtext": 1,
+    "case-sensitive": 2,
+    "from": 3,
+  }
+  static ReturnMapping = {
+    "string-position": 0,
+    "result-index": 0,
+  }
+
+  returnType: "both" | "position";
+
+  constructor(id: string, args: any[], returns: any[]) {
+    super(id, args, returns);
+    if(this.returns[1] !== undefined && this.returns[0] !== undefined) {
+      this.returnType = "both"
+    } else if(this.returns[0] !== undefined) {
+      this.returnType = "position";
+    }
+  }
+
+  resolveProposal(proposal, prefix) {
+    return proposal.index;
+  }
+
+  getIndexes(text, subtext, from, caseSensitive, withIx) {
+    let start = (from || 1) - 1;
+    let currentIndex;
+    let ixs = [];
+    let subLength = subtext.length;
+    if(!caseSensitive) {
+      text = text.toLowerCase();
+      subtext = subtext.toLowerCase();
+    }
+    if(withIx) {
+      while ((currentIndex = text.indexOf(subtext, start)) > -1) {
+        ixs.push([currentIndex + 1, ixs.length + 1]);
+        start = currentIndex + subLength;
+      }
+    } else {
+      while ((currentIndex = text.indexOf(subtext, start)) > -1) {
+        ixs.push(currentIndex + 1);
+        start = currentIndex + subLength;
+      }
+    }
+    return ixs;
+  }
+
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    let text = args[Find.AttributeMapping["text"]];
+    let subtext = args[Find.AttributeMapping["subtext"]];
+    if(typeof text !== "string"|| typeof subtext !== "string") return false;
+    return text.indexOf(subtext, returns[0] - 1) === returns[0];
+  }
+
+  getProposal(tripleIndex, proposed, prefix) {
+    let proposal = this.proposalObject;
+    let {args} = this.resolve(prefix);
+    let text = args[Find.AttributeMapping["text"]];
+    let subtext = args[Find.AttributeMapping["subtext"]];
+    let caseSensitive = args[Find.AttributeMapping["case-sensitive"]];
+    let from = args[Find.AttributeMapping["from"]];
+    if(typeof text !== "string"|| typeof subtext !== "string") {
+      proposal.cardinality = 0;
+      return;
+    }
+    let both = this.returnType === "both";
+    let indexes = this.getIndexes(text, subtext, from, caseSensitive, both);
+    if(both) {
+      proposal.providing = [this.returns[0], this.returns[1]];
+    } else {
+      proposal.providing = this.returns[0];
+    }
+    proposal.cardinality = indexes.length;
+    proposal.index = indexes;
+    return proposal;
+  }
+}
+
 
 class Convert extends Constraint {
   static AttributeMapping = {
@@ -345,5 +427,6 @@ providers.provide("substring", Substring);
 providers.provide("convert", Convert);
 providers.provide("urlencode", Urlencode);
 providers.provide("length", Length);
+providers.provide("find", Find);
 
 providers.provide("eve-internal/concat", InternalConcat);

@@ -30,10 +30,11 @@ export class HttpDatabase extends Database {
       options.body = request.body[0];
     }
     httpRequest(options, (error, response, body) => {
-      // console.log("GOT RESPONSE", response.statusCode);
-      // console.log(error);
-      // console.log(response);
-      // console.log(body);
+      if(error || !response) {
+        // @TODO: expose errors and other weirdness into Eve instead of just bailing here.
+        console.error(error || "ERROR: No response received from HTTP request");
+        return;
+      }
       let scope = "http";
       let responseId = `${requestId}|response`;
       let changes = evaluation.createChanges();
