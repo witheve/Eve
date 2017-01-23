@@ -199,7 +199,7 @@ export class HashIndex implements Index {
     }
   }
 
-  // check that there is at least one value in the index that matches the
+  // This function checks that there is at least one value in the index that matches the
   // given pattern. If a level is free, we have to run through the potential values
   // until we come across one that could match or we run out of values to check.
   walkCheck(index:any, a:ResolvedValue, b:ResolvedValue, c:ResolvedValue, n:ResolvedValue, transaction:number, round:number):boolean {
