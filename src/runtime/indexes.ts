@@ -9,6 +9,9 @@ function isResolved(field:ResolvedValue): field is ID {
   return field !== undefined && field !== IGNORE_REG;
 }
 
+// This function sums the counts of a packed array of node,
+// transcation, round, count (ntrc) up to the given transaction and
+// round based on the partial order (t1 <= t2 && r1 <= r2)
 function sumTimes(ntrcArray:number[], transaction:number, round:number) {
   if(!ntrcArray) return 0;
   let total = 0;
@@ -42,7 +45,7 @@ export class ListIndex implements Index {
     return proposal.info;
   }
 
-  propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction = Infinity, round = Infinity) {
+  propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number) {
     let final = createArray("indexProposeResults") as ID[][];
     let forFields:EAVNField[] = createArray("indexForFields");
     let seen = createHash();
@@ -73,7 +76,7 @@ export class ListIndex implements Index {
     return proposal;
   }
 
-  check(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction = Infinity, round = Infinity):boolean {
+  check(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):boolean {
     for(let change of this.changes) {
       if((e === undefined || e === IGNORE_REG || e === change.e) &&
          (a === undefined || a === IGNORE_REG || a === change.a) &&
@@ -87,7 +90,7 @@ export class ListIndex implements Index {
     return false;
   }
 
-  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction = Infinity, round = Infinity):EAVN[] {
+  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[] {
     let final = createArray() as EAVN[];
     for(let change of this.changes) {
       if((e === undefined || e === IGNORE_REG || e === change.e) &&
@@ -103,35 +106,37 @@ export class ListIndex implements Index {
   }
 }
 
-function specialCreateArray() {
-  return createArray("hashVix");
-}
-
 export class HashIndex implements Index {
   eavIndex = createHash();
   aveIndex = createHash();
   cardinality = 0;
 
-  getOrCreate(parent:any, key:any, createFunc:Function) {
+  getOrCreateHash(parent:any, key:any) {
     let found = parent[key];
     if(!found) {
-      // if(!ALLOCATION_COUNT["hashlevel"]) ALLOCATION_COUNT["hashlevel"] = 0;
-      // ALLOCATION_COUNT["hashlevel"]++;
-      found = parent[key] = createFunc();
+      found = parent[key] = createHash("hashLevel");
+    }
+    return found;
+  }
+
+  getOrCreateArray(parent:any, key:any) {
+    let found = parent[key];
+    if(!found) {
+      found = parent[key] = createArray("hashVix");
     }
     return found;
   }
 
   insert(change:Change) {
-    let {getOrCreate} = this;
-    let eIx = getOrCreate(this.eavIndex, change.e, createHash);
-    let aIx = getOrCreate(eIx, change.a, createHash);
-    let vIx = getOrCreate(aIx, change.v, specialCreateArray);
+    let {getOrCreateHash, getOrCreateArray} = this;
+    let eIx = getOrCreateHash(this.eavIndex, change.e);
+    let aIx = getOrCreateHash(eIx, change.a);
+    let vIx = getOrCreateArray(aIx, change.v);
     vIx.push(change.n, change.transaction, change.round, change.count);
 
-    aIx = getOrCreate(this.aveIndex, change.a, createHash);
-    vIx = getOrCreate(aIx, change.v, createHash);
-    eIx = getOrCreate(vIx, change.e, specialCreateArray);
+    aIx = getOrCreateHash(this.aveIndex, change.a);
+    vIx = getOrCreateHash(aIx, change.v);
+    eIx = getOrCreateArray(vIx, change.e);
     eIx.push(change.n, change.transaction, change.round, change.count);
 
     this.cardinality++;
@@ -141,7 +146,7 @@ export class HashIndex implements Index {
     return proposal.info;
   }
 
-  propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction = Infinity, round = Infinity) {
+  propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number) {
     let forFields = proposal.forFields;
     forFields.length = 0;
     if(isResolved(e)) {
@@ -233,7 +238,7 @@ export class HashIndex implements Index {
     return false;
   }
 
-  check(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction = Infinity, round = Infinity):boolean {
+  check(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):boolean {
     if(isResolved(e)) {
       return this.walkCheck(this.eavIndex, e, a, v, n, transaction, round);
     } else if(isResolved(a)) {
@@ -242,14 +247,19 @@ export class HashIndex implements Index {
     return true;
   }
 
-  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction = Infinity, round = Infinity):EAVN[] {
-    let final = createArray() as EAVN[];
-    return final;
+  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[] {
+    throw new Error("Not implemented");
   }
 }
 
 
-export class MatrixIndex implements Index {
+// @TODO: Implement
+class MatrixIndex implements Index {
+
+  constructor() {
+    throw new Error("Not implemented");
+  }
+
   insert(change:Change) {
   }
 
@@ -257,15 +267,15 @@ export class MatrixIndex implements Index {
     return createArray();
   }
 
-  propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction = Infinity, round = Infinity) {
+  propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number) {
     return proposal;
   }
 
-  check(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction = Infinity, round = Infinity):boolean {
+  check(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):boolean {
     return false;
   }
 
-  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction = Infinity, round = Infinity):EAVN[] {
+  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[] {
     let final = createArray() as EAVN[];
     return final;
   }

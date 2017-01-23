@@ -40,7 +40,9 @@ type Multiplicity = number;
 
 export var ALLOCATION_COUNT:any = {};
 
-export function createHash() {
+export function createHash(place = "unknown-hash") {
+  if(!ALLOCATION_COUNT[place]) ALLOCATION_COUNT[place] = 0;
+  ALLOCATION_COUNT[place]++;
   return Object.create(null);
 }
 
@@ -884,7 +886,7 @@ class JoinNode implements Node {
     }
 
     let {proposer} = bestProposal;
-    // We have to slice here because we need to keep a reference to this even if later
+    // We have to copy here because we need to keep a reference to this even if later
     // rounds might overwrite the proposal
     moveArray(bestProposal.forRegisters, forRegisters);
     let resolved = proposer.resolveProposal(index, prefix, bestProposal, transaction, round, proposedResults);
