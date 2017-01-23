@@ -1,4 +1,34 @@
 //------------------------------------------------------------------------
+// Debugging
+//------------------------------------------------------------------------
+
+function printField(field:ScanField) {
+  if(isRegister(field)) return "[" + field.offset + "]";
+  if(field === undefined || field === null) return field;
+  return GlobalInterner.reverse(field);
+}
+
+function printPrefix(prefix:ID[]) {
+  return prefix.map((v) => GlobalInterner.reverse(v));
+}
+
+function printScan(constraint:Scan) {
+  return `Scan: ${printField(constraint.e)} ${printField(constraint.a)} ${printField(constraint.v)} ${printField(constraint.n)}`;
+}
+
+function printFunction(constraint:FunctionConstraint) {
+  return `Function ${constraint.name} ${constraint.fieldNames.map((v) => v + ": " + printField(constraint.fields[v]))}`;
+}
+
+function printConstraint(constraint:Constraint) {
+  if(constraint instanceof Scan) {
+    return printScan(constraint);
+  } else if(constraint instanceof FunctionConstraint) {
+    return printFunction(constraint);
+  }
+}
+
+//------------------------------------------------------------------------
 // Runtime
 //------------------------------------------------------------------------
 
@@ -521,8 +551,6 @@ class FunctionConstraint implements Constraint {
     for(let register of this.registers) {
       this.registerLookup[register.offset] = true;
     }
-
-    if(this.name === "+") console.log(this.name, this.registers);
   }
 
   getRegisters() {
@@ -701,7 +729,7 @@ class FunctionConstraint implements Constraint {
 
     // If we're missing an argument, we can't run yet so we preliminarily accept.
     for(let argName of this.argNames) {
-      let field = this.args[argName];
+      let field = this.fields[argName];
       if(isRegister(field) && prefix[field.offset] === undefined) return true;
     }
 
@@ -833,7 +861,8 @@ class JoinNode implements Node {
   registerLength = 0;
   registerArrays:ID[][] = createArray();
   emptyProposal:Proposal = {cardinality: Infinity, forFields: [], forRegisters: [], skip: true, proposer: {} as Constraint};
-  inputState = {constraintIx: 0, state: ApplyInputState.none}
+  inputState = {constraintIx: 0, state: ApplyInputState.none};
+  protected affectedConstraints:Constraint[] = createArray();
 
   constructor(public constraints:Constraint[]) {
     // We need to find all the registers contained in our scans so that
@@ -849,32 +878,50 @@ class JoinNode implements Node {
     this.registerLength = registers.length;
   }
 
-  applyInput(input:Change, prefix:ID[]) {
-    let {inputState, constraints} = this;
-    inputState.state = ApplyInputState.none;
-    let ix = inputState.constraintIx;
-    // if we're not starting at the first constraint, that means we've applied
-    // one already, we need to unapply it in order to make sure things work out
-    if(ix !== 0) {
-      let prevConstraint = constraints[ix - 1];
-      for(let register of prevConstraint.getRegisters()) {
-        prefix[register.offset] = undefined as any;
-      }
-    }
-    for(let len = constraints.length; ix < len; ix++) {
-      let constraint = constraints[ix];
+  findAffectedConstraints(input:Change, prefix:ID[]) {
+    // @TODO: Hoist me out.
+    let affectedConstraints = this.affectedConstraints;
+    affectedConstraints.length = 0;
+    for(let ix = 0, len = this.constraints.length; ix < len; ix++) {
+      let constraint = this.constraints[ix];
       let result = constraint.applyInput(input, prefix);
-      if(result === ApplyInputState.fail) {
-        inputState.state = ApplyInputState.fail;
-        break;
-      }
-      else if(result === ApplyInputState.pass) {
-        inputState.state = ApplyInputState.pass;
-        break;
+
+      if(result !== ApplyInputState.none) {
+        affectedConstraints.push(constraint);
       }
     }
-    inputState.constraintIx = ix + 1;
-    return inputState;
+
+    return affectedConstraints;
+  }
+
+  applyCombination(input:Change, prefix:ID[], transaction:number, round:number, results:ID[][]) {
+    let countOfSolved = 0;
+    for(let field of prefix) {
+      if(field !== undefined) countOfSolved++;
+    }
+    let remainingToSolve = this.registerLength - countOfSolved;
+    let valid = this.presolveCheck(index, input, prefix, transaction, round);
+    if(!valid) {
+      // do nothing
+      return false;
+
+    } else if(!remainingToSolve) {
+      // if it is valid and there's nothing left to solve, then we've found
+      // a full result and we should just continue
+      results.push(prefix.slice());
+      return true;
+
+    } else {
+      // For each node, find the new results that match the prefix.
+      this.genericJoin(index, prefix, transaction, round, results, remainingToSolve);
+      return true;
+    }
+  }
+
+  unapplyConstraint(constraint:Constraint, prefix:ID[]) {
+    for(let register of constraint.getRegisters()) {
+      prefix[register.offset] = undefined as any;
+    }
   }
 
   presolveCheck(index:Index, input:Change, prefix:ID[], transaction:number, round:number):boolean {
@@ -891,8 +938,9 @@ class JoinNode implements Node {
   }
 
   genericJoin(index:Index, prefix:ID[], transaction:number, round:number, results:ID[][] = createArray(), roundIx:number = this.registerLength):ID[][] {
+    // console.log("GJ: ", roundIx, printPrefix(prefix));
     let {constraints, emptyProposal} = this;
-    let proposedResults = this.registerArrays[roundIx];
+    let proposedResults = this.registerArrays[roundIx - 1];
     proposedResults.length = 0;
 
     let bestProposal:Proposal = emptyProposal;
@@ -945,39 +993,38 @@ class JoinNode implements Node {
 
   exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:ID[][] = createArray()):boolean {
     let didSomething = false;
-    this.inputState.constraintIx = 0;
-    // we need to apply input for each constraint individually and then run genericJoin to
-    // see if it produces any output. This handles the case where a single input might apply
-    // to several constraints in the block and we need to make sure we cover every permutation.
-    // @TODO: handle the case where all the constraints have applied a change.
-    this.applyInput(input, prefix);
-    let ok = this.inputState.state;
-    let ix = this.inputState.constraintIx;
-    while(ix < this.constraints.length) {
-      if(ok === ApplyInputState.pass) {
-        let countOfSolved = 0;
-        for(let elem of prefix) {
-          if(elem !== undefined) countOfSolved++;
-        }
-        let remainingToSolve = this.registerLength - countOfSolved;
-        let valid = this.presolveCheck(index, input, prefix, transaction, round);
-        if(!valid) {
-          // do nothing
-        } else if(!remainingToSolve) {
-          // if it is valid and there's nothing left to solve, then we've found
-          // a full result and we should just continue
-          results.push(prefix.slice());
-          didSomething = true;
+    let affectedConstraints = this.findAffectedConstraints(input, prefix);
+
+    // @FIXME: This is frivolously wasteful.
+    for(let constraintIxz = 0; constraintIxz < affectedConstraints.length; constraintIxz++) {
+      let constraint = affectedConstraints[constraintIxz];
+      this.unapplyConstraint(constraint, prefix);
+    }
+
+    let combinationCount = Math.pow(2, affectedConstraints.length);
+    for(let comboIx = combinationCount - 1; comboIx > 0; comboIx--) {
+      //console.log("  Combo:", comboIx);
+
+      for(let constraintIx = 0; constraintIx < affectedConstraints.length; constraintIx++) {
+        let mask = 1 << constraintIx;
+        let isIncluded = (comboIx & mask) !== 0;
+        let constraint = affectedConstraints[constraintIx];
+
+        if(isIncluded) {
+          let valid = constraint.applyInput(input, prefix);
+          // If any member of the input constraints fails, this whole combination is doomed.
+          if(valid === ApplyInputState.fail) break;
+
+          //console.log("    " + printConstraint(constraint));
         } else {
-          // For each node, find the new results that match the prefix.
-          this.genericJoin(index, prefix, transaction, round, results, remainingToSolve);
-          didSomething = true;
+          this.unapplyConstraint(constraint, prefix);
         }
       }
-      this.applyInput(input, prefix);
-      ok = this.inputState.state;
-      ix = this.inputState.constraintIx;
+
+      //console.log("    ", printPrefix(prefix));
+      didSomething = this.applyCombination(input, prefix, transaction, round, results) || didSomething;
     }
+
     return didSomething;
   }
 
@@ -1057,6 +1104,9 @@ class Transaction {
     while(changeIx < changes.length) {
       let change = changes[changeIx];
       this.round = change.round;
+
+      //console.log("Round:", this.round);
+
       for(let block of blocks) {
         block.exec(index, change, transaction, this.round, changes);
       }
@@ -1127,34 +1177,34 @@ let blocks:Block[] = [
     new InsertNode(idReg, GlobalInterner.intern("tag"), GlobalInterner.intern("div"), GlobalInterner.intern(2)),
     new InsertNode(idReg, GlobalInterner.intern("text"), textReg, GlobalInterner.intern(2)),
   ]),
-  // new Block("> filters are cool", [
-  //   new JoinNode([
-  //     new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
-  //     new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
-  //     FunctionConstraint.create(">", {a: age1Reg, b: age2Reg})!
-  //   ]),
-  //   new InsertNode(GlobalInterner.intern("is-greater-than"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
-  //   new InsertNode(GlobalInterner.intern("is-greater-than"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
-  // ]),
-  // new Block("= filters are cool", [
-  //   new JoinNode([
-  //     new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
-  //     new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
-  //     FunctionConstraint.create("=", {a: age1Reg, b: age2Reg})!
-  //   ]),
-  //   new InsertNode(GlobalInterner.intern("is-equal"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
-  //   new InsertNode(GlobalInterner.intern("is-equal"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
-  // ]),
-  // new Block("There's a + function in there and it knows whats up", [
-  //   new JoinNode([
-  //     new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
-  //     new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
-  //     FunctionConstraint.create("+", {a: age1Reg, b: age2Reg, result: resultReg})!
-  //   ]),
-  //   new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
-  //   new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
-  //   new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("result"), resultReg, GlobalInterner.intern(76)),
-  // ]),
+  new Block("> filters are cool", [
+    new JoinNode([
+      new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
+      new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
+      FunctionConstraint.create(">", {a: age1Reg, b: age2Reg})!
+    ]),
+    new InsertNode(GlobalInterner.intern("is-greater-than"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
+    new InsertNode(GlobalInterner.intern("is-greater-than"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
+  ]),
+  new Block("= filters are cool", [
+    new JoinNode([
+      new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
+      new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
+      FunctionConstraint.create("=", {a: age1Reg, b: age2Reg})!
+    ]),
+    new InsertNode(GlobalInterner.intern("is-equal"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
+    new InsertNode(GlobalInterner.intern("is-equal"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
+  ]),
+  new Block("There's a + function in there and it knows whats up", [
+    new JoinNode([
+      new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
+      new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
+      FunctionConstraint.create("+", {a: age1Reg, b: age2Reg, result: resultReg})!
+    ]),
+    new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
+    new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
+    new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("result"), resultReg, GlobalInterner.intern(76)),
+  ]),
 
 ];
 
