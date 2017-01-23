@@ -103,8 +103,13 @@ export class Interner {
     this.IDRefCount[id]--;
     if(!this.IDRefCount[id]) {
       let value = this.IDs[id];
-      this.numbers[value as number] = undefined;
-      this.strings[value as string] = undefined;
+      let coll;
+      if(isNumber(value)) {
+        coll = this.numbers;
+      } else {
+        coll = this.strings;
+      }
+      coll[value] = undefined;
       this.IDFreeList.push(id);
     }
   }
