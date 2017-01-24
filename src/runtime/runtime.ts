@@ -833,7 +833,8 @@ interface Node {
  * Given a join node with constraints [A, B, C, and D], where A and D
  * can both apply the input, we must combine the results of the
  * following computations to get the full result set:
- * Apply A -> Do {B, C, D}
+ *
+ * Apply {A} -> Do {B, C, D}
  * Apply {A, D} -> Do {B, C}
  * Apply {D} -> Do {A, B, C}
  *
