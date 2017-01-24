@@ -14,7 +14,7 @@ test("test string join ordering", (assert) => {
                 ~~~
                 search
                   [#foo token level]
-                  index = sort[value:token given:token]
+                  index = sort[value:token]                 
                   a = join[token index given:token with:"/"]
                   a = "a/naxxo/parg/zkp"
                   b = join[token index:level given:token with:"/"]
