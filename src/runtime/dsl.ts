@@ -1,19 +1,33 @@
+//--------------------------------------------------------------------
+// Javascript DSL for writing Eve programs
+//--------------------------------------------------------------------
+
+// There don't seem to be TypeScript definitions for these by default,
+// so here we are.
 declare var Proxy:new (obj:any, proxy:any) => any;
 declare var Symbol:any;
 
-function concat(...strs:string[]) {
-  return {};
-}
+//--------------------------------------------------------------------
+// DSLVariable
+//--------------------------------------------------------------------
 
-class FunctionCall {
-  constructor(public path:string[], public args:any[]) {}
-}
-
-class Variable {
+class DSLVariable {
   constructor(public name:string) { }
 }
 
-class EveRecord {
+//--------------------------------------------------------------------
+// DSLFunction
+//--------------------------------------------------------------------
+
+class DSLFunction {
+  constructor(public path:string[], public args:any[]) {}
+}
+
+//--------------------------------------------------------------------
+// DSLRecord
+//--------------------------------------------------------------------
+
+class DSLRecord {
   constructor(public groups:string[], public fields:any) {
     fields.groups = groups;
   }
@@ -26,7 +40,7 @@ class EveRecord {
           return "uh oh";
         }
         if(!found) {
-          found = obj.fields[prop] = new Variable(prop);
+          found = obj.fields[prop] = new DSLVariable(prop);
         }
         return found;
       }
@@ -34,8 +48,64 @@ class EveRecord {
   }
 }
 
+//--------------------------------------------------------------------
+// DSLProgram
+//--------------------------------------------------------------------
+
 class Program {
   constructor(public name:string) {}
+
+  block(name:string, func:any) {
+    let info = {records: [] as DSLRecord[], variables: [], functions: [] as DSLFunction[]};
+    let recordFunc = (...args:any[]) => {
+      let lastArg = args[args.length - 1];
+      let proxied:any = {};
+      let groups;
+      if(typeof lastArg === "object") {
+        proxied = lastArg;
+        groups = args.slice(0, args.length - 1);
+      } else {
+        groups = args.slice(0, args.length);
+      }
+      // console.log("GROUPS", groups);
+      let rec = new DSLRecord(groups, proxied);
+      info.records.push(rec);
+      return rec.proxy();
+    }
+    let output = (...args:any[]) => {
+      let out = recordFunc.apply(null, args);
+      out.output = true;
+      return out;
+    }
+    let fnGet = (obj:any, prop:string) => {
+        let path = obj.path || [];
+        path.push(prop);
+        let neue:any = () => {};
+        neue.path = path;
+        return new Proxy(neue, {
+          get: fnGet,
+          apply: (target:any, targetThis:any, args:any[]) => {
+            let func = new DSLFunction(path, args);
+            info.functions.push(func);
+            return func;
+          }});
+    }
+    let fn = new Proxy({}, {get:fnGet});
+    let code = this.transformBlockCode(func.toString());
+    code = code.replace(/function.*\{/, "");
+    let neueFunc = new Function("record", "fn", "output", code.substring(0, code.length - 1));
+
+    let outputs = neueFunc(recordFunc, fn, output);
+    console.log(info);
+  }
+
+  input(changes:any[]) {
+
+  }
+
+  //-------------------------------------------------------------------
+  // Code transforms
+  //--------------------------------------------------------------------
 
   transformBlockCode(code:string):string {
 
@@ -141,54 +211,11 @@ class Program {
     return code;
   }
 
-  block(name:string, func:any) {
-    let info = {records: [] as EveRecord[], variables: [], functions: [] as FunctionCall[]};
-    let recordFunc = (...args:any[]) => {
-      let lastArg = args[args.length - 1];
-      let proxied:any = {};
-      let groups;
-      if(typeof lastArg === "object") {
-        proxied = lastArg;
-        groups = args.slice(0, args.length - 1);
-      } else {
-        groups = args.slice(0, args.length);
-      }
-      // console.log("GROUPS", groups);
-      let rec = new EveRecord(groups, proxied);
-      info.records.push(rec);
-      return rec.proxy();
-    }
-    let output = (...args:any[]) => {
-      let out = recordFunc.apply(null, args);
-      out.output = true;
-      return out;
-    }
-    let fnGet = (obj:any, prop:string) => {
-        let path = obj.path || [];
-        path.push(prop);
-        let neue:any = () => {};
-        neue.path = path;
-        return new Proxy(neue, {
-          get: fnGet,
-          apply: (target:any, targetThis:any, args:any[]) => {
-            let func = new FunctionCall(path, args);
-            info.functions.push(func);
-            return func;
-          }});
-    }
-    let fn = new Proxy({}, {get:fnGet});
-    let code = this.transformBlockCode(func.toString());
-    code = code.replace(/function.*\{/, "");
-    let neueFunc = new Function("record", "fn", "output", code.substring(0, code.length - 1));
-
-    let outputs = neueFunc(recordFunc, fn, output);
-    console.log(info);
-  }
-
-  input(changes:any[]) {
-
-  }
 }
+
+//--------------------------------------------------------------------
+// Testing
+//--------------------------------------------------------------------
 
 let foo = new Program("foo");
 
@@ -196,10 +223,6 @@ foo.block("cool story", (find:any, fn:any, record:any) => {
   let person = find("person");
   let text = `yo ${person.name} zomg ${person} ${person.age}`;
   return [
-    record("html/div", {person, text, children: [
-      record("html/div", {text: "yo"}),
-      record("html/div", {text: "yo2"}),
-      record("html/div", {text: "yo3"}),
-    ]})
+    record("html/div", {person, text})
   ]
 })
