@@ -65,13 +65,12 @@ function degreesToRadians(degrees:number){
 }
 
 class Add extends TotalFunctionConstraint {
-  resolveProposal(proposal, prefix) {
-    let {args} = this.resolve(prefix);
-    return [this.getReturnValue(args)];
-  }
-
   getReturnValue(args) {
-    return args[0] + args[1];
+    if ((typeof(args[0]) === "number") && (typeof(args[1]) === "number")) {
+      return args[0] + args[1];
+    } else {
+      return NaN
+    }
   }
 }
 

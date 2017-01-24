@@ -228,10 +228,9 @@ let Fix_list : valueTest[]  = [
 testSingleExpressionByList(Fix_list );
 
 
-test("Test that string concatenation is still working after NaN change.", (assert) => {
+test("Test that string concatenation with plus does not work.", (assert) => {
   let expected = {
     insert: [
-      ["a", "result", "Test Testy"],
     ],
     remove: [],
   };
@@ -241,6 +240,92 @@ test("Test that string concatenation is still working after NaN change.", (asser
     search
       a = "Test "
       b = "Testy"
+      x =  a + b
+
+    bind
+      [result: x]
+    ~~~
+  `);
+  assert.end();
+});
+
+test("Test that that plus with string numbers filters.", (assert) => {
+  let expected = {
+    insert: [
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+    search
+      a = "1"
+      b = "1"
+      x =  a + b
+
+    bind
+      [result: x]
+    ~~~
+  `);
+  assert.end();
+});
+
+test("Test that plus with string + number filters.", (assert) => {
+  let expected = {
+    insert: [
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+    search
+      a = "1"
+      b = 1
+      x =  a + b
+
+    bind
+      [result: x]
+    ~~~
+  `);
+  assert.end();
+});
+
+test("Test that plus with number + string filters..", (assert) => {
+  let expected = {
+    insert: [
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+    search
+      a = 1
+      b = "1"
+      x =  a + b
+
+    bind
+      [result: x]
+    ~~~
+  `);
+  assert.end();
+});
+
+
+test("Test that that plus with number + number does work.", (assert) => {
+  let expected = {
+    insert: [
+      ["a", "result", "2"],
+    ],
+    remove: [],
+  };
+
+  evaluate(assert, expected, `
+    ~~~
+    search
+      a = 1
+      b = 1
       x =  a + b
 
     bind
