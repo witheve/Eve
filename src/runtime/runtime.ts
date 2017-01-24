@@ -1,4 +1,4 @@
-import {Index, ListIndex, HashIndex} from "./indexes";
+import {Index, ListIndex, HashIndex, BitIndex, InsertOnlyHashIndex} from "./indexes";
 
 //------------------------------------------------------------------------
 // Debugging
@@ -40,21 +40,21 @@ type Multiplicity = number;
 
 export var ALLOCATION_COUNT:any = {};
 
-export function createHash(place = "unknown-hash") {
-  if(!ALLOCATION_COUNT[place]) ALLOCATION_COUNT[place] = 0;
-  ALLOCATION_COUNT[place]++;
+export function createHash(place = "unknown") {
+  // if(!ALLOCATION_COUNT[place]) ALLOCATION_COUNT[place] = 0;
+  // ALLOCATION_COUNT[place]++;
   return Object.create(null);
 }
 
 export function createArray(place = "unknown") {
-  if(!ALLOCATION_COUNT[place]) ALLOCATION_COUNT[place] = 0;
-  ALLOCATION_COUNT[place]++;
+  // if(!ALLOCATION_COUNT[place]) ALLOCATION_COUNT[place] = 0;
+  // ALLOCATION_COUNT[place]++;
   return [];
 }
 
 export function copyArray(arr:any[], place = "unknown") {
-  if(!ALLOCATION_COUNT[place]) ALLOCATION_COUNT[place] = 0;
-  ALLOCATION_COUNT[place]++;
+  // if(!ALLOCATION_COUNT[place]) ALLOCATION_COUNT[place] = 0;
+  // ALLOCATION_COUNT[place]++;
   return arr.slice();
 }
 
@@ -1149,7 +1149,8 @@ export function doIt() {
   for(let i = 0; i < size; i++) {
     changes.push(createChangeSet([i - 1, "name", i - 1, 1], [i, "tag", "person", 1]));
   }
-  let index = new HashIndex();
+  // let index = new BitIndex();
+  let index = new InsertOnlyHashIndex();
   ALLOCATION_COUNT = {};
   console.time("do it");
 

@@ -255,6 +255,62 @@ export class HashIndex implements Index {
   }
 }
 
+export class InsertOnlyHashIndex implements Index {
+  eavIndex = createHash();
+  aveIndex = createHash();
+  cardinality = 0;
+
+  getOrCreateHash(parent:any, key:any) {
+    let found = parent[key];
+    if(!found) {
+      found = parent[key] = createHash("hashLevel");
+    }
+    return found;
+  }
+
+  getOrCreateArray(parent:any, key:any) {
+    let found = parent[key];
+    if(!found) {
+      found = parent[key] = createArray("hashVix");
+    }
+    return found;
+  }
+
+  insert(change:Change) {
+    let {getOrCreateHash, getOrCreateArray} = this;
+    let eIx = getOrCreateHash(this.eavIndex, change.e);
+    let aIx = getOrCreateHash(eIx, change.a);
+    let vIx = getOrCreateArray(aIx, change.v);
+    vIx.push(change.n, change.transaction, change.round, change.count);
+
+    aIx = getOrCreateHash(this.aveIndex, change.a);
+    vIx = getOrCreateHash(aIx, change.v);
+    eIx = getOrCreateArray(vIx, change.e);
+    eIx.push(change.n, change.transaction, change.round, change.count);
+
+    this.cardinality++;
+  }
+
+
+  resolveProposal(proposal:Proposal) {
+    return createArray();
+  }
+
+  propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number) {
+    return proposal;
+  }
+
+  check(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):boolean {
+    return false;
+  }
+
+  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[] {
+    let final = createArray() as EAVN[];
+    return final;
+  }
+
+}
+
 
 // @TODO: Implement
 class MatrixIndex implements Index {
@@ -283,3 +339,328 @@ class MatrixIndex implements Index {
     return final;
   }
 }
+
+class BitMatrixTree {
+
+  root: any[];
+  bins: number;
+  levels: number;
+  cardinality: number;
+
+  constructor(bins = 8, levels = 5) {
+    this.root = [];
+    this.bins = bins;
+    this.levels = levels;
+    this.cardinality = 0;
+  }
+
+  size() {
+    return Math.pow(this.bins, this.levels);
+  }
+
+  insert(row:number, col:number, n:ID, transaction:number, round:number, count:number) {
+    let {bins} = this;
+    // let path = [];
+    let size = this.size();
+    let rowStart = 0;
+    let colStart = 0;
+    let current = this.root;
+    for(let i = 0; i < this.levels - 1; i++) {
+      let rowEdge = (rowStart + size/bins);
+      let colEdge = (colStart + size/bins);
+      let rowIx = Math.floor(row / rowEdge)
+      let colIx = Math.floor(col / colEdge)
+      let pos = rowIx * this.bins + colIx;
+      // path.push(pos);
+      let next = current[pos];
+      if(!next) next = current[pos] = [];
+      size = size / bins
+      if(rowIx) rowStart = rowEdge;
+      if(colIx) colStart = colEdge;
+      current = next;
+    }
+    let rowIx = row - rowStart;
+    let colIx = (col - colStart) % bins;
+    let pos = (rowIx * bins) + colIx;
+    // console.log("LAST", {size, rowIx, colIx, pos, row, rowStart});
+    // path.push(pos);
+    // console.log("CURRENT POS", path);
+    if(!current[pos]) {
+      current[pos] = [n,transaction,round,count];
+      this.cardinality++;
+      return true;
+    } else {
+      current[pos].push(n,transaction,round,count);
+      this.cardinality++;
+    }
+    return false;
+  }
+
+  check(row:number, col:number) {
+    let {bins} = this;
+    let size = this.size();
+    let rowStart = 0;
+    let colStart = 0;
+    let current = this.root;
+    for(let i = 0; i < this.levels - 1; i++) {
+      let rowEdge = (rowStart + size/bins);
+      let colEdge = (colStart + size/bins);
+      let rowIx = Math.floor(row / rowEdge)
+      let colIx = Math.floor(col / colEdge)
+      let pos = rowIx * this.bins + colIx;
+      let next = current[pos];
+      if(!next) return false;
+      size = size / bins
+      if(rowIx) rowStart = rowEdge;
+      if(colIx) colStart = colEdge;
+      current = next;
+    }
+    let rowIx = row - rowStart;
+    let colIx = (col - colStart) % bins;
+    let pos = (rowIx * bins) + colIx;
+    if(current[pos]) return true;
+    return false;
+  }
+
+  findRows(col: number, fill:ID[] = []) {
+    let {levels, bins} = this;
+    // @TODO: we shouldn't need an allocation here
+    // Each frame on the stack is encoded as:
+    //    level, level-array, row-start, col-start
+    let queue = [0, this.root, 0, 0];
+    let queuePos = 0;
+    let queueLength = 1;
+    let maxLevel = levels - 1;
+    let fullSize = this.size();
+    while(queuePos < queueLength) {
+      let curPos = queuePos * 4;
+      let level = queue[curPos] as number;
+      let matrix = queue[curPos + 1] as number[];
+      let rowStart = queue[curPos + 2] as number;
+      let colStart = queue[curPos + 3] as number;
+      let size = fullSize / Math.pow(bins, level);
+      // since only the column is fixed, we need to look at all the rows.
+      for(let rowIx = 0; rowIx < bins; rowIx++) {
+        // find the subarray that contain that column and the current row
+        let colEdge = colStart + size/bins;
+        let colIx = Math.floor(col / colEdge)
+        let rowValue = rowStart + rowIx * size / bins;
+        let pos = rowIx * this.bins + colIx;
+        let next = matrix[pos];
+        if(next) {
+          // if we are at the leaves, add this to the fill
+          if(level === maxLevel) {
+            fill.push(rowValue);
+          } else {
+            // if we're not at the leaves, push them onto the stack
+            queue.push(level + 1, next, rowValue, colStart + colIx * size);
+            queueLength = queueLength + 1;
+          }
+        }
+      }
+
+      // now that we've looked at all the rows, we move the queue forward
+      queuePos = queuePos + 1;
+    }
+    return fill;
+  }
+
+  findCols(row: number, fill:ID[] = []) {
+    let {levels, bins} = this;
+    // @TODO: we shouldn't need an allocation here
+    // Each frame on the stack is encoded as:
+    //    level, level-array, row-start, col-start
+    let queue = [0, this.root, 0, 0];
+    let queuePos = 0;
+    let queueLength = 1;
+    let maxLevel = levels - 1;
+    let fullSize = this.size();
+    while(queuePos < queueLength) {
+      let curPos = queuePos * 4;
+      let level = queue[curPos] as number;
+      let matrix = queue[curPos + 1] as ID[];
+      let rowStart = queue[curPos + 2] as number;
+      let colStart = queue[curPos + 3] as number;
+      let size = fullSize / Math.pow(bins, level);
+      // since only the row is fixed, we need to look at all the rows.
+      for(let colIx = 0; colIx < bins; colIx++) {
+        // find the subarray that contain that row and the current column
+        let rowEdge = rowStart + size/bins;
+        let rowIx = Math.floor(row / rowEdge)
+        let colValue = colStart + colIx * size / bins;
+        let pos = rowIx * this.bins + colIx;
+        let next = matrix[pos];
+        if(next) {
+          // if we are at the leaves, add this to the fill
+          if(level === maxLevel) {
+            fill.push(colValue);
+          } else {
+            // if we're not at the leaves, push them onto the stack
+            queue.push(level + 1, next, rowStart + rowIx * size, colValue);
+            queueLength = queueLength + 1;
+          }
+        }
+      }
+
+      // now that we've looked at all the rows, we move the queue forward
+      queuePos = queuePos + 1;
+    }
+    return fill;
+  }
+
+  toValues(fill:ID[] = []) {
+    let {levels, bins} = this;
+    // @TODO: we shouldn't need an allocation here
+    // Each frame on the stack is encoded as:
+    //    level, level-array, row-start, col-start
+    let queue = [0, this.root, 0, 0];
+    let queuePos = 0;
+    let queueLength = 1;
+    let maxLevel = levels - 1;
+    let fullSize = this.size();
+    let levelSize = bins * bins;
+    while(queuePos < queueLength) {
+      let curPos = queuePos * 4;
+      let level = queue[curPos] as number;
+      let matrix = queue[curPos + 1] as ID[];
+      let rowStart = queue[curPos + 2] as number;
+      let colStart = queue[curPos + 3] as number;
+      let size = fullSize / Math.pow(bins, level);
+      for(let pos = 0; pos < levelSize; pos++) {
+        let next = matrix[pos];
+        if(next) {
+          let rowIx = Math.floor(pos / bins);
+          let rowValue = rowStart + rowIx * size / bins;
+          let colIx = pos % bins;
+          let colValue = colStart + colIx * size / bins;
+          // if we are at the leaves, add this to the fill
+          if(level === maxLevel) {
+            fill.push(rowValue, colValue);
+          } else {
+            // if we're not at the leaves, push them onto the stack
+            queue.push(level + 1, next, rowValue, colValue);
+            queueLength = queueLength + 1;
+          }
+        }
+      }
+
+      // now that we've looked at all the rows, we move the queue forward
+      queuePos = queuePos + 1;
+    }
+    return fill;
+  }
+}
+
+export class BitIndex implements Index {
+  indexes: {[attr: string]: BitMatrixTree};
+  attributes: ID[];
+  cardinality: number = 0;
+  constructor() {
+    this.attributes = createArray();
+    this.indexes = createHash();
+  }
+
+  insert(change:Change) {
+    let {e,a,v,n,transaction,round,count} = change;
+    let index = this.indexes[a];
+    if(!index) {
+      this.attributes.push(a);
+      index = this.indexes[a] = new BitMatrixTree(8, 5);
+    }
+    let inserted = index.insert(e,v,n,transaction,round,count);
+    this.cardinality++;
+    // console.log("inserting", e, a, v, ei, vi, inserted);
+  }
+
+  resolveProposal(proposal:Proposal) {
+    return createArray();
+  }
+
+  propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number) {
+    return proposal;
+  }
+
+  check(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):boolean {
+    return false;
+  }
+
+  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[] {
+    let final = createArray() as EAVN[];
+    return final;
+  }
+
+  // contains() {
+  //   let {e,a,v,n,transaction,round,count} = change;
+  //   let index = this.indexes[a];
+  //   if(!index) return false;
+  //   let ei = this.interner.check(e);
+  //   let vi = this.interner.check(v);
+  //   return index.check(ei,vi);
+  // }
+
+  // get_AV(e,a,v,fill = []): any[] {
+  //   let index = this.indexes[a];
+  //   if(!index) return fill;
+  //   let vi = this.interner.check(v);
+  //   return index.findRows(vi, fill, this.interner.indexes);
+  // }
+
+  // getEA_(e,a,v,fill = []): any[] {
+  //   let index = this.indexes[a];
+  //   if(!index) return fill;
+  //   let ei = this.interner.check(e);
+  //   return index.findCols(ei, fill, this.interner.indexes);
+  // }
+
+  // get_A_(e,a,v,fill = []): any[] {
+  //   let index = this.indexes[a];
+  //   if(!index) return fill;
+  //   return index.toValues(fill, this.interner.indexes);
+  // }
+
+  // getE__(e,a,v,fill = []): any[] {
+  //   let ei = this.interner.check(e);
+  //   let throwAway = [];
+  //   for(let attribute of this.attributes) {
+  //     let index = this.indexes[attribute];
+  //     if(index.findCols(ei, throwAway, this.interner.indexes).length) {
+  //       fill.push(attribute);
+  //     }
+  //   }
+  //   return fill;
+  // }
+
+  // get__V(e,a,v,fill = []): any[] {
+  //   let vi = this.interner.check(v);
+  //   let throwAway = [];
+  //   for(let attribute of this.attributes) {
+  //     let index = this.indexes[attribute];
+  //     if(index.findRows(vi, throwAway, this.interner.indexes).length) {
+  //       fill.push(attribute);
+  //     }
+  //   }
+  //   return fill;
+  // }
+
+  // getE_V(e,a,v,fill = []): any[] {
+  //   let ei = this.interner.check(e);
+  //   let vi = this.interner.check(v);
+  //   for(let attribute of this.attributes) {
+  //     let index = this.indexes[attribute];
+  //     if(index.check(ei,vi)) {
+  //       fill.push(attribute);
+  //     }
+  //   }
+  //   return fill;
+  // }
+
+  // get___(e,a,v,fill = []): any[] {
+  //   for(let attribute of this.attributes) {
+  //     fill.push(attribute);
+  //   }
+  //   return fill;
+  // }
+
+
+}
+
