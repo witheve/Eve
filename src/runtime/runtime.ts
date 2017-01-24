@@ -789,6 +789,31 @@ interface Node {
   exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results?:ID[][], changes?:Change[]):boolean;
 }
 
+/**
+ * The JoinNode implements generic join across multiple constraints.
+ * Since our system is incremental, we need to do something slightly fancier than we did in the previous runtime.
+ * For each new change that enters the system, we ask each of our constraints whether they are capable of producing
+ * a new result. In the case where a single constraint can, we presolve that constraint and then run the rest normally,
+ * limited to only producing results that match the first constraint. However, if multiple constraints might apply the input,
+ * we need to run for each *combination* of heads. E.g.:
+ *
+ * Given a join node with constraints [A, B, C, and D], where A and C can both apply the input, we must combine the results of
+ * the following computations to get the full result set:
+ * Apply A -> Do {B, C, D}
+ * Apply {A, D} -> Do {B, C}
+ * Apply {D} -> Do {A, B, C}
+ *
+ * We calculate this using the power set in exec.
+ *
+ * We then apply each of these combinations by running a genericJoin over the remaining unresolved registers.
+ * We ask each un-applied constraint to propose a register to be solved. If a constraint is capable of resolving one, it
+ * returns the set of registers it can resolve and an estimate of the result set's cardinality. Generic Join chooses the
+ * cheapest proposal, which the winning constraint then fully computes (or retrieves from cache and returns). Next it asks
+ * each other constraint to accept or reject the proposal. If the constraint doesn't apply to the solved registers, it accepts.
+ * If the solution contains results that match the output of the constraint, it also accepts. Otherwise, it must reject the
+ * solution and that particular run yields no results.
+ */
+
 class JoinNode implements Node {
   registerLength = 0;
   registerArrays:Register[][];
