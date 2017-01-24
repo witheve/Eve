@@ -1,5 +1,5 @@
 SystemJS.config({
-  baseURL: "/build/src",
+  baseURL: "build/",
   defaultJSExtensions: true,
   map: {fs: "@empty", path: "@empty", glob: "@empty", mkdirp: "@empty"},
   meta: {"/build/src/codemirror.js": { format: "cjs" }}
