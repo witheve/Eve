@@ -34,8 +34,6 @@ function printConstraint(constraint:Constraint) {
 // Runtime
 //------------------------------------------------------------------------
 
-type RawValue = string|number;
-export type ID = number;
 type Multiplicity = number;
 
 export var ALLOCATION_COUNT:any = {};
@@ -74,6 +72,11 @@ function isNumber(thing:any): thing is number {
 //------------------------------------------------------------------------
 // Interning
 //------------------------------------------------------------------------
+
+/** The union of value types we support in Eve. */
+type RawValue = string|number;
+/**  An interned value's ID. */
+export type ID = number;
 
 export class Interner {
   strings: {[value:string]: ID|undefined} = createHash();
@@ -145,36 +148,21 @@ export var GlobalInterner = new Interner();
 //------------------------------------------------------------------------
 
 export type EAVNField = "e"|"a"|"v"|"n";
+
+/**
+ * An EAVN is a single Attribute:vVlue pair of an Entity (a record), produced by a given Node.
+*/
+
 export class EAVN {
   constructor(public e:ID, public a:ID, public v:ID, public n:ID) {}
 };
-
-//------------------------------------------------------------------------
-// Values
-//------------------------------------------------------------------------
-
-export type ResolvedValue = ID|undefined|IgnoreRegister;
-
-//------------------------------------------------------------------------
-// Proposal
-//------------------------------------------------------------------------
-
-export interface Proposal {
-  cardinality:number,
-  forFields:EAVNField[],
-  forRegisters:Register[],
-  proposer:Constraint,
-  skip?:boolean,
-  info?:any,
-}
-
 
 //------------------------------------------------------------------------
 // Changes
 //------------------------------------------------------------------------
 
 /**
- * A change is a single changed EAV row of a changeset.
+ * A change is an expanded variant of an EAVN, which also tracks the transaction, round, and count of the fact.
  *  E.g., if we add [#person name: "josh"] then
  *  (<1>, "tag", "person", ...) and
  *  (<1>, "name", "josh", ...) are each separate changes.
@@ -193,34 +181,28 @@ export class Change {
   }
 }
 
-//------------------------------------------------------------------------
-// Registers
-//------------------------------------------------------------------------
-
+/** A changeset is a list of changes, intended to occur in a single transaction. */
 type ChangeSet = Change[];
 
-/**
- * A register is just a numerical offset into the solved prefix.
- * We can't make this a type alias because we wouldn't be able to
- * tell the difference between static numbers and registers in scans.
- */
+//------------------------------------------------------------------------
+// Constraints
+//------------------------------------------------------------------------
 
-export class Register {
-  constructor(public offset:number) {}
+enum ApplyInputState {
+  pass,
+  fail,
+  none,
 }
 
-function isRegister(x: any): x is Register {
-  return x && x.constructor === Register;
+export interface Constraint {
+  setup():void;
+  getRegisters():Register[];
+  applyInput(input:Change, prefix:ID[]):ApplyInputState;
+  propose(index:Index, prefix:ID[], transaction:number, round:number, results:any[]):Proposal;
+  resolveProposal(index:Index, prefix:ID[], proposal:Proposal, transaction:number, round:number, results:any[]):ID[][];
+  accept(index:Index, prefix:ID[], transaction:number, round:number, solvingFor:Register[]):boolean;
+  acceptInput(index:Index, input:Change, prefix:ID[], transaction:number, round:number):boolean;
 }
-
-/** The ignore register is a sentinel value for ScanFields that tell the scan to completely ignore that field. */
-type IgnoreRegister = null;
-export var IGNORE_REG:IgnoreRegister = null;
-
-/** A scan field may contain a register, a static interned value, or the IGNORE_REG sentinel value. */
-type ScanField = Register|ID|IgnoreRegister;
-
-type ResolvedEAVN = {e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue};
 
 //------------------------------------------------------------------------
 // Scans
@@ -392,26 +374,6 @@ class Scan implements Constraint {
     return this.registers;
   }
 
-}
-
-//------------------------------------------------------------------------
-// Constraints
-//------------------------------------------------------------------------
-
-enum ApplyInputState {
-  pass,
-  fail,
-  none,
-}
-
-export interface Constraint {
-  setup():void;
-  getRegisters():Register[];
-  applyInput(input:Change, prefix:ID[]):ApplyInputState;
-  propose(index:Index, prefix:ID[], transaction:number, round:number, results:any[]):Proposal;
-  resolveProposal(index:Index, prefix:ID[], proposal:Proposal, transaction:number, round:number, results:any[]):ID[][];
-  accept(index:Index, prefix:ID[], transaction:number, round:number, solvingFor:Register[]):boolean;
-  acceptInput(index:Index, input:Change, prefix:ID[], transaction:number, round:number):boolean;
 }
 
 //------------------------------------------------------------------------
@@ -770,6 +732,49 @@ makeFunction({
 });
 
 //------------------------------------------------------------------------
+// Proposal
+//------------------------------------------------------------------------
+
+export interface Proposal {
+  cardinality:number,
+  forFields:EAVNField[],
+  forRegisters:Register[],
+  proposer:Constraint,
+  skip?:boolean,
+  info?:any,
+}
+
+//------------------------------------------------------------------------
+// Registers
+//------------------------------------------------------------------------
+
+/**
+ * A register is just a numerical offset into the solved prefix.
+ * We can't make this a type alias because we wouldn't be able to
+ * tell the difference between static numbers and registers in scans.
+ */
+
+export class Register {
+  constructor(public offset:number) {}
+}
+
+function isRegister(x: any): x is Register {
+  return x && x.constructor === Register;
+}
+
+/** The ignore register is a sentinel value for ScanFields that tell the scan to completely ignore that field. */
+export var IGNORE_REG = null;
+type IgnoreRegister = typeof IGNORE_REG;
+
+/** A scan field may contain a register, a static interned value, or the IGNORE_REG sentinel value. */
+type ScanField = Register|ID|IgnoreRegister;
+/** A resolved value is a scan field that, if it contained a register, now contains the register's resolved value. */
+export type ResolvedValue = ID|undefined|IgnoreRegister;
+
+type ResolvedEAVN = {e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue};
+
+
+//------------------------------------------------------------------------
 // Nodes
 //------------------------------------------------------------------------
 
@@ -989,6 +994,10 @@ class InsertNode implements Node {
   }
 }
 
+//------------------------------------------------------------------------------
+// Block
+//------------------------------------------------------------------------------
+
 class Block {
   constructor(public name:string, public nodes:Node[]) {}
 
@@ -1174,4 +1183,3 @@ for(let ix = 0; ix < 1; ix++) {
 if(typeof window === "object") {
   (window as any)["doit"] = doIt as any;
 }
-
