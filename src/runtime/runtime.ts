@@ -34,8 +34,6 @@ function printConstraint(constraint:Constraint) {
 // Runtime
 //------------------------------------------------------------------------
 
-type Multiplicity = number;
-
 export var ALLOCATION_COUNT:any = {};
 
 export function createHash(place = "unknown-hash") {
@@ -150,8 +148,12 @@ export var GlobalInterner = new Interner();
 export type EAVNField = "e"|"a"|"v"|"n";
 
 /**
- * An EAVN is a single Attribute:vVlue pair of an Entity (a record), produced by a given Node.
-*/
+ * An EAVN is a single Attribute:Value pair of an Entity (a record),
+ * produced by a given Node.
+ * E.g., the record `[#person name: "josh"]` translates to two EAVNs:
+ * (<1>, "tag", "person", <node id>),
+ * (<1>, "name", "josh", <node id>)
+ */
 
 export class EAVN {
   constructor(public e:ID, public a:ID, public v:ID, public n:ID) {}
@@ -161,11 +163,13 @@ export class EAVN {
 // Changes
 //------------------------------------------------------------------------
 
+type Multiplicity = number;
+
 /**
- * A change is an expanded variant of an EAVN, which also tracks the transaction, round, and count of the fact.
- *  E.g., if we add [#person name: "josh"] then
- *  (<1>, "tag", "person", ...) and
- *  (<1>, "name", "josh", ...) are each separate changes.
+ * A change is an expanded variant of an EAVN, which also tracks the
+ * transaction, round, and count of the fact.  These additional fields
+ * are used by the executor and index to provide an incremental view
+ * of the DB.
  */
 
 export class Change {
@@ -225,10 +229,12 @@ class Scan implements Constraint {
   proposal:Proposal = {cardinality: 0, forFields: [], forRegisters: [], proposer: this};
 
   /**
-   * Resolve each scan field. The resolved object may contain one of three possible value types:
+   * Resolve each scan field.
+   * The resolved object may contain one of three possible value types:
    * - IGNORE_REG -- this field is entirely ignored by the scan.
-   * - undefined -- this field is a register that hasn't been filled in yet. We'll fill it if possible.
-   * - ID -- this field contains a static or already solved interned value.
+   * - undefined -- this field is a register that hasn't been filled in yet.
+   *                We'll fill it if possible.
+   * - ID -- this field contains a static or already solved value.
    */
   resolve(prefix:ID[]) {
     let resolved = this.resolved;
@@ -260,23 +266,28 @@ class Scan implements Constraint {
   }
 
   /**
-   * A field is unresolved if it is completely ignored by the scan or is an output of the scan.
+   * A field is unresolved if it is completely ignored by the scan or
+   * is an output of the scan.
    */
   fieldUnresolved(resolved:ResolvedEAVN, key: keyof ResolvedEAVN) {
     return resolved[key] === IGNORE_REG || resolved[key] === undefined;
   }
 
   /**
-   * A field is not a static match if it is ignored, not a static field, or the input value does not match the static value.
+   * A field is not a static match if it is ignored, not a static
+   * field, or the input value does not match the static value.
    */
   notStaticMatch(input:Change, key: "e"|"a"|"v"|"n") {
     return this[key] !== IGNORE_REG && !isRegister(this[key]) && this[key] !== input[key];
   }
 
   /**
-   * Apply new changes that may affect this scan to the prefix to derive only the results affected by this change.
-   * If the change was successfully applied or irrelevant we'll return true. If the change was relevant but invalid
-   * (i.e., this scan could not be satisfied due to proposals from previous scans) we'll return false.
+   * Apply new changes that may affect this scan to the prefix to
+   * derive only the results affected by this change.  If the change
+   * was successfully applied or irrelevant we'll return true. If the
+   * change was relevant but invalid (i.e., this scan could not be
+   * satisfied due to proposals from previous scans) we'll return
+   * false.
    */
   applyInput(input:Change, prefix:ID[]) {
     // If this change isn't relevant to this scan, skip it.
@@ -285,10 +296,11 @@ class Scan implements Constraint {
     if(this.notStaticMatch(input, "v")) return ApplyInputState.none;
     if(this.notStaticMatch(input, "n")) return ApplyInputState.none;
 
-    // For each register field of this scan, if the required value is impossible fail, otherwise add this new value to the
-    // appropriate register in the prefix.
-    // @NOTE: Technically, we republish existing values here too. In practice, that's harmless and eliminates the need for extra
-    // branching.
+    // For each register field of this scan:
+    //   if the required value is impossible fail,
+    //   else add this new value to the appropriate prefix register.
+    // @NOTE: Technically, we republish existing values here too.
+    //   In practice, that's harmless and eliminates the need for a branch.
     if(isRegister(this.e)) {
       if(prefix[this.e.offset] !== undefined && prefix[this.e.offset] !== input.e) return ApplyInputState.fail;
       prefix[this.e.offset] = input.e;
@@ -331,8 +343,8 @@ class Scan implements Constraint {
   }
 
   accept(index:Index, prefix:ID[], transaction:number, round:number, solvingFor:Register[]):boolean {
-    // before we start trying to accept, we need to make sure we care about the registers
-    // we are currently solving for
+    // Before we start trying to accept, we check if we care about the
+    // registers we are currently solving.
     let solving = false;
     for(let register of solvingFor) {
       if(this.registerLookup[register.offset]) {
@@ -340,7 +352,8 @@ class Scan implements Constraint {
         break;
       }
     }
-    // if we aren't looking at any of these registers, then we just say we accept
+    // If we aren't looking at any of these registers, then we just
+    // say we accept.
     if(!solving) return true;
     let {e,a,v,n} = this.resolve(prefix);
     return index.check(e, a, v, n, transaction, round);
@@ -359,7 +372,7 @@ class Scan implements Constraint {
   }
 
 
-  // Scans don't have any inherent setup
+  // We precompute the registers we're interested in for fast accepts.
   setup() {
     if(isRegister(this.e)) this.registers.push(this.e);
     if(isRegister(this.a)) this.registers.push(this.a);
@@ -426,6 +439,7 @@ class FunctionConstraint implements Constraint {
   protected applyInputs:(RawValue|RawValue[])[] = createArray();
   protected applyRestInputs:RawValue[] = createArray();
 
+  // We precompute the registers we're interested in for fast accepts.
   setup() {
     this.fieldNames = Object.keys(this.fields);
 
@@ -447,6 +461,10 @@ class FunctionConstraint implements Constraint {
     return this.registers;
   }
 
+  /**
+   * Similar to `Scan.resolve`, but resolving a map of the function's
+   * fields rather than an EAVN.
+   */
   resolve(prefix:ID[]) {
     let resolved = this.resolved;
 
@@ -462,6 +480,9 @@ class FunctionConstraint implements Constraint {
     return resolved;
   }
 
+  /**
+   * If a function is variadic, we need to resolve its rest fields as well.
+   */
   resolveRest(prefix:ID[]) {
     let resolvedRest = this.resolvedRest;
 
@@ -482,7 +503,6 @@ class FunctionConstraint implements Constraint {
   // always return ApplyInputState.none
   applyInput(input:Change, prefix:ID[]):ApplyInputState { return ApplyInputState.none; }
 
-  // @TODO: fill this in
   propose(index:Index, prefix:ID[], transaction:number, round:number, results:any[]):Proposal {
     let proposal = this.proposal;
     proposal.forRegisters.length = 0;
@@ -507,7 +527,7 @@ class FunctionConstraint implements Constraint {
 
     // If any of our args aren't resolved yet, we can't compute results either.
     // @NOTE: This'll need to be touched up when we add optional support if they
-    // co-inhabit the args object.
+    //   co-inhabit the args object.
     for(let input of this.argNames) {
       if(resolved[input] === undefined) {
         proposal.skip = true;
@@ -515,9 +535,10 @@ class FunctionConstraint implements Constraint {
       }
     }
 
-    // Similarly, if we're variadic we need to check that all of our variadic inputs bound to registers are
-    // resolved too.
-    // We really need to bend over backwards at the moment to convince TS to check a static member of the current class...
+    // Similarly, if we're variadic we need to check that all of our
+    // variadic inputs bound to registers are resolved too.
+    // @NOTE: We really need to bend over backwards at the moment to
+    //   convince TS to check a static member of the current class...
     if((this.constructor as (typeof FunctionConstraint)).variadic) {
       let resolvedRest = this.resolveRest(prefix);
       for(let field of resolvedRest) {
@@ -536,26 +557,33 @@ class FunctionConstraint implements Constraint {
       proposal.cardinality = this.estimate(index, prefix, transaction, round);
 
     } else {
-      // Otherwise, we'll just return 1 for now, since computing a function is almost always cheaper than a scan.
-      // @NOTE: If this is an issue, we can just behave like scans and compute ourselves here, caching the results.
+      // Otherwise, we'll just return 1 for now, since computing a
+      // function is almost always cheaper than a scan.
+      // @NOTE: If this is an issue, we can just behave like scans and
+      //   compute ourselves here, caching the results.
       proposal.cardinality = 1;
     }
 
     return proposal;
   }
 
-  /** Pack the resolved register values for the functions argument fields into an array. */
+  /**
+   * Pack the resolved register values for the functions argument
+   * fields into an array.
+   */
   packInputs(prefix:ID[]) {
     let resolved = this.resolve(prefix);
     let inputs = this.applyInputs;
     let argIx = 0;
     for(let argName of this.argNames) {
-      // If we're asked to resolve the propoal we know that we've proposed, and we'll only propose if these are resolved.
+      // If we're asked to resolve the propoal we know that we've
+      // proposed, and we'll only propose if these are resolved.
       inputs[argIx] = GlobalInterner.reverse(resolved[argName]!);
       argIx++;
     }
 
-    // If we're variadic, we also need to pack our var-args up and attach them as the last argument.
+    // If we're variadic, we also need to pack our var-args up and
+    // attach them as the last argument.
     if((this.constructor as (typeof FunctionConstraint)).variadic) {
       let resolvedRest = this.resolveRest(prefix);
       let restInputs = this.applyRestInputs;
@@ -607,7 +635,8 @@ class FunctionConstraint implements Constraint {
   }
 
   accept(index:Index, prefix:ID[], transaction:number, round:number, solvingFor:Register[]):boolean {
-    // If none of the registers we're solving for intersect our inputs or outputs, we're not relevant to the solution.
+    // If none of the registers we're solving for intersect our inputs
+    // or outputs, we're not relevant to the solution.
     let isRelevant = false;
     for(let register of solvingFor) {
       if(this.registerLookup[register.offset]) {
@@ -652,8 +681,6 @@ class FunctionConstraint implements Constraint {
   }
 
   acceptInput(index:Index, input:Change, prefix:ID[], transaction:number, round:number):boolean {
-    // @TODO: Implement the logic for sorting function constraints or re-accepting after scan constraints to ensure prefix is filled.
-    // @NOTE: Can we be smarter than solving for all registers here?
     return this.accept(index, prefix, transaction, round, this.registers);
   }
 }
@@ -715,8 +742,10 @@ makeFunction({
   returns: {result: "string"},
   apply: (values:RawValue[]) => {
     // @FIXME: This is going to be busted in subtle cases.
-    // If a record exists with a "1" and 1 value for the same attribute, they'll collapse for gen-id, but won't join elsewhere.
-    // This means aggregate cardinality will disagree with action node cardinality.
+    //   If a record exists with a "1" and 1 value for the same
+    //   attribute, they'll collapse for gen-id, but won't join
+    //   elsewhere.  This means aggregate cardinality will disagree with
+    //   action node cardinality.
     return [values.join("|")];
   }
 });
@@ -783,35 +812,45 @@ type ResolvedEAVN = {e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:Resolv
  */
 interface Node {
   /**
-   * See Scan.exec()
-   * @NOTE: The result format is slightly different. Rather than a packed list of EAVNs, we instead return a set of valid prefixes.
+   * Evaluate the node in the context of the currently solved prefix,
+   * returning a set of valid prefixes to continue the query as
+   * results.
    */
   exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results?:ID[][], changes?:Change[]):boolean;
 }
 
 /**
  * The JoinNode implements generic join across multiple constraints.
- * Since our system is incremental, we need to do something slightly fancier than we did in the previous runtime.
- * For each new change that enters the system, we ask each of our constraints whether they are capable of producing
- * a new result. In the case where a single constraint can, we presolve that constraint and then run the rest normally,
- * limited to only producing results that match the first constraint. However, if multiple constraints might apply the input,
+ * Since our system is incremental, we need to do something slightly
+ * fancier than we did in the previous runtime.  For each new change
+ * that enters the system, we ask each of our constraints whether they
+ * are capable of producing a new result. In the case where a single
+ * constraint can, we presolve that constraint and then run the rest
+ * normally, limited to only producing results that match the first
+ * constraint. However, if multiple constraints might apply the input,
  * we need to run for each *combination* of heads. E.g.:
  *
- * Given a join node with constraints [A, B, C, and D], where A and C can both apply the input, we must combine the results of
- * the following computations to get the full result set:
+ * Given a join node with constraints [A, B, C, and D], where A and D
+ * can both apply the input, we must combine the results of the
+ * following computations to get the full result set:
  * Apply A -> Do {B, C, D}
  * Apply {A, D} -> Do {B, C}
  * Apply {D} -> Do {A, B, C}
  *
  * We calculate this using the power set in exec.
  *
- * We then apply each of these combinations by running a genericJoin over the remaining unresolved registers.
- * We ask each un-applied constraint to propose a register to be solved. If a constraint is capable of resolving one, it
- * returns the set of registers it can resolve and an estimate of the result set's cardinality. Generic Join chooses the
- * cheapest proposal, which the winning constraint then fully computes (or retrieves from cache and returns). Next it asks
- * each other constraint to accept or reject the proposal. If the constraint doesn't apply to the solved registers, it accepts.
- * If the solution contains results that match the output of the constraint, it also accepts. Otherwise, it must reject the
- * solution and that particular run yields no results.
+ * We then apply each of these combinations by running a genericJoin
+ * over the remaining unresolved registers.  We ask each un-applied
+ * constraint to propose a register to be solved. If a constraint is
+ * capable of resolving one, it returns the set of registers it can
+ * resolve and an estimate of the result set's cardinality. Generic
+ * Join chooses the cheapest proposal, which the winning constraint
+ * then fully computes (or retrieves from cache and returns). Next it
+ * asks each other constraint to accept or reject the proposal. If the
+ * constraint doesn't apply to the solved registers, it accepts.  If
+ * the solution contains results that match the output of the
+ * constraint, it also accepts. Otherwise, it must reject the solution
+ * and that particular run yields no results.
  */
 
 class JoinNode implements Node {
