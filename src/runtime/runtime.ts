@@ -72,7 +72,7 @@ function isNumber(thing:any): thing is number {
 //------------------------------------------------------------------------
 
 /** The union of value types we support in Eve. */
-type RawValue = string|number;
+export type RawValue = string|number;
 /**  An interned value's ID. */
 export type ID = number;
 
@@ -216,7 +216,7 @@ export interface Constraint {
  * A scan maps a set of bound variables to unbound variables.
  */
 
-class Scan implements Constraint {
+export class Scan implements Constraint {
   constructor(public e:ScanField,
               public a:ScanField,
               public v:ScanField,
@@ -396,7 +396,7 @@ class Scan implements Constraint {
 type ConstraintFieldMap = {[name:string]: ScanField};
 type ResolvedFields = {[fieldName:string]: ResolvedValue};
 
-class FunctionConstraint implements Constraint {
+export class FunctionConstraint implements Constraint {
   static registered: {[name:string]: typeof FunctionConstraint} = {};
   static register(name:string, klass: typeof FunctionConstraint) {
     FunctionConstraint.registered[name] = klass;
@@ -787,7 +787,7 @@ export class Register {
   constructor(public offset:number) {}
 }
 
-function isRegister(x: any): x is Register {
+export function isRegister(x: any): x is Register {
   return x && x.constructor === Register;
 }
 
@@ -810,7 +810,7 @@ type ResolvedEAVN = {e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:Resolv
 /**
  * Base class for nodes, the building blocks of blocks.
  */
-interface Node {
+export interface Node {
   /**
    * Evaluate the node in the context of the currently solved prefix,
    * returning a set of valid prefixes to continue the query as
@@ -1032,7 +1032,7 @@ class JoinNode implements Node {
 
 }
 
-class InsertNode implements Node {
+export class InsertNode implements Node {
   constructor(public e:ID|Register,
               public a:ID|Register,
               public v:ID|Register,
