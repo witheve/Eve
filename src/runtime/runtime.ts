@@ -965,7 +965,7 @@ export class JoinNode implements Node {
     // We have to copy here because we need to keep a reference to this even if later
     // rounds might overwrite the proposal
     moveArray(bestProposal.forRegisters, forRegisters);
-    let resolved = proposer.resolveProposal(index, prefix, bestProposal, transaction, round, proposedResults);
+    let resolved:any[] = proposer.resolveProposal(index, prefix, bestProposal, transaction, round, proposedResults);
     if(resolved[0].constructor === Array) {
       resultLoop: for(let result of resolved) {
         let ix = 0;
