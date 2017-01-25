@@ -407,8 +407,7 @@ export class FunctionConstraint implements Constraint {
   static create(name:string, fields:ConstraintFieldMap, restFields:(ID|Register)[] = createArray()):FunctionConstraint|undefined {
     let cur = FunctionConstraint.registered[name];
     if(!cur) {
-      console.error(`No function named ${name} is registered.`);
-      return;
+      throw new Error(`No function named ${name} is registered.`);
     }
 
     if(restFields.length && !cur.variadic) {
@@ -587,6 +586,7 @@ export class FunctionConstraint implements Constraint {
     if((this.constructor as (typeof FunctionConstraint)).variadic) {
       let resolvedRest = this.resolveRest(prefix);
       let restInputs = this.applyRestInputs;
+      restInputs.length = 0;
       let ix = 0;
       for(let value of resolvedRest) {
         if(value !== undefined) {
@@ -736,7 +736,7 @@ makeFunction({
 });
 
 makeFunction({
-  name: "eve-internal/gen-id",
+  name: "eve/internal/gen-id",
   args: {},
   variadic: true,
   returns: {result: "string"},
@@ -751,7 +751,7 @@ makeFunction({
 });
 
 makeFunction({
-  name: "eve-internal/concat",
+  name: "eve/internal/concat",
   args: {},
   variadic: true,
   returns: {result: "string"},
@@ -854,7 +854,7 @@ export interface Node {
  * and that particular run yields no results.
  */
 
-class JoinNode implements Node {
+export class JoinNode implements Node {
   registerLength = 0;
   registerArrays:Register[][];
   proposedResultsArrays:ID[][];
@@ -960,27 +960,46 @@ class JoinNode implements Node {
       return results;
     }
 
+
     let {proposer} = bestProposal;
     // We have to copy here because we need to keep a reference to this even if later
     // rounds might overwrite the proposal
     moveArray(bestProposal.forRegisters, forRegisters);
     let resolved = proposer.resolveProposal(index, prefix, bestProposal, transaction, round, proposedResults);
-    resultLoop: for(let result of resolved) {
-      let ix = 0;
-      for(let register of forRegisters) {
-        prefix[register.offset] = result[ix];
-        ix++;
-      }
-      for(let constraint of constraints) {
-        if(constraint === proposer) continue;
-        if(!constraint.accept(index, prefix, transaction, round, forRegisters)) {
-          continue resultLoop;
+    if(resolved[0].constructor === Array) {
+      resultLoop: for(let result of resolved) {
+        let ix = 0;
+        for(let register of forRegisters) {
+          prefix[register.offset] = result[ix];
+          ix++;
+        }
+        for(let constraint of constraints) {
+          if(constraint === proposer) continue;
+          if(!constraint.accept(index, prefix, transaction, round, forRegisters)) {
+            continue resultLoop;
+          }
+        }
+        if(roundIx === 1) {
+          results.push(copyArray(prefix, "gjResults"));
+        } else {
+          this.genericJoin(index, prefix, transaction, round, results, roundIx - 1);
         }
       }
-      if(roundIx === 1) {
-        results.push(copyArray(prefix, "gjResults"));
-      } else {
-        this.genericJoin(index, prefix, transaction, round, results, roundIx - 1);
+    } else {
+      let register = forRegisters[0];
+      resultLoop: for(let result of resolved) {
+        prefix[register.offset] = result as ID;
+        for(let constraint of constraints) {
+          if(constraint === proposer) continue;
+          if(!constraint.accept(index, prefix, transaction, round, forRegisters)) {
+            continue resultLoop;
+          }
+        }
+        if(roundIx === 1) {
+          results.push(copyArray(prefix, "gjResults"));
+        } else {
+          this.genericJoin(index, prefix, transaction, round, results, roundIx - 1);
+        }
       }
     }
     for(let register of forRegisters) {
@@ -1063,7 +1082,7 @@ export class InsertNode implements Node {
 // Block
 //------------------------------------------------------------------------------
 
-class Block {
+export class Block {
   constructor(public name:string, public nodes:Node[]) {}
 
   // We're going to essentially double-buffer the result arrays so we can avoid allocating in the hotpath.
@@ -1101,7 +1120,7 @@ class Block {
 // Transaction
 //------------------------------------------------------------------------------
 
-class Transaction {
+export class Transaction {
 
   round = 0;
   constructor(public transaction:number, public blocks:Block[], public changes:Change[]) {}
@@ -1115,7 +1134,7 @@ class Transaction {
 
       //console.log("Round:", this.round);
 
-      for(let block of blocks) {
+      for(let block of this.blocks) {
         block.exec(index, change, transaction, this.round, changes);
       }
       index.insert(change);
@@ -1133,7 +1152,7 @@ type RawEAVN = [RawValue, RawValue, RawValue, RawValue];
 type RawEAVNC = [RawValue, RawValue, RawValue, RawValue, number];
 
 let _currentTransaction = 0;
-function createChangeSet(...eavns:(RawEAVN|RawEAVNC)[]) {
+export function createChangeSet(...eavns:(RawEAVN|RawEAVNC)[]) {
   let changes:ChangeSet = [];
   for(let [e, a, v, n, c = 1] of eavns as RawEAVNC[]) {
     changes.push(Change.fromValues(e, a, v, n, _currentTransaction, 0, c));
@@ -1174,13 +1193,13 @@ let resultReg = new Register(4);
 //   eid = [#person name]
 // bind
 //   [#div | text: name]
-let blocks:Block[] = [
+let _blocks:Block[] = [
   new Block("things are happening", [
     new JoinNode([
       new Scan(eReg, GlobalInterner.intern("tag"), GlobalInterner.intern("person"), null),
       new Scan(eReg, GlobalInterner.intern("name"), nameReg, null),
-      FunctionConstraint.create("eve-internal/gen-id", {result: idReg}, [eReg, nameReg])!,
-      FunctionConstraint.create("eve-internal/concat", {result: textReg}, [GlobalInterner.intern("name: "), nameReg])!
+      FunctionConstraint.create("eve/internal/gen-id", {result: idReg}, [eReg, nameReg])!,
+      FunctionConstraint.create("eve/internal/concat", {result: textReg}, [GlobalInterner.intern("meep moop: "), nameReg])!
     ]),
     new InsertNode(idReg, GlobalInterner.intern("tag"), GlobalInterner.intern("div"), GlobalInterner.intern(2)),
     new InsertNode(idReg, GlobalInterner.intern("text"), textReg, GlobalInterner.intern(2)),
@@ -1229,7 +1248,7 @@ export function doIt() {
 
   for(let changeset of changes) {
 
-    let trans = new Transaction(changeset[0].transaction, blocks, changeset);
+    let trans = new Transaction(changeset[0].transaction, _blocks, changeset);
     // console.log(`TX ${trans.transaction}\n` + changeset.map((change, ix) => `  -> ${change}`).join("\n"));
     trans.exec(index);
     // console.log(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));

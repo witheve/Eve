@@ -7,13 +7,17 @@
 declare var Proxy:new (obj:any, proxy:any) => any;
 declare var Symbol:any;
 
-import {RawValue, Register, isRegister, GlobalInterner, Scan, IGNORE_REG, ID, InsertNode, Node, Constraint, FunctionConstraint} from "./runtime";
+import {RawValue, Register, isRegister, GlobalInterner, Scan, IGNORE_REG, ID,
+        InsertNode, Node, Constraint, FunctionConstraint} from "./runtime";
+import * as runtime from "./runtime";
+import * as indexes from "./indexes";
 
 //--------------------------------------------------------------------
 // Utils
 //--------------------------------------------------------------------
 
 function maybeIntern(value:(RawValue|Register)):Register|ID {
+  if(value === undefined || value === null) throw new Error("Trying to intern an undefined");
   if(isRegister(value)) return value;
   return GlobalInterner.intern(value);
 }
@@ -44,7 +48,11 @@ class DSLFunction {
   }
 
   compile() {
-    return [{type: "foo"}];
+    let constraints:FunctionConstraint[] = [];
+    let result = maybeIntern(this.block.toValue(this.returnValue));
+    let values = this.args.map((v) => maybeIntern(this.block.toValue(v)))
+    constraints.push(FunctionConstraint.create(this.path.join("/"), {result}, values) as FunctionConstraint);
+    return constraints;
   }
 }
 
@@ -73,14 +81,17 @@ class DSLRecord {
   proxy() {
     return new Proxy(this, {
       get: (obj:any, prop:string) => {
-        let found = obj[prop] || obj.fields[prop];
+        if(obj[prop]) return obj[prop];
+        let found = obj.fields[prop];
         if(prop === Symbol.toPrimitive) return () => {
           return "uh oh";
         }
         if(!found) {
-          let found = new DSLVariable(prop);
+          found = new DSLVariable(prop);
           obj.fields[prop] = [found];
           this.block.registerVariable(found);
+        } else {
+          found = found[0];
         }
         return found;
       },
@@ -114,16 +125,14 @@ class DSLRecord {
     let e = maybeIntern(this.record.value);
     let values = [];
     for(let field in this.fields) {
-      console.log("FIELD", field, this.fields[field]);
       for(let dslValue of this.fields[field]) {
         let value = this.block.toValue(dslValue) as (RawValue | Register);
         // @TODO: generate node ids
-        console.log("ADDING", field, dslValue, value);
         values.push(maybeIntern(value));
         inserts.push(new InsertNode(e, maybeIntern(field), maybeIntern(value), maybeIntern("my-awesome-node")))
       }
     }
-    inserts.push(FunctionConstraint.create("eve-internal/gen-id", {result: e}, values) as FunctionConstraint);
+    inserts.push(FunctionConstraint.create("eve/internal/gen-id", {result: e}, values) as FunctionConstraint);
     return inserts;
 
   }
@@ -150,6 +159,7 @@ class DSLBlock {
   variables:DSLVariable[] = [];
   functions:DSLFunction[] = [];
   variableLookup:{[name:number]:DSLVariable[]} = {};
+  block:runtime.Block;
 
   constructor(public name:string, public creationFunction:string) {
     let functionArgs:string[] = [];
@@ -269,23 +279,24 @@ class DSLBlock {
       if(variable.value.offset !== -1) throw new Error("We've somehow already assigned a variable's register");
       variable.value.offset = registerIx++;
     }
-    let blockContents = [];
-    for(let record of this.records) {
-      let compiled = record.compile();
+    let items = functions.concat(this.records as any[]);
+    let constraints = [];
+    let nodes = [];
+    for(let toCompile of items) {
+      if(!toCompile) continue;
+      let compiled = toCompile.compile();
       if(!compiled) continue;
       for(let item of compiled) {
-        blockContents.push(item);
+        if(item instanceof Scan || item instanceof FunctionConstraint) {
+          constraints.push(item);
+        } else {
+          nodes.push(item as Node);
+        }
       }
     }
-    for(let func of functions) {
-      if(!func) continue;
-      let compiled = func.compile();
-      if(!compiled) continue;
-      for(let item of compiled) {
-        blockContents.push(item);
-      }
-    }
-    console.log(blockContents);
+    nodes.unshift(new runtime.JoinNode(constraints))
+    this.block = new runtime.Block(this.name, nodes);
+    console.log(this);
   }
 
   //-------------------------------------------------------------------
@@ -317,7 +328,7 @@ class DSLBlock {
         }
         left = this.transformBlockCode(left, functionArgs);
         right = this.transformBlockCode(right, functionArgs);
-        strings.push(`${libArg}.string.concat(${left}, ${right})`);
+        strings.push(`${libArg}.eve.internal.concat(${left}, ${right})`);
         return "____" + (strings.length - 1) + "____";
       })
     }
@@ -384,18 +395,23 @@ class DSLBlock {
 
 class Program {
   blocks:DSLBlock[] = [];
-  constructor(public name:string) {}
+  runtimeBlocks:runtime.Block[] = [];
+  index:indexes.Index;
+  constructor(public name:string) {
+    this.index = new indexes.HashIndex();
+  }
 
   block(name:string, func:any) {
     let block = new DSLBlock(name, func);
     this.blocks.push(block);
+    this.runtimeBlocks.push(block.block);
   }
 
-  input(changes:any[]) {
-
+  input(changes:runtime.Change[]) {
+    let trans = new runtime.Transaction(changes[0].transaction, this.runtimeBlocks, changes);
+    trans.exec(this.index);
+    console.log(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
   }
-
-
 }
 
 //--------------------------------------------------------------------
@@ -406,8 +422,10 @@ let foo = new Program("foo");
 
 foo.block("cool story", (find:any, record:any, lib:any) => {
   let person = find("person");
-  let text = `text: ${person.name}`;
+  let text = `name: ${person.name}`;
   return [
     record("html/div", {person, text})
   ]
 })
+
+foo.input(runtime.createChangeSet(["dude", "name", "chris", 1], ["dude", "tag", "person", 1]))
