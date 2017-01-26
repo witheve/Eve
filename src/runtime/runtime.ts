@@ -183,6 +183,16 @@ export class Change {
   toString() {
     return `Change(${GlobalInterner.reverse(this.e)}, ${GlobalInterner.reverse(this.a)}, ${GlobalInterner.reverse(this.v)}, ${GlobalInterner.reverse(this.n)}, ${this.transaction}, ${this.round}, ${this.count})`;
   }
+
+  equal(other:Change, withoutNode?:boolean, withoutE?:boolean) {
+   return (withoutE || this.e === other.e) &&
+          this.a === other.a &&
+          this.v === other.v &&
+          (withoutNode || this.n === other.n) &&
+          this.transaction === other.transaction &&
+          this.round === other.round &&
+          this.count === other.count;
+  }
 }
 
 /** A changeset is a list of changes, intended to occur in a single transaction. */
@@ -402,20 +412,30 @@ export class FunctionConstraint implements Constraint {
     FunctionConstraint.registered[name] = klass;
   }
 
+  static filter = false;
   static variadic = false;
+  static fetchInfo(name:string):typeof FunctionConstraint {
+    return FunctionConstraint.registered[name];
+  }
 
-  static create(name:string, fields:ConstraintFieldMap, restFields:(ID|Register)[] = createArray()):FunctionConstraint|undefined {
+  static create(name:string, fields:ConstraintFieldMap, restFields:(ID|Register)[] = createArray(), packRestIntoFields?:boolean):FunctionConstraint|undefined {
     let cur = FunctionConstraint.registered[name];
     if(!cur) {
       throw new Error(`No function named ${name} is registered.`);
     }
 
-    if(restFields.length && !cur.variadic) {
+    if(!packRestIntoFields && restFields.length && !cur.variadic) {
       console.error(`The ${name} function is not variadic, so may not accept restFields.`);
-      restFields = createArray();
     }
 
-    let created = new cur(fields, restFields);
+    let created = new cur(fields, cur.variadic ? restFields : []);
+    if(packRestIntoFields && !cur.variadic) {
+      let ix = 0;
+      for(let arg of created.argNames) {
+        fields[arg] = restFields[ix];
+        ix++;
+      }
+    }
     return created;
   }
 
@@ -697,6 +717,7 @@ interface FunctionSetup {
 function makeFunction({name, variadic = false, args, returns, apply, estimate}:FunctionSetup) {
   class NewFunctionConstraint extends FunctionConstraint {
     static variadic = variadic;
+    static filter = Object.keys(returns).length === 0;
     name = name;
     args = args;
     returns = returns;
@@ -709,7 +730,7 @@ function makeFunction({name, variadic = false, args, returns, apply, estimate}:F
 
 
 makeFunction({
-  name: ">",
+  name: "compare/>",
   args: {a: "number", b: "number"},
   returns: {},
   apply: (a:number, b:number) => {
@@ -718,7 +739,7 @@ makeFunction({
 });
 
 makeFunction({
-  name: "=",
+  name: "compare/==",
   args: {a: "number", b: "number"},
   returns: {},
   apply: (a:number, b:number) => {
@@ -727,7 +748,7 @@ makeFunction({
 });
 
 makeFunction({
-  name: "+",
+  name: "math/+",
   args: {a: "number", b: "number"},
   returns: {result: "number"},
   apply: (a:number, b:number) => {

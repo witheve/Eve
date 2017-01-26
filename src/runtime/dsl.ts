@@ -43,7 +43,13 @@ class DSLFunction {
   returnValue:DSLVariable;
 
   constructor(public block:DSLBlock, public path:string[], public args:any[]) {
-    this.returnValue = new DSLVariable("record");
+    let name = this.path.join("/");
+    let {filter} = FunctionConstraint.fetchInfo(name)
+    if(filter) {
+      this.returnValue = args[args.length - 1];
+    } else {
+      this.returnValue = new DSLVariable("record");
+    }
     block.registerVariable(this.returnValue);
   }
 
@@ -51,7 +57,13 @@ class DSLFunction {
     let constraints:FunctionConstraint[] = [];
     let result = maybeIntern(this.block.toValue(this.returnValue));
     let values = this.args.map((v) => maybeIntern(this.block.toValue(v)))
-    constraints.push(FunctionConstraint.create(this.path.join("/"), {result}, values) as FunctionConstraint);
+    let name = this.path.join("/");
+    let {variadic, filter} = FunctionConstraint.fetchInfo(name)
+    let returns:any = {};
+    if(!filter) {
+      returns.result = this.returnValue;
+    }
+    constraints.push(FunctionConstraint.create(name, returns, values, !variadic) as FunctionConstraint);
     return constraints;
   }
 }
@@ -204,7 +216,6 @@ class DSLBlock {
     } else {
       tag = args.slice(0, args.length);
     }
-    // console.log("tag", tag);
     let rec = new DSLRecord(this, tag, proxied);
     this.records.push(rec);
     return rec.proxy();
@@ -289,6 +300,7 @@ class DSLBlock {
       for(let item of compiled) {
         if(item instanceof Scan || item instanceof FunctionConstraint) {
           constraints.push(item);
+          // console.log(item);
         } else {
           nodes.push(item as Node);
         }
@@ -296,7 +308,6 @@ class DSLBlock {
     }
     nodes.unshift(new runtime.JoinNode(constraints))
     this.block = new runtime.Block(this.name, nodes);
-    console.log(this);
   }
 
   //-------------------------------------------------------------------
@@ -393,7 +404,7 @@ class DSLBlock {
 // Program
 //--------------------------------------------------------------------
 
-class Program {
+export class Program {
   blocks:DSLBlock[] = [];
   runtimeBlocks:runtime.Block[] = [];
   index:indexes.Index;
@@ -411,6 +422,7 @@ class Program {
     let trans = new runtime.Transaction(changes[0].transaction, this.runtimeBlocks, changes);
     trans.exec(this.index);
     console.log(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
+    return trans;
   }
 }
 
