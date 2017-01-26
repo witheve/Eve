@@ -33,7 +33,7 @@ test("test single block performance with 10000 transactions", (assert) => {
   }
   let end = time(start);
   assert.test("updates finished in " + end, (assert) => {
-    assert.true(end < 600, "Took too long");
+    assert.true(end < 800, "Took too long");
     assert.end();
   })
 
