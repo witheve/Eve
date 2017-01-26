@@ -221,6 +221,16 @@ export class Change {
   toString() {
     return `Change(${GlobalInterner.reverse(this.e)}, ${GlobalInterner.reverse(this.a)}, ${GlobalInterner.reverse(this.v)}, ${GlobalInterner.reverse(this.n)}, ${this.transaction}, ${this.round}, ${this.count})`;
   }
+
+  equal(other:Change, withoutNode?:boolean, withoutE?:boolean) {
+   return (withoutE || this.e == other.e) &&
+          this.a == other.a &&
+          this.v == other.v &&
+          (withoutNode || this.n == other.n) &&
+          this.transaction == other.transaction &&
+          this.round == other.round &&
+          this.count == other.count;
+  }
 }
 
 /** A changeset is a list of changes, intended to occur in a single transaction. */
@@ -440,7 +450,11 @@ export class FunctionConstraint implements Constraint {
     FunctionConstraint.registered[name] = klass;
   }
 
+  static filter = false;
   static variadic = false;
+  static fetchInfo(name:string):typeof FunctionConstraint {
+    return FunctionConstraint.registered[name];
+  }
 
   static create(name:string, fields:ConstraintFieldMap, restFields:(ID|Register)[] = createArray()):FunctionConstraint|undefined {
     let cur = FunctionConstraint.registered[name];
@@ -737,6 +751,7 @@ interface FunctionSetup {
 function makeFunction({name, variadic = false, args, returns, apply, estimate}:FunctionSetup) {
   class NewFunctionConstraint extends FunctionConstraint {
     static variadic = variadic;
+    static filter = Object.keys(returns).length === 0;
     name = name;
     args = args;
     returns = returns;
@@ -749,7 +764,7 @@ function makeFunction({name, variadic = false, args, returns, apply, estimate}:F
 
 
 makeFunction({
-  name: ">",
+  name: "compare/>",
   args: {a: "number", b: "number"},
   returns: {},
   apply: (a:number, b:number) => {
@@ -758,7 +773,7 @@ makeFunction({
 });
 
 makeFunction({
-  name: "=",
+  name: "compare/==",
   args: {a: "number", b: "number"},
   returns: {},
   apply: (a:number, b:number) => {
@@ -767,7 +782,7 @@ makeFunction({
 });
 
 makeFunction({
-  name: "+",
+  name: "math/+",
   args: {a: "number", b: "number"},
   returns: {result: "number"},
   apply: (a:number, b:number) => {
@@ -1196,129 +1211,4 @@ export class Transaction {
     // safely release.
     GlobalInterner.releaseArena("functionOutput");
   }
-}
-
-//------------------------------------------------------------------------------
-// Testing logic
-//------------------------------------------------------------------------------
-
-type RawEAVN = [RawValue, RawValue, RawValue, RawValue];
-type RawEAVNC = [RawValue, RawValue, RawValue, RawValue, number];
-
-let _currentTransaction = 0;
-export function createChangeSet(...eavns:(RawEAVN|RawEAVNC)[]) {
-  let changes:ChangeSet = [];
-  for(let [e, a, v, n, c = 1] of eavns as RawEAVNC[]) {
-    changes.push(Change.fromValues(e, a, v, n, _currentTransaction, 0, c));
-  }
-  _currentTransaction++;
-
-  return changes;
-}
-
-// We'll accumulate the current program state here as we stream in changes.
-let currentState:ChangeSet = [];
-
-// A list of changesets to stream into the program. Each changeset corresponds to an input event.
-let changes:ChangeSet[] = [];
-changes.push(
-  createChangeSet(["<1>", "tag", "person", 1]),
-  createChangeSet(["<1>", "name", "RAB", 1]),
-  createChangeSet(["<1>", "age", 7, 1]),
-  createChangeSet(["<2>", "tag", "person", 1], ["<2>", "name", "KERY", 1], ["<2>", "age", 41, 1]),
-  createChangeSet(["<3>", "tag", "dog", 1], ["<3>", "name", "jeff", 1], ["<3>", "age", 3, 1]),
-  createChangeSet(["<4>", "name", "BORSCHT", 1], ["<4>", "tag", "person", 1]),
-);
-
-// Manually created registers for the testing program below.
-let nameReg = new Register(0);
-let eReg = new Register(1);
-let idReg = new Register(2);
-let textReg = new Register(3);
-
-let p1Reg = new Register(0);
-let p2Reg = new Register(1);
-let age1Reg = new Register(2);
-let age2Reg = new Register(3);
-let resultReg = new Register(4);
-
-// Test program. It evaluates:
-// search
-//   eid = [#person name]
-// bind
-//   [#div | text: name]
-let _blocks:Block[] = [
-  new Block("things are happening", [
-    new JoinNode([
-      new Scan(eReg, GlobalInterner.intern("tag"), GlobalInterner.intern("person"), null),
-      new Scan(eReg, GlobalInterner.intern("name"), nameReg, null),
-      FunctionConstraint.create("eve/internal/gen-id", {result: idReg}, [eReg, nameReg])!,
-      FunctionConstraint.create("eve/internal/concat", {result: textReg}, [GlobalInterner.intern("meep moop: "), nameReg])!
-    ]),
-    new InsertNode(idReg, GlobalInterner.intern("tag"), GlobalInterner.intern("div"), GlobalInterner.intern(2)),
-    new InsertNode(idReg, GlobalInterner.intern("text"), GlobalInterner.intern("foo"), GlobalInterner.intern(3)),
-  ]),
-  // new Block("> filters are cool", [
-  //   new JoinNode([
-  //     new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
-  //     new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
-  //     FunctionConstraint.create(">", {a: age1Reg, b: age2Reg})!
-  //   ]),
-  //   new InsertNode(GlobalInterner.intern("is-greater-than"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
-  //   new InsertNode(GlobalInterner.intern("is-greater-than"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
-  // ]),
-  // new Block("= filters are cool", [
-  //   new JoinNode([
-  //     new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
-  //     new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
-  //     FunctionConstraint.create("=", {a: age1Reg, b: age2Reg})!
-  //   ]),
-  //   new InsertNode(GlobalInterner.intern("is-equal"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
-  //   new InsertNode(GlobalInterner.intern("is-equal"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
-  // ]),
-  // new Block("There's a + function in there and it knows whats up", [
-  //   new JoinNode([
-  //     new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
-  //     new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
-  //     FunctionConstraint.create("+", {a: age1Reg, b: age2Reg, result: resultReg})!
-  //   ]),
-  //   new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
-  //   new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
-  //   new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("result"), resultReg, GlobalInterner.intern(76)),
-  // ]),
-
-];
-
-export function doIt(size = 10000) {
-  _currentTransaction = 0;
-  // changes = [];
-  for(let i = 0; i < size; i++) {
-    changes.push(createChangeSet([i - 1, "name", i - 1, 1], [i, "tag", "person", 1]));
-  }
-  let index = new HashIndex();
-  ALLOCATION_COUNT = {};
-  console.time("do it");
-
-  for(let changeset of changes) {
-
-    let trans = new Transaction(changeset[0].transaction, _blocks, changeset);
-    // console.log(`TX ${trans.transaction}\n` + changeset.map((change, ix) => `  -> ${change}`).join("\n"));
-    trans.exec(index);
-    console.log(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
-  }
-  console.timeEnd("do it");
-  // console.log(changes);
-
-  console.log("INDEX SIZE", index.cardinality);
-  console.log("TOTAL ALLOCS", ALLOCATION_COUNT);
-}
-
-for(let ix = 0; ix < 1; ix++) {
-  doIt(0);
-}
-
-console.log(GlobalInterner);
-
-if(typeof window === "object") {
-  (window as any)["doit"] = doIt as any;
 }
