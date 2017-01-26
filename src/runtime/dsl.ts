@@ -48,7 +48,7 @@ class DSLFunction {
     if(filter) {
       this.returnValue = args[args.length - 1];
     } else {
-      this.returnValue = new DSLVariable("record");
+      this.returnValue = new DSLVariable("returnValue");
     }
     block.registerVariable(this.returnValue);
   }
@@ -61,7 +61,7 @@ class DSLFunction {
     let {variadic, filter} = FunctionConstraint.fetchInfo(name)
     let returns:any = {};
     if(!filter) {
-      returns.result = this.returnValue;
+      returns.result = this.block.toValue(this.returnValue);
     }
     constraints.push(FunctionConstraint.create(name, returns, values, !variadic) as FunctionConstraint);
     return constraints;
@@ -421,23 +421,7 @@ export class Program {
   input(changes:runtime.Change[]) {
     let trans = new runtime.Transaction(changes[0].transaction, this.runtimeBlocks, changes);
     trans.exec(this.index);
-    console.log(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
+    // console.log(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
     return trans;
   }
 }
-
-//--------------------------------------------------------------------
-// Testing
-//--------------------------------------------------------------------
-
-let foo = new Program("foo");
-
-foo.block("cool story", (find:any, record:any, lib:any) => {
-  let person = find("person");
-  let text = `name: ${person.name}`;
-  return [
-    record("html/div", {person, text})
-  ]
-})
-
-foo.input(runtime.createChangeSet(["dude", "name", "chris", 1], ["dude", "tag", "person", 1]))

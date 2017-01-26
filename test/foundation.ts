@@ -58,10 +58,10 @@ test("> filters numbers", (assert) => {
     [3, "tag", "person"],
     [3, "age", 3],
   ], [
-    [5, "age1", 41, 1],
-    [5, "age2", 3, 1],
     [4, "age1", 41, 1],
     [4, "age2", 7, 1],
+    [5, "age1", 41, 1],
+    [5, "age2", 3, 1],
     [6, "age1", 7, 1],
     [6, "age2", 3, 1],
   ])
@@ -70,5 +70,46 @@ test("> filters numbers", (assert) => {
 });
 
 
+test("simple addition", (assert) => {
 
+  // -----------------------------------------------------
+  // program
+  // -----------------------------------------------------
+
+  let prog = new Program("test");
+  prog.block("simple block", (find:any, record:any, lib:any) => {
+    let a = find("person");
+    let b = find("person");
+    a.age > b.age;
+    let result = a.age + b.age;
+    return [
+      record({age1: a.age, age2: b.age, result})
+    ]
+  });
+
+  // -----------------------------------------------------
+  // verification
+  // -----------------------------------------------------
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+    [1, "age", 7],
+    [2, "tag", "person"],
+    [2, "age", 41],
+    [3, "tag", "person"],
+    [3, "age", 3],
+  ], [
+    [4, "age1", 41, 1],
+    [4, "age2", 7, 1],
+    [4, "result", 48, 1],
+    [5, "age1", 41, 1],
+    [5, "age2", 3, 1],
+    [5, "result", 44, 1],
+    [6, "age1", 7, 1],
+    [6, "age2", 3, 1],
+    [6, "result", 10, 1],
+  ])
+
+  assert.end();
+});
 
