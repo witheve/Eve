@@ -9,7 +9,7 @@ export type TestChange =  EAVArray | EAVRCArray;
 
 export function createChanges(transaction:number,eavns:TestChange[]) {
   let changes:Runtime.Change[] = [];
-  for(let [e, a, v, round = 0, count = 1] of eavns) {
+  for(let [e, a, v, round = 0, count = 1] of eavns as EAVRCArray[]) {
     changes.push(Runtime.Change.fromValues(e, a, v, "my-awesome-node", transaction, round, count));
   }
   return changes;
