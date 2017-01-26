@@ -418,24 +418,18 @@ export class FunctionConstraint implements Constraint {
     return FunctionConstraint.registered[name];
   }
 
-  static create(name:string, fields:ConstraintFieldMap, restFields:(ID|Register)[] = createArray(), packRestIntoFields?:boolean):FunctionConstraint|undefined {
+  static create(name:string, fields:ConstraintFieldMap, restFields:(ID|Register)[] = createArray()):FunctionConstraint|undefined {
     let cur = FunctionConstraint.registered[name];
     if(!cur) {
       throw new Error(`No function named ${name} is registered.`);
     }
 
-    if(!packRestIntoFields && restFields.length && !cur.variadic) {
+    if(restFields.length && !cur.variadic) {
       console.error(`The ${name} function is not variadic, so may not accept restFields.`);
+      restFields = createArray();
     }
 
-    let created = new cur(fields, cur.variadic ? restFields : []);
-    if(packRestIntoFields && !cur.variadic) {
-      let ix = 0;
-      for(let arg of created.argNames) {
-        fields[arg] = restFields[ix];
-        ix++;
-      }
-    }
+    let created = new cur(fields, restFields);
     return created;
   }
 

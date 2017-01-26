@@ -3,13 +3,13 @@ import * as Runtime from "../src/runtime/runtime";
 import * as test from "tape";
 
 // You can specify changes as either [e,a,v] or [e,a,v,round,count];
-export type EAVArray = [Runtime.RawValue, Runtime.RawValue, Runtime.RawValue];
-export type EAVRCArray = [Runtime.RawValue, Runtime.RawValue, Runtime.RawValue, number, number];
-export type TestChange =  EAVArray | EAVRCArray;
+export type EAVTuple = [Runtime.RawValue, Runtime.RawValue, Runtime.RawValue];
+export type EAVRCTuple = [Runtime.RawValue, Runtime.RawValue, Runtime.RawValue, number, number];
+export type TestChange =  EAVTuple | EAVRCTuple;
 
 export function createChanges(transaction:number,eavns:TestChange[]) {
   let changes:Runtime.Change[] = [];
-  for(let [e, a, v, round = 0, count = 1] of eavns as EAVRCArray[]) {
+  for(let [e, a, v, round = 0, count = 1] of eavns as EAVRCTuple[]) {
     changes.push(Runtime.Change.fromValues(e, a, v, "my-awesome-node", transaction, round, count));
   }
   return changes;

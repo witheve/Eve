@@ -66,7 +66,18 @@ class DSLFunction {
     if(!filter) {
       returns.result = this.block.toValue(this.returnValue);
     }
-    constraints.push(FunctionConstraint.create(name, returns, values, !variadic) as FunctionConstraint);
+    let constraint;
+    if(variadic) {
+      constraint = FunctionConstraint.create(name, returns, values) as FunctionConstraint
+    } else {
+      constraint = FunctionConstraint.create(name, returns, []) as FunctionConstraint
+      let ix = 0;
+      for(let arg of constraint.argNames) {
+        constraint.fields[arg] = values[ix];
+        ix++;
+      }
+    }
+    constraints.push(constraint);
     return constraints;
   }
 }
