@@ -653,7 +653,6 @@ export class FunctionConstraint implements Constraint {
   }
 
   unpackOutputs(outputs:undefined|RawValue[]) {
-    console.log("unpacking!", outputs);
     if(!outputs) return;
     for(let ix = 0; ix < outputs.length; ix++) {
       outputs[ix] = GlobalInterner.arenaIntern("functionOutput", outputs[ix]);
@@ -662,7 +661,6 @@ export class FunctionConstraint implements Constraint {
   }
 
   resolveProposal(index:Index, prefix:ID[], proposal:Proposal, transaction:number, round:number, results:any[]):ID[][] {
-    console.log("RESOLVING!");
     // First we build the args array to provide the apply function.
     let inputs = this.packInputs(prefix);
 
