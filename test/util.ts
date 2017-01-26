@@ -95,7 +95,7 @@ export function verify(assert:any, program:Program, input:any[], output:any[], t
         let potentials = [];
         for(let expected of all) {
           for(let match of matches) {
-            if(match.e === expected.e && actual.equal(expected, true, true)) {
+            if(match.e === expected.e && !fullyResolved[match.e] && actual.equal(expected, true, true)) {
               found = true;
               potentials.push(match);
               match.relatedChanges.push(expectedIx);
