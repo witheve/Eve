@@ -12,6 +12,9 @@ import {RawValue, Register, isRegister, GlobalInterner, Scan, IGNORE_REG, ID,
 import * as runtime from "./runtime";
 import * as indexes from "./indexes";
 
+
+const UNASSIGNED = -1;
+
 //--------------------------------------------------------------------
 // Utils
 //--------------------------------------------------------------------
@@ -30,7 +33,7 @@ type DSLValue = RawValue|Register;
 class DSLVariable {
   static CURRENT_ID = 0;
   id: number;
-  constructor(public name:string, public value:DSLValue = new Register(-1)) {
+  constructor(public name:string, public value:DSLValue = new Register(UNASSIGNED)) {
     this.id = DSLVariable.CURRENT_ID++;
   }
 }
@@ -73,59 +76,69 @@ class DSLFunction {
 //--------------------------------------------------------------------
 
 class DSLRecord {
-  record: DSLVariable;
-  output: boolean;
-  fields: any;
-  constructor(public block:DSLBlock, public tag:string[], initial:any) {
-    let fields:any = {tag};
-    for(let field in initial) {
-      let value = initial[field];
+  // since we're going to proxy this object, we're going to hackily put __
+  // in front of the names of properties on the object.
+  __record: DSLVariable;
+  // __output tells us whether this DSLRecord is a search or it's going to be
+  // used to output new records (aka commit)
+  __output: boolean = false;
+  __fields: any;
+  constructor(public __block:DSLBlock, tags:string[], initialAttributes:any) {
+    let fields:any = {tag: tags};
+    for(let field in initialAttributes) {
+      let value = initialAttributes[field];
       if(field.constructor !== Array) {
         value = [value];
       }
       fields[field] = value;
     }
-    this.fields = fields;
-    this.record = new DSLVariable("record");
-    block.registerVariable(this.record);
+    this.__fields = fields;
+    this.__record = new DSLVariable("record");
+    __block.registerVariable(this.__record);
   }
 
   proxy() {
     return new Proxy(this, {
       get: (obj:any, prop:string) => {
         if(obj[prop]) return obj[prop];
-        let found = obj.fields[prop];
+        let found = obj.__fields[prop];
         if(prop === Symbol.toPrimitive) return () => {
           return "uh oh";
         }
         if(!found) {
           found = new DSLVariable(prop);
-          obj.fields[prop] = [found];
-          this.block.registerVariable(found);
+          obj.__fields[prop] = [found];
+          this.__block.registerVariable(found);
         } else {
           found = found[0];
         }
         return found;
       },
       set: (obj:any, prop:string, value:any) => {
-        if(prop === "output") {
+        if(obj[prop] !== undefined) {
           obj[prop] = value;
           return true;
         }
-        if(!obj.fields[prop]) {
+        if(!obj.__fields[prop]) {
           if(value.constructor !== Array) {
             value = [value];
           }
-          obj.fields[prop] = value;
+          obj.__fields[prop] = value;
           return true;
         }
-        this.block.equivalence(obj.fields[prop][0], value);
+        // @TODO: this only takes one of the potential values for this
+        // field into account. We *should* be doing some kind of set equivalence
+        // here in the future.
+        if(obj.__fields[prop].length > 1) {
+          console.warn(`\`${prop}\` is being equivalenced with multiple values: ${obj.__fields[prop]}`)
+        }
+        this.__block.equivalence(obj.__fields[prop][0], value);
       }
     })
   }
 
   compile() {
-    if(this.output) {
+    if(this.__output) {
       return this.toInserts();
     } else {
       return this.toScans();
@@ -134,11 +147,11 @@ class DSLRecord {
 
   toInserts() {
     let inserts:(Constraint|Node)[] = [];
-    let e = maybeIntern(this.record.value);
+    let e = maybeIntern(this.__record.value);
     let values = [];
-    for(let field in this.fields) {
-      for(let dslValue of this.fields[field]) {
-        let value = this.block.toValue(dslValue) as (RawValue | Register);
+    for(let field in this.__fields) {
+      for(let dslValue of this.__fields[field]) {
+        let value = this.__block.toValue(dslValue) as (RawValue | Register);
         // @TODO: generate node ids
         values.push(maybeIntern(value));
         inserts.push(new InsertNode(e, maybeIntern(field), maybeIntern(value), maybeIntern("my-awesome-node")))
@@ -151,10 +164,10 @@ class DSLRecord {
 
   toScans() {
     let scans:Scan[] = [];
-    let e = maybeIntern(this.record.value);
-    for(let field in this.fields) {
-      for(let dslValue of this.fields[field]) {
-        let value = this.block.toValue(dslValue) as (RawValue | Register);
+    let e = maybeIntern(this.__record.value);
+    for(let field in this.__fields) {
+      for(let dslValue of this.__fields[field]) {
+        let value = this.__block.toValue(dslValue) as (RawValue | Register);
         scans.push(new Scan(e, maybeIntern(field), maybeIntern(value), IGNORE_REG))
       }
     }
@@ -206,6 +219,8 @@ class DSLBlock {
     return new Proxy({}, {get:fnGet});
   }
 
+  // Find takes a list of tags followed optionally by an object of properties.
+  // e.g. find("person", "employee", {name: "chris"})
   find = (...args:any[]) => {
     let lastArg = args[args.length - 1];
     let proxied:any = {};
@@ -223,7 +238,7 @@ class DSLBlock {
 
   record = (...args:any[]) => {
     let out = this.find.apply(null, args);
-    out.output = true;
+    out.__output = true;
     return out;
   }
 
@@ -236,16 +251,25 @@ class DSLBlock {
     if(a instanceof DSLVariable) {
       return a.value;
     } if(a instanceof DSLRecord) {
-      return a.record.value;
+      return a.__record.value;
     } if(a instanceof DSLFunction) {
       return a.returnValue.value;
     }
     return a;
   }
 
+  // This sets two potential values to be equivalent to each other. A value can be a:
+  //  - DSLVariable
+  //  - DSLRecord
+  //  - DSLFunction
+  //  - RawValue (string|number)
+  // assuming there's at least one variable-like thing (one of the top 3 above), then
+  // we need to set that variable's value based on the b argument's value. If both are
+  // registers, then we unify the registers. If one is a RawValue, we overwrite the variable.value
+  // of everybody that is referencing the variable to have the passed in RawValue.
   equivalence(a:any, b:any) {
-    let aValue = a.value || (a.record && a.record.value) || a;
-    let bValue = b.value || (b.record && b.record.value) || b;
+    let aValue = this.toValue(a);
+    let bValue = this.toValue(b);
     let aIsRegister = isRegister(aValue);
     let bIsRegister = isRegister(bValue);
     if(aIsRegister && bIsRegister) {
@@ -275,8 +299,13 @@ class DSLBlock {
 
   prepare() {
     let functions = this.functions.slice() as (DSLFunction | undefined)[];
-    // look through the functions for equivalences before we do anything else.
     let ix = 0;
+    // We need to satisfy all the equivalences before we start compiling our constraints.
+    // Most of these are taken care of through assigments when the block's function was
+    // run, but cases where people explicitly write `foo == bar` and the like end up as
+    // functions whose path is ["compare", "=="]. So we'll run through the functions, find
+    // all the equivalences, run this.equivalence on them to capture that intent, and remove
+    // them from being executed.
     for(let func of functions) {
       if(!func || func.path[1] !== "==") continue;
       this.equivalence(func.args[0], func.args[1]);
@@ -287,7 +316,7 @@ class DSLBlock {
     for(let id in this.variableLookup) {
       let variable = this.variableLookup[id][0] as DSLVariable;
       if(!variable || !isRegister(variable.value)) continue;
-      if(variable.value.offset !== -1) throw new Error("We've somehow already assigned a variable's register");
+      if(variable.value.offset !== UNASSIGNED) throw new Error("We've somehow already assigned a variable's register");
       variable.value.offset = registerIx++;
     }
     let items = functions.concat(this.records as any[]);
@@ -306,6 +335,8 @@ class DSLBlock {
         }
       }
     }
+    // @TODO: Once we start having aggregates, we'll need to do some stratification here
+    // instead of just throwing everything into a single JoinNode.
     nodes.unshift(new runtime.JoinNode(constraints))
     this.block = new runtime.Block(this.name, nodes);
   }
@@ -327,6 +358,8 @@ class DSLBlock {
       return "____" + (strings.length - 1) + "____";
     })
 
+    // "foo" + person.name -> fn.eve.internal.concat("foo", person.name)
+    // person.name + "foo" -> fn.eve.internal.concat(person.name, "foo")
     let stringAddition = new RegExp(`(?:${infixParam}\\s*\\+\\s*${stringPlaceholder})|(?:${stringPlaceholder}\\s*\\+\\s*${infixParam})`,"gi");
     hasChanged = true;
     while(hasChanged) {
@@ -373,6 +406,7 @@ class DSLBlock {
       });
     }
     // a > b -> fn.compare[">"](a, b)
+    // for all the (in)equalities: >, >=, <, <=, !=, ==
     let compare = new RegExp(`${infixParam}\\s*(>|>=|<|<=|!=|==)\\s*${infixParam}`, "gi");
     hasChanged = true;
     while(hasChanged) {
