@@ -83,9 +83,18 @@ export class Interner {
   IDRefCount: number[] = createArray();
   IDFreeList: number[] = createArray();
   ix: number = 0;
+  arenas: {[arena:string]: ID[]} = createHash();
+
+  constructor() {
+    this.arenas["functionOutput"] = createArray("interner-arena-array");
+  }
 
   _getFreeID() {
     return this.IDFreeList.pop() || this.ix++;
+  }
+
+  reference(id:ID) {
+    this.IDRefCount[id]++;
   }
 
   intern(value: RawValue): ID {
@@ -100,7 +109,7 @@ export class Interner {
       found = this._getFreeID();
       coll[value] = found;
       this.IDs[found] = value;
-      this.IDRefCount[found]++;
+      this.IDRefCount[found] = 1;
     } else {
       this.IDRefCount[found]++;
     }
@@ -134,8 +143,37 @@ export class Interner {
         coll = this.strings;
       }
       coll[value] = undefined;
+      this.IDs[id] = undefined;
       this.IDFreeList.push(id);
     }
+  }
+
+  arenaIntern(arenaName:string, value:RawValue):ID {
+    let arena = this.arenas[arenaName];
+    if(!arena) {
+      arena = this.arenas[arenaName] = createArray("interner-arena-array");
+    }
+    // @NOTE: for performance reasons it might make more sense to prevent duplicates
+    // from ending up in the list. If that's the case, we could either keep a seen
+    // hash or do a get and only intern if it hasn't been seen. This is (probably?)
+    // a pretty big performance gain in the case where a bunch of rows might repeat
+    // the same function output over and over.
+    let id = this.intern(value);
+    arena.push(id);
+    return id;
+  }
+
+  releaseArena(arenaName:string) {
+    let arena = this.arenas[arenaName];
+    if(!arena) {
+      console.warn("Trying to release unknown arena: " + arenaName)
+      return;
+    }
+
+    for(let id of arena) {
+      this.release(id);
+    }
+    arena.length = 0;
   }
 }
 
@@ -601,14 +639,16 @@ export class FunctionConstraint implements Constraint {
   }
 
   unpackOutputs(outputs:undefined|RawValue[]) {
+    console.log("unpacking!", outputs);
     if(!outputs) return;
     for(let ix = 0; ix < outputs.length; ix++) {
-      outputs[ix] = GlobalInterner.intern(outputs[ix]);
+      outputs[ix] = GlobalInterner.arenaIntern("functionOutput", outputs[ix]);
     }
     return outputs as ID[];
   }
 
   resolveProposal(index:Index, prefix:ID[], proposal:Proposal, transaction:number, round:number, results:any[]):ID[][] {
+    console.log("RESOLVING!");
     // First we build the args array to provide the apply function.
     let inputs = this.packInputs(prefix);
 
@@ -1062,16 +1102,26 @@ export class InsertNode implements Node {
   resolve = Scan.prototype.resolve;
 
   exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:ID[][], changes:Change[]):boolean {
-    let resolved = this.resolve(prefix);
+    let {e,a,v,n} = this.resolve(prefix);
 
     // @FIXME: This is pretty wasteful to copy one by one here.
     results!.push(prefix);
 
-    if(resolved.e === undefined || resolved.a === undefined || resolved.v === undefined || resolved.n === undefined) {
+    if(e === undefined || a === undefined || v === undefined || n === undefined) {
       return false;
     }
 
-    let change = new Change(resolved.e!, resolved.a!, resolved.v!, resolved.n!, transaction, round + 1, 1);
+    // @TODO: when we do removes, we could say that if the result is a remove, we want to
+    // dereference these ids instead of referencing them. This would allow us to clean up
+    // the interned space based on what's "in" the indexes. The only problem is that if you
+    // held on to a change, the IDs of that change may no longer be in the interner, or worse
+    // they may have been reassigned to something else. For now, we'll just say that once something
+    // is in the index, it never goes away.
+    GlobalInterner.reference(e);
+    GlobalInterner.reference(a);
+    GlobalInterner.reference(v);
+    GlobalInterner.reference(n);
+    let change = new Change(e!, a!, v!, n!, transaction, round + 1, 1);
     changes.push(change);
 
     return true;
@@ -1140,8 +1190,12 @@ export class Transaction {
       index.insert(change);
       changeIx++;
     }
-  }
 
+    // Once the transaction is effectively done, we need to clean up after ourselves. We
+    // arena allocated a bunch of IDs related to function call outputs, which we can now
+    // safely release.
+    GlobalInterner.releaseArena("functionOutput");
+  }
 }
 
 //------------------------------------------------------------------------------
@@ -1202,7 +1256,7 @@ let _blocks:Block[] = [
       FunctionConstraint.create("eve/internal/concat", {result: textReg}, [GlobalInterner.intern("meep moop: "), nameReg])!
     ]),
     new InsertNode(idReg, GlobalInterner.intern("tag"), GlobalInterner.intern("div"), GlobalInterner.intern(2)),
-    new InsertNode(idReg, GlobalInterner.intern("text"), textReg, GlobalInterner.intern(2)),
+    new InsertNode(idReg, GlobalInterner.intern("text"), GlobalInterner.intern("foo"), GlobalInterner.intern(3)),
   ]),
   // new Block("> filters are cool", [
   //   new JoinNode([
@@ -1235,10 +1289,9 @@ let _blocks:Block[] = [
 
 ];
 
-export function doIt() {
+export function doIt(size = 10000) {
   _currentTransaction = 0;
-  changes = [];
-  let size = 10000;
+  // changes = [];
   for(let i = 0; i < size; i++) {
     changes.push(createChangeSet([i - 1, "name", i - 1, 1], [i, "tag", "person", 1]));
   }
@@ -1251,7 +1304,7 @@ export function doIt() {
     let trans = new Transaction(changeset[0].transaction, _blocks, changeset);
     // console.log(`TX ${trans.transaction}\n` + changeset.map((change, ix) => `  -> ${change}`).join("\n"));
     trans.exec(index);
-    // console.log(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
+    console.log(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
   }
   console.timeEnd("do it");
   // console.log(changes);
@@ -1261,8 +1314,10 @@ export function doIt() {
 }
 
 for(let ix = 0; ix < 1; ix++) {
-  doIt();
+  doIt(0);
 }
+
+console.log(GlobalInterner);
 
 if(typeof window === "object") {
   (window as any)["doit"] = doIt as any;
