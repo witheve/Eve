@@ -7,6 +7,8 @@ export type EAVTuple = [Runtime.RawValue, Runtime.RawValue, Runtime.RawValue];
 export type EAVRCTuple = [Runtime.RawValue, Runtime.RawValue, Runtime.RawValue, number, number];
 export type TestChange =  EAVTuple | EAVRCTuple;
 
+let {GlobalInterner} = Runtime;
+
 export function createChanges(transaction:number,eavns:TestChange[]) {
   let changes:Runtime.Change[] = [];
   for(let [e, a, v, round = 0, count = 1] of eavns as EAVRCTuple[]) {
@@ -32,6 +34,7 @@ export function verify(assert:any, program:Program, input:any[], output:any[], t
   // some fancy matching to map from generated e's to expected e's. We'll need to
   // store that mapping somewhere, so we have eMap:
   let eMap:any = {};
+  let fullyResolved:any = {};
   if(changes.length === all.length) {
     // As we check all of the changes we got from running the input on the program,
     // we need to update our eMap based on the expected changes that *could* match.
@@ -62,6 +65,14 @@ export function verify(assert:any, program:Program, input:any[], output:any[], t
         // if there was only one match, no one can ever have this expected - we've claimed it.
         // As such, we need to remove it from the list;
         if(potentials.length === 1) {
+          // We need to check that we haven't already resolved this match to some other actual value.
+          let e = potentials[0].e;
+          if(fullyResolved[e] !== undefined) {
+            assert.fail(`\`${GlobalInterner.reverse(e)}\` has already been resolved to \`${GlobalInterner.reverse(fullyResolved[e])}\`,` +
+                        ` but we are trying to resolve it to \`${GlobalInterner.reverse(actual.e)}\``);
+            break;
+          }
+          fullyResolved[e] = actual.e;
           all.splice(potentials[0].relatedChanges[0], 1);
         }
         eMap[actual.e] = potentials;
@@ -96,6 +107,14 @@ export function verify(assert:any, program:Program, input:any[], output:any[], t
         // however, we could have had many relatedChanges that we need to clean up, so we'll loop
         // through them and remove them from the list. They're our's now.
         if(potentials.length === 1) {
+          // We need to check that we haven't already resolved this match to some other actual value.
+          let e = potentials[0].e;
+          if(fullyResolved[e] !== undefined) {
+            assert.fail(`\`${GlobalInterner.reverse(e)}\` has already been resolved to \`${GlobalInterner.reverse(fullyResolved[e])}\`,` +
+                        ` but we are trying to resolve it to \`${GlobalInterner.reverse(actual.e)}\``);
+            break;
+          }
+          fullyResolved[e] = actual.e;
           let related = potentials[0].relatedChanges;
           related.sort((a:number, b:number) => b - a);
           for(let relatedIx of related) {
