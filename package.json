@@ -17,12 +17,14 @@
     "eve": "./bin/eve.js"
   },
 
+  "engines" : { "node" : ">=7.4.0" },
+
   "scripts": {
-    "build": "./node_modules/.bin/tsc && node ./build/scripts/build.js",
+    "build": "./node_modules/.bin/tsc",
     "start": "./node_modules/.bin/tsc && node ./bin/eve.js",
     "server": "node ./bin/eve.js",
 
-    "prepublish": "./node_modules/.bin/tsc && node ./build/scripts/build.js",
+    "prepublish": "./node_modules/.bin/tsc",
     "build-dist": "node ./build/scripts/build-dist.js",
 
     "test": "node ./build/test/all.js | faucet",

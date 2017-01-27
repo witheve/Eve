@@ -34,10 +34,6 @@ function printConstraint(constraint:Constraint) {
 // Runtime
 //------------------------------------------------------------------------
 
-type RawValue = string|number;
-export type ID = number;
-type Multiplicity = number;
-
 export var ALLOCATION_COUNT:any = {};
 
 export function createHash(place = "unknown") {
@@ -75,6 +71,11 @@ function isNumber(thing:any): thing is number {
 // Interning
 //------------------------------------------------------------------------
 
+/** The union of value types we support in Eve. */
+export type RawValue = string|number;
+/**  An interned value's ID. */
+export type ID = number;
+
 export class Interner {
   strings: {[value:string]: ID|undefined} = createHash();
   numbers: {[value:number]: ID|undefined} = createHash();
@@ -82,9 +83,18 @@ export class Interner {
   IDRefCount: number[] = createArray();
   IDFreeList: number[] = createArray();
   ix: number = 0;
+  arenas: {[arena:string]: ID[]} = createHash();
+
+  constructor() {
+    this.arenas["functionOutput"] = createArray("interner-arena-array");
+  }
 
   _getFreeID() {
     return this.IDFreeList.pop() || this.ix++;
+  }
+
+  reference(id:ID) {
+    this.IDRefCount[id]++;
   }
 
   intern(value: RawValue): ID {
@@ -99,7 +109,7 @@ export class Interner {
       found = this._getFreeID();
       coll[value] = found;
       this.IDs[found] = value;
-      this.IDRefCount[found]++;
+      this.IDRefCount[found] = 1;
     } else {
       this.IDRefCount[found]++;
     }
@@ -133,8 +143,37 @@ export class Interner {
         coll = this.strings;
       }
       coll[value] = undefined;
+      this.IDs[id] = undefined;
       this.IDFreeList.push(id);
     }
+  }
+
+  arenaIntern(arenaName:string, value:RawValue):ID {
+    let arena = this.arenas[arenaName];
+    if(!arena) {
+      arena = this.arenas[arenaName] = createArray("interner-arena-array");
+    }
+    // @NOTE: for performance reasons it might make more sense to prevent duplicates
+    // from ending up in the list. If that's the case, we could either keep a seen
+    // hash or do a get and only intern if it hasn't been seen. This is (probably?)
+    // a pretty big performance gain in the case where a bunch of rows might repeat
+    // the same function output over and over.
+    let id = this.intern(value);
+    arena.push(id);
+    return id;
+  }
+
+  releaseArena(arenaName:string) {
+    let arena = this.arenas[arenaName];
+    if(!arena) {
+      console.warn("Trying to release unknown arena: " + arenaName)
+      return;
+    }
+
+    for(let id of arena) {
+      this.release(id);
+    }
+    arena.length = 0;
   }
 }
 
@@ -145,39 +184,30 @@ export var GlobalInterner = new Interner();
 //------------------------------------------------------------------------
 
 export type EAVNField = "e"|"a"|"v"|"n";
+
+/**
+ * An EAVN is a single Attribute:Value pair of an Entity (a record),
+ * produced by a given Node.
+ * E.g., the record `[#person name: "josh"]` translates to two EAVNs:
+ * (<1>, "tag", "person", <node id>),
+ * (<1>, "name", "josh", <node id>)
+ */
+
 export class EAVN {
   constructor(public e:ID, public a:ID, public v:ID, public n:ID) {}
 };
 
 //------------------------------------------------------------------------
-// Values
-//------------------------------------------------------------------------
-
-export type ResolvedValue = ID|undefined|IgnoreRegister;
-
-//------------------------------------------------------------------------
-// Proposal
-//------------------------------------------------------------------------
-
-export interface Proposal {
-  cardinality:number,
-  forFields:EAVNField[],
-  forRegisters:Register[],
-  proposer:Constraint,
-  skip?:boolean,
-  info?:any,
-}
-
-
-//------------------------------------------------------------------------
 // Changes
 //------------------------------------------------------------------------
 
+type Multiplicity = number;
+
 /**
- * A change is a single changed EAV row of a changeset.
- *  E.g., if we add [#person name: "josh"] then
- *  (<1>, "tag", "person", ...) and
- *  (<1>, "name", "josh", ...) are each separate changes.
+ * A change is an expanded variant of an EAVN, which also tracks the
+ * transaction, round, and count of the fact.  These additional fields
+ * are used by the executor and index to provide an incremental view
+ * of the DB.
  */
 
 export class Change {
@@ -191,36 +221,40 @@ export class Change {
   toString() {
     return `Change(${GlobalInterner.reverse(this.e)}, ${GlobalInterner.reverse(this.a)}, ${GlobalInterner.reverse(this.v)}, ${GlobalInterner.reverse(this.n)}, ${this.transaction}, ${this.round}, ${this.count})`;
   }
+
+  equal(other:Change, withoutNode?:boolean, withoutE?:boolean) {
+   return (withoutE || this.e == other.e) &&
+          this.a == other.a &&
+          this.v == other.v &&
+          (withoutNode || this.n == other.n) &&
+          this.transaction == other.transaction &&
+          this.round == other.round &&
+          this.count == other.count;
+  }
 }
 
-//------------------------------------------------------------------------
-// Registers
-//------------------------------------------------------------------------
-
+/** A changeset is a list of changes, intended to occur in a single transaction. */
 type ChangeSet = Change[];
 
-/**
- * A register is just a numerical offset into the solved prefix.
- * We can't make this a type alias because we wouldn't be able to
- * tell the difference between static numbers and registers in scans.
- */
+//------------------------------------------------------------------------
+// Constraints
+//------------------------------------------------------------------------
 
-export class Register {
-  constructor(public offset:number) {}
+enum ApplyInputState {
+  pass,
+  fail,
+  none,
 }
 
-function isRegister(x: any): x is Register {
-  return x && x.constructor === Register;
+export interface Constraint {
+  setup():void;
+  getRegisters():Register[];
+  applyInput(input:Change, prefix:ID[]):ApplyInputState;
+  propose(index:Index, prefix:ID[], transaction:number, round:number, results:any[]):Proposal;
+  resolveProposal(index:Index, prefix:ID[], proposal:Proposal, transaction:number, round:number, results:any[]):ID[][];
+  accept(index:Index, prefix:ID[], transaction:number, round:number, solvingFor:Register[]):boolean;
+  acceptInput(index:Index, input:Change, prefix:ID[], transaction:number, round:number):boolean;
 }
-
-/** The ignore register is a sentinel value for ScanFields that tell the scan to completely ignore that field. */
-type IgnoreRegister = null;
-export var IGNORE_REG:IgnoreRegister = null;
-
-/** A scan field may contain a register, a static interned value, or the IGNORE_REG sentinel value. */
-type ScanField = Register|ID|IgnoreRegister;
-
-type ResolvedEAVN = {e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue};
 
 //------------------------------------------------------------------------
 // Scans
@@ -230,7 +264,7 @@ type ResolvedEAVN = {e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:Resolv
  * A scan maps a set of bound variables to unbound variables.
  */
 
-class Scan implements Constraint {
+export class Scan implements Constraint {
   constructor(public e:ScanField,
               public a:ScanField,
               public v:ScanField,
@@ -243,10 +277,12 @@ class Scan implements Constraint {
   proposal:Proposal = {cardinality: 0, forFields: [], forRegisters: [], proposer: this};
 
   /**
-   * Resolve each scan field. The resolved object may contain one of three possible value types:
+   * Resolve each scan field.
+   * The resolved object may contain one of three possible value types:
    * - IGNORE_REG -- this field is entirely ignored by the scan.
-   * - undefined -- this field is a register that hasn't been filled in yet. We'll fill it if possible.
-   * - ID -- this field contains a static or already solved interned value.
+   * - undefined -- this field is a register that hasn't been filled in yet.
+   *                We'll fill it if possible.
+   * - ID -- this field contains a static or already solved value.
    */
   resolve(prefix:ID[]) {
     let resolved = this.resolved;
@@ -278,23 +314,28 @@ class Scan implements Constraint {
   }
 
   /**
-   * A field is unresolved if it is completely ignored by the scan or is an output of the scan.
+   * A field is unresolved if it is completely ignored by the scan or
+   * is an output of the scan.
    */
   fieldUnresolved(resolved:ResolvedEAVN, key: keyof ResolvedEAVN) {
     return resolved[key] === IGNORE_REG || resolved[key] === undefined;
   }
 
   /**
-   * A field is not a static match if it is ignored, not a static field, or the input value does not match the static value.
+   * A field is not a static match if it is ignored, not a static
+   * field, or the input value does not match the static value.
    */
   notStaticMatch(input:Change, key: "e"|"a"|"v"|"n") {
     return this[key] !== IGNORE_REG && !isRegister(this[key]) && this[key] !== input[key];
   }
 
   /**
-   * Apply new changes that may affect this scan to the prefix to derive only the results affected by this change.
-   * If the change was successfully applied or irrelevant we'll return true. If the change was relevant but invalid
-   * (i.e., this scan could not be satisfied due to proposals from previous scans) we'll return false.
+   * Apply new changes that may affect this scan to the prefix to
+   * derive only the results affected by this change.  If the change
+   * was successfully applied or irrelevant we'll return true. If the
+   * change was relevant but invalid (i.e., this scan could not be
+   * satisfied due to proposals from previous scans) we'll return
+   * false.
    */
   applyInput(input:Change, prefix:ID[]) {
     // If this change isn't relevant to this scan, skip it.
@@ -303,10 +344,11 @@ class Scan implements Constraint {
     if(this.notStaticMatch(input, "v")) return ApplyInputState.none;
     if(this.notStaticMatch(input, "n")) return ApplyInputState.none;
 
-    // For each register field of this scan, if the required value is impossible fail, otherwise add this new value to the
-    // appropriate register in the prefix.
-    // @NOTE: Technically, we republish existing values here too. In practice, that's harmless and eliminates the need for extra
-    // branching.
+    // For each register field of this scan:
+    //   if the required value is impossible fail,
+    //   else add this new value to the appropriate prefix register.
+    // @NOTE: Technically, we republish existing values here too.
+    //   In practice, that's harmless and eliminates the need for a branch.
     if(isRegister(this.e)) {
       if(prefix[this.e.offset] !== undefined && prefix[this.e.offset] !== input.e) return ApplyInputState.fail;
       prefix[this.e.offset] = input.e;
@@ -349,8 +391,8 @@ class Scan implements Constraint {
   }
 
   accept(index:Index, prefix:ID[], transaction:number, round:number, solvingFor:Register[]):boolean {
-    // before we start trying to accept, we need to make sure we care about the registers
-    // we are currently solving for
+    // Before we start trying to accept, we check if we care about the
+    // registers we are currently solving.
     let solving = false;
     for(let register of solvingFor) {
       if(this.registerLookup[register.offset]) {
@@ -358,7 +400,8 @@ class Scan implements Constraint {
         break;
       }
     }
-    // if we aren't looking at any of these registers, then we just say we accept
+    // If we aren't looking at any of these registers, then we just
+    // say we accept.
     if(!solving) return true;
     let {e,a,v,n} = this.resolve(prefix);
     return index.check(e, a, v, n, transaction, round);
@@ -377,7 +420,7 @@ class Scan implements Constraint {
   }
 
 
-  // Scans don't have any inherent setup
+  // We precompute the registers we're interested in for fast accepts.
   setup() {
     if(isRegister(this.e)) this.registers.push(this.e);
     if(isRegister(this.a)) this.registers.push(this.a);
@@ -395,45 +438,28 @@ class Scan implements Constraint {
 }
 
 //------------------------------------------------------------------------
-// Constraints
-//------------------------------------------------------------------------
-
-enum ApplyInputState {
-  pass,
-  fail,
-  none,
-}
-
-export interface Constraint {
-  setup():void;
-  getRegisters():Register[];
-  applyInput(input:Change, prefix:ID[]):ApplyInputState;
-  propose(index:Index, prefix:ID[], transaction:number, round:number, results:any[]):Proposal;
-  resolveProposal(index:Index, prefix:ID[], proposal:Proposal, transaction:number, round:number, results:any[]):ID[][];
-  accept(index:Index, prefix:ID[], transaction:number, round:number, solvingFor:Register[]):boolean;
-  acceptInput(index:Index, input:Change, prefix:ID[], transaction:number, round:number):boolean;
-}
-
-//------------------------------------------------------------------------
 // Function constraint
 //------------------------------------------------------------------------
 
 type ConstraintFieldMap = {[name:string]: ScanField};
 type ResolvedFields = {[fieldName:string]: ResolvedValue};
 
-class FunctionConstraint implements Constraint {
+export class FunctionConstraint implements Constraint {
   static registered: {[name:string]: typeof FunctionConstraint} = {};
   static register(name:string, klass: typeof FunctionConstraint) {
     FunctionConstraint.registered[name] = klass;
   }
 
+  static filter = false;
   static variadic = false;
+  static fetchInfo(name:string):typeof FunctionConstraint {
+    return FunctionConstraint.registered[name];
+  }
 
   static create(name:string, fields:ConstraintFieldMap, restFields:(ID|Register)[] = createArray()):FunctionConstraint|undefined {
     let cur = FunctionConstraint.registered[name];
     if(!cur) {
-      console.error(`No function named ${name} is registered.`);
-      return;
+      throw new Error(`No function named ${name} is registered.`);
     }
 
     if(restFields.length && !cur.variadic) {
@@ -464,6 +490,7 @@ class FunctionConstraint implements Constraint {
   protected applyInputs:(RawValue|RawValue[])[] = createArray();
   protected applyRestInputs:RawValue[] = createArray();
 
+  // We precompute the registers we're interested in for fast accepts.
   setup() {
     this.fieldNames = Object.keys(this.fields);
 
@@ -485,6 +512,10 @@ class FunctionConstraint implements Constraint {
     return this.registers;
   }
 
+  /**
+   * Similar to `Scan.resolve`, but resolving a map of the function's
+   * fields rather than an EAVN.
+   */
   resolve(prefix:ID[]) {
     let resolved = this.resolved;
 
@@ -500,6 +531,9 @@ class FunctionConstraint implements Constraint {
     return resolved;
   }
 
+  /**
+   * If a function is variadic, we need to resolve its rest fields as well.
+   */
   resolveRest(prefix:ID[]) {
     let resolvedRest = this.resolvedRest;
 
@@ -520,7 +554,6 @@ class FunctionConstraint implements Constraint {
   // always return ApplyInputState.none
   applyInput(input:Change, prefix:ID[]):ApplyInputState { return ApplyInputState.none; }
 
-  // @TODO: fill this in
   propose(index:Index, prefix:ID[], transaction:number, round:number, results:any[]):Proposal {
     let proposal = this.proposal;
     proposal.forRegisters.length = 0;
@@ -545,7 +578,7 @@ class FunctionConstraint implements Constraint {
 
     // If any of our args aren't resolved yet, we can't compute results either.
     // @NOTE: This'll need to be touched up when we add optional support if they
-    // co-inhabit the args object.
+    //   co-inhabit the args object.
     for(let input of this.argNames) {
       if(resolved[input] === undefined) {
         proposal.skip = true;
@@ -553,9 +586,10 @@ class FunctionConstraint implements Constraint {
       }
     }
 
-    // Similarly, if we're variadic we need to check that all of our variadic inputs bound to registers are
-    // resolved too.
-    // We really need to bend over backwards at the moment to convince TS to check a static member of the current class...
+    // Similarly, if we're variadic we need to check that all of our
+    // variadic inputs bound to registers are resolved too.
+    // @NOTE: We really need to bend over backwards at the moment to
+    //   convince TS to check a static member of the current class...
     if((this.constructor as (typeof FunctionConstraint)).variadic) {
       let resolvedRest = this.resolveRest(prefix);
       for(let field of resolvedRest) {
@@ -574,29 +608,37 @@ class FunctionConstraint implements Constraint {
       proposal.cardinality = this.estimate(index, prefix, transaction, round);
 
     } else {
-      // Otherwise, we'll just return 1 for now, since computing a function is almost always cheaper than a scan.
-      // @NOTE: If this is an issue, we can just behave like scans and compute ourselves here, caching the results.
+      // Otherwise, we'll just return 1 for now, since computing a
+      // function is almost always cheaper than a scan.
+      // @NOTE: If this is an issue, we can just behave like scans and
+      //   compute ourselves here, caching the results.
       proposal.cardinality = 1;
     }
 
     return proposal;
   }
 
-  /** Pack the resolved register values for the functions argument fields into an array. */
+  /**
+   * Pack the resolved register values for the functions argument
+   * fields into an array.
+   */
   packInputs(prefix:ID[]) {
     let resolved = this.resolve(prefix);
     let inputs = this.applyInputs;
     let argIx = 0;
     for(let argName of this.argNames) {
-      // If we're asked to resolve the propoal we know that we've proposed, and we'll only propose if these are resolved.
+      // If we're asked to resolve the propoal we know that we've
+      // proposed, and we'll only propose if these are resolved.
       inputs[argIx] = GlobalInterner.reverse(resolved[argName]!);
       argIx++;
     }
 
-    // If we're variadic, we also need to pack our var-args up and attach them as the last argument.
+    // If we're variadic, we also need to pack our var-args up and
+    // attach them as the last argument.
     if((this.constructor as (typeof FunctionConstraint)).variadic) {
       let resolvedRest = this.resolveRest(prefix);
       let restInputs = this.applyRestInputs;
+      restInputs.length = 0;
       let ix = 0;
       for(let value of resolvedRest) {
         if(value !== undefined) {
@@ -613,7 +655,7 @@ class FunctionConstraint implements Constraint {
   unpackOutputs(outputs:undefined|RawValue[]) {
     if(!outputs) return;
     for(let ix = 0; ix < outputs.length; ix++) {
-      outputs[ix] = GlobalInterner.intern(outputs[ix]);
+      outputs[ix] = GlobalInterner.arenaIntern("functionOutput", outputs[ix]);
     }
     return outputs as ID[];
   }
@@ -645,7 +687,8 @@ class FunctionConstraint implements Constraint {
   }
 
   accept(index:Index, prefix:ID[], transaction:number, round:number, solvingFor:Register[]):boolean {
-    // If none of the registers we're solving for intersect our inputs or outputs, we're not relevant to the solution.
+    // If none of the registers we're solving for intersect our inputs
+    // or outputs, we're not relevant to the solution.
     let isRelevant = false;
     for(let register of solvingFor) {
       if(this.registerLookup[register.offset]) {
@@ -690,8 +733,6 @@ class FunctionConstraint implements Constraint {
   }
 
   acceptInput(index:Index, input:Change, prefix:ID[], transaction:number, round:number):boolean {
-    // @TODO: Implement the logic for sorting function constraints or re-accepting after scan constraints to ensure prefix is filled.
-    // @NOTE: Can we be smarter than solving for all registers here?
     return this.accept(index, prefix, transaction, round, this.registers);
   }
 }
@@ -708,6 +749,7 @@ interface FunctionSetup {
 function makeFunction({name, variadic = false, args, returns, apply, estimate}:FunctionSetup) {
   class NewFunctionConstraint extends FunctionConstraint {
     static variadic = variadic;
+    static filter = Object.keys(returns).length === 0;
     name = name;
     args = args;
     returns = returns;
@@ -720,7 +762,7 @@ function makeFunction({name, variadic = false, args, returns, apply, estimate}:F
 
 
 makeFunction({
-  name: ">",
+  name: "compare/>",
   args: {a: "number", b: "number"},
   returns: {},
   apply: (a:number, b:number) => {
@@ -729,7 +771,7 @@ makeFunction({
 });
 
 makeFunction({
-  name: "=",
+  name: "compare/==",
   args: {a: "number", b: "number"},
   returns: {},
   apply: (a:number, b:number) => {
@@ -738,7 +780,7 @@ makeFunction({
 });
 
 makeFunction({
-  name: "+",
+  name: "math/+",
   args: {a: "number", b: "number"},
   returns: {result: "number"},
   apply: (a:number, b:number) => {
@@ -747,20 +789,22 @@ makeFunction({
 });
 
 makeFunction({
-  name: "eve-internal/gen-id",
+  name: "eve/internal/gen-id",
   args: {},
   variadic: true,
   returns: {result: "string"},
   apply: (values:RawValue[]) => {
     // @FIXME: This is going to be busted in subtle cases.
-    // If a record exists with a "1" and 1 value for the same attribute, they'll collapse for gen-id, but won't join elsewhere.
-    // This means aggregate cardinality will disagree with action node cardinality.
+    //   If a record exists with a "1" and 1 value for the same
+    //   attribute, they'll collapse for gen-id, but won't join
+    //   elsewhere.  This means aggregate cardinality will disagree with
+    //   action node cardinality.
     return [values.join("|")];
   }
 });
 
 makeFunction({
-  name: "eve-internal/concat",
+  name: "eve/internal/concat",
   args: {},
   variadic: true,
   returns: {result: "string"},
@@ -770,21 +814,100 @@ makeFunction({
 });
 
 //------------------------------------------------------------------------
+// Proposal
+//------------------------------------------------------------------------
+
+export interface Proposal {
+  cardinality:number,
+  forFields:EAVNField[],
+  forRegisters:Register[],
+  proposer:Constraint,
+  skip?:boolean,
+  info?:any,
+}
+
+//------------------------------------------------------------------------
+// Registers
+//------------------------------------------------------------------------
+
+/**
+ * A register is just a numerical offset into the solved prefix.
+ * We can't make this a type alias because we wouldn't be able to
+ * tell the difference between static numbers and registers in scans.
+ */
+
+export class Register {
+  constructor(public offset:number) {}
+}
+
+export function isRegister(x: any): x is Register {
+  return x && x.constructor === Register;
+}
+
+/** The ignore register is a sentinel value for ScanFields that tell the scan to completely ignore that field. */
+export var IGNORE_REG = null;
+type IgnoreRegister = typeof IGNORE_REG;
+
+/** A scan field may contain a register, a static interned value, or the IGNORE_REG sentinel value. */
+type ScanField = Register|ID|IgnoreRegister;
+/** A resolved value is a scan field that, if it contained a register, now contains the register's resolved value. */
+export type ResolvedValue = ID|undefined|IgnoreRegister;
+
+type ResolvedEAVN = {e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue};
+
+
+//------------------------------------------------------------------------
 // Nodes
 //------------------------------------------------------------------------
 
 /**
  * Base class for nodes, the building blocks of blocks.
  */
-interface Node {
+export interface Node {
   /**
-   * See Scan.exec()
-   * @NOTE: The result format is slightly different. Rather than a packed list of EAVNs, we instead return a set of valid prefixes.
+   * Evaluate the node in the context of the currently solved prefix,
+   * returning a set of valid prefixes to continue the query as
+   * results.
    */
   exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results?:ID[][], changes?:Change[]):boolean;
 }
 
-class JoinNode implements Node {
+/**
+ * The JoinNode implements generic join across multiple constraints.
+ * Since our system is incremental, we need to do something slightly
+ * fancier than we did in the previous runtime.  For each new change
+ * that enters the system, we ask each of our constraints whether they
+ * are capable of producing a new result. In the case where a single
+ * constraint can, we presolve that constraint and then run the rest
+ * normally, limited to only producing results that match the first
+ * constraint. However, if multiple constraints might apply the input,
+ * we need to run for each *combination* of heads. E.g.:
+ *
+ * Given a join node with constraints [A, B, C, and D], where A and D
+ * can both apply the input, we must combine the results of the
+ * following computations to get the full result set:
+ *
+ * Apply {A} -> Do {B, C, D}
+ * Apply {A, D} -> Do {B, C}
+ * Apply {D} -> Do {A, B, C}
+ *
+ * We calculate this using the power set in exec.
+ *
+ * We then apply each of these combinations by running a genericJoin
+ * over the remaining unresolved registers.  We ask each un-applied
+ * constraint to propose a register to be solved. If a constraint is
+ * capable of resolving one, it returns the set of registers it can
+ * resolve and an estimate of the result set's cardinality. Generic
+ * Join chooses the cheapest proposal, which the winning constraint
+ * then fully computes (or retrieves from cache and returns). Next it
+ * asks each other constraint to accept or reject the proposal. If the
+ * constraint doesn't apply to the solved registers, it accepts.  If
+ * the solution contains results that match the output of the
+ * constraint, it also accepts. Otherwise, it must reject the solution
+ * and that particular run yields no results.
+ */
+
+export class JoinNode implements Node {
   registerLength = 0;
   registerArrays:Register[][];
   proposedResultsArrays:ID[][];
@@ -890,27 +1013,46 @@ class JoinNode implements Node {
       return results;
     }
 
+
     let {proposer} = bestProposal;
     // We have to copy here because we need to keep a reference to this even if later
     // rounds might overwrite the proposal
     moveArray(bestProposal.forRegisters, forRegisters);
-    let resolved = proposer.resolveProposal(index, prefix, bestProposal, transaction, round, proposedResults);
-    resultLoop: for(let result of resolved) {
-      let ix = 0;
-      for(let register of forRegisters) {
-        prefix[register.offset] = result[ix];
-        ix++;
-      }
-      for(let constraint of constraints) {
-        if(constraint === proposer) continue;
-        if(!constraint.accept(index, prefix, transaction, round, forRegisters)) {
-          continue resultLoop;
+    let resolved:any[] = proposer.resolveProposal(index, prefix, bestProposal, transaction, round, proposedResults);
+    if(resolved[0].constructor === Array) {
+      resultLoop: for(let result of resolved) {
+        let ix = 0;
+        for(let register of forRegisters) {
+          prefix[register.offset] = result[ix];
+          ix++;
+        }
+        for(let constraint of constraints) {
+          if(constraint === proposer) continue;
+          if(!constraint.accept(index, prefix, transaction, round, forRegisters)) {
+            continue resultLoop;
+          }
+        }
+        if(roundIx === 1) {
+          results.push(copyArray(prefix, "gjResults"));
+        } else {
+          this.genericJoin(index, prefix, transaction, round, results, roundIx - 1);
         }
       }
-      if(roundIx === 1) {
-        results.push(copyArray(prefix, "gjResults"));
-      } else {
-        this.genericJoin(index, prefix, transaction, round, results, roundIx - 1);
+    } else {
+      let register = forRegisters[0];
+      resultLoop: for(let result of resolved) {
+        prefix[register.offset] = result as ID;
+        for(let constraint of constraints) {
+          if(constraint === proposer) continue;
+          if(!constraint.accept(index, prefix, transaction, round, forRegisters)) {
+            continue resultLoop;
+          }
+        }
+        if(roundIx === 1) {
+          results.push(copyArray(prefix, "gjResults"));
+        } else {
+          this.genericJoin(index, prefix, transaction, round, results, roundIx - 1);
+        }
       }
     }
     for(let register of forRegisters) {
@@ -962,7 +1104,7 @@ class JoinNode implements Node {
 
 }
 
-class InsertNode implements Node {
+export class InsertNode implements Node {
   constructor(public e:ID|Register,
               public a:ID|Register,
               public v:ID|Register,
@@ -973,23 +1115,37 @@ class InsertNode implements Node {
   resolve = Scan.prototype.resolve;
 
   exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:ID[][], changes:Change[]):boolean {
-    let resolved = this.resolve(prefix);
+    let {e,a,v,n} = this.resolve(prefix);
 
     // @FIXME: This is pretty wasteful to copy one by one here.
     results!.push(prefix);
 
-    if(resolved.e === undefined || resolved.a === undefined || resolved.v === undefined || resolved.n === undefined) {
+    if(e === undefined || a === undefined || v === undefined || n === undefined) {
       return false;
     }
 
-    let change = new Change(resolved.e!, resolved.a!, resolved.v!, resolved.n!, transaction, round + 1, 1);
+    // @TODO: when we do removes, we could say that if the result is a remove, we want to
+    // dereference these ids instead of referencing them. This would allow us to clean up
+    // the interned space based on what's "in" the indexes. The only problem is that if you
+    // held on to a change, the IDs of that change may no longer be in the interner, or worse
+    // they may have been reassigned to something else. For now, we'll just say that once something
+    // is in the index, it never goes away.
+    GlobalInterner.reference(e);
+    GlobalInterner.reference(a);
+    GlobalInterner.reference(v);
+    GlobalInterner.reference(n);
+    let change = new Change(e!, a!, v!, n!, transaction, round + 1, 1);
     changes.push(change);
 
     return true;
   }
 }
 
-class Block {
+//------------------------------------------------------------------------------
+// Block
+//------------------------------------------------------------------------------
+
+export class Block {
   constructor(public name:string, public nodes:Node[]) {}
 
   // We're going to essentially double-buffer the result arrays so we can avoid allocating in the hotpath.
@@ -1027,7 +1183,7 @@ class Block {
 // Transaction
 //------------------------------------------------------------------------------
 
-class Transaction {
+export class Transaction {
 
   round = 0;
   constructor(public transaction:number, public blocks:Block[], public changes:Change[]) {}
@@ -1041,138 +1197,17 @@ class Transaction {
 
       //console.log("Round:", this.round);
 
-      for(let block of blocks) {
+      for(let block of this.blocks) {
         block.exec(index, change, transaction, this.round, changes);
       }
       index.insert(change);
       changeIx++;
     }
+
+    // Once the transaction is effectively done, we need to clean up after ourselves. We
+    // arena allocated a bunch of IDs related to function call outputs, which we can now
+    // safely release.
+    GlobalInterner.releaseArena("functionOutput");
   }
-
-}
-
-//------------------------------------------------------------------------------
-// Testing logic
-//------------------------------------------------------------------------------
-
-type RawEAVN = [RawValue, RawValue, RawValue, RawValue];
-type RawEAVNC = [RawValue, RawValue, RawValue, RawValue, number];
-
-let _currentTransaction = 0;
-function createChangeSet(...eavns:(RawEAVN|RawEAVNC)[]) {
-  let changes:ChangeSet = [];
-  for(let [e, a, v, n, c = 1] of eavns as RawEAVNC[]) {
-    changes.push(Change.fromValues(e, a, v, n, _currentTransaction, 0, c));
-  }
-  _currentTransaction++;
-
-  return changes;
-}
-
-// We'll accumulate the current program state here as we stream in changes.
-let currentState:ChangeSet = [];
-
-// A list of changesets to stream into the program. Each changeset corresponds to an input event.
-let changes:ChangeSet[] = [];
-changes.push(
-  createChangeSet(["<1>", "tag", "person", 1]),
-  createChangeSet(["<1>", "name", "RAB", 1]),
-  createChangeSet(["<1>", "age", 7, 1]),
-  createChangeSet(["<2>", "tag", "person", 1], ["<2>", "name", "KERY", 1], ["<2>", "age", 41, 1]),
-  createChangeSet(["<3>", "tag", "dog", 1], ["<3>", "name", "jeff", 1], ["<3>", "age", 3, 1]),
-  createChangeSet(["<4>", "name", "BORSCHT", 1], ["<4>", "tag", "person", 1]),
-);
-
-// Manually created registers for the testing program below.
-let nameReg = new Register(0);
-let eReg = new Register(1);
-let idReg = new Register(2);
-let textReg = new Register(3);
-
-let p1Reg = new Register(0);
-let p2Reg = new Register(1);
-let age1Reg = new Register(2);
-let age2Reg = new Register(3);
-let resultReg = new Register(4);
-
-// Test program. It evaluates:
-// search
-//   eid = [#person name]
-// bind
-//   [#div | text: name]
-let blocks:Block[] = [
-  new Block("things are happening", [
-    new JoinNode([
-      new Scan(eReg, GlobalInterner.intern("tag"), GlobalInterner.intern("person"), null),
-      new Scan(eReg, GlobalInterner.intern("name"), nameReg, null),
-      FunctionConstraint.create("eve-internal/gen-id", {result: idReg}, [eReg, nameReg])!,
-      FunctionConstraint.create("eve-internal/concat", {result: textReg}, [GlobalInterner.intern("name: "), nameReg])!
-    ]),
-    new InsertNode(idReg, GlobalInterner.intern("tag"), GlobalInterner.intern("div"), GlobalInterner.intern(2)),
-    new InsertNode(idReg, GlobalInterner.intern("text"), textReg, GlobalInterner.intern(2)),
-  ]),
-  // new Block("> filters are cool", [
-  //   new JoinNode([
-  //     new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
-  //     new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
-  //     FunctionConstraint.create(">", {a: age1Reg, b: age2Reg})!
-  //   ]),
-  //   new InsertNode(GlobalInterner.intern("is-greater-than"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
-  //   new InsertNode(GlobalInterner.intern("is-greater-than"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
-  // ]),
-  // new Block("= filters are cool", [
-  //   new JoinNode([
-  //     new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
-  //     new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
-  //     FunctionConstraint.create("=", {a: age1Reg, b: age2Reg})!
-  //   ]),
-  //   new InsertNode(GlobalInterner.intern("is-equal"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
-  //   new InsertNode(GlobalInterner.intern("is-equal"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
-  // ]),
-  // new Block("There's a + function in there and it knows whats up", [
-  //   new JoinNode([
-  //     new Scan(p1Reg, GlobalInterner.intern("age"), age1Reg, null),
-  //     new Scan(p2Reg, GlobalInterner.intern("age"), age2Reg, null),
-  //     FunctionConstraint.create("+", {a: age1Reg, b: age2Reg, result: resultReg})!
-  //   ]),
-  //   new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("age1"), age1Reg, GlobalInterner.intern(76)),
-  //   new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("age2"), age2Reg, GlobalInterner.intern(76)),
-  //   new InsertNode(GlobalInterner.intern("adds-to"), GlobalInterner.intern("result"), resultReg, GlobalInterner.intern(76)),
-  // ]),
-
-];
-
-export function doIt() {
-  _currentTransaction = 0;
-  changes = [];
-  let size = 10000;
-  for(let i = 0; i < size; i++) {
-    changes.push(createChangeSet([i - 1, "name", i - 1, 1], [i, "tag", "person", 1]));
-  }
-  // let index = new BitIndex();
-  let index = new InsertOnlyHashIndex();
-  ALLOCATION_COUNT = {};
-  console.time("do it");
-
-  for(let changeset of changes) {
-
-    let trans = new Transaction(changeset[0].transaction, blocks, changeset);
-    // console.log(`TX ${trans.transaction}\n` + changeset.map((change, ix) => `  -> ${change}`).join("\n"));
-    trans.exec(index);
-    // console.log(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
-  }
-  console.timeEnd("do it");
-  // console.log(changes);
-
-  console.log("INDEX SIZE", index.cardinality);
-  console.log("TOTAL ALLOCS", ALLOCATION_COUNT);
-}
-
-for(let ix = 0; ix < 1; ix++) {
-  doIt();
-}
-
-if(typeof window === "object") {
-  (window as any)["doit"] = doIt as any;
 }
 
