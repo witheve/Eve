@@ -396,7 +396,7 @@ class BitMatrixTree {
     return false;
   }
 
-  check(row:number, col:number) {
+  checkMultiplicity(row:number, col:number):number {
     let {bins} = this;
     let size = this.size();
     let rowStart = 0;
@@ -418,8 +418,9 @@ class BitMatrixTree {
     let rowIx = row - rowStart;
     let colIx = (col - colStart) % bins;
     let pos = (rowIx * bins) + colIx;
-    if(current[pos]) return true;
-    return false;
+    let ntrcArray = current[pos];
+    if(ntrcArray) return sumTimes(ntrcArray, transaction, round);
+    return 0;
   }
 
   findRows(col: number, fill:ID[] = []) {

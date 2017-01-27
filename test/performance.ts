@@ -1,6 +1,7 @@
 import {Program} from "../src/runtime/dsl";
 import {verify, createChanges, time} from "./util";
 import * as test from "tape";
+import * as index from "../src/runtime/indexes";
 
 test("test single block performance with 10000 transactions", (assert) => {
 
@@ -21,6 +22,9 @@ test("test single block performance with 10000 transactions", (assert) => {
   // verification
   // -----------------------------------------------------
 
+  let foos = [];
+  for(let ix = 0; ix < 10; ix++) {
+    prog.index = new index.BitIndex();
   let size = 10000;
   let changes = [];
   for(let i = 0; i < size; i++) {
@@ -36,7 +40,10 @@ test("test single block performance with 10000 transactions", (assert) => {
     assert.true(end < 800, "Took too long");
     assert.end();
   })
+  foos.push(changes);
+  }
 
+  console.log(foos.length);
   assert.pass();
   assert.end();
 });
