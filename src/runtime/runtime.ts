@@ -4,25 +4,25 @@ import {Index, ListIndex, HashIndex} from "./indexes";
 // Debugging
 //------------------------------------------------------------------------
 
-function printField(field:ScanField) {
+export function printField(field:ScanField) {
   if(isRegister(field)) return "[" + field.offset + "]";
   if(field === undefined || field === null) return field;
   return GlobalInterner.reverse(field);
 }
 
-function printPrefix(prefix:ID[]) {
+export function printPrefix(prefix:ID[]) {
   return prefix.map((v) => GlobalInterner.reverse(v));
 }
 
-function printScan(constraint:Scan) {
+export function printScan(constraint:Scan) {
   return `Scan: ${printField(constraint.e)} ${printField(constraint.a)} ${printField(constraint.v)} ${printField(constraint.n)}`;
 }
 
-function printFunction(constraint:FunctionConstraint) {
+export function printFunction(constraint:FunctionConstraint) {
   return `Function ${constraint.name} ${constraint.fieldNames.map((v) => v + ": " + printField(constraint.fields[v]))}`;
 }
 
-function printConstraint(constraint:Constraint) {
+export function printConstraint(constraint:Constraint) {
   if(constraint instanceof Scan) {
     return printScan(constraint);
   } else if(constraint instanceof FunctionConstraint) {
@@ -143,7 +143,7 @@ export class Interner {
         coll = this.strings;
       }
       coll[value] = undefined;
-      this.IDs[id] = undefined;
+      this.IDs[id] = undefined as any;
       this.IDFreeList.push(id);
     }
   }
@@ -1130,10 +1130,10 @@ export class InsertNode implements Node {
     // held on to a change, the IDs of that change may no longer be in the interner, or worse
     // they may have been reassigned to something else. For now, we'll just say that once something
     // is in the index, it never goes away.
-    GlobalInterner.reference(e);
-    GlobalInterner.reference(a);
-    GlobalInterner.reference(v);
-    GlobalInterner.reference(n);
+    GlobalInterner.reference(e!);
+    GlobalInterner.reference(a!);
+    GlobalInterner.reference(v!);
+    GlobalInterner.reference(n!);
     let change = new Change(e!, a!, v!, n!, transaction, round + 1, 1);
     changes.push(change);
 
@@ -1191,16 +1191,20 @@ export class Transaction {
   exec(index:Index) {
     let {changes, transaction, round} = this;
     let changeIx = 0;
+    // console.log("Blocks: " + this.blocks.map((b) => b.name).join(", "));
     while(changeIx < changes.length) {
       let change = changes[changeIx];
       this.round = change.round;
+      // console.log("  Round:", this.round);
 
-      //console.log("Round:", this.round);
-
-      for(let block of this.blocks) {
-        block.exec(index, change, transaction, this.round, changes);
+      if(!index.check(change.e, change.a, change.v, IGNORE_REG, transaction, change.round)) {
+        for(let block of this.blocks) {
+          block.exec(index, change, transaction, this.round, changes);
+        }
       }
+
       index.insert(change);
+      // console.log("    -> " + change);
       changeIx++;
     }
 

@@ -25,15 +25,46 @@ function maybeIntern(value:(RawValue|Register)):Register|ID {
   return GlobalInterner.intern(value);
 }
 
+function toValue(a?:DSLNode):DSLValue {
+  if(a === undefined || a === null) throw new Error("Eve values can't be undefined or null");
+  if(a instanceof DSLVariable) {
+    return a.value;
+  } if(a instanceof DSLRecord) {
+    return a.__record.value;
+  } if(a instanceof DSLFunction) {
+    return a.returnValue.value;
+  }
+  return a;
+}
+
+function toVariable(maybeVariable?:DSLNode):DSLVariable {
+  if(maybeVariable instanceof DSLVariable) {
+    return maybeVariable;
+  } else if(maybeVariable instanceof DSLRecord) {
+    return maybeVariable.__record;
+  } else if(maybeVariable instanceof DSLFunction) {
+    return maybeVariable.returnValue;
+  } else {
+    throw new Error("Only variables and records can resolve to variables.");
+  }
+}
+
+function isRecord(a:any): a is DSLRecord {
+  return a instanceof DSLRecord;
+}
+
 //--------------------------------------------------------------------
 // DSLVariable
 //--------------------------------------------------------------------
+
+type DSLVariableParent = DSLFunction|DSLRecord;
+type DSLNode = DSLFunction|DSLRecord|DSLVariable|RawValue;
 
 type DSLValue = RawValue|Register;
 class DSLVariable {
   static CURRENT_ID = 0;
   id: number;
-  constructor(public name:string, public value:DSLValue = new Register(UNASSIGNED)) {
+  constructor(public name:string, public parent?:DSLVariableParent, public value:DSLValue = new Register(UNASSIGNED)) {
     this.id = DSLVariable.CURRENT_ID++;
   }
 }
@@ -45,7 +76,7 @@ class DSLVariable {
 class DSLFunction {
   returnValue:DSLVariable;
 
-  constructor(public block:DSLBlock, public path:string[], public args:any[]) {
+  constructor(public __block:DSLBlock, public path:string[], public args:any[]) {
     let name = this.path.join("/");
     let {filter} = FunctionConstraint.fetchInfo(name)
     if(filter) {
@@ -53,18 +84,18 @@ class DSLFunction {
     } else {
       this.returnValue = new DSLVariable("returnValue");
     }
-    block.registerVariable(this.returnValue);
+    __block.registerVariable(toVariable(this.returnValue));
   }
 
   compile() {
     let constraints:FunctionConstraint[] = [];
-    let result = maybeIntern(this.block.toValue(this.returnValue));
-    let values = this.args.map((v) => maybeIntern(this.block.toValue(v)))
+    let result = maybeIntern(toValue(this.returnValue));
+    let values = this.args.map((v) => maybeIntern(toValue(v)))
     let name = this.path.join("/");
     let {variadic, filter} = FunctionConstraint.fetchInfo(name)
     let returns:any = {};
     if(!filter) {
-      returns.result = this.block.toValue(this.returnValue);
+      returns.result = toValue(this.returnValue);
     }
     let constraint;
     if(variadic) {
@@ -93,6 +124,8 @@ class DSLRecord {
   // __output tells us whether this DSLRecord is a search or it's going to be
   // used to output new records (aka commit)
   __output: boolean = false;
+  /** If a record is an output, it needs an id by default unless its modifying an existing record. */
+  __needsId: boolean = true;
   __fields: any;
   constructor(public __block:DSLBlock, tags:string[], initialAttributes:any) {
     let fields:any = {tag: tags};
@@ -104,7 +137,7 @@ class DSLRecord {
       fields[field] = value;
     }
     this.__fields = fields;
-    this.__record = new DSLVariable("record");
+    this.__record = new DSLVariable("record", this);
     __block.registerVariable(this.__record);
   }
 
@@ -117,7 +150,7 @@ class DSLRecord {
           return "uh oh";
         }
         if(!found) {
-          found = new DSLVariable(prop);
+          found = new DSLVariable(prop, this);
           obj.__fields[prop] = [found];
           this.__block.registerVariable(found);
         } else {
@@ -148,6 +181,19 @@ class DSLRecord {
     })
   }
 
+  add(attributeName:string, value:DSLNode) {
+    let record = new DSLRecord(this.__block, [], {[attributeName]: value});
+    record.__output = true;
+    record.__record = this.__record;
+    record.__needsId = false;
+    this.__block.records.push(record);
+    return this;
+  }
+
+  remove(attributeName:string, value?:DSLNode) {
+    throw new Error("@TODO: Implement me!");
+  }
+
   compile() {
     if(this.__output) {
       return this.toInserts();
@@ -162,15 +208,16 @@ class DSLRecord {
     let values = [];
     for(let field in this.__fields) {
       for(let dslValue of this.__fields[field]) {
-        let value = this.__block.toValue(dslValue) as (RawValue | Register);
+        let value = toValue(dslValue) as (RawValue | Register);
         // @TODO: generate node ids
         values.push(maybeIntern(value));
         inserts.push(new InsertNode(e, maybeIntern(field), maybeIntern(value), maybeIntern("my-awesome-node")))
       }
     }
-    inserts.push(FunctionConstraint.create("eve/internal/gen-id", {result: e}, values) as FunctionConstraint);
+    if(this.__needsId) {
+      inserts.push(FunctionConstraint.create("eve/internal/gen-id", {result: e}, values) as FunctionConstraint);
+    }
     return inserts;
-
   }
 
   toScans() {
@@ -178,7 +225,7 @@ class DSLRecord {
     let e = maybeIntern(this.__record.value);
     for(let field in this.__fields) {
       for(let dslValue of this.__fields[field]) {
-        let value = this.__block.toValue(dslValue) as (RawValue | Register);
+        let value = toValue(dslValue) as (RawValue | Register);
         scans.push(new Scan(e, maybeIntern(field), maybeIntern(value), IGNORE_REG))
       }
     }
@@ -257,18 +304,6 @@ class DSLBlock {
     this.variableLookup[variable.id] = [variable];
   }
 
-  toValue(a:any) {
-    if(a === undefined || a === null) throw new Error("Eve values can't be undefined or null");
-    if(a instanceof DSLVariable) {
-      return a.value;
-    } if(a instanceof DSLRecord) {
-      return a.__record.value;
-    } if(a instanceof DSLFunction) {
-      return a.returnValue.value;
-    }
-    return a;
-  }
-
   // This sets two potential values to be equivalent to each other. A value can be a:
   //  - DSLVariable
   //  - DSLRecord
@@ -279,30 +314,35 @@ class DSLBlock {
   // registers, then we unify the registers. If one is a RawValue, we overwrite the variable.value
   // of everybody that is referencing the variable to have the passed in RawValue.
   equivalence(a:any, b:any) {
-    let aValue = this.toValue(a);
-    let bValue = this.toValue(b);
+    let aValue = toValue(a);
+    let bValue = toValue(b);
+    // console.log(a, "==", b);
     let aIsRegister = isRegister(aValue);
     let bIsRegister = isRegister(bValue);
     if(aIsRegister && bIsRegister) {
-      let aVars = this.variableLookup[a.id];
-      let bVars = this.variableLookup[b.id];
+      let aVariable = toVariable(a);
+      let bVariable = toVariable(b);
+      let aVars = this.variableLookup[aVariable.id];
+      let bVars = this.variableLookup[bVariable.id];
       for(let variable of aVars) {
         variable.value = bValue;
         bVars.push(variable);
       }
-      this.variableLookup[a.id] = [];
+      this.variableLookup[aVariable.id] = [];
     } else if(aIsRegister) {
-      let aVars = this.variableLookup[a.id];
+      let aVariable = toVariable(a);
+      let aVars = this.variableLookup[aVariable.id];
       for(let variable of aVars) {
         variable.value = bValue;
       }
-      this.variableLookup[a.id] = [];
+      this.variableLookup[aVariable.id] = [];
     } else if(bIsRegister) {
-      let bVars = this.variableLookup[b.id];
+      let bVariable = toVariable(b);
+      let bVars = this.variableLookup[bVariable.id];
       for(let variable of bVars) {
         variable.value = aValue;
       }
-      this.variableLookup[b.id] = [];
+      this.variableLookup[bVariable.id] = [];
     } else if(aValue !== bValue) {
       throw new Error(`Trying to equivalence two static values that aren't the same: ${aValue} and ${bValue}`);
     }
