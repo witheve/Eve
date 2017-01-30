@@ -175,7 +175,7 @@ test("test addition operator", (assert) => {
   assert.end();
 });
 
-test("transitive closure", (assert) => {
+test.only("transitive closure", (assert) => {
   // -----------------------------------------------------
   // program
   // -----------------------------------------------------
@@ -206,35 +206,115 @@ test("transitive closure", (assert) => {
 
   verify(assert, prog, [
     [1, "edge", 2],
-    [2, "edge", 3],
-    [3, "edge", 4],
-    [4, "edge", 1],
+    [2, "edge", 1],
   ], [
     [1, "path", 2, 1],
-    [2, "path", 3, 1],
-    [3, "path", 4, 1],
-    [4, "path", 1, 1],
-
-    [1, "path", 3, 2],
-    [2, "path", 4, 2],
-    [3, "path", 1, 2],
-    [4, "path", 2, 2],
-
-    [1, "path", 4, 3],
+    [2, "path", 1, 1],
+    [1, "path", 1, 2],
+    [2, "path", 2, 2],
+    [1, "path", 2, 3],
     [2, "path", 1, 3],
-    [3, "path", 2, 3],
-    [4, "path", 3, 3],
+  ])
 
-    [1, "path", 1, 4],
-    [2, "path", 2, 4],
-    [3, "path", 3, 4],
-    [4, "path", 4, 4],
+  verify(assert, prog, [
+    [1, "edge", 2, 0, -1],
+  ], [
+    [1, "path", 2, 1, -1],
+    [1, "path", 1, 2, - 1],
+    [2, "path", 2, 2, - 1],
+    [2, "path", 1, 3, - 1],
+    [1, "path", 2, 3, -1],
+  ])
 
-    [1, "path", 2, 5],
-    [2, "path", 3, 5],
-    [3, "path", 4, 5],
-    [4, "path", 1, 5]
-  ]);
+  // verify(assert, prog, [
+  //   [1, "edge", 2],
+  //   [2, "edge", 3],
+  //   [3, "edge", 4],
+  //   [4, "edge", 1],
+  // ], [
+  //   [1, "path", 2, 1],
+  //   [2, "path", 3, 1],
+  //   [3, "path", 4, 1],
+  //   [4, "path", 1, 1],
+
+  //   [1, "path", 3, 2],
+  //   [2, "path", 4, 2],
+  //   [3, "path", 1, 2],
+  //   [4, "path", 2, 2],
+
+  //   [1, "path", 4, 3],
+  //   [2, "path", 1, 3],
+  //   [3, "path", 2, 3],
+  //   [4, "path", 3, 3],
+
+  //   [1, "path", 1, 4],
+  //   [2, "path", 2, 4],
+  //   [3, "path", 3, 4],
+  //   [4, "path", 4, 4],
+
+  //   [1, "path", 2, 5],
+  //   [2, "path", 3, 5],
+  //   [3, "path", 4, 5],
+  //   [4, "path", 1, 5]
+  // ]);
+
+  // // Kick the legs out from under the cycle.
+
+  // verify(assert, prog, [
+  //   [4, "edge", 1, 0, -1]
+  // ], [
+  //   [4, "path", 1, 1, -1],
+
+  //   [4, "path", 2, 2, -1],
+  //   [3, "path", 1, 2, -1],
+  //   [2, "path", 1, 2, -1],
+  //   [1, "path", 1, 2, -1],
+
+  //   [4, "path", 3, 3, -1],
+  //   [3, "path", 2, 3, -1],
+  //   [2, "path", 2, 3, -1],
+  //   [1, "path", 2, 3, -1],
+
+  //   [4, "path", 4,  4, -1],
+
+  //   [4, "path", 1,  5, -1],
+  // ]);
+
 
   assert.end();
 });
+
+test("removal", (assert) => {
+
+  // -----------------------------------------------------
+  // program
+  // -----------------------------------------------------
+
+  let prog = new Program("test");
+  prog.block("simple block", (find:any, record:any, lib:any) => {
+    find({foo: "bar"});
+    return [
+      record({zomg: "baz"})
+    ]
+  });
+
+  // -----------------------------------------------------
+  // verification
+  // -----------------------------------------------------
+
+  // trust, but
+  verify(assert, prog, [
+    [1, "foo", "bar"]
+  ], [
+    [2, "zomg", "baz", 1]
+  ]);
+
+  verify(assert, prog, [
+    [1, "foo", "bar", 0, -1]
+  ], [
+    [2, "zomg", "baz", 1, -1]
+  ], 1);
+
+  assert.end();
+});
+
