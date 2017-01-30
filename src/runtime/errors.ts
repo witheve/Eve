@@ -240,6 +240,11 @@ export function incompatabileTransitiveEquality(block, variable, value) {
   return new EveError(id, start, stop, messages.variableNeverEqual(variable, variable.constant, value));
 }
 
+export function unrecognisedFunctionAttribute(block, expression , attribute) {
+  let {id, start: blockStart} = block;
+  return new EveError(id, attribute.startOffset , attribute.endOffset, messages.unrecognisedFunctionAttribute(attribute.attribute, expression.op));
+}
+
 //--------------------------------------------------------------
 // Messages
 //--------------------------------------------------------------
@@ -260,6 +265,7 @@ export var messages = {
   extraCloseChar: (char) => `This close ${PairToName[char]} is missing an open ${PairToName[char]}`,
 
   unprovidedVariable: (varName) => `Nothing is providing a value for ${varName}`,
+  unrecognisedFunctionAttribute: (attributeName , functionName ) => `${attributeName} is not a recognised attribute for ${functionName}.`,
 
   unimplementedExpression: (op) => `There's no definition for the function ${op}`,
 
