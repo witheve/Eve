@@ -1,5 +1,5 @@
 
-import {Proposal, Change, ResolvedValue, createArray, createHash, IGNORE_REG, ID, EAVN, EAVNField, Register, Constraint, ALLOCATION_COUNT} from "./runtime";
+import {Proposal, Change, ResolvedValue, createArray, createHash, IGNORE_REG, ID, EAVN, EAVNField, Register, Constraint, ALLOCATION_COUNT, NTRCArray} from "./runtime";
 
 //------------------------------------------------------------------------
 // Utils
@@ -29,16 +29,38 @@ function sumTimes(ntrcArray:number[], transaction:number, round:number) {
 
 export interface Index {
   insert(change:Change):void;
+  hasImpact(change:Change):boolean;
   propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):Proposal;
   resolveProposal(proposal:Proposal):any[][];
   get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[];
   check(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):boolean;
+  getDiffs(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue):NTRCArray;
 }
 
 export class ListIndex implements Index {
   changes: Change[] = createArray();
   insert(change:Change) {
      this.changes.push(change);
+  }
+
+  hasImpact(input:Change) {
+    let {e,a,v,n} = input;
+    let count = 0;
+    for(let change of this.changes) {
+      if((e === undefined || e === IGNORE_REG || e === change.e) &&
+         (a === undefined || a === IGNORE_REG || a === change.a) &&
+         (v === undefined || v === IGNORE_REG || v === change.v) &&
+         (n === undefined || n === IGNORE_REG || n === change.n) &&
+         (change.transaction <= input.transaction) &&
+         (change.round <= input.round)) {
+        count += change.count;
+      }
+    }
+    if((count > 0 && count + input.count == 0) ||
+       (count == 0 && count + input.count > 0)) {
+      return true;
+    }
+    return false;
   }
 
   resolveProposal(proposal:Proposal) {
@@ -104,6 +126,20 @@ export class ListIndex implements Index {
     }
     return final;
   }
+
+  getDiffs(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue):NTRCArray {
+    let final = createArray() as NTRCArray;
+    for(let change of this.changes) {
+      if((e === undefined || e === IGNORE_REG || e === change.e) &&
+         (a === undefined || a === IGNORE_REG || a === change.a) &&
+         (v === undefined || v === IGNORE_REG || v === change.v) &&
+         (n === undefined || n === IGNORE_REG || n === change.n)) {
+        final.push(change.n, change.transaction, change.round, change.count);
+      }
+    }
+    return final;
+
+  }
 }
 
 export class HashIndex implements Index {
@@ -142,6 +178,17 @@ export class HashIndex implements Index {
     this.cardinality++;
   }
 
+  hasImpact(input:Change) {
+    let {e,a,v,n} = input;
+    let ntrcs = this.getDiffs(e,a,v,n);
+    let count = sumTimes(ntrcs, input.transaction, input.round);
+    if((count > 0 && count + input.count == 0) ||
+       (count == 0 && count + input.count > 0)) {
+      return true;
+    }
+    return false;
+  }
+
   resolveProposal(proposal:Proposal) {
     return proposal.info;
   }
@@ -178,13 +225,12 @@ export class HashIndex implements Index {
       }
       if(isResolved(c)) {
         let ntrcArray = cIx[c];
-        if(sumTimes(ntrcArray, transaction, round) > 0) {
+        if(ntrcArray) {
           proposal.skip = true;
           return proposal;
-        } else {
-          proposal.cardinality = 0;
-          return proposal;
         }
+        proposal.cardinality = 0;
+        return proposal;
       } else {
         forFields[0] = fieldC;
         proposal.info = Object.keys(cIx);
@@ -210,15 +256,12 @@ export class HashIndex implements Index {
       if(!cIx) return false;
       if(isResolved(c)) {
         let ntrcArray = cIx[c];
-        return sumTimes(ntrcArray, transaction, round) > 0;
-      } else {
-        for(let key of Object.keys(cIx)) {
-          let ntrcArray = cIx[key];
-          if(sumTimes(ntrcArray, transaction, round) > 0) {
-            return true;
-          }
+        if(ntrcArray) {
+          return true;
         }
         return false;
+      } else {
+        return Object.keys(cIx).length !== 0;
       }
     } else {
       for(let key of Object.keys(bIx)) {
@@ -226,15 +269,12 @@ export class HashIndex implements Index {
         if(!cIx) return false;
         if(isResolved(c)) {
           let ntrcArray = cIx[c];
-          return sumTimes(ntrcArray, transaction, round) > 0;
-        } else {
-          for(let key of Object.keys(cIx)) {
-            let ntrcArray = cIx[key];
-            if(sumTimes(ntrcArray, transaction, round) > 0) {
-              return true;
-            }
+          if(ntrcArray) {
+            return true;
           }
           return false;
+        } else {
+          return Object.keys(cIx).length !== 0;
         }
       }
     }
@@ -253,6 +293,18 @@ export class HashIndex implements Index {
   get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[] {
     throw new Error("Not implemented");
   }
+
+  getDiffs(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue):NTRCArray {
+    let aIx = this.eavIndex[e!];
+    if(aIx) {
+      let vIx = aIx[a!];
+      if(vIx) {
+        return vIx[v!];
+      }
+    }
+    return createArray();
+  }
+
 }
 
 export class InsertOnlyHashIndex implements Index {
@@ -322,6 +374,11 @@ class MatrixIndex implements Index {
   insert(change:Change) {
   }
 
+  hasImpact(input:Change) {
+    let {e,a,v,n} = input;
+    return false;
+  }
+
   resolveProposal(proposal:Proposal) {
     return createArray();
   }
@@ -337,6 +394,10 @@ class MatrixIndex implements Index {
   get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[] {
     let final = createArray() as EAVN[];
     return final;
+  }
+
+  getDiffs(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue):NTRCArray {
+    return [];
   }
 }
 

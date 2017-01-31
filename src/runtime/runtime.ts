@@ -4,25 +4,25 @@ import {Index, ListIndex, HashIndex, BitIndex, InsertOnlyHashIndex} from "./inde
 // Debugging
 //------------------------------------------------------------------------
 
-function printField(field:ScanField) {
+export function printField(field:ScanField) {
   if(isRegister(field)) return "[" + field.offset + "]";
   if(field === undefined || field === null) return field;
   return GlobalInterner.reverse(field);
 }
 
-function printPrefix(prefix:ID[]) {
+export function printPrefix(prefix:ID[]) {
   return prefix.map((v) => GlobalInterner.reverse(v));
 }
 
-function printScan(constraint:Scan) {
+export function printScan(constraint:Scan) {
   return `Scan: ${printField(constraint.e)} ${printField(constraint.a)} ${printField(constraint.v)} ${printField(constraint.n)}`;
 }
 
-function printFunction(constraint:FunctionConstraint) {
+export function printFunction(constraint:FunctionConstraint) {
   return `Function ${constraint.name} ${constraint.fieldNames.map((v) => v + ": " + printField(constraint.fields[v]))}`;
 }
 
-function printConstraint(constraint:Constraint) {
+export function printConstraint(constraint:Constraint) {
   if(constraint instanceof Scan) {
     return printScan(constraint);
   } else if(constraint instanceof FunctionConstraint) {
@@ -143,7 +143,7 @@ export class Interner {
         coll = this.strings;
       }
       coll[value] = undefined;
-      this.IDs[id] = undefined;
+      this.IDs[id] = undefined as any;
       this.IDFreeList.push(id);
     }
   }
@@ -240,6 +240,8 @@ type ChangeSet = Change[];
 // Constraints
 //------------------------------------------------------------------------
 
+export type NTRCArray = number[];
+
 enum ApplyInputState {
   pass,
   fail,
@@ -247,6 +249,7 @@ enum ApplyInputState {
 }
 
 export interface Constraint {
+  isInput:boolean;
   setup():void;
   getRegisters():Register[];
   applyInput(input:Change, prefix:ID[]):ApplyInputState;
@@ -254,6 +257,7 @@ export interface Constraint {
   resolveProposal(index:Index, prefix:ID[], proposal:Proposal, transaction:number, round:number, results:any[]):ID[][];
   accept(index:Index, prefix:ID[], transaction:number, round:number, solvingFor:Register[]):boolean;
   acceptInput(index:Index, input:Change, prefix:ID[], transaction:number, round:number):boolean;
+  getDiffs(index:Index, prefix:ID[]):NTRCArray;
 }
 
 //------------------------------------------------------------------------
@@ -274,6 +278,7 @@ export class Scan implements Constraint {
   protected registers:Register[] = createArray();
   protected registerLookup:boolean[] = createArray();
 
+  isInput:boolean = false;
   proposal:Proposal = {cardinality: 0, forFields: [], forRegisters: [], proposer: this};
 
   /**
@@ -435,6 +440,11 @@ export class Scan implements Constraint {
     return this.registers;
   }
 
+  getDiffs(index:Index, prefix:ID[]):NTRCArray {
+    let {e,a,v,n} = this.resolve(prefix);
+    return index.getDiffs(e,a,v,n);
+  }
+
 }
 
 //------------------------------------------------------------------------
@@ -480,6 +490,7 @@ export class FunctionConstraint implements Constraint {
   returnNames:string[];
   apply: (... things: any[]) => undefined|(number|string)[]; // @FIXME: Not supporting multi-return yet.
   estimate?:(index:Index, prefix:ID[], transaction:number, round:number) => number
+  isInput:boolean = false;
 
   fieldNames:string[];
   proposal:Proposal = {cardinality:0, forFields: createArray(), forRegisters: createArray(), proposer: this};
@@ -735,6 +746,10 @@ export class FunctionConstraint implements Constraint {
   acceptInput(index:Index, input:Change, prefix:ID[], transaction:number, round:number):boolean {
     return this.accept(index, prefix, transaction, round, this.registers);
   }
+
+  getDiffs(index:Index, prefix:ID[]):NTRCArray {
+    return [];
+  }
 }
 
 interface FunctionSetup {
@@ -869,7 +884,7 @@ export interface Node {
    * returning a set of valid prefixes to continue the query as
    * results.
    */
-  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results?:ID[][], changes?:Change[]):boolean;
+  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:ID[][], changes:Transaction):boolean;
 }
 
 /**
@@ -962,7 +977,10 @@ export class JoinNode implements Node {
     } else if(!remainingToSolve) {
       // if it is valid and there's nothing left to solve, then we've found
       // a full result and we should just continue
+      prefix.push(round, 1);
       results.push(copyArray(prefix, "results"));
+      prefix.pop();
+      prefix.pop();
       return true;
 
     } else {
@@ -989,6 +1007,40 @@ export class JoinNode implements Node {
     }
 
     return true;
+  }
+
+  computeMultiplicities(results:ID[][], prefix:ID[], currentRound:number, diffs: NTRCArray[], diffIndex:number = -1) {
+    if(diffIndex === -1) {
+      prefix.push(currentRound, 1)
+      this.computeMultiplicities(results, prefix, currentRound, diffs, diffIndex + 1);
+      prefix.pop();
+      prefix.pop();
+    } else if(diffIndex === diffs.length) {
+      results.push(copyArray(prefix, "gjResultsArray"));
+    } else {
+      let ntrcs = diffs[diffIndex];
+      let roundToMultiplicity:{[round:number]: number} = {};
+      for(let ix = 0; ix < ntrcs.length; ix += 4) {
+        // n = ix, t = ix + 1, r = ix + 2, c = ix + 3
+        let round = ntrcs[ix + 2];
+        let count = ntrcs[ix + 3];
+        let v = roundToMultiplicity[round] || 0;
+        roundToMultiplicity[round] = v + count;
+      }
+      for(let roundString in roundToMultiplicity) {
+        let round = +roundString;
+        let count = roundToMultiplicity[round];
+        if(count === 0) continue;
+        let startingRound = prefix[prefix.length - 2];
+        let startingMultiplicity = prefix[prefix.length - 1];
+        prefix[prefix.length - 2] = Math.max(startingRound, round);
+        prefix[prefix.length - 1] = startingMultiplicity * count;
+        this.computeMultiplicities(results, prefix, currentRound, diffs, diffIndex + 1);
+        prefix[prefix.length - 2] = startingRound;
+        prefix[prefix.length - 1] = startingMultiplicity;
+      }
+    }
+    return results;
   }
 
   genericJoin(index:Index, prefix:ID[], transaction:number, round:number, results:ID[][] = createArray("gjResultsArray"), roundIx:number = this.registerLength):ID[][] {
@@ -1033,7 +1085,12 @@ export class JoinNode implements Node {
           }
         }
         if(roundIx === 1) {
-          results.push(copyArray(prefix, "gjResults"));
+          let diffs = [];
+          for(let constraint of constraints) {
+            if(constraint.isInput || constraint instanceof FunctionConstraint) continue;
+            diffs.push(constraint.getDiffs(index, prefix));
+          }
+          this.computeMultiplicities(results, prefix, round, diffs);
         } else {
           this.genericJoin(index, prefix, transaction, round, results, roundIx - 1);
         }
@@ -1049,7 +1106,12 @@ export class JoinNode implements Node {
           }
         }
         if(roundIx === 1) {
-          results.push(copyArray(prefix, "gjResults"));
+          let diffs = [];
+          for(let constraint of constraints) {
+            if(constraint.isInput || constraint instanceof FunctionConstraint) continue;
+            diffs.push(constraint.getDiffs(index, prefix));
+          }
+          this.computeMultiplicities(results, prefix, round, diffs);
         } else {
           this.genericJoin(index, prefix, transaction, round, results, roundIx - 1);
         }
@@ -1083,6 +1145,7 @@ export class JoinNode implements Node {
         let mask = 1 << constraintIx;
         let isIncluded = (comboIx & mask) !== 0;
         let constraint = affectedConstraints[constraintIx];
+        constraint.isInput = isIncluded;
 
         if(isIncluded) {
           let valid = constraint.applyInput(input, prefix);
@@ -1097,6 +1160,10 @@ export class JoinNode implements Node {
 
       //console.log("    ", printPrefix(prefix));
       didSomething = this.applyCombination(index, input, prefix, transaction, round, results) || didSomething;
+    }
+
+    for(let constraint of affectedConstraints) {
+      constraint.isInput = false;
     }
 
     return didSomething;
@@ -1114,7 +1181,7 @@ export class InsertNode implements Node {
 
   resolve = Scan.prototype.resolve;
 
-  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:ID[][], changes:Change[]):boolean {
+  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:ID[][], changes:Transaction):boolean {
     let {e,a,v,n} = this.resolve(prefix);
 
     // @FIXME: This is pretty wasteful to copy one by one here.
@@ -1124,18 +1191,21 @@ export class InsertNode implements Node {
       return false;
     }
 
+    let prefixRound = prefix[prefix.length - 2];
+    let prefixCount = prefix[prefix.length - 1];
+
     // @TODO: when we do removes, we could say that if the result is a remove, we want to
     // dereference these ids instead of referencing them. This would allow us to clean up
     // the interned space based on what's "in" the indexes. The only problem is that if you
     // held on to a change, the IDs of that change may no longer be in the interner, or worse
     // they may have been reassigned to something else. For now, we'll just say that once something
     // is in the index, it never goes away.
-    GlobalInterner.reference(e);
-    GlobalInterner.reference(a);
-    GlobalInterner.reference(v);
-    GlobalInterner.reference(n);
-    let change = new Change(e!, a!, v!, n!, transaction, round + 1, 1);
-    changes.push(change);
+    GlobalInterner.reference(e!);
+    GlobalInterner.reference(a!);
+    GlobalInterner.reference(v!);
+    GlobalInterner.reference(n!);
+    let change = new Change(e!, a!, v!, n!, transaction, prefixRound + 1, prefixCount * input.count);
+    changes.output(change);
 
     return true;
   }
@@ -1153,7 +1223,7 @@ export class Block {
   initial:ID[] = createArray();
   protected nextResults:ID[][] = createArray();
 
-  exec(index:Index, input:Change, transaction:number, round:number, changes:Change[]):boolean {
+  exec(index:Index, input:Change, transaction:Transaction):boolean {
     let blockState = ApplyInputState.none;
     this.results.length = 0;
     this.initial.length = 0;
@@ -1163,7 +1233,7 @@ export class Block {
     // results affected by it.
     for(let node of this.nodes) {
       for(let prefix of this.results) {
-        let valid = node.exec(index, input, prefix, transaction, round, this.nextResults, changes);
+        let valid = node.exec(index, input, prefix, transaction.transaction, transaction.round, this.nextResults, transaction);
         if(!valid) {
           return false;
         }
@@ -1186,22 +1256,52 @@ export class Block {
 export class Transaction {
 
   round = 0;
+  protected roundChanges:Change[][] = [];
   constructor(public transaction:number, public blocks:Block[], public changes:Change[]) {}
 
+  output(change:Change) {
+    let cur = this.roundChanges[change.round] || createArray("roundChangesArray");
+    cur.push(change);
+    this.roundChanges[change.round] = cur;
+  }
+
   exec(index:Index) {
-    let {changes, transaction, round} = this;
+    let {changes, roundChanges} = this;
     let changeIx = 0;
+    // console.log("Blocks: " + this.blocks.map((b) => b.name).join(", "));
     while(changeIx < changes.length) {
       let change = changes[changeIx];
       this.round = change.round;
+      // console.log("  Round:", this.round);
 
-      //console.log("Round:", this.round);
-
-      for(let block of this.blocks) {
-        block.exec(index, change, transaction, this.round, changes);
+      // console.log("    -> " + change);
+      if(index.hasImpact(change)) {
+        for(let block of this.blocks) {
+          // console.log("    ", block.name);
+          let start = changes.length;
+          block.exec(index, change, this);
+          // for(;start < changes.length; start++) {
+            // console.log("         <- " + changes[start].toString());
+          // }
+        }
+        index.insert(change);
       }
-      index.insert(change);
+
+
       changeIx++;
+      let next = changes[changeIx];
+      let maxRound = roundChanges.length;
+      if(!next && this.round < maxRound) {
+        for(let ix = this.round + 1; ix < maxRound; ix++) {
+          let nextRoundChanges = roundChanges[ix];
+          if(nextRoundChanges) {
+            for(let change of nextRoundChanges) {
+              changes.push(change);
+            }
+            break;
+          }
+        }
+      }
     }
 
     // Once the transaction is effectively done, we need to clean up after ourselves. We
