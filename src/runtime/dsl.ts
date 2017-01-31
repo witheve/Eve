@@ -244,7 +244,9 @@ class DSLBlock {
   variableLookup:{[name:number]:DSLVariable[]} = {};
   block:runtime.Block;
 
-  constructor(public name:string, public creationFunction:string) {
+  lib = this.generateLib();
+
+  constructor(public name:string, public creationFunction:(block:DSLBlock) => any) {
     let functionArgs:string[] = [];
     let code = creationFunction.toString();
     // trim the function(...) { from the start and capture the arg names
@@ -255,8 +257,8 @@ class DSLBlock {
     // trim the final } since we removed the function bit
     code = code.substring(0, code.length - 1);
     code = this.transformBlockCode(code, functionArgs);
-    let neueFunc = new Function(functionArgs[0], functionArgs[1], functionArgs[2], code);
-    neueFunc(this.find, this.record, this.generateLib());
+    let neueFunc = new Function(functionArgs[0], code) as (block:DSLBlock) => any;
+    neueFunc(this);
     this.prepare();
   }
 
@@ -398,7 +400,7 @@ class DSLBlock {
 
   transformBlockCode(code:string, functionArgs:string[]):string {
 
-    let libArg = functionArgs[2];
+    let libArg = `${functionArgs[0]}.lib`;
     let hasChanged = true;
     let infixParam = "((?:(?:[a-z0-9_\.]+(?:\\[\".*?\"\\])?)+(?:\\(.*\\))?)|\\(.*\\))";
     let stringPlaceholder = "(____[0-9]+____)";
@@ -497,7 +499,7 @@ export class Program {
     this.index = new indexes.HashIndex();
   }
 
-  block(name:string, func:any) {
+  block(name:string, func:(block:DSLBlock) => any) {
     let block = new DSLBlock(name, func);
     this.blocks.push(block);
     this.runtimeBlocks.push(block.block);
