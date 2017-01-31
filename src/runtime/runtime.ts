@@ -1044,7 +1044,6 @@ export class JoinNode implements Node {
   }
 
   genericJoin(index:Index, prefix:ID[], transaction:number, round:number, results:ID[][] = createArray("gjResultsArray"), roundIx:number = this.registerLength):ID[][] {
-    // console.log("GJ: ", roundIx, printPrefix(prefix));
     let {constraints, emptyProposal} = this;
     let proposedResults = this.proposedResultsArrays[roundIx - 1];
     let forRegisters:Register[] = this.registerArrays[roundIx - 1];
@@ -1260,6 +1259,7 @@ export class Transaction {
   constructor(public transaction:number, public blocks:Block[], public changes:Change[]) {}
 
   output(change:Change) {
+    // console.log("          <-", change.toString())
     let cur = this.roundChanges[change.round] || createArray("roundChangesArray");
     cur.push(change);
     this.roundChanges[change.round] = cur;
@@ -1280,12 +1280,11 @@ export class Transaction {
           // console.log("    ", block.name);
           let start = changes.length;
           block.exec(index, change, this);
-          // for(;start < changes.length; start++) {
-            // console.log("         <- " + changes[start].toString());
-          // }
+          // console.log("");
         }
-        index.insert(change);
       }
+      if(index.getImpact(change) >= 0) index.insert(change);
+      else console.warn("GOT NON-POSITIVE IMPACT: ", change.toString() + "\n");
 
 
       changeIx++;
@@ -1295,8 +1294,21 @@ export class Transaction {
         for(let ix = this.round + 1; ix < maxRound; ix++) {
           let nextRoundChanges = roundChanges[ix];
           if(nextRoundChanges) {
-            for(let change of nextRoundChanges) {
-              changes.push(change);
+            nextRoundChanges.sort((a,b) => (a.e - b.e) + (a.a - b.a) + (a.v - b.v))
+            let changeIx = 0;
+            for(let changeIx = 0; changeIx < nextRoundChanges.length; changeIx++) {
+              let current = nextRoundChanges[changeIx];
+              while(changeIx + 1 < nextRoundChanges.length) {
+                let next = nextRoundChanges[changeIx + 1];
+                if(next.e == current.e && next.a == current.a && next.v == current.v) {
+                  current.count += next.count;
+                  changeIx++;
+                } else {
+                  break;
+                }
+              }
+              // console.log("next round change:", current.toString())
+              if(current.count !== 0) changes.push(current);
             }
             break;
           }

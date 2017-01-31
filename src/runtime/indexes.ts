@@ -30,6 +30,7 @@ function sumTimes(ntrcArray:number[], transaction:number, round:number) {
 export interface Index {
   insert(change:Change):void;
   hasImpact(change:Change):boolean;
+  getImpact(change:Change):number;
   propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):Proposal;
   resolveProposal(proposal:Proposal):any[][];
   get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[];
@@ -61,6 +62,23 @@ export class ListIndex implements Index {
       return true;
     }
     return false;
+  }
+
+
+  getImpact(input:Change) {
+    let {e,a,v,n} = input;
+    let count = 0;
+    for(let change of this.changes) {
+      if((e === undefined || e === IGNORE_REG || e === change.e) &&
+         (a === undefined || a === IGNORE_REG || a === change.a) &&
+         (v === undefined || v === IGNORE_REG || v === change.v) &&
+         (n === undefined || n === IGNORE_REG || n === change.n) &&
+         (change.transaction <= input.transaction) &&
+         (change.round <= input.round)) {
+        count += change.count;
+      }
+    }
+    return count + input.count;
   }
 
   resolveProposal(proposal:Proposal) {
@@ -182,11 +200,20 @@ export class HashIndex implements Index {
     let {e,a,v,n} = input;
     let ntrcs = this.getDiffs(e,a,v,n);
     let count = sumTimes(ntrcs, input.transaction, input.round);
+    // console.log("      ntrcs:", ntrcs);
+    // console.log("      count:", count);
     if((count > 0 && count + input.count == 0) ||
        (count == 0 && count + input.count > 0)) {
       return true;
     }
     return false;
+  }
+
+  getImpact(input:Change) {
+    let {e,a,v,n} = input;
+    let ntrcs = this.getDiffs(e,a,v,n);
+    let count = sumTimes(ntrcs, input.transaction, input.round);
+    return count + input.count;
   }
 
   resolveProposal(proposal:Proposal) {
@@ -321,6 +348,11 @@ class MatrixIndex implements Index {
   hasImpact(input:Change) {
     let {e,a,v,n} = input;
     return false;
+  }
+
+  getImpact(input:Change) {
+    let {e,a,v,n} = input;
+    return 0;
   }
 
   resolveProposal(proposal:Proposal) {
