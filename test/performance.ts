@@ -1,5 +1,6 @@
 import {Program} from "../src/runtime/dsl";
 import {verify, createChanges, time} from "./util";
+import {HashIndex} from "../src/runtime/indexes";
 import * as test from "tape";
 
 test("test single block performance with 10000 transactions", (assert) => {
@@ -21,22 +22,24 @@ test("test single block performance with 10000 transactions", (assert) => {
   // verification
   // -----------------------------------------------------
 
-  let size = 10000;
-  let changes = [];
-  for(let i = 0; i < size; i++) {
-    changes.push(createChanges(i, [[i - 1, "name", i - 1], [i, "tag", "person"]]))
-  }
+  for(let ix = 0; ix < 1; ix++) {
+    prog.index = new HashIndex();
+    let size = 10000;
+    let changes = [];
+    for(let i = 0; i < size; i++) {
+      changes.push(createChanges(i, [[i - 1, "name", i - 1], [i, "tag", "person"]]))
+    }
 
-  let start = time();
-  for(let change of changes) {
-    prog.input(change);
+    let start = time();
+    for(let change of changes) {
+      prog.input(change);
+    }
+    let end = time(start);
+    assert.test("updates finished in " + end, (assert) => {
+      assert.true(end < 1000, "Took too long");
+      assert.end();
+    })
   }
-  let end = time(start);
-  assert.test("updates finished in " + end, (assert) => {
-    assert.true(end < 800, "Took too long");
-    assert.end();
-  })
-
   assert.pass();
   assert.end();
 });

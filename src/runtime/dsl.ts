@@ -510,3 +510,39 @@ export class Program {
     return trans;
   }
 }
+
+
+  // // -----------------------------------------------------
+  // // program
+  // // -----------------------------------------------------
+
+  // let prog = new Program("test");
+  // prog.block("simple block", (find:any, record:any, lib:any) => {
+  //   let person = find("person");
+  //   let text = `name: ${person.name}`;
+  //   return [
+  //     record("html/div", {person, text})
+  //   ]
+  // });
+
+  // // -----------------------------------------------------
+  // // verification
+  // // -----------------------------------------------------
+
+  // for(let ix = 0; ix < 1; ix++) {
+  //   prog.index = new indexes.HashIndex();
+  // let size = 10000;
+  // let changes = [];
+  // for(let i = 0; i < size; i++) {
+  //   changes.push([runtime.Change.fromValues(i - 1, "name", i - 1,"foo",i,0,1), runtime.Change.fromValues(i, "tag", "person", "foo",i,0,1) ])
+  // }
+
+  // // let start = performance.now();
+  // console.profile();
+  // for(let change of changes) {
+  //   prog.input(change);
+  // }
+  // console.profileEnd();
+  // // let end = performance.now();
+  // // console.log(end - start)
+  // }

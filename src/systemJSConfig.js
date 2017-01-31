@@ -16,6 +16,3 @@ SystemJS.registerDynamic("codemirror", [], false, function(require, exports, mod
 SystemJS.register("microReact", [], function($export) {
   $export("Renderer", Renderer);
 });
-SystemJS.register("commonmark", [], function($export) {
-  $export(commonmark);
-});
