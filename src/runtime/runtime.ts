@@ -884,7 +884,7 @@ export interface Node {
    * returning a set of valid prefixes to continue the query as
    * results.
    */
-  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results?:ID[][], changes?:Change[]):boolean;
+  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:ID[][], changes:Transaction):boolean;
 }
 
 /**
@@ -1181,7 +1181,7 @@ export class InsertNode implements Node {
 
   resolve = Scan.prototype.resolve;
 
-  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:ID[][], changes:Change[]):boolean {
+  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:ID[][], changes:Transaction):boolean {
     let {e,a,v,n} = this.resolve(prefix);
 
     // @FIXME: This is pretty wasteful to copy one by one here.
@@ -1205,7 +1205,7 @@ export class InsertNode implements Node {
     GlobalInterner.reference(v!);
     GlobalInterner.reference(n!);
     let change = new Change(e!, a!, v!, n!, transaction, prefixRound + 1, prefixCount * input.count);
-    changes.push(change);
+    changes.output(change);
 
     return true;
   }
@@ -1223,7 +1223,7 @@ export class Block {
   initial:ID[] = createArray();
   protected nextResults:ID[][] = createArray();
 
-  exec(index:Index, input:Change, transaction:number, round:number, changes:Change[]):boolean {
+  exec(index:Index, input:Change, transaction:Transaction):boolean {
     let blockState = ApplyInputState.none;
     this.results.length = 0;
     this.initial.length = 0;
@@ -1233,7 +1233,7 @@ export class Block {
     // results affected by it.
     for(let node of this.nodes) {
       for(let prefix of this.results) {
-        let valid = node.exec(index, input, prefix, transaction, round, this.nextResults, changes);
+        let valid = node.exec(index, input, prefix, transaction.transaction, transaction.round, this.nextResults, transaction);
         if(!valid) {
           return false;
         }
@@ -1256,10 +1256,17 @@ export class Block {
 export class Transaction {
 
   round = 0;
+  protected roundChanges:Change[][] = [];
   constructor(public transaction:number, public blocks:Block[], public changes:Change[]) {}
 
+  output(change:Change) {
+    let cur = this.roundChanges[change.round] || createArray("roundChangesArray");
+    cur.push(change);
+    this.roundChanges[change.round] = cur;
+  }
+
   exec(index:Index) {
-    let {changes, transaction, round} = this;
+    let {changes, roundChanges} = this;
     let changeIx = 0;
     // console.log("Blocks: " + this.blocks.map((b) => b.name).join(", "));
     while(changeIx < changes.length) {
@@ -1272,17 +1279,29 @@ export class Transaction {
         for(let block of this.blocks) {
           // console.log("    ", block.name);
           let start = changes.length;
-          block.exec(index, change, transaction, this.round, changes);
-          for(;start < changes.length; start++) {
+          block.exec(index, change, this);
+          // for(;start < changes.length; start++) {
             // console.log("         <- " + changes[start].toString());
-          }
+          // }
         }
         index.insert(change);
       }
 
-      changes.sort((a, b) => a.round - b.round);
 
       changeIx++;
+      let next = changes[changeIx];
+      let maxRound = roundChanges.length;
+      if(!next && this.round < maxRound) {
+        for(let ix = this.round + 1; ix < maxRound; ix++) {
+          let nextRoundChanges = roundChanges[ix];
+          if(nextRoundChanges) {
+            for(let change of nextRoundChanges) {
+              changes.push(change);
+            }
+            break;
+          }
+        }
+      }
     }
 
     // Once the transaction is effectively done, we need to clean up after ourselves. We
