@@ -21,7 +21,7 @@ export function verify(assert:any, program:Program, input:any[], output:any[], t
   let ins = createChanges(transaction, input);
   let outs = createChanges(transaction, output);
 
-  let all = ins.concat(outs);
+  let all:(Runtime.Change|undefined)[] = ins.concat(outs);
   let {changes} = program.input(ins);
   let msg = "Fewer changes than expected";
   if(changes.length > all.length) {
@@ -44,6 +44,9 @@ export function verify(assert:any, program:Program, input:any[], output:any[], t
     // work here.
     for(let actual of changes) {
       let found = false;
+      // console.log("\n\nACTUAL");
+      // console.log("    ", actual.toString());
+      // console.log("    ", actual);
       let expectedIx = 0;
       // check if we've found any potential matches for this e yet
       let matches = eMap[actual.e];
@@ -51,6 +54,10 @@ export function verify(assert:any, program:Program, input:any[], output:any[], t
       if(!matches) {
         let potentials = [];
         for(let expected of all) {
+          if(!expected) {
+            expectedIx++;
+            continue;
+          }
           // if this expected *could* match ignoring e and n, then we'll store this as
           // a potential mapping from the actual.e to the expected.e. We're also going
           // to store this expected's index so that once we know for sure that this
@@ -73,16 +80,22 @@ export function verify(assert:any, program:Program, input:any[], output:any[], t
             break;
           }
           fullyResolved[e] = actual.e;
-          all.splice(potentials[0].relatedChanges[0], 1);
+          for(let ix of potentials[0].relatedChanges) {
+            all[ix] = undefined;
+          }
         }
         eMap[actual.e] = potentials;
       } else if(matches.length === 1) {
         // in the case where we've mapped our actual.e to our expected.e, we just check this
         // current fact for a match where the expected.e is what we're looking for
         for(let expected of all) {
+          if(!expected) {
+            expectedIx++;
+            continue;
+          }
           if(expected.e === matches[0].e && actual.equal(expected, true, true)) {
             found = true;
-            all.splice(expectedIx, 1);
+            all[expectedIx] = undefined;
           }
           expectedIx++;
         }
@@ -94,6 +107,10 @@ export function verify(assert:any, program:Program, input:any[], output:any[], t
         // a match get removed on account of us recreating the potential array from scratch here.
         let potentials = [];
         for(let expected of all) {
+          if(!expected) {
+            expectedIx++;
+            continue;
+          }
           for(let match of matches) {
             if(match.e === expected.e && !fullyResolved[match.e] && actual.equal(expected, true, true)) {
               found = true;
@@ -118,12 +135,19 @@ export function verify(assert:any, program:Program, input:any[], output:any[], t
           let related = potentials[0].relatedChanges;
           related.sort((a:number, b:number) => b - a);
           for(let relatedIx of related) {
-            all.splice(relatedIx, 1);
+            all[relatedIx] = undefined;
           }
           potentials[0].relatedChanges = []
         }
         eMap[actual.e] = potentials;
       }
+
+      // console.log("    ", actual.e, ":", eMap[actual.e]);
+      // console.log("    [")
+      // for(let thing of all) {
+      //   console.log("        ", thing);
+      // }
+      // console.log("    ]")
 
       if(!found) assert.fail("No match found for: " + actual.toString());
       else assert.pass("Found match for: " + actual.toString());

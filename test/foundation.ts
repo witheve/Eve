@@ -175,7 +175,7 @@ test("test addition operator", (assert) => {
   assert.end();
 });
 
-test.only("transitive closure", (assert) => {
+test("transitive closure", (assert) => {
   // -----------------------------------------------------
   // program
   // -----------------------------------------------------
