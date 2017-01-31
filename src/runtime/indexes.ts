@@ -343,6 +343,17 @@ export class InsertOnlyHashIndex implements Index {
     this.cardinality++;
   }
 
+  hasImpact(input:Change) {
+    let {e,a,v,n} = input;
+    let ntrcs = this.getDiffs(e,a,v,n);
+    let count = sumTimes(ntrcs, input.transaction, input.round);
+    if((count > 0 && count + input.count == 0) ||
+       (count == 0 && count + input.count > 0)) {
+      return true;
+    }
+    return false;
+  }
+
 
   resolveProposal(proposal:Proposal) {
     return createArray();
@@ -359,6 +370,10 @@ export class InsertOnlyHashIndex implements Index {
   get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[] {
     let final = createArray() as EAVN[];
     return final;
+  }
+
+  getDiffs(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue):NTRCArray {
+    return [];
   }
 
 }
@@ -457,7 +472,7 @@ class BitMatrixTree {
     return false;
   }
 
-  checkMultiplicity(row:number, col:number):number {
+  checkMultiplicity(row:number, col:number, transaction:number, round:number):number {
     let {bins} = this;
     let size = this.size();
     let rowStart = 0;
@@ -470,7 +485,7 @@ class BitMatrixTree {
       let colIx = Math.floor(col / colEdge)
       let pos = rowIx * this.bins + colIx;
       let next = current[pos];
-      if(!next) return false;
+      if(!next) return 0;
       size = size / bins
       if(rowIx) rowStart = rowEdge;
       if(colIx) colStart = colEdge;
@@ -634,6 +649,11 @@ export class BitIndex implements Index {
     // console.log("inserting", e, a, v, ei, vi, inserted);
   }
 
+  hasImpact(input:Change) {
+    let {e,a,v,n} = input;
+    return false;
+  }
+
   resolveProposal(proposal:Proposal) {
     return createArray();
   }
@@ -649,6 +669,10 @@ export class BitIndex implements Index {
   get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[] {
     let final = createArray() as EAVN[];
     return final;
+  }
+
+  getDiffs(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue):NTRCArray {
+    return [];
   }
 
   // contains() {
