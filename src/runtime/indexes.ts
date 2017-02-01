@@ -352,6 +352,11 @@ class MatrixIndex implements Index {
     return false;
   }
 
+  getImpact(input:Change) {
+    let {e,a,v,n} = input;
+    return 0;
+  }
+
   resolveProposal(proposal:Proposal) {
     return createArray();
   }

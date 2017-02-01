@@ -667,52 +667,52 @@ export class Program {
 }
 
 
-  // -----------------------------------------------------
-  // program
-  // -----------------------------------------------------
+  // // -----------------------------------------------------
+  // // program
+  // // -----------------------------------------------------
 
-  let prog = new Program("test");
-  prog.block("simple block", ({find, record, lib}) => {
-    let person = find("person");
-    let text = `name: ${person.name}`;
-    return [
-      record("html/div", {person, text})
-    ]
-  });
+  // let prog = new Program("test");
+  // prog.block("simple block", ({find, record, lib}) => {
+  //   let person = find("person");
+  //   let text = `name: ${person.name}`;
+  //   return [
+  //     record("html/div", {person, text})
+  //   ]
+  // });
 
-  // -----------------------------------------------------
-  // verification
-  // -----------------------------------------------------
+  // // -----------------------------------------------------
+  // // verification
+  // // -----------------------------------------------------
 
 
-  function doit(size = 10000, rounds = 8) {
-  let times = [];
-  for(let ix = 0; ix < rounds; ix++) {
-    prog.index = new indexes.HashIndex();
-  let changes = [];
-  for(let i = 0; i < size; i++) {
-    changes.push([runtime.Change.fromValues(i - 1, "name", i - 1,"foo",i,0,1), runtime.Change.fromValues(i, "tag", "person", "foo",i,0,1) ])
-  }
+  // function doit(size = 10000, rounds = 8) {
+  // let times = [];
+  // for(let ix = 0; ix < rounds; ix++) {
+  //   prog.index = new indexes.HashIndex();
+  // let changes = [];
+  // for(let i = 0; i < size; i++) {
+  //   changes.push([runtime.Change.fromValues(i - 1, "name", i - 1,"foo",i,0,1), runtime.Change.fromValues(i, "tag", "person", "foo",i,0,1) ])
+  // }
 
-  let start = performance.now();
-  // console.time();
-  for(let change of changes) {
-    prog.input(change);
-  }
-  // console.timeEnd();
-  let end = performance.now();
-  // console.log(end - start)
-  times.push(end - start);
-  }
+  // let start = performance.now();
+  // // console.time();
+  // for(let change of changes) {
+  //   prog.input(change);
+  // }
+  // // console.timeEnd();
+  // let end = performance.now();
+  // // console.log(end - start)
+  // times.push(end - start);
+  // }
 
-  times.shift();
-  let average = times.reduce((a,b) => a + b) / times.length
-  console.log("Average: ", average.toFixed(3));
-  console.log("Max:", Math.max.apply(null, times).toFixed(3));
-  console.log("Min:", Math.min.apply(null, times).toFixed(3));
-  console.log("Per transaction: ", (average / size).toFixed(3));
-  console.log("Per fact: ", (average / (4 * size)).toFixed(3));
-  console.log("Times: ", times.map((x) => x.toFixed(3)));
-  }
+  // times.shift();
+  // let average = times.reduce((a,b) => a + b) / times.length
+  // console.log("Average: ", average.toFixed(3));
+  // console.log("Max:", Math.max.apply(null, times).toFixed(3));
+  // console.log("Min:", Math.min.apply(null, times).toFixed(3));
+  // console.log("Per transaction: ", (average / size).toFixed(3));
+  // console.log("Per fact: ", (average / (4 * size)).toFixed(3));
+  // console.log("Times: ", times.map((x) => x.toFixed(3)));
+  // }
 
-  window["doit"] = doit;
+  // window["doit"] = doit;
