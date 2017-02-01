@@ -330,37 +330,31 @@ test("removal", (assert) => {
   assert.end();
 });
 
-// test("not", (assert) => {
+test.skip("not", (assert) => {
 
-//   // -----------------------------------------------------
-//   // program
-//   // -----------------------------------------------------
+  // -----------------------------------------------------
+  // program
+  // -----------------------------------------------------
 
-//   let prog = new Program("test");
-//   prog.block("simple block", ({find, record, lib, not}:any) => {
-//     let person = find({tag: "person"});
-//     not((subblock:any) => person.dead == true);
-//     return [
-//       record({person, alive: "true"})
-//     ]
-//   });
+  let prog = new Program("test");
+  prog.block("simple block", ({find, record, lib, not}) => {
+    let person = find({tag: "person"});
+    not((subblock) => person.alive);
+    return [
+      person.add("dead", "true")
+    ]
+  });
 
-//   // -----------------------------------------------------
-//   // verification
-//   // -----------------------------------------------------
+  // -----------------------------------------------------
+  // verification
+  // -----------------------------------------------------
 
-//   // trust, but
-//   verify(assert, prog, [
-//     [1, "foo", "bar"]
-//   ], [
-//     [2, "zomg", "baz", 1]
-//   ]);
+  // trust, but
+  verify(assert, prog, [
+    [1, "tag", "person"]
+  ], [
+    [1, "dead", "true", 1]
+  ]);
 
-//   verify(assert, prog, [
-//     [1, "foo", "bar", 0, -1]
-//   ], [
-//     [2, "zomg", "baz", 1, -1]
-//   ], 1);
-
-//   assert.end();
-// });
+  assert.end();
+});
