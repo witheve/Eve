@@ -91,7 +91,13 @@ class DSLVariable {
         return prox[prop];
       },
 
-      set: () => {throw new Error("@TODO: IMPLEMENT ME!") }
+      set: (obj:any, prop:string, value:any) => {
+        if(obj[prop] !== undefined) {
+          obj[prop] = value;
+          return true;
+        }
+        throw new Error("@TODO: IMPLEMENT ME!")
+      }
     });
   }
 }

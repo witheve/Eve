@@ -359,7 +359,7 @@ test.skip("not", (assert) => {
   assert.end();
 });
 
-test.only("Nested attribute lookup", (assert) => {
+test("Nested attribute lookup", (assert) => {
 
   // -----------------------------------------------------
   // program
