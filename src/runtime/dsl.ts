@@ -37,16 +37,21 @@ function toValue(a?:DSLNode):DSLValue {
   return a;
 }
 
-function toVariable(maybeVariable?:DSLNode):DSLVariable {
-  if(maybeVariable instanceof DSLVariable) {
+function maybeVariable(maybeVariable?:DSLNode):DSLVariable|undefined {
+    if(maybeVariable instanceof DSLVariable) {
     return maybeVariable;
   } else if(maybeVariable instanceof DSLRecord) {
     return maybeVariable.__record;
   } else if(maybeVariable instanceof DSLFunction) {
     return maybeVariable.returnValue;
-  } else {
-    throw new Error("Only variables and records can resolve to variables.");
   }
+}
+
+function toVariable(maybeVar?:DSLNode):DSLVariable {
+  let maybe = maybeVariable(maybeVar);
+  if(maybe) return maybe;
+  console.error(maybeVar);
+  throw new Error("Only variables and records can resolve to variables.");
 }
 
 function isRecord(a:any): a is DSLRecord {
@@ -63,9 +68,31 @@ type DSLNode = DSLFunction|DSLRecord|DSLVariable|RawValue;
 type DSLValue = RawValue|Register;
 class DSLVariable {
   static CURRENT_ID = 0;
-  id: number;
+  __id: number;
   constructor(public name:string, public parent?:DSLVariableParent, public value:DSLValue = new Register(UNASSIGNED)) {
-    this.id = DSLVariable.CURRENT_ID++;
+    this.__id = DSLVariable.CURRENT_ID++;
+  }
+
+  proxy() {
+    return new Proxy(this, {
+      get: (obj:any, prop:string) => {
+        if(obj[prop]) return obj[prop];
+        if(typeof prop === "symbol") return () => {
+          return "uh oh";
+        }
+
+        if(!this.parent) {
+          throw new Error("Cannot lookup attribute on unparented variable.");
+        }
+
+        let activeBlock = this.parent.__block.getActiveBlock();
+        let record = activeBlock.getRecord(this);
+        let prox = record.proxy();
+        return prox[prop];
+      },
+
+      set: () => {throw new Error("@TODO: IMPLEMENT ME!") }
+    });
   }
 }
 
@@ -83,8 +110,8 @@ class DSLFunction {
       this.returnValue = args[args.length - 1];
     } else {
       this.returnValue = new DSLVariable("returnValue");
+      __block.registerVariable(toVariable(this.returnValue));
     }
-    __block.registerVariable(toVariable(this.returnValue));
   }
 
   compile() {
@@ -127,7 +154,7 @@ class DSLRecord {
   /** If a record is an output, it needs an id by default unless its modifying an existing record. */
   __needsId: boolean = true;
   __fields: any;
-  constructor(public __block:DSLBlock, tags:string[], initialAttributes:any) {
+  constructor(public __block:DSLBlock, tags:string[], initialAttributes:any, entityVariable?:DSLVariable) {
     let fields:any = {tag: tags};
     for(let field in initialAttributes) {
       let value = initialAttributes[field];
@@ -137,7 +164,12 @@ class DSLRecord {
       fields[field] = value;
     }
     this.__fields = fields;
-    this.__record = new DSLVariable("record", this);
+    if(entityVariable) {
+      this.__record = entityVariable;
+      this.__needsId = false;
+    } else {
+      this.__record = new DSLVariable("record", this);
+    }
     __block.registerVariable(this.__record);
   }
 
@@ -145,16 +177,27 @@ class DSLRecord {
     return new Proxy(this, {
       get: (obj:any, prop:string) => {
         if(obj[prop]) return obj[prop];
-        let found = obj.__fields[prop];
-        if(prop === Symbol.toPrimitive) return () => {
+        if(typeof prop === "symbol") return () => {
           return "uh oh";
         }
+
+        let activeBlock = this.__block.getActiveBlock();
+        let found = obj.__fields[prop];
         if(!found) {
-          found = new DSLVariable(prop, this);
+          let record = activeBlock.getRecord(this.__record);
+          if(record !== this) {
+            obj = record.proxy();
+            activeBlock.registerInput(record.__record);
+          }
+
+          found = new DSLVariable(prop, record).proxy();
           obj.__fields[prop] = [found];
-          this.__block.registerVariable(found);
+          activeBlock.registerVariable(found);
         } else {
           found = found[0];
+          if(this.__block !== activeBlock && maybeVariable(found)) {
+            activeBlock.registerInput(found);
+          }
         }
         return found;
       },
@@ -163,6 +206,14 @@ class DSLRecord {
           obj[prop] = value;
           return true;
         }
+
+        let activeBlock = this.__block.getActiveBlock();
+        let record = activeBlock.getRecord(this.__record);
+        if(record !== this) {
+          obj = record.proxy();
+          activeBlock.registerInput(record.__record);
+        }
+
         if(!obj.__fields[prop]) {
           if(value.constructor !== Array) {
             value = [value];
@@ -176,21 +227,25 @@ class DSLRecord {
         if(obj.__fields[prop].length > 1) {
           console.warn(`\`${prop}\` is being equivalenced with multiple values: ${obj.__fields[prop]}`)
         }
-        this.__block.equivalence(obj.__fields[prop][0], value);
+        activeBlock.equivalence(obj.__fields[prop][0], value);
       }
     })
   }
 
   add(attributeName:string, value:DSLNode) {
-    let record = new DSLRecord(this.__block, [], {[attributeName]: value});
+    if(this.__block !== this.__block.program.contextStack[0]) {
+      throw new Error("Adds and removes may only happen in the root block.");
+    }
+    let record = new DSLRecord(this.__block, [], {[attributeName]: value}, this.__record);
     record.__output = true;
-    record.__record = this.__record;
-    record.__needsId = false;
     this.__block.records.push(record);
     return this;
   }
 
   remove(attributeName:string, value?:DSLNode) {
+    if(this.__block !== this.__block.program.contextStack[0]) {
+      throw new Error("Adds and removes may only happen in the root block.");
+    }
     throw new Error("@TODO: Implement me!");
   }
 
@@ -241,27 +296,58 @@ class DSLBlock {
   records:DSLRecord[] = [];
   variables:DSLVariable[] = [];
   functions:DSLFunction[] = [];
-  variableLookup:{[name:number]:DSLVariable[]} = {};
+  cleanFunctions:(DSLFunction|undefined)[] = [];
+  nots:DSLNot[] = [];
+  variableLookup:{[id:number]:DSLVariable[]} = {};
+  inputVariables:{[id:number]:DSLVariable} = {};
   block:runtime.Block;
 
-  constructor(public name:string, public creationFunction:string) {
-    let functionArgs:string[] = [];
-    let code = creationFunction.toString();
-    // trim the function(...) { from the start and capture the arg names
-    code = code.replace(/function\s*\((.*)\)\s*\{/, function(str:string, args:string) {
-      functionArgs.push.apply(functionArgs, args.split(",").map((str) => str.trim()));
-      return "";
-    });
-    // trim the final } since we removed the function bit
-    code = code.substring(0, code.length - 1);
-    code = this.transformBlockCode(code, functionArgs);
-    let neueFunc = new Function(functionArgs[0], functionArgs[1], functionArgs[2], code);
-    neueFunc(this.find, this.record, this.generateLib());
-    this.prepare();
+  lib = this.generateLib();
+
+  constructor(public name:string, public creationFunction:(block:DSLBlock) => any, public readonly program:Program, mangle = true) {
+    let neueFunc = creationFunction;
+    if(mangle) {
+      let functionArgs:string[] = [];
+      let code = creationFunction.toString();
+      // trim the function(...) { from the start and capture the arg names
+      code = code.replace(/function\s*\((.*)\)\s*\{/, function(str:string, args:string) {
+        functionArgs.push.apply(functionArgs, args.split(",").map((str) => str.trim()));
+        return "";
+      });
+      // trim the final } since we removed the function bit
+      code = code.substring(0, code.length - 1);
+      code = this.transformBlockCode(code, functionArgs);
+      neueFunc = new Function(functionArgs[0], code) as (block:DSLBlock) => any;
+    }
+
+    program.contextStack.push(this);
+    neueFunc(this);
+    program.contextStack.pop();
+  }
+
+  /** The active block is the topmost block in the program's contextStack. Any new scans should be pushed there. */
+  getActiveBlock() {
+    let contextStack = this.program.contextStack;
+    return contextStack[contextStack.length - 1];
+  }
+
+  getRecord(entityVariable:DSLVariable) {
+    for(let subrecord of this.records) {
+      if(subrecord.__record === entityVariable) {
+        return subrecord;
+      }
+    }
+
+    let subrecord = new DSLRecord(this, [], {}, entityVariable);
+    this.records.push(subrecord);
+    return subrecord;
   }
 
   generateLib() {
     let fnGet = (obj:any, prop:string) => {
+      if(typeof prop === "symbol") return () => {
+        return "uh oh";
+      }
       let path = obj.path || [];
       path.push(prop);
       let neue:any = () => {};
@@ -269,8 +355,9 @@ class DSLBlock {
       return new Proxy(neue, {
         get: fnGet,
         apply: (target:any, targetThis:any, args:any[]) => {
-          let func = new DSLFunction(this, path, args);
-          this.functions.push(func);
+          let activeBlock = this.getActiveBlock();
+          let func = new DSLFunction(activeBlock, path, args);
+          activeBlock.functions.push(func);
           return func;
         }});
     }
@@ -300,8 +387,25 @@ class DSLBlock {
     return out;
   }
 
+  not = (func:(block:DSLBlock) => void) => {
+    let not = new DSLNot(`${this.name} NOT ${this.nots.length}`, func, this.program, false);
+    this.nots.push(not);
+  }
+
   registerVariable(variable:DSLVariable) {
-    this.variableLookup[variable.id] = [variable];
+    let vars = this.variableLookup[variable.__id];
+    if(vars) {
+      if(vars.indexOf(variable) === -1) {
+        vars.push(variable);
+      }
+    } else {
+      this.variableLookup[variable.__id] = [variable];
+    }
+  }
+
+  registerInput(variable:DSLVariable) {
+    this.registerVariable(variable);
+    this.inputVariables[variable.__id] = variable;
   }
 
   // This sets two potential values to be equivalent to each other. A value can be a:
@@ -322,33 +426,41 @@ class DSLBlock {
     if(aIsRegister && bIsRegister) {
       let aVariable = toVariable(a);
       let bVariable = toVariable(b);
-      let aVars = this.variableLookup[aVariable.id];
-      let bVars = this.variableLookup[bVariable.id];
+      let aVars = this.variableLookup[aVariable.__id];
+      let bVars = this.variableLookup[bVariable.__id];
       for(let variable of aVars) {
         variable.value = bValue;
         bVars.push(variable);
       }
-      this.variableLookup[aVariable.id] = [];
+      this.variableLookup[aVariable.__id] = [];
     } else if(aIsRegister) {
       let aVariable = toVariable(a);
-      let aVars = this.variableLookup[aVariable.id];
+      let aVars = this.variableLookup[aVariable.__id];
       for(let variable of aVars) {
         variable.value = bValue;
       }
-      this.variableLookup[aVariable.id] = [];
+      this.variableLookup[aVariable.__id] = [];
     } else if(bIsRegister) {
       let bVariable = toVariable(b);
-      let bVars = this.variableLookup[bVariable.id];
+      let bVars = this.variableLookup[bVariable.__id];
       for(let variable of bVars) {
         variable.value = aValue;
       }
-      this.variableLookup[bVariable.id] = [];
+      this.variableLookup[bVariable.__id] = [];
     } else if(aValue !== bValue) {
       throw new Error(`Trying to equivalence two static values that aren't the same: ${aValue} and ${bValue}`);
     }
   }
 
-  prepare() {
+  unify() {
+    this.program.contextStack.push(this);
+
+    // @NOTE: We need to unify all of our sub-blocks along with ourselves
+    //        before the root node can allocate registers.
+    for(let not of this.nots) {
+      not.unify();
+    }
+
     let functions = this.functions.slice() as (DSLFunction | undefined)[];
     let ix = 0;
     // We need to satisfy all the equivalences before we start compiling our constraints.
@@ -359,10 +471,23 @@ class DSLBlock {
     // them from being executed.
     for(let func of functions) {
       if(!func || func.path[1] !== "==") continue;
-      this.equivalence(func.args[0], func.args[1]);
-      functions[ix] = undefined;
+      let aVar = maybeVariable(func.args[0]);
+      let bVar = maybeVariable(func.args[1]);
+      if(aVar && this.inputVariables[aVar.__id] ||
+         bVar && this.inputVariables[bVar.__id]) {
+        // @NOTE: We can't unify in this case since we'd pollute the parent's scope.
+      } else {
+        this.equivalence(func.args[0], func.args[1]);
+        functions[ix] = undefined;
+      }
       ix++;
     }
+
+    this.cleanFunctions = functions;
+    this.program.contextStack.pop();
+  }
+
+  allocateRegisters() {
     let registerIx = 0;
     for(let id in this.variableLookup) {
       let variable = this.variableLookup[id][0] as DSLVariable;
@@ -370,6 +495,18 @@ class DSLBlock {
       if(variable.value.offset !== UNASSIGNED) throw new Error("We've somehow already assigned a variable's register");
       variable.value.offset = registerIx++;
     }
+  }
+
+  compile() {
+    this.program.contextStack.push(this);
+
+    // @NOTE: We need to unify all of our sub-blocks along with ourselves
+    //        before the root node can allocate registers.
+    for(let not of this.nots) {
+      not.compile();
+    }
+
+    let functions = this.cleanFunctions;
     let items = functions.concat(this.records as any[]);
     let constraints = [];
     let nodes = [];
@@ -390,6 +527,13 @@ class DSLBlock {
     // instead of just throwing everything into a single JoinNode.
     nodes.unshift(new runtime.JoinNode(constraints))
     this.block = new runtime.Block(this.name, nodes);
+    this.program.contextStack.pop();
+  }
+
+  prepare() {
+    this.unify();
+    this.allocateRegisters();
+    this.compile();
   }
 
   //-------------------------------------------------------------------
@@ -398,7 +542,7 @@ class DSLBlock {
 
   transformBlockCode(code:string, functionArgs:string[]):string {
 
-    let libArg = functionArgs[2];
+    let libArg = `${functionArgs[0]}.lib`;
     let hasChanged = true;
     let infixParam = "((?:(?:[a-z0-9_\.]+(?:\\[\".*?\"\\])?)+(?:\\(.*\\))?)|\\(.*\\))";
     let stringPlaceholder = "(____[0-9]+____)";
@@ -482,7 +626,13 @@ class DSLBlock {
     }
     return code;
   }
+}
 
+//--------------------------------------------------------------------
+// DSLNot
+//--------------------------------------------------------------------
+
+class DSLNot extends DSLBlock {
 }
 
 //--------------------------------------------------------------------
@@ -493,12 +643,17 @@ export class Program {
   blocks:DSLBlock[] = [];
   runtimeBlocks:runtime.Block[] = [];
   index:indexes.Index;
+
+  /** Represents the hierarchy of blocks currently being compiled into runtime nodes. */
+  contextStack:DSLBlock[] = [];
+
   constructor(public name:string) {
     this.index = new indexes.HashIndex();
   }
 
-  block(name:string, func:any) {
-    let block = new DSLBlock(name, func);
+  block(name:string, func:(block:DSLBlock) => any) {
+    let block = new DSLBlock(name, func, this);
+    block.prepare();
     this.blocks.push(block);
     this.runtimeBlocks.push(block.block);
   }
