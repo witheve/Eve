@@ -59,12 +59,40 @@ export function moveArray(arr:any[], arr2:any[]) {
   for(let elem of arr) {
     arr2[ix] = arr[ix];
   }
-  if(arr2.length === arr.length) arr2.length = arr.length;
+  if(arr2.length !== arr.length) arr2.length = arr.length;
   return arr2;
 }
 
 function isNumber(thing:any): thing is number {
   return typeof thing === "number";
+}
+
+//------------------------------------------------------------------------
+// Iterator
+//------------------------------------------------------------------------
+
+class Iterator<T> {
+  array:T[] = [];
+  length:number = 0;
+  ix:number = 0;
+
+  push(value:T) {
+    this.array[this.length++] = value;
+  }
+
+  clear() {
+    this.length = 0;
+    this.reset();
+  }
+
+  reset() {
+    this.ix = 0;
+  }
+
+  next():T|undefined {
+    if(this.ix < this.length) return this.array[this.ix++];
+    return;
+  }
 }
 
 //------------------------------------------------------------------------
@@ -83,10 +111,10 @@ export class Interner {
   IDRefCount: number[] = createArray();
   IDFreeList: number[] = createArray();
   ix: number = 0;
-  arenas: {[arena:string]: ID[]} = createHash();
+  arenas: {[arena:string]: Iterator<ID>} = createHash();
 
   constructor() {
-    this.arenas["functionOutput"] = createArray("interner-arena-array");
+    this.arenas["functionOutput"] = new Iterator<ID>();
   }
 
   _getFreeID() {
@@ -151,7 +179,7 @@ export class Interner {
   arenaIntern(arenaName:string, value:RawValue):ID {
     let arena = this.arenas[arenaName];
     if(!arena) {
-      arena = this.arenas[arenaName] = createArray("interner-arena-array");
+      arena = this.arenas[arenaName] = new Iterator<ID>();
     }
     // @NOTE: for performance reasons it might make more sense to prevent duplicates
     // from ending up in the list. If that's the case, we could either keep a seen
@@ -170,10 +198,11 @@ export class Interner {
       return;
     }
 
-    for(let id of arena) {
+    let id;
+    while((id = arena.next()) !== undefined) {
       this.release(id);
     }
-    arena.length = 0;
+    arena.clear();
   }
 }
 
@@ -279,7 +308,7 @@ export class Scan implements Constraint {
   protected registerLookup:boolean[] = createArray();
 
   isInput:boolean = false;
-  proposal:Proposal = {cardinality: 0, forFields: [], forRegisters: [], proposer: this};
+  proposal:Proposal = {cardinality: 0, forFields: new Iterator<EAVNField>(), forRegisters: new Iterator<Register>(), proposer: this};
 
   /**
    * Resolve each scan field.
@@ -381,11 +410,12 @@ export class Scan implements Constraint {
     let {e,a,v,n} = this.resolve(prefix);
     this.proposal.skip = false;
     let proposal = index.propose(this.proposal, e, a, v, n, transaction, round);
+    let {forRegisters, forFields} = proposal;
 
-    let ix = 0;
-    for(let field of proposal.forFields) {
-      proposal.forRegisters[ix] = this[field] as Register;
-      ix++;
+    forRegisters.clear();
+    let field;
+    while((field = forFields.next()) !== undefined) {
+      forRegisters.push(this[field as EAVNField] as Register);
     }
     if(proposal.forFields.length === 0) proposal.skip = true;
     return proposal;
@@ -493,7 +523,7 @@ export class FunctionConstraint implements Constraint {
   isInput:boolean = false;
 
   fieldNames:string[];
-  proposal:Proposal = {cardinality:0, forFields: createArray(), forRegisters: createArray(), proposer: this};
+  proposal:Proposal = {cardinality:0, forFields: new Iterator<EAVNField>(), forRegisters: new Iterator<Register>(), proposer: this};
   protected resolved:ResolvedFields = {};
   protected resolvedRest:(number|undefined)[] = createArray();
   protected registers:Register[] = createArray();
@@ -567,7 +597,7 @@ export class FunctionConstraint implements Constraint {
 
   propose(index:Index, prefix:ID[], transaction:number, round:number, results:any[]):Proposal {
     let proposal = this.proposal;
-    proposal.forRegisters.length = 0;
+    proposal.forRegisters.clear();
     let resolved = this.resolve(prefix);
 
     // If none of our returns are unbound
@@ -834,8 +864,8 @@ makeFunction({
 
 export interface Proposal {
   cardinality:number,
-  forFields:EAVNField[],
-  forRegisters:Register[],
+  forFields:Iterator<EAVNField>,
+  forRegisters:Iterator<Register>,
   proposer:Constraint,
   skip?:boolean,
   info?:any,
@@ -884,7 +914,7 @@ export interface Node {
    * returning a set of valid prefixes to continue the query as
    * results.
    */
-  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:ID[][], changes:Transaction):boolean;
+  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean;
 }
 
 /**
@@ -926,9 +956,9 @@ export class JoinNode implements Node {
   registerLength = 0;
   registerArrays:Register[][];
   proposedResultsArrays:ID[][];
-  emptyProposal:Proposal = {cardinality: Infinity, forFields: [], forRegisters: [], skip: true, proposer: {} as Constraint};
+  emptyProposal:Proposal = {cardinality: Infinity, forFields: new Iterator<EAVNField>(), forRegisters: new Iterator<Register>(), skip: true, proposer: {} as Constraint};
   inputState = {constraintIx: 0, state: ApplyInputState.none};
-  protected affectedConstraints:Constraint[] = createArray();
+  protected affectedConstraints = new Iterator<Constraint>();
 
   constructor(public constraints:Constraint[]) {
     // We need to find all the registers contained in our scans so that
@@ -947,10 +977,10 @@ export class JoinNode implements Node {
     this.proposedResultsArrays = proposedResultsArrays;
   }
 
-  findAffectedConstraints(input:Change, prefix:ID[]) {
+  findAffectedConstraints(input:Change, prefix:ID[]):Iterator<Constraint> {
     // @TODO: Hoist me out.
     let affectedConstraints = this.affectedConstraints;
-    affectedConstraints.length = 0;
+    affectedConstraints.clear();
     for(let ix = 0, len = this.constraints.length; ix < len; ix++) {
       let constraint = this.constraints[ix];
       let result = constraint.applyInput(input, prefix);
@@ -963,7 +993,7 @@ export class JoinNode implements Node {
     return affectedConstraints;
   }
 
-  applyCombination(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:ID[][]) {
+  applyCombination(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>) {
     let countOfSolved = 0;
     for(let field of prefix) {
       if(field !== undefined) countOfSolved++;
@@ -1009,7 +1039,7 @@ export class JoinNode implements Node {
     return true;
   }
 
-  computeMultiplicities(results:ID[][], prefix:ID[], currentRound:number, diffs: NTRCArray[], diffIndex:number = -1) {
+  computeMultiplicities(results:Iterator<ID[]>, prefix:ID[], currentRound:number, diffs: NTRCArray[], diffIndex:number = -1) {
     if(diffIndex === -1) {
       prefix.push(currentRound, 1)
       this.computeMultiplicities(results, prefix, currentRound, diffs, diffIndex + 1);
@@ -1043,7 +1073,7 @@ export class JoinNode implements Node {
     return results;
   }
 
-  genericJoin(index:Index, prefix:ID[], transaction:number, round:number, results:ID[][] = createArray("gjResultsArray"), roundIx:number = this.registerLength):ID[][] {
+  genericJoin(index:Index, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, roundIx:number = this.registerLength):Iterator<ID[]> {
     let {constraints, emptyProposal} = this;
     let proposedResults = this.proposedResultsArrays[roundIx - 1];
     let forRegisters:Register[] = this.registerArrays[roundIx - 1];
@@ -1068,7 +1098,7 @@ export class JoinNode implements Node {
     let {proposer} = bestProposal;
     // We have to copy here because we need to keep a reference to this even if later
     // rounds might overwrite the proposal
-    moveArray(bestProposal.forRegisters, forRegisters);
+    moveArray(bestProposal.forRegisters.array, forRegisters);
     let resolved:any[] = proposer.resolveProposal(index, prefix, bestProposal, transaction, round, proposedResults);
     if(resolved[0].constructor === Array) {
       resultLoop: for(let result of resolved) {
@@ -1126,13 +1156,13 @@ export class JoinNode implements Node {
     return results;
   }
 
-  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:ID[][] = createArray("joinNodeExec")):boolean {
+  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):boolean {
     let didSomething = false;
     let affectedConstraints = this.findAffectedConstraints(input, prefix);
 
     // @FIXME: This is frivolously wasteful.
     for(let constraintIxz = 0; constraintIxz < affectedConstraints.length; constraintIxz++) {
-      let constraint = affectedConstraints[constraintIxz];
+      let constraint = affectedConstraints.array[constraintIxz];
       this.unapplyConstraint(constraint, prefix);
     }
 
@@ -1143,7 +1173,7 @@ export class JoinNode implements Node {
       for(let constraintIx = 0; constraintIx < affectedConstraints.length; constraintIx++) {
         let mask = 1 << constraintIx;
         let isIncluded = (comboIx & mask) !== 0;
-        let constraint = affectedConstraints[constraintIx];
+        let constraint = affectedConstraints.array[constraintIx];
         constraint.isInput = isIncluded;
 
         if(isIncluded) {
@@ -1161,7 +1191,9 @@ export class JoinNode implements Node {
       didSomething = this.applyCombination(index, input, prefix, transaction, round, results) || didSomething;
     }
 
-    for(let constraint of affectedConstraints) {
+    affectedConstraints.reset();
+    let constraint;
+    while((constraint = affectedConstraints.next()) !== undefined) {
       constraint.isInput = false;
     }
 
@@ -1180,7 +1212,7 @@ export class InsertNode implements Node {
 
   resolve = Scan.prototype.resolve;
 
-  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:ID[][], changes:Transaction):boolean {
+  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
     let {e,a,v,n} = this.resolve(prefix);
 
     // @FIXME: This is pretty wasteful to copy one by one here.
@@ -1218,20 +1250,21 @@ export class Block {
   constructor(public name:string, public nodes:Node[]) {}
 
   // We're going to essentially double-buffer the result arrays so we can avoid allocating in the hotpath.
-  results:ID[][] = createArray();
+  results = new Iterator<ID[]>();
   initial:ID[] = createArray();
-  protected nextResults:ID[][] = createArray();
+  protected nextResults = new Iterator<ID[]>();
 
   exec(index:Index, input:Change, transaction:Transaction):boolean {
     let blockState = ApplyInputState.none;
-    this.results.length = 0;
+    this.results.clear();
     this.initial.length = 0;
     this.results.push(this.initial);
-    this.nextResults.length = 0;
+    this.nextResults.clear();
+    let prefix;
     // We populate the prefix with values from the input change so we only derive the
     // results affected by it.
     for(let node of this.nodes) {
-      for(let prefix of this.results) {
+      while((prefix = this.results.next()) !== undefined) {
         let valid = node.exec(index, input, prefix, transaction.transaction, transaction.round, this.nextResults, transaction);
         if(!valid) {
           return false;
@@ -1241,7 +1274,7 @@ export class Block {
       this.results = this.nextResults;
       this.nextResults = tmp;
       // @NOTE: We don't really want to shrink this array probably.
-      this.nextResults.length = 0;
+      this.nextResults.clear();
     }
 
     return true;
