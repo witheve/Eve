@@ -358,3 +358,32 @@ test.skip("not", (assert) => {
 
   assert.end();
 });
+
+test.only("Nested attribute lookup", (assert) => {
+
+  // -----------------------------------------------------
+  // program
+  // -----------------------------------------------------
+
+  let prog = new Program("test");
+  prog.block("simple block", ({find, record, lib}) => {
+    let jeff = find({tag: "bar"});
+    return [
+      record({zomg: jeff.dog.weight})
+    ]
+  });
+
+  // -----------------------------------------------------
+  // verification
+  // -----------------------------------------------------
+
+  verify(assert, prog, [
+    [1, "tag", "bar"],
+    [1, "dog", 2],
+    [2, "weight", 13],
+  ], [
+    [3, "zomg", 13, 1]
+  ])
+
+  assert.end();
+});
