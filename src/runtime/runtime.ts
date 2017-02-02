@@ -1243,6 +1243,103 @@ export class InsertNode implements Node {
 }
 
 //------------------------------------------------------------------------------
+// BinaryFlow
+//------------------------------------------------------------------------------
+
+type KeyFunction = (prefix:ID[]) => string;
+
+class IntermediateIndex {
+  static CreateKeyFunction(registers:Register[]):KeyFunction {
+    let items = registers.map((reg) => {
+      return `prefix[${reg.offset}]`;
+    })
+    let code = `
+      return ${items.join(' + "|" + ')};
+      `;
+    return new Function("prefix", code) as KeyFunction;
+  }
+
+  index:{[key:string]: number[]} = {};
+
+  // @TODO: we should probably consider compacting these times as they're
+  // added
+  insert(key:string, round:number, count:number) {
+    let found = this.index[key];
+    if(!found) found = this.index[key] = createArray("IntermediateIndexDiffs");
+    found.push(round, count);
+  }
+
+  get(key:string) {
+    return this.index[key];
+  }
+}
+
+abstract class BinaryFlow implements Node {
+  leftResults = new Iterator<ID[]>();
+  rightResults = new Iterator<ID[]>();
+
+  constructor(public left:Node, public right:Node) { }
+
+  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
+    let {left, right, leftResults, rightResults} = this;
+    leftResults.clear();
+    left.exec(index, input, prefix, transaction, round, leftResults, changes);
+    rightResults.clear();
+    right.exec(index, input, prefix, transaction, round, rightResults, changes);
+    let result;
+    while((result = leftResults.next()) !== undefined) {
+      this.onLeft(index, result, transaction, round, results);
+    }
+    while((result = rightResults.next()) !== undefined) {
+      this.onRight(index, result, transaction, round, results);
+    }
+    return true;
+  }
+
+  abstract onLeft(index:Index, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):void;
+  abstract onRight(index:Index, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):void;
+}
+
+export class AntiJoin extends BinaryFlow {
+  leftIndex = new IntermediateIndex();
+  rightIndex = new IntermediateIndex();
+  keyFunc:KeyFunction;
+
+  constructor(public left:Node, public right:Node, public keyRegisters:Register[]) {
+    super(left, right);
+    this.keyFunc = IntermediateIndex.CreateKeyFunction(keyRegisters);
+  }
+
+  onLeft(index:Index, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):void {
+    let key = this.keyFunc(prefix);
+    let count = prefix[prefix.length - 1];
+    this.leftIndex.insert(key, round, count);
+    let diffs = this.rightIndex.get(key)
+    if(!diffs || !diffs.length) {
+      return results.push(prefix);
+    }
+  }
+
+  onRight(index:Index, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):void {
+    let key = this.keyFunc(prefix);
+    let count = prefix[prefix.length - 1];
+    this.rightIndex.insert(key, round, count);
+    let diffs = this.leftIndex.get(key)
+    if(!diffs) return;
+    for(let ix = 0, len = diffs.length; ix < len; ix += 2) {
+      let leftRound = diffs[ix];
+      let leftCount = diffs[ix + 1];
+      let upperBound = Math.max(round, leftRound);
+      let result = copyArray(prefix, "AntiJoinResult");
+      result[result.length - 2] = upperBound;
+      result[result.length - 1] = count * leftCount * -1;
+      results.push(result);
+    }
+
+  }
+}
+
+//------------------------------------------------------------------------------
 // Block
 //------------------------------------------------------------------------------
 

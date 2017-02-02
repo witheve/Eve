@@ -8,7 +8,7 @@ declare var Proxy:new (obj:any, proxy:any) => any;
 declare var Symbol:any;
 
 import {RawValue, Register, isRegister, GlobalInterner, Scan, IGNORE_REG, ID,
-        InsertNode, Node, Constraint, FunctionConstraint} from "./runtime";
+        InsertNode, Node, Constraint, FunctionConstraint, Change} from "./runtime";
 import * as runtime from "./runtime";
 import * as indexes from "./indexes";
 
@@ -298,6 +298,8 @@ class DSLRecord {
 // DSLBlock
 //--------------------------------------------------------------------
 
+type DSLCompilable = DSLRecord | DSLFunction;
+
 class DSLBlock {
   records:DSLRecord[] = [];
   variables:DSLVariable[] = [];
@@ -493,27 +495,24 @@ class DSLBlock {
     this.program.contextStack.pop();
   }
 
-  allocateRegisters() {
-    let registerIx = 0;
+  allocateRegisters(registerIx = 0) {
     for(let id in this.variableLookup) {
       let variable = this.variableLookup[id][0] as DSLVariable;
       if(!variable || !isRegister(variable.value)) continue;
-      if(variable.value.offset !== UNASSIGNED) throw new Error("We've somehow already assigned a variable's register");
-      variable.value.offset = registerIx++;
+      if(variable.value.offset >= registerIx) throw new Error("We've somehow already assigned a variable's register");
+      if(variable.value.offset === UNASSIGNED) variable.value.offset = registerIx++;
     }
+    for(let not of this.nots) {
+      registerIx = not.allocateRegisters(registerIx);
+    }
+    return registerIx;
   }
 
-  compile() {
+  compile(injections:(DSLCompilable|undefined)[] = []) {
     this.program.contextStack.push(this);
 
-    // @NOTE: We need to unify all of our sub-blocks along with ourselves
-    //        before the root node can allocate registers.
-    for(let not of this.nots) {
-      not.compile();
-    }
-
     let functions = this.cleanFunctions;
-    let items = functions.concat(this.records as any[]);
+    let items:(DSLCompilable|undefined)[] = injections.concat(functions.concat(this.records as any) as any);
     let constraints = [];
     let nodes = [];
     for(let toCompile of items) {
@@ -531,8 +530,28 @@ class DSLBlock {
     }
     // @TODO: Once we start having aggregates, we'll need to do some stratification here
     // instead of just throwing everything into a single JoinNode.
-    nodes.unshift(new runtime.JoinNode(constraints))
+    let join:Node = new runtime.JoinNode(constraints);
+
+    // @NOTE: We need to unify all of our sub-blocks along with ourselves
+    //        before the root node can allocate registers.
+    for(let not of this.nots) {
+      not.compile(items);
+      let notJoinNode = not.block.nodes[0];
+      let inputs = [];
+      for(let id in not.inputVariables) {
+        let value = not.inputVariables[id].value;
+        if(isRegister(value)) {
+          inputs.push(value);
+        } else {
+          throw new Error("Non-register input variable for not node");
+        }
+      }
+      join = new runtime.AntiJoin(join, notJoinNode, inputs)
+    }
+
+    nodes.unshift(join)
     this.block = new runtime.Block(this.name, nodes);
+
     this.program.contextStack.pop();
   }
 
@@ -645,6 +664,11 @@ class DSLNot extends DSLBlock {
 // Program
 //--------------------------------------------------------------------
 
+// You can specify changes as either [e,a,v] or [e,a,v,round,count];
+export type EAVTuple = [RawValue, RawValue, RawValue];
+export type EAVRCTuple = [RawValue, RawValue, RawValue, number, number];
+export type TestChange =  EAVTuple | EAVRCTuple;
+
 export class Program {
   blocks:DSLBlock[] = [];
   runtimeBlocks:runtime.Block[] = [];
@@ -669,6 +693,15 @@ export class Program {
     trans.exec(this.index);
     // console.log(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
     return trans;
+  }
+
+  test(transaction:number, eavns:TestChange[]) {
+    let changes:Change[] = [];
+    for(let [e, a, v, round = 0, count = 1] of eavns as EAVRCTuple[]) {
+      changes.push(Change.fromValues(e, a, v, "my-awesome-node", transaction, round, count));
+    }
+    this.input(changes)
+    return this;
   }
 }
 

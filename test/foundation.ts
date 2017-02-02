@@ -387,3 +387,40 @@ test("Nested attribute lookup", (assert) => {
 
   assert.end();
 });
+
+
+test("Basic not", (assert) => {
+
+  // -----------------------------------------------------
+  // program
+  // -----------------------------------------------------
+
+  let prog = new Program("test");
+  prog.block("simple block", ({find, record, lib, not}) => {
+    let person = find("person");
+    not((subblock) => {
+      person.age;
+    })
+    return [
+      person.add("tag", "old")
+    ]
+  });
+
+  // -----------------------------------------------------
+  // verification
+  // -----------------------------------------------------
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+  ], [
+    [1, "tag", "old", 1]
+  ])
+
+  verify(assert, prog, [
+    [1, "age", 20],
+  ], [
+    [1, "tag", "old", 1, -1]
+  ])
+
+  assert.end();
+});
