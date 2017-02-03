@@ -278,6 +278,22 @@ export class Change {
           this.round == other.round &&
           this.count == other.count;
   }
+
+  reverse(interner:Interner = GlobalInterner) {
+    let {e, a, v, n, transaction, round, count} = this;
+    return new RawChange(interner.reverse(e), interner.reverse(a), interner.reverse(v), interner.reverse(n), transaction, round, count);
+  }
+}
+
+/** A change with all attributes un-interned. */
+export class RawChange {
+  constructor(public e: RawValue, public a: RawValue, public v: RawValue, public n: RawValue,
+              public transaction:number, public round:number, public count:Multiplicity) {}
+
+  toString() {
+    let {e, a, v, n, transaction, round, count} = this;
+    return `RawChange(${e}, ${a}, ${v}, ${n}, ${transaction}, ${round}, ${count})`;
+  }
 }
 
 /** A changeset is a list of changes, intended to occur in a single transaction. */
@@ -1236,6 +1252,10 @@ export class InsertNode implements Node {
 
   resolve = Scan.prototype.resolve;
 
+  key(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, round:number) {
+    return `${e}|${a}|${v}|${round}`;
+  }
+
   exec(index:Index, input:Change, prefix:ID[], transactionId:number, round:number, results:Iterator<ID[]>, transaction:Transaction):boolean {
     let {e,a,v,n} = this.resolve(prefix);
 
@@ -1249,7 +1269,7 @@ export class InsertNode implements Node {
     let prefixRound = prefix[prefix.length - 2];
     let prefixCount = prefix[prefix.length - 1];
 
-    let key = `${e}|${a}|${v}|${prefixRound + 1}`;
+    let key = this.key(e, a, v, prefixRound + 1);
     let prevCount = this.intermediates[key] || 0;
     let newCount = prevCount + prefixCount;
     this.intermediates[key] = newCount;
@@ -1278,6 +1298,16 @@ export class InsertNode implements Node {
 
   output(transaction:Transaction, change:Change) {
     transaction.output(change);
+  }
+}
+
+export class WatchNode extends InsertNode {
+  key(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue) {
+    return `${e}|${a}|${v}`;
+  }
+
+  output(transaction:Transaction, change:Change) {
+    transaction.export(change);
   }
 }
 
@@ -1543,16 +1573,47 @@ export class Block {
 //------------------------------------------------------------------------------
 
 export class Transaction {
-
   round = 0;
   protected roundChanges:Change[][] = [];
-  constructor(public transaction:number, public blocks:Block[], public changes:Change[]) {}
+  protected exportedChanges:Change[] = [];
+  constructor(public transaction:number, public blocks:Block[], public changes:Change[], protected exportHandler?:ExportHandler) {}
 
   output(change:Change) {
     debug("          <-", change.toString())
     let cur = this.roundChanges[change.round] || createArray("roundChangesArray");
     cur.push(change);
     this.roundChanges[change.round] = cur;
+  }
+
+  export(change:Change) {
+    this.exportedChanges.push(change);
+  }
+
+  protected collapseMultiplicity(changes:Change[], results:Change[] /* output */) {
+    // We sort the changes to group all the same EAVs together.
+    // @FIXME: This sort comparator is flawed. It can't differentiate certain EAVs, e.g.:
+    // A: [1, 2, 3]
+    // B: [2, 1, 3]
+    changes.sort((a,b) => (a.e - b.e) + (a.a - b.a) + (a.v - b.v));
+    let changeIx = 0;
+    for(let changeIx = 0; changeIx < changes.length; changeIx++) {
+      let current = changes[changeIx];
+
+      // Collapse each subsequent matching EAV's multiplicity into the current one's.
+      while(changeIx + 1 < changes.length) {
+        let next = changes[changeIx + 1];
+        if(next.e == current.e && next.a == current.a && next.v == current.v) {
+          current.count += next.count;
+          changeIx++;
+        } else {
+          break;
+        }
+      }
+      // console.log("next round change:", current.toString())
+      if(current.count !== 0) results.push(current);
+    }
+
+    return results;
   }
 
   exec(index:Index) {
@@ -1581,25 +1642,28 @@ export class Transaction {
         for(let ix = this.round + 1; ix < maxRound; ix++) {
           let nextRoundChanges = roundChanges[ix];
           if(nextRoundChanges) {
-            nextRoundChanges.sort((a,b) => (a.e - b.e) + (a.a - b.a) + (a.v - b.v))
-            let changeIx = 0;
-            for(let changeIx = 0; changeIx < nextRoundChanges.length; changeIx++) {
-              let current = nextRoundChanges[changeIx];
-              while(changeIx + 1 < nextRoundChanges.length) {
-                let next = nextRoundChanges[changeIx + 1];
-                if(next.e == current.e && next.a == current.a && next.v == current.v) {
-                  current.count += next.count;
-                  changeIx++;
-                } else {
-                  break;
-                }
-              }
-              // console.log("next round change:", current.toString())
-              if(current.count !== 0) changes.push(current);
-            }
-            break;
+            let oldLength = changes.length;
+            this.collapseMultiplicity(nextRoundChanges, changes);
+
+            // We only want to break to begin the next fixedpoint when we have something new to run.
+            if(oldLength < changes.length) break;
           }
         }
+      }
+    }
+
+    if(this.exportedChanges.length) {
+      console.log("Pre:");
+      console.log("  " + this.exportedChanges.join("\n  "));
+
+
+      if(!this.exportHandler) throw new Error("Unable to export changes without export handler.");
+      let exports = createArray("exportsArray");
+      this.collapseMultiplicity(this.exportedChanges, exports);
+      if(exports.length) {
+        console.log("Exporting:");
+        console.log("  " + exports.join("\n  "));
+        this.exportHandler(exports);
       }
     }
 
@@ -1607,5 +1671,62 @@ export class Transaction {
     // arena allocated a bunch of IDs related to function call outputs, which we can now
     // safely release.
     GlobalInterner.releaseArena("functionOutput");
+  }
+}
+
+//------------------------------------------------------------------------------
+// Exporter
+//------------------------------------------------------------------------------
+interface TagMap<V> {[tag:number]: V};
+interface EntityMap<V> {[entityId:number]: V};
+interface AttributeMap<V> {[attributeId:number]: V};
+interface Record {[attribute:string]: RawValue[]};
+
+type ExportHandler = (changes:Change[]) => void;
+export type DiffConsumer = (changes:Readonly<RawChange[]>) => void;
+
+const TAG = GlobalInterner.intern("tag");
+
+export class Exporter {
+  protected _diffTriggers:TagMap<DiffConsumer[]> = {};
+
+  triggerOnDiffs(tag:ID, handler:DiffConsumer):void {
+    if(!this._diffTriggers[tag]) this._diffTriggers[tag] = createArray();
+    if(this._diffTriggers[tag].indexOf(handler) === -1) {
+      this._diffTriggers[tag].push(handler);
+    }
+  }
+
+  handle = (changes:Change[]) => {
+    let newByTags:TagMap<ID[]> = {};
+    let entityChanges:EntityMap<Change[]> = {};
+    for(let change of changes) {
+      if(change.a === TAG) {
+        if(!newByTags[change.v]) newByTags[change.v] = createArray("exporterNewTags");
+        newByTags[change.v].push(change.e);
+      }
+
+      if(!entityChanges[change.e]) entityChanges[change.e] = createArray("exporterEntityChanges");
+      entityChanges[change.e].push(change);
+    }
+
+    // @NOTE: We're leaving a lot of perf on the table right now. It's not a priority atm.
+    for(let rawTag of Object.keys(newByTags)) {
+      let tag:ID = +rawTag;
+      let entityIds = newByTags[tag];
+      if(this._diffTriggers[tag]) {
+        let output:RawChange[] = createArray("exporterOutput");
+        for(let entityId of newByTags[tag]) {
+          for(let change of entityChanges[entityId]) {
+            // We'll omit the tag you're listening to so it doesn't pollute your diffs.
+            if(change.a === TAG && change.v === tag) continue;
+            output.push(change.reverse());
+          }
+        }
+        for(let trigger of this._diffTriggers[tag]) {
+          trigger(output);
+        }
+      }
+    }
   }
 }
