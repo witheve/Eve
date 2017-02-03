@@ -834,7 +834,7 @@ export class Program {
   input(changes:runtime.Change[]) {
     let trans = new runtime.Transaction(changes[0].transaction, this.runtimeBlocks, changes);
     trans.exec(this.index);
-    console.log(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
+    // console.log(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
     return trans;
   }
 
@@ -848,33 +848,33 @@ export class Program {
   }
 }
 
-  let prog = new Program("test");
-  prog.block("simple block", ({find, record, lib, choose, union}) => {
-    let person = find("person");
-    let foo = union(() => {
-      return person.nickName;
-    }, () => {
-      return person.name;
-    })
-    return [
-      person.add("displayName", foo)
-    ]
-  });
+  // let prog = new Program("test");
+  // prog.block("simple block", ({find, record, lib, choose, union}) => {
+  //   let person = find("person");
+  //   let foo = union(() => {
+  //     return person.nickName;
+  //   }, () => {
+  //     return person.name;
+  //   })
+  //   return [
+  //     person.add("displayName", foo)
+  //   ]
+  // });
 
-  prog.test(1, [
-    [1, "tag", "person"],
-    [1, "name", "cool"],
-  ]);
+  // prog.test(1, [
+  //   [1, "tag", "person"],
+  //   [1, "name", "cool"],
+  // ]);
 
-  prog.test(2, [
-    [1, "nickName", "dude"],
-  ]);
+  // prog.test(2, [
+  //   [1, "nickName", "dude"],
+  // ]);
 
-  prog.test(2, [
-    [1, "nickName", "dude", 0, -1],
-  ]);
+  // prog.test(2, [
+  //   [1, "nickName", "dude", 0, -1],
+  // ]);
 
-  console.log(prog);
+  // console.log(prog);
 
   // // -----------------------------------------------------
   // // program
