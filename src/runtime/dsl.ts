@@ -879,38 +879,50 @@ export class Program {
   input(changes:runtime.Change[]) {
     let trans = new runtime.Transaction(changes[0].transaction, this.runtimeBlocks, changes);
     trans.exec(this.index);
-    console.log(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
     return trans;
   }
 
   test(transaction:number, eavns:TestChange[]) {
     let changes:Change[] = [];
+    let trans = new runtime.Transaction(transaction, this.runtimeBlocks, changes);
     for(let [e, a, v, round = 0, count = 1] of eavns as EAVRCTuple[]) {
-      changes.push(Change.fromValues(e, a, v, "my-awesome-node", transaction, round, count));
+      let change = Change.fromValues(e, a, v, "my-awesome-node", transaction, round, count);
+      if(round === 0) {
+        changes.push(change);
+      } else {
+        trans.output(change);
+      }
     }
-    this.input(changes)
+    trans.exec(this.index);
+    console.log(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
     return this;
   }
 }
 
   // let prog = new Program("test");
   // prog.block("simple block", ({find, record, lib, choose, union, not, lookup}) => {
-  //   let elem = find("html/element");
-  //   let {attribute} = lookup(elem);
+  //   let style = find("html/style");
+  //   let {attribute, value} = lookup(style);
   //   return [
-  //     record({elem, attribute})
+  //     record("html/eve/style", {style, k: value})//.add(attribute, value)
+  //   ];
+  // });
+  // prog.block("simple block 2", ({find, record, lib, choose, union, not, lookup}) => {
+  //   let elem = find("html/element");
+  //   let style = elem.style;
+  //   return [
+  //     style.add("tag", "html/style")
   //   ];
   // });
 
   // prog.test(1, [
   //   [2, "tag", "html/element"],
-  //   [2, "tagname", "div"],
-  //   [2, "children", 3],
-
-  //   [3, "tag", "html/element"],
-  //   [3, "tagname", "floop"],
-  //   [3, "text", "k"],
+  //   [2, "style", 3],
+  //   [3, "color", "red"],
   // ]);
+
+  // console.log(prog);
+  // console.log(GlobalInterner);
 
   // let prog = new Program("test");
   // prog.block("simple block", ({find, record, lib, choose, union, not}) => {
