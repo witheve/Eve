@@ -1653,16 +1653,12 @@ export class Transaction {
     }
 
     if(this.exportedChanges.length) {
-      console.log("Pre:");
-      console.log("  " + this.exportedChanges.join("\n  "));
-
-
       if(!this.exportHandler) throw new Error("Unable to export changes without export handler.");
       let exports = createArray("exportsArray");
       this.collapseMultiplicity(this.exportedChanges, exports);
       if(exports.length) {
-        console.log("Exporting:");
-        console.log("  " + exports.join("\n  "));
+        // console.log("Exporting:");
+        // console.log("  " + exports.join("\n  "));
         this.exportHandler(exports);
       }
     }
