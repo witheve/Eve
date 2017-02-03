@@ -1236,6 +1236,7 @@ export class InsertNode implements Node {
     GlobalInterner.reference(v!);
     GlobalInterner.reference(n!);
     let change = new Change(e!, a!, v!, n!, transaction, prefixRound + 1, prefixCount * input.count);
+
     changes.output(change);
 
     return true;
@@ -1259,14 +1260,14 @@ class IntermediateIndex {
     return new Function("prefix", code) as KeyFunction;
   }
 
-  index:{[key:string]: number[]} = {};
+  index:{[key:string]: ID[][]} = {};
 
   // @TODO: we should probably consider compacting these times as they're
   // added
-  insert(key:string, round:number, count:number) {
+  insert(key:string, prefix:ID[]) {
     let found = this.index[key];
     if(!found) found = this.index[key] = createArray("IntermediateIndexDiffs");
-    found.push(round, count);
+    found.push(prefix);
   }
 
   get(key:string) {
@@ -1300,6 +1301,51 @@ abstract class BinaryFlow implements Node {
   abstract onRight(index:Index, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):void;
 }
 
+export class BinaryJoinRight extends BinaryFlow {
+  leftIndex = new IntermediateIndex();
+  rightIndex = new IntermediateIndex();
+  keyFunc:KeyFunction;
+
+  constructor(public left:Node, public right:Node, public keyRegisters:Register[]) {
+    super(left, right);
+    this.keyFunc = IntermediateIndex.CreateKeyFunction(keyRegisters);
+  }
+
+  onLeft(index:Index, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):void {
+    let key = this.keyFunc(prefix);
+    let count = prefix[prefix.length - 1];
+    this.leftIndex.insert(key, prefix);
+    let diffs = this.rightIndex.get(key)
+    if(!diffs) return;
+    for(let rightPrefix of diffs) {
+      let rightRound = rightPrefix[rightPrefix.length - 2];
+      let rightCount = rightPrefix[rightPrefix.length - 1];
+      let upperBound = Math.max(round, rightRound);
+      let result = copyArray(rightPrefix, "BinaryJoinResult");
+      result[result.length - 2] = upperBound;
+      result[result.length - 1] = count * rightCount;
+      results.push(result);
+    }
+  }
+
+  onRight(index:Index, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):void {
+    let key = this.keyFunc(prefix);
+    let count = prefix[prefix.length - 1];
+    this.rightIndex.insert(key, prefix);
+    let diffs = this.leftIndex.get(key)
+    if(!diffs) return;
+    for(let leftPrefix of diffs) {
+      let leftRound = leftPrefix[leftPrefix.length - 2];
+      let leftCount = leftPrefix[leftPrefix.length - 1];
+      let upperBound = Math.max(round, leftRound);
+      let result = copyArray(prefix, "BinaryJoinResult");
+      result[result.length - 2] = upperBound;
+      result[result.length - 1] = count * leftCount;
+      results.push(result);
+    }
+  }
+}
+
 export class AntiJoin extends BinaryFlow {
   leftIndex = new IntermediateIndex();
   rightIndex = new IntermediateIndex();
@@ -1313,7 +1359,7 @@ export class AntiJoin extends BinaryFlow {
   onLeft(index:Index, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):void {
     let key = this.keyFunc(prefix);
     let count = prefix[prefix.length - 1];
-    this.leftIndex.insert(key, round, count);
+    this.leftIndex.insert(key, prefix);
     let diffs = this.rightIndex.get(key)
     if(!diffs || !diffs.length) {
       return results.push(prefix);
@@ -1323,19 +1369,86 @@ export class AntiJoin extends BinaryFlow {
   onRight(index:Index, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):void {
     let key = this.keyFunc(prefix);
     let count = prefix[prefix.length - 1];
-    this.rightIndex.insert(key, round, count);
+    this.rightIndex.insert(key, prefix);
     let diffs = this.leftIndex.get(key)
     if(!diffs) return;
-    for(let ix = 0, len = diffs.length; ix < len; ix += 2) {
-      let leftRound = diffs[ix];
-      let leftCount = diffs[ix + 1];
+    for(let leftPrefix of diffs) {
+      let leftRound = leftPrefix[leftPrefix.length - 2];
+      let leftCount = leftPrefix[leftPrefix.length - 1];
       let upperBound = Math.max(round, leftRound);
-      let result = copyArray(prefix, "AntiJoinResult");
+      let result = copyArray(leftPrefix, "AntiJoinResult");
       result[result.length - 2] = upperBound;
       result[result.length - 1] = count * leftCount * -1;
       results.push(result);
     }
+  }
+}
 
+export class AntiJoinPresovledRight extends AntiJoin {
+  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
+    let {left, right, leftResults, rightResults} = this;
+    leftResults.clear();
+    left.exec(index, input, prefix, transaction, round, leftResults, changes);
+    rightResults.reset();
+    let result;
+    while((result = rightResults.next()) !== undefined) {
+      this.onRight(index, result, transaction, round, results);
+    }
+    while((result = leftResults.next()) !== undefined) {
+      this.onLeft(index, result, transaction, round, results);
+    }
+    return true;
+  }
+}
+
+export class UnionFlow {
+  constructor(public branches:Node[], public registers:Register[]) { }
+
+  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
+    for(let node of this.branches) {
+      node.exec(index, input, prefix, transaction, round, results, changes);
+    }
+    return true;
+  }
+}
+
+export class ChooseFlow {
+  branches:Node[] = [];
+  branchResults:Iterator<ID[]>[] = [];
+
+  constructor(initialBranches:Node[], public registers:Register[]) {
+    let {branches, branchResults} = this;
+    let prev:Node|undefined;
+    for(let branch of initialBranches) {
+      if(prev) {
+        branches.push(new AntiJoinPresovledRight(branch, prev, registers));
+      } else {
+        branches.push(branch);
+      }
+      branchResults.push(new Iterator<ID[]>());
+      prev = branch;
+    }
+  }
+
+  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
+    let {branchResults, branches} = this;
+    let prev:Iterator<ID[]>|undefined;
+    let ix = 0;
+    for(let node of branches) {
+      if(prev) {
+        (node as AntiJoinPresovledRight).rightResults = prev;
+      }
+      let branchResult = branchResults[ix];
+      branchResult.clear();
+      node.exec(index, input, prefix, transaction, round, branchResult, changes);
+      let result;
+      while((result = branchResult.next()) !== undefined) {
+        results.push(result);
+      }
+      prev = branchResult;
+      ix++;
+    }
+    return true;
   }
 }
 

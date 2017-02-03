@@ -306,9 +306,12 @@ class DSLBlock {
   functions:DSLFunction[] = [];
   cleanFunctions:(DSLFunction|undefined)[] = [];
   nots:DSLNot[] = [];
+  chooses:DSLChoose[] = [];
+  unions:DSLUnion[] = [];
   variableLookup:{[id:number]:DSLVariable[]} = {};
   inputVariables:{[id:number]:DSLVariable} = {};
   block:runtime.Block;
+  returns:any[] = [];
 
   lib = this.generateLib();
 
@@ -329,7 +332,10 @@ class DSLBlock {
     }
 
     program.contextStack.push(this);
-    neueFunc(this);
+    let returns = neueFunc(this);
+    if(returns === undefined) this.returns = [];
+    else if(returns.constructor === Array) this.returns = returns;
+    else this.returns = [returns];
     program.contextStack.pop();
   }
 
@@ -400,6 +406,24 @@ class DSLBlock {
     this.nots.push(not);
   }
 
+  union = (...branches:(() => any)[]) => {
+    let node = new DSLUnion(branches, this.program);
+    this.unions.push(node);
+    for(let result of node.results) {
+      this.registerVariable(result);
+    }
+    return node.results[0];
+  }
+
+  choose = (...branches:(() => any)[]) => {
+    let node = new DSLChoose(branches, this.program);
+    this.chooses.push(node);
+    for(let result of node.results) {
+      this.registerVariable(result);
+    }
+    return node.results[0];
+  }
+
   registerVariable(variable:DSLVariable) {
     let vars = this.variableLookup[variable.__id];
     if(vars) {
@@ -468,6 +492,12 @@ class DSLBlock {
     for(let not of this.nots) {
       not.unify();
     }
+    for(let choose of this.chooses) {
+      choose.unify();
+    }
+    for(let union of this.unions) {
+      union.unify();
+    }
 
     let functions = this.functions.slice() as (DSLFunction | undefined)[];
     let ix = 0;
@@ -503,7 +533,13 @@ class DSLBlock {
       if(variable.value.offset === UNASSIGNED) variable.value.offset = registerIx++;
     }
     for(let not of this.nots) {
-      registerIx = not.allocateRegisters(registerIx);
+      not.allocateRegisters(registerIx);
+    }
+    for(let choose of this.chooses) {
+      choose.allocateRegisters(registerIx);
+    }
+    for(let union of this.unions) {
+      union.allocateRegisters(registerIx);
     }
     return registerIx;
   }
@@ -535,7 +571,17 @@ class DSLBlock {
     // @NOTE: We need to unify all of our sub-blocks along with ourselves
     //        before the root node can allocate registers.
     for(let not of this.nots) {
+      // All sub blocks take their parents' items and embed them into
+      // the sub block. This is to make sure that the sub only computes the
+      // results that might actually join with the parent instead of the possibly
+      // very large set of unjoined results. This isn't guaranteed to be optimal
+      // and may very well cause us to do more work than necessary. For example if
+      // the results of the inner join with many outers, we'll still enumerate the
+      // whole set. This *may* be necessary for getting the correct multiplicities
+      // anyways, so this is what we're doing.
       not.compile(items);
+      // @TODO: once we have multiple nodes in a not (e.g. aggs, or recursive not/choose/union)
+      // this won't be sufficient.
       let notJoinNode = not.block.nodes[0];
       let inputs = [];
       for(let id in not.inputVariables) {
@@ -547,6 +593,18 @@ class DSLBlock {
         }
       }
       join = new runtime.AntiJoin(join, notJoinNode, inputs)
+    }
+
+    for(let choose of this.chooses) {
+      // For why we pass items down, see the comment about not
+      choose.compile(items);
+      join = new runtime.BinaryJoinRight(join, choose.node, choose.node.registers);
+    }
+
+    for(let union of this.unions) {
+      // For why we pass items down, see the comment about not
+      union.compile(items);
+      join = new runtime.BinaryJoinRight(join, union.node, union.node.registers);
     }
 
     nodes.unshift(join)
@@ -657,7 +715,92 @@ class DSLBlock {
 // DSLNot
 //--------------------------------------------------------------------
 
-class DSLNot extends DSLBlock {
+class DSLNot extends DSLBlock { }
+
+//--------------------------------------------------------------------
+// DSLUnion
+//--------------------------------------------------------------------
+
+class DSLUnion {
+  branches:DSLBlock[] = [];
+  results:DSLVariable[] = [];
+  node:runtime.ChooseFlow;
+  inputs:DSLVariable[] = [];
+  nodeType:("ChooseFlow" | "UnionFlow") = "UnionFlow";
+
+  constructor(branchFunctions: Function[], public program:Program) {
+    let {branches, results} = this;
+    let ix = 0;
+    let resultCount:number|undefined;
+    for(let branch of branchFunctions) {
+      let block = new DSLBlock(`choose branch ${ix}`, branch as (block:DSLBlock) => any, program, false)
+      let branchResultCount = this.resultCount(block.returns);
+      if(resultCount === undefined) {
+        resultCount = branchResultCount;
+        for(let resultIx = 0; resultIx < resultCount; resultIx++) {
+          results.push(new DSLVariable(`choose result ${resultIx}`))
+        }
+      } else if(resultCount !== branchResultCount) {
+        throw new Error(`Choose branch ${ix} doesn't have the right number of returns, I expected ${resultCount}, but got ${branchResultCount}`);
+      }
+      for(let key in block.inputVariables) {
+        let variable = block.inputVariables[key];
+        if(this.inputs.indexOf(variable) === -1) {
+          this.inputs.push(variable);
+        }
+      }
+      let resultIx = 0;
+      for(let result of this.results) {
+        block.registerVariable(result);
+        block.equivalence(block.returns[resultIx], result);
+        resultIx++;
+      }
+      branches.push(block);
+      ix++;
+    }
+  }
+
+  resultCount(result:any):number {
+    if(result && result.constructor === Array) {
+      return result.length;
+    } else if(result) {
+      return 1;
+    }
+    return 0;
+  }
+
+  unify() {
+    for(let block of this.branches) {
+      block.unify();
+    }
+  }
+
+  allocateRegisters(registerIx:number) {
+    for(let block of this.branches) {
+      block.allocateRegisters(registerIx);
+    }
+    return registerIx;
+  }
+
+  compile(items:(DSLCompilable|undefined)[]) {
+    let nodes = [];
+    for(let block of this.branches) {
+      block.compile(items);
+      // @TODO: when we have multiple nodes, this won't fly
+      nodes.push(block.block.nodes[0]);
+    }
+    let inputs = this.inputs.map(toValue).filter(isRegister) as Register[];
+    let builder = runtime[this.nodeType] as any;
+    this.node = new builder(nodes, inputs);
+  }
+}
+
+//--------------------------------------------------------------------
+// DSLChoose
+//--------------------------------------------------------------------
+
+class DSLChoose extends DSLUnion {
+  nodeType:("ChooseFlow"|"UnionFlow") = "ChooseFlow";
 }
 
 //--------------------------------------------------------------------
@@ -691,7 +834,7 @@ export class Program {
   input(changes:runtime.Change[]) {
     let trans = new runtime.Transaction(changes[0].transaction, this.runtimeBlocks, changes);
     trans.exec(this.index);
-    // console.log(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
+    console.log(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
     return trans;
   }
 
@@ -705,6 +848,33 @@ export class Program {
   }
 }
 
+  let prog = new Program("test");
+  prog.block("simple block", ({find, record, lib, choose, union}) => {
+    let person = find("person");
+    let foo = union(() => {
+      return person.nickName;
+    }, () => {
+      return person.name;
+    })
+    return [
+      person.add("displayName", foo)
+    ]
+  });
+
+  prog.test(1, [
+    [1, "tag", "person"],
+    [1, "name", "cool"],
+  ]);
+
+  prog.test(2, [
+    [1, "nickName", "dude"],
+  ]);
+
+  prog.test(2, [
+    [1, "nickName", "dude", 0, -1],
+  ]);
+
+  console.log(prog);
 
   // // -----------------------------------------------------
   // // program
