@@ -163,11 +163,17 @@ class DSLRecord {
   constructor(public __block:DSLBlock, tags:string[], initialAttributes:any, entityVariable?:DSLVariable) {
     let fields:any = {tag: tags};
     for(let field in initialAttributes) {
-      let value = initialAttributes[field];
+      let values = initialAttributes[field];
       if(field.constructor !== Array) {
-        value = [value];
+        values = [values];
       }
-      fields[field] = value;
+      for(let value of values) {
+        let variable = maybeVariable(value);
+        if(variable && value.__block !== __block) {
+          __block.registerInput(variable);
+        }
+      }
+      fields[field] = values;
     }
     this.__fields = fields;
     if(entityVariable) {
@@ -390,8 +396,9 @@ class DSLBlock {
     } else {
       tag = args.slice(0, args.length);
     }
-    let rec = new DSLRecord(this, tag, proxied);
-    this.records.push(rec);
+    let active = this.getActiveBlock();
+    let rec = new DSLRecord(active, tag, proxied);
+    active.records.push(rec);
     return rec.proxy();
   }
 
@@ -847,6 +854,35 @@ export class Program {
     return this;
   }
 }
+
+
+  // let prog = new Program("test");
+  // prog.block("simple block", ({find, record, lib, choose, union, not}) => {
+  //   let elem = find("html/element");
+  //   not(() => {
+  //     find("html/element", {children: elem});
+  //   });
+  //   return [
+  //     record("html/root", {element: elem, tagname: elem.tagname})
+  //   ];
+  // });
+
+  // prog.test(1, [
+  //   [2, "tag", "html/element"],
+  //   [2, "tagname", "div"],
+  //   [2, "children", 3],
+
+  //   [3, "tag", "html/element"],
+  //   [3, "tagname", "floop"],
+  //   [3, "text", "k"],
+  // ]);
+
+  // prog.test(2, [
+  //   [2, "children", 3, 0, -1],
+  //   [3, "children", 2, 0, 1],
+  // ]);
+
+  // console.log(prog)
 
   // let prog = new Program("test");
   // prog.block("simple block", ({find, record, lib, choose, union}) => {
