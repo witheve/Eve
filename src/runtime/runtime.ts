@@ -54,6 +54,15 @@ export function copyArray(arr:any[], place = "unknown") {
   return arr.slice();
 }
 
+export function concatArray(arr:any[], arr2:any[]) {
+  let ix = arr.length;
+  for(let elem of arr2) {
+    arr[ix] = elem;
+    ix++;
+  }
+  return arr;
+}
+
 export function moveArray(arr:any[], arr2:any[]) {
   let ix = 0;
   for(let elem of arr) {
