@@ -1179,6 +1179,12 @@ export class JoinNode implements Node {
     for(let comboIx = combinationCount - 1; comboIx > 0; comboIx--) {
       //console.log("  Combo:", comboIx);
 
+      let constraint;
+      affectedConstraints.reset();
+      while((constraint = affectedConstraints.next()) !== undefined) {
+        this.unapplyConstraint(constraint, prefix);
+      }
+
       for(let constraintIx = 0; constraintIx < affectedConstraints.length; constraintIx++) {
         let mask = 1 << constraintIx;
         let isIncluded = (comboIx & mask) !== 0;
@@ -1189,10 +1195,7 @@ export class JoinNode implements Node {
           let valid = constraint.applyInput(input, prefix);
           // If any member of the input constraints fails, this whole combination is doomed.
           if(valid === ApplyInputState.fail) break;
-
           //console.log("    " + printConstraint(constraint));
-        } else {
-          this.unapplyConstraint(constraint, prefix);
         }
       }
 
@@ -1474,6 +1477,7 @@ export class Block {
   protected nextResults = new Iterator<ID[]>();
 
   exec(index:Index, input:Change, transaction:Transaction):boolean {
+    // console.log("BLOCK", this.name);
     let blockState = ApplyInputState.none;
     this.results.clear();
     this.initial.length = 0;
@@ -1526,7 +1530,7 @@ export class Transaction {
       this.round = change.round;
       // console.log("  Round:", this.round);
 
-      // console.log("    -> " + change);
+      // console.log("     -> " + change);
       if(index.hasImpact(change)) {
         for(let block of this.blocks) {
           // console.log("    ", block.name);
