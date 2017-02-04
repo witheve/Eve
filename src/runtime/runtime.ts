@@ -1477,7 +1477,6 @@ export class Block {
   protected nextResults = new Iterator<ID[]>();
 
   exec(index:Index, input:Change, transaction:Transaction):boolean {
-    // console.log("BLOCK", this.name);
     let blockState = ApplyInputState.none;
     this.results.clear();
     this.initial.length = 0;
@@ -1530,7 +1529,7 @@ export class Transaction {
       this.round = change.round;
       // console.log("  Round:", this.round);
 
-      // console.log("     -> " + change);
+      // console.log("    -> " + change);
       if(index.hasImpact(change)) {
         for(let block of this.blocks) {
           // console.log("    ", block.name);

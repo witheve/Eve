@@ -14,6 +14,7 @@ import * as indexes from "./indexes";
 
 
 const UNASSIGNED = -1;
+var CURRENT_ID = 0;
 
 //--------------------------------------------------------------------
 // Utils
@@ -67,10 +68,9 @@ type DSLNode = DSLFunction|DSLRecord|DSLVariable|RawValue;
 
 type DSLValue = RawValue|Register;
 class DSLVariable {
-  static CURRENT_ID = 0;
   __id: number;
   constructor(public name:string, public parent?:DSLVariableParent, public value:DSLValue = new Register(UNASSIGNED)) {
-    this.__id = DSLVariable.CURRENT_ID++;
+    this.__id = CURRENT_ID++;
   }
 
   proxy() {
@@ -108,16 +108,33 @@ class DSLVariable {
 
 class DSLFunction {
   returnValue:DSLVariable;
+  __id:number;
 
-  constructor(public __block:DSLBlock, public path:string[], public args:any[]) {
+  constructor(public __block:DSLBlock, public path:string[], public args:any[], returnValue?:DSLVariable) {
+    this.__id = CURRENT_ID++;
     let name = this.path.join("/");
     let {filter} = FunctionConstraint.fetchInfo(name)
-    if(filter) {
+    if(returnValue) {
+      this.returnValue = returnValue;
+    } else if(filter) {
       this.returnValue = args[args.length - 1];
     } else {
       this.returnValue = new DSLVariable("returnValue");
       __block.registerVariable(toVariable(this.returnValue));
     }
+  }
+
+  getInputRegisters() {
+    return this.args.map((v) => toValue(v)).filter(isRegister);
+  }
+
+  getOutputRegisters() {
+    let registers = [];
+    let value = toValue(this.returnValue);
+    if(isRegister(value)) {
+      registers.push(value);
+    }
+    return registers;
   }
 
   compile() {
@@ -151,11 +168,13 @@ class DSLFunction {
 //--------------------------------------------------------------------
 
 class DSLLookup {
+  __id:number;
   entity:DSLVariable;
   attribute:DSLVariable;
   value:DSLVariable;
 
   constructor(public __block:DSLBlock, entityObject: DSLRecord|DSLVariable) {
+    this.__id = CURRENT_ID++;
     this.entity = toVariable(entityObject);
     this.attribute = new DSLVariable("lookup attribute", this);
     __block.registerVariable(this.attribute);
@@ -179,6 +198,7 @@ class DSLLookup {
 //--------------------------------------------------------------------
 
 class DSLRecord {
+  __id:number;
   // since we're going to proxy this object, we're going to hackily put __
   // in front of the names of properties on the object.
   __record: DSLVariable;
@@ -189,6 +209,7 @@ class DSLRecord {
   __needsId: boolean = true;
   __fields: any;
   constructor(public __block:DSLBlock, tags:string[], initialAttributes:any, entityVariable?:DSLVariable) {
+    this.__id = CURRENT_ID++;
     let fields:any = {tag: tags};
     for(let field in initialAttributes) {
       let values = initialAttributes[field];
@@ -297,20 +318,29 @@ class DSLRecord {
     }
   }
 
-  toInserts() {
-    let inserts:(Constraint|Node)[] = [];
-    let e = maybeIntern(this.__record.value);
+  precompile() {
+    if(!this.__output || !this.__needsId) return;
+
     let values = [];
     for(let field in this.__fields) {
       for(let dslValue of this.__fields[field]) {
         let value = toValue(dslValue) as (RawValue | Register);
-        // @TODO: generate node ids
-        values.push(maybeIntern(value));
-        inserts.push(new InsertNode(e, maybeIntern(field), maybeIntern(value), maybeIntern("my-awesome-node")))
+        values.push(value);
       }
     }
-    if(this.__needsId) {
-      inserts.push(FunctionConstraint.create("eve/internal/gen-id", {result: e}, values) as FunctionConstraint);
+    let func = new DSLFunction(this.__block, ["eve/internal/gen-id"], values, this.__record);
+    this.__block.functions.push(func);
+    console.log("ADDED", func, this.__block)
+  }
+
+  toInserts() {
+    let inserts:(Constraint|Node)[] = [];
+    let e = maybeIntern(this.__record.value);
+    for(let field in this.__fields) {
+      for(let dslValue of this.__fields[field]) {
+        let value = toValue(dslValue) as (RawValue | Register);
+        inserts.push(new InsertNode(e, maybeIntern(field), maybeIntern(value), maybeIntern("my-awesome-node")))
+      }
     }
     return inserts;
   }
@@ -335,6 +365,7 @@ class DSLRecord {
 type DSLCompilable = DSLRecord | DSLFunction;
 
 class DSLBlock {
+  __id:number;
   records:DSLRecord[] = [];
   lookups:DSLLookup[] = [];
   variables:DSLVariable[] = [];
@@ -351,6 +382,7 @@ class DSLBlock {
   lib = this.generateLib();
 
   constructor(public name:string, public creationFunction:(block:DSLBlock) => any, public readonly program:Program, mangle = true) {
+    this.__id = CURRENT_ID++;
     let neueFunc = creationFunction;
     if(mangle) {
       let functionArgs:string[] = [];
@@ -527,6 +559,20 @@ class DSLBlock {
     }
   }
 
+  precompile() {
+    this.program.contextStack.push(this);
+
+    for(let not of this.nots) {
+      not.unify();
+    }
+
+    for(let record of this.records) {
+      record.precompile();
+    }
+
+    this.program.contextStack.pop();
+  }
+
   unify() {
     this.program.contextStack.push(this);
 
@@ -587,8 +633,82 @@ class DSLBlock {
     return registerIx;
   }
 
+  splitIntoLevels() {
+    // choose, union, and aggregates can cause us to need multiple levels
+    // if there's something that relies on an output from one of those, it
+    // has to come in a level after that thing is computed.
+    let changed = false;
+    let leveledRegisters:{[offset:number]: {level:number, providers:any[]}} = {};
+    let providerToLevel:{[id:number]: number} = {};
+    let items = concatArray([], this.chooses);
+    concatArray(items, this.unions);
+    for(let item of items) {
+      for(let result of item.results) {
+        let value = toValue(result);
+        if(isRegister(value)) {
+          let found = leveledRegisters[value.offset];
+          if(!found) {
+            found = leveledRegisters[value.offset] = {level: 1, providers: []};
+          }
+          leveledRegisters[value.offset].providers.push(item);
+          providerToLevel[item.__id] = 1;
+          changed = true;
+        }
+      }
+    }
+    // go through all the functions, chooses, and unions to see if they rely on
+    // a register that has been leveled, if so, they need to move to a level after
+    // the provider's heighest
+    concatArray(items, this.cleanFunctions);
+    let remaining = items.length;
+    while(changed && remaining > -1) {
+      changed = false;
+      for(let item of items) {
+        remaining--;
+        if(!item) continue;
+        console.log("Considering:", item);
+
+        let changedProvider = false;
+        let providerLevel = providerToLevel[item.__id] || 0;
+        for(let input of item.getInputRegisters()) {
+          let inputInfo = leveledRegisters[input.offset];
+          console.log("   with input:", input, inputInfo, providerLevel);
+          if(inputInfo && inputInfo.level > providerLevel) {
+            changedProvider = true;
+            providerLevel = inputInfo.level + 1;
+          }
+        }
+
+        if(changedProvider) {
+          console.log("changed!");
+          providerToLevel[item.__id] = providerLevel;
+          // level my outputs
+          for(let output of item.getOutputRegisters()) {
+            let outputInfo = leveledRegisters[output.offset];
+            if(!outputInfo) {
+              outputInfo = leveledRegisters[output.offset] = {level:0, providers:[]};
+            }
+            if(outputInfo.providers.indexOf(item) === -1) {
+              outputInfo.providers.push(item);
+            }
+            if(outputInfo.level < providerLevel) {
+              outputInfo.level = providerLevel;
+            }
+          }
+          changed = true;
+        }
+      }
+    }
+    console.log("LEVELS!", providerToLevel);
+    if(remaining === -1) {
+      // we couldn't stratify
+      throw new Error("Unstratifiable program: cyclic dependency");
+    }
+  }
+
   compile(injections:(DSLCompilable|undefined)[] = []) {
     this.program.contextStack.push(this);
+    this.splitIntoLevels();
 
     let items:(DSLCompilable|undefined)[] = this.cleanFunctions.slice();
     concatArray(items, injections);
@@ -659,6 +779,7 @@ class DSLBlock {
   }
 
   prepare() {
+    this.precompile();
     this.unify();
     this.allocateRegisters();
     this.compile();
@@ -760,13 +881,25 @@ class DSLBlock {
 // DSLNot
 //--------------------------------------------------------------------
 
-class DSLNot extends DSLBlock { }
+class DSLNot extends DSLBlock {
+  getInputRegisters() {
+    let registers:Register[] = [];
+    for(let key in this.inputVariables) {
+      let value = toValue(this.inputVariables[key]);
+      if(isRegister(value)) {
+        registers.push(value);
+      }
+    }
+    return registers;
+  }
+}
 
 //--------------------------------------------------------------------
 // DSLUnion
 //--------------------------------------------------------------------
 
 class DSLUnion {
+  __id:number;
   branches:DSLBlock[] = [];
   results:DSLVariable[] = [];
   node:runtime.ChooseFlow;
@@ -774,6 +907,7 @@ class DSLUnion {
   nodeType:("ChooseFlow" | "UnionFlow") = "UnionFlow";
 
   constructor(branchFunctions: Function[], public program:Program) {
+    this.__id = CURRENT_ID++;
     let {branches, results} = this;
     let ix = 0;
     let resultCount:number|undefined;
@@ -803,6 +937,14 @@ class DSLUnion {
       branches.push(block);
       ix++;
     }
+  }
+
+  getInputRegisters() {
+    return this.inputs.map(toValue).filter(isRegister);
+  }
+
+  getOutputRegisters() {
+    return this.results.map(toValue).filter(isRegister);
   }
 
   resultCount(result:any):number {
@@ -952,23 +1094,24 @@ export class Program {
 
   // console.log(prog)
 
-  // let prog = new Program("test");
-  // prog.block("simple block", ({find, record, lib, choose, union}) => {
-  //   let person = find("person");
-  //   let foo = union(() => {
-  //     return person.nickName;
-  //   }, () => {
-  //     return person.name;
-  //   })
-  //   return [
-  //     person.add("displayName", foo)
-  //   ]
-  // });
+  let prog = new Program("test");
+  prog.block("simple block", ({find, record, lib, choose, union}) => {
+    let person = find("person");
+    let foo = union(() => {
+      return person.nickName;
+    }, () => {
+      return person.name;
+    })
+    return [
+      record("foo", {foo})
+    ]
+  });
+  console.log(prog);
 
-  // prog.test(1, [
-  //   [1, "tag", "person"],
-  //   [1, "name", "cool"],
-  // ]);
+  prog.test(1, [
+    [1, "tag", "person"],
+    [1, "name", "cool"],
+  ]);
 
   // prog.test(2, [
   //   [1, "nickName", "dude"],
