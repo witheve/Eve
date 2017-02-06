@@ -43,6 +43,10 @@ class HTMLWatcher extends Watcher {
   }
 
   clearInstance(id:string) {
+    let instance = this.instances[id];
+    if(instance && instance.parentElement) {
+      instance.parentElement.removeChild(instance);
+    }
     this.instances[id] = undefined;
   }
 
@@ -139,14 +143,17 @@ class HTMLWatcher extends Watcher {
         ];
       })
       .asDiffs("html/parent", (changes) => {
-        // console.log("Diffs: (html/parent)");
-        // console.log("  " + changes.join("\n  "));
+        console.log("Diffs: (html/parent)");
+        console.log("  " + changes.join("\n  "));
 
         let diff = accumulateChangesAs<{instance:string, parent:string}>(changes);
         for(let e of Object.keys(diff.removes)) {
           let {instance:instanceId, parent:parentId} = diff.removes[e];
           if(this.instances[parentId]) {
-            this.getInstance(parentId).removeChild(this.getInstance(instanceId));
+            let instance = this.instances[instanceId];
+            if(instance && instance.parentElement) {
+              instance.parentElement.removeChild(instance);
+            }
           }
         }
         for(let e of Object.keys(diff.adds)) {
