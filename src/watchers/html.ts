@@ -123,14 +123,17 @@ class HTMLWatcher extends Watcher {
         ];
       })
       .asDiffs("html/root", (changes) => {
+        // console.log("Diffs: (html/root)");
+        // console.log("  " + changes.join("\n  "));
+
         for(let {e, a, v:rootId, count} of changes) {
           if(count === 1) {
             let root = this.roots[rootId] = this.getInstance(rootId);
             document.body.appendChild(root);
           } else {
             let root = this.roots[rootId];
-            if(root) {
-              document.body.removeChild(root);
+            if(root && root.parentElement) {
+              root.parentElement.removeChild(root);
             }
           }
         }
@@ -143,8 +146,8 @@ class HTMLWatcher extends Watcher {
         ];
       })
       .asDiffs("html/parent", (changes) => {
-        console.log("Diffs: (html/parent)");
-        console.log("  " + changes.join("\n  "));
+        // console.log("Diffs: (html/parent)");
+        // console.log("  " + changes.join("\n  "));
 
         let diff = accumulateChangesAs<{instance:string, parent:string}>(changes);
         for(let e of Object.keys(diff.removes)) {
@@ -231,6 +234,15 @@ class HTMLWatcher extends Watcher {
               if(prop === "__size") continue;
               instance.style[prop as any] = style[prop] as string;
             }
+
+          } else if(a === "tagname") {
+            if((""+v).toUpperCase() !== instance.tagName) {
+              // handled by html/instance + html/root
+              throw new Error("Unable to change element tagname.");
+            }
+
+          } else if(a === "children") {
+            // Handled by html/parent
 
           } else {
             if(count === 1) {
