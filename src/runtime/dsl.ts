@@ -19,6 +19,11 @@ const UNASSIGNED = -1;
 // Utils
 //--------------------------------------------------------------------
 
+function toArray<T>(x:T|T[]):T[] {
+  if(x.constructor === Array) return x as T[];
+  return [x as T];
+}
+
 function maybeIntern(value:(RawValue|Register)):Register|ID {
   if(value === undefined || value === null) throw new Error("Trying to intern an undefined");
   if(isRegister(value)) return value;
@@ -187,7 +192,9 @@ class DSLRecord {
   __output: boolean = false;
   /** If a record is an output, it needs an id by default unless its modifying an existing record. */
   __needsId: boolean = true;
-  __fields: any;
+
+  __fields: {[field:string]: (RawValue|DSLNode)[]};
+  __dynamicFields: [DSLVariable, DSLNode[]][] = [];
   constructor(public __block:DSLBlock, tags:string[], initialAttributes:any, entityVariable?:DSLVariable) {
     let fields:any = {tag: tags};
     for(let field in initialAttributes) {
@@ -272,13 +279,23 @@ class DSLRecord {
     })
   }
 
-  add(attributeName:string, value:DSLNode) {
+  add(attributeName:string|DSLVariable, values:DSLNode|DSLNode[]) {
     if(this.__block !== this.__block.program.contextStack[0]) {
       throw new Error("Adds and removes may only happen in the root block.");
     }
-    let record = new DSLRecord(this.__block, [], {[attributeName]: value}, this.__record);
+    values = toArray(values);
+
+    let record = new DSLRecord(this.__block, [], {}, this.__record);
     record.__output = true;
     this.__block.records.push(record);
+
+    if(typeof attributeName === "string") {
+      record.__fields[attributeName] = values;
+
+    } else {
+      record.__dynamicFields.push([attributeName, values]);
+    }
+
     return this;
   }
 
@@ -300,7 +317,8 @@ class DSLRecord {
   toInserts() {
     let program = this.__block.program;
     let inserts:(Constraint|Node)[] = [];
-    let e = maybeIntern(toValue(this.__record));
+    let e = maybeIntern(this.__record.value);
+
     let values = [];
     for(let field in this.__fields) {
       for(let dslValue of this.__fields[field]) {
@@ -313,10 +331,22 @@ class DSLRecord {
           inserts.push(new InsertNode(e, maybeIntern(field), maybeIntern(value), maybeIntern(program.nodeCount++)))
         }
       }
+      for(let [dslField, dslValues] of this.__dynamicFields) {
+        let field = toValue(dslField) as Register;
+        for(let dslValue of dslValues) {
+          let value = toValue(dslValue) as (RawValue | Register);
+          if(this.__block.watcher) {
+            inserts.push(new WatchNode(e, field, maybeIntern(value), maybeIntern(program.nodeCount++)))
+          } else {
+            inserts.push(new InsertNode(e, field, maybeIntern(value), maybeIntern(program.nodeCount++)))
+          }
+        }
+      }
     }
     if(this.__needsId) {
       inserts.push(FunctionConstraint.create("eve/internal/gen-id", {result: e}, values) as FunctionConstraint);
     }
+
     return inserts;
   }
 
