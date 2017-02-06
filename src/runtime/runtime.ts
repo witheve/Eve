@@ -39,6 +39,12 @@ export function printConstraint(constraint:Constraint) {
   }
 }
 
+export function maybeReverse(value?:ID):ID|RawValue|undefined {
+  if(!value) return undefined;
+  let raw = GlobalInterner.reverse(value);
+  return (""+raw).indexOf("|") === -1 ? raw : value;
+}
+
 //------------------------------------------------------------------------
 // Runtime
 //------------------------------------------------------------------------
@@ -266,7 +272,7 @@ export class Change {
   }
 
   toString() {
-    return `Change(${GlobalInterner.reverse(this.e)}, ${GlobalInterner.reverse(this.a)}, ${GlobalInterner.reverse(this.v)}, ${GlobalInterner.reverse(this.n)}, ${this.transaction}, ${this.round}, ${this.count})`;
+    return `Change(${this.e}, ${GlobalInterner.reverse(this.a)}, ${maybeReverse(this.v)}, ${GlobalInterner.reverse(this.n)}, ${this.transaction}, ${this.round}, ${this.count})`;
   }
 
   equal(other:Change, withoutNode?:boolean, withoutE?:boolean) {
@@ -292,7 +298,9 @@ export class RawChange {
 
   toString() {
     let {e, a, v, n, transaction, round, count} = this;
-    return `RawChange(${e}, ${a}, ${v}, ${n}, ${transaction}, ${round}, ${count})`;
+    let internedE = GlobalInterner.get(e);
+    let internedV = GlobalInterner.get(v);
+    return `RawChange(${internedE}, ${a}, ${maybeReverse(internedV) || v}, ${n}, ${transaction}, ${round}, ${count})`;
   }
 }
 
@@ -1685,11 +1693,15 @@ const TAG = GlobalInterner.intern("tag");
 
 export class Exporter {
   protected _diffTriggers:TagMap<DiffConsumer[]> = {};
+  protected _tags:ID[] = [];
 
   triggerOnDiffs(tag:ID, handler:DiffConsumer):void {
     if(!this._diffTriggers[tag]) this._diffTriggers[tag] = createArray();
     if(this._diffTriggers[tag].indexOf(handler) === -1) {
       this._diffTriggers[tag].push(handler);
+    }
+    if(this._tags.indexOf(tag) === -1) {
+      this._tags.push(tag);
     }
   }
 
@@ -1707,8 +1719,9 @@ export class Exporter {
     }
 
     // @NOTE: We're leaving a lot of perf on the table right now. It's not a priority atm.
-    for(let rawTag of Object.keys(newByTags)) {
-      let tag:ID = +rawTag;
+    for(let tag of this._tags) {
+      if(!newByTags[tag]) continue;
+
       let entityIds = newByTags[tag];
       if(this._diffTriggers[tag]) {
         let output:RawChange[] = createArray("exporterOutput");
