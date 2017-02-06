@@ -1,8 +1,17 @@
 import {Index, ListIndex, HashIndex} from "./indexes";
 
+const DEBUG = false;
+
 //------------------------------------------------------------------------
 // Debugging
 //------------------------------------------------------------------------
+
+export var debug:Function = () => {};
+if(DEBUG) {
+  debug = function() {
+    console.log.apply(console, arguments);
+  }
+}
 
 export function printField(field:ScanField) {
   if(isRegister(field)) return "[" + field.offset + "]";
@@ -966,7 +975,7 @@ export class JoinNode implements Node {
   registerArrays:Register[][];
   proposedResultsArrays:ID[][];
   emptyProposal:Proposal = {cardinality: Infinity, forFields: new Iterator<EAVNField>(), forRegisters: new Iterator<Register>(), skip: true, proposer: {} as Constraint};
-  inputState = {constraintIx: 0, state: ApplyInputState.none};
+  currentInput:Change;
   protected affectedConstraints = new Iterator<Constraint>();
 
   constructor(public constraints:Constraint[]) {
@@ -1016,7 +1025,7 @@ export class JoinNode implements Node {
     } else if(!remainingToSolve) {
       // if it is valid and there's nothing left to solve, then we've found
       // a full result and we should just continue
-      prefix.push(round, 1);
+      prefix.push(round, input.count);
       results.push(copyArray(prefix, "results"));
       prefix.pop();
       prefix.pop();
@@ -1050,7 +1059,7 @@ export class JoinNode implements Node {
 
   computeMultiplicities(results:Iterator<ID[]>, prefix:ID[], currentRound:number, diffs: NTRCArray[], diffIndex:number = -1) {
     if(diffIndex === -1) {
-      prefix.push(currentRound, 1)
+      prefix.push(currentRound, this.currentInput.count);
       this.computeMultiplicities(results, prefix, currentRound, diffs, diffIndex + 1);
       prefix.pop();
       prefix.pop();
@@ -1166,6 +1175,7 @@ export class JoinNode implements Node {
   }
 
   exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):boolean {
+    this.currentInput = input;
     let didSomething = false;
     let affectedConstraints = this.findAffectedConstraints(input, prefix);
 
@@ -1247,7 +1257,7 @@ export class InsertNode implements Node {
     GlobalInterner.reference(a!);
     GlobalInterner.reference(v!);
     GlobalInterner.reference(n!);
-    let change = new Change(e!, a!, v!, n!, transaction, prefixRound + 1, prefixCount * input.count);
+    let change = new Change(e!, a!, v!, n!, transaction, prefixRound + 1, prefixCount);
 
     changes.output(change);
 
@@ -1368,12 +1378,19 @@ export class AntiJoin extends BinaryFlow {
     this.keyFunc = IntermediateIndex.CreateKeyFunction(keyRegisters);
   }
 
+  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
+    debug("            antijoin:")
+    return super.exec(index,input,prefix,transaction,round,results,changes);
+  }
+
   onLeft(index:Index, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):void {
     let key = this.keyFunc(prefix);
     let count = prefix[prefix.length - 1];
     this.leftIndex.insert(key, prefix);
     let diffs = this.rightIndex.get(key)
+    debug("                left:", key, count, diffs)
     if(!diffs || !diffs.length) {
+      debug("                    ->", key, count, diffs)
       return results.push(prefix);
     }
   }
@@ -1383,6 +1400,7 @@ export class AntiJoin extends BinaryFlow {
     let count = prefix[prefix.length - 1];
     this.rightIndex.insert(key, prefix);
     let diffs = this.leftIndex.get(key)
+    debug("                right:", key, count, diffs)
     if(!diffs) return;
     for(let leftPrefix of diffs) {
       let leftRound = leftPrefix[leftPrefix.length - 2];
@@ -1392,6 +1410,7 @@ export class AntiJoin extends BinaryFlow {
       result[result.length - 2] = upperBound;
       result[result.length - 1] = count * leftCount * -1;
       results.push(result);
+      debug("                    ->", key, count, leftCount, result[result.length - 1])
     }
   }
 }
@@ -1403,11 +1422,11 @@ export class AntiJoinPresovledRight extends AntiJoin {
     left.exec(index, input, prefix, transaction, round, leftResults, changes);
     rightResults.reset();
     let result;
-    while((result = rightResults.next()) !== undefined) {
-      this.onRight(index, result, transaction, round, results);
-    }
     while((result = leftResults.next()) !== undefined) {
       this.onLeft(index, result, transaction, round, results);
+    }
+    while((result = rightResults.next()) !== undefined) {
+      this.onRight(index, result, transaction, round, results);
     }
     return true;
   }
@@ -1514,7 +1533,7 @@ export class Transaction {
   constructor(public transaction:number, public blocks:Block[], public changes:Change[]) {}
 
   output(change:Change) {
-    // console.log("          <-", change.toString())
+    debug("          <-", change.toString())
     let cur = this.roundChanges[change.round] || createArray("roundChangesArray");
     cur.push(change);
     this.roundChanges[change.round] = cur;
@@ -1523,21 +1542,20 @@ export class Transaction {
   exec(index:Index) {
     let {changes, roundChanges} = this;
     let changeIx = 0;
-    // console.log("Blocks: " + this.blocks.map((b) => b.name).join(", "));
     while(changeIx < changes.length) {
       let change = changes[changeIx];
       this.round = change.round;
-      // console.log("  Round:", this.round);
+      debug("Round:", this.round);
 
-      // console.log("    -> " + change);
+      debug("-> " + change);
       if(index.hasImpact(change)) {
         for(let block of this.blocks) {
-          // console.log("    ", block.name);
+          debug("    ", block.name);
           let start = changes.length;
           block.exec(index, change, this);
-          // console.log("");
         }
       }
+      debug("");
       if(index.getImpact(change) >= 0) index.insert(change);
       else console.warn("GOT NON-POSITIVE IMPACT: ", change.toString() + "\n");
 
