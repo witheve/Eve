@@ -224,8 +224,6 @@ test("transitive closure", (assert) => {
     [2, "path", 2, 2, -1],
     [2, "path", 1, 3, -1],
     [1, "path", 2, 3, -1],
-    [1, "path", 1, 4, -1],
-    [2, "path", 2, 4, -1],
   ])
 
   verify(assert, prog, [

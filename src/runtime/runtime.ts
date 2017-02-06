@@ -1225,6 +1225,8 @@ export class JoinNode implements Node {
 }
 
 export class InsertNode implements Node {
+  intermediates:{[key:string]: number|undefined} = {};
+
   constructor(public e:ID|Register,
               public a:ID|Register,
               public v:ID|Register,
@@ -1234,7 +1236,7 @@ export class InsertNode implements Node {
 
   resolve = Scan.prototype.resolve;
 
-  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
+  exec(index:Index, input:Change, prefix:ID[], transactionId:number, round:number, results:Iterator<ID[]>, transaction:Transaction):boolean {
     let {e,a,v,n} = this.resolve(prefix);
 
     // @FIXME: This is pretty wasteful to copy one by one here.
@@ -1247,21 +1249,35 @@ export class InsertNode implements Node {
     let prefixRound = prefix[prefix.length - 2];
     let prefixCount = prefix[prefix.length - 1];
 
-    // @TODO: when we do removes, we could say that if the result is a remove, we want to
-    // dereference these ids instead of referencing them. This would allow us to clean up
-    // the interned space based on what's "in" the indexes. The only problem is that if you
-    // held on to a change, the IDs of that change may no longer be in the interner, or worse
-    // they may have been reassigned to something else. For now, we'll just say that once something
-    // is in the index, it never goes away.
-    GlobalInterner.reference(e!);
-    GlobalInterner.reference(a!);
-    GlobalInterner.reference(v!);
-    GlobalInterner.reference(n!);
-    let change = new Change(e!, a!, v!, n!, transaction, prefixRound + 1, prefixCount);
+    let key = `${e}|${a}|${v}|${prefixRound + 1}`;
+    let prevCount = this.intermediates[key] || 0;
+    let newCount = prevCount + prefixCount;
+    this.intermediates[key] = newCount;
 
-    changes.output(change);
+    let delta = 0;
+    if(prevCount > 0 && newCount <= 0) delta = -1;
+    if(prevCount <= 0 && newCount > 0) delta = 1;
+
+    if(delta) {
+      // @TODO: when we do removes, we could say that if the result is a remove, we want to
+      // dereference these ids instead of referencing them. This would allow us to clean up
+      // the interned space based on what's "in" the indexes. The only problem is that if you
+      // held on to a change, the IDs of that change may no longer be in the interner, or worse
+      // they may have been reassigned to something else. For now, we'll just say that once something
+      // is in the index, it never goes away.
+      GlobalInterner.reference(e!);
+      GlobalInterner.reference(a!);
+      GlobalInterner.reference(v!);
+      GlobalInterner.reference(n!);
+      let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount);
+      this.output(transaction, change);
+    }
 
     return true;
+  }
+
+  output(transaction:Transaction, change:Change) {
+    transaction.output(change);
   }
 }
 
@@ -1556,9 +1572,7 @@ export class Transaction {
         }
       }
       debug("");
-      if(index.getImpact(change) >= 0) index.insert(change);
-      else console.warn("GOT NON-POSITIVE IMPACT: ", change.toString() + "\n");
-
+      index.insert(change);
 
       changeIx++;
       let next = changes[changeIx];
