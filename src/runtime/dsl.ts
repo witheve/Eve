@@ -14,6 +14,7 @@ import * as indexes from "./indexes";
 
 
 const UNASSIGNED = -1;
+var CURRENT_ID = 0;
 
 //--------------------------------------------------------------------
 // Utils
@@ -67,10 +68,9 @@ type DSLNode = DSLFunction|DSLRecord|DSLVariable|RawValue;
 
 type DSLValue = RawValue|Register;
 class DSLVariable {
-  static CURRENT_ID = 0;
   __id: number;
   constructor(public name:string, public parent?:DSLVariableParent, public value:DSLValue = new Register(UNASSIGNED)) {
-    this.__id = DSLVariable.CURRENT_ID++;
+    this.__id = CURRENT_ID++;
   }
 
   proxy() {
@@ -108,16 +108,33 @@ class DSLVariable {
 
 class DSLFunction {
   returnValue:DSLVariable;
+  __id:number;
 
-  constructor(public __block:DSLBlock, public path:string[], public args:any[]) {
+  constructor(public __block:DSLBlock, public path:string[], public args:any[], returnValue?:DSLVariable) {
+    this.__id = CURRENT_ID++;
     let name = this.path.join("/");
     let {filter} = FunctionConstraint.fetchInfo(name)
-    if(filter) {
+    if(returnValue) {
+      this.returnValue = returnValue;
+    } else if(filter) {
       this.returnValue = args[args.length - 1];
     } else {
       this.returnValue = new DSLVariable("returnValue");
       __block.registerVariable(toVariable(this.returnValue));
     }
+  }
+
+  getInputRegisters() {
+    return this.args.map((v) => toValue(v)).filter(isRegister);
+  }
+
+  getOutputRegisters() {
+    let registers = [];
+    let value = toValue(this.returnValue);
+    if(isRegister(value)) {
+      registers.push(value);
+    }
+    return registers;
   }
 
   compile() {
@@ -151,11 +168,13 @@ class DSLFunction {
 //--------------------------------------------------------------------
 
 class DSLLookup {
+  __id:number;
   entity:DSLVariable;
   attribute:DSLVariable;
   value:DSLVariable;
 
   constructor(public __block:DSLBlock, entityObject: DSLRecord|DSLVariable) {
+    this.__id = CURRENT_ID++;
     this.entity = toVariable(entityObject);
     this.attribute = new DSLVariable("lookup attribute", this);
     __block.registerVariable(this.attribute);
@@ -172,6 +191,9 @@ class DSLLookup {
     return scans;
   }
 
+  getRegisters() {
+    return [toValue(this.entity), toValue(this.attribute), toValue(this.value)];
+  }
 }
 
 //--------------------------------------------------------------------
@@ -179,6 +201,7 @@ class DSLLookup {
 //--------------------------------------------------------------------
 
 class DSLRecord {
+  __id:number;
   // since we're going to proxy this object, we're going to hackily put __
   // in front of the names of properties on the object.
   __record: DSLVariable;
@@ -189,6 +212,7 @@ class DSLRecord {
   __needsId: boolean = true;
   __fields: any;
   constructor(public __block:DSLBlock, tags:string[], initialAttributes:any, entityVariable?:DSLVariable) {
+    this.__id = CURRENT_ID++;
     let fields:any = {tag: tags};
     for(let field in initialAttributes) {
       let values = initialAttributes[field];
@@ -297,20 +321,28 @@ class DSLRecord {
     }
   }
 
-  toInserts() {
-    let inserts:(Constraint|Node)[] = [];
-    let e = maybeIntern(toValue(this.__record));
+  precompile() {
+    if(!this.__output || !this.__needsId) return;
+
     let values = [];
     for(let field in this.__fields) {
       for(let dslValue of this.__fields[field]) {
         let value = toValue(dslValue) as (RawValue | Register);
-        // @TODO: generate node ids
-        values.push(maybeIntern(value));
-        inserts.push(new InsertNode(e, maybeIntern(field), maybeIntern(value), maybeIntern("my-awesome-node")))
+        values.push(value);
       }
     }
-    if(this.__needsId) {
-      inserts.push(FunctionConstraint.create("eve/internal/gen-id", {result: e}, values) as FunctionConstraint);
+    let func = new DSLFunction(this.__block, ["eve/internal/gen-id"], values, this.__record);
+    this.__block.functions.push(func);
+  }
+
+  toInserts() {
+    let inserts:(Constraint|Node)[] = [];
+    let e = maybeIntern(toValue(this.__record));
+    for(let field in this.__fields) {
+      for(let dslValue of this.__fields[field]) {
+        let value = toValue(dslValue) as (RawValue | Register);
+        inserts.push(new InsertNode(e, maybeIntern(field), maybeIntern(value), maybeIntern("my-awesome-node")))
+      }
     }
     return inserts;
   }
@@ -326,6 +358,23 @@ class DSLRecord {
     }
     return scans;
   }
+
+  getRegisters() {
+    let registers:Register[] = [];
+    let e = toValue(this.__record);
+    if(isRegister(e)) {
+      registers.push(e);
+    }
+    for(let field in this.__fields) {
+      for(let dslValue of this.__fields[field]) {
+        let value = toValue(dslValue) as (RawValue | Register);
+        if(isRegister(value)) {
+          registers.push(value);
+        }
+      }
+    }
+    return registers;
+  }
 }
 
 //--------------------------------------------------------------------
@@ -335,6 +384,7 @@ class DSLRecord {
 type DSLCompilable = DSLRecord | DSLFunction;
 
 class DSLBlock {
+  __id:number;
   records:DSLRecord[] = [];
   lookups:DSLLookup[] = [];
   variables:DSLVariable[] = [];
@@ -347,10 +397,12 @@ class DSLBlock {
   inputVariables:{[id:number]:DSLVariable} = {};
   block:runtime.Block;
   returns:any[] = [];
+  totalRegisters:number = 0;
 
   lib = this.generateLib();
 
   constructor(public name:string, public creationFunction:(block:DSLBlock) => any, public readonly program:Program, mangle = true) {
+    this.__id = CURRENT_ID++;
     let neueFunc = creationFunction;
     if(mangle) {
       let functionArgs:string[] = [];
@@ -527,6 +579,16 @@ class DSLBlock {
     }
   }
 
+  precompile() {
+    this.program.contextStack.push(this);
+
+    for(let record of this.records) {
+      record.precompile();
+    }
+
+    this.program.contextStack.pop();
+  }
+
   unify() {
     this.program.contextStack.push(this);
 
@@ -575,90 +637,242 @@ class DSLBlock {
       if(variable.value.offset >= registerIx) throw new Error("We've somehow already assigned a variable's register");
       if(variable.value.offset === UNASSIGNED) variable.value.offset = registerIx++;
     }
+    let totalRegisters = registerIx;
     for(let not of this.nots) {
-      not.allocateRegisters(registerIx);
+      totalRegisters = Math.max(not.allocateRegisters(registerIx), totalRegisters);
     }
     for(let choose of this.chooses) {
-      choose.allocateRegisters(registerIx);
+      totalRegisters = Math.max(choose.allocateRegisters(registerIx), totalRegisters);
     }
     for(let union of this.unions) {
-      union.allocateRegisters(registerIx);
+      totalRegisters = Math.max(union.allocateRegisters(registerIx), totalRegisters);
     }
+    this.totalRegisters = totalRegisters;
     return registerIx;
+  }
+
+  splitIntoLevels() {
+    let maxLevel = 0;
+    // if a register can be filled from the database, it doesn't need to be up-leveled,
+    // since we always have a value for it from the beginning. Let's find all of those
+    // registers so we can ignore them in our functions
+    let databaseSupported = concatArray([], this.records);
+    concatArray(databaseSupported, this.lookups);
+    let supported:boolean[] = [];
+    for(let item of this.records) {
+      if(item.__output) continue;
+      let registers = item.getRegisters();
+      for(let register of registers) {
+        supported[register.offset] = true;
+      }
+    }
+
+    // choose, union, and aggregates can cause us to need multiple levels
+    // if there's something that relies on an output from one of those, it
+    // has to come in a level after that thing is computed.
+    let changed = false;
+    let leveledRegisters:{[offset:number]: {level:number, providers:any[]}} = {};
+    let providerToLevel:{[id:number]: number} = {};
+    let items = concatArray([], this.chooses);
+    concatArray(items, this.unions);
+    for(let item of items) {
+      for(let result of item.results) {
+        let value = toValue(result);
+        if(isRegister(value) && !supported[value.offset]) {
+          let found = leveledRegisters[value.offset];
+          if(!found) {
+            found = leveledRegisters[value.offset] = {level: 1, providers: []};
+          }
+          leveledRegisters[value.offset].providers.push(item);
+          providerToLevel[item.__id] = 1;
+          changed = true;
+          maxLevel = 1;
+        }
+      }
+    }
+    // go through all the functions, nots, chooses, and unions to see if they rely on
+    // a register that has been leveled, if so, they need to move to a level after
+    // the provider's heighest
+    concatArray(items, this.cleanFunctions);
+    concatArray(items, this.nots);
+    let remaining = items.length;
+    while(changed && remaining > -1) {
+      changed = false;
+      for(let item of items) {
+        remaining--;
+        if(!item) continue;
+
+        let changedProvider = false;
+        let providerLevel = providerToLevel[item.__id] || 0;
+        for(let input of item.getInputRegisters()) {
+          let inputInfo = leveledRegisters[input.offset];
+          if(inputInfo && inputInfo.level > providerLevel) {
+            changedProvider = true;
+            providerLevel = inputInfo.level + 1;
+          }
+        }
+
+        if(changedProvider) {
+          providerToLevel[item.__id] = providerLevel;
+          // level my outputs
+          for(let output of item.getOutputRegisters()) {
+            if(supported[output.offset]) continue;
+            let outputInfo = leveledRegisters[output.offset];
+            if(!outputInfo) {
+              outputInfo = leveledRegisters[output.offset] = {level:0, providers:[]};
+            }
+            if(outputInfo.providers.indexOf(item) === -1) {
+              outputInfo.providers.push(item);
+            }
+            if(outputInfo.level < providerLevel) {
+              outputInfo.level = providerLevel;
+            }
+          }
+          maxLevel = Math.max(maxLevel, providerLevel);
+          changed = true;
+        }
+      }
+    }
+
+    if(remaining === -1) {
+      // we couldn't stratify
+      throw new Error("Unstratifiable program: cyclic dependency");
+    }
+
+    // now we put all our children into a series of objects that
+    // represent each level
+    let levels:any = [];
+    for(let ix = 0; ix <= maxLevel; ix++) {
+      levels[ix] = {records: [], nots: [], lookups: [], chooses: [], unions: [], cleanFunctions: []};
+    }
+
+    // all database scans are at the first level
+    for(let record of this.records) {
+      if(record.__output) continue;
+      levels[0].records.push(record);
+    }
+    for(let lookup of this.lookups) {
+      levels[0].lookups.push(lookup);
+    }
+
+    // functions/nots/chooses/unions can all be in different levels
+    for(let not of this.nots) {
+      let level = providerToLevel[not.__id] || 0;
+      levels[level].nots.push(not);
+    }
+
+    for(let func of this.cleanFunctions) {
+      if(!func) continue;
+      let level = providerToLevel[func.__id] || 0;
+      levels[level].cleanFunctions.push(func);
+    }
+
+    for(let choose of this.chooses) {
+      let level = providerToLevel[choose.__id] || 0;
+      levels[level].chooses.push(choose);
+    }
+
+    for(let union of this.unions) {
+      let level = providerToLevel[union.__id] || 0;
+      levels[level].unions.push(union);
+    }
+
+    return levels;
   }
 
   compile(injections:(DSLCompilable|undefined)[] = []) {
     this.program.contextStack.push(this);
+    let nodes:Node[] = [];
+    let levels = this.splitIntoLevels();
 
-    let items:(DSLCompilable|undefined)[] = this.cleanFunctions.slice();
-    concatArray(items, injections);
-    concatArray(items, this.records);
-    concatArray(items, this.lookups);
-    let constraints = [];
-    let nodes = [];
-    for(let toCompile of items) {
-      if(!toCompile) continue;
-      let compiled = toCompile.compile();
+    for(let level of levels) {
+      let items:(DSLCompilable|undefined)[] = [];
+      concatArray(items, injections);
+      concatArray(items, level.cleanFunctions);
+      concatArray(items, level.records);
+      concatArray(items, level.lookups);
+      let constraints = [];
+      for(let toCompile of items) {
+        if(!toCompile) continue;
+        let compiled = toCompile.compile();
+        if(!compiled) continue;
+        for(let item of compiled) {
+          if(item instanceof Scan || item instanceof FunctionConstraint) {
+            constraints.push(item);
+          }
+        }
+      }
+
+      let join:Node;
+      if(!nodes.length && constraints.length) {
+        join = new runtime.JoinNode(constraints);
+      } else if(constraints.length) {
+        join = new runtime.DownstreamJoinNode(constraints);
+      } else if(nodes.length) {
+        join = nodes.pop() as Node;
+      } else {
+        throw new Error("Query with zero constraints.")
+      }
+
+      // @NOTE: We need to unify all of our sub-blocks along with ourselves
+      //        before the root node can allocate registers.
+      for(let not of level.nots) {
+        // All sub blocks take their parents' items and embed them into
+        // the sub block. This is to make sure that the sub only computes the
+        // results that might actually join with the parent instead of the possibly
+        // very large set of unjoined results. This isn't guaranteed to be optimal
+        // and may very well cause us to do more work than necessary. For example if
+        // the results of the inner join with many outers, we'll still enumerate the
+        // whole set. This *may* be necessary for getting the correct multiplicities
+        // anyways, so this is what we're doing.
+        not.compile(items);
+        // @TODO: once we have multiple nodes in a not (e.g. aggs, or recursive not/choose/union)
+        // this won't be sufficient.
+        let notJoinNode = not.block.nodes[0];
+        let inputs = [];
+        for(let id in not.inputVariables) {
+          let value = not.inputVariables[id].value;
+          if(isRegister(value)) {
+            inputs.push(value);
+          } else {
+            throw new Error("Non-register input variable for not node");
+          }
+        }
+        join = new runtime.AntiJoin(join, notJoinNode, inputs)
+      }
+
+      for(let choose of level.chooses) {
+        // For why we pass items down, see the comment about not
+        choose.compile(items);
+        join = new runtime.BinaryJoinRight(join, choose.node, choose.node.registers);
+      }
+
+      for(let union of level.unions) {
+        // For why we pass items down, see the comment about not
+        union.compile(items);
+        join = new runtime.BinaryJoinRight(join, union.node, union.node.registers);
+      }
+
+      nodes.push(join)
+    }
+
+    // all the inputs end up at the end
+    for(let record of this.records) {
+      if(!record.__output) continue;
+      let compiled = record.compile();
       if(!compiled) continue;
-      for(let item of compiled) {
-        if(item instanceof Scan || item instanceof FunctionConstraint) {
-          constraints.push(item);
-          // console.log(item);
-        } else {
-          nodes.push(item as Node);
-        }
+      for(let node of compiled) {
+        nodes.push(node as Node);
       }
     }
-    // @TODO: Once we start having aggregates, we'll need to do some stratification here
-    // instead of just throwing everything into a single JoinNode.
-    let join:Node = new runtime.JoinNode(constraints);
 
-    // @NOTE: We need to unify all of our sub-blocks along with ourselves
-    //        before the root node can allocate registers.
-    for(let not of this.nots) {
-      // All sub blocks take their parents' items and embed them into
-      // the sub block. This is to make sure that the sub only computes the
-      // results that might actually join with the parent instead of the possibly
-      // very large set of unjoined results. This isn't guaranteed to be optimal
-      // and may very well cause us to do more work than necessary. For example if
-      // the results of the inner join with many outers, we'll still enumerate the
-      // whole set. This *may* be necessary for getting the correct multiplicities
-      // anyways, so this is what we're doing.
-      not.compile(items);
-      // @TODO: once we have multiple nodes in a not (e.g. aggs, or recursive not/choose/union)
-      // this won't be sufficient.
-      let notJoinNode = not.block.nodes[0];
-      let inputs = [];
-      for(let id in not.inputVariables) {
-        let value = not.inputVariables[id].value;
-        if(isRegister(value)) {
-          inputs.push(value);
-        } else {
-          throw new Error("Non-register input variable for not node");
-        }
-      }
-      join = new runtime.AntiJoin(join, notJoinNode, inputs)
-    }
-
-    for(let choose of this.chooses) {
-      // For why we pass items down, see the comment about not
-      choose.compile(items);
-      join = new runtime.BinaryJoinRight(join, choose.node, choose.node.registers);
-    }
-
-    for(let union of this.unions) {
-      // For why we pass items down, see the comment about not
-      union.compile(items);
-      join = new runtime.BinaryJoinRight(join, union.node, union.node.registers);
-    }
-
-    nodes.unshift(join)
-    this.block = new runtime.Block(this.name, nodes);
+    this.block = new runtime.Block(this.name, nodes, this.totalRegisters);
 
     this.program.contextStack.pop();
   }
 
   prepare() {
+    this.precompile();
     this.unify();
     this.allocateRegisters();
     this.compile();
@@ -760,13 +974,25 @@ class DSLBlock {
 // DSLNot
 //--------------------------------------------------------------------
 
-class DSLNot extends DSLBlock { }
+class DSLNot extends DSLBlock {
+  getInputRegisters() {
+    let registers:Register[] = [];
+    for(let key in this.inputVariables) {
+      let value = toValue(this.inputVariables[key]);
+      if(isRegister(value)) {
+        registers.push(value);
+      }
+    }
+    return registers;
+  }
+}
 
 //--------------------------------------------------------------------
 // DSLUnion
 //--------------------------------------------------------------------
 
 class DSLUnion {
+  __id:number;
   branches:DSLBlock[] = [];
   results:DSLVariable[] = [];
   node:runtime.ChooseFlow;
@@ -774,6 +1000,7 @@ class DSLUnion {
   nodeType:("ChooseFlow" | "UnionFlow") = "UnionFlow";
 
   constructor(branchFunctions: Function[], public program:Program) {
+    this.__id = CURRENT_ID++;
     let {branches, results} = this;
     let ix = 0;
     let resultCount:number|undefined;
@@ -803,6 +1030,14 @@ class DSLUnion {
       branches.push(block);
       ix++;
     }
+  }
+
+  getInputRegisters() {
+    return this.inputs.map(toValue).filter(isRegister);
+  }
+
+  getOutputRegisters() {
+    return this.results.map(toValue).filter(isRegister);
   }
 
   resultCount(result:any):number {
@@ -955,15 +1190,16 @@ export class Program {
   // let prog = new Program("test");
   // prog.block("simple block", ({find, record, lib, choose, union}) => {
   //   let person = find("person");
-  //   let foo = union(() => {
+  //   let foo = choose(() => {
   //     return person.nickName;
   //   }, () => {
   //     return person.name;
   //   })
   //   return [
-  //     person.add("displayName", foo)
+  //     record("foo", {foo})
   //   ]
   // });
+  // console.log(prog);
 
   // prog.test(1, [
   //   [1, "tag", "person"],
