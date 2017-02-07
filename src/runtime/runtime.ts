@@ -1340,12 +1340,20 @@ export class InsertNode implements Node {
 }
 
 export class WatchNode extends InsertNode {
+  constructor(public e:ID|Register,
+              public a:ID|Register,
+              public v:ID|Register,
+              public n:ID|Register,
+              public blockId:number) {
+    super(e, a, v, n);
+  }
+
   key(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue) {
     return `${e}|${a}|${v}`;
   }
 
   output(transaction:Transaction, change:Change) {
-    transaction.export(change);
+    transaction.export(this.blockId, change);
   }
 }
 
@@ -1618,7 +1626,7 @@ export class Block {
 export class Transaction {
   round = 0;
   protected roundChanges:Change[][] = [];
-  protected exportedChanges:Change[] = [];
+  protected exportedChanges:{[blockId:number]: Change[]} = {};
   constructor(public transaction:number, public blocks:Block[], public changes:Change[], protected exportHandler?:ExportHandler) {}
 
   output(change:Change) {
@@ -1628,8 +1636,9 @@ export class Transaction {
     this.roundChanges[change.round] = cur;
   }
 
-  export(change:Change) {
-    this.exportedChanges.push(change);
+  export(blockId:number, change:Change) {
+    if(!this.exportedChanges[blockId]) this.exportedChanges[blockId] = [change];
+    else this.exportedChanges[blockId].push(change);
   }
 
   protected collapseMultiplicity(changes:Change[], results:Change[] /* output */) {
@@ -1695,15 +1704,16 @@ export class Transaction {
       }
     }
 
-    if(this.exportedChanges.length) {
+    let exportingBlocks = Object.keys(this.exportedChanges);
+    if(exportingBlocks.length) {
       if(!this.exportHandler) throw new Error("Unable to export changes without export handler.");
-      let exports = createArray("exportsArray");
-      this.collapseMultiplicity(this.exportedChanges, exports);
-      if(exports.length) {
-        // console.log("Exporting:");
-        // console.log("  " + exports.join("\n  "));
-        this.exportHandler(exports);
+
+      for(let blockId of exportingBlocks) {
+        let exports = createArray("exportsArray");
+        this.collapseMultiplicity(this.exportedChanges[+blockId], exports);
+        this.exportedChanges[+blockId] = exports;
       }
+      this.exportHandler(this.exportedChanges);
     }
 
     // Once the transaction is effectively done, we need to clean up after ourselves. We
@@ -1716,59 +1726,39 @@ export class Transaction {
 //------------------------------------------------------------------------------
 // Exporter
 //------------------------------------------------------------------------------
-interface TagMap<V> {[tag:number]: V};
-interface EntityMap<V> {[entityId:number]: V};
-interface AttributeMap<V> {[attributeId:number]: V};
-interface Record {[attribute:string]: RawValue[]};
+interface Map<V> {[key:number]: V};
 
-type ExportHandler = (changes:Change[]) => void;
+type ExportHandler = (blockChanges:Map<Change[]|undefined>) => void;
 export type DiffConsumer = (changes:Readonly<RawChange[]>) => void;
 
-const TAG = GlobalInterner.intern("tag");
-
 export class Exporter {
-  protected _diffTriggers:TagMap<DiffConsumer[]> = {};
-  protected _tags:ID[] = [];
+  protected _diffTriggers:Map<DiffConsumer[]> = {};
+  protected _blocks:ID[] = [];
 
-  triggerOnDiffs(tag:ID, handler:DiffConsumer):void {
-    if(!this._diffTriggers[tag]) this._diffTriggers[tag] = createArray();
-    if(this._diffTriggers[tag].indexOf(handler) === -1) {
-      this._diffTriggers[tag].push(handler);
+  triggerOnDiffs(blockId:ID, handler:DiffConsumer):void {
+    if(!this._diffTriggers[blockId]) this._diffTriggers[blockId] = createArray();
+    if(this._diffTriggers[blockId].indexOf(handler) === -1) {
+      this._diffTriggers[blockId].push(handler);
     }
-    if(this._tags.indexOf(tag) === -1) {
-      this._tags.push(tag);
+    if(this._blocks.indexOf(blockId) === -1) {
+      this._blocks.push(blockId);
     }
   }
 
-  handle = (changes:Change[]) => {
-    let newByTags:TagMap<ID[]> = {};
-    let entityChanges:EntityMap<Change[]> = {};
-    for(let change of changes) {
-      if(change.a === TAG) {
-        if(!newByTags[change.v]) newByTags[change.v] = createArray("exporterNewTags");
-        newByTags[change.v].push(change.e);
-      }
-
-      if(!entityChanges[change.e]) entityChanges[change.e] = createArray("exporterEntityChanges");
-      entityChanges[change.e].push(change);
-    }
-
-    // @NOTE: We're leaving a lot of perf on the table right now. It's not a priority atm.
-    for(let tag of this._tags) {
-      if(!newByTags[tag]) continue;
-
-      let entityIds = newByTags[tag];
-      if(this._diffTriggers[tag]) {
-        let output:RawChange[] = createArray("exporterOutput");
-        for(let entityId of newByTags[tag]) {
-          for(let change of entityChanges[entityId]) {
-            // We'll omit the tag you're listening to so it doesn't pollute your diffs.
-            if(change.a === TAG && change.v === tag) continue;
+  handle = (blockChanges:Map<Change[]|undefined>) => {
+    for(let blockId of this._blocks) {
+      let changes = blockChanges[blockId];
+      if(changes && changes.length) {
+        let diffTriggers = this._diffTriggers[blockId];
+        if(diffTriggers) {
+          let output:RawChange[] = createArray("exporterOutput");
+          for(let change of changes) {
             output.push(change.reverse());
           }
-        }
-        for(let trigger of this._diffTriggers[tag]) {
-          trigger(output);
+
+          for(let trigger of diffTriggers) {
+            trigger(output);
+          }
         }
       }
     }

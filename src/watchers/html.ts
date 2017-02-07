@@ -25,7 +25,7 @@ function accumulateChangesAs<T extends RawRecord>(changes:RawChange[]) {
 }
 
 interface Style extends Map<RawValue|undefined> {__size: number}
-interface Instance extends HTMLElement {__element?: string}
+interface Instance extends HTMLElement {__element?: string, __styles?: string[]}
 
 class HTMLWatcher extends Watcher {
   styles:Map<Style|undefined> = Object.create(null);
@@ -74,6 +74,37 @@ class HTMLWatcher extends Watcher {
     style.__size += count;
   }
 
+  addStyleInstance(styleId:string, instanceId:string) {
+    let instance = this.getInstance(instanceId);
+    let style = this.getStyle(styleId);
+    for(let prop in style) {
+      if(prop === "__size") continue;
+      instance.style[prop as any] = style[prop] as string;
+    }
+    if(this.styleToInstances[styleId]) this.styleToInstances[styleId]!.push(instanceId);
+    else this.styleToInstances[styleId] = [instanceId];
+
+    if(!instance.__styles) instance.__styles = [];
+    if(instance.__styles.indexOf(styleId) === -1) instance.__styles.push(styleId);
+  }
+
+  removeStyleInstance(styleId:string, instanceId:string) {
+    let instance = this.instances[instanceId];
+    if(!instance) return;
+    instance.removeAttribute("style");
+    let ix = instance.__styles!.indexOf(styleId);
+    instance.__styles!.splice(ix, 1);
+
+    for(let otherStyleId of instance.__styles!) {
+      console.log("reapplying", otherStyleId);
+      let style = this.getStyle(otherStyleId);
+      for(let prop in style) {
+        if(prop === "__size") continue;
+        instance.style[prop as any] = style[prop] as string;
+      }
+    }
+  }
+
   setup() {
     this.program
       .block("Elements with no parents are roots.", ({find, record, lib, not}) => {
@@ -97,10 +128,10 @@ class HTMLWatcher extends Watcher {
       .watch("Export all instances.", ({find, record}) => {
         let instance = find("html/instance");
         return [
-          record("html/instance", {tagname: instance.tagname, element: instance.element, instance})
+          record({tagname: instance.tagname, element: instance.element, instance})
         ];
       })
-      .asDiffs("html/instance", (changes) => {
+      .asDiffs((changes) => {
         // console.log("Diffs: (html/instance)");
         // console.log("  " + changes.join("\n  "));
 
@@ -119,10 +150,10 @@ class HTMLWatcher extends Watcher {
       .watch("Export roots.", ({find, record}) => {
         let root = find("html/root");
         return [
-          record("html/root", {instance: root})
+          record({instance: root})
         ];
       })
-      .asDiffs("html/root", (changes) => {
+      .asDiffs((changes) => {
         // console.log("Diffs: (html/root)");
         // console.log("  " + changes.join("\n  "));
 
@@ -142,10 +173,10 @@ class HTMLWatcher extends Watcher {
       .watch("Export instance parents.", ({find, record}) => {
         let instance = find("html/instance");
         return [
-          record("html/parent", {instance, parent: instance.parent})
+          record({instance, parent: instance.parent})
         ];
       })
-      .asDiffs("html/parent", (changes) => {
+      .asDiffs((changes) => {
         // console.log("Diffs: (html/parent)");
         // console.log("  " + changes.join("\n  "));
 
@@ -177,11 +208,10 @@ class HTMLWatcher extends Watcher {
         let style = find("html/style");
         let {attribute, value} = lookup(style);
         return [
-          style.add("tag", "html/style")
-            .add(attribute, value)
+          style.add(attribute, value)
         ];
       })
-      .asDiffs("html/style", (changes) => {
+      .asDiffs((changes) => {
         // console.log("Diffs: (html/style)");
         // console.log("  " + changes.join("\n  "));
 
@@ -213,12 +243,10 @@ class HTMLWatcher extends Watcher {
         let elem = instance.element;
         let {attribute, value} = lookup(elem);
         return [
-          instance
-            .add("tag", "html/attribute")
-            .add(attribute, value)
+          instance.add(attribute, value)
         ];
       })
-      .asDiffs("html/attribute", (changes) => {
+      .asDiffs((changes) => {
         // console.log("Diffs: (html/attribute)");
         // console.log("  " + changes.join("\n  "));
 
@@ -229,15 +257,10 @@ class HTMLWatcher extends Watcher {
             instance.textContent = count > 0 ? v : undefined;
 
           } else if(a === "style") {
-            this.styleToInstances[v] = e;
-            let style = this.getStyle(v);
-            for(let prop of Object.keys(style)) {
-              if(prop === "__size") continue;
-              if(count > 0) {
-                instance.style[prop as any] = style[prop] as string;
-              } else {
-                throw new Error("@TODO: Implement me!");
-              }
+            if(count > 0) {
+              this.addStyleInstance(v, e);
+            } else {
+              this.removeStyleInstance(v, e);
             }
 
           } else if(a === "tagname") {

@@ -361,7 +361,7 @@ class DSLRecord {
       for(let dslValue of this.__fields[field]) {
         let value = toValue(dslValue) as (RawValue | Register);
         if(this.__block.watcher) {
-          inserts.push(new WatchNode(e, maybeIntern(field), maybeIntern(value), maybeIntern(program.nodeCount++)))
+          inserts.push(new WatchNode(e, maybeIntern(field), maybeIntern(value), maybeIntern(program.nodeCount++), this.__block.__id))
         } else {
           inserts.push(new InsertNode(e, maybeIntern(field), maybeIntern(value), maybeIntern(program.nodeCount++)))
         }
@@ -371,7 +371,7 @@ class DSLRecord {
         for(let dslValue of dslValues) {
           let value = toValue(dslValue) as (RawValue | Register);
           if(this.__block.watcher) {
-            inserts.push(new WatchNode(e, field, maybeIntern(value), maybeIntern(program.nodeCount++)))
+            inserts.push(new WatchNode(e, field, maybeIntern(value), maybeIntern(program.nodeCount++), this.__block.__id))
           } else {
             inserts.push(new InsertNode(e, field, maybeIntern(value), maybeIntern(program.nodeCount++)))
           }
@@ -1135,6 +1135,7 @@ export class Program {
   nodeCount = 0;
 
   protected _exporter?:runtime.Exporter;
+  protected _lastWatch?:number;
 
   /** Represents the hierarchy of blocks currently being compiled into runtime nodes. */
   contextStack:DSLBlock[] = [];
@@ -1144,7 +1145,7 @@ export class Program {
   }
 
   block(name:string, func:BlockFunction) {
-    let block = new DSLBlock(name, func, this);
+    let block = new DSLBlock(name, func, this, undefined, undefined);
     block.prepare();
     this.blocks.push(block);
     this.runtimeBlocks.push(block.block);
@@ -1158,13 +1159,13 @@ export class Program {
     block.prepare();
     this.blocks.push(block);
     this.runtimeBlocks.push(block.block);
-
+    this._lastWatch = block.__id;
     return this;
   }
 
-  asDiffs(tag:string, handler:runtime.DiffConsumer) {
-    if(!this._exporter) throw new Error("Must have at least one watch block to export as diffs.");
-    this._exporter.triggerOnDiffs(GlobalInterner.intern(tag), handler);
+  asDiffs(handler:runtime.DiffConsumer) {
+    if(!this._exporter || !this._lastWatch) throw new Error("Must have at least one watch block to export as diffs.");
+    this._exporter.triggerOnDiffs(this._lastWatch, handler);
 
     return this;
   }
