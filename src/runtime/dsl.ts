@@ -582,10 +582,6 @@ class DSLBlock {
   precompile() {
     this.program.contextStack.push(this);
 
-    for(let not of this.nots) {
-      not.unify();
-    }
-
     for(let record of this.records) {
       record.precompile();
     }
@@ -694,10 +690,11 @@ class DSLBlock {
         }
       }
     }
-    // go through all the functions, chooses, and unions to see if they rely on
+    // go through all the functions, nots, chooses, and unions to see if they rely on
     // a register that has been leveled, if so, they need to move to a level after
     // the provider's heighest
     concatArray(items, this.cleanFunctions);
+    concatArray(items, this.nots);
     let remaining = items.length;
     while(changed && remaining > -1) {
       changed = false;
@@ -802,8 +799,6 @@ class DSLBlock {
         for(let item of compiled) {
           if(item instanceof Scan || item instanceof FunctionConstraint) {
             constraints.push(item);
-          } else {
-            nodes.push(item as Node);
           }
         }
       }
