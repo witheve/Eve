@@ -511,7 +511,9 @@ export class FunctionConstraint implements Constraint {
   static filter = false;
   static variadic = false;
   static fetchInfo(name:string):typeof FunctionConstraint {
-    return FunctionConstraint.registered[name];
+    let info = FunctionConstraint.registered[name];
+    if(!info) throw new Error("No function info for: " + name);
+    return info;
   }
 
   static create(name:string, fields:ConstraintFieldMap, restFields:(ID|Register)[] = createArray()):FunctionConstraint|undefined {
@@ -972,26 +974,34 @@ export interface Node {
 
 export class JoinNode implements Node {
   registerLength = 0;
+  registerLookup:boolean[];
   registerArrays:Register[][];
   proposedResultsArrays:ID[][];
   emptyProposal:Proposal = {cardinality: Infinity, forFields: new Iterator<EAVNField>(), forRegisters: new Iterator<Register>(), skip: true, proposer: {} as Constraint};
-  currentInput:Change;
+  inputCount:Multiplicity;
   protected affectedConstraints = new Iterator<Constraint>();
 
   constructor(public constraints:Constraint[]) {
     // We need to find all the registers contained in our scans so that
     // we know how many rounds of Generic Join we need to do.
+    let registerLength = 0;
+    let registerLookup = [];
     let registers = createArray() as Register[][];
     let proposedResultsArrays = createArray() as ID[][];
     for(let constraint of constraints) {
       constraint.setup();
       for(let register of constraint.getRegisters()) {
-        registers[register.offset] = createArray() as Register[];
-        proposedResultsArrays[register.offset] = createArray() as ID[];
+        if(!registerLookup[register.offset]) {
+          registers.push(createArray() as Register[]);
+          proposedResultsArrays.push(createArray() as ID[]);
+          registerLookup[register.offset] = true;
+          registerLength++;
+        }
       }
     }
+    this.registerLookup = registerLookup;
     this.registerArrays = registers;
-    this.registerLength = registers.length;
+    this.registerLength = registerLength;
     this.proposedResultsArrays = proposedResultsArrays;
   }
 
@@ -1012,9 +1022,11 @@ export class JoinNode implements Node {
   }
 
   applyCombination(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>) {
+    debug("       GJ combo:", printPrefix(prefix), prefix);
     let countOfSolved = 0;
-    for(let field of prefix) {
-      if(field !== undefined) countOfSolved++;
+    for(let ix = 0; ix < this.registerLookup.length; ix++) {
+      if(!this.registerLookup[ix]) continue;
+      if(prefix[ix] !== undefined) countOfSolved++;
     }
     let remainingToSolve = this.registerLength - countOfSolved;
     let valid = this.presolveCheck(index, input, prefix, transaction, round);
@@ -1025,10 +1037,11 @@ export class JoinNode implements Node {
     } else if(!remainingToSolve) {
       // if it is valid and there's nothing left to solve, then we've found
       // a full result and we should just continue
-      prefix.push(round, input.count);
+      prefix[prefix.length - 2] = round;
+      prefix[prefix.length - 1] = input.count;
       results.push(copyArray(prefix, "results"));
-      prefix.pop();
-      prefix.pop();
+      prefix[prefix.length - 2] = undefined as any;
+      prefix[prefix.length - 1] = undefined as any;
       return true;
 
     } else {
@@ -1059,10 +1072,11 @@ export class JoinNode implements Node {
 
   computeMultiplicities(results:Iterator<ID[]>, prefix:ID[], currentRound:number, diffs: NTRCArray[], diffIndex:number = -1) {
     if(diffIndex === -1) {
-      prefix.push(currentRound, this.currentInput.count);
+      prefix[prefix.length - 2] = currentRound;
+      prefix[prefix.length - 1] = this.inputCount;
       this.computeMultiplicities(results, prefix, currentRound, diffs, diffIndex + 1);
-      prefix.pop();
-      prefix.pop();
+      prefix[prefix.length - 2] = undefined as any;
+      prefix[prefix.length - 1] = undefined as any;
     } else if(diffIndex === diffs.length) {
       results.push(copyArray(prefix, "gjResultsArray"));
     } else {
@@ -1175,7 +1189,7 @@ export class JoinNode implements Node {
   }
 
   exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):boolean {
-    this.currentInput = input;
+    this.inputCount = input.count;
     let didSomething = false;
     let affectedConstraints = this.findAffectedConstraints(input, prefix);
 
@@ -1222,6 +1236,13 @@ export class JoinNode implements Node {
     return didSomething;
   }
 
+}
+
+export class DownstreamJoinNode extends JoinNode {
+  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):boolean {
+    this.inputCount = prefix[prefix.length - 1];
+    return this.applyCombination(index, input, prefix, transaction, round, results);
+  }
 }
 
 export class InsertNode implements Node {
@@ -1354,6 +1375,7 @@ export class BinaryJoinRight extends BinaryFlow {
     let count = prefix[prefix.length - 1];
     this.leftIndex.insert(key, prefix);
     let diffs = this.rightIndex.get(key)
+    debug("       left", key, printPrefix(prefix), diffs);
     if(!diffs) return;
     for(let rightPrefix of diffs) {
       let rightRound = rightPrefix[rightPrefix.length - 2];
@@ -1371,6 +1393,7 @@ export class BinaryJoinRight extends BinaryFlow {
     let count = prefix[prefix.length - 1];
     this.rightIndex.insert(key, prefix);
     let diffs = this.leftIndex.get(key)
+    debug("       right", key, printPrefix(prefix), diffs);
     if(!diffs) return;
     for(let leftPrefix of diffs) {
       let leftRound = leftPrefix[leftPrefix.length - 2];
@@ -1380,6 +1403,7 @@ export class BinaryJoinRight extends BinaryFlow {
       result[result.length - 2] = upperBound;
       result[result.length - 1] = count * leftCount;
       results.push(result);
+      debug("               -> ", printPrefix(result));
     }
   }
 }
@@ -1504,7 +1528,7 @@ export class ChooseFlow {
 //------------------------------------------------------------------------------
 
 export class Block {
-  constructor(public name:string, public nodes:Node[]) {}
+  constructor(public name:string, public nodes:Node[], public totalRegisters:number) {}
 
   // We're going to essentially double-buffer the result arrays so we can avoid allocating in the hotpath.
   results = new Iterator<ID[]>();
@@ -1514,8 +1538,10 @@ export class Block {
   exec(index:Index, input:Change, transaction:Transaction):boolean {
     let blockState = ApplyInputState.none;
     this.results.clear();
-    this.initial.length = 0;
     this.results.push(this.initial);
+    for(let ix = 0; ix < this.totalRegisters + 2; ix++) {
+      this.initial[ix] = undefined as any;
+    }
     this.nextResults.clear();
     let prefix;
     // We populate the prefix with values from the input change so we only derive the
