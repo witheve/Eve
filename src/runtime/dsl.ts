@@ -217,7 +217,7 @@ class DSLRecord {
   __needsId: boolean = true;
 
   __fields: {[field:string]: (RawValue|DSLNode)[]};
-  __dynamicFields: [DSLVariable, DSLNode[]][] = [];
+  __dynamicFields: [DSLVariable|string, DSLNode[]][] = [];
   constructor(public __block:DSLBlock, tags:string[], initialAttributes:any, entityVariable?:DSLVariable) {
     this.__id = CURRENT_ID++;
     let fields:any = {tag: tags};
@@ -313,12 +313,7 @@ class DSLRecord {
     record.__output = true;
     this.__block.records.push(record);
 
-    if(typeof attributeName === "string") {
-      record.__fields[attributeName] = values;
-
-    } else {
-      record.__dynamicFields.push([attributeName, values]);
-    }
+    record.__dynamicFields.push([attributeName, values]);
 
     return this;
   }
@@ -367,13 +362,13 @@ class DSLRecord {
         }
       }
       for(let [dslField, dslValues] of this.__dynamicFields) {
-        let field = toValue(dslField) as Register;
+        let field = toValue(dslField) as (RawValue | Register);
         for(let dslValue of dslValues) {
           let value = toValue(dslValue) as (RawValue | Register);
           if(this.__block.watcher) {
-            inserts.push(new WatchNode(e, field, maybeIntern(value), maybeIntern(program.nodeCount++), this.__block.__id))
+            inserts.push(new WatchNode(e, maybeIntern(field), maybeIntern(value), maybeIntern(program.nodeCount++), this.__block.__id))
           } else {
-            inserts.push(new InsertNode(e, field, maybeIntern(value), maybeIntern(program.nodeCount++)))
+            inserts.push(new InsertNode(e, maybeIntern(field), maybeIntern(value), maybeIntern(program.nodeCount++)))
           }
         }
       }
