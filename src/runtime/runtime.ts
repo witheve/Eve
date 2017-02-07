@@ -1523,6 +1523,33 @@ export class ChooseFlow {
   }
 }
 
+abstract class AggregateFlow implements Node {
+  groupKey:Function;
+  projectKey:Function;
+  groups:{[group:string]: {result:{[round:number]: RawValue}, [projection:string]: Multiplicity[]}} = {};
+
+  constructor(public groupRegisters:Register[], public projectRegisters:Register[]) {
+    this.groupKey = IntermediateIndex.CreateKeyFunction(groupRegisters);
+    this.projectKey = IntermediateIndex.CreateKeyFunction(projectRegisters);
+  }
+
+  groupPrefix(prefix:ID[]) {
+    let group = this.groupKey(prefix);
+    let projection = this.projectKey(prefix);
+    let prefixCount = prefix[prefix.length - 1];
+    let delta = 0;
+    let found = this.groups[group];
+    if(!found) {
+      found = this.groups[group] = {};
+      delta = 1;
+    }
+
+  }
+
+  abstract exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean;
+
+}
+
 //------------------------------------------------------------------------------
 // Block
 //------------------------------------------------------------------------------
