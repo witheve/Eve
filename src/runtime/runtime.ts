@@ -1499,8 +1499,6 @@ export class AntiJoinPresovledRight extends AntiJoin {
 export class UnionFlow implements Node {
   constructor(public branches:Node[], public registers:Register[]) { }
 
-  reset() {}
-
   exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
     for(let node of this.branches) {
       node.exec(index, input, prefix, transaction, round, results, changes);
@@ -1526,8 +1524,6 @@ export class ChooseFlow implements Node {
       prev = branch;
     }
   }
-
-  reset() {}
 
   exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
     let {branchResults, branches} = this;
