@@ -223,7 +223,8 @@ class HTMLWatcher extends Watcher {
         // console.log("  " + changes.join("\n  "));
 
         for(let {e, a, v, count} of changes) {
-          let instance = this.getInstance(e);
+          let instance = this.instances[e];
+          if(!instance) continue;
           if(a === "text") {
             instance.textContent = count > 0 ? v : undefined;
 
@@ -232,10 +233,15 @@ class HTMLWatcher extends Watcher {
             let style = this.getStyle(v);
             for(let prop of Object.keys(style)) {
               if(prop === "__size") continue;
-              instance.style[prop as any] = style[prop] as string;
+              if(count > 0) {
+                instance.style[prop as any] = style[prop] as string;
+              } else {
+                throw new Error("@TODO: Implement me!");
+              }
             }
 
           } else if(a === "tagname") {
+            if(count < 0) continue;
             if((""+v).toUpperCase() !== instance.tagName) {
               // handled by html/instance + html/root
               throw new Error("Unable to change element tagname.");
