@@ -952,7 +952,7 @@ export class Program {
       }
     }
     trans.exec(this.index);
-    console.log(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
+    // console.log(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
     return this;
   }
 }
