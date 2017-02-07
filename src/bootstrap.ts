@@ -46,28 +46,30 @@ prog
     [1, "tag", "P"],
     [1, "name", "Jeff"],
 
-    // [2, "tag", "P"],
-    // [2, "name", "KERY"],
+    [2, "tag", "P"],
+    [2, "name", "KERY"],
 
-    // [3, "tag", "P"],
-    // [3, "name", "RAB"],
+    [3, "tag", "P"],
+    [3, "name", "RAB"],
 
     [4, "tag", "potato"],
-    // [4, "kind", "idaho"],
+    [4, "kind", "idaho"],
 
-    // [5, "tag", "potato"],
-    // [5, "kind", "irish gold"],
+    [5, "tag", "potato"],
+    [5, "kind", "irish gold"],
 
   ]);
 
 prog
   .test(1, [
-    [1, "tag", "P", 0, -1]
+    [1, "tag", "P", 0, -1],
+    [2, "tag", "P", 0, -1]
+
   ]);
 
-//prog
-//  .test(2, [
-//    //[3, "tag", "P", 0, 1],
-//    [1, "tag", "P", 0, 1],
-//  ]);
+prog
+ .test(2, [
+   [1, "tag", "P", 0, 1],
+ ]);
+
 console.log(prog);
