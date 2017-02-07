@@ -1140,7 +1140,7 @@ export class Program {
   }
 
   block(name:string, func:BlockFunction) {
-    let block = new DSLBlock(name, func, this, undefined, undefined);
+    let block = new DSLBlock(name, func, this);
     block.prepare();
     this.blocks.push(block);
     this.runtimeBlocks.push(block.block);
@@ -1183,7 +1183,7 @@ export class Program {
       }
     }
     trans.exec(this.index);
-    // console.log(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
+    console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
     return this;
   }
 }
