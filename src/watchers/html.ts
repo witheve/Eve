@@ -25,7 +25,7 @@ function accumulateChangesAs<T extends RawRecord>(changes:RawChange[]) {
 }
 
 interface Style extends Map<RawValue|undefined> {__size: number}
-interface Instance extends HTMLElement {__element?: string, __styles?: string[]}
+interface Instance extends HTMLElement {__element?: string, __styles?: string[], __sort?: number}
 
 class HTMLWatcher extends Watcher {
   styles:Map<Style|undefined> = Object.create(null);
@@ -59,7 +59,21 @@ class HTMLWatcher extends Watcher {
   }
 
   insertChild(parent:Instance, child:Instance) {
-    parent.appendChild(child);
+    let current;
+    for(let curIx = 0; curIx < parent.childNodes.length; curIx++) {
+      let cur = parent.childNodes[curIx] as Instance;
+      if(cur === child) continue;
+      if(cur.__sort !== undefined && cur.__sort > child.__sort) {
+        current = cur;
+        break;
+      }
+    }
+
+    if(current) {
+      parent.insertBefore(child, current);
+    } else {
+      parent.appendChild(child);
+    }
   }
 
   setStyleAttribute(style:Style, attribute:string, value:RawValue, count:-1|1) {
@@ -265,6 +279,13 @@ class HTMLWatcher extends Watcher {
 
           } else if(a === "children") {
             // Handled by html/parent
+
+          } else if(a === "sort") {
+            instance.__sort = v;
+            let parent = instance.parentElement;
+            if(parent) {
+              this.insertChild(parent, instance);
+            }
 
           } else {
             if(count === 1) {

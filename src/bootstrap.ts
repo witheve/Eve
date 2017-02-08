@@ -20,6 +20,7 @@ prog.test(0, [
   [2, "tag", "html/element"],
   [2, "tagname", "div"],
   [2, "children", 3],
+  [2, "sort", 1],
 
   [3, "tag", "html/element"],
   [3, "tagname", "span"],
@@ -33,12 +34,13 @@ prog.test(0, [
   [5, "tagname", "div"],
   [5, "style", 6],
   [5, "children", 7],
+  [5, "sort", 3],
 
   [6, "border", "3px solid green"],
 
   [7, "tag", "html/element"],
   [7, "tagname", "span"],
-  [7, "text", "meep moop"]
+  [7, "text", "meep moop"],
 ]);
 
 prog.test(1, [
@@ -55,7 +57,8 @@ prog.test(3, [
   [8, "tag", "html/element"],
   [8, "tagname", "div"],
   [8, "style", 4],
-  [8, "text", "Jeff (from accounting)"]
+  [8, "text", "Jeff (from accounting)"],
+  [8, "sort", 0]
 ]);
 
 // prog
