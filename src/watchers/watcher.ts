@@ -1,4 +1,5 @@
 import {Program, BlockFunction} from "../runtime/dsl";
+import * as glob from "glob";
 
 export class Watcher {
   protected static _registry:{[id:string]: typeof Watcher} = {};
@@ -27,4 +28,21 @@ export class Watcher {
   }
 
   setup() {}
+}
+
+
+// If we're running on the machine, we can autoload all the watchers
+// for you.  For the browser, we'll still need to build an explicit
+// bundle of watchers.
+// @TODO: We should also import modules with the `eve-watcher`
+//        attribute in their package.json.
+
+if(glob && glob.sync) {
+  let watcherFiles = glob.sync(__dirname.replace(new RegExp("\\\\", "g"), "/") + "/**/*.js");
+  console.log("K", __dirname.replace(new RegExp("\\\\", "g"), "/") + "/**/*.js", watcherFiles);
+  for(let watcherFile of watcherFiles) {
+    console.log(watcherFile);
+    if(watcherFile === __filename) continue;
+    require(watcherFile);
+  }
 }

@@ -2,7 +2,13 @@
   "name": "witheve",
   "version": "0.2.3",
   "description": "Programming designed for humans",
-  "keywords": ["language", "ide", "relational", "database", "dataflow"],
+  "keywords": [
+    "language",
+    "ide",
+    "relational",
+    "database",
+    "dataflow"
+  ],
   "homepage": "http://witheve.com",
   "repository": {
     "type": "git",
@@ -12,25 +18,21 @@
     "url": "https://github.com/witheve/Eve/issues"
   },
   "license": "Apache-2.0",
-
   "bin": {
     "eve": "./bin/eve.js"
   },
-
-  "engines" : { "node" : ">=7.4.0" },
-
+  "engines": {
+    "node": ">=7.4.0"
+  },
   "scripts": {
     "build": "./node_modules/.bin/tsc",
     "start": "./node_modules/.bin/tsc && node ./bin/eve.js",
     "server": "node ./bin/eve.js",
-
     "prepublish": "./node_modules/.bin/tsc",
     "build-dist": "node ./build/scripts/build-dist.js",
-
     "test": "node ./build/test/all.js | faucet",
     "diagrams": "node ./build/scripts/build-syntax-diagrams.js"
   },
-
   "dependencies": {
     "@types/body-parser": "0.0.33",
     "@types/commonmark": "^0.22.29",
