@@ -39,7 +39,6 @@ export class Watcher {
 
 if(glob && glob.sync) {
   let watcherFiles = glob.sync(__dirname.replace(new RegExp("\\\\", "g"), "/") + "/**/*.js");
-  console.log("K", __dirname.replace(new RegExp("\\\\", "g"), "/") + "/**/*.js", watcherFiles);
   for(let watcherFile of watcherFiles) {
     console.log(watcherFile);
     if(watcherFile === __filename) continue;
