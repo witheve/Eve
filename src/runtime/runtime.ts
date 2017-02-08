@@ -1588,20 +1588,67 @@ abstract class AggregateFlow implements Node {
     this.projectKey = IntermediateIndex.CreateKeyFunction(projectRegisters);
   }
 
-  groupPrefix(prefix:ID[]) {
-    let group = this.groupKey(prefix);
+  groupPrefix(group:string, prefix:ID[]) {
     let projection = this.projectKey(prefix);
+    let prefixRound = prefix[prefix.length - 2];
     let prefixCount = prefix[prefix.length - 1];
     let delta = 0;
     let found = this.groups[group];
     if(!found) {
-      found = this.groups[group] = {};
-      delta = 1;
+      found = this.groups[group] = {result: []};
     }
-
+    let counts = found[projection] || [];
+    let totalCount = 0;
+    for(let count of counts) {
+      if(!count) continue;
+      totalCount += count;
+    }
+    if(totalCount && totalCount + prefixCount <= 0) {
+      // subtract
+      delta = -1;
+    } else if(totalCount === 0 && totalCount + prefixCount > 0) {
+      // add
+      delta = 1;
+    } else if(totalCount + prefixCount < 0) {
+      // we have removed more values than exist?
+      throw new Error("Negative total count for an aggregate projection");
+    } else {
+      // otherwise this change doesn't impact the projected count, we've just added
+      // or removed a support.
+    }
+    found[projection][prefixRound] += prefixCount;
+    return delta;
   }
 
-  abstract exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean;
+  applyAggregate(prefix:ID[]) {
+    let group = this.groupKey(prefix);
+    let prefixRound = prefix[prefix.length - 2];
+    let delta = this.groupPrefix(group, prefix);
+    if(!delta) return;
+
+    let results = this.groups[group];
+    let currentResult = results[prefixRound];
+    if(!currentResult) {
+      // otherwise we have to find the most recent result that we've seen
+      for(let ix = 0, len = Math.min(results.length, prefixRound); ix < len; ix++) {
+        let current = results[ix];
+        if(current === undefined) continue;
+        currentResult = current;
+      }
+    }
+    results[prefixRound] = currentResult;
+    for(let ix = prefixRound, len = Math.max(results.length, prefixRound + 1); ix < len; ix++) {
+      let current = results[ix];
+      if(current === undefined) continue;
+
+      results[prefixRound] = this.execAggregate(current, prefix, delta);
+    }
+  }
+
+  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
+    throw new Error("Implement me!");
+    return true;
+  }
 
 }
 
