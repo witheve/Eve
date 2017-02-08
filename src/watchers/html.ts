@@ -96,7 +96,6 @@ class HTMLWatcher extends Watcher {
     instance.__styles!.splice(ix, 1);
 
     for(let otherStyleId of instance.__styles!) {
-      console.log("reapplying", otherStyleId);
       let style = this.getStyle(otherStyleId);
       for(let prop in style) {
         if(prop === "__size") continue;
@@ -197,15 +196,9 @@ class HTMLWatcher extends Watcher {
         }
       })
 
-      .block("Records in the style attribute of an element are styles.", ({find, record, lib, not}) => {
+      .watch("Export html styles.", ({find, record, lib, not, lookup}) => {
         let elem = find("html/element");
         let style = elem.style;
-        return [
-          style.add("tag", "html/style")
-        ];
-      })
-      .watch("Export html styles.", ({find, record, lib, not, lookup}) => {
-        let style = find("html/style");
         let {attribute, value} = lookup(style);
         return [
           style.add(attribute, value)
