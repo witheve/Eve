@@ -39,6 +39,12 @@ export function printConstraint(constraint:Constraint) {
   }
 }
 
+export function maybeReverse(value?:ID):ID|RawValue|undefined {
+  if(value === undefined) return value;
+  let raw = GlobalInterner.reverse(value);
+  return (""+raw).indexOf("|") === -1 ? raw : value;
+}
+
 //------------------------------------------------------------------------
 // Runtime
 //------------------------------------------------------------------------
@@ -266,7 +272,7 @@ export class Change {
   }
 
   toString() {
-    return `Change(${GlobalInterner.reverse(this.e)}, ${GlobalInterner.reverse(this.a)}, ${GlobalInterner.reverse(this.v)}, ${GlobalInterner.reverse(this.n)}, ${this.transaction}, ${this.round}, ${this.count})`;
+    return `Change(${this.e}, ${GlobalInterner.reverse(this.a)}, ${maybeReverse(this.v)}, ${GlobalInterner.reverse(this.n)}, ${this.transaction}, ${this.round}, ${this.count})`;
   }
 
   equal(other:Change, withoutNode?:boolean, withoutE?:boolean) {
@@ -277,6 +283,24 @@ export class Change {
           this.transaction == other.transaction &&
           this.round == other.round &&
           this.count == other.count;
+  }
+
+  reverse(interner:Interner = GlobalInterner) {
+    let {e, a, v, n, transaction, round, count} = this;
+    return new RawChange(interner.reverse(e), interner.reverse(a), interner.reverse(v), interner.reverse(n), transaction, round, count);
+  }
+}
+
+/** A change with all attributes un-interned. */
+export class RawChange {
+  constructor(public e: RawValue, public a: RawValue, public v: RawValue, public n: RawValue,
+              public transaction:number, public round:number, public count:Multiplicity) {}
+
+  toString() {
+    let {e, a, v, n, transaction, round, count} = this;
+    let internedE = GlobalInterner.get(e);
+    let internedV = GlobalInterner.get(v);
+    return `RawChange(${internedE}, ${a}, ${maybeReverse(internedV) || v}, ${n}, ${transaction}, ${round}, ${count})`;
   }
 }
 
@@ -1022,7 +1046,7 @@ export class JoinNode implements Node {
   }
 
   applyCombination(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>) {
-    debug("       GJ combo:", printPrefix(prefix), prefix);
+    debug("        Join combo:", prefix.slice());
     let countOfSolved = 0;
     for(let ix = 0; ix < this.registerLookup.length; ix++) {
       if(!this.registerLookup[ix]) continue;
@@ -1209,6 +1233,8 @@ export class JoinNode implements Node {
         this.unapplyConstraint(constraint, prefix);
       }
 
+      let shouldApply = true;
+
       for(let constraintIx = 0; constraintIx < affectedConstraints.length; constraintIx++) {
         let mask = 1 << constraintIx;
         let isIncluded = (comboIx & mask) !== 0;
@@ -1218,13 +1244,18 @@ export class JoinNode implements Node {
         if(isIncluded) {
           let valid = constraint.applyInput(input, prefix);
           // If any member of the input constraints fails, this whole combination is doomed.
-          if(valid === ApplyInputState.fail) break;
+          if(valid === ApplyInputState.fail) {
+            shouldApply = false;
+            break;
+          }
           //console.log("    " + printConstraint(constraint));
         }
       }
 
       //console.log("    ", printPrefix(prefix));
-      didSomething = this.applyCombination(index, input, prefix, transaction, round, results) || didSomething;
+      if(shouldApply) {
+        didSomething = this.applyCombination(index, input, prefix, transaction, round, results) || didSomething;
+      }
     }
 
     affectedConstraints.reset();
@@ -1257,6 +1288,10 @@ export class InsertNode implements Node {
 
   resolve = Scan.prototype.resolve;
 
+  key(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, round:number) {
+    return `${e}|${a}|${v}|${round}`;
+  }
+
   exec(index:Index, input:Change, prefix:ID[], transactionId:number, round:number, results:Iterator<ID[]>, transaction:Transaction):boolean {
     let {e,a,v,n} = this.resolve(prefix);
 
@@ -1270,7 +1305,7 @@ export class InsertNode implements Node {
     let prefixRound = prefix[prefix.length - 2];
     let prefixCount = prefix[prefix.length - 1];
 
-    let key = `${e}|${a}|${v}|${prefixRound + 1}`;
+    let key = this.key(e, a, v, prefixRound + 1);
     let prevCount = this.intermediates[key] || 0;
     let newCount = prevCount + prefixCount;
     this.intermediates[key] = newCount;
@@ -1278,6 +1313,8 @@ export class InsertNode implements Node {
     let delta = 0;
     if(prevCount > 0 && newCount <= 0) delta = -1;
     if(prevCount <= 0 && newCount > 0) delta = 1;
+
+    debug("         ?? <-", e, a, v, prefixRound + 1, {prevCount, newCount, delta})
 
     if(delta) {
       // @TODO: when we do removes, we could say that if the result is a remove, we want to
@@ -1299,6 +1336,24 @@ export class InsertNode implements Node {
 
   output(transaction:Transaction, change:Change) {
     transaction.output(change);
+  }
+}
+
+export class WatchNode extends InsertNode {
+  constructor(public e:ID|Register,
+              public a:ID|Register,
+              public v:ID|Register,
+              public n:ID|Register,
+              public blockId:number) {
+    super(e, a, v, n);
+  }
+
+  key(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue) {
+    return `${e}|${a}|${v}`;
+  }
+
+  output(transaction:Transaction, change:Change) {
+    transaction.export(this.blockId, change);
   }
 }
 
@@ -1472,7 +1527,7 @@ export class AntiJoinPresovledRight extends AntiJoin {
   }
 }
 
-export class UnionFlow {
+export class UnionFlow implements Node {
   constructor(public branches:Node[], public registers:Register[]) { }
 
   exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
@@ -1483,7 +1538,7 @@ export class UnionFlow {
   }
 }
 
-export class ChooseFlow {
+export class ChooseFlow implements Node {
   branches:Node[] = [];
   branchResults:Iterator<ID[]>[] = [];
 
@@ -1596,16 +1651,48 @@ export class Block {
 //------------------------------------------------------------------------------
 
 export class Transaction {
-
   round = 0;
   protected roundChanges:Change[][] = [];
-  constructor(public transaction:number, public blocks:Block[], public changes:Change[]) {}
+  protected exportedChanges:{[blockId:number]: Change[]} = {};
+  constructor(public transaction:number, public blocks:Block[], public changes:Change[], protected exportHandler?:ExportHandler) {}
 
   output(change:Change) {
     debug("          <-", change.toString())
     let cur = this.roundChanges[change.round] || createArray("roundChangesArray");
     cur.push(change);
     this.roundChanges[change.round] = cur;
+  }
+
+  export(blockId:number, change:Change) {
+    if(!this.exportedChanges[blockId]) this.exportedChanges[blockId] = [change];
+    else this.exportedChanges[blockId].push(change);
+  }
+
+  protected collapseMultiplicity(changes:Change[], results:Change[] /* output */) {
+    // We sort the changes to group all the same EAVs together.
+    // @FIXME: This sort comparator is flawed. It can't differentiate certain EAVs, e.g.:
+    // A: [1, 2, 3]
+    // B: [2, 1, 3]
+    changes.sort((a,b) => (a.e - b.e) + (a.a - b.a) + (a.v - b.v));
+    let changeIx = 0;
+    for(let changeIx = 0; changeIx < changes.length; changeIx++) {
+      let current = changes[changeIx];
+
+      // Collapse each subsequent matching EAV's multiplicity into the current one's.
+      while(changeIx + 1 < changes.length) {
+        let next = changes[changeIx + 1];
+        if(next.e == current.e && next.a == current.a && next.v == current.v) {
+          current.count += next.count;
+          changeIx++;
+        } else {
+          break;
+        }
+      }
+      // console.log("next round change:", current.toString())
+      if(current.count !== 0) results.push(current);
+    }
+
+    return results;
   }
 
   exec(index:Index) {
@@ -1634,31 +1721,73 @@ export class Transaction {
         for(let ix = this.round + 1; ix < maxRound; ix++) {
           let nextRoundChanges = roundChanges[ix];
           if(nextRoundChanges) {
-            nextRoundChanges.sort((a,b) => (a.e - b.e) + (a.a - b.a) + (a.v - b.v))
-            let changeIx = 0;
-            for(let changeIx = 0; changeIx < nextRoundChanges.length; changeIx++) {
-              let current = nextRoundChanges[changeIx];
-              while(changeIx + 1 < nextRoundChanges.length) {
-                let next = nextRoundChanges[changeIx + 1];
-                if(next.e == current.e && next.a == current.a && next.v == current.v) {
-                  current.count += next.count;
-                  changeIx++;
-                } else {
-                  break;
-                }
-              }
-              // console.log("next round change:", current.toString())
-              if(current.count !== 0) changes.push(current);
-            }
-            break;
+            let oldLength = changes.length;
+            this.collapseMultiplicity(nextRoundChanges, changes);
+
+            // We only want to break to begin the next fixedpoint when we have something new to run.
+            if(oldLength < changes.length) break;
           }
         }
       }
+    }
+
+    let exportingBlocks = Object.keys(this.exportedChanges);
+    if(exportingBlocks.length) {
+      if(!this.exportHandler) throw new Error("Unable to export changes without export handler.");
+
+      for(let blockId of exportingBlocks) {
+        let exports = createArray("exportsArray");
+        this.collapseMultiplicity(this.exportedChanges[+blockId], exports);
+        this.exportedChanges[+blockId] = exports;
+      }
+      this.exportHandler(this.exportedChanges);
     }
 
     // Once the transaction is effectively done, we need to clean up after ourselves. We
     // arena allocated a bunch of IDs related to function call outputs, which we can now
     // safely release.
     GlobalInterner.releaseArena("functionOutput");
+  }
+}
+
+//------------------------------------------------------------------------------
+// Exporter
+//------------------------------------------------------------------------------
+interface Map<V> {[key:number]: V};
+
+type ExportHandler = (blockChanges:Map<Change[]|undefined>) => void;
+export type DiffConsumer = (changes:Readonly<RawChange[]>) => void;
+
+export class Exporter {
+  protected _diffTriggers:Map<DiffConsumer[]> = {};
+  protected _blocks:ID[] = [];
+
+  triggerOnDiffs(blockId:ID, handler:DiffConsumer):void {
+    if(!this._diffTriggers[blockId]) this._diffTriggers[blockId] = createArray();
+    if(this._diffTriggers[blockId].indexOf(handler) === -1) {
+      this._diffTriggers[blockId].push(handler);
+    }
+    if(this._blocks.indexOf(blockId) === -1) {
+      this._blocks.push(blockId);
+    }
+  }
+
+  handle = (blockChanges:Map<Change[]|undefined>) => {
+    for(let blockId of this._blocks) {
+      let changes = blockChanges[blockId];
+      if(changes && changes.length) {
+        let diffTriggers = this._diffTriggers[blockId];
+        if(diffTriggers) {
+          let output:RawChange[] = createArray("exporterOutput");
+          for(let change of changes) {
+            output.push(change.reverse());
+          }
+
+          for(let trigger of diffTriggers) {
+            trigger(output);
+          }
+        }
+      }
+    }
   }
 }

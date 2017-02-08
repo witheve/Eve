@@ -8,7 +8,7 @@ declare var Proxy:new (obj:any, proxy:any) => any;
 declare var Symbol:any;
 
 import {RawValue, Register, isRegister, GlobalInterner, Scan, IGNORE_REG, ID,
-        InsertNode, Node, Constraint, FunctionConstraint, Change, concatArray} from "./runtime";
+        InsertNode, WatchNode, Node, Constraint, FunctionConstraint, Change, concatArray} from "./runtime";
 import * as runtime from "./runtime";
 import * as indexes from "./indexes";
 
@@ -19,6 +19,11 @@ var CURRENT_ID = 0;
 //--------------------------------------------------------------------
 // Utils
 //--------------------------------------------------------------------
+
+function toArray<T>(x:T|T[]):T[] {
+  if(x.constructor === Array) return x as T[];
+  return [x as T];
+}
 
 function maybeIntern(value:(RawValue|Register)):Register|ID {
   if(value === undefined || value === null) throw new Error("Trying to intern an undefined");
@@ -210,7 +215,9 @@ class DSLRecord {
   __output: boolean = false;
   /** If a record is an output, it needs an id by default unless its modifying an existing record. */
   __needsId: boolean = true;
-  __fields: any;
+
+  __fields: {[field:string]: (RawValue|DSLNode)[]};
+  __dynamicFields: [DSLVariable|string, DSLNode[]][] = [];
   constructor(public __block:DSLBlock, tags:string[], initialAttributes:any, entityVariable?:DSLVariable) {
     this.__id = CURRENT_ID++;
     let fields:any = {tag: tags};
@@ -296,13 +303,18 @@ class DSLRecord {
     })
   }
 
-  add(attributeName:string, value:DSLNode) {
+  add(attributeName:string|DSLVariable, values:DSLNode|DSLNode[]) {
     if(this.__block !== this.__block.program.contextStack[0]) {
       throw new Error("Adds and removes may only happen in the root block.");
     }
-    let record = new DSLRecord(this.__block, [], {[attributeName]: value}, this.__record);
+    values = toArray(values);
+
+    let record = new DSLRecord(this.__block, [], {}, this.__record);
     record.__output = true;
     this.__block.records.push(record);
+
+    record.__dynamicFields.push([attributeName, values]);
+
     return this;
   }
 
@@ -336,14 +348,32 @@ class DSLRecord {
   }
 
   toInserts() {
+    let program = this.__block.program;
     let inserts:(Constraint|Node)[] = [];
-    let e = maybeIntern(toValue(this.__record));
+    let e = maybeIntern(this.__record.value);
+
     for(let field in this.__fields) {
       for(let dslValue of this.__fields[field]) {
         let value = toValue(dslValue) as (RawValue | Register);
-        inserts.push(new InsertNode(e, maybeIntern(field), maybeIntern(value), maybeIntern("my-awesome-node")))
+        if(this.__block.watcher) {
+          inserts.push(new WatchNode(e, maybeIntern(field), maybeIntern(value), maybeIntern(program.nodeCount++), this.__block.__id))
+        } else {
+          inserts.push(new InsertNode(e, maybeIntern(field), maybeIntern(value), maybeIntern(program.nodeCount++)))
+        }
+      }
+      for(let [dslField, dslValues] of this.__dynamicFields) {
+        let field = toValue(dslField) as (RawValue | Register);
+        for(let dslValue of dslValues) {
+          let value = toValue(dslValue) as (RawValue | Register);
+          if(this.__block.watcher) {
+            inserts.push(new WatchNode(e, maybeIntern(field), maybeIntern(value), maybeIntern(program.nodeCount++), this.__block.__id))
+          } else {
+            inserts.push(new InsertNode(e, maybeIntern(field), maybeIntern(value), maybeIntern(program.nodeCount++)))
+          }
+        }
       }
     }
+
     return inserts;
   }
 
@@ -382,6 +412,7 @@ class DSLRecord {
 //--------------------------------------------------------------------
 
 type DSLCompilable = DSLRecord | DSLFunction;
+export type BlockFunction = (block:DSLBlock) => any;
 
 class DSLBlock {
   __id:number;
@@ -401,7 +432,7 @@ class DSLBlock {
 
   lib = this.generateLib();
 
-  constructor(public name:string, public creationFunction:(block:DSLBlock) => any, public readonly program:Program, mangle = true) {
+  constructor(public name:string, public creationFunction:BlockFunction, public readonly program:Program, mangle = true, public readonly watcher = false) {
     this.__id = CURRENT_ID++;
     let neueFunc = creationFunction;
     if(mangle) {
@@ -1096,6 +1127,10 @@ export class Program {
   blocks:DSLBlock[] = [];
   runtimeBlocks:runtime.Block[] = [];
   index:indexes.Index;
+  nodeCount = 0;
+
+  protected _exporter?:runtime.Exporter;
+  protected _lastWatch?:number;
 
   /** Represents the hierarchy of blocks currently being compiled into runtime nodes. */
   contextStack:DSLBlock[] = [];
@@ -1104,22 +1139,41 @@ export class Program {
     this.index = new indexes.HashIndex();
   }
 
-  block(name:string, func:(block:DSLBlock) => any) {
+  block(name:string, func:BlockFunction) {
     let block = new DSLBlock(name, func, this);
     block.prepare();
     this.blocks.push(block);
     this.runtimeBlocks.push(block.block);
+
+    return this;
+  }
+
+  watch(name:string, func:BlockFunction) {
+    if(!this._exporter) this._exporter = new runtime.Exporter();
+    let block = new DSLBlock(name, func, this, true, true);
+    block.prepare();
+    this.blocks.push(block);
+    this.runtimeBlocks.push(block.block);
+    this._lastWatch = block.__id;
+    return this;
+  }
+
+  asDiffs(handler:runtime.DiffConsumer) {
+    if(!this._exporter || !this._lastWatch) throw new Error("Must have at least one watch block to export as diffs.");
+    this._exporter.triggerOnDiffs(this._lastWatch, handler);
+
+    return this;
   }
 
   input(changes:runtime.Change[]) {
-    let trans = new runtime.Transaction(changes[0].transaction, this.runtimeBlocks, changes);
+    let trans = new runtime.Transaction(changes[0].transaction, this.runtimeBlocks, changes, this._exporter && this._exporter.handle);
     trans.exec(this.index);
     return trans;
   }
 
   test(transaction:number, eavns:TestChange[]) {
     let changes:Change[] = [];
-    let trans = new runtime.Transaction(transaction, this.runtimeBlocks, changes);
+    let trans = new runtime.Transaction(transaction, this.runtimeBlocks, changes, this._exporter && this._exporter.handle);
     for(let [e, a, v, round = 0, count = 1] of eavns as EAVRCTuple[]) {
       let change = Change.fromValues(e, a, v, "my-awesome-node", transaction, round, count);
       if(round === 0) {
@@ -1129,7 +1183,7 @@ export class Program {
       }
     }
     trans.exec(this.index);
-    console.log(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
+    console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
     return this;
   }
 }
