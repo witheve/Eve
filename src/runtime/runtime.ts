@@ -40,7 +40,7 @@ export function printConstraint(constraint:Constraint) {
 }
 
 export function maybeReverse(value?:ID):ID|RawValue|undefined {
-  if(!value) return undefined;
+  if(value === undefined) return value;
   let raw = GlobalInterner.reverse(value);
   return (""+raw).indexOf("|") === -1 ? raw : value;
 }
