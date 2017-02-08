@@ -1,9 +1,7 @@
 import {Program} from "./runtime/dsl";
-import {Watcher} from "./watchers/watcher";
-import "./watchers/html";
 
 let prog = new Program("test");
-Watcher.attach("html", prog);
+prog.attach("html");
 
 prog
   .block("simple block", ({find, record, lib}) => {

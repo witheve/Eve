@@ -11,6 +11,7 @@ import {RawValue, Register, isRegister, GlobalInterner, Scan, IGNORE_REG, ID,
         InsertNode, WatchNode, Node, Constraint, FunctionConstraint, Change, concatArray} from "./runtime";
 import * as runtime from "./runtime";
 import * as indexes from "./indexes";
+import {Watcher} from "../watchers/watcher";
 
 
 const UNASSIGNED = -1;
@@ -1131,6 +1132,7 @@ export class Program {
 
   protected _exporter?:runtime.Exporter;
   protected _lastWatch?:number;
+  protected _watchers:{[id:string]: Watcher|undefined} = {};
 
   /** Represents the hierarchy of blocks currently being compiled into runtime nodes. */
   contextStack:DSLBlock[] = [];
@@ -1138,6 +1140,17 @@ export class Program {
   constructor(public name:string) {
     this.index = new indexes.HashIndex();
   }
+
+
+  attach(id:string) {
+    let WatcherConstructor = Watcher.get(id);
+    if(!WatcherConstructor) throw new Error(`Unable to attach unknown watcher '${id}'.`);
+    if(this._watchers[id]) return this._watchers[id];
+    let watcher = new WatcherConstructor(this);
+    this._watchers[id] = watcher;
+    return watcher;
+  }
+
 
   block(name:string, func:BlockFunction) {
     let block = new DSLBlock(name, func, this);

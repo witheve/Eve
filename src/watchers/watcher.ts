@@ -15,12 +15,10 @@ export class Watcher {
     delete this._registry[id];
   }
 
-  static attach(id:string, program:Program) {
-    if(!this._registry[id]) throw new Error("Unable to attach unknown watcher.");
-    let watcher = new this._registry[id](program);
-    return watcher;
+  static get(id:string) {
+    let watcher = this._registry[id];;
+    if(watcher) return watcher;
   }
-
 
   get program() { return this._program; }
 
