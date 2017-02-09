@@ -119,6 +119,8 @@ class HTMLWatcher extends Watcher {
   }
 
   setup() {
+    if(typeof document === "undefined") return;
+
     this.program
       .block("Elements with no parents are roots.", ({find, record, lib, not}) => {
         let elem = find("html/element");

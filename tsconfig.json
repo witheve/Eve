@@ -11,5 +11,5 @@
     "noImplicitAny": true,
     "strictNullChecks": true
   },
-  "include": [ "src/**/*.ts", "src/**/*.js", "test/**/*.ts" ]
+  "include": [ "src/**/*.ts", "src/**/*.js", "test/**/*.ts", "scripts/**/*.ts" ]
 }
