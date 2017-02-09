@@ -69,6 +69,16 @@ export function copyArray(arr:any[], place = "unknown") {
   return arr.slice();
 }
 
+export function copyHash(hash:any, place = "unknown") {
+  if(!ALLOCATION_COUNT[place]) ALLOCATION_COUNT[place] = 0;
+  ALLOCATION_COUNT[place]++;
+  let neue:any = {};
+  for(let key of Object.keys(hash)) {
+    neue[key] = hash[key];
+  }
+  return neue;
+}
+
 export function concatArray(arr:any[], arr2:any[]) {
   let ix = arr.length;
   for(let elem of arr2) {
@@ -85,10 +95,6 @@ export function moveArray(arr:any[], arr2:any[]) {
   }
   if(arr2.length !== arr.length) arr2.length = arr.length;
   return arr2;
-}
-
-function isNumber(thing:any): thing is number {
-  return typeof thing === "number";
 }
 
 //------------------------------------------------------------------------
@@ -127,6 +133,10 @@ class Iterator<T> {
 export type RawValue = string|number;
 /**  An interned value's ID. */
 export type ID = number;
+
+function isNumber(thing:any): thing is number {
+  return typeof thing === "number";
+}
 
 export class Interner {
   strings: {[value:string]: ID|undefined} = createHash();
@@ -1510,7 +1520,7 @@ export class AntiJoin extends BinaryFlow {
   }
 }
 
-export class AntiJoinPresovledRight extends AntiJoin {
+export class AntiJoinPresolvedRight extends AntiJoin {
   exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
     let {left, right, leftResults, rightResults} = this;
     leftResults.clear();
@@ -1547,7 +1557,7 @@ export class ChooseFlow implements Node {
     let prev:Node|undefined;
     for(let branch of initialBranches) {
       if(prev) {
-        branches.push(new AntiJoinPresovledRight(branch, prev, registers));
+        branches.push(new AntiJoinPresolvedRight(branch, prev, registers));
       } else {
         branches.push(branch);
       }
@@ -1562,7 +1572,7 @@ export class ChooseFlow implements Node {
     let ix = 0;
     for(let node of branches) {
       if(prev) {
-        (node as AntiJoinPresovledRight).rightResults = prev;
+        (node as AntiJoinPresolvedRight).rightResults = prev;
       }
       let branchResult = branchResults[ix];
       branchResult.clear();
@@ -1577,6 +1587,229 @@ export class ChooseFlow implements Node {
     return true;
   }
 }
+
+export class MergeAggregateFlow extends BinaryFlow {
+  leftIndex = new IntermediateIndex();
+  rightIndex = new IntermediateIndex();
+  keyFunc:KeyFunction;
+
+  constructor(public left:Node, public right:Node, public keyRegisters:Register[], public registersToMerge:Register[]) {
+    super(left, right);
+    this.keyFunc = IntermediateIndex.CreateKeyFunction(keyRegisters);
+  }
+
+  merge(left:ID[], right:ID[]) {
+    for(let register of this.registersToMerge) {
+      left[register.offset] = right[register.offset];
+    }
+  }
+
+  onLeft(index:Index, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):void {
+    let key = this.keyFunc(prefix);
+    let count = prefix[prefix.length - 1];
+    this.leftIndex.insert(key, prefix);
+    let diffs = this.rightIndex.get(key)
+    debug("       left", key, printPrefix(prefix), diffs);
+    if(!diffs) return;
+    for(let rightPrefix of diffs) {
+      let rightRound = rightPrefix[rightPrefix.length - 2];
+      let rightCount = rightPrefix[rightPrefix.length - 1];
+      let upperBound = Math.max(round, rightRound);
+      let result = copyArray(prefix, "MergeAggregateResult");
+      this.merge(result, rightPrefix);
+      result[result.length - 2] = upperBound;
+      result[result.length - 1] = count * rightCount;
+      results.push(result);
+    }
+  }
+
+  onRight(index:Index, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):void {
+    let key = this.keyFunc(prefix);
+    let count = prefix[prefix.length - 1];
+    this.rightIndex.insert(key, prefix);
+    let diffs = this.leftIndex.get(key)
+    debug("       right", key, printPrefix(prefix), diffs);
+    if(!diffs) return;
+    for(let leftPrefix of diffs) {
+      let leftRound = leftPrefix[leftPrefix.length - 2];
+      let leftCount = leftPrefix[leftPrefix.length - 1];
+      let upperBound = Math.max(round, leftRound);
+      let result = copyArray(leftPrefix, "MergeAggregateResult");
+      this.merge(result, prefix);
+      result[result.length - 2] = upperBound;
+      result[result.length - 1] = count * leftCount;
+      results.push(result);
+      debug("               -> ", printPrefix(result));
+    }
+  }
+
+  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
+    debug("        AGG MERGE");
+    let result;
+    let {left, right, leftResults, rightResults} = this;
+    leftResults.clear();
+    left.exec(index, input, prefix, transaction, round, leftResults, changes);
+    debug("              left results: ", leftResults);
+
+    // we run the left's results through the aggregate to capture all the aggregate updates
+    rightResults.clear();
+    while((result = leftResults.next()) !== undefined) {
+      debug("              left result: ", result.slice());
+      right.exec(index, input, result, transaction, round, rightResults, changes);
+    }
+
+    // now we go through all the lefts and rights like normal
+    leftResults.reset();
+    while((result = leftResults.next()) !== undefined) {
+      this.onLeft(index, result, transaction, round, results);
+    }
+    while((result = rightResults.next()) !== undefined) {
+      this.onRight(index, result, transaction, round, results);
+    }
+    return true;
+  }
+}
+
+export abstract class AggregateNode implements Node {
+  groupKey:Function;
+  projectKey:Function;
+  groups:{[group:string]: {result:any[], [projection:string]: Multiplicity[]}} = {};
+  resolved:RawValue[] = [];
+
+  // @TODO: allow for multiple returns
+  constructor(public groupRegisters:Register[], public projectRegisters:Register[], public inputs:(ID|Register)[], public results:Register[]) {
+    this.groupKey = IntermediateIndex.CreateKeyFunction(groupRegisters);
+    this.projectKey = IntermediateIndex.CreateKeyFunction(projectRegisters);
+  }
+
+  groupPrefix(group:string, prefix:ID[]) {
+    let projection = this.projectKey(prefix);
+    let prefixRound = prefix[prefix.length - 2];
+    let prefixCount = prefix[prefix.length - 1];
+    let delta = 0;
+    let found = this.groups[group];
+    if(!found) {
+      found = this.groups[group] = {result: []};
+    }
+    let counts = found[projection] || [];
+    let totalCount = 0;
+
+    let countIx = 0;
+    for(let count of counts) {
+      // we need the total up to our current round
+      if(countIx >= prefixRound) break;
+      if(!count) continue;
+      totalCount += count;
+      countIx++;
+    }
+    if(totalCount && totalCount + prefixCount <= 0) {
+      // subtract
+      delta = -1;
+    } else if(totalCount === 0 && totalCount + prefixCount > 0) {
+      // add
+      delta = 1;
+    } else if(totalCount + prefixCount < 0) {
+      // we have removed more values than exist?
+      throw new Error("Negative total count for an aggregate projection");
+    } else {
+      // otherwise this change doesn't impact the projected count, we've just added
+      // or removed a support.
+    }
+    counts[prefixRound] = (counts[prefixRound] || 0) + prefixCount;
+    found[projection] = counts;
+    return delta;
+  }
+
+  getResultPrefix(prefix:ID[], result:ID, count:Multiplicity):ID[] {
+    let neue = copyArray(prefix, "aggregateResult");
+    neue[this.results[0].offset] = result;
+    neue[neue.length - 1] = count;
+    return neue;
+  }
+
+  resolve(prefix:ID[]):RawValue[] {
+    let resolved = this.resolved;
+    let ix = 0;
+    for(let field of this.inputs) {
+      if(isRegister(field)) {
+        resolved[ix] = GlobalInterner.reverse(prefix[field.offset]);
+      } else {
+        resolved[ix] = GlobalInterner.reverse(field);
+      }
+      ix++;
+    }
+    return resolved;
+  }
+
+  stateToResult(state:any):ID {
+    let current = this.getResult(state);
+    return GlobalInterner.intern(current);
+  }
+
+  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
+    let group = this.groupKey(prefix);
+    let prefixRound = prefix[prefix.length - 2];
+    let delta = this.groupPrefix(group, prefix);
+    let op = this.add;
+    if(!delta) return false;
+    if(delta < 0) op = this.remove;
+
+    let groupStates = this.groups[group].result;
+    let currentState = groupStates[prefixRound];
+    if(!currentState) {
+      // otherwise we have to find the most recent result that we've seen
+      for(let ix = 0, len = Math.min(groupStates.length, prefixRound); ix < len; ix++) {
+        let current = groupStates[ix];
+        if(current === undefined) continue;
+        currentState = copyHash(current, "AggregateState");
+      }
+    }
+    let resolved = this.resolve(prefix);
+    let start = prefixRound;
+    groupStates[prefixRound] = currentState;
+    if(!currentState) {
+      currentState = groupStates[prefixRound] = op(this.newResultState(), resolved);
+      results.push(this.getResultPrefix(prefix, this.stateToResult(currentState), 1));
+      start = prefixRound + 1;
+    }
+    for(let ix = start, len = Math.max(groupStates.length, prefixRound + 1); ix < len; ix++) {
+      let current = groupStates[ix];
+      if(current === undefined) continue;
+
+      let prevResult = this.getResultPrefix(prefix, this.stateToResult(current), -1);
+      current = groupStates[prefixRound] = op(current, resolved);
+      let neueResult = this.getResultPrefix(prefix, this.stateToResult(current), 1);
+      results.push(prevResult);
+      results.push(neueResult);
+    }
+    return true;
+  }
+
+  abstract add(state:any, resolved:RawValue[]):any;
+  abstract remove(state:any, resolved:RawValue[]):any;
+  abstract getResult(state:any):RawValue;
+  abstract newResultState():any;
+
+}
+
+type SumAggregateState = {total:number};
+export class SumAggregate extends AggregateNode {
+  add(state:SumAggregateState, resolved:RawValue[]):any {
+    state.total += resolved[0] as number;
+    return state;
+  }
+  remove(state:SumAggregateState, resolved:RawValue[]):any {
+    state.total -= resolved[0] as number;
+    return state;
+  }
+  getResult(state:SumAggregateState):RawValue {
+    return state.total;
+  }
+  newResultState():SumAggregateState {
+    return {total: 0};
+  };
+}
+
 
 //------------------------------------------------------------------------------
 // Block
