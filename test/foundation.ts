@@ -224,8 +224,6 @@ test("transitive closure", (assert) => {
     [2, "path", 2, 2, -1],
     [2, "path", 1, 3, -1],
     [1, "path", 2, 3, -1],
-    [1, "path", 1, 4, -1],
-    [2, "path", 2, 4, -1],
   ])
 
   verify(assert, prog, [
@@ -359,7 +357,7 @@ test.skip("not", (assert) => {
   assert.end();
 });
 
-test.only("Nested attribute lookup", (assert) => {
+test("Nested attribute lookup", (assert) => {
 
   // -----------------------------------------------------
   // program
@@ -383,6 +381,43 @@ test.only("Nested attribute lookup", (assert) => {
     [2, "weight", 13],
   ], [
     [3, "zomg", 13, 1]
+  ])
+
+  assert.end();
+});
+
+
+test("Basic not", (assert) => {
+
+  // -----------------------------------------------------
+  // program
+  // -----------------------------------------------------
+
+  let prog = new Program("test");
+  prog.block("simple block", ({find, record, lib, not}) => {
+    let person = find("person");
+    not((subblock) => {
+      person.age;
+    })
+    return [
+      person.add("tag", "old")
+    ]
+  });
+
+  // -----------------------------------------------------
+  // verification
+  // -----------------------------------------------------
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+  ], [
+    [1, "tag", "old", 1]
+  ])
+
+  verify(assert, prog, [
+    [1, "age", 20],
+  ], [
+    [1, "tag", "old", 1, -1]
   ])
 
   assert.end();

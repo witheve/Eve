@@ -8,16 +8,22 @@ declare var Proxy:new (obj:any, proxy:any) => any;
 declare var Symbol:any;
 
 import {RawValue, Register, isRegister, GlobalInterner, Scan, IGNORE_REG, ID,
-        InsertNode, Node, Constraint, FunctionConstraint} from "./runtime";
+        InsertNode, WatchNode, Node, Constraint, FunctionConstraint, Change, concatArray} from "./runtime";
 import * as runtime from "./runtime";
 import * as indexes from "./indexes";
 
 
 const UNASSIGNED = -1;
+var CURRENT_ID = 0;
 
 //--------------------------------------------------------------------
 // Utils
 //--------------------------------------------------------------------
+
+function toArray<T>(x:T|T[]):T[] {
+  if(x.constructor === Array) return x as T[];
+  return [x as T];
+}
 
 function maybeIntern(value:(RawValue|Register)):Register|ID {
   if(value === undefined || value === null) throw new Error("Trying to intern an undefined");
@@ -62,15 +68,14 @@ function isRecord(a:any): a is DSLRecord {
 // DSLVariable
 //--------------------------------------------------------------------
 
-type DSLVariableParent = DSLFunction|DSLRecord;
+type DSLVariableParent = DSLFunction|DSLRecord|DSLLookup;
 type DSLNode = DSLFunction|DSLRecord|DSLVariable|RawValue;
 
 type DSLValue = RawValue|Register;
 class DSLVariable {
-  static CURRENT_ID = 0;
   __id: number;
   constructor(public name:string, public parent?:DSLVariableParent, public value:DSLValue = new Register(UNASSIGNED)) {
-    this.__id = DSLVariable.CURRENT_ID++;
+    this.__id = CURRENT_ID++;
   }
 
   proxy() {
@@ -91,7 +96,13 @@ class DSLVariable {
         return prox[prop];
       },
 
-      set: () => {throw new Error("@TODO: IMPLEMENT ME!") }
+      set: (obj:any, prop:string, value:any) => {
+        if(obj[prop] !== undefined) {
+          obj[prop] = value;
+          return true;
+        }
+        throw new Error("@TODO: IMPLEMENT ME!")
+      }
     });
   }
 }
@@ -102,16 +113,33 @@ class DSLVariable {
 
 class DSLFunction {
   returnValue:DSLVariable;
+  __id:number;
 
-  constructor(public __block:DSLBlock, public path:string[], public args:any[]) {
+  constructor(public __block:DSLBlock, public path:string[], public args:any[], returnValue?:DSLVariable) {
+    this.__id = CURRENT_ID++;
     let name = this.path.join("/");
     let {filter} = FunctionConstraint.fetchInfo(name)
-    if(filter) {
+    if(returnValue) {
+      this.returnValue = returnValue;
+    } else if(filter) {
       this.returnValue = args[args.length - 1];
     } else {
       this.returnValue = new DSLVariable("returnValue");
       __block.registerVariable(toVariable(this.returnValue));
     }
+  }
+
+  getInputRegisters() {
+    return this.args.map((v) => toValue(v)).filter(isRegister);
+  }
+
+  getOutputRegisters() {
+    let registers = [];
+    let value = toValue(this.returnValue);
+    if(isRegister(value)) {
+      registers.push(value);
+    }
+    return registers;
   }
 
   compile() {
@@ -141,10 +169,44 @@ class DSLFunction {
 }
 
 //--------------------------------------------------------------------
+// DSLLookup
+//--------------------------------------------------------------------
+
+class DSLLookup {
+  __id:number;
+  entity:DSLVariable;
+  attribute:DSLVariable;
+  value:DSLVariable;
+
+  constructor(public __block:DSLBlock, entityObject: DSLRecord|DSLVariable) {
+    this.__id = CURRENT_ID++;
+    this.entity = toVariable(entityObject);
+    this.attribute = new DSLVariable("lookup attribute", this);
+    __block.registerVariable(this.attribute);
+    this.value = new DSLVariable("lookup value", this);
+    __block.registerVariable(this.value);
+  }
+
+  compile() {
+    let scans:Scan[] = [];
+    let e = maybeIntern(toValue(this.entity));
+    let a = maybeIntern(toValue(this.attribute));
+    let v = maybeIntern(toValue(this.value));
+    scans.push(new Scan(e, a, v, IGNORE_REG))
+    return scans;
+  }
+
+  getRegisters() {
+    return [toValue(this.entity), toValue(this.attribute), toValue(this.value)];
+  }
+}
+
+//--------------------------------------------------------------------
 // DSLRecord
 //--------------------------------------------------------------------
 
 class DSLRecord {
+  __id:number;
   // since we're going to proxy this object, we're going to hackily put __
   // in front of the names of properties on the object.
   __record: DSLVariable;
@@ -153,15 +215,24 @@ class DSLRecord {
   __output: boolean = false;
   /** If a record is an output, it needs an id by default unless its modifying an existing record. */
   __needsId: boolean = true;
-  __fields: any;
+
+  __fields: {[field:string]: (RawValue|DSLNode)[]};
+  __dynamicFields: [DSLVariable|string, DSLNode[]][] = [];
   constructor(public __block:DSLBlock, tags:string[], initialAttributes:any, entityVariable?:DSLVariable) {
+    this.__id = CURRENT_ID++;
     let fields:any = {tag: tags};
     for(let field in initialAttributes) {
-      let value = initialAttributes[field];
-      if(field.constructor !== Array) {
-        value = [value];
+      let values = initialAttributes[field];
+      if(values.constructor !== Array) {
+        values = [values];
       }
-      fields[field] = value;
+      for(let value of values) {
+        let variable = maybeVariable(value);
+        if(variable && value.__block !== __block) {
+          __block.registerInput(variable);
+        }
+      }
+      fields[field] = values;
     }
     this.__fields = fields;
     if(entityVariable) {
@@ -232,13 +303,18 @@ class DSLRecord {
     })
   }
 
-  add(attributeName:string, value:DSLNode) {
+  add(attributeName:string|DSLVariable, values:DSLNode|DSLNode[]) {
     if(this.__block !== this.__block.program.contextStack[0]) {
       throw new Error("Adds and removes may only happen in the root block.");
     }
-    let record = new DSLRecord(this.__block, [], {[attributeName]: value}, this.__record);
+    values = toArray(values);
+
+    let record = new DSLRecord(this.__block, [], {}, this.__record);
     record.__output = true;
     this.__block.records.push(record);
+
+    record.__dynamicFields.push([attributeName, values]);
+
     return this;
   }
 
@@ -257,27 +333,53 @@ class DSLRecord {
     }
   }
 
-  toInserts() {
-    let inserts:(Constraint|Node)[] = [];
-    let e = maybeIntern(this.__record.value);
+  precompile() {
+    if(!this.__output || !this.__needsId) return;
+
     let values = [];
     for(let field in this.__fields) {
       for(let dslValue of this.__fields[field]) {
         let value = toValue(dslValue) as (RawValue | Register);
-        // @TODO: generate node ids
-        values.push(maybeIntern(value));
-        inserts.push(new InsertNode(e, maybeIntern(field), maybeIntern(value), maybeIntern("my-awesome-node")))
+        values.push(value);
       }
     }
-    if(this.__needsId) {
-      inserts.push(FunctionConstraint.create("eve/internal/gen-id", {result: e}, values) as FunctionConstraint);
+    let func = new DSLFunction(this.__block, ["eve/internal/gen-id"], values, this.__record);
+    this.__block.functions.push(func);
+  }
+
+  toInserts() {
+    let program = this.__block.program;
+    let inserts:(Constraint|Node)[] = [];
+    let e = maybeIntern(this.__record.value);
+
+    for(let field in this.__fields) {
+      for(let dslValue of this.__fields[field]) {
+        let value = toValue(dslValue) as (RawValue | Register);
+        if(this.__block.watcher) {
+          inserts.push(new WatchNode(e, maybeIntern(field), maybeIntern(value), maybeIntern(program.nodeCount++), this.__block.__id))
+        } else {
+          inserts.push(new InsertNode(e, maybeIntern(field), maybeIntern(value), maybeIntern(program.nodeCount++)))
+        }
+      }
+      for(let [dslField, dslValues] of this.__dynamicFields) {
+        let field = toValue(dslField) as (RawValue | Register);
+        for(let dslValue of dslValues) {
+          let value = toValue(dslValue) as (RawValue | Register);
+          if(this.__block.watcher) {
+            inserts.push(new WatchNode(e, maybeIntern(field), maybeIntern(value), maybeIntern(program.nodeCount++), this.__block.__id))
+          } else {
+            inserts.push(new InsertNode(e, maybeIntern(field), maybeIntern(value), maybeIntern(program.nodeCount++)))
+          }
+        }
+      }
     }
+
     return inserts;
   }
 
   toScans() {
     let scans:Scan[] = [];
-    let e = maybeIntern(this.__record.value);
+    let e = maybeIntern(toValue(this.__record));
     for(let field in this.__fields) {
       for(let dslValue of this.__fields[field]) {
         let value = toValue(dslValue) as (RawValue | Register);
@@ -286,25 +388,52 @@ class DSLRecord {
     }
     return scans;
   }
+
+  getRegisters() {
+    let registers:Register[] = [];
+    let e = toValue(this.__record);
+    if(isRegister(e)) {
+      registers.push(e);
+    }
+    for(let field in this.__fields) {
+      for(let dslValue of this.__fields[field]) {
+        let value = toValue(dslValue) as (RawValue | Register);
+        if(isRegister(value)) {
+          registers.push(value);
+        }
+      }
+    }
+    return registers;
+  }
 }
 
 //--------------------------------------------------------------------
 // DSLBlock
 //--------------------------------------------------------------------
 
+type DSLCompilable = DSLRecord | DSLFunction;
+export type BlockFunction = (block:DSLBlock) => any;
+
 class DSLBlock {
+  __id:number;
   records:DSLRecord[] = [];
+  lookups:DSLLookup[] = [];
   variables:DSLVariable[] = [];
   functions:DSLFunction[] = [];
   cleanFunctions:(DSLFunction|undefined)[] = [];
   nots:DSLNot[] = [];
+  chooses:DSLChoose[] = [];
+  unions:DSLUnion[] = [];
   variableLookup:{[id:number]:DSLVariable[]} = {};
   inputVariables:{[id:number]:DSLVariable} = {};
   block:runtime.Block;
+  returns:any[] = [];
+  totalRegisters:number = 0;
 
   lib = this.generateLib();
 
-  constructor(public name:string, public creationFunction:(block:DSLBlock) => any, public readonly program:Program, mangle = true) {
+  constructor(public name:string, public creationFunction:BlockFunction, public readonly program:Program, mangle = true, public readonly watcher = false) {
+    this.__id = CURRENT_ID++;
     let neueFunc = creationFunction;
     if(mangle) {
       let functionArgs:string[] = [];
@@ -321,7 +450,10 @@ class DSLBlock {
     }
 
     program.contextStack.push(this);
-    neueFunc(this);
+    let returns = neueFunc(this);
+    if(returns === undefined) this.returns = [];
+    else if(returns.constructor === Array) this.returns = returns;
+    else this.returns = [returns];
     program.contextStack.pop();
   }
 
@@ -376,8 +508,9 @@ class DSLBlock {
     } else {
       tag = args.slice(0, args.length);
     }
-    let rec = new DSLRecord(this, tag, proxied);
-    this.records.push(rec);
+    let active = this.getActiveBlock();
+    let rec = new DSLRecord(active, tag, proxied);
+    active.records.push(rec);
     return rec.proxy();
   }
 
@@ -390,6 +523,31 @@ class DSLBlock {
   not = (func:(block:DSLBlock) => void) => {
     let not = new DSLNot(`${this.name} NOT ${this.nots.length}`, func, this.program, false);
     this.nots.push(not);
+  }
+
+  lookup = (entityVariable:DSLVariable|DSLRecord) => {
+    let active = this.getActiveBlock();
+    let node = new DSLLookup(active, entityVariable);
+    active.lookups.push(node);
+    return node;
+  }
+
+  union = (...branches:(() => any)[]) => {
+    let node = new DSLUnion(branches, this.program);
+    this.unions.push(node);
+    for(let result of node.results) {
+      this.registerVariable(result);
+    }
+    return node.results[0];
+  }
+
+  choose = (...branches:(() => any)[]) => {
+    let node = new DSLChoose(branches, this.program);
+    this.chooses.push(node);
+    for(let result of node.results) {
+      this.registerVariable(result);
+    }
+    return node.results[0];
   }
 
   registerVariable(variable:DSLVariable) {
@@ -452,6 +610,16 @@ class DSLBlock {
     }
   }
 
+  precompile() {
+    this.program.contextStack.push(this);
+
+    for(let record of this.records) {
+      record.precompile();
+    }
+
+    this.program.contextStack.pop();
+  }
+
   unify() {
     this.program.contextStack.push(this);
 
@@ -459,6 +627,12 @@ class DSLBlock {
     //        before the root node can allocate registers.
     for(let not of this.nots) {
       not.unify();
+    }
+    for(let choose of this.chooses) {
+      choose.unify();
+    }
+    for(let union of this.unions) {
+      union.unify();
     }
 
     let functions = this.functions.slice() as (DSLFunction | undefined)[];
@@ -487,50 +661,249 @@ class DSLBlock {
     this.program.contextStack.pop();
   }
 
-  allocateRegisters() {
-    let registerIx = 0;
+  allocateRegisters(registerIx = 0) {
     for(let id in this.variableLookup) {
       let variable = this.variableLookup[id][0] as DSLVariable;
       if(!variable || !isRegister(variable.value)) continue;
-      if(variable.value.offset !== UNASSIGNED) throw new Error("We've somehow already assigned a variable's register");
-      variable.value.offset = registerIx++;
+      if(variable.value.offset >= registerIx) throw new Error("We've somehow already assigned a variable's register");
+      if(variable.value.offset === UNASSIGNED) variable.value.offset = registerIx++;
     }
+    let totalRegisters = registerIx;
+    for(let not of this.nots) {
+      totalRegisters = Math.max(not.allocateRegisters(registerIx), totalRegisters);
+    }
+    for(let choose of this.chooses) {
+      totalRegisters = Math.max(choose.allocateRegisters(registerIx), totalRegisters);
+    }
+    for(let union of this.unions) {
+      totalRegisters = Math.max(union.allocateRegisters(registerIx), totalRegisters);
+    }
+    this.totalRegisters = totalRegisters;
+    return registerIx;
   }
 
-  compile() {
-    this.program.contextStack.push(this);
-
-    // @NOTE: We need to unify all of our sub-blocks along with ourselves
-    //        before the root node can allocate registers.
-    for(let not of this.nots) {
-      not.compile();
+  splitIntoLevels() {
+    let maxLevel = 0;
+    // if a register can be filled from the database, it doesn't need to be up-leveled,
+    // since we always have a value for it from the beginning. Let's find all of those
+    // registers so we can ignore them in our functions
+    let databaseSupported = concatArray([], this.records);
+    concatArray(databaseSupported, this.lookups);
+    let supported:boolean[] = [];
+    for(let item of this.records) {
+      if(item.__output) continue;
+      let registers = item.getRegisters();
+      for(let register of registers) {
+        supported[register.offset] = true;
+      }
     }
 
-    let functions = this.cleanFunctions;
-    let items = functions.concat(this.records as any[]);
-    let constraints = [];
-    let nodes = [];
-    for(let toCompile of items) {
-      if(!toCompile) continue;
-      let compiled = toCompile.compile();
-      if(!compiled) continue;
-      for(let item of compiled) {
-        if(item instanceof Scan || item instanceof FunctionConstraint) {
-          constraints.push(item);
-          // console.log(item);
-        } else {
-          nodes.push(item as Node);
+    // choose, union, and aggregates can cause us to need multiple levels
+    // if there's something that relies on an output from one of those, it
+    // has to come in a level after that thing is computed.
+    let changed = false;
+    let leveledRegisters:{[offset:number]: {level:number, providers:any[]}} = {};
+    let providerToLevel:{[id:number]: number} = {};
+    let items = concatArray([], this.chooses);
+    concatArray(items, this.unions);
+    for(let item of items) {
+      for(let result of item.results) {
+        let value = toValue(result);
+        if(isRegister(value) && !supported[value.offset]) {
+          let found = leveledRegisters[value.offset];
+          if(!found) {
+            found = leveledRegisters[value.offset] = {level: 1, providers: []};
+          }
+          leveledRegisters[value.offset].providers.push(item);
+          providerToLevel[item.__id] = 1;
+          changed = true;
+          maxLevel = 1;
         }
       }
     }
-    // @TODO: Once we start having aggregates, we'll need to do some stratification here
-    // instead of just throwing everything into a single JoinNode.
-    nodes.unshift(new runtime.JoinNode(constraints))
-    this.block = new runtime.Block(this.name, nodes);
+    // go through all the functions, nots, chooses, and unions to see if they rely on
+    // a register that has been leveled, if so, they need to move to a level after
+    // the provider's heighest
+    concatArray(items, this.cleanFunctions);
+    concatArray(items, this.nots);
+    let remaining = items.length;
+    while(changed && remaining > -1) {
+      changed = false;
+      for(let item of items) {
+        remaining--;
+        if(!item) continue;
+
+        let changedProvider = false;
+        let providerLevel = providerToLevel[item.__id] || 0;
+        for(let input of item.getInputRegisters()) {
+          let inputInfo = leveledRegisters[input.offset];
+          if(inputInfo && inputInfo.level > providerLevel) {
+            changedProvider = true;
+            providerLevel = inputInfo.level + 1;
+          }
+        }
+
+        if(changedProvider) {
+          providerToLevel[item.__id] = providerLevel;
+          // level my outputs
+          for(let output of item.getOutputRegisters()) {
+            if(supported[output.offset]) continue;
+            let outputInfo = leveledRegisters[output.offset];
+            if(!outputInfo) {
+              outputInfo = leveledRegisters[output.offset] = {level:0, providers:[]};
+            }
+            if(outputInfo.providers.indexOf(item) === -1) {
+              outputInfo.providers.push(item);
+            }
+            if(outputInfo.level < providerLevel) {
+              outputInfo.level = providerLevel;
+            }
+          }
+          maxLevel = Math.max(maxLevel, providerLevel);
+          changed = true;
+        }
+      }
+    }
+
+    if(remaining === -1) {
+      // we couldn't stratify
+      throw new Error("Unstratifiable program: cyclic dependency");
+    }
+
+    // now we put all our children into a series of objects that
+    // represent each level
+    let levels:any = [];
+    for(let ix = 0; ix <= maxLevel; ix++) {
+      levels[ix] = {records: [], nots: [], lookups: [], chooses: [], unions: [], cleanFunctions: []};
+    }
+
+    // all database scans are at the first level
+    for(let record of this.records) {
+      if(record.__output) continue;
+      levels[0].records.push(record);
+    }
+    for(let lookup of this.lookups) {
+      levels[0].lookups.push(lookup);
+    }
+
+    // functions/nots/chooses/unions can all be in different levels
+    for(let not of this.nots) {
+      let level = providerToLevel[not.__id] || 0;
+      levels[level].nots.push(not);
+    }
+
+    for(let func of this.cleanFunctions) {
+      if(!func) continue;
+      let level = providerToLevel[func.__id] || 0;
+      levels[level].cleanFunctions.push(func);
+    }
+
+    for(let choose of this.chooses) {
+      let level = providerToLevel[choose.__id] || 0;
+      levels[level].chooses.push(choose);
+    }
+
+    for(let union of this.unions) {
+      let level = providerToLevel[union.__id] || 0;
+      levels[level].unions.push(union);
+    }
+
+    return levels;
+  }
+
+  compile(injections:(DSLCompilable|undefined)[] = []) {
+    this.program.contextStack.push(this);
+    let nodes:Node[] = [];
+    let levels = this.splitIntoLevels();
+
+    for(let level of levels) {
+      let items:(DSLCompilable|undefined)[] = [];
+      concatArray(items, injections);
+      concatArray(items, level.cleanFunctions);
+      concatArray(items, level.records);
+      concatArray(items, level.lookups);
+      let constraints = [];
+      for(let toCompile of items) {
+        if(!toCompile) continue;
+        let compiled = toCompile.compile();
+        if(!compiled) continue;
+        for(let item of compiled) {
+          if(item instanceof Scan || item instanceof FunctionConstraint) {
+            constraints.push(item);
+          }
+        }
+      }
+
+      let join:Node;
+      if(!nodes.length && constraints.length) {
+        join = new runtime.JoinNode(constraints);
+      } else if(constraints.length) {
+        join = new runtime.DownstreamJoinNode(constraints);
+      } else if(nodes.length) {
+        join = nodes.pop() as Node;
+      } else {
+        throw new Error("Query with zero constraints.")
+      }
+
+      // @NOTE: We need to unify all of our sub-blocks along with ourselves
+      //        before the root node can allocate registers.
+      for(let not of level.nots) {
+        // All sub blocks take their parents' items and embed them into
+        // the sub block. This is to make sure that the sub only computes the
+        // results that might actually join with the parent instead of the possibly
+        // very large set of unjoined results. This isn't guaranteed to be optimal
+        // and may very well cause us to do more work than necessary. For example if
+        // the results of the inner join with many outers, we'll still enumerate the
+        // whole set. This *may* be necessary for getting the correct multiplicities
+        // anyways, so this is what we're doing.
+        not.compile(items);
+        // @TODO: once we have multiple nodes in a not (e.g. aggs, or recursive not/choose/union)
+        // this won't be sufficient.
+        let notJoinNode = not.block.nodes[0];
+        let inputs = [];
+        for(let id in not.inputVariables) {
+          let value = not.inputVariables[id].value;
+          if(isRegister(value)) {
+            inputs.push(value);
+          } else {
+            throw new Error("Non-register input variable for not node");
+          }
+        }
+        join = new runtime.AntiJoin(join, notJoinNode, inputs)
+      }
+
+      for(let choose of level.chooses) {
+        // For why we pass items down, see the comment about not
+        choose.compile(items);
+        join = new runtime.BinaryJoinRight(join, choose.node, choose.node.registers);
+      }
+
+      for(let union of level.unions) {
+        // For why we pass items down, see the comment about not
+        union.compile(items);
+        join = new runtime.BinaryJoinRight(join, union.node, union.node.registers);
+      }
+
+      nodes.push(join)
+    }
+
+    // all the inputs end up at the end
+    for(let record of this.records) {
+      if(!record.__output) continue;
+      let compiled = record.compile();
+      if(!compiled) continue;
+      for(let node of compiled) {
+        nodes.push(node as Node);
+      }
+    }
+
+    this.block = new runtime.Block(this.name, nodes, this.totalRegisters);
+
     this.program.contextStack.pop();
   }
 
   prepare() {
+    this.precompile();
     this.unify();
     this.allocateRegisters();
     this.compile();
@@ -633,16 +1006,131 @@ class DSLBlock {
 //--------------------------------------------------------------------
 
 class DSLNot extends DSLBlock {
+  getInputRegisters() {
+    let registers:Register[] = [];
+    for(let key in this.inputVariables) {
+      let value = toValue(this.inputVariables[key]);
+      if(isRegister(value)) {
+        registers.push(value);
+      }
+    }
+    return registers;
+  }
+}
+
+//--------------------------------------------------------------------
+// DSLUnion
+//--------------------------------------------------------------------
+
+class DSLUnion {
+  __id:number;
+  branches:DSLBlock[] = [];
+  results:DSLVariable[] = [];
+  node:runtime.ChooseFlow;
+  inputs:DSLVariable[] = [];
+  nodeType:("ChooseFlow" | "UnionFlow") = "UnionFlow";
+
+  constructor(branchFunctions: Function[], public program:Program) {
+    this.__id = CURRENT_ID++;
+    let {branches, results} = this;
+    let ix = 0;
+    let resultCount:number|undefined;
+    for(let branch of branchFunctions) {
+      let block = new DSLBlock(`choose branch ${ix}`, branch as (block:DSLBlock) => any, program, false)
+      let branchResultCount = this.resultCount(block.returns);
+      if(resultCount === undefined) {
+        resultCount = branchResultCount;
+        for(let resultIx = 0; resultIx < resultCount; resultIx++) {
+          results.push(new DSLVariable(`choose result ${resultIx}`))
+        }
+      } else if(resultCount !== branchResultCount) {
+        throw new Error(`Choose branch ${ix} doesn't have the right number of returns, I expected ${resultCount}, but got ${branchResultCount}`);
+      }
+      for(let key in block.inputVariables) {
+        let variable = block.inputVariables[key];
+        if(this.inputs.indexOf(variable) === -1) {
+          this.inputs.push(variable);
+        }
+      }
+      let resultIx = 0;
+      for(let result of this.results) {
+        block.registerVariable(result);
+        block.equivalence(block.returns[resultIx], result);
+        resultIx++;
+      }
+      branches.push(block);
+      ix++;
+    }
+  }
+
+  getInputRegisters() {
+    return this.inputs.map(toValue).filter(isRegister);
+  }
+
+  getOutputRegisters() {
+    return this.results.map(toValue).filter(isRegister);
+  }
+
+  resultCount(result:any):number {
+    if(result && result.constructor === Array) {
+      return result.length;
+    } else if(result) {
+      return 1;
+    }
+    return 0;
+  }
+
+  unify() {
+    for(let block of this.branches) {
+      block.unify();
+    }
+  }
+
+  allocateRegisters(registerIx:number) {
+    for(let block of this.branches) {
+      block.allocateRegisters(registerIx);
+    }
+    return registerIx;
+  }
+
+  compile(items:(DSLCompilable|undefined)[]) {
+    let nodes = [];
+    for(let block of this.branches) {
+      block.compile(items);
+      // @TODO: when we have multiple nodes, this won't fly
+      nodes.push(block.block.nodes[0]);
+    }
+    let inputs = this.inputs.map(toValue).filter(isRegister) as Register[];
+    let builder = runtime[this.nodeType] as any;
+    this.node = new builder(nodes, inputs);
+  }
+}
+
+//--------------------------------------------------------------------
+// DSLChoose
+//--------------------------------------------------------------------
+
+class DSLChoose extends DSLUnion {
+  nodeType:("ChooseFlow"|"UnionFlow") = "ChooseFlow";
 }
 
 //--------------------------------------------------------------------
 // Program
 //--------------------------------------------------------------------
 
+// You can specify changes as either [e,a,v] or [e,a,v,round,count];
+export type EAVTuple = [RawValue, RawValue, RawValue];
+export type EAVRCTuple = [RawValue, RawValue, RawValue, number, number];
+export type TestChange =  EAVTuple | EAVRCTuple;
+
 export class Program {
   blocks:DSLBlock[] = [];
   runtimeBlocks:runtime.Block[] = [];
   index:indexes.Index;
+  nodeCount = 0;
+
+  protected _exporter?:runtime.Exporter;
+  protected _lastWatch?:number;
 
   /** Represents the hierarchy of blocks currently being compiled into runtime nodes. */
   contextStack:DSLBlock[] = [];
@@ -651,28 +1139,143 @@ export class Program {
     this.index = new indexes.HashIndex();
   }
 
-  block(name:string, func:(block:DSLBlock) => any) {
+  block(name:string, func:BlockFunction) {
     let block = new DSLBlock(name, func, this);
     block.prepare();
     this.blocks.push(block);
     this.runtimeBlocks.push(block.block);
+
+    return this;
+  }
+
+  watch(name:string, func:BlockFunction) {
+    if(!this._exporter) this._exporter = new runtime.Exporter();
+    let block = new DSLBlock(name, func, this, true, true);
+    block.prepare();
+    this.blocks.push(block);
+    this.runtimeBlocks.push(block.block);
+    this._lastWatch = block.__id;
+    return this;
+  }
+
+  asDiffs(handler:runtime.DiffConsumer) {
+    if(!this._exporter || !this._lastWatch) throw new Error("Must have at least one watch block to export as diffs.");
+    this._exporter.triggerOnDiffs(this._lastWatch, handler);
+
+    return this;
   }
 
   input(changes:runtime.Change[]) {
-    let trans = new runtime.Transaction(changes[0].transaction, this.runtimeBlocks, changes);
+    let trans = new runtime.Transaction(changes[0].transaction, this.runtimeBlocks, changes, this._exporter && this._exporter.handle);
     trans.exec(this.index);
-    // console.log(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
     return trans;
+  }
+
+  test(transaction:number, eavns:TestChange[]) {
+    let changes:Change[] = [];
+    let trans = new runtime.Transaction(transaction, this.runtimeBlocks, changes, this._exporter && this._exporter.handle);
+    for(let [e, a, v, round = 0, count = 1] of eavns as EAVRCTuple[]) {
+      let change = Change.fromValues(e, a, v, "my-awesome-node", transaction, round, count);
+      if(round === 0) {
+        changes.push(change);
+      } else {
+        trans.output(change);
+      }
+    }
+    trans.exec(this.index);
+    console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
+    return this;
   }
 }
 
+  // let prog = new Program("test");
+  // prog.block("simple block", ({find, record, lib, choose, union, not, lookup}) => {
+  //   let style = find("html/style");
+  //   let {attribute, value} = lookup(style);
+  //   return [
+  //     record("html/eve/style", {style, k: value})//.add(attribute, value)
+  //   ];
+  // });
+  // prog.block("simple block 2", ({find, record, lib, choose, union, not, lookup}) => {
+  //   let elem = find("html/element");
+  //   let style = elem.style;
+  //   return [
+  //     style.add("tag", "html/style")
+  //   ];
+  // });
+
+  // prog.test(1, [
+  //   [2, "tag", "html/element"],
+  //   [2, "style", 3],
+  //   [3, "color", "red"],
+  // ]);
+
+  // console.log(prog);
+  // console.log(GlobalInterner);
+
+  // let prog = new Program("test");
+  // prog.block("simple block", ({find, record, lib, choose, union, not}) => {
+  //   let elem = find("html/element");
+  //   not(() => {
+  //     find("html/element", {children: elem});
+  //   });
+  //   return [
+  //     record("html/root", {element: elem, tagname: elem.tagname})
+  //   ];
+  // });
+
+  // prog.test(1, [
+  //   [2, "tag", "html/element"],
+  //   [2, "tagname", "div"],
+  //   [2, "children", 3],
+
+  //   [3, "tag", "html/element"],
+  //   [3, "tagname", "floop"],
+  //   [3, "text", "k"],
+  // ]);
+
+  // prog.test(2, [
+  //   [2, "children", 3, 0, -1],
+  //   [3, "children", 2, 0, 1],
+  // ]);
+
+  // console.log(prog)
+
+  // let prog = new Program("test");
+  // prog.block("simple block", ({find, record, lib, choose, union}) => {
+  //   let person = find("person");
+  //   let foo = choose(() => {
+  //     return person.nickName;
+  //   }, () => {
+  //     return person.name;
+  //   })
+  //   return [
+  //     record("foo", {foo})
+  //   ]
+  // });
+  // console.log(prog);
+
+  // prog.test(1, [
+  //   [1, "tag", "person"],
+  //   [1, "name", "cool"],
+  // ]);
+
+  // prog.test(2, [
+  //   [1, "nickName", "dude"],
+  // ]);
+
+  // prog.test(2, [
+  //   [1, "nickName", "dude", 0, -1],
+  // ]);
+
+  // console.log(prog);
 
   // // -----------------------------------------------------
   // // program
   // // -----------------------------------------------------
 
   // let prog = new Program("test");
-  // prog.block("simple block", (find:any, record:any, lib:any) => {
+  // prog.block("simple block", ({find, record, lib}) => {
   //   let person = find("person");
   //   let text = `name: ${person.name}`;
   //   return [
@@ -684,20 +1287,35 @@ export class Program {
   // // verification
   // // -----------------------------------------------------
 
-  // for(let ix = 0; ix < 1; ix++) {
+
+  // function doit(size = 10000, rounds = 8) {
+  // let times = [];
+  // for(let ix = 0; ix < rounds; ix++) {
   //   prog.index = new indexes.HashIndex();
-  // let size = 10000;
   // let changes = [];
   // for(let i = 0; i < size; i++) {
   //   changes.push([runtime.Change.fromValues(i - 1, "name", i - 1,"foo",i,0,1), runtime.Change.fromValues(i, "tag", "person", "foo",i,0,1) ])
   // }
 
-  // // let start = performance.now();
-  // console.profile();
+  // let start = performance.now();
+  // // console.time();
   // for(let change of changes) {
   //   prog.input(change);
   // }
-  // console.profileEnd();
-  // // let end = performance.now();
+  // // console.timeEnd();
+  // let end = performance.now();
   // // console.log(end - start)
+  // times.push(end - start);
   // }
+
+  // times.shift();
+  // let average = times.reduce((a,b) => a + b) / times.length
+  // console.log("Average: ", average.toFixed(3));
+  // console.log("Max:", Math.max.apply(null, times).toFixed(3));
+  // console.log("Min:", Math.min.apply(null, times).toFixed(3));
+  // console.log("Per transaction: ", (average / size).toFixed(3));
+  // console.log("Per fact: ", (average / (4 * size)).toFixed(3));
+  // console.log("Times: ", times.map((x) => x.toFixed(3)));
+  // }
+
+  // window["doit"] = doit;
