@@ -46,6 +46,7 @@ appPreviewdoc.write(`
     <head>
         <title>App Preview</title>
         <link rel="stylesheet" type="text/css" href="assets/css/app-preview.css">
+        <style id="app-styles"></style>
     </head>
     <body></body>
 </html>
