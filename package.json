@@ -25,7 +25,7 @@
     "node": ">=7.4.0"
   },
   "scripts": {
-    "build": "./node_modules/.bin/tsc",
+    "build": "./node_modules/.bin/tsc && node ./build/scripts/package-watchers.js",
     "start": "./node_modules/.bin/tsc && node ./bin/eve.js",
     "server": "node ./bin/eve.js",
     "prepublish": "./node_modules/.bin/tsc",
