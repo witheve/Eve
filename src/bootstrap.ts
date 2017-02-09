@@ -21,7 +21,7 @@ prog.test(0, [
   [2, "sort", 1],
 
   [3, "tag", "html/element"],
-  [3, "tagname", "span"],
+  [3, "tagname", "div"],
   [3, "text", "Woo hoo!"],
   [3, "style", 4],
 
@@ -29,7 +29,7 @@ prog.test(0, [
   [4, "background", "pink"],
 
   [5, "tag", "html/element"],
-  [5, "tagname", "div"],
+  [5, "tagname", "column"],
   [5, "style", 6],
   [5, "children", 7],
   [5, "sort", 3],
@@ -37,8 +37,12 @@ prog.test(0, [
   [6, "border", "3px solid green"],
 
   [7, "tag", "html/element"],
-  [7, "tagname", "span"],
+  [7, "tagname", "button"],
+  [7, "class", "button flat"],
   [7, "text", "meep moop"],
+  [7, "style", 8],
+
+  [8, "margin", 10]
 ]);
 
 prog.test(1, [
