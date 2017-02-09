@@ -30,6 +30,7 @@ function sumTimes(ntrcArray:number[], transaction:number, round:number) {
 export interface Index {
   insert(change:Change):void;
   hasImpact(change:Change):boolean;
+  getImpact(change:Change):number;
   propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):Proposal;
   resolveProposal(proposal:Proposal):any[][];
   get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[];
@@ -63,13 +64,31 @@ export class ListIndex implements Index {
     return false;
   }
 
+
+  getImpact(input:Change) {
+    let {e,a,v,n} = input;
+    let count = 0;
+    for(let change of this.changes) {
+      if((e === undefined || e === IGNORE_REG || e === change.e) &&
+         (a === undefined || a === IGNORE_REG || a === change.a) &&
+         (v === undefined || v === IGNORE_REG || v === change.v) &&
+         (n === undefined || n === IGNORE_REG || n === change.n) &&
+         (change.transaction <= input.transaction) &&
+         (change.round <= input.round)) {
+        count += change.count;
+      }
+    }
+    return count + input.count;
+  }
+
   resolveProposal(proposal:Proposal) {
     return proposal.info;
   }
 
   propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number) {
     let final = createArray("indexProposeResults") as ID[][];
-    let forFields:EAVNField[] = createArray("indexForFields");
+    let forFields = proposal.forFields;
+    forFields.clear();
     let seen = createHash();
 
     if(a === undefined) forFields.push("a");
@@ -84,7 +103,7 @@ export class ListIndex implements Index {
          (n === undefined || n === IGNORE_REG || n === change.n) &&
          (change.transaction <= transaction) &&
          (change.round <= round)) {
-        let current = change[forFields[0]];
+        let current = change[forFields.array[0]];
         if(!seen[current]) {
           seen[current] = true;
           final.push([current]);
@@ -182,11 +201,20 @@ export class HashIndex implements Index {
     let {e,a,v,n} = input;
     let ntrcs = this.getDiffs(e,a,v,n);
     let count = sumTimes(ntrcs, input.transaction, input.round);
+    // console.log("      ntrcs:", ntrcs);
+    // console.log("      count:", count);
     if((count > 0 && count + input.count == 0) ||
        (count == 0 && count + input.count > 0)) {
       return true;
     }
     return false;
+  }
+
+  getImpact(input:Change) {
+    let {e,a,v,n} = input;
+    let ntrcs = this.getDiffs(e,a,v,n);
+    let count = sumTimes(ntrcs, input.transaction, input.round);
+    return count + input.count;
   }
 
   resolveProposal(proposal:Proposal) {
@@ -195,14 +223,14 @@ export class HashIndex implements Index {
 
   propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number) {
     let forFields = proposal.forFields;
-    forFields.length = 0;
+    forFields.clear();
     if(isResolved(e)) {
       return this.walkPropose(proposal, this.eavIndex, e, a, v, n, "a", "v", transaction, round);
     } else if(isResolved(a)) {
       return this.walkPropose(proposal, this.aveIndex, a, v, e, n, "v", "e", transaction, round);
     } else {
       // propose for attribute since that's likely to be the smallest
-      forFields[0] = "a";
+      forFields.push("a");
       proposal.info = Object.keys(this.aveIndex);
       proposal.cardinality = proposal.info.length;
     }
@@ -212,6 +240,7 @@ export class HashIndex implements Index {
   walkPropose(proposal:Proposal, index:any, a:ResolvedValue, b:ResolvedValue, c:ResolvedValue, n:ResolvedValue,
               fieldB:EAVNField, fieldC:EAVNField, transaction:number, round:number):Proposal {
     let {forFields} = proposal;
+    forFields.clear();
     let bIx = index[a as ID];
     if(!bIx) {
       proposal.cardinality = 0;
@@ -232,13 +261,13 @@ export class HashIndex implements Index {
         proposal.cardinality = 0;
         return proposal;
       } else {
-        forFields[0] = fieldC;
+        forFields.push(fieldC);
         proposal.info = Object.keys(cIx);
         proposal.cardinality = proposal.info.length;
         return proposal;
       }
     } else {
-      forFields[0] = fieldB;
+      forFields.push(fieldB);
       proposal.info = Object.keys(bIx);
       proposal.cardinality = proposal.info.length;
       return proposal;
@@ -392,6 +421,11 @@ class MatrixIndex implements Index {
   hasImpact(input:Change) {
     let {e,a,v,n} = input;
     return false;
+  }
+
+  getImpact(input:Change) {
+    let {e,a,v,n} = input;
+    return 0;
   }
 
   resolveProposal(proposal:Proposal) {

@@ -9,7 +9,7 @@ test("find a record and generate a record as a result", (assert) => {
   // -----------------------------------------------------
 
   let prog = new Program("test");
-  prog.block("simple block", (find:any, record:any, lib:any) => {
+  prog.block("simple block", ({find, record, lib}) => {
     find({foo: "bar"});
     return [
       record({zomg: "baz"})
@@ -37,7 +37,7 @@ test("> filters numbers", (assert) => {
   // -----------------------------------------------------
 
   let prog = new Program("test");
-  prog.block("simple block", (find:any, record:any, lib:any) => {
+  prog.block("simple block", ({find, record, lib}) => {
     let a = find();
     let b = find();
     a.age > b.age;
@@ -77,7 +77,7 @@ test("simple addition", (assert) => {
   // -----------------------------------------------------
 
   let prog = new Program("test");
-  prog.block("simple block", (find:any, record:any, lib:any) => {
+  prog.block("simple block", ({find, record, lib}) => {
     let a = find("person");
     let b = find("person");
     a.age > b.age;
@@ -119,7 +119,7 @@ test("simple recursion", (assert) => {
   // -----------------------------------------------------
 
   let prog = new Program("test");
-  prog.block("simple block", (find:any, record:any, lib:any) => {
+  prog.block("simple block", ({find, record, lib}) => {
     let {number} = find();
     9 > number;
     let result = number + 1;
@@ -155,7 +155,7 @@ test("test addition operator", (assert) => {
   // -----------------------------------------------------
 
   let prog = new Program("test");
-  prog.block("simple block", (find:any, record:any, lib:any) => {
+  prog.block("simple block", ({find, record, lib}) => {
     let joof = find({foo: "bar"});
     return [
       joof.add("name", "JOOF")
@@ -181,14 +181,14 @@ test("transitive closure", (assert) => {
   // -----------------------------------------------------
 
   let prog = new Program("test");
-  prog.block("Every edge is the beginning of a path.", (find:any, record:any, lib:any) => {
+  prog.block("Every edge is the beginning of a path.", ({find, record, lib}) => {
     let from = find();
     return [
       from.add("path", from.edge)
     ];
   });
 
-  prog.block("Jump from node to node building the path.", (find:any, record:any, lib:any) => {
+  prog.block("Jump from node to node building the path.", ({find, record, lib}) => {
     let from = find();
     let intermediate = find();
     from.edge == intermediate;
@@ -220,10 +220,20 @@ test("transitive closure", (assert) => {
     [1, "edge", 2, 0, -1],
   ], [
     [1, "path", 2, 1, -1],
-    [1, "path", 1, 2, - 1],
-    [2, "path", 2, 2, - 1],
-    [2, "path", 1, 3, - 1],
+    [1, "path", 1, 2, -1],
+    [2, "path", 2, 2, -1],
+    [2, "path", 1, 3, -1],
     [1, "path", 2, 3, -1],
+  ])
+
+  verify(assert, prog, [
+    [1, "edge", 2, 0, 1],
+  ], [
+    [1, "path", 2, 1, 1],
+    [1, "path", 1, 2, 1],
+    [2, "path", 2, 2, 1],
+    [2, "path", 1, 3, 1],
+    [1, "path", 2, 3, 1],
   ])
 
   // verify(assert, prog, [
@@ -291,7 +301,7 @@ test("removal", (assert) => {
   // -----------------------------------------------------
 
   let prog = new Program("test");
-  prog.block("simple block", (find:any, record:any, lib:any) => {
+  prog.block("simple block", ({find, record, lib}) => {
     find({foo: "bar"});
     return [
       record({zomg: "baz"})
@@ -318,3 +328,97 @@ test("removal", (assert) => {
   assert.end();
 });
 
+test.skip("not", (assert) => {
+
+  // -----------------------------------------------------
+  // program
+  // -----------------------------------------------------
+
+  let prog = new Program("test");
+  prog.block("simple block", ({find, record, lib, not}) => {
+    let person = find({tag: "person"});
+    not((subblock) => person.alive);
+    return [
+      person.add("dead", "true")
+    ]
+  });
+
+  // -----------------------------------------------------
+  // verification
+  // -----------------------------------------------------
+
+  // trust, but
+  verify(assert, prog, [
+    [1, "tag", "person"]
+  ], [
+    [1, "dead", "true", 1]
+  ]);
+
+  assert.end();
+});
+
+test("Nested attribute lookup", (assert) => {
+
+  // -----------------------------------------------------
+  // program
+  // -----------------------------------------------------
+
+  let prog = new Program("test");
+  prog.block("simple block", ({find, record, lib}) => {
+    let jeff = find({tag: "bar"});
+    return [
+      record({zomg: jeff.dog.weight})
+    ]
+  });
+
+  // -----------------------------------------------------
+  // verification
+  // -----------------------------------------------------
+
+  verify(assert, prog, [
+    [1, "tag", "bar"],
+    [1, "dog", 2],
+    [2, "weight", 13],
+  ], [
+    [3, "zomg", 13, 1]
+  ])
+
+  assert.end();
+});
+
+
+test("Basic not", (assert) => {
+
+  // -----------------------------------------------------
+  // program
+  // -----------------------------------------------------
+
+  let prog = new Program("test");
+  prog.block("simple block", ({find, record, lib, not}) => {
+    let person = find("person");
+    not((subblock) => {
+      person.age;
+    })
+    return [
+      person.add("tag", "old")
+    ]
+  });
+
+  // -----------------------------------------------------
+  // verification
+  // -----------------------------------------------------
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+  ], [
+    [1, "tag", "old", 1]
+  ])
+
+  verify(assert, prog, [
+    [1, "age", 20],
+  ], [
+    [1, "tag", "old", 1, -1]
+  ])
+
+  assert.end();
+});
