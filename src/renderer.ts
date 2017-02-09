@@ -504,7 +504,7 @@ export function renderRecords() {
     let current = activeElements.root;
     let ix = 0;
     for(let segment of lastFocusPath) {
-      current = current.childNodes[segment] as RecordElement;
+      current = current.children[segment] as RecordElement;
       if(!current) {
         lastActiveElement.blur();
         lastFocusPath = null;
@@ -512,7 +512,7 @@ export function renderRecords() {
       }
       ix++;
     }
-    if(current && current.entity !== lastActiveElement.entity) {
+    if(current && current.entity && current.entity !== lastActiveElement.entity) {
       let curElem = current as HTMLElement;
       curElem.focus();
       if(isInputElem(lastActiveElement) && isInputElem(current) && selectableTypes[lastActiveElement.type] && selectableTypes[current.type]) {
@@ -637,7 +637,7 @@ window.addEventListener("change", function(event) {
   }
 });
 
-function getFocusPath(target) {
+function getFocusPath(target:Element) {
   let root = activeElements.root;
   let current = target;
   let path:string[] = [];
