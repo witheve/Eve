@@ -69,6 +69,16 @@ export function copyArray(arr:any[], place = "unknown") {
   return arr.slice();
 }
 
+export function copyHash(hash:any, place = "unknown") {
+  if(!ALLOCATION_COUNT[place]) ALLOCATION_COUNT[place] = 0;
+  ALLOCATION_COUNT[place]++;
+  let neue:any = {};
+  for(let key of Object.keys(hash)) {
+    neue[key] = hash[key];
+  }
+  return neue;
+}
+
 export function concatArray(arr:any[], arr2:any[]) {
   let ix = arr.length;
   for(let elem of arr2) {
@@ -85,10 +95,6 @@ export function moveArray(arr:any[], arr2:any[]) {
   }
   if(arr2.length !== arr.length) arr2.length = arr.length;
   return arr2;
-}
-
-function isNumber(thing:any): thing is number {
-  return typeof thing === "number";
 }
 
 //------------------------------------------------------------------------
@@ -127,6 +133,10 @@ class Iterator<T> {
 export type RawValue = string|number;
 /**  An interned value's ID. */
 export type ID = number;
+
+function isNumber(thing:any): thing is number {
+  return typeof thing === "number";
+}
 
 export class Interner {
   strings: {[value:string]: ID|undefined} = createHash();
@@ -1683,9 +1693,14 @@ export abstract class AggregateNode implements Node {
     }
     let counts = found[projection] || [];
     let totalCount = 0;
+
+    let countIx = 0;
     for(let count of counts) {
+      // we need the total up to our current round
+      if(countIx >= prefixRound) break;
       if(!count) continue;
       totalCount += count;
+      countIx++;
     }
     if(totalCount && totalCount + prefixCount <= 0) {
       // subtract
@@ -1746,7 +1761,7 @@ export abstract class AggregateNode implements Node {
       for(let ix = 0, len = Math.min(groupStates.length, prefixRound); ix < len; ix++) {
         let current = groupStates[ix];
         if(current === undefined) continue;
-        currentState = current;
+        currentState = copyHash(current, "AggregateState");
       }
     }
     let resolved = this.resolve(prefix);
@@ -1777,19 +1792,20 @@ export abstract class AggregateNode implements Node {
 
 }
 
+type SumAggregateState = {total:number};
 export class SumAggregate extends AggregateNode {
-  add(state:any, resolved:RawValue[]):any {
+  add(state:SumAggregateState, resolved:RawValue[]):any {
     state.total += resolved[0] as number;
     return state;
   }
-  remove(state:any, resolved:RawValue[]):any {
+  remove(state:SumAggregateState, resolved:RawValue[]):any {
     state.total -= resolved[0] as number;
     return state;
   }
-  getResult(state:any):RawValue {
+  getResult(state:SumAggregateState):RawValue {
     return state.total;
   }
-  newResultState():any {
+  newResultState():SumAggregateState {
     return {total: 0};
   };
 }
