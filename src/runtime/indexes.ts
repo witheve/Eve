@@ -1,5 +1,5 @@
 
-import {Proposal, Change, ResolvedValue, createArray, createHash, IGNORE_REG, ID, EAVN, EAVNField, Register, Constraint, ALLOCATION_COUNT, NTRCArray} from "./runtime";
+import {Proposal, Change, ResolvedValue, createArray, createHash, IGNORE_REG, ID, EAVNField, Register, Constraint, ALLOCATION_COUNT, NTRCArray} from "./runtime";
 
 //------------------------------------------------------------------------
 // Utils
@@ -33,7 +33,6 @@ export interface Index {
   getImpact(change:Change):number;
   propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):Proposal;
   resolveProposal(proposal:Proposal):any[][];
-  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[];
   check(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):boolean;
   getDiffs(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue):NTRCArray;
 }
@@ -129,21 +128,6 @@ export class ListIndex implements Index {
       }
     }
     return false;
-  }
-
-  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[] {
-    let final = createArray() as EAVN[];
-    for(let change of this.changes) {
-      if((e === undefined || e === IGNORE_REG || e === change.e) &&
-         (a === undefined || a === IGNORE_REG || a === change.a) &&
-         (v === undefined || v === IGNORE_REG || v === change.v) &&
-         (n === undefined || n === IGNORE_REG || n === change.n) &&
-         (change.transaction <= transaction) &&
-         (change.round <= round)) {
-        final.push(new EAVN(change.e, change.a, change.v, change.n))
-      }
-    }
-    return final;
   }
 
   getDiffs(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue):NTRCArray {
@@ -319,10 +303,6 @@ export class HashIndex implements Index {
     return true;
   }
 
-  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[] {
-    throw new Error("Not implemented");
-  }
-
   getDiffs(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue):NTRCArray {
     let aIx = this.eavIndex[e!];
     if(aIx) {
@@ -367,11 +347,6 @@ class MatrixIndex implements Index {
 
   check(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):boolean {
     return false;
-  }
-
-  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[] {
-    let final = createArray() as EAVN[];
-    return final;
   }
 
   getDiffs(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue):NTRCArray {

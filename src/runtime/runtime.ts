@@ -1,10 +1,13 @@
 import {Index, ListIndex, HashIndex} from "./indexes";
 
-const DEBUG = false;
+//------------------------------------------------------------------------
+// Debugging utilities
+//------------------------------------------------------------------------
 
-//------------------------------------------------------------------------
-// Debugging
-//------------------------------------------------------------------------
+// Turning this on causes all of the debug(.*) statements to print to the console.
+// This is useful to see exactly what the runtime is doing as it evaluates a transaction,
+// but it incurs both a pretty serious performance cost and prints a lot of stuff.
+const DEBUG = false;
 
 export var debug:Function = () => {};
 if(DEBUG) {
@@ -46,8 +49,14 @@ export function maybeReverse(value?:ID):ID|RawValue|undefined {
 }
 
 //------------------------------------------------------------------------
-// Runtime
+// Allocations
 //------------------------------------------------------------------------
+
+// As this is a language runtime, we want to get insight into how we're using
+// memory and what allocation costs we're eating as we run. To track that, we
+// use createHash and createArray to give us some rough numbers. The JIT will
+// intern these functions, so the cost over just using {} or [], is fairly
+// negligible. In a release build we can also strip the allocation tracking.
 
 export var ALLOCATION_COUNT:any = {};
 
@@ -79,6 +88,7 @@ export function copyHash(hash:any, place = "unknown") {
   return neue;
 }
 
+// given two arrays, append the second's items on to the first
 export function concatArray(arr:any[], arr2:any[]) {
   let ix = arr.length;
   for(let elem of arr2) {
@@ -88,6 +98,8 @@ export function concatArray(arr:any[], arr2:any[]) {
   return arr;
 }
 
+// overwrite the first array with the values of the second array
+// and fix the length if it's different
 export function moveArray(arr:any[], arr2:any[]) {
   let ix = 0;
   for(let elem of arr) {
@@ -100,6 +112,21 @@ export function moveArray(arr:any[], arr2:any[]) {
 //------------------------------------------------------------------------
 // Iterator
 //------------------------------------------------------------------------
+
+// To reduce allocations as much as possible, we want to reuse arrays as much
+// as possible. If we reused the array by setting its length to 0 or to some new
+// size that is smaller than its current length, we eat the cost of deallocating
+// some chunk of memory as well as the potential cost in fragmentation. Instead, the
+// Iterator class never changes the size of its backing array, and instead keeps its
+// own length. You iterate through the array using the next() method:
+//
+// let current;
+// while((current = iterator.next()) !== undefined) {
+//   ...
+// }
+//
+// Through the magic of the JIT, this has no performance penalty over using a standard
+// for loop. You can get some of those "zero-cost abstractions" in JS too!
 
 class Iterator<T> {
   array:T[] = [];
@@ -129,6 +156,28 @@ class Iterator<T> {
 // Interning
 //------------------------------------------------------------------------
 
+// Every value that touches the runtime is interned. While that may seem kind of crazy,
+// there are lots of good reasons for this. The first is that it turns an infinite space
+// of values into a bounded space of integers. This gives us a lot more options in
+// how we index values and dramatically improves our memory layout. On top of that, every
+// lookup and equality is now on fixed-size integers, which computers can do near instantly.
+// Similarly, nearly every function in the runtime is now monomorphic, giving the JIT free
+// reign to compile our loops into very fast native code.
+//
+// This is of course a tradeoff. It means that when we need to do operations on the actual
+// values, we have to look them up. In practice all of the above benefits have greatly
+// outweighed the lookup cost, the cache-line savings alone makes that pretty irrelevant.
+// The main cost is that as values flow out of the system, if we don't clean them up, we'll
+// end up leaking ids. Also, at current you can have a maximum of a 32bit integer's worth of
+// unique values in your program. Chances are that doesn't matter in practice on the client
+// side, but could be a problem in the server at some point. To combat this, our intener
+// keeps a ref-count, but we're not freeing any of the IDs at the moment.
+//
+// @TODO: we don't ever release IDs in the current runtime because we're not sure who might
+// be holding onto a transaction, which contain references to IDs. At some point we
+// should probably reference count transactions as well and when they are released, that
+// gives us an opportunity to release any associated IDs that are no longer in use.
+
 /** The union of value types we support in Eve. */
 export type RawValue = string|number;
 /**  An interned value's ID. */
@@ -139,26 +188,51 @@ function isNumber(thing:any): thing is number {
 }
 
 export class Interner {
+  // IDs are only positive integers so that they can be used as array indexes for
+  // efficient lookup.
+  currentID: number = 0;
+
+  // We currently only have two value types in Eve at the moment, strings and numbers.
+  // Because keys in a javascript object are always converted to strings, we have to
+  // keep dictionaries for the two types separate, otherwise the number 1 and the
+  // string "1" would end up being the same value;
   strings: {[value:string]: ID|undefined} = createHash();
   numbers: {[value:number]: ID|undefined} = createHash();
+
+  // We use this array as a lookup from an integer ID to a RawValue since the IDs
+  // are guaranteed to be densely packed, this gives us much better performance
+  // than using another hash.
   IDs: RawValue[] = createArray();
+
+  // This is used as another lookup from ID to the number of references this ID has
+  // in the system. As the ref count goes to zero, we can add the ID to the free list
+  // so that it can be reused.
   IDRefCount: number[] = createArray();
   IDFreeList: number[] = createArray();
-  ix: number = 0;
+
+  // During the course of evaluation, we might allocate a bunch of intermediate IDs
+  // whose values might just be thrown away. For example if we generate a value just
+  // to use as a filter, there's no sense in us keeping the value in the interned space.
+  // Arenas are named groups of allocations that we may want to dereference all together.
+  // Note that just because we may dereference it once, that doesn't mean the ID should
+  // be released - other uses of the ID may exist.
   arenas: {[arena:string]: Iterator<ID>} = createHash();
 
   constructor() {
+    // The only arena we *know* we want from the beginning is for the output of functions.
     this.arenas["functionOutput"] = new Iterator<ID>();
   }
 
   _getFreeID() {
-    return this.IDFreeList.pop() || this.ix++;
+    return this.IDFreeList.pop() || this.currentID++;
   }
 
   reference(id:ID) {
     this.IDRefCount[id]++;
   }
 
+  // Intern takes a value and gives you the ID associated with it. If there isn't an
+  // ID it should create one for this value and in either case it should add a reference.
   intern(value: RawValue): ID {
     let coll;
     if(isNumber(value)) {
@@ -178,6 +252,8 @@ export class Interner {
     return found;
   }
 
+  // Get neither creates an ID nor adds a reference to the ID, it only looks up the
+  // ID for a value if it exists.
   get(value: RawValue): ID|undefined {
     let coll;
     if(isNumber(value)) {
@@ -188,10 +264,12 @@ export class Interner {
     return coll[value];
   }
 
+  // Go from an ID to the RawValue
   reverse(id: ID): RawValue {
     return this.IDs[id];
   }
 
+  // Dereference an ID and if there are no remaining references, add it to the freelist.
   release(id: ID|undefined) {
     if(id === undefined) return;
 
@@ -211,18 +289,31 @@ export class Interner {
   }
 
   arenaIntern(arenaName:string, value:RawValue):ID {
-    let arena = this.arenas[arenaName];
-    if(!arena) {
-      arena = this.arenas[arenaName] = new Iterator<ID>();
-    }
-    // @NOTE: for performance reasons it might make more sense to prevent duplicates
-    // from ending up in the list. If that's the case, we could either keep a seen
-    // hash or do a get and only intern if it hasn't been seen. This is (probably?)
-    // a pretty big performance gain in the case where a bunch of rows might repeat
-    // the same function output over and over.
-    let id = this.intern(value);
-    arena.push(id);
-    return id;
+    // @FIXME: Unfortunately we can't use arena intern at the moment due to the fact that while
+    // we can know what values end up in the primary indexes, we don't know what values might be
+    // hiding in intermediate indexes that runtime nodes sometimes need to keep. If we *did*
+    // deallocate an arena and the value didn't make it to a primary index, but ended up in an
+    // intermediate one, we'd have effectively corrupted our program. The ID would be freed, and
+    // then used for some completely different value. Until we can find an accurate (and cheap!)
+    // way to track what values are still hanging around, we'll just have to eat the cost of
+    // interning all the values we've seen. Keep in mind that this isn't as bad as it sounds, as
+    // the only values that would actually be freed this way are values that are calculated but
+    // never end up touching the primary indexes. This is rare enough that in practice, this
+    // probably isn't a big deal.
+    throw new Error("Arena interning isn't ready for primetime yet.")
+
+    // let arena = this.arenas[arenaName];
+    // if(!arena) {
+    //   arena = this.arenas[arenaName] = new Iterator<ID>();
+    // }
+    // // @NOTE: for performance reasons it might make more sense to prevent duplicates
+    // // from ending up in the list. If that's the case, we could either keep a seen
+    // // hash or do a get and only intern if it hasn't been seen. This is (probably?)
+    // // a pretty big performance gain in the case where a bunch of rows might repeat
+    // // the same function output over and over.
+    // let id = this.intern(value);
+    // arena.push(id);
+    // return id;
   }
 
   releaseArena(arenaName:string) {
@@ -240,42 +331,42 @@ export class Interner {
   }
 }
 
+// The runtime uses a single global interner so that all values remain comparable.
 export var GlobalInterner = new Interner();
-
-//------------------------------------------------------------------------
-// EAVNs
-//------------------------------------------------------------------------
-
-export type EAVNField = "e"|"a"|"v"|"n";
-
-/**
- * An EAVN is a single Attribute:Value pair of an Entity (a record),
- * produced by a given Node.
- * E.g., the record `[#person name: "josh"]` translates to two EAVNs:
- * (<1>, "tag", "person", <node id>),
- * (<1>, "name", "josh", <node id>)
- */
-
-export class EAVN {
-  constructor(public e:ID, public a:ID, public v:ID, public n:ID) {}
-};
 
 //------------------------------------------------------------------------
 // Changes
 //------------------------------------------------------------------------
 
+// Because Eve's runtime is incremental from the ground up, the primary unit of
+// information in the runtime is a Change. The content of a change is in the form
+// of "triples," a tuple of entity, attribute, and value (or in the RDF world, subject,
+// object, predicate). For example, if we wanted to talk about my age, we might have a
+// triple of ("chris", "age", 30). Beyond the content of the change, we also want to
+// know who created this change and what transaction it came from. This gives us enough
+// information to work out the provenance of this information, which is very useful
+// for debugging as well as doing clever things around verification and trust. The final
+// two pieces of information in a change are the round and count, which are used to help
+// us maintain our program incrementally. Because Eve runs all blocks to fixedpoint, a single
+// change may cause multiple "rounds" of evaluation which introduce more changes. By tracking
+// what round these changes happened in, we can do some clever reconciling to handle removal
+// inside recursive rules efficiently, which we'll go into more depth later. Count tells us
+// how many of these triples we are adding or, if the number is negative, removing from the
+// system.
+
+// We track counts as Multiplicities, which are just signed integers.
 type Multiplicity = number;
 
-/**
- * A change is an expanded variant of an EAVN, which also tracks the
- * transaction, round, and count of the fact.  These additional fields
- * are used by the executor and index to provide an incremental view
- * of the DB.
- */
+// In a change entity, attribute, value, and node are stored as e, a, v, and n respectively.
+// We often need to look these up in loops or pass around information about what property we
+// might currently be talking about, so we have a type representing those fields.
+export type EAVNField = "e"|"a"|"v"|"n";
 
 export class Change {
+  // Change expects that all values have already been interned.
   constructor(public e: ID, public a: ID, public v: ID, public n: ID, public transaction:number, public round:number, public count:Multiplicity) {}
 
+  // As a convenience, you can generate a change from values that haven't been interned yet.
   static fromValues(e: any, a: any, v: any, n: any, transaction: number, round: number, count:Multiplicity) {
     return new Change(GlobalInterner.intern(e), GlobalInterner.intern(a), GlobalInterner.intern(v),
                       GlobalInterner.intern(n), transaction, round, count);
@@ -285,6 +376,10 @@ export class Change {
     return `Change(${this.e}, ${GlobalInterner.reverse(this.a)}, ${maybeReverse(this.v)}, ${GlobalInterner.reverse(this.n)}, ${this.transaction}, ${this.round}, ${this.count})`;
   }
 
+  // For testing purposes, you often want to compare two Changes ignoring their node, as
+  // you don't know exactly what node will generate a value when you run. withoutE is also
+  // used in testing to check if a triple whose entity may have been generated by the program
+  // *could* match this change.
   equal(other:Change, withoutNode?:boolean, withoutE?:boolean) {
    return (withoutE || this.e == other.e) &&
           this.a == other.a &&
@@ -301,7 +396,9 @@ export class Change {
   }
 }
 
-/** A change with all attributes un-interned. */
+// When interatcint with the outside world, we need to pass changes around that are no longer
+// interned. A RawChange is the same as Change, but all the information in the triple has been
+// convered back into RawValues instead of interned IDs.
 export class RawChange {
   constructor(public e: RawValue, public a: RawValue, public v: RawValue, public n: RawValue,
               public transaction:number, public round:number, public count:Multiplicity) {}
@@ -313,9 +410,6 @@ export class RawChange {
     return `RawChange(${internedE}, ${a}, ${maybeReverse(internedV) || v}, ${n}, ${transaction}, ${round}, ${count})`;
   }
 }
-
-/** A changeset is a list of changes, intended to occur in a single transaction. */
-type ChangeSet = Change[];
 
 //------------------------------------------------------------------------
 // Constraints
@@ -750,7 +844,10 @@ export class FunctionConstraint implements Constraint {
   unpackOutputs(outputs:undefined|RawValue[]) {
     if(!outputs) return;
     for(let ix = 0; ix < outputs.length; ix++) {
-      outputs[ix] = GlobalInterner.arenaIntern("functionOutput", outputs[ix]);
+      // @NOTE: we'd like to use arenaIntern here, but because of intermediate values
+      // that's not currently a possibility. We should revisit this if a practical solution
+      // for arenas surfaces.
+      outputs[ix] = GlobalInterner.intern(outputs[ix]);
     }
     return outputs as ID[];
   }
