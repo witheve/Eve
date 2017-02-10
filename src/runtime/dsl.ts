@@ -11,7 +11,7 @@ import {RawValue, Register, isRegister, GlobalInterner, Scan, IGNORE_REG, ID,
         InsertNode, WatchNode, Node, Constraint, FunctionConstraint, Change, concatArray} from "./runtime";
 import * as runtime from "./runtime";
 import * as indexes from "./indexes";
-import {Watcher} from "../watchers/watcher";
+import {Watcher, Exporter, DiffConsumer, ObjectConsumer, RawRecord} from "../watchers/watcher";
 
 
 const UNASSIGNED = -1;
@@ -1130,7 +1130,7 @@ export class Program {
   index:indexes.Index;
   nodeCount = 0;
 
-  protected _exporter?:runtime.Exporter;
+  protected _exporter?:Exporter;
   protected _lastWatch?:number;
   protected _watchers:{[id:string]: Watcher|undefined} = {};
 
@@ -1162,7 +1162,7 @@ export class Program {
   }
 
   watch(name:string, func:BlockFunction) {
-    if(!this._exporter) this._exporter = new runtime.Exporter();
+    if(!this._exporter) this._exporter = new Exporter();
     let block = new DSLBlock(name, func, this, true, true);
     block.prepare();
     this.blocks.push(block);
@@ -1171,14 +1171,14 @@ export class Program {
     return this;
   }
 
-  asDiffs(handler:runtime.DiffConsumer) {
+  asDiffs(handler:DiffConsumer) {
     if(!this._exporter || !this._lastWatch) throw new Error("Must have at least one watch block to export as diffs.");
     this._exporter.triggerOnDiffs(this._lastWatch, handler);
 
     return this;
   }
 
-  asObjects<Pattern extends runtime.RawRecord>(handler:runtime.ObjectConsumer<Pattern>) {
+  asObjects<Pattern extends RawRecord>(handler:ObjectConsumer<Pattern>) {
     if(!this._exporter || !this._lastWatch) throw new Error("Must have at least one watch block to export as diffs.");
     this._exporter.triggerOnObjects(this._lastWatch, handler);
 
