@@ -10,6 +10,8 @@ row { display: flex; flex-direction: row; }
 column { display: flex; flex-direction: column; }
 spacer { display: flex; flex: 1; }
 
+text { display: inline-block; white-space: pre-wrap; }
+
 .button { padding: 5px 10px; background: transparent; border: none; outline: none; -webkit-appearance: button; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; background-clip: padding-box !important; }
 
 .button.inset { border-radius: 4px; background: #EEE; border: 1px solid rgba(0, 0, 0, 0.1); }
