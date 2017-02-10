@@ -250,6 +250,9 @@ export class EAVN {
   constructor(public e:ID, public a:ID, public v:ID, public n:ID) {}
 };
 
+type EAV = [ID, ID, ID];
+type RawEAV = [RawValue, RawValue, RawValue];
+
 //------------------------------------------------------------------------
 // Changes
 //------------------------------------------------------------------------
@@ -288,6 +291,11 @@ export class Change {
   reverse(interner:Interner = GlobalInterner) {
     let {e, a, v, n, transaction, round, count} = this;
     return new RawChange(interner.reverse(e), interner.reverse(a), interner.reverse(v), interner.reverse(n), transaction, round, count);
+  }
+
+  toRawEAV(interner:Interner = GlobalInterner):RawEAV {
+    let {e, a, v} = this;
+    return [interner.reverse(e), interner.reverse(a), interner.reverse(v)];
   }
 }
 
@@ -1726,13 +1734,22 @@ export class Transaction {
 //------------------------------------------------------------------------------
 // Exporter
 //------------------------------------------------------------------------------
-interface Map<V> {[key:number]: V};
-
 type ExportHandler = (blockChanges:Map<Change[]|undefined>) => void;
-export type DiffConsumer = (changes:Readonly<RawChange[]>) => void;
+
+interface Map<V> {[key:number]: V};
+interface RawMap<V> {[key:string]: V, [key:number]: V};
+export interface RawRecord extends RawMap<RawValue> {}
+
+interface Diffs<V> {adds: V, removes: V};
+interface EAVDiffs extends Diffs<RawEAV[]> {}
+interface ObjectDiffs<T extends RawRecord> extends Diffs<RawMap<T>> {}
+
+export type DiffConsumer = (diffs:EAVDiffs) => void;
+export type ObjectConsumer<T extends RawRecord> = (diffs:ObjectDiffs<T>) => void;
 
 export class Exporter {
   protected _diffTriggers:Map<DiffConsumer[]> = {};
+  protected _objectTriggers:Map<ObjectConsumer<{}>[]> = {};
   protected _blocks:ID[] = [];
 
   triggerOnDiffs(blockId:ID, handler:DiffConsumer):void {
@@ -1745,18 +1762,61 @@ export class Exporter {
     }
   }
 
-  handle = (blockChanges:Map<Change[]|undefined>) => {
+  triggerOnObjects<Pattern extends RawRecord>(blockId:ID, handler:ObjectConsumer<Pattern>):void {
+    if(!this._objectTriggers[blockId]) this._objectTriggers[blockId] = createArray();
+    if(this._objectTriggers[blockId].indexOf(handler) === -1) {
+      this._objectTriggers[blockId].push(handler);
+    }
+    if(this._blocks.indexOf(blockId) === -1) {
+      this._blocks.push(blockId);
+    }
+  }
+
+  accumulateChangesAs<T extends RawRecord>(changes:Change[]) {
+    let adds:RawMap<T> = {};
+    let removes:RawMap<T> = {};
+
+    for(let change of changes) {
+      let {e, a, v, count} = change.reverse();
+      if(count === 1) {
+        let record = adds[e] = adds[e] || Object.create(null);
+        if(record[a]) throw new Error("@FIXME: accumulateChanges supports only a single value per attribute.");
+        record[a] = v;
+      } else {
+        let record = removes[e] = removes[e] || Object.create(null);
+        if(record[a]) throw new Error("@FIXME: accumulateChanges supports only a single value per attribute.");
+        record[a] = v;
+      }
+    }
+
+    return {adds, removes};
+  }
+
+  handle:ExportHandler = (blockChanges) => {
     for(let blockId of this._blocks) {
       let changes = blockChanges[blockId];
       if(changes && changes.length) {
         let diffTriggers = this._diffTriggers[blockId];
         if(diffTriggers) {
-          let output:RawChange[] = createArray("exporterOutput");
+          let output:EAVDiffs = {adds: [], removes: []};
           for(let change of changes) {
-            output.push(change.reverse());
+            let eav = change.toRawEAV();
+            if(change.count > 0) {
+              output.adds.push(eav);
+            } else {
+              output.removes.push(eav);
+            }
           }
 
           for(let trigger of diffTriggers) {
+            trigger(output);
+          }
+        }
+
+        let objectTriggers = this._objectTriggers[blockId];
+        if(objectTriggers) {
+          let output:ObjectDiffs<{}> = this.accumulateChangesAs<{}>(changes);
+          for(let trigger of objectTriggers) {
             trigger(output);
           }
         }

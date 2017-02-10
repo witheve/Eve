@@ -1178,6 +1178,13 @@ export class Program {
     return this;
   }
 
+  asObjects<Pattern extends runtime.RawRecord>(handler:runtime.ObjectConsumer<Pattern>) {
+    if(!this._exporter || !this._lastWatch) throw new Error("Must have at least one watch block to export as diffs.");
+    this._exporter.triggerOnObjects(this._lastWatch, handler);
+
+    return this;
+  }
+
   input(changes:runtime.Change[]) {
     let trans = new runtime.Transaction(changes[0].transaction, this.runtimeBlocks, changes, this._exporter && this._exporter.handle);
     trans.exec(this.index);
