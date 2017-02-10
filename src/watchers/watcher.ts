@@ -1,3 +1,4 @@
+export {RawValue, RawEAV} from "../runtime/runtime";
 import {ID, RawValue, RawEAV, Change, createArray, ExportHandler} from "../runtime/runtime";
 import {Program} from "../runtime/dsl";
 import * as glob from "glob";
@@ -41,7 +42,7 @@ export class Watcher {
 //------------------------------------------------------------------------------
 
 interface Map<V> {[key:number]: V};
-interface RawMap<V> {[key:string]: V, [key:number]: V};
+export interface RawMap<V> {[key:string]: V, [key:number]: V};
 export interface RawRecord extends RawMap<RawValue> {}
 
 interface Diffs<V> {adds: V, removes: V};
