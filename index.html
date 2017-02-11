@@ -11,17 +11,11 @@
     <link href="assets/favicon.png" rel="icon" type="image/png" />
   </head>
   <body>
+    <script type="text/javascript" src="build/watchers.js"></script>
     <script type="text/javascript" src="src/system.js"></script>
     <script type="text/javascript" src="src/systemJSConfig.js"></script>
-    <script type="text/javascript" src="build/watchers.js"></script>
+
     <script>
-      if(typeof _watchers === "undefined") {
-        console.warn("Please run `npm run build` in order to bundle the watchers for the browser.")
-      } else {
-        for(let watcherPath of _watchers) {
-          SystemJS.import(watcherPath);
-        }
-      }
       SystemJS.import("/build/src/bootstrap");
     </script>
 
