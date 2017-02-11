@@ -255,7 +255,7 @@ class DSLRecord {
 
         let activeBlock = this.__block.getActiveBlock();
         let found = obj.__fields[prop];
-        if(!found) {
+        if(!found || !found.length) {
           let record = activeBlock.getRecord(this.__record);
           if(record !== this) {
             obj = record.proxy();
