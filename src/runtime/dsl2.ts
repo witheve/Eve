@@ -576,7 +576,7 @@ class LinearFlow extends DSLBase {
   }
 
   //------------------------------------------------------------------
-  // Collector interactions
+  // Inputs/outputs
   //------------------------------------------------------------------
 
   getInputRegisters() {
