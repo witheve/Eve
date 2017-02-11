@@ -1,16 +1,30 @@
-import {RawValue, RawChange} from "../runtime/runtime";
-import {Watcher} from "./watcher";
+import {Watcher, RawValue, RawEAV, RawEAVC} from "./watcher";
+import {v4 as uuid} from "node-uuid";
 
 interface Map<V>{[key:string]: V}
 
 interface Style extends Map<RawValue|undefined> {__size: number}
 interface Instance extends HTMLElement {__element?: RawValue, __styles?: RawValue[], __sort?: RawValue}
 
+function isInstance(elem?:any): elem is Instance {
+  if(!elem || !(elem instanceof Element)) return false;
+  let instance = elem as Instance;
+  return instance && !!instance["__element"];
+}
+
 class HTMLWatcher extends Watcher {
   styles:Map<Style|undefined> = Object.create(null);
   roots:Map<Instance|undefined> = Object.create(null);
   instances:Map<Instance|undefined> = Object.create(null);
   styleToInstances:Map<RawValue[]|undefined> = Object.create(null);
+
+  protected _sendEvent(eavs:(RawEAV|RawEAVC)[]) {
+    this.program.inputEavs(eavs);
+    for(let eav of eavs) {
+      eav[3] = -1;
+    }
+    //this.program.inputEavs(eavs);
+  }
 
   getStyle(id:RawValue) {
     return this.styles[id] = this.styles[id] || {__size: 0};
@@ -242,6 +256,7 @@ class HTMLWatcher extends Watcher {
           else if(a === "children") continue;
           else if(a === "sort") continue; // I guess..?
 
+          else if(a === "class") instance.classList.remove(""+v);
           else if(a === "text") instance.textContent = null;
           else if(a === "style") this.removeStyleInstance(v, e);
           else instance.removeAttribute(""+a);
@@ -254,12 +269,36 @@ class HTMLWatcher extends Watcher {
           else if((a === "tagname")) continue;
           else if(a === "children") continue;
 
+          else if(a === "class") instance.classList.add(""+v);
           else if(a === "sort") this.insertChild(instance.parentElement, instance, v);
           else if(a === "text") instance.textContent = ""+v;
           else if(a === "style") this.addStyleInstance(v, e);
           else instance.setAttribute(""+a, ""+v);
         }
       });
+
+    window.addEventListener("click", (event) => {
+      let {target} = event;
+      if(!isInstance(target)) return;
+
+      let eavs:(RawEAV|RawEAVC)[] = [];
+      let current:Element|null = target;
+      while(current && isInstance(current)) {
+        let elemId = current.__element!;
+        let eventId = uuid();
+
+        eavs.push(
+          [eventId, "tag", "html/event/click"],
+          [eventId, "element", elemId]
+        );
+        if(current === target) {
+          eavs.push([eventId, "tag", "html/direct-target"]);
+        }
+        current = current.parentElement;
+      }
+
+      this._sendEvent(eavs);
+    });
   }
 }
 
