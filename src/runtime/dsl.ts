@@ -8,7 +8,7 @@ declare var Proxy:new (obj:any, proxy:any) => any;
 declare var Symbol:any;
 
 import {RawValue, Register, isRegister, GlobalInterner, Scan, IGNORE_REG, ID,
-        InsertNode, WatchNode, Node, Constraint, FunctionConstraint, Change, concatArray} from "./runtime";
+        InsertNode, WatchNode, Node, Constraint, FunctionConstraint, Change, concatArray, RawEAV, RawEAVC} from "./runtime";
 import * as runtime from "./runtime";
 import * as indexes from "./indexes";
 import {Watcher, Exporter, DiffConsumer, ObjectConsumer, RawRecord} from "../watchers/watcher";
@@ -1129,6 +1129,7 @@ export class Program {
   runtimeBlocks:runtime.Block[] = [];
   index:indexes.Index;
   nodeCount = 0;
+  transactionId = 0;
 
   protected _exporter?:Exporter;
   protected _lastWatch?:number;
@@ -1186,12 +1187,30 @@ export class Program {
   }
 
   input(changes:runtime.Change[]) {
+    if(!changes || !changes.length) return;
+    let curTx = changes[0].transaction;
+    for(let change of changes) {
+      if(change.transaction !== curTx) throw new Error("All changes in a transaction must have the same transaction number.");
+      change.transaction = this.transactionId;
+    }
+    this.transactionId += 1;
+
     let trans = new runtime.Transaction(changes[0].transaction, this.runtimeBlocks, changes, this._exporter && this._exporter.handle);
     trans.exec(this.index);
     return trans;
   }
 
+  inputEavs(eavcs:(RawEAVC|RawEAV)[]) {
+    let changes:Change[] = [];
+    for(let [e, a, v, c = 1] of eavcs as RawEAVC[]) {
+      changes.push(Change.fromValues(e, a, v, "input", this.transactionId, 0, c));
+    }
+    return this.input(changes);
+  }
+
   test(transaction:number, eavns:TestChange[]) {
+    this.transactionId = transaction + 1; // @FIXME: Maybe we should just change the signature here instead.
+
     let changes:Change[] = [];
     let trans = new runtime.Transaction(transaction, this.runtimeBlocks, changes, this._exporter && this._exporter.handle);
     for(let [e, a, v, round = 0, count = 1] of eavns as EAVRCTuple[]) {

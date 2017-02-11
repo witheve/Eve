@@ -1,4 +1,4 @@
-export {RawValue, RawEAV} from "../runtime/runtime";
+export {RawValue, RawEAV, RawEAVC} from "../runtime/runtime";
 import {ID, RawValue, RawEAV, Change, createArray, ExportHandler} from "../runtime/runtime";
 import {Program} from "../runtime/dsl";
 import * as glob from "glob";

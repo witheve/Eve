@@ -252,6 +252,7 @@ export class EAVN {
 
 type EAV = [ID, ID, ID];
 export type RawEAV = [RawValue, RawValue, RawValue];
+export type RawEAVC = [RawValue, RawValue, RawValue, number];
 
 //------------------------------------------------------------------------
 // Changes
