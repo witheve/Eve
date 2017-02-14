@@ -342,6 +342,81 @@ export interface Constraint {
 }
 
 //------------------------------------------------------------------------
+// Move Constraint
+//------------------------------------------------------------------------
+
+export class MoveConstraint {
+
+  constructor(public from:Register|ID, public to:Register) { }
+
+  proposal:Proposal = {cardinality: 1, forFields: new Iterator<EAVNField>(), forRegisters: new Iterator<Register>(), proposer: this};
+  registers:Register[] = createArray("MoveConstriantRegisters");
+  resolved:(ID|undefined)[] = createArray("MoveConstraintResolved");
+
+  isInput:boolean = false;
+  setup():void {
+    if(isRegister(this.from)) {
+      this.registers.push(this.from);
+    }
+    this.registers.push(this.to);
+
+    // we are always only proposing for our to register
+    this.proposal.forRegisters.clear();
+    this.proposal.forRegisters.push(this.to);
+  }
+
+  resolve(prefix:ID[]) {
+    if(isRegister(this.from)) {
+      this.resolved[0] = prefix[this.from.offset];
+    } else {
+      this.resolved[0] = this.from;
+    }
+    this.resolved[1] = prefix[this.to.offset];
+    return this.resolved;
+  }
+
+  getRegisters():Register[] {
+    return this.registers;
+  }
+
+  applyInput(input:Change, prefix:ID[]):ApplyInputState {
+    return ApplyInputState.none;
+  }
+
+  propose(index:Index, prefix:ID[], transaction:number, round:number, results:any[]):Proposal {
+    let [from, to] = this.resolve(prefix);
+    this.proposal.skip = true;
+    if(from !== undefined && to === undefined) {
+      this.proposal.skip = false;
+    }
+    return this.proposal;
+  }
+
+  resolveProposal(index:Index, prefix:ID[], proposal:Proposal, transaction:number, round:number, results:any[]):ID[][] {
+    let [from, to] = this.resolve(prefix);
+    let arr = createArray("MoveResult") as ID[];
+    arr[0] = from!;
+    return arr as any;
+  }
+
+  accept(index:Index, prefix:ID[], transaction:number, round:number, solvingFor:Register[]):boolean {
+    let [from, to] = this.resolve(prefix);
+    if(from !== undefined && to !== undefined) {
+      return from == to;
+    }
+    return true;
+  }
+
+  acceptInput(index:Index, input:Change, prefix:ID[], transaction:number, round:number):boolean {
+    return this.accept(index, prefix, transaction, round, this.registers);
+  }
+
+  getDiffs(index:Index, prefix:ID[]):NTRCArray {
+    throw new Error("Asking for Diffs from MoveConstraint");
+  }
+}
+
+//------------------------------------------------------------------------
 // Scans
 //------------------------------------------------------------------------
 
@@ -1079,6 +1154,7 @@ export class JoinNode implements Node {
       return true;
 
     } else {
+      debug("              GJ:", remainingToSolve, this.constraints);
       // For each node, find the new results that match the prefix.
       this.genericJoin(index, prefix, transaction, round, results, remainingToSolve);
       return true;
@@ -1157,6 +1233,7 @@ export class JoinNode implements Node {
     }
 
     if(bestProposal.skip) {
+      debug("             BAILING", bestProposal);
       return results;
     }
 
@@ -1182,7 +1259,7 @@ export class JoinNode implements Node {
         if(roundIx === 1) {
           let diffs = [];
           for(let constraint of constraints) {
-            if(constraint.isInput || constraint instanceof FunctionConstraint) continue;
+            if(constraint.isInput || !(constraint instanceof Scan)) continue;
             diffs.push(constraint.getDiffs(index, prefix));
           }
           this.computeMultiplicities(results, prefix, round, diffs);
@@ -1197,13 +1274,14 @@ export class JoinNode implements Node {
         for(let constraint of constraints) {
           if(constraint === proposer) continue;
           if(!constraint.accept(index, prefix, transaction, round, forRegisters)) {
+            debug("             BAILING", printConstraint(constraint));
             continue resultLoop;
           }
         }
         if(roundIx === 1) {
           let diffs = [];
           for(let constraint of constraints) {
-            if(constraint.isInput || constraint instanceof FunctionConstraint) continue;
+            if(constraint.isInput || !(constraint instanceof Scan)) continue;
             diffs.push(constraint.getDiffs(index, prefix));
           }
           this.computeMultiplicities(results, prefix, round, diffs);

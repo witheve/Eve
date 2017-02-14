@@ -1,3 +1,4 @@
+//@FIXME: This doesn't currently handle chooses/unions that rely on eachother.
 
 //--------------------------------------------------------------------
 // Javascript DSL for writing Eve programs
@@ -62,11 +63,15 @@ export class Reference {
           return "uh oh";
         }
 
+        let active = this.__context.getActive();
+        if(!active) {
+          return;
+        }
+
         if(!this.__owner) {
           throw new Error("Cannot access a property of a static value");
         }
 
-        let active = this.__context.getActive();
         return this.__owner.access(this.__context, active, prop);
       },
 
@@ -177,16 +182,13 @@ export class ReferenceContext {
   unify() {
     let {equalities} = this;
     let values:(Register | RawValue)[] = this.referenceValues;
-    let changed = true;
+    let changed = equalities.length > 0;
 
     let round = 0;
     let maxRound = Math.pow(this.equalities.length + 1, 2);
-    if(!equalities.length) {
-      for(let ref of this.references) {
-        if(!ref) continue;
-        this.getValue(ref, true);
-      }
-      changed = false;
+    for(let ref of this.references) {
+      if(!ref) continue;
+      this.getValue(ref, true);
     }
     while(changed && round < maxRound) {
       round++;
@@ -234,7 +236,7 @@ export class ReferenceContext {
       let local = this.getValue(ref);
       let parent = ref.__context.getValue(ref);
       if(local !== parent) {
-        moves.push([parent, local]);
+        moves.push(new Move(this, ref));
       }
     }
     return moves;
@@ -297,6 +299,7 @@ class FlowLevel {
   nots:Not[] = [];
   chooses:Choose[] = [];
   unions:Union[] = [];
+  moves:Move[] = [];
 
   collect(node:Node) {
     if(node instanceof Insert) {
@@ -317,6 +320,8 @@ class FlowLevel {
       this.chooses.push(node);
     } else if(node instanceof Union) {
       this.unions.push(node);
+    } else if(node instanceof Move) {
+      this.moves.push(node);
     } else {
       console.error("Don't know how to collect this type of node: ", node);
       throw new Error("Unknown node type sent to collect");
@@ -337,12 +342,18 @@ class FlowLevel {
     }
   }
 
-  compile(nodes:Runtime.Node[], injections:Node[]):Runtime.Node[] {
+  toConstraints(injections:Node[]) {
     let items:(Record|Fn|Lookup)[] = [];
     concatArray(items, injections);
     concatArray(items, this.functions);
     concatArray(items, this.records);
     concatArray(items, this.lookups);
+    concatArray(items, this.moves);
+    return items;
+  }
+
+  compile(nodes:Runtime.Node[], injections:Node[], toPass:Node[]):Runtime.Node[] {
+    let items = this.toConstraints(injections);
     let constraints:Runtime.Constraint[] = [];
     for(let toCompile of items) {
       let compiled = toCompile.compile();
@@ -373,7 +384,7 @@ class FlowLevel {
       // the results of the inner join with many outers, we'll still enumerate the
       // whole set. This *may* be necessary for getting the correct multiplicities
       // anyways, so this is what we're doing.
-      let notNodes = not.compile(items);
+      let notNodes = not.compile(toPass);
       // @TODO: once we have multiple nodes in a not (e.g. aggs, or recursive not/choose/union)
       // this won't be sufficient.
       let notJoinNode = notNodes[0];
@@ -382,13 +393,13 @@ class FlowLevel {
 
     for(let choose of this.chooses) {
       // For why we pass items down, see the comment about not
-      let node = choose.compile(items);
+      let node = choose.compile(toPass);
       join = new Runtime.BinaryJoinRight(join, node, choose.getInputRegisters());
     }
 
     for(let union of this.unions) {
       // For why we pass items down, see the comment about not
-      let node = union.compile(items);
+      let node = union.compile(toPass);
       join = new Runtime.BinaryJoinRight(join, node, union.getInputRegisters());
     }
 
@@ -435,7 +446,7 @@ class FlowLevel {
             found = leveledRegisters[offset] = {level: 1, providers: []};
           }
           leveledRegisters[offset].providers.push(item);
-          providerToLevel[item.__id] = 1;
+          providerToLevel[item.ID] = 1;
           changed = true;
           maxLevel = 1;
         }
@@ -446,6 +457,7 @@ class FlowLevel {
     // the provider's heighest
     concatArray(items, this.functions);
     concatArray(items, this.nots);
+    concatArray(items, this.moves);
     let remaining = items.length;
     while(changed && remaining > -1) {
       changed = false;
@@ -454,7 +466,7 @@ class FlowLevel {
         if(!item) continue;
 
         let changedProvider = false;
-        let providerLevel = providerToLevel[item.__id] || 0;
+        let providerLevel = providerToLevel[item.ID] || 0;
         for(let input of item.getInputRegisters()) {
           let inputInfo = leveledRegisters[input.offset];
           if(inputInfo && inputInfo.level > providerLevel) {
@@ -464,7 +476,7 @@ class FlowLevel {
         }
 
         if(changedProvider) {
-          providerToLevel[item.__id] = providerLevel;
+          providerToLevel[item.ID] = providerLevel;
           // level my outputs
           for(let output of item.getOutputRegisters()) {
             if(supported[output.offset]) continue;
@@ -532,6 +544,11 @@ class FlowLevel {
       levels[level].aggregates.push(aggregate);
     }
 
+    for(let move of this.moves) {
+      let level = providerToLevel[move.ID] || 0;
+      levels[level].moves.push(move);
+    }
+
     return levels;
   }
 }
@@ -546,10 +563,13 @@ class LinearFlow extends DSLBase {
   collector:FlowLevel = new FlowLevel();
   levels:FlowLevel[] = [];
   results:Value[];
+  parent:LinearFlow|undefined;
 
   constructor(func:LinearFlowFunction, parent?:LinearFlow) {
     super();
     let parentContext = parent ? parent.context : undefined;
+    this.parent = parent;
+    this.createLib();
     this.context = new ReferenceContext(parentContext, this);
     let transformed = func;
     if(!parent) {
@@ -561,6 +581,32 @@ class LinearFlow extends DSLBase {
     else if(results === undefined) this.results = [];
     else this.results = [results];
     ReferenceContext.pop();
+  }
+
+  //------------------------------------------------------------------
+  // Create lib
+  //------------------------------------------------------------------
+
+  lib: any;
+  createLib() {
+    let lib:any = {};
+    let registered = Runtime.FunctionConstraint.registered;
+    for(let name in registered) {
+      let parts = name.split("/");
+      let final = parts.pop();
+      let found = lib;
+      for(let part of parts) {
+        let next = found[part];
+        if(!next) next = found[part] = {};
+        found = next;
+      }
+      found[final!] = (...args:any[]) => {
+        let fn = new Fn(this.context.getActive(), name, args);
+        return fn.reference();
+      }
+
+    }
+    this.lib = lib;
   }
 
   //------------------------------------------------------------------
@@ -596,7 +642,6 @@ class LinearFlow extends DSLBase {
     }
     let active = this.context.getActive();
     let record = new Record(active, tags as string[], attributes);
-    console.log("FIND", record);
     return record.reference();
   }
 
@@ -620,18 +665,20 @@ class LinearFlow extends DSLBase {
 
   not = (func:Function):void => {
     let active = this.context.getActive();
-    let not = new Not(func as LinearFlowFunction, this);
+    let not = new Not(func as LinearFlowFunction, active.flow.parent || this);
     return;
   }
 
-  union = () => {
+  union = (...branches:Function[]):ProxyReference[] => {
     let active = this.context.getActive();
-
+    let union = new Union(active, branches, active.flow.parent || this);
+    return union.results.slice();
   }
 
-  choose = () => {
+  choose = (...branches:Function[]):ProxyReference[] => {
     let active = this.context.getActive();
-
+    let choose = new Choose(active, branches, active.flow.parent || this);
+    return choose.results.slice();
   }
 
   gather = () => {
@@ -651,10 +698,16 @@ class LinearFlow extends DSLBase {
     this.unify();
     let nodes:Runtime.Node[] = [];
 
+    for(let move of this.context.getMoves()) {
+      this.collector.collect(move);
+    }
+
     // Split our collector into levels
     let levels = this.collector.split();
+    let localItems = items.slice();
     for(let level of levels) {
-      nodes = level.compile(nodes, items);
+      nodes = level.compile(nodes, items, localItems);
+      concatArray(localItems, level.toConstraints([]));
     }
 
     // all the inputs end up at the end
@@ -694,7 +747,7 @@ class LinearFlow extends DSLBase {
     return neueFunc;
   }
 
-  replaceInfix(strings:string[], functionArgs:string[], code:string, regex:RegExp, replaceOp?:string) {
+  replaceInfix(strings:string[], functionArgs:string[], code:string, regex:RegExp, prefix?:string, replaceOp?:string) {
     let libArg = `${functionArgs[0]}.lib`;
     let hasChanged = true;
     while(hasChanged) {
@@ -708,7 +761,7 @@ class LinearFlow extends DSLBase {
         }
         left = this.transformCode(left, functionArgs);
         right = this.transformCode(right, functionArgs);
-        let finalOp = replaceOp || op;
+        let finalOp = replaceOp || `${prefix}["${op}"]`;
         strings.push(`${libArg}.${finalOp}(${left}, ${right})`);
         return "____" + (strings.length - 1) + "____";
       })
@@ -729,22 +782,22 @@ class LinearFlow extends DSLBase {
     // "foo" + person.name -> fn.eve.internal.concat("foo", person.name)
     // person.name + "foo" -> fn.eve.internal.concat(person.name, "foo")
     let stringAddition = new RegExp(`(?:${infixParam}\\s*(\\+)\\s*${stringPlaceholder})|(?:${stringPlaceholder}\\s*(\\+)\\s*${infixParam})`,"gi");
-    code = this.replaceInfix(strings, functionArgs, code, stringAddition, "eve.internal.concat");
+    code = this.replaceInfix(strings, functionArgs, code, stringAddition, "", "eve.internal.concat");
 
     // a * b -> fn.math["*"](a, b)
     // a / b -> fn.math["/"](a, b)
     let multiply = new RegExp(`${infixParam}\\s*(\\*|\\/)\\s*${infixParam}`, "gi");
-    code = this.replaceInfix(strings, functionArgs, code, multiply);
+    code = this.replaceInfix(strings, functionArgs, code, multiply, "math");
 
     // a + b -> fn.math["+"](a, b)
     // a - b -> fn.math["-"](a, b)
     let add = new RegExp(`${infixParam}\\s*(\\+|\\-)\\s*${infixParam}`, "gi");
-    code = this.replaceInfix(strings, functionArgs, code, add);
+    code = this.replaceInfix(strings, functionArgs, code, add, "math");
 
     // a > b -> fn.compare[">"](a, b)
     // for all the (in)equalities: >, >=, <, <=, !=, ==
     let compare = new RegExp(`${infixParam}\\s*(>|>=|<|<=|!=|==)\\s*${infixParam}`, "gi");
-    code = this.replaceInfix(strings, functionArgs, code, compare);
+    code = this.replaceInfix(strings, functionArgs, code, compare, "compare");
 
     code = code.replace(/____([0-9]+)____/gi, function(str, index:string) {
       let found = strings[parseInt(index)];
@@ -801,6 +854,7 @@ class Record extends DSLBase {
     if(found) return found;
 
     let neue = this.createSub(activeContext, this.record);
+    activeContext.register(this.record!);
     return neue;
   }
 
@@ -883,6 +937,33 @@ class Lookup extends DSLBase {
   }
 }
 
+class Move extends DSLBase {
+  constructor(public context:ReferenceContext, public ref:Reference) {
+    super();
+  }
+
+  getInputRegisters():Register[] {
+    let value = this.context.getValue(this.ref);
+    if(isRegister(value)) {
+      return [value];
+    }
+    return [];
+  }
+
+  getOutputRegisters():Register[] {
+    let {ref} = this;
+    let parent = ref.__context.getValue(ref) as Register;
+    return [parent];
+  }
+
+  compile():Runtime.Constraint[] {
+    let {ref} = this;
+    let local = this.context.interned(ref);
+    let parent = ref.__context.getValue(ref) as Register;
+    return [new Runtime.MoveConstraint(local, parent)];
+  }
+}
+
 class Insert extends Record {
 
   constructor(public context:ReferenceContext, tags:string[] = [], attributes:RecordAttributes = {}, record?:Reference) {
@@ -937,6 +1018,10 @@ class Fn extends DSLBase {
       this.output = Reference.create(context, this);
     }
     context.flow.collect(this);
+  }
+
+  reference():Value {
+    return this.output;
   }
 
   access(refContext:ReferenceContext, activeContext:ReferenceContext, prop:string) {
@@ -1025,6 +1110,7 @@ class Union extends DSLBase {
       branches.push(flow);
       ix++;
     }
+    context.flow.collect(this);
   }
 
   getInputRegisters() {
@@ -1046,23 +1132,16 @@ class Union extends DSLBase {
     return 0;
   }
 
-  unify() {
-    for(let block of this.branches) {
-      block.unify();
-    }
-  }
-
   build(nodes:Runtime.Node[], inputs:Register[]):Runtime.Node {
     return new Runtime.UnionFlow(nodes, inputs);
   }
 
   compile(items:Node[]) {
-    this.unify();
     let {context} = this;
     let nodes:Runtime.Node[] = [];
     for(let flow of this.branches) {
-      let nodes = flow.compile(items);
-      nodes.push(nodes[0]);
+      let compiled = flow.compile(items);
+      nodes.push(compiled[0]);
     }
     let inputs = this.inputs.map((v) => context.getValue(v)).filter(isRegister) as Register[];
     return this.build(nodes, inputs);
@@ -1078,8 +1157,14 @@ class Choose extends Union {
 // Program
 //--------------------------------------------------------------------
 
+// You can specify changes as either [e,a,v] or [e,a,v,round,count];
+export type EAVTuple = [RawValue, RawValue, RawValue];
+export type EAVRCTuple = [RawValue, RawValue, RawValue, number, number];
+export type TestChange =  EAVTuple | EAVRCTuple;
+
 export class Program {
-  // blocks:[] = [];
+  blocks:Runtime.Block[] = [];
+  flows:LinearFlow[] = [];
   index:indexes.Index;
   nodeCount = 0;
 
@@ -1093,8 +1178,36 @@ export class Program {
 
   block(name:string, func:LinearFlowFunction) {
     let flow = new LinearFlow(func);
+    let nodes = flow.compile();
+    let block = new Runtime.Block(name, nodes, flow.context.maxRegisters);
+    this.flows.push(flow);
+    this.blocks.push(block);
+    console.log(block);
     console.log(flow);
-    console.log(flow.compile());
+    // console.log(nodes);
+    return this;
+  }
+
+
+  input(changes:Runtime.Change[]) {
+    let trans = new Runtime.Transaction(changes[0].transaction, this.blocks, changes, /* this._exporter && this._exporter.handle */);
+    trans.exec(this.index);
+    return trans;
+  }
+
+  test(transaction:number, eavns:TestChange[]) {
+    let changes:Runtime.Change[] = [];
+    let trans = new Runtime.Transaction(transaction, this.blocks, changes, /* this._exporter && this._exporter.handle */);
+    for(let [e, a, v, round = 0, count = 1] of eavns as EAVRCTuple[]) {
+      let change = Runtime.Change.fromValues(e, a, v, "my-awesome-node", transaction, round, count);
+      if(round === 0) {
+        changes.push(change);
+      } else {
+        trans.output(change);
+      }
+    }
+    trans.exec(this.index);
+    console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
     return this;
   }
 
@@ -1121,12 +1234,24 @@ export class Program {
 
 let p = new Program("test");
 
-p.block("coolness", ({find, not, record}) => {
+p.block("coolness", ({find, not, record, choose}) => {
   let person = find("person");
-  not(() => {
-    person.dog.cat;
+  let [info] = choose(() => {
+    person.dog;
+    return "cool";
+  }, () => {
+    return "not cool";
   });
   return [
-    record("dog-less", {person})
+    record("dog-less", {info})
   ]
 })
+
+p.test(1, [
+  [1, "tag", "person"]
+]);
+
+p.test(2, [
+  [1, "dog", 2],
+  [2, "cat", 3]
+]);

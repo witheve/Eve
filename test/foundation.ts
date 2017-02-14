@@ -1,4 +1,4 @@
-import {Program} from "../src/runtime/dsl";
+import {Program} from "../src/runtime/dsl2";
 import {verify} from "./util";
 import * as test from "tape";
 
@@ -337,7 +337,7 @@ test.skip("not", (assert) => {
   let prog = new Program("test");
   prog.block("simple block", ({find, record, lib, not}) => {
     let person = find({tag: "person"});
-    not((subblock) => person.alive);
+    not(() => person.alive);
     return [
       person.add("dead", "true")
     ]
@@ -396,7 +396,7 @@ test("Basic not", (assert) => {
   let prog = new Program("test");
   prog.block("simple block", ({find, record, lib, not}) => {
     let person = find("person");
-    not((subblock) => {
+    not(() => {
       person.age;
     })
     return [
