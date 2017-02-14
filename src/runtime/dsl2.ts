@@ -299,7 +299,7 @@ export class ReferenceContext {
 // Linear Flow
 //--------------------------------------------------------------------
 
-type Node = Record | Insert | Fn | Not | Choose | Union | Aggregate | Lookup;
+type Node = Record | Insert | Fn | Not | Choose | Union | Aggregate | Lookup | Move;
 export type LinearFlowFunction = (self:LinearFlow) => (Value|Value[])
 type RecordAttributes = {[key:string]:Value|Value[]}
 type FlowRecordArg = string | RecordAttributes
@@ -415,11 +415,10 @@ class FlowLevel {
       join = new Runtime.BinaryJoinRight(join, node, union.getInputRegisters());
     }
 
-    // @TODO: Port aggregates
-    // for(let aggregate of this.aggregates) {
-    //   let aggregateNode = aggregate.compile();
-    //   join = new Runtime.MergeAggregateFlow(join, aggregateNode, aggregate.getInputRegisters(), aggregate.getOutputRegisters());
-    // }
+    for(let aggregate of this.aggregates) {
+      let aggregateNode = aggregate.compile();
+      join = new Runtime.MergeAggregateFlow(join, aggregateNode, aggregate.getInputRegisters(), aggregate.getOutputRegisters());
+    }
 
     nodes.push(join)
     return nodes;
@@ -693,9 +692,9 @@ class LinearFlow extends DSLBase {
     return choose.results.slice();
   }
 
-  gather = () => {
+  gather = (...projection:Reference[]) => {
     let active = this.context.getActive();
-
+    return new AggregateBuilder(active, projection);
   }
 
   //------------------------------------------------------------------
@@ -836,6 +835,10 @@ class WatchFlow extends LinearFlow {
 // DSL runtime types
 //--------------------------------------------------------------------
 
+//--------------------------------------------------------------------
+// Record
+//--------------------------------------------------------------------
+
 class Record extends DSLBase {
   attributes:Value[];
   constructor(public context:ReferenceContext, tags:string[] = [], attributes:RecordAttributes = {}, public record?:Reference) {
@@ -945,6 +948,10 @@ class Record extends DSLBase {
   }
 }
 
+//--------------------------------------------------------------------
+// Lookup
+//--------------------------------------------------------------------
+
 class Lookup extends DSLBase {
   attribute:Reference;
   value:Reference;
@@ -974,6 +981,10 @@ class Lookup extends DSLBase {
   }
 }
 
+//--------------------------------------------------------------------
+// Move
+//--------------------------------------------------------------------
+
 class Move extends DSLBase {
   constructor(public context:ReferenceContext, public ref:Reference) {
     super();
@@ -1000,6 +1011,10 @@ class Move extends DSLBase {
     return [new Runtime.MoveConstraint(local, parent)];
   }
 }
+
+//--------------------------------------------------------------------
+// Insert
+//--------------------------------------------------------------------
 
 class Insert extends Record {
 
@@ -1056,6 +1071,10 @@ class Insert extends Record {
   }
 }
 
+//--------------------------------------------------------------------
+// Watch
+//--------------------------------------------------------------------
+
 class Watch extends Insert {
   compile():(Runtime.Node|Runtime.Scan)[] {
     let {attributes, context} = this;
@@ -1071,6 +1090,10 @@ class Watch extends Insert {
     return nodes;
   }
 }
+
+//--------------------------------------------------------------------
+// Fn
+//--------------------------------------------------------------------
 
 class Fn extends DSLBase {
   output:Value;
@@ -1134,7 +1157,99 @@ class Fn extends DSLBase {
   }
 }
 
-class Aggregate extends DSLBase {}
+//--------------------------------------------------------------------
+// Aggregate
+//--------------------------------------------------------------------
+
+class Aggregate extends DSLBase {
+  output: Reference;
+
+  constructor(public context:ReferenceContext, public aggregate:any, public projection:Reference[], public group:Reference[], public args:Value[], output?:Reference) {
+    super();
+    if(output) {
+      this.output = output;
+    } else {
+      this.output = Reference.create(context, this);
+    }
+
+    // add all of our args to our projection
+    for(let arg of args) {
+      if(isReference(arg)) {
+        projection.push(arg);
+      }
+    }
+    context.flow.collect(this);
+  }
+
+  getInputRegisters():Register[] {
+    let {context} = this;
+    let items = concatArray([], this.args);
+    concatArray(items, this.projection);
+    concatArray(items, this.group);
+    return this.args.map((v) => context.getValue(v)).filter(isRegister) as Register[];
+  }
+
+  getOutputRegisters():Register[] {
+    // @TODO: should this blow up if it doesn't resolve to a register?
+    let value = this.context.getValue(this.output);
+    return [value as Register];
+  }
+
+  compile() {
+    let {context} = this;
+    let groupRegisters = this.group.map((v) => context.getValue(v)).filter(isRegister);
+    let projectRegisters = this.projection.map((v) => context.getValue(v)).filter(isRegister);
+    let inputs = this.args.map((v) => context.interned(v));
+    let agg = new this.aggregate(groupRegisters, projectRegisters, inputs, this.getOutputRegisters());
+    return agg;
+  }
+
+  reference():Reference {
+    return this.output;
+  }
+
+  per(...args:Reference[]) {
+    for(let arg of args) {
+      this.group.push(arg);
+    }
+  }
+}
+
+class AggregateBuilder {
+
+  group:Reference[] = [];
+
+  constructor(public context:ReferenceContext, public projection:Reference[]) {
+  }
+
+  per(...args:Reference[]) {
+    for(let arg of args) {
+      this.group.push(arg);
+    }
+  }
+
+  checkBlock() {
+    let active = this.context.getActive();
+    if(active !== this.context) throw new Error("Cannot gather in one scope and aggregate in another");
+  }
+
+  sum(value:Reference) {
+    this.checkBlock();
+    let agg = new Aggregate(this.context, Runtime.SumAggregate, this.projection, this.group, [value]);
+    return agg.reference();
+  }
+
+  count() {
+    this.checkBlock();
+    let agg = new Aggregate(this.context, Runtime.SumAggregate, this.projection, this.group, [1]);
+    return agg.reference();
+  }
+
+}
+
+//--------------------------------------------------------------------
+// Not
+//--------------------------------------------------------------------
 
 class Not extends LinearFlow {
   constructor(func:LinearFlowFunction, parent:LinearFlow) {
@@ -1142,6 +1257,10 @@ class Not extends LinearFlow {
     parent.collect(this);
   }
 }
+
+//--------------------------------------------------------------------
+// Union
+//--------------------------------------------------------------------
 
 class Union extends DSLBase {
   branches:LinearFlow[] = [];
@@ -1214,6 +1333,11 @@ class Union extends DSLBase {
     return this.build(nodes, inputs);
   }
 }
+
+//--------------------------------------------------------------------
+// Choose
+//--------------------------------------------------------------------
+
 class Choose extends Union {
   build(nodes:Runtime.Node[], inputs:Register[]):Runtime.Node {
     return new Runtime.ChooseFlow(nodes, inputs);
@@ -1333,5 +1457,25 @@ export class Program {
 // p.test(2, [
 //   [1, "dog", 2],
 //   [2, "cat", 3]
+// ]);
+
+
+// let p = new Program("test");
+
+// p.block("coolness", ({find, not, record, choose, gather}) => {
+//   let person = find("person");
+//   let total = gather(person).count();
+//   return [
+//     record("total-people", {total})
+//   ]
+// })
+
+// p.test(1, [
+//   [1, "tag", "person"],
+//   [2, "tag", "person"]
+// ]);
+
+// p.test(2, [
+//   [1, "tag", "person", 0, -1]
 // ]);
 

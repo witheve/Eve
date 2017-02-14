@@ -1775,7 +1775,7 @@ export abstract class AggregateNode implements Node {
     let countIx = 0;
     for(let count of counts) {
       // we need the total up to our current round
-      if(countIx >= prefixRound) break;
+      if(countIx > prefixRound) break;
       if(!count) continue;
       totalCount += count;
       countIx++;
