@@ -55,6 +55,21 @@ export class Reference {
     return proxied;
   }
 
+  add(attribute:Value, value:Value):Reference {
+    if(this.__owner instanceof Record) {
+      // we only allow you to call add at the root context
+      if(this.__context.parent) throw new Error("Add can't be called in a sub-block");
+      this.__owner.add(this.__context, attribute, value);
+      return this;
+    } else {
+      throw new Error("Can't call add on a non-record");
+    }
+  }
+
+  remove() {
+    throw new Error("Implement me!");
+  }
+
   __proxy() {
     return new Proxy(this, {
       get: (obj:any, prop:string) => {
@@ -849,6 +864,16 @@ class Record extends DSLBase {
     return this.record!;
   }
 
+  add(context:ReferenceContext, attribute:Value, value:Value) {
+    let insert = new Insert(context, [], {}, this.reference());
+    insert.add(context, attribute, value);
+  }
+
+  remove(context:ReferenceContext, attribute:Value, value?:Value) {
+    let insert = new Insert(context, [], {}, this.reference());
+    insert.remove(context, attribute, value);
+  }
+
   copyToContext(activeContext:ReferenceContext) {
     let found = activeContext.flow.findReference(this);
     if(found) return found;
@@ -969,14 +994,16 @@ class Insert extends Record {
   constructor(public context:ReferenceContext, tags:string[] = [], attributes:RecordAttributes = {}, record?:Reference) {
     super(context, tags, attributes, record);
 
-    // we have to make our ID generation function
-    let args = [];
-    for(let ix = 0, len = this.attributes.length; ix < len; ix += 2) {
-      let v = this.attributes[ix + 1];
-      args.push(v);
-    }
+    if(!record) {
+      // we have to make our ID generation function
+      let args = [];
+      for(let ix = 0, len = this.attributes.length; ix < len; ix += 2) {
+        let v = this.attributes[ix + 1];
+        args.push(v);
+      }
 
-    let genId = new Fn(context, "eve/internal/gen-id", args, this.reference());
+      let genId = new Fn(context, "eve/internal/gen-id", args, this.reference());
+    }
   }
 
   createReference() {
@@ -986,6 +1013,14 @@ class Insert extends Record {
 
   createSub(context:ReferenceContext, record?:Reference):Record {
     return new Insert(context, undefined, undefined, record);
+  }
+
+  add(context:ReferenceContext, attribute:Value, value:Value) {
+    this.attributes.push(attribute, value);
+  }
+
+  remove(context:ReferenceContext, attribute:Value, value?:Value) {
+    throw new Error("Implement me!");
   }
 
   compile():(Runtime.Node|Runtime.Scan)[] {
@@ -1216,22 +1251,6 @@ export class Program {
 // Test
 //--------------------------------------------------------------------
 
-// let _context = new ReferenceContext();
-// let _context2 = new ReferenceContext(_context);
-// let foo = Reference.create(_context, "foo")
-// let bar = Reference.create(_context)
-// let baz = Reference.create(_context)
-// // context.equality(foo, bar);
-// _context.equality(bar, baz);
-// _context2.equality(baz, "moop");
-// _context.unify();
-// _context2.unify();
-// let ix = _context.assignRegisters();
-// _context2.assignRegisters()
-// console.log(_context)
-// console.log(_context2)
-// console.log(_context2.getMoves())
-
 let p = new Program("test");
 
 p.block("coolness", ({find, not, record, choose}) => {
@@ -1255,3 +1274,4 @@ p.test(2, [
   [1, "dog", 2],
   [2, "cat", 3]
 ]);
+
