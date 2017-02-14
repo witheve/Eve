@@ -39,7 +39,7 @@ export function create() {
     ];
   });
 
-  prog.block("Do something with clicks in the tag cloud.", ({find, record}) => {
+  prog.commit("Do something with clicks in the tag cloud.", ({find, record}) => {
     let click = find("html/event/click");
     let {element} = click;
     element.tag == "tag-browser/tag";

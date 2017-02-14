@@ -8,7 +8,7 @@ declare var Proxy:new (obj:any, proxy:any) => any;
 declare var Symbol:any;
 
 import {RawValue, Register, isRegister, GlobalInterner, Scan, IGNORE_REG, ID,
-        InsertNode, WatchNode, Node, Constraint, FunctionConstraint, Change, concatArray, RawEAV, RawEAVC} from "./runtime";
+        InsertNode, CommitNode, WatchNode, Node, Constraint, FunctionConstraint, Change, concatArray, RawEAV, RawEAVC} from "./runtime";
 import * as runtime from "./runtime";
 import * as indexes from "./indexes";
 import {Watcher, Exporter, DiffConsumer, ObjectConsumer, RawRecord} from "../watchers/watcher";
@@ -358,6 +358,8 @@ class DSLRecord {
         let value = toValue(dslValue) as (RawValue | Register);
         if(this.__block.watcher) {
           inserts.push(new WatchNode(e, maybeIntern(field), maybeIntern(value), maybeIntern(program.nodeCount++), this.__block.__id))
+        } else if(this.__block.commit) {
+          inserts.push(new CommitNode(e, maybeIntern(field), maybeIntern(value), maybeIntern(program.nodeCount++)))
         } else {
           inserts.push(new InsertNode(e, maybeIntern(field), maybeIntern(value), maybeIntern(program.nodeCount++)))
         }
@@ -368,6 +370,8 @@ class DSLRecord {
           let value = toValue(dslValue) as (RawValue | Register);
           if(this.__block.watcher) {
             inserts.push(new WatchNode(e, maybeIntern(field), maybeIntern(value), maybeIntern(program.nodeCount++), this.__block.__id))
+          } else if(this.__block.commit) {
+            inserts.push(new CommitNode(e, maybeIntern(field), maybeIntern(value), maybeIntern(program.nodeCount++)))
           } else {
             inserts.push(new InsertNode(e, maybeIntern(field), maybeIntern(value), maybeIntern(program.nodeCount++)))
           }
@@ -433,7 +437,7 @@ class DSLBlock {
 
   lib = this.generateLib();
 
-  constructor(public name:string, public creationFunction:BlockFunction, public readonly program:Program, mangle = true, public readonly watcher = false) {
+  constructor(public name:string, public creationFunction:BlockFunction, public readonly program:Program, mangle = true, public readonly watcher = false, public readonly commit = false) {
     this.__id = CURRENT_ID++;
     let neueFunc = creationFunction;
     if(mangle) {
@@ -1155,6 +1159,16 @@ export class Program {
 
   block(name:string, func:BlockFunction) {
     let block = new DSLBlock(name, func, this);
+    block.prepare();
+    this.blocks.push(block);
+    this.runtimeBlocks.push(block.block);
+
+    return this;
+  }
+
+  commit(name:string, func:BlockFunction) {
+    // @NOTE: This garbage will get cleaned up when the DSL refactor lands.
+    let block = new DSLBlock(name, func, this, true, false, true);
     block.prepare();
     this.blocks.push(block);
     this.runtimeBlocks.push(block.block);

@@ -23,7 +23,7 @@ class HTMLWatcher extends Watcher {
     for(let eav of eavs) {
       eav[3] = -1;
     }
-    //this.program.inputEavs(eavs);
+    this.program.inputEavs(eavs);
   }
 
   getStyle(id:RawValue) {

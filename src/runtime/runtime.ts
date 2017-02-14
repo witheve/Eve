@@ -1348,6 +1348,48 @@ export class InsertNode implements Node {
   }
 }
 
+export class CommitNode extends InsertNode {
+  exec(index:Index, input:Change, prefix:ID[], transactionId:number, round:number, results:Iterator<ID[]>, transaction:Transaction):boolean {
+    let {e,a,v,n} = this.resolve(prefix);
+
+    // @FIXME: This is pretty wasteful to copy one by one here.
+    results!.push(prefix);
+
+    if(e === undefined || a === undefined || v === undefined || n === undefined) {
+      return false;
+    }
+
+    let prefixRound = prefix[prefix.length - 2];
+    let prefixCount = prefix[prefix.length - 1];
+
+    let key = this.key(e, a, v, prefixRound + 1);
+    let prevCount = this.intermediates[key] || 0;
+    let newCount = prevCount + prefixCount;
+    this.intermediates[key] = newCount;
+
+    let delta = 0;
+    if(prevCount > 0 && newCount <= 0) delta = -1;
+    if(prevCount <= 0 && newCount > 0) delta = 1;
+
+    if(delta === 1) { // @NOTE: What about removals?
+      // @TODO: when we do removes, we could say that if the result is a remove, we want to
+      // dereference these ids instead of referencing them. This would allow us to clean up
+      // the interned space based on what's "in" the indexes. The only problem is that if you
+      // held on to a change, the IDs of that change may no longer be in the interner, or worse
+      // they may have been reassigned to something else. For now, we'll just say that once something
+      // is in the index, it never goes away.
+      GlobalInterner.reference(e!);
+      GlobalInterner.reference(a!);
+      GlobalInterner.reference(v!);
+      GlobalInterner.reference(n!);
+      let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount);
+      this.output(transaction, change);
+    }
+
+    return true;
+  }
+}
+
 export class WatchNode extends InsertNode {
   constructor(public e:ID|Register,
               public a:ID|Register,
