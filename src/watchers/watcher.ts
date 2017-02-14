@@ -1,4 +1,4 @@
-import {Program, BlockFunction} from "../runtime/dsl";
+import {Program, LinearFlowFunction} from "../runtime/dsl2";
 import * as glob from "glob";
 import * as fs from "fs";
 

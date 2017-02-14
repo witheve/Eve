@@ -300,8 +300,8 @@ export class ReferenceContext {
 //--------------------------------------------------------------------
 
 type Node = Record | Insert | Fn | Not | Choose | Union | Aggregate | Lookup;
-type LinearFlowFunction = (self:LinearFlow) => (Value|Value[])
-type RecordAttributes = {[key:string]:Value}
+export type LinearFlowFunction = (self:LinearFlow) => (Value|Value[])
+type RecordAttributes = {[key:string]:Value|Value[]}
 type FlowRecordArg = string | RecordAttributes
 
 class FlowLevel {
@@ -310,7 +310,6 @@ class FlowLevel {
   functions:Fn[] = [];
   aggregates:Aggregate[] = [];
   inserts:Insert[] = [];
-  watches:Watch[] = [];
   nots:Not[] = [];
   chooses:Choose[] = [];
   unions:Union[] = [];
@@ -327,8 +326,6 @@ class FlowLevel {
       this.functions.push(node);
     } else if(node instanceof Aggregate) {
       this.aggregates.push(node);
-    } else if(node instanceof Watch) {
-      this.watches.push(node);
     } else if(node instanceof Not) {
       this.nots.push(node);
     } else if(node instanceof Choose) {
@@ -399,7 +396,7 @@ class FlowLevel {
       // the results of the inner join with many outers, we'll still enumerate the
       // whole set. This *may* be necessary for getting the correct multiplicities
       // anyways, so this is what we're doing.
-      let notNodes = not.compile(toPass);
+      let notNodes = not.compile(toPass.concat(items));
       // @TODO: once we have multiple nodes in a not (e.g. aggs, or recursive not/choose/union)
       // this won't be sufficient.
       let notJoinNode = notNodes[0];
@@ -408,13 +405,13 @@ class FlowLevel {
 
     for(let choose of this.chooses) {
       // For why we pass items down, see the comment about not
-      let node = choose.compile(toPass);
+      let node = choose.compile(toPass.concat(items));
       join = new Runtime.BinaryJoinRight(join, node, choose.getInputRegisters());
     }
 
     for(let union of this.unions) {
       // For why we pass items down, see the comment about not
-      let node = union.compile(toPass);
+      let node = union.compile(toPass.concat(items));
       join = new Runtime.BinaryJoinRight(join, node, union.getInputRegisters());
     }
 
@@ -714,7 +711,7 @@ class LinearFlow extends DSLBase {
     let nodes:Runtime.Node[] = [];
 
     for(let move of this.context.getMoves()) {
-      this.collector.collect(move);
+      this.collect(move);
     }
 
     // Split our collector into levels
@@ -727,12 +724,6 @@ class LinearFlow extends DSLBase {
 
     // all the inputs end up at the end
     for(let record of this.collector.inserts) {
-      let compiled = record.compile();
-      for(let node of compiled) {
-        nodes.push(node as Runtime.Node);
-      }
-    }
-    for(let record of this.collector.watches) {
       let compiled = record.compile();
       for(let node of compiled) {
         nodes.push(node as Runtime.Node);
@@ -814,11 +805,30 @@ class LinearFlow extends DSLBase {
     let compare = new RegExp(`${infixParam}\\s*(>|>=|<|<=|!=|==)\\s*${infixParam}`, "gi");
     code = this.replaceInfix(strings, functionArgs, code, compare, "compare");
 
-    code = code.replace(/____([0-9]+)____/gi, function(str, index:string) {
-      let found = strings[parseInt(index)];
-      return found || str;
-    })
+    let changed = true;
+    while(changed) {
+      changed = false;
+      code = code.replace(/____([0-9]+)____/gi, function(str, index:string) {
+        let found = strings[parseInt(index)];
+        if(found) changed = true;
+        return found || str;
+      })
+    }
     return code;
+  }
+}
+
+//--------------------------------------------------------------------
+// WatchFlow
+//--------------------------------------------------------------------
+
+class WatchFlow extends LinearFlow {
+  collect(node:Node) {
+    if(!(node instanceof Watch) && node instanceof Insert) {
+      node = node.toWatch();
+      return;
+    }
+    super.collect(node);
   }
 }
 
@@ -833,7 +843,7 @@ class Record extends DSLBase {
     if(!record) {
       this.record = this.createReference();
     }
-    let attrs = [];
+    let attrs:Value[] = [];
     for(let tag of tags) {
       attrs.push("tag", tag);
     }
@@ -842,9 +852,11 @@ class Record extends DSLBase {
       let value = attributes[attr];
       if(isArray(value)) {
         for(let current of value) {
-          attrs.push(attr, value);
+          if(isReference(value)) context.register(value as Reference);
+          attrs.push(attr, current);
         }
       } else {
+        if(isReference(value)) context.register(value as Reference);
         attrs.push(attr, value);
       }
     }
@@ -1023,6 +1035,12 @@ class Insert extends Record {
     throw new Error("Implement me!");
   }
 
+  toWatch() {
+    let watch = new Watch(this.context, [], {}, this.record);
+    watch.attributes = this.attributes;
+    return watch;
+  }
+
   compile():(Runtime.Node|Runtime.Scan)[] {
     let {attributes, context} = this;
     let nodes = [];
@@ -1038,7 +1056,21 @@ class Insert extends Record {
   }
 }
 
-class Watch extends Insert {}
+class Watch extends Insert {
+  compile():(Runtime.Node|Runtime.Scan)[] {
+    let {attributes, context} = this;
+    let nodes = [];
+    let e = context.interned(this.record!);
+    for(let ix = 0, len = attributes.length; ix < len; ix += 2) {
+      let a = attributes[ix];
+      let v = attributes[ix + 1];
+      // @TODO: get a real node id
+      let n = "awesome";
+      nodes.push(new Runtime.WatchNode(e, context.interned(a), context.interned(v), context.interned(n), context.flow.ID));
+    }
+    return nodes;
+  }
+}
 
 class Fn extends DSLBase {
   output:Value;
@@ -1203,12 +1235,13 @@ export class Program {
   index:indexes.Index;
   nodeCount = 0;
 
-  // protected _exporter?:runtime.Exporter;
-  // protected _lastWatch?:number;
-  // protected _watchers:{[id:string]: Watcher|undefined} = {};
+  protected exporter:Runtime.Exporter;
+  protected lastWatch?:number;
+  protected watchers:{[id:string]: Watcher|undefined} = {};
 
   constructor(public name:string) {
     this.index = new indexes.HashIndex();
+    this.exporter = new Runtime.Exporter();
   }
 
   block(name:string, func:LinearFlowFunction) {
@@ -1217,22 +1250,22 @@ export class Program {
     let block = new Runtime.Block(name, nodes, flow.context.maxRegisters);
     this.flows.push(flow);
     this.blocks.push(block);
-    console.log(block);
-    console.log(flow);
+    // console.log(block);
+    // console.log(flow);
     // console.log(nodes);
     return this;
   }
 
 
   input(changes:Runtime.Change[]) {
-    let trans = new Runtime.Transaction(changes[0].transaction, this.blocks, changes, /* this._exporter && this._exporter.handle */);
+    let trans = new Runtime.Transaction(changes[0].transaction, this.blocks, changes, this.lastWatch ? this.exporter.handle : undefined);
     trans.exec(this.index);
     return trans;
   }
 
   test(transaction:number, eavns:TestChange[]) {
     let changes:Runtime.Change[] = [];
-    let trans = new Runtime.Transaction(transaction, this.blocks, changes, /* this._exporter && this._exporter.handle */);
+    let trans = new Runtime.Transaction(transaction, this.blocks, changes, this.lastWatch ? this.exporter.handle : undefined);
     for(let [e, a, v, round = 0, count = 1] of eavns as EAVRCTuple[]) {
       let change = Runtime.Change.fromValues(e, a, v, "my-awesome-node", transaction, round, count);
       if(round === 0) {
@@ -1246,32 +1279,59 @@ export class Program {
     return this;
   }
 
+  attach(id:string) {
+    let WatcherConstructor = Watcher.get(id);
+    if(!WatcherConstructor) throw new Error(`Unable to attach unknown watcher '${id}'.`);
+    if(this.watchers[id]) return this.watchers[id];
+    let watcher = new WatcherConstructor(this);
+    this.watchers[id] = watcher;
+    return watcher;
+  }
+
+  watch(name:string, func:LinearFlowFunction) {
+    let flow = new WatchFlow(func);
+    let nodes = flow.compile();
+    let block = new Runtime.Block(name, nodes, flow.context.maxRegisters);
+    this.lastWatch = flow.ID;
+    this.flows.push(flow);
+    this.blocks.push(block);
+    // console.log("WATCH FLOW", flow);
+    // console.log("WATCH BLOCK", block);
+    return this;
+  }
+
+  asDiffs(handler:Runtime.DiffConsumer) {
+    if(!this.lastWatch) throw new Error("Must have at least one watch block to export as diffs.");
+    this.exporter.triggerOnDiffs(this.lastWatch, handler);
+
+    return this;
+  }
 }
 //--------------------------------------------------------------------
 // Test
 //--------------------------------------------------------------------
 
-let p = new Program("test");
+// let p = new Program("test");
 
-p.block("coolness", ({find, not, record, choose}) => {
-  let person = find("person");
-  let [info] = choose(() => {
-    person.dog;
-    return "cool";
-  }, () => {
-    return "not cool";
-  });
-  return [
-    record("dog-less", {info})
-  ]
-})
+// p.block("coolness", ({find, not, record, choose}) => {
+//   let person = find("person");
+//   let [info] = choose(() => {
+//     person.dog;
+//     return "cool";
+//   }, () => {
+//     return "not cool";
+//   });
+//   return [
+//     record("dog-less", {info})
+//   ]
+// })
 
-p.test(1, [
-  [1, "tag", "person"]
-]);
+// p.test(1, [
+//   [1, "tag", "person"]
+// ]);
 
-p.test(2, [
-  [1, "dog", 2],
-  [2, "cat", 3]
-]);
+// p.test(2, [
+//   [1, "dog", 2],
+//   [2, "cat", 3]
+// ]);
 
