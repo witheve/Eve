@@ -1247,14 +1247,14 @@ export class Program {
   }
 
 
-  attach(id:string) {
-    let WatcherConstructor = Watcher.get(id);
-    if(!WatcherConstructor) throw new Error(`Unable to attach unknown watcher '${id}'.`);
-    if(this._watchers[id]) return this._watchers[id];
-    let watcher = new WatcherConstructor(this);
-    this._watchers[id] = watcher;
-    return watcher;
-  }
+  // attach(id:string) {
+  //   let WatcherConstructor = Watcher.get(id);
+  //   if(!WatcherConstructor) throw new Error(`Unable to attach unknown watcher '${id}'.`);
+  //   if(this._watchers[id]) return this._watchers[id];
+  //   let watcher = new WatcherConstructor(this);
+  //   this._watchers[id] = watcher;
+  //   return watcher;
+  // }
 
 
   block(name:string, func:BlockFunction) {
