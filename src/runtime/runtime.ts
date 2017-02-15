@@ -1695,10 +1695,17 @@ export class Transaction {
 
   protected collapseMultiplicity(changes:Change[], results:Change[] /* output */) {
     // We sort the changes to group all the same EAVs together.
-    // @FIXME: This sort comparator is flawed. It can't differentiate certain EAVs, e.g.:
-    // A: [1, 2, 3]
-    // B: [2, 1, 3]
-    changes.sort((a,b) => (a.e - b.e) + (a.a - b.a) + (a.v - b.v));
+    changes.sort((a,b) => {
+      let eDiff = a.e - b.e;
+      if(!eDiff) {
+        let aDiff = a.a - b.a;
+        if(!aDiff) {
+          return a.v - b.v;
+        }
+        return aDiff;
+      }
+      return eDiff;
+    });
     let changeIx = 0;
     for(let changeIx = 0; changeIx < changes.length; changeIx++) {
       let current = changes[changeIx];
