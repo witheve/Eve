@@ -113,6 +113,42 @@ test("simple addition", (assert) => {
   assert.end();
 });
 
+test("simple division", (assert) => {
+
+  // -----------------------------------------------------
+  // program
+  // -----------------------------------------------------
+
+  let prog = new Program("test");
+  prog.block("simple block", ({find, record, lib}) => {
+    let a = find("person");
+    let b = find("person");
+    a.age > b.age;
+    let result = a.age / b.age;
+    return [
+      record({age1: a.age, age2: b.age, result})
+    ]
+  });
+
+  // -----------------------------------------------------
+  // verification
+  // -----------------------------------------------------
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+    [1, "age", 7],
+    [2, "tag", "person"],
+    [2, "age", 35],
+  ], [
+    [4, "age1", 35, 1],
+    [4, "age2", 7, 1],
+    [4, "result", 5, 1],
+  ])
+
+  assert.end();
+});
+
+
 test("simple recursion", (assert) => {
   // -----------------------------------------------------
   // program

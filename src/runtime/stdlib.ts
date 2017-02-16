@@ -90,7 +90,7 @@ makeFunction({
 });
 
 makeFunction({
-  name: "math/divide",
+  name: "math//",
   args: {a: "number", b: "number"},
   returns: {result: "number"},
   apply: (a:number, b:number) => {

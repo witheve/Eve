@@ -612,7 +612,7 @@ class LinearFlow extends DSLBase {
     let lib:any = {};
     let registered = Runtime.FunctionConstraint.registered;
     for(let name in registered) {
-      let parts = name.replace(/\/\//gi, "slash").split("/").map((v) => v === "slash" ? "/" : v);
+      let parts = name.replace(/\/\//gi, "/slash").split("/").map((v) => v === "slash" ? "/" : v);
       let final = parts.pop();
       let found = lib;
       for(let part of parts) {
