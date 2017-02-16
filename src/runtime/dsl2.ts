@@ -8,6 +8,7 @@ import {RawValue, Register, isRegister, GlobalInterner, ID, concatArray} from ".
 import * as Runtime from "./runtime";
 import * as indexes from "./indexes";
 import {Watcher} from "../watchers/watcher";
+import "./runtime/stdlib";
 
 const UNASSIGNED = -1;
 
