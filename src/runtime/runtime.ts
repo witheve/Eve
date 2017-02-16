@@ -1463,6 +1463,7 @@ export class DownstreamJoinNode extends JoinNode {
 
 export class InsertNode implements Node {
   intermediates:{[key:string]: number|undefined} = {};
+  multiplier:number = 1;
 
   constructor(public e:ID|Register,
               public a:ID|Register,
@@ -1477,19 +1478,8 @@ export class InsertNode implements Node {
     return `${e}|${a}|${v}|${round}`;
   }
 
-  exec(index:Index, input:Change, prefix:ID[], transactionId:number, round:number, results:Iterator<ID[]>, transaction:Transaction):boolean {
-    let {e,a,v,n} = this.resolve(prefix);
-
-    // @FIXME: This is pretty wasteful to copy one by one here.
-    results!.push(prefix);
-
-    if(e === undefined || a === undefined || v === undefined || n === undefined) {
-      return false;
-    }
-
-    let prefixRound = prefix[prefix.length - 2];
-    let prefixCount = prefix[prefix.length - 1];
-
+  shouldOutput(resolved:ResolvedEAVN, prefixRound:number, prefixCount:Multiplicity, transaction:Transaction) {
+    let {e,a,v,n} = resolved;
     let key = this.key(e, a, v, prefixRound + 1);
     let prevCount = this.intermediates[key] || 0;
     let newCount = prevCount + prefixCount;
@@ -1501,7 +1491,24 @@ export class InsertNode implements Node {
 
     debug("         ?? <-", e, a, v, prefixRound + 1, {prevCount, newCount, delta})
 
-    if(delta) {
+    return delta;
+  }
+
+  exec(index:Index, input:Change, prefix:ID[], transactionId:number, round:number, results:Iterator<ID[]>, transaction:Transaction):boolean {
+    let resolved = this.resolve(prefix);
+    let {e,a,v,n} = resolved;
+
+    // @FIXME: This is pretty wasteful to copy one by one here.
+    results!.push(prefix);
+
+    if(e === undefined || a === undefined || v === undefined || n === undefined) {
+      return false;
+    }
+
+    let prefixRound = prefix[prefix.length - 2];
+    let prefixCount = prefix[prefix.length - 1];
+
+    if(this.shouldOutput(resolved, prefixRound, prefixCount, transaction)) {
       // @TODO: when we do removes, we could say that if the result is a remove, we want to
       // dereference these ids instead of referencing them. This would allow us to clean up
       // the interned space based on what's "in" the indexes. The only problem is that if you
@@ -1512,7 +1519,7 @@ export class InsertNode implements Node {
       GlobalInterner.reference(a!);
       GlobalInterner.reference(v!);
       GlobalInterner.reference(n!);
-      let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount);
+      let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount * this.multiplier);
       this.output(transaction, change);
     }
 
@@ -1540,6 +1547,47 @@ export class WatchNode extends InsertNode {
   output(transaction:Transaction, change:Change) {
     transaction.export(this.blockId, change);
   }
+}
+
+export class RemoveNode extends InsertNode {
+  multiplier:number = -1;
+}
+
+export class CommitInsertNode extends InsertNode {
+  lastRound = 0;
+  lastTransaction = 0;
+  roundCounts:{[key:string]:number} = {};
+
+  shouldOutput(resolved:ResolvedEAVN, prefixRound:number, prefixCount:Multiplicity, transaction:Transaction) {
+    let superDelta = super.shouldOutput(resolved, prefixRound, prefixCount, transaction);
+    if(this.lastRound !== prefixRound || this.lastTransaction !== transaction.transaction) {
+      this.lastTransaction = transaction.transaction;
+      this.lastRound = prefixRound;
+      this.roundCounts = {};
+    }
+
+    let {roundCounts} = this;
+    let {e,a,v,n} = resolved;
+    let key = `${e}|${a}|${v}|${prefixRound + 1}`;
+    let prevCount = roundCounts[key] || 0;
+    let newCount = prevCount + prefixCount;
+    roundCounts[key] = newCount;
+
+    // if we said something previously and now we're saying nothing, we should be negative
+    // if we haven't said anything and we get a negative, we should be 0
+    let delta = 0;
+    if(prevCount > 0 && newCount <= 0 && superDelta === -1) delta = -1;
+    if(prevCount === 0 && newCount > 0 && superDelta === 1) delta = 1;
+
+    debug("         ?? <-", e, a, v, prefixRound + 1, {prevCount, newCount, delta})
+
+    return delta;
+  }
+
+}
+
+export class CommitRemoveNode extends CommitInsertNode {
+  multiplier = -1;
 }
 
 //------------------------------------------------------------------------------
