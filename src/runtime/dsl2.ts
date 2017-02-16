@@ -8,7 +8,7 @@ import {RawValue, Register, isRegister, GlobalInterner, ID, concatArray} from ".
 import * as Runtime from "./runtime";
 import * as indexes from "./indexes";
 import {Watcher} from "../watchers/watcher";
-import "./runtime/stdlib";
+import "./stdlib";
 
 const UNASSIGNED = -1;
 
@@ -612,7 +612,7 @@ class LinearFlow extends DSLBase {
     let lib:any = {};
     let registered = Runtime.FunctionConstraint.registered;
     for(let name in registered) {
-      let parts = name.split("/");
+      let parts = name.replace(/\/\//gi, "slash").split("/").map((v) => v === "slash" ? "/" : v);
       let final = parts.pop();
       let found = lib;
       for(let part of parts) {
@@ -761,7 +761,7 @@ class LinearFlow extends DSLBase {
     return neueFunc;
   }
 
-  replaceInfix(strings:string[], functionArgs:string[], code:string, regex:RegExp, prefix?:string, replaceOp?:string) {
+  replaceInfix(strings:string[], functionArgs:string[], code:string, regex:RegExp, prefix?:string, replaceOp?:{[key:string]:string}) {
     let libArg = `${functionArgs[0]}.lib`;
     let hasChanged = true;
     while(hasChanged) {
@@ -775,7 +775,7 @@ class LinearFlow extends DSLBase {
         }
         left = this.transformCode(left, functionArgs);
         right = this.transformCode(right, functionArgs);
-        let finalOp = replaceOp || `${prefix}["${op}"]`;
+        let finalOp = replaceOp && replaceOp[op] || `${prefix}["${op}"]`;
         strings.push(`${libArg}.${finalOp}(${left}, ${right})`);
         return "____" + (strings.length - 1) + "____";
       })
@@ -796,7 +796,7 @@ class LinearFlow extends DSLBase {
     // "foo" + person.name -> fn.eve.internal.concat("foo", person.name)
     // person.name + "foo" -> fn.eve.internal.concat(person.name, "foo")
     let stringAddition = new RegExp(`(?:${infixParam}\\s*(\\+)\\s*${stringPlaceholder})|(?:${stringPlaceholder}\\s*(\\+)\\s*${infixParam})`,"gi");
-    code = this.replaceInfix(strings, functionArgs, code, stringAddition, "", "eve.internal.concat");
+    code = this.replaceInfix(strings, functionArgs, code, stringAddition, "", {"+": "eve.internal.concat"});
 
     // a * b -> fn.math["*"](a, b)
     // a / b -> fn.math["/"](a, b)
