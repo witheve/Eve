@@ -1,6 +1,6 @@
 import {Index, ListIndex, HashIndex} from "./indexes";
 
-const DEBUG = false;
+const DEBUG = true;
 
 //------------------------------------------------------------------------
 // Debugging
@@ -488,8 +488,9 @@ export class Scan implements Constraint {
     }
     // If we aren't looking at any of these registers, then we just
     // say we accept.
-    if(!solving) return true;
     let {e,a,v,n} = this.resolve(prefix);
+    if(!solving) return true;
+    // let {e,a,v,n} = this.resolve(prefix);
     return index.check(e, a, v, n, transaction, round);
   }
 
@@ -500,7 +501,7 @@ export class Scan implements Constraint {
        (v === IGNORE_REG || input.v === v) &&
        (n === IGNORE_REG || input.n === n)) {
       return true;
-    } else  {
+    } else {
       return this.accept(index, prefix, transaction, round, this.registers);
     }
   }
@@ -1055,7 +1056,7 @@ export class JoinNode implements Node {
   }
 
   applyCombination(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>) {
-    debug("        Join combo:", prefix.slice());
+    console.log("  Join combo:", prefix.slice());
     let countOfSolved = 0;
     for(let ix = 0; ix < this.registerLookup.length; ix++) {
       if(!this.registerLookup[ix]) continue;
@@ -1065,6 +1066,7 @@ export class JoinNode implements Node {
     let valid = this.presolveCheck(index, input, prefix, transaction, round);
     if(!valid) {
       // do nothing
+      console.log("    INVALID!");
       return false;
 
     } else if(!remainingToSolve) {
@@ -1075,11 +1077,18 @@ export class JoinNode implements Node {
       results.push(copyArray(prefix, "results"));
       prefix[prefix.length - 2] = undefined as any;
       prefix[prefix.length - 1] = undefined as any;
+      console.log("    VALID");
+      console.log("    ", printPrefix(results.array[results.length - 1]));
       return true;
 
     } else {
       // For each node, find the new results that match the prefix.
+      console.log("    VALID");
+      let ol = results.length;
       this.genericJoin(index, prefix, transaction, round, results, remainingToSolve);
+      for(let ix = ol; ix < results.length; ix++) {
+        console.log("    ", printPrefix(results.array[ix]));
+      }
       return true;
     }
   }
@@ -1286,20 +1295,15 @@ export class DownstreamJoinNode extends JoinNode {
 }
 
 export class InsertNode implements Node {
-  intermediates:{[key:string]: number|undefined} = {};
-
   constructor(public e:ID|Register,
               public a:ID|Register,
               public v:ID|Register,
               public n:ID|Register) {}
 
+  protected intermediates:{[key:string]: number|undefined} = {};
   protected resolved:ResolvedEAVN = {e: undefined, a: undefined, v:undefined, n: undefined};
 
   resolve = Scan.prototype.resolve;
-
-  key(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, round:number) {
-    return `${e}|${a}|${v}|${round}`;
-  }
 
   exec(index:Index, input:Change, prefix:ID[], transactionId:number, round:number, results:Iterator<ID[]>, transaction:Transaction):boolean {
     let {e,a,v,n} = this.resolve(prefix);
@@ -1313,37 +1317,45 @@ export class InsertNode implements Node {
 
     let prefixRound = prefix[prefix.length - 2];
     let prefixCount = prefix[prefix.length - 1];
+    let key = `${e}|${a}|${v}|${prefixRound + 1}`;
+    let delta = this.updateIntermediate(key, prefixCount);
 
-    let key = this.key(e, a, v, prefixRound + 1);
-    let prevCount = this.intermediates[key] || 0;
-    let newCount = prevCount + prefixCount;
-    this.intermediates[key] = newCount;
-
-    let delta = 0;
-    if(prevCount > 0 && newCount <= 0) delta = -1;
-    if(prevCount <= 0 && newCount > 0) delta = 1;
-
-    debug("         ?? <-", e, a, v, prefixRound + 1, {prevCount, newCount, delta})
+    debug("         ?? <-", e, a, v, prefixRound + 1, {delta})
 
     if(delta) {
-      // @TODO: when we do removes, we could say that if the result is a remove, we want to
-      // dereference these ids instead of referencing them. This would allow us to clean up
-      // the interned space based on what's "in" the indexes. The only problem is that if you
-      // held on to a change, the IDs of that change may no longer be in the interner, or worse
-      // they may have been reassigned to something else. For now, we'll just say that once something
-      // is in the index, it never goes away.
-      GlobalInterner.reference(e!);
-      GlobalInterner.reference(a!);
-      GlobalInterner.reference(v!);
-      GlobalInterner.reference(n!);
-      let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount);
-      this.output(transaction, change);
+      this.output(transaction, e, a, v, n, prefixRound + 1, prefixCount);
     }
 
     return true;
   }
 
-  output(transaction:Transaction, change:Change) {
+  updateIntermediate(key:string, count:number):number {
+    let prevCount = this.intermediates[key] || 0;
+    let newCount = prevCount + count;
+    this.intermediates[key] = newCount;
+
+    let delta = 0;
+
+    if(prevCount >= 0 && newCount <= 0) delta = -1;
+    if(prevCount <= 0 && newCount >= 0) delta = 1;
+    debug("          ", key, " prev:", prevCount, "new:", newCount);
+    return delta;
+  }
+
+  output(transaction:Transaction, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, round:number, count:number) {
+    // @TODO: when we do removes, we could say that if the result is a remove, we want to
+    // dereference these ids instead of referencing them. This would allow us to clean up
+    // the interned space based on what's "in" the indexes. The only problem is that if you
+    // held on to a change, the IDs of that change may no longer be in the interner, or worse
+    // they may have been reassigned to something else. For now, we'll just say that once something
+    // is in the index, it never goes away.
+    if(count > 0) {
+      GlobalInterner.reference(e!);
+      GlobalInterner.reference(a!);
+      GlobalInterner.reference(v!);
+      GlobalInterner.reference(n!);
+    }
+    let change = new Change(e!, a!, v!, n!, transaction.transaction, round, count);
     transaction.output(change);
   }
 }
@@ -1362,31 +1374,107 @@ export class CommitNode extends InsertNode {
     let prefixRound = prefix[prefix.length - 2];
     let prefixCount = prefix[prefix.length - 1];
 
-    let key = this.key(e, a, v, prefixRound + 1);
-    let prevCount = this.intermediates[key] || 0;
-    let newCount = prevCount + prefixCount;
-    this.intermediates[key] = newCount;
+    let key = `${e}|${a}|${v}|${prefixRound + 1}`;
+    let retractableKey = `${key}|${transactionId}`;
+    let old = this.intermediates[retractableKey] || 0;
+    let retractableDelta = this.updateIntermediate(retractableKey, prefixCount);
+    let neue = this.intermediates[retractableKey];
 
-    let delta = 0;
-    if(prevCount > 0 && newCount <= 0) delta = -1;
-    if(prevCount <= 0 && newCount > 0) delta = 1;
+    let delta = this.updateIntermediate(key, prefixCount);
 
-    if(delta === 1) { // @NOTE: What about removals?
-      // @TODO: when we do removes, we could say that if the result is a remove, we want to
-      // dereference these ids instead of referencing them. This would allow us to clean up
-      // the interned space based on what's "in" the indexes. The only problem is that if you
-      // held on to a change, the IDs of that change may no longer be in the interner, or worse
-      // they may have been reassigned to something else. For now, we'll just say that once something
-      // is in the index, it never goes away.
-      GlobalInterner.reference(e!);
-      GlobalInterner.reference(a!);
-      GlobalInterner.reference(v!);
-      GlobalInterner.reference(n!);
-      let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount);
-      this.output(transaction, change);
+    debug("         ?? <-", e, a, v, prefixRound + 1, round, {delta, retractableDelta})
+
+    if(retractableDelta < 0 && old <= 0 || retractableDelta > 0 && neue === 0) return true;
+
+    // Commits only do something on insertion, and can only create a single support.
+    if(delta && retractableDelta) {
+      this.output(transaction, e, a, v, n, prefixRound + 1, retractableDelta);
     }
 
     return true;
+  }
+}
+
+export class RemoveNode implements Node {
+  constructor(public e:ID|Register,
+              public a:ID|Register,
+              public v:ScanField,
+              public n:ID|Register) {}
+
+  protected intermediates:{[key:string]: number|undefined} = {};
+  protected resolved:ResolvedEAVN = {e: undefined, a: undefined, v:undefined, n: undefined};
+
+  resolve = Scan.prototype.resolve;
+  updateIntermediate = InsertNode.prototype.updateIntermediate;
+  //output = InsertNode.prototype.output;
+
+  exec(index:Index, input:Change, prefix:ID[], transactionId:number, round:number, results:Iterator<ID[]>, transaction:Transaction):boolean {
+    let {e,a,v,n} = this.resolve(prefix);
+
+    // @FIXME: This is pretty wasteful to copy one by one here.
+    results!.push(prefix);
+
+    if(e === undefined || a === undefined || n === undefined || (this.v !== IGNORE_REG) && v === undefined) {
+      return false;
+    }
+
+    let prefixRound = prefix[prefix.length - 2];
+    let prefixCount = prefix[prefix.length - 1];
+
+    let key = `${e}|${a}|${v}|${prefixRound + 1}`;
+    let retractableKey = `${key}|${transactionId}`;
+    let old = this.intermediates[retractableKey] || 0;
+    let retractableDelta = this.updateIntermediate(retractableKey, prefixCount);
+    let neue = this.intermediates[retractableKey];
+
+    let delta = this.updateIntermediate(key, prefixCount);
+
+
+    debug("         ?? <-", e, a, v, prefixRound + 1, round, {delta, retractableDelta});
+
+    if(retractableDelta < 0 && old <= 0 || retractableDelta > 0 && neue === 0) return true;
+
+    // removes only do something on insertion, and can only remove a single support.
+    if(delta && retractableDelta) {
+      // Check if the input matches, if so we're nuking him too.
+      // @NOTE: This isn't completely correct. Multiple inputs this round may be about the entity we've been asked to remove the EAvs for.
+      //        In that case, unlucky orderings mean we may only remove some or 1 of those matches.
+      // @NOTE: Leaving this out fails to remove the event at all, but including it causes count to infinitely recurse anyway? Or doesn't prevent it?
+      if(input.e === e && input.a === a && (input.v === v || this.v === IGNORE_REG)) {
+        this.output(transaction, e, a, input.v, input.n, input.round + 1, -input.count);
+      }
+
+      // If we're ignoring v, we want to remove all facts matching EA, so we find them in the index.
+      if(this.v === IGNORE_REG) {
+        let matches = index.get(e, a, v, IGNORE_REG, transactionId, Infinity);
+        for(let {v} of matches) {
+          let ntrcs = index.getDiffs(e, a, v, IGNORE_REG);
+          let roundToMultiplicity:{[round:number]: number} = {};
+          for(let ix = 0; ix < ntrcs.length; ix += 4) {
+            // n = ix, t = ix + 1, r = ix + 2, c = ix + 3
+            let round = ntrcs[ix + 2];
+            let count = ntrcs[ix + 3];
+            let cur = roundToMultiplicity[round] || 0;
+            roundToMultiplicity[round] = cur + count;
+          }
+          for(let roundString in roundToMultiplicity) {
+            let curRound = +roundString;
+            let count = roundToMultiplicity[curRound] * prefixCount;
+            if(count === 0) continue;
+            let changeRound = Math.max(prefixRound, curRound);
+            this.output(transaction, e, a, v, n, changeRound + 1, -count);
+          }
+        }
+      } else {
+        this.output(transaction, e, a, v, n, prefixRound + 1, -prefixCount);
+      }
+    }
+    return true;
+  }
+
+  output(transaction:Transaction, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, round:number, count:number) {
+    let change = new Change(e!, a!, v!, n!, transaction.transaction, round, count);
+    transaction.output(change);
   }
 }
 
@@ -1403,7 +1491,9 @@ export class WatchNode extends InsertNode {
     return `${e}|${a}|${v}`;
   }
 
-  output(transaction:Transaction, change:Change) {
+  output(transaction:Transaction, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, round:number, count:number) {
+    // @NOTE: No need to intern here, these values are about to be reversed into raws and shipped out of the system.
+    let change = new Change(e!, a!, v!, n!, transaction.transaction, round, count);
     transaction.export(this.blockId, change);
   }
 }

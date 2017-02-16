@@ -8,7 +8,7 @@ declare var Proxy:new (obj:any, proxy:any) => any;
 declare var Symbol:any;
 
 import {RawValue, Register, isRegister, GlobalInterner, Scan, IGNORE_REG, ID,
-        InsertNode, CommitNode, WatchNode, Node, Constraint, FunctionConstraint, Change, concatArray, RawEAV, RawEAVC} from "./runtime";
+        InsertNode, CommitNode, WatchNode, RemoveNode, Node, Constraint, FunctionConstraint, Change, concatArray, RawEAV, RawEAVC} from "./runtime";
 import * as runtime from "./runtime";
 import * as indexes from "./indexes";
 import {Watcher, Exporter, DiffConsumer, ObjectConsumer, RawRecord} from "../watchers/watcher";
@@ -219,6 +219,7 @@ class DSLRecord {
 
   __fields: {[field:string]: (RawValue|DSLNode)[]};
   __dynamicFields: [DSLVariable|string, DSLNode[]][] = [];
+  __removeFields: [DSLVariable|string, DSLNode[]|undefined][] = [];
   constructor(public __block:DSLBlock, tags:string[], initialAttributes:any, entityVariable?:DSLVariable) {
     this.__id = CURRENT_ID++;
     let fields:any = {tag: tags};
@@ -319,11 +320,24 @@ class DSLRecord {
     return this;
   }
 
-  remove(attributeName:string, value?:DSLNode) {
+  // @TODO: Support dynamic removes?
+  remove(attributeName:string|DSLVariable, values?:DSLNode|DSLNode[]) {
     if(this.__block !== this.__block.program.contextStack[0]) {
       throw new Error("Adds and removes may only happen in the root block.");
     }
-    throw new Error("@TODO: Implement me!");
+
+    let record = new DSLRecord(this.__block, [], {}, this.__record);
+    record.__output = true;
+    this.__block.records.push(record);
+
+    if(!values) {
+      record.__removeFields.push([attributeName, undefined]);
+
+    } else {
+      record.__removeFields.push([attributeName, toArray(values)]);
+    }
+
+    return this;
   }
 
   compile() {
@@ -374,6 +388,18 @@ class DSLRecord {
             inserts.push(new CommitNode(e, maybeIntern(field), maybeIntern(value), maybeIntern(program.nodeCount++)))
           } else {
             inserts.push(new InsertNode(e, maybeIntern(field), maybeIntern(value), maybeIntern(program.nodeCount++)))
+          }
+        }
+      }
+      for(let [dslField, dslValues] of this.__removeFields) {
+        let field = toValue(dslField) as (RawValue | Register);
+        if(!dslValues) {
+          inserts.push(new RemoveNode(e, maybeIntern(field), IGNORE_REG, maybeIntern(program.nodeCount++)));
+
+        } else {
+          for(let dslValue of dslValues) {
+            let value = toValue(dslValue) as (RawValue | Register);
+            inserts.push(new RemoveNode(e, maybeIntern(field), maybeIntern(value), maybeIntern(program.nodeCount++)));
           }
         }
       }
