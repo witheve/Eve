@@ -607,3 +607,61 @@ test("Basic aggregate", (assert) => {
   assert.end();
 });
 
+
+test("commit, remove, and recursion", (assert) => {
+
+  // -----------------------------------------------------
+  // program
+  // -----------------------------------------------------
+
+  let prog = new Program("test");
+
+  prog.commit("coolness", ({find, not, record, choose}) => {
+    let click = find("click", "direct-target");
+    let count = find("count");
+    let current = count.count;
+    3 > current;
+    return [
+      count.add("count", current + 1)
+    ]
+  })
+
+  prog.commit("foo", ({find}) => {
+    let click = find("click", "direct-target");
+    return [
+      click.remove("tag", "click"),
+      click.remove("tag", "direct-target"),
+    ];
+  })
+
+  // -----------------------------------------------------
+  // verification
+  // -----------------------------------------------------
+
+  verify(assert, prog, [
+    [1, "tag", "count"],
+    [1, "count", 0]
+  ], [
+  ])
+
+  verify(assert, prog, [
+    [2, "tag", "click"],
+    [2, "tag", "direct-target"]
+  ], [
+    [2, "tag", "click", 1, -1],
+    [2, "tag", "direct-target", 1, -1],
+    [1, "count", 1, 1],
+  ])
+
+  verify(assert, prog, [
+    [3, "tag", "click"],
+    [3, "tag", "direct-target"]
+  ], [
+    [3, "tag", "click", 1, -1],
+    [3, "tag", "direct-target", 1, -1],
+    [1, "count", 2, 2],
+  ])
+
+  assert.end();
+});
+

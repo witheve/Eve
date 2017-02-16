@@ -66,8 +66,16 @@ export class Reference {
     }
   }
 
-  remove() {
-    throw new Error("Implement me!");
+  // @TODO: allow free A's and V's here
+  remove(attribute:Value, value:Value):Reference {
+    if(this.__owner instanceof Record) {
+      // we only allow you to call remove at the root context
+      if(this.__context.parent) throw new Error("Add can't be called in a sub-block");
+      this.__owner.remove(this.__context, attribute, value);
+      return this;
+    } else {
+      throw new Error("Can't call add on a non-record");
+    }
   }
 
   __proxy() {
@@ -832,6 +840,20 @@ class WatchFlow extends LinearFlow {
 }
 
 //--------------------------------------------------------------------
+// CommitFlow
+//--------------------------------------------------------------------
+
+class CommitFlow extends LinearFlow {
+  collect(node:Node) {
+    if(!(node instanceof CommitInsert) && !(node instanceof CommitRemove) && node instanceof Insert) {
+      node = node.toCommit();
+      return;
+    }
+    super.collect(node);
+  }
+}
+
+//--------------------------------------------------------------------
 // DSL runtime types
 //--------------------------------------------------------------------
 
@@ -884,7 +906,7 @@ class Record extends DSLBase {
     insert.add(context, attribute, value);
   }
 
-  remove(context:ReferenceContext, attribute:Value, value?:Value) {
+  remove(context:ReferenceContext, attribute:Value, value:Value) {
     let insert = new Insert(context, [], {}, this.reference());
     insert.remove(context, attribute, value);
   }
@@ -1044,16 +1066,25 @@ class Insert extends Record {
 
   add(context:ReferenceContext, attribute:Value, value:Value) {
     this.attributes.push(attribute, value);
+    return this.reference();
   }
 
-  remove(context:ReferenceContext, attribute:Value, value?:Value) {
-    throw new Error("Implement me!");
+  remove(context:ReferenceContext, attribute:Value, value:Value) {
+    let remove = new Remove(context, [], {}, this.record);
+    remove.attributes.push(attribute, value);
+    return this.reference();
   }
 
   toWatch() {
     let watch = new Watch(this.context, [], {}, this.record);
     watch.attributes = this.attributes;
     return watch;
+  }
+
+  toCommit() {
+    let commit = new CommitInsert(this.context, [], {}, this.record);
+    commit.attributes = this.attributes;
+    return commit;
   }
 
   compile():(Runtime.Node|Runtime.Scan)[] {
@@ -1072,6 +1103,33 @@ class Insert extends Record {
 }
 
 //--------------------------------------------------------------------
+// Remove
+//--------------------------------------------------------------------
+
+class Remove extends Insert {
+  toCommit() {
+    let commit = new CommitRemove(this.context, [], {}, this.record);
+    commit.attributes = this.attributes;
+    return commit;
+  }
+
+  compile():(Runtime.Node|Runtime.Scan)[] {
+    let {attributes, context} = this;
+    let nodes = [];
+    let e = context.interned(this.record!);
+    for(let ix = 0, len = attributes.length; ix < len; ix += 2) {
+      let a = attributes[ix];
+      let v = attributes[ix + 1];
+      // @TODO: get a real node id
+      let n = "awesome";
+      nodes.push(new Runtime.RemoveNode(e, context.interned(a), context.interned(v), context.interned(n)));
+    }
+    return nodes;
+  }
+}
+
+
+//--------------------------------------------------------------------
 // Watch
 //--------------------------------------------------------------------
 
@@ -1086,6 +1144,46 @@ class Watch extends Insert {
       // @TODO: get a real node id
       let n = "awesome";
       nodes.push(new Runtime.WatchNode(e, context.interned(a), context.interned(v), context.interned(n), context.flow.ID));
+    }
+    return nodes;
+  }
+}
+
+//--------------------------------------------------------------------
+// CommitInsert
+//--------------------------------------------------------------------
+
+class CommitInsert extends Insert {
+  compile():(Runtime.Node|Runtime.Scan)[] {
+    let {attributes, context} = this;
+    let nodes = [];
+    let e = context.interned(this.record!);
+    for(let ix = 0, len = attributes.length; ix < len; ix += 2) {
+      let a = attributes[ix];
+      let v = attributes[ix + 1];
+      // @TODO: get a real node id
+      let n = "awesome";
+      nodes.push(new Runtime.CommitInsertNode(e, context.interned(a), context.interned(v), context.interned(n)));
+    }
+    return nodes;
+  }
+}
+
+//--------------------------------------------------------------------
+// CommitRemove
+//--------------------------------------------------------------------
+
+class CommitRemove extends Remove {
+  compile():(Runtime.Node|Runtime.Scan)[] {
+    let {attributes, context} = this;
+    let nodes = [];
+    let e = context.interned(this.record!);
+    for(let ix = 0, len = attributes.length; ix < len; ix += 2) {
+      let a = attributes[ix];
+      let v = attributes[ix + 1];
+      // @TODO: get a real node id
+      let n = "awesome";
+      nodes.push(new Runtime.CommitRemoveNode(e, context.interned(a), context.interned(v), context.interned(n)));
     }
     return nodes;
   }
@@ -1403,6 +1501,15 @@ export class Program {
     return this;
   }
 
+  commit(name:string, func:LinearFlowFunction) {
+    let flow = new CommitFlow(func);
+    let nodes = flow.compile();
+    let block = new Runtime.Block(name, nodes, flow.context.maxRegisters);
+    this.flows.push(flow);
+    this.blocks.push(block);
+    return this;
+  }
+
   attach(id:string) {
     let WatcherConstructor = Watcher.get(id);
     if(!WatcherConstructor) throw new Error(`Unable to attach unknown watcher '${id}'.`);
@@ -1431,51 +1538,5 @@ export class Program {
     return this;
   }
 }
-//--------------------------------------------------------------------
-// Test
-//--------------------------------------------------------------------
 
-// let p = new Program("test");
-
-// p.block("coolness", ({find, not, record, choose}) => {
-//   let person = find("person");
-//   let [info] = choose(() => {
-//     person.dog;
-//     return "cool";
-//   }, () => {
-//     return "not cool";
-//   });
-//   return [
-//     record("dog-less", {info})
-//   ]
-// })
-
-// p.test(1, [
-//   [1, "tag", "person"]
-// ]);
-
-// p.test(2, [
-//   [1, "dog", 2],
-//   [2, "cat", 3]
-// ]);
-
-
-// let p = new Program("test");
-
-// p.block("coolness", ({find, not, record, choose, gather}) => {
-//   let person = find("person");
-//   let total = gather(person).count();
-//   return [
-//     record("total-people", {total})
-//   ]
-// })
-
-// p.test(1, [
-//   [1, "tag", "person"],
-//   [2, "tag", "person"]
-// ]);
-
-// p.test(2, [
-//   [1, "tag", "person", 0, -1]
-// ]);
 
