@@ -1,4 +1,4 @@
-import {Program} from "../src/runtime/dsl";
+import {Program} from "../src/runtime/dsl2";
 import * as Runtime from "../src/runtime/runtime";
 import * as test from "tape";
 

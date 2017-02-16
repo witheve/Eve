@@ -1,4 +1,4 @@
-import {Program} from "../src/runtime/dsl";
+import {Program} from "../src/runtime/dsl2";
 import {verify, createChanges, time} from "./util";
 import {HashIndex} from "../src/runtime/indexes";
 import * as test from "tape";

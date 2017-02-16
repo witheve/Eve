@@ -38,7 +38,7 @@ function toValue(a?:DSLNode):DSLValue {
     return a.value;
   } if(a instanceof DSLRecord) {
     return a.__record.value;
-  } if(a instanceof DSLFunction) {
+  } if(a instanceof DSLFunction || a instanceof DSLAggregate) {
     return a.returnValue.value;
   }
   return a;
@@ -49,7 +49,7 @@ function maybeVariable(maybeVariable?:DSLNode):DSLVariable|undefined {
     return maybeVariable;
   } else if(maybeVariable instanceof DSLRecord) {
     return maybeVariable.__record;
-  } else if(maybeVariable instanceof DSLFunction) {
+  } else if(maybeVariable instanceof DSLFunction || maybeVariable instanceof DSLAggregate) {
     return maybeVariable.returnValue;
   }
 }
@@ -70,7 +70,7 @@ function isRecord(a:any): a is DSLRecord {
 //--------------------------------------------------------------------
 
 type DSLVariableParent = DSLFunction|DSLRecord|DSLLookup;
-type DSLNode = DSLFunction|DSLRecord|DSLVariable|RawValue;
+type DSLNode = DSLFunction|DSLRecord|DSLVariable|DSLAggregate|RawValue;
 
 type DSLValue = RawValue|Register;
 class DSLVariable {
@@ -439,6 +439,94 @@ class DSLRecord {
 }
 
 //--------------------------------------------------------------------
+// DSLAggregate
+//--------------------------------------------------------------------
+
+class DSLAggregate {
+  __id:number = CURRENT_ID++;
+  returnValue: DSLVariable;
+
+  constructor(public __block:DSLBlock, public aggregate:any, public projection:DSLNode[], public group:DSLNode[], public args:any[], returnValue?:DSLVariable) {
+    if(returnValue) {
+      this.returnValue = returnValue;
+    } else {
+      this.returnValue = new DSLVariable("returnValue");
+      __block.registerVariable(toVariable(this.returnValue));
+    }
+    // add all of our args to our projection
+    for(let arg of args) {
+      let value = toValue(arg);
+      if(isRegister(value)) {
+        projection.push(arg);
+      }
+    }
+  }
+
+  getInputRegisters() {
+    let items = concatArray([], this.args);
+    concatArray(items, this.projection);
+    concatArray(items, this.group);
+    return this.args.map(toValue).filter(isRegister);
+  }
+
+  getOutputRegisters() {
+    let value = toValue(this.returnValue)
+    return [value];
+  }
+
+  compile() {
+    let final = [];
+    let groupRegisters = this.group.map(toValue).filter(isRegister);
+    let projectRegisters = this.projection.map(toValue).filter(isRegister);
+    let inputs = this.args.map(toValue).map(maybeIntern);
+    let agg = new this.aggregate(groupRegisters, projectRegisters, inputs, this.getOutputRegisters());
+    final.push(agg);
+    return final;
+  }
+
+  per(...args:DSLNode[]) {
+    for(let arg of args) {
+      this.group.push(arg);
+    }
+  }
+}
+
+class DSLAggregateBuilder {
+
+  group:DSLNode[] = [];
+
+  constructor(public __block:DSLBlock, public projection:DSLNode[]) {
+  }
+
+  per(...args:DSLNode[]) {
+    for(let arg of args) {
+      this.group.push(arg);
+    }
+  }
+
+  checkBlock() {
+    let active = this.__block.getActiveBlock();
+    if(active !== this.__block) throw new Error("Cannot gather in one scope and aggregate in another");
+  }
+
+  sum(value:DSLNode[]) {
+    this.checkBlock();
+    let agg = new DSLAggregate(this.__block, runtime.SumAggregate, this.projection, this.group, [value]);
+    this.__block.aggregates.push(agg);
+    return agg;
+  }
+
+  count() {
+    this.checkBlock();
+    let agg = new DSLAggregate(this.__block, runtime.SumAggregate, this.projection, this.group, [1]);
+    this.__block.aggregates.push(agg);
+    return agg;
+  }
+
+}
+
+
+//--------------------------------------------------------------------
 // DSLBlock
 //--------------------------------------------------------------------
 
@@ -451,6 +539,7 @@ class DSLBlock {
   lookups:DSLLookup[] = [];
   variables:DSLVariable[] = [];
   functions:DSLFunction[] = [];
+  aggregates:DSLAggregate[] = [];
   cleanFunctions:(DSLFunction|undefined)[] = [];
   nots:DSLNot[] = [];
   chooses:DSLChoose[] = [];
@@ -579,6 +668,11 @@ class DSLBlock {
       this.registerVariable(result);
     }
     return node.results[0];
+  }
+
+  gather = (...projection:DSLNode[]) => {
+    let active = this.getActiveBlock();
+    return new DSLAggregateBuilder(active, projection);
   }
 
   registerVariable(variable:DSLVariable) {
@@ -737,15 +831,16 @@ class DSLBlock {
     let providerToLevel:{[id:number]: number} = {};
     let items = concatArray([], this.chooses);
     concatArray(items, this.unions);
+    concatArray(items, this.aggregates);
     for(let item of items) {
-      for(let result of item.results) {
-        let value = toValue(result);
-        if(isRegister(value) && !supported[value.offset]) {
-          let found = leveledRegisters[value.offset];
+      for(let result of item.getOutputRegisters()) {
+        let offset = result.offset;
+        if(!supported[offset]) {
+          let found = leveledRegisters[offset];
           if(!found) {
-            found = leveledRegisters[value.offset] = {level: 1, providers: []};
+            found = leveledRegisters[offset] = {level: 1, providers: []};
           }
-          leveledRegisters[value.offset].providers.push(item);
+          leveledRegisters[offset].providers.push(item);
           providerToLevel[item.__id] = 1;
           changed = true;
           maxLevel = 1;
@@ -805,7 +900,7 @@ class DSLBlock {
     // represent each level
     let levels:any = [];
     for(let ix = 0; ix <= maxLevel; ix++) {
-      levels[ix] = {records: [], nots: [], lookups: [], chooses: [], unions: [], cleanFunctions: []};
+      levels[ix] = {records: [], nots: [], lookups: [], chooses: [], unions: [], cleanFunctions: [], aggregates: []};
     }
 
     // all database scans are at the first level
@@ -837,6 +932,11 @@ class DSLBlock {
     for(let union of this.unions) {
       let level = providerToLevel[union.__id] || 0;
       levels[level].unions.push(union);
+    }
+
+    for(let aggregate of this.aggregates) {
+      let level = providerToLevel[aggregate.__id] || 0;
+      levels[level].aggregates.push(aggregate);
     }
 
     return levels;
@@ -913,6 +1013,11 @@ class DSLBlock {
         // For why we pass items down, see the comment about not
         union.compile(items);
         join = new runtime.BinaryJoinRight(join, union.node, union.node.registers);
+      }
+
+      for(let aggregate of level.aggregates) {
+        let aggregateNode = aggregate.compile()[0];
+        join = new runtime.MergeAggregateFlow(join, aggregateNode, aggregate.getInputRegisters(), aggregate.getOutputRegisters());
       }
 
       nodes.push(join)
@@ -1173,14 +1278,14 @@ export class Program {
   }
 
 
-  attach(id:string) {
-    let WatcherConstructor = Watcher.get(id);
-    if(!WatcherConstructor) throw new Error(`Unable to attach unknown watcher '${id}'.`);
-    if(this._watchers[id]) return this._watchers[id];
-    let watcher = new WatcherConstructor(this);
-    this._watchers[id] = watcher;
-    return watcher;
-  }
+  // attach(id:string) {
+  //   let WatcherConstructor = Watcher.get(id);
+  //   if(!WatcherConstructor) throw new Error(`Unable to attach unknown watcher '${id}'.`);
+  //   if(this._watchers[id]) return this._watchers[id];
+  //   let watcher = new WatcherConstructor(this);
+  //   this._watchers[id] = watcher;
+  //   return watcher;
+  // }
 
 
   block(name:string, func:BlockFunction) {
@@ -1266,6 +1371,30 @@ export class Program {
     return this;
   }
 }
+
+  // let prog = new Program("test");
+  // prog.block("simple block", ({find, record, lib, choose, union, not, lookup, gather}) => {
+  //   let person = find("person");
+  //   let count = gather(person).count();
+  //   return [
+  //     record("html/div", {text: count})//.add(attribute, value)
+  //   ];
+  // });
+  // prog.test(1, [
+  //   [1, "tag", "person"],
+  //   [2, "tag", "person"],
+  // ]);
+  // prog.test(2, [
+  //   [1, "tag", "person", 0, -1],
+  // ]);
+  // prog.test(3, [
+  //   [2, "tag", "person", 0, -1],
+  // ]);
+  // prog.test(3, [
+  //   [2, "tag", "person"],
+  // ]);
+  // console.log(prog);
+
 
   // let prog = new Program("test");
   // prog.block("simple block", ({find, record, lib, choose, union, not, lookup}) => {
