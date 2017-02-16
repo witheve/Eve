@@ -4,10 +4,10 @@
 // Javascript DSL for writing Eve programs
 //--------------------------------------------------------------------
 
-import {RawValue, Register, isRegister, GlobalInterner, ID, concatArray} from "./runtime";
+import {RawValue, Change, RawEAV, RawEAVC, Register, isRegister, GlobalInterner, ID, concatArray} from "./runtime";
 import * as Runtime from "./runtime";
 import * as indexes from "./indexes";
-import {Watcher} from "../watchers/watcher";
+import {Watcher, Exporter, DiffConsumer, ObjectConsumer, RawRecord} from "../watchers/watcher";
 
 const UNASSIGNED = -1;
 
@@ -186,6 +186,13 @@ export class ReferenceContext {
   }
 
   interned(ref:Reference|RawValue):Register|ID {
+    let value = this.getValue(ref);
+    if(isRawValue(value)) return GlobalInterner.intern(value);
+    return value;
+  }
+
+  maybeInterned(ref:Reference|RawValue|undefined):Register|ID|undefined {
+    if(ref === undefined) return;
     let value = this.getValue(ref);
     if(isRawValue(value)) return GlobalInterner.intern(value);
     return value;
@@ -1120,9 +1127,12 @@ class Remove extends Insert {
     for(let ix = 0, len = attributes.length; ix < len; ix += 2) {
       let a = attributes[ix];
       let v = attributes[ix + 1];
+
       // @TODO: get a real node id
       let n = "awesome";
-      nodes.push(new Runtime.RemoveNode(e, context.interned(a), context.interned(v), context.interned(n)));
+      let internedV:any = context.maybeInterned(v); // @FIXME
+      internedV = internedV !== undefined ? internedV : Runtime.IGNORE_REG;
+      nodes.push(new Runtime.RemoveNode(e, context.interned(a), internedV, context.interned(n)));
     }
     return nodes;
   }
@@ -1183,7 +1193,9 @@ class CommitRemove extends Remove {
       let v = attributes[ix + 1];
       // @TODO: get a real node id
       let n = "awesome";
-      nodes.push(new Runtime.CommitRemoveNode(e, context.interned(a), context.interned(v), context.interned(n)));
+      let internedV:any = context.maybeInterned(v); // @FIXME
+      internedV = internedV !== undefined ? internedV : Runtime.IGNORE_REG;
+      nodes.push(new Runtime.CommitRemoveNode(e, context.interned(a), internedV, context.interned(n)));
     }
     return nodes;
   }
@@ -1456,14 +1468,14 @@ export class Program {
   flows:LinearFlow[] = [];
   index:indexes.Index;
   nodeCount = 0;
+  nextTransactionId = 0;
 
-  protected exporter:Runtime.Exporter;
+  protected exporter = new Exporter();
   protected lastWatch?:number;
   protected watchers:{[id:string]: Watcher|undefined} = {};
 
   constructor(public name:string) {
     this.index = new indexes.HashIndex();
-    this.exporter = new Runtime.Exporter();
   }
 
   block(name:string, func:LinearFlowFunction) {
@@ -1480,12 +1492,23 @@ export class Program {
 
 
   input(changes:Runtime.Change[]) {
+    if(changes[0].transaction >= this.nextTransactionId) this.nextTransactionId = changes[0].transaction + 1;
     let trans = new Runtime.Transaction(changes[0].transaction, this.blocks, changes, this.lastWatch ? this.exporter.handle : undefined);
     trans.exec(this.index);
     return trans;
   }
 
+  inputEavs(eavcs:(RawEAVC|RawEAV)[]) {
+    let changes:Change[] = [];
+    let transactionId = this.nextTransactionId++;
+    for(let [e, a, v, c = 1] of eavcs as RawEAVC[]) {
+      changes.push(Change.fromValues(e, a, v, "input", transactionId, 0, c));
+    }
+    return this.input(changes);
+  }
+
   test(transaction:number, eavns:TestChange[]) {
+    if(transaction >= this.nextTransactionId) this.nextTransactionId = transaction + 1;
     let changes:Runtime.Change[] = [];
     let trans = new Runtime.Transaction(transaction, this.blocks, changes, this.lastWatch ? this.exporter.handle : undefined);
     for(let [e, a, v, round = 0, count = 1] of eavns as EAVRCTuple[]) {
@@ -1531,12 +1554,17 @@ export class Program {
     return this;
   }
 
-  asDiffs(handler:Runtime.DiffConsumer) {
+  asDiffs(handler:DiffConsumer) {
     if(!this.lastWatch) throw new Error("Must have at least one watch block to export as diffs.");
     this.exporter.triggerOnDiffs(this.lastWatch, handler);
 
     return this;
   }
+
+  asObjects<Pattern extends RawRecord>(handler:ObjectConsumer<Pattern>) {
+    if(!this.exporter || !this.lastWatch) throw new Error("Must have at least one watch block to export as diffs.");
+    this.exporter.triggerOnObjects(this.lastWatch, handler);
+
+    return this;
+  }
 }
-
-
