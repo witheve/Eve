@@ -1,6 +1,6 @@
 import {Index, ListIndex, HashIndex} from "./indexes";
 
-const DEBUG = false;
+const DEBUG = true;
 
 //------------------------------------------------------------------------
 // Debugging
@@ -279,6 +279,8 @@ type Multiplicity = number;
 
 export class Change {
   constructor(public e: ID, public a: ID, public v: ID, public n: ID, public transaction:number, public round:number, public count:Multiplicity) {}
+
+  public handled = false;
 
   static fromValues(e: any, a: any, v: any, n: any, transaction: number, round: number, count:Multiplicity) {
     return new Change(GlobalInterner.intern(e), GlobalInterner.intern(a), GlobalInterner.intern(v),
@@ -1392,30 +1394,43 @@ export class InsertNode implements Node {
     return `${e}|${a}|${v}`;
   }
 
-  shouldOutput(resolved:ResolvedEAVN, prefixRound:number, prefixCount:Multiplicity, transaction:Transaction) {
+  shouldOutput(resolved:ResolvedEAVN, prefixRound:number, prefixCount:Multiplicity, transaction:Transaction):number[] {
     let {e,a,v,n} = resolved;
     let key = this.key(e, a, v);
-    let prevCounts = this.intermediates[key] || createArray("Insert intermediate counts");
-    this.intermediates[key] = prevCounts;
+    let roundCounts = this.intermediates[key] || createArray("Insert intermediate counts");
+    this.intermediates[key] = roundCounts;
 
     let curCount = 0;
-    for(let roundIx = 0; roundIx < prevCounts.length && roundIx <= prefixRound; roundIx++) {
-      let prevCount = prevCounts[roundIx];
+    for(let roundIx = 0; roundIx < roundCounts.length && roundIx < prefixRound; roundIx++) {
+      let prevCount = roundCounts[roundIx];
       if(!prevCount) continue;
       curCount += prevCount;
     }
 
-    let newCount = curCount + prefixCount;
-    let prevCount = prevCounts[prefixRound] || 0;
-    prevCounts[prefixRound] = prefixCount + prevCount;
+    let startingCount = roundCounts[prefixRound] = roundCounts[prefixRound] || 0;
 
-    let delta = 0;
-    if(curCount > 0 && newCount <= 0) delta = -1;
-    if(curCount <= 0 && newCount > 0) delta = 1;
+    let deltas = [];
+    console.log("PC", roundCounts, prefixRound, roundCounts.length);
+    for(let roundIx = prefixRound; roundIx < roundCounts.length; roundIx++) {
+      let roundCount = roundCounts[roundIx];
+      if(roundCount === undefined) continue;
+      curCount += roundCount;
+      let newCount = curCount + prefixCount;
 
-    debug("         ?? <-", e, a, v, prefixRound + 1, {prevCount, newCount, delta})
+      let delta = 0;
+      if(curCount > 0 && newCount <= 0) delta = -1;
+      if(curCount <= 0 && newCount > 0) delta = 1;
+      debug("         ?? <-", e, a, v, prefixRound + 1, {roundCount, curCount, newCount, delta})
 
-    return delta;
+      if(delta) {
+        deltas.push(roundIx, delta);
+      }
+    }
+
+    roundCounts[prefixRound] = prefixCount + startingCount;
+
+    console.log("THE D", deltas);
+    return deltas;
   }
 
   exec(index:Index, input:Change, prefix:ID[], transactionId:number, round:number, results:Iterator<ID[]>, transaction:Transaction):boolean {
@@ -1431,8 +1446,12 @@ export class InsertNode implements Node {
 
     let prefixRound = prefix[prefix.length - 2];
     let prefixCount = prefix[prefix.length - 1];
+    let prefixDelta = 0;
+    if(prefixCount > 0) prefixDelta = 1;
+    if(prefixCount < 0) prefixDelta = -1;
 
-    if(this.shouldOutput(resolved, prefixRound, prefixCount, transaction)) {
+    let deltas = this.shouldOutput(resolved, prefixRound, prefixCount, transaction);
+    if(deltas.length) {
       // @TODO: when we do removes, we could say that if the result is a remove, we want to
       // dereference these ids instead of referencing them. This would allow us to clean up
       // the interned space based on what's "in" the indexes. The only problem is that if you
@@ -1443,7 +1462,17 @@ export class InsertNode implements Node {
       GlobalInterner.reference(a!);
       GlobalInterner.reference(v!);
       GlobalInterner.reference(n!);
-      let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount * this.multiplier);
+
+      let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixDelta * this.multiplier);
+      this.output(transaction, change);
+    }
+
+    for(let deltaIx = 0; deltaIx < deltas.length; deltaIx += 2) {
+      let deltaRound = deltas[deltaIx];
+      if(deltaRound === prefixRound + 1) continue;
+      let delta = deltas[deltaIx + 1];
+      let change = new Change(e!, a!, v!, n!, transactionId, deltaRound, delta * this.multiplier);
+      change.handled = true;
       this.output(transaction, change);
     }
 
@@ -1540,40 +1569,6 @@ export class RemoveNode extends InsertNode {
 
     return true;
   }
-
-
-      // // Check if the input matches, if so we're nuking him too.
-      // // @NOTE: This isn't completely correct. Multiple inputs this round may be about the entity we've been asked to remove the EAvs for.
-      // //        In that case, unlucky orderings mean we may only remove some or 1 of those matches.
-      // // @NOTE: Leaving this out fails to remove the event at all, but including it causes count to infinitely recurse anyway? Or doesn't prevent it?
-      // if(input.e === e && input.a === a && (input.v === v || this.v === IGNORE_REG)) {
-      //   this.output(transaction, e, a, input.v, input.n, input.round + 1, -input.count);
-      // }
-
-      // // If we're ignoring v, we want to remove all facts matching EA, so we find them in the index.
-      // if(this.v === IGNORE_REG) {
-      //   let matches = index.get(e, a, v, IGNORE_REG, transactionId, Infinity);
-      //   for(let {v} of matches) {
-      //     let ntrcs = index.getDiffs(e, a, v, IGNORE_REG);
-      //     let roundToMultiplicity:{[round:number]: number} = {};
-      //     for(let ix = 0; ix < ntrcs.length; ix += 4) {
-      //       // n = ix, t = ix + 1, r = ix + 2, c = ix + 3
-      //       let round = ntrcs[ix + 2];
-      //       let count = ntrcs[ix + 3];
-      //       let cur = roundToMultiplicity[round] || 0;
-      //       roundToMultiplicity[round] = cur + count;
-      //     }
-      //     for(let roundString in roundToMultiplicity) {
-      //       let curRound = +roundString;
-      //       let count = roundToMultiplicity[curRound] * prefixCount;
-      //       if(count === 0) continue;
-      //       let changeRound = Math.max(prefixRound, curRound);
-      //       this.output(transaction, e, a, v, n, changeRound + 1, -count);
-      //     }
-      //   }
-      // } else {
-      //   this.output(transaction, e, a, v, n, prefixRound + 1, -prefixCount);
-      // }
 }
 
 export class CommitInsertNode extends InsertNode {
@@ -1582,7 +1577,9 @@ export class CommitInsertNode extends InsertNode {
   roundCounts:{[key:string]:number} = {};
 
   shouldOutput(resolved:ResolvedEAVN, prefixRound:number, prefixCount:Multiplicity, transaction:Transaction) {
-    let superDelta = super.shouldOutput(resolved, prefixRound, prefixCount, transaction);
+    let superDeltas = super.shouldOutput(resolved, prefixRound, prefixCount, transaction);
+    if(!superDeltas.length) return superDeltas;
+
     if(this.lastRound !== transaction.round || this.lastTransaction !== transaction.transaction) {
       this.lastTransaction = transaction.transaction;
       this.lastRound = transaction.round;
@@ -1599,20 +1596,23 @@ export class CommitInsertNode extends InsertNode {
     // if we said something previously and now we're saying nothing, we should be negative
     // if we haven't said anything and we get a negative, we should be 0
     let delta = 0;
-    if(prevCount > 0 && newCount <= 0 && superDelta === -1) delta = -1;
-    if(prevCount === 0 && newCount > 0 && superDelta === 1) delta = 1;
+    if(prevCount > 0 && newCount <= 0 && superDeltas[1] === -1) delta = -1;
+    if(prevCount === 0 && newCount > 0 && superDeltas[1] === 1) delta = 1;
 
     debug("         ?? <-", e, a, v, prefixRound + 1, {prevCount, newCount, delta})
 
-    return delta;
-  }
+    if(delta) {
+      return superDeltas;
+    }
 
+    return createArray();
+  }
 }
 
 export class CommitRemoveNode extends CommitInsertNode {
   multiplier = -1;
 
-
+  // @NOTE: This can probably* be copied from exec = RemoveNode.prototype.exec
   exec(index:Index, input:Change, prefix:ID[], transactionId:number, round:number, results:Iterator<ID[]>, transaction:Transaction):boolean {
     let resolved = this.resolve(prefix);
     let {e,a,v,n} = resolved;
@@ -2246,16 +2246,24 @@ export class Transaction {
       this.round = change.round;
       debug("Round:", this.round);
 
-      debug("-> " + change);
+      debug("-> " + change, index.hasImpact(change));
       if(index.hasImpact(change)) {
         for(let block of this.blocks) {
+          // if(block.name === "Show the targeted tag") {
+          //   debug = console.log;
+          // } else {
+          //   debug = function() {}
+          // }
           debug("    ", block.name);
           let start = changes.length;
           block.exec(index, change, this);
         }
       }
+      debug = console.log;
       debug("");
-      index.insert(change);
+      if(!change.handled) {
+        index.insert(change);
+      }
 
       changeIx++;
       let next = changes[changeIx];
