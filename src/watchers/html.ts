@@ -20,10 +20,6 @@ class HTMLWatcher extends Watcher {
 
   protected _sendEvent(eavs:(RawEAV|RawEAVC)[]) {
     this.program.inputEavs(eavs);
-    for(let eav of eavs) {
-      eav[3] = -1;
-    }
-    this.program.inputEavs(eavs);
   }
 
   getStyle(id:RawValue) {
@@ -131,6 +127,13 @@ class HTMLWatcher extends Watcher {
     if(typeof document === "undefined") return;
 
     this.program
+      .commit("Remove click events!", ({find}) => {
+        let click = find("html/event/click", "html/direct-target");
+        return [
+          //click.remove("tag")
+          click.remove("tag"),
+        ];
+      })
       .block("Elements with no parents are roots.", ({find, record, lib, not}) => {
         let elem = find("html/element");
         not(() => {

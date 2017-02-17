@@ -1376,7 +1376,7 @@ export class DownstreamJoinNode extends JoinNode {
 }
 
 export class InsertNode implements Node {
-  protected intermediates:{[key:string]: number|undefined} = {};
+  protected intermediates:{[key:string]: (number|undefined)[]|undefined} = {};
   multiplier:number = 1;
 
   constructor(public e:ID|Register,
@@ -1388,20 +1388,30 @@ export class InsertNode implements Node {
 
   resolve = Scan.prototype.resolve;
 
-  key(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, round:number) {
-    return `${e}|${a}|${v}|${round}`;
+  key(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue) {
+    return `${e}|${a}|${v}`;
   }
 
   shouldOutput(resolved:ResolvedEAVN, prefixRound:number, prefixCount:Multiplicity, transaction:Transaction) {
     let {e,a,v,n} = resolved;
-    let key = this.key(e, a, v, prefixRound + 1);
-    let prevCount = this.intermediates[key] || 0;
-    let newCount = prevCount + prefixCount;
-    this.intermediates[key] = newCount;
+    let key = this.key(e, a, v);
+    let prevCounts = this.intermediates[key] || createArray("Insert intermediate counts");
+    this.intermediates[key] = prevCounts;
+
+    let curCount = 0;
+    for(let roundIx = 0; roundIx < prevCounts.length && roundIx <= prefixRound; roundIx++) {
+      let prevCount = prevCounts[roundIx];
+      if(!prevCount) continue;
+      curCount += prevCount;
+    }
+
+    let newCount = curCount + prefixCount;
+    let prevCount = prevCounts[prefixRound] || 0;
+    prevCounts[prefixRound] = prefixCount + prevCount;
 
     let delta = 0;
-    if(prevCount > 0 && newCount <= 0) delta = -1;
-    if(prevCount <= 0 && newCount > 0) delta = 1;
+    if(curCount > 0 && newCount <= 0) delta = -1;
+    if(curCount <= 0 && newCount > 0) delta = 1;
 
     debug("         ?? <-", e, a, v, prefixRound + 1, {prevCount, newCount, delta})
 
