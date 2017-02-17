@@ -1508,6 +1508,7 @@ export class Program {
   }
 
   test(transaction:number, eavns:TestChange[]) {
+    console.group("test " + transaction);
     if(transaction >= this.nextTransactionId) this.nextTransactionId = transaction + 1;
     let changes:Runtime.Change[] = [];
     let trans = new Runtime.Transaction(transaction, this.blocks, changes, this.lastWatch ? this.exporter.handle : undefined);
@@ -1521,6 +1522,7 @@ export class Program {
     }
     trans.exec(this.index);
     console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
+    console.groupEnd();
     return this;
   }
 
