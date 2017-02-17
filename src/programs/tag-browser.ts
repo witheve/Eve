@@ -1,4 +1,4 @@
-import {Program} from "../runtime/dsl";
+import {Program} from "../runtime/dsl2";
 import {UIWatcher} from "../watchers/ui";
 
 let {$style, $row, $column, $text} = UIWatcher.helpers;
@@ -21,13 +21,13 @@ export function create() {
   let prog = new Program("test");
   prog.attach("ui");
 
-  // Create root UI
-  prog.test(0, collapse(
-    $column({tag: t("root")}, [
-      $row({tag: t("cloud"), style: $style({"flex-wrap": "wrap"})}, []),
-      $column({tag: t("view")}, [])
-    ])
-  ));
+  // prog.commit("Remove click events!", ({find}) => {
+  //   let click = find("html/event/click", "html/direct-target");
+  //   return [
+  //     //click.remove("tag")
+  //     click.remove("tag"),
+  //   ];
+  // })
 
   prog.block("List all tags in the tag cloud.", ({find, record}) => {
     let cloud = find("tag-browser/cloud");
@@ -35,7 +35,7 @@ export function create() {
 
     return [
       //record("html/element", {tagname: "span", text: "hey!", tag})
-      cloud.add("children", record("ui/button", "tag-browser/tag", {class: "inset", text: tag, sort: tag}))
+      cloud.add("children", record("ui/button", "tag-browser/tag", {class: "inset", text: tag, sort: tag, ziggedywak: "floopy-doo"}))
     ];
   });
 
@@ -46,15 +46,65 @@ export function create() {
     let view = find("tag-browser/view");
 
     return [
-      view.add("children", record("ui/text", {text: `heyoooo '${element.text}'`}))
+      view.remove("target").add("target", element.text)
     ];
+  });
 
+  prog.block("Show the targeted tag", ({find, record}) => {
+    let view = find("tag-browser/view");
+    let target = view.target;
+
+    return [
+      view.add("children", record("ui/text", {text: `hi ${target}`}))
+    ]
   })
 
-  // Dummy fact to run the thing
+  console.groupCollapsed("setup");
+  // Create root UI
+  prog.test(0, collapse(
+    $column({tag: t("root")}, [
+      $row({tag: t("cloud"), style: $style({"flex-wrap": "wrap"})}, []),
+      $column({tag: t("view")}, [])
+    ])
+  ));
+  console.groupEnd();
+
+  console.groupCollapsed();
   prog.test(1, [
-    ["dummy", "tag", "dum-dum"]
+    [1, "tag", "html/event/click"],
+    [1, "tag", "html/direct-target"],
+    [1, "element", "ui/button|tag-browser/tag|inset|ui/row|ui/row|floopy-doo"],
   ]);
+  console.groupEnd();
+
+  console.groupCollapsed();
+  prog.test(2, [
+    [2, "tag", "html/event/click"],
+    [2, "tag", "html/direct-target"],
+    [2, "element", "ui/button|tag-browser/tag|inset|ui/column|ui/column|floopy-doo"],
+  ]);
+  console.groupEnd();
+
+  console.groupCollapsed();
+  prog.test(3, [
+   [3, "tag", "html/event/click"],
+   [3, "tag", "html/direct-target"],
+   [3, "element", "ui/button|tag-browser/tag|inset|ui/text|ui/text|floopy-doo"],
+  ]);
+  console.groupEnd();
+
+  console.groupCollapsed();
+  prog.test(4, [
+   [4, "tag", "html/event/click"],
+   [4, "tag", "html/direct-target"],
+   [4, "element", "ui/button|tag-browser/tag|inset|ui/column|ui/column|floopy-doo"],
+  ]);
+  console.groupEnd();
+
+  // Dummy fact to run the thing
+  // prog.test(1, [
+  //   ["dummy", "tag", "dum-dum"]
+  // ]);
 
 
 
