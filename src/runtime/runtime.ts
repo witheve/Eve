@@ -4,9 +4,10 @@ import {Index, ListIndex, HashIndex} from "./indexes";
 // Debugging utilities
 //------------------------------------------------------------------------
 
-// Turning this on causes all of the debug(.*) statements to print to the console.
-// This is useful to see exactly what the runtime is doing as it evaluates a transaction,
-// but it incurs both a pretty serious performance cost and prints a lot of stuff.
+// Turning this on causes all of the debug(.*) statements to print to the
+// console.  This is useful to see exactly what the runtime is doing as it
+// evaluates a transaction, but it incurs both a pretty serious performance
+// cost and prints a lot of stuff.
 const DEBUG = false;
 
 export var debug:Function = () => {};
@@ -22,7 +23,7 @@ export function printField(field:ScanField) {
   return GlobalInterner.reverse(field);
 }
 
-export function printPrefix(prefix:ID[]) {
+export function printPrefix(prefix:Prefix) {
   return prefix.map((v) => GlobalInterner.reverse(v));
 }
 
@@ -114,19 +115,21 @@ export function moveArray(arr:any[], arr2:any[]) {
 //------------------------------------------------------------------------
 
 // To reduce allocations as much as possible, we want to reuse arrays as much
-// as possible. If we reused the array by setting its length to 0 or to some new
-// size that is smaller than its current length, we eat the cost of deallocating
-// some chunk of memory as well as the potential cost in fragmentation. Instead, the
-// Iterator class never changes the size of its backing array, and instead keeps its
-// own length. You iterate through the array using the next() method:
+// as possible. If we reused the array by setting its length to 0 or to some
+// new size that is smaller than its current length, we eat the cost of
+// deallocating some chunk of memory as well as the potential cost in
+// fragmentation. Instead, the Iterator class never changes the size of its
+// backing array, and instead keeps its own length. You iterate through the
+// array using the next() method:
 //
 // let current;
 // while((current = iterator.next()) !== undefined) {
 //   ...
 // }
 //
-// Through the magic of the JIT, this has no performance penalty over using a standard
-// for loop. You can get some of those "zero-cost abstractions" in JS too!
+// Through the magic of the JIT, this has no performance penalty over using a
+// standard for loop. You can get some of those "zero-cost abstractions" in JS
+// too!
 
 class Iterator<T> {
   array:T[] = [];
@@ -156,27 +159,31 @@ class Iterator<T> {
 // Interning
 //------------------------------------------------------------------------
 
-// Every value that touches the runtime is interned. While that may seem kind of crazy,
-// there are lots of good reasons for this. The first is that it turns an infinite space
-// of values into a bounded space of integers. This gives us a lot more options in
-// how we index values and dramatically improves our memory layout. On top of that, every
-// lookup and equality is now on fixed-size integers, which computers can do near instantly.
-// Similarly, nearly every function in the runtime is now monomorphic, giving the JIT free
+// Every value that touches the runtime is interned. While that may seem kind
+// of crazy, there are lots of good reasons for this. The first is that it
+// turns an infinite space of values into a bounded space of integers. This
+// gives us a lot more options in how we index values and dramatically improves
+// our memory layout. On top of that, every lookup and equality is now on
+// fixed-size integers, which computers can do near instantly.  Similarly,
+// nearly every function in the runtime is now monomorphic, giving the JIT free
 // reign to compile our loops into very fast native code.
 //
-// This is of course a tradeoff. It means that when we need to do operations on the actual
-// values, we have to look them up. In practice all of the above benefits have greatly
-// outweighed the lookup cost, the cache-line savings alone makes that pretty irrelevant.
-// The main cost is that as values flow out of the system, if we don't clean them up, we'll
-// end up leaking ids. Also, at current you can have a maximum of a 32bit integer's worth of
-// unique values in your program. Chances are that doesn't matter in practice on the client
-// side, but could be a problem in the server at some point. To combat this, our intener
-// keeps a ref-count, but we're not freeing any of the IDs at the moment.
+// This is of course a tradeoff. It means that when we need to do operations on
+// the actual values, we have to look them up. In practice all of the above
+// benefits have greatly outweighed the lookup cost, the cache-line savings
+// alone makes that pretty irrelevant.  The main cost is that as values flow
+// out of the system, if we don't clean them up, we'll end up leaking ids.
+// Also, at current you can have a maximum of a 32bit integer's worth of unique
+// values in your program. Chances are that doesn't matter in practice on the
+// client side, but could be a problem in the server at some point. To combat
+// this, our intener keeps a ref-count, but we're not freeing any of the IDs at
+// the moment.
 //
-// @TODO: we don't ever release IDs in the current runtime because we're not sure who might
-// be holding onto a transaction, which contain references to IDs. At some point we
-// should probably reference count transactions as well and when they are released, that
-// gives us an opportunity to release any associated IDs that are no longer in use.
+// @TODO: we don't ever release IDs in the current runtime because we're not
+// sure who might be holding onto a transaction, which contain references to
+// IDs. At some point we should probably reference count transactions as well
+// and when they are released, that gives us an opportunity to release any
+// associated IDs that are no longer in use.
 
 /** The union of value types we support in Eve. */
 export type RawValue = string|number;
@@ -188,34 +195,35 @@ function isNumber(thing:any): thing is number {
 }
 
 export class Interner {
-  // IDs are only positive integers so that they can be used as array indexes for
-  // efficient lookup.
+  // IDs are only positive integers so that they can be used as array indexes
+  // for efficient lookup.
   currentID: number = 0;
 
-  // We currently only have two value types in Eve at the moment, strings and numbers.
-  // Because keys in a javascript object are always converted to strings, we have to
-  // keep dictionaries for the two types separate, otherwise the number 1 and the
-  // string "1" would end up being the same value;
-  strings: {[value:string]: ID|undefined} = createHash();
-  numbers: {[value:number]: ID|undefined} = createHash();
+  // We currently only have two value types in Eve at the moment, strings and
+  // numbers.  Because keys in a javascript object are always converted to
+  // strings, we have to keep dictionaries for the two types separate,
+  // otherwise the number 1 and the string "1" would end up being the same
+  // value;
+  strings: {[value:string]: ID|undefined} = createHash(); numbers:
+    {[value:number]: ID|undefined} = createHash();
 
-  // We use this array as a lookup from an integer ID to a RawValue since the IDs
-  // are guaranteed to be densely packed, this gives us much better performance
-  // than using another hash.
+  // We use this array as a lookup from an integer ID to a RawValue since the
+  // IDs are guaranteed to be densely packed, this gives us much better
+  // performance than using another hash.
   IDs: RawValue[] = createArray();
 
-  // This is used as another lookup from ID to the number of references this ID has
-  // in the system. As the ref count goes to zero, we can add the ID to the free list
-  // so that it can be reused.
-  IDRefCount: number[] = createArray();
-  IDFreeList: number[] = createArray();
+  // This is used as another lookup from ID to the number of references this ID
+  // has in the system. As the ref count goes to zero, we can add the ID to the
+  // free list so that it can be reused.
+  IDRefCount: number[] = createArray(); IDFreeList: number[] = createArray();
 
-  // During the course of evaluation, we might allocate a bunch of intermediate IDs
-  // whose values might just be thrown away. For example if we generate a value just
-  // to use as a filter, there's no sense in us keeping the value in the interned space.
-  // Arenas are named groups of allocations that we may want to dereference all together.
-  // Note that just because we may dereference it once, that doesn't mean the ID should
-  // be released - other uses of the ID may exist.
+  // During the course of evaluation, we might allocate a bunch of intermediate
+  // IDs whose values might just be thrown away. For example if we generate a
+  // value just to use as a filter, there's no sense in us keeping the value in
+  // the interned space.  Arenas are named groups of allocations that we may
+  // want to dereference all together.  Note that just because we may
+  // dereference it once, that doesn't mean the ID should be released - other
+  // uses of the ID may exist.
   arenas: {[arena:string]: Iterator<ID>} = createHash();
 
   constructor() {
@@ -289,17 +297,19 @@ export class Interner {
   }
 
   arenaIntern(arenaName:string, value:RawValue):ID {
-    // @FIXME: Unfortunately we can't use arena intern at the moment due to the fact that while
-    // we can know what values end up in the primary indexes, we don't know what values might be
-    // hiding in intermediate indexes that runtime nodes sometimes need to keep. If we *did*
-    // deallocate an arena and the value didn't make it to a primary index, but ended up in an
-    // intermediate one, we'd have effectively corrupted our program. The ID would be freed, and
-    // then used for some completely different value. Until we can find an accurate (and cheap!)
-    // way to track what values are still hanging around, we'll just have to eat the cost of
-    // interning all the values we've seen. Keep in mind that this isn't as bad as it sounds, as
-    // the only values that would actually be freed this way are values that are calculated but
-    // never end up touching the primary indexes. This is rare enough that in practice, this
-    // probably isn't a big deal.
+    // @FIXME: Unfortunately we can't use arena intern at the moment due to the
+    // fact that while we can know what values end up in the primary indexes,
+    // we don't know what values might be hiding in intermediate indexes that
+    // runtime nodes sometimes need to keep. If we *did* deallocate an arena
+    // and the value didn't make it to a primary index, but ended up in an
+    // intermediate one, we'd have effectively corrupted our program. The ID
+    // would be freed, and then used for some completely different value. Until
+    // we can find an accurate (and cheap!) way to track what values are still
+    // hanging around, we'll just have to eat the cost of interning all the
+    // values we've seen. Keep in mind that this isn't as bad as it sounds, as
+    // the only values that would actually be freed this way are values that
+    // are calculated but never end up touching the primary indexes. This is
+    // rare enough that in practice, this probably isn't a big deal.
     throw new Error("Arena interning isn't ready for primetime yet.")
 
     // let arena = this.arenas[arenaName];
@@ -339,34 +349,38 @@ export var GlobalInterner = new Interner();
 //------------------------------------------------------------------------
 
 // Because Eve's runtime is incremental from the ground up, the primary unit of
-// information in the runtime is a Change. The content of a change is in the form
-// of "triples," a tuple of entity, attribute, and value (or in the RDF world, subject,
-// object, predicate). For example, if we wanted to talk about my age, we might have a
-// triple of ("chris", "age", 30). Beyond the content of the change, we also want to
-// know who created this change and what transaction it came from. This gives us enough
-// information to work out the provenance of this information, which is very useful
-// for debugging as well as doing clever things around verification and trust. The final
-// two pieces of information in a change are the round and count, which are used to help
-// us maintain our program incrementally. Because Eve runs all blocks to fixedpoint, a single
-// change may cause multiple "rounds" of evaluation which introduce more changes. By tracking
-// what round these changes happened in, we can do some clever reconciling to handle removal
-// inside recursive rules efficiently, which we'll go into more depth later. Count tells us
-// how many of these triples we are adding or, if the number is negative, removing from the
-// system.
+// information in the runtime is a Change. The content of a change is in the
+// form of "triples," a tuple of entity, attribute, and value (or in the RDF
+// world, subject, object, predicate). For example, if we wanted to talk about
+// my age, we might have a triple of ("chris", "age", 30). Beyond the content
+// of the change, we also want to know who created this change and what
+// transaction it came from. This gives us enough information to work out the
+// provenance of this information, which is very useful for debugging as well
+// as doing clever things around verification and trust. The final two pieces
+// of information in a change are the round and count, which are used to help
+// us maintain our program incrementally. Because Eve runs all blocks to
+// fixedpoint, a single change may cause multiple "rounds" of evaluation which
+// introduce more changes. By tracking what round these changes happened in, we
+// can do some clever reconciling to handle removal inside recursive rules
+// efficiently, which we'll go into more depth later. Count tells us how many
+// of these triples we are adding or, if the number is negative, removing from
+// the system.
 
 // We track counts as Multiplicities, which are just signed integers.
 type Multiplicity = number;
 
-// In a change entity, attribute, value, and node are stored as e, a, v, and n respectively.
-// We often need to look these up in loops or pass around information about what property we
-// might currently be talking about, so we have a type representing those fields.
+// In a change entity, attribute, value, and node are stored as e, a, v, and n
+// respectively.  We often need to look these up in loops or pass around
+// information about what property we might currently be talking about, so we
+// have a type representing those fields.
 export type EAVNField = "e"|"a"|"v"|"n";
 
 export class Change {
   // Change expects that all values have already been interned.
   constructor(public e: ID, public a: ID, public v: ID, public n: ID, public transaction:number, public round:number, public count:Multiplicity) {}
 
-  // As a convenience, you can generate a change from values that haven't been interned yet.
+  // As a convenience, you can generate a change from values that haven't been
+  // interned yet.
   static fromValues(e: any, a: any, v: any, n: any, transaction: number, round: number, count:Multiplicity) {
     return new Change(GlobalInterner.intern(e), GlobalInterner.intern(a), GlobalInterner.intern(v),
                       GlobalInterner.intern(n), transaction, round, count);
@@ -376,10 +390,10 @@ export class Change {
     return `Change(${this.e}, ${GlobalInterner.reverse(this.a)}, ${maybeReverse(this.v)}, ${GlobalInterner.reverse(this.n)}, ${this.transaction}, ${this.round}, ${this.count})`;
   }
 
-  // For testing purposes, you often want to compare two Changes ignoring their node, as
-  // you don't know exactly what node will generate a value when you run. withoutE is also
-  // used in testing to check if a triple whose entity may have been generated by the program
-  // *could* match this change.
+  // For testing purposes, you often want to compare two Changes ignoring their
+  // node, as you don't know exactly what node will generate a value when you
+  // run. withoutE is also used in testing to check if a triple whose entity
+  // may have been generated by the program *could* match this change.
   equal(other:Change, withoutNode?:boolean, withoutE?:boolean) {
    return (withoutE || this.e == other.e) &&
           this.a == other.a &&
@@ -396,9 +410,10 @@ export class Change {
   }
 }
 
-// When interatcint with the outside world, we need to pass changes around that are no longer
-// interned. A RawChange is the same as Change, but all the information in the triple has been
-// convered back into RawValues instead of interned IDs.
+// When interatcint with the outside world, we need to pass changes around that
+// are no longer interned. A RawChange is the same as Change, but all the
+// information in the triple has been convered back into RawValues instead of
+// interned IDs.
 export class RawChange {
   constructor(public e: RawValue, public a: RawValue, public v: RawValue, public n: RawValue,
               public transaction:number, public round:number, public count:Multiplicity) {}
@@ -409,6 +424,110 @@ export class RawChange {
     let internedV = GlobalInterner.get(v);
     return `RawChange(${internedE}, ${a}, ${maybeReverse(internedV) || v}, ${n}, ${transaction}, ${round}, ${count})`;
   }
+}
+
+//------------------------------------------------------------------------
+// Joins
+//------------------------------------------------------------------------
+
+// Buckle up, we're going for a ride.
+//
+// Now that we have a change representation, we need to actually do something
+// with it. Eve is a relational language, which means the primary action in
+// the language is to join tuples together. Unlike in most relational databases
+// where we might do joins by looking at full relations pair-wise and joining
+// them together, we need to operate on changes and we want to sidestep the
+// cost of figuring out a good query plan for the pair-wise joins. Both of
+// these properties require us to look at joins very differently than we
+// normally would in say Postgres. Instead, we're going to use a magical join
+// algorithm called Generic Join [1] and extend it to work on incremental
+// changes instead of just fully realized relations.
+//
+// The core idea behind Generic Join is that instead of breaking a query down
+// into a set of binary joins on relations, we look at each unique variable in
+// the query and have all of the relations that might say something about that
+// variable do an intersection. Let's look at an example:
+//
+//  people(person-id, name)
+//  dogs(person-id, dog-name, dog-age)
+//
+// Here we have two relations we want to join together: "people" and "dogs".
+// The people relation has two fields that are represented by the variables
+// "person-id" and "name." The dogs relation has three fields: "person-id",
+// "dog-name", and "dog-age." In postgres, we'd take these two relations and do
+// a hash or merge join based on the first column of each. In generic join we
+// look at all the variables we need to solve for, in this case four of them,
+// and then ask each relation which variable they could propose values for.
+// These proposals include not just what variable this relation could solve
+// for, but also an estimate of how many values the variable would have. In the
+// interest of doing the least amount of work possible, we select the proposal
+// with the smallest estimate and then for each proposed value of the variable,
+// we ask all the other relations if they "accept" the value.  If they do, we
+// recursively solve for the rest of the variables in depth-first fashion.
+//
+// In this algorithm, each relation acts as a constraint on the space of
+// valid solutions. We don't just look at every row in the people table or
+// every row in the dogs table, but instead look at the unique values per
+// variable given some set of already solved variables. We call that
+// solved set of variables a "prefix". So when we ask a constraint to propose
+// values, we hand it the prefix and ask it which variable it would solve for
+// next. We then ask each constraint if they accept the new prefix and continue
+// to solve for the rest of the variables. By selecting the proposal with the
+// smallest estimate, we can make some interesting guarantees about the upper
+// bound [2] of the work we will do to satisfy our join and we side step the
+// need for the insanely complex query planners that exist in most commercial
+// databases. An interesting aspect of this algorithm is that it's basically
+// making planning decisions for every unique value of a variable, which means
+// that it is resilient to the high skew you often end up with in real-world
+// data.
+//
+// So the key parts of Generic Join are prefixes, constraints, and proposals,
+// which we'll start to layout below. We'll talk more about the ways we have
+// to change Generic Join to make it work incrementally later.
+//
+// [1]: Generic Join is presented in "Skew Strikes Back: New Developments in
+//      the Theory of Join Algorithms" https://arxiv.org/abs/1310.3314
+// [2]: "Worst-case Optimal Join Algorithms "https://arxiv.org/abs/1203.1952
+
+//------------------------------------------------------------------------
+// Prefixes and registers
+//------------------------------------------------------------------------
+
+export type Prefix = ID[];
+
+// A register is a numerical offset into a prefix. We can't just make this a
+// type alias to number because we need to be able to tell the difference between
+// IDs which represent static values and registers which represent dynamic values
+// in the prefix. For example I might have a constraint that looks for the
+// pattern (register1, "tag", "person"), which if we treated Registers as numbers
+// might just look like (1, 2, 3) after the values have been interned. Instead
+// we make Register a class.
+
+export class Register {
+  constructor(public offset:number) {}
+}
+
+export function isRegister(x: any): x is Register {
+  return x && x.constructor === Register;
+}
+
+// In some cases we have a constraint whose value we may want to ignore.
+// IGNORE_REG is a sentinel value that tells us we don't care what the value of
+// something is when we're solving.
+export var IGNORE_REG = null;
+type IgnoreRegister = typeof IGNORE_REG;
+
+//------------------------------------------------------------------------
+// Proposal
+//------------------------------------------------------------------------
+
+export interface Proposal {
+  cardinality:number,
+  forFields:Iterator<EAVNField>,
+  forRegisters:Iterator<Register>,
+  proposer:Constraint,
+  skip?:boolean,
+  info?:any,
 }
 
 //------------------------------------------------------------------------
@@ -427,13 +546,24 @@ export interface Constraint {
   isInput:boolean;
   setup():void;
   getRegisters():Register[];
-  applyInput(input:Change, prefix:ID[]):ApplyInputState;
-  propose(index:Index, prefix:ID[], transaction:number, round:number, results:any[]):Proposal;
-  resolveProposal(index:Index, prefix:ID[], proposal:Proposal, transaction:number, round:number, results:any[]):ID[][];
-  accept(index:Index, prefix:ID[], transaction:number, round:number, solvingFor:Register[]):boolean;
-  acceptInput(index:Index, input:Change, prefix:ID[], transaction:number, round:number):boolean;
-  getDiffs(index:Index, prefix:ID[]):NTRCArray;
+  applyInput(input:Change, prefix:Prefix):ApplyInputState;
+  propose(index:Index, prefix:Prefix, transaction:number, round:number, results:any[]):Proposal;
+  resolveProposal(index:Index, prefix:Prefix, proposal:Proposal, transaction:number, round:number, results:any[]):ID[][];
+  accept(index:Index, prefix:Prefix, transaction:number, round:number, solvingFor:Register[]):boolean;
+  acceptInput(index:Index, input:Change, prefix:Prefix, transaction:number, round:number):boolean;
+  getDiffs(index:Index, prefix:Prefix):NTRCArray;
 }
+
+//------------------------------------------------------------------------
+// Resolved values
+//------------------------------------------------------------------------
+
+/** A scan field may contain a register, a static interned value, or the IGNORE_REG sentinel value. */
+type ScanField = Register|ID|IgnoreRegister;
+/** A resolved value is a scan field that, if it contained a register, now contains the register's resolved value. */
+export type ResolvedValue = ID|undefined|IgnoreRegister;
+
+type ResolvedEAVN = {e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue};
 
 //------------------------------------------------------------------------
 // Move Constraint
@@ -459,7 +589,7 @@ export class MoveConstraint {
     this.proposal.forRegisters.push(this.to);
   }
 
-  resolve(prefix:ID[]) {
+  resolve(prefix:Prefix) {
     if(isRegister(this.from)) {
       this.resolved[0] = prefix[this.from.offset];
     } else {
@@ -473,11 +603,11 @@ export class MoveConstraint {
     return this.registers;
   }
 
-  applyInput(input:Change, prefix:ID[]):ApplyInputState {
+  applyInput(input:Change, prefix:Prefix):ApplyInputState {
     return ApplyInputState.none;
   }
 
-  propose(index:Index, prefix:ID[], transaction:number, round:number, results:any[]):Proposal {
+  propose(index:Index, prefix:Prefix, transaction:number, round:number, results:any[]):Proposal {
     let [from, to] = this.resolve(prefix);
     this.proposal.skip = true;
     if(from !== undefined && to === undefined) {
@@ -486,14 +616,14 @@ export class MoveConstraint {
     return this.proposal;
   }
 
-  resolveProposal(index:Index, prefix:ID[], proposal:Proposal, transaction:number, round:number, results:any[]):ID[][] {
+  resolveProposal(index:Index, prefix:Prefix, proposal:Proposal, transaction:number, round:number, results:any[]):ID[][] {
     let [from, to] = this.resolve(prefix);
     let arr = createArray("MoveResult") as ID[];
     arr[0] = from!;
     return arr as any;
   }
 
-  accept(index:Index, prefix:ID[], transaction:number, round:number, solvingFor:Register[]):boolean {
+  accept(index:Index, prefix:Prefix, transaction:number, round:number, solvingFor:Register[]):boolean {
     let [from, to] = this.resolve(prefix);
     if(from !== undefined && to !== undefined) {
       return from == to;
@@ -501,11 +631,11 @@ export class MoveConstraint {
     return true;
   }
 
-  acceptInput(index:Index, input:Change, prefix:ID[], transaction:number, round:number):boolean {
+  acceptInput(index:Index, input:Change, prefix:Prefix, transaction:number, round:number):boolean {
     return this.accept(index, prefix, transaction, round, this.registers);
   }
 
-  getDiffs(index:Index, prefix:ID[]):NTRCArray {
+  getDiffs(index:Index, prefix:Prefix):NTRCArray {
     throw new Error("Asking for Diffs from MoveConstraint");
   }
 }
@@ -539,7 +669,7 @@ export class Scan implements Constraint {
    *                We'll fill it if possible.
    * - ID -- this field contains a static or already solved value.
    */
-  resolve(prefix:ID[]) {
+  resolve(prefix:Prefix) {
     let resolved = this.resolved;
     if(isRegister(this.e)) {
       resolved.e = prefix[this.e.offset];
@@ -592,7 +722,7 @@ export class Scan implements Constraint {
    * satisfied due to proposals from previous scans) we'll return
    * false.
    */
-  applyInput(input:Change, prefix:ID[]) {
+  applyInput(input:Change, prefix:Prefix) {
     // If this change isn't relevant to this scan, skip it.
     if(this.notStaticMatch(input, "e")) return ApplyInputState.none;
     if(this.notStaticMatch(input, "a")) return ApplyInputState.none;
@@ -627,7 +757,7 @@ export class Scan implements Constraint {
     return ApplyInputState.pass;
   }
 
-  propose(index:Index, prefix:ID[], transaction:number, round:number, results:any[]):Proposal {
+  propose(index:Index, prefix:Prefix, transaction:number, round:number, results:any[]):Proposal {
     let {e,a,v,n} = this.resolve(prefix);
     this.proposal.skip = false;
     let proposal = index.propose(this.proposal, e, a, v, n, transaction, round);
@@ -642,11 +772,11 @@ export class Scan implements Constraint {
     return proposal;
   }
 
-  resolveProposal(index:Index, prefix:ID[], proposal:Proposal, transaction:number, round:number, results:any[]):ID[][] {
+  resolveProposal(index:Index, prefix:Prefix, proposal:Proposal, transaction:number, round:number, results:any[]):ID[][] {
     return index.resolveProposal(proposal);
   }
 
-  accept(index:Index, prefix:ID[], transaction:number, round:number, solvingFor:Register[]):boolean {
+  accept(index:Index, prefix:Prefix, transaction:number, round:number, solvingFor:Register[]):boolean {
     // Before we start trying to accept, we check if we care about the
     // registers we are currently solving.
     let solving = false;
@@ -663,7 +793,7 @@ export class Scan implements Constraint {
     return index.check(e, a, v, n, transaction, round);
   }
 
-  acceptInput(index:Index, input:Change, prefix:ID[], transaction:number, round:number):boolean {
+  acceptInput(index:Index, input:Change, prefix:Prefix, transaction:number, round:number):boolean {
     let {e,a,v,n} = this.resolve(prefix);
     if((e === IGNORE_REG || input.e === e) &&
        (a === IGNORE_REG || input.a === a) &&
@@ -691,7 +821,7 @@ export class Scan implements Constraint {
     return this.registers;
   }
 
-  getDiffs(index:Index, prefix:ID[]):NTRCArray {
+  getDiffs(index:Index, prefix:Prefix):NTRCArray {
     let {e,a,v,n} = this.resolve(prefix);
     return index.getDiffs(e,a,v,n);
   }
@@ -742,7 +872,7 @@ export class FunctionConstraint implements Constraint {
   argNames:string[];
   returnNames:string[];
   apply: (... things: any[]) => undefined|(number|string)[]; // @FIXME: Not supporting multi-return yet.
-  estimate?:(index:Index, prefix:ID[], transaction:number, round:number) => number
+  estimate?:(index:Index, prefix:Prefix, transaction:number, round:number) => number
   isInput:boolean = false;
 
   fieldNames:string[];
@@ -780,7 +910,7 @@ export class FunctionConstraint implements Constraint {
    * Similar to `Scan.resolve`, but resolving a map of the function's
    * fields rather than an EAVN.
    */
-  resolve(prefix:ID[]) {
+  resolve(prefix:Prefix) {
     let resolved = this.resolved;
 
     for(let fieldName of this.fieldNames) {
@@ -798,7 +928,7 @@ export class FunctionConstraint implements Constraint {
   /**
    * If a function is variadic, we need to resolve its rest fields as well.
    */
-  resolveRest(prefix:ID[]) {
+  resolveRest(prefix:Prefix) {
     let resolvedRest = this.resolvedRest;
 
     let ix = 0;
@@ -816,9 +946,9 @@ export class FunctionConstraint implements Constraint {
 
   // Function constraints have nothing to apply to the input, so they
   // always return ApplyInputState.none
-  applyInput(input:Change, prefix:ID[]):ApplyInputState { return ApplyInputState.none; }
+  applyInput(input:Change, prefix:Prefix):ApplyInputState { return ApplyInputState.none; }
 
-  propose(index:Index, prefix:ID[], transaction:number, round:number, results:any[]):Proposal {
+  propose(index:Index, prefix:Prefix, transaction:number, round:number, results:any[]):Proposal {
     let proposal = this.proposal;
     proposal.forRegisters.clear();
     let resolved = this.resolve(prefix);
@@ -886,7 +1016,7 @@ export class FunctionConstraint implements Constraint {
    * Pack the resolved register values for the functions argument
    * fields into an array.
    */
-  packInputs(prefix:ID[]) {
+  packInputs(prefix:Prefix) {
     let resolved = this.resolve(prefix);
     let inputs = this.applyInputs;
     let argIx = 0;
@@ -927,7 +1057,7 @@ export class FunctionConstraint implements Constraint {
     return outputs as ID[];
   }
 
-  resolveProposal(index:Index, prefix:ID[], proposal:Proposal, transaction:number, round:number, results:any[]):ID[][] {
+  resolveProposal(index:Index, prefix:Prefix, proposal:Proposal, transaction:number, round:number, results:any[]):ID[][] {
     // First we build the args array to provide the apply function.
     let inputs = this.packInputs(prefix);
 
@@ -953,7 +1083,7 @@ export class FunctionConstraint implements Constraint {
     return results;
   }
 
-  accept(index:Index, prefix:ID[], transaction:number, round:number, solvingFor:Register[]):boolean {
+  accept(index:Index, prefix:Prefix, transaction:number, round:number, solvingFor:Register[]):boolean {
     // If none of the registers we're solving for intersect our inputs
     // or outputs, we're not relevant to the solution.
     let isRelevant = false;
@@ -999,11 +1129,11 @@ export class FunctionConstraint implements Constraint {
     return true;
   }
 
-  acceptInput(index:Index, input:Change, prefix:ID[], transaction:number, round:number):boolean {
+  acceptInput(index:Index, input:Change, prefix:Prefix, transaction:number, round:number):boolean {
     return this.accept(index, prefix, transaction, round, this.registers);
   }
 
-  getDiffs(index:Index, prefix:ID[]):NTRCArray {
+  getDiffs(index:Index, prefix:Prefix):NTRCArray {
     return [];
   }
 }
@@ -1014,7 +1144,7 @@ interface FunctionSetup {
   args:{[argName:string]: string},
   returns:{[argName:string]: string},
   apply:(... things: any[]) => undefined|(number|string)[],
-  estimate?:(index:Index, prefix:ID[], transaction:number, round:number) => number
+  estimate?:(index:Index, prefix:Prefix, transaction:number, round:number) => number
 }
 
 export function makeFunction({name, variadic = false, args, returns, apply, estimate}:FunctionSetup) {
@@ -1032,49 +1162,6 @@ export function makeFunction({name, variadic = false, args, returns, apply, esti
 }
 
 //------------------------------------------------------------------------
-// Proposal
-//------------------------------------------------------------------------
-
-export interface Proposal {
-  cardinality:number,
-  forFields:Iterator<EAVNField>,
-  forRegisters:Iterator<Register>,
-  proposer:Constraint,
-  skip?:boolean,
-  info?:any,
-}
-
-//------------------------------------------------------------------------
-// Registers
-//------------------------------------------------------------------------
-
-/**
- * A register is just a numerical offset into the solved prefix.
- * We can't make this a type alias because we wouldn't be able to
- * tell the difference between static numbers and registers in scans.
- */
-
-export class Register {
-  constructor(public offset:number) {}
-}
-
-export function isRegister(x: any): x is Register {
-  return x && x.constructor === Register;
-}
-
-/** The ignore register is a sentinel value for ScanFields that tell the scan to completely ignore that field. */
-export var IGNORE_REG = null;
-type IgnoreRegister = typeof IGNORE_REG;
-
-/** A scan field may contain a register, a static interned value, or the IGNORE_REG sentinel value. */
-type ScanField = Register|ID|IgnoreRegister;
-/** A resolved value is a scan field that, if it contained a register, now contains the register's resolved value. */
-export type ResolvedValue = ID|undefined|IgnoreRegister;
-
-type ResolvedEAVN = {e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue};
-
-
-//------------------------------------------------------------------------
 // Nodes
 //------------------------------------------------------------------------
 
@@ -1087,7 +1174,7 @@ export interface Node {
    * returning a set of valid prefixes to continue the query as
    * results.
    */
-  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean;
+  exec(index:Index, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean;
 }
 
 /**
@@ -1158,7 +1245,7 @@ export class JoinNode implements Node {
     this.proposedResultsArrays = proposedResultsArrays;
   }
 
-  findAffectedConstraints(input:Change, prefix:ID[]):Iterator<Constraint> {
+  findAffectedConstraints(input:Change, prefix:Prefix):Iterator<Constraint> {
     // @TODO: Hoist me out.
     let affectedConstraints = this.affectedConstraints;
     affectedConstraints.clear();
@@ -1174,7 +1261,7 @@ export class JoinNode implements Node {
     return affectedConstraints;
   }
 
-  applyCombination(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>) {
+  applyCombination(index:Index, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<ID[]>) {
     debug("        Join combo:", prefix.slice());
     let countOfSolved = 0;
     for(let ix = 0; ix < this.registerLookup.length; ix++) {
@@ -1205,13 +1292,13 @@ export class JoinNode implements Node {
     }
   }
 
-  unapplyConstraint(constraint:Constraint, prefix:ID[]) {
+  unapplyConstraint(constraint:Constraint, prefix:Prefix) {
     for(let register of constraint.getRegisters()) {
       prefix[register.offset] = undefined as any;
     }
   }
 
-  presolveCheck(index:Index, input:Change, prefix:ID[], transaction:number, round:number):boolean {
+  presolveCheck(index:Index, input:Change, prefix:Prefix, transaction:number, round:number):boolean {
     let {constraints} = this;
 
     for(let constraint of constraints) {
@@ -1224,7 +1311,7 @@ export class JoinNode implements Node {
     return true;
   }
 
-  computeMultiplicities(results:Iterator<ID[]>, prefix:ID[], currentRound:number, diffs: NTRCArray[], diffIndex:number = -1) {
+  computeMultiplicities(results:Iterator<ID[]>, prefix:Prefix, currentRound:number, diffs: NTRCArray[], diffIndex:number = -1) {
     if(diffIndex === -1) {
       prefix[prefix.length - 2] = currentRound;
       prefix[prefix.length - 1] = this.inputCount;
@@ -1259,7 +1346,7 @@ export class JoinNode implements Node {
     return results;
   }
 
-  genericJoin(index:Index, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, roundIx:number = this.registerLength):Iterator<ID[]> {
+  genericJoin(index:Index, prefix:Prefix, transaction:number, round:number, results:Iterator<ID[]>, roundIx:number = this.registerLength):Iterator<ID[]> {
     let {constraints, emptyProposal} = this;
     let proposedResults = this.proposedResultsArrays[roundIx - 1];
     let forRegisters:Register[] = this.registerArrays[roundIx - 1];
@@ -1344,7 +1431,7 @@ export class JoinNode implements Node {
     return results;
   }
 
-  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):boolean {
+  exec(index:Index, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<ID[]>):boolean {
     this.inputCount = input.count;
     let didSomething = false;
     let affectedConstraints = this.findAffectedConstraints(input, prefix);
@@ -1402,7 +1489,7 @@ export class JoinNode implements Node {
 }
 
 export class DownstreamJoinNode extends JoinNode {
-  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):boolean {
+  exec(index:Index, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<ID[]>):boolean {
     this.inputCount = prefix[prefix.length - 1];
     return this.applyCombination(index, input, prefix, transaction, round, results);
   }
@@ -1441,7 +1528,7 @@ export class InsertNode implements Node {
     return delta;
   }
 
-  exec(index:Index, input:Change, prefix:ID[], transactionId:number, round:number, results:Iterator<ID[]>, transaction:Transaction):boolean {
+  exec(index:Index, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<ID[]>, transaction:Transaction):boolean {
     let resolved = this.resolve(prefix);
     let {e,a,v,n} = resolved;
 
@@ -1541,7 +1628,7 @@ export class CommitRemoveNode extends CommitInsertNode {
 // BinaryFlow
 //------------------------------------------------------------------------------
 
-type KeyFunction = (prefix:ID[]) => string;
+type KeyFunction = (prefix:Prefix) => string;
 
 class IntermediateIndex {
   static CreateKeyFunction(registers:Register[]):KeyFunction {
@@ -1558,7 +1645,7 @@ class IntermediateIndex {
 
   // @TODO: we should probably consider compacting these times as they're
   // added
-  insert(key:string, prefix:ID[]) {
+  insert(key:string, prefix:Prefix) {
     let found = this.index[key];
     if(!found) found = this.index[key] = createArray("IntermediateIndexDiffs");
     found.push(prefix);
@@ -1575,7 +1662,7 @@ abstract class BinaryFlow implements Node {
 
   constructor(public left:Node, public right:Node) { }
 
-  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
+  exec(index:Index, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
     let {left, right, leftResults, rightResults} = this;
     leftResults.clear();
     left.exec(index, input, prefix, transaction, round, leftResults, changes);
@@ -1591,8 +1678,8 @@ abstract class BinaryFlow implements Node {
     return true;
   }
 
-  abstract onLeft(index:Index, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):void;
-  abstract onRight(index:Index, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):void;
+  abstract onLeft(index:Index, prefix:Prefix, transaction:number, round:number, results:Iterator<ID[]>):void;
+  abstract onRight(index:Index, prefix:Prefix, transaction:number, round:number, results:Iterator<ID[]>):void;
 }
 
 export class BinaryJoinRight extends BinaryFlow {
@@ -1605,7 +1692,7 @@ export class BinaryJoinRight extends BinaryFlow {
     this.keyFunc = IntermediateIndex.CreateKeyFunction(keyRegisters);
   }
 
-  onLeft(index:Index, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):void {
+  onLeft(index:Index, prefix:Prefix, transaction:number, round:number, results:Iterator<ID[]>):void {
     let key = this.keyFunc(prefix);
     let count = prefix[prefix.length - 1];
     this.leftIndex.insert(key, prefix);
@@ -1623,7 +1710,7 @@ export class BinaryJoinRight extends BinaryFlow {
     }
   }
 
-  onRight(index:Index, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):void {
+  onRight(index:Index, prefix:Prefix, transaction:number, round:number, results:Iterator<ID[]>):void {
     let key = this.keyFunc(prefix);
     let count = prefix[prefix.length - 1];
     this.rightIndex.insert(key, prefix);
@@ -1653,12 +1740,12 @@ export class AntiJoin extends BinaryFlow {
     this.keyFunc = IntermediateIndex.CreateKeyFunction(keyRegisters);
   }
 
-  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
+  exec(index:Index, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
     debug("            antijoin:")
     return super.exec(index,input,prefix,transaction,round,results,changes);
   }
 
-  onLeft(index:Index, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):void {
+  onLeft(index:Index, prefix:Prefix, transaction:number, round:number, results:Iterator<ID[]>):void {
     let key = this.keyFunc(prefix);
     let count = prefix[prefix.length - 1];
     this.leftIndex.insert(key, prefix);
@@ -1670,7 +1757,7 @@ export class AntiJoin extends BinaryFlow {
     }
   }
 
-  onRight(index:Index, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):void {
+  onRight(index:Index, prefix:Prefix, transaction:number, round:number, results:Iterator<ID[]>):void {
     let key = this.keyFunc(prefix);
     let count = prefix[prefix.length - 1];
     this.rightIndex.insert(key, prefix);
@@ -1691,7 +1778,7 @@ export class AntiJoin extends BinaryFlow {
 }
 
 export class AntiJoinPresolvedRight extends AntiJoin {
-  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
+  exec(index:Index, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
     let {left, right, leftResults, rightResults} = this;
     leftResults.clear();
     left.exec(index, input, prefix, transaction, round, leftResults, changes);
@@ -1710,7 +1797,7 @@ export class AntiJoinPresolvedRight extends AntiJoin {
 export class UnionFlow implements Node {
   constructor(public branches:Node[], public registers:Register[]) { }
 
-  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
+  exec(index:Index, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
     for(let node of this.branches) {
       node.exec(index, input, prefix, transaction, round, results, changes);
     }
@@ -1736,7 +1823,7 @@ export class ChooseFlow implements Node {
     }
   }
 
-  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
+  exec(index:Index, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
     let {branchResults, branches} = this;
     let prev:Iterator<ID[]>|undefined;
     let ix = 0;
@@ -1774,7 +1861,7 @@ export class MergeAggregateFlow extends BinaryFlow {
     }
   }
 
-  onLeft(index:Index, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):void {
+  onLeft(index:Index, prefix:Prefix, transaction:number, round:number, results:Iterator<ID[]>):void {
     let key = this.keyFunc(prefix);
     let count = prefix[prefix.length - 1];
     this.leftIndex.insert(key, prefix);
@@ -1793,7 +1880,7 @@ export class MergeAggregateFlow extends BinaryFlow {
     }
   }
 
-  onRight(index:Index, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>):void {
+  onRight(index:Index, prefix:Prefix, transaction:number, round:number, results:Iterator<ID[]>):void {
     let key = this.keyFunc(prefix);
     let count = prefix[prefix.length - 1];
     this.rightIndex.insert(key, prefix);
@@ -1813,7 +1900,7 @@ export class MergeAggregateFlow extends BinaryFlow {
     }
   }
 
-  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
+  exec(index:Index, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
     debug("        AGG MERGE");
     let result;
     let {left, right, leftResults, rightResults} = this;
@@ -1852,7 +1939,7 @@ export abstract class AggregateNode implements Node {
     this.projectKey = IntermediateIndex.CreateKeyFunction(projectRegisters);
   }
 
-  groupPrefix(group:string, prefix:ID[]) {
+  groupPrefix(group:string, prefix:Prefix) {
     let projection = this.projectKey(prefix);
     let prefixRound = prefix[prefix.length - 2];
     let prefixCount = prefix[prefix.length - 1];
@@ -1890,14 +1977,14 @@ export abstract class AggregateNode implements Node {
     return delta;
   }
 
-  getResultPrefix(prefix:ID[], result:ID, count:Multiplicity):ID[] {
+  getResultPrefix(prefix:Prefix, result:ID, count:Multiplicity):ID[] {
     let neue = copyArray(prefix, "aggregateResult");
     neue[this.results[0].offset] = result;
     neue[neue.length - 1] = count;
     return neue;
   }
 
-  resolve(prefix:ID[]):RawValue[] {
+  resolve(prefix:Prefix):RawValue[] {
     let resolved = this.resolved;
     let ix = 0;
     for(let field of this.inputs) {
@@ -1916,7 +2003,7 @@ export abstract class AggregateNode implements Node {
     return GlobalInterner.intern(current);
   }
 
-  exec(index:Index, input:Change, prefix:ID[], transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
+  exec(index:Index, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<ID[]>, changes:Transaction):boolean {
     let group = this.groupKey(prefix);
     let prefixRound = prefix[prefix.length - 2];
     let delta = this.groupPrefix(group, prefix);
