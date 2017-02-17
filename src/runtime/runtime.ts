@@ -241,6 +241,7 @@ export class Interner {
 }
 
 export var GlobalInterner = new Interner();
+(global as any)["GlobalInterner"] = GlobalInterner;
 
 //------------------------------------------------------------------------
 // EAVNs
@@ -279,8 +280,6 @@ type Multiplicity = number;
 
 export class Change {
   constructor(public e: ID, public a: ID, public v: ID, public n: ID, public transaction:number, public round:number, public count:Multiplicity) {}
-
-  public handled = false;
 
   static fromValues(e: any, a: any, v: any, n: any, transaction: number, round: number, count:Multiplicity) {
     return new Change(GlobalInterner.intern(e), GlobalInterner.intern(a), GlobalInterner.intern(v),
@@ -1410,7 +1409,6 @@ export class InsertNode implements Node {
     let startingCount = roundCounts[prefixRound] = roundCounts[prefixRound] || 0;
 
     let deltas = [];
-    console.log("PC", roundCounts, prefixRound, roundCounts.length);
     for(let roundIx = prefixRound; roundIx < roundCounts.length; roundIx++) {
       let roundCount = roundCounts[roundIx];
       if(roundCount === undefined) continue;
@@ -1423,13 +1421,12 @@ export class InsertNode implements Node {
       debug("         ?? <-", e, a, v, prefixRound + 1, {roundCount, curCount, newCount, delta})
 
       if(delta) {
-        deltas.push(roundIx, delta);
+        deltas.push(roundIx === prefixRound ? prefixRound + 1 : roundIx, delta);
       }
     }
 
     roundCounts[prefixRound] = prefixCount + startingCount;
 
-    console.log("THE D", deltas);
     return deltas;
   }
 
@@ -1446,33 +1443,12 @@ export class InsertNode implements Node {
 
     let prefixRound = prefix[prefix.length - 2];
     let prefixCount = prefix[prefix.length - 1];
-    let prefixDelta = 0;
-    if(prefixCount > 0) prefixDelta = 1;
-    if(prefixCount < 0) prefixDelta = -1;
 
     let deltas = this.shouldOutput(resolved, prefixRound, prefixCount, transaction);
-    if(deltas.length) {
-      // @TODO: when we do removes, we could say that if the result is a remove, we want to
-      // dereference these ids instead of referencing them. This would allow us to clean up
-      // the interned space based on what's "in" the indexes. The only problem is that if you
-      // held on to a change, the IDs of that change may no longer be in the interner, or worse
-      // they may have been reassigned to something else. For now, we'll just say that once something
-      // is in the index, it never goes away.
-      GlobalInterner.reference(e!);
-      GlobalInterner.reference(a!);
-      GlobalInterner.reference(v!);
-      GlobalInterner.reference(n!);
-
-      let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixDelta * this.multiplier);
-      this.output(transaction, change);
-    }
-
     for(let deltaIx = 0; deltaIx < deltas.length; deltaIx += 2) {
       let deltaRound = deltas[deltaIx];
-      if(deltaRound === prefixRound + 1) continue;
       let delta = deltas[deltaIx + 1];
       let change = new Change(e!, a!, v!, n!, transactionId, deltaRound, delta * this.multiplier);
-      change.handled = true;
       this.output(transaction, change);
     }
 
@@ -1480,6 +1456,17 @@ export class InsertNode implements Node {
   }
 
   output(transaction:Transaction, change:Change) {
+    // @TODO: when we do removes, we could say that if the result is a remove, we want to
+    // dereference these ids instead of referencing them. This would allow us to clean up
+    // the interned space based on what's "in" the indexes. The only problem is that if you
+    // held on to a change, the IDs of that change may no longer be in the interner, or worse
+    // they may have been reassigned to something else. For now, we'll just say that once something
+    // is in the index, it never goes away.
+    GlobalInterner.reference(change.e);
+    GlobalInterner.reference(change.a);
+    GlobalInterner.reference(change.v);
+    GlobalInterner.reference(change.n);
+
     transaction.output(change);
   }
 }
@@ -1503,83 +1490,12 @@ export class WatchNode extends InsertNode {
   }
 }
 
-export class RemoveNode extends InsertNode {
-  multiplier:number = -1;
-
-  exec(index:Index, input:Change, prefix:ID[], transactionId:number, round:number, results:Iterator<ID[]>, transaction:Transaction):boolean {
-    let resolved = this.resolve(prefix);
-    let {e,a,v,n} = resolved;
-
-    // @FIXME: This is pretty wasteful to copy one by one here.
-    results!.push(prefix);
-
-    if(e === undefined || a === undefined || (v === undefined && this.v !== IGNORE_REG) || n === undefined) {
-      return false;
-    }
-
-    let prefixRound = prefix[prefix.length - 2];
-    let prefixCount = prefix[prefix.length - 1];
-
-
-    if(this.v !== IGNORE_REG) {
-      if(this.shouldOutput(resolved, prefixRound, prefixCount, transaction)) {
-        // @TODO: when we do removes, we could say that if the result is a remove, we want to
-        // dereference these ids instead of referencing them. This would allow us to clean up
-        // the interned space based on what's "in" the indexes. The only problem is that if you
-        // held on to a change, the IDs of that change may no longer be in the interner, or worse
-        // they may have been reassigned to something else. For now, we'll just say that once something
-        // is in the index, it never goes away.
-        GlobalInterner.reference(e!);
-        GlobalInterner.reference(a!);
-        GlobalInterner.reference(v!);
-        GlobalInterner.reference(n!);
-        let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount * this.multiplier);
-        this.output(transaction, change);
-
-      } else {
-        let matches = index.get(e, a, IGNORE_REG, IGNORE_REG, transactionId, Infinity);
-        for(let {v} of matches) {
-          resolved.v = v;
-          if(this.shouldOutput(resolved, prefixRound, prefixCount, transaction)) {
-            let ntrcs = index.getDiffs(e, a, v, IGNORE_REG);
-            let roundToMultiplicity:{[round:number]: number} = {};
-            for(let ix = 0; ix < ntrcs.length; ix += 4) {
-              // n = ix, t = ix + 1, r = ix + 2, c = ix + 3
-              let round = ntrcs[ix + 2];
-              let count = ntrcs[ix + 3];
-              let cur = roundToMultiplicity[round] || 0;
-              roundToMultiplicity[round] = cur + count;
-            }
-            for(let roundString in roundToMultiplicity) {
-              let curRound = +roundString;
-              let count = roundToMultiplicity[curRound] * prefixCount;
-              if(count === 0) continue;
-              let changeRound = Math.max(prefixRound + 1, curRound);
-              GlobalInterner.reference(e!);
-              GlobalInterner.reference(a!);
-              GlobalInterner.reference(v!);
-              GlobalInterner.reference(n!);
-              let change = new Change(e!, a!, v!, n!, transactionId, changeRound, prefixCount * this.multiplier);
-              this.output(transaction, change);
-            }
-          }
-        }
-      }
-    }
-
-    return true;
-  }
-}
-
 export class CommitInsertNode extends InsertNode {
   lastRound = 0;
   lastTransaction = 0;
   roundCounts:{[key:string]:number} = {};
 
   shouldOutput(resolved:ResolvedEAVN, prefixRound:number, prefixCount:Multiplicity, transaction:Transaction) {
-    let superDeltas = super.shouldOutput(resolved, prefixRound, prefixCount, transaction);
-    if(!superDeltas.length) return superDeltas;
-
     if(this.lastRound !== transaction.round || this.lastTransaction !== transaction.transaction) {
       this.lastTransaction = transaction.transaction;
       this.lastRound = transaction.round;
@@ -1588,7 +1504,7 @@ export class CommitInsertNode extends InsertNode {
 
     let {roundCounts} = this;
     let {e,a,v,n} = resolved;
-    let key = `${e}|${a}|${v}|${prefixRound + 1}`;
+    let key = `${e}|${a}|${v}|`;
     let prevCount = roundCounts[key] || 0;
     let newCount = prevCount + prefixCount;
     roundCounts[key] = newCount;
@@ -1596,23 +1512,26 @@ export class CommitInsertNode extends InsertNode {
     // if we said something previously and now we're saying nothing, we should be negative
     // if we haven't said anything and we get a negative, we should be 0
     let delta = 0;
-    if(prevCount > 0 && newCount <= 0 && superDeltas[1] === -1) delta = -1;
-    if(prevCount === 0 && newCount > 0 && superDeltas[1] === 1) delta = 1;
+    if(prevCount > 0 && newCount <= 0) delta = -1;
+    if(prevCount === 0 && newCount > 0) delta = 1;
 
-    debug("         ?? <-", e, a, v, prefixRound + 1, {prevCount, newCount, delta})
+    debug("       C?? <-", e, a, v, prefixRound + 1, {prevCount, newCount, delta})
 
     if(delta) {
-      return superDeltas;
+      let superDeltas = super.shouldOutput(resolved, prefixRound, prefixCount, transaction);
+      if(!superDeltas.length) return superDeltas;
+      if(delta === superDeltas[1]) {
+        return superDeltas;
+      }
     }
 
     return createArray();
   }
 }
 
-export class CommitRemoveNode extends CommitInsertNode {
-  multiplier = -1;
+export class RemoveNode extends InsertNode {
+  multiplier:number = -1;
 
-  // @NOTE: This can probably* be copied from exec = RemoveNode.prototype.exec
   exec(index:Index, input:Change, prefix:ID[], transactionId:number, round:number, results:Iterator<ID[]>, transaction:Transaction):boolean {
     let resolved = this.resolve(prefix);
     let {e,a,v,n} = resolved;
@@ -1633,31 +1552,31 @@ export class CommitRemoveNode extends CommitInsertNode {
       // unspecified v case. The only examples it could impact
       // (e.g. removing a specific EAV matching the input works this
       // way).
-      if(this.shouldOutput(resolved, prefixRound, prefixCount, transaction)) {
-        // @TODO: when we do removes, we could say that if the result is a remove, we want to
-        // dereference these ids instead of referencing them. This would allow us to clean up
-        // the interned space based on what's "in" the indexes. The only problem is that if you
-        // held on to a change, the IDs of that change may no longer be in the interner, or worse
-        // they may have been reassigned to something else. For now, we'll just say that once something
-        // is in the index, it never goes away.
-        GlobalInterner.reference(e!);
-        GlobalInterner.reference(a!);
-        GlobalInterner.reference(v!);
-        GlobalInterner.reference(n!);
-        let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount * this.multiplier);
+
+      // @NOTE: This logic may not be right here if someone else comes along and asserts about us later?
+      let deltas = this.shouldOutput(resolved, prefixRound, prefixCount, transaction);
+      for(let deltaIx = 0; deltaIx < deltas.length; deltaIx += 2) {
+        let deltaRound = deltas[deltaIx];
+        let delta = deltas[deltaIx + 1];
+        let change = new Change(e!, a!, v!, n!, transactionId, deltaRound, delta * this.multiplier);
         this.output(transaction, change);
       }
+
+
     } else {
+      // If we match the input change, we need to remove it too.
       if(e === input.e && a === input.a && (v === input.v || this.v === IGNORE_REG)) {
         resolved.v = input.v;
-        if(this.shouldOutput(resolved, prefixRound, prefixCount, transaction)) {
-          GlobalInterner.reference(e!);
-          GlobalInterner.reference(a!);
-          GlobalInterner.reference(v!);
-          GlobalInterner.reference(n!);
-          let change = new Change(e!, a!, input.v, n!, transactionId, prefixRound + 1, prefixCount * this.multiplier);
+
+        // @NOTE: This logic may not be right here if someone else comes along and asserts about us later?
+        let deltas = this.shouldOutput(resolved, prefixRound, prefixCount, transaction);
+        for(let deltaIx = 0; deltaIx < deltas.length; deltaIx += 2) {
+          let deltaRound = deltas[deltaIx];
+          let delta = deltas[deltaIx + 1];
+          let change = new Change(e!, a!, input.v, n!, transactionId, deltaRound, delta * this.multiplier);
           this.output(transaction, change);
         }
+
         resolved.v = v;
       }
 
@@ -1666,33 +1585,48 @@ export class CommitRemoveNode extends CommitInsertNode {
       for(let {v} of matches) {
         // console.log(e, GlobalInterner.reverse(a!), GlobalInterner.reverse(v!));
         resolved.v = v;
-        if(this.shouldOutput(resolved, prefixRound, prefixCount, transaction)) {
-          let ntrcs = index.getDiffs(e, a, v, IGNORE_REG);
-          let roundToMultiplicity:{[round:number]: number} = {};
-          for(let ix = 0; ix < ntrcs.length; ix += 4) {
-            // n = ix, t = ix + 1, r = ix + 2, c = ix + 3
-            let round = ntrcs[ix + 2];
-            let count = ntrcs[ix + 3];
-            let cur = roundToMultiplicity[round] || 0;
-            roundToMultiplicity[round] = cur + count;
-          }
-          for(let roundString in roundToMultiplicity) {
-            let curRound = +roundString;
-            let count = roundToMultiplicity[curRound] * prefixCount;
-            if(count === 0) continue;
-            let changeRound = Math.max(prefixRound + 1, curRound);
-            GlobalInterner.reference(e!);
-            GlobalInterner.reference(a!);
-            GlobalInterner.reference(v!);
-            GlobalInterner.reference(n!);
-            let change = new Change(e!, a!, v!, n!, transactionId, changeRound, prefixCount * this.multiplier);
-            this.output(transaction, change);
-          }
+        let deltas = this.shouldOutput(resolved, prefixRound, prefixCount, transaction);
+        for(let deltaIx = 0; deltaIx < deltas.length; deltaIx += 2) {
+          let deltaRound = deltas[deltaIx];
+          let delta = deltas[deltaIx + 1];
+
+          let change = new Change(e!, a!, v!, n!, transactionId, deltaRound, delta * this.multiplier);
+          this.output(transaction, change);
+
+          // let ntrcs = index.getDiffs(e, a, v, IGNORE_REG);
+          // let roundToMultiplicity:{[round:number]: number} = {};
+          // for(let ix = 0; ix < ntrcs.length; ix += 4) {
+          //   // n = ix, t = ix + 1, r = ix + 2, c = ix + 3
+          //   let round = ntrcs[ix + 2];
+          //   if(round < deltaRound) continue;
+          //   let count = ntrcs[ix + 3];
+          //   let cur = roundToMultiplicity[round] || 0;
+          //   roundToMultiplicity[round] = cur + count;
+          // }
+          // for(let roundString in roundToMultiplicity) {
+          //   let curRound = +roundString;
+          //   let count = roundToMultiplicity[curRound] * prefixCount;
+          //   if(count === 0) continue;
+          //   let changeRound = Math.max(prefixRound + 1, curRound);
+          //   let change = new Change(e!, a!, v!, n!, transactionId, changeRound, delta * this.multiplier);
+          //   this.output(transaction, change);
+          // }
         }
       }
+      resolved.v = v;
     }
 
     return true;
+  }
+}
+
+export class CommitRemoveNode extends CommitInsertNode {
+  multiplier = -1;
+
+  protected _exec = RemoveNode.prototype.exec;
+
+  exec(index:Index, input:Change, prefix:ID[], transactionId:number, round:number, results:Iterator<ID[]>, transaction:Transaction):boolean {
+    return this._exec(index, input, prefix, transactionId, round, results, transaction);
   }
 }
 
@@ -2244,6 +2178,10 @@ export class Transaction {
     while(changeIx < changes.length) {
       let change = changes[changeIx];
       this.round = change.round;
+      if(this.round > 10) {
+        console.error("Failed to terminate");
+        break;
+      }
       debug("Round:", this.round);
 
       debug("-> " + change, index.hasImpact(change));
@@ -2259,11 +2197,8 @@ export class Transaction {
           block.exec(index, change, this);
         }
       }
-      debug = console.log;
       debug("");
-      if(!change.handled) {
-        index.insert(change);
-      }
+      index.insert(change);
 
       changeIx++;
       let next = changes[changeIx];
