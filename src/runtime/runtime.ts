@@ -1515,12 +1515,12 @@ export class RemoveNode extends InsertNode {
               let curRound = +roundString;
               let count = roundToMultiplicity[curRound] * prefixCount;
               if(count === 0) continue;
-              let changeRound = Math.max(prefixRound, curRound);
+              let changeRound = Math.max(prefixRound + 1, curRound);
               GlobalInterner.reference(e!);
               GlobalInterner.reference(a!);
               GlobalInterner.reference(v!);
               GlobalInterner.reference(n!);
-              let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount * this.multiplier);
+              let change = new Change(e!, a!, v!, n!, transactionId, changeRound, prefixCount * this.multiplier);
               this.output(transaction, change);
             }
           }
@@ -1652,8 +1652,9 @@ export class CommitRemoveNode extends CommitInsertNode {
       }
 
       let matches = index.get(e, a, IGNORE_REG, IGNORE_REG, transactionId, Infinity);
+
       for(let {v} of matches) {
-        console.log(e, GlobalInterner.reverse(a!), GlobalInterner.reverse(v!));
+        // console.log(e, GlobalInterner.reverse(a!), GlobalInterner.reverse(v!));
         resolved.v = v;
         if(this.shouldOutput(resolved, prefixRound, prefixCount, transaction)) {
           let ntrcs = index.getDiffs(e, a, v, IGNORE_REG);
@@ -1669,12 +1670,12 @@ export class CommitRemoveNode extends CommitInsertNode {
             let curRound = +roundString;
             let count = roundToMultiplicity[curRound] * prefixCount;
             if(count === 0) continue;
-            let changeRound = Math.max(prefixRound, curRound);
+            let changeRound = Math.max(prefixRound + 1, curRound);
             GlobalInterner.reference(e!);
             GlobalInterner.reference(a!);
             GlobalInterner.reference(v!);
             GlobalInterner.reference(n!);
-            let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount * this.multiplier);
+            let change = new Change(e!, a!, v!, n!, transactionId, changeRound, prefixCount * this.multiplier);
             this.output(transaction, change);
           }
         }
