@@ -22,7 +22,7 @@ export function verify(assert:any, program:Program, input:any[], output:any[], t
   let outs = createChanges(transaction, output);
 
   let all:(Runtime.Change|undefined)[] = ins.concat(outs);
-  let {changes} = program.input(ins);
+  let {changes} = program.input(ins)!;
   let msg = "Fewer changes than expected";
   if(changes.length > all.length) {
     msg = "More changes than expected";

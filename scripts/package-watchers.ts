@@ -1,12 +1,12 @@
 import * as fs from "fs";
 import * as path from "path";
-import {Watcher, bundleWatchers} from "../src/watchers/watcher";
+import {Watcher, findWatchers} from "../src/watchers/watcher";
 
 export function packageWorkspaces(callback:() => void) {
-  let bundle = bundleWatchers();
+  let watchers = findWatchers();
   let content = "let _watchers = [\n";
-  for(let filepath in bundle) {
-    content += "  \"" + path.relative(__dirname + "/..", filepath) + "\", \n";
+  for(let filepath of watchers) {
+    content += "  \"/build/" + path.relative(__dirname + "/..", filepath) + "\", \n";
   }
   content += "];\n";
   fs.writeFileSync("build/watchers.js", content);

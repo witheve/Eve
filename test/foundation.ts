@@ -194,7 +194,7 @@ test("test addition operator", (assert) => {
   prog.block("simple block", ({find, record, lib}) => {
     let joof = find({foo: "bar"});
     return [
-      joof.add("name", "JOOF")
+     joof.add("name", "JOOF")
     ]
   });
 
@@ -248,8 +248,6 @@ test("transitive closure", (assert) => {
     [2, "path", 1, 1],
     [1, "path", 1, 2],
     [2, "path", 2, 2],
-    [1, "path", 2, 3],
-    [2, "path", 1, 3],
   ])
 
   verify(assert, prog, [
@@ -258,8 +256,7 @@ test("transitive closure", (assert) => {
     [1, "path", 2, 1, -1],
     [1, "path", 1, 2, -1],
     [2, "path", 2, 2, -1],
-    [2, "path", 1, 3, -1],
-    [1, "path", 2, 3, -1],
+    //[2, "path", 1, 3, -1],
   ])
 
   verify(assert, prog, [
@@ -268,8 +265,7 @@ test("transitive closure", (assert) => {
     [1, "path", 2, 1, 1],
     [1, "path", 1, 2, 1],
     [2, "path", 2, 2, 1],
-    [2, "path", 1, 3, 1],
-    [1, "path", 2, 3, 1],
+    //[2, "path", 1, 3, 1],
   ])
 
   // verify(assert, prog, [
@@ -700,4 +696,3 @@ test("commit, remove, and recursion", (assert) => {
 
   assert.end();
 });
-

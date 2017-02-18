@@ -1,18 +1,18 @@
-SystemJS.config({
-  baseURL: "build/",
-  defaultJSExtensions: true,
-  map: {fs: "@empty", path: "@empty", glob: "@empty", mkdirp: "@empty"},
-  meta: {"/build/src/codemirror.js": { format: "cjs" }}
-});
+if(typeof _watchers === "undefined") {
+  console.warn("Please run `npm run build` in order to bundle the watchers for the browser.")
+}
 
-// Kicks off requiring everyone else
-SystemJS.register("uuid", [], function($export) {
-  $export("default", uuid);
-  $export("v4", uuid);
-});
-SystemJS.registerDynamic("codemirror", [], false, function(require, exports, module) {
-  module.exports = window.CodeMirror;
-});
-SystemJS.register("microReact", [], function($export) {
-  $export("Renderer", Renderer);
+SystemJS.config({
+  baseURL: "node_modules/",
+  map: {
+    fs: "@empty",
+    path: "@empty",
+    glob: "@empty",
+    mkdirp: "@empty"
+  },
+  meta: {"/build/src/bootstrap.js": {deps: (typeof _watchers === "undefined") ? [] : _watchers}},
+  packages: {
+    "/build": {defaultExtension: "js"},
+    "node-uuid": {main: "uuid.js"}
+  }
 });

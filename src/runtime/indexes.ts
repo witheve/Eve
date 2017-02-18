@@ -1,5 +1,4 @@
-
-import {Proposal, Change, ResolvedValue, createArray, createHash, IGNORE_REG, ID, EAVNField, Register, Constraint, ALLOCATION_COUNT, NTRCArray} from "./runtime";
+import {Proposal, Change, ResolvedValue, createArray, createHash, IGNORE_REG, ID, EAVN, EAVNField, Register, Constraint, ALLOCATION_COUNT, NTRCArray} from "./runtime";
 
 //------------------------------------------------------------------------
 // Utils
@@ -35,6 +34,7 @@ export interface Index {
   resolveProposal(proposal:Proposal):any[][];
   check(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):boolean;
   getDiffs(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue):NTRCArray;
+  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[];
 }
 
 export class ListIndex implements Index {
@@ -141,7 +141,10 @@ export class ListIndex implements Index {
       }
     }
     return final;
+  }
 
+  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[] {
+    throw new Error("not implemented");
   }
 }
 
@@ -303,6 +306,67 @@ export class HashIndex implements Index {
     return true;
   }
 
+  // This function finds all EAVs in the index that match the given
+  // pattern at the stated time. If a level is free, we have to run
+  // through the potential values until we come across one that could
+  // match or we run out of values to check.
+  walkGet(index:any, a:ResolvedValue, b:ResolvedValue, c:ResolvedValue, n:ResolvedValue, fieldB:EAVNField, fieldC:EAVNField, transaction:number, round:number):EAVN[] {
+    let fieldA:EAVNField = "e";
+    if(fieldB === "e") fieldA = "a";
+
+    let results:EAVN[] = createArray("IndexWalkGet");
+
+    let bIx = index[a as ID];
+    if(!bIx) return results;
+    if(isResolved(b)) {
+      let cIx = bIx[b];
+      if(!cIx) return results;
+      if(isResolved(c)) { // ABC
+        if(sumTimes(cIx[c], transaction, round) > 0) {
+          results.push({[fieldA]: +a, [fieldB]: +b, [fieldC]: +c, n} as any);
+        }
+        return results;
+
+      } else { // ABc
+        for(let c of Object.keys(cIx)) {
+          if(sumTimes(cIx[c], transaction, round) > 0) {
+            results.push({[fieldA]: +a, [fieldB]: +b, [fieldC]: +c, n} as any);
+          }
+        }
+        return results;
+      }
+    } else {
+      for(let b of Object.keys(bIx)) {
+        let cIx = bIx[b];
+        if(!cIx) return results;
+        if(isResolved(c)) {  // AbC
+          if(sumTimes(cIx[c], transaction, round) > 0) {
+            results.push({[fieldA]: +a, [fieldB]: +b, [fieldC]: +c, n} as any);
+          }
+          return results;
+
+        } else { // Abc
+          for(let c of Object.keys(cIx)) {
+            if(sumTimes(cIx[c], transaction, round) > 0) {
+              results.push({[fieldA]: +a, [fieldB]: +b, [fieldC]: +c, n} as any);
+            }
+          }
+          return results;
+        }
+      }
+    }
+
+    throw new Error("HashIndex.walkGet eav not implemented.");
+  }
+
+  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[] {
+    if(isResolved(e)) {
+      return this.walkGet(this.eavIndex, e, a, v, n, "a", "v", transaction, round);
+    } else if(isResolved(a)) {
+      return this.walkGet(this.aveIndex, a, v, e, n, "v", "e", transaction, round);
+    } else throw new Error("HashIndex.get eaV not implemented.");
+  }
+
   getDiffs(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue):NTRCArray {
     let aIx = this.eavIndex[e!];
     if(aIx) {
@@ -351,5 +415,9 @@ class MatrixIndex implements Index {
 
   getDiffs(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue):NTRCArray {
     return [];
+  }
+
+  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[] {
+    throw new Error("not implemented");
   }
 }
