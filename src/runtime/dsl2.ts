@@ -1473,6 +1473,7 @@ export type EAVRCTuple = [RawValue, RawValue, RawValue, number, number];
 export type TestChange =  EAVTuple | EAVRCTuple;
 
 export class Program {
+  context:Runtime.EvaluationContext;
   blocks:Runtime.Block[] = [];
   flows:LinearFlow[] = [];
   index:indexes.Index;
@@ -1485,6 +1486,7 @@ export class Program {
 
   constructor(public name:string) {
     this.index = new indexes.HashIndex();
+    this.context = new Runtime.EvaluationContext(this.index);
   }
 
   block(name:string, func:LinearFlowFunction) {
@@ -1503,7 +1505,7 @@ export class Program {
   input(changes:Runtime.Change[]) {
     if(changes[0].transaction >= this.nextTransactionId) this.nextTransactionId = changes[0].transaction + 1;
     let trans = new Runtime.Transaction(changes[0].transaction, this.blocks, changes, this.lastWatch ? this.exporter.handle : undefined);
-    trans.exec(this.index);
+    trans.exec(this.context);
     return trans;
   }
 
@@ -1529,7 +1531,7 @@ export class Program {
         trans.output(change);
       }
     }
-    trans.exec(this.index);
+    trans.exec(this.context);
     console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
     console.groupEnd();
     return this;

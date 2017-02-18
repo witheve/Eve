@@ -554,11 +554,11 @@ export interface Constraint {
   setup():void;
   getRegisters():Register[];
   applyInput(input:Change, prefix:Prefix):ApplyInputState;
-  propose(index:Index, prefix:Prefix, transaction:number, round:number, results:any[]):Proposal;
-  resolveProposal(index:Index, prefix:Prefix, proposal:Proposal, transaction:number, round:number, results:any[]):ID[][];
-  accept(index:Index, prefix:Prefix, transaction:number, round:number, solvingFor:Register[]):boolean;
-  acceptInput(index:Index, input:Change, prefix:Prefix, transaction:number, round:number):boolean;
-  getDiffs(index:Index, prefix:Prefix):NTRCArray;
+  propose(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:any[]):Proposal;
+  resolveProposal(context:EvaluationContext, prefix:Prefix, proposal:Proposal, transaction:number, round:number, results:any[]):ID[][];
+  accept(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, solvingFor:Register[]):boolean;
+  acceptInput(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number):boolean;
+  getDiffs(context:EvaluationContext, prefix:Prefix):NTRCArray;
 }
 
 //------------------------------------------------------------------------
@@ -622,7 +622,7 @@ export class MoveConstraint {
     return ApplyInputState.none;
   }
 
-  propose(index:Index, prefix:Prefix, transaction:number, round:number, results:any[]):Proposal {
+  propose(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:any[]):Proposal {
     let [from, to] = this.resolve(prefix);
     this.proposal.skip = true;
     if(from !== undefined && to === undefined) {
@@ -631,14 +631,14 @@ export class MoveConstraint {
     return this.proposal;
   }
 
-  resolveProposal(index:Index, prefix:Prefix, proposal:Proposal, transaction:number, round:number, results:any[]):ID[][] {
+  resolveProposal(context:EvaluationContext, prefix:Prefix, proposal:Proposal, transaction:number, round:number, results:any[]):ID[][] {
     let [from, to] = this.resolve(prefix);
     let arr = createArray("MoveResult") as Prefix;
     arr[0] = from!;
     return arr as any;
   }
 
-  accept(index:Index, prefix:Prefix, transaction:number, round:number, solvingFor:Register[]):boolean {
+  accept(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, solvingFor:Register[]):boolean {
     let [from, to] = this.resolve(prefix);
     if(from !== undefined && to !== undefined) {
       return from == to;
@@ -646,11 +646,11 @@ export class MoveConstraint {
     return true;
   }
 
-  acceptInput(index:Index, input:Change, prefix:Prefix, transaction:number, round:number):boolean {
-    return this.accept(index, prefix, transaction, round, this.registers);
+  acceptInput(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number):boolean {
+    return this.accept(context, prefix, transaction, round, this.registers);
   }
 
-  getDiffs(index:Index, prefix:Prefix):NTRCArray {
+  getDiffs(context:EvaluationContext, prefix:Prefix):NTRCArray {
     throw new Error("Asking for Diffs from MoveConstraint");
   }
 }
@@ -772,7 +772,8 @@ export class Scan implements Constraint {
     return ApplyInputState.pass;
   }
 
-  propose(index:Index, prefix:Prefix, transaction:number, round:number, results:any[]):Proposal {
+  propose(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:any[]):Proposal {
+    let {index} = context;
     let {e,a,v,n} = this.resolve(prefix);
     this.proposal.skip = false;
     let proposal = index.propose(this.proposal, e, a, v, n, transaction, round);
@@ -787,11 +788,12 @@ export class Scan implements Constraint {
     return proposal;
   }
 
-  resolveProposal(index:Index, prefix:Prefix, proposal:Proposal, transaction:number, round:number, results:any[]):ID[][] {
+  resolveProposal(context:EvaluationContext, prefix:Prefix, proposal:Proposal, transaction:number, round:number, results:any[]):ID[][] {
+    let {index} = context;
     return index.resolveProposal(proposal);
   }
 
-  accept(index:Index, prefix:Prefix, transaction:number, round:number, solvingFor:Register[]):boolean {
+  accept(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, solvingFor:Register[]):boolean {
     // Before we start trying to accept, we check if we care about the
     // registers we are currently solving.
     let solving = false;
@@ -806,10 +808,10 @@ export class Scan implements Constraint {
     let {e,a,v,n} = this.resolve(prefix);
     if(!solving) return true;
     // let {e,a,v,n} = this.resolve(prefix);
-    return index.check(e, a, v, n, transaction, round);
+    return context.index.check(e, a, v, n, transaction, round);
   }
 
-  acceptInput(index:Index, input:Change, prefix:Prefix, transaction:number, round:number):boolean {
+  acceptInput(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number):boolean {
     let {e,a,v,n} = this.resolve(prefix);
     if((e === IGNORE_REG || input.e === e) &&
        (a === IGNORE_REG || input.a === a) &&
@@ -817,7 +819,7 @@ export class Scan implements Constraint {
        (n === IGNORE_REG || input.n === n)) {
       return true;
     } else {
-      return this.accept(index, prefix, transaction, round, this.registers);
+      return this.accept(context, prefix, transaction, round, this.registers);
     }
   }
 
@@ -837,9 +839,9 @@ export class Scan implements Constraint {
     return this.registers;
   }
 
-  getDiffs(index:Index, prefix:Prefix):NTRCArray {
+  getDiffs(context:EvaluationContext, prefix:Prefix):NTRCArray {
     let {e,a,v,n} = this.resolve(prefix);
-    return index.getDiffs(e,a,v,n);
+    return context.index.getDiffs(e,a,v,n);
   }
 
 }
@@ -888,7 +890,7 @@ export class FunctionConstraint implements Constraint {
   argNames:string[];
   returnNames:string[];
   apply: (... things: any[]) => undefined|(number|string)[]; // @FIXME: Not supporting multi-return yet.
-  estimate?:(index:Index, prefix:Prefix, transaction:number, round:number) => number
+  estimate?:(context:EvaluationContext, prefix:Prefix, transaction:number, round:number) => number
   isInput:boolean = false;
 
   fieldNames:string[];
@@ -964,7 +966,7 @@ export class FunctionConstraint implements Constraint {
   // always return ApplyInputState.none
   applyInput(input:Change, prefix:Prefix):ApplyInputState { return ApplyInputState.none; }
 
-  propose(index:Index, prefix:Prefix, transaction:number, round:number, results:any[]):Proposal {
+  propose(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:any[]):Proposal {
     let proposal = this.proposal;
     proposal.forRegisters.clear();
     let resolved = this.resolve(prefix);
@@ -1015,7 +1017,7 @@ export class FunctionConstraint implements Constraint {
 
     if(this.estimate) {
       // If the function provides a cardinality estimator, invoke that.
-      proposal.cardinality = this.estimate(index, prefix, transaction, round);
+      proposal.cardinality = this.estimate(context, prefix, transaction, round);
 
     } else {
       // Otherwise, we'll just return 1 for now, since computing a
@@ -1073,7 +1075,7 @@ export class FunctionConstraint implements Constraint {
     return outputs as Prefix;
   }
 
-  resolveProposal(index:Index, prefix:Prefix, proposal:Proposal, transaction:number, round:number, results:any[]):ID[][] {
+  resolveProposal(context:EvaluationContext, prefix:Prefix, proposal:Proposal, transaction:number, round:number, results:any[]):ID[][] {
     // First we build the args array to provide the apply function.
     let inputs = this.packInputs(prefix);
 
@@ -1099,7 +1101,7 @@ export class FunctionConstraint implements Constraint {
     return results;
   }
 
-  accept(index:Index, prefix:Prefix, transaction:number, round:number, solvingFor:Register[]):boolean {
+  accept(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, solvingFor:Register[]):boolean {
     // If none of the registers we're solving for intersect our inputs
     // or outputs, we're not relevant to the solution.
     let isRelevant = false;
@@ -1145,11 +1147,11 @@ export class FunctionConstraint implements Constraint {
     return true;
   }
 
-  acceptInput(index:Index, input:Change, prefix:Prefix, transaction:number, round:number):boolean {
-    return this.accept(index, prefix, transaction, round, this.registers);
+  acceptInput(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number):boolean {
+    return this.accept(context, prefix, transaction, round, this.registers);
   }
 
-  getDiffs(index:Index, prefix:Prefix):NTRCArray {
+  getDiffs(context:EvaluationContext, prefix:Prefix):NTRCArray {
     return [];
   }
 }
@@ -1190,7 +1192,7 @@ export interface Node {
    * returning a set of valid prefixes to continue the query as
    * results.
    */
-  exec(index:Index, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean;
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean;
 }
 
 /**
@@ -1277,7 +1279,7 @@ export class JoinNode implements Node {
     return affectedConstraints;
   }
 
-  applyCombination(index:Index, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>) {
+  applyCombination(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>) {
     debug("        Join combo:", prefix.slice());
     let countOfSolved = 0;
     for(let ix = 0; ix < this.registerLookup.length; ix++) {
@@ -1285,7 +1287,7 @@ export class JoinNode implements Node {
       if(prefix[ix] !== undefined) countOfSolved++;
     }
     let remainingToSolve = this.registerLength - countOfSolved;
-    let valid = this.presolveCheck(index, input, prefix, transaction, round);
+    let valid = this.presolveCheck(context, input, prefix, transaction, round);
     if(!valid) {
       // do nothing
       return false;
@@ -1304,7 +1306,7 @@ export class JoinNode implements Node {
       debug("              GJ:", remainingToSolve, this.constraints);
       // For each node, find the new results that match the prefix.
       let ol = results.length;
-      this.genericJoin(index, prefix, transaction, round, results, remainingToSolve);
+      this.genericJoin(context, prefix, transaction, round, results, remainingToSolve);
       return true;
     }
   }
@@ -1315,11 +1317,11 @@ export class JoinNode implements Node {
     }
   }
 
-  presolveCheck(index:Index, input:Change, prefix:Prefix, transaction:number, round:number):boolean {
+  presolveCheck(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number):boolean {
     let {constraints} = this;
 
     for(let constraint of constraints) {
-      let valid = constraint.acceptInput(index, input, prefix, transaction, round);
+      let valid = constraint.acceptInput(context, input, prefix, transaction, round);
       if(!valid) {
         return false;
       }
@@ -1363,7 +1365,7 @@ export class JoinNode implements Node {
     return results;
   }
 
-  genericJoin(index:Index, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, roundIx:number = this.registerLength):Iterator<Prefix> {
+  genericJoin(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, roundIx:number = this.registerLength):Iterator<Prefix> {
     let {constraints, emptyProposal} = this;
     let proposedResults = this.proposedResultsArrays[roundIx - 1];
     let forRegisters:Register[] = this.registerArrays[roundIx - 1];
@@ -1372,7 +1374,7 @@ export class JoinNode implements Node {
     let bestProposal:Proposal = emptyProposal;
 
     for(let constraint of constraints) {
-      let current = constraint.propose(index, prefix, transaction, round, proposedResults);
+      let current = constraint.propose(context, prefix, transaction, round, proposedResults);
       if(!current.skip && current.cardinality === 0) {
         return results;
       } else if(current.cardinality < bestProposal.cardinality && !current.skip) {
@@ -1390,7 +1392,7 @@ export class JoinNode implements Node {
     // We have to copy here because we need to keep a reference to this even if later
     // rounds might overwrite the proposal
     moveArray(bestProposal.forRegisters.array, forRegisters);
-    let resolved:any[] = proposer.resolveProposal(index, prefix, bestProposal, transaction, round, proposedResults);
+    let resolved:any[] = proposer.resolveProposal(context, prefix, bestProposal, transaction, round, proposedResults);
     if(resolved[0].constructor === Array) {
       resultLoop: for(let result of resolved) {
         let ix = 0;
@@ -1400,7 +1402,7 @@ export class JoinNode implements Node {
         }
         for(let constraint of constraints) {
           if(constraint === proposer) continue;
-          if(!constraint.accept(index, prefix, transaction, round, forRegisters)) {
+          if(!constraint.accept(context, prefix, transaction, round, forRegisters)) {
             continue resultLoop;
           }
         }
@@ -1408,11 +1410,11 @@ export class JoinNode implements Node {
           let diffs = [];
           for(let constraint of constraints) {
             if(constraint.isInput || !(constraint instanceof Scan)) continue;
-            diffs.push(constraint.getDiffs(index, prefix));
+            diffs.push(constraint.getDiffs(context, prefix));
           }
           this.computeMultiplicities(results, prefix, round, diffs);
         } else {
-          this.genericJoin(index, prefix, transaction, round, results, roundIx - 1);
+          this.genericJoin(context, prefix, transaction, round, results, roundIx - 1);
         }
       }
     } else {
@@ -1421,7 +1423,7 @@ export class JoinNode implements Node {
         prefix[register.offset] = result as ID;
         for(let constraint of constraints) {
           if(constraint === proposer) continue;
-          if(!constraint.accept(index, prefix, transaction, round, forRegisters)) {
+          if(!constraint.accept(context, prefix, transaction, round, forRegisters)) {
             debug("             BAILING", printConstraint(constraint));
             continue resultLoop;
           }
@@ -1430,11 +1432,11 @@ export class JoinNode implements Node {
           let diffs = [];
           for(let constraint of constraints) {
             if(constraint.isInput || !(constraint instanceof Scan)) continue;
-            diffs.push(constraint.getDiffs(index, prefix));
+            diffs.push(constraint.getDiffs(context, prefix));
           }
           this.computeMultiplicities(results, prefix, round, diffs);
         } else {
-          this.genericJoin(index, prefix, transaction, round, results, roundIx - 1);
+          this.genericJoin(context, prefix, transaction, round, results, roundIx - 1);
         }
       }
     }
@@ -1448,7 +1450,7 @@ export class JoinNode implements Node {
     return results;
   }
 
-  exec(index:Index, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):boolean {
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):boolean {
     this.inputCount = input.count;
     let didSomething = false;
     let affectedConstraints = this.findAffectedConstraints(input, prefix);
@@ -1490,7 +1492,7 @@ export class JoinNode implements Node {
 
       //console.log("    ", printPrefix(prefix));
       if(shouldApply) {
-        didSomething = this.applyCombination(index, input, prefix, transaction, round, results) || didSomething;
+        didSomething = this.applyCombination(context, input, prefix, transaction, round, results) || didSomething;
       }
     }
 
@@ -1506,9 +1508,9 @@ export class JoinNode implements Node {
 }
 
 export class DownstreamJoinNode extends JoinNode {
-  exec(index:Index, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):boolean {
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):boolean {
     this.inputCount = prefix[prefix.length - 1];
-    return this.applyCombination(index, input, prefix, transaction, round, results);
+    return this.applyCombination(context, input, prefix, transaction, round, results);
   }
 }
 
@@ -1521,7 +1523,7 @@ export class WatchNode implements Node {
 
   resolve = Scan.prototype.resolve;
 
-  exec(index:Index, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<Prefix>, transaction:Transaction):boolean {
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<Prefix>, transaction:Transaction):boolean {
     let resolved = this.resolve(prefix);
     let {e,a,v,n} = resolved;
 
@@ -1543,19 +1545,17 @@ export class WatchNode implements Node {
 }
 
 export class OutputWrapperNode implements Node {
-  protected static intermediates:{[key:string]: (number|undefined)[]|undefined} = {};
-  protected intermediates = OutputWrapperNode.intermediates;
-
   constructor(public nodes:OutputNode[]) {}
 
   changes = new Iterator<Change>();
 
-  shouldOutput(e:ID, a:ID, v:ID, prefixRound:number, prefixCount:Multiplicity):number[] {
+  shouldOutput(context:EvaluationContext, e:ID, a:ID, v:ID, prefixRound:number, prefixCount:Multiplicity):number[] {
     // @FIXME: THIS IS GOING TO GET REAL BAD WHEN WE START REMOVING INTERNED VALUES.
     let key = `${e}|${a}|${v}`;
-    let roundCounts = this.intermediates[key] || createArray("Insert intermediate counts");
-    this.intermediates[key] = roundCounts;
-      debug(`       ?? intermediates [${GlobalInterner.reverse(e)}, ${GlobalInterner.reverse(a)}, ${GlobalInterner.reverse(v)}]`, JSON.stringify(this.intermediates[key]));
+    let {distinctIndex} = context;
+    let roundCounts = distinctIndex[key] || createArray("Insert intermediate counts");
+    distinctIndex[key] = roundCounts;
+      debug(`       ?? intermediates [${GlobalInterner.reverse(e)}, ${GlobalInterner.reverse(a)}, ${GlobalInterner.reverse(v)}]`, JSON.stringify(distinctIndex[key]));
 
     let curCount = 0;
     let startingCount = roundCounts[prefixRound] = roundCounts[prefixRound] || 0;
@@ -1601,19 +1601,18 @@ export class OutputWrapperNode implements Node {
     return deltas;
   }
 
-  exec(index:Index, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<Prefix>, transaction:Transaction):boolean {
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<Prefix>, transaction:Transaction):boolean {
     let changes = this.changes;
     changes.clear();
     for(let node of this.nodes) {
-      node.exec(index, input, prefix, transactionId, round, changes, transaction);
+      node.exec(context, input, prefix, transactionId, round, changes, transaction);
     }
 
     changes.reset();
     let change;
     while(change = changes.next()) {
       let {e, a, v, n, round, count} = change;
-      let deltas = this.shouldOutput(e, a, v, round, count);
-      console.log("DEEZUS", deltas);
+      let deltas = this.shouldOutput(context, e, a, v, round, count);
       for(let deltaIx = 0; deltaIx < deltas.length; deltaIx += 2) {
         let deltaRound = deltas[deltaIx];
         let delta = deltas[deltaIx + 1];
@@ -1639,7 +1638,7 @@ export class OutputWrapperNode implements Node {
 }
 
 export interface OutputNode {
-  exec(index:Index, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<Change>, transaction:Transaction):void;
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<Change>, transaction:Transaction):void;
 }
 
 export class InsertNode implements OutputNode {
@@ -1654,7 +1653,7 @@ export class InsertNode implements OutputNode {
 
   resolve = Scan.prototype.resolve;
 
-  exec(index:Index, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<Change>, transaction:Transaction):boolean {
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<Change>, transaction:Transaction):boolean {
     let resolved = this.resolve(prefix);
     let {e,a,v,n} = resolved;
 
@@ -1700,7 +1699,7 @@ export class CommitInsertNode extends InsertNode {
     return delta;
   }
 
-  exec(index:Index, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<Change>, transaction:Transaction):boolean {
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<Change>, transaction:Transaction):boolean {
     let resolved = this.resolve(prefix);
     let {e,a,v,n} = resolved;
 
@@ -1727,7 +1726,7 @@ export class RemoveNode extends InsertNode {
     return true;
   }
 
-  exec(index:Index, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<Change>, transaction:Transaction):boolean {
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<Change>, transaction:Transaction):boolean {
     let resolved = this.resolve(prefix);
     let {e,a,v,n} = resolved;
 
@@ -1746,13 +1745,13 @@ export class RemoveNode extends InsertNode {
       // way).
 
       let delta = this.shouldOutput(resolved, prefixRound, prefixCount, transaction);
-      console.log("  gotta v", delta);
       if(delta) {
         let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount * this.multiplier);
         results.push(change);
       }
 
     } else {
+      let {index} = context;
       // If we match the input change, we need to remove it too.
       if(e === input.e && a === input.a && (v === input.v || this.v === IGNORE_REG)) {
         resolved.v = input.v;
@@ -1798,8 +1797,8 @@ export class CommitRemoveNode extends CommitInsertNode {
 
   protected _exec = RemoveNode.prototype.exec;
 
-  exec(index:Index, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<Change>, transaction:Transaction):boolean {
-    return this._exec(index, input, prefix, transactionId, round, results, transaction);
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<Change>, transaction:Transaction):boolean {
+    return this._exec(context, input, prefix, transactionId, round, results, transaction);
   }
 }
 
@@ -1841,24 +1840,24 @@ abstract class BinaryFlow implements Node {
 
   constructor(public left:Node, public right:Node) { }
 
-  exec(index:Index, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
     let {left, right, leftResults, rightResults} = this;
     leftResults.clear();
-    left.exec(index, input, prefix, transaction, round, leftResults, changes);
+    left.exec(context, input, prefix, transaction, round, leftResults, changes);
     rightResults.clear();
-    right.exec(index, input, prefix, transaction, round, rightResults, changes);
+    right.exec(context, input, prefix, transaction, round, rightResults, changes);
     let result;
     while((result = leftResults.next()) !== undefined) {
-      this.onLeft(index, result, transaction, round, results);
+      this.onLeft(context, result, transaction, round, results);
     }
     while((result = rightResults.next()) !== undefined) {
-      this.onRight(index, result, transaction, round, results);
+      this.onRight(context, result, transaction, round, results);
     }
     return true;
   }
 
-  abstract onLeft(index:Index, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void;
-  abstract onRight(index:Index, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void;
+  abstract onLeft(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void;
+  abstract onRight(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void;
 }
 
 export class BinaryJoinRight extends BinaryFlow {
@@ -1871,7 +1870,7 @@ export class BinaryJoinRight extends BinaryFlow {
     this.keyFunc = IntermediateIndex.CreateKeyFunction(keyRegisters);
   }
 
-  onLeft(index:Index, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void {
+  onLeft(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void {
     let key = this.keyFunc(prefix);
     let count = prefix[prefix.length - 1];
     this.leftIndex.insert(key, prefix);
@@ -1889,7 +1888,7 @@ export class BinaryJoinRight extends BinaryFlow {
     }
   }
 
-  onRight(index:Index, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void {
+  onRight(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void {
     let key = this.keyFunc(prefix);
     let count = prefix[prefix.length - 1];
     this.rightIndex.insert(key, prefix);
@@ -1919,12 +1918,12 @@ export class AntiJoin extends BinaryFlow {
     this.keyFunc = IntermediateIndex.CreateKeyFunction(keyRegisters);
   }
 
-  exec(index:Index, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
     debug("            antijoin:")
-    return super.exec(index,input,prefix,transaction,round,results,changes);
+    return super.exec(context,input,prefix,transaction,round,results,changes);
   }
 
-  onLeft(index:Index, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void {
+  onLeft(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void {
     let key = this.keyFunc(prefix);
     let count = prefix[prefix.length - 1];
     this.leftIndex.insert(key, prefix);
@@ -1936,7 +1935,7 @@ export class AntiJoin extends BinaryFlow {
     }
   }
 
-  onRight(index:Index, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void {
+  onRight(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void {
     let key = this.keyFunc(prefix);
     let count = prefix[prefix.length - 1];
     this.rightIndex.insert(key, prefix);
@@ -1957,17 +1956,17 @@ export class AntiJoin extends BinaryFlow {
 }
 
 export class AntiJoinPresolvedRight extends AntiJoin {
-  exec(index:Index, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
     let {left, right, leftResults, rightResults} = this;
     leftResults.clear();
-    left.exec(index, input, prefix, transaction, round, leftResults, changes);
+    left.exec(context, input, prefix, transaction, round, leftResults, changes);
     rightResults.reset();
     let result;
     while((result = leftResults.next()) !== undefined) {
-      this.onLeft(index, result, transaction, round, results);
+      this.onLeft(context, result, transaction, round, results);
     }
     while((result = rightResults.next()) !== undefined) {
-      this.onRight(index, result, transaction, round, results);
+      this.onRight(context, result, transaction, round, results);
     }
     return true;
   }
@@ -1976,9 +1975,9 @@ export class AntiJoinPresolvedRight extends AntiJoin {
 export class UnionFlow implements Node {
   constructor(public branches:Node[], public registers:Register[]) { }
 
-  exec(index:Index, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
     for(let node of this.branches) {
-      node.exec(index, input, prefix, transaction, round, results, changes);
+      node.exec(context, input, prefix, transaction, round, results, changes);
     }
     return true;
   }
@@ -2002,7 +2001,7 @@ export class ChooseFlow implements Node {
     }
   }
 
-  exec(index:Index, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
     let {branchResults, branches} = this;
     let prev:Iterator<Prefix>|undefined;
     let ix = 0;
@@ -2012,7 +2011,7 @@ export class ChooseFlow implements Node {
       }
       let branchResult = branchResults[ix];
       branchResult.clear();
-      node.exec(index, input, prefix, transaction, round, branchResult, changes);
+      node.exec(context, input, prefix, transaction, round, branchResult, changes);
       let result;
       while((result = branchResult.next()) !== undefined) {
         results.push(result);
@@ -2040,7 +2039,7 @@ export class MergeAggregateFlow extends BinaryFlow {
     }
   }
 
-  onLeft(index:Index, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void {
+  onLeft(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void {
     let key = this.keyFunc(prefix);
     let count = prefix[prefix.length - 1];
     this.leftIndex.insert(key, prefix);
@@ -2059,7 +2058,7 @@ export class MergeAggregateFlow extends BinaryFlow {
     }
   }
 
-  onRight(index:Index, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void {
+  onRight(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void {
     let key = this.keyFunc(prefix);
     let count = prefix[prefix.length - 1];
     this.rightIndex.insert(key, prefix);
@@ -2079,28 +2078,28 @@ export class MergeAggregateFlow extends BinaryFlow {
     }
   }
 
-  exec(index:Index, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
     debug("        AGG MERGE");
     let result;
     let {left, right, leftResults, rightResults} = this;
     leftResults.clear();
-    left.exec(index, input, prefix, transaction, round, leftResults, changes);
+    left.exec(context, input, prefix, transaction, round, leftResults, changes);
     debug("              left results: ", leftResults);
 
     // we run the left's results through the aggregate to capture all the aggregate updates
     rightResults.clear();
     while((result = leftResults.next()) !== undefined) {
       debug("              left result: ", result.slice());
-      right.exec(index, input, result, transaction, round, rightResults, changes);
+      right.exec(context, input, result, transaction, round, rightResults, changes);
     }
 
     // now we go through all the lefts and rights like normal
     leftResults.reset();
     while((result = leftResults.next()) !== undefined) {
-      this.onLeft(index, result, transaction, round, results);
+      this.onLeft(context, result, transaction, round, results);
     }
     while((result = rightResults.next()) !== undefined) {
-      this.onRight(index, result, transaction, round, results);
+      this.onRight(context, result, transaction, round, results);
     }
     return true;
   }
@@ -2182,7 +2181,7 @@ export abstract class AggregateNode implements Node {
     return GlobalInterner.intern(current);
   }
 
-  exec(index:Index, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
     let group = this.groupKey(prefix);
     let prefixRound = prefix[prefix.length - 2];
     let delta = this.groupPrefix(group, prefix);
@@ -2259,7 +2258,7 @@ export class Block {
   initial:Prefix = createArray();
   protected nextResults = new Iterator<Prefix>();
 
-  exec(index:Index, input:Change, transaction:Transaction):boolean {
+  exec(context:EvaluationContext, input:Change, transaction:Transaction):boolean {
     let blockState = ApplyInputState.none;
     this.results.clear();
     this.results.push(this.initial);
@@ -2272,7 +2271,7 @@ export class Block {
     // results affected by it.
     for(let node of this.nodes) {
       while((prefix = this.results.next()) !== undefined) {
-        let valid = node.exec(index, input, prefix, transaction.transaction, transaction.round, this.nextResults, transaction);
+        let valid = node.exec(context, input, prefix, transaction.transaction, transaction.round, this.nextResults, transaction);
         if(!valid) {
           return false;
         }
@@ -2289,8 +2288,20 @@ export class Block {
 }
 
 //------------------------------------------------------------------------------
+// EvaluationContext
+//------------------------------------------------------------------------------
+
+export class EvaluationContext {
+  distinctIndex:{[key:string]: (number|undefined)[]|undefined} = {};
+  intermediates:{[key:string]: IntermediateIndex} = {};
+
+  constructor(public index:Index) {}
+}
+
+//------------------------------------------------------------------------------
 // Transaction
 //------------------------------------------------------------------------------
+
 export type ExportHandler = (blockChanges:{[id:number]: Change[]|undefined}) => void;
 
 export class Transaction {
@@ -2345,8 +2356,9 @@ export class Transaction {
     return results;
   }
 
-  exec(index:Index) {
+  exec(context:EvaluationContext) {
     let {changes, roundChanges} = this;
+    let {index} = context;
     let changeIx = 0;
     while(changeIx < changes.length) {
       let change = changes[changeIx];
@@ -2367,7 +2379,7 @@ export class Transaction {
           // }
           debug("    ", block.name);
           let start = changes.length;
-          block.exec(index, change, this);
+          block.exec(context, change, this);
         }
       }
       debug("");
