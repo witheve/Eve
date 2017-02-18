@@ -1419,21 +1419,30 @@ export class OutputWrapperNode implements Node {
     let key = `${e}|${a}|${v}`;
     let roundCounts = this.intermediates[key] || createArray("Insert intermediate counts");
     this.intermediates[key] = roundCounts;
+      debug(`       ?? intermediates [${GlobalInterner.reverse(e)}, ${GlobalInterner.reverse(a)}, ${GlobalInterner.reverse(v)}]`, JSON.stringify(this.intermediates[key]));
 
     let curCount = 0;
     let startingCount = roundCounts[prefixRound] = roundCounts[prefixRound] || 0;
-    let maxRound = Math.max(roundCounts.length, prefixRound + 1);
+    let maxRound = Math.min(roundCounts.length, prefixRound + 1);
     for(let roundIx = 0; roundIx < maxRound; roundIx++) {
       let prevCount = roundCounts[roundIx];
       if(!prevCount) continue;
       curCount += prevCount;
     }
 
+      debug(`       ?? <- [${GlobalInterner.reverse(e)}, ${GlobalInterner.reverse(a)}, ${GlobalInterner.reverse(v)}] ${prefixRound} | ${curCount} ${prefixCount}`);
     let deltas = [];
     let nextCount = curCount + prefixCount;
+    let delta = 0;
+    if(curCount >= 0 && nextCount <= 0) delta = -1;
+    if(curCount <= 0 && nextCount >= 0) delta = 1;
+    if(delta) {
+      deltas.push(prefixRound, delta);
+    }
+    roundCounts[prefixRound] = startingCount + prefixCount;
+    curCount = nextCount;
 
-    console.log(curCount, prefixCount, nextCount);
-    for(let roundIx = prefixRound; roundIx < roundCounts.length; roundIx++) {
+    for(let roundIx = prefixRound + 1; roundIx < roundCounts.length; roundIx++) {
       let roundCount = roundCounts[roundIx];
       if(roundCount === undefined) continue;
       nextCount += roundCount;
@@ -1451,53 +1460,7 @@ export class OutputWrapperNode implements Node {
 
       curCount = nextCount;
     }
-    roundCounts[prefixRound] = startingCount + prefixCount;
-
-    // let deltas = [];
-    // let newCount = curCount + prefixCount;
-    // let delta = 0;
-    // if(curCount > 0 && newCount <= 0) delta = -1;
-    // if(curCount <= 0 && newCount >= 0) delta = 1;
-    // debug("       ?? <-", e, a, v, {round: prefixRound, rCount: roundCounts[prefixRound], preCount: prefixCount, curCount, newCount, delta})
-    // if(delta) {
-    //   deltas.push(prefixRound, delta);
-    // }
-    // roundCounts[prefixRound] = (roundCounts[prefixCount] || 0) + prefixCount;
-
-    // for(let roundIx = prefixRound + 1; roundIx < roundCounts.length; roundIx++) {
-    //   let roundCount = roundCounts[roundIx];
-    //   if(!roundCount) continue;
-    //   curCount += roundCount;
-    //   newCount += roundCount;
-    //   let delta = 0;
-    //   if(curCount > 0 && newCount <= 0) delta = -1;
-    //   if(curCount <= 0 && newCount >= 0) delta = 1;
-    //   debug(`       ?? <- [${GlobalInterner.reverse(e)}, ${GlobalInterner.reverse(a)}, ${GlobalInterner.reverse(v)}] round: ${roundIx} | ${curCount} + ${roundCount} = ${newCount} | ∂: ${delta}`);
-    //   if(delta) {
-    //     deltas.push(roundIx, delta);
-    //   }
-    // }
-
-    // let startingCount = roundCounts[prefixRound] = roundCounts[prefixRound] || 0;
-    // let newCount = curCount + prefixCount;
-    // let deltas = [];
-    // for(let roundIx = prefixRound; roundIx < roundCounts.length; roundIx++) {
-    //   let roundCount = roundCounts[roundIx];
-    //   if(!roundCount) continue;
-    //   newCount += roundCount;
-    //   curCount += roundCount;
-
-    //   let delta = 0;
-    //   if(curCount > 0 && newCount <= 0) delta = -1;
-    //   if(curCount <= 0 && newCount >= 0) delta = 1;
-    //
-
-    //   if(delta) {
-    //     deltas.push(roundIx, delta);
-    //   }
-    // }
-
-    // roundCounts[prefixRound] = prefixCount + startingCount;
+      debug(`       ?? final <- [${GlobalInterner.reverse(e)}, ${GlobalInterner.reverse(a)}, ${GlobalInterner.reverse(v)}]`, roundCounts);
 
     return deltas;
   }

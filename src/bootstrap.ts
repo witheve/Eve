@@ -50,37 +50,64 @@ let prog = new Program("test");
 //   [3, "tag", "click"],
 //   [3, "tag", "direct-target"]
 // ]);
+//
+prog.block("simple block", ({find, record, lib, union}) => {
+    let person = find("person");
+    let [info] = union(() => {
+      person.dog;
+      return "cool";
+    }, () => {
+      return "not cool";
+    });
+    return [
+      record("dog-less", {info})
+    ]
+  });
+
+  prog.test(1, [
+    [1, "tag", "person"],
+  ], [
+    [2, "tag", "dog-less", 1],
+    [2, "info", "not cool", 1],
+  ])
+
+  prog.test(2, [
+    [1, "dog", "spot"],
+  ], [
+    [3, "tag", "dog-less", 1],
+    [3, "info", "cool", 1],
+  ])
 
 
-prog.block("Every edge is the beginning of a path.", ({find, record, lib}) => {
-  let from = find();
-  return [
-    from.add("path", from.edge)
-  ];
-});
+// prog.block("Every edge is the beginning of a path.", ({find, record, lib}) => {
+//   let from = find();
+//   return [
+//     from.add("path", from.edge)
+//   ];
+// });
 
-prog.block("Jump from node to node building the path.", ({find, record, lib}) => {
-  let from = find();
-  let intermediate = find();
-  from.edge == intermediate;
-  let to = intermediate.path;
+// prog.block("Jump from node to node building the path.", ({find, record, lib}) => {
+//   let from = find();
+//   let intermediate = find();
+//   from.edge == intermediate;
+//   let to = intermediate.path;
 
-  intermediate.path;
-  return [
-    from.add("path", to)
-  ]
-});
+//   intermediate.path;
+//   return [
+//     from.add("path", to)
+//   ]
+// });
 
-prog.test(0, [
-  [1, "edge", 2],
-  [2, "edge", 1]
-]);
-prog.test(1, [
-  [1, "edge", 2, 0, -1],
-]);
-prog.test(2, [
-  [1, "edge", 2],
-]);
+// prog.test(0, [
+//   [1, "edge", 2],
+//   [2, "edge", 1]
+// ]);
+// prog.test(1, [
+//   [1, "edge", 2, 0, -1],
+// ]);
+// prog.test(2, [
+//   [1, "edge", 2],
+// ]);
 
 // prog
 //   // .block("Find all the tags.", ({find, record}) => {

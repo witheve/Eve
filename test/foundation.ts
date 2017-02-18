@@ -158,7 +158,7 @@ test("test addition operator", (assert) => {
   prog.block("simple block", ({find, record, lib}) => {
     let joof = find({foo: "bar"});
     return [
-      joof.add("name", "JOOF")
+     joof.add("name", "JOOF")
     ]
   });
 
@@ -175,7 +175,7 @@ test("test addition operator", (assert) => {
   assert.end();
 });
 
-test.only("transitive closure", (assert) => {
+test("transitive closure", (assert) => {
   // -----------------------------------------------------
   // program
   // -----------------------------------------------------

@@ -1102,7 +1102,7 @@ class Insert extends Record {
     return commit;
   }
 
-  compile():(Runtime.Node|Runtime.Scan)[] {
+  compile():any[] {
     let {attributes, context} = this;
     let nodes = [];
     let e = context.interned(this.record!);
@@ -1128,7 +1128,7 @@ class Remove extends Insert {
     return commit;
   }
 
-  compile():(Runtime.Node|Runtime.Scan)[] {
+  compile():any[] {
     let {attributes, context} = this;
     let nodes = [];
     let e = context.interned(this.record!);
@@ -1172,7 +1172,7 @@ class Watch extends Insert {
 //--------------------------------------------------------------------
 
 class CommitInsert extends Insert {
-  compile():(Runtime.Node|Runtime.Scan)[] {
+  compile():any[] {
     let {attributes, context} = this;
     let nodes = [];
     let e = context.interned(this.record!);
@@ -1192,7 +1192,7 @@ class CommitInsert extends Insert {
 //--------------------------------------------------------------------
 
 class CommitRemove extends Remove {
-  compile():(Runtime.Node|Runtime.Scan)[] {
+  compile():any[] {
     let {attributes, context} = this;
     let nodes = [];
     let e = context.interned(this.record!);
