@@ -287,7 +287,7 @@ export class Change {
   }
 
   toString() {
-    return `Change(${this.e}, ${GlobalInterner.reverse(this.a)}, ${maybeReverse(this.v)}, ${GlobalInterner.reverse(this.n)}, ${this.transaction}, ${this.round}, ${this.count})`;
+    return `Change(${GlobalInterner.reverse(this.e)}, ${GlobalInterner.reverse(this.a)}, ${maybeReverse(this.v)}, ${GlobalInterner.reverse(this.n)}, ${this.transaction}, ${this.round}, ${this.count})`;
   }
 
   equal(other:Change, withoutNode?:boolean, withoutE?:boolean) {
@@ -1376,8 +1376,174 @@ export class DownstreamJoinNode extends JoinNode {
   }
 }
 
-export class InsertNode implements Node {
-  protected intermediates:{[key:string]: (number|undefined)[]|undefined} = {};
+export class WatchNode implements Node {
+  constructor(public e:ID|Register,
+              public a:ID|Register,
+              public v:ID|Register,
+              public n:ID|Register,
+              public blockId:number) {}
+
+  resolve = Scan.prototype.resolve;
+
+  exec(index:Index, input:Change, prefix:ID[], transactionId:number, round:number, results:Iterator<ID[]>, transaction:Transaction):boolean {
+    let resolved = this.resolve(prefix);
+    let {e,a,v,n} = resolved;
+
+    // @NOTE: This is wasteful.
+    results.push(prefix);
+
+    if(e === undefined || a === undefined || v === undefined || n === undefined) {
+      throw new Error(`Unable to produce an output with an undefined EAVN field [${e}, ${a}, ${v}, ${n}]`);
+    }
+
+    let prefixRound = prefix[prefix.length - 2];
+    let prefixCount = prefix[prefix.length - 1];
+
+    // @FIXME: Make sure I still work now that I'm sending all my deltas. I think I still need to use local intermediates.
+    let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount);
+    transaction.export(this.blockId, change);
+    return true;
+  }
+}
+
+export class OutputWrapperNode implements Node {
+  protected static intermediates:{[key:string]: (number|undefined)[]|undefined} = {};
+  protected intermediates = OutputWrapperNode.intermediates;
+
+  constructor(public nodes:OutputNode[]) {}
+
+  changes = new Iterator<Change>();
+
+  shouldOutput(e:ID, a:ID, v:ID, prefixRound:number, prefixCount:Multiplicity):number[] {
+    // @FIXME: THIS IS GOING TO GET REAL BAD WHEN WE START REMOVING INTERNED VALUES.
+    let key = `${e}|${a}|${v}`;
+    let roundCounts = this.intermediates[key] || createArray("Insert intermediate counts");
+    this.intermediates[key] = roundCounts;
+
+    let curCount = 0;
+    let startingCount = roundCounts[prefixRound] = roundCounts[prefixRound] || 0;
+    let maxRound = Math.max(roundCounts.length, prefixRound + 1);
+    for(let roundIx = 0; roundIx < maxRound; roundIx++) {
+      let prevCount = roundCounts[roundIx];
+      if(!prevCount) continue;
+      curCount += prevCount;
+    }
+
+    let deltas = [];
+    let nextCount = curCount + prefixCount;
+
+    console.log(curCount, prefixCount, nextCount);
+    for(let roundIx = prefixRound; roundIx < roundCounts.length; roundIx++) {
+      let roundCount = roundCounts[roundIx];
+      if(roundCount === undefined) continue;
+      nextCount += roundCount;
+
+      let delta = 0;
+      if(curCount >= 0 && nextCount <= 0) delta = -1;
+      if(curCount <= 0 && nextCount >= 0) delta = 1;
+
+      debug(`       ?? <- [${GlobalInterner.reverse(e)}, ${GlobalInterner.reverse(a)}, ${GlobalInterner.reverse(v)}] round: ${roundIx} | ${curCount} + ${roundCount} = ${nextCount} | ∂: ${delta}`);
+
+      if(delta) {
+        deltas.push(roundIx, delta);
+      }
+
+
+      curCount = nextCount;
+    }
+    roundCounts[prefixRound] = startingCount + prefixCount;
+
+    // let deltas = [];
+    // let newCount = curCount + prefixCount;
+    // let delta = 0;
+    // if(curCount > 0 && newCount <= 0) delta = -1;
+    // if(curCount <= 0 && newCount >= 0) delta = 1;
+    // debug("       ?? <-", e, a, v, {round: prefixRound, rCount: roundCounts[prefixRound], preCount: prefixCount, curCount, newCount, delta})
+    // if(delta) {
+    //   deltas.push(prefixRound, delta);
+    // }
+    // roundCounts[prefixRound] = (roundCounts[prefixCount] || 0) + prefixCount;
+
+    // for(let roundIx = prefixRound + 1; roundIx < roundCounts.length; roundIx++) {
+    //   let roundCount = roundCounts[roundIx];
+    //   if(!roundCount) continue;
+    //   curCount += roundCount;
+    //   newCount += roundCount;
+    //   let delta = 0;
+    //   if(curCount > 0 && newCount <= 0) delta = -1;
+    //   if(curCount <= 0 && newCount >= 0) delta = 1;
+    //   debug(`       ?? <- [${GlobalInterner.reverse(e)}, ${GlobalInterner.reverse(a)}, ${GlobalInterner.reverse(v)}] round: ${roundIx} | ${curCount} + ${roundCount} = ${newCount} | ∂: ${delta}`);
+    //   if(delta) {
+    //     deltas.push(roundIx, delta);
+    //   }
+    // }
+
+    // let startingCount = roundCounts[prefixRound] = roundCounts[prefixRound] || 0;
+    // let newCount = curCount + prefixCount;
+    // let deltas = [];
+    // for(let roundIx = prefixRound; roundIx < roundCounts.length; roundIx++) {
+    //   let roundCount = roundCounts[roundIx];
+    //   if(!roundCount) continue;
+    //   newCount += roundCount;
+    //   curCount += roundCount;
+
+    //   let delta = 0;
+    //   if(curCount > 0 && newCount <= 0) delta = -1;
+    //   if(curCount <= 0 && newCount >= 0) delta = 1;
+    //
+
+    //   if(delta) {
+    //     deltas.push(roundIx, delta);
+    //   }
+    // }
+
+    // roundCounts[prefixRound] = prefixCount + startingCount;
+
+    return deltas;
+  }
+
+  exec(index:Index, input:Change, prefix:ID[], transactionId:number, round:number, results:Iterator<ID[]>, transaction:Transaction):boolean {
+    let changes = this.changes;
+    changes.clear();
+    for(let node of this.nodes) {
+      node.exec(index, input, prefix, transactionId, round, changes, transaction);
+    }
+
+    changes.reset();
+    let change;
+    while(change = changes.next()) {
+      let {e, a, v, n, round, count} = change;
+      let deltas = this.shouldOutput(e, a, v, round, count);
+      console.log("DEEZUS", deltas);
+      for(let deltaIx = 0; deltaIx < deltas.length; deltaIx += 2) {
+        let deltaRound = deltas[deltaIx];
+        let delta = deltas[deltaIx + 1];
+        let change = new Change(e!, a!, v!, n!, transactionId, deltaRound, delta);
+
+        // @TODO: when we do removes, we could say that if the result is a remove, we want to
+        // dereference these ids instead of referencing them. This would allow us to clean up
+        // the interned space based on what's "in" the indexes. The only problem is that if you
+        // held on to a change, the IDs of that change may no longer be in the interner, or worse
+        // they may have been reassigned to something else. For now, we'll just say that once something
+        // is in the index, it never goes away.
+        GlobalInterner.reference(change.e);
+        GlobalInterner.reference(change.a);
+        GlobalInterner.reference(change.v);
+        GlobalInterner.reference(change.n);
+
+        transaction.output(change);
+      }
+    }
+
+    return true;
+  }
+}
+
+export interface OutputNode {
+  exec(index:Index, input:Change, prefix:ID[], transactionId:number, round:number, results:Iterator<Change>, transaction:Transaction):void;
+}
+
+export class InsertNode implements OutputNode {
   multiplier:number = 1;
 
   constructor(public e:ID|Register,
@@ -1389,104 +1555,20 @@ export class InsertNode implements Node {
 
   resolve = Scan.prototype.resolve;
 
-  key(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue) {
-    return `${e}|${a}|${v}`;
-  }
-
-  shouldOutput(resolved:ResolvedEAVN, prefixRound:number, prefixCount:Multiplicity, transaction:Transaction):number[] {
-    let {e,a,v,n} = resolved;
-    let key = this.key(e, a, v);
-    let roundCounts = this.intermediates[key] || createArray("Insert intermediate counts");
-    this.intermediates[key] = roundCounts;
-
-    let curCount = 0;
-    for(let roundIx = 0; roundIx < roundCounts.length && roundIx < prefixRound; roundIx++) {
-      let prevCount = roundCounts[roundIx];
-      if(!prevCount) continue;
-      curCount += prevCount;
-    }
-
-    let startingCount = roundCounts[prefixRound] = roundCounts[prefixRound] || 0;
-
-    let deltas = [];
-    for(let roundIx = prefixRound; roundIx < roundCounts.length; roundIx++) {
-      let roundCount = roundCounts[roundIx];
-      if(roundCount === undefined) continue;
-      curCount += roundCount;
-      let newCount = curCount + prefixCount;
-
-      let delta = 0;
-      if(curCount > 0 && newCount <= 0) delta = -1;
-      if(curCount <= 0 && newCount > 0) delta = 1;
-      debug("         ?? <-", e, a, v, prefixRound + 1, {roundCount, curCount, newCount, delta})
-
-      if(delta) {
-        deltas.push(roundIx === prefixRound ? prefixRound + 1 : roundIx, delta);
-      }
-    }
-
-    roundCounts[prefixRound] = prefixCount + startingCount;
-
-    return deltas;
-  }
-
-  exec(index:Index, input:Change, prefix:ID[], transactionId:number, round:number, results:Iterator<ID[]>, transaction:Transaction):boolean {
+  exec(index:Index, input:Change, prefix:ID[], transactionId:number, round:number, results:Iterator<Change>, transaction:Transaction):boolean {
     let resolved = this.resolve(prefix);
     let {e,a,v,n} = resolved;
 
-    // @FIXME: This is pretty wasteful to copy one by one here.
-    results!.push(prefix);
-
     if(e === undefined || a === undefined || v === undefined || n === undefined) {
-      return false;
+      throw new Error(`Unable to produce an output with an undefined EAVN field [${e}, ${a}, ${v}, ${n}]`);
     }
 
     let prefixRound = prefix[prefix.length - 2];
     let prefixCount = prefix[prefix.length - 1];
 
-    let deltas = this.shouldOutput(resolved, prefixRound, prefixCount, transaction);
-    for(let deltaIx = 0; deltaIx < deltas.length; deltaIx += 2) {
-      let deltaRound = deltas[deltaIx];
-      let delta = deltas[deltaIx + 1];
-      let change = new Change(e!, a!, v!, n!, transactionId, deltaRound, delta * this.multiplier);
-      this.output(transaction, change);
-    }
-
+    let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount * this.multiplier);
+    results.push(change);
     return true;
-  }
-
-  output(transaction:Transaction, change:Change) {
-    // @TODO: when we do removes, we could say that if the result is a remove, we want to
-    // dereference these ids instead of referencing them. This would allow us to clean up
-    // the interned space based on what's "in" the indexes. The only problem is that if you
-    // held on to a change, the IDs of that change may no longer be in the interner, or worse
-    // they may have been reassigned to something else. For now, we'll just say that once something
-    // is in the index, it never goes away.
-    GlobalInterner.reference(change.e);
-    GlobalInterner.reference(change.a);
-    GlobalInterner.reference(change.v);
-    GlobalInterner.reference(change.n);
-
-    transaction.output(change);
-  }
-}
-
-export class WatchNode extends InsertNode {
-  constructor(public e:ID|Register,
-              public a:ID|Register,
-              public v:ID|Register,
-              public n:ID|Register,
-              public blockId:number) {
-    super(e, a, v, n);
-  }
-
-  key(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue) {
-    return `${e}|${a}|${v}`;
-  }
-
-  output(transaction:Transaction, change:Change) {
-    // @NOTE: No need to intern here, these values are about to be reversed into raws and shipped out of the system.
-    transaction.export(this.blockId, change);
   }
 }
 
@@ -1516,28 +1598,39 @@ export class CommitInsertNode extends InsertNode {
     if(prevCount === 0 && newCount > 0) delta = 1;
 
     debug("       C?? <-", e, a, v, prefixRound + 1, {prevCount, newCount, delta})
+    return delta;
+  }
 
-    if(delta) {
-      let superDeltas = super.shouldOutput(resolved, prefixRound, prefixCount, transaction);
-      if(!superDeltas.length) return superDeltas;
-      if(delta === superDeltas[1]) {
-        return superDeltas;
-      }
+  exec(index:Index, input:Change, prefix:ID[], transactionId:number, round:number, results:Iterator<Change>, transaction:Transaction):boolean {
+    let resolved = this.resolve(prefix);
+    let {e,a,v,n} = resolved;
+
+    if(e === undefined || a === undefined || v === undefined || n === undefined) {
+      throw new Error(`Unable to produce an output with an undefined EAVN field [${e}, ${a}, ${v}, ${n}]`);
     }
 
-    return createArray();
+    let prefixRound = prefix[prefix.length - 2];
+    let prefixCount = prefix[prefix.length - 1];
+
+    // @FIXME: Does direction matter here?
+    if(this.shouldOutput(resolved, prefixRound, prefixCount, transaction)) {
+      let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount * this.multiplier);
+      results.push(change);
+    }
+    return true;
   }
 }
 
 export class RemoveNode extends InsertNode {
   multiplier:number = -1;
 
-  exec(index:Index, input:Change, prefix:ID[], transactionId:number, round:number, results:Iterator<ID[]>, transaction:Transaction):boolean {
+  shouldOutput(resolved:ResolvedEAVN, prefixRound:number, prefixCount:Multiplicity, transaction:Transaction) {
+    return true;
+  }
+
+  exec(index:Index, input:Change, prefix:ID[], transactionId:number, round:number, results:Iterator<Change>, transaction:Transaction):boolean {
     let resolved = this.resolve(prefix);
     let {e,a,v,n} = resolved;
-
-    // @FIXME: This is pretty wasteful to copy one by one here.
-    results!.push(prefix);
 
     if(e === undefined || a === undefined || (v === undefined && this.v !== IGNORE_REG) || n === undefined) {
       return false;
@@ -1553,64 +1646,45 @@ export class RemoveNode extends InsertNode {
       // (e.g. removing a specific EAV matching the input works this
       // way).
 
-      // @NOTE: This logic may not be right here if someone else comes along and asserts about us later?
-      let deltas = this.shouldOutput(resolved, prefixRound, prefixCount, transaction);
-      for(let deltaIx = 0; deltaIx < deltas.length; deltaIx += 2) {
-        let deltaRound = deltas[deltaIx];
-        let delta = deltas[deltaIx + 1];
-        let change = new Change(e!, a!, v!, n!, transactionId, deltaRound, delta * this.multiplier);
-        this.output(transaction, change);
+      let delta = this.shouldOutput(resolved, prefixRound, prefixCount, transaction);
+      console.log("  gotta v", delta);
+      if(delta) {
+        let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount * this.multiplier);
+        results.push(change);
       }
-
 
     } else {
       // If we match the input change, we need to remove it too.
       if(e === input.e && a === input.a && (v === input.v || this.v === IGNORE_REG)) {
         resolved.v = input.v;
-
-        // @NOTE: This logic may not be right here if someone else comes along and asserts about us later?
-        let deltas = this.shouldOutput(resolved, prefixRound, prefixCount, transaction);
-        for(let deltaIx = 0; deltaIx < deltas.length; deltaIx += 2) {
-          let deltaRound = deltas[deltaIx];
-          let delta = deltas[deltaIx + 1];
-          let change = new Change(e!, a!, input.v, n!, transactionId, deltaRound, delta * this.multiplier);
-          this.output(transaction, change);
+        if(this.shouldOutput(resolved, prefixRound, prefixCount, transaction)) {
+          let change = new Change(e!, a!, input.v, n!, transactionId, prefixRound + 1, prefixCount * this.multiplier);
+          results.push(change);
         }
-
         resolved.v = v;
       }
 
       let matches = index.get(e, a, IGNORE_REG, IGNORE_REG, transactionId, Infinity);
-
       for(let {v} of matches) {
-        // console.log(e, GlobalInterner.reverse(a!), GlobalInterner.reverse(v!));
         resolved.v = v;
-        let deltas = this.shouldOutput(resolved, prefixRound, prefixCount, transaction);
-        for(let deltaIx = 0; deltaIx < deltas.length; deltaIx += 2) {
-          let deltaRound = deltas[deltaIx];
-          let delta = deltas[deltaIx + 1];
-
-          let change = new Change(e!, a!, v!, n!, transactionId, deltaRound, delta * this.multiplier);
-          this.output(transaction, change);
-
-          // let ntrcs = index.getDiffs(e, a, v, IGNORE_REG);
-          // let roundToMultiplicity:{[round:number]: number} = {};
-          // for(let ix = 0; ix < ntrcs.length; ix += 4) {
-          //   // n = ix, t = ix + 1, r = ix + 2, c = ix + 3
-          //   let round = ntrcs[ix + 2];
-          //   if(round < deltaRound) continue;
-          //   let count = ntrcs[ix + 3];
-          //   let cur = roundToMultiplicity[round] || 0;
-          //   roundToMultiplicity[round] = cur + count;
-          // }
-          // for(let roundString in roundToMultiplicity) {
-          //   let curRound = +roundString;
-          //   let count = roundToMultiplicity[curRound] * prefixCount;
-          //   if(count === 0) continue;
-          //   let changeRound = Math.max(prefixRound + 1, curRound);
-          //   let change = new Change(e!, a!, v!, n!, transactionId, changeRound, delta * this.multiplier);
-          //   this.output(transaction, change);
-          // }
+        if(this.shouldOutput(resolved, prefixRound, prefixCount, transaction)) {
+          let ntrcs = index.getDiffs(e, a, v, IGNORE_REG);
+          let roundToMultiplicity:{[round:number]: number} = {};
+          for(let ix = 0; ix < ntrcs.length; ix += 4) {
+            // n = ix, t = ix + 1, r = ix + 2, c = ix + 3
+            let round = ntrcs[ix + 2];
+            let count = ntrcs[ix + 3];
+            let cur = roundToMultiplicity[round] || 0;
+            roundToMultiplicity[round] = cur + count;
+          }
+          for(let roundString in roundToMultiplicity) {
+            let curRound = +roundString;
+            let count = roundToMultiplicity[curRound] * prefixCount;
+            if(count === 0) continue;
+            let changeRound = Math.max(prefixRound + 1, curRound);
+            let change = new Change(e!, a!, v!, n!, transactionId, changeRound, count * this.multiplier);
+            results.push(change);
+          }
         }
       }
       resolved.v = v;
@@ -1625,7 +1699,7 @@ export class CommitRemoveNode extends CommitInsertNode {
 
   protected _exec = RemoveNode.prototype.exec;
 
-  exec(index:Index, input:Change, prefix:ID[], transactionId:number, round:number, results:Iterator<ID[]>, transaction:Transaction):boolean {
+  exec(index:Index, input:Change, prefix:ID[], transactionId:number, round:number, results:Iterator<Change>, transaction:Transaction):boolean {
     return this._exec(index, input, prefix, transactionId, round, results, transaction);
   }
 }

@@ -737,11 +737,19 @@ class LinearFlow extends DSLBase {
     }
 
     // all the inputs end up at the end
+    let outputs:Runtime.OutputNode[] = [];
     for(let record of this.collector.inserts) {
       let compiled = record.compile();
       for(let node of compiled) {
-        nodes.push(node as Runtime.Node);
+        if(node instanceof Runtime.WatchNode) {
+          nodes.push(node);
+        } else {
+          outputs.push(node as any); // @FIXME: types
+        }
       }
+    }
+    if(outputs.length) {
+      nodes.push(new Runtime.OutputWrapperNode(outputs));
     }
 
     this.levels = levels;

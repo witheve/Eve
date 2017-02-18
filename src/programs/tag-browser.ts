@@ -35,7 +35,7 @@ export function create() {
 
     return [
       //record("html/element", {tagname: "span", text: "hey!", tag})
-      cloud.add("children", record("ui/button", "tag-browser/tag", {class: "inset", text: tag, sort: tag, ziggedywak: "floopy-doo"}))
+      cloud.add("children", record("ui/button", "tag-browser/tag", {class: "inset", text: tag, sort: tag}))
     ];
   });
 
@@ -73,7 +73,7 @@ export function create() {
   prog.test(1, [
     [1, "tag", "html/event/click"],
     [1, "tag", "html/direct-target"],
-    [1, "element", "ui/button|tag-browser/tag|inset|ui/row|ui/row|floopy-doo"],
+    [1, "element", "ui/button|tag-browser/tag|inset|ui/row|ui/row"],
   ]);
   console.groupEnd();
 
@@ -81,7 +81,7 @@ export function create() {
   prog.test(2, [
     [2, "tag", "html/event/click"],
     [2, "tag", "html/direct-target"],
-    [2, "element", "ui/button|tag-browser/tag|inset|ui/column|ui/column|floopy-doo"],
+    [2, "element", "ui/button|tag-browser/tag|inset|ui/column|ui/column"],
   ]);
   console.groupEnd();
 
@@ -89,7 +89,7 @@ export function create() {
   prog.test(3, [
    [3, "tag", "html/event/click"],
    [3, "tag", "html/direct-target"],
-   [3, "element", "ui/button|tag-browser/tag|inset|ui/text|ui/text|floopy-doo"],
+   [3, "element", "ui/button|tag-browser/tag|inset|ui/text|ui/text"],
   ]);
   console.groupEnd();
 
@@ -97,7 +97,7 @@ export function create() {
   prog.test(4, [
    [4, "tag", "html/event/click"],
    [4, "tag", "html/direct-target"],
-   [4, "element", "ui/button|tag-browser/tag|inset|ui/column|ui/column|floopy-doo"],
+   [4, "element", "ui/button|tag-browser/tag|inset|ui/text|ui/text"],
   ]);
   console.groupEnd();
 

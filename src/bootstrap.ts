@@ -2,48 +2,93 @@
 // let prog = create();
 
 import {Program} from "./runtime/dsl2";
+let prog = new Program("test");
 
-let prog = new Program("foop");
+// prog.block("simple block", ({find, record, lib}) => {
+//   find({foo: "bar"});
+//   return [
+//     record({zomg: "baz"})
+//   ]
+// });
 
-  prog.block("Every edge is the beginning of a path.", ({find, record, lib}) => {
-    let from = find();
-    return [
-      from.add("path", from.edge)
-    ];
-  });
+// prog.test(0, [
+//   [1, "foo", "bar"]
+// ]);
 
-  prog.block("Jump from node to node building the path.", ({find, record, lib}) => {
-    let from = find();
-    let intermediate = find();
-    from.edge == intermediate;
-    let to = intermediate.path;
+// prog.commit("coolness", ({find, not, record, choose}) => {
+//   let click = find("click", "direct-target");
+//   let count = find("count");
+//   let current = count.count;
+//   3 > current;
+//   return [
+//     count.remove("count").add("count", current + 1)
+//   ]
+// })
 
-    intermediate.path;
-    return [
-      from.add("path", to)
-    ]
-  });
+// prog.commit("foo", ({find}) => {
+//   let click = find("click", "direct-target");
+//   return [
+//     click.remove("tag", "click"),
+//     click.remove("tag", "direct-target"),
+//   ];
+// })
 
 
-console.group();
+// prog.test(0, [
+//   [1, "tag", "count"],
+//   [1, "count", 0]
+// ]);
+
+
+// prog.test(1, [
+//   [2, "tag", "click"],
+//   [2, "tag", "direct-target"]
+// ]);
+
+
+// prog.test(2, [
+//   [3, "tag", "click"],
+//   [3, "tag", "direct-target"]
+// ]);
+
+
+prog.block("Every edge is the beginning of a path.", ({find, record, lib}) => {
+  let from = find();
+  return [
+    from.add("path", from.edge)
+  ];
+});
+
+prog.block("Jump from node to node building the path.", ({find, record, lib}) => {
+  let from = find();
+  let intermediate = find();
+  from.edge == intermediate;
+  let to = intermediate.path;
+
+  intermediate.path;
+  return [
+    from.add("path", to)
+  ]
+});
+
 prog.test(0, [
   [1, "edge", 2],
   [2, "edge", 1]
 ]);
-console.groupEnd();
-console.group();
 prog.test(1, [
   [1, "edge", 2, 0, -1],
 ]);
-console.groupEnd();
+prog.test(2, [
+  [1, "edge", 2],
+]);
 
 // prog
-//   .block("Find all the tags.", ({find, record}) => {
-//     let tag = find().tag;
-//     return [
-//       record("tiggedy-tag", {real: tag})
-//     ];
-//   })
+//   // .block("Find all the tags.", ({find, record}) => {
+//   //   let tag = find().tag;
+//   //   return [
+//   //     record("tiggedy-tag", {real: tag})
+//   //   ];
+//   // })
 //   .commit("Throw away click events", ({find, record}) => {
 //     let click = find("click", "direct-target");
 //     return [
@@ -55,52 +100,42 @@ console.groupEnd();
 //   .commit("When we get a click, store it.", ({find, record}) => {
 //     let app = find("app");
 //     let click = find("click");
-//     let fruit = click.fruit;
 
 //     return [
-//       app.remove("last").add("last", fruit.foo)
+//       app.remove("last").add("last", click.fruit)
 //     ]
 //   })
 
-//   .block("Draw the last guy.", ({find, record}) => {
-//     let app = find("app");
-//     let container = find("container");
+//   // .block("Draw the l-word guy.", ({find, record}) => {
+//   //   let app = find("app");
+//   //   let container = find("container");
 
-//     return [
-//       container.remove("children").add("children", record("div", {text: `fuckwit ${app.last}`}))
-//     ];
-//   })
+//   //   return [
+//   //     container.remove("children").add("children", record("div", {text: `funkit ${app.last}`}))
+//   //   ];
+//   // })
 
 // prog.test(0, [
 //   [1, "tag", "app"],
 //   [2, "tag", "container"],
-
-//   [11, "tag", "kumquat"],
-//   [11, "foo", "yo"],
-//   [12, "tag", "kumquat"],
-//   [12, "foo", "wut"],
-//   [13, "tag", "kumquat"],
-//   [13, "foo", "up"],
-//   [14, "tag", "kumquat"],
-//   [14, "foo", "dawg"],
 // ]);
 
 // prog.test(1, [
 //   [3, "tag", "click"],
 //   [3, "tag", "direct-target"],
-//   [3, "fruit", 11],
+//   [3, "fruit", "kumquat"],
 // ]);
 
-// prog.test(2, [
-//   [4, "tag", "click"],
-//   [4, "tag", "direct-target"],
-//   [4, "fruit", 12],
-// ])
+// // prog.test(2, [
+// //   [4, "tag", "click"],
+// //   [4, "tag", "direct-target"],
+// //   [4, "fruit", "round orange kumquat"],
+// // ])
 
-// prog.test(3, [
+// prog.test(2, [
 //   [5, "tag", "click"],
 //   [5, "tag", "direct-target"],
-//   [5, "fruit", 13],
+//   [5, "fruit", "kumquat"],
 // ])
 
 // prog.test(4, [
