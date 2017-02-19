@@ -1342,27 +1342,38 @@ export class JoinNode implements Node {
     } else if(diffIndex === diffs.length) {
       results.push(copyArray(prefix, "gjResultsArray"));
     } else {
+      let startingRound = prefix[prefix.length - 2];
+      let startingMultiplicity = prefix[prefix.length - 1];
       let ntrcs = diffs[diffIndex];
       let roundToMultiplicity:{[round:number]: number} = {};
+      let maxRound = currentRound;
       for(let ix = 0; ix < ntrcs.length; ix += 4) {
         // n = ix, t = ix + 1, r = ix + 2, c = ix + 3
         let round = ntrcs[ix + 2];
         let count = ntrcs[ix + 3];
         let v = roundToMultiplicity[round] || 0;
         roundToMultiplicity[round] = v + count;
+        maxRound = Math.max(maxRound, round);
       }
-      for(let roundString in roundToMultiplicity) {
-        let round = +roundString;
+      let currentRoundCount = 0;
+      for(let round = 0; round <= currentRound; round++) {
         let count = roundToMultiplicity[round];
-        if(count === 0) continue;
-        let startingRound = prefix[prefix.length - 2];
-        let startingMultiplicity = prefix[prefix.length - 1];
+        if(count) currentRoundCount += count;
+      }
+      if(currentRoundCount) {
+        prefix[prefix.length - 2] = currentRound;
+        prefix[prefix.length - 1] = startingMultiplicity * currentRoundCount;
+        this.computeMultiplicities(results, prefix, currentRound, diffs, diffIndex + 1);
+      }
+      for(let round = currentRound + 1; round <= maxRound; round++) {
+        let count = roundToMultiplicity[round];
+        if(!count) continue;
         prefix[prefix.length - 2] = Math.max(startingRound, round);
         prefix[prefix.length - 1] = startingMultiplicity * count;
         this.computeMultiplicities(results, prefix, currentRound, diffs, diffIndex + 1);
-        prefix[prefix.length - 2] = startingRound;
-        prefix[prefix.length - 1] = startingMultiplicity;
       }
+      prefix[prefix.length - 2] = startingRound;
+      prefix[prefix.length - 1] = startingMultiplicity;
     }
     return results;
   }
