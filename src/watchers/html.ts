@@ -128,7 +128,7 @@ class HTMLWatcher extends Watcher {
 
     this.program
       .commit("Remove click events!", ({find}) => {
-        let click = find("html/event/click", "html/direct-target");
+        let click = find("html/event/click");
         return [
           //click.remove("tag")
           click.remove("tag"),

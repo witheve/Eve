@@ -2354,6 +2354,8 @@ export class Transaction {
           let start = changes.length;
           block.exec(context, change, this);
         }
+      } else {
+        console.warn("NO CHANGE", change.toString())
       }
       debug("");
       index.insert(change);
