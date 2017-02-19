@@ -1504,7 +1504,10 @@ export class Program {
 
   input(changes:Runtime.Change[]) {
     if(changes[0].transaction >= this.nextTransactionId) this.nextTransactionId = changes[0].transaction + 1;
-    let trans = new Runtime.Transaction(changes[0].transaction, this.blocks, changes, this.lastWatch ? this.exporter.handle : undefined);
+    let trans = new Runtime.Transaction(changes[0].transaction, this.blocks, [], this.lastWatch ? this.exporter.handle : undefined);
+    for(let change of changes) {
+      trans.output(this.context, change);
+    }
     trans.exec(this.context);
     return trans;
   }
@@ -1525,11 +1528,7 @@ export class Program {
     let trans = new Runtime.Transaction(transaction, this.blocks, changes, this.lastWatch ? this.exporter.handle : undefined);
     for(let [e, a, v, round = 0, count = 1] of eavns as EAVRCTuple[]) {
       let change = Runtime.Change.fromValues(e, a, v, "my-awesome-node", transaction, round, count);
-      if(round === 0) {
-        changes.push(change);
-      } else {
-        trans.output(change);
-      }
+      trans.output(this.context, change);
     }
     trans.exec(this.context);
     console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));

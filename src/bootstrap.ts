@@ -1,8 +1,8 @@
-// import {create} from "./programs/tag-browser";
-// let prog = create();
+import {create} from "./programs/tag-browser";
+let prog = create();
 
-import {Program} from "./runtime/dsl2";
-let prog = new Program("test");
+// import {Program} from "./runtime/dsl2";
+// let prog = new Program("test");
 
 // prog.block("simple block", ({find, record, lib}) => {
 //   find({foo: "bar"});
@@ -51,32 +51,32 @@ let prog = new Program("test");
 //   [3, "tag", "direct-target"]
 // ]);
 //
-prog.block("simple block", ({find, record, lib, union}) => {
-    let person = find("person");
-    let [info] = union(() => {
-      person.dog;
-      return "cool";
-    }, () => {
-      return "not cool";
-    });
-    return [
-      record("dog-less", {info})
-    ]
-  });
+// prog.block("simple block", ({find, record, lib, union}) => {
+//     let person = find("person");
+//     let [info] = union(() => {
+//       person.dog;
+//       return "cool";
+//     }, () => {
+//       return "not cool";
+//     });
+//     return [
+//       record("dog-less", {info})
+//     ]
+//   });
 
-  prog.test(1, [
-    [1, "tag", "person"],
-  ], [
-    [2, "tag", "dog-less", 1],
-    [2, "info", "not cool", 1],
-  ])
+//   prog.test(1, [
+//     [1, "tag", "person"],
+//   ], [
+//     [2, "tag", "dog-less", 1],
+//     [2, "info", "not cool", 1],
+//   ])
 
-  prog.test(2, [
-    [1, "dog", "spot"],
-  ], [
-    [3, "tag", "dog-less", 1],
-    [3, "info", "cool", 1],
-  ])
+//   prog.test(2, [
+//     [1, "dog", "spot"],
+//   ], [
+//     [3, "tag", "dog-less", 1],
+//     [3, "info", "cool", 1],
+//   ])
 
 
 // prog.block("Every edge is the beginning of a path.", ({find, record, lib}) => {

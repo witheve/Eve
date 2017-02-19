@@ -1,4 +1,5 @@
-import {Proposal, Change, ResolvedValue, createArray, createHash, IGNORE_REG, ID, EAVN, EAVNField, Register, Constraint, ALLOCATION_COUNT, NTRCArray} from "./runtime";
+import {Proposal, Change, ResolvedValue, createArray, createHash, IGNORE_REG, ID, EAVN, EAVNField,
+        Iterator, Register, Constraint, ALLOCATION_COUNT, NTRCArray} from "./runtime";
 
 //------------------------------------------------------------------------
 // Utils
@@ -380,44 +381,87 @@ export class HashIndex implements Index {
 
 }
 
+//------------------------------------------------------------------------
+// DistinctIndex
+//------------------------------------------------------------------------
 
-// @TODO: Implement
-class MatrixIndex implements Index {
+export class DistinctIndex {
+  index:{[key:string]: (number|undefined)[]|undefined} = {};
 
-  constructor() {
-    throw new Error("Not implemented");
+  shouldOutput(e:ID, a:ID, v:ID, prefixRound:number, prefixCount:number):number[] {
+    // @FIXME: When we start to unintern, we'll have invalid keys left in this index,
+    // so we'll need to delete the keys themselves from the index
+    let key = `${e}|${a}|${v}`;
+    let {index} = this;
+    let roundCounts = index[key] || createArray("Insert intermediate counts");
+    index[key] = roundCounts;
+    // console.log("         counts: ", roundCounts);
+
+    let curCount = 0;
+    let startingCount = roundCounts[prefixRound] = roundCounts[prefixRound] || 0;
+    let maxRound = Math.min(roundCounts.length, prefixRound + 1);
+    for(let roundIx = 0; roundIx < maxRound; roundIx++) {
+      let prevCount = roundCounts[roundIx];
+      if(!prevCount) continue;
+      curCount += prevCount;
+    }
+
+    // console.log("           foo:", curCount);
+
+    let deltas = [];
+    let nextCount = curCount + prefixCount;
+    let delta = 0;
+    if(curCount >= 0 && nextCount <= 0) delta = -1;
+    if(curCount <= 0 && nextCount >= 0) delta = 1;
+    if(delta) {
+      deltas.push(prefixRound, delta);
+    }
+    roundCounts[prefixRound] = startingCount + prefixCount;
+
+    for(let roundIx = prefixRound + 1; roundIx < roundCounts.length; roundIx++) {
+      let roundCount = roundCounts[roundIx];
+      if(roundCount === undefined) continue;
+      let prev = curCount + roundCount;
+      let next = nextCount + roundCount;
+
+      let prevDelta = 0;
+      if(curCount > 0 && prev <= 0) prevDelta = -1;
+      if(curCount <= 0 && prev >= 0) prevDelta = 1;
+
+      let newDelta = 0;
+      if(nextCount > 0 && next <= 0) newDelta = -1;
+      if(nextCount <= 0 && next >= 0) newDelta = 1;
+
+      let finalDelta = 0;
+      if(prevDelta === 0) finalDelta = newDelta;
+      if(prevDelta < 0 && newDelta === 0) finalDelta = prevDelta * -1;
+
+      // console.log("            loop:", roundIx, curCount, prev, nextCount, next, {prevDelta, newDelta, finalDelta})
+
+      if(prevDelta !== newDelta) {
+        // roundCounts[roundIx] += prefixCount * -1;
+        // console.log("            changed:", roundIx, finalDelta)
+        deltas.push(roundIx, finalDelta);
+      }
+
+      nextCount += roundCount;
+      curCount += roundCount;
+    }
+    // console.log("         post counts: ", roundCounts);
+
+    return deltas;
   }
 
-  insert(change:Change) {
-  }
-
-  hasImpact(input:Change) {
-    let {e,a,v,n} = input;
-    return false;
-  }
-
-  getImpact(input:Change) {
-    let {e,a,v,n} = input;
-    return 0;
-  }
-
-  resolveProposal(proposal:Proposal) {
-    return createArray();
-  }
-
-  propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number) {
-    return proposal;
-  }
-
-  check(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):boolean {
-    return false;
-  }
-
-  getDiffs(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue):NTRCArray {
-    return [];
-  }
-
-  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[] {
-    throw new Error("not implemented");
+  distinct(input:Change, transactionId:number, results:Iterator<Change>):boolean {
+    // console.log("     checking: ", input.toString());
+    let {e, a, v, n, round, count} = input;
+    let deltas = this.shouldOutput(e, a, v, round, count);
+    for(let deltaIx = 0; deltaIx < deltas.length; deltaIx += 2) {
+      let deltaRound = deltas[deltaIx];
+      let delta = deltas[deltaIx + 1];
+      let change = new Change(e!, a!, v!, n!, transactionId, deltaRound, delta);
+      results.push(change)
+    }
+    return deltas.length > 0;
   }
 }

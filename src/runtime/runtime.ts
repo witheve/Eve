@@ -1,4 +1,4 @@
-import {Index, ListIndex, HashIndex} from "./indexes";
+import {Index, ListIndex, HashIndex, DistinctIndex} from "./indexes";
 
 //------------------------------------------------------------------------
 // Debugging utilities
@@ -131,7 +131,7 @@ export function moveArray(arr:any[], arr2:any[]) {
 // standard for loop. You can get some of those "zero-cost abstractions" in JS
 // too!
 
-class Iterator<T> {
+export class Iterator<T> {
   array:T[] = [];
   length:number = 0;
   ix:number = 0;
@@ -389,7 +389,9 @@ export class Change {
   }
 
   toString() {
-    return `Change(${GlobalInterner.reverse(this.e)}, ${GlobalInterner.reverse(this.a)}, ${maybeReverse(this.v)}, ${GlobalInterner.reverse(this.n)}, ${this.transaction}, ${this.round}, ${this.count})`;
+    // let e = GlobalInterner.reverse(this.e);
+    let e = this.e;
+    return `Change(${e}, ${GlobalInterner.reverse(this.a)}, ${maybeReverse(this.v)}, ${GlobalInterner.reverse(this.n)}, ${this.transaction}, ${this.round}, ${this.count})`;
   }
 
   // For testing purposes, you often want to compare two Changes ignoring their
@@ -1521,6 +1523,7 @@ export class WatchNode implements Node {
               public n:ID|Register,
               public blockId:number) {}
 
+  protected resolved:ResolvedFields = {};
   resolve = Scan.prototype.resolve;
 
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<Prefix>, transaction:Transaction):boolean {
@@ -1549,60 +1552,9 @@ export class OutputWrapperNode implements Node {
 
   changes = new Iterator<Change>();
 
-  shouldOutput(context:EvaluationContext, e:ID, a:ID, v:ID, prefixRound:number, prefixCount:Multiplicity):number[] {
-    // @FIXME: THIS IS GOING TO GET REAL BAD WHEN WE START REMOVING INTERNED VALUES.
-    let key = `${e}|${a}|${v}`;
-    let {distinctIndex} = context;
-    let roundCounts = distinctIndex[key] || createArray("Insert intermediate counts");
-    distinctIndex[key] = roundCounts;
-      debug(`       ?? intermediates [${GlobalInterner.reverse(e)}, ${GlobalInterner.reverse(a)}, ${GlobalInterner.reverse(v)}]`, JSON.stringify(distinctIndex[key]));
-
-    let curCount = 0;
-    let startingCount = roundCounts[prefixRound] = roundCounts[prefixRound] || 0;
-    let maxRound = Math.min(roundCounts.length, prefixRound + 1);
-    for(let roundIx = 0; roundIx < maxRound; roundIx++) {
-      let prevCount = roundCounts[roundIx];
-      if(!prevCount) continue;
-      curCount += prevCount;
-    }
-
-      debug(`       ?? <- [${GlobalInterner.reverse(e)}, ${GlobalInterner.reverse(a)}, ${GlobalInterner.reverse(v)}] ${prefixRound} | ${curCount} ${prefixCount}`);
-    let deltas = [];
-    let nextCount = curCount + prefixCount;
-    let delta = 0;
-    if(curCount >= 0 && nextCount <= 0) delta = -1;
-    if(curCount <= 0 && nextCount >= 0) delta = 1;
-    if(delta) {
-      deltas.push(prefixRound, delta);
-    }
-    roundCounts[prefixRound] = startingCount + prefixCount;
-    curCount = nextCount;
-
-    for(let roundIx = prefixRound + 1; roundIx < roundCounts.length; roundIx++) {
-      let roundCount = roundCounts[roundIx];
-      if(roundCount === undefined) continue;
-      nextCount += roundCount;
-
-      let delta = 0;
-      if(curCount >= 0 && nextCount <= 0) delta = -1;
-      if(curCount <= 0 && nextCount >= 0) delta = 1;
-
-      debug(`       ?? <- [${GlobalInterner.reverse(e)}, ${GlobalInterner.reverse(a)}, ${GlobalInterner.reverse(v)}] round: ${roundIx} | ${curCount} + ${roundCount} = ${nextCount} | ∂: ${delta}`);
-
-      if(delta) {
-        deltas.push(roundIx, delta);
-      }
-
-
-      curCount = nextCount;
-    }
-      debug(`       ?? final <- [${GlobalInterner.reverse(e)}, ${GlobalInterner.reverse(a)}, ${GlobalInterner.reverse(v)}]`, roundCounts);
-
-    return deltas;
-  }
-
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<Prefix>, transaction:Transaction):boolean {
-    let changes = this.changes;
+    let {distinctIndex} = context;
+    let {changes} = this;
     changes.clear();
     for(let node of this.nodes) {
       node.exec(context, input, prefix, transactionId, round, changes, transaction);
@@ -1611,26 +1563,7 @@ export class OutputWrapperNode implements Node {
     changes.reset();
     let change;
     while(change = changes.next()) {
-      let {e, a, v, n, round, count} = change;
-      let deltas = this.shouldOutput(context, e, a, v, round, count);
-      for(let deltaIx = 0; deltaIx < deltas.length; deltaIx += 2) {
-        let deltaRound = deltas[deltaIx];
-        let delta = deltas[deltaIx + 1];
-        let change = new Change(e!, a!, v!, n!, transactionId, deltaRound, delta);
-
-        // @TODO: when we do removes, we could say that if the result is a remove, we want to
-        // dereference these ids instead of referencing them. This would allow us to clean up
-        // the interned space based on what's "in" the indexes. The only problem is that if you
-        // held on to a change, the IDs of that change may no longer be in the interner, or worse
-        // they may have been reassigned to something else. For now, we'll just say that once something
-        // is in the index, it never goes away.
-        GlobalInterner.reference(change.e);
-        GlobalInterner.reference(change.a);
-        GlobalInterner.reference(change.v);
-        GlobalInterner.reference(change.n);
-
-        transaction.output(change);
-      }
+      transaction.output(context, change);
     }
 
     return true;
@@ -2292,7 +2225,7 @@ export class Block {
 //------------------------------------------------------------------------------
 
 export class EvaluationContext {
-  distinctIndex:{[key:string]: (number|undefined)[]|undefined} = {};
+  distinctIndex = new DistinctIndex();
   intermediates:{[key:string]: IntermediateIndex} = {};
 
   constructor(public index:Index) {}
@@ -2305,21 +2238,49 @@ export class EvaluationContext {
 export type ExportHandler = (blockChanges:{[id:number]: Change[]|undefined}) => void;
 
 export class Transaction {
-  round = 0;
+  round = -1;
+  protected outputs = new Iterator<Change>();
   protected roundChanges:Change[][] = [];
   protected exportedChanges:{[blockId:number]: Change[]} = {};
   constructor(public transaction:number, public blocks:Block[], public changes:Change[], protected exportHandler?:ExportHandler) {}
 
-  output(change:Change) {
-    debug("          <-", change.toString())
-    let cur = this.roundChanges[change.round] || createArray("roundChangesArray");
-    cur.push(change);
-    this.roundChanges[change.round] = cur;
+  output(context:EvaluationContext, change:Change) {
+    let {outputs} = this;
+    let {distinctIndex} = context;
+    outputs.clear();
+    distinctIndex.distinct(change, this.transaction, outputs);
+
+    outputs.reset();
+    let output;
+    while(output = outputs.next()) {
+      debug("          <-", change.toString())
+      let cur = this.roundChanges[output.round] || createArray("roundChangesArray");
+      cur.push(output);
+      this.roundChanges[output.round] = cur;
+    }
   }
 
   export(blockId:number, change:Change) {
     if(!this.exportedChanges[blockId]) this.exportedChanges[blockId] = [change];
     else this.exportedChanges[blockId].push(change);
+  }
+
+  protected prepareRound(changeIx:number) {
+    let {roundChanges, changes} = this;
+    let next = changes[changeIx];
+    let maxRound = roundChanges.length;
+    if(!next && this.round < maxRound) {
+      for(let ix = this.round + 1; ix < maxRound; ix++) {
+        let nextRoundChanges = roundChanges[ix];
+        if(nextRoundChanges) {
+          let oldLength = changes.length;
+          this.collapseMultiplicity(nextRoundChanges, changes);
+
+          // We only want to break to begin the next fixedpoint when we have something new to run.
+          if(oldLength < changes.length) break;
+        }
+      }
+    }
   }
 
   protected collapseMultiplicity(changes:Change[], results:Change[] /* output */) {
@@ -2360,10 +2321,11 @@ export class Transaction {
     let {changes, roundChanges} = this;
     let {index} = context;
     let changeIx = 0;
+    this.prepareRound(changeIx);
     while(changeIx < changes.length) {
       let change = changes[changeIx];
       this.round = change.round;
-      if(this.round > 10) {
+      if(this.round > 20) {
         console.error("Failed to terminate");
         break;
       }
@@ -2386,20 +2348,7 @@ export class Transaction {
       index.insert(change);
 
       changeIx++;
-      let next = changes[changeIx];
-      let maxRound = roundChanges.length;
-      if(!next && this.round < maxRound) {
-        for(let ix = this.round + 1; ix < maxRound; ix++) {
-          let nextRoundChanges = roundChanges[ix];
-          if(nextRoundChanges) {
-            let oldLength = changes.length;
-            this.collapseMultiplicity(nextRoundChanges, changes);
-
-            // We only want to break to begin the next fixedpoint when we have something new to run.
-            if(oldLength < changes.length) break;
-          }
-        }
-      }
+      this.prepareRound(changeIx);
     }
 
     let exportingBlocks = Object.keys(this.exportedChanges);

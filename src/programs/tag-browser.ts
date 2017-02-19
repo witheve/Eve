@@ -97,7 +97,7 @@ export function create() {
   prog.test(4, [
    [4, "tag", "html/event/click"],
    [4, "tag", "html/direct-target"],
-   [4, "element", "ui/button|tag-browser/tag|inset|ui/text|ui/text"],
+   [4, "element", "ui/button|tag-browser/tag|inset|ui/column|ui/column"],
   ]);
   console.groupEnd();
 
