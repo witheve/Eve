@@ -1876,6 +1876,15 @@ export class AntiJoin extends BinaryFlow {
     if(!diffs || !diffs.length) {
       //debug("                    ->", key, count, diffs)
       return results.push(prefix);
+    } else {
+      let sum = 0;
+      for(let diff of diffs) {
+        let count = diff[diff.length - 1];
+        sum += count;
+      }
+      if(!sum) {
+        return results.push(prefix);
+      }
     }
   }
 
@@ -1884,7 +1893,7 @@ export class AntiJoin extends BinaryFlow {
     let count = prefix[prefix.length - 1];
     this.rightIndex.insert(key, prefix);
     let diffs = this.leftIndex.get(key)
-    //debug("                right:", key, count, diffs)
+    //debug("                right:", key, count, diffs.slice())
     if(!diffs) return;
     for(let leftPrefix of diffs) {
       let leftRound = leftPrefix[leftPrefix.length - 2];
