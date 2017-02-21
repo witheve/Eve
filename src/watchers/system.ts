@@ -2,7 +2,7 @@ import {Watcher} from "./watcher";
 import {ID} from "../runtime/runtime";
 
 class SystemWatcher extends Watcher {
-  timers:{[key:string]:any} = {};
+  timers:{[key:string]: {timer:any, prev:Date|undefined}} = {};
 
   getTime(changes:any[], timer:ID, date?:Date) {
     let multiplicity = -1;
@@ -29,18 +29,20 @@ class SystemWatcher extends Watcher {
     })
 
     me.asObjects<{timer:ID, resolution:number}>(({adds, removes}) => {
-      for(let id of Object.keys(adds)) {
+      Object.keys(adds).forEach((id) => {
         let {timer, resolution} = adds[id];
         let prev:Date;
-        this.timers[id] = setInterval(() => {
+        let timerHandle = setInterval(() => {
+          let {prev} = this.timers[id];
           let changes:any[] = [];
           if(prev) {
             this.getTime(changes, timer, prev)
           }
-          prev = this.getTime(changes, timer);
+          this.timers[id].prev = this.getTime(changes, timer);
           me.inputEavs(changes);
         }, resolution);
-      }
+        this.timers[id] = {timer:timerHandle, prev:undefined};
+      })
       console.log("GOT TIMER!", adds);
     })
   }

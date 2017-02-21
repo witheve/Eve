@@ -30,11 +30,11 @@ prog.attach("svg");
 prog.block("draw a clock", ({find, record}) => {
   let timer = find("clock-timer");
   return [
-    record("svg", {viewBox: "0 0 100 100", width: "300px"}).add("children", [
-      record("circle", {cx:50, cy:50, r:45, fill:"#0b79ce"}),
-      record("clock-hand", "hour-hand", {length:30, stroke:"black"}).add("degrees", 30 * timer.hours),
-      record("clock-hand", "minute-hand", {length:40, stroke:"black"}).add("degrees", 6 * timer.minutes),
-      record("clock-hand", "second-hand", {length:40, stroke:"red"}).add("degrees", 6 * timer.seconds),
+    record("svg", {viewBox: "0 0 100 100", width: "300px", timer}).add("children", [
+      record("svg/circle", {cx:50, cy:50, r:45, fill:"#0b79ce"}),
+      record("clock-hand", "hour-hand", {timer, length:30, stroke:"black"}).add("degrees", 30 * timer.hours),
+      record("clock-hand", "minute-hand", {timer, length:40, stroke:"black"}).add("degrees", 6 * timer.minutes),
+      record("clock-hand", "second-hand", {timer, length:40, stroke:"red"}).add("degrees", 6 * timer.seconds),
     ])
   ]
 })
@@ -45,7 +45,7 @@ prog.block("draw clock hands", ({find, lib}) => {
   let x2 = 50 + hand.length * math.sin(hand.degrees)
   let y2 = 50 - hand.length * math.cos(hand.degrees)
   return [
-    hand.add("tag", "line")
+    hand.add("tag", "svg/line")
         .add("x1", 50)
         .add("y1", 50)
         .add("x2", x2)
@@ -59,11 +59,11 @@ prog
     return [elem.add("tag", "svg/element").add("tagname", "svg")];
   })
   .block("Translate elements into svg", ({find, record, union}) => {
-    let elem = find("circle");
+    let elem = find("svg/circle");
     return [elem.add("tag", "svg/element").add("tagname", "circle")];
   })
   .block("Translate elements into svg", ({find, record, union}) => {
-    let elem = find("line");
+    let elem = find("svg/line");
     return [elem.add("tag", "svg/element").add("tagname", "line")];
   });
 
@@ -71,6 +71,9 @@ prog.test(1, [
   [1, "tag", "clock-timer"],
   [1, "tag", "system/timer"],
   [1, "resolution", 1000],
+  [2, "tag", "clock-timer"],
+  [2, "tag", "system/timer"],
+  [2, "resolution", 5000],
   // [1, "hours", 10],
   // [1, "minutes", 10],
   // [1, "seconds", 10],

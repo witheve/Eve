@@ -631,7 +631,7 @@ class LinearFlow extends DSLBase {
       transformed = this.transform(func);
     }
     ReferenceContext.push(this.context);
-    let results = transformed(this);
+    let results = transformed.call(func, this);
     if(isArray(results)) this.results = results;
     else if(results === undefined) this.results = [];
     else this.results = [results];

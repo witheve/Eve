@@ -134,7 +134,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
     this.program
       .constants({tagPrefix: this.tagPrefix})
       .commit("Remove click events!", ({find}) => {
-        let click = find("{{tagPrefix}}/event/click", "{{tagPrefix}}/direct-target");
+        let click = find("{{tagPrefix}}/event/click");
         return [
           //click.remove("tag")
           click.remove("tag"),
