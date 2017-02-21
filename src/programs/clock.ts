@@ -1,9 +1,9 @@
-
 import {Program} from "../runtime/dsl2";
 import "../watchers/system";
 
 let prog = new Program("clock");
 prog.attach("system");
+prog.attach("svg");
 
 // ~~~
 // search @browser
@@ -45,13 +45,27 @@ prog.block("draw clock hands", ({find, lib}) => {
   let x2 = 50 + hand.length * math.sin(hand.degrees)
   let y2 = 50 - hand.length * math.cos(hand.degrees)
   return [
-    hand.add("tag", "svg/line")
+    hand.add("tag", "line")
         .add("x1", 50)
         .add("y1", 50)
         .add("x2", x2)
         .add("y2", y2)
   ]
 })
+
+prog
+  .block("Translate elements into svg", ({find, record, union}) => {
+    let elem = find("svg");
+    return [elem.add("tag", "svg/element").add("tagname", "svg")];
+  })
+  .block("Translate elements into svg", ({find, record, union}) => {
+    let elem = find("circle");
+    return [elem.add("tag", "svg/element").add("tagname", "circle")];
+  })
+  .block("Translate elements into svg", ({find, record, union}) => {
+    let elem = find("line");
+    return [elem.add("tag", "svg/element").add("tagname", "line")];
+  });
 
 prog.test(1, [
   [1, "tag", "clock-timer"],
