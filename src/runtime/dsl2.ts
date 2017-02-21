@@ -20,6 +20,34 @@ function isArray<T>(v:any): v is Array<T> {
   return v && v.constructor === Array;
 }
 
+function macro<FuncType extends Function>(func:FuncType, transform:(code:string, args:string[], name:string) => string):FuncType {
+  let code = func.toString();
+  // trim the function(...) { from the start and capture the arg names
+
+  let name:string = "";
+  code = code.replace(/function\s*(\w*)\s*/, (str:string, funcName:string) => {
+    name = funcName;
+    return "";
+  })
+
+  let functionArgs:string[] = [];
+  code = code.replace(/\((.*)\)\s*\{/m, function(str:string, args:string) {
+    functionArgs.push.apply(functionArgs, args.split(",").map((str) => str.trim()));
+    return "";
+  });
+  // trim the final } since we removed the function bit
+  code = code.substring(0, code.length - 1);
+  code = transform(code, functionArgs, name);
+
+  let neueFunc = (new Function(`
+    return function ${name}(${functionArgs.join(", ")}) {
+      ${code}
+    };
+  `))() as FuncType;
+
+  return neueFunc;
+}
+
 //--------------------------------------------------------------------
 // Reference
 //--------------------------------------------------------------------
@@ -762,18 +790,7 @@ class LinearFlow extends DSLBase {
   //------------------------------------------------------------------
 
   transform(func:LinearFlowFunction) {
-    let functionArgs:string[] = [];
-    let code = func.toString();
-    // trim the function(...) { from the start and capture the arg names
-    code = code.replace(/function\s*\((.*)\)\s*\{/, function(str:string, args:string) {
-      functionArgs.push.apply(functionArgs, args.split(",").map((str) => str.trim()));
-      return "";
-    });
-    // trim the final } since we removed the function bit
-    code = code.substring(0, code.length - 1);
-    code = this.transformCode(code, functionArgs);
-    let neueFunc = new Function(functionArgs[0], code) as LinearFlowFunction;
-    return neueFunc;
+    return macro(func, this.transformCode);
   }
 
   replaceInfix(strings:string[], functionArgs:string[], code:string, regex:RegExp, prefix?:string, replaceOp?:{[key:string]:string}) {
@@ -798,7 +815,7 @@ class LinearFlow extends DSLBase {
     return code;
   }
 
-  transformCode(code:string, functionArgs:string[]):string {
+  transformCode = (code:string, functionArgs:string[]):string => {
     let infixParam = "((?:(?:[a-z0-9_\.]+(?:\\[\".*?\"\\])?)+(?:\\(.*\\))?)|\\(.*\\))";
     let stringPlaceholder = "(____[0-9]+____)";
 
@@ -1483,14 +1500,38 @@ export class Program {
   protected exporter = new Exporter();
   protected lastWatch?:number;
   protected watchers:{[id:string]: Watcher|undefined} = {};
+  protected _constants?:{[key:string]: RawValue};
 
   constructor(public name:string) {
     this.index = new indexes.HashIndex();
     this.context = new Runtime.EvaluationContext(this.index);
   }
 
+  constants(obj:{[key:string]: RawValue}) {
+    if(!this._constants) this._constants = {};
+    for(let constant in obj) {
+      if(this._constants[constant] && this._constants[constant] !== obj[constant]) {
+        throw new Error("Unable to rebind existing constant");
+      }
+      this._constants[constant] = obj[constant];
+    }
+
+    return this;
+  }
+
+  injectConstants(func:LinearFlowFunction):LinearFlowFunction {
+    if(!this._constants) return func;
+    return macro(func, (code) => {
+      let constants = this._constants!;
+      for(let constant in constants) {
+        code = code.replace(new RegExp(`{{${constant}}}`, "gm"), "" + constants[constant]);
+      }
+      return code;
+    });
+  }
+
   block(name:string, func:LinearFlowFunction) {
-    let flow = new LinearFlow(func);
+    let flow = new LinearFlow(this.injectConstants(func));
     let nodes = flow.compile();
     let block = new Runtime.Block(name, nodes, flow.context.maxRegisters);
     this.flows.push(flow);
@@ -1539,7 +1580,7 @@ export class Program {
   }
 
   commit(name:string, func:LinearFlowFunction) {
-    let flow = new CommitFlow(func);
+    let flow = new CommitFlow(this.injectConstants(func));
     let nodes = flow.compile();
     let block = new Runtime.Block(name, nodes, flow.context.maxRegisters);
     this.flows.push(flow);
@@ -1557,7 +1598,7 @@ export class Program {
   }
 
   watch(name:string, func:LinearFlowFunction) {
-    let flow = new WatchFlow(func);
+    let flow = new WatchFlow(this.injectConstants(func));
     let nodes = flow.compile();
     let block = new Runtime.Block(name, nodes, flow.context.maxRegisters);
     this.lastWatch = flow.ID;
