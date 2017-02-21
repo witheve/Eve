@@ -4,7 +4,7 @@ import {Index, ListIndex, HashIndex, DistinctIndex} from "./indexes";
 // Debugging utilities
 //------------------------------------------------------------------------
 
-// Turning this on causes all of the //debug(.*) statements to print to the
+// Turning this on causes all of the debug(.*) statements to print to the
 // console.  This is useful to see exactly what the runtime is doing as it
 // evaluates a transaction, but it incurs both a pretty serious performance
 // cost and prints a lot of stuff.
@@ -56,7 +56,7 @@ export function maybeReverse(value?:ID):ID|RawValue|undefined {
 // As this is a language runtime, we want to get insight into how we're using
 // memory and what allocation costs we're eating as we run. To track that, we
 // use createHash and createArray to give us some rough numbers. The JIT will
-// intern these functions, so the cost over just using {} or [], is fairly
+// inline these functions, so the cost over just using {} or [], is fairly
 // negligible. In a release build we can also strip the allocation tracking.
 
 export var ALLOCATION_COUNT:any = {};
