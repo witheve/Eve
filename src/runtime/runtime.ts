@@ -56,7 +56,7 @@ export function maybeReverse(value?:ID):ID|RawValue|undefined {
 // As this is a language runtime, we want to get insight into how we're using
 // memory and what allocation costs we're eating as we run. To track that, we
 // use createHash and createArray to give us some rough numbers. The JIT will
-// intern these functions, so the cost over just using {} or [], is fairly
+// inline these functions, so the cost over just using {} or [], is fairly
 // negligible. In a release build we can also strip the allocation tracking.
 
 export var ALLOCATION_COUNT:any = {};
@@ -1282,7 +1282,7 @@ export class JoinNode implements Node {
   }
 
   applyCombination(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>) {
-    debug("        Join combo:", prefix.slice());
+    //debug("        Join combo:", prefix.slice());
     let countOfSolved = 0;
     for(let ix = 0; ix < this.registerLookup.length; ix++) {
       if(!this.registerLookup[ix]) continue;
@@ -1305,7 +1305,7 @@ export class JoinNode implements Node {
       return true;
 
     } else {
-      debug("              GJ:", remainingToSolve, this.constraints);
+      //debug("              GJ:", remainingToSolve, this.constraints);
       // For each node, find the new results that match the prefix.
       let ol = results.length;
       this.genericJoin(context, prefix, transaction, round, results, remainingToSolve);
@@ -1396,7 +1396,7 @@ export class JoinNode implements Node {
     }
 
     if(bestProposal.skip) {
-      debug("             BAILING", bestProposal);
+      //debug("             BAILING", bestProposal);
       return results;
     }
 
@@ -1437,7 +1437,7 @@ export class JoinNode implements Node {
         for(let constraint of constraints) {
           if(constraint === proposer) continue;
           if(!constraint.accept(context, prefix, transaction, round, forRegisters)) {
-            debug("             BAILING", printConstraint(constraint));
+            //debug("             BAILING", printConstraint(constraint));
             continue resultLoop;
           }
         }
@@ -1639,7 +1639,7 @@ export class CommitInsertNode extends InsertNode {
     if(prevCount > 0 && newCount <= 0) delta = -1;
     if(prevCount === 0 && newCount > 0) delta = 1;
 
-    debug("       C?? <-", e, a, v, prefixRound + 1, {prevCount, newCount, delta})
+    //debug("       C?? <-", e, a, v, prefixRound + 1, {prevCount, newCount, delta})
     return delta;
   }
 
@@ -1819,7 +1819,7 @@ export class BinaryJoinRight extends BinaryFlow {
     let count = prefix[prefix.length - 1];
     this.leftIndex.insert(key, prefix);
     let diffs = this.rightIndex.get(key)
-    debug("       left", key, printPrefix(prefix), diffs);
+    //debug("       left", key, printPrefix(prefix), diffs);
     if(!diffs) return;
     for(let rightPrefix of diffs) {
       let rightRound = rightPrefix[rightPrefix.length - 2];
@@ -1837,7 +1837,7 @@ export class BinaryJoinRight extends BinaryFlow {
     let count = prefix[prefix.length - 1];
     this.rightIndex.insert(key, prefix);
     let diffs = this.leftIndex.get(key)
-    debug("       right", key, printPrefix(prefix), diffs);
+    //debug("       right", key, printPrefix(prefix), diffs);
     if(!diffs) return;
     for(let leftPrefix of diffs) {
       let leftRound = leftPrefix[leftPrefix.length - 2];
@@ -1847,7 +1847,7 @@ export class BinaryJoinRight extends BinaryFlow {
       result[result.length - 2] = upperBound;
       result[result.length - 1] = count * leftCount;
       results.push(result);
-      debug("               -> ", printPrefix(result));
+      //debug("               -> ", printPrefix(result));
     }
   }
 }
@@ -1863,7 +1863,7 @@ export class AntiJoin extends BinaryFlow {
   }
 
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
-    debug("            antijoin:")
+    //debug("            antijoin:")
     return super.exec(context,input,prefix,transaction,round,results,changes);
   }
 
@@ -1872,9 +1872,9 @@ export class AntiJoin extends BinaryFlow {
     let count = prefix[prefix.length - 1];
     this.leftIndex.insert(key, prefix);
     let diffs = this.rightIndex.get(key)
-    debug("                left:", key, count, diffs)
+    //debug("                left:", key, count, diffs)
     if(!diffs || !diffs.length) {
-      debug("                    ->", key, count, diffs)
+      //debug("                    ->", key, count, diffs)
       return results.push(prefix);
     }
   }
@@ -1884,7 +1884,7 @@ export class AntiJoin extends BinaryFlow {
     let count = prefix[prefix.length - 1];
     this.rightIndex.insert(key, prefix);
     let diffs = this.leftIndex.get(key)
-    debug("                right:", key, count, diffs)
+    //debug("                right:", key, count, diffs)
     if(!diffs) return;
     for(let leftPrefix of diffs) {
       let leftRound = leftPrefix[leftPrefix.length - 2];
@@ -1894,7 +1894,7 @@ export class AntiJoin extends BinaryFlow {
       result[result.length - 2] = upperBound;
       result[result.length - 1] = count * leftCount * -1;
       results.push(result);
-      debug("                    ->", key, count, leftCount, result[result.length - 1])
+      //debug("                    ->", key, count, leftCount, result[result.length - 1])
     }
   }
 }
@@ -1988,7 +1988,7 @@ export class MergeAggregateFlow extends BinaryFlow {
     let count = prefix[prefix.length - 1];
     this.leftIndex.insert(key, prefix);
     let diffs = this.rightIndex.get(key)
-    debug("       left", key, printPrefix(prefix), diffs);
+    //debug("       left", key, printPrefix(prefix), diffs);
     if(!diffs) return;
     for(let rightPrefix of diffs) {
       let rightRound = rightPrefix[rightPrefix.length - 2];
@@ -2007,7 +2007,7 @@ export class MergeAggregateFlow extends BinaryFlow {
     let count = prefix[prefix.length - 1];
     this.rightIndex.insert(key, prefix);
     let diffs = this.leftIndex.get(key)
-    debug("       right", key, printPrefix(prefix), diffs);
+    //debug("       right", key, printPrefix(prefix), diffs);
     if(!diffs) return;
     for(let leftPrefix of diffs) {
       let leftRound = leftPrefix[leftPrefix.length - 2];
@@ -2018,22 +2018,22 @@ export class MergeAggregateFlow extends BinaryFlow {
       result[result.length - 2] = upperBound;
       result[result.length - 1] = count * leftCount;
       results.push(result);
-      debug("               -> ", printPrefix(result));
+      //debug("               -> ", printPrefix(result));
     }
   }
 
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
-    debug("        AGG MERGE");
+    //debug("        AGG MERGE");
     let result;
     let {left, right, leftResults, rightResults} = this;
     leftResults.clear();
     left.exec(context, input, prefix, transaction, round, leftResults, changes);
-    debug("              left results: ", leftResults);
+    //debug("              left results: ", leftResults);
 
     // we run the left's results through the aggregate to capture all the aggregate updates
     rightResults.clear();
     while((result = leftResults.next()) !== undefined) {
-      debug("              left result: ", result.slice());
+      //debug("              left result: ", result.slice());
       right.exec(context, input, result, transaction, round, rightResults, changes);
     }
 
@@ -2264,7 +2264,7 @@ export class Transaction {
     outputs.reset();
     let output;
     while(output = outputs.next()) {
-      debug("          <-", change.toString())
+      //debug("          <-", change.toString())
       let cur = this.roundChanges[output.round] || createArray("roundChangesArray");
       cur.push(output);
       this.roundChanges[output.round] = cur;
@@ -2340,9 +2340,9 @@ export class Transaction {
         console.error("Failed to terminate");
         break;
       }
-      debug("Round:", this.round);
+      //debug("Round:", this.round);
 
-      debug("-> " + change, index.hasImpact(change));
+      //debug("-> " + change, index.hasImpact(change));
       if(index.hasImpact(change)) {
         for(let block of this.blocks) {
           // if(block.name === "Show the targeted tag") {
@@ -2350,14 +2350,14 @@ export class Transaction {
           // } else {
           //   debug = function() {}
           // }
-          debug("    ", block.name);
+          //debug("    ", block.name);
           let start = changes.length;
           block.exec(context, change, this);
         }
       } else {
         console.warn("NO CHANGE", change.toString())
       }
-      debug("");
+      //debug("");
       index.insert(change);
 
       changeIx++;
