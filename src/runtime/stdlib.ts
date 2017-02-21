@@ -85,7 +85,7 @@ makeFunction({
   args: {a: "number", b: "number"},
   returns: {result: "number"},
   apply: (a:number, b:number) => {
-    return [a - b];
+    return [a * b];
   }
 });
 
@@ -122,6 +122,33 @@ makeFunction({
   returns: {result: "number"},
   apply: (a:number) => {
     return [Math.round(a)];
+  }
+});
+
+makeFunction({
+  name: "math/sin",
+  args: {a: "number"},
+  returns: {result: "number"},
+  apply: (a:number) => {
+    return [Math.sin(a/180 * Math.PI)];
+  }
+});
+
+makeFunction({
+  name: "math/cos",
+  args: {a: "number"},
+  returns: {result: "number"},
+  apply: (a:number) => {
+    return [Math.cos(a/180 * Math.PI)];
+  }
+});
+
+makeFunction({
+  name: "math/tan",
+  args: {a: "number"},
+  returns: {result: "number"},
+  apply: (a:number) => {
+    return [Math.tan(a/180 * Math.PI)];
   }
 });
 

@@ -56,7 +56,7 @@ export class Reference {
     return proxied;
   }
 
-  add(attribute:Value, value:Value):Reference {
+  add(attribute:Value, value:Value|Value[]):Reference {
     if(this.__owner instanceof Record) {
       // we only allow you to call add at the root context
       if(this.__context.parent) throw new Error("Add can't be called in a sub-block");
@@ -68,7 +68,7 @@ export class Reference {
   }
 
   // @TODO: allow free A's and V's here
-  remove(attribute:Value, value:Value):Reference {
+  remove(attribute:Value, value:Value|Value[]):Reference {
     if(this.__owner instanceof Record) {
       // we only allow you to call remove at the root context
       if(this.__context.parent) throw new Error("Add can't be called in a sub-block");
@@ -581,7 +581,7 @@ class FlowLevel {
 }
 
 class DSLBase {
-  static CurrentID = 0;
+  static CurrentID = 1;
   ID = DSLBase.CurrentID++;
 }
 
@@ -917,14 +917,26 @@ class Record extends DSLBase {
     return this.record!;
   }
 
-  add(context:ReferenceContext, attribute:Value, value:Value) {
+  add(context:ReferenceContext, attribute:Value, value:Value|Value[]) {
     let insert = new Insert(context, [], {}, this.reference());
-    insert.add(context, attribute, value);
+    if(!isArray(value)) {
+      insert.add(context, attribute, value);
+    } else {
+      for(let v of value) {
+        insert.add(context, attribute, v);
+      }
+    }
   }
 
-  remove(context:ReferenceContext, attribute:Value, value:Value) {
+  remove(context:ReferenceContext, attribute:Value, value:Value|Value[]) {
     let insert = new Insert(context, [], {}, this.reference());
-    insert.remove(context, attribute, value);
+    if(!isArray(value)) {
+      insert.remove(context, attribute, value);
+    } else {
+      for(let v of value) {
+        insert.remove(context, attribute, v);
+      }
+    }
   }
 
   copyToContext(activeContext:ReferenceContext) {
@@ -1080,14 +1092,26 @@ class Insert extends Record {
     return new Insert(context, undefined, undefined, record);
   }
 
-  add(context:ReferenceContext, attribute:Value, value:Value) {
-    this.attributes.push(attribute, value);
+  add(context:ReferenceContext, attribute:Value, value:Value|Value[]) {
+    if(!isArray(value)) {
+      this.attributes.push(attribute, value);
+    } else {
+      for(let v of value) {
+        this.attributes.push(attribute, v);
+      }
+    }
     return this.reference();
   }
 
-  remove(context:ReferenceContext, attribute:Value, value:Value) {
+  remove(context:ReferenceContext, attribute:Value, value:Value|Value[]) {
     let remove = new Remove(context, [], {}, this.record);
-    remove.attributes.push(attribute, value);
+    if(!isArray(value)) {
+      remove.attributes.push(attribute, value);
+    } else {
+      for(let v of value) {
+        remove.attributes.push(attribute, v);
+      }
+    }
     return this.reference();
   }
 
@@ -1485,6 +1509,11 @@ export class Program {
   protected watchers:{[id:string]: Watcher|undefined} = {};
 
   constructor(public name:string) {
+    this.index = new indexes.HashIndex();
+    this.context = new Runtime.EvaluationContext(this.index);
+  }
+
+  clear() {
     this.index = new indexes.HashIndex();
     this.context = new Runtime.EvaluationContext(this.index);
   }

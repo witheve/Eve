@@ -1,5 +1,60 @@
-import {create} from "./programs/tag-browser";
-let prog = create();
+// import {create} from "./programs/tag-browser";
+// let prog = create();
+
+// import "./programs/clock";
+
+// import {Program} from "./runtime/dsl2";
+// import {Change} from "./runtime/runtime";
+// import {HashIndex} from "./runtime/indexes";
+//   let prog = new Program("test");
+//   prog.block("simple block", ({find, record, lib}) => {
+//     let person = find("person");
+//     let text = `name: ${person.name}`;
+//     return [
+//       record("html/div", {person, text})
+//     ]
+//   });
+
+//   // -----------------------------------------------------
+//   // verification
+//   // -----------------------------------------------------
+
+//   for(let ix = 0; ix < 5; ix++) {
+//     prog.clear();
+//     let size = 10000;
+//     let changes = [];
+//     for(let i = 0; i < size; i++) {
+//       changes.push([
+//         Change.fromValues(i - 1, "name", i - 1, "input", i, 0, 1),
+//         Change.fromValues(i, "tag", "person", "input", i, 0, 1),
+//       ])
+//     }
+
+//     let start = console.time();
+//     for(let change of changes) {
+//       prog.input(change);
+//     }
+//     let end = console.timeEnd();
+//   }
+
+//   (global as any)["doit"] = function() {
+//     prog.clear();
+//     let size = 10000;
+//     let changes = [];
+//     for(let i = 0; i < size; i++) {
+//       changes.push([
+//         Change.fromValues(i - 1, "name", i - 1, "input", i, 0, 1),
+//         Change.fromValues(i, "tag", "person", "input", i, 0, 1),
+//       ])
+//     }
+
+//     let start = console.profile();
+//     for(let change of changes) {
+//       prog.input(change);
+//     }
+//     let end = console.profileEnd();
+//   }
+
 
 // import {Program} from "./runtime/dsl2";
 // let prog = new Program("test");
