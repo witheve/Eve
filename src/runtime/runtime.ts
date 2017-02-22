@@ -1655,7 +1655,8 @@ export class CommitInsertNode extends InsertNode {
     let prefixCount = prefix[prefix.length - 1];
 
     // @FIXME: Does direction matter here?
-    if(this.shouldOutput(resolved, prefixRound, prefixCount, transaction)) {
+    let delta = this.shouldOutput(resolved, prefixRound, prefixCount, transaction);
+    if(delta) {
       let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount * this.multiplier);
       results.push(change);
     }
@@ -1709,7 +1710,8 @@ export class RemoveNode extends InsertNode {
       let matches = index.get(e, a, IGNORE_REG, IGNORE_REG, transactionId, Infinity);
       for(let {v} of matches) {
         resolved.v = v;
-        if(this.shouldOutput(resolved, prefixRound, prefixCount, transaction)) {
+        let delta = this.shouldOutput(resolved, prefixRound, prefixCount, transaction);
+        if(delta) {
           let ntrcs = index.getDiffs(e, a, v, IGNORE_REG);
           let roundToMultiplicity:{[round:number]: number} = {};
           for(let ix = 0; ix < ntrcs.length; ix += 4) {

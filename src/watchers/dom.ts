@@ -166,6 +166,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
       })
 
       .asObjects<{tagname:string, element:string, instance:string}>((diff) => {
+        console.log("ALL INSTANCES", diff);
         for(let e of Object.keys(diff.removes)) {
           let {instance:instanceId} = diff.removes[e];
           this.clearInstance(instanceId);
@@ -204,6 +205,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
         ];
       })
       .asObjects<{instance:string, parent:string}>((diff) => {
+        console.log("PARENTS", diff);
         for(let e of Object.keys(diff.removes)) {
           let {instance:instanceId, parent:parentId} = diff.removes[e];
           if(this.instances[parentId]) {

@@ -152,6 +152,24 @@ makeFunction({
   }
 });
 
+makeFunction({
+  name: "math/max",
+  args: {a: "number", b: "number"},
+  returns: {result: "number"},
+  apply: (a:number, b:number) => {
+    return [Math.max(a, b)];
+  }
+});
+
+makeFunction({
+  name: "math/min",
+  args: {a: "number", b: "number"},
+  returns: {result: "number"},
+  apply: (a:number, b:number) => {
+    return [Math.min(a, b)];
+  }
+});
+
 //--------------------------------------------------------------------
 // Eve internal
 //--------------------------------------------------------------------

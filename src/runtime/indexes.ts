@@ -399,8 +399,8 @@ export class DistinctIndex {
 
     let curCount = 0;
     let startingCount = roundCounts[prefixRound] = roundCounts[prefixRound] || 0;
-    let maxRound = Math.min(roundCounts.length, prefixRound + 1);
-    for(let roundIx = 0; roundIx < maxRound; roundIx++) {
+    let minRound = Math.min(roundCounts.length, prefixRound + 1);
+    for(let roundIx = 0; roundIx < minRound; roundIx++) {
       let prevCount = roundCounts[roundIx];
       if(!prevCount) continue;
       curCount += prevCount;
@@ -409,43 +409,50 @@ export class DistinctIndex {
     // console.log("           foo:", curCount);
 
     let deltas = [];
+
+    // We only need delta changed here because if there's a round delta, it
+    // would have been applied already.
+
     let nextCount = curCount + prefixCount;
     let delta = 0;
-    if(curCount >= 0 && nextCount <= 0) delta = -1;
-    if(curCount <= 0 && nextCount >= 0) delta = 1;
+    if(curCount == 0 && nextCount > 0) delta = 1;
+    if(curCount > 0 && nextCount == 0) delta = -1;
     if(delta) {
       deltas.push(prefixRound, delta);
     }
+    curCount = nextCount;
     roundCounts[prefixRound] = startingCount + prefixCount;
 
     for(let roundIx = prefixRound + 1; roundIx < roundCounts.length; roundIx++) {
       let roundCount = roundCounts[roundIx];
       if(roundCount === undefined) continue;
-      let prev = curCount + roundCount;
-      let next = nextCount + roundCount;
 
-      let prevDelta = 0;
-      if(curCount > 0 && prev <= 0) prevDelta = -1;
-      if(curCount <= 0 && prev >= 0) prevDelta = 1;
+      let lastCount = curCount - prefixCount;
+      let nextCount = lastCount + roundCount;
 
-      let newDelta = 0;
-      if(nextCount > 0 && next <= 0) newDelta = -1;
-      if(nextCount <= 0 && next >= 0) newDelta = 1;
+      let delta = 0;
+      if(lastCount == 0 && nextCount > 0) delta = 1;
+      if(lastCount > 0 && nextCount == 0) delta = -1;
 
-      let finalDelta = 0;
-      if(prevDelta === 0) finalDelta = newDelta;
-      if(prevDelta < 0 && newDelta === 0) finalDelta = prevDelta * -1;
+      let lastCountChanged = curCount;
+      let nextCountChanged = curCount + roundCount;
 
+      let deltaChanged = 0;
+      if(lastCountChanged == 0 && nextCountChanged > 0) deltaChanged = 1;
+      if(lastCountChanged > 0 && nextCountChanged == 0) deltaChanged = -1;
+
+      // console.log("      round:", roundIx, {delta, deltaChanged, lastCountChanged, nextCountChanged});
+
+      let finalDelta = deltaChanged - delta;
       // console.log("            loop:", roundIx, curCount, prev, nextCount, next, {prevDelta, newDelta, finalDelta})
 
-      if(prevDelta !== newDelta) {
+      if(finalDelta) {
         // roundCounts[roundIx] += prefixCount * -1;
         // console.log("            changed:", roundIx, finalDelta)
         deltas.push(roundIx, finalDelta);
       }
 
-      nextCount += roundCount;
-      curCount += roundCount;
+      curCount = nextCountChanged;
     }
     // console.log("         post counts: ", roundCounts);
 

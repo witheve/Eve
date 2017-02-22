@@ -631,8 +631,8 @@ class LinearFlow extends DSLBase {
       transformed = this.transform(func);
     }
     ReferenceContext.push(this.context);
-    let results = transformed.call(func, this);
-    if(isArray(results)) this.results = results as any[];
+    let results = transformed.call(func, this) as Value[];
+    if(isArray(results)) this.results = results;
     else if(results === undefined) this.results = [];
     else this.results = [results];
     ReferenceContext.pop();
@@ -1536,7 +1536,7 @@ export class Program {
     if(!this._constants) this._constants = {};
     for(let constant in obj) {
       if(this._constants[constant] && this._constants[constant] !== obj[constant]) {
-        throw new Error("Unable to rebind existing constant");
+        // throw new Error("Unable to rebind existing constant");
       }
       this._constants[constant] = obj[constant];
     }
@@ -1582,6 +1582,7 @@ export class Program {
     }
     trans.exec(this.context);
     console.timeEnd("input");
+    console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
     return trans;
   }
 
