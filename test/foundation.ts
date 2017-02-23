@@ -652,7 +652,7 @@ test("commit, remove, and recursion", (assert) => {
     let click = find("click", "direct-target");
     let count = find("count");
     let current = count.count;
-    3 > current;
+    5 > current;
     return [
       count.add("count", current + 1)
     ]
@@ -680,18 +680,18 @@ test("commit, remove, and recursion", (assert) => {
     [2, "tag", "click"],
     [2, "tag", "direct-target"]
   ], [
-    [2, "tag", "click", 1, -1],
-    [2, "tag", "direct-target", 1, -1],
-    [1, "count", 1, 1],
+    [2, "tag", "click", 0, -1],
+    [2, "tag", "direct-target", 0, -1],
+    [1, "count", 1, 0],
   ])
 
   verify(assert, prog, [
     [3, "tag", "click"],
     [3, "tag", "direct-target"]
   ], [
-    [3, "tag", "click", 1, -1],
-    [3, "tag", "direct-target", 1, -1],
-    [1, "count", 2, 2],
+    [3, "tag", "click", 0, -1],
+    [3, "tag", "direct-target", 0, -1],
+    [1, "count", 2, 0],
   ])
 
   assert.end();

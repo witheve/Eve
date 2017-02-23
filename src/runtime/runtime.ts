@@ -4,11 +4,14 @@ import {Index, ListIndex, HashIndex, DistinctIndex} from "./indexes";
 // Debugging utilities
 //------------------------------------------------------------------------
 
+
+var counter = 0;
+
 // Turning this on causes all of the debug(.*) statements to print to the
 // console.  This is useful to see exactly what the runtime is doing as it
 // evaluates a transaction, but it incurs both a pretty serious performance
 // cost and prints a lot of stuff.
-const DEBUG = false;
+const DEBUG = true;
 
 export var debug:Function = () => {};
 if(DEBUG) {
@@ -740,6 +743,7 @@ export class Scan implements Constraint {
    * false.
    */
   applyInput(input:Change, prefix:Prefix) {
+    if(input.e == 29) console.log("HUH?", printConstraint(this), input.toString());
     // If this change isn't relevant to this scan, skip it.
     if(this.notStaticMatch(input, "e")) return ApplyInputState.none;
     if(this.notStaticMatch(input, "a")) return ApplyInputState.none;
@@ -807,9 +811,8 @@ export class Scan implements Constraint {
     }
     // If we aren't looking at any of these registers, then we just
     // say we accept.
-    let {e,a,v,n} = this.resolve(prefix);
     if(!solving) return true;
-    // let {e,a,v,n} = this.resolve(prefix);
+    let {e,a,v,n} = this.resolve(prefix);
     return context.index.check(e, a, v, n, transaction, round);
   }
 
@@ -1282,7 +1285,9 @@ export class JoinNode implements Node {
   }
 
   applyCombination(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>) {
-    //debug("        Join combo:", prefix.slice());
+    counter = 0;
+    // console.log("   ->", input.toString());
+    debug("        Join combo:", prefix.slice());
     let countOfSolved = 0;
     for(let ix = 0; ix < this.registerLookup.length; ix++) {
       if(!this.registerLookup[ix]) continue;
@@ -1305,10 +1310,11 @@ export class JoinNode implements Node {
       return true;
 
     } else {
-      //debug("              GJ:", remainingToSolve, this.constraints);
+      debug("              GJ:", remainingToSolve, this.constraints);
       // For each node, find the new results that match the prefix.
       let ol = results.length;
       this.genericJoin(context, prefix, transaction, round, results, remainingToSolve);
+      // console.log("inner", counter);
       return true;
     }
   }
@@ -1379,6 +1385,7 @@ export class JoinNode implements Node {
   }
 
   genericJoin(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, roundIx:number = this.registerLength):Iterator<Prefix> {
+    counter++;
     let {constraints, emptyProposal} = this;
     let proposedResults = this.proposedResultsArrays[roundIx - 1];
     let forRegisters:Register[] = this.registerArrays[roundIx - 1];
@@ -1396,7 +1403,7 @@ export class JoinNode implements Node {
     }
 
     if(bestProposal.skip) {
-      //debug("             BAILING", bestProposal);
+      debug("             BAILING", bestProposal);
       return results;
     }
 
@@ -1437,7 +1444,7 @@ export class JoinNode implements Node {
         for(let constraint of constraints) {
           if(constraint === proposer) continue;
           if(!constraint.accept(context, prefix, transaction, round, forRegisters)) {
-            //debug("             BAILING", printConstraint(constraint));
+            debug("             BAILING", printConstraint(constraint));
             continue resultLoop;
           }
         }
@@ -1494,6 +1501,7 @@ export class JoinNode implements Node {
 
         if(isIncluded) {
           let valid = constraint.applyInput(input, prefix);
+          debug("        included", printConstraint(constraint));
           // If any member of the input constraints fails, this whole combination is doomed.
           if(valid === ApplyInputState.fail) {
             shouldApply = false;
@@ -1561,20 +1569,27 @@ export class WatchNode implements Node {
 export class OutputWrapperNode implements Node {
   constructor(public nodes:OutputNode[]) {}
 
-  changes = new Iterator<Change>();
+  binds = new Iterator<Change>();
+  commits = new Iterator<Change>();
 
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<Prefix>, transaction:Transaction):boolean {
     let {distinctIndex} = context;
-    let {changes} = this;
-    changes.clear();
+    let {binds, commits} = this;
+    binds.clear();
+    commits.clear();
     for(let node of this.nodes) {
-      node.exec(context, input, prefix, transactionId, round, changes, transaction);
+      node.exec(context, input, prefix, transactionId, round, binds, commits);
     }
 
-    changes.reset();
+    binds.reset();
     let change;
-    while(change = changes.next()) {
+    while(change = binds.next()) {
       transaction.output(context, change);
+    }
+
+    commits.reset();
+    while(change = commits.next()) {
+      transaction.commit(context, change);
     }
 
     return true;
@@ -1582,7 +1597,7 @@ export class OutputWrapperNode implements Node {
 }
 
 export interface OutputNode {
-  exec(context:EvaluationContext, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<Change>, transaction:Transaction):void;
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transactionId:number, round:number, binds:Iterator<Change>, commits:Iterator<Change>):void;
 }
 
 export class InsertNode implements OutputNode {
@@ -1597,7 +1612,11 @@ export class InsertNode implements OutputNode {
 
   resolve = Scan.prototype.resolve;
 
-  exec(context:EvaluationContext, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<Change>, transaction:Transaction):boolean {
+  output(change:Change, binds:Iterator<Change>, commits:Iterator<Change>) {
+    binds.push(change);
+  }
+
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transactionId:number, round:number, binds:Iterator<Change>, commits:Iterator<Change>):boolean {
     let resolved = this.resolve(prefix);
     let {e,a,v,n} = resolved;
 
@@ -1609,69 +1628,29 @@ export class InsertNode implements OutputNode {
     let prefixCount = prefix[prefix.length - 1];
 
     let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount * this.multiplier);
-    results.push(change);
+    if(e == 17 && a == 11) console.log("ADDING", change.toString(), prefix);
+    this.output(change, binds, commits);
     return true;
   }
 }
 
 export class CommitInsertNode extends InsertNode {
-  lastRound = 0;
-  lastTransaction = 0;
-  roundCounts:{[key:string]:number} = {};
-
-  shouldOutput(resolved:ResolvedEAVN, prefixRound:number, prefixCount:Multiplicity, transaction:Transaction) {
-    if(this.lastRound !== transaction.round || this.lastTransaction !== transaction.transaction) {
-      this.lastTransaction = transaction.transaction;
-      this.lastRound = transaction.round;
-      this.roundCounts = {};
+  output(change:Change, binds:Iterator<Change>, commits:Iterator<Change>) {
+    // Commits should ignore negative prefixes as they never retract their
+    // results
+    if(change.count * this.multiplier < 0) {
+      if(change.e == 17 && change.a == 11) console.log("throwing", change.toString())
+      return;
     }
-
-    let {roundCounts} = this;
-    let {e,a,v,n} = resolved;
-    let key = `${e}|${a}|${v}|`;
-    let prevCount = roundCounts[key] || 0;
-    let newCount = prevCount + prefixCount;
-    roundCounts[key] = newCount;
-
-    // if we said something previously and now we're saying nothing, we should be negative
-    // if we haven't said anything and we get a negative, we should be 0
-    let delta = 0;
-    if(prevCount > 0 && newCount <= 0) delta = -1;
-    if(prevCount === 0 && newCount > 0) delta = 1;
-
-    //debug("       C?? <-", e, a, v, prefixRound + 1, {prevCount, newCount, delta})
-    return delta;
-  }
-
-  exec(context:EvaluationContext, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<Change>, transaction:Transaction):boolean {
-    let resolved = this.resolve(prefix);
-    let {e,a,v,n} = resolved;
-
-    if(e === undefined || a === undefined || v === undefined || n === undefined) {
-      throw new Error(`Unable to produce an output with an undefined EAVN field [${e}, ${a}, ${v}, ${n}]`);
-    }
-
-    let prefixRound = prefix[prefix.length - 2];
-    let prefixCount = prefix[prefix.length - 1];
-
-    // @FIXME: Does direction matter here?
-    let delta = this.shouldOutput(resolved, prefixRound, prefixCount, transaction);
-    if(delta) {
-      let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount * this.multiplier);
-      results.push(change);
-    }
-    return true;
+    change.round = 0;
+    commits.push(change);
   }
 }
 
 export class RemoveNode extends InsertNode {
   multiplier:number = -1;
 
-  shouldOutput(resolved:ResolvedEAVN, prefixRound:number, prefixCount:Multiplicity, transaction:Transaction) {
-    return true;
-  }
-
-  exec(context:EvaluationContext, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<Change>, transaction:Transaction):boolean {
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transactionId:number, round:number, binds:Iterator<Change>, commits:Iterator<Change>):boolean {
     let resolved = this.resolve(prefix);
     let {e,a,v,n} = resolved;
 
@@ -1689,49 +1668,40 @@ export class RemoveNode extends InsertNode {
       // (e.g. removing a specific EAV matching the input works this
       // way).
 
-      let delta = this.shouldOutput(resolved, prefixRound, prefixCount, transaction);
-      if(delta) {
-        let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount * this.multiplier);
-        results.push(change);
-      }
+      let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount * this.multiplier);
+      this.output(change, binds, commits);
 
     } else {
-      let {index} = context;
+      let {index, distinctIndex} = context;
       // If we match the input change, we need to remove it too.
       if(e === input.e && a === input.a && (v === input.v || this.v === IGNORE_REG)) {
-        resolved.v = input.v;
-        if(this.shouldOutput(resolved, prefixRound, prefixCount, transaction)) {
-          let change = new Change(e!, a!, input.v, n!, transactionId, prefixRound + 1, prefixCount * this.multiplier);
-          results.push(change);
-        }
-        resolved.v = v;
+        let change = new Change(e!, a!, input.v, n!, transactionId, prefixRound + 1, prefixCount * this.multiplier);
+        this.output(change, binds, commits);
       }
 
       let matches = index.get(e, a, IGNORE_REG, IGNORE_REG, transactionId, Infinity);
+      if(e == 17 && a == 11) console.log("REMOVE MATCHES", GlobalInterner.reverse(a), GlobalInterner.reverse(v), matches);
       for(let {v} of matches) {
-        resolved.v = v;
-        let delta = this.shouldOutput(resolved, prefixRound, prefixCount, transaction);
-        if(delta) {
-          let ntrcs = index.getDiffs(e, a, v, IGNORE_REG);
-          let roundToMultiplicity:{[round:number]: number} = {};
-          for(let ix = 0; ix < ntrcs.length; ix += 4) {
-            // n = ix, t = ix + 1, r = ix + 2, c = ix + 3
-            let round = ntrcs[ix + 2];
-            let count = ntrcs[ix + 3];
-            let cur = roundToMultiplicity[round] || 0;
-            roundToMultiplicity[round] = cur + count;
-          }
-          for(let roundString in roundToMultiplicity) {
-            let curRound = +roundString;
-            let count = roundToMultiplicity[curRound] * prefixCount;
-            if(count === 0) continue;
-            let changeRound = Math.max(prefixRound + 1, curRound);
-            let change = new Change(e!, a!, v!, n!, transactionId, changeRound, count * this.multiplier);
-            results.push(change);
-          }
+        let ntrcs = index.getDiffs(e, a, v, IGNORE_REG);
+        let roundToMultiplicity:{[round:number]: number} = {};
+        for(let ix = 0; ix < ntrcs.length; ix += 4) {
+          // n = ix, t = ix + 1, r = ix + 2, c = ix + 3
+          let round = ntrcs[ix + 2];
+          let count = ntrcs[ix + 3];
+          let cur = roundToMultiplicity[round] || 0;
+          roundToMultiplicity[round] = cur + count;
+        }
+        for(let roundString in roundToMultiplicity) {
+          let curRound = +roundString;
+          let count = roundToMultiplicity[curRound] * prefixCount;
+          if(e == 17 && a == 11) console.log("count", GlobalInterner.reverse(v), count);
+          if(count === 0) continue;
+          let changeRound = Math.max(prefixRound + 1, curRound);
+          let change = new Change(e!, a!, v!, n!, transactionId, changeRound, count * this.multiplier);
+          if(e == 17 && a == 11)console.log("TRYING TO REMOVE", change.toString())
+          this.output(change, binds, commits);
         }
       }
-      resolved.v = v;
     }
 
     return true;
@@ -1743,8 +1713,8 @@ export class CommitRemoveNode extends CommitInsertNode {
 
   protected _exec = RemoveNode.prototype.exec;
 
-  exec(context:EvaluationContext, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<Change>, transaction:Transaction):boolean {
-    return this._exec(context, input, prefix, transactionId, round, results, transaction);
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transactionId:number, round:number, binds:Iterator<Change>, commits:Iterator<Change>):boolean {
+    return this._exec(context, input, prefix, transactionId, round, binds, commits);
   }
 }
 
@@ -1821,7 +1791,7 @@ export class BinaryJoinRight extends BinaryFlow {
     let count = prefix[prefix.length - 1];
     this.leftIndex.insert(key, prefix);
     let diffs = this.rightIndex.get(key)
-    //debug("       left", key, printPrefix(prefix), diffs);
+    debug("       left", key, printPrefix(prefix), diffs);
     if(!diffs) return;
     for(let rightPrefix of diffs) {
       let rightRound = rightPrefix[rightPrefix.length - 2];
@@ -1839,7 +1809,7 @@ export class BinaryJoinRight extends BinaryFlow {
     let count = prefix[prefix.length - 1];
     this.rightIndex.insert(key, prefix);
     let diffs = this.leftIndex.get(key)
-    //debug("       right", key, printPrefix(prefix), diffs);
+    debug("       right", key, printPrefix(prefix), diffs);
     if(!diffs) return;
     for(let leftPrefix of diffs) {
       let leftRound = leftPrefix[leftPrefix.length - 2];
@@ -1849,7 +1819,7 @@ export class BinaryJoinRight extends BinaryFlow {
       result[result.length - 2] = upperBound;
       result[result.length - 1] = count * leftCount;
       results.push(result);
-      //debug("               -> ", printPrefix(result));
+      debug("               -> ", printPrefix(result));
     }
   }
 }
@@ -1865,7 +1835,7 @@ export class AntiJoin extends BinaryFlow {
   }
 
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
-    //debug("            antijoin:")
+    debug("            antijoin:")
     return super.exec(context,input,prefix,transaction,round,results,changes);
   }
 
@@ -1874,18 +1844,19 @@ export class AntiJoin extends BinaryFlow {
     let count = prefix[prefix.length - 1];
     this.leftIndex.insert(key, prefix);
     let diffs = this.rightIndex.get(key)
-    //debug("                left:", key, count, diffs)
     if(!diffs || !diffs.length) {
-      //debug("                    ->", key, count, diffs)
+      debug("                    ->", key, count, diffs)
       return results.push(prefix);
     } else {
-      let sum = 0;
-      for(let diff of diffs) {
-        let count = diff[diff.length - 1];
-        sum += count;
-      }
-      if(!sum) {
-        return results.push(prefix);
+      console.log("                left:", key, count, diffs.slice())
+      for(let rightPrefix of diffs) {
+        let rightCount = rightPrefix[rightPrefix.length - 1];
+        let rightRound = rightPrefix[rightPrefix.length - 2];
+        let upperBound = Math.max(round, rightRound);
+        let result = copyArray(prefix, "AntiJoinResult");
+        result[result.length - 2] = upperBound;
+        result[result.length - 1] = count * rightCount * -1;
+        results.push(result);
       }
     }
   }
@@ -1895,8 +1866,8 @@ export class AntiJoin extends BinaryFlow {
     let count = prefix[prefix.length - 1];
     this.rightIndex.insert(key, prefix);
     let diffs = this.leftIndex.get(key)
-    //debug("                right:", key, count, diffs.slice())
     if(!diffs) return;
+    console.log("                right:", key, count, diffs.slice())
     for(let leftPrefix of diffs) {
       let leftRound = leftPrefix[leftPrefix.length - 2];
       let leftCount = leftPrefix[leftPrefix.length - 1];
@@ -1905,7 +1876,7 @@ export class AntiJoin extends BinaryFlow {
       result[result.length - 2] = upperBound;
       result[result.length - 1] = count * leftCount * -1;
       results.push(result);
-      //debug("                    ->", key, count, leftCount, result[result.length - 1])
+      debug("                    ->", key, count, leftCount, result[result.length - 1])
     }
   }
 }
@@ -1999,7 +1970,7 @@ export class MergeAggregateFlow extends BinaryFlow {
     let count = prefix[prefix.length - 1];
     this.leftIndex.insert(key, prefix);
     let diffs = this.rightIndex.get(key)
-    //debug("       left", key, printPrefix(prefix), diffs);
+    debug("       left", key, printPrefix(prefix), diffs);
     if(!diffs) return;
     for(let rightPrefix of diffs) {
       let rightRound = rightPrefix[rightPrefix.length - 2];
@@ -2018,7 +1989,7 @@ export class MergeAggregateFlow extends BinaryFlow {
     let count = prefix[prefix.length - 1];
     this.rightIndex.insert(key, prefix);
     let diffs = this.leftIndex.get(key)
-    //debug("       right", key, printPrefix(prefix), diffs);
+    debug("       right", key, printPrefix(prefix), diffs);
     if(!diffs) return;
     for(let leftPrefix of diffs) {
       let leftRound = leftPrefix[leftPrefix.length - 2];
@@ -2029,22 +2000,22 @@ export class MergeAggregateFlow extends BinaryFlow {
       result[result.length - 2] = upperBound;
       result[result.length - 1] = count * leftCount;
       results.push(result);
-      //debug("               -> ", printPrefix(result));
+      debug("               -> ", printPrefix(result));
     }
   }
 
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
-    //debug("        AGG MERGE");
+    debug("        AGG MERGE");
     let result;
     let {left, right, leftResults, rightResults} = this;
     leftResults.clear();
     left.exec(context, input, prefix, transaction, round, leftResults, changes);
-    //debug("              left results: ", leftResults);
+    debug("              left results: ", leftResults);
 
     // we run the left's results through the aggregate to capture all the aggregate updates
     rightResults.clear();
     while((result = leftResults.next()) !== undefined) {
-      //debug("              left result: ", result.slice());
+      debug("              left result: ", result.slice());
       right.exec(context, input, result, transaction, round, rightResults, changes);
     }
 
@@ -2260,11 +2231,15 @@ export class EvaluationContext {
 export type ExportHandler = (blockChanges:{[id:number]: Change[]|undefined}) => void;
 
 export class Transaction {
+  outputsSeen = 0;
   round = -1;
+  changes:Change[] = []
+  lastFrame = 0;
   protected outputs = new Iterator<Change>();
   protected roundChanges:Change[][] = [];
+  protected frameCommits:Change[] = [];
   protected exportedChanges:{[blockId:number]: Change[]} = {};
-  constructor(public transaction:number, public blocks:Block[], public changes:Change[], protected exportHandler?:ExportHandler) {}
+  constructor(public transaction:number, public blocks:Block[], public commits:Block[], protected exportHandler?:ExportHandler) {}
 
   output(context:EvaluationContext, change:Change) {
     let {outputs} = this;
@@ -2275,11 +2250,17 @@ export class Transaction {
     outputs.reset();
     let output;
     while(output = outputs.next()) {
-      //debug("          <-", change.toString())
+      debug("          <-", change.toString())
       let cur = this.roundChanges[output.round] || createArray("roundChangesArray");
       cur.push(output);
       this.roundChanges[output.round] = cur;
+      this.outputsSeen++;
     }
+  }
+
+  commit(context:EvaluationContext, change:Change) {
+    let {outputs} = this;
+    this.frameCommits.push(change);
   }
 
   export(blockId:number, change:Change) {
@@ -2287,25 +2268,52 @@ export class Transaction {
     else this.exportedChanges[blockId].push(change);
   }
 
-  protected prepareRound(changeIx:number) {
+  protected prepareRound(context:EvaluationContext, changeIx:number) {
     let {roundChanges, changes} = this;
     let next = changes[changeIx];
     let maxRound = roundChanges.length;
+    let oldLength = changes.length;
     if(!next && this.round < maxRound) {
       for(let ix = this.round + 1; ix < maxRound; ix++) {
         let nextRoundChanges = roundChanges[ix];
         if(nextRoundChanges) {
-          let oldLength = changes.length;
           this.collapseMultiplicity(nextRoundChanges, changes);
 
-          // We only want to break to begin the next fixedpoint when we have something new to run.
-          if(oldLength < changes.length) break;
+          // If we've got new changes to go through, we're done
+          if(oldLength < changes.length) return;
         }
+      }
+    }
+    if(!next && this.commits) {
+      // if we haven't found any new rounds to work through, then we need to check
+      // our commits.
+      let frameChanges:Change[] = [];
+      this.collapseMultiplicity(this.changes.slice(this.lastFrame), frameChanges, true);
+      for(let change of frameChanges) {
+        change.round = 0;
+        // console.log("to commit: ", change.toString());
+        for(let commit of this.commits) {
+          // console.log(commit.name);
+          commit.exec(context, change, this);
+          // console.log("----------------");
+        }
+      }
+      let {frameCommits} = this;
+      if(frameCommits.length) {
+        console.log(" ---------------- NEW FRAME -------------------")
+        this.lastFrame = this.changes.length;
+        this.round = -1;
+        this.roundChanges = [];
+        this.frameCommits = [];
+        for(let commit of frameCommits) {
+          this.output(context, commit);
+        }
+        this.prepareRound(context, changeIx);
       }
     }
   }
 
-  protected collapseMultiplicity(changes:Change[], results:Change[] /* output */) {
+  protected collapseMultiplicity(changes:Change[], results:Change[] /* output */, createNew = false) {
     // We sort the changes to group all the same EAVs together.
     changes.sort((a,b) => {
       let eDiff = a.e - b.e;
@@ -2321,6 +2329,9 @@ export class Transaction {
     let changeIx = 0;
     for(let changeIx = 0; changeIx < changes.length; changeIx++) {
       let current = changes[changeIx];
+      if(createNew) {
+        current = new Change(current.e, current.a, current.v, current.n, current.transaction, current.round, current.count);
+      }
 
       // Collapse each subsequent matching EAV's multiplicity into the current one's.
       while(changeIx + 1 < changes.length) {
@@ -2332,7 +2343,7 @@ export class Transaction {
           break;
         }
       }
-      // console.log("next round change:", current.toString())
+      if(current.e == 17 && current.a == 11)console.log("pushing:", current.toString())
       if(current.count !== 0) results.push(current);
     }
 
@@ -2340,20 +2351,25 @@ export class Transaction {
   }
 
   exec(context:EvaluationContext) {
+    counter = 0;
     let {changes, roundChanges} = this;
     let {index} = context;
+    let frames = 0;
     let changeIx = 0;
-    this.prepareRound(changeIx);
+    this.prepareRound(context, changeIx);
     while(changeIx < changes.length) {
       let change = changes[changeIx];
-      this.round = change.round;
-      if(this.round > 20) {
-        console.error("Failed to terminate");
-        break;
+      if(this.round !== 0 && change.round === 0) {
+        frames++;
+        if(frames > 4) {
+          console.error("Failed to terminate");
+          break;
+        }
       }
-      //debug("Round:", this.round);
+      this.round = change.round;
+      debug("Round:", this.round);
 
-      //debug("-> " + change, index.hasImpact(change));
+      debug("-> " + change, index.hasImpact(change));
       if(index.hasImpact(change)) {
         for(let block of this.blocks) {
           // if(block.name === "Show the targeted tag") {
@@ -2361,19 +2377,23 @@ export class Transaction {
           // } else {
           //   debug = function() {}
           // }
-          //debug("    ", block.name);
+          debug("    ", block.name);
           let start = changes.length;
           block.exec(context, change, this);
         }
       } else {
         console.warn("NO CHANGE", change.toString())
       }
-      //debug("");
+      debug("");
+      if(change.e == 17 && change.a == 11)console.log("INDEX", change.toString())
       index.insert(change);
 
       changeIx++;
-      this.prepareRound(changeIx);
+      this.prepareRound(context, changeIx);
     }
+
+    console.log("counter", counter);
+    // console.log(context);
 
     let exportingBlocks = Object.keys(this.exportedChanges);
     if(exportingBlocks.length) {

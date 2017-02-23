@@ -1,7 +1,7 @@
 // import {create} from "./programs/tag-browser";
 // let prog = create();
 
-import "./programs/flappy";
+import "./programs/test";
 
 // import {Program} from "./runtime/dsl2";
 // import {Change} from "./runtime/runtime";

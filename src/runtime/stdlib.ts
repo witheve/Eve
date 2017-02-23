@@ -170,6 +170,15 @@ makeFunction({
   }
 });
 
+makeFunction({
+  name: "math/mod",
+  args: {a: "number", b: "number"},
+  returns: {result: "number"},
+  apply: (a:number, b:number) => {
+    return [a % b];
+  }
+});
+
 //--------------------------------------------------------------------
 // Eve internal
 //--------------------------------------------------------------------

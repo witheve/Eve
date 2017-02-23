@@ -1516,7 +1516,9 @@ export type TestChange =  EAVTuple | EAVRCTuple;
 export class Program {
   context:Runtime.EvaluationContext;
   blocks:Runtime.Block[] = [];
+  commits:Runtime.Block[] = [];
   flows:LinearFlow[] = [];
+  commitFlows:LinearFlow[] = [];
   index:indexes.Index;
   nodeCount = 0;
   nextTransactionId = 0;
@@ -1576,7 +1578,7 @@ export class Program {
   input(changes:Runtime.Change[]) {
     console.time("input");
     if(changes[0].transaction >= this.nextTransactionId) this.nextTransactionId = changes[0].transaction + 1;
-    let trans = new Runtime.Transaction(changes[0].transaction, this.blocks, [], this.lastWatch ? this.exporter.handle : undefined);
+    let trans = new Runtime.Transaction(changes[0].transaction, this.blocks, this.commits, this.lastWatch ? this.exporter.handle : undefined);
     for(let change of changes) {
       trans.output(this.context, change);
     }
@@ -1598,8 +1600,7 @@ export class Program {
   test(transaction:number, eavns:TestChange[]) {
     console.group("test " + transaction);
     if(transaction >= this.nextTransactionId) this.nextTransactionId = transaction + 1;
-    let changes:Runtime.Change[] = [];
-    let trans = new Runtime.Transaction(transaction, this.blocks, changes, this.lastWatch ? this.exporter.handle : undefined);
+    let trans = new Runtime.Transaction(transaction, this.blocks, this.commits, this.lastWatch ? this.exporter.handle : undefined);
     for(let [e, a, v, round = 0, count = 1] of eavns as EAVRCTuple[]) {
       let change = Runtime.Change.fromValues(e, a, v, "my-awesome-node", transaction, round, count);
       trans.output(this.context, change);
@@ -1614,8 +1615,8 @@ export class Program {
     let flow = new CommitFlow(this.injectConstants(func));
     let nodes = flow.compile();
     let block = new Runtime.Block(name, nodes, flow.context.maxRegisters);
-    this.flows.push(flow);
-    this.blocks.push(block);
+    this.commitFlows.push(flow);
+    this.commits.push(block);
     return this;
   }
 

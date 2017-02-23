@@ -176,11 +176,23 @@ export class HashIndex implements Index {
     let aIx = getOrCreateHash(eIx, change.a);
     let vIx = getOrCreateArray(aIx, change.v);
     vIx.push(change.n, change.transaction, change.round, change.count);
+    let shouldRemove = false;
+    if(change.count < 0) {
+      let total = sumTimes(vIx, Infinity, Infinity);
+      if(!total) {
+        delete aIx[change.v];
+        shouldRemove = true;
+      }
+    }
 
     aIx = getOrCreateHash(this.aveIndex, change.a);
     vIx = getOrCreateHash(aIx, change.v);
     eIx = getOrCreateArray(vIx, change.e);
-    eIx.push(change.n, change.transaction, change.round, change.count);
+    if(shouldRemove) {
+      delete vIx[change.e];
+    } else {
+      eIx.push(change.n, change.transaction, change.round, change.count);
+    }
 
     this.cardinality++;
   }
@@ -283,15 +295,15 @@ export class HashIndex implements Index {
     } else {
       for(let key of Object.keys(bIx)) {
         let cIx = bIx[key];
-        if(!cIx) return false;
+        if(!cIx) continue;
         if(isResolved(c)) {
           let ntrcArray = cIx[c];
           if(ntrcArray) {
             return true;
           }
           return false;
-        } else {
-          return Object.keys(cIx).length !== 0;
+        } else if(Object.keys(cIx).length !== 0) {
+          return true;
         }
       }
     }
@@ -339,25 +351,23 @@ export class HashIndex implements Index {
     } else {
       for(let b of Object.keys(bIx)) {
         let cIx = bIx[b];
-        if(!cIx) return results;
+        if(!cIx) continue;
         if(isResolved(c)) {  // AbC
           if(sumTimes(cIx[c], transaction, round) > 0) {
             results.push({[fieldA]: +a, [fieldB]: +b, [fieldC]: +c, n} as any);
           }
-          return results;
-
         } else { // Abc
           for(let c of Object.keys(cIx)) {
             if(sumTimes(cIx[c], transaction, round) > 0) {
               results.push({[fieldA]: +a, [fieldB]: +b, [fieldC]: +c, n} as any);
             }
           }
-          return results;
         }
       }
+      return results;
     }
 
-    throw new Error("HashIndex.walkGet eav not implemented.");
+    // throw new Error("HashIndex.walkGet eav not implemented.");
   }
 
   get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[] {
@@ -420,6 +430,7 @@ export class DistinctIndex {
     if(delta) {
       deltas.push(prefixRound, delta);
     }
+    if(e == 17 && a == 11) console.log("DISTINCT",  {curCount, nextCount, delta})
     curCount = nextCount;
     roundCounts[prefixRound] = startingCount + prefixCount;
 
