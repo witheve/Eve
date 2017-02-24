@@ -180,6 +180,25 @@ makeFunction({
 });
 
 //--------------------------------------------------------------------
+// Random
+//--------------------------------------------------------------------
+
+makeFunction({
+  name: "random/number",
+  args: {seed: "any"},
+  returns: {result: "number"},
+  initialState: {},
+  apply: function(seed:RawValue) {
+    let state = this.state;
+    let result = state[seed];
+    if(result === undefined) {
+      result = state[seed] = Math.random();
+    }
+    return [result];
+  }
+});
+
+//--------------------------------------------------------------------
 // Eve internal
 //--------------------------------------------------------------------
 
