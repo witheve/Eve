@@ -632,10 +632,8 @@ export class MoveConstraint {
   }
 
   applyInput(input:Change, prefix:Prefix):ApplyInputState {
-    console.log("APPLY INPUT", this, this.from, prefix)
     if(!isRegister(this.from) && prefix[this.to.offset] === undefined) {
       prefix[this.to.offset] = this.from;
-      console.log("MOVED", prefix, GlobalInterner.reverse(this.from));
       return ApplyInputState.pass;
     }
     return ApplyInputState.none;
@@ -1346,6 +1344,7 @@ export class JoinNode implements Node {
     for(let constraint of constraints) {
       let valid = constraint.acceptInput(context, input, prefix, transaction, round);
       if(!valid) {
+        debug("          INVALID:", constraint);
         return false;
       }
     }
@@ -1647,10 +1646,6 @@ export class InsertNode implements OutputNode {
     let prefixCount = prefix[prefix.length - 1];
 
     let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount * this.multiplier);
-    if(e == 17 && a == 11) {
-      console.log("              add:", change.toString());
-      console.log("           prefix:", prefix);
-    }
     this.output(change, binds, commits);
     return true;
   }
@@ -1914,10 +1909,8 @@ export class AntiJoin extends BinaryFlow {
     let key = this.keyFunc(prefix);
     let count = prefix[prefix.length - 1];
     this.rightIndex.insert(key, prefix);
-    console.log("                on right:", key, count)
     let diffs = this.leftIndex.get(key)
     if(!diffs) return;
-    console.log("                right:", key, count, diffs.slice())
     for(let leftPrefix of diffs) {
       let leftRound = leftPrefix[leftPrefix.length - 2];
       let leftCount = leftPrefix[leftPrefix.length - 1];
@@ -2359,6 +2352,8 @@ export class Transaction {
     if(!next && this.frameCommits.length) {
       let frameChanges:Change[] = [];
       this.collapseCommits(this.frameCommits, frameChanges);
+      let collapsedChanges:Change[] = [];
+      this.collapseMultiplicity(frameChanges, collapsedChanges);
       // console.groupCollapsed("Before collapse");
       // for(let commit of this.frameCommits) {
       //   console.log("  ", commit.toString());
@@ -2370,17 +2365,19 @@ export class Transaction {
       // }
       // console.groupEnd();
 
-      if(frameChanges.length) {
+      if(collapsedChanges.length) {
         this.lastFrame = this.changes.length;
         this.round = -1;
         this.roundChanges = [];
         this.frameCommits = [];
-        for(let commit of frameChanges) {
-          console.log("    -> ", commit.toString())
+        for(let commit of collapsedChanges) {
+          if(commit.count > 0) commit.count = 1;
+          else if(commit.count < 0) commit.count = -1;
+          debug("    ->! ", commit.toString())
           this.output(context, commit);
         }
         this.prepareRound(context, changeIx);
-        console.log(" ---------------- NEW FRAME -------------------")
+        debug(" ---------------- NEW FRAME -------------------")
       }
     }
   }
@@ -2534,11 +2531,11 @@ export class Transaction {
       debug("-> " + change, index.hasImpact(change));
       if(index.hasImpact(change)) {
         for(let block of this.blocks) {
-          // if(block.name === "Show the targeted tag") {
-          //   debug = console.log;
-          // } else {
-          //   debug = function() {}
-          // }
+          if(block.name === "apply a velocity when you click" && DEBUG) {
+            debug = console.log;
+          } else {
+            debug = function() {}
+          }
           debug("    ", block.name);
           let start = changes.length;
           block.exec(context, change, this);
@@ -2546,6 +2543,9 @@ export class Transaction {
       } else {
         console.warn("NO CHANGE", change.toString())
       }
+
+      if(DEBUG) debug = console.log;
+
       debug("");
       index.insert(change);
 
@@ -2553,7 +2553,7 @@ export class Transaction {
       this.prepareRound(context, changeIx);
     }
 
-    console.log("counter", counter);
+    debug("counter", counter);
     // console.log(context);
 
     let exportingBlocks = Object.keys(this.exportedChanges);
