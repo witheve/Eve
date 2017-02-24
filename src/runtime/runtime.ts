@@ -1,7 +1,7 @@
 import {Index, ListIndex, HashIndex, DistinctIndex} from "./indexes";
 
 //------------------------------------------------------------------------
-// Debugging utilities
+//debugging utilities
 //------------------------------------------------------------------------
 
 // Turning this on causes all of the debug(.*) statements to print to the
@@ -914,8 +914,9 @@ export class FunctionConstraint implements Constraint {
   returns:{[name:string]: string};
   argNames:string[];
   returnNames:string[];
-  apply: (... things: any[]) => undefined|(number|string)[]; // @FIXME: Not supporting multi-return yet.
+  apply: (this: FunctionConstraint, ... things: any[]) => undefined|(number|string)[]; // @FIXME: Not supporting multi-return yet.
   estimate?:(context:EvaluationContext, prefix:Prefix, transaction:number, round:number) => number
+  state?: any;
   isInput:boolean = false;
 
   fieldNames:string[];
@@ -1186,11 +1187,12 @@ interface FunctionSetup {
   variadic?: boolean,
   args:{[argName:string]: string},
   returns:{[argName:string]: string},
-  apply:(... things: any[]) => undefined|(number|string)[],
-  estimate?:(index:Index, prefix:Prefix, transaction:number, round:number) => number
+  apply:(this: FunctionConstraint, ... things: any[]) => undefined|(number|string)[],
+  estimate?:(index:Index, prefix:Prefix, transaction:number, round:number) => number,
+  initialState?:any
 }
 
-export function makeFunction({name, variadic = false, args, returns, apply, estimate}:FunctionSetup) {
+export function makeFunction({name, variadic = false, args, returns, apply, estimate, initialState}:FunctionSetup) {
   class NewFunctionConstraint extends FunctionConstraint {
     static variadic = variadic;
     static filter = Object.keys(returns).length === 0;
@@ -1200,6 +1202,7 @@ export function makeFunction({name, variadic = false, args, returns, apply, esti
     argNames = Object.keys(args);
     returnNames = Object.keys(returns);
     apply = apply;
+    state = initialState;
   }
   FunctionConstraint.register(name, NewFunctionConstraint);
 }
@@ -2290,6 +2293,9 @@ export class Block {
       let tmp = this.results;
       this.results = this.nextResults;
       this.nextResults = tmp;
+      // if(this.results.length) {
+      //   console.log("  Triggered ", this.name);
+      // }
       // @NOTE: We don't really want to shrink this array probably.
       this.nextResults.clear();
     }
@@ -2346,7 +2352,7 @@ export class Transaction {
   commit(context:EvaluationContext, change:Change) {
     let {outputs} = this;
     this.frameCommits.push(change);
-      //debug("          <-!", change.toString())
+    //debug("          <-!", change.toString())
   }
 
   export(blockId:number, change:Change) {
@@ -2394,7 +2400,6 @@ export class Transaction {
         for(let commit of collapsedChanges) {
           if(commit.count > 0) commit.count = 1;
           else if(commit.count < 0) commit.count = -1;
-          //debug("    ->! ", commit.toString())
           this.output(context, commit);
         }
         this.prepareRound(context, changeIx);
@@ -2535,8 +2540,9 @@ export class Transaction {
     while(changeIx < changes.length) {
       let change = changes[changeIx];
       total++;
-      if(total > 150) {
+      if(total > 300) {
         console.error("bad");
+        debugger
         break;
       }
       if(this.round !== 0 && change.round === 0) {
@@ -2549,14 +2555,14 @@ export class Transaction {
       this.round = change.round;
       //debug("Round:", this.round);
 
-      // console.log("-> " + change, index.hasImpact(change));
+      //debug("-> " + change, index.hasImpact(change));
       if(index.hasImpact(change)) {
         for(let block of this.blocks) {
-          if(block.name === "apply a velocity when you click" && DEBUG) {
-            debug = console.log;
-          } else {
-            debug = function() {}
-          }
+          // if(block.name === "apply a velocity when you click" && DEBUG) {
+          //   debug = console.log;
+          // } else {
+          //   debug = function() {}
+          // }
           //debug("    ", block.name);
           let start = performance.now();
           block.exec(context, change, this);
@@ -2565,7 +2571,7 @@ export class Transaction {
         console.warn("NO CHANGE", change.toString())
       }
 
-      if(DEBUG) debug = console.log;
+      //if(DEBUG) debug = console.log;
 
       //debug("");
       index.insert(change);
