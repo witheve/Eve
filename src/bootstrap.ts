@@ -1,11 +1,14 @@
+import {Program} from "./runtime/dsl2";
+
 // import {create} from "./programs/tag-browser";
 // let prog = create();
 
 import "./programs/flappy";
 
-
-// import {Program} from "./runtime/dsl2";
-
+let assert = {};
+function verify(assert:any, prog:Program, ins:any[], outs:any[]) {
+  prog.test(1, ins);
+}
 
 
 

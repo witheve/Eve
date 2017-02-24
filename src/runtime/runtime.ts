@@ -1305,7 +1305,6 @@ export class JoinNode implements Node {
   }
 
   applyCombination(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>) {
-    // console.log("   ->", input.toString());
     //debug("        Join combo:", prefix.slice());
     let countOfSolved = 0;
     for(let ix = 0; ix < this.registerLookup.length; ix++) {
@@ -1335,7 +1334,6 @@ export class JoinNode implements Node {
       // For each node, find the new results that match the prefix.
       let ol = results.length;
       this.genericJoin(context, prefix, transaction, round, results, remainingToSolve);
-      // console.log("inner", counter);
       return true;
     }
   }
@@ -1752,6 +1750,65 @@ export class CommitRemoveNode extends CommitInsertNode {
 
 type KeyFunction = (prefix:Prefix) => string;
 
+class IntermediateIndexIterator {
+  values:{[value:string]: any[]};
+  valueKeys:string[];
+  currentCounts: any[];
+
+  valueIx = 0;
+  countIx = 0;
+
+  round = 0;
+  count = 0;
+  minRound = 0;
+
+  reset(values:{[value:string]: any[]}, minRound = 0) {
+    this.values = values;
+    this.valueIx = 0;
+    this.countIx = 0;
+    this.round = 0;
+    this.count = 0;
+    this.minRound = minRound + 1;
+    this.valueKeys = Object.keys(values);
+    this.currentCounts = values[this.valueKeys[0]];
+    return this;
+  }
+
+  next():Prefix|undefined {
+    let {currentCounts, countIx, minRound} = this;
+    if(!currentCounts) return;
+    countIx++;
+    if(countIx >= currentCounts.length) {
+      this.currentCounts = this.values[this.valueKeys[++this.valueIx]];
+      if(!this.currentCounts) return;
+      countIx = 1;
+    }
+    let count;
+    if(countIx < minRound) {
+      let total = 0;
+      for(; countIx <= minRound; countIx++) {
+        let cur = currentCounts[countIx];
+        if(!cur) continue;
+        total += cur;
+      }
+      count = total;
+    } else {
+      for(; countIx < currentCounts.length; countIx) {
+        let cur = currentCounts[countIx];
+        if(cur) {
+          count = cur;
+          break;
+        }
+      }
+    }
+    this.round = countIx - 1;
+    this.count = count;
+    this.countIx = countIx;
+    if(count == 0) return this.next();
+    return currentCounts[0];
+  }
+}
+
 class IntermediateIndex {
   static CreateKeyFunction(registers:Register[]):KeyFunction {
     let items = registers.map((reg) => {
@@ -1763,18 +1820,122 @@ class IntermediateIndex {
     return new Function("prefix", code) as KeyFunction;
   }
 
-  index:{[key:string]: ID[][]} = {};
+  index:{[key:string]: {[value:string]: any[]}} = {};
+  iterator = new IntermediateIndexIterator();
 
-  // @TODO: we should probably consider compacting these times as they're
-  // added
   insert(key:string, prefix:Prefix) {
-    let found = this.index[key];
-    if(!found) found = this.index[key] = createArray("IntermediateIndexDiffs");
-    found.push(prefix);
+    let values = this.index[key];
+    if(!values) values = this.index[key] = createHash("intermediateIndexValues");
+    let valueKey = this.hashPrefix(prefix);
+    let counts = values[valueKey];
+    if(!counts) {
+      counts = values[valueKey] = createArray("intermediateIndexCounts");
+      counts[0] = prefix;
+    }
+    let round = prefix[prefix.length - 2] + 1;
+    let count = prefix[prefix.length - 1];
+    counts[round] = count + (counts[round] || 0);
+    if(!counts[round]) {
+      let shouldRemove = true;
+      for(let ix = 1, len = counts.length; ix < len; ix++) {
+        if(counts[ix]) {
+          shouldRemove = false;
+          break;
+        }
+      }
+      if(shouldRemove) {
+        delete values[valueKey];
+      }
+    }
   }
 
-  get(key:string) {
-    return this.index[key];
+  iter(key:string, round:number):IntermediateIndexIterator|undefined {
+    let values = this.index[key];
+    if(values) return this.iterator.reset(values, round);
+  }
+
+  hashPrefix(prefix:Prefix) {
+    let round = prefix[prefix.length - 2];
+    let count = prefix[prefix.length - 1];
+    prefix[prefix.length - 2] = undefined as any;
+    prefix[prefix.length - 1] = undefined as any;
+    let key = prefix.join("|");
+    prefix[prefix.length - 2] = round;
+    prefix[prefix.length - 1] = count;
+    return key;
+  }
+}
+
+class ZeroingIterator {
+  counts:Multiplicity[];
+  countIx = -1;
+  countSum = 0;
+  minRound = 0;
+
+  reset(counts:Multiplicity[], minRound:number = 0) {
+    this.counts = counts;
+    this.minRound = minRound;
+    return this;
+  }
+
+  next() {
+    let {countIx, counts, countSum, minRound} = this;
+    let countsLength = counts.length;
+    countIx++;
+    if(countIx > countsLength) return;
+    let final;
+    if(countIx < minRound) {
+      for(; countIx <= minRound; countIx++) {
+        let cur = counts[countIx];
+        if(!cur) continue;
+        countSum += cur;
+      }
+      final = countIx;
+    } else {
+      for(; countIx <= countsLength; countIx++) {
+        let cur = counts[countIx];
+        if(!cur) continue;
+        countSum += cur;
+        if(countSum === 0) {
+          final = countIx;
+          break;
+        }
+      }
+    }
+
+    this.countIx = countIx;
+    this.countSum = countSum;
+    return final;
+  }
+}
+
+class KeyOnlyIntermediateIndex {
+  index:{[key:string]: Multiplicity[]} = {};
+  iterator = new ZeroingIterator();
+
+  insert(key:string, prefix:Prefix) {
+    let counts = this.index[key];
+    if(!counts) counts = this.index[key] = createArray("KeyOnlyIntermediateIndex");
+    let round = prefix[prefix.length - 2] + 1;
+    let count = prefix[prefix.length - 1];
+    counts[round] += count;
+    if(!counts[round]) {
+      let shouldRemove = true;
+      for(let ix = 1, len = counts.length; ix < len; ix++) {
+        if(counts[ix]) {
+          shouldRemove = false;
+          break;
+        }
+      }
+      if(shouldRemove) {
+        delete this.index[key];
+      }
+    }
+  }
+
+  iter(key:string, round:number):ZeroingIterator|undefined {
+    let values = this.index[key];
+    if(values) return this.iterator.reset(values, round);
   }
 }
 
@@ -1827,6 +1988,7 @@ export class BinaryJoinRight extends BinaryFlow {
     while((result = rightResults.next()) !== undefined) {
       this.onRight(context, result, transaction, round, results);
     }
+    //debug("        results:", results.array.slice());
     return true;
   }
 
@@ -1840,19 +2002,17 @@ export class BinaryJoinRight extends BinaryFlow {
     let key = this.keyFunc(prefix);
     let count = prefix[prefix.length - 1];
     this.leftIndex.insert(key, prefix);
-    let diffs = this.rightIndex.get(key)
+    let diffs = this.rightIndex.iter(key, round)
     //debug("       left", key, printPrefix(prefix), diffs);
     if(!diffs) return;
-    for(let rightPrefix of diffs) {
-      let rightRound = rightPrefix[rightPrefix.length - 2];
-      let rightCount = rightPrefix[rightPrefix.length - 1];
-      let upperBound = Math.max(round, rightRound);
+    let rightPrefix;
+    while(rightPrefix = diffs.next()) {
       let result = copyArray(prefix, "BinaryJoinResult");
       this.merge(result, rightPrefix)
-      result[result.length - 2] = upperBound;
-      result[result.length - 1] = count * rightCount;
+      result[result.length - 2] = diffs.round;
+      result[result.length - 1] = count * diffs.count;
       results.push(result);
-      //debug("               left -> ", printPrefix(result));
+      //debug("               left -> ", printPrefix(result), count, diffs.count);
     }
   }
 
@@ -1860,26 +2020,24 @@ export class BinaryJoinRight extends BinaryFlow {
     let key = this.keyFunc(prefix);
     let count = prefix[prefix.length - 1];
     this.rightIndex.insert(key, prefix);
-    let diffs = this.leftIndex.get(key)
+    let diffs = this.leftIndex.iter(key, round)
     //debug("       right", key, printPrefix(prefix), diffs);
     if(!diffs) return;
-    for(let leftPrefix of diffs) {
-      let leftRound = leftPrefix[leftPrefix.length - 2];
-      let leftCount = leftPrefix[leftPrefix.length - 1];
-      let upperBound = Math.max(round, leftRound);
+    let leftPrefix;
+    while(leftPrefix = diffs.next()) {
       let result = copyArray(leftPrefix, "BinaryJoinResult");
       this.merge(result, prefix)
-      result[result.length - 2] = upperBound;
-      result[result.length - 1] = count * leftCount;
+      result[result.length - 2] = diffs.round;
+      result[result.length - 1] = count * diffs.count;
       results.push(result);
-      //debug("               right -> ", printPrefix(result.slice()));
+      //debug("               right -> ", printPrefix(result.slice()), count, diffs.count);
     }
   }
 }
 
 export class AntiJoin extends BinaryFlow {
   leftIndex = new IntermediateIndex();
-  rightIndex = new IntermediateIndex();
+  rightIndex = new KeyOnlyIntermediateIndex();
   keyFunc:KeyFunction;
 
   constructor(public left:Node, public right:Node, public keyRegisters:Register[]) {
@@ -1896,32 +2054,19 @@ export class AntiJoin extends BinaryFlow {
     let key = this.keyFunc(prefix);
     let count = prefix[prefix.length - 1];
     this.leftIndex.insert(key, prefix);
-    let diffs = this.rightIndex.get(key)
+    let diffs = this.rightIndex.iter(key, round);
     //debug("                    left:", key, count, diffs)
-    if(!diffs || !diffs.length) {
+    if(!diffs) {
       //debug("                    left ->", key, count, diffs)
       return results.push(prefix);
     } else {
-      let maxRound = 0;
-      let roundToMultiplicity:{[round:number]: number} = {};
-      for(let diff of diffs) {
-        let diffRound = Math.max(diff[diff.length - 2], round);
-        let diffCount = diff[diff.length - 1];
-        let v = roundToMultiplicity[diffRound] || 0;
-        roundToMultiplicity[diffRound] = v + diffCount;
-        maxRound = Math.max(diffRound, maxRound);
-      }
-
-      let sum = 0;
-      for(let currentRound = round; currentRound <= maxRound; currentRound++) {
-        let diffCount = roundToMultiplicity[currentRound];
-        sum += diffCount;
-        if(sum) continue;
+      let currentRound;
+      while(currentRound = diffs.next()) {
         let result = copyArray(prefix, "AntiJoinResult");
         result[result.length - 2] = currentRound;
         result[result.length - 1] = count;
         results.push(result);
-        //debug("                    left ->", key, count, diffCount, result[result.length - 1])
+        //debug("                    left ->", key, count, result[result.length - 1])
       }
     }
   }
@@ -1930,17 +2075,16 @@ export class AntiJoin extends BinaryFlow {
     let key = this.keyFunc(prefix);
     let count = prefix[prefix.length - 1];
     this.rightIndex.insert(key, prefix);
-    let diffs = this.leftIndex.get(key)
+    let diffs = this.leftIndex.iter(key, round)
+    //debug("                right:", key, count, diffs);
     if(!diffs) return;
-    for(let leftPrefix of diffs) {
-      let leftRound = leftPrefix[leftPrefix.length - 2];
-      let leftCount = leftPrefix[leftPrefix.length - 1];
-      let upperBound = Math.max(round, leftRound);
+    let leftPrefix;
+    while(leftPrefix = diffs.next()) {
       let result = copyArray(leftPrefix, "AntiJoinResult");
-      result[result.length - 2] = upperBound;
-      result[result.length - 1] = count * leftCount * -1;
+      result[result.length - 2] = diffs.round;
+      result[result.length - 1] = count * diffs.count * -1;
       results.push(result);
-      //debug("                    right ->", key, count, leftCount, result[result.length - 1])
+      //debug("                    right ->", key, count, diffs.count, result[result.length - 1])
     }
   }
 }
@@ -2034,61 +2178,7 @@ export class ChooseFlow implements Node {
   }
 }
 
-export class MergeAggregateFlow extends BinaryFlow {
-  leftIndex = new IntermediateIndex();
-  rightIndex = new IntermediateIndex();
-  keyFunc:KeyFunction;
-
-  constructor(public left:Node, public right:Node, public keyRegisters:Register[], public registersToMerge:Register[]) {
-    super(left, right);
-    this.keyFunc = IntermediateIndex.CreateKeyFunction(keyRegisters);
-  }
-
-  merge(left:Prefix, right:Prefix) {
-    for(let register of this.registersToMerge) {
-      left[register.offset] = right[register.offset];
-    }
-  }
-
-  onLeft(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void {
-    let key = this.keyFunc(prefix);
-    let count = prefix[prefix.length - 1];
-    this.leftIndex.insert(key, prefix);
-    let diffs = this.rightIndex.get(key)
-    //debug("       left", key, printPrefix(prefix), diffs);
-    if(!diffs) return;
-    for(let rightPrefix of diffs) {
-      let rightRound = rightPrefix[rightPrefix.length - 2];
-      let rightCount = rightPrefix[rightPrefix.length - 1];
-      let upperBound = Math.max(round, rightRound);
-      let result = copyArray(prefix, "MergeAggregateResult");
-      this.merge(result, rightPrefix);
-      result[result.length - 2] = upperBound;
-      result[result.length - 1] = count * rightCount;
-      results.push(result);
-    }
-  }
-
-  onRight(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void {
-    let key = this.keyFunc(prefix);
-    let count = prefix[prefix.length - 1];
-    this.rightIndex.insert(key, prefix);
-    let diffs = this.leftIndex.get(key)
-    //debug("       right", key, printPrefix(prefix), diffs);
-    if(!diffs) return;
-    for(let leftPrefix of diffs) {
-      let leftRound = leftPrefix[leftPrefix.length - 2];
-      let leftCount = leftPrefix[leftPrefix.length - 1];
-      let upperBound = Math.max(round, leftRound);
-      let result = copyArray(leftPrefix, "MergeAggregateResult");
-      this.merge(result, prefix);
-      result[result.length - 2] = upperBound;
-      result[result.length - 1] = count * leftCount;
-      results.push(result);
-      //debug("               -> ", printPrefix(result));
-    }
-  }
-
+export class MergeAggregateFlow extends BinaryJoinRight {
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
     //debug("        AGG MERGE");
     let result;
@@ -2121,11 +2211,18 @@ export abstract class AggregateNode implements Node {
   projectKey:Function;
   groups:{[group:string]: {result:any[], [projection:string]: Multiplicity[]}} = {};
   resolved:RawValue[] = [];
+  registerLookup:boolean[] = [];
 
   // @TODO: allow for multiple returns
   constructor(public groupRegisters:Register[], public projectRegisters:Register[], public inputs:(ID|Register)[], public results:Register[]) {
     this.groupKey = IntermediateIndex.CreateKeyFunction(groupRegisters);
     this.projectKey = IntermediateIndex.CreateKeyFunction(projectRegisters);
+    for(let reg of groupRegisters) {
+      this.registerLookup[reg.offset] = true;
+    }
+    for(let reg of results) {
+      this.registerLookup[reg.offset] = true;
+    }
   }
 
   groupPrefix(group:string, prefix:Prefix) {
@@ -2170,6 +2267,13 @@ export abstract class AggregateNode implements Node {
     let neue = copyArray(prefix, "aggregateResult");
     neue[this.results[0].offset] = result;
     neue[neue.length - 1] = count;
+    let ix = 0;
+    while(ix < neue.length - 2) {
+      if(!this.registerLookup[ix]) {
+        neue[ix] = undefined;
+      }
+      ix++;
+    }
     return neue;
   }
 
@@ -2215,7 +2319,8 @@ export abstract class AggregateNode implements Node {
     groupStates[prefixRound] = currentState;
     if(!currentState) {
       currentState = groupStates[prefixRound] = op(this.newResultState(), resolved);
-      results.push(this.getResultPrefix(prefix, this.stateToResult(currentState), 1));
+      let cur = this.getResultPrefix(prefix, this.stateToResult(currentState), 1);
+      results.push(cur);
       start = prefixRound + 1;
     }
     for(let ix = start, len = Math.max(groupStates.length, prefixRound + 1); ix < len; ix++) {
@@ -2549,23 +2654,16 @@ export class Transaction {
       this.round = change.round;
       //debug("Round:", this.round);
 
-      // console.log("-> " + change, index.hasImpact(change));
+      //debug("-> " + change, index.hasImpact(change));
       if(index.hasImpact(change)) {
         for(let block of this.blocks) {
-          if(block.name === "apply a velocity when you click" && DEBUG) {
-            debug = console.log;
-          } else {
-            debug = function() {}
-          }
           //debug("    ", block.name);
-          let start = performance.now();
+          // let start = performance.now();
           block.exec(context, change, this);
         }
       } else {
         console.warn("NO CHANGE", change.toString())
       }
-
-      if(DEBUG) debug = console.log;
 
       //debug("");
       index.insert(change);
