@@ -150,6 +150,7 @@ prog.block("draw obstacles", ({find, record}) => {
         record("svg/image", {x:0, y:bottomHeight, width:10, height:90 - bottomHeight, preserveAspectRatio:"none", href:`${imgs}/pillar-bkg.png`, sort:1}),
         record("svg/image", {x:-1, y:bottomHeight, width:12, height:5, preserveAspectRatio:"none", href:`${imgs}/lower-pillar-head.png`, sort:2}),
       ])
+      .add("x", obstacle.x)
     ])
   ]
 })
@@ -159,16 +160,24 @@ prog.block("every 2 distance, a wild obstacle appears", ({find, lib: {math}}) =>
   let obstacle = find("obstacle");
   let obstacleDistance = distance + obstacle.offset;
   obstacleDistance >= 0;
-  let x = 100 - 50 * math.mod(obstacleDistance, 2);
+  let prex = 50 * math.mod(obstacleDistance, 2);
+  let x = 100 - prex;
 
   return [
-    obstacle.remove("x").add("x", x)
+    obstacle.add("x", x)
   ]
-})
+});
 
-// prog.block("adjust the height of the gap", ({find, lib: {math}}) => {
-//   return [];
-// })
+// @TODO: What's the deal with airline food?
+prog.commit("adjust the height of the gap", ({find, lib: {math, random}}) => {
+  let {frame} = find("frames");
+  let world = find("world", {screen: "game"});
+  frame != world.frame;
+  let obstacle = find("obstacle");
+  obstacle.x > 90;
+  let height = random.number(frame) * 30 + 5;
+  return [obstacle.remove('height').add("height", height)];
+})
 
 //--------------------------------------------------------------------
 // Flapping the player
@@ -192,7 +201,7 @@ prog.commit("scroll the world", ({find, not}) => {
   let world = find("world", {screen:"game"});
   frame != world.frame
   let player = find("player");
-  let adjust = 1 / 60;
+  let adjust = 1 / 30;
   not(() => { find("html/event/click") })
 
   return [
