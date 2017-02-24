@@ -176,7 +176,7 @@ prog.block("every 2 distance, a wild obstacle appears", ({find, lib: {math}}) =>
 
 prog.commit("apply a velocity when you click", ({find}) => {
   let world = find("world", {screen:"game"})
-  find("html/event/click", {element:world})
+  find("html/event/click", "html/direct-target")
   let player = find("player", "self");
   return [
     player.remove("velocity").add("velocity", 1.17)
