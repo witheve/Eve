@@ -236,7 +236,7 @@ prog
 //--------------------------------------------------------------------
 
 let changes:any[] = [];
-// toEAVs(changes, {tag:["frames", "system/timer"], resolution:1000})
+toEAVs(changes, {tag:["frames", "system/timer"], resolution:1000})
 toEAVs(changes, {tag:["player", "self"], name:"eve", x:25, y:50, velocity:0})
 toEAVs(changes, {tag:"world", screen:"menu", frame:0, distance:0, best:0, gravity:-0.061})
 toEAVs(changes, {tag:"obstacle", gap:35, offset:0})
@@ -244,12 +244,12 @@ toEAVs(changes, {tag:"obstacle", gap:35, offset:-1})
 
 prog.inputEavs(changes);
 
-prog.inputEavs([["meep", "tag", "frames"], ["meep", "frame", 1]])
-prog.inputEavs(toEAVs([], {tag: "html/event/click"}));
-prog.inputEavs([["meep", "frame", 2], ["meep", "frame", 1, -1]])
-prog.inputEavs([["meep", "frame", 3], ["meep", "frame", 2, -1]])
+// prog.inputEavs([["meep", "tag", "frames"], ["meep", "frame", 1]])
 // prog.inputEavs(toEAVs([], {tag: "html/event/click"}));
-prog.inputEavs([["meep", "frame", 4], ["meep", "frame", 3, -1]])
-prog.inputEavs([["meep", "frame", 5], ["meep", "frame", 4, -1]])
+// prog.inputEavs([["meep", "frame", 2], ["meep", "frame", 1, -1]])
+// prog.inputEavs([["meep", "frame", 3], ["meep", "frame", 2, -1]])
+// // prog.inputEavs(toEAVs([], {tag: "html/event/click"}));
+// prog.inputEavs([["meep", "frame", 4], ["meep", "frame", 3, -1]])
+// prog.inputEavs([["meep", "frame", 5], ["meep", "frame", 4, -1]])
 
 // console.log(prog);

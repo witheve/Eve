@@ -430,7 +430,7 @@ export class DistinctIndex {
     if(delta) {
       deltas.push(prefixRound, delta);
     }
-    if(e == 17 && a == 11) console.log("DISTINCT",  {curCount, nextCount, delta})
+    console.log("          DISTINCT",  {curCount, nextCount, delta})
     curCount = nextCount;
     roundCounts[prefixRound] = startingCount + prefixCount;
 

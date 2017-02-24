@@ -9,6 +9,7 @@ import * as Runtime from "./runtime";
 import * as indexes from "./indexes";
 import {Watcher, Exporter, DiffConsumer, ObjectConsumer, RawRecord} from "../watchers/watcher";
 import "./stdlib";
+import {v4 as uuid} from "node-uuid";
 
 const UNASSIGNED = -1;
 
@@ -449,14 +450,12 @@ class FlowLevel {
 
     for(let choose of this.chooses) {
       // For why we pass items down, see the comment about not
-      let node = choose.compile(toPass.concat(items));
-      join = new Runtime.BinaryJoinRight(join, node, choose.getInputRegisters());
+      join = choose.compile(join);
     }
 
     for(let union of this.unions) {
       // For why we pass items down, see the comment about not
-      let node = union.compile(toPass.concat(items));
-      join = new Runtime.BinaryJoinRight(join, node, union.getInputRegisters());
+      join = union.compile(join);
     }
 
     for(let aggregate of this.aggregates) {
@@ -749,7 +748,8 @@ class LinearFlow extends DSLBase {
     this.context.unify();
   }
 
-  compile(items:Node[] = []):Runtime.Node[] {
+  compile(_:Node[] = []):Runtime.Node[] {
+    let items:Node[] = []
     this.unify();
     let nodes:Runtime.Node[] = [];
 
@@ -1008,7 +1008,6 @@ class Record extends DSLBase {
       let a = attributes[ix];
       let v = attributes[ix + 1];
       // @TODO: get a real node id
-      let n = "awesome";
       constraints.push(new Runtime.Scan(e, context.interned(a), context.interned(v), Runtime.IGNORE_REG))
     }
     return constraints;
@@ -1152,7 +1151,7 @@ class Insert extends Record {
       let a = attributes[ix];
       let v = attributes[ix + 1];
       // @TODO: get a real node id
-      let n = "awesome";
+      let n = uuid();
       nodes.push(new Runtime.InsertNode(e, context.interned(a), context.interned(v), context.interned(n)))
     }
     return nodes;
@@ -1179,7 +1178,7 @@ class Remove extends Insert {
       let v = attributes[ix + 1];
 
       // @TODO: get a real node id
-      let n = "awesome";
+      let n = uuid();
       let internedV:any = context.maybeInterned(v); // @FIXME
       internedV = internedV !== undefined ? internedV : Runtime.IGNORE_REG;
       nodes.push(new Runtime.RemoveNode(e, context.interned(a), internedV, context.interned(n)));
@@ -1202,7 +1201,7 @@ class Watch extends Insert {
       let a = attributes[ix];
       let v = attributes[ix + 1];
       // @TODO: get a real node id
-      let n = "awesome";
+      let n = uuid();
       nodes.push(new Runtime.WatchNode(e, context.interned(a), context.interned(v), context.interned(n), context.flow.ID));
     }
     return nodes;
@@ -1222,7 +1221,7 @@ class CommitInsert extends Insert {
       let a = attributes[ix];
       let v = attributes[ix + 1];
       // @TODO: get a real node id
-      let n = "awesome";
+      let n = uuid();
       nodes.push(new Runtime.CommitInsertNode(e, context.interned(a), context.interned(v), context.interned(n)));
     }
     return nodes;
@@ -1242,7 +1241,7 @@ class CommitRemove extends Remove {
       let a = attributes[ix];
       let v = attributes[ix + 1];
       // @TODO: get a real node id
-      let n = "awesome";
+      let n = uuid();
       let internedV:any = context.maybeInterned(v); // @FIXME
       internedV = internedV !== undefined ? internedV : Runtime.IGNORE_REG;
       nodes.push(new Runtime.CommitRemoveNode(e, context.interned(a), internedV, context.interned(n)));
@@ -1478,19 +1477,21 @@ class Union extends DSLBase {
     return 0;
   }
 
-  build(nodes:Runtime.Node[], inputs:Register[]):Runtime.Node {
-    return new Runtime.UnionFlow(nodes, inputs);
+  build(left: Runtime.Node, nodes:Runtime.Node[], inputs:Register[][], outputs:Register[]):Runtime.Node {
+    return new Runtime.UnionFlow(left, nodes, inputs, outputs);
   }
 
-  compile(items:Node[]) {
+  compile(join:Runtime.Node) {
     let {context} = this;
     let nodes:Runtime.Node[] = [];
+    let inputs:Register[][] = [];
+    let outputs = this.getOutputRegisters();
     for(let flow of this.branches) {
-      let compiled = flow.compile(items);
+      let compiled = flow.compile();
       nodes.push(compiled[0]);
+      inputs.push(flow.getInputRegisters().filter((v) => outputs.indexOf(v) === -1));
     }
-    let inputs = this.inputs.map((v) => context.getValue(v)).filter(isRegister) as Register[];
-    return this.build(nodes, inputs);
+    return this.build(join, nodes, inputs, this.getOutputRegisters());
   }
 }
 
@@ -1499,8 +1500,8 @@ class Union extends DSLBase {
 //--------------------------------------------------------------------
 
 class Choose extends Union {
-  build(nodes:Runtime.Node[], inputs:Register[]):Runtime.Node {
-    return new Runtime.ChooseFlow(nodes, inputs);
+  build(left: Runtime.Node, nodes:Runtime.Node[], inputs:Register[][], outputs:Register[]):Runtime.Node {
+    return new Runtime.ChooseFlow(left, nodes, inputs, outputs);
   }
 }
 
@@ -1516,9 +1517,7 @@ export type TestChange =  EAVTuple | EAVRCTuple;
 export class Program {
   context:Runtime.EvaluationContext;
   blocks:Runtime.Block[] = [];
-  commits:Runtime.Block[] = [];
   flows:LinearFlow[] = [];
-  commitFlows:LinearFlow[] = [];
   index:indexes.Index;
   nodeCount = 0;
   nextTransactionId = 0;
@@ -1578,7 +1577,7 @@ export class Program {
   input(changes:Runtime.Change[]) {
     console.time("input");
     if(changes[0].transaction >= this.nextTransactionId) this.nextTransactionId = changes[0].transaction + 1;
-    let trans = new Runtime.Transaction(changes[0].transaction, this.blocks, this.commits, this.lastWatch ? this.exporter.handle : undefined);
+    let trans = new Runtime.Transaction(changes[0].transaction, this.blocks, this.lastWatch ? this.exporter.handle : undefined);
     for(let change of changes) {
       trans.output(this.context, change);
     }
@@ -1600,9 +1599,9 @@ export class Program {
   test(transaction:number, eavns:TestChange[]) {
     console.group("test " + transaction);
     if(transaction >= this.nextTransactionId) this.nextTransactionId = transaction + 1;
-    let trans = new Runtime.Transaction(transaction, this.blocks, this.commits, this.lastWatch ? this.exporter.handle : undefined);
+    let trans = new Runtime.Transaction(transaction, this.blocks, this.lastWatch ? this.exporter.handle : undefined);
     for(let [e, a, v, round = 0, count = 1] of eavns as EAVRCTuple[]) {
-      let change = Runtime.Change.fromValues(e, a, v, "my-awesome-node", transaction, round, count);
+      let change = Runtime.Change.fromValues(e, a, v, "input", transaction, round, count);
       trans.output(this.context, change);
     }
     trans.exec(this.context);
@@ -1615,8 +1614,8 @@ export class Program {
     let flow = new CommitFlow(this.injectConstants(func));
     let nodes = flow.compile();
     let block = new Runtime.Block(name, nodes, flow.context.maxRegisters);
-    this.commitFlows.push(flow);
-    this.commits.push(block);
+    this.flows.push(flow);
+    this.blocks.push(block);
     return this;
   }
 
