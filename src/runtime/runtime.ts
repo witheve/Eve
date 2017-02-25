@@ -1903,7 +1903,7 @@ class ZeroingIterator {
         if(!cur) continue;
         countSum += cur;
       }
-      final = roundIx;
+      if(countSum === 0) final = roundIx;
     } else {
       for(; roundIx <= countsLength; roundIx++) {
         let cur = counts[roundIx];
