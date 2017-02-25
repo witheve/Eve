@@ -423,6 +423,13 @@ export class DistinctIndex {
     // We only need delta changed here because if there's a round delta, it
     // would have been applied already.
 
+    if(prefixCount === -Infinity) {
+      if(curCount === Infinity) {
+        curCount = 1;
+        startingCount = 1;
+      }
+      prefixCount = -curCount;
+    }
     let nextCount = curCount + prefixCount;
     let delta = 0;
     if(curCount == 0 && nextCount > 0) delta = 1;
@@ -430,9 +437,9 @@ export class DistinctIndex {
     if(delta) {
       deltas.push(prefixRound, delta);
     }
-    // console.log("          DISTINCT",  {curCount, nextCount, delta})
     curCount = nextCount;
     roundCounts[prefixRound] = startingCount + prefixCount;
+    // console.log("          DISTINCT",  {curCount, nextCount, delta, roundCounts})
 
     for(let roundIx = prefixRound + 1; roundIx < roundCounts.length; roundIx++) {
       let roundCount = roundCounts[roundIx];

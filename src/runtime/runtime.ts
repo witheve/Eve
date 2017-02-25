@@ -2502,9 +2502,9 @@ export class Transaction {
         }
       }
     }
-    let {frameCommits} = this;
-    if(!next && frameCommits.length) {
-      for(let commit of this.framePartialCommits) {
+    let {frameCommits, framePartialCommits} = this;
+    if(!next && (frameCommits.length || framePartialCommits.length)) {
+      for(let commit of framePartialCommits) {
         commit.toRemoveChanges(context, frameCommits);
       }
 
@@ -2528,9 +2528,10 @@ export class Transaction {
         this.round = -1;
         this.roundChanges = [];
         this.frameCommits = [];
+        this.framePartialCommits = [];
         for(let commit of collapsedChanges) {
-          if(commit.count > 0) commit.count = 1;
-          else if(commit.count < 0) commit.count = -1;
+          if(commit.count > 0) commit.count = Infinity;
+          else if(commit.count < 0) commit.count = -Infinity;
           //debug("    ->! ", commit.toString())
           this.output(context, commit);
         }
