@@ -99,7 +99,7 @@ prog.commit("clicking starts the game", ({find, record, lib, choose}) => {
   let world = find("world");
   let svg = find("game-window");
   // find("html/event/click", {element:svg});
-  find("html/event/click");
+  find("html/event/click", "html/direct-target");
 
   choose(() => { world.screen == "menu" },
          () => { world.screen == "game over"});
@@ -211,6 +211,63 @@ prog.commit("scroll the world", ({find, not}) => {
           .remove("velocity").add("velocity", player.velocity + world.gravity)
   ]
 });
+
+//--------------------------------------------------------------------
+// Collision
+//--------------------------------------------------------------------
+
+prog.commit("collide with ground", ({find}) => {
+  let world = find("world", {screen: "game"});
+  let player = find("player");
+  player.y > 85; // ground height + player radius
+
+  return [
+    world.remove("screen", "game").add("screen", "game over")
+  ];
+});
+
+// Hangs due to union/choose
+// prog.commit("collide with obstacle", ({find, choose, lib: {math}}) => {
+//   let world = find("world", {screen: "game"});
+//   let player = find("player");
+//   let obstacle = find("obstacle");
+//   let dx = math.abs(obstacle.x + 5 - player.x) - 10
+//   dx < 0;
+
+//   choose(
+//     () => {player.y - 5 <= obstacle.height},
+//     () => {player.y + 5 >= obstacle.gap + obstacle.height});
+
+//   return [
+//     world.remove("screen", "game").add("screen", "game over")
+//   ];
+// })
+
+prog.commit("collide with top obstacle", ({find, choose, lib: {math}}) => {
+  let world = find("world", {screen: "game"});
+  let player = find("player");
+  let obstacle = find("obstacle");
+  let dx = math.abs(obstacle.x + 5 - player.x) - 10
+  dx < 0;
+  player.y - 5 <= obstacle.height;
+
+  return [
+    world.remove("screen", "game").add("screen", "game over")
+  ];
+})
+
+prog.commit("collide with bottom obstacle", ({find, choose, lib: {math}}) => {
+  let world = find("world", {screen: "game"});
+  let player = find("player");
+  let obstacle = find("obstacle");
+  let dx = math.abs(obstacle.x + 5 - player.x) - 10
+  dx < 0;
+  player.y + 5 >= obstacle.gap + obstacle.height;
+
+  return [
+    world.remove("screen", "game").add("screen", "game over")
+  ];
+})
 
 //--------------------------------------------------------------------
 // svg/html translation
