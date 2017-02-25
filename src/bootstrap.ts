@@ -11,9 +11,6 @@ function verify(assert:any, prog:Program, ins:any[], outs:any[]) {
 }
 
 
-
-
-
 // import {Change} from "./runtime/runtime";
 // import {HashIndex} from "./runtime/indexes";
 //   let prog = new Program("test");
