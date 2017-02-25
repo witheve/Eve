@@ -427,6 +427,39 @@ class RemoveChange extends Change {
   }
 }
 
+class RemoveVsChange extends RemoveChange {
+  toRemoveChanges(context:EvaluationContext, changes:Change[]) {
+    let {e,a,v,n} = this;
+    let {index, distinctIndex} = context;
+    let matches = index.get(e, a, IGNORE_REG, IGNORE_REG, this.transaction, Infinity);
+    for(let {v} of matches) {
+      let ntrcs = index.getDiffs(e, a, v, IGNORE_REG);
+      let roundToMultiplicity:{[round:number]: number} = {};
+      for(let ix = 0; ix < ntrcs.length; ix += 4) {
+        // n = ix, t = ix + 1, r = ix + 2, c = ix + 3
+        let round = ntrcs[ix + 2];
+        let count = ntrcs[ix + 3];
+        let cur = roundToMultiplicity[round] || 0;
+        roundToMultiplicity[round] = cur + count;
+      }
+      for(let roundString in roundToMultiplicity) {
+        let curRound = +roundString;
+        let count = roundToMultiplicity[curRound] * this.count;
+        if(count === 0) continue;
+        let changeRound = Math.max(this.round, curRound);
+        let change = new RemoveChange(e!, a!, v!, n!, this.transaction, changeRound, count);
+        changes.push(change);
+      }
+    }
+  }
+}
+
+class RemoveAVsChange extends RemoveVsChange {
+  toRemoveChanges(context:EvaluationContext, changes:Change[]) {
+    throw new Error("Implement me!");
+  }
+}
+
 // When interatcint with the outside world, we need to pass changes around that
 // are no longer interned. A RawChange is the same as Change, but all the
 // information in the triple has been convered back into RawValues instead of
@@ -1705,45 +1738,15 @@ export class RemoveNode extends InsertNode {
     let prefixCount = prefix[prefix.length - 1];
 
     if(this.v !== IGNORE_REG) {
-      // @FIXME: We're unsure why it's correct to not match on the
-      // input in the specified v case here the way we have to in the
-      // unspecified v case. The only examples it could impact
-      // (e.g. removing a specific EAV matching the input works this
-      // way).
-
       let change = new RemoveChange(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount * this.multiplier);
       this.output(change, binds, commits);
-
+    } else if(this.a !== IGNORE_REG) {
+      let change = new RemoveVsChange(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount * this.multiplier);
+      this.output(change, binds, commits);
     } else {
-      let {index, distinctIndex} = context;
-      // If we match the input change, we need to remove it too.
-      if(e === input.e && a === input.a && (v === input.v || this.v === IGNORE_REG)) {
-        let change = new RemoveChange(e!, a!, input.v, n!, transactionId, prefixRound + 1, prefixCount * this.multiplier);
-        this.output(change, binds, commits);
-      }
-
-      let matches = index.get(e, a, IGNORE_REG, IGNORE_REG, transactionId, Infinity);
-      for(let {v} of matches) {
-        let ntrcs = index.getDiffs(e, a, v, IGNORE_REG);
-        let roundToMultiplicity:{[round:number]: number} = {};
-        for(let ix = 0; ix < ntrcs.length; ix += 4) {
-          // n = ix, t = ix + 1, r = ix + 2, c = ix + 3
-          let round = ntrcs[ix + 2];
-          let count = ntrcs[ix + 3];
-          let cur = roundToMultiplicity[round] || 0;
-          roundToMultiplicity[round] = cur + count;
-        }
-        for(let roundString in roundToMultiplicity) {
-          let curRound = +roundString;
-          let count = roundToMultiplicity[curRound] * prefixCount;
-          if(count === 0) continue;
-          let changeRound = Math.max(prefixRound + 1, curRound);
-          let change = new RemoveChange(e!, a!, v!, n!, transactionId, changeRound, count * this.multiplier);
-          this.output(change, binds, commits);
-        }
-      }
+      let change = new RemoveAVsChange(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount * this.multiplier);
+      this.output(change, binds, commits);
     }
-
     return true;
   }
 }
@@ -2447,6 +2450,7 @@ export class Transaction {
   protected outputs = new Iterator<Change>();
   protected roundChanges:Change[][] = [];
   protected frameCommits:Change[] = [];
+  protected framePartialCommits:RemoveVsChange[] = [];
   protected exportedChanges:{[blockId:number]: Change[]} = {};
   constructor(public transaction:number, public blocks:Block[], protected exportHandler?:ExportHandler) {}
 
@@ -2469,7 +2473,11 @@ export class Transaction {
 
   commit(context:EvaluationContext, change:Change) {
     let {outputs} = this;
-    this.frameCommits.push(change);
+    if(change instanceof RemoveVsChange) {
+      this.framePartialCommits.push(change);
+    } else {
+      this.frameCommits.push(change);
+    }
     //debug("          <-!", change.toString())
   }
 
@@ -2494,18 +2502,23 @@ export class Transaction {
         }
       }
     }
-    if(!next && this.frameCommits.length) {
-      let frameChanges:Change[] = [];
-      this.collapseCommits(this.frameCommits, frameChanges);
+    let {frameCommits} = this;
+    if(!next && frameCommits.length) {
+      for(let commit of this.framePartialCommits) {
+        commit.toRemoveChanges(context, frameCommits);
+      }
+
+      let collapsedCommits:Change[] = [];
+      this.collapseCommits(this.frameCommits, collapsedCommits);
       let collapsedChanges:Change[] = [];
-      this.collapseMultiplicity(frameChanges, collapsedChanges);
+      this.collapseMultiplicity(collapsedCommits, collapsedChanges);
       // console.groupCollapsed("Before collapse");
       // for(let commit of this.frameCommits) {
       //   console.log("  ", commit.toString());
       // }
       // console.groupEnd();
       // console.groupCollapsed("After collpase");
-      // for(let commit of frameChanges) {
+      // for(let commit of collapsedCommits) {
       //   console.log("  ", commit.toString());
       // }
       // console.groupEnd();
