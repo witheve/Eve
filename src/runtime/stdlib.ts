@@ -179,6 +179,15 @@ makeFunction({
   }
 });
 
+makeFunction({
+  name: "math/abs",
+  args: {a: "number"},
+  returns: {result: "number"},
+  apply: (a:number) => {
+    return [Math.abs(a)];
+  }
+});
+
 //--------------------------------------------------------------------
 // Random
 //--------------------------------------------------------------------
