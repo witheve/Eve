@@ -625,7 +625,7 @@ window.addEventListener("change", function(event) {
     let value = target.value;
 
     if(isSelectElem(target)) {
-      value = target.options[target.selectedIndex].value;
+      value = target.options.item(target.selectedIndex).value;
     }
 
     sentInputValues[target.entity!].push(value);
