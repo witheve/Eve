@@ -1,4 +1,4 @@
-import {Program} from "./runtime/dsl";
+import {Program} from "./runtime/dsl2";
 
 let prog = new Program("test");
 prog.attach("html");
@@ -59,35 +59,3 @@ prog.test(3, [
   [8, "sort", 0]
 ]);
 
-// prog
-//   .test(0, [
-//     [1, "tag", "P"],
-//     [1, "name", "Jeff"],
-
-//     [2, "tag", "P"],
-//     [2, "name", "KERY"],
-
-//     [3, "tag", "P"],
-//     [3, "name", "RAB"],
-
-//     [4, "tag", "potato"],
-//     [4, "kind", "idaho"],
-
-//     [5, "tag", "potato"],
-//     [5, "kind", "irish gold"],
-
-//   ]);
-
-// prog
-//   .test(1, [
-//     [1, "tag", "P", 0, -1],
-//     [2, "tag", "P", 0, -1]
-
-//   ]);
-
-// prog
-//  .test(2, [
-//    [1, "tag", "P", 0, 1],
-//  ]);
-
-console.log(prog);

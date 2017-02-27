@@ -124,7 +124,7 @@ class HTMLWatcher extends Watcher {
     this.program
       .block("Elements with no parents are roots.", ({find, record, lib, not}) => {
         let elem = find("html/element");
-        not(({find}) => {
+        not(() => {
           find("html/element", {children: elem});
         });
         return [

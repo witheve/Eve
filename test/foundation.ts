@@ -1,4 +1,4 @@
-import {Program} from "../src/runtime/dsl";
+import {Program} from "../src/runtime/dsl2";
 import {verify} from "./util";
 import * as test from "tape";
 
@@ -337,7 +337,7 @@ test.skip("not", (assert) => {
   let prog = new Program("test");
   prog.block("simple block", ({find, record, lib, not}) => {
     let person = find({tag: "person"});
-    not((subblock) => person.alive);
+    not(() => person.alive);
     return [
       person.add("dead", "true")
     ]
@@ -396,7 +396,7 @@ test("Basic not", (assert) => {
   let prog = new Program("test");
   prog.block("simple block", ({find, record, lib, not}) => {
     let person = find("person");
-    not((subblock) => {
+    not(() => {
       person.age;
     })
     return [
@@ -422,3 +422,188 @@ test("Basic not", (assert) => {
 
   assert.end();
 });
+
+
+test("Basic choose", (assert) => {
+
+  // -----------------------------------------------------
+  // program
+  // -----------------------------------------------------
+
+  let prog = new Program("test");
+  prog.block("simple block", ({find, record, lib, choose}) => {
+    let person = find("person");
+    let [info] = choose(() => {
+      person.dog;
+      return "cool";
+    }, () => {
+      return "not cool";
+    });
+    return [
+      record("dog-less", {info})
+    ]
+  });
+
+  // -----------------------------------------------------
+  // verification
+  // -----------------------------------------------------
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+  ], [
+    [2, "tag", "dog-less", 1],
+    [2, "info", "not cool", 1],
+  ])
+
+  verify(assert, prog, [
+    [1, "dog", "spot"],
+  ], [
+    [2, "tag", "dog-less", 1, -1],
+    [2, "info", "not cool", 1, -1],
+    [3, "tag", "dog-less", 1],
+    [3, "info", "cool", 1],
+  ])
+
+  assert.end();
+});
+
+test("Basic union", (assert) => {
+
+  // -----------------------------------------------------
+  // program
+  // -----------------------------------------------------
+
+  let prog = new Program("test");
+  prog.block("simple block", ({find, record, lib, union}) => {
+    let person = find("person");
+    let [info] = union(() => {
+      person.dog;
+      return "cool";
+    }, () => {
+      return "not cool";
+    });
+    return [
+      record("dog-less", {info})
+    ]
+  });
+
+  // -----------------------------------------------------
+  // verification
+  // -----------------------------------------------------
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+  ], [
+    [2, "tag", "dog-less", 1],
+    [2, "info", "not cool", 1],
+  ])
+
+  verify(assert, prog, [
+    [1, "dog", "spot"],
+  ], [
+    [3, "tag", "dog-less", 1],
+    [3, "info", "cool", 1],
+  ])
+
+  assert.end();
+});
+
+
+test("Multiple return choose", (assert) => {
+
+  // -----------------------------------------------------
+  // program
+  // -----------------------------------------------------
+
+  let prog = new Program("test");
+  prog.block("simple block", ({find, record, lib, choose}) => {
+    let person = find("person");
+    let [displayName, coolness] = choose(() => {
+      return [person.nickName, "cool"];
+    }, () => {
+      return [person.name, "not cool"];
+    });
+    return [
+      person.add("displayName", displayName),
+      person.add("coolness", coolness),
+    ]
+  });
+
+  // -----------------------------------------------------
+  // verification
+  // -----------------------------------------------------
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+    [1, "name", "joseph"],
+  ], [
+    [1, "displayName", "joseph", 1],
+    [1, "coolness", "not cool", 1],
+  ])
+
+  verify(assert, prog, [
+    [1, "nickName", "joey"],
+  ], [
+    [1, "displayName", "joseph", 1, -1],
+    [1, "coolness", "not cool", 1, -1],
+    [1, "displayName", "joey", 1],
+    [1, "coolness", "cool", 1],
+  ])
+
+  verify(assert, prog, [
+    [1, "nickName", "joey", 0, -1],
+  ], [
+    [1, "displayName", "joseph", 1],
+    [1, "coolness", "not cool", 1],
+    [1, "displayName", "joey", 1, -1],
+    [1, "coolness", "cool", 1, -1],
+  ])
+
+  assert.end();
+});
+
+test("Basic aggregate", (assert) => {
+
+  // -----------------------------------------------------
+  // program
+  // -----------------------------------------------------
+
+  let prog = new Program("test");
+  prog.block("simple block", ({find, record, lib, gather}) => {
+    let person = find("person");
+    let count = gather(person).count();
+    return [
+      record("info").add("total people", count)
+    ]
+  });
+
+  // -----------------------------------------------------
+  // verification
+  // -----------------------------------------------------
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+    [2, "tag", "person"],
+  ], [
+    [3, "tag", "info", 1],
+    [3, "total people", 2, 1],
+  ])
+
+  verify(assert, prog, [
+    [1, "tag", "person", 0, -1],
+  ], [
+    [3, "total people", 2, 1, -1],
+    [3, "total people", 1, 1],
+  ])
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+    [4, "tag", "person"],
+  ], [
+    [3, "total people", 1, 1, -1],
+    [3, "total people", 3, 1],
+  ])
+
+  assert.end();
+});
+
