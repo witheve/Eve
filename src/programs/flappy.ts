@@ -252,7 +252,7 @@ toEAVs(changes, {tag:"world", screen:"menu", frame:0, distance:0, best:0, gravit
 toEAVs(changes, {tag:"obstacle", gap:35, offset:0})
 toEAVs(changes, {tag:"obstacle", gap:35, offset:-1})
 
-console.time("flappy");
+console.profile("flappy");
 prog.inputEavs(changes);
 
 prog.inputEavs([["meep", "tag", "frames"], ["meep", "frame", 1]])
@@ -277,7 +277,7 @@ for(let ix = 60; ix < 100; ix++) {
 // // for(let ix = 100; ix < 200; ix++) {
 // //   prog.inputEavs([["meep", "frame", ix], ["meep", "frame", ix-1, -1]])
 // // }
-console.timeEnd("flappy");
+console.profileEnd();
 
 let reporter = new PerformanceReporter();
 reporter.report(prog.context.tracker);

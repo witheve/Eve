@@ -1,9 +1,11 @@
 import {Index, HashIndex, DistinctIndex} from "./indexes";
-import {PerformanceTracker} from "./performance";
+import {NoopPerformanceTracker, PerformanceTracker} from "./performance";
 
 //------------------------------------------------------------------------
 //debugging utilities
 //------------------------------------------------------------------------
+
+const TRACKER = false;
 
 // Turning this on causes all of the debug(.*) statements to print to the
 // console.  This is useful to see exactly what the runtime is doing as it
@@ -2424,7 +2426,7 @@ export class Block {
 export class EvaluationContext {
   distinctIndex = new DistinctIndex();
   intermediates:{[key:string]: IntermediateIndex} = {};
-  tracker = new PerformanceTracker();
+  tracker = TRACKER ? new PerformanceTracker() : new NoopPerformanceTracker();
 
   constructor(public index:Index) {}
 }
@@ -2580,41 +2582,6 @@ export class Transaction {
         results.push(current);
       }
     }
-
-    // console.groupCollapsed("intermediate collapse");
-    // for(let commit of intermediate) {
-    //   console.log("  ", commit.toString());
-    // }
-    // console.groupEnd();
-
-    // for(let changeIx = 0; changeIx < intermediate.length; changeIx++) {
-    //   let current = intermediate[changeIx];
-    //   let currentType = current instanceof RemoveChange ? true : false;
-    //   if(currentType && current.count > 0) {
-    //     current.count = 0;
-    //   } else if(!currentType && current.count < 0) {
-    //     current.count = 0;
-    //   }
-
-    //   // Collapse each subsequent matching EAV's multiplicity into the current one's.
-    //   while(changeIx + 1 < intermediate.length) {
-    //     let next = intermediate[changeIx + 1];
-    //     let nextType = next instanceof RemoveChange ? true : false;
-    //     if(currentType === nextType && next.e == current.e && next.a == current.a && next.v == current.v) {
-    //       let sum = current.count + next.count;
-    //       if(currentType && sum <= 0) {
-    //         current.count = sum;
-    //       } else if(!currentType && sum >= 0) {
-    //         current.count = sum;
-    //       }
-    //       changeIx++;
-    //     } else {
-    //       break;
-    //     }
-    //   }
-    //   current.round = 0;
-    //   if(current.count !== 0) results.push(current);
-    // }
 
     return results;
   }
