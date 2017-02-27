@@ -30,8 +30,32 @@ export function setActiveIds(ids) {
 // MicroReact-based record renderer
 //---------------------------------------------------------
 export var renderer = new Renderer();
-document.body.appendChild(renderer.content);
+
+// wrap the app preview into a custom iframe
+let appPreviewIframe = document.createElement('iframe');
+appPreviewIframe.id = 'app-preview-iframe';
+appPreviewIframe.setAttribute('style', 'border: 0');
+document.body.appendChild(appPreviewIframe);
+
+// save iframe window and document refs for later
+let appPreviewWindow = (<any>appPreviewIframe).contentWindow;
+let appPreviewdoc = appPreviewWindow.document;
+appPreviewdoc.open();
+appPreviewdoc.write(`
+<html>
+    <head>
+        <title>App Preview</title>
+        <link rel="stylesheet" type="text/css" href="assets/css/app-preview.css">
+        <style id="app-styles"></style>
+    </head>
+    <body></body>
+</html>
+`);
+appPreviewdoc.close();
 renderer.content.classList.add("application-root");
+appPreviewdoc.body.appendChild(renderer.content);
+
+renderer.content = appPreviewdoc.body;
 
 // These will get maintained by the client as diffs roll in
 export var sentInputValues = {};
@@ -550,7 +574,11 @@ function addRootEvent(elem, event, objs, eventName) {
   objs.push(eveEvent);
 }
 
-window.addEventListener("click", function(event) {
+/**
+ * @param event
+ */
+// @todo: choose a more suitable name
+function ideAppOnClick(event) {
   let {target} = event;
   let current = target as RecordElement;
   let objs:any[] = [];
@@ -586,7 +614,10 @@ window.addEventListener("click", function(event) {
       event.preventDefault();
     }
   }
-});
+}
+
+appPreviewWindow.addEventListener("click", ideAppOnClick);
+window.addEventListener("click", ideAppOnClick);
 
 window.addEventListener("dblclick", handleBasicEventWithTarget("dblclick"));
 window.addEventListener("mousedown", handleBasicEventWithTarget("mousedown"));

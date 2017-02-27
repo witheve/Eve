@@ -1,0 +1,14 @@
+/*
+ * app preview iframe wrapper stylesheets
+ */
+
+* { box-sizing:border-box; }
+body { background: rgb(47,47,49); color: #d8d8d8; font-family: Avenir, "Helvetica neue", sans-serif; display: flex; flex-direction: row; margin:0; width: 100%; }
+html, body, __root { height: 100%; }
+body { background: #f5f5f5; color: #555; }
+body { justify-content: stretch; }
+.__root { display: flex; flex-direction: column; align-self: stretch; }
+.application-root { overflow: auto; }
+.__root.application-root { order: 2; flex: 1 1 auto; color: #555; }
+.application-container { display: flex; flex-direction: column; flex: 1; }
+.program { position: relative; flex: 1; flex-direction: column; align-self: stretch; padding:20px; overflow: auto; display:flex; }
