@@ -1,4 +1,4 @@
-import {Index, ListIndex, HashIndex, DistinctIndex} from "./indexes";
+import {Index, HashIndex, DistinctIndex} from "./indexes";
 import {PerformanceTracker} from "./performance";
 
 //------------------------------------------------------------------------
@@ -434,20 +434,10 @@ class RemoveVsChange extends RemoveChange {
     let {index, distinctIndex} = context;
     let matches = index.get(e, a, IGNORE_REG, IGNORE_REG, this.transaction, Infinity);
     for(let {v} of matches) {
-      let ntrcs = index.getDiffs(e, a, v, IGNORE_REG);
-      let roundToMultiplicity:{[round:number]: number} = {};
-      for(let ix = 0; ix < ntrcs.length; ix += 4) {
-        // n = ix, t = ix + 1, r = ix + 2, c = ix + 3
-        let round = ntrcs[ix + 2];
-        let count = ntrcs[ix + 3];
-        let cur = roundToMultiplicity[round] || 0;
-        roundToMultiplicity[round] = cur + count;
-      }
-      for(let roundString in roundToMultiplicity) {
-        let curRound = +roundString;
-        let count = roundToMultiplicity[curRound] * this.count;
-        if(count === 0) continue;
-        let changeRound = Math.max(this.round, curRound);
+      let rounds = index.getDiffs(e, a, v, IGNORE_REG);
+      for(let round of rounds) {
+        let count = this.count * (round > 0 ? 1 : -1);
+        let changeRound = Math.max(this.round, Math.abs(round) - 1);
         let change = new RemoveChange(e!, a!, v!, n!, this.transaction, changeRound, count);
         changes.push(change);
       }
@@ -585,7 +575,7 @@ export interface Proposal {
 // Constraints
 //------------------------------------------------------------------------
 
-export type NTRCArray = number[];
+export type RoundArray = number[];
 
 enum ApplyInputState {
   pass,
@@ -602,7 +592,7 @@ export interface Constraint {
   resolveProposal(context:EvaluationContext, prefix:Prefix, proposal:Proposal, transaction:number, round:number, results:any[]):ID[][];
   accept(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, solvingFor:Register[]):boolean;
   acceptInput(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number):boolean;
-  getDiffs(context:EvaluationContext, prefix:Prefix):NTRCArray;
+  getDiffs(context:EvaluationContext, prefix:Prefix):RoundArray;
 }
 
 //------------------------------------------------------------------------
@@ -699,7 +689,7 @@ export class MoveConstraint {
     return this.accept(context, prefix, transaction, round, this.registers);
   }
 
-  getDiffs(context:EvaluationContext, prefix:Prefix):NTRCArray {
+  getDiffs(context:EvaluationContext, prefix:Prefix):RoundArray {
     throw new Error("Asking for Diffs from MoveConstraint");
   }
 }
@@ -899,7 +889,7 @@ export class Scan implements Constraint {
     return this.registers;
   }
 
-  getDiffs(context:EvaluationContext, prefix:Prefix):NTRCArray {
+  getDiffs(context:EvaluationContext, prefix:Prefix):RoundArray {
     let {e,a,v,n} = this.resolve(prefix);
     return context.index.getDiffs(e,a,v,n);
   }
@@ -1212,7 +1202,7 @@ export class FunctionConstraint implements Constraint {
     return this.accept(context, prefix, transaction, round, this.registers);
   }
 
-  getDiffs(context:EvaluationContext, prefix:Prefix):NTRCArray {
+  getDiffs(context:EvaluationContext, prefix:Prefix):RoundArray {
     return [];
   }
 }
@@ -1411,7 +1401,7 @@ export class JoinNode implements Node {
     return true;
   }
 
-  computeMultiplicities(results:Iterator<Prefix>, prefix:Prefix, currentRound:number, diffs: NTRCArray[], diffIndex:number = -1) {
+  computeMultiplicities(results:Iterator<Prefix>, prefix:Prefix, currentRound:number, diffs: RoundArray[], diffIndex:number = -1) {
     if(diffIndex === -1) {
       prefix[prefix.length - 2] = currentRound;
       prefix[prefix.length - 1] = this.inputCount;
@@ -1425,31 +1415,27 @@ export class JoinNode implements Node {
     } else {
       let startingRound = prefix[prefix.length - 2];
       let startingMultiplicity = prefix[prefix.length - 1];
-      let ntrcs = diffs[diffIndex];
+      let rounds = diffs[diffIndex];
       let roundToMultiplicity:{[round:number]: number} = {};
       let maxRound = currentRound;
-      for(let ix = 0; ix < ntrcs.length; ix += 4) {
-        // n = ix, t = ix + 1, r = ix + 2, c = ix + 3
-        let round = ntrcs[ix + 2];
-        let count = ntrcs[ix + 3];
-        let v = roundToMultiplicity[round] || 0;
-        roundToMultiplicity[round] = v + count;
-        maxRound = Math.max(maxRound, round);
-      }
+      let ix = 0;
       let currentRoundCount = 0;
-      for(let round = 0; round <= currentRound; round++) {
-        let count = roundToMultiplicity[round];
-        if(count) currentRoundCount += count;
+      for(let round of rounds) {
+        if(Math.abs(round) - 1 > currentRound) {
+          break;
+        }
+        currentRoundCount += round > 0 ? 1 : -1;
+        ix++;
       }
       if(currentRoundCount) {
         prefix[prefix.length - 2] = currentRound;
         prefix[prefix.length - 1] = startingMultiplicity * currentRoundCount;
         this.computeMultiplicities(results, prefix, currentRound, diffs, diffIndex + 1);
       }
-      for(let round = currentRound + 1; round <= maxRound; round++) {
-        let count = roundToMultiplicity[round];
-        if(!count) continue;
-        prefix[prefix.length - 2] = Math.max(startingRound, round);
+      for(; ix < rounds.length; ix++) {
+        let round = rounds[ix];
+        let count = round > 0 ? 1 : -1;
+        prefix[prefix.length - 2] = Math.abs(round) - 1;
         prefix[prefix.length - 1] = startingMultiplicity * count;
         this.computeMultiplicities(results, prefix, currentRound, diffs, diffIndex + 1);
       }
