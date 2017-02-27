@@ -336,14 +336,14 @@ export class HashIndex implements Index {
       if(!cIx) return results;
       if(isResolved(c)) { // ABC
         if(sumTimes(cIx[c], transaction, round) > 0) {
-          results.push({[fieldA]: +a, [fieldB]: +b, [fieldC]: +c, n} as any);
+          results.push({[fieldA]: +a!, [fieldB]: +b, [fieldC]: +c, n} as any);
         }
         return results;
 
       } else { // ABc
         for(let c of Object.keys(cIx)) {
           if(sumTimes(cIx[c], transaction, round) > 0) {
-            results.push({[fieldA]: +a, [fieldB]: +b, [fieldC]: +c, n} as any);
+            results.push({[fieldA]: +a!, [fieldB]: +b, [fieldC]: +c, n} as any);
           }
         }
         return results;
@@ -354,12 +354,12 @@ export class HashIndex implements Index {
         if(!cIx) continue;
         if(isResolved(c)) {  // AbC
           if(sumTimes(cIx[c], transaction, round) > 0) {
-            results.push({[fieldA]: +a, [fieldB]: +b, [fieldC]: +c, n} as any);
+            results.push({[fieldA]: +a!, [fieldB]: +b, [fieldC]: +c, n} as any);
           }
         } else { // Abc
           for(let c of Object.keys(cIx)) {
             if(sumTimes(cIx[c], transaction, round) > 0) {
-              results.push({[fieldA]: +a, [fieldB]: +b, [fieldC]: +c, n} as any);
+              results.push({[fieldA]: +a!, [fieldB]: +b, [fieldC]: +c, n} as any);
             }
           }
         }

@@ -102,6 +102,10 @@ export class UIWatcher extends Watcher {
         let elem = find("ui/column");
         return [elem.add("tag", "html/element").add("tagname", "column")];
       })
+      .block("Decorate spacer elements as html.", ({find, record}) => {
+        let elem = find("ui/spacer");
+        return [elem.add("tag", "html/element").add("tagname", "spacer")];
+      })
 
     // Text
       .block("Decorate text elements as html.", ({find, record}) => {
