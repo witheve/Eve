@@ -10,10 +10,12 @@ var propertiesToTrack = ["block", "PresolveCheck", "GenericJoin"];
 type TimeReturn = number;
 export class NoopPerformanceTracker {
 
-  getTime: (start?:TimeReturn) => TimeReturn;
+  now: () => TimeReturn;
+  elapsed: (start:TimeReturn) => TimeReturn;
 
   constructor() {
-    this.getTime = () => 0;
+    this.now = () => 0;
+    this.elapsed = (start:any) => 0;
   }
   reset() { }
 
@@ -29,7 +31,6 @@ export class NoopPerformanceTracker {
 
 export class PerformanceTracker extends NoopPerformanceTracker {
 
-  getTime: (start?:TimeReturn) => TimeReturn;
   blocks:{[block:string]: {
     times: {[property:string]: number},
     counts: {[property:string]: number},
@@ -50,7 +51,8 @@ export class PerformanceTracker extends NoopPerformanceTracker {
   constructor() {
     super();
     this.reset();
-    this.getTime = time;
+    this.now = now;
+    this.elapsed = elapsed;
   }
 
   reset() {
@@ -68,37 +70,37 @@ export class PerformanceTracker extends NoopPerformanceTracker {
       found = blocks[name] = {counts: this._makePropertyHolder(), times: this._makePropertyHolder()};
     }
     this.activeBlock = name;
-    this.activeProperties["block"] = this.getTime();
+    this.activeProperties["block"] = this.now();
     found.counts["block"]++;
   }
 
   blockEnd(name:string) {
     let {blocks, activeBlock} = this;
-    blocks[activeBlock].times["block"] += this.getTime(this.activeProperties["block"])
+    blocks[activeBlock].times["block"] += this.elapsed(this.activeProperties["block"])
     this.activeBlock = "";
   }
 
   blockTime(property:string) {
     let {blocks, activeBlock} = this;
     let found = blocks[activeBlock];
-    this.activeProperties[property] = this.getTime();
+    this.activeProperties[property] = this.now();
     found.counts[property]++;
   }
 
   blockTimeEnd(property:string) {
     let {blocks, activeBlock} = this;
     let found = blocks[activeBlock];
-    found.times[property] += this.getTime(this.activeProperties[property]);
+    found.times[property] += this.elapsed(this.activeProperties[property]);
   }
 
   time(property:string) {
     let {counts} = this;
-    this.activeProperties[property] = this.getTime();
+    this.activeProperties[property] = this.now();
     counts[property]++;
   }
   timeEnd(property:string) {
     let {times} = this;
-    times[property] += this.getTime(this.activeProperties[property]);
+    times[property] += this.elapsed(this.activeProperties[property]);
   }
 
   serialize() {
@@ -110,16 +112,21 @@ export class PerformanceTracker extends NoopPerformanceTracker {
   }
 }
 
-export var time: (start?:any) => any;
+export var now: () => any;
+export var elapsed: (start:any) => any;
 if(global.process) {
-  time = function(start?): any {
-    if ( !start ) return process.hrtime();
+  now = function(start?): any {
+    return process.hrtime();
+  }
+  elapsed = function(start:any): any {
     let end = process.hrtime(start);
     return ((end[0]*1000) + (end[1]/1000000));
   }
 } else {
-  time = function(start?): any {
-    if ( !start ) return performance.now();
+  now = function(start?): any {
+    return performance.now();
+  }
+  elapsed = function(start:any): any {
     let end = performance.now();
     return end - start;
   }

@@ -5,7 +5,7 @@ import {NoopPerformanceTracker, PerformanceTracker} from "./performance";
 //debugging utilities
 //------------------------------------------------------------------------
 
-const TRACKER = false;
+const TRACKER = true;
 
 // Turning this on causes all of the debug(.*) statements to print to the
 // console.  This is useful to see exactly what the runtime is doing as it
