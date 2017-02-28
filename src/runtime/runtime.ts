@@ -5,7 +5,7 @@ import {NoopPerformanceTracker, PerformanceTracker} from "./performance";
 //debugging utilities
 //------------------------------------------------------------------------
 
-const TRACKER = true;
+const TRACKER = false;
 
 // Turning this on causes all of the debug(.*) statements to print to the
 // console.  This is useful to see exactly what the runtime is doing as it
@@ -590,6 +590,7 @@ export interface Constraint {
   setup():void;
   getRegisters():Register[];
   applyInput(input:Change, prefix:Prefix):ApplyInputState;
+  isAffected(input:Change):ApplyInputState;
   propose(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:any[]):Proposal;
   resolveProposal(context:EvaluationContext, prefix:Prefix, proposal:Proposal, transaction:number, round:number, results:any[]):ID[][];
   accept(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, solvingFor:Register[]):boolean;
@@ -653,6 +654,13 @@ export class MoveConstraint {
 
   getRegisters():Register[] {
     return this.registers;
+  }
+
+  isAffected(input:Change):ApplyInputState {
+    if(this.shouldApplyInput && !isRegister(this.from)) {
+      return ApplyInputState.pass;
+    }
+    return ApplyInputState.none;
   }
 
   applyInput(input:Change, prefix:Prefix):ApplyInputState {
@@ -770,6 +778,15 @@ export class Scan implements Constraint {
     return this[key] !== IGNORE_REG && !isRegister(this[key]) && this[key] !== input[key];
   }
 
+  isAffected(input:Change):ApplyInputState {
+    // If this change isn't relevant to this scan, skip it.
+    if(this.notStaticMatch(input, "e")) return ApplyInputState.none;
+    if(this.notStaticMatch(input, "a")) return ApplyInputState.none;
+    if(this.notStaticMatch(input, "v")) return ApplyInputState.none;
+    if(this.notStaticMatch(input, "n")) return ApplyInputState.none;
+    return ApplyInputState.pass;
+  }
+
   /**
    * Apply new changes that may affect this scan to the prefix to
    * derive only the results affected by this change.  If the change
@@ -778,13 +795,7 @@ export class Scan implements Constraint {
    * satisfied due to proposals from previous scans) we'll return
    * false.
    */
-  applyInput(input:Change, prefix:Prefix) {
-    // If this change isn't relevant to this scan, skip it.
-    if(this.notStaticMatch(input, "e")) return ApplyInputState.none;
-    if(this.notStaticMatch(input, "a")) return ApplyInputState.none;
-    if(this.notStaticMatch(input, "v")) return ApplyInputState.none;
-    if(this.notStaticMatch(input, "n")) return ApplyInputState.none;
-
+  applyInput(input:Change, prefix:Prefix):ApplyInputState {
     // For each register field of this scan:
     //   if the required value is impossible fail,
     //   else add this new value to the appropriate prefix register.
@@ -867,10 +878,37 @@ export class Scan implements Constraint {
     let value = this[field];
     if(isRegister(value)) {
       this.registers.push(value);
-      parts.push(`resolved.${field} = prefix[this.${field}.offset];`);
+      parts.push(`resolved.${field} = prefix[${value.offset}];`);
     } else {
       this.resolved[field] = value;
     }
+  }
+
+  setupIsAffected() {
+    let fields:EAVNField[] = ["e", "a", "v", "n"];
+    let parts:string[] = [];
+    for(let field of fields) {
+      let value = this[field];
+      if(!isRegister(value) && value !== IGNORE_REG) {
+        parts.push(`if(${value} !== change["${field}"]) return ${ApplyInputState.none};`)
+      }
+    }
+    this.isAffected = new Function("change", parts.join("\n")) as (change:Change) => ApplyInputState;
+  }
+
+  setupApplyInput() {
+    let fields:EAVNField[] = ["e", "a", "v", "n"];
+    let parts:string[] = [];
+    for(let field of fields) {
+      let value = this[field];
+      if(isRegister(value)) {
+        parts.push(`if(prefix[${value.offset}] !== undefined && prefix[${value.offset}] !== input.${field}) return ${ApplyInputState.fail};
+                    prefix[${value.offset}] = input.${field};`);
+
+      }
+    }
+    parts.push(`return ${ApplyInputState.pass}`)
+    this.applyInput = new Function("input", "prefix", parts.join("\n")) as (change:Change, prefix:Prefix) => ApplyInputState;
   }
 
   // We precompute the registers we're interested in for fast accepts.
@@ -882,6 +920,9 @@ export class Scan implements Constraint {
     this.setupRegister("n", parts);
     parts.push("return resolved");
     this.resolve = new Function("prefix", parts.join("\n")) as (prefix:Prefix) => ResolvedEAVN;
+
+    this.setupIsAffected();
+    this.setupApplyInput();
     for(let register of this.registers) {
       this.registerLookup[register.offset] = true;
     }
@@ -971,6 +1012,40 @@ export class FunctionConstraint implements Constraint {
     for(let register of this.registers) {
       this.registerLookup[register.offset] = true;
     }
+
+    this.setupResolve();
+    this.setupResolveRest();
+  }
+
+  setupResolve() {
+    let {resolved} = this;
+    let parts = ["var resolved = this.resolved;"];
+    for(let fieldName of this.fieldNames) {
+      let field = this.fields[fieldName];
+      if(isRegister(field)) {
+        parts.push(`resolved["${fieldName}"] = prefix[${field.offset}];`);
+      } else {
+        resolved[fieldName] = field;
+      }
+    }
+    parts.push("return resolved");
+    this.resolve = new Function("prefix", parts.join("\n")) as (prefix:Prefix) => ResolvedEAVN;
+  }
+
+  setupResolveRest() {
+    let {resolvedRest} = this;
+    let parts = ["var resolvedRest = this.resolvedRest;"];
+    let ix = 0;
+    for(let field of this.restFields) {
+      if(isRegister(field)) {
+        parts.push(`resolvedRest[${ix}] = prefix[${field.offset}]`);
+      } else {
+        resolvedRest[ix] = field;
+      }
+      ix++;
+    }
+    parts.push("return resolvedRest;");
+    this.resolveRest = new Function("prefix", parts.join("\n")) as (prefix:Prefix) => number[];
   }
 
   getRegisters() {
@@ -1017,6 +1092,7 @@ export class FunctionConstraint implements Constraint {
 
   // Function constraints have nothing to apply to the input, so they
   // always return ApplyInputState.none
+  isAffected(input:Change):ApplyInputState { return ApplyInputState.none; }
   applyInput(input:Change, prefix:Prefix):ApplyInputState { return ApplyInputState.none; }
 
   propose(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:any[]):Proposal {
@@ -1334,7 +1410,7 @@ export class JoinNode implements Node {
     affectedConstraints.clear();
     for(let ix = 0, len = this.constraints.length; ix < len; ix++) {
       let constraint = this.constraints[ix];
-      let result = constraint.applyInput(input, prefix);
+      let result = constraint.isAffected(input);
 
       if(result !== ApplyInputState.none) {
         affectedConstraints.push(constraint);
@@ -1352,9 +1428,9 @@ export class JoinNode implements Node {
       if(prefix[ix] !== undefined) countOfSolved++;
     }
     let remainingToSolve = this.registerLength - countOfSolved;
-    context.tracker.blockTime("PresolveCheck");
+    // context.tracker.blockTime("PresolveCheck");
     let valid = this.presolveCheck(context, input, prefix, transaction, round);
-    context.tracker.blockTimeEnd("PresolveCheck");
+    // context.tracker.blockTimeEnd("PresolveCheck");
     //debug("        Join combo valid:", valid, remainingToSolve, countOfSolved, this.registerLength);
     if(!valid) {
       // do nothing
@@ -1375,9 +1451,9 @@ export class JoinNode implements Node {
       //debug("              GJ:", remainingToSolve, this.constraints);
       // For each node, find the new results that match the prefix.
       let ol = results.length;
-      context.tracker.blockTime("GenericJoin");
+      // context.tracker.blockTime("GenericJoin");
       this.genericJoin(context, prefix, transaction, round, results, remainingToSolve);
-      context.tracker.blockTimeEnd("GenericJoin");
+      // context.tracker.blockTimeEnd("GenericJoin");
       return true;
     }
   }
