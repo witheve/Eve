@@ -1,9 +1,41 @@
 import {Program} from "./runtime/dsl2";
 
-// import {create} from "./programs/tag-browser";
-// let prog = create();
+function doIt() {
+  let prog = new Program("test program");
+  prog.attach("tag browser");
+  console.log(prog);
+  prog.test(0, [
+    [1, "tag", "person"],
+    [1, "name", "jeff"],
 
-import "./programs/flappy";
+    [2, "tag", "person"],
+    [2, "name", "sandra"],
+    [2, "pet", 3],
+
+    [3, "tag", "pet"],
+    [3, "tag", "dog"],
+    [3, "name", "bert"],
+
+    [4, "tag", "person"],
+    [4, "name", "rachel"],
+    [4, "pet", 5],
+    [4, "pet", 6],
+
+    [5, "tag", "pet"],
+    [5, "tag", "cat"],
+    [5, "name", "Felicia"],
+
+    [6, "tag", "pet"],
+    [6, "tag", "cat"],
+    [6, "name", "Mr. Whiskers"]
+  ]);
+}
+(global as any).doIt = doIt;
+doIt();
+
+
+
+// import "./programs/flappy";
 
 let assert = {};
 function verify(assert:any, prog:Program, ins:any[], outs:any[]) {
