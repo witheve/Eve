@@ -291,6 +291,42 @@ export class HashIndex implements Index {
 }
 
 //------------------------------------------------------------------------
+// Bit Matrix index
+//------------------------------------------------------------------------
+
+export class BitMatrixIndex {
+
+  insert(change:Change):void {
+    throw new Error("not implemented")
+  }
+
+  hasImpact(change:Change):boolean {
+    throw new Error("not implemented")
+  }
+
+  propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):Proposal {
+    throw new Error("not implemented")
+  }
+
+  resolveProposal(proposal:Proposal):any[][] {
+    throw new Error("not implemented")
+  }
+
+  check(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):boolean {
+    throw new Error("not implemented")
+  }
+
+  getDiffs(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue):RoundArray {
+    throw new Error("not implemented")
+  }
+
+  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[] {
+    throw new Error("not implemented")
+  }
+}
+
+
+//------------------------------------------------------------------------
 // DistinctIndex
 //------------------------------------------------------------------------
 

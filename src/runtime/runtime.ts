@@ -1614,21 +1614,9 @@ export class JoinNode implements Node {
     let didSomething = false;
     let affectedConstraints = this.findAffectedConstraints(input, prefix);
 
-    // @FIXME: This is frivolously wasteful.
-    for(let constraintIxz = 0; constraintIxz < affectedConstraints.length; constraintIxz++) {
-      let constraint = affectedConstraints.array[constraintIxz];
-      this.unapplyConstraint(constraint, prefix);
-    }
-
     let combinationCount = Math.pow(2, affectedConstraints.length);
     for(let comboIx = combinationCount - 1; comboIx > 0; comboIx--) {
       //console.log("  Combo:", comboIx);
-
-      let constraint;
-      affectedConstraints.reset();
-      while((constraint = affectedConstraints.next()) !== undefined) {
-        this.unapplyConstraint(constraint, prefix);
-      }
 
       let shouldApply = true;
 
@@ -1654,13 +1642,18 @@ export class JoinNode implements Node {
       if(shouldApply) {
         didSomething = this.applyCombination(context, input, prefix, transaction, round, results) || didSomething;
       }
+
+      let constraint;
+      affectedConstraints.reset();
+      while((constraint = affectedConstraints.next()) !== undefined) {
+        this.unapplyConstraint(constraint, prefix);
+      }
     }
 
     affectedConstraints.reset();
     let constraint;
     while((constraint = affectedConstraints.next()) !== undefined) {
       constraint.isInput = false;
-      this.unapplyConstraint(constraint, prefix);
     }
 
     return didSomething;
