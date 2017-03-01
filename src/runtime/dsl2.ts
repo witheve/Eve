@@ -85,11 +85,23 @@ export class Reference {
     return proxied;
   }
 
-  add(attribute:Value, value:Value|Value[]):Reference {
+  add(attrMap:{[attr:string]:Value|Value[]}):Reference;
+  add(attribute:Value, value:Value|Value[]):Reference;
+  add(attrMapOrAttr:Value|{[attr:string]:Value|Value[]}, value?:Value|Value[]):Reference {
     if(this.__owner instanceof Record) {
       // we only allow you to call add at the root context
       if(this.__context.parent) throw new Error("Add can't be called in a sub-block");
-      this.__owner.add(this.__context, attribute, value);
+      if(isRawValue(attrMapOrAttr) || isReference(attrMapOrAttr)) {
+        let attribute = attrMapOrAttr;
+        if(value === undefined) throw new Error("Can't call add without a value.");
+        this.__owner.add(this.__context, attribute, value);
+      } else {
+        for(let attribute of Object.keys(attrMapOrAttr)) {
+          let value = attrMapOrAttr[attribute];
+          this.__owner.add(this.__context, attribute, value);
+        }
+      }
+
       return this;
     } else {
       throw new Error("Can't call add on a non-record");
@@ -1583,7 +1595,7 @@ export class Program {
     }
     trans.exec(this.context);
     // console.timeEnd("input");
-    // console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
+    //console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
     return trans;
   }
 
@@ -1597,7 +1609,7 @@ export class Program {
   }
 
   test(transaction:number, eavns:TestChange[]) {
-    console.group("test " + transaction);
+    console.group(this.name + " test " + transaction);
     if(transaction >= this.nextTransactionId) this.nextTransactionId = transaction + 1;
     let trans = new Runtime.Transaction(transaction, this.blocks, this.lastWatch ? this.exporter.handle : undefined);
     for(let [e, a, v, round = 0, count = 1] of eavns as EAVRCTuple[]) {
