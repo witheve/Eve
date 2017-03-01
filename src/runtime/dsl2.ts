@@ -818,7 +818,9 @@ class LinearFlow extends DSLBase {
         if(isASTString(node.left) || isASTString(node.right)) {
           func = operators["concat"];
         }
-        node.update(`${functionArgs[0]}.lib.${func}(${node.left.source()}, ${node.right.source()})`)
+        if(func) {
+          node.update(`${functionArgs[0]}.lib.${func}(${node.left.source()}, ${node.right.source()})`)
+        }
       }
     });
     let updated = output.toString();
