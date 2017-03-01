@@ -1,5 +1,5 @@
-
-import {Proposal, Change, ResolvedValue, createArray, createHash, IGNORE_REG, ID, EAVN, EAVNField, Register, Constraint, ALLOCATION_COUNT, NTRCArray} from "./runtime";
+import {Proposal, Change, ResolvedValue, createArray, createHash, IGNORE_REG, ID, EAVN, EAVNField,
+        Iterator, Register, Constraint, ALLOCATION_COUNT, NTRCArray} from "./runtime";
 
 //------------------------------------------------------------------------
 // Utils
@@ -33,9 +33,9 @@ export interface Index {
   getImpact(change:Change):number;
   propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):Proposal;
   resolveProposal(proposal:Proposal):any[][];
-  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[];
   check(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):boolean;
   getDiffs(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue):NTRCArray;
+  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[];
 }
 
 export class ListIndex implements Index {
@@ -131,21 +131,6 @@ export class ListIndex implements Index {
     return false;
   }
 
-  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[] {
-    let final = createArray() as EAVN[];
-    for(let change of this.changes) {
-      if((e === undefined || e === IGNORE_REG || e === change.e) &&
-         (a === undefined || a === IGNORE_REG || a === change.a) &&
-         (v === undefined || v === IGNORE_REG || v === change.v) &&
-         (n === undefined || n === IGNORE_REG || n === change.n) &&
-         (change.transaction <= transaction) &&
-         (change.round <= round)) {
-        final.push(new EAVN(change.e, change.a, change.v, change.n))
-      }
-    }
-    return final;
-  }
-
   getDiffs(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue):NTRCArray {
     let final = createArray() as NTRCArray;
     for(let change of this.changes) {
@@ -157,7 +142,10 @@ export class ListIndex implements Index {
       }
     }
     return final;
+  }
 
+  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[] {
+    throw new Error("not implemented");
   }
 }
 
@@ -188,11 +176,23 @@ export class HashIndex implements Index {
     let aIx = getOrCreateHash(eIx, change.a);
     let vIx = getOrCreateArray(aIx, change.v);
     vIx.push(change.n, change.transaction, change.round, change.count);
+    let shouldRemove = false;
+    if(change.count < 0) {
+      let total = sumTimes(vIx, Infinity, Infinity);
+      if(!total) {
+        delete aIx[change.v];
+        shouldRemove = true;
+      }
+    }
 
     aIx = getOrCreateHash(this.aveIndex, change.a);
     vIx = getOrCreateHash(aIx, change.v);
     eIx = getOrCreateArray(vIx, change.e);
-    eIx.push(change.n, change.transaction, change.round, change.count);
+    if(shouldRemove) {
+      delete vIx[change.e];
+    } else {
+      eIx.push(change.n, change.transaction, change.round, change.count);
+    }
 
     this.cardinality++;
   }
@@ -295,15 +295,15 @@ export class HashIndex implements Index {
     } else {
       for(let key of Object.keys(bIx)) {
         let cIx = bIx[key];
-        if(!cIx) return false;
+        if(!cIx) continue;
         if(isResolved(c)) {
           let ntrcArray = cIx[c];
           if(ntrcArray) {
             return true;
           }
           return false;
-        } else {
-          return Object.keys(cIx).length !== 0;
+        } else if(Object.keys(cIx).length !== 0) {
+          return true;
         }
       }
     }
@@ -319,8 +319,63 @@ export class HashIndex implements Index {
     return true;
   }
 
+  // This function finds all EAVs in the index that match the given
+  // pattern at the stated time. If a level is free, we have to run
+  // through the potential values until we come across one that could
+  // match or we run out of values to check.
+  walkGet(index:any, a:ResolvedValue, b:ResolvedValue, c:ResolvedValue, n:ResolvedValue, fieldB:EAVNField, fieldC:EAVNField, transaction:number, round:number):EAVN[] {
+    let fieldA:EAVNField = "e";
+    if(fieldB === "e") fieldA = "a";
+
+    let results:EAVN[] = createArray("IndexWalkGet");
+
+    let bIx = index[a as ID];
+    if(!bIx) return results;
+    if(isResolved(b)) {
+      let cIx = bIx[b];
+      if(!cIx) return results;
+      if(isResolved(c)) { // ABC
+        if(sumTimes(cIx[c], transaction, round) > 0) {
+          results.push({[fieldA]: +a, [fieldB]: +b, [fieldC]: +c, n} as any);
+        }
+        return results;
+
+      } else { // ABc
+        for(let c of Object.keys(cIx)) {
+          if(sumTimes(cIx[c], transaction, round) > 0) {
+            results.push({[fieldA]: +a, [fieldB]: +b, [fieldC]: +c, n} as any);
+          }
+        }
+        return results;
+      }
+    } else {
+      for(let b of Object.keys(bIx)) {
+        let cIx = bIx[b];
+        if(!cIx) continue;
+        if(isResolved(c)) {  // AbC
+          if(sumTimes(cIx[c], transaction, round) > 0) {
+            results.push({[fieldA]: +a, [fieldB]: +b, [fieldC]: +c, n} as any);
+          }
+        } else { // Abc
+          for(let c of Object.keys(cIx)) {
+            if(sumTimes(cIx[c], transaction, round) > 0) {
+              results.push({[fieldA]: +a, [fieldB]: +b, [fieldC]: +c, n} as any);
+            }
+          }
+        }
+      }
+      return results;
+    }
+
+    // throw new Error("HashIndex.walkGet eav not implemented.");
+  }
+
   get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[] {
-    throw new Error("Not implemented");
+    if(isResolved(e)) {
+      return this.walkGet(this.eavIndex, e, a, v, n, "a", "v", transaction, round);
+    } else if(isResolved(a)) {
+      return this.walkGet(this.aveIndex, a, v, e, n, "v", "e", transaction, round);
+    } else throw new Error("HashIndex.get eaV not implemented.");
   }
 
   getDiffs(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue):NTRCArray {
@@ -336,45 +391,102 @@ export class HashIndex implements Index {
 
 }
 
+//------------------------------------------------------------------------
+// DistinctIndex
+//------------------------------------------------------------------------
 
-// @TODO: Implement
-class MatrixIndex implements Index {
+export class DistinctIndex {
+  index:{[key:string]: (number|undefined)[]|undefined} = {};
 
-  constructor() {
-    throw new Error("Not implemented");
+  shouldOutput(e:ID, a:ID, v:ID, prefixRound:number, prefixCount:number):number[] {
+    // @FIXME: When we start to unintern, we'll have invalid keys left in this index,
+    // so we'll need to delete the keys themselves from the index
+    let key = `${e}|${a}|${v}`;
+    let {index} = this;
+    let roundCounts = index[key] || createArray("Insert intermediate counts");
+    index[key] = roundCounts;
+    // console.log("         counts: ", roundCounts);
+
+    let curCount = 0;
+    let startingCount = roundCounts[prefixRound] = roundCounts[prefixRound] || 0;
+    let minRound = Math.min(roundCounts.length, prefixRound + 1);
+    for(let roundIx = 0; roundIx < minRound; roundIx++) {
+      let prevCount = roundCounts[roundIx];
+      if(!prevCount) continue;
+      curCount += prevCount;
+    }
+
+    // console.log("           foo:", curCount);
+
+    let deltas = [];
+
+    // We only need delta changed here because if there's a round delta, it
+    // would have been applied already.
+
+    if(prefixCount === -Infinity) {
+      if(curCount === Infinity) {
+        curCount = 1;
+        startingCount = 1;
+      }
+      prefixCount = -curCount;
+    }
+    let nextCount = curCount + prefixCount;
+    let delta = 0;
+    if(curCount == 0 && nextCount > 0) delta = 1;
+    if(curCount > 0 && nextCount == 0) delta = -1;
+    if(delta) {
+      deltas.push(prefixRound, delta);
+    }
+    curCount = nextCount;
+    roundCounts[prefixRound] = startingCount + prefixCount;
+    // console.log("          DISTINCT",  {curCount, nextCount, delta, roundCounts})
+
+    for(let roundIx = prefixRound + 1; roundIx < roundCounts.length; roundIx++) {
+      let roundCount = roundCounts[roundIx];
+      if(roundCount === undefined) continue;
+
+      let lastCount = curCount - prefixCount;
+      let nextCount = lastCount + roundCount;
+
+      let delta = 0;
+      if(lastCount == 0 && nextCount > 0) delta = 1;
+      if(lastCount > 0 && nextCount == 0) delta = -1;
+
+      let lastCountChanged = curCount;
+      let nextCountChanged = curCount + roundCount;
+
+      let deltaChanged = 0;
+      if(lastCountChanged == 0 && nextCountChanged > 0) deltaChanged = 1;
+      if(lastCountChanged > 0 && nextCountChanged == 0) deltaChanged = -1;
+
+      // console.log("      round:", roundIx, {delta, deltaChanged, lastCountChanged, nextCountChanged});
+
+      let finalDelta = deltaChanged - delta;
+      // console.log("            loop:", roundIx, curCount, prev, nextCount, next, {prevDelta, newDelta, finalDelta})
+
+      if(finalDelta) {
+        // roundCounts[roundIx] += prefixCount * -1;
+        // console.log("            changed:", roundIx, finalDelta)
+        deltas.push(roundIx, finalDelta);
+      }
+
+      curCount = nextCountChanged;
+    }
+    // console.log("         post counts: ", roundCounts);
+
+    return deltas;
   }
 
-  insert(change:Change) {
-  }
-
-  hasImpact(input:Change) {
-    let {e,a,v,n} = input;
-    return false;
-  }
-
-  getImpact(input:Change) {
-    let {e,a,v,n} = input;
-    return 0;
-  }
-
-  resolveProposal(proposal:Proposal) {
-    return createArray();
-  }
-
-  propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number) {
-    return proposal;
-  }
-
-  check(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):boolean {
-    return false;
-  }
-
-  get(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):EAVN[] {
-    let final = createArray() as EAVN[];
-    return final;
-  }
-
-  getDiffs(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue):NTRCArray {
-    return [];
+  distinct(input:Change, transactionId:number, results:Iterator<Change>):boolean {
+    // console.log("     checking: ", input.toString());
+    let {e, a, v, n, round, count} = input;
+    let deltas = this.shouldOutput(e, a, v, round, count);
+    for(let deltaIx = 0; deltaIx < deltas.length; deltaIx += 2) {
+      let deltaRound = deltas[deltaIx];
+      let delta = deltas[deltaIx + 1];
+      let change = new Change(e!, a!, v!, n!, transactionId, deltaRound, delta);
+      results.push(change)
+    }
+    return deltas.length > 0;
   }
 }

@@ -4,10 +4,12 @@
 // Javascript DSL for writing Eve programs
 //--------------------------------------------------------------------
 
-import {RawValue, Register, isRegister, GlobalInterner, ID, concatArray} from "./runtime";
+import {RawValue, Change, RawEAV, RawEAVC, Register, isRegister, GlobalInterner, ID, concatArray} from "./runtime";
 import * as Runtime from "./runtime";
 import * as indexes from "./indexes";
-import {Watcher} from "../watchers/watcher";
+import {Watcher, Exporter, DiffConsumer, ObjectConsumer, RawRecord} from "../watchers/watcher";
+import "./stdlib";
+import {v4 as uuid} from "node-uuid";
 
 const UNASSIGNED = -1;
 
@@ -17,6 +19,34 @@ declare var Proxy:new (obj:any, proxy:any) => any;
 
 function isArray<T>(v:any): v is Array<T> {
   return v && v.constructor === Array;
+}
+
+function macro<FuncType extends Function>(func:FuncType, transform:(code:string, args:string[], name:string) => string):FuncType {
+  let code = func.toString();
+  // trim the function(...) { from the start and capture the arg names
+
+  let name:string = "";
+  code = code.replace(/function\s*(\w*)\s*/, (str:string, funcName:string) => {
+    name = funcName;
+    return "";
+  })
+
+  let functionArgs:string[] = [];
+  code = code.replace(/\((.*)\)\s*\{/m, function(str:string, args:string) {
+    functionArgs.push.apply(functionArgs, args.split(",").map((str) => str.trim()));
+    return "";
+  });
+  // trim the final } since we removed the function bit
+  code = code.substring(0, code.length - 1);
+  code = transform(code, functionArgs, name);
+
+  let neueFunc = (new Function(`
+    return function ${name}(${functionArgs.join(", ")}) {
+      ${code}
+    };
+  `))() as FuncType;
+
+  return neueFunc;
 }
 
 //--------------------------------------------------------------------
@@ -55,7 +85,7 @@ export class Reference {
     return proxied;
   }
 
-  add(attribute:Value, value:Value):Reference {
+  add(attribute:Value, value:Value|Value[]):Reference {
     if(this.__owner instanceof Record) {
       // we only allow you to call add at the root context
       if(this.__context.parent) throw new Error("Add can't be called in a sub-block");
@@ -66,8 +96,16 @@ export class Reference {
     }
   }
 
-  remove() {
-    throw new Error("Implement me!");
+  // @TODO: allow free A's and V's here
+  remove(attribute:Value, value:Value|Value[]):Reference {
+    if(this.__owner instanceof Record) {
+      // we only allow you to call remove at the root context
+      if(this.__context.parent) throw new Error("Add can't be called in a sub-block");
+      this.__owner.remove(this.__context, attribute, value);
+      return this;
+    } else {
+      throw new Error("Can't call add on a non-record");
+    }
   }
 
   __proxy() {
@@ -178,6 +216,13 @@ export class ReferenceContext {
   }
 
   interned(ref:Reference|RawValue):Register|ID {
+    let value = this.getValue(ref);
+    if(isRawValue(value)) return GlobalInterner.intern(value);
+    return value;
+  }
+
+  maybeInterned(ref:Reference|RawValue|undefined):Register|ID|undefined {
+    if(ref === undefined) return;
     let value = this.getValue(ref);
     if(isRawValue(value)) return GlobalInterner.intern(value);
     return value;
@@ -405,14 +450,12 @@ class FlowLevel {
 
     for(let choose of this.chooses) {
       // For why we pass items down, see the comment about not
-      let node = choose.compile(toPass.concat(items));
-      join = new Runtime.BinaryJoinRight(join, node, choose.getInputRegisters());
+      join = choose.compile(join);
     }
 
     for(let union of this.unions) {
       // For why we pass items down, see the comment about not
-      let node = union.compile(toPass.concat(items));
-      join = new Runtime.BinaryJoinRight(join, node, union.getInputRegisters());
+      join = union.compile(join);
     }
 
     for(let aggregate of this.aggregates) {
@@ -565,7 +608,7 @@ class FlowLevel {
 }
 
 class DSLBase {
-  static CurrentID = 0;
+  static CurrentID = 1;
   ID = DSLBase.CurrentID++;
 }
 
@@ -587,7 +630,7 @@ class LinearFlow extends DSLBase {
       transformed = this.transform(func);
     }
     ReferenceContext.push(this.context);
-    let results = transformed(this);
+    let results = transformed.call(func, this) as Value[];
     if(isArray(results)) this.results = results;
     else if(results === undefined) this.results = [];
     else this.results = [results];
@@ -603,7 +646,7 @@ class LinearFlow extends DSLBase {
     let lib:any = {};
     let registered = Runtime.FunctionConstraint.registered;
     for(let name in registered) {
-      let parts = name.split("/");
+      let parts = name.replace(/\/\//gi, "/slash").split("/").map((v) => v === "slash" ? "/" : v);
       let final = parts.pop();
       let found = lib;
       for(let part of parts) {
@@ -705,7 +748,8 @@ class LinearFlow extends DSLBase {
     this.context.unify();
   }
 
-  compile(items:Node[] = []):Runtime.Node[] {
+  compile(_:Node[] = []):Runtime.Node[] {
+    let items:Node[] = []
     this.unify();
     let nodes:Runtime.Node[] = [];
 
@@ -722,11 +766,19 @@ class LinearFlow extends DSLBase {
     }
 
     // all the inputs end up at the end
+    let outputs:Runtime.OutputNode[] = [];
     for(let record of this.collector.inserts) {
       let compiled = record.compile();
       for(let node of compiled) {
-        nodes.push(node as Runtime.Node);
+        if(node instanceof Runtime.WatchNode) {
+          nodes.push(node);
+        } else {
+          outputs.push(node as any); // @FIXME: types
+        }
       }
+    }
+    if(outputs.length) {
+      nodes.push(new Runtime.OutputWrapperNode(outputs));
     }
 
     this.levels = levels;
@@ -738,21 +790,10 @@ class LinearFlow extends DSLBase {
   //------------------------------------------------------------------
 
   transform(func:LinearFlowFunction) {
-    let functionArgs:string[] = [];
-    let code = func.toString();
-    // trim the function(...) { from the start and capture the arg names
-    code = code.replace(/function\s*\((.*)\)\s*\{/, function(str:string, args:string) {
-      functionArgs.push.apply(functionArgs, args.split(",").map((str) => str.trim()));
-      return "";
-    });
-    // trim the final } since we removed the function bit
-    code = code.substring(0, code.length - 1);
-    code = this.transformCode(code, functionArgs);
-    let neueFunc = new Function(functionArgs[0], code) as LinearFlowFunction;
-    return neueFunc;
+    return macro(func, this.transformCode);
   }
 
-  replaceInfix(strings:string[], functionArgs:string[], code:string, regex:RegExp, prefix?:string, replaceOp?:string) {
+  replaceInfix(strings:string[], functionArgs:string[], code:string, regex:RegExp, prefix?:string, replaceOp?:{[key:string]:string}) {
     let libArg = `${functionArgs[0]}.lib`;
     let hasChanged = true;
     while(hasChanged) {
@@ -766,7 +807,7 @@ class LinearFlow extends DSLBase {
         }
         left = this.transformCode(left, functionArgs);
         right = this.transformCode(right, functionArgs);
-        let finalOp = replaceOp || `${prefix}["${op}"]`;
+        let finalOp = replaceOp && replaceOp[op] || `${prefix}["${op}"]`;
         strings.push(`${libArg}.${finalOp}(${left}, ${right})`);
         return "____" + (strings.length - 1) + "____";
       })
@@ -774,7 +815,7 @@ class LinearFlow extends DSLBase {
     return code;
   }
 
-  transformCode(code:string, functionArgs:string[]):string {
+  transformCode = (code:string, functionArgs:string[]):string => {
     let infixParam = "((?:(?:[a-z0-9_\.]+(?:\\[\".*?\"\\])?)+(?:\\(.*\\))?)|\\(.*\\))";
     let stringPlaceholder = "(____[0-9]+____)";
 
@@ -787,7 +828,7 @@ class LinearFlow extends DSLBase {
     // "foo" + person.name -> fn.eve.internal.concat("foo", person.name)
     // person.name + "foo" -> fn.eve.internal.concat(person.name, "foo")
     let stringAddition = new RegExp(`(?:${infixParam}\\s*(\\+)\\s*${stringPlaceholder})|(?:${stringPlaceholder}\\s*(\\+)\\s*${infixParam})`,"gi");
-    code = this.replaceInfix(strings, functionArgs, code, stringAddition, "", "eve.internal.concat");
+    code = this.replaceInfix(strings, functionArgs, code, stringAddition, "", {"+": "eve.internal.concat"});
 
     // a * b -> fn.math["*"](a, b)
     // a / b -> fn.math["/"](a, b)
@@ -825,6 +866,20 @@ class WatchFlow extends LinearFlow {
   collect(node:Node) {
     if(!(node instanceof Watch) && node instanceof Insert) {
       node = node.toWatch();
+      return;
+    }
+    super.collect(node);
+  }
+}
+
+//--------------------------------------------------------------------
+// CommitFlow
+//--------------------------------------------------------------------
+
+class CommitFlow extends LinearFlow {
+  collect(node:Node) {
+    if(!(node instanceof CommitInsert) && !(node instanceof CommitRemove) && node instanceof Insert) {
+      node = node.toCommit();
       return;
     }
     super.collect(node);
@@ -879,14 +934,26 @@ class Record extends DSLBase {
     return this.record!;
   }
 
-  add(context:ReferenceContext, attribute:Value, value:Value) {
+  add(context:ReferenceContext, attribute:Value, value:Value|Value[]) {
     let insert = new Insert(context, [], {}, this.reference());
-    insert.add(context, attribute, value);
+    if(!isArray(value)) {
+      insert.add(context, attribute, value);
+    } else {
+      for(let v of value) {
+        insert.add(context, attribute, v);
+      }
+    }
   }
 
-  remove(context:ReferenceContext, attribute:Value, value?:Value) {
+  remove(context:ReferenceContext, attribute:Value, value:Value|Value[]) {
     let insert = new Insert(context, [], {}, this.reference());
-    insert.remove(context, attribute, value);
+    if(!isArray(value)) {
+      insert.remove(context, attribute, value);
+    } else {
+      for(let v of value) {
+        insert.remove(context, attribute, v);
+      }
+    }
   }
 
   copyToContext(activeContext:ReferenceContext) {
@@ -941,7 +1008,6 @@ class Record extends DSLBase {
       let a = attributes[ix];
       let v = attributes[ix + 1];
       // @TODO: get a real node id
-      let n = "awesome";
       constraints.push(new Runtime.Scan(e, context.interned(a), context.interned(v), Runtime.IGNORE_REG))
     }
     return constraints;
@@ -1042,12 +1108,27 @@ class Insert extends Record {
     return new Insert(context, undefined, undefined, record);
   }
 
-  add(context:ReferenceContext, attribute:Value, value:Value) {
-    this.attributes.push(attribute, value);
+  add(context:ReferenceContext, attribute:Value, value:Value|Value[]) {
+    if(!isArray(value)) {
+      this.attributes.push(attribute, value);
+    } else {
+      for(let v of value) {
+        this.attributes.push(attribute, v);
+      }
+    }
+    return this.reference();
   }
 
-  remove(context:ReferenceContext, attribute:Value, value?:Value) {
-    throw new Error("Implement me!");
+  remove(context:ReferenceContext, attribute:Value, value:Value|Value[]) {
+    let remove = new Remove(context, [], {}, this.record);
+    if(!isArray(value)) {
+      remove.attributes.push(attribute, value);
+    } else {
+      for(let v of value) {
+        remove.attributes.push(attribute, v);
+      }
+    }
+    return this.reference();
   }
 
   toWatch() {
@@ -1056,7 +1137,13 @@ class Insert extends Record {
     return watch;
   }
 
-  compile():(Runtime.Node|Runtime.Scan)[] {
+  toCommit() {
+    let commit = new CommitInsert(this.context, [], {}, this.record);
+    commit.attributes = this.attributes;
+    return commit;
+  }
+
+  compile():any[] {
     let {attributes, context} = this;
     let nodes = [];
     let e = context.interned(this.record!);
@@ -1064,12 +1151,42 @@ class Insert extends Record {
       let a = attributes[ix];
       let v = attributes[ix + 1];
       // @TODO: get a real node id
-      let n = "awesome";
+      let n = uuid();
       nodes.push(new Runtime.InsertNode(e, context.interned(a), context.interned(v), context.interned(n)))
     }
     return nodes;
   }
 }
+
+//--------------------------------------------------------------------
+// Remove
+//--------------------------------------------------------------------
+
+class Remove extends Insert {
+  toCommit() {
+    let commit = new CommitRemove(this.context, [], {}, this.record);
+    commit.attributes = this.attributes;
+    return commit;
+  }
+
+  compile():any[] {
+    let {attributes, context} = this;
+    let nodes = [];
+    let e = context.interned(this.record!);
+    for(let ix = 0, len = attributes.length; ix < len; ix += 2) {
+      let a = attributes[ix];
+      let v = attributes[ix + 1];
+
+      // @TODO: get a real node id
+      let n = uuid();
+      let internedV:any = context.maybeInterned(v); // @FIXME
+      internedV = internedV !== undefined ? internedV : Runtime.IGNORE_REG;
+      nodes.push(new Runtime.RemoveNode(e, context.interned(a), internedV, context.interned(n)));
+    }
+    return nodes;
+  }
+}
+
 
 //--------------------------------------------------------------------
 // Watch
@@ -1084,8 +1201,50 @@ class Watch extends Insert {
       let a = attributes[ix];
       let v = attributes[ix + 1];
       // @TODO: get a real node id
-      let n = "awesome";
+      let n = uuid();
       nodes.push(new Runtime.WatchNode(e, context.interned(a), context.interned(v), context.interned(n), context.flow.ID));
+    }
+    return nodes;
+  }
+}
+
+//--------------------------------------------------------------------
+// CommitInsert
+//--------------------------------------------------------------------
+
+class CommitInsert extends Insert {
+  compile():any[] {
+    let {attributes, context} = this;
+    let nodes = [];
+    let e = context.interned(this.record!);
+    for(let ix = 0, len = attributes.length; ix < len; ix += 2) {
+      let a = attributes[ix];
+      let v = attributes[ix + 1];
+      // @TODO: get a real node id
+      let n = uuid();
+      nodes.push(new Runtime.CommitInsertNode(e, context.interned(a), context.interned(v), context.interned(n)));
+    }
+    return nodes;
+  }
+}
+
+//--------------------------------------------------------------------
+// CommitRemove
+//--------------------------------------------------------------------
+
+class CommitRemove extends Remove {
+  compile():any[] {
+    let {attributes, context} = this;
+    let nodes = [];
+    let e = context.interned(this.record!);
+    for(let ix = 0, len = attributes.length; ix < len; ix += 2) {
+      let a = attributes[ix];
+      let v = attributes[ix + 1];
+      // @TODO: get a real node id
+      let n = uuid();
+      let internedV:any = context.maybeInterned(v); // @FIXME
+      internedV = internedV !== undefined ? internedV : Runtime.IGNORE_REG;
+      nodes.push(new Runtime.CommitRemoveNode(e, context.interned(a), internedV, context.interned(n)));
     }
     return nodes;
   }
@@ -1318,19 +1477,21 @@ class Union extends DSLBase {
     return 0;
   }
 
-  build(nodes:Runtime.Node[], inputs:Register[]):Runtime.Node {
-    return new Runtime.UnionFlow(nodes, inputs);
+  build(left: Runtime.Node, nodes:Runtime.Node[], inputs:Register[][], outputs:Register[]):Runtime.Node {
+    return new Runtime.UnionFlow(left, nodes, inputs, outputs);
   }
 
-  compile(items:Node[]) {
+  compile(join:Runtime.Node) {
     let {context} = this;
     let nodes:Runtime.Node[] = [];
+    let inputs:Register[][] = [];
+    let outputs = this.getOutputRegisters();
     for(let flow of this.branches) {
-      let compiled = flow.compile(items);
+      let compiled = flow.compile();
       nodes.push(compiled[0]);
+      inputs.push(flow.getInputRegisters().filter((v) => outputs.indexOf(v) === -1));
     }
-    let inputs = this.inputs.map((v) => context.getValue(v)).filter(isRegister) as Register[];
-    return this.build(nodes, inputs);
+    return this.build(join, nodes, inputs, this.getOutputRegisters());
   }
 }
 
@@ -1339,8 +1500,8 @@ class Union extends DSLBase {
 //--------------------------------------------------------------------
 
 class Choose extends Union {
-  build(nodes:Runtime.Node[], inputs:Register[]):Runtime.Node {
-    return new Runtime.ChooseFlow(nodes, inputs);
+  build(left: Runtime.Node, nodes:Runtime.Node[], inputs:Register[][], outputs:Register[]):Runtime.Node {
+    return new Runtime.ChooseFlow(left, nodes, inputs, outputs);
   }
 }
 
@@ -1354,22 +1515,54 @@ export type EAVRCTuple = [RawValue, RawValue, RawValue, number, number];
 export type TestChange =  EAVTuple | EAVRCTuple;
 
 export class Program {
+  context:Runtime.EvaluationContext;
   blocks:Runtime.Block[] = [];
   flows:LinearFlow[] = [];
   index:indexes.Index;
   nodeCount = 0;
+  nextTransactionId = 0;
 
-  protected exporter:Runtime.Exporter;
+  protected exporter = new Exporter();
   protected lastWatch?:number;
   protected watchers:{[id:string]: Watcher|undefined} = {};
+  protected _constants?:{[key:string]: RawValue};
 
   constructor(public name:string) {
     this.index = new indexes.HashIndex();
-    this.exporter = new Runtime.Exporter();
+    this.context = new Runtime.EvaluationContext(this.index);
+  }
+
+
+  constants(obj:{[key:string]: RawValue}) {
+    if(!this._constants) this._constants = {};
+    for(let constant in obj) {
+      if(this._constants[constant] && this._constants[constant] !== obj[constant]) {
+        // throw new Error("Unable to rebind existing constant");
+      }
+      this._constants[constant] = obj[constant];
+    }
+
+    return this;
+  }
+
+  injectConstants(func:LinearFlowFunction):LinearFlowFunction {
+    if(!this._constants) return func;
+    return macro(func, (code) => {
+      let constants = this._constants!;
+      for(let constant in constants) {
+        code = code.replace(new RegExp(`{{${constant}}}`, "gm"), "" + constants[constant]);
+      }
+      return code;
+    });
+  }
+
+  clear() {
+    this.index = new indexes.HashIndex();
+    this.context = new Runtime.EvaluationContext(this.index);
   }
 
   block(name:string, func:LinearFlowFunction) {
-    let flow = new LinearFlow(func);
+    let flow = new LinearFlow(this.injectConstants(func));
     let nodes = flow.compile();
     let block = new Runtime.Block(name, nodes, flow.context.maxRegisters);
     this.flows.push(flow);
@@ -1382,24 +1575,47 @@ export class Program {
 
 
   input(changes:Runtime.Change[]) {
-    let trans = new Runtime.Transaction(changes[0].transaction, this.blocks, changes, this.lastWatch ? this.exporter.handle : undefined);
-    trans.exec(this.index);
+    // console.time("input");
+    if(changes[0].transaction >= this.nextTransactionId) this.nextTransactionId = changes[0].transaction + 1;
+    let trans = new Runtime.Transaction(changes[0].transaction, this.blocks, this.lastWatch ? this.exporter.handle : undefined);
+    for(let change of changes) {
+      trans.output(this.context, change);
+    }
+    trans.exec(this.context);
+    // console.timeEnd("input");
+    // console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
     return trans;
   }
 
-  test(transaction:number, eavns:TestChange[]) {
-    let changes:Runtime.Change[] = [];
-    let trans = new Runtime.Transaction(transaction, this.blocks, changes, this.lastWatch ? this.exporter.handle : undefined);
-    for(let [e, a, v, round = 0, count = 1] of eavns as EAVRCTuple[]) {
-      let change = Runtime.Change.fromValues(e, a, v, "my-awesome-node", transaction, round, count);
-      if(round === 0) {
-        changes.push(change);
-      } else {
-        trans.output(change);
-      }
+  inputEavs(eavcs:(RawEAVC|RawEAV)[]) {
+    let changes:Change[] = [];
+    let transactionId = this.nextTransactionId++;
+    for(let [e, a, v, c = 1] of eavcs as RawEAVC[]) {
+      changes.push(Change.fromValues(e, a, v, "input", transactionId, 0, c));
     }
-    trans.exec(this.index);
+    return this.input(changes);
+  }
+
+  test(transaction:number, eavns:TestChange[]) {
+    console.group("test " + transaction);
+    if(transaction >= this.nextTransactionId) this.nextTransactionId = transaction + 1;
+    let trans = new Runtime.Transaction(transaction, this.blocks, this.lastWatch ? this.exporter.handle : undefined);
+    for(let [e, a, v, round = 0, count = 1] of eavns as EAVRCTuple[]) {
+      let change = Runtime.Change.fromValues(e, a, v, "input", transaction, round, count);
+      trans.output(this.context, change);
+    }
+    trans.exec(this.context);
     console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
+    console.groupEnd();
+    return this;
+  }
+
+  commit(name:string, func:LinearFlowFunction) {
+    let flow = new CommitFlow(this.injectConstants(func));
+    let nodes = flow.compile();
+    let block = new Runtime.Block(name, nodes, flow.context.maxRegisters);
+    this.flows.push(flow);
+    this.blocks.push(block);
     return this;
   }
 
@@ -1413,7 +1629,7 @@ export class Program {
   }
 
   watch(name:string, func:LinearFlowFunction) {
-    let flow = new WatchFlow(func);
+    let flow = new WatchFlow(this.injectConstants(func));
     let nodes = flow.compile();
     let block = new Runtime.Block(name, nodes, flow.context.maxRegisters);
     this.lastWatch = flow.ID;
@@ -1424,58 +1640,17 @@ export class Program {
     return this;
   }
 
-  asDiffs(handler:Runtime.DiffConsumer) {
+  asDiffs(handler:DiffConsumer) {
     if(!this.lastWatch) throw new Error("Must have at least one watch block to export as diffs.");
     this.exporter.triggerOnDiffs(this.lastWatch, handler);
 
     return this;
   }
+
+  asObjects<Pattern extends RawRecord>(handler:ObjectConsumer<Pattern>) {
+    if(!this.exporter || !this.lastWatch) throw new Error("Must have at least one watch block to export as diffs.");
+    this.exporter.triggerOnObjects(this.lastWatch, handler);
+
+    return this;
+  }
 }
-//--------------------------------------------------------------------
-// Test
-//--------------------------------------------------------------------
-
-// let p = new Program("test");
-
-// p.block("coolness", ({find, not, record, choose}) => {
-//   let person = find("person");
-//   let [info] = choose(() => {
-//     person.dog;
-//     return "cool";
-//   }, () => {
-//     return "not cool";
-//   });
-//   return [
-//     record("dog-less", {info})
-//   ]
-// })
-
-// p.test(1, [
-//   [1, "tag", "person"]
-// ]);
-
-// p.test(2, [
-//   [1, "dog", 2],
-//   [2, "cat", 3]
-// ]);
-
-
-// let p = new Program("test");
-
-// p.block("coolness", ({find, not, record, choose, gather}) => {
-//   let person = find("person");
-//   let total = gather(person).count();
-//   return [
-//     record("total-people", {total})
-//   ]
-// })
-
-// p.test(1, [
-//   [1, "tag", "person"],
-//   [2, "tag", "person"]
-// ]);
-
-// p.test(2, [
-//   [1, "tag", "person", 0, -1]
-// ]);
-

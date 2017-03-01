@@ -113,6 +113,42 @@ test("simple addition", (assert) => {
   assert.end();
 });
 
+test("simple division", (assert) => {
+
+  // -----------------------------------------------------
+  // program
+  // -----------------------------------------------------
+
+  let prog = new Program("test");
+  prog.block("simple block", ({find, record, lib}) => {
+    let a = find("person");
+    let b = find("person");
+    a.age > b.age;
+    let result = a.age / b.age;
+    return [
+      record({age1: a.age, age2: b.age, result})
+    ]
+  });
+
+  // -----------------------------------------------------
+  // verification
+  // -----------------------------------------------------
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+    [1, "age", 7],
+    [2, "tag", "person"],
+    [2, "age", 35],
+  ], [
+    [4, "age1", 35, 1],
+    [4, "age2", 7, 1],
+    [4, "result", 5, 1],
+  ])
+
+  assert.end();
+});
+
+
 test("simple recursion", (assert) => {
   // -----------------------------------------------------
   // program
@@ -158,7 +194,7 @@ test("test addition operator", (assert) => {
   prog.block("simple block", ({find, record, lib}) => {
     let joof = find({foo: "bar"});
     return [
-      joof.add("name", "JOOF")
+     joof.add("name", "JOOF")
     ]
   });
 
@@ -212,8 +248,6 @@ test("transitive closure", (assert) => {
     [2, "path", 1, 1],
     [1, "path", 1, 2],
     [2, "path", 2, 2],
-    [1, "path", 2, 3],
-    [2, "path", 1, 3],
   ])
 
   verify(assert, prog, [
@@ -222,8 +256,7 @@ test("transitive closure", (assert) => {
     [1, "path", 2, 1, -1],
     [1, "path", 1, 2, -1],
     [2, "path", 2, 2, -1],
-    [2, "path", 1, 3, -1],
-    [1, "path", 2, 3, -1],
+    //[2, "path", 1, 3, -1],
   ])
 
   verify(assert, prog, [
@@ -232,8 +265,7 @@ test("transitive closure", (assert) => {
     [1, "path", 2, 1, 1],
     [1, "path", 1, 2, 1],
     [2, "path", 2, 2, 1],
-    [2, "path", 1, 3, 1],
-    [1, "path", 2, 3, 1],
+    //[2, "path", 1, 3, 1],
   ])
 
   // verify(assert, prog, [
@@ -607,3 +639,60 @@ test("Basic aggregate", (assert) => {
   assert.end();
 });
 
+
+test("commit, remove, and recursion", (assert) => {
+
+  // -----------------------------------------------------
+  // program
+  // -----------------------------------------------------
+
+  let prog = new Program("test");
+
+  prog.commit("coolness", ({find, not, record, choose}) => {
+    let click = find("click", "direct-target");
+    let count = find("count");
+    let current = count.count;
+    5 > current;
+    return [
+      count.add("count", current + 1)
+    ]
+  })
+
+  prog.commit("foo", ({find}) => {
+    let click = find("click", "direct-target");
+    return [
+      click.remove("tag", "click"),
+      click.remove("tag", "direct-target"),
+    ];
+  })
+
+  // -----------------------------------------------------
+  // verification
+  // -----------------------------------------------------
+
+  verify(assert, prog, [
+    [1, "tag", "count"],
+    [1, "count", 0]
+  ], [
+  ])
+
+  verify(assert, prog, [
+    [2, "tag", "click"],
+    [2, "tag", "direct-target"]
+  ], [
+    [2, "tag", "click", 0, -1],
+    [2, "tag", "direct-target", 0, -1],
+    [1, "count", 1, 0],
+  ])
+
+  verify(assert, prog, [
+    [3, "tag", "click"],
+    [3, "tag", "direct-target"]
+  ], [
+    [3, "tag", "click", 0, -1],
+    [3, "tag", "direct-target", 0, -1],
+    [1, "count", 2, 0],
+  ])
+
+  assert.end();
+});
