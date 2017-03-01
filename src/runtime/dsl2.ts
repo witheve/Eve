@@ -10,8 +10,22 @@ import * as indexes from "./indexes";
 import {Watcher, Exporter, DiffConsumer, ObjectConsumer, RawRecord} from "../watchers/watcher";
 import "./stdlib";
 import {v4 as uuid} from "node-uuid";
+import * as falafel from "falafel";
 
 const UNASSIGNED = -1;
+const operators:any = {
+  "+": "math['+']",
+  "-": "math['-']",
+  "*": "math['*']",
+  "/": "math['/']",
+  ">": "compare['>']",
+  ">=": "compare['>=']",
+  "<": "compare['<']",
+  "<=": "compare['<=']",
+  "!=": "compare['!=']",
+  "==": "compare['==']",
+  "concat": "eve.internal.concat",
+}
 
 // There don't seem to be TypeScript definitions for these by default,
 // so here we are.
@@ -19,6 +33,10 @@ declare var Proxy:new (obj:any, proxy:any) => any;
 
 function isArray<T>(v:any): v is Array<T> {
   return v && v.constructor === Array;
+}
+
+function isASTString(thing:any) {
+  return thing.value && typeof thing.value === "string";
 }
 
 function macro<FuncType extends Function>(func:FuncType, transform:(code:string, args:string[], name:string) => string):FuncType {
@@ -805,68 +823,22 @@ class LinearFlow extends DSLBase {
     return macro(func, this.transformCode);
   }
 
-  replaceInfix(strings:string[], functionArgs:string[], code:string, regex:RegExp, prefix?:string, replaceOp?:{[key:string]:string}) {
-    let libArg = `${functionArgs[0]}.lib`;
-    let hasChanged = true;
-    while(hasChanged) {
-      hasChanged = false;
-      code = code.replace(regex, (str, left, op, right, left2, op2, right2) => {
-        hasChanged = true;
-        if(left === undefined) {
-          left = left2;
-          op = op2;
-          right = right2;
-        }
-        left = this.transformCode(left, functionArgs);
-        right = this.transformCode(right, functionArgs);
-        let finalOp = replaceOp && replaceOp[op] || `${prefix}["${op}"]`;
-        strings.push(`${libArg}.${finalOp}(${left}, ${right})`);
-        return "____" + (strings.length - 1) + "____";
-      })
-    }
-    return code;
-  }
-
   transformCode = (code:string, functionArgs:string[]):string => {
-    let infixParam = "((?:(?:[a-z0-9_\.]+(?:\\[\".*?\"\\])?)+(?:\\(.*\\))?)|\\(.*\\))";
-    let stringPlaceholder = "(____[0-9]+____)";
-
-    let strings:string[] = [];
-    code = code.replace(/"(?:[^"\\]|\\.)*"/gi, function(str) {
-      strings.push(str);
-      return "____" + (strings.length - 1) + "____";
-    })
-
-    // "foo" + person.name -> fn.eve.internal.concat("foo", person.name)
-    // person.name + "foo" -> fn.eve.internal.concat(person.name, "foo")
-    let stringAddition = new RegExp(`(?:${infixParam}\\s*(\\+)\\s*${stringPlaceholder})|(?:${stringPlaceholder}\\s*(\\+)\\s*${infixParam})`,"gi");
-    code = this.replaceInfix(strings, functionArgs, code, stringAddition, "", {"+": "eve.internal.concat"});
-
-    // a * b -> fn.math["*"](a, b)
-    // a / b -> fn.math["/"](a, b)
-    let multiply = new RegExp(`${infixParam}\\s*(\\*|\\/)\\s*${infixParam}`, "gi");
-    code = this.replaceInfix(strings, functionArgs, code, multiply, "math");
-
-    // a + b -> fn.math["+"](a, b)
-    // a - b -> fn.math["-"](a, b)
-    let add = new RegExp(`${infixParam}\\s*(\\+|\\-)\\s*${infixParam}`, "gi");
-    code = this.replaceInfix(strings, functionArgs, code, add, "math");
-
-    // a > b -> fn.compare[">"](a, b)
-    // for all the (in)equalities: >, >=, <, <=, !=, ==
-    let compare = new RegExp(`${infixParam}\\s*(>|>=|<|<=|!=|==)\\s*${infixParam}`, "gi");
-    code = this.replaceInfix(strings, functionArgs, code, compare, "compare");
-
-    let changed = true;
-    while(changed) {
-      changed = false;
-      code = code.replace(/____([0-9]+)____/gi, function(str, index:string) {
-        let found = strings[parseInt(index)];
-        if(found) changed = true;
-        return found || str;
-      })
-    }
-    return code;
+    var output = falafel(`function f() { ${code} }`, function (node:any) {
+      if (node.type === 'BinaryExpression') {
+        let func = operators[node.operator] as string;
+        if(node.operator === "+" && (isASTString(node.left) || isASTString(node.right))) {
+          func = operators["concat"];
+        }
+        if(func) {
+          node.update(`${functionArgs[0]}.lib.${func}(${node.left.source()}, ${node.right.source()})`)
+        }
+      }
+    });
+    let updated = output.toString();
+    updated = updated.replace("function f() {", "");
+    updated = updated.substring(0, updated.length - 1);
+    return updated;
   }
 }
 

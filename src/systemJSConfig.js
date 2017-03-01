@@ -13,6 +13,11 @@ SystemJS.config({
   meta: {"/build/src/bootstrap.js": {deps: (typeof _watchers === "undefined") ? [] : _watchers}},
   packages: {
     "/build": {defaultExtension: "js"},
-    "node-uuid": {main: "uuid.js"}
+    "node-uuid": {main: "uuid.js"},
+    "falafel": {main: "index.js"},
+    "acorn": {main: "dist/acorn.js"},
+    "isarray": {main: "index.js"},
+    "object-keys": {main: "index.js"},
+    "foreach": {main: "index.js"},
   }
 });
