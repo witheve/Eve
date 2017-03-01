@@ -1428,9 +1428,9 @@ export class JoinNode implements Node {
       if(prefix[ix] !== undefined) countOfSolved++;
     }
     let remainingToSolve = this.registerLength - countOfSolved;
-    // context.tracker.blockTime("PresolveCheck");
+    context.tracker.blockTime("PresolveCheck");
     let valid = this.presolveCheck(context, input, prefix, transaction, round);
-    // context.tracker.blockTimeEnd("PresolveCheck");
+    context.tracker.blockTimeEnd("PresolveCheck");
     //debug("        Join combo valid:", valid, remainingToSolve, countOfSolved, this.registerLength);
     if(!valid) {
       // do nothing
@@ -1451,9 +1451,9 @@ export class JoinNode implements Node {
       //debug("              GJ:", remainingToSolve, this.constraints);
       // For each node, find the new results that match the prefix.
       let ol = results.length;
-      // context.tracker.blockTime("GenericJoin");
+      context.tracker.blockTime("GenericJoin");
       this.genericJoin(context, prefix, transaction, round, results, remainingToSolve);
-      // context.tracker.blockTimeEnd("GenericJoin");
+      context.tracker.blockTimeEnd("GenericJoin");
       return true;
     }
   }

@@ -6,7 +6,7 @@ import {Proposal, Change, ResolvedValue, createArray, createHash, IGNORE_REG, ID
 //------------------------------------------------------------------------
 
 function isResolved(field:ResolvedValue): field is ID {
-  return field !== undefined && field !== IGNORE_REG;
+  return !!field || field === 0;
 }
 
 function sumTimes(roundArray:RoundArray, transaction:number, round:number) {
@@ -87,7 +87,14 @@ export class HashIndex implements Index {
     this.roundArrayInsert(vIx, change);
     let shouldRemove = false;
     if(!vIx.length) {
+      this.cardinality--;
       delete aIx[change.v];
+      if(!Object.keys(aIx).length) {
+        delete eIx[change.a];
+        if(!Object.keys(eIx).length) {
+          delete this.eavIndex[change.e];
+        }
+      }
       shouldRemove = true;
     }
 
@@ -96,11 +103,17 @@ export class HashIndex implements Index {
     eIx = getOrCreateArray(vIx, change.e);
     if(shouldRemove) {
       delete vIx[change.e];
+      if(!Object.keys(vIx).length) {
+        delete aIx[change.v];
+        if(!Object.keys(aIx).length) {
+          delete this.aveIndex[change.a];
+        }
+      }
     } else {
       this.roundArrayInsert(eIx, change)
+      this.cardinality++;
     }
 
-    this.cardinality++;
   }
 
   hasImpact(input:Change) {
@@ -371,6 +384,7 @@ export class DistinctIndex {
 
       curCount = nextCountChanged;
     }
+
     // console.log("         post counts: ", roundCounts);
 
     return deltas;

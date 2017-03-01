@@ -3,7 +3,7 @@
 //---------------------------------------------------------------------
 import {v4 as uuid} from "node-uuid";
 import {Program} from "../runtime/dsl2";
-import {PerformanceTracker} from "../runtime/performance";
+import {NoopPerformanceTracker} from "../runtime/performance";
 
 
 export class PerformanceReporter {
@@ -50,7 +50,7 @@ export class PerformanceReporter {
     }
   }
 
-  report(perf:PerformanceTracker) {
+  report(perf:NoopPerformanceTracker) {
     let eavs = this.blocksToEAVs(perf.blocks);
     this.totalsToEAVs(perf.counts, perf.times, eavs);
     let me = new Program("Performance report");

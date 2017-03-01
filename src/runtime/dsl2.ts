@@ -1575,14 +1575,14 @@ export class Program {
 
 
   input(changes:Runtime.Change[]) {
-    // console.time("input");
+    console.time("input");
     if(changes[0].transaction >= this.nextTransactionId) this.nextTransactionId = changes[0].transaction + 1;
     let trans = new Runtime.Transaction(changes[0].transaction, this.blocks, this.lastWatch ? this.exporter.handle : undefined);
     for(let change of changes) {
       trans.output(this.context, change);
     }
     trans.exec(this.context);
-    // console.timeEnd("input");
+    console.timeEnd("input");
     // console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
     return trans;
   }

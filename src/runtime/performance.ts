@@ -9,6 +9,12 @@ var propertiesToTrack = ["block", "PresolveCheck", "GenericJoin"];
 
 type TimeReturn = number;
 export class NoopPerformanceTracker {
+  blocks:{[block:string]: {
+    times: {[property:string]: number},
+    counts: {[property:string]: number},
+  }};
+  times: {[property:string]: number};
+  counts: {[property:string]: number};
 
   now: () => TimeReturn;
   elapsed: (start:TimeReturn) => TimeReturn;
