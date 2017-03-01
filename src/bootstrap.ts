@@ -1,4 +1,5 @@
 import {Program} from "./runtime/dsl2";
+let prog = new Program("test");
 
 // import {create} from "./programs/tag-browser";
 // let prog = create();
@@ -13,7 +14,6 @@ function verify(assert:any, prog:Program, ins:any[], outs:any[]) {
 
 // import {Change} from "./runtime/runtime";
 // import {HashIndex} from "./runtime/indexes";
-//   let prog = new Program("test");
 //   prog.block("simple block", ({find, record, lib}) => {
 //     let person = find("person");
 //     let text = `name: ${person.name}`;
@@ -37,11 +37,11 @@ function verify(assert:any, prog:Program, ins:any[], outs:any[]) {
 //       ])
 //     }
 
-//     let start = console.time();
+//     let start = console.time("yo");
 //     for(let change of changes) {
 //       prog.input(change);
 //     }
-//     let end = console.timeEnd();
+//     let end = console.timeEnd("yo");
 //   }
 
 //   (global as any)["doit"] = function() {
@@ -55,7 +55,7 @@ function verify(assert:any, prog:Program, ins:any[], outs:any[]) {
 //       ])
 //     }
 
-//     let start = console.profile();
+//     let start = console.profile("test");
 //     for(let change of changes) {
 //       prog.input(change);
 //     }

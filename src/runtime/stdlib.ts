@@ -179,6 +179,17 @@ makeFunction({
   }
 });
 
+makeFunction({
+  name: "math/toFixed",
+  args: {a: "number", b: "number"},
+  returns: {result: "string"},
+  apply: (a:number, b:number) => {
+    return [a.toFixed(b)];
+  }
+});
+
+
+
 //--------------------------------------------------------------------
 // Random
 //--------------------------------------------------------------------

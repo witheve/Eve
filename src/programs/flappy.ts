@@ -5,6 +5,7 @@
 import {Program} from "../runtime/dsl2";
 import "../watchers/system";
 import {v4 as uuid} from "node-uuid";
+import {PerformanceReporter} from "./perfReport";
 
 //--------------------------------------------------------------------
 // Utils
@@ -273,5 +274,11 @@ prog.inputEavs(changes);
 //   prog.inputEavs([["meep", "frame", ix], ["meep", "frame", ix-1, -1]])
 // }
 //   prog.inputEavs(toEAVs([], {tag: ["html/event/click", "html/direct-target"]}));
+// // for(let ix = 100; ix < 200; ix++) {
+// //   prog.inputEavs([["meep", "frame", ix], ["meep", "frame", ix-1, -1]])
+// // }
 // console.profileEnd();
+
+// let reporter = new PerformanceReporter();
+// reporter.report(prog.context.tracker);
 console.log(prog);

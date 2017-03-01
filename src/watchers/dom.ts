@@ -60,7 +60,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
     for(let curIx = 0; curIx < parent.childNodes.length; curIx++) {
       let cur = parent.childNodes[curIx] as Instance;
       if(cur === child) continue;
-      if(cur.__sort !== undefined && cur.__sort > at) {
+      if(cur.__sort !== undefined && at !== undefined && cur.__sort > at) {
         current = cur;
         break;
       }

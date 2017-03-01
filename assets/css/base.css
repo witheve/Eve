@@ -1,6 +1,6 @@
 * { box-sizing: border-box; }
 html, body, __root { height: 100%; }
-body { background: #f5f5f5; color: #555; font-family: Avenir, "Helvetica neue", sans-serif; display: flex; flex-direction: row; margin:0; width: 100%; }
+body { background: #f5f5f5; color: #555; font-family: Avenir, "Helvetica neue", sans-serif; display: flex; flex-direction: column; margin:0; width: 100%; }
 
 /******************************************************************************\
  * UI Components                                                              *
