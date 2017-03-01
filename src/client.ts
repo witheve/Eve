@@ -82,7 +82,13 @@ function handleDiff(state, diff) {
     dirty.insert(e, a);
 
     if(!entity[a]) entity[a] = [];
-    entity[a].push(v);
+    let isSingleValueAttr = a == "value" ||
+                            a == "tag" ||
+                            a == "sort" ||
+                            a == "checked";
+    if(!(isSingleValueAttr && entity[a].length == 1 && entity[a][0] === v)) {
+      entity[a].push(v);
+    }
 
     // Update indexes
     if(a === "tag") indexes.byTag.insert(v, e);
