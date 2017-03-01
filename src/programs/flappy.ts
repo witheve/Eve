@@ -252,33 +252,33 @@ toEAVs(changes, {tag:"world", screen:"menu", frame:0, distance:0, best:0, gravit
 toEAVs(changes, {tag:"obstacle", gap:35, offset:0})
 toEAVs(changes, {tag:"obstacle", gap:35, offset:-1})
 
-console.profile("flappy");
+// console.profile("flappy");
 prog.inputEavs(changes);
 
-prog.inputEavs([["meep", "tag", "frames"], ["meep", "frame", 1]])
-prog.inputEavs(toEAVs([], {tag: ["html/event/click", "html/direct-target"]}));
-prog.inputEavs([["meep", "frame", 2], ["meep", "frame", 1, -1]])
-prog.inputEavs([["meep", "frame", 3], ["meep", "frame", 2, -1]])
-prog.inputEavs(toEAVs([], {tag: ["html/event/click", "html/direct-target"]}));
-prog.inputEavs([["meep", "frame", 4], ["meep", "frame", 3, -1]])
-prog.inputEavs([["meep", "frame", 5], ["meep", "frame", 4, -1]])
-prog.inputEavs(toEAVs([], {tag: ["html/event/click", "html/direct-target"]}));
-prog.inputEavs([["meep", "frame", 6], ["meep", "frame", 5, -1]])
-prog.inputEavs([["meep", "frame", 7], ["meep", "frame", 6, -1]])
-prog.inputEavs([["meep", "frame", 8], ["meep", "frame", 7, -1]])
-for(let ix = 9; ix < 60; ix++) {
-  prog.inputEavs([["meep", "frame", ix], ["meep", "frame", ix-1, -1]])
-  prog.inputEavs(toEAVs([], {tag: ["html/event/click", "html/direct-target"]}));
-}
-for(let ix = 60; ix < 100; ix++) {
-  prog.inputEavs([["meep", "frame", ix], ["meep", "frame", ix-1, -1]])
-}
-  prog.inputEavs(toEAVs([], {tag: ["html/event/click", "html/direct-target"]}));
-// // for(let ix = 100; ix < 200; ix++) {
-// //   prog.inputEavs([["meep", "frame", ix], ["meep", "frame", ix-1, -1]])
-// // }
-console.profileEnd();
+// prog.inputEavs([["meep", "tag", "frames"], ["meep", "frame", 1]])
+// prog.inputEavs(toEAVs([], {tag: ["html/event/click", "html/direct-target"]}));
+// prog.inputEavs([["meep", "frame", 2], ["meep", "frame", 1, -1]])
+// prog.inputEavs([["meep", "frame", 3], ["meep", "frame", 2, -1]])
+// prog.inputEavs(toEAVs([], {tag: ["html/event/click", "html/direct-target"]}));
+// prog.inputEavs([["meep", "frame", 4], ["meep", "frame", 3, -1]])
+// prog.inputEavs([["meep", "frame", 5], ["meep", "frame", 4, -1]])
+// prog.inputEavs(toEAVs([], {tag: ["html/event/click", "html/direct-target"]}));
+// prog.inputEavs([["meep", "frame", 6], ["meep", "frame", 5, -1]])
+// prog.inputEavs([["meep", "frame", 7], ["meep", "frame", 6, -1]])
+// prog.inputEavs([["meep", "frame", 8], ["meep", "frame", 7, -1]])
+// for(let ix = 9; ix < 60; ix++) {
+//   prog.inputEavs([["meep", "frame", ix], ["meep", "frame", ix-1, -1]])
+//   prog.inputEavs(toEAVs([], {tag: ["html/event/click", "html/direct-target"]}));
+// }
+// for(let ix = 60; ix < 100; ix++) {
+//   prog.inputEavs([["meep", "frame", ix], ["meep", "frame", ix-1, -1]])
+// }
+//   prog.inputEavs(toEAVs([], {tag: ["html/event/click", "html/direct-target"]}));
+// // // for(let ix = 100; ix < 200; ix++) {
+// // //   prog.inputEavs([["meep", "frame", ix], ["meep", "frame", ix-1, -1]])
+// // // }
+// console.profileEnd();
 
-let reporter = new PerformanceReporter();
-reporter.report(prog.context.tracker);
+// let reporter = new PerformanceReporter();
+// reporter.report(prog.context.tracker);
 console.log(prog);
