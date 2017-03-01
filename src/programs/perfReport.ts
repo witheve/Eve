@@ -3,7 +3,7 @@
 //---------------------------------------------------------------------
 import {v4 as uuid} from "node-uuid";
 import {Program} from "../runtime/dsl2";
-import {NoopPerformanceTracker} from "../runtime/performance";
+import {PerformanceTracker} from "../runtime/performance";
 
 
 export class PerformanceReporter {
@@ -33,16 +33,16 @@ export class PerformanceReporter {
   }
 
   totalsToEAVs(counts:any, times:any, eavs:any[] = []) {
-    let blockId = uuid();
+    let programId = uuid();
     eavs.push(
-      [blockId, "tag", "total"],
+      [programId, "tag", "total"],
     );
     for(let property in counts) {
       let count = counts[property];
       let time = times[property];
       let propertyId = uuid();
       eavs.push(
-        [blockId, "property", propertyId],
+        [programId, "property", propertyId],
         [propertyId, "name", property],
         [propertyId, "count", count],
         [propertyId, "time", time]
@@ -50,7 +50,7 @@ export class PerformanceReporter {
     }
   }
 
-  report(perf:NoopPerformanceTracker) {
+  report(perf:PerformanceTracker) {
     let eavs = this.blocksToEAVs(perf.blocks);
     this.totalsToEAVs(perf.counts, perf.times, eavs);
     let me = new Program("Performance report");
