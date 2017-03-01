@@ -2673,7 +2673,7 @@ export class Transaction {
     while(changeIx < changes.length) {
       let change = changes[changeIx];
       total++;
-      if(total > 300) {
+      if(total > 1000) {
         console.error("bad");
         debugger
         break;
