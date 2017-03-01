@@ -14,7 +14,6 @@ function verify(assert:any, prog:Program, ins:any[], outs:any[]) {
 
 // import {Change} from "./runtime/runtime";
 // import {HashIndex} from "./runtime/indexes";
-//   // let prog = new Program("test");
 //   prog.block("simple block", ({find, record, lib}) => {
 //     let person = find("person");
 //     let text = `name: ${person.name}`;
@@ -23,9 +22,9 @@ function verify(assert:any, prog:Program, ins:any[], outs:any[]) {
 //     ]
 //   });
 
-// //   // -----------------------------------------------------
-// //   // verification
-// //   // -----------------------------------------------------
+//   // -----------------------------------------------------
+//   // verification
+//   // -----------------------------------------------------
 
 //   for(let ix = 0; ix < 5; ix++) {
 //     prog.clear();
@@ -60,7 +59,7 @@ function verify(assert:any, prog:Program, ins:any[], outs:any[]) {
 //     for(let change of changes) {
 //       prog.input(change);
 //     }
-//     let end = console.profileEnd("test");
+//     let end = console.profileEnd();
 //   }
 
 
