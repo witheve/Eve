@@ -8,34 +8,8 @@ var globalsToTrack = ["transaction"];
 var propertiesToTrack = ["block", "PresolveCheck", "GenericJoin"];
 
 type TimeReturn = number;
-export class NoopPerformanceTracker {
-  blocks:{[block:string]: {
-    times: {[property:string]: number},
-    counts: {[property:string]: number},
-  }};
-  times: {[property:string]: number};
-  counts: {[property:string]: number};
 
-  now: () => TimeReturn;
-  elapsed: (start:TimeReturn) => TimeReturn;
-
-  constructor() {
-    this.now = () => 0;
-    this.elapsed = (start:any) => 0;
-  }
-  reset() { }
-
-  time(property:string) {}
-  timeEnd(property:string) {}
-
-  block(name:string) { }
-  blockEnd(name:string) {  }
-
-  blockTime(property:string) {}
-  blockTimeEnd(property:string) {}
-}
-
-export class PerformanceTracker extends NoopPerformanceTracker {
+export class PerformanceTracker {
 
   blocks:{[block:string]: {
     times: {[property:string]: number},
@@ -46,6 +20,9 @@ export class PerformanceTracker extends NoopPerformanceTracker {
   times: {[property:string]: number};
   counts: {[property:string]: number};
 
+  now: () => TimeReturn;
+  elapsed: (start:TimeReturn) => TimeReturn;
+
   _makePropertyHolder(props = propertiesToTrack) {
     let neue:any = {};
     for(let property of props) {
@@ -55,7 +32,6 @@ export class PerformanceTracker extends NoopPerformanceTracker {
   }
 
   constructor() {
-    super();
     this.reset();
     this.now = now;
     this.elapsed = elapsed;
@@ -116,6 +92,34 @@ export class PerformanceTracker extends NoopPerformanceTracker {
       blocks: this.blocks
     })
   }
+}
+
+export class NoopPerformanceTracker extends PerformanceTracker {
+  blocks:{[block:string]: {
+    times: {[property:string]: number},
+    counts: {[property:string]: number},
+  }};
+  times: {[property:string]: number};
+  counts: {[property:string]: number};
+
+  now: () => TimeReturn;
+  elapsed: (start:TimeReturn) => TimeReturn;
+
+  constructor() {
+    super();
+    this.now = () => 0;
+    this.elapsed = (start:any) => 0;
+  }
+  reset() { }
+
+  time(property:string) {}
+  timeEnd(property:string) {}
+
+  block(name:string) { }
+  blockEnd(name:string) {  }
+
+  blockTime(property:string) {}
+  blockTimeEnd(property:string) {}
 }
 
 export var now: () => any;

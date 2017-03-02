@@ -303,7 +303,7 @@ prog
 //--------------------------------------------------------------------
 
 let changes:any[] = [];
-// toEAVs(changes, {tag:["frames", "system/timer"], resolution:33.333333333333})
+toEAVs(changes, {tag:["frames", "system/timer"], resolution:33.333333333333})
 toEAVs(changes, {tag:["player", "self"], name:"eve", x:25, y:50, velocity:0})
 toEAVs(changes, {tag:"world", screen:"menu", frame:0, distance:0, best:0, gravity:-0.061})
 toEAVs(changes, {tag:"obstacle", gap:35, offset:0})
@@ -331,9 +331,9 @@ prog.inputEavs(changes);
 //   prog.inputEavs([["meep", "frame", ix], ["meep", "frame", ix-1, -1]])
 // }
 //   prog.inputEavs(toEAVs([], {tag: ["html/event/click", "html/direct-target"]}));
-// // // for(let ix = 100; ix < 200; ix++) {
-// // //   prog.inputEavs([["meep", "frame", ix], ["meep", "frame", ix-1, -1]])
-// // // }
+// // for(let ix = 100; ix < 200; ix++) {
+// //   prog.inputEavs([["meep", "frame", ix], ["meep", "frame", ix-1, -1]])
+// // }
 // console.profileEnd();
 
 // let reporter = new PerformanceReporter();
