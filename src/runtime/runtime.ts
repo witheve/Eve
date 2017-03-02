@@ -1861,8 +1861,8 @@ class IntermediateIndexIterator {
     if(countIx >= currentCounts.length) {
       this.valueIx++;
       let nextValue = this.valueKeys[this.valueIx];
-      this.currentCounts = this.values[nextValue];
-      if(!this.currentCounts) return;
+      currentCounts = this.currentCounts = this.values[nextValue];
+      if(!currentCounts) return;
       countIx = 1;
     }
     let count;
@@ -1875,7 +1875,7 @@ class IntermediateIndexIterator {
       }
       count = total;
     } else {
-      for(; countIx < currentCounts.length; countIx) {
+      for(; countIx < currentCounts.length; countIx++) {
         let cur = currentCounts[countIx];
         if(cur) {
           count = cur;
