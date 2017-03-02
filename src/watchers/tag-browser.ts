@@ -124,6 +124,7 @@ export class TagBrowserWatcher extends Watcher {
           () => { recordAttribute.attr == "child-tag"; return "tag"; },
           () => recordAttribute.attr
         );
+        // let attrName = recordAttribute.attr;
 
         let {rec, val} = recordAttribute;
         return [
@@ -188,8 +189,7 @@ export class TagBrowserWatcher extends Watcher {
           view.add("children", record("ui/row", {
             sort: 1,
             style: record({"flex-wrap": "wrap"}),
-            children: [record("tag-browser/record", {target: targetedRecord})]
-          }))
+          }).add("children", record("tag-browser/record", {target: targetedRecord})))
         ];
       })
       .watch("When the view target changes, mark it as the active tag in the child program", ({find, record}) => {
