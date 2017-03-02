@@ -453,9 +453,9 @@ class RemoveAVsChange extends RemoveVsChange {
   }
 }
 
-// When interatcint with the outside world, we need to pass changes around that
+// When interacting with the outside world, we need to pass changes around that
 // are no longer interned. A RawChange is the same as Change, but all the
-// information in the triple has been convered back into RawValues instead of
+// information in the triple has been converted back into RawValues instead of
 // interned IDs.
 export class RawChange {
   constructor(public e: RawValue, public a: RawValue, public v: RawValue, public n: RawValue,
