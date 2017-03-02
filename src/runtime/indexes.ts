@@ -70,9 +70,11 @@ export class HashIndex implements Index {
           arr[ix] = updated;
         }
         handled = true;
+        break;
       } else if(curRound > round) {
         arr.splice(ix, 0, neue);
         handled = true;
+        break;
       }
       ix++;
     }
