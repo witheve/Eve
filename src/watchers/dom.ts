@@ -280,7 +280,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
 
         for(let [e, a, v] of diff.adds) {
           let instance = this.instances[e];
-          if(!instance) throw new Error(`Orphaned instance '${instanceId}'`);
+          if(!instance) throw new Error(`Orphaned instance '${e}'`);
 
           else if((a === "tagname")) continue;
           else if(a === "children") continue;
