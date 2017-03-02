@@ -1,3 +1,4 @@
+import "setimmediate";
 import {Program} from "./runtime/dsl2";
 let prog = new Program("test");
 
