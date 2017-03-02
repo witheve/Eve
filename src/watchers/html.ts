@@ -7,10 +7,17 @@ interface Instance extends HTMLElement {__element?: RawValue, __styles?: RawValu
 class HTMLWatcher extends DOMWatcher<Instance> {
   tagPrefix = "html";
 
-  createInstance(id:RawValue, tagname:RawValue):Instance {
+  createInstance(id:RawValue, element:RawValue, tagname:RawValue):Instance {
     let elem:Instance = document.createElement(tagname as string);
-    elem.__element = id;
+    elem.__element = element;
     elem.__styles = [];
+    return elem;
+  }
+
+  createRoot(id:RawValue):Instance {
+    let elem = this.instances[id];
+    if(!elem) throw new Error(`Orphaned instance '${id}'`);
+    document.body.appendChild(elem);
     return elem;
   }
 
