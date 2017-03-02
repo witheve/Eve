@@ -19,5 +19,6 @@ SystemJS.config({
     "isarray": {main: "index.js"},
     "object-keys": {main: "index.js"},
     "foreach": {main: "index.js"},
+    "setimmediate": {main: "setImmediate.js"}
   }
 });

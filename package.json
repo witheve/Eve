@@ -55,6 +55,7 @@
     "mkdirp": "^0.5.1",
     "node-uuid": "^1.4.7",
     "request": "^2.75.0",
+    "setimmediate": "^1.0.5",
     "typescript": "^2.1.4",
     "ws": "^1.1.1"
   },
