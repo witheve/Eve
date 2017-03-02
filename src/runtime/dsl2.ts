@@ -1581,7 +1581,7 @@ export class Program {
   }
 
   test(transaction:number, eavns:TestChange[]) {
-    console.group(this.name + " test " + transaction);
+    if("group" in console) console.group(this.name + " test " + transaction);
     if(transaction >= this.nextTransactionId) this.nextTransactionId = transaction + 1;
     let trans = new Runtime.Transaction(transaction, this.blocks, this.lastWatch ? this.exporter.handle : undefined);
     for(let [e, a, v, round = 0, count = 1] of eavns as EAVRCTuple[]) {
@@ -1590,7 +1590,7 @@ export class Program {
     }
     trans.exec(this.context);
     console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
-    console.groupEnd();
+    if("group" in console) console.groupEnd();
     return this;
   }
 
