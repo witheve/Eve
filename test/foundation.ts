@@ -499,6 +499,69 @@ test("Basic choose", (assert) => {
   assert.end();
 });
 
+// @TODO: Give this a better name when we figure out the specific issue.
+test("Busted partial identity choose", (assert) => {
+  let prog = new Program("test");
+  prog.block("Split up our cat attributes", ({find, lookup, record}) => {
+    let cat = find("cat");
+    let {attribute, value} = lookup(cat);
+    return [
+      // @NOTE: Issue has to do with add, can't repro if value is part of the identity.
+      record("cat-attribute", {cat, attribute}).add("value", value)
+    ];
+  })
+
+  prog.block("Create value records for each cat attribute.", ({find, lookup, choose, record}) => {
+    let catAttribute = find("cat-attribute");
+    // Tags about cats are cool.
+    // @FIXME: In some (but not all) cases where the first branch matches both branches emit.
+    //         This may be multiplicity/retraction related.
+    let [attrName] = choose(
+      () => { catAttribute.attribute == "tag"; return "cool tags"; },
+      () => catAttribute.attribute
+    );
+
+    let {cat, value} = catAttribute;
+    return [
+      record("cat-value", {cat, attr: attrName, val: value})
+    ];
+  });
+
+  verify(assert, prog, [
+    [1, "tag", "pet"],
+    [1, "tag", "cat"],
+    [1, "name", "Felicia"],
+  ], [
+    [2, "tag", "cat-attribute"],
+    [2, "cat", 1],
+    [2, "attribute", "tag"],
+    [2, "value", "pet"],
+    [2, "value", "cat"],
+
+    [3, "tag", "cat-attribute"],
+    [3, "cat", 1],
+    [3, "attribute", "name"],
+    [3, "value", "Felicia"],
+
+    [4, "tag", "cat-value"],
+    [4, "cat", 1],
+    [4, "attr", "cool tag"],
+    [4, "val", "pet"],
+
+    [5, "tag", "cat-value"],
+    [5, "cat", 1],
+    [5, "attr", "cool tag"],
+    [5, "val", "cat"],
+
+    [6, "tag", "cat-value"],
+    [6, "cat", 1],
+    [6, "attr", "name"],
+    [6, "val", "Felicia"],
+  ]);
+
+  assert.end();
+});
+
 test("Basic union", (assert) => {
 
   // -----------------------------------------------------
