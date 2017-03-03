@@ -1525,7 +1525,7 @@ export class JoinNode implements Node {
     return results;
   }
 
-  prefixToResults(context, constraints:Constraint[], prefix:Prefix, round:number, results:Iterator<Prefix>) {
+  prefixToResults(context:EvaluationContext, constraints:Constraint[], prefix:Prefix, round:number, results:Iterator<Prefix>) {
     let diffs = [];
     for(let constraint of constraints) {
       if(constraint.isInput || !(constraint instanceof Scan)) continue;
@@ -2194,7 +2194,7 @@ export class AntiJoin extends BinaryFlow {
     let rightDelta;
     while(rightDelta = neue.next()) {
       let [rightRound, rightCount] = rightDelta;
-      diffs = this.leftIndex.iter(key, prefixRound)
+      diffs = this.leftIndex.iter(key, prefixRound)!; // We already checked for this above.
       while(leftPrefix = diffs.next()) {
         let result = copyArray(leftPrefix, "AntiJoinResult");
         let maxRound = Math.max(diffs.round, rightRound);
@@ -2524,7 +2524,7 @@ export class Block {
   }
 }
 
-//------------------------------------------------------------------------------
+//------------------------------------------------------------------------g1------
 // EvaluationContext
 //------------------------------------------------------------------------------
 
