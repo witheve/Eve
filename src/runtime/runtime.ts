@@ -1694,7 +1694,7 @@ export class WatchNode implements Node {
 
     // @FIXME: Make sure I still work now that I'm sending all my deltas. I think I still need to use local intermediates.
     let change = new Change(e!, a!, v!, n!, transactionId, prefixRound + 1, prefixCount);
-    transaction.export(this.blockId, change);
+    transaction.export(context, this.blockId, change);
     return true;
   }
 }
@@ -2497,6 +2497,7 @@ export class Block {
 export class EvaluationContext {
   distinctIndex = new DistinctIndex();
   intermediates:{[key:string]: IntermediateIndex} = {};
+  exportIndex:{[beav:string]: number} = {};
   tracker = TRACKER ? new PerformanceTracker() : new NoopPerformanceTracker();
 
   constructor(public index:Index) {}
@@ -2547,9 +2548,23 @@ export class Transaction {
     //debug("          <-!", change.toString())
   }
 
-  export(blockId:number, change:Change) {
-    if(!this.exportedChanges[blockId]) this.exportedChanges[blockId] = [change];
-    else this.exportedChanges[blockId].push(change);
+  export(context:EvaluationContext, blockId:number, change:Change) {
+    let {e, a, v, count} = change;
+    let beav = `${blockId}|${e}|${a}|${v}`;
+    let old = context.exportIndex[beav] || 0;
+    let neue = old + count;
+    let delta = 0;
+
+    // Once you go negative you don't go back.
+    if(old === 0 && neue > 0) delta = 1;
+    else if(old > 0 && neue === 0) delta = -1;
+
+    context.exportIndex[beav] = neue;
+
+    if(delta) {
+      if(!this.exportedChanges[blockId]) this.exportedChanges[blockId] = [change];
+      else this.exportedChanges[blockId].push(change);
+    }
   }
 
   protected prepareRound(context:EvaluationContext, changeIx:number) {
