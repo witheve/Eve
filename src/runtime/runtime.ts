@@ -374,6 +374,12 @@ export var GlobalInterner = new Interner();
 // We track counts as Multiplicities, which are just signed integers.
 type Multiplicity = number;
 
+// It's often useful to know just the sign of a multiplicity
+function sign (x:number) {
+  return typeof x === 'number' ? x ? x < 0 ? -1 : 1 : x === x ? 0 : NaN : NaN;
+}
+
+
 // In a change entity, attribute, value, and node are stored as e, a, v, and n
 // respectively.  We often need to look these up in loops or pass around
 // information about what property we might currently be talking about, so we
@@ -1439,11 +1445,7 @@ export class JoinNode implements Node {
     } else if(!remainingToSolve) {
       // if it is valid and there's nothing left to solve, then we've found
       // a full result and we should just continue
-      prefix[prefix.length - 2] = round;
-      prefix[prefix.length - 1] = input.count;
-      results.push(copyArray(prefix, "results"));
-      prefix[prefix.length - 2] = undefined as any;
-      prefix[prefix.length - 1] = undefined as any;
+      this.prefixToResults(context, this.constraints, prefix, round, results);
       //debug("        Join combo result:", results);
       return true;
 
@@ -1523,6 +1525,15 @@ export class JoinNode implements Node {
     return results;
   }
 
+  prefixToResults(context, constraints:Constraint[], prefix:Prefix, round:number, results:Iterator<Prefix>) {
+    let diffs = [];
+    for(let constraint of constraints) {
+      if(constraint.isInput || !(constraint instanceof Scan)) continue;
+      diffs.push(constraint.getDiffs(context, prefix));
+    }
+    this.computeMultiplicities(results, prefix, round, diffs);
+  }
+
   genericJoin(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, roundIx:number = this.registerLength):Iterator<Prefix> {
     let {constraints, emptyProposal} = this;
     let proposedResults = this.proposedResultsArrays[roundIx - 1];
@@ -1566,12 +1577,7 @@ export class JoinNode implements Node {
           }
         }
         if(roundIx === 1) {
-          let diffs = [];
-          for(let constraint of constraints) {
-            if(constraint.isInput || !(constraint instanceof Scan)) continue;
-            diffs.push(constraint.getDiffs(context, prefix));
-          }
-          this.computeMultiplicities(results, prefix, round, diffs);
+          this.prefixToResults(context, constraints, prefix, round, results);
         } else {
           this.genericJoin(context, prefix, transaction, round, results, roundIx - 1);
         }
@@ -1588,12 +1594,7 @@ export class JoinNode implements Node {
           }
         }
         if(roundIx === 1) {
-          let diffs = [];
-          for(let constraint of constraints) {
-            if(constraint.isInput || !(constraint instanceof Scan)) continue;
-            diffs.push(constraint.getDiffs(context, prefix));
-          }
-          this.computeMultiplicities(results, prefix, round, diffs);
+          this.prefixToResults(context, constraints, prefix, round, results);
         } else {
           this.genericJoin(context, prefix, transaction, round, results, roundIx - 1);
         }
@@ -1874,6 +1875,7 @@ class IntermediateIndexIterator {
         total += cur;
       }
       count = total;
+      countIx = minRound;
     } else {
       for(; countIx < currentCounts.length; countIx++) {
         let cur = currentCounts[countIx];
@@ -1953,16 +1955,18 @@ class ZeroingIterator {
   roundIx = -1;
   countSum = 0;
   minRound = 0;
+  count = 1;
 
   reset(counts:Multiplicity[], minRound:number = 0) {
     this.counts = counts;
     this.minRound = minRound;
     this.roundIx = -1;
     this.countSum = 0;
+    this.count = 1;
     return this;
   }
 
-  next() {
+  next():number|undefined {
     let {roundIx, counts, countSum, minRound} = this;
     let countsLength = counts.length;
     roundIx++;
@@ -1974,21 +1978,24 @@ class ZeroingIterator {
         if(!cur) continue;
         countSum += cur;
       }
-      if(countSum === 0) final = roundIx - 1;
+      roundIx = minRound;
+      final = minRound;
     } else {
       for(; roundIx <= countsLength; roundIx++) {
         let cur = counts[roundIx];
         if(!cur) continue;
         countSum += cur;
-        if(countSum === 0) {
-          final = roundIx;
-          break;
-        }
+        final = roundIx;
+        break;
       }
     }
 
     this.roundIx = roundIx;
     this.countSum = countSum;
+    this.count = 1;
+    if(countSum !== 0) {
+      this.count = -1;
+    }
     return final;
   }
 }
@@ -1997,12 +2004,13 @@ class KeyOnlyIntermediateIndex {
   index:{[key:string]: Multiplicity[]} = {};
   iterator = new ZeroingIterator();
 
-  insert(key:string, prefix:Prefix) {
+  insert(key:string, prefix:Prefix):boolean {
     let counts = this.index[key];
     if(!counts) counts = this.index[key] = createArray("KeyOnlyIntermediateIndex");
     let round = prefix[prefix.length - 2];
     let count = prefix[prefix.length - 1];
-    counts[round] = count + (counts[round] || 0);
+    let prev = counts[round] || 0;
+    counts[round] = count + prev;
     if(!counts[round]) {
       let shouldRemove = true;
       for(let ix = 0, len = counts.length; ix < len; ix++) {
@@ -2015,6 +2023,8 @@ class KeyOnlyIntermediateIndex {
         delete this.index[key];
       }
     }
+    if(key == 207) console.log("                   Insert: ", prefix);
+    return sign(prev) !== sign(counts[round]);
   }
 
   iter(key:string, round:number):ZeroingIterator|undefined {
@@ -2130,18 +2140,18 @@ export class AntiJoin extends BinaryFlow {
   }
 
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
-    let debug = (context.tracker.activeBlock === "Jeff II: Electric Boogaloo") ? console.log : (...args:any[]) => undefined;
+    let debug = (input.e == 207) ? console.log : (...args:any[]) => undefined;
     debug("            antijoin:")
     return super.exec(context,input,prefix,transaction,round,results,changes);
   }
 
   onLeft(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void {
-    let debug = (context.tracker.activeBlock === "Jeff II: Electric Boogaloo") ? console.log : (...args:any[]) => undefined;
     let key = this.keyFunc(prefix);
+    let debug = (key == 207) ? console.log : (...args:any[]) => undefined;
     let count = prefix[prefix.length - 1];
     this.leftIndex.insert(key, prefix);
     let diffs = this.rightIndex.iter(key, round);
-    debug("                left:", key, count, this.rightIndex.index[key] && copyArray(this.rightIndex.index[key]));
+    debug("                left:", key, count, this.rightIndex.index[key] && copyArray(this.rightIndex.index[key]), prefix);
     if(!diffs) {
       debug("                    left ->", key, count, diffs)
       return results.push(prefix);
@@ -2150,7 +2160,7 @@ export class AntiJoin extends BinaryFlow {
       while(currentRound = diffs.next()) {
         let result = copyArray(prefix, "AntiJoinResult");
         result[result.length - 2] = currentRound;
-        result[result.length - 1] = count;
+        result[result.length - 1] = diffs.count * count;
         results.push(result);
         debug("                    left ->", key, count, currentRound, result[result.length - 1])
       }
@@ -2158,18 +2168,26 @@ export class AntiJoin extends BinaryFlow {
   }
 
   onRight(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void {
-    let debug = (context.tracker.activeBlock === "Jeff II: Electric Boogaloo") ? console.log : (...args:any[]) => undefined;
     let key = this.keyFunc(prefix);
+    let debug = (key == 207) ? console.log : (...args:any[]) => undefined;
     let count = prefix[prefix.length - 1];
-    this.rightIndex.insert(key, prefix);
+    let changed = this.rightIndex.insert(key, prefix);
+    if(!changed) return;
     let diffs = this.leftIndex.iter(key, round)
-    debug("                right:", key, count, this.leftIndex.index[key] && copyHash(this.leftIndex.index[key]));
+    let copy = (thing:any) => {
+      let neue = copyHash(thing);
+      for(let key in thing) {
+        neue[key] = thing[key].slice();
+      }
+      return neue;
+    }
+    debug("                right:", key, count, this.leftIndex.index[key] && copy(this.leftIndex.index[key]));
     if(!diffs) return;
     let leftPrefix;
     while(leftPrefix = diffs.next()) {
       let result = copyArray(leftPrefix, "AntiJoinResult");
       result[result.length - 2] = diffs.round;
-      result[result.length - 1] = count * diffs.count * -1;
+      result[result.length - 1] = sign(count) * diffs.count * -1;
       results.push(result);
       debug("                    right ->", key, count, diffs.count, result[result.length - 1])
     }
@@ -2525,8 +2543,7 @@ export class Transaction {
   constructor(public transaction:number, public blocks:Block[], protected exportHandler?:ExportHandler) {}
 
   output(context:EvaluationContext, change:Change) {
-    let debug = (context.tracker.activeBlock === "Jeff II: Electric Boogaloo" ||
-                 (change.e == 207)) ? console.log : (...args:any[]) => undefined;
+    let debug = (change.e == 207 || change.e == 240 || change.e == 239) ? console.log : (...args:any[]) => undefined;
 
 
     debug("        E~", change.toString());
@@ -2744,7 +2761,7 @@ export class Transaction {
       this.round = change.round;
       //debug("Round:", this.round);
       let impact = index.hasImpact(change);
-      debug("-> " + change, impact);
+      if(change.e == 207) debug("-> " + change, impact);
       if(impact) {
         for(let block of this.blocks) {
           tracker.block(block.name);

@@ -357,7 +357,7 @@ export class DistinctIndex {
     let {index} = this;
     let roundCounts = index[key] || createArray("Insert intermediate counts");
     index[key] = roundCounts;
-    if(e == 207) console.log("         counts: ", roundCounts.slice());
+    if((e == 207 || e == 240 || e == 239) && (a == 1 || a == GlobalInterner.get("tagname"))) console.log("         counts: ", roundCounts.slice());
 
     let curCount = 0;
     let startingCount = roundCounts[prefixRound] = roundCounts[prefixRound] || 0;
@@ -428,6 +428,7 @@ export class DistinctIndex {
 
     // console.log("         post counts: ", roundCounts);
 
+    if((e == 207 || e == 240 || e == 239) && (a == 1 || a == GlobalInterner.get("tagname"))) console.log("         post counts: ", roundCounts.slice());
     return deltas;
   }
 
