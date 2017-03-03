@@ -60,10 +60,11 @@ export class HashIndex implements Index {
     let neue =  round * change.count;
     let ix = 0;
     let handled = false;
+    if(change.e == 207) console.log("        index insert:", change.toString(), arr.slice(), neue);
     for(let cur of arr) {
       let curRound = Math.abs(cur);
       if(curRound === round) {
-        let updated = curRound + neue;
+        let updated = cur + neue;
         if(updated === 0) {
           arr.splice(ix,1);
         } else {
@@ -79,6 +80,7 @@ export class HashIndex implements Index {
       ix++;
     }
     if(!handled) arr.push(neue)
+    if(change.e == 207) console.log("        post index insert:", change.toString(), arr.slice());
   }
 
   insert(change:Change) {

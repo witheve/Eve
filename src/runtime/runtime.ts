@@ -1529,7 +1529,8 @@ export class JoinNode implements Node {
     let diffs = [];
     for(let constraint of constraints) {
       if(constraint.isInput || !(constraint instanceof Scan)) continue;
-      diffs.push(constraint.getDiffs(context, prefix));
+      let cur = constraint.getDiffs(context, prefix);
+      diffs.push(cur);
     }
     this.computeMultiplicities(results, prefix, round, diffs);
   }
@@ -2794,6 +2795,12 @@ export class Transaction {
         let exports = createArray("exportsArray");
         this.collapseMultiplicity(this.exportedChanges[+blockId], exports);
         this.exportedChanges[+blockId] = exports;
+      }
+      console.log("EXPORTS", this.exportedChanges);
+      for(let foo in this.exportedChanges) {
+        for(let thing of this.exportedChanges[foo]) {
+          console.log("    ", thing.toString())
+        }
       }
       this.exportHandler(this.exportedChanges);
     }
