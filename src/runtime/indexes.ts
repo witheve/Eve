@@ -119,16 +119,18 @@ export class HashIndex implements Index {
   }
 
   hasImpact(input:Change) {
-    let {e,a,v,n} = input;
-    let rounds = this.getDiffs(e,a,v,n);
-    let count = sumTimes(rounds, input.transaction, input.round);
-    // console.log("      ntrcs:", ntrcs);
-    // console.log("      count:", count);
-    if((count > 0 && count + input.count == 0) ||
-       (count == 0 && count + input.count > 0)) {
-      return true;
-    }
-    return false;
+    // let {e,a,v,n} = input;
+    // let rounds = this.getDiffs(e,a,v,n);
+    // let count = sumTimes(rounds, input.transaction, input.round);
+    // if((count > 0 && count + input.count == 0) ||
+    //    (count <= 0 && count + input.count >= 0)) {
+    //   return true;
+    // }
+
+    // console.log(`THE BEEES (${rounds}) ARE RUINING MY ${count} SOCIAL LIFE`);
+    // return false;
+
+    return true;
   }
 
   resolveProposal(proposal:Proposal) {
@@ -355,7 +357,7 @@ export class DistinctIndex {
     let {index} = this;
     let roundCounts = index[key] || createArray("Insert intermediate counts");
     index[key] = roundCounts;
-    // console.log("         counts: ", roundCounts);
+    if(e == 207) console.log("         counts: ", roundCounts.slice());
 
     let curCount = 0;
     let startingCount = roundCounts[prefixRound] = roundCounts[prefixRound] || 0;
@@ -412,6 +414,7 @@ export class DistinctIndex {
       // console.log("      round:", roundIx, {delta, deltaChanged, lastCountChanged, nextCountChanged});
 
       let finalDelta = deltaChanged - delta;
+
       // console.log("            loop:", roundIx, curCount, prev, nextCount, next, {prevDelta, newDelta, finalDelta})
 
       if(finalDelta) {
