@@ -9,8 +9,8 @@ class HTMLWatcher extends DOMWatcher<Instance> {
 
   createInstance(id:RawValue, element:RawValue, tagname:RawValue):Instance {
     let elem:Instance = document.createElement(tagname as string);
-    // elem.setAttribute("instance", (global as any).GlobalInterner.get(id));
-    // elem.setAttribute("element", (global as any).GlobalInterner.get(element));
+    elem.setAttribute("instance", (global as any).GlobalInterner.get(id));
+    elem.setAttribute("element", (global as any).GlobalInterner.get(element));
     elem.__element = element;
     elem.__styles = [];
     return elem;
