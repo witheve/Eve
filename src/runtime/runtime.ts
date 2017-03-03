@@ -1957,6 +1957,8 @@ class ZeroingIterator {
   reset(counts:Multiplicity[], minRound:number = 0) {
     this.counts = counts;
     this.minRound = minRound;
+    this.roundIx = -1;
+    this.countSum = 0;
     return this;
   }
 
@@ -1964,7 +1966,7 @@ class ZeroingIterator {
     let {roundIx, counts, countSum, minRound} = this;
     let countsLength = counts.length;
     roundIx++;
-    if(roundIx > countsLength) return;
+    if(roundIx >= countsLength) return;
     let final;
     if(roundIx < minRound) {
       for(; roundIx <= minRound; roundIx++) {
@@ -2137,7 +2139,7 @@ export class AntiJoin extends BinaryFlow {
     let count = prefix[prefix.length - 1];
     this.leftIndex.insert(key, prefix);
     let diffs = this.rightIndex.iter(key, round);
-    //debug("                    left:", key, count, diffs)
+    //debug("                left:", key, count, this.rightIndex.index[key] && copyArray(this.rightIndex.index[key]));
     if(!diffs) {
       //debug("                    left ->", key, count, diffs)
       return results.push(prefix);
