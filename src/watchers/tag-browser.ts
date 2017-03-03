@@ -119,18 +119,18 @@ export class TagBrowserWatcher extends Watcher {
       .block("Record attribute component", ({find, choose, record}) => {
         let recordAttribute = find("tag-browser/record-attribute");
 
-        // @FIXME: A bug in the choose impl requires us to search for attribute in the branches to use it.
-        let [attrName] = choose(
-          () => { recordAttribute.attr == "child-tag"; return "tag"; },
-          () => recordAttribute.attr
-        );
-        // let attrName = recordAttribute.attr;
+        // @FIXME: Leads us down a lonely road. (The only one it has ever known).
+        // let [attrName] = choose(
+        //   () => { recordAttribute.attr == "child-tag"; return "tag"; },
+        //   () => recordAttribute.attr
+        // );
+        let attrName = recordAttribute.attr;
 
         let {rec, val} = recordAttribute;
         return [
           recordAttribute.add({tag: "ui/row",
             children: [
-              record("ui/text", {sort: 0, text: `${attrName}:`, style: record({"margin-right": 10})}),
+              record("ui/text", {sort: 0, text: `${attrName}:`, rec, style: record({"margin-right": 10})}),
               record("ui/column", {sort: 1, rec, attrName}) // @FIXME: These attrs from the parent shouldn't need to be on the children.
                 .add("children", record("tag-browser/record-value", {rec, attr: attrName, val}))
             ]
@@ -142,17 +142,18 @@ export class TagBrowserWatcher extends Watcher {
     prog
       // @FIXME: Enabling this block causes us to hang on tag navigation...
 
-      // .block("Record value component (as tag)", ({find, record}) => {
-      //   let recordValue = find("tag-browser/record-value");
-      //   let {val} = recordValue;
-      //   let childTag = find("child-tag", {"child-tag": val});
-      //   return [
-      //     recordValue.add({tag: "tag-browser/tag", target: val})
-      //   ];
-      // })
-
-      .block("Record value component (as raw value)", ({find, not, record}) => {
+      .block("Record value component (as tag)", ({find, record}) => {
         let recordValue = find("tag-browser/record-value");
+        let {val} = recordValue;
+        let childTag = find("child-tag", {"child-tag": val});
+        return [
+          recordValue.add({tag: "tag-browser/tag", target: val})
+        ];
+      })
+
+      .block("Jeff II: Electric Boogaloo", ({find, not, record}) => { // Record value component (as raw value)
+        let recordValue = find("tag-browser/record-value");
+        // @FIXME: Not is *still* busted
         not(() => recordValue.tag == "tag-browser/tag");
         let {val} = recordValue;
         return [

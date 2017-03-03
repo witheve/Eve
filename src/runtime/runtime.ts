@@ -1865,7 +1865,7 @@ class IntermediateIndexIterator {
       if(!currentCounts) return;
       countIx = 1;
     }
-    let count;
+    let count = 0;
     if(countIx < minRound) {
       let total = 0;
       for(; countIx <= minRound; countIx++) {
@@ -1974,7 +1974,7 @@ class ZeroingIterator {
         if(!cur) continue;
         countSum += cur;
       }
-      if(countSum === 0) final = roundIx;
+      if(countSum === 0) final = roundIx - 1;
     } else {
       for(; roundIx <= countsLength; roundIx++) {
         let cur = counts[roundIx];
