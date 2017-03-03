@@ -1,7 +1,7 @@
 import {Program} from "../runtime/dsl2";
 import "../watchers/system";
 
-let prog = new Program("clock");
+let prog = new Program("hover");
 prog.attach("system");
 prog.attach("html");
 
