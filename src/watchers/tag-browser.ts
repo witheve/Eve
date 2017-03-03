@@ -119,12 +119,10 @@ export class TagBrowserWatcher extends Watcher {
       .block("Record attribute component", ({find, choose, record}) => {
         let recordAttribute = find("tag-browser/record-attribute");
 
-        // @FIXME: Leads us down a lonely road. (The only one it has ever known).
-        // let [attrName] = choose(
-        //   () => { recordAttribute.attr == "child-tag"; return "tag"; },
-        //   () => recordAttribute.attr
-        // );
-        let attrName = recordAttribute.attr;
+        let [attrName] = choose(
+          () => { recordAttribute.attr == "child-tag"; return "tag"; },
+          () => recordAttribute.attr
+        );
 
         let {rec, val} = recordAttribute;
         return [

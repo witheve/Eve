@@ -10,26 +10,26 @@ function doIt() {
     [1, "tag", "person"],
     [1, "name", "jeff"],
 
-    // [2, "tag", "person"],
-    // [2, "name", "sandra"],
-    // [2, "pet", 3],
+    [2, "tag", "person"],
+    [2, "name", "sandra"],
+    [2, "pet", 3],
 
-    // [3, "tag", "pet"],
+    [3, "tag", "pet"],
     [3, "tag", "dog"],
     [3, "name", "bert"],
 
-    // [4, "tag", "person"],
-    // [4, "name", "rachel"],
-    // [4, "pet", 5],
-    // [4, "pet", 6],
+    [4, "tag", "person"],
+    [4, "name", "rachel"],
+    [4, "pet", 5],
+    [4, "pet", 6],
 
-    // [5, "tag", "pet"],
-    // [5, "tag", "cat"],
-    // [5, "name", "Felicia"],
+    [5, "tag", "pet"],
+    [5, "tag", "cat"],
+    [5, "name", "Felicia"],
 
-    // [6, "tag", "pet"],
-    // [6, "tag", "cat"],
-    // [6, "name", "Mr. Whiskers"]
+    [6, "tag", "pet"],
+    [6, "tag", "cat"],
+    [6, "name", "Mr. Whiskers"]
   ]);
 }
 (global as any).doIt = doIt;

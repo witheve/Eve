@@ -1973,21 +1973,27 @@ class ZeroingIterator {
     roundIx++;
     if(roundIx >= countsLength) return;
     let final;
-    if(roundIx < minRound) {
-      for(; roundIx <= minRound; roundIx++) {
+    if(roundIx <= minRound) {
+      for(; roundIx < countsLength; roundIx++) {
         let cur = counts[roundIx];
-        if(!cur) continue;
-        countSum += cur;
+        if(cur) {
+          countSum += cur;
+        }
+        if(roundIx >= minRound && countSum === 0) {
+          final = roundIx;
+          break;
+        }
       }
-      roundIx = minRound;
-      final = minRound;
     } else {
       for(; roundIx <= countsLength; roundIx++) {
         let cur = counts[roundIx];
         if(!cur) continue;
         countSum += cur;
-        final = roundIx;
-        break;
+        if((this.countSum === 0 && countSum > 0) ||
+           (this.countSum > 0 && countSum === 0)) {
+          final = roundIx;
+          break;
+        }
       }
     }
 
@@ -2005,7 +2011,7 @@ class KeyOnlyIntermediateIndex {
   index:{[key:string]: Multiplicity[]} = {};
   iterator = new ZeroingIterator();
 
-  insert(key:string, prefix:Prefix):boolean {
+  insert(key:string, prefix:Prefix) {
     let counts = this.index[key];
     if(!counts) counts = this.index[key] = createArray("KeyOnlyIntermediateIndex");
     let round = prefix[prefix.length - 2];
@@ -2024,8 +2030,6 @@ class KeyOnlyIntermediateIndex {
         delete this.index[key];
       }
     }
-    if(key == 207) console.log("                   Insert: ", prefix);
-    return sign(prev) !== sign(counts[round]);
   }
 
   iter(key:string, round:number):ZeroingIterator|undefined {
@@ -2133,6 +2137,7 @@ export class BinaryJoinRight extends BinaryFlow {
 export class AntiJoin extends BinaryFlow {
   leftIndex = new IntermediateIndex();
   rightIndex = new KeyOnlyIntermediateIndex();
+  distinct = new DistinctIndex();
   keyFunc:KeyFunction;
 
   constructor(public left:Node, public right:Node, public keyRegisters:Register[]) {
@@ -2141,40 +2146,40 @@ export class AntiJoin extends BinaryFlow {
   }
 
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
-    let debug = (input.e == 207) ? console.log : (...args:any[]) => undefined;
-    debug("            antijoin:")
+    // debug"            antijoin:")
     return super.exec(context,input,prefix,transaction,round,results,changes);
   }
 
   onLeft(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void {
     let key = this.keyFunc(prefix);
-    let debug = (key == 207) ? console.log : (...args:any[]) => undefined;
+    let prefixRound = prefix[prefix.length - 2];
     let count = prefix[prefix.length - 1];
     this.leftIndex.insert(key, prefix);
-    let diffs = this.rightIndex.iter(key, round);
-    debug("                left:", key, count, this.rightIndex.index[key] && copyArray(this.rightIndex.index[key]), prefix);
+    let diffs = this.rightIndex.iter(key, prefixRound);
+    // debug"                left:", key, count, this.rightIndex.index[key] && copyArray(this.rightIndex.index[key]), prefix);
     if(!diffs) {
-      debug("                    left ->", key, count, diffs)
+      // debug"                    left ->", key, count, diffs)
       return results.push(prefix);
     } else {
       let currentRound;
-      while(currentRound = diffs.next()) {
+      while((currentRound = diffs.next()) !== undefined) {
         let result = copyArray(prefix, "AntiJoinResult");
         result[result.length - 2] = currentRound;
         result[result.length - 1] = diffs.count * count;
         results.push(result);
-        debug("                    left ->", key, count, currentRound, result[result.length - 1])
+        // debug"                    left ->", key, count, currentRound, result[result.length - 1])
       }
     }
   }
 
   onRight(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void {
     let key = this.keyFunc(prefix);
-    let debug = (key == 207) ? console.log : (...args:any[]) => undefined;
+    let prefixRound = prefix[prefix.length - 2];
     let count = prefix[prefix.length - 1];
-    let changed = this.rightIndex.insert(key, prefix);
-    if(!changed) return;
-    let diffs = this.leftIndex.iter(key, round)
+    this.rightIndex.insert(key, prefix);
+    let neue = new Iterator<[number, number]>();
+    this.distinct.distinctKey(key, prefixRound, count, neue)
+    let diffs = this.leftIndex.iter(key, prefixRound)
     let copy = (thing:any) => {
       let neue = copyHash(thing);
       for(let key in thing) {
@@ -2182,15 +2187,22 @@ export class AntiJoin extends BinaryFlow {
       }
       return neue;
     }
-    debug("                right:", key, count, this.leftIndex.index[key] && copy(this.leftIndex.index[key]));
-    if(!diffs) return;
+    // debug"                right:", key, count, this.leftIndex.index[key] && copy(this.leftIndex.index[key]));
+    // debug"                right distinct: ", this.distinct.index[key], neue);
+    if(!diffs || !neue.length) return;
     let leftPrefix;
-    while(leftPrefix = diffs.next()) {
-      let result = copyArray(leftPrefix, "AntiJoinResult");
-      result[result.length - 2] = diffs.round;
-      result[result.length - 1] = sign(count) * diffs.count * -1;
-      results.push(result);
-      debug("                    right ->", key, count, diffs.count, result[result.length - 1])
+    let rightDelta;
+    while(rightDelta = neue.next()) {
+      let [rightRound, rightCount] = rightDelta;
+      diffs = this.leftIndex.iter(key, prefixRound)
+      while(leftPrefix = diffs.next()) {
+        let result = copyArray(leftPrefix, "AntiJoinResult");
+        let maxRound = Math.max(diffs.round, rightRound);
+        result[result.length - 2] = maxRound;
+        result[result.length - 1] = rightCount * diffs.count * -1;
+        results.push(result);
+        // debug"                    right ->", key, maxRound, rightCount, diffs.count, result[result.length - 1])
+      }
     }
   }
 }
@@ -2544,19 +2556,16 @@ export class Transaction {
   constructor(public transaction:number, public blocks:Block[], protected exportHandler?:ExportHandler) {}
 
   output(context:EvaluationContext, change:Change) {
-    let debug = (change.e == 207 || change.e == 240 || change.e == 239) ? console.log : (...args:any[]) => undefined;
-
-
-    debug("        E~", change.toString());
+    // debug"        E~", change.toString(), context.tracker.activeBlock);
 
     let {outputs} = this;
     let {distinctIndex} = context;
     outputs.clear();
-    distinctIndex.distinct(change, this.transaction, outputs);
+    distinctIndex.distinct(change, outputs);
     outputs.reset();
     let output;
     while(output = outputs.next()) {
-      debug("          <-", output.toString())
+      // debug"          <-", output.toString())
       let cur = this.roundChanges[output.round] || createArray("roundChangesArray");
       cur.push(output);
       this.roundChanges[output.round] = cur;
@@ -2735,8 +2744,6 @@ export class Transaction {
   }
 
   exec(context:EvaluationContext) {
-    let debug = console.log;
-
     let {changes, roundChanges} = this;
     let {index, tracker} = context;
     tracker.time("transaction");
@@ -2761,21 +2768,11 @@ export class Transaction {
       }
       this.round = change.round;
       //debug("Round:", this.round);
-      let impact = index.hasImpact(change);
-      if(change.e == 207) debug("-> " + change, impact);
-      if(impact) {
-        for(let block of this.blocks) {
-          tracker.block(block.name);
-          // if(window["counts"][block.name] === undefined) window["counts"][block.name] = 0;
-          // window["active"] = block.name;
-          //debug("    ", block.name);
-          // let start = performance.now();
-          block.exec(context, change, this);
-          tracker.blockEnd(block.name);
-        }
-      } else {
-        console.warn("NO CHANGE", change.toString())
-        console.log(":(", (context.distinctIndex.index[`${change.e}|${change.a}|${change.v}`] || []).slice());
+      for(let block of this.blocks) {
+        tracker.block(block.name);
+        //debug("    ", block.name);
+        block.exec(context, change, this);
+        tracker.blockEnd(block.name);
       }
 
       //debug("");
@@ -2795,12 +2792,6 @@ export class Transaction {
         let exports = createArray("exportsArray");
         this.collapseMultiplicity(this.exportedChanges[+blockId], exports);
         this.exportedChanges[+blockId] = exports;
-      }
-      console.log("EXPORTS", this.exportedChanges);
-      for(let foo in this.exportedChanges) {
-        for(let thing of this.exportedChanges[foo]) {
-          console.log("    ", thing.toString())
-        }
       }
       this.exportHandler(this.exportedChanges);
     }

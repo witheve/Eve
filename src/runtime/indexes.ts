@@ -26,7 +26,6 @@ function sumTimes(roundArray:RoundArray, transaction:number, round:number) {
 
 export interface Index {
   insert(change:Change):void;
-  hasImpact(change:Change):boolean;
   propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):Proposal;
   resolveProposal(proposal:Proposal):any[][];
   check(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):boolean;
@@ -60,7 +59,6 @@ export class HashIndex implements Index {
     let neue =  round * change.count;
     let ix = 0;
     let handled = false;
-    if(change.e == 207) console.log("        index insert:", change.toString(), arr.slice(), neue);
     for(let cur of arr) {
       let curRound = Math.abs(cur);
       if(curRound === round) {
@@ -80,7 +78,6 @@ export class HashIndex implements Index {
       ix++;
     }
     if(!handled) arr.push(neue)
-    if(change.e == 207) console.log("        post index insert:", change.toString(), arr.slice());
   }
 
   insert(change:Change) {
@@ -118,21 +115,6 @@ export class HashIndex implements Index {
       this.cardinality++;
     }
 
-  }
-
-  hasImpact(input:Change) {
-    // let {e,a,v,n} = input;
-    // let rounds = this.getDiffs(e,a,v,n);
-    // let count = sumTimes(rounds, input.transaction, input.round);
-    // if((count > 0 && count + input.count == 0) ||
-    //    (count <= 0 && count + input.count >= 0)) {
-    //   return true;
-    // }
-
-    // console.log(`THE BEEES (${rounds}) ARE RUINING MY ${count} SOCIAL LIFE`);
-    // return false;
-
-    return true;
   }
 
   resolveProposal(proposal:Proposal) {
@@ -319,10 +301,6 @@ export class BitMatrixIndex {
     throw new Error("not implemented")
   }
 
-  hasImpact(change:Change):boolean {
-    throw new Error("not implemented")
-  }
-
   propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):Proposal {
     throw new Error("not implemented")
   }
@@ -352,14 +330,10 @@ export class BitMatrixIndex {
 export class DistinctIndex {
   index:{[key:string]: (number|undefined)[]|undefined} = {};
 
-  shouldOutput(e:ID, a:ID, v:ID, prefixRound:number, prefixCount:number):number[] {
-    // @FIXME: When we start to unintern, we'll have invalid keys left in this index,
-    // so we'll need to delete the keys themselves from the index
-    let key = `${e}|${a}|${v}`;
+  shouldOutput(key:string, prefixRound:number, prefixCount:number):number[] {
     let {index} = this;
     let roundCounts = index[key] || createArray("Insert intermediate counts");
     index[key] = roundCounts;
-    if((e == 207 || e == 240 || e == 239) && (a == 1 || a == GlobalInterner.get("tagname"))) console.log("         counts: ", roundCounts.slice());
 
     let curCount = 0;
     let startingCount = roundCounts[prefixRound] = roundCounts[prefixRound] || 0;
@@ -369,8 +343,6 @@ export class DistinctIndex {
       if(!prevCount) continue;
       curCount += prevCount;
     }
-
-    // console.log("           foo:", curCount);
 
     let deltas = [];
 
@@ -393,7 +365,6 @@ export class DistinctIndex {
     }
     curCount = nextCount;
     roundCounts[prefixRound] = startingCount + prefixCount;
-    // console.log("          DISTINCT",  {curCount, nextCount, delta, roundCounts})
 
     for(let roundIx = prefixRound + 1; roundIx < roundCounts.length; roundIx++) {
       let roundCount = roundCounts[roundIx];
@@ -413,36 +384,39 @@ export class DistinctIndex {
       if(lastCountChanged == 0 && nextCountChanged > 0) deltaChanged = 1;
       if(lastCountChanged > 0 && nextCountChanged == 0) deltaChanged = -1;
 
-      // console.log("      round:", roundIx, {delta, deltaChanged, lastCountChanged, nextCountChanged});
-
       let finalDelta = deltaChanged - delta;
 
-      // console.log("            loop:", roundIx, curCount, prev, nextCount, next, {prevDelta, newDelta, finalDelta})
-
       if(finalDelta) {
-        // roundCounts[roundIx] += prefixCount * -1;
-        // console.log("            changed:", roundIx, finalDelta)
         deltas.push(roundIx, finalDelta);
       }
 
       curCount = nextCountChanged;
     }
 
-    // console.log("         post counts: ", roundCounts);
-
-    if((e == 207 || e == 240 || e == 239) && (a == 1 || a == GlobalInterner.get("tagname"))) console.log("         post counts: ", roundCounts.slice());
     return deltas;
   }
 
-  distinct(input:Change, transactionId:number, results:Iterator<Change>):boolean {
-    // console.log("     checking: ", input.toString());
+  distinct(input:Change, results:Iterator<Change>):boolean {
     let {e, a, v, n, round, count} = input;
-    let deltas = this.shouldOutput(e, a, v, round, count);
+    // @FIXME: When we start to unintern, we'll have invalid keys left in this index,
+    // so we'll need to delete the keys themselves from the index
+    let key = `${e}|${a}|${v}`;
+    let deltas = this.shouldOutput(key, round, count);
     for(let deltaIx = 0; deltaIx < deltas.length; deltaIx += 2) {
       let deltaRound = deltas[deltaIx];
       let delta = deltas[deltaIx + 1];
-      let change = new Change(e!, a!, v!, n!, transactionId, deltaRound, delta);
+      let change = new Change(e!, a!, v!, n!, input.transaction, deltaRound, delta);
       results.push(change)
+    }
+    return deltas.length > 0;
+  }
+
+  distinctKey(key:string, round:number, count:number, results:Iterator<[number, number]>):boolean {
+    let deltas = this.shouldOutput(key, round, count);
+    for(let deltaIx = 0; deltaIx < deltas.length; deltaIx += 2) {
+      let deltaRound = deltas[deltaIx];
+      let delta = deltas[deltaIx + 1];
+      results.push([deltaRound, delta]);
     }
     return deltas.length > 0;
   }
