@@ -377,7 +377,6 @@ export class Parser extends chev.Parser {
   attributeAccess: any;
   actionStatement: any;
   actionEqualityRecord: any;
-  actionAttributeExpression: any;
   actionOperation: any;
   actionLookup: any;
   variable: any;
@@ -567,14 +566,13 @@ export class Parser extends chev.Parser {
       // @TODO fill in from
       let from = [];
       let action = self.CONSUME(Action).image;
-      let actionKey = action;
       let scopes:any = ["session"];
       self.OPTION(() => { scopes = self.SUBRULE(self.scopeDeclaration) })
       self.activeScopes = scopes;
       self.currentAction = action;
       let statements = [];
       self.MANY(() => {
-        let statement = self.SUBRULE(self.actionStatement, [actionKey]) as any;
+        let statement = self.SUBRULE(self.actionStatement) as any;
         if(statement) {
           statements.push(statement);
           statement.scopes = scopes;
@@ -584,19 +582,19 @@ export class Parser extends chev.Parser {
     });
 
 
-    self.RULE("actionStatement", (actionKey) => {
+    self.RULE("actionStatement", () => {
       return self.OR([
         {ALT: () => {
-          let record = self.SUBRULE(self.record, [false, actionKey, "+="]);
+          let record = self.SUBRULE(self.record, [false, "+="]);
           return record;
         }},
-        {ALT: () => { return self.SUBRULE(self.actionEqualityRecord, [actionKey]); }},
+        {ALT: () => { return self.SUBRULE(self.actionEqualityRecord); }},
         {ALT: () => {
-          let record = self.SUBRULE(self.actionOperation, [actionKey]);
-          self.block[actionKey](record);
+          let record = self.SUBRULE(self.actionOperation);
+          self.block[self.currentAction](record);
           return record;
         }},
-        {ALT: () => { return self.SUBRULE(self.actionLookup, [actionKey]); }},
+        {ALT: () => { return self.SUBRULE(self.actionLookup); }},
       ])
     });
 
@@ -604,14 +602,14 @@ export class Parser extends chev.Parser {
     // Action operations
     //-----------------------------------------------------------
 
-    self.RULE("actionOperation", (actionKey) => {
+    self.RULE("actionOperation", () => {
       return self.OR([
-        {ALT: () => { return self.SUBRULE(self.recordOperation, [actionKey]) }},
-        {ALT: () => { return self.SUBRULE(self.attributeOperation, [actionKey]) }},
+        {ALT: () => { return self.SUBRULE(self.recordOperation) }},
+        {ALT: () => { return self.SUBRULE(self.attributeOperation) }},
       ]);
     });
 
-    self.RULE("attributeOperation", (actionKey) => {
+    self.RULE("attributeOperation", () => {
       let mutator = self.SUBRULE(self.attributeMutator) as any;
       let {attribute, parent} = mutator;
       return self.OR([
@@ -621,7 +619,7 @@ export class Parser extends chev.Parser {
           self.block.addUsage(variable, scan);
           self.block.scan(scan);
           self.CONSUME(Merge);
-          let record = self.SUBRULE(self.record, [true, actionKey, "+=", undefined, variable]) as any;
+          let record = self.SUBRULE(self.record, [true, "+=", undefined, variable]) as any;
           record.variable = variable;
           record.action = "<-";
           return record;
@@ -638,7 +636,7 @@ export class Parser extends chev.Parser {
         }},
         {ALT: () => {
           let op = self.CONSUME3(Set);
-          let value = self.SUBRULE2(self.record, [false, actionKey, "+=", parent]);
+          let value = self.SUBRULE2(self.record, [false, "+=", parent]);
           return makeNode("action", {action: op.image, entity: asValue(parent), attribute: attribute.image, value: asValue(value), from: [mutator, op, value]});
         }},
         {ALT: () => {
@@ -652,7 +650,7 @@ export class Parser extends chev.Parser {
         }},
         {ALT: () => {
           let op = self.CONSUME2(Mutate);
-          let value: any = self.SUBRULE2(self.actionAttributeExpression, [actionKey, op.image, parent]);
+          let value: any = self.SUBRULE2(self.expression, [op.image, parent]);
           if(value.type === "record" && !value.extraProjection) {
             value.extraProjection = [parent];
           }
@@ -668,7 +666,7 @@ export class Parser extends chev.Parser {
       ])
     });
 
-    self.RULE("recordOperation", (actionKey) => {
+    self.RULE("recordOperation", () => {
       let variable = self.SUBRULE(self.variable) as any;
       return self.OR([
         {ALT: () => {
@@ -678,7 +676,7 @@ export class Parser extends chev.Parser {
         }},
         {ALT: () => {
           self.CONSUME(Merge);
-          let record = self.SUBRULE(self.record, [true, actionKey, "+=", undefined, variable]) as any;
+          let record = self.SUBRULE(self.record, [true, "+=", undefined, variable]) as any;
           record.needsEntity = true;
           record.action = "<-";
           return record;
@@ -691,7 +689,7 @@ export class Parser extends chev.Parser {
       ])
     });
 
-    self.RULE("actionLookup", (actionKey) => {
+    self.RULE("actionLookup", () => {
       let lookup = self.CONSUME(Lookup);
       let record: any = self.SUBRULE(self.record, [true]);
       let info: any = {};
@@ -709,23 +707,16 @@ export class Parser extends chev.Parser {
         }
       })
       let action = makeNode("action", {action: actionType, entity: info.record, attribute: info.attribute, value: info.value, node: info.node, scopes: self.activeScopes, from: [lookup, record]});
-      self.block[actionKey](action);
+      self.block[self.currentAction](action);
       return action;
     });
 
-    self.RULE("actionAttributeExpression", (actionKey, action, parent) => {
-      return self.OR([
-        {ALT: () => { return self.SUBRULE(self.record, [false, actionKey, action, parent]); }},
-        {ALT: () => { return self.SUBRULE(self.infix); }},
-      ])
-    })
-
-    self.RULE("actionEqualityRecord", (actionKey) => {
+    self.RULE("actionEqualityRecord", () => {
       let variable = self.SUBRULE(self.variable);
       self.CONSUME(Equality);
-      let record : any = self.SUBRULE(self.record, [true, actionKey, "+="]);
+      let record : any = self.SUBRULE(self.record, [true, "+="]);
       record.variable = variable;
-      self.block[actionKey](record);
+      self.block[self.currentAction](record);
       return record;
     });
 
@@ -733,7 +724,7 @@ export class Parser extends chev.Parser {
     // Record + attribute
     //-----------------------------------------------------------
 
-    self.RULE("record", (noVar = false, blockKey = "scan", action = false, parent?, passedVariable?) => {
+    self.RULE("record", (noVar = false, action = false, parent?, passedVariable?) => {
       let attributes = [];
       let start = self.CONSUME(OpenBracket);
       let from: NodeDependent[] = [start];
@@ -752,7 +743,7 @@ export class Parser extends chev.Parser {
       self.MANY(() => {
         self.OR([
           {ALT: () => {
-            let attribute: any = self.SUBRULE(self.attribute, [false, blockKey, action, info.variable]);
+            let attribute: any = self.SUBRULE(self.attribute, [false, action, info.variable]);
             // Inline handles attributes itself and so won't return any attribute for us to add
             // to this object
             if(!attribute) return;
@@ -781,14 +772,18 @@ export class Parser extends chev.Parser {
       let record : any = makeNode("record", info);
       if(!noVar) {
         self.block.addUsage(info.variable, record);
-        self.block[blockKey](record);
+        if (this.currentAction === "match") {
+          self.block.scan(record);
+        } else {
+          self.block[self.currentAction](record);
+        }
       }
       return record;
     });
 
-    self.RULE("attribute", (noVar, blockKey, action, recordVariable) => {
+    self.RULE("attribute", (noVar, action, recordVariable) => {
       return self.OR([
-        {ALT: () => { return self.SUBRULE(self.attributeEquality, [noVar, blockKey, action, recordVariable]); }},
+        {ALT: () => { return self.SUBRULE(self.attributeEquality, [noVar, action, recordVariable]); }},
         {ALT: () => { return self.SUBRULE(self.attributeComparison); }},
         {ALT: () => { return self.SUBRULE(self.attributeNot, [recordVariable]); }},
         {ALT: () => { return self.SUBRULE(self.singularAttribute); }},
@@ -836,31 +831,32 @@ export class Parser extends chev.Parser {
       return makeNode("attributeMutator", {attribute: attribute, parent: entity, from});
     });
 
-    self.RULE("attributeAccess", () => {
-      let scans = [];
-      let entity, attribute, value;
-      let needsEntity = true;
-      entity = self.SUBRULE(self.variable);
+    self.RULE("attributeAccess", (entity) => {
       let parentId = entity.name;
       self.AT_LEAST_ONE(() => {
         let dot = self.CONSUME(Dot);
-        attribute = self.CONSUME(Identifier);
+        let attribute = self.CONSUME(Identifier);
         parentId = `${parentId}|${attribute.image}`;
-        value = self.block.toVariable(parentId, true);
+        let value = self.block.toVariable(parentId, true);
         self.block.addUsage(value, attribute);
         let scopes = self.activeScopes;
         if(self.currentAction !== "match") {
           scopes = self.block.searchScopes;
         }
-        let scan = makeNode("scan", {entity, attribute: makeNode("constant", {value: attribute.image, from: [attribute]}), value, needsEntity, scopes, from: [entity, dot, attribute]});
+        let scan = makeNode("scan", {
+          entity: asValue(entity),
+          attribute: makeNode("constant", {value: attribute.image, from: [attribute]}),
+          needsEntity: true,
+          from: [entity, dot, attribute],
+          value, scopes
+        });
         self.block.scan(scan);
-        needsEntity = false;
         entity = value;
       });
-      return value;
+      return entity;
     });
 
-    self.RULE("attributeEquality", (noVar, blockKey, action, parent) => {
+    self.RULE("attributeEquality", (noVar, action, parent) => {
       let attributes = [];
       let autoIndex = 1;
       let attributeNode;
@@ -905,10 +901,10 @@ export class Parser extends chev.Parser {
           }
         }},
         {ALT: () => {
-          result = self.SUBRULE(self.record, [noVar, blockKey, action, parent]);
+          result = self.SUBRULE(self.record, [noVar, action, parent]);
           self.MANY(() => {
             autoIndex++;
-            let record : any = self.SUBRULE2(self.record, [noVar, blockKey, action, parent]);
+            let record : any = self.SUBRULE2(self.record, [noVar, action, parent]);
             record.attributes.push(makeNode("attribute", {attribute: "eve-auto-index", value: makeNode("constant", {value: autoIndex, from: [record]}), from: [record]}));
             attributes.push(makeNode("attribute", {attribute, value: asValue(record), from: [attributeNode, equality, record]}));
           })
@@ -1257,12 +1253,17 @@ export class Parser extends chev.Parser {
 
     self.RULE("infixValue", () => {
       return self.OR([
-        {ALT: () => { return self.SUBRULE(self.attributeAccess); }},
         {ALT: () => { return self.SUBRULE(self.functionRecord); }},
         {ALT: () => { return self.SUBRULE(self.isExpression); }},
-        {ALT: () => { return self.SUBRULE(self.variable); }},
         {ALT: () => { return self.SUBRULE(self.value); }},
         {ALT: () => { return self.SUBRULE(self.parenthesis); }},
+        {ALT: () => {
+          let variable = self.SUBRULE(self.variable);
+          self.OPTION(() => {
+            variable = self.SUBRULE(self.attributeAccess, [variable]) as any;
+          });
+          return variable
+        }},
       ]);
     })
 
@@ -1270,15 +1271,19 @@ export class Parser extends chev.Parser {
     // Expression
     //-----------------------------------------------------------
 
-    self.RULE("expression", () => {
-      let blockKey, action;
+    self.RULE("expression", (action?, parent?) => {
       if(self.currentAction !== "match") {
-        blockKey = self.currentAction;
-        action = "+=";
+        action = action || "+=";
       }
       return self.OR([
         {ALT: () => { return self.SUBRULE(self.infix); }},
-        {ALT: () => { return self.SUBRULE(self.record, [false, blockKey, action]); }},
+        {ALT: () => {
+          let entity = self.SUBRULE(self.record, [false, action, parent]);
+          self.OPTION(() => {
+            entity = self.SUBRULE(self.attributeAccess, [entity, false]) as any;
+          });
+          return entity
+        }},
       ]);
     });
 
