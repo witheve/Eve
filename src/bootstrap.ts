@@ -4,7 +4,8 @@ let prog = new Program("test");
 // import {create} from "./programs/tag-browser";
 // let prog = create();
 
-import "./programs/flappy";
+// import "./programs/flappy";
+import "./programs/hover";
 
 let assert = {};
 function verify(assert:any, prog:Program, ins:any[], outs:any[]) {
