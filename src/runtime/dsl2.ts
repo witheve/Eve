@@ -664,6 +664,11 @@ class LinearFlow extends DSLBase {
     if(isArray(results)) this.results = results;
     else if(results === undefined) this.results = [];
     else this.results = [results];
+    for(let result of this.results) {
+      if(isReference(result)) {
+        this.context.register(result);
+      }
+    }
     ReferenceContext.pop();
   }
 
@@ -689,6 +694,10 @@ class LinearFlow extends DSLBase {
         return fn.reference();
       }
 
+    }
+    lib.compare["=="] = (a:any, b:any) => {
+      this.context.getActive().equality(a, b);
+      return b;
     }
     this.lib = lib;
   }
@@ -1036,12 +1045,16 @@ class Lookup extends DSLBase {
 //--------------------------------------------------------------------
 
 class Move extends DSLBase {
-  constructor(public context:ReferenceContext, public ref:Reference) {
+  constructor(public context:ReferenceContext, public from:Value, public to?:Reference) {
     super();
+    if(!to) {
+      if(!isReference(from)) throw new Error("Move where the to is not a reference");
+      this.to = from;
+    }
   }
 
   getInputRegisters():Register[] {
-    let value = this.context.getValue(this.ref);
+    let value = this.context.getValue(this.from);
     if(isRegister(value)) {
       return [value];
     }
@@ -1049,15 +1062,15 @@ class Move extends DSLBase {
   }
 
   getOutputRegisters():Register[] {
-    let {ref} = this;
-    let parent = ref.__context.getValue(ref) as Register;
+    let {to} = this;
+    let parent = to.__context.getValue(to) as Register;
     return [parent];
   }
 
   compile():Runtime.Constraint[] {
-    let {ref} = this;
-    let local = this.context.interned(ref);
-    let parent = ref.__context.getValue(ref) as Register;
+    let {from, to} = this;
+    let local = this.context.interned(from);
+    let parent = to.__context.getValue(to) as Register;
     return [new Runtime.MoveConstraint(local, parent)];
   }
 }
@@ -1409,6 +1422,7 @@ class Union extends DSLBase {
   branches:LinearFlow[] = [];
   results:Reference[] = [];
   inputs:Reference[] = [];
+  branchInputs:Reference[][] = [];
 
   constructor(public context:ReferenceContext, branchFunctions: Function[], parent:LinearFlow) {
     super();
@@ -1424,16 +1438,18 @@ class Union extends DSLBase {
           results.push(Reference.create(context));
         }
       } else if(resultCount !== branchResultCount) {
-        throw new Error(`Choose branch ${ix} doesn't have the right number of returns, I expected ${resultCount}, but got ${branchResultCount}`);
+        throw new Error(`Choose branch ${ix} doesn't have the right number of returns. I expected ${resultCount}, but got ${branchResultCount}`);
       }
+      let branchInputs = this.branchInputs[ix] = [];
       for(let ref of flow.context.getInputReferences()) {
         if(this.inputs.indexOf(ref) === -1) {
           this.inputs.push(ref);
         }
+        branchInputs.push(ref);
       }
       let resultIx = 0;
       for(let result of this.results) {
-        flow.context.equality(flow.results[resultIx], result);
+        flow.collect(new Move(flow.context, flow.results[resultIx], result));
         resultIx++;
       }
       branches.push(flow);
@@ -1444,7 +1460,9 @@ class Union extends DSLBase {
 
   getInputRegisters() {
     let {context} = this;
-    return this.inputs.map((v) => context.getValue(v)).filter(isRegister) as Register[];
+    let inputs = this.inputs.map((v) => context.getValue(v)).filter(isRegister) as Register[];
+    console.log("INPUTS", inputs);
+    return inputs;
   }
 
   getOutputRegisters() {
@@ -1466,15 +1484,19 @@ class Union extends DSLBase {
   }
 
   compile(join:Runtime.Node) {
-    let {context} = this;
+    let {context, branchInputs} = this;
     let nodes:Runtime.Node[] = [];
     let inputs:Register[][] = [];
     let outputs = this.getOutputRegisters();
+    let ix = 0;
     for(let flow of this.branches) {
       let compiled = flow.compile();
       nodes.push(compiled[0]);
-      inputs.push(flow.getInputRegisters().filter((v) => outputs.indexOf(v) === -1));
+      console.log(branchInputs[ix]);
+      inputs.push(branchInputs[ix].map((v) => context.getValue(v)).filter(isRegister));
+      ix++;
     }
+    console.log("COMPILED INPUTS", inputs);
     return this.build(join, nodes, inputs, this.getOutputRegisters());
   }
 }

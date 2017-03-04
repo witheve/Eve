@@ -456,7 +456,7 @@ test("Basic not", (assert) => {
 });
 
 
-test("Basic choose", (assert) => {
+test("Choose: Basic", (assert) => {
 
   // -----------------------------------------------------
   // program
@@ -561,6 +561,35 @@ test("Busted partial identity choose", (assert) => {
 
   assert.end();
 });
+
+test("Choose: moves only", (assert) => {
+
+  let prog = new Program("test");
+  prog.block("simple block", ({find, record, choose}) => {
+    let person = find("person");
+    let {name} = person;
+    let [displayName] = choose(
+      () => { name == "christopher"; return "chris"; },
+        () => name
+    );
+    return [
+      person.add({displayName})
+    ]
+  });
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+    [1, "name", "christopher"],
+    [2, "tag", "person"],
+    [2, "name", "jane"],
+  ], [
+    [1, "displayName", "chris", 1],
+    [2, "displayName", "jane", 1],
+  ])
+
+  assert.end();
+});
+
 
 test("Basic union", (assert) => {
 
