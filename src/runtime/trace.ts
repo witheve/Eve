@@ -248,6 +248,9 @@ export class Tracer {
         conditions.push(`input.v == ${GlobalInterner.intern(isNaN(+v) ? v : +v)}`);
       }
     }
+    if(!conditions.length) {
+      conditions.push("true");
+    }
     return new Function("input", `return ${conditions.join(" && ")}`) as (input:Change) => boolean;
   }
 
