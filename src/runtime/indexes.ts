@@ -420,4 +420,10 @@ export class DistinctIndex {
     }
     return deltas.length > 0;
   }
+
+  getCounts(change:Change) {
+    let {e, a, v} = change;
+    let key = `${e}|${a}|${v}`;
+    return this.index[key];
+  }
 }

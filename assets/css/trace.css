@@ -1,0 +1,3 @@
+.trace { position:absolute; bottom:20px; right:20px; width:600px; background: #202020; color: #ccc; }
+.trace .searcher { height: 50vh; overflow:auto; padding:10px;}
+.trace button { flex:none; text-align:left; border:none; background: #444; margin-top:5px; cursor:pointer; color: #ccc; }

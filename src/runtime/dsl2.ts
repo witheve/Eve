@@ -1561,7 +1561,7 @@ export class Program {
   input(changes:Runtime.Change[]) {
     // console.time("input");
     if(changes[0].transaction >= this.nextTransactionId) this.nextTransactionId = changes[0].transaction + 1;
-    let trans = new Runtime.Transaction(changes[0].transaction, this.blocks, this.lastWatch ? this.exporter.handle : undefined);
+    let trans = new Runtime.Transaction(this.context, changes[0].transaction, this.blocks, this.lastWatch ? this.exporter.handle : undefined);
     for(let change of changes) {
       trans.output(this.context, change);
     }
@@ -1583,7 +1583,7 @@ export class Program {
   test(transaction:number, eavns:TestChange[]) {
     if("group" in console) console.group(this.name + " test " + transaction);
     if(transaction >= this.nextTransactionId) this.nextTransactionId = transaction + 1;
-    let trans = new Runtime.Transaction(transaction, this.blocks, this.lastWatch ? this.exporter.handle : undefined);
+    let trans = new Runtime.Transaction(this.context, transaction, this.blocks, this.lastWatch ? this.exporter.handle : undefined);
     for(let [e, a, v, round = 0, count = 1] of eavns as EAVRCTuple[]) {
       let change = Runtime.Change.fromValues(e, a, v, "input", transaction, round, count);
       trans.output(this.context, change);
