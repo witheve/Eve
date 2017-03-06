@@ -41,7 +41,7 @@ doIt();
 
 let assert = {};
 function verify(assert:any, prog:Program, ins:any[], outs:any[]) {
-  prog.test(1, ins);
+  prog.test(prog.nextTransactionId, ins);
 }
 
 
