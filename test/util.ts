@@ -9,6 +9,32 @@ export type TestChange =  EAVTuple | EAVRCTuple;
 
 let {GlobalInterner} = Runtime;
 
+export function pprint(obj:any):string {
+  if(typeof obj === "object" && obj instanceof Array) {
+    return "[" + obj.map((v) => pprint(v)).join(", ") + "]";
+
+  } else if(typeof obj === "string") {
+    return `"${obj}"`;
+  }
+  return ""+obj;
+}
+
+class EntityId {
+  constructor(public id:Runtime.ID) {}
+  toString() {
+    return "$" + this.id;
+  }
+}
+
+export function o_o(val:Runtime.ID):EntityId|Runtime.RawValue|undefined {
+  let raw = GlobalInterner.reverse(val);
+  if(typeof raw === "string" && raw.indexOf("|") !== -1) {
+    return new EntityId(val);
+  }
+
+  return raw;
+}
+
 export function createChanges(transaction:number,eavns:TestChange[]) {
   let changes:Runtime.Change[] = [];
   for(let [e, a, v, round = 0, count = 1] of eavns as EAVRCTuple[]) {
@@ -17,7 +43,7 @@ export function createChanges(transaction:number,eavns:TestChange[]) {
   return changes;
 }
 
-export function verify(assert:any, program:Program, input:any[], output:any[], transaction = 1) {
+export function verify(assert:test.Test, program:Program, input:any[], output:any[], transaction = 1) {
   let ins = createChanges(transaction, input);
   let outs = createChanges(transaction, output);
 
@@ -26,6 +52,13 @@ export function verify(assert:any, program:Program, input:any[], output:any[], t
   let msg = "Fewer changes than expected";
   if(changes.length > all.length) {
     msg = "More changes than expected";
+  }
+
+  if(changes.length !== all.length) {
+    assert.comment(".    Actual: " + pprint(changes.map((change) => {
+      let {e, a, v, round, count} = change;
+      return [o_o(e), o_o(a), o_o(v), round, count];
+    })));
   }
   assert.equal(changes.length, all.length, msg);
 
