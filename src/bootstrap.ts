@@ -1,6 +1,7 @@
 import "setimmediate";
 import {Program} from "./runtime/dsl2";
 let prog = new Program("test");
+console.log(prog);
 
 function doIt() {
   let prog = new Program("test program");
@@ -40,10 +41,74 @@ doIt();
 // import "./programs/flappy";
 
 let assert = {};
+let transactionNumber = 0;
 function verify(assert:any, prog:Program, ins:any[], outs:any[]) {
-  prog.test(1, ins);
+  prog.test(transactionNumber++, ins);
 }
 
+  // prog.block("simple block", ({find, record, lib, choose}) => {
+  //   let person = find("person");
+  //   let [info] = choose(() => {
+  //     person.dog;
+  //     return "cool";
+  //   }, () => {
+  //     return "not cool";
+  //   });
+  //   return [
+  //     record("dog-less", {info})
+  //   ]
+  // });
+
+  // verify(assert, prog, [
+  //   [1, "tag", "person"],
+  // ], [
+  //   [2, "tag", "dog-less", 1],
+  //   [2, "info", "not cool", 1],
+  // ])
+
+  // verify(assert, prog, [
+  //   [1, "dog", "spot"],
+  // ], [
+  //   [2, "tag", "dog-less", 1, -1],
+  //   [2, "info", "not cool", 1, -1],
+  //   [3, "tag", "dog-less", 1],
+  //   [3, "info", "cool", 1],
+  // ])
+
+
+
+  // prog.block("simple block", ({find, record, lib, choose}) => {
+  //   let person = find("person");
+  //   let [info] = choose(() => {
+  //     person.dog;
+  //     return "cool";
+  //   }, () => {
+  //     return "not cool";
+  //   });
+  //   return [
+  //     record("dog-less", {info})
+  //   ]
+  // });
+
+  // // -----------------------------------------------------
+  // // verification
+  // // -----------------------------------------------------
+
+  // verify(assert, prog, [
+  //   [1, "tag", "person"],
+  // ], [
+  //   [2, "tag", "dog-less", 1],
+  //   [2, "info", "not cool", 1],
+  // ])
+
+  // verify(assert, prog, [
+  //   [1, "dog", "spot"],
+  // ], [
+  //   [2, "tag", "dog-less", 1, -1],
+  //   [2, "info", "not cool", 1, -1],
+  //   [3, "tag", "dog-less", 1],
+  //   [3, "info", "cool", 1],
+  // ])
 
 // import {Change} from "./runtime/runtime";
 // import {HashIndex} from "./runtime/indexes";
@@ -146,9 +211,9 @@ function verify(assert:any, prog:Program, ins:any[], outs:any[]) {
 //   [3, "tag", "direct-target"]
 // ]);
 //
-// prog.block("simple block", ({find, record, lib, union}) => {
+// prog.block("simple block", ({find, record, lib, choose}) => {
 //     let person = find("person");
-//     let [info] = union(() => {
+//     let [info] = choose(() => {
 //       person.dog;
 //       return "cool";
 //     }, () => {
@@ -159,14 +224,14 @@ function verify(assert:any, prog:Program, ins:any[], outs:any[]) {
 //     ]
 //   });
 
-//   prog.test(1, [
+//   verify(assert, prog, [
 //     [1, "tag", "person"],
 //   ], [
 //     [2, "tag", "dog-less", 1],
 //     [2, "info", "not cool", 1],
 //   ])
 
-//   prog.test(2, [
+//   verify(assert, prog, [
 //     [1, "dog", "spot"],
 //   ], [
 //     [3, "tag", "dog-less", 1],
