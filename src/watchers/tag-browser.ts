@@ -43,10 +43,23 @@ export class TagBrowserWatcher extends Watcher {
         }
       })
 
-      .watch("Export records with active tags", ({find, lookup, record}) => {
-        let {"active-tag": activeTag} = find("tag-browser/active-tag");
-        let rec = find({tag: activeTag});
+      // .watch("Export records with active tags", ({find, lookup, record}) => {
+      //   let {"active-tag": activeTag} = find("tag-browser/active-tag");
+      //   let rec = find({tag: activeTag});
+      //   let {attribute, value} = lookup(rec);
+      //   return [
+      //     rec.add("tag", "child-record").add(attribute, value)
+      //   ];
+    // })
+
+      .watch("Export all records", ({find, lookup, choose, record}) => {
+        let rec = find();
         let {attribute, value} = lookup(rec);
+        // let [attrName] = choose(
+        //   () => { attribute == "tag"; return "child-tag"; },
+        //   () => attribute
+        // );
+
         return [
           rec.add("tag", "child-record").add(attribute, value)
         ];
@@ -54,11 +67,13 @@ export class TagBrowserWatcher extends Watcher {
       .asDiffs((diffs) => {
         let eavs:RawEAVC[] = [];
         for(let [e, a, v] of diffs.removes) {
-          if(a === "tag" && v !== "child-record") a = "child-tag"; // @NOTE: this breaks tag-browser inspecting tag-browser :/
+          // @NOTE: this breaks tag-browser inspecting tag-browser :/
+          if(a === "tag" && v !== "child-record") a = "child-tag";
           eavs.push([e, a, v, -1]);
         }
         for(let [e, a, v] of diffs.adds) {
-          if(a === "tag" && v !== "child-record") a = "child-tag"; // @NOTE: this breaks tag-browser inspecting tag-browser :/
+          // @NOTE: this breaks tag-browser inspecting tag-browser :/
+          if(a === "tag" && v !== "child-record") a = "child-tag";
           eavs.push([e, a, v, 1]);
         }
         if(eavs.length) {
@@ -70,7 +85,7 @@ export class TagBrowserWatcher extends Watcher {
   createTagBrowser() {
     let prog = new Program("Tag Browser");
     prog.attach("ui");
-    let {$style, $row, $column, $text} = UIWatcher.helpers;
+    let {$style, $row, $column, $text, $elem} = UIWatcher.helpers;
 
     //--------------------------------------------------------------------
     // Custom UI Components
@@ -94,22 +109,68 @@ export class TagBrowserWatcher extends Watcher {
         return [
           view.remove("target").add("target", element.target)
         ];
-      });
+      })
+      // @FIXME: Work around for a bug that occurs when leaving a record open and then letting it be retracted and reasserted
+      // .commit("When a tag button is clicked, clear any open child records", ({find, record}) => {
+      //   let click = find("html/event/click");
+      //   let {element} = click;
+      //   element.tag == "tag-browser/tag";
+      //   //let view = find("tag-browser/view");
+      //   //view.target != element.target;
+
+      //   let openChildren = find("tag-browser/record");
+      //   openChildren.open;
+
+      //   return [
+      //     openChildren.remove("open")
+      //   ];
+      // });
 
     // Record
     prog
-      .block("Record component", ({find, lookup, record}) => {
+      .block("Record component (closed)", ({find, record}) => {
         let childRecord = find("tag-browser/record");
-        let {attribute, value} = lookup(childRecord.target);
-        attribute != "tag";
+
         return [
           childRecord.add({
             tag: "ui/column",
             style: record({border: "1px solid gray", margin: 10, padding: 10}),
+            rec: childRecord.target,
+
+            children: [
+              record("ui/row", "tag-browser/record-header", {sort: 0, rec: childRecord.target}).add("children", [
+                record("html/element", {tagname: "div", class: "hexagon"}),
+                record("ui/text", {rec: childRecord.target, text: childRecord.target.displayName})
+              ])
+            ]
+          })
+        ];
+      })
+
+      .block("Record component (open)", ({find, lookup, record}) => {
+        let childRecord = find("tag-browser/record", {open: "true"});
+        let {attribute, value} = lookup(childRecord.target);
+        attribute != "tag";
+        return [
+          childRecord.add({
             children: [
               record("tag-browser/record-attribute", {rec: childRecord.target, attr: attribute}).add("val", value)
             ]
           })
+        ];
+      })
+
+      .commit("Clicking a record toggles it open/closed", ({find, choose}) => {
+        let recordHeader = find("tag-browser/record-header");
+        let record = find("tag-browser/record", {children: recordHeader});
+        find("html/event/click", {element: recordHeader});
+        let [open] = choose(
+          () => { record.open == "true"; return "false"; },
+          () => "true"
+        )
+
+        return [
+          record.remove("open").add("open", open)
         ];
       });
 
@@ -138,8 +199,6 @@ export class TagBrowserWatcher extends Watcher {
 
     // Record Value
     prog
-      // @FIXME: Enabling this block causes us to hang on tag navigation...
-
       .block("Record value component (as tag)", ({find, record}) => {
         let recordValue = find("tag-browser/record-value");
         let {val} = recordValue;
@@ -149,10 +208,20 @@ export class TagBrowserWatcher extends Watcher {
         ];
       })
 
-      .block("Jeff II: Electric Boogaloo", ({find, not, record}) => { // Record value component (as raw value)
+      .block("Record value component (as record)", ({find, record}) => {
+        let recordValue = find("tag-browser/record-value");
+        let childRecord = find("child-record");
+        childRecord == recordValue.val;
+        return [
+          recordValue.add({tag: "tag-browser/record", target: childRecord})
+        ];
+      })
+
+      .block("Record value component (as raw value)", ({find, not, record}) => {
         let recordValue = find("tag-browser/record-value");
         // @FIXME: Not is *still* busted
         not(() => recordValue.tag == "tag-browser/tag");
+        not(() => recordValue.tag == "tag-browser/record");
         let {val} = recordValue;
         return [
           recordValue.add({tag: "ui/text", sort: val, text: val})
@@ -161,7 +230,7 @@ export class TagBrowserWatcher extends Watcher {
 
     // Tag Cloud
     prog.block("List all tags in the tag cloud.", ({find, not, record}) => {
-      let cloud = find("tag-browser/cloud");
+       let cloud = find("tag-browser/cloud");
       let rec = find("child-tag");
       let tag = rec["child-tag"];
 
@@ -187,8 +256,8 @@ export class TagBrowserWatcher extends Watcher {
         return [
           view.add("children", record("ui/row", {
             sort: 1,
-            style: record({"flex-wrap": "wrap"}),
-          }).add("children", record("tag-browser/record", {target: targetedRecord})))
+            style: record({"flex-wrap": "wrap", "align-items": "flex-start"}),
+          }).add("children", record("tag-browser/record", {target: targetedRecord, "active-tag": view.target})))
         ];
       })
       .watch("When the view target changes, mark it as the active tag in the child program", ({find, record}) => {
@@ -211,12 +280,40 @@ export class TagBrowserWatcher extends Watcher {
         }
       });
 
+    // Display Name aliasing
+    prog
+      .block("Alias display names", ({find, choose}) => {
+        let record = find("child-record");
+        let [name] = choose(
+          //() => record.displayName,
+          () => record.name,
+          () => "???"
+        );
+        return [
+          record.add("displayName", name)
+        ];
+      })
+
     // Create root UI
     prog.inputEavs(collapse(
       $column({tag: t("root")}, [
         $row({tag: t("cloud"), style: $style({"flex-wrap": "wrap"})}, []),
         $column({tag: t("view")}, [])
-      ])
+      ]),
+
+      $elem("html/element", {
+        tagname: "style",
+        text: `
+          .hexagon {
+            width: 22px;
+            height: 22px;
+            margin-right: 5px;
+            vertical-align: middle;
+            border-radius: 100px;
+            border: 2px solid #AAA;
+          }
+        `
+      })
     ));
 
     return prog;
