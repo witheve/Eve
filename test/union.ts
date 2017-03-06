@@ -6,38 +6,63 @@ import * as test from "tape";
 type RawEAVRC = [RawValue, RawValue, RawValue, number, number]
 
 var programs = {
-  "static": {
-    1: () => {
-      let prog = new Program("1 static branch");
-      prog.block("simple block", ({find, union, record}) => {
-        let foo = find("input");
-        let [branch] = union(() => 1);
-        return [
-          record("result", {branch})
-        ];
-      });
-      return prog;
-    },
-    2: () => {
-      let prog = new Program("test");
-      prog.block("simple block", ({find, union, record}) => {
-        let foo = find("input");
-        let [branch] = union(
-          () => 1,
-          () => 2
-        );
-        return [
-          record("result", {branch})
-        ];
-      });
-      return prog;
-    }
-  }
+  "1 static": () => {
+    let prog = new Program("1 static branch");
+    prog.block("simple block", ({find, union, record}) => {
+      let foo = find("input");
+      let [branch] = union(() => 1);
+      return [
+        record("result", {branch})
+      ];
+    });
+    return prog;
+  },
+  "2 static": () => {
+    let prog = new Program("2 static branches");
+    prog.block("simple block", ({find, union, record}) => {
+      let foo = find("input");
+      let [branch] = union(
+        () => 1,
+        () => 2
+      );
+      return [
+        record("result", {branch})
+      ];
+    });
+    return prog;
+  },
+
+  "1 dynamic": () => {
+    let prog = new Program("1 dynamic branch");
+    prog.block("simple block", ({find, union, record}) => {
+      let foo = find("input");
+      let [output] = union(() => foo.arg0);
+      return [
+        record("result", {output})
+      ];
+    });
+    return prog;
+  },
+
+  "2 dynamic": () => {
+    let prog = new Program("2 dynamic branches");
+    prog.block("simple block", ({find, union, record}) => {
+      let foo = find("input");
+      let [output] = union(
+        () => {foo.arg0 == 1; return ["one"]},
+        () => foo.arg0
+      );
+      return [
+        record("result", {output})
+      ];
+    });
+    return prog;
+  },
 };
 
-type StaticBranchCount = keyof typeof programs["static"];
-function verifyStaticBranches(assert:test.Test, branchCount:StaticBranchCount, inputString:string, expecteds:RawEAVRC[][]) {
-  let prog = programs["static"][branchCount]();
+type ProgramName = keyof typeof programs;
+function verifyBranches(assert:test.Test, progName:ProgramName, inputString:string, expecteds:RawEAVRC[][]) {
+  let prog = programs[progName]();
 
   // let supports:{[round:number]: } = {};
 
@@ -50,17 +75,12 @@ function verifyStaticBranches(assert:test.Test, branchCount:StaticBranchCount, i
 
   let transactionNumber = 0;
   for(let transaction of transactions) {
-    let rounds = transaction.split(",");
     let eavrcs:RawEAVRC[] = [];
     let roundNumber = 0;
-    for(let round of rounds) {
-      let inputs = round.split(" ");
-      for(let input of inputs) {
+    for(let round of transaction.split(",")) {
+      for(let input of round.split(" ")) {
         if(!input) continue;
-        if(input.length !== 2) {
-          assert.fail("Malformed test case");
-          throw new Error(`Malformed input string. '${inputString}'`);
-        }
+
         let count;
         if(input[0] === "+") count = 1;
         else if(input[0] === "-") count = -1;
@@ -69,8 +89,19 @@ function verifyStaticBranches(assert:test.Test, branchCount:StaticBranchCount, i
           throw new Error(`Malformed input: ${input}`);
         }
 
-        let id = input[1];
+        let args = input.slice(1).split(":");
+        let id = args.shift();
+        if(!id) {
+          assert.fail("Malformed test case");
+          throw new Error(`Malformed input: '${input}'`);
+        }
         eavrcs.push([id, "tag", "input", roundNumber, count]);
+
+        let argIx = 0;
+        for(let arg of args) {
+          eavrcs.push([id, `arg${argIx}`, (isNaN(arg as any) ? arg : +arg), roundNumber, count]);
+          argIx++;
+        }
       }
 
       roundNumber += 1;
@@ -90,7 +121,7 @@ function verifyStaticBranches(assert:test.Test, branchCount:StaticBranchCount, i
 // -----------------------------------------------------
 
 test("1 static branch +A; -A; +A", (assert) => {
-  verifyStaticBranches(assert, "1", "+A; -A; +A", [
+  verifyBranches(assert, "1 static", "+A; -A; +A", [
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1]],
     [[2, "tag", "result", 1, -1], [2, "branch", 1, 1, -1]],
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1]]
@@ -98,7 +129,7 @@ test("1 static branch +A; -A; +A", (assert) => {
 });
 
 test("1 static branch +A; -A; +B", (assert) => {
-  verifyStaticBranches(assert, "1", "+A; -A; +B", [
+  verifyBranches(assert, "1 static", "+A; -A; +B", [
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1]],
     [[2, "tag", "result", 1, -1], [2, "branch", 1, 1, -1]],
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1]]
@@ -107,7 +138,7 @@ test("1 static branch +A; -A; +B", (assert) => {
 
 // @NOTE: Broken due to verify being too simple.
 test("1 static branch +A; +A; -A", (assert) => {
-  verifyStaticBranches(assert, "1", "+A; +A; -A", [
+  verifyBranches(assert, "1 static", "+A; +A; -A", [
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1]],
     [],
     []
@@ -116,7 +147,7 @@ test("1 static branch +A; +A; -A", (assert) => {
 
 // @NOTE: Broken due to verify being too simple.
 test("1 static branch +A; +A; -A; -A", (assert) => {
-  verifyStaticBranches(assert, "1", "+A; +A; -A; -A", [
+  verifyBranches(assert, "1 static", "+A; +A; -A; -A", [
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1]],
     [],
     [],
@@ -125,7 +156,7 @@ test("1 static branch +A; +A; -A; -A", (assert) => {
 });
 
 test("1 static branch +A +B; -A; +A", (assert) => {
-  verifyStaticBranches(assert, "1", "+A +B; -A; +A", [
+  verifyBranches(assert, "1 static", "+A +B; -A; +A", [
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1]],
     [],
     []
@@ -133,40 +164,40 @@ test("1 static branch +A +B; -A; +A", (assert) => {
 });
 
 test("1 static branch +A +B; -A -B", (assert) => {
-  verifyStaticBranches(assert, "1", "+A +B; -A -B", [
+  verifyBranches(assert, "1 static", "+A +B; -A -B", [
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1]],
     [[2, "tag", "result", 1, -1], [2, "branch", 1, 1, -1]]
   ]);
 });
 
 test("1 static branch +A; -A +B", (assert) => {
-  verifyStaticBranches(assert, "1", "+A; -A +B", [
+  verifyBranches(assert, "1 static", "+A; -A +B", [
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1]],
     []
   ]);
 });
 
 test("1 static branch +A, -A", (assert) => {
-  verifyStaticBranches(assert, "1", "+A, -A", [
+  verifyBranches(assert, "1 static", "+A, -A", [
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1],
      [2, "tag", "result", 2, -1], [2, "branch", 1, 2, -1]]
   ]);
 });
 
 test("1 static branch +A, -A +B", (assert) => {
-  verifyStaticBranches(assert, "1", "+A, -A +B", [
+  verifyBranches(assert, "1 static", "+A, -A +B", [
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1]]
   ]);
 });
 
 test("1 static branch +A, +B", (assert) => {
-  verifyStaticBranches(assert, "1", "+A, +B", [
+  verifyBranches(assert, "1 static", "+A, +B", [
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1]]
   ]);
 });
 
 test("1 static branch +A, +B; -A", (assert) => {
-  verifyStaticBranches(assert, "1", "+A, +B; -A", [
+  verifyBranches(assert, "1 static", "+A, +B; -A", [
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1]],
     [[2, "tag", "result", 1, -1], [2, "branch", 1, 1, -1],
      [2, "tag", "result", 2, +1], [2, "branch", 1, 2, +1]]
@@ -174,7 +205,7 @@ test("1 static branch +A, +B; -A", (assert) => {
 });
 
 test("1 static branch +A; -A, +B", (assert) => {
-  verifyStaticBranches(assert, "1", "+A; -A, +B", [
+  verifyBranches(assert, "1 static", "+A; -A, +B", [
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1]],
     [[2, "tag", "result", 1, -1], [2, "branch", 1, 1, -1],
      [2, "tag", "result", 2, +1], [2, "branch", 1, 2, +1]]
@@ -186,7 +217,7 @@ test("1 static branch +A; -A, +B", (assert) => {
 // -----------------------------------------------------
 
 test("2 static branches +A; -A; +A", (assert) => {
-  verifyStaticBranches(assert, "2", "+A; -A; +A", [
+  verifyBranches(assert, "2 static", "+A; -A; +A", [
     [[1, "tag", "result", 1, +1], [1, "branch", 1, 1, +1],
      [2, "tag", "result", 1, +1], [2, "branch", 2, 1, +1]],
     [[1, "tag", "result", 1, -1], [1, "branch", 1, 1, -1],
@@ -197,7 +228,7 @@ test("2 static branches +A; -A; +A", (assert) => {
 });
 
 test("2 static branches +A; +B", (assert) => {
-  verifyStaticBranches(assert, "2", "+A; +B", [
+  verifyBranches(assert, "2 static", "+A; +B", [
     [[1, "tag", "result", 1, +1], [1, "branch", 1, 1, +1],
      [2, "tag", "result", 1, +1], [2, "branch", 2, 1, +1]],
     []
@@ -205,7 +236,7 @@ test("2 static branches +A; +B", (assert) => {
 });
 
 test("2 static branches +A; +B; -A", (assert) => {
-  verifyStaticBranches(assert, "2", "+A; +B; -A", [
+  verifyBranches(assert, "2 static", "+A; +B; -A", [
     [[1, "tag", "result", 1, +1], [1, "branch", 1, 1, +1],
      [2, "tag", "result", 1, +1], [2, "branch", 2, 1, +1]],
     [],
@@ -214,7 +245,7 @@ test("2 static branches +A; +B; -A", (assert) => {
 });
 
 test("2 static branches +A +B; -A; +A", (assert) => {
-  verifyStaticBranches(assert, "2", "+A +B; -A; +A", [
+  verifyBranches(assert, "2 static", "+A +B; -A; +A", [
     [[1, "tag", "result", 1, +1], [1, "branch", 1, 1, +1],
      [2, "tag", "result", 1, +1], [2, "branch", 2, 1, +1]],
     [],
@@ -223,7 +254,7 @@ test("2 static branches +A +B; -A; +A", (assert) => {
 });
 
 test("2 static branches +A; +B; -A; -B", (assert) => {
-  verifyStaticBranches(assert, "2", "+A; +B; -A; -B", [
+  verifyBranches(assert, "2 static", "+A; +B; -A; -B", [
     [[1, "tag", "result", 1, +1], [1, "branch", 1, 1, +1],
      [2, "tag", "result", 1, +1], [2, "branch", 2, 1, +1]],
     [],
@@ -235,11 +266,111 @@ test("2 static branches +A; +B; -A; -B", (assert) => {
 
 
 test("2 static branches +A; +B, -A; -B", (assert) => {
-  verifyStaticBranches(assert, "2", "+A; +B, -A; -B", [
+  verifyBranches(assert, "2 static", "+A; +B, -A; -B", [
     [[1, "tag", "result", 1, +1], [1, "branch", 1, 1, +1],
      [2, "tag", "result", 1, +1], [2, "branch", 2, 1, +1]],
     [],
     [[1, "tag", "result", 1, -1], [1, "branch", 1, 1, -1],
      [2, "tag", "result", 1, -1], [2, "branch", 2, 1, -1]],
+  ]);
+});
+
+// -----------------------------------------------------
+// 1 dynamic branch
+// -----------------------------------------------------
+
+test("1 dynamic branch +A:1; -A:1", (assert) => {
+  verifyBranches(assert, "1 dynamic", "+A:1; -A:1", [
+    [[1, "tag", "result", 1, +1], [1, "output", 1, 1, +1]],
+    [[1, "tag", "result", 1, -1], [1, "output", 1, 1, -1]],
+  ]);
+});
+
+test("1 dynamic branch +A:1; -A:1; +A:1", (assert) => {
+  verifyBranches(assert, "1 dynamic", "+A:1; -A:1; +A:1", [
+    [[1, "tag", "result", 1, +1], [1, "output", 1, 1, +1]],
+    [[1, "tag", "result", 1, -1], [1, "output", 1, 1, -1]],
+    [[1, "tag", "result", 1, +1], [1, "output", 1, 1, +1]],
+  ]);
+});
+
+test("1 dynamic branch +A:1; -A:1; +A:2", (assert) => {
+  verifyBranches(assert, "1 dynamic", "+A:1; -A:1; +A:2", [
+    [[1, "tag", "result", 1, +1], [1, "output", 1, 1, +1]],
+    [[1, "tag", "result", 1, -1], [1, "output", 1, 1, -1]],
+    [[1, "tag", "result", 1, +1], [1, "output", 2, 1, +1]],
+  ]);
+});
+
+test("1 dynamic branch +A:1; +A:2; -A:1", (assert) => {
+  verifyBranches(assert, "1 dynamic", "+A:1; +A:2; -A:1", [
+    [[1, "tag", "result", 1, +1], [1, "output", 1, 1, +1]],
+    [[1, "tag", "result", 1, +1], [1, "output", 2, 1, +1]],
+    [[1, "tag", "result", 1, -1], [1, "output", 1, 1, -1]],
+  ]);
+});
+
+test("1 dynamic branch +A:1; +B:1; -A:1", (assert) => {
+  verifyBranches(assert, "1 dynamic", "+A:1; +B:1; -A:1", [
+    [[1, "tag", "result", 1, +1], [1, "output", 1, 1, +1]],
+    [],
+    [],
+  ]);
+});
+
+test("1 dynamic branch +A:1; +B:1; -A:1, -B:1", (assert) => {
+  verifyBranches(assert, "1 dynamic", "+A:1; +B:1; -A:1, -B:1", [
+    [[1, "tag", "result", 1, +1], [1, "output", 1, 1, +1]],
+    [],
+    [[1, "tag", "result", 2, -1], [1, "output", 1, 2, -1]],
+  ]);
+});
+
+// -----------------------------------------------------
+// 2 dynamic branches
+// -----------------------------------------------------
+
+test("2 dynamic branches +A:1; -A:1", (assert) => {
+  verifyBranches(assert, "2 dynamic", "+A:1; -A:1", [
+    [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1],
+     [2, "tag", "result", 1, +1], [2, "output", 1, 1, +1]],
+    [[1, "tag", "result", 1, -1], [1, "output", "one", 1, -1],
+     [2, "tag", "result", 1, -1], [2, "output", 1, 1, -1]]
+  ]);
+});
+
+test("2 dynamic branches +A:1; +B:1", (assert) => {
+  verifyBranches(assert, "2 dynamic", "+A:1; +B:1", [
+    [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1],
+     [2, "tag", "result", 1, +1], [2, "output", 1, 1, +1]],
+    []
+  ]);
+});
+
+test("2 dynamic branches +A:1, +B:1", (assert) => {
+  verifyBranches(assert, "2 dynamic", "+A:1, +B:1", [
+    [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1],
+     [2, "tag", "result", 1, +1], [2, "output", 1, 1, +1]]
+  ]);
+});
+
+test("2 dynamic branches +A:1, +B:1; -A:1", (assert) => {
+  verifyBranches(assert, "2 dynamic", "+A:1, +B:1; -A:1", [
+    [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1],
+     [2, "tag", "result", 1, +1], [2, "output", 1, 1, +1]],
+    [[1, "tag", "result", 1, -1], [1, "output", "one", 1, -1],
+     [2, "tag", "result", 1, -1], [2, "output", 1, 1, -1],
+     [3, "tag", "result", 2, +1], [3, "output", "one", 2, +1],
+     [4, "tag", "result", 2, +1], [4, "output", 1, 2, +1]]
+  ]);
+});
+
+test("2 dynamic branches +A:1 +B:2, -A:1", (assert) => {
+  verifyBranches(assert, "2 dynamic", "+A:1 +B:2, -A:1", [
+    [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1],
+     [2, "tag", "result", 1, +1], [2, "output", 1, 1, +1],
+     [3, "tag", "result", 1, +1], [3, "output", 2, 1, +1],
+     [1, "tag", "result", 2, -1], [1, "output", "one", 2, -1],
+     [2, "tag", "result", 2, -1], [2, "output", 1, 2, -1]]
   ]);
 });
