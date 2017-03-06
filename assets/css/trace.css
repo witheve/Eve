@@ -1,3 +1,9 @@
-.trace { position:absolute; bottom:20px; right:20px; width:600px; background: #202020; color: #ccc; }
-.trace .searcher { height: 50vh; overflow:auto; padding:10px;}
+.trace { position:absolute; bottom:20px; right:20px; width:800px; background: #202020; color: #ccc;  height:70vh; font-family: inconsolata; }
+.trace .searcher { overflow:auto; padding:10px;}
 .trace button { flex:none; text-align:left; border:none; background: #444; margin-top:5px; cursor:pointer; color: #ccc; }
+.trace .change-link { flex:none; }
+
+.trace .vis { overflow:auto; }
+.trace .vis row { flex:none; }
+.trace .vis column { flex:none; }
+.trace .node { padding:10px; border:1px solid #777; flex:none; margin:5px; }

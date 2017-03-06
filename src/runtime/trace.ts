@@ -1,5 +1,10 @@
-import {Change, Prefix, EvaluationContext, GlobalInterner} from "./runtime";
+import {Change, Prefix, EvaluationContext, GlobalInterner, printPrefix} from "./runtime";
+import * as Runtime from "./runtime";
 import {Renderer} from "../microReact";
+
+function isID(v: any) {
+  return typeof v === "string" && (v.indexOf("|") > -1 || (v[8] === "-" && v.length === 36))
+}
 
 //------------------------------------------------------------------------
 // UI helpers
@@ -61,6 +66,7 @@ export enum TraceNode {
   BinaryJoin,
   AntiJoin,
   AntiJoinPresolvedRight,
+  Aggregate,
   Output,
   Watch,
 }
@@ -136,8 +142,8 @@ export class Tracer {
     this.stack.push({type:TraceFrameType.Block, name, nodes: []})
   }
 
-  node(nodeType:TraceNode, inputPrefix:Prefix) {
-    this.stack.push({type:TraceFrameType.Node, nodeType:nodeType, inputPrefix, nodes: [], prefixes: [], outputs: [], commits: []})
+  node(node:Runtime.Node, inputPrefix:Prefix) {
+    this.stack.push({type:TraceFrameType.Node, nodeType:node.traceType, node, inputPrefix:inputPrefix.slice(), nodes: [], prefixes: [], outputs: [], commits: []})
   }
 
   capturePrefix(prefix:Prefix) {
@@ -175,15 +181,33 @@ export class Tracer {
   }
 
   output(output:Change) {
-    this._mapOutput(output);
+    let safe = output.clone();
+    this._mapOutput(safe);
     let parent = this.current();
-    parent.outputs.push(output);
+    parent.outputs.push(safe);
   }
 
   commit(commit:Change) {
-    this._mapOutput(commit);
+    let safe = commit.clone();
+    this._mapOutput(safe);
     let parent = this.current();
-    parent.commits.push(commit);
+    parent.commits.push(safe);
+  }
+
+  distinctCheck() {
+    let {index} = this.context.distinctIndex;
+    for(let key in index) {
+      let counts = index[key]!;
+      let sum = 0;
+      for(let c of counts) {
+        if(!c) continue;
+        sum += c;
+        if(sum < 0) {
+          console.error("Negative postDistinct: ", key, counts.slice())
+          // throw new Error("Negative postDistinct at the end of a transaction")
+        }
+      }
+    }
   }
 
   pop(type:TraceFrameType) {
@@ -207,6 +231,7 @@ export class Tracer {
     parent[field].push(cur);
     if(cur.type === TraceFrameType.Input) this._currentInput = undefined;
     if(cur.type === TraceFrameType.Transaction) {
+      this.distinctCheck();
       this.draw();
     }
   }
@@ -260,10 +285,13 @@ export class Tracer {
 
   $searcher = (program:ProgramFrame) => {
     let inputs = [];
-    for(let transaction of program.transactions) {
+    outer: for(let transaction of program.transactions) {
       for(let input of transaction.inputs) {
         if(this.inSearch(input.input)) {
           inputs.push(this.$changeLink(input.input));
+          if(inputs.length === 500) {
+            break outer;
+          }
         }
       }
     }
@@ -279,9 +307,17 @@ export class Tracer {
     ])
   }
 
+  getInputFrame(program:ProgramFrame, input:Change) {
+    let trans = program.transactions[input.transaction - 1];
+    for(let frame of trans.inputs) {
+      if(frame.input === input) return frame;
+    }
+  }
+
   $visualization = (program:ProgramFrame) => {
-    let {$changeLink, activeInput} = this;
+    let {$changeLink, activeInput, getInputFrame, $block} = this;
     if(activeInput) {
+      let frame = getInputFrame(program, activeInput);
       let key = this.changeKey(activeInput);
       let from = this.outputsToInputs[key];
       let to = this.inputsToOutputs[key];
@@ -304,39 +340,89 @@ export class Tracer {
           $col(to.map($changeLink)),
         ]);
       }
-      return $col([
+      let counts = this.context.distinctIndex.getCounts(activeInput)!;
+      console.log(frame);
+      return $col({c: "vis"}, [
         $changeLink(activeInput),
         fromInfo,
+        $row(frame.blocks.map($block)),
         toInfo,
+        $text(`counts: [${counts.join(", ")}]`)
       ])
     }
     return $text("select an input");
     // return $col({c: "program"}, program.transactions.map(this.$transaction));
   }
 
-  $transaction = (trans:TransactionFrame) => {
-    let {$changeLink} = this;
-    let inputs = [];
-    for(let input of trans.externalInputs) {
-      inputs.push($changeLink(input.change));
+  $block = (block:any) => {
+    return $col({c: "block"}, [
+      $text({c: "name"}, block.name),
+      $col(block.nodes.map(this.$node)),
+    ]);
+  }
+
+  $node = (node:any) => {
+    let {$prefix, $node, $changeLink} = this;
+    let subs = node.nodes.map($node);
+
+    let out;
+    if(node.prefixes.length) {
+      out = $row([
+        $text("out: "),
+        $col(node.prefixes.map($prefix)),
+      ]);
     }
-    let outputs = [];
-    for(let input of trans.inputs) {
-      for(let block of input.blocks) {
-        for(let output of block.nodes[block.nodes.length - 1].outputs) {
-          outputs.push($text(output.toString()));
-        }
+    if(node.outputs.length) {
+      let outs = [];
+      for(let output of node.outputs) {
+        outs.push(
+          $col([
+            $row([
+              $text("maybe out: "),
+              $changeLink(output.change),
+            ]),
+            $row([
+              $text("distinct out: "),
+              $col(output.outputs.map($changeLink)),
+            ]),
+          ])
+        );
       }
+      out = $col(outs);
     }
-    return $col([
-      $text(`Transaction ${trans.id}`),
-      $col([
-        $text("inputs:"),
-        $col(inputs),
-        $text("outputs:"),
-        $col(outputs),
-      ])
-    ])
+
+    return $col({c: "node"}, [
+      $text(TraceNode[node.nodeType]),
+      $row([
+        $text("in: "),
+        $prefix(node.inputPrefix),
+      ]),
+      $row(subs),
+      out,
+    ]);
+  }
+
+  $prefix = (prefix:Prefix) => {
+    let items = [];
+    let hasValue = false;
+    for(let ix = 0; ix < prefix.length - 2; ix++) {
+      let value:any = prefix[ix];
+      if(value === undefined) {
+        value = "?";
+      } else if(!isID(GlobalInterner.reverse(value))) {
+        hasValue = true;
+        value = GlobalInterner.reverse(value);
+      } else {
+        hasValue = true;
+      }
+      items.push(value);
+    }
+    if(!hasValue) {
+      return $text("(empty)");
+    }
+    let round = prefix[prefix.length - 2];
+    let count = prefix[prefix.length - 1];
+    return $text(`(${items.join(", ")}) [${round}, ${count}]`);
   }
 
   setLink = (e:any, elem:any) => {

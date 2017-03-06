@@ -426,4 +426,22 @@ export class DistinctIndex {
     let key = `${e}|${a}|${v}`;
     return this.index[key];
   }
+
+  sanityCheck() {
+    let failed = false;
+    let {index} = this;
+    for(let key in index) {
+      let counts = index[key]!;
+      let sum = 0;
+      for(let c of counts) {
+        if(!c) continue;
+        sum += c;
+        if(sum < 0) {
+          failed = true;
+          console.error("# Negative postDistinct: ", key, counts.slice())
+        }
+      }
+    }
+    if(failed) throw new Error("Distinct sanity check failed.");
+  }
 }
