@@ -48,7 +48,7 @@ export function verify(assert:test.Test, program:Program, input:any[], output:an
   let outs = createChanges(transaction, output);
 
   let all:(Runtime.Change|undefined)[] = ins.concat(outs);
-  let {changes} = program.input(ins)!;
+  let {changes, context} = program.input(ins)!;
   let msg = "Fewer changes than expected";
   if(changes.length > all.length) {
     msg = "More changes than expected";
@@ -61,6 +61,12 @@ export function verify(assert:test.Test, program:Program, input:any[], output:an
     })));
   }
   assert.equal(changes.length, all.length, msg);
+
+  try {
+    context.distinctIndex.sanityCheck();
+  } catch(e) {
+    assert.fail("Distinct sanity check failed");
+  }
 
   // Because the changes handed to us in expected aren't going to have the same
   // e's as what the program itself is going to generate, we're going to have to do

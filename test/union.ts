@@ -374,3 +374,64 @@ test("2 dynamic branches +A:1 +B:2, -A:1", (assert) => {
      [2, "tag", "result", 2, -1], [2, "output", 1, 2, -1]]
   ]);
 });
+
+test("Union: basic", (assert) => {
+
+  let prog = new Program("test");
+  prog.block("simple block", ({find, record, lib, union}) => {
+    let person = find("person");
+    let [info] = union(() => {
+      person.dog;
+      return "cool";
+    }, () => {
+      return "not cool";
+    });
+    return [
+      record("coolness", {info})
+    ]
+  });
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+  ], [
+    [2, "tag", "coolness", 1],
+    [2, "info", "not cool", 1],
+  ])
+
+  verify(assert, prog, [
+    [1, "dog", "spot"],
+  ], [
+    [3, "tag", "coolness", 1],
+    [3, "info", "cool", 1],
+  ])
+
+  assert.end();
+});
+
+
+test("Union: static moves", (assert) => {
+
+  let prog = new Program("test");
+  prog.block("simple block", ({find, record, lib, union}) => {
+    let person = find("person");
+    let [info] = union(() => {
+      return "cool";
+    }, () => {
+      return "not cool";
+    });
+    return [
+      record("coolness", {info})
+    ]
+  });
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+  ], [
+    [2, "tag", "coolness", 1],
+    [2, "info", "not cool", 1],
+    [3, "tag", "coolness", 1],
+    [3, "info", "cool", 1],
+  ])
+
+  assert.end();
+});
