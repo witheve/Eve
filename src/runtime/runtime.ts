@@ -2594,11 +2594,13 @@ export class Transaction {
     if(old === 0 && neue > 0) delta = 1;
     else if(old > 0 && neue === 0) delta = -1;
 
+    if(old < 0 || neue < 0) throw new Error("Insane in the exportIndex");
     context.exportIndex[beav] = neue;
 
     if(delta) {
-      if(!this.exportedChanges[blockId]) this.exportedChanges[blockId] = [change];
-      else this.exportedChanges[blockId].push(change);
+      let exportedChange = new Change(e, a, v, change.n, this.transaction, 0, delta);
+      if(!this.exportedChanges[blockId]) this.exportedChanges[blockId] = [exportedChange];
+      else this.exportedChanges[blockId].push(exportedChange);
     }
   }
 
