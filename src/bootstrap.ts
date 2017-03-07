@@ -1,7 +1,23 @@
 import "setimmediate";
 import {Program} from "./runtime/dsl2";
+import * as testUtil from "../test/util";
+
+let assert = {};
+function verify(assert:any, prog:Program, ins:any[], outs:any[]) {
+  prog.test(prog.nextTransactionId, ins);
+}
+
+function verifyIO(assert:any, progName:string, inputString:string, expecteds:testUtil.EAVRCTuple[][]) {
+  let inputs = testUtil.createInputs("+A, -A; +B; +C");
+  for(let input of inputs) {
+    prog.test(prog.nextTransactionId, input);
+    console.groupCollapsed("Expected");
+    console.log(testUtil.pprint(expecteds));
+    console.groupEnd();
+  }
+}
+
 let prog = new Program("test");
-console.log(prog);
 
 function doIt() {
   let prog = new Program("test program");
@@ -37,77 +53,81 @@ function doIt() {
 // doIt();
 
 
-
 // import "./programs/flappy";
 
-let assert = {};
-function verify(assert:any, prog:Program, ins:any[], outs:any[]) {
-  prog.test(prog.nextTransactionId, ins);
-}
-
-  prog.block("simple block", ({find, record, lib, choose}) => {
-    let person = find("person");
-    let [info] = choose(() => {
-      person.dog;
-      return "cool";
-    }, () => {
-      return "not cool";
-    });
-    return [
-      record("dog-less", {info})
-    ]
-  });
-
-  verify(assert, prog, [
-    [1, "tag", "person"],
-  ], [
-    [2, "tag", "dog-less", 1],
-    [2, "info", "not cool", 1],
-  ])
-
-  verify(assert, prog, [
-    [1, "dog", "spot"],
-  ], [
-    [2, "tag", "dog-less", 1, -1],
-    [2, "info", "not cool", 1, -1],
-    [3, "tag", "dog-less", 1],
-    [3, "info", "cool", 1],
-  ])
+verifyIO(assert, "2 static", "+A; +B, -A; -B", [
+  [[1, "tag", "result", 1, +1], [1, "branch", 1, 1, +1],
+   [2, "tag", "result", 1, +1], [2, "branch", 2, 1, +1]],
+  [],
+  [[1, "tag", "result", 1, -1], [1, "branch", 1, 1, -1],
+   [2, "tag", "result", 1, -1], [2, "branch", 2, 1, -1]],
+]);
 
 
 
-  prog.block("simple block", ({find, record, lib, choose}) => {
-    let person = find("person");
-    let [info] = choose(() => {
-      person.dog;
-      return "cool";
-    }, () => {
-      return "not cool";
-    });
-    return [
-      record("dog-less", {info})
-    ]
-  });
+  // prog.block("simple block", ({find, record, lib, choose}) => {
+  //   let person = find("person");
+  //   let [info] = choose(() => {
+  //     person.dog;
+  //     return "cool";
+  //   }, () => {
+  //     return "not cool";
+  //   });
+  //   return [
+  //     record("dog-less", {info})
+  //   ]
+  // });
 
-  // -----------------------------------------------------
-  // verification
-  // -----------------------------------------------------
+  // verify(assert, prog, [
+  //   [1, "tag", "person"],
+  // ], [
+  //   [2, "tag", "dog-less", 1],
+  //   [2, "info", "not cool", 1],
+  // ])
 
-  verify(assert, prog, [
-    [1, "tag", "person"],
-  ], [
-    [2, "tag", "dog-less", 1],
-    [2, "info", "not cool", 1],
-  ])
+  // verify(assert, prog, [
+  //   [1, "dog", "spot"],
+  // ], [
+  //   [2, "tag", "dog-less", 1, -1],
+  //   [2, "info", "not cool", 1, -1],
+  //   [3, "tag", "dog-less", 1],
+  //   [3, "info", "cool", 1],
+  // ])
 
-  verify(assert, prog, [
-    [1, "dog", "spot"],
-  ], [
-    [2, "tag", "dog-less", 1, -1],
-    [2, "info", "not cool", 1, -1],
-    [3, "tag", "dog-less", 1],
-    [3, "info", "cool", 1],
-  ])
+
+
+  // prog.block("simple block", ({find, record, lib, choose}) => {
+  //   let person = find("person");
+  //   let [info] = choose(() => {
+  //     person.dog;
+  //     return "cool";
+  //   }, () => {
+  //     return "not cool";
+  //   });
+  //   return [
+  //     record("dog-less", {info})
+  //   ]
+  // });
+
+  // // -----------------------------------------------------
+  // // verification
+  // // -----------------------------------------------------
+
+  // verify(assert, prog, [
+  //   [1, "tag", "person"],
+  // ], [
+  //   [2, "tag", "dog-less", 1],
+  //   [2, "info", "not cool", 1],
+  // ])
+
+  // verify(assert, prog, [
+  //   [1, "dog", "spot"],
+  // ], [
+  //   [2, "tag", "dog-less", 1, -1],
+  //   [2, "info", "not cool", 1, -1],
+  //   [3, "tag", "dog-less", 1],
+  //   [3, "info", "cool", 1],
+  // ])
 
 // import {Change} from "./runtime/runtime";
 // import {HashIndex} from "./runtime/indexes";
