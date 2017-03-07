@@ -1,18 +1,18 @@
 declare var Velocity:any;
 
 export interface Handler<T extends Event> {
-  (evt:T, elem:Element): void
+  (evt:T, elem:uElement): void
 }
 export interface RenderHandler {
-  (node:HTMLElement, elem:Element): void
+  (node:HTMLElement, elem:uElement): void
 }
 
-export interface Element {
+export interface uElement {
   t?:string
   c?:string
   id?:string
   parent?:string
-  children?:Element[]
+  children?:uElement[]
   ix?:number
   key?:string
   dirty?:boolean
@@ -147,7 +147,7 @@ function postAnimationRemove(elements:Element[]) {
 export class Renderer {
   // @TODO: A more performant implementation would have a way of rendering subtrees and just have a lambda Renderer to compile into
   static _compileRenderer:{[id:string]: Renderer} = {};
-  static compile(elem:Element) {
+  static compile(elem:uElement) {
     if(!elem.id) throw new Error("Cannot compile element with id " + elem.id);
     let renderer = Renderer._compileRenderer[elem.id];
     if(!renderer) renderer = Renderer._compileRenderer[elem.id] = new Renderer();
@@ -157,9 +157,9 @@ export class Renderer {
 
   content: HTMLElement;
   elementCache: {[id:string]: HTMLElement|undefined};
-  prevTree:{[id:string]: Element};
-  tree:{[id:string]: Element};
-  postRenders: Element[];
+  prevTree:{[id:string]: uElement};
+  tree:{[id:string]: uElement};
+  postRenders: uElement[];
   lastDiff: {adds: string[], updates: {}};
   queued: boolean;
   handleEvent: (any);
@@ -187,7 +187,7 @@ export class Renderer {
   }
 
   domify() {
-    var fakePrev:Element = {}; //create an empty object once instead of every instance of the loop
+    var fakePrev:uElement = {}; //create an empty object once instead of every instance of the loop
     var elements = this.tree;
     var prevElements = this.prevTree;
     var diff = this.lastDiff;
@@ -529,11 +529,11 @@ export class Renderer {
     return this.lastDiff;
   }
 
-  prepare(root:Element) {
+  prepare(root:uElement) {
     var elemLen = 1;
     var tree = this.tree;
     var elements = [root];
-    var elem:Element;
+    var elem:uElement;
     for(var elemIx = 0; elemIx < elemLen; elemIx++) {
       elem = elements[elemIx];
       if(elem.parent === undefined) elem.parent = "__root";
@@ -571,7 +571,7 @@ export class Renderer {
     }
   }
 
-  render(elems:Element[]) {
+  render(elems:uElement[]) {
       this.reset();
     // We sort elements by depth to allow them to be self referential.
     elems.sort((a, b) => (a.parent ? a.parent.split("__").length : 0) - (b.parent ? b.parent.split("__").length : 0));
