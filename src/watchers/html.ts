@@ -66,7 +66,7 @@ class HTMLWatcher extends DOMWatcher<Instance> {
       Object.keys(adds).forEach((id) => {
         let {elemId, instanceId} = adds[id];
         let instance = this.getInstance(instanceId);
-        instance.addEventListener('mouseenter', () => {
+        instance.addEventListener("mouseenter", () => {
           let changes:any[] = [];
           let eventId = uuid();
           changes.push(
@@ -90,7 +90,7 @@ class HTMLWatcher extends DOMWatcher<Instance> {
       Object.keys(adds).forEach((id) => {
         let {elemId, instanceId} = adds[id];
         let instance = this.getInstance(instanceId);
-        instance.addEventListener('mouseleave', () => {
+        instance.addEventListener("mouseleave", () => {
           let changes:any[] = [];
           let eventId = uuid();
           changes.push(

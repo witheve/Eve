@@ -32,7 +32,7 @@ prog
 prog
   .commit("mouseenter", ({find, record}) => {
     let elem = find("effect");
-    let event = find('html/event/mouseenter');
+    let event = find("html/event/mouseenter");
     return [
       elem.add("class", "visible")
     ];
@@ -41,7 +41,7 @@ prog
 prog
   .commit("mouseleave", ({find, record}) => {
     let elem = find("effect");
-    let event = find('html/event/mouseleave');
+    let event = find("html/event/mouseleave");
     return [
       elem.remove("class", "visible")
     ];
