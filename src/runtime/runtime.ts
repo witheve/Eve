@@ -2164,7 +2164,7 @@ export class BinaryJoinRight extends BinaryFlow {
     let count = prefix[prefix.length - 1];
     this.leftIndex.insert(key, prefix);
     let diffs = this.rightIndex.iter(key, round)
-    // debug("       left", key, printPrefix(prefix), diffs);
+    // debug("       join left", key, printPrefix(prefix), diffs);
     if(!diffs) return;
     let rightPrefix;
     while(rightPrefix = diffs.next()) {
@@ -2174,7 +2174,7 @@ export class BinaryJoinRight extends BinaryFlow {
       result[result.length - 1] = count * diffs.count;
       context.tracer.capturePrefix(result);
       results.push(result);
-      // debug("               left -> ", printPrefix(result), diffs.round, count, diffs.count);
+      // debug("               join left -> ", printPrefix(result), diffs.round, count, diffs.count);
     }
   }
 
@@ -2184,7 +2184,7 @@ export class BinaryJoinRight extends BinaryFlow {
     let count = prefix[prefix.length - 1];
     this.rightIndex.insert(key, prefix);
     let diffs = this.leftIndex.iter(key, round)
-    // debug("       right", key, copy(this.rightIndex.index[key]));
+    // debug("       join right", key, this.rightIndex.index[key]);
     if(!diffs) return;
     let leftPrefix;
     while(leftPrefix = diffs.next()) {
@@ -2194,7 +2194,7 @@ export class BinaryJoinRight extends BinaryFlow {
       result[result.length - 1] = count * diffs.count;
       context.tracer.capturePrefix(result);
       results.push(result);
-      // debug("               right -> ", printPrefix(result.slice()), diffs.round, count, diffs.count);
+      // debug("              join right -> ", printPrefix(result.slice()), diffs.round, count, diffs.count);
     }
   }
 }
@@ -2347,7 +2347,7 @@ export class UnionFlow extends Node {
 export class ChooseFlow extends Node {
   traceType = TraceNode.Choose;
   leftResults = new Iterator<Prefix>();
-  branches:BinaryJoinRight[] = [];
+  branches:(BinaryJoinRight|AntiJoinPresolvedRight)[] = [];
   branchResults:Iterator<Prefix>[] = [];
 
   constructor(public left:Node, initialBranches:Node[], public keyRegisters:Register[][], public registersToMerge:Register[]) {
@@ -2358,9 +2358,20 @@ export class ChooseFlow extends Node {
     for(let branch of initialBranches) {
       let join;
       if(prev) {
-        let antijoin = new AntiJoinPresolvedRight(branch, prev, keyRegisters[ix]);
-        join = new BinaryJoinRight(left, antijoin, keyRegisters[ix], registersToMerge);
-        branches.push(join);
+        let prevKeys = keyRegisters[ix - 1];
+        let myKeys = keyRegisters[ix];
+        let combinedKeys = prevKeys.slice();
+        for(let key of myKeys) {
+          if(!combinedKeys.some((r) => r.offset === key.offset)) {
+            combinedKeys.push(key);
+          }
+        }
+
+        // @TODO: combinedKeys should work here...
+        // let antijoin = new AntiJoinPresolvedRight(branch, prev, myKeys);
+        join = new BinaryJoinRight(left, branch, myKeys, registersToMerge);
+        let antijoin = new AntiJoinPresolvedRight(join, prev, combinedKeys);
+        branches.push(antijoin);
       } else {
         join = new BinaryJoinRight(left, branch, keyRegisters[ix], registersToMerge);
         branches.push(join);
@@ -2390,13 +2401,17 @@ export class ChooseFlow extends Node {
     }
 
     for(let node of branches) {
-      let lastLeft = node.leftResults;
-      let lastRight
-      node.leftResults = leftResults;
+      let lastLeft;
+      let lastRight;
       if(prev) {
-        let antiJoin = node.right as AntiJoinPresolvedRight;
-        lastRight = antiJoin.rightResults;
-        antiJoin.rightResults = prev;
+        let binaryJoin = node.left as BinaryJoinRight;
+        lastRight = node.rightResults;
+        node.rightResults = prev;
+        lastLeft = binaryJoin.leftResults;
+        binaryJoin.leftResults = leftResults;
+      } else {
+        lastLeft = node.leftResults;
+        node.leftResults = leftResults;
       }
       let branchResult = branchResults[ix];
       branchResult.clear();
@@ -2407,10 +2422,12 @@ export class ChooseFlow extends Node {
       tracer.pop(TraceFrameType.Node);
 
       if(prev) {
-        let antiJoin = node.right as AntiJoinPresolvedRight;
-        antiJoin.rightResults = lastRight;
+        let binaryJoin = node.left as BinaryJoinRight;
+        node.rightResults = lastRight;
+        binaryJoin.leftResults = lastLeft;
+      } else {
+        node.leftResults = lastLeft;
       }
-      node.leftResults = lastLeft;
       leftCopy.reset();
       while((leftPrefix = leftCopy.next()) !== undefined) {
         tracer.node(node, leftPrefix);

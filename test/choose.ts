@@ -437,7 +437,7 @@ test("Choose: 1 dynamic 1 static branch +A:1, -A:1", (assert) => {
 
 
 test("Choose: 1 dynamic 1 static branch +A:1, -A:1, +A:1", (assert) => {
-  verifyBranches(assert, "1 dynamic 1 static", "+A:1, -A:1", [
+  verifyBranches(assert, "1 dynamic 1 static", "+A:1, -A:1, +A:1", [
     [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1],
      [1, "tag", "result", 2, -1], [1, "output", "one", 2, -1],
      [1, "tag", "result", 3, +1], [1, "output", "one", 3, +1]]
@@ -512,7 +512,7 @@ test("Choose: 2 dynamic branch +A:1, -A:1", (assert) => {
 
 
 test("Choose: 2 dynamic branch +A:1, -A:1, +A:1", (assert) => {
-  verifyBranches(assert, "2 dynamic", "+A:1, -A:1", [
+  verifyBranches(assert, "2 dynamic", "+A:1, -A:1, +A:1", [
     [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1],
      [1, "tag", "result", 2, -1], [1, "output", "one", 2, -1],
      [1, "tag", "result", 3, +1], [1, "output", "one", 3, +1]]
