@@ -224,11 +224,13 @@ export class Tracer {
     }
     if(cur.type === TraceFrameType.Transaction) {
       parent = this.stack[0];
+      parent.transactions[cur.id] = cur;
+    } else {
+      let field = typeToParentField[cur.type];
+      if(!parent[field]) throw new Error(`Trying to write trace field '${field}', but ${TraceFrameType[parent.type]} doesn't have it`);
+      parent[field].push(cur);
     }
 
-    let field = typeToParentField[cur.type];
-    if(!parent[field]) throw new Error(`Trying to write trace field '${field}', but ${TraceFrameType[parent.type]} doesn't have it`);
-    parent[field].push(cur);
     if(cur.type === TraceFrameType.Input) this._currentInput = undefined;
     if(cur.type === TraceFrameType.Transaction) {
       this.distinctCheck();
@@ -286,6 +288,7 @@ export class Tracer {
   $searcher = (program:ProgramFrame) => {
     let inputs = [];
     outer: for(let transaction of program.transactions) {
+      if(!transaction) continue;
       for(let input of transaction.inputs) {
         if(this.inSearch(input.input)) {
           inputs.push(this.$changeLink(input.input));
@@ -308,7 +311,7 @@ export class Tracer {
   }
 
   getInputFrame(program:ProgramFrame, input:Change) {
-    let trans = program.transactions[input.transaction - 1];
+    let trans = program.transactions[input.transaction];
     for(let frame of trans.inputs) {
       if(frame.input === input) return frame;
     }
@@ -345,7 +348,7 @@ export class Tracer {
       return $col({c: "vis"}, [
         $changeLink(activeInput),
         fromInfo,
-        $row(frame.blocks.map($block)),
+        $col(frame.blocks.map($block)),
         toInfo,
         $text(`counts: [${counts.join(", ")}]`)
       ])

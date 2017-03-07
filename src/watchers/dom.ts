@@ -222,7 +222,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
           let instance = this.getInstance(instanceId);
           if(!instance) throw new Error(`Orphaned instance '${instanceId}'`);
           let parent = this.getInstance(parentId);
-          if(!parent) throw new Error(`Missing parent instance '${parentId}'`);
+          if(!parent) throw new Error(`Missing parent instance '${parentId}', ${instanceId}`);
           this.insertChild(parent, instance);
         }
       })

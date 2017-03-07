@@ -687,7 +687,6 @@ export class MoveConstraint {
   }
 
   applyInput(input:Change, prefix:Prefix):ApplyInputState {
-    console.log("  ***************** APPLYING", prefix, this);
     if(this.shouldApplyInput) {
       let value;
       if(isRegister(this.from)) {
@@ -2013,6 +2012,7 @@ class ZeroingIterator {
     if(roundIx >= countsLength) return;
     let final;
     if(roundIx <= minRound) {
+      if(minRound >= countsLength) countsLength = minRound + 1;
       for(; roundIx < countsLength; roundIx++) {
         let cur = counts[roundIx];
         if(cur) {
@@ -2365,7 +2365,7 @@ export class ChooseFlow extends Node {
       leftResults.reset();
       let leftPrefix;
       while((leftPrefix = leftResults.next()) !== undefined) {
-        tracer.node(node, prefix);
+        tracer.node(node, leftPrefix);
         node.exec(context, input, copyArray(leftPrefix, "ChooseLeftPrefixCopy"), transaction, round, branchResult, changes);
         tracer.pop(TraceFrameType.Node);
       }
@@ -2613,7 +2613,7 @@ export class Block {
   }
 }
 
-//------------------------------------------------------------------------g1------
+//------------------------------------------------------------------------------
 // EvaluationContext
 //------------------------------------------------------------------------------
 
@@ -2689,7 +2689,6 @@ export class Transaction {
     if(old === 0 && neue > 0) delta = 1;
     else if(old > 0 && neue === 0) delta = -1;
 
-    if(old < 0 || neue < 0) throw new Error("Insane in the exportIndex");
     context.exportIndex[beav] = neue;
 
     if(delta) {
@@ -2884,7 +2883,13 @@ export class Transaction {
         this.collapseMultiplicity(this.exportedChanges[+blockId], exports);
         this.exportedChanges[+blockId] = exports;
       }
-      this.exportHandler(this.exportedChanges);
+      console.log("EXPORTS", this.exportedChanges);
+      try {
+        this.exportHandler(this.exportedChanges);
+      } catch(e) {
+        tracer.pop(TraceFrameType.Transaction);
+        throw e;
+      }
     }
 
     // Once the transaction is effectively done, we need to clean up after ourselves. We
