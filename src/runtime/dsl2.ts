@@ -1045,11 +1045,14 @@ class Lookup extends DSLBase {
 //--------------------------------------------------------------------
 
 class Move extends DSLBase {
-  constructor(public context:ReferenceContext, public from:Value, public to?:Reference) {
+  public to:Reference;
+  constructor(public context:ReferenceContext, public from:Value, to?:Reference) {
     super();
     if(!to) {
       if(!isReference(from)) throw new Error("Move where the to is not a reference");
       this.to = from;
+    } else {
+      this.to = to;
     }
   }
 
@@ -1440,7 +1443,7 @@ class Union extends DSLBase {
       } else if(resultCount !== branchResultCount) {
         throw new Error(`Choose branch ${ix} doesn't have the right number of returns. I expected ${resultCount}, but got ${branchResultCount}`);
       }
-      let branchInputs = this.branchInputs[ix] = [];
+      let branchInputs:Reference[] = this.branchInputs[ix] = [];
       for(let ref of flow.context.getInputReferences()) {
         if(this.inputs.indexOf(ref) === -1) {
           this.inputs.push(ref);
@@ -1493,7 +1496,8 @@ class Union extends DSLBase {
       let compiled = flow.compile();
       nodes.push(compiled[0]);
       console.log(branchInputs[ix]);
-      inputs.push(branchInputs[ix].map((v) => context.getValue(v)).filter(isRegister));
+      // @NOTE: Not sure why TS isn't correctly pegging this as filtered to only Registers already.
+      inputs.push(branchInputs[ix].map((v) => context.getValue(v)).filter(isRegister) as Register[]);
       ix++;
     }
     console.log("COMPILED INPUTS", inputs);
