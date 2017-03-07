@@ -8,7 +8,7 @@ function verify(assert:any, prog:Program, ins:any[], outs:any[]) {
 }
 
 function verifyIO(assert:any, progName:string, inputString:string, expecteds:testUtil.EAVRCTuple[][]) {
-  let inputs = testUtil.createInputs("+A, -A; +B; +C");
+  let inputs = testUtil.createInputs(inputString);
   for(let input of inputs) {
     prog.test(prog.nextTransactionId, input);
     console.groupCollapsed("Expected");
@@ -50,19 +50,31 @@ function doIt() {
   ]);
 }
 (global as any).doIt = doIt;
-doIt();
+// doIt();
 
 
 // import "./programs/flappy";
 
-verifyIO(assert, "2 static", "+A; +B, -A; -B", [
-  [[1, "tag", "result", 1, +1], [1, "branch", 1, 1, +1],
-   [2, "tag", "result", 1, +1], [2, "branch", 2, 1, +1]],
-  [],
-  [[1, "tag", "result", 1, -1], [1, "branch", 1, 1, -1],
-   [2, "tag", "result", 1, -1], [2, "branch", 2, 1, -1]],
-]);
+    prog.block("simple block", ({find, union, record}) => {
+      let foo = find("input");
+      let [output] = union(
+        () => {foo.arg0 == 1; return ["one"]},
+        () => foo.arg0
+      );
+      return [
+        record("result", {output})
+      ];
+    });
 
+  verifyIO(assert, "2 dynamic", "+A:1, +B:1; -A:1", [
+    [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1],
+     [2, "tag", "result", 1, +1], [2, "output", 1, 1, +1]],
+
+    [[1, "tag", "result", 1, -1], [1, "output", "one", 1, -1],
+     [2, "tag", "result", 1, -1], [2, "output", 1, 1, -1],
+     [1, "tag", "result", 2, +1], [1, "output", "one", 2, +1],
+     [2, "tag", "result", 2, +1], [2, "output", 1, 2, +1]]
+  ]);
   // prog.block("simple block", ({find, record, lib, choose}) => {
   //   let person = find("person");
   //   let [info] = choose(() => {

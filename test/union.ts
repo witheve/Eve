@@ -308,8 +308,8 @@ test("2 dynamic branches +A:1, +B:1; -A:1", (assert) => {
      [2, "tag", "result", 1, +1], [2, "output", 1, 1, +1]],
     [[1, "tag", "result", 1, -1], [1, "output", "one", 1, -1],
      [2, "tag", "result", 1, -1], [2, "output", 1, 1, -1],
-     [3, "tag", "result", 2, +1], [3, "output", "one", 2, +1],
-     [4, "tag", "result", 2, +1], [4, "output", 1, 2, +1]]
+     [1, "tag", "result", 2, +1], [1, "output", "one", 2, +1],
+     [2, "tag", "result", 2, +1], [2, "output", 1, 2, +1]]
   ]);
 });
 
