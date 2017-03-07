@@ -38,7 +38,7 @@ test("Choose: basic", (assert) => {
 });
 
 // @TODO: Give this a better name when we figure out the specific issue.
-test("Busted partial identity choose", (assert) => {
+test("Choose: Busted partial identity", (assert) => {
   let prog = new Program("test");
   prog.block("Split up our cat attributes", ({find, lookup, record}) => {
     let cat = find("cat");
@@ -235,7 +235,7 @@ let verifyBranches = createVerifier(programs);
 // 1 Static branch
 // -----------------------------------------------------
 
-test("choose 1 static branch +A; -A; +A", (assert) => {
+test("Choose: 1 static branch +A; -A; +A", (assert) => {
   verifyBranches(assert, "1 static", "+A; -A; +A", [
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1]],
     [[2, "tag", "result", 1, -1], [2, "branch", 1, 1, -1]],
@@ -243,7 +243,7 @@ test("choose 1 static branch +A; -A; +A", (assert) => {
   ]);
 });
 
-test("choose 1 static branch +A; -A; +B", (assert) => {
+test("Choose: 1 static branch +A; -A; +B", (assert) => {
   verifyBranches(assert, "1 static", "+A; -A; +B", [
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1]],
     [[2, "tag", "result", 1, -1], [2, "branch", 1, 1, -1]],
@@ -252,7 +252,7 @@ test("choose 1 static branch +A; -A; +B", (assert) => {
 });
 
 // @NOTE: Broken due to verify being too simple.
-test("choose 1 static branch +A; +A; -A", (assert) => {
+test("Choose: 1 static branch +A; +A; -A", (assert) => {
   verifyBranches(assert, "1 static", "+A; +A; -A", [
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1]],
     [],
@@ -261,7 +261,7 @@ test("choose 1 static branch +A; +A; -A", (assert) => {
 });
 
 // @NOTE: Broken due to verify being too simple.
-test("choose 1 static branch +A; +A; -A; -A", (assert) => {
+test("Choose: 1 static branch +A; +A; -A; -A", (assert) => {
   verifyBranches(assert, "1 static", "+A; +A; -A; -A", [
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1]],
     [],
@@ -270,7 +270,7 @@ test("choose 1 static branch +A; +A; -A; -A", (assert) => {
   ]);
 });
 
-test("choose 1 static branch +A +B; -A; +A", (assert) => {
+test("Choose: 1 static branch +A +B; -A; +A", (assert) => {
   verifyBranches(assert, "1 static", "+A +B; -A; +A", [
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1]],
     [],
@@ -278,40 +278,40 @@ test("choose 1 static branch +A +B; -A; +A", (assert) => {
   ]);
 });
 
-test("choose 1 static branch +A +B; -A -B", (assert) => {
+test("Choose: 1 static branch +A +B; -A -B", (assert) => {
   verifyBranches(assert, "1 static", "+A +B; -A -B", [
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1]],
     [[2, "tag", "result", 1, -1], [2, "branch", 1, 1, -1]]
   ]);
 });
 
-test("choose 1 static branch +A; -A +B", (assert) => {
+test("Choose: 1 static branch +A; -A +B", (assert) => {
   verifyBranches(assert, "1 static", "+A; -A +B", [
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1]],
     []
   ]);
 });
 
-test("choose 1 static branch +A, -A", (assert) => {
+test("Choose: 1 static branch +A, -A", (assert) => {
   verifyBranches(assert, "1 static", "+A, -A", [
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1],
      [2, "tag", "result", 2, -1], [2, "branch", 1, 2, -1]]
   ]);
 });
 
-test("choose 1 static branch +A, -A +B", (assert) => {
+test("Choose: 1 static branch +A, -A +B", (assert) => {
   verifyBranches(assert, "1 static", "+A, -A +B", [
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1]]
   ]);
 });
 
-test("choose 1 static branch +A, +B", (assert) => {
+test("Choose: 1 static branch +A, +B", (assert) => {
   verifyBranches(assert, "1 static", "+A, +B", [
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1]]
   ]);
 });
 
-test("choose 1 static branch +A, +B; -A", (assert) => {
+test("Choose: 1 static branch +A, +B; -A", (assert) => {
   verifyBranches(assert, "1 static", "+A, +B; -A", [
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1]],
     [[2, "tag", "result", 1, -1], [2, "branch", 1, 1, -1],
@@ -319,7 +319,7 @@ test("choose 1 static branch +A, +B; -A", (assert) => {
   ]);
 });
 
-test("choose 1 static branch +A; -A, +B", (assert) => {
+test("Choose: 1 static branch +A; -A, +B", (assert) => {
   verifyBranches(assert, "1 static", "+A; -A, +B", [
     [[2, "tag", "result", 1, +1], [2, "branch", 1, 1, +1]],
     [[2, "tag", "result", 1, -1], [2, "branch", 1, 1, -1],
@@ -331,14 +331,14 @@ test("choose 1 static branch +A; -A, +B", (assert) => {
 // 1 dynamic branch
 // -----------------------------------------------------
 
-test("1 dynamic branch +A:1; -A:1", (assert) => {
+test("Choose: 1 dynamic branch +A:1; -A:1", (assert) => {
   verifyBranches(assert, "1 dynamic", "+A:1; -A:1", [
     [[1, "tag", "result", 1, +1], [1, "output", 1, 1, +1]],
     [[1, "tag", "result", 1, -1], [1, "output", 1, 1, -1]],
   ]);
 });
 
-test("1 dynamic branch +A:1; -A:1; +A:1", (assert) => {
+test("Choose: 1 dynamic branch +A:1; -A:1; +A:1", (assert) => {
   verifyBranches(assert, "1 dynamic", "+A:1; -A:1; +A:1", [
     [[1, "tag", "result", 1, +1], [1, "output", 1, 1, +1]],
     [[1, "tag", "result", 1, -1], [1, "output", 1, 1, -1]],
@@ -346,7 +346,7 @@ test("1 dynamic branch +A:1; -A:1; +A:1", (assert) => {
   ]);
 });
 
-test("1 dynamic branch +A:1; -A:1; +A:2", (assert) => {
+test("Choose: 1 dynamic branch +A:1; -A:1; +A:2", (assert) => {
   verifyBranches(assert, "1 dynamic", "+A:1; -A:1; +A:2", [
     [[1, "tag", "result", 1, +1], [1, "output", 1, 1, +1]],
     [[1, "tag", "result", 1, -1], [1, "output", 1, 1, -1]],
@@ -354,7 +354,7 @@ test("1 dynamic branch +A:1; -A:1; +A:2", (assert) => {
   ]);
 });
 
-test("1 dynamic branch +A:1; +A:2; -A:1", (assert) => {
+test("Choose: 1 dynamic branch +A:1; +A:2; -A:1", (assert) => {
   verifyBranches(assert, "1 dynamic", "+A:1; +A:2; -A:1", [
     [[1, "tag", "result", 1, +1], [1, "output", 1, 1, +1]],
     [[1, "tag", "result", 1, +1], [1, "output", 2, 1, +1]],
@@ -362,7 +362,7 @@ test("1 dynamic branch +A:1; +A:2; -A:1", (assert) => {
   ]);
 });
 
-test("1 dynamic branch +A:1; +B:1; -A:1", (assert) => {
+test("Choose: 1 dynamic branch +A:1; +B:1; -A:1", (assert) => {
   verifyBranches(assert, "1 dynamic", "+A:1; +B:1; -A:1", [
     [[1, "tag", "result", 1, +1], [1, "output", 1, 1, +1]],
     [],
@@ -370,7 +370,7 @@ test("1 dynamic branch +A:1; +B:1; -A:1", (assert) => {
   ]);
 });
 
-test("1 dynamic branch +A:1; +B:1; -A:1, -B:1", (assert) => {
+test("Choose: 1 dynamic branch +A:1; +B:1; -A:1, -B:1", (assert) => {
   verifyBranches(assert, "1 dynamic", "+A:1; +B:1; -A:1, -B:1", [
     [[1, "tag", "result", 1, +1], [1, "output", 1, 1, +1]],
     [],
@@ -382,7 +382,7 @@ test("1 dynamic branch +A:1; +B:1; -A:1, -B:1", (assert) => {
 // 1 dynamic 1 static
 // -----------------------------------------------------
 
-test("choose 1 dynamic 1 static branch +A:1; -A:1; +A:1", (assert) => {
+test("Choose: 1 dynamic 1 static branch +A:1; -A:1; +A:1", (assert) => {
   verifyBranches(assert, "1 dynamic 1 static", "+A:1; -A:1; +A:1", [
     [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1]],
     [[1, "tag", "result", 1, -1], [1, "output", "one", 1, -1]],
@@ -390,7 +390,7 @@ test("choose 1 dynamic 1 static branch +A:1; -A:1; +A:1", (assert) => {
   ]);
 });
 
-test("choose 1 dynamic 1 static branch +A:2; -A:2; +A:2", (assert) => {
+test("Choose: 1 dynamic 1 static branch +A:2; -A:2; +A:2", (assert) => {
   verifyBranches(assert, "1 dynamic 1 static", "+A:2; -A:2; +A:2", [
     [[1, "tag", "result", 1, +1], [1, "output", "else", 1, +1]],
     [[1, "tag", "result", 1, -1], [1, "output", "else", 1, -1]],
@@ -398,7 +398,7 @@ test("choose 1 dynamic 1 static branch +A:2; -A:2; +A:2", (assert) => {
   ]);
 });
 
-test("choose 1 dynamic 1 static branch +A:1; -A:1; +A:2", (assert) => {
+test("Choose: 1 dynamic 1 static branch +A:1; -A:1; +A:2", (assert) => {
   verifyBranches(assert, "1 dynamic 1 static", "+A:1; -A:1; +A:2", [
     [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1]],
     [[1, "tag", "result", 1, -1], [1, "output", "one", 1, -1]],
@@ -406,21 +406,21 @@ test("choose 1 dynamic 1 static branch +A:1; -A:1; +A:2", (assert) => {
   ]);
 });
 
-test("choose 1 dynamic 1 static branch +A:1; +A:2", (assert) => {
+test("Choose: 1 dynamic 1 static branch +A:1; +A:2", (assert) => {
   verifyBranches(assert, "1 dynamic 1 static", "+A:1; +A:2", [
     [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1]],
     []
   ]);
 });
 
-test("choose 1 dynamic 1 static branch +A:1; +B:2", (assert) => {
+test("Choose: 1 dynamic 1 static branch +A:1; +B:2", (assert) => {
   verifyBranches(assert, "1 dynamic 1 static", "+A:1; +B:2", [
     [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1]],
     [[2, "tag", "result", 1, +1], [2, "output", "else", 1, +1]]
   ]);
 });
 
-test("choose 1 dynamic 1 static branch +A:1; +B:1; -A:1", (assert) => {
+test("Choose: 1 dynamic 1 static branch +A:1; +B:1; -A:1", (assert) => {
   verifyBranches(assert, "1 dynamic 1 static", "+A:1; +B:1; -A:1", [
     [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1]],
     [],
@@ -428,7 +428,7 @@ test("choose 1 dynamic 1 static branch +A:1; +B:1; -A:1", (assert) => {
   ]);
 });
 
-test("choose 1 dynamic 1 static branch +A:1, -A:1", (assert) => {
+test("Choose: 1 dynamic 1 static branch +A:1, -A:1", (assert) => {
   verifyBranches(assert, "1 dynamic 1 static", "+A:1, -A:1", [
     [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1],
      [1, "tag", "result", 2, -1], [1, "output", "one", 2, -1]]
@@ -436,7 +436,7 @@ test("choose 1 dynamic 1 static branch +A:1, -A:1", (assert) => {
 });
 
 
-test("choose 1 dynamic 1 static branch +A:1, -A:1, +A:1", (assert) => {
+test("Choose: 1 dynamic 1 static branch +A:1, -A:1, +A:1", (assert) => {
   verifyBranches(assert, "1 dynamic 1 static", "+A:1, -A:1", [
     [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1],
      [1, "tag", "result", 2, -1], [1, "output", "one", 2, -1],
@@ -444,7 +444,7 @@ test("choose 1 dynamic 1 static branch +A:1, -A:1, +A:1", (assert) => {
   ]);
 });
 
-test("choose 1 dynamic 1 static branch +A:1; +B:1; -B:1; +B:1", (assert) => {
+test("Choose: 1 dynamic 1 static branch +A:1; +B:1; -B:1; +B:1", (assert) => {
   verifyBranches(assert, "1 dynamic 1 static", "+A:1; +B:1; -B:1; +B:1", [
     [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1]],
     [],
@@ -457,7 +457,7 @@ test("choose 1 dynamic 1 static branch +A:1; +B:1; -B:1; +B:1", (assert) => {
 // 2 dynamics
 // -----------------------------------------------------
 
-test("choose 2 dynamic branch +A:1; -A:1; +A:1", (assert) => {
+test("Choose: 2 dynamic branch +A:1; -A:1; +A:1", (assert) => {
   verifyBranches(assert, "2 dynamic", "+A:1; -A:1; +A:1", [
     [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1]],
     [[1, "tag", "result", 1, -1], [1, "output", "one", 1, -1]],
@@ -465,7 +465,7 @@ test("choose 2 dynamic branch +A:1; -A:1; +A:1", (assert) => {
   ]);
 });
 
-test("choose 2 dynamic branch +A:2; -A:2; +A:2", (assert) => {
+test("Choose: 2 dynamic branch +A:2; -A:2; +A:2", (assert) => {
   verifyBranches(assert, "2 dynamic", "+A:2; -A:2; +A:2", [
     [[1, "tag", "result", 1, +1], [1, "output", 2, 1, +1]],
     [[1, "tag", "result", 1, -1], [1, "output", 2, 1, -1]],
@@ -473,7 +473,7 @@ test("choose 2 dynamic branch +A:2; -A:2; +A:2", (assert) => {
   ]);
 });
 
-test("choose 2 dynamic branch +A:1; -A:1; +A:2", (assert) => {
+test("Choose: 2 dynamic branch +A:1; -A:1; +A:2", (assert) => {
   verifyBranches(assert, "2 dynamic", "+A:1; -A:1; +A:2", [
     [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1]],
     [[1, "tag", "result", 1, -1], [1, "output", "one", 1, -1]],
@@ -481,21 +481,21 @@ test("choose 2 dynamic branch +A:1; -A:1; +A:2", (assert) => {
   ]);
 });
 
-test("choose 2 dynamic branch +A:1; +A:2", (assert) => {
+test("Choose: 2 dynamic branch +A:1; +A:2", (assert) => {
   verifyBranches(assert, "2 dynamic", "+A:1; +A:2", [
     [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1]],
     []
   ]);
 });
 
-test("choose 2 dynamic branch +A:1; +B:2", (assert) => {
+test("Choose: 2 dynamic branch +A:1; +B:2", (assert) => {
   verifyBranches(assert, "2 dynamic", "+A:1; +B:2", [
     [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1]],
     [[2, "tag", "result", 1, +1], [2, "output", 2, 1, +1]]
   ]);
 });
 
-test("choose 2 dynamic branch +A:1; +B:1; -A:1", (assert) => {
+test("Choose: 2 dynamic branch +A:1; +B:1; -A:1", (assert) => {
   verifyBranches(assert, "2 dynamic", "+A:1; +B:1; -A:1", [
     [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1]],
     [],
@@ -503,7 +503,7 @@ test("choose 2 dynamic branch +A:1; +B:1; -A:1", (assert) => {
   ]);
 });
 
-test("choose 2 dynamic branch +A:1, -A:1", (assert) => {
+test("Choose: 2 dynamic branch +A:1, -A:1", (assert) => {
   verifyBranches(assert, "2 dynamic", "+A:1, -A:1", [
     [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1],
      [1, "tag", "result", 2, -1], [1, "output", "one", 2, -1]]
@@ -511,7 +511,7 @@ test("choose 2 dynamic branch +A:1, -A:1", (assert) => {
 });
 
 
-test("choose 2 dynamic branch +A:1, -A:1, +A:1", (assert) => {
+test("Choose: 2 dynamic branch +A:1, -A:1, +A:1", (assert) => {
   verifyBranches(assert, "2 dynamic", "+A:1, -A:1", [
     [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1],
      [1, "tag", "result", 2, -1], [1, "output", "one", 2, -1],
@@ -519,7 +519,7 @@ test("choose 2 dynamic branch +A:1, -A:1, +A:1", (assert) => {
   ]);
 });
 
-test("choose 2 dynamic branch +A:1; +B:1; -B:1; +B:1", (assert) => {
+test("Choose: 2 dynamic branch +A:1; +B:1; -B:1; +B:1", (assert) => {
   verifyBranches(assert, "2 dynamic", "+A:1; +B:1; -B:1; +B:1", [
     [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1]],
     [],
