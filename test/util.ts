@@ -199,3 +199,57 @@ export function time(start?:any): number | number[] | string {
   let end = process.hrtime(start);
   return ((end[0]*1000) + (end[1]/1000000)).toFixed(3);
 }
+
+export function createVerifier<T extends {[name:string]: () => Program}>(programs:T) {
+  return function verifyInput(assert:test.Test, progName:(keyof T), inputString:string, expecteds:EAVRCTuple[][]) {
+    let prog = programs[progName]();
+    let transactions = inputString.split(";");
+
+    if(expecteds.length !== transactions.length) {
+      assert.fail("Malformed test case");
+      throw new Error(`Incorrect number of expecteds given the inputString Got ${expecteds.length}, needed: ${transactions.length}`);
+    }
+
+    let transactionNumber = 0;
+    for(let transaction of transactions) {
+      let eavrcs:EAVRCTuple[] = [];
+      let roundNumber = 0;
+      for(let round of transaction.split(",")) {
+        for(let input of round.split(" ")) {
+          if(!input) continue;
+
+          let count;
+          if(input[0] === "+") count = 1;
+          else if(input[0] === "-") count = -1;
+          else {
+            assert.fail("Malformed test case");
+            throw new Error(`Malformed input: ${input}`);
+          }
+
+          let args = input.slice(1).split(":");
+          let id = args.shift();
+          if(!id) {
+            assert.fail("Malformed test case");
+            throw new Error(`Malformed input: '${input}'`);
+          }
+          eavrcs.push([id, "tag", "input", roundNumber, count]);
+
+          let argIx = 0;
+          for(let arg of args) {
+            eavrcs.push([id, `arg${argIx}`, (isNaN(arg as any) ? arg : +arg), roundNumber, count]);
+            argIx++;
+          }
+        }
+
+        roundNumber += 1;
+      }
+
+      let expected = expecteds[transactionNumber];
+      assert.comment(".  Verifying: " + pprint(eavrcs) + " -> " + pprint(expected));
+      verify(assert, prog, eavrcs, expected);
+      transactionNumber++;
+    }
+    assert.end();
+    return prog;
+  };
+}

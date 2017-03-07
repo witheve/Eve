@@ -1,9 +1,6 @@
-import {RawValue} from "../src/runtime/runtime";
 import {Program} from "../src/runtime/dsl2";
-import {verify, pprint} from "./util";
+import {verify, createVerifier, pprint} from "./util";
 import * as test from "tape";
-
-type RawEAVRC = [RawValue, RawValue, RawValue, number, number]
 
 var programs = {
   "1 static": () => {
@@ -60,61 +57,9 @@ var programs = {
   },
 };
 
-type ProgramName = keyof typeof programs;
-function verifyBranches(assert:test.Test, progName:ProgramName, inputString:string, expecteds:RawEAVRC[][]) {
-  let prog = programs[progName]();
 
-  // let supports:{[round:number]: } = {};
 
-  let transactions = inputString.split(";");
-
-  if(expecteds.length !== transactions.length) {
-    assert.fail("Malformed test case");
-    throw new Error(`Incorrect number of expecteds given the inputString Got ${expecteds.length}, needed: ${transactions.length}`);
-  }
-
-  let transactionNumber = 0;
-  for(let transaction of transactions) {
-    let eavrcs:RawEAVRC[] = [];
-    let roundNumber = 0;
-    for(let round of transaction.split(",")) {
-      for(let input of round.split(" ")) {
-        if(!input) continue;
-
-        let count;
-        if(input[0] === "+") count = 1;
-        else if(input[0] === "-") count = -1;
-        else {
-          assert.fail("Malformed test case");
-          throw new Error(`Malformed input: ${input}`);
-        }
-
-        let args = input.slice(1).split(":");
-        let id = args.shift();
-        if(!id) {
-          assert.fail("Malformed test case");
-          throw new Error(`Malformed input: '${input}'`);
-        }
-        eavrcs.push([id, "tag", "input", roundNumber, count]);
-
-        let argIx = 0;
-        for(let arg of args) {
-          eavrcs.push([id, `arg${argIx}`, (isNaN(arg as any) ? arg : +arg), roundNumber, count]);
-          argIx++;
-        }
-      }
-
-      roundNumber += 1;
-    }
-
-    let expected = expecteds[transactionNumber];
-    assert.comment(".  Verifying: " + pprint(eavrcs) + " -> " + pprint(expected));
-    verify(assert, prog, eavrcs, expected);
-    transactionNumber++;
-  }
-  assert.end();
-  return prog;
-}
+let verifyBranches = createVerifier(programs);
 
 // -----------------------------------------------------
 // 1 Static branch
