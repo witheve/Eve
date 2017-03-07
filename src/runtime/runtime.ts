@@ -2325,11 +2325,13 @@ export class UnionFlow extends Node {
       leftCopy.push(leftPrefix);
     }
     for(let node of this.branches) {
+      let lastLeft = node.leftResults;
       node.leftResults = leftResults;
       tracer.node(node, prefix);
       node.exec(context, input, prefix, transaction, round, results, changes);
       tracer.pop(TraceFrameType.Node);
 
+      node.leftResults = lastLeft;
       leftCopy.reset();
       while((leftPrefix = leftCopy.next()) !== undefined) {
         tracer.node(node, leftPrefix);
@@ -2388,9 +2390,13 @@ export class ChooseFlow extends Node {
     }
 
     for(let node of branches) {
+      let lastLeft = node.leftResults;
+      let lastRight
       node.leftResults = leftResults;
       if(prev) {
-        (node.right as AntiJoinPresolvedRight).rightResults = prev;
+        let antiJoin = node.right as AntiJoinPresolvedRight;
+        lastRight = antiJoin.rightResults;
+        antiJoin.rightResults = prev;
       }
       let branchResult = branchResults[ix];
       branchResult.clear();
@@ -2400,6 +2406,11 @@ export class ChooseFlow extends Node {
       node.exec(context, input, prefix, transaction, round, branchResult, changes);
       tracer.pop(TraceFrameType.Node);
 
+      if(prev) {
+        let antiJoin = node.right as AntiJoinPresolvedRight;
+        antiJoin.rightResults = lastRight;
+      }
+      node.leftResults = lastLeft;
       leftCopy.reset();
       while((leftPrefix = leftCopy.next()) !== undefined) {
         tracer.node(node, leftPrefix);
