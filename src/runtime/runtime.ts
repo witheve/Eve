@@ -2209,7 +2209,7 @@ export class AntiJoin extends BinaryFlow {
     let count = prefix[prefix.length - 1];
     this.leftIndex.insert(key, prefix);
     let diffs = this.rightIndex.iter(key, prefixRound);
-    if(prefix[0] == 440) console.log("                left:", key, count, this.rightIndex.index[key] && copyArray(this.rightIndex.index[key]), prefix);
+    // debug("                left:", key, count, this.rightIndex.index[key] && copyArray(this.rightIndex.index[key]), prefix);
     if(!diffs) {
       // debug("                    left ->", key, count, diffs)
       return results.push(prefix);
@@ -2221,7 +2221,7 @@ export class AntiJoin extends BinaryFlow {
         result[result.length - 1] = diffs.count * count;
         context.tracer.capturePrefix(result);
         results.push(result);
-        if(prefix[0] == 440) console.log("                    left ->", key, count, currentRound, result[result.length - 1])
+        // debug("                    left ->", key, count, currentRound, result[result.length - 1])
       }
     }
   }
@@ -2613,7 +2613,7 @@ export class Block {
   }
 }
 
-//------------------------------------------------------------------------g1------
+//------------------------------------------------------------------------------
 // EvaluationContext
 //------------------------------------------------------------------------------
 
@@ -2689,10 +2689,6 @@ export class Transaction {
     if(old === 0 && neue > 0) delta = 1;
     else if(old > 0 && neue === 0) delta = -1;
 
-    if(old < 0 || neue < 0) {
-      // throw new Error(`Insane in the exportIndex: ${beav} ${old} ${neue}`);
-      console.error(`Insane in the exportIndex: ${e} ${GlobalInterner.reverse(a)} ${GlobalInterner.reverse(v)} ${old} ${neue}`);
-    }
     context.exportIndex[beav] = neue;
 
     if(delta) {
@@ -2887,7 +2883,13 @@ export class Transaction {
         this.collapseMultiplicity(this.exportedChanges[+blockId], exports);
         this.exportedChanges[+blockId] = exports;
       }
-      this.exportHandler(this.exportedChanges);
+      console.log("EXPORTS", this.exportedChanges);
+      try {
+        this.exportHandler(this.exportedChanges);
+      } catch(e) {
+        tracer.pop(TraceFrameType.Transaction);
+        throw e;
+      }
     }
 
     // Once the transaction is effectively done, we need to clean up after ourselves. We
