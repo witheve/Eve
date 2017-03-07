@@ -55,26 +55,6 @@ function doIt() {
 
 // import "./programs/flappy";
 
-    prog.block("simple block", ({find, union, record}) => {
-      let foo = find("input");
-      let [output] = union(
-        () => {foo.arg0 == 1; return ["one"]},
-        () => foo.arg0
-      );
-      return [
-        record("result", {output})
-      ];
-    });
-
-  verifyIO(assert, "2 dynamic", "+A:1, +B:1; -A:1", [
-    [[1, "tag", "result", 1, +1], [1, "output", "one", 1, +1],
-     [2, "tag", "result", 1, +1], [2, "output", 1, 1, +1]],
-
-    [[1, "tag", "result", 1, -1], [1, "output", "one", 1, -1],
-     [2, "tag", "result", 1, -1], [2, "output", 1, 1, -1],
-     [1, "tag", "result", 2, +1], [1, "output", "one", 2, +1],
-     [2, "tag", "result", 2, +1], [2, "output", 1, 2, +1]]
-  ]);
   // prog.block("simple block", ({find, record, lib, choose}) => {
   //   let person = find("person");
   //   let [info] = choose(() => {

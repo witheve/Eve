@@ -2400,8 +2400,7 @@ export class ChooseFlow extends Node {
       node.exec(context, input, prefix, transaction, round, branchResult, changes);
       tracer.pop(TraceFrameType.Node);
 
-      leftResults.reset();
-      let leftPrefix;
+      leftCopy.reset();
       while((leftPrefix = leftCopy.next()) !== undefined) {
         tracer.node(node, leftPrefix);
         node.exec(context, input, copyArray(leftPrefix, "ChooseLeftPrefixCopy"), transaction, round, branchResult, changes);
