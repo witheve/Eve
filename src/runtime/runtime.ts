@@ -2391,7 +2391,7 @@ export class ChooseFlow extends Node {
 
     for(let node of branches) {
       let lastLeft = node.leftResults;
-      let lastRight
+      let lastRight;
       node.leftResults = leftResults;
       if(prev) {
         let antiJoin = node.right as AntiJoinPresolvedRight;
@@ -2408,7 +2408,8 @@ export class ChooseFlow extends Node {
 
       if(prev) {
         let antiJoin = node.right as AntiJoinPresolvedRight;
-        antiJoin.rightResults = lastRight;
+        // We must have gotten this from this antijoin above, so we know it's defined.
+        antiJoin.rightResults = lastRight!;
       }
       node.leftResults = lastLeft;
       leftCopy.reset();
