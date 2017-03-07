@@ -101,6 +101,19 @@ class HTMLWatcher extends DOMWatcher<Instance> {
         });
       })
     })
+
+    .commit("Remove mouseenter events", ({find}) => {
+      let event = find("html/event/mouseenter");
+      return [
+        event.remove("tag"),
+      ];
+    })
+    .commit("Remove mouseleave events", ({find}) => {
+      let event = find("html/event/mouseleave");
+      return [
+        event.remove("tag"),
+      ];
+    })
   }
 }
 

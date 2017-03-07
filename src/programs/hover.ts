@@ -8,6 +8,7 @@ prog.attach("html");
 prog
   .block("Top level div", ({find, record}) => {
     let main = find("main");
+
     return [
       main.add("children", [
         record("html/style")
@@ -29,7 +30,7 @@ prog
   });
 
 prog
-  .block("mouseenter", ({find, record}) => {
+  .commit("mouseenter", ({find, record}) => {
     let elem = find("effect");
     let event = find('html/event/mouseenter');
     return [
@@ -38,7 +39,7 @@ prog
   });
 
 prog
-  .block("mouseleave", ({find, record}) => {
+  .commit("mouseleave", ({find, record}) => {
     let elem = find("effect");
     let event = find('html/event/mouseleave');
     return [
