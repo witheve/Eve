@@ -384,6 +384,8 @@ export class Tracer {
               $text("maybe out: "),
               $changeLink(output.change),
             ]),
+            $text(`pre: ${output.distinct.pre}`),
+            $text(`post: ${output.distinct.post}`),
             $row([
               $text("distinct out: "),
               $col(output.outputs.map($changeLink)),

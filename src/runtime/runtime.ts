@@ -653,11 +653,13 @@ export class MoveConstraint {
   registers:Register[] = createArray("MoveConstriantRegisters");
   resolved:(ID|undefined)[] = createArray("MoveConstraintResolved");
 
-  isInput:boolean = false;
+  isInput = false;
+  isStatic = true;
+
   setup():void {
-    // if(isRegister(this.from)) {
-    //   this.registers.push(this.from);
-    // }
+    if(isRegister(this.from)) {
+      this.isStatic = false;
+    }
     this.registers.push(this.to);
 
     // we are always only proposing for our to register
@@ -695,7 +697,7 @@ export class MoveConstraint {
         value = this.from;
       }
       let current = prefix[this.to.offset];
-      if(current === undefined || current == value) {
+      if(value !== undefined && (current === undefined || current == value)) {
         prefix[this.to.offset] = value;
       } else {
         return ApplyInputState.fail;
@@ -1400,6 +1402,8 @@ export abstract class Node {
 
 export class JoinNode extends Node {
   traceType = TraceNode.Join;
+  isStatic = false;
+  dormant = false;
   registerLength = 0;
   registerLookup:boolean[];
   registerArrays:Register[][];
@@ -1417,9 +1421,11 @@ export class JoinNode extends Node {
     let registers = createArray() as Register[][];
     let proposedResultsArrays = createArray() as ID[][];
     let hasOnlyMoves = true;
+    let onlyStatic = true;
     for(let constraint of constraints) {
       constraint.setup();
       if(!(constraint instanceof MoveConstraint)) hasOnlyMoves = false;
+      else if(!constraint.isStatic) onlyStatic = false;
       for(let register of constraint.getRegisters()) {
         if(!registerLookup[register.offset]) {
           registers.push(createArray() as Register[]);
@@ -1434,6 +1440,7 @@ export class JoinNode extends Node {
       for(let constraint of constraints as MoveConstraint[]) {
         constraint.shouldApplyInput = true;
       }
+      this.isStatic = onlyStatic;
     }
 
     this.registerLookup = registerLookup;
@@ -1642,6 +1649,8 @@ export class JoinNode extends Node {
   }
 
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):boolean {
+    if(this.isStatic && this.dormant) return false;
+
     this.inputCount = input.count;
     let didSomething = false;
     let affectedConstraints = this.findAffectedConstraints(input, prefix);
@@ -1686,6 +1695,10 @@ export class JoinNode extends Node {
     let constraint;
     while((constraint = affectedConstraints.next()) !== undefined) {
       constraint.isInput = false;
+    }
+
+    if(this.isStatic && didSomething) {
+      this.dormant = true;
     }
 
     return didSomething;
@@ -2171,7 +2184,7 @@ export class BinaryJoinRight extends BinaryFlow {
     let count = prefix[prefix.length - 1];
     this.rightIndex.insert(key, prefix);
     let diffs = this.leftIndex.iter(key, round)
-    // debug("       right", key, printPrefix(prefix), diffs);
+    // debug("       right", key, copy(this.rightIndex.index[key]));
     if(!diffs) return;
     let leftPrefix;
     while(leftPrefix = diffs.next()) {
@@ -2298,15 +2311,32 @@ export class UnionFlow extends Node {
 
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
     let {left, leftResults} = this;
+    let {tracer} = context;
+
     leftResults.clear();
-    context.tracer.node(left, prefix);
+    tracer.node(left, prefix);
     left.exec(context, input, prefix, transaction, round, leftResults, changes);
-    context.tracer.pop(TraceFrameType.Node);
+    tracer.pop(TraceFrameType.Node);
+
+    let leftCopy = new Iterator<Prefix>();
+    let leftPrefix;
+    leftResults.reset();
+    while((leftPrefix = leftResults.next()) !== undefined) {
+      leftCopy.push(leftPrefix);
+    }
     for(let node of this.branches) {
       node.leftResults = leftResults;
-      context.tracer.node(node, prefix);
+      tracer.node(node, prefix);
       node.exec(context, input, prefix, transaction, round, results, changes);
-      context.tracer.pop(TraceFrameType.Node);
+      tracer.pop(TraceFrameType.Node);
+
+      leftCopy.reset();
+      while((leftPrefix = leftCopy.next()) !== undefined) {
+        tracer.node(node, leftPrefix);
+        node.exec(context, input, copyArray(leftPrefix, "UnionLeftPrefixCopy"), transaction, round, results, changes);
+        tracer.pop(TraceFrameType.Node);
+      }
+
     }
     return true;
   }
@@ -2349,6 +2379,14 @@ export class ChooseFlow extends Node {
     tracer.node(left, prefix);
     left.exec(context, input, prefix, transaction, round, leftResults, changes);
     tracer.pop(TraceFrameType.Node);
+
+    let leftCopy = new Iterator<Prefix>();
+    let leftPrefix;
+    leftResults.reset();
+    while((leftPrefix = leftResults.next()) !== undefined) {
+      leftCopy.push(leftPrefix);
+    }
+
     for(let node of branches) {
       node.leftResults = leftResults;
       if(prev) {
@@ -2364,7 +2402,7 @@ export class ChooseFlow extends Node {
 
       leftResults.reset();
       let leftPrefix;
-      while((leftPrefix = leftResults.next()) !== undefined) {
+      while((leftPrefix = leftCopy.next()) !== undefined) {
         tracer.node(node, leftPrefix);
         node.exec(context, input, copyArray(leftPrefix, "ChooseLeftPrefixCopy"), transaction, round, branchResult, changes);
         tracer.pop(TraceFrameType.Node);

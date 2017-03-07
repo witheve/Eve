@@ -8,6 +8,7 @@ export type EAVRCTuple = [Runtime.RawValue, Runtime.RawValue, Runtime.RawValue, 
 export type TestChange =  EAVTuple | EAVRCTuple;
 
 let {GlobalInterner} = Runtime;
+let TEST_INPUT_NODE = "test-input-node";
 
 export function pprint(obj:any):string {
   if(typeof obj === "object" && obj instanceof Array) {
@@ -38,7 +39,7 @@ export function o_o(val:Runtime.ID):EntityId|Runtime.RawValue|undefined {
 export function createChanges(transaction:number,eavns:TestChange[]) {
   let changes:Runtime.Change[] = [];
   for(let [e, a, v, round = 0, count = 1] of eavns as EAVRCTuple[]) {
-    changes.push(Runtime.Change.fromValues(e, a, v, "my-awesome-node", transaction, round, count));
+    changes.push(Runtime.Change.fromValues(e, a, v, TEST_INPUT_NODE, transaction, round, count));
   }
   return changes;
 }
@@ -47,8 +48,10 @@ export function verify(assert:test.Test, program:Program, input:any[], output:an
   let ins = createChanges(transaction, input);
   let outs = createChanges(transaction, output);
 
-  let all:(Runtime.Change|undefined)[] = ins.concat(outs);
+  let all:(Runtime.Change|undefined)[] = outs;
   let {changes, context} = program.input(ins)!;
+  let inputNode = GlobalInterner.get(TEST_INPUT_NODE);
+  changes = changes.filter((v) => v.n !== inputNode);
   let msg = "Fewer changes than expected";
   if(changes.length > all.length) {
     msg = "More changes than expected";

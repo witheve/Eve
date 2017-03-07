@@ -215,8 +215,11 @@ test("2 static branches +A; +B, -A; -B", (assert) => {
     [[1, "tag", "result", 1, +1], [1, "branch", 1, 1, +1],
      [2, "tag", "result", 1, +1], [2, "branch", 2, 1, +1]],
     [],
-    [[1, "tag", "result", 1, -1], [1, "branch", 1, 1, -1],
-     [2, "tag", "result", 1, -1], [2, "branch", 2, 1, -1]],
+    // These changes happen in round 2 because while the removal of B's results
+    // happen in round 1, A's results exist in round 1 and then are removed
+    // in round 2 as a result of A beind removed in round 1.
+    [[1, "tag", "result", 2, -1], [1, "branch", 1, 2, -1],
+     [2, "tag", "result", 2, -1], [2, "branch", 2, 2, -1]],
   ]);
 });
 
