@@ -195,6 +195,7 @@ export class Tracer {
   }
 
   distinctCheck() {
+    let error = false;
     let {index} = this.context.distinctIndex;
     for(let key in index) {
       let counts = index[key]!;
@@ -204,10 +205,12 @@ export class Tracer {
         sum += c;
         if(sum < 0) {
           console.error("Negative postDistinct: ", key, counts.slice())
+          error = true;
           // throw new Error("Negative postDistinct at the end of a transaction")
         }
       }
     }
+    return error;
   }
 
   pop(type:TraceFrameType) {
@@ -233,7 +236,7 @@ export class Tracer {
 
     if(cur.type === TraceFrameType.Input) this._currentInput = undefined;
     if(cur.type === TraceFrameType.Transaction) {
-      this.distinctCheck();
+      let error = this.distinctCheck();
       this.draw();
     }
   }
