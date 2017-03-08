@@ -251,7 +251,7 @@ export function createVerifier<T extends {[name:string]: () => Program}>(program
     let transactionNumber = 0;
     for(let input of inputs) {
       let expected = expecteds[transactionNumber];
-      assert.comment(".  Verifying: " + pprint(inputs) + " -> " + pprint(expected));
+      assert.comment(".  Verifying: " + pprint(input) + " -> " + pprint(expected));
       verify(assert, prog, input, expected);
       transactionNumber++;
     }
