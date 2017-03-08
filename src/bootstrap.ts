@@ -19,80 +19,113 @@ function verifyIO(assert:any, progName:string, inputString:string, expecteds:tes
 
 let prog = new Program("test");
 
-function doIt() {
-  let prog = new Program("test program");
-  prog.attach("tag browser");
-  console.log(prog);
-  prog.test(0, [
-    [1, "tag", "person"],
-    [1, "name", "jeff"],
+prog
+  .block("create a #widget for each #widget-creator", ({find, record}) => {
+    let creator = find("widget-creator");
+    return [
+      record("widget", {creator})
+    ];
+  })
+  .block("If the widget creator is rad, so is the widget", ({find}) => {
+    let widget = find("widget");
+    widget.creator.rad == "true"
+    return [
+      widget.add("tag", "rad")
+    ];
+  })
+  .block("Otherwise, the widget is lame", ({find, not}) => {
+    let widget = find("widget");
+    not(() => widget.tag == "rad");
+    return [
+      widget.add("tag", "lame")
+    ];
+  });
 
-    [2, "tag", "person"],
-    [2, "name", "sandra"],
-    [2, "pet", 3],
+prog.test(0, [
+  [1, "tag", "widget-creator"]
+]);
 
-    [3, "tag", "pet"],
-    [3, "tag", "dog"],
-    [3, "name", "bert"],
+prog.test(1, [
+  [1, "rad", "true"]
+]);
 
-    [4, "tag", "person"],
-    [4, "name", "rachel"],
-    [4, "pet", 5],
-    [4, "pet", 6],
+prog.test(2, [
+  [1, "rad", "true", 0, -1]
+]);
 
-    [5, "tag", "pet"],
-    [5, "tag", "cat"],
-    [5, "name", "Felicia"],
+// function doIt() {
+//   let prog = new Program("test program");
+//   prog.attach("tag browser");
+//   console.log(prog);
+//   prog.test(0, [
+//     [1, "tag", "person"],
+//     [1, "name", "jeff"],
 
-    [6, "tag", "pet"],
-    [6, "tag", "cat"],
-    [6, "name", "Mr. Whiskers"]
-  ]);
-}
-(global as any).doIt = doIt;
-doIt();
+//     [2, "tag", "person"],
+//     [2, "name", "sandra"],
+//     [2, "pet", 3],
 
+//     [3, "tag", "pet"],
+//     [3, "tag", "dog"],
+//     [3, "name", "bert"],
 
-prog.attach("ui");
-prog.block("draw tags", ({find, record}) => {
-  let taggy = find("taggy")
-  let tags = find("tag-container")
-  return [
-    tags.add("children", [
-      record("ui/button", "taggy-button", {text: taggy.text})
-    ])
-  ]
-})
+//     [4, "tag", "person"],
+//     [4, "name", "rachel"],
+//     [4, "pet", 5],
+//     [4, "pet", 6],
 
-prog.commit("set active", ({find, record}) => {
-  let button = find("taggy-button");
-  let click = find("html/event/click", {element: button});
-  let tags = find("tag-container")
-  return [
-    tags.remove("active").add("active", button.text)
-  ]
-})
+//     [5, "tag", "pet"],
+//     [5, "tag", "cat"],
+//     [5, "name", "Felicia"],
 
-prog.block("draw active", ({find, record}) => {
-  let tags = find("tag-container")
-  let rec = find("record", {childTag: tags.active})
-  return [
-    record("ui/column", "recrec", {rec}).add("children", [
-      record("ui/text", {type: "name", text: rec.name}),
-    ])
-  ]
-})
+//     [6, "tag", "pet"],
+//     [6, "tag", "cat"],
+//     [6, "name", "Mr. Whiskers"]
+//   ]);
+// }
+// (global as any).doIt = doIt;
+// doIt();
 
-prog.block("draw open stuff", ({find, record}) => {
-  let container = find("recrec", {open: "true"});
-  return [
-    container.add("children", [
-      record("ui/column", "recity", {container, rec:container.rec}).add("children", [
-        record("ui/text", {type: "subname", text: container.rec.name})
-      ])
-    ])
-  ]
-})
+// prog.attach("ui");
+// prog.block("draw tags", ({find, record}) => {
+//   let taggy = find("taggy")
+//   let tags = find("tag-container")
+//   return [
+//     tags.add("children", [
+//       record("ui/button", "taggy-button", {text: taggy.text})
+//     ])
+//   ]
+// })
+
+// prog.commit("set active", ({find, record}) => {
+//   let button = find("taggy-button");
+//   let click = find("html/event/click", {element: button});
+//   let tags = find("tag-container")
+//   return [
+//     tags.remove("active").add("active", button.text)
+//   ]
+// })
+
+// prog.block("draw active", ({find, record}) => {
+//   let tags = find("tag-container")
+//   let rec = find("record", {childTag: tags.active})
+//   return [
+//     record("ui/column", "recrec", {rec}).add("children", [
+//       record("ui/text", {type: "name", text: rec.name}),
+//     ])
+//   ]
+// })
+
+// prog.block("draw open stuff", ({find, record}) => {
+//   let container = find("recrec", {open: "true"});
+//   return [
+//     container.add("children", [
+//       record("ui/column", "recity", {container, rec:container.rec}).add("children", [
+//         record("ui/text", {type: "subname", text: container.rec.name})
+//       ])
+//     ])
+//   ]
+// })
 
 // prog.block("draw open stuff", ({find, record}) => {
 //   let container = find("recity");
@@ -103,13 +136,13 @@ prog.block("draw open stuff", ({find, record}) => {
 //   ]
 // })
 
-prog.commit("set active", ({find, record}) => {
-  let container = find("recrec");
-  let click = find("html/event/click", {element: container});
-  return [
-    container.add("open", "true")
-  ]
-})
+// prog.commit("set active", ({find, record}) => {
+//   let container = find("recrec");
+//   let click = find("html/event/click", {element: container});
+//   return [
+//     container.add("open", "true")
+//   ]
+// })
 
 
 // prog.inputEavs([
