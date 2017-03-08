@@ -1,5 +1,5 @@
 import {Program} from "../src/runtime/dsl2";
-import {verify} from "./util";
+import {verify, createVerifier} from "./util";
 import * as test from "tape";
 
 function createProgram() {
@@ -212,4 +212,125 @@ test("Antijoin: right -> right -> left", (assert) => {
   ])
 
   assert.end();
+});
+
+let programs = {
+  "simple": () => {
+    let prog = new Program("simple");
+    prog.block("simple block", ({find, not, record}) => {
+      let input = find("input");
+      not(() => input.arg0)
+      return [
+        record("result")
+      ];
+    });
+    return prog;
+  },
+  "dynamic": () => {
+    let prog = new Program("simple");
+    prog.block("simple block", ({find, not, record}) => {
+      let input = find("input");
+      not(() => input.arg0)
+      return [
+        record("result", {output: input})
+      ];
+    });
+    return prog;
+  },
+};
+
+let verifyIO = createVerifier(programs);
+
+// -----------------------------------------------------
+// simple
+// -----------------------------------------------------
+
+test("AntiJoin: simple +A; -A; +A", (assert) => {
+  verifyIO(assert, "simple", "+A; -A; +A", [
+    [[2, "tag", "result", 1, +1]],
+    [[2, "tag", "result", 1, -1]],
+    [[2, "tag", "result", 1, +1]]
+  ]);
+});
+
+test("AntiJoin: simple +A; +B; -A; -B", (assert) => {
+  verifyIO(assert, "simple", "+A; +B; -A; -B", [
+    [[2, "tag", "result", 1, +1]],
+    [],
+    [],
+    [[2, "tag", "result", 1, -1]],
+  ]);
+});
+
+test("AntiJoin: simple +A, -A, +A", (assert) => {
+  verifyIO(assert, "simple", "+A, -A, +A", [
+    [[2, "tag", "result", 1, +1],
+     [2, "tag", "result", 2, -1],
+     [2, "tag", "result", 3, +1]]
+  ]);
+});
+
+test("AntiJoin: simple +A, +B, -A, -B", (assert) => {
+  verifyIO(assert, "simple", "+A, +B, -A, -B", [
+    [[2, "tag", "result", 1, +1],
+     [2, "tag", "result", 4, -1]],
+  ]);
+});
+
+test("AntiJoin: simple +A; +A:1; -A:1; -A", (assert) => {
+  verifyIO(assert, "simple", "+A; +A:1; -A:1; -A", [
+    [[2, "tag", "result", 1, +1]],
+    [[2, "tag", "result", 1, -1]],
+    [[2, "tag", "result", 1, +1]],
+    [[2, "tag", "result", 1, -1]]
+  ]);
+});
+
+test("AntiJoin: simple +A; +A:1; +A:2; -A:1; -A:2", (assert) => {
+  verifyIO(assert, "simple", "+A; +A:1; +A:2; -A:1; -A:2", [
+    [[2, "tag", "result", 1, +1]],
+    [[2, "tag", "result", 1, -1]],
+    [],
+    [],
+    [[2, "tag", "result", 1, +1]]
+  ]);
+});
+
+test("AntiJoin: simple +A; +B:1; -A; +C", (assert) => {
+  verifyIO(assert, "simple", "+A; +B:1; -A; +C", [
+    [[2, "tag", "result", 1, +1]],
+    [],
+    [[2, "tag", "result", 1, -1]],
+    [[2, "tag", "result", 1, +1]]
+  ]);
+});
+
+test("AntiJoin: simple +A; +B:1; +C; +A:1", (assert) => {
+  verifyIO(assert, "simple", "+A; +B:1; +C; +A:1", [
+    [[2, "tag", "result", 1, +1]],
+    [],
+    [],
+    []
+  ]);
+});
+
+// -----------------------------------------------------
+// dynamic
+// -----------------------------------------------------
+
+test("AntiJoin: dynamic +A; -A; +A", (assert) => {
+  verifyIO(assert, "dynamic", "+A; -A; +A", [
+    [[2, "tag", "result", 1, +1], [2, "output", "A", 1, +1]],
+    [[2, "tag", "result", 1, -1], [2, "output", "A", 1, -1]],
+    [[2, "tag", "result", 1, +1], [2, "output", "A", 1, +1]]
+  ]);
+});
+
+test("AntiJoin: dynamic +A; +B; -A; -B", (assert) => {
+  verifyIO(assert, "dynamic", "+A; +B; -A; -B", [
+    [[2, "tag", "result", 1, +1], [2, "output", "A", 1, +1]],
+    [[2, "tag", "result", 1, +1], [2, "output", "B", 1, +1]],
+    [[2, "tag", "result", 1, -1], [2, "output", "A", 1, -1]],
+    [[2, "tag", "result", 1, -1], [2, "output", "B", 1, -1]],
+  ]);
 });
