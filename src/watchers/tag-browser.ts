@@ -67,12 +67,12 @@ export class TagBrowserWatcher extends Watcher {
       .asDiffs((diffs) => {
         let eavs:RawEAVC[] = [];
         for(let [e, a, v] of diffs.removes) {
-          // @NOTE: this breaks tag-browser inspecting tag-browser :/
+          // @NOTE: this breaks tag-browser inspecting tag-browser
           if(a === "tag" && v !== "child-record") a = "child-tag";
           eavs.push([e, a, v, -1]);
         }
         for(let [e, a, v] of diffs.adds) {
-          // @NOTE: this breaks tag-browser inspecting tag-browser :/
+          // @NOTE: this breaks tag-browser inspecting tag-browser
           if(a === "tag" && v !== "child-record") a = "child-tag";
           eavs.push([e, a, v, 1]);
         }
@@ -295,7 +295,7 @@ export class TagBrowserWatcher extends Watcher {
       })
 
     // Create root UI
-    prog.inputEavs(collapse(
+    let changes = collapse(
       $column({tag: t("root")}, [
         $row({tag: t("cloud"), style: $style({"flex-wrap": "wrap"})}, []),
         $column({tag: t("view")}, [])
@@ -314,7 +314,16 @@ export class TagBrowserWatcher extends Watcher {
           }
         `
       })
-    ));
+    );
+    let rootId = changes[0][0];
+    let rootInstance = "root instance";
+    changes.push(
+      [rootInstance, "tag", "html/root"],
+      [rootInstance, "tag", "html/instance"],
+      [rootInstance, "element", rootId],
+      [rootInstance, "tagname", "column"]
+    );
+    prog.inputEavs(changes);
 
     return prog;
   }
