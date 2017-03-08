@@ -1545,14 +1545,14 @@ export class JoinNode extends Node {
         ix++;
       }
       if(currentRoundCount) {
-        prefix[prefix.length - 2] = currentRound;
+        prefix[prefix.length - 2] = Math.max(currentRound, startingRound);
         prefix[prefix.length - 1] = startingMultiplicity * currentRoundCount;
         this.computeMultiplicities(context, results, prefix, currentRound, diffs, diffIndex + 1);
       }
       for(; ix < rounds.length; ix++) {
         let round = rounds[ix];
         let count = round > 0 ? 1 : -1;
-        prefix[prefix.length - 2] = Math.abs(round) - 1;
+        prefix[prefix.length - 2] = Math.max(Math.abs(round) - 1, startingRound);
         prefix[prefix.length - 1] = startingMultiplicity * count;
         this.computeMultiplicities(context, results, prefix, currentRound, diffs, diffIndex + 1);
       }
@@ -2949,7 +2949,7 @@ export class Transaction {
         this.collapseMultiplicity(this.exportedChanges[+blockId], exports);
         this.exportedChanges[+blockId] = exports;
       }
-      console.log("EXPORTS", this.exportedChanges);
+      console.log("EXPORTS", context.exportIndex);
       try {
         this.exportHandler(this.exportedChanges);
       } catch(e) {

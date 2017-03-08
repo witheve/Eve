@@ -179,6 +179,7 @@ export class TagBrowserWatcher extends Watcher {
     prog
       .block("Record attribute component", ({find, choose, record}) => {
         let recordAttribute = find("tag-browser/record-attribute");
+        let {target} = find("tag-browser/view")
 
         let [attrName] = choose(
           () => { recordAttribute.attr == "child-tag"; return "tag"; },
@@ -191,7 +192,7 @@ export class TagBrowserWatcher extends Watcher {
             children: [
               record("ui/text", {sort: 0, text: `${attrName}:`, rec, style: record({"margin-right": 10})}),
               record("ui/column", {sort: 1, rec, attrName}) // @FIXME: These attrs from the parent shouldn't need to be on the children.
-                .add("children", record("tag-browser/record-value", {rec, attr: attrName, val}))
+                .add("children", record("tag-browser/record-value", {rec, attr: attrName, val, "active-input":"foo"}))
             ]
           })
         ];

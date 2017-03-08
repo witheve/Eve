@@ -52,6 +52,84 @@ function doIt() {
 (global as any).doIt = doIt;
 doIt();
 
+
+prog.attach("ui");
+prog.block("draw tags", ({find, record}) => {
+  let taggy = find("taggy")
+  let tags = find("tag-container")
+  return [
+    tags.add("children", [
+      record("ui/button", "taggy-button", {text: taggy.text})
+    ])
+  ]
+})
+
+prog.commit("set active", ({find, record}) => {
+  let button = find("taggy-button");
+  let click = find("html/event/click", {element: button});
+  let tags = find("tag-container")
+  return [
+    tags.remove("active").add("active", button.text)
+  ]
+})
+
+prog.block("draw active", ({find, record}) => {
+  let tags = find("tag-container")
+  let rec = find("record", {childTag: tags.active})
+  return [
+    record("ui/column", "recrec", {rec}).add("children", [
+      record("ui/text", {type: "name", text: rec.name}),
+    ])
+  ]
+})
+
+prog.block("draw open stuff", ({find, record}) => {
+  let container = find("recrec", {open: "true"});
+  return [
+    container.add("children", [
+      record("ui/column", "recity", {container, rec:container.rec}).add("children", [
+        record("ui/text", {type: "subname", text: container.rec.name})
+      ])
+    ])
+  ]
+})
+
+// prog.block("draw open stuff", ({find, record}) => {
+//   let container = find("recity");
+//   return [
+//     container.add("children", [
+//       record("ui/text", {type: "subname", text: container.rec.name})
+//     ])
+//   ]
+// })
+
+prog.commit("set active", ({find, record}) => {
+  let container = find("recrec");
+  let click = find("html/event/click", {element: container});
+  return [
+    container.add("open", "true")
+  ]
+})
+
+
+// prog.inputEavs([
+//  [1, "tag", "tag-container"],
+//  [1, "tag", "ui/row"],
+//  [2, "tag", "taggy"],
+//  [2, "text", "foo"],
+//  [3, "tag", "taggy"],
+//  [3, "text", "zomg"],
+
+//  [4, "tag", "record"],
+//  [4, "childTag", "foo"],
+//  [4, "name", "weep"],
+
+//  [5, "tag", "record"],
+//  [5, "childTag", "zomg"],
+//  [5, "name", "weep"],
+//  [5, "name", "weep2"],
+// ]);
+
 // import "./programs/flappy";
 
   // prog.block("simple block", ({find, record, lib, choose}) => {
