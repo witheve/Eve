@@ -26,7 +26,6 @@ function sumTimes(roundArray:RoundArray, transaction:number, round:number) {
 
 export interface Index {
   insert(change:Change):void;
-  hasImpact(change:Change):boolean;
   propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):Proposal;
   resolveProposal(proposal:Proposal):any[][];
   check(e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):boolean;
@@ -63,7 +62,7 @@ export class HashIndex implements Index {
     for(let cur of arr) {
       let curRound = Math.abs(cur);
       if(curRound === round) {
-        let updated = curRound + neue;
+        let updated = cur + neue;
         if(updated === 0) {
           arr.splice(ix,1);
         } else {
@@ -116,19 +115,6 @@ export class HashIndex implements Index {
       this.cardinality++;
     }
 
-  }
-
-  hasImpact(input:Change) {
-    let {e,a,v,n} = input;
-    let rounds = this.getDiffs(e,a,v,n);
-    let count = sumTimes(rounds, input.transaction, input.round);
-    // console.log("      ntrcs:", ntrcs);
-    // console.log("      count:", count);
-    if((count > 0 && count + input.count == 0) ||
-       (count == 0 && count + input.count > 0)) {
-      return true;
-    }
-    return false;
   }
 
   resolveProposal(proposal:Proposal) {
@@ -315,10 +301,6 @@ export class BitMatrixIndex {
     throw new Error("not implemented")
   }
 
-  hasImpact(change:Change):boolean {
-    throw new Error("not implemented")
-  }
-
   propose(proposal:Proposal, e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue, transaction:number, round:number):Proposal {
     throw new Error("not implemented")
   }
@@ -348,14 +330,19 @@ export class BitMatrixIndex {
 export class DistinctIndex {
   index:{[key:string]: (number|undefined)[]|undefined} = {};
 
-  shouldOutput(e:ID, a:ID, v:ID, prefixRound:number, prefixCount:number):number[] {
-    // @FIXME: When we start to unintern, we'll have invalid keys left in this index,
-    // so we'll need to delete the keys themselves from the index
-    let key = `${e}|${a}|${v}`;
+  getDelta(last:number, next:number) {
+    let delta = 0;
+    if(last == 0 && next > 0) delta = 1;
+    if(last > 0 && next == 0) delta = -1;
+    if(last > 0 && next < 0) delta = -1;
+    if(last < 0 && next > 0) delta = 1;
+    return delta;
+  }
+
+  shouldOutput(key:string, prefixRound:number, prefixCount:number):number[] {
     let {index} = this;
     let roundCounts = index[key] || createArray("Insert intermediate counts");
     index[key] = roundCounts;
-    // console.log("         counts: ", roundCounts);
 
     let curCount = 0;
     let startingCount = roundCounts[prefixRound] = roundCounts[prefixRound] || 0;
@@ -365,8 +352,6 @@ export class DistinctIndex {
       if(!prevCount) continue;
       curCount += prevCount;
     }
-
-    // console.log("           foo:", curCount);
 
     let deltas = [];
 
@@ -381,63 +366,92 @@ export class DistinctIndex {
       prefixCount = -curCount;
     }
     let nextCount = curCount + prefixCount;
-    let delta = 0;
-    if(curCount == 0 && nextCount > 0) delta = 1;
-    if(curCount > 0 && nextCount == 0) delta = -1;
+    let delta = this.getDelta(curCount, nextCount);
     if(delta) {
       deltas.push(prefixRound, delta);
     }
     curCount = nextCount;
     roundCounts[prefixRound] = startingCount + prefixCount;
-    // console.log("          DISTINCT",  {curCount, nextCount, delta, roundCounts})
 
     for(let roundIx = prefixRound + 1; roundIx < roundCounts.length; roundIx++) {
       let roundCount = roundCounts[roundIx];
-      if(roundCount === undefined) continue;
+      if(roundCount === undefined || roundCount === 0) continue;
 
       let lastCount = curCount - prefixCount;
       let nextCount = lastCount + roundCount;
 
-      let delta = 0;
-      if(lastCount == 0 && nextCount > 0) delta = 1;
-      if(lastCount > 0 && nextCount == 0) delta = -1;
+      let delta = this.getDelta(lastCount, nextCount);
 
       let lastCountChanged = curCount;
       let nextCountChanged = curCount + roundCount;
 
-      let deltaChanged = 0;
-      if(lastCountChanged == 0 && nextCountChanged > 0) deltaChanged = 1;
-      if(lastCountChanged > 0 && nextCountChanged == 0) deltaChanged = -1;
+      let deltaChanged = this.getDelta(lastCountChanged, nextCountChanged);
 
-      // console.log("      round:", roundIx, {delta, deltaChanged, lastCountChanged, nextCountChanged});
-
-      let finalDelta = deltaChanged - delta;
-      // console.log("            loop:", roundIx, curCount, prev, nextCount, next, {prevDelta, newDelta, finalDelta})
+      // let finalDelta = deltaChanged - delta;
+      let finalDelta = 0;
+      if(delta && delta !== deltaChanged) {
+        // undo delta
+        finalDelta = -delta;
+      } else if(delta !== deltaChanged) {
+        finalDelta = deltaChanged;
+      }
 
       if(finalDelta) {
-        // roundCounts[roundIx] += prefixCount * -1;
-        // console.log("            changed:", roundIx, finalDelta)
         deltas.push(roundIx, finalDelta);
       }
 
       curCount = nextCountChanged;
     }
 
-    // console.log("         post counts: ", roundCounts);
-
     return deltas;
   }
 
-  distinct(input:Change, transactionId:number, results:Iterator<Change>):boolean {
-    // console.log("     checking: ", input.toString());
+  distinct(input:Change, results:Iterator<Change>):boolean {
     let {e, a, v, n, round, count} = input;
-    let deltas = this.shouldOutput(e, a, v, round, count);
+    // @FIXME: When we start to unintern, we'll have invalid keys left in this index,
+    // so we'll need to delete the keys themselves from the index
+    let key = `${e}|${a}|${v}`;
+    let deltas = this.shouldOutput(key, round, count);
     for(let deltaIx = 0; deltaIx < deltas.length; deltaIx += 2) {
       let deltaRound = deltas[deltaIx];
       let delta = deltas[deltaIx + 1];
-      let change = new Change(e!, a!, v!, n!, transactionId, deltaRound, delta);
+      let change = new Change(e!, a!, v!, n!, input.transaction, deltaRound, delta);
       results.push(change)
     }
     return deltas.length > 0;
+  }
+
+  distinctKey(key:string, round:number, count:number, results:Iterator<[number, number]>):boolean {
+    let deltas = this.shouldOutput(key, round, count);
+    for(let deltaIx = 0; deltaIx < deltas.length; deltaIx += 2) {
+      let deltaRound = deltas[deltaIx];
+      let delta = deltas[deltaIx + 1];
+      results.push([deltaRound, delta]);
+    }
+    return deltas.length > 0;
+  }
+
+  getCounts(change:Change) {
+    let {e, a, v} = change;
+    let key = `${e}|${a}|${v}`;
+    return this.index[key];
+  }
+
+  sanityCheck() {
+    let failed = false;
+    let {index} = this;
+    for(let key in index) {
+      let counts = index[key]!;
+      let sum = 0;
+      for(let c of counts) {
+        if(!c) continue;
+        sum += c;
+        if(sum < 0) {
+          failed = true;
+          console.error("# Negative postDistinct: ", key, counts.slice())
+        }
+      }
+    }
+    if(failed) throw new Error("Distinct sanity check failed.");
   }
 }

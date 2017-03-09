@@ -115,8 +115,8 @@ export class NoopPerformanceTracker extends PerformanceTracker {
   time(property:string) {}
   timeEnd(property:string) {}
 
-  block(name:string) { }
-  blockEnd(name:string) {  }
+  block(name:string) {  this.activeBlock = name; }
+  blockEnd(name:string) { this.activeBlock = "";  }
 
   blockTime(property:string) {}
   blockTimeEnd(property:string) {}

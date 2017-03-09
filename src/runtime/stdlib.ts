@@ -180,6 +180,15 @@ makeFunction({
 });
 
 makeFunction({
+  name: "math/abs",
+  args: {a: "number"},
+  returns: {result: "number"},
+  apply: (a:number) => {
+    return [Math.abs(a)];
+  }
+});
+
+makeFunction({
   name: "math/toFixed",
   args: {a: "number", b: "number"},
   returns: {result: "string"},
@@ -187,8 +196,6 @@ makeFunction({
     return [a.toFixed(b)];
   }
 });
-
-
 
 //--------------------------------------------------------------------
 // Random
