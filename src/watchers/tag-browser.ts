@@ -316,14 +316,6 @@ export class TagBrowserWatcher extends Watcher {
         `
       })
     );
-    let rootId = changes[0][0];
-    let rootInstance = "root instance";
-    changes.push(
-      [rootInstance, "tag", "html/root"],
-      [rootInstance, "tag", "html/instance"],
-      [rootInstance, "element", rootId],
-      [rootInstance, "tagname", "column"]
-    );
     prog.inputEavs(changes);
 
     return prog;
