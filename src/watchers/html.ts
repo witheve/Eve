@@ -74,7 +74,8 @@ class HTMLWatcher extends DOMWatcher<Instance> {
     me.asObjects<{elemId:ID, instanceId:RawValue}>(({adds, removes}) => {
       Object.keys(adds).forEach((id) => {
         let {elemId, instanceId} = adds[id];
-        let instance = this.getInstance(instanceId);
+        // instanceId couldn't be undefined because we've found it in .watch() above
+        let instance = this.getInstance(instanceId)!;
         instance.addEventListener("mouseenter", () => {
           let changes:any[] = [];
           let eventId = uuid();
@@ -98,7 +99,8 @@ class HTMLWatcher extends DOMWatcher<Instance> {
     me.asObjects<{elemId:ID, instanceId:RawValue}>(({adds, removes}) => {
       Object.keys(adds).forEach((id) => {
         let {elemId, instanceId} = adds[id];
-        let instance = this.getInstance(instanceId);
+        // instanceId couldn't be undefined because we've found it in .watch() above
+        let instance = this.getInstance(instanceId)!;
         instance.addEventListener("mouseleave", () => {
           let changes:any[] = [];
           let eventId = uuid();
