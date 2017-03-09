@@ -87,7 +87,7 @@ prog.block("calculate the score", ({find, record, lib}) => {
   let {math} = lib;
   let world = find("world")
   return [
-    world.remove("score").add("score", math.floor(world.distance))
+    world.add("score", math.floor(world.distance))
   ]
 });
 
@@ -228,42 +228,16 @@ prog.commit("collide with ground", ({find}) => {
 });
 
 // Hangs due to union/choose
-// prog.commit("collide with obstacle", ({find, choose, lib: {math}}) => {
-//   let world = find("world", {screen: "game"});
-//   let player = find("player");
-//   let obstacle = find("obstacle");
-//   let dx = math.abs(obstacle.x + 5 - player.x) - 10
-//   dx < 0;
-
-//   choose(
-//     () => {player.y - 5 <= obstacle.height},
-//     () => {player.y + 5 >= obstacle.gap + obstacle.height});
-
-//   return [
-//     world.remove("screen", "game").add("screen", "game over")
-//   ];
-// })
-
-prog.commit("collide with top obstacle", ({find, choose, lib: {math}}) => {
+prog.commit("collide with obstacle", ({find, choose, lib: {math}}) => {
   let world = find("world", {screen: "game"});
   let player = find("player");
   let obstacle = find("obstacle");
   let dx = math.abs(obstacle.x + 5 - player.x) - 10
   dx < 0;
-  player.y - 5 <= obstacle.height;
 
-  return [
-    world.remove("screen", "game").add("screen", "game over")
-  ];
-})
-
-prog.commit("collide with bottom obstacle", ({find, choose, lib: {math}}) => {
-  let world = find("world", {screen: "game"});
-  let player = find("player");
-  let obstacle = find("obstacle");
-  let dx = math.abs(obstacle.x + 5 - player.x) - 10
-  dx < 0;
-  player.y + 5 >= obstacle.gap + obstacle.height;
+  choose(
+    () => {player.y - 5 <= obstacle.height},
+    () => {player.y + 5 >= obstacle.gap + obstacle.height});
 
   return [
     world.remove("screen", "game").add("screen", "game over")

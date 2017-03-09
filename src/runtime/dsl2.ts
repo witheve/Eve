@@ -1464,7 +1464,6 @@ class Union extends DSLBase {
   getInputRegisters() {
     let {context} = this;
     let inputs = this.inputs.map((v) => context.getValue(v)).filter(isRegister) as Register[];
-    console.log("INPUTS", inputs);
     return inputs;
   }
 
@@ -1495,12 +1494,10 @@ class Union extends DSLBase {
     for(let flow of this.branches) {
       let compiled = flow.compile();
       nodes.push(compiled[0]);
-      console.log(branchInputs[ix]);
       // @NOTE: Not sure why TS isn't correctly pegging this as filtered to only Registers already.
       inputs.push(branchInputs[ix].map((v) => context.getValue(v)).filter(isRegister) as Register[]);
       ix++;
     }
-    console.log("COMPILED INPUTS", inputs);
     return this.build(join, nodes, inputs, this.getOutputRegisters());
   }
 }
@@ -1577,9 +1574,6 @@ export class Program {
     let block = new Runtime.Block(name, nodes, flow.context.maxRegisters);
     this.flows.push(flow);
     this.blocks.push(block);
-    // console.log(block);
-    // console.log(flow);
-    // console.log(nodes);
     return this;
   }
 
@@ -1645,8 +1639,6 @@ export class Program {
     this.lastWatch = flow.ID;
     this.flows.push(flow);
     this.blocks.push(block);
-    // console.log("WATCH FLOW", flow);
-    // console.log("WATCH BLOCK", block);
     return this;
   }
 

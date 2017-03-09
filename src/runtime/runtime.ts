@@ -2949,7 +2949,6 @@ export class Transaction {
         this.collapseMultiplicity(this.exportedChanges[+blockId], exports);
         this.exportedChanges[+blockId] = exports;
       }
-      console.log("EXPORTS", context.exportIndex);
       try {
         this.exportHandler(this.exportedChanges);
       } catch(e) {

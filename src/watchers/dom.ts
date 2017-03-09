@@ -147,15 +147,15 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
           click.remove("tag"),
         ];
       })
-      // .block("Elements with no parents are roots.", ({find, record, lib, not}) => {
-      //   let elem = find("{{tagPrefix}}/element");
-      //   not(() => {
-      //     find("{{tagPrefix}}/element", {children: elem});
-      //   });
-      //   return [
-      //     record("{{tagPrefix}}/root", "{{tagPrefix}}/instance", {element: elem, tagname: elem.tagname})
-      //   ];
-      // })
+      .block("Elements with no parents are roots.", ({find, record, lib, not}) => {
+        let elem = find("{{tagPrefix}}/element");
+        not(() => {
+          find("{{tagPrefix}}/element", {children: elem});
+        });
+        return [
+          record("{{tagPrefix}}/root", "{{tagPrefix}}/instance", {element: elem, tagname: elem.tagname})
+        ];
+      })
       .block("Create an instance for each child of a rooted parent.", ({find, record, lib, not}) => {
         let elem = find("{{tagPrefix}}/element");
         let parentElem = find("{{tagPrefix}}/element", {children: elem});
