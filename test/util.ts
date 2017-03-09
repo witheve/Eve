@@ -8,26 +8,68 @@ export type EAVRCTuple = [Runtime.RawValue, Runtime.RawValue, Runtime.RawValue, 
 export type TestChange =  EAVTuple | EAVRCTuple;
 
 let {GlobalInterner} = Runtime;
+let TEST_INPUT_NODE = "test-input-node";
+
+export function pprint(obj:any):string {
+  if(typeof obj === "object" && obj instanceof Array) {
+    return "[" + obj.map((v) => pprint(v)).join(", ") + "]";
+
+  } else if(typeof obj === "string") {
+    return `"${obj}"`;
+  }
+  return ""+obj;
+}
+
+class EntityId {
+  constructor(public id:Runtime.ID) {}
+  toString() {
+    return "$" + this.id;
+  }
+}
+
+export function o_o(val:Runtime.ID):EntityId|Runtime.RawValue|undefined {
+  let raw = GlobalInterner.reverse(val);
+  if(typeof raw === "string" && raw.indexOf("|") !== -1) {
+    return new EntityId(val);
+  }
+
+  return raw;
+}
 
 export function createChanges(transaction:number,eavns:TestChange[]) {
   let changes:Runtime.Change[] = [];
   for(let [e, a, v, round = 0, count = 1] of eavns as EAVRCTuple[]) {
-    changes.push(Runtime.Change.fromValues(e, a, v, "my-awesome-node", transaction, round, count));
+    changes.push(Runtime.Change.fromValues(e, a, v, TEST_INPUT_NODE, transaction, round, count));
   }
   return changes;
 }
 
-export function verify(assert:any, program:Program, input:any[], output:any[], transaction = 1) {
+export function verify(assert:test.Test, program:Program, input:any[], output:any[], transaction = 1) {
   let ins = createChanges(transaction, input);
   let outs = createChanges(transaction, output);
 
-  let all:(Runtime.Change|undefined)[] = ins.concat(outs);
-  let {changes} = program.input(ins)!;
+  let all:(Runtime.Change|undefined)[] = outs;
+  let {changes, context} = program.input(ins)!;
+  let inputNode = GlobalInterner.get(TEST_INPUT_NODE);
+  changes = changes.filter((v) => v.n !== inputNode);
   let msg = "Fewer changes than expected";
   if(changes.length > all.length) {
     msg = "More changes than expected";
   }
+
+  if(changes.length !== all.length) {
+    assert.comment(".    Actual: " + pprint(changes.map((change) => {
+      let {e, a, v, round, count} = change;
+      return [o_o(e), o_o(a), o_o(v), round, count];
+    })));
+  }
   assert.equal(changes.length, all.length, msg);
+
+  try {
+    context.distinctIndex.sanityCheck();
+  } catch(e) {
+    assert.fail("Distinct sanity check failed");
+  }
 
   // Because the changes handed to us in expected aren't going to have the same
   // e's as what the program itself is going to generate, we're going to have to do
@@ -159,4 +201,61 @@ export function time(start?:any): number | number[] | string {
   if ( !start ) return process.hrtime();
   let end = process.hrtime(start);
   return ((end[0]*1000) + (end[1]/1000000)).toFixed(3);
+}
+
+export function createInputs(inputString:string) {
+  let transactionInputs:EAVRCTuple[][] = [];
+  let transactions = inputString.split(";");
+  for(let transaction of transactions) {
+    let eavrcs:EAVRCTuple[] = [];
+    let roundNumber = 0;
+    for(let round of transaction.split(",")) {
+      for(let input of round.split(" ")) {
+        if(!input) continue;
+
+        let count;
+        if(input[0] === "+") count = 1;
+        else if(input[0] === "-") count = -1;
+        else throw new Error(`Malformed input: ${input}`);
+
+        let args = input.slice(1).split(":");
+        let id = args.shift();
+        if(!id) throw new Error(`Malformed input: '${input}'`);
+
+        eavrcs.push([id, "tag", "input", roundNumber, count]);
+
+        let argIx = 0;
+        for(let arg of args) {
+          eavrcs.push([id, `arg${argIx}`, (isNaN(arg as any) ? arg : +arg), roundNumber, count]);
+          argIx++;
+        }
+      }
+      roundNumber += 1;
+    }
+    transactionInputs.push(eavrcs);
+  }
+
+  return transactionInputs;
+}
+
+export function createVerifier<T extends {[name:string]: () => Program}>(programs:T) {
+  return function verifyInput(assert:test.Test, progName:(keyof T), inputString:string, expecteds:EAVRCTuple[][]) {
+    let prog = programs[progName]();
+    let inputs = createInputs(inputString);
+
+    if(expecteds.length !== inputs.length) {
+      assert.fail("Malformed test case");
+      throw new Error(`Incorrect number of expecteds given the inputString Got ${expecteds.length}, needed: ${inputs.length}`);
+    }
+
+    let transactionNumber = 0;
+    for(let input of inputs) {
+      let expected = expecteds[transactionNumber];
+      assert.comment(".  Verifying: " + pprint(input) + " -> " + pprint(expected));
+      verify(assert, prog, input, expected);
+      transactionNumber++;
+    }
+    assert.end();
+    return prog;
+  };
 }

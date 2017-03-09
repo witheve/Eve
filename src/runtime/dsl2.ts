@@ -103,11 +103,23 @@ export class Reference {
     return proxied;
   }
 
-  add(attribute:Value, value:Value|Value[]):Reference {
+  add(attrMap:{[attr:string]:Value|Value[]}):Reference;
+  add(attribute:Value, value:Value|Value[]):Reference;
+  add(attrMapOrAttr:Value|{[attr:string]:Value|Value[]}, value?:Value|Value[]):Reference {
     if(this.__owner instanceof Record) {
       // we only allow you to call add at the root context
       if(this.__context.parent) throw new Error("Add can't be called in a sub-block");
-      this.__owner.add(this.__context, attribute, value);
+      if(isRawValue(attrMapOrAttr) || isReference(attrMapOrAttr)) {
+        let attribute = attrMapOrAttr;
+        if(value === undefined) throw new Error("Can't call add without a value.");
+        this.__owner.add(this.__context, attribute, value);
+      } else {
+        for(let attribute of Object.keys(attrMapOrAttr)) {
+          let value = attrMapOrAttr[attribute];
+          this.__owner.add(this.__context, attribute, value);
+        }
+      }
+
       return this;
     } else {
       throw new Error("Can't call add on a non-record");
@@ -652,6 +664,11 @@ class LinearFlow extends DSLBase {
     if(isArray(results)) this.results = results;
     else if(results === undefined) this.results = [];
     else this.results = [results];
+    for(let result of this.results) {
+      if(isReference(result)) {
+        this.context.register(result);
+      }
+    }
     ReferenceContext.pop();
   }
 
@@ -677,6 +694,10 @@ class LinearFlow extends DSLBase {
         return fn.reference();
       }
 
+    }
+    lib.compare["=="] = (a:any, b:any) => {
+      this.context.getActive().equality(a, b);
+      return b;
     }
     this.lib = lib;
   }
@@ -1024,12 +1045,19 @@ class Lookup extends DSLBase {
 //--------------------------------------------------------------------
 
 class Move extends DSLBase {
-  constructor(public context:ReferenceContext, public ref:Reference) {
+  public to:Reference;
+  constructor(public context:ReferenceContext, public from:Value, to?:Reference) {
     super();
+    if(!to) {
+      if(!isReference(from)) throw new Error("Move where the to is not a reference");
+      this.to = from;
+    } else {
+      this.to = to;
+    }
   }
 
   getInputRegisters():Register[] {
-    let value = this.context.getValue(this.ref);
+    let value = this.context.getValue(this.from);
     if(isRegister(value)) {
       return [value];
     }
@@ -1037,15 +1065,15 @@ class Move extends DSLBase {
   }
 
   getOutputRegisters():Register[] {
-    let {ref} = this;
-    let parent = ref.__context.getValue(ref) as Register;
+    let {to} = this;
+    let parent = to.__context.getValue(to) as Register;
     return [parent];
   }
 
   compile():Runtime.Constraint[] {
-    let {ref} = this;
-    let local = this.context.interned(ref);
-    let parent = ref.__context.getValue(ref) as Register;
+    let {from, to} = this;
+    let local = this.context.interned(from);
+    let parent = to.__context.getValue(to) as Register;
     return [new Runtime.MoveConstraint(local, parent)];
   }
 }
@@ -1397,6 +1425,7 @@ class Union extends DSLBase {
   branches:LinearFlow[] = [];
   results:Reference[] = [];
   inputs:Reference[] = [];
+  branchInputs:Reference[][] = [];
 
   constructor(public context:ReferenceContext, branchFunctions: Function[], parent:LinearFlow) {
     super();
@@ -1412,16 +1441,18 @@ class Union extends DSLBase {
           results.push(Reference.create(context));
         }
       } else if(resultCount !== branchResultCount) {
-        throw new Error(`Choose branch ${ix} doesn't have the right number of returns, I expected ${resultCount}, but got ${branchResultCount}`);
+        throw new Error(`Choose branch ${ix} doesn't have the right number of returns. I expected ${resultCount}, but got ${branchResultCount}`);
       }
+      let branchInputs:Reference[] = this.branchInputs[ix] = [];
       for(let ref of flow.context.getInputReferences()) {
         if(this.inputs.indexOf(ref) === -1) {
           this.inputs.push(ref);
         }
+        branchInputs.push(ref);
       }
       let resultIx = 0;
       for(let result of this.results) {
-        flow.context.equality(flow.results[resultIx], result);
+        flow.collect(new Move(flow.context, flow.results[resultIx], result));
         resultIx++;
       }
       branches.push(flow);
@@ -1432,7 +1463,8 @@ class Union extends DSLBase {
 
   getInputRegisters() {
     let {context} = this;
-    return this.inputs.map((v) => context.getValue(v)).filter(isRegister) as Register[];
+    let inputs = this.inputs.map((v) => context.getValue(v)).filter(isRegister) as Register[];
+    return inputs;
   }
 
   getOutputRegisters() {
@@ -1454,14 +1486,17 @@ class Union extends DSLBase {
   }
 
   compile(join:Runtime.Node) {
-    let {context} = this;
+    let {context, branchInputs} = this;
     let nodes:Runtime.Node[] = [];
     let inputs:Register[][] = [];
     let outputs = this.getOutputRegisters();
+    let ix = 0;
     for(let flow of this.branches) {
       let compiled = flow.compile();
       nodes.push(compiled[0]);
-      inputs.push(flow.getInputRegisters().filter((v) => outputs.indexOf(v) === -1));
+      // @NOTE: Not sure why TS isn't correctly pegging this as filtered to only Registers already.
+      inputs.push(branchInputs[ix].map((v) => context.getValue(v)).filter(isRegister) as Register[]);
+      ix++;
     }
     return this.build(join, nodes, inputs, this.getOutputRegisters());
   }
@@ -1539,9 +1574,6 @@ export class Program {
     let block = new Runtime.Block(name, nodes, flow.context.maxRegisters);
     this.flows.push(flow);
     this.blocks.push(block);
-    // console.log(block);
-    // console.log(flow);
-    // console.log(nodes);
     return this;
   }
 
@@ -1549,7 +1581,7 @@ export class Program {
   input(changes:Runtime.Change[]) {
     // console.time("input");
     if(changes[0].transaction >= this.nextTransactionId) this.nextTransactionId = changes[0].transaction + 1;
-    let trans = new Runtime.Transaction(changes[0].transaction, this.blocks, this.lastWatch ? this.exporter.handle : undefined);
+    let trans = new Runtime.Transaction(this.context, changes[0].transaction, this.blocks, this.lastWatch ? this.exporter.handle : undefined);
     for(let change of changes) {
       trans.output(this.context, change);
     }
@@ -1569,16 +1601,16 @@ export class Program {
   }
 
   test(transaction:number, eavns:TestChange[]) {
-    console.group("test " + transaction);
+    if("group" in console) console.group(this.name + " test " + transaction);
     if(transaction >= this.nextTransactionId) this.nextTransactionId = transaction + 1;
-    let trans = new Runtime.Transaction(transaction, this.blocks, this.lastWatch ? this.exporter.handle : undefined);
+    let trans = new Runtime.Transaction(this.context, transaction, this.blocks, this.lastWatch ? this.exporter.handle : undefined);
     for(let [e, a, v, round = 0, count = 1] of eavns as EAVRCTuple[]) {
       let change = Runtime.Change.fromValues(e, a, v, "input", transaction, round, count);
       trans.output(this.context, change);
     }
     trans.exec(this.context);
     console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
-    console.groupEnd();
+    if("group" in console) console.groupEnd();
     return this;
   }
 
@@ -1607,8 +1639,6 @@ export class Program {
     this.lastWatch = flow.ID;
     this.flows.push(flow);
     this.blocks.push(block);
-    // console.log("WATCH FLOW", flow);
-    // console.log("WATCH BLOCK", block);
     return this;
   }
 

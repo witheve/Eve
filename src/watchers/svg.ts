@@ -7,10 +7,17 @@ interface Instance extends SVGElement {__element?: RawValue, __styles?: RawValue
 class SVGWatcher extends DOMWatcher<Instance> {
   tagPrefix = "svg";
 
-  createInstance(id:RawValue, tagname:RawValue):Instance {
+  createInstance(id:RawValue, element:RawValue, tagname:RawValue):Instance {
     let elem:Instance = document.createElementNS("http://www.w3.org/2000/svg", tagname as string);
-    elem.__element = id;
+    elem.__element = element;
     elem.__styles = [];
+    return elem;
+  }
+
+  createRoot(id:RawValue):Instance {
+    let elem = this.instances[id];
+    if(!elem) throw new Error(`Orphaned instance '${id}'`);
+    document.body.appendChild(elem);
     return elem;
   }
 

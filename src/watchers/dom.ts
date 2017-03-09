@@ -13,7 +13,8 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
   styleToInstances:Map<RawValue[]|undefined> = Object.create(null);
 
   abstract tagPrefix:string;
-  abstract createInstance(id:RawValue, tagname:RawValue):Instance;
+  abstract createInstance(id:RawValue, element:RawValue, tagname:RawValue):Instance;
+  abstract createRoot(id:RawValue):Instance;
   abstract addAttribute(instance:Instance, attribute:RawValue, value:RawValue):void;
   abstract removeAttribute(instance:Instance, attribute:RawValue, value:RawValue):void;
 
@@ -31,9 +32,9 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
     return instance && !!instance["__element"];
   }
 
-  getInstance(id:RawValue, tagname:RawValue = "div"):Instance {
+  getInstance(id:RawValue, tagname:RawValue = "div"):Instance|undefined {
     if(this.roots[id]) return this.roots[id]!;
-    return this.instances[id] = this.instances[id] || this.createInstance(id, tagname);
+    return this.instances[id];
   }
 
   clearInstance(id:RawValue) {
@@ -44,11 +45,12 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
     this.instances[id] = undefined;
   }
 
-  getRoot(id:RawValue, tagname:RawValue = "div"):Instance {
-    return this.roots[id] = this.roots[id] || this.createInstance(id, tagname);
+  getRoot(id:RawValue, tagname:RawValue = "div"):Instance|undefined {
+    return this.roots[id] = this.roots[id];
   }
 
   clearRoot(id:RawValue) {
+    this.clearInstance(id);
     this.roots[id] = undefined;
   }
 
@@ -93,6 +95,10 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
     if(instances) {
       for(let instanceId of instances) {
         let instance = this.getInstance(instanceId);
+        if(!instance) {
+          // We may have removed one instance of multiple subscribed to this style.
+          continue;
+        }
         instance.style[attribute as any] = style[attribute] as any;
       }
     }
@@ -100,6 +106,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
 
   addStyleInstance(styleId:RawValue, instanceId:RawValue) {
     let instance = this.getInstance(instanceId);
+    if(!instance) throw new Error(`Orphaned instance '${instanceId}'`);
     let style = this.getStyle(styleId);
     for(let prop in style) {
       if(prop === "__size") continue;
@@ -173,8 +180,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
 
         for(let e of Object.keys(diff.adds)) {
           let {instance:instanceId, tagname, element} = diff.adds[e];
-          let instance = this.getInstance(instanceId, tagname);
-          instance.__element = element;
+          this.instances[instanceId] = this.createInstance(instanceId, element, tagname);
         }
       })
 
@@ -186,14 +192,10 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
       })
       .asDiffs((diff) => {
         for(let [e, a, rootId] of diff.removes) {
-          let root = this.roots[rootId];
-          if(root && root.parentElement) {
-            root.parentElement.removeChild(root);
-          }
+          this.clearRoot(rootId);
         }
         for(let [e, a, rootId] of diff.adds) {
-            let root = this.roots[rootId] = this.getInstance(""+rootId);
-            document.body.appendChild(root);
+          this.roots[rootId] = this.createRoot(rootId);
         }
       })
 
@@ -206,17 +208,22 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
       .asObjects<{instance:string, parent:string}>((diff) => {
         for(let e of Object.keys(diff.removes)) {
           let {instance:instanceId, parent:parentId} = diff.removes[e];
-          if(this.instances[parentId]) {
-            let instance = this.instances[instanceId];
-            if(instance && instance.parentElement) {
-              instance.parentElement.removeChild(instance);
-            }
+          let instance = this.getInstance(instanceId);
+          let parent = this.getInstance(parentId);
+          if(!instance || !parent) continue;
+
+          if(instance && instance.parentElement) {
+            instance.parentElement.removeChild(instance);
           }
+
         }
         for(let e of Object.keys(diff.adds)) {
           let {instance:instanceId, parent:parentId} = diff.adds[e];
           let instance = this.getInstance(instanceId);
-          this.insertChild(this.getInstance(parentId), instance);
+          if(!instance) throw new Error(`Orphaned instance '${instanceId}'`);
+          let parent = this.getInstance(parentId);
+          if(!parent) throw new Error(`Missing parent instance '${parentId}', ${instanceId}`);
+          this.insertChild(parent, instance);
         }
       })
 
@@ -273,7 +280,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
 
         for(let [e, a, v] of diff.adds) {
           let instance = this.instances[e];
-          if(!instance) continue;
+          if(!instance) throw new Error(`Orphaned instance '${e}'`);
 
           else if((a === "tagname")) continue;
           else if(a === "children") continue;
