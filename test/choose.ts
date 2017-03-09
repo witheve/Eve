@@ -37,6 +37,64 @@ test("Choose: basic", (assert) => {
   assert.end();
 });
 
+test("Choose: 3 branches", (assert) => {
+
+  let prog = new Program("test");
+  prog.block("simple block", ({find, record, lib, choose}) => {
+    let person = find("person");
+    let [info] = choose(() => {
+      person.dog;
+      return "cool";
+    }, () => {
+      person.foo;
+      return "zomg";
+    }, () => {
+      return "not cool";
+    });
+    return [
+      record("dog-less", {info})
+    ]
+  });
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+  ], [
+    [2, "tag", "dog-less", 1],
+    [2, "info", "not cool", 1],
+  ])
+
+  verify(assert, prog, [
+    [1, "dog", "spot"],
+  ], [
+    [2, "tag", "dog-less", 1, -1],
+    [2, "info", "not cool", 1, -1],
+    [3, "tag", "dog-less", 1],
+    [3, "info", "cool", 1],
+  ])
+
+  verify(assert, prog, [
+    [1, "dog", "spot", 0, -1],
+    [1, "foo", "woop"],
+  ], [
+    [3, "tag", "dog-less", 1, -1],
+    [3, "info", "cool", 1, -1],
+    [4, "tag", "dog-less", 1],
+    [4, "info", "zomg", 1],
+  ])
+
+  verify(assert, prog, [
+    [1, "foo", "woop", 0, -1],
+  ], [
+    [3, "tag", "dog-less", 1, -1],
+    [3, "info", "zomg", 1, -1],
+    [4, "tag", "dog-less", 1],
+    [4, "info", "not cool", 1],
+  ])
+
+  assert.end();
+});
+
+
 // @TODO: Give this a better name when we figure out the specific issue.
 test("Choose: Busted partial identity", (assert) => {
   let prog = new Program("test");
