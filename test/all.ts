@@ -1,3 +1,4 @@
+import "./distinct";
 import "./foundation";
 import "./antijoin";
 import "./choose";
