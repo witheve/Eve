@@ -26,15 +26,30 @@ function distinctTest(assert:any, roundCounts: number[][], expected: any) {
     }
   }
 
+  let badKeys:any = {};
+
   for(let key in expected) {
     let finalValue = final[key];
     let expectedValue = expected[key];
-    if(finalValue || expectedValue) assert.equal(final[key], expected[key]);
+    if(finalValue || expectedValue) {
+      let valid = finalValue == expectedValue;
+      if(!valid) {
+        badKeys[key] = true;
+        assert.fail(`round ${key} :: expected ${expected[key]}, actual ${final[key]}`);
+      }
+    }
   }
   for(let key in final) {
+    if(badKeys[key]) continue;
     let finalValue = final[key];
     let expectedValue = expected[key];
-    if(finalValue || expectedValue) assert.equal(final[key], expected[key]);
+    if(finalValue || expectedValue) {
+      let valid = finalValue == expectedValue;
+      if(!valid) {
+        badKeys[key] = true;
+        assert.fail(`round ${key} :: expected ${expected[key]}, actual ${final[key]}`);
+      }
+    }
   }
 }
 
@@ -87,7 +102,7 @@ distinct("basic 2", [
   4: -1,
 })
 
-distinct("basic 3", [
+distinct("basic 2 in reverse order", [
   [3,1],
   [4,-1],
 
@@ -100,15 +115,194 @@ distinct("basic 3", [
   4: -1,
 })
 
-distinct("basic 4", [
+distinct("basic 2 undone", [
+  [1, 1],
+  [2, -1],
+
+  [3,1],
+  [4,-1],
+
+  [1, -1],
+  [2, 1],
+], {
+  3: 1,
+  4: -1,
+})
+
+distinct("multiple counts", [
+  [1, 1],
+  [1, 1],
+  [1, 1],
+  [2, -1],
+  [2, -1],
+  [2, -1],
+
+  [3,1],
+  [3,1],
+  [3,1],
+  [4,-1],
+  [4,-1],
+  [4,-1],
+], {
+  1: 1,
+  2: -1,
+  3: 1,
+  4: -1,
+})
+
+distinct("multiple counts reversed", [
+  [3,1],
+  [3,1],
+  [3,1],
+  [4,-1],
+  [4,-1],
+  [4,-1],
+
+  [1, 1],
+  [1, 1],
+  [1, 1],
+  [2, -1],
+  [2, -1],
+  [2, -1],
+], {
+  1: 1,
+  2: -1,
+  3: 1,
+  4: -1,
+})
+
+distinct("multiple counts interleaved", [
+  [3,1],
+  [4,-1],
+  [3,1],
+  [4,-1],
   [3,1],
   [4,-1],
 
   [1, 1],
   [2, -1],
+  [1, 1],
+  [2, -1],
+  [1, 1],
+  [2, -1],
 ], {
   1: 1,
   2: -1,
+  3: 1,
+  4: -1,
+})
+
+distinct("multiple counts negatives first", [
+  [2, -1],
+  [2, -1],
+  [2, -1],
+  [1, 1],
+  [1, 1],
+  [1, 1],
+
+  [4,-1],
+  [4,-1],
+  [4,-1],
+  [3,1],
+  [3,1],
+  [3,1],
+], {
+  1: 1,
+  2: -1,
+  3: 1,
+  4: -1,
+})
+
+distinct("multiple counts undone", [
+  [1, 1],
+  [1, 1],
+  [1, 1],
+  [2, -1],
+  [2, -1],
+  [2, -1],
+
+  [3,1],
+  [3,1],
+  [3,1],
+  [4,-1],
+  [4,-1],
+  [4,-1],
+
+  [1, -1],
+  [1, -1],
+  [1, -1],
+  [2, 1],
+  [2, 1],
+  [2, 1],
+], {
+  3: 1,
+  4: -1,
+})
+
+distinct("multiple counts undone interleaved", [
+  [1, 1],
+  [1, 1],
+  [1, 1],
+  [2, -1],
+  [2, -1],
+  [2, -1],
+
+  [1, -1],
+  [1, -1],
+  [1, -1],
+
+  [3,1],
+  [3,1],
+  [3,1],
+  [4,-1],
+  [4,-1],
+  [4,-1],
+
+  [2, 1],
+  [2, 1],
+  [2, 1],
+], {
+  3: 1,
+  4: -1,
+})
+
+distinct("multiple disparate counts", [
+  [1, 1],
+  [1, 1],
+  [1, 1],
+  [2, -1],
+  [2, -1],
+  [2, -1],
+
+  [3,1],
+  [4,-1],
+], {
+  1: 1,
+  2: -1,
+  3: 1,
+  4: -1,
+})
+
+distinct("multiple disparate counts with extra removes", [
+  [1, 1],
+  [1, 1],
+  [1, 1],
+
+  [2, -1],
+  [2, -1],
+  [2, -1],
+
+  [1, -1],
+  [1, -1],
+  [1, -1],
+
+  [2, 1],
+  [2, 1],
+  [2, 1],
+
+  [3,1],
+  [4,-1],
+], {
   3: 1,
   4: -1,
 })
