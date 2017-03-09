@@ -11,7 +11,7 @@ function roundCountsToChanges(rcs:number[][]) {
   return changes;
 }
 
-function distinct(assert:any, roundCounts: number[][], expected: any) {
+function distinctTest(assert:any, roundCounts: number[][], expected: any) {
   let index = new DistinctIndex();
 
   let changes = roundCountsToChanges(roundCounts);
@@ -38,28 +38,68 @@ function distinct(assert:any, roundCounts: number[][], expected: any) {
   }
 }
 
-test("Distinct: basic", (assert) => {
-  let roundCounts = [
-    [1,1],
-    [2,-1],
+function distinct(name:string, roundCounts:number[][], expected:any) {
+  test(`Distinct: ${name}`, (assert) => {
+    distinctTest(assert, roundCounts, expected);
+    assert.end();
+  });
+}
 
-    [1, 1],
-    [3, -1],
-  ];
-  let expected = {
-    1: 1,
-    3: -1
-  };
+distinct("basic", [
+  [1,1],
+  [2,-1],
 
-  distinct(assert, roundCounts, expected);
-  assert.end();
-});
+  [1, 1],
+  [3, -1],
+], {
+  1: 1,
+  3: -1
+})
 
 //------------------------------------------------------------
 // Chris's section
 //------------------------------------------------------------
 
+distinct("basic 2", [
+  [1, 1],
+  [2, -1],
+
+  [3,1],
+  [4,-1],
+], {
+  1: 1,
+  2: -1,
+  3: 1,
+  4: -1,
+})
+
+distinct("basic 3", [
+  [3,1],
+  [4,-1],
+
+  [1, 1],
+  [2, -1],
+], {
+  1: 1,
+  2: -1,
+  3: 1,
+  4: -1,
+})
+
+distinct("basic 4", [
+  [3,1],
+  [4,-1],
+
+  [1, 1],
+  [2, -1],
+], {
+  1: 1,
+  2: -1,
+  3: 1,
+  4: -1,
+})
 
 //------------------------------------------------------------
 // Josh's section
 //------------------------------------------------------------
+
