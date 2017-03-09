@@ -38,8 +38,22 @@ function distinctTest(assert:any, roundCounts: number[][], expected: any) {
   }
 }
 
-function distinct(name:string, roundCounts:number[][], expected:any) {
+interface DistinctTest {
+  only:(name:string, roundCounts:number[][], expected:{[round:number]: number}) => void
+  (name:string, roundCounts:number[][], expected:{[round:number]: number}): void
+}
+
+let distinct:DistinctTest = ((name:string, roundCounts:number[][], expected:{[round:number]: number}) => {
   test(`Distinct: ${name}`, (assert) => {
+    distinctTest(assert, roundCounts, expected);
+    assert.end();
+  });
+}) as any;
+
+
+
+distinct.only = function distinctOnly(name:string, roundCounts:number[][], expected:any) {
+  test.only(`Distinct: ${name}`, (assert) => {
     distinctTest(assert, roundCounts, expected);
     assert.end();
   });
@@ -103,3 +117,17 @@ distinct("basic 4", [
 // Josh's section
 //------------------------------------------------------------
 
+distinct("simple round promotion", [
+  [8, 1],
+  [9, -1],
+
+  [5, 1],
+  [6, -1],
+  [8, -1],
+  [9, 1]
+], {
+  5: 1,
+  6: -1,
+  8: 0,
+  9: 0
+})
