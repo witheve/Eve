@@ -330,6 +330,15 @@ export class BitMatrixIndex {
 export class DistinctIndex {
   index:{[key:string]: (number|undefined)[]|undefined} = {};
 
+  getDelta(last:number, next:number) {
+    let delta = 0;
+    if(last == 0 && next > 0) delta = 1;
+    if(last > 0 && next == 0) delta = -1;
+    if(last > 0 && next < 0) delta = -1;
+    if(last < 0 && next > 0) delta = 1;
+    return delta;
+  }
+
   shouldOutput(key:string, prefixRound:number, prefixCount:number):number[] {
     let {index} = this;
     let roundCounts = index[key] || createArray("Insert intermediate counts");
@@ -357,9 +366,7 @@ export class DistinctIndex {
       prefixCount = -curCount;
     }
     let nextCount = curCount + prefixCount;
-    let delta = 0;
-    if(curCount == 0 && nextCount > 0) delta = 1;
-    if(curCount > 0 && nextCount == 0) delta = -1;
+    let delta = this.getDelta(curCount, nextCount);
     if(delta) {
       deltas.push(prefixRound, delta);
     }
@@ -368,23 +375,26 @@ export class DistinctIndex {
 
     for(let roundIx = prefixRound + 1; roundIx < roundCounts.length; roundIx++) {
       let roundCount = roundCounts[roundIx];
-      if(roundCount === undefined) continue;
+      if(roundCount === undefined || roundCount === 0) continue;
 
       let lastCount = curCount - prefixCount;
       let nextCount = lastCount + roundCount;
 
-      let delta = 0;
-      if(lastCount == 0 && nextCount > 0) delta = 1;
-      if(lastCount > 0 && nextCount == 0) delta = -1;
+      let delta = this.getDelta(lastCount, nextCount);
 
       let lastCountChanged = curCount;
       let nextCountChanged = curCount + roundCount;
 
-      let deltaChanged = 0;
-      if(lastCountChanged == 0 && nextCountChanged > 0) deltaChanged = 1;
-      if(lastCountChanged > 0 && nextCountChanged == 0) deltaChanged = -1;
+      let deltaChanged = this.getDelta(lastCountChanged, nextCountChanged);
 
-      let finalDelta = deltaChanged - delta;
+      // let finalDelta = deltaChanged - delta;
+      let finalDelta = 0;
+      if(delta && delta !== deltaChanged) {
+        // undo delta
+        finalDelta = -delta;
+      } else if(delta !== deltaChanged) {
+        finalDelta = deltaChanged;
+      }
 
       if(finalDelta) {
         deltas.push(roundIx, finalDelta);

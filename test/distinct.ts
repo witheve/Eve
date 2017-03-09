@@ -33,9 +33,9 @@ function distinctTest(assert:any, roundCounts: number[][], expected: any) {
     let expectedValue = expected[key];
     if(finalValue || expectedValue) {
       let valid = finalValue == expectedValue;
+      assert.true(valid, `round ${key} :: expected ${expected[key]}, actual ${final[key]}`);
       if(!valid) {
         badKeys[key] = true;
-        assert.fail(`round ${key} :: expected ${expected[key]}, actual ${final[key]}`);
       }
     }
   }
@@ -45,9 +45,9 @@ function distinctTest(assert:any, roundCounts: number[][], expected: any) {
     let expectedValue = expected[key];
     if(finalValue || expectedValue) {
       let valid = finalValue == expectedValue;
+      assert.true(valid, `round ${key} :: expected ${expected[key]}, actual ${final[key]}`);
       if(!valid) {
         badKeys[key] = true;
-        assert.fail(`round ${key} :: expected ${expected[key]}, actual ${final[key]}`);
       }
     }
   }
@@ -334,7 +334,6 @@ distinct("full promotion", [
 
   [9, 1],
   [9, 1],
-
   [10, -1],
   [10, -1],
 
@@ -349,5 +348,28 @@ distinct("full promotion", [
   [10, 1]
 ], {
   9: 0,
-  10: 1
+  10: 0
+})
+
+distinct("positive full promotion", [
+  [7, 1],
+  [8, -1],
+  [8, 1],
+  [7, 1],
+  [8, -1],
+  [4, 1],
+  [8, -1],
+  [7, 1],
+  [8, -1],
+  [8, 1],
+  [5, -1],
+  [7, -3],
+  [8, 1],
+  [8, 3],
+  [5, 1],
+  [8, 1],
+  [8, -2],
+  [8, -1],
+], {
+  4: 1,
 })

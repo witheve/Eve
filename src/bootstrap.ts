@@ -19,72 +19,38 @@ function verifyIO(assert:any, progName:string, inputString:string, expecteds:tes
 
 let prog = new Program("test");
 
-prog
-  .block("create a #widget for each #widget-creator", ({find, record}) => {
-    let creator = find("widget-creator");
-    return [
-      record("widget", {creator})
-    ];
-  })
-  .block("If the widget creator is rad, so is the widget", ({find}) => {
-    let widget = find("widget");
-    widget.creator.rad == "true"
-    return [
-      widget.add("tag", "rad")
-    ];
-  })
-  .block("Otherwise, the widget is lame", ({find, not}) => {
-    let widget = find("widget");
-    not(() => widget.tag == "rad");
-    return [
-      widget.add("tag", "lame")
-    ];
-  });
+function doIt() {
+  let prog = new Program("test program");
+  prog.attach("tag browser");
+  console.log(prog);
+  prog.test(0, [
+    [1, "tag", "person"],
+    [1, "name", "jeff"],
 
-prog.test(0, [
-  [1, "tag", "widget-creator"]
-]);
+    [2, "tag", "person"],
+    [2, "name", "sandra"],
+    [2, "pet", 3],
 
-prog.test(1, [
-  [1, "rad", "true"]
-]);
+    [3, "tag", "pet"],
+    [3, "tag", "dog"],
+    [3, "name", "bert"],
 
-prog.test(2, [
-  [1, "rad", "true", 0, -1]
-]);
+    [4, "tag", "person"],
+    [4, "name", "rachel"],
+    [4, "pet", 5],
+    [4, "pet", 6],
 
-// function doIt() {
-//   let prog = new Program("test program");
-//   prog.attach("tag browser");
-//   console.log(prog);
-//   prog.test(0, [
-//     [1, "tag", "person"],
-//     [1, "name", "jeff"],
+    [5, "tag", "pet"],
+    [5, "tag", "cat"],
+    [5, "name", "Felicia"],
 
-//     [2, "tag", "person"],
-//     [2, "name", "sandra"],
-//     [2, "pet", 3],
-
-//     [3, "tag", "pet"],
-//     [3, "tag", "dog"],
-//     [3, "name", "bert"],
-
-//     [4, "tag", "person"],
-//     [4, "name", "rachel"],
-//     [4, "pet", 5],
-//     [4, "pet", 6],
-
-//     [5, "tag", "pet"],
-//     [5, "tag", "cat"],
-//     [5, "name", "Felicia"],
-
-//     [6, "tag", "pet"],
-//     [6, "tag", "cat"],
-//     [6, "name", "Mr. Whiskers"]
-//   ]);
-// }
-// (global as any).doIt = doIt;
-// doIt();
+    [6, "tag", "pet"],
+    [6, "tag", "cat"],
+    [6, "name", "Mr. Whiskers"]
+  ]);
+}
+(global as any).doIt = doIt;
+doIt();
 
 // prog.attach("ui");
 // prog.block("draw tags", ({find, record}) => {
