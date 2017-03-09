@@ -52,5 +52,5 @@ function doIt() {
 (global as any).doIt = doIt;
 
 
-// doIt();
-import "./programs/flappy";
+doIt();
+// import "./programs/flappy";
