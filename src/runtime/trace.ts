@@ -102,8 +102,8 @@ export class Tracer {
   eToChange:any = {};
   renderer:Renderer;
 
-  constructor(public context:EvaluationContext) {
-    if(typeof window !== "undefined") {
+  constructor(public context:EvaluationContext, shouldDraw = true) {
+    if(typeof window !== "undefined" && shouldDraw) {
       let renderer = this.renderer = new Renderer();
       document.body.appendChild(renderer.content);
     }
@@ -454,5 +454,22 @@ export class Tracer {
 }
 
 
+export class NoopTracer extends Tracer {
 
+  constructor(public context:EvaluationContext) {
+    super(context, false);
+  }
 
+  transaction(id:number) { }
+  frame(commits:Change[]) { }
+  input(input:Change) { }
+  block(name:string) { }
+  node(node:Runtime.Node, inputPrefix:Prefix) { }
+  capturePrefix(prefix:Prefix) { }
+  maybeOutput(change:Change) { }
+  postDistinct() { }
+  output(output:Change) { }
+  commit(commit:Change) { }
+  distinctCheck() { return false; }
+  pop(type:TraceFrameType) { }
+}

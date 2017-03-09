@@ -1,11 +1,11 @@
 import {Index, HashIndex, DistinctIndex} from "./indexes";
-import {Tracer, TraceNode, TraceFrameType} from "./trace";
+import {Tracer, NoopTracer, TraceNode, TraceFrameType} from "./trace";
 
 //------------------------------------------------------------------------
 // debugging utilities
 //------------------------------------------------------------------------
 
-const TRACER = false;
+const TRACE = false;
 
 // Turning this on causes all of the debug(.*) statements to print to the
 // console.  This is useful to see exactly what the runtime is doing as it
@@ -2690,7 +2690,7 @@ export class EvaluationContext {
   tracer:Tracer;
 
   constructor(public index:Index) {
-   this.tracer = new Tracer(this);
+   this.tracer = TRACE ? new Tracer(this) : new NoopTracer(this);
   }
 }
 
