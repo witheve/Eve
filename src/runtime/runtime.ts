@@ -2352,25 +2352,24 @@ export class ChooseFlow extends Node {
 
   constructor(public left:Node, initialBranches:Node[], public keyRegisters:Register[][], public registersToMerge:Register[]) {
     super();
+    let allKeys:Register[] = []
+    for(let keySet of keyRegisters) {
+      for(let key of keySet) {
+        if(!allKeys.some((r) => r.offset === key.offset)) {
+          allKeys.push(key);
+        }
+      }
+    }
     let {branches, branchResults} = this;
     let prev:Node|undefined;
     let ix = 0;
     for(let branch of initialBranches) {
       let join;
       if(prev) {
-        let prevKeys = keyRegisters[ix - 1];
         let myKeys = keyRegisters[ix];
-        let combinedKeys = prevKeys.slice();
-        for(let key of myKeys) {
-          if(!combinedKeys.some((r) => r.offset === key.offset)) {
-            combinedKeys.push(key);
-          }
-        }
 
-        // @TODO: combinedKeys should work here...
-        // let antijoin = new AntiJoinPresolvedRight(branch, prev, myKeys);
         join = new BinaryJoinRight(left, branch, myKeys, registersToMerge);
-        let antijoin = new AntiJoinPresolvedRight(join, prev, combinedKeys);
+        let antijoin = new AntiJoinPresolvedRight(join, prev, allKeys);
         branches.push(antijoin);
       } else {
         join = new BinaryJoinRight(left, branch, keyRegisters[ix], registersToMerge);
@@ -2440,7 +2439,8 @@ export class ChooseFlow extends Node {
         tracer.capturePrefix(result);
         results.push(result);
       }
-      prev = branchResult;
+      results.reset();
+      prev = results;
       ix++;
     }
     return true;
