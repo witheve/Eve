@@ -214,6 +214,39 @@ prog.block("Populate the block query for the active block.", ({find, record}) =>
   ];
 })
 
+//--------------------------------------------------------------------
+// Shared Components
+//--------------------------------------------------------------------
+
+prog.block("Draw a hexagon", ({find, record, lib: {math}}) => {
+  let hex = find("shape/hexagon");
+  let {side, background} = hex;
+
+  let tri_height = side * 0.5; // sin(30deg)
+  let tri_width = side * 0.866; // cos(30deg)
+  let width = 2 * tri_width;
+
+  let sideBorder = `${tri_width}px solid transparent`;
+  let activeBorder = `${tri_height}px solid ${background}`;
+
+  return [
+    hex.add({tag: "html/element", tagname: "div", class: "shape-hexagon", children: [
+      record("html/element", {sort: 1, tagname: "div", class: "shape-hexagon-cap", style: record({
+        width: 0, height: 0,
+        "border-left": sideBorder, "border-right": sideBorder,
+        "border-bottom": activeBorder,
+      })}),
+      record("ui/column", {sort: 2, style: record({height: side, width, background}), class: "shape-hexagon-body"}).add("children", [
+        record("ui/text", {text: "Hi!"})
+      ]),
+      record("html/element", {sort: 2, tagname: "div", class: "shape-hexagon-cap", style: record({
+        width: 0, height: 0,
+        "border-left": sideBorder, "border-right": sideBorder,
+        "border-top": activeBorder,
+      })}),
+    ]})
+  ];
+});
 
 //--------------------------------------------------------------------
 // Kick it off
@@ -227,7 +260,11 @@ prog.inputEavs([
   [STYLE_ID, "tag", "html/element"],
   [STYLE_ID, "tagname", "link"],
   [STYLE_ID, "rel", "stylesheet"],
-  [STYLE_ID, "href", "assets/css/editor.css"]
+  [STYLE_ID, "href", "assets/css/editor.css"],
+
+  [1, "tag", "shape/hexagon"],
+  [1, "side", 20],
+  [1, "background", "#009ddf"],
 ]);
 
 //--------------------------------------------------------------------
