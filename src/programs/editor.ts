@@ -212,7 +212,41 @@ prog.block("Populate the block query for the active block.", ({find, record}) =>
       ])
     ])
   ];
-})
+});
+
+//--------------------------------------------------------------------
+// Block Canvas
+//--------------------------------------------------------------------
+
+prog.block("Populate the block canvas with a hex grid.", ({find, lib:{math}, record}) => {
+  let canvasElem = find("editor/block/canvas");
+  let {editor} = canvasElem;
+
+  let x_ix = find("range").ix;
+  let y_ix = find("range").ix;
+
+
+  let side = 20;
+  let tri_height = side * 0.5;
+  let tri_width = side * 0.86603;
+  let width = 2 * tri_width;
+
+  let x_offset = math.mod(y_ix, 2) * tri_width;
+  let x = width * x_ix + x_offset;
+
+  let height = side + tri_height;
+  let y = height * y_ix;
+
+  return [
+    canvasElem.add("children", [
+      record("shape/hexagon", "shape/outline", {side: 20, thickness: 2, background: "white", border: "#ccc", style: record({position: "absolute", top: y, left: x, "font-size": "0.5em"})}).add("content", [
+        record("ui/text", {text: `${x_ix}, ${y_ix}`})
+      ])
+    ])
+  ];
+});
+
+
 
 //--------------------------------------------------------------------
 // Shared Components
@@ -314,6 +348,12 @@ let fixture:RawEAV[] = [
   [EDITOR_ID, "active_block",  BLOCK_PPL_W_BOATS_ID],
   [EDITOR_ID, "active_frame",  FRAME_PPL_W_BOATS_QUERY_ID]
 ];
+
+// We can't do range yet.
+appendAsEAVs(fixture, {
+  tag: "range",
+  ix: [1, 2, 3, 4, 5, 6]
+});
 
 appendAsEAVs(fixture, {
   name: "Marina"

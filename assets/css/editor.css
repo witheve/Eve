@@ -44,6 +44,12 @@
 .editor-view .editor-block-query-pattern .editor-query-field:last-child:after { display: block; content: " "; position: absolute; top: 50%; bottom: 0; left: -1; width: 0; margin-top: 1px; border-left: 1px solid #f5f5f5; }
 
 /****************************************************************************\
+ * Editor Block Canvas
+\****************************************************************************/
+.editor-view .editor-block-canvas { position: relative;  }
+
+
+/****************************************************************************\
  * Shapes
 \****************************************************************************/
 
