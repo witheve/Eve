@@ -1,0 +1,39 @@
+//row, column { min-width: 100; min-height: 100; border: 1px solid black; }
+
+.editor-view {align-items: stretch; height: 100%; }
+
+/****************************************************************************\
+ * Editor Nav
+\****************************************************************************/
+
+.editor-view .editor-nav { margin-right: 20; }
+.editor-view .editor-nav .editor-nav-tag { padding: 10; }
+.editor-view .editor-nav .editor-nav-block { padding: 5; padding-left: 20; padding-right: 0; }
+
+
+
+/****************************************************************************\
+ * Editor Main
+\****************************************************************************/
+
+.editor-view .editor-main { flex: 1; }
+
+.editor-view .editor-block-description {max-width: 480; padding: 10; margin-right: 20; flex: 1;}
+.editor-view .editor-block-title {font-size: 1.25em; margin-bottom: 0.25em; font-weight: 500; }
+
+.editor-view .editor-block-storyboard { flex: 1; align-self: flex-start; }
+
+.editor-view .editor-block-frame { width: 162; height: 100; margin: 10; justify-content: center; align-items: center; border: 2px solid #888; border-radius: 3px; }
+.editor-view .editor-new-frame { border-color: #ccc; color: #ccc; }
+.editor-view .editor-new-frame:after { display: flex; content: "+"; font-size: 4em; font-weight: 200;}
+
+
+.editor-view .editor-block-content { flex: 1; }
+.editor-view .editor-block-canvas { flex: 1; }
+
+/****************************************************************************\
+ * Editor Block Query
+\****************************************************************************/
+
+.editor-view .editor-block-query-hex { width: 40; height: 40; margin: 5; justify-content: center; align-items: center; border: 1px solid #aaa; border-radius: 400px; }
+.editor-view .editor-block-query-hex > text { display: flex; }
