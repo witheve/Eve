@@ -1,6 +1,6 @@
 //row, column { min-width: 100; min-height: 100; border: 1px solid black; }
 
-.editor-view {align-items: stretch; height: 100%; }
+.editor-view {align-items: stretch; height: 100%; background: white; }
 
 /****************************************************************************\
  * Editor Nav
@@ -47,5 +47,8 @@
  * Shapes
 \****************************************************************************/
 
-.shape-hexagon .shape-hexagon-body { justify-content: center; align-items: center; color: white; }
+.shape-hexagon { position: relative; }
+.shape-hexagon .shape-hexagon-body { justify-content: center; align-items: center; }
 .shape-hexagon .shape-hexagon-cap { }
+
+.shape-hexagon .shape-hexagon-inner {  }

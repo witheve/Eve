@@ -202,7 +202,7 @@ prog.block("Populate the block query for the active block.", ({find, record}) =>
   return [
     queryElem.add("children", [
       record("ui/row", "editor/block/query-node", {editor, sort: node.sort, node, class: "editor-block-query-node"}).add("children", [
-        record("shape/hexagon", {side: 20, background: "#0009df", sort: 0, frame: active_frame, node, class: "editor-block-query-hex"}).add("content", [
+        record("shape/hexagon", "shape/outline", {side: 20, thickness: 2, border: "#AAA", background: "white", sort: 0, frame: active_frame, node, class: "editor-block-query-hex"}).add("content", [
           record("ui/text", {text: node.letter})
         ]),
         record("ui/column", {sort: 1, frame: active_frame, node, class: "editor-block-query-pattern"}).add("children", [
@@ -218,27 +218,32 @@ prog.block("Populate the block query for the active block.", ({find, record}) =>
 // Shared Components
 //--------------------------------------------------------------------
 
-prog.block("Draw a hexagon", ({find, record, lib: {math}}) => {
+prog.block("Draw a hexagon", ({find, choose, record, lib: {math}}) => {
   let hex = find("shape/hexagon");
-  let {side, background} = hex;
+  let {side} = hex;
 
   let tri_height = side * 0.5; // sin(30deg)
-  let tri_width = side * 0.866; // cos(30deg)
+  let tri_width = side * 0.86603; // cos(30deg)
   let width = 2 * tri_width;
+
+  let [background] = choose(
+    () => {hex.tag == "shape/outline"; return hex.border},
+    () =>  hex.background
+  );
 
   let sideBorder = `${tri_width}px solid transparent`;
   let activeBorder = `${tri_height}px solid ${background}`;
 
   return [
-    hex.add({tag: "html/element", tagname: "div", class: "shape-hexagon", children: [
-      record("html/element", {sort: 1, tagname: "div", class: "shape-hexagon-cap", style: record({
-        width, height: 0,
+    hex.add({tag: "html/element", tagname: "div", class: "shape-hexagon", style: record({width}), children: [
+      record("shape/hexagon/cap", "html/element", {sort: 1, tagname: "div", class: "shape-hexagon-cap", style: record({
+        width: 0, height: 0,
         "border-left": sideBorder, "border-right": sideBorder,
         "border-bottom": activeBorder,
       })}),
       record("shape/hexagon/body", "ui/column", {hex, sort: 2, style: record({height: side, width, background}), class: "shape-hexagon-body"}),
-      record("html/element", {sort: 3, tagname: "div", class: "shape-hexagon-cap", style: record({
-        width, height: 0,
+      record("shape/hexagon/cap", "html/element", {sort: 3, tagname: "div", class: "shape-hexagon-cap", style: record({
+        width: 0, height: 0,
         "border-left": sideBorder, "border-right": sideBorder,
         "border-top": activeBorder,
       })}),
@@ -246,13 +251,35 @@ prog.block("Draw a hexagon", ({find, record, lib: {math}}) => {
   ];
 });
 
-prog.block("Populate hexagon with content", ({find}) => {
+prog.block("An outlined hexagon contains another hexagon inset by thickness.", ({find, record, lib: {math}}) => {
+  let hex = find("shape/hexagon", "shape/outline");
+  let {thickness} = hex;
+  let side = hex.side - thickness;
+  let side_thickness = thickness * 0.86603; // cos(30deg)
+  return [
+    hex.add("children", [
+      record("shape/hexagon", "shape/hexagon/inner", {outer: hex, sort: 4, side, background: hex.background, class: "shape-hexagon-inner", style: record({
+        position: "absolute", top: 0, left: 0, "margin-top": thickness, "margin-left": side_thickness
+      })})
+    ])
+  ];
+})
+
+prog.block("Populate hexagon with content", ({find, not}) => {
   let hex_body = find("shape/hexagon/body");
+  not(() => hex_body.hex.tag == "shape/outline")
   let {content} = hex_body.hex;
   return [
     hex_body.add("children", [
       content
     ])
+  ];
+})
+
+prog.block("Populate an outlined hexagon's inner with content", ({find}) => {
+  let hex_inner = find("shape/hexagon/inner");
+  return [
+    hex_inner.add("content", hex_inner.outer.content)
   ];
 })
 
@@ -269,13 +296,6 @@ prog.inputEavs([
   [STYLE_ID, "tagname", "link"],
   [STYLE_ID, "rel", "stylesheet"],
   [STYLE_ID, "href", "assets/css/editor.css"],
-
-  [1, "tag", "shape/hexagon"],
-  [1, "side", 40],
-  [1, "background", "#009ddf"],
-  [1, "style", 2],
-  [2, "margin-left", 20],
-  [2, "margin-top", 20]
 ]);
 
 //--------------------------------------------------------------------
