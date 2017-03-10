@@ -145,7 +145,6 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
       .commit("Remove click events!", ({find}) => {
         let click = find("{{tagPrefix}}/event/click");
         return [
-          //click.remove("tag")
           click.remove("tag"),
         ];
       })
