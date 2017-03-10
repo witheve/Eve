@@ -202,7 +202,7 @@ prog.block("Populate the block query for the active block.", ({find, record}) =>
   return [
     queryElem.add("children", [
       record("ui/row", "editor/block/query-node", {editor, sort: node.sort, node, class: "editor-block-query-node"}).add("children", [
-        record("ui/column", {sort: 0, frame: active_frame, node, class: "editor-block-query-hex"}).add("children", [
+        record("shape/hexagon", {side: 20, background: "#0009df", sort: 0, frame: active_frame, node, class: "editor-block-query-hex"}).add("content", [
           record("ui/text", {text: node.letter})
         ]),
         record("ui/column", {sort: 1, frame: active_frame, node, class: "editor-block-query-pattern"}).add("children", [
@@ -232,21 +232,29 @@ prog.block("Draw a hexagon", ({find, record, lib: {math}}) => {
   return [
     hex.add({tag: "html/element", tagname: "div", class: "shape-hexagon", children: [
       record("html/element", {sort: 1, tagname: "div", class: "shape-hexagon-cap", style: record({
-        width: 0, height: 0,
+        width, height: 0,
         "border-left": sideBorder, "border-right": sideBorder,
         "border-bottom": activeBorder,
       })}),
-      record("ui/column", {sort: 2, style: record({height: side, width, background}), class: "shape-hexagon-body"}).add("children", [
-        record("ui/text", {text: "Hi!"})
-      ]),
-      record("html/element", {sort: 2, tagname: "div", class: "shape-hexagon-cap", style: record({
-        width: 0, height: 0,
+      record("shape/hexagon/body", "ui/column", {hex, sort: 2, style: record({height: side, width, background}), class: "shape-hexagon-body"}),
+      record("html/element", {sort: 3, tagname: "div", class: "shape-hexagon-cap", style: record({
+        width, height: 0,
         "border-left": sideBorder, "border-right": sideBorder,
         "border-top": activeBorder,
       })}),
     ]})
   ];
 });
+
+prog.block("Populate hexagon with content", ({find}) => {
+  let hex_body = find("shape/hexagon/body");
+  let {content} = hex_body.hex;
+  return [
+    hex_body.add("children", [
+      content
+    ])
+  ];
+})
 
 //--------------------------------------------------------------------
 // Kick it off
@@ -263,8 +271,11 @@ prog.inputEavs([
   [STYLE_ID, "href", "assets/css/editor.css"],
 
   [1, "tag", "shape/hexagon"],
-  [1, "side", 20],
+  [1, "side", 40],
   [1, "background", "#009ddf"],
+  [1, "style", 2],
+  [2, "margin-left", 20],
+  [2, "margin-top", 20]
 ]);
 
 //--------------------------------------------------------------------

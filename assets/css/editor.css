@@ -35,9 +35,9 @@
  * Editor Block Query
 \****************************************************************************/
 .editor-view .editor-block-query-node { margin-bottom: 10; }
-.editor-view .editor-block-query-hex { width: 40; height: 40; margin: 5; justify-content: center; align-items: center; border: 1px solid #aaa; border-radius: 400px; }
+.editor-view .editor-block-query-hex { margin: 10; }
 .editor-view .editor-block-query-hex > text { display: flex; }
-.editor-view .editor-block-query-pattern { margin-top: 10; }
+.editor-view .editor-block-query-pattern { margin-top: 20; }
 .editor-view .editor-block-query-pattern .editor-query-tag { margin-left: -1; font-weight: 500; }
 .editor-view .editor-block-query-pattern .editor-query-field {position: relative; border-left: 1px solid #ccc; padding-left: 10; }
 .editor-view .editor-block-query-pattern .editor-query-field:before { display: block; content: " "; position: absolute; top: 50%; left: 0; width: 8; border-top: 1px solid #ccc; }
