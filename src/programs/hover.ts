@@ -57,9 +57,5 @@ prog
     return [elem.add("tag", "html/element").add("tagname", "style")];
   });
 
-prog.test(1, [
-  [1, "tag", "clock-timer"],
-  [1, "tag", "system/timer"],
-  [1, "resolution", 1000],
-  [3, "tag", "main"],
-])
+
+prog.inputEavs([ [1, "tag", "main"] ]);
