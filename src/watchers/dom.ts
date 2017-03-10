@@ -55,7 +55,9 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
   }
 
   insertChild(parent:Element|null, child:Instance, at = child.__sort) {
-    child.__sort = at;
+    at = at !== undefined ? ""+at: at;
+    child.__sort = at
+    child.setAttribute("sort", ""+at);
     if(!parent) return;
 
     let current;
