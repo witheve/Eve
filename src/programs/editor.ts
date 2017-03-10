@@ -202,8 +202,12 @@ prog.block("Populate the block query for the active block.", ({find, record}) =>
   return [
     queryElem.add("children", [
       record("ui/row", "editor/block/query-node", {editor, sort: node.sort, node, class: "editor-block-query-node"}).add("children", [
-        record("ui/column", {frame: active_frame, node, class: "editor-block-query-hex"}).add("children", [
+        record("ui/column", {sort: 0, frame: active_frame, node, class: "editor-block-query-hex"}).add("children", [
           record("ui/text", {text: node.letter})
+        ]),
+        record("ui/column", {sort: 1, frame: active_frame, node, class: "editor-block-query-pattern"}).add("children", [
+          record("ui/text", {sort: 0, text: node.queryTag, class: "editor-query-tag"}),
+          record("ui/text", {sort: node.queryField, text: node.queryField, class: "editor-query-field"})
         ])
       ])
     ])
@@ -267,13 +271,17 @@ appendAsEAVs(fixture, {
           tag: "editor/query-node",
           type: "join",
           sort: 1,
-          letter: "P"
+          letter: "P",
+          queryTag: "person",
+          queryField: ["name", "age", "boat"]
         }),
         appendAsEAVs([], {
           tag: "editor/query-node",
           type: "join",
           sort: 1,
-          letter: "B"
+          letter: "B",
+          queryTag: "boat",
+          queryField: ["name", "type"]
         })
       ]
     }, FRAME_PPL_W_BOATS_QUERY_ID)
