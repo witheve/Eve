@@ -71,7 +71,7 @@ function macro<FuncType extends Function>(func:FuncType, transform:(code:string,
 // Reference
 //--------------------------------------------------------------------
 
-type Value = Reference|RawValue;
+export type Value = Reference|RawValue;
 type ProxyReference = any;
 
 function isRawValue(v:any): v is RawValue {
@@ -642,7 +642,7 @@ class DSLBase {
   ID = DSLBase.CurrentID++;
 }
 
-class LinearFlow extends DSLBase {
+export class LinearFlow extends DSLBase {
   context:ReferenceContext;
   collector:FlowLevel = new FlowLevel();
   levels:FlowLevel[] = [];
@@ -887,7 +887,7 @@ class CommitFlow extends LinearFlow {
 // Record
 //--------------------------------------------------------------------
 
-class Record extends DSLBase {
+export class Record extends DSLBase {
   attributes:Value[];
   constructor(public context:ReferenceContext, tags:string[] = [], attributes:RecordAttributes = {}, public record?:Reference) {
     super();
@@ -1539,7 +1539,6 @@ export class Program {
     this.context = new Runtime.EvaluationContext(this.index);
   }
 
-
   constants(obj:{[key:string]: RawValue}) {
     if(!this._constants) this._constants = {};
     for(let constant in obj) {
@@ -1568,15 +1567,32 @@ export class Program {
     this.context = new Runtime.EvaluationContext(this.index);
   }
 
-  block(name:string, func:LinearFlowFunction) {
-    let flow = new LinearFlow(this.injectConstants(func));
+  _block(name:string, flow:LinearFlow) {
     let nodes = flow.compile();
     let block = new Runtime.Block(name, nodes, flow.context.maxRegisters);
     this.flows.push(flow);
     this.blocks.push(block);
+    return block;
+  }
+
+  block(name:string, func:LinearFlowFunction) {
+    let flow = new LinearFlow(this.injectConstants(func));
+    this._block(name, flow);
     return this;
   }
 
+  blockChangeTransaction(added:Runtime.Block[], removed:Runtime.Block[]) {
+    for(let remove of removed) {
+      let ix = this.blocks.indexOf(remove)
+      this.blocks.splice(ix, 1);
+    }
+    // console.time("input");
+    let trans = new Runtime.BlockChangeTransaction(this.context, this.nextTransactionId++, added, removed, this.blocks, this.lastWatch ? this.exporter.handle : undefined);
+    trans.exec(this.context);
+    // console.timeEnd("input");
+    // console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
+    return trans;
+  }
 
   input(changes:Runtime.Change[]) {
     // console.time("input");

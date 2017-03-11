@@ -350,7 +350,6 @@ export var GlobalInterner = new Interner();
 
 //------------------------------------------------------------------------
 // Changes
-//
 //------------------------------------------------------------------------
 
 // Because Eve's runtime is incremental from the ground up, the primary unit of
@@ -432,6 +431,9 @@ export class Change {
     return new Change(e, a, v, n, transaction, round, count);
   }
 }
+
+const BLOCK_REMOVE = new Change(0,0,0,0,0,0,-1);
+const BLOCK_ADD = new Change(0,0,0,0,0,0,1);
 
 class RemoveChange extends Change {
   toString() {
@@ -1490,7 +1492,6 @@ export class JoinNode extends Node {
     } else {
       // debug("              GJ:", remainingToSolve, this.constraints);
       // For each node, find the new results that match the prefix.
-      let ol = results.length;
       this.genericJoin(context, prefix, transaction, round, results, remainingToSolve);
       return true;
     }
@@ -1649,52 +1650,61 @@ export class JoinNode extends Node {
   }
 
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):boolean {
-    if(this.isStatic && this.dormant) return false;
-
-    this.inputCount = input.count;
     let didSomething = false;
-    let affectedConstraints = this.findAffectedConstraints(input, prefix);
+    this.inputCount = input.count;
 
-    let combinationCount = Math.pow(2, affectedConstraints.length);
-    for(let comboIx = combinationCount - 1; comboIx > 0; comboIx--) {
-      //console.log("  Combo:", comboIx);
+    if(input === BLOCK_REMOVE) {
+      didSomething = this.applyCombination(context, input, prefix, transaction, round, results);
+    } else if(this.isStatic && this.dormant) {
+      return false;
+    } else if(input === BLOCK_ADD) {
+      didSomething = this.applyCombination(context, input, prefix, transaction, round, results);
+    } else {
+      if(this.isStatic && this.dormant) return false;
+      this.inputCount = input.count;
+      let affectedConstraints = this.findAffectedConstraints(input, prefix);
 
-      let shouldApply = true;
+      let combinationCount = Math.pow(2, affectedConstraints.length);
+      for(let comboIx = combinationCount - 1; comboIx > 0; comboIx--) {
+        //console.log("  Combo:", comboIx);
 
-      for(let constraintIx = 0; constraintIx < affectedConstraints.length; constraintIx++) {
-        let mask = 1 << constraintIx;
-        let isIncluded = (comboIx & mask) !== 0;
-        let constraint = affectedConstraints.array[constraintIx];
-        constraint.isInput = isIncluded;
+        let shouldApply = true;
 
-        if(isIncluded) {
-          let valid = constraint.applyInput(input, prefix);
-          // debug("        included", printConstraint(constraint));
-          // If any member of the input constraints fails, this whole combination is doomed.
-          if(valid === ApplyInputState.fail) {
-            shouldApply = false;
-            break;
+        for(let constraintIx = 0; constraintIx < affectedConstraints.length; constraintIx++) {
+          let mask = 1 << constraintIx;
+          let isIncluded = (comboIx & mask) !== 0;
+          let constraint = affectedConstraints.array[constraintIx];
+          constraint.isInput = isIncluded;
+
+          if(isIncluded) {
+            let valid = constraint.applyInput(input, prefix);
+            // debug("        included", printConstraint(constraint));
+            // If any member of the input constraints fails, this whole combination is doomed.
+            if(valid === ApplyInputState.fail) {
+              shouldApply = false;
+              break;
+            }
+            //console.log("    " + printConstraint(constraint));
           }
-          //console.log("    " + printConstraint(constraint));
+        }
+
+        //console.log("    ", printPrefix(prefix));
+        if(shouldApply) {
+          didSomething = this.applyCombination(context, input, prefix, transaction, round, results) || didSomething;
+        }
+
+        let constraint;
+        affectedConstraints.reset();
+        while((constraint = affectedConstraints.next()) !== undefined) {
+          this.unapplyConstraint(constraint, prefix);
         }
       }
 
-      //console.log("    ", printPrefix(prefix));
-      if(shouldApply) {
-        didSomething = this.applyCombination(context, input, prefix, transaction, round, results) || didSomething;
-      }
-
-      let constraint;
       affectedConstraints.reset();
+      let constraint;
       while((constraint = affectedConstraints.next()) !== undefined) {
-        this.unapplyConstraint(constraint, prefix);
+        constraint.isInput = false;
       }
-    }
-
-    affectedConstraints.reset();
-    let constraint;
-    while((constraint = affectedConstraints.next()) !== undefined) {
-      constraint.isInput = false;
     }
 
     if(this.isStatic && didSomething) {
@@ -1703,7 +1713,6 @@ export class JoinNode extends Node {
 
     return didSomething;
   }
-
 }
 
 export class DownstreamJoinNode extends JoinNode {
@@ -2668,10 +2677,6 @@ export class Block {
       let tmp = this.results;
       this.results = this.nextResults;
       this.nextResults = tmp;
-      // if(this.results.length) {
-      //   console.log("  Triggered ", this.name);
-      // }
-      // @NOTE: We don't really want to shrink this array probably.
       this.nextResults.clear();
     }
 
@@ -2900,7 +2905,6 @@ export class Transaction {
     let {changes, roundChanges} = this;
     let {index, tracer} = context;
     tracer.frame([]);
-    // console.log("T", this.transaction)
     let total = 0;
     let frames = 0;
     let changeIx = 0;
@@ -2938,8 +2942,6 @@ export class Transaction {
       this.prepareRound(context, changeIx);
     }
 
-    // console.log(context);
-
     let exportingBlocks = Object.keys(this.exportedChanges);
     if(exportingBlocks.length) {
       if(!this.exportHandler) throw new Error("Unable to export changes without export handler.");
@@ -2962,6 +2964,24 @@ export class Transaction {
     // safely release.
     GlobalInterner.releaseArena("functionOutput");
     tracer.pop(TraceFrameType.Transaction);
+  }
+}
+
+export class BlockChangeTransaction extends Transaction {
+  constructor(public context:EvaluationContext, public transaction:number, public added:Block[], public removed:Block[], public blocks:Block[], protected exportHandler?:ExportHandler) {
+    super(context, transaction, blocks, exportHandler);
+  }
+
+  exec(context:EvaluationContext) {
+    for(let remove of this.removed) {
+      remove.exec(context, BLOCK_REMOVE, this);
+    }
+
+    for(let add of this.added) {
+      add.exec(context, BLOCK_ADD, this);
+    }
+
+    super.exec(context);
   }
 }
 

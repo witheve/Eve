@@ -43,10 +43,10 @@ prog.inputEavs([
     ["v1Name", "attribute", "name"],
     ["v1Name", "value", "vName"],
 
-  ["v1Record", "tag", "eve/compiler/output"],
-  ["v1Record", "record", "v2"],
-  ["v1Record", "attribute", "v2TagText"],
-  ["v1Record", "attribute", "v2Text"],
+  ["v2Record", "tag", "eve/compiler/output"],
+  ["v2Record", "record", "v2"],
+  ["v2Record", "attribute", "v2TagText"],
+  ["v2Record", "attribute", "v2Text"],
 
     ["v2TagText", "attribute", "tag"],
     ["v2TagText", "value", "ui/text"],
@@ -54,5 +54,14 @@ prog.inputEavs([
     ["v2Text", "attribute", "text"],
     ["v2Text", "value", "vName"],
 
+  ["JANE", "tag", "person"],
+  ["JANE", "tag", "employee"],
+  ["JANE", "name", "Jane"],
 ])
 
+setTimeout(() => {
+  prog.inputEavs([
+    ["v2Text", "value", "vName", -1],
+    ["v2Text", "value", "woah!"],
+  ])
+}, 1000)
