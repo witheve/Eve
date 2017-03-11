@@ -58,3 +58,20 @@
 .shape-hexagon .shape-hexagon-cap { }
 
 .shape-hexagon .shape-hexagon-inner {  }
+
+.shape-hex-grid { position: relative; }
+
+
+
+
+
+.hex-grid > .shape-hexagon-body,
+.hex-grid > .shape-hexagon-cap { transition: 0.5s background ease-in, 0.5s border-top-color ease-in, 0.5s border-bottom-color ease-in; }
+
+.hex-grid:hover > .shape-hexagon-body,
+.hex-grid:hover > .shape-hexagon-cap { transition: 0.2s background ease-out, 0.2s border-top-color ease-out, 0.2s border-bottom-color ease-out; }
+
+
+.hex-grid:hover > .shape-hexagon-body { background: #ccc !important; }
+.hex-grid:hover > .shape-hexagon-cap.first { border-bottom-color: #ccc !important; }
+.hex-grid:hover > .shape-hexagon-cap.last { border-top-color: #ccc !important; }

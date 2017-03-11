@@ -11,7 +11,7 @@ import {v4 as uuid} from "node-uuid";
 //--------------------------------------------------------------------
 
 function isRawValue(x:any): x is RawValue {
-  return x && (typeof x === "string" || typeof x === "number");
+  return x !== undefined && (typeof x === "string" || typeof x === "number");
 }
 
 function isRawValueArray(x:any): x is RawValue[] {
@@ -202,7 +202,7 @@ prog.block("Populate the block query for the active block.", ({find, record}) =>
   return [
     queryElem.add("children", [
       record("ui/row", "editor/block/query-node", {editor, sort: node.sort, node, class: "editor-block-query-node"}).add("children", [
-        record("shape/hexagon", "shape/outline", {side: 20, thickness: 2, border: "#AAA", background: "white", sort: 0, frame: active_frame, node, class: "editor-block-query-hex"}).add("content", [
+        record("shape/hexagon", {side: 21, thickness: 2, border: "#AAA", background: "white", sort: 0, frame: active_frame, node, class: "editor-block-query-hex"}).add("content", [
           record("ui/text", {text: node.letter})
         ]),
         record("ui/column", {sort: 1, frame: active_frame, node, class: "editor-block-query-pattern"}).add("children", [
@@ -218,46 +218,35 @@ prog.block("Populate the block query for the active block.", ({find, record}) =>
 // Block Canvas
 //--------------------------------------------------------------------
 
-prog.block("Populate the block canvas with a hex grid.", ({find, lib:{math}, record}) => {
-  let canvasElem = find("editor/block/canvas");
-  let {editor} = canvasElem;
+prog.block("Populate the block canvas with molecules.", ({find, record}) => {
+  let canvas_elem = find("editor/block/canvas");
+  let {editor} = canvas_elem;
 
-  let x_ix = find("range").ix;
-  let y_ix = find("range").ix;
-
-
-  let side = 20;
-  let tri_height = side * 0.5;
-  let tri_width = side * 0.86603;
-  let width = 2 * tri_width;
-
-  let x_offset = math.mod(y_ix, 2) * tri_width;
-  let x = width * x_ix + x_offset;
-
-  let height = side + tri_height;
-  let y = height * y_ix;
+  let x = find("range").ix;
+  let y = find("range").ix;
 
   return [
-    canvasElem.add("children", [
-      record("shape/hexagon", "shape/outline", {side: 20, thickness: 2, background: "white", border: "#ccc", style: record({position: "absolute", top: y, left: x, "font-size": "0.5em"})}).add("content", [
-        record("ui/text", {text: `${x_ix}, ${y_ix}`})
+    canvas_elem.add("children", [
+      record("shape/hex-grid", {side: 30, gap: 3}).add("cell", [
+        record({x, y, background: "white", thickness: 2, border: "#ccc"}).add("content", [
+          record("ui/text", {text: `${x},${y}`})
+        ])
       ])
     ])
   ];
 });
 
 
-
 //--------------------------------------------------------------------
-// Shared Components
+// #shape/hexagon
 //--------------------------------------------------------------------
 
 prog.block("Draw a hexagon", ({find, choose, record, lib: {math}}) => {
   let hex = find("shape/hexagon");
   let {side} = hex;
 
-  let tri_height = side * 0.5; // sin(30deg)
-  let tri_width = side * 0.86603; // cos(30deg)
+  let tri_height = math.round(side * 0.5); // sin(30deg)
+  let tri_width = math.round(side * 0.86603); // cos(30deg)
   let width = 2 * tri_width;
 
   let [background] = choose(
@@ -265,27 +254,38 @@ prog.block("Draw a hexagon", ({find, choose, record, lib: {math}}) => {
     () =>  hex.background
   );
 
-  let sideBorder = `${tri_width}px solid transparent`;
-  let activeBorder = `${tri_height}px solid ${background}`;
+  let sideBorder = `${tri_width}px`;
+  let activeBorder = `${tri_height}px`;
 
   return [
     hex.add({tag: "html/element", tagname: "div", class: "shape-hexagon", style: record({width}), children: [
-      record("shape/hexagon/cap", "html/element", {sort: 1, tagname: "div", class: "shape-hexagon-cap", style: record({
+      record("shape/hexagon/cap", "html/element", {sort: 1, tagname: "div", class: ["shape-hexagon-cap", "first"], style: record({
         width: 0, height: 0,
-        "border-left": sideBorder, "border-right": sideBorder,
-        "border-bottom": activeBorder,
+        "border": "0 solid transparent",
+        "border-left-width": sideBorder, "border-right-width": sideBorder,
+        "border-bottom-width": activeBorder, "border-bottom-color": background
       })}),
       record("shape/hexagon/body", "ui/column", {hex, sort: 2, style: record({height: side, width, background}), class: "shape-hexagon-body"}),
-      record("shape/hexagon/cap", "html/element", {sort: 3, tagname: "div", class: "shape-hexagon-cap", style: record({
+      record("shape/hexagon/cap", "html/element", {sort: 3, tagname: "div", class: ["shape-hexagon-cap", "last"], style: record({
         width: 0, height: 0,
-        "border-left": sideBorder, "border-right": sideBorder,
-        "border-top": activeBorder,
+        "border": "0 solid transparent",
+        "border-left-width": sideBorder, "border-right-width": sideBorder,
+        "border-top-width": activeBorder, "border-top-color": background
       })}),
     ]})
   ];
 });
 
-prog.block("An outlined hexagon contains another hexagon inset by thickness.", ({find, record, lib: {math}}) => {
+prog.block("Hexagons with border and thickness are outlined.", ({find}) => {
+  let hex = find("shape/hexagon");
+  hex.border;
+  hex.thickness;
+  return [
+    hex.add("tag", "shape/outline")
+  ];
+})
+
+prog.block("An outlined hexagon contains another hexagon inset by thickness.", ({find, record}) => {
   let hex = find("shape/hexagon", "shape/outline");
   let {thickness} = hex;
   let side = hex.side - thickness;
@@ -316,6 +316,43 @@ prog.block("Populate an outlined hexagon's inner with content", ({find}) => {
     hex_inner.add("content", hex_inner.outer.content)
   ];
 })
+
+//--------------------------------------------------------------------
+// #shape/hex-grid
+//--------------------------------------------------------------------
+
+// [#hex-grid cells side gap]
+prog.block("Decorate all the hex-grid cells as hexagons.", ({find, lib:{math}, record}) => {
+  let hex_grid = find("shape/hex-grid");
+
+  let {side, gap} = hex_grid;
+  let cell = hex_grid.cell;
+  let {x:x_ix, y:y_ix} = cell;
+
+  let top_gap = gap * 0.86603; // sin(60deg)
+
+  let tri_height = math.round(side * 0.5);
+  let tri_width = math.round(side * 0.86603);
+
+  let width = 2 * tri_width + gap;
+  let x_offset = math.mod(math.abs(y_ix), 2) * width / 2;
+  let height = side + tri_height + top_gap;
+
+  let x = math.round(width * x_ix + x_offset);
+  let y = math.round(height * y_ix);
+
+  return [
+    hex_grid.add({tag: "html/element", tagname: "div", class: "shape-hex-grid"}),
+    hex_grid.add("children", [
+      cell.add({
+        tag: "shape/hexagon",
+        side,
+        style: record({position: "absolute", left: x, top: y})
+      })
+    ])
+  ];
+});
+
 
 //--------------------------------------------------------------------
 // Kick it off
@@ -352,7 +389,7 @@ let fixture:RawEAV[] = [
 // We can't do range yet.
 appendAsEAVs(fixture, {
   tag: "range",
-  ix: [1, 2, 3, 4, 5, 6]
+  ix: [1, 3, 4]
 });
 
 appendAsEAVs(fixture, {
@@ -404,3 +441,5 @@ appendAsEAVs(fixture, {
 }, BLOCK_BOAT_TYPES_ID);
 
 prog.inputEavs(fixture);
+
+console.log(prog);
