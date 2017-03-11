@@ -218,23 +218,61 @@ prog.block("Populate the block query for the active block.", ({find, record}) =>
 // Block Canvas
 //--------------------------------------------------------------------
 
-prog.block("Populate the block canvas with molecules.", ({find, record}) => {
+prog.block("Compute molecules for the active frame.", ({find, record}) => {
+  let editor = find("editor/root");
+  let {node} = editor.active_frame;
+  let atom = find({tag: node.queryTag});
+  return [
+    record("editor/molecule", {editor, node, queryTag: node.queryTag, atom})
+  ];
+});
+
+prog.block("Draw molecules as hex grids of atoms.", ({find, record, lib:{random, math}}) => {
   let canvas_elem = find("editor/block/canvas");
   let {editor} = canvas_elem;
+  let molecule = find("editor/molecule", {editor});
 
-  let x = find("range").ix;
-  let y = find("range").ix;
+  let {atom} = molecule;
+  let {x, y} = find("spiral", {ix: atom.sort})
+
+  let molecule_x = math.round(random.number(`${molecule} x`) * 600);
+  let molecule_y = math.round(random.number(`${molecule} y`) * 400);
 
   return [
     canvas_elem.add("children", [
-      record("shape/hex-grid", {side: 30, gap: 3}).add("cell", [
-        record({x, y, background: "white", thickness: 2, border: "#ccc"}).add("content", [
-          record("ui/text", {text: `${x},${y}`})
+      record("editor/molecule/grid", "shape/hex-grid", {side: 30, gap: 3, style: record({
+        position: "absolute",
+        width: 100,
+        height: 100,
+        left: `${molecule_x}px`,
+        top: `${molecule_y}px`
+      })}).add("cell", [
+        record({atom, x, y, background: "white", thickness: 2, border: "#ccc"}).add("content", [
+          record("ui/text", {text: molecule.node.letter})
         ])
       ])
     ])
   ];
-});
+})
+
+
+// prog.block("Populate the block canvas with molecules.", ({find, record}) => {
+//   let canvas_elem = find("editor/block/canvas");
+//   let {editor} = canvas_elem;
+
+//   let x = find("range").ix;
+//   let y = find("range").ix;
+
+//   return [
+//     canvas_elem.add("children", [
+//       record("shape/hex-grid", {side: 30, gap: 3}).add("cell", [
+//         record({x, y, background: "white", thickness: 2, border: "#ccc"}).add("content", [
+//           record("ui/text", {text: `${x},${y}`})
+//         ])
+//       ])
+//     ])
+//   ];
+// });
 
 
 //--------------------------------------------------------------------
@@ -376,6 +414,8 @@ prog.inputEavs([
 const TAG_MARINA_ID = uuid();
 const TAG_MARINARA_ID = uuid();
 const BLOCK_PPL_W_BOATS_ID = uuid();
+const NODE_PERSON_ID = uuid();
+const NODE_BOAT_ID = uuid();
 const BLOCK_BOAT_TYPES_ID = uuid();
 const FRAME_PPL_W_BOATS_QUERY_ID = uuid();
 
@@ -419,7 +459,7 @@ appendAsEAVs(fixture, {
           letter: "P",
           queryTag: "person",
           queryField: ["name", "age", "boat"]
-        }),
+        }, NODE_PERSON_ID),
         appendAsEAVs([], {
           tag: "editor/query-node",
           type: "join",
@@ -427,7 +467,7 @@ appendAsEAVs(fixture, {
           letter: "B",
           queryTag: "boat",
           queryField: ["name", "type"]
-        })
+        }, NODE_BOAT_ID)
       ]
     }, FRAME_PPL_W_BOATS_QUERY_ID)
   ]
@@ -439,6 +479,23 @@ appendAsEAVs(fixture, {
   name: "Boat types",
   description: `It is a long established fact that a reader will be distracted by the readable content of a page when looking at its layout. The point of using Lorem Ipsum is that it has a more-or-less normal distribution of letters, as opposed to using 'Content here, content here', making it look like readable English.`
 }, BLOCK_BOAT_TYPES_ID);
+
+const BOAT_1_ID = uuid();
+const BOAT_2_ID = uuid();
+appendAsEAVs(fixture, {tag: "person", name: "josh", boat: BOAT_1_ID, age: 23, sort: 1});
+appendAsEAVs(fixture, {tag: "person", name: "rafe", boat: BOAT_1_ID, age: 43, sort: 1});
+appendAsEAVs(fixture, {tag: "person", name: "lola", boat: BOAT_2_ID, age: 19, sort: 1});
+
+appendAsEAVs(fixture, {tag: "boat", name: "boaty mcboatface", type: "yacht", sort: 2}, BOAT_1_ID);
+appendAsEAVs(fixture, {tag: "boat", name: "H.M. Surf", type: "dinghy", sort: 2}, BOAT_2_ID);
+
+appendAsEAVs(fixture, {tag: "spiral", ix: 1, x: 0, y: 0});
+appendAsEAVs(fixture, {tag: "spiral", ix: 2, x: 1, y: 0});
+appendAsEAVs(fixture, {tag: "spiral", ix: 3, x: 0, y: 1});
+appendAsEAVs(fixture, {tag: "spiral", ix: 4, x: -1, y: 1});
+appendAsEAVs(fixture, {tag: "spiral", ix: 5, x: -1, y: 0});
+appendAsEAVs(fixture, {tag: "spiral", ix: 6, x: -1, y: -1});
+appendAsEAVs(fixture, {tag: "spiral", ix: 7, x: 0, y: -1});
 
 prog.inputEavs(fixture);
 
