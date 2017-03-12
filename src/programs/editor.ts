@@ -92,7 +92,7 @@ prog
           ]),
           record("ui/row", {editor, sort: 1, class: "editor-block-content"}).add("children", [
             record("editor/block/query", "ui/column", {editor, class: "editor-block-query"}),
-            record("editor/block/canvas", "ui/column", {editor, class: "editor-block-canvas"})
+            record("editor/block/canvas", {editor, class: "editor-block-canvas"})
           ])
         ])
       ])
@@ -203,7 +203,7 @@ prog.block("Populate the block query for the active block.", ({find, record}) =>
     queryElem.add("children", [
       record("ui/row", "editor/block/query-node", {editor, sort: node.sort, node, class: "editor-block-query-node"}).add("children", [
         record("shape/hexagon", {side: 21, thickness: 2, border: "#AAA", background: "white", sort: 0, frame: active_frame, node, class: "editor-block-query-hex"}).add("content", [
-          record("ui/text", {text: node.letter})
+          record("ui/text", {text: node.label, style: record({color: node.color})})
         ]),
         record("ui/column", {sort: 1, frame: active_frame, node, class: "editor-block-query-pattern"}).add("children", [
           record("ui/text", {sort: 0, text: node.queryTag, class: "editor-query-tag"}),
@@ -218,15 +218,6 @@ prog.block("Populate the block query for the active block.", ({find, record}) =>
 // Block Canvas
 //--------------------------------------------------------------------
 
-prog.block("Compute molecules for the active frame.", ({find, record}) => {
-  let editor = find("editor/root");
-  let {node} = editor.active_frame;
-  let atom = find({tag: node.queryTag});
-  return [
-    record("editor/molecule", {editor, node, queryTag: node.queryTag, atom})
-  ];
-});
-
 prog.block("Draw molecules as hex grids of atoms.", ({find, record, lib:{random, math}}) => {
   let canvas_elem = find("editor/block/canvas");
   let {editor} = canvas_elem;
@@ -235,45 +226,24 @@ prog.block("Draw molecules as hex grids of atoms.", ({find, record, lib:{random,
   let {atom} = molecule;
   let {x, y} = find("spiral", {ix: atom.sort})
 
-  let molecule_x = math.round(random.number(`${molecule} x`) * 600);
-  let molecule_y = math.round(random.number(`${molecule} y`) * 400);
+  let molecule_x = math.round(random.number(`${molecule} x`) * 10);
+  let molecule_y = math.round(random.number(`${molecule} y`) * 6);
 
   return [
-    canvas_elem.add("children", [
-      record("editor/molecule/grid", "shape/hex-grid", {side: 30, gap: 3, style: record({
-        position: "absolute",
-        width: 100,
-        height: 100,
-        left: `${molecule_x}px`,
-        top: `${molecule_y}px`
-      })}).add("cell", [
+    canvas_elem.add({
+      tag: "shape/hex-grid",
+      side: 30,
+      gap: 3
+    }),
+    canvas_elem.add("cell", [
+      record("editor/molecule/grid", "shape/hex-grid", {x: molecule_x, y: molecule_y, side: 30, gap: 3}).add("cell", [
         record({atom, x, y, background: "white", thickness: 2, border: "#ccc"}).add("content", [
-          record("ui/text", {text: molecule.node.letter})
+          record("ui/text", {text: atom.node.label, style: record({color: atom.node.color})})
         ])
       ])
     ])
   ];
 })
-
-
-// prog.block("Populate the block canvas with molecules.", ({find, record}) => {
-//   let canvas_elem = find("editor/block/canvas");
-//   let {editor} = canvas_elem;
-
-//   let x = find("range").ix;
-//   let y = find("range").ix;
-
-//   return [
-//     canvas_elem.add("children", [
-//       record("shape/hex-grid", {side: 30, gap: 3}).add("cell", [
-//         record({x, y, background: "white", thickness: 2, border: "#ccc"}).add("content", [
-//           record("ui/text", {text: `${x},${y}`})
-//         ])
-//       ])
-//     ])
-//   ];
-// });
-
 
 //--------------------------------------------------------------------
 // #shape/hexagon
@@ -432,6 +402,22 @@ appendAsEAVs(fixture, {
   ix: [1, 3, 4]
 });
 
+const PERSON_1_ID = uuid();
+const PERSON_2_ID = uuid();
+const PERSON_3_ID = uuid();
+const BOAT_1_ID = uuid();
+const BOAT_2_ID = uuid();
+const BOAT_3_ID = uuid();
+
+appendAsEAVs(fixture, {tag: "person", name: "josh", boat: [BOAT_1_ID, BOAT_3_ID], age: 23}, PERSON_1_ID);
+appendAsEAVs(fixture, {tag: "person", name: "rafe", boat: BOAT_1_ID, age: 43}, PERSON_2_ID);
+appendAsEAVs(fixture, {tag: "person", name: "lola", boat: BOAT_2_ID, age: 19}, PERSON_3_ID);
+
+appendAsEAVs(fixture, {tag: "boat", name: "boaty mcboatface", type: "yacht"}, BOAT_1_ID);
+appendAsEAVs(fixture, {tag: "boat", name: "H.M. Surf", type: "dinghy"}, BOAT_2_ID);
+appendAsEAVs(fixture, {tag: "boat", name: "No Life Raft", type: "dinghy"}, BOAT_3_ID);
+
+
 appendAsEAVs(fixture, {
   name: "Marina"
 }, TAG_MARINA_ID);
@@ -453,18 +439,27 @@ appendAsEAVs(fixture, {
       sort: 1,
       node: [
         appendAsEAVs([], {
-          tag: "editor/query-node",
+          tag: ["editor/query-node"],
           type: "join",
           sort: 1,
-          letter: "P",
+          label: "P",
+          color: "#6c86ff",
           queryTag: "person",
-          queryField: ["name", "age", "boat"]
+          queryField: ["name", "age", "boat"],
+
+          join: [
+            appendAsEAVs([], {
+              attribute: "boat",
+              other_node: NODE_BOAT_ID
+            })
+          ]
         }, NODE_PERSON_ID),
         appendAsEAVs([], {
           tag: "editor/query-node",
           type: "join",
           sort: 1,
-          letter: "B",
+          label: "B",
+          color: "#9926ea",
           queryTag: "boat",
           queryField: ["name", "type"]
         }, NODE_BOAT_ID)
@@ -474,20 +469,42 @@ appendAsEAVs(fixture, {
 }, BLOCK_PPL_W_BOATS_ID);
 
 appendAsEAVs(fixture, {
+  tag: "editor/molecule",
+  editor: EDITOR_ID,
+  node: NODE_PERSON_ID,
+  atom: [
+    appendAsEAVs([], {tag: "editor/atom", sort: 1, node: NODE_PERSON_ID, record: PERSON_1_ID}),
+    appendAsEAVs([], {tag: "editor/atom", sort: 2, node: NODE_BOAT_ID, record: BOAT_1_ID}),
+    appendAsEAVs([], {tag: "editor/atom", sort: 3, node: NODE_BOAT_ID, record: BOAT_3_ID}),
+  ]
+}),
+
+appendAsEAVs(fixture, {
+  tag: "editor/molecule",
+  editor: EDITOR_ID,
+  node: NODE_PERSON_ID,
+  atom: [
+    appendAsEAVs([], {tag: "editor/atom", sort: 1, node: NODE_PERSON_ID, record: PERSON_2_ID}),
+    appendAsEAVs([], {tag: "editor/atom", sort: 2, node: NODE_BOAT_ID, record: BOAT_1_ID}),
+  ]
+})
+
+appendAsEAVs(fixture, {
+  tag: "editor/molecule",
+  editor: EDITOR_ID,
+  node: NODE_PERSON_ID,
+  atom: [
+    appendAsEAVs([], {tag: "editor/atom", sort: 1, node: NODE_PERSON_ID, record: PERSON_3_ID}),
+    appendAsEAVs([], {tag: "editor/atom", sort: 2, node: NODE_BOAT_ID, record: BOAT_2_ID}),
+  ]
+})
+
+appendAsEAVs(fixture, {
   tag: "editor/block",
   nav_tag: TAG_MARINA_ID,
   name: "Boat types",
-  description: `It is a long established fact that a reader will be distracted by the readable content of a page when looking at its layout. The point of using Lorem Ipsum is that it has a more-or-less normal distribution of letters, as opposed to using 'Content here, content here', making it look like readable English.`
+  description: `It is a long established fact that a reader will be distracted by the readable content of a page when looking at its layout. The point of using Lorem Ipsum is that it has a more-or-less normal distribution of labels, as opposed to using 'Content here, content here', making it look like readable English.`
 }, BLOCK_BOAT_TYPES_ID);
-
-const BOAT_1_ID = uuid();
-const BOAT_2_ID = uuid();
-appendAsEAVs(fixture, {tag: "person", name: "josh", boat: BOAT_1_ID, age: 23, sort: 1});
-appendAsEAVs(fixture, {tag: "person", name: "rafe", boat: BOAT_1_ID, age: 43, sort: 1});
-appendAsEAVs(fixture, {tag: "person", name: "lola", boat: BOAT_2_ID, age: 19, sort: 1});
-
-appendAsEAVs(fixture, {tag: "boat", name: "boaty mcboatface", type: "yacht", sort: 2}, BOAT_1_ID);
-appendAsEAVs(fixture, {tag: "boat", name: "H.M. Surf", type: "dinghy", sort: 2}, BOAT_2_ID);
 
 appendAsEAVs(fixture, {tag: "spiral", ix: 1, x: 0, y: 0});
 appendAsEAVs(fixture, {tag: "spiral", ix: 2, x: 1, y: 0});
