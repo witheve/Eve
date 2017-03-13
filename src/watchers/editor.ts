@@ -172,9 +172,9 @@ class EditorWatcher extends Watcher {
       })
 
       .block("Populate nav tags with the blocks that have them.", ({find, choose, record}) => {
-        let tagElem = find("editor/nav/tag");
-        let block = tagElem.editor.block;
-        block.nav_tag == tagElem.nav_tag;
+        let tag = find("editor/nav/tag");
+        let block = tag.editor.block;
+        block.nav_tag == tag.nav_tag;
 
         let [name] = choose(
           () => block.name,
@@ -182,8 +182,8 @@ class EditorWatcher extends Watcher {
         );
 
         return [
-          tagElem.add("children", [
-            record("editor/nav/block", "ui/text", {editor: tagElem.editor, nav_tag: tagElem.nav_tag, block, text: name, sort: name})
+          tag.add("children", [
+            record("editor/nav/block", "ui/text", {editor: tag.editor, nav_tag: tag.nav_tag, block, text: name, sort: name})
           ])
         ];
       });
@@ -194,16 +194,16 @@ class EditorWatcher extends Watcher {
 
     editor
       .block("Populate the block description for the active block.", ({find, choose, record}) => {
-        let descriptionElem = find("editor/block/description");
-        let active_block = descriptionElem.editor.active_block;
+        let description = find("editor/block/description");
+        let active_block = description.editor.active_block;
 
         let [name] = choose(() => active_block.name, () => "Untitled Block");
-        let [description] = choose(() => active_block.description, () => "");
+        let [text] = choose(() => active_block.description, () => "");
 
         return [
-          descriptionElem.add("children", [
+          description.add("children", [
             record("ui/text", {sort: 0, text: name, class: "editor-block-title"}),
-            record("ui/text", {sort: 1, text: description})
+            record("ui/text", {sort: 1, text})
           ])
         ];
       });
@@ -214,12 +214,12 @@ class EditorWatcher extends Watcher {
 
     editor
       .block("Populate the block storyboard for the active block.", ({find, record}) => {
-        let storyboardElem = find("editor/block/storyboard");
-        let {editor} = storyboardElem;
+        let storyboard = find("editor/block/storyboard");
+        let {editor} = storyboard;
         let {active_block} = editor;
         let frame = active_block.storyboard;
         return [
-          storyboardElem.add("children", [
+          storyboard.add("children", [
             record("editor/block/frame", "ui/column", {editor, sort: frame.sort, frame}).add("children", [
               record("ui/text", {text: frame.type})
             ])
@@ -228,11 +228,11 @@ class EditorWatcher extends Watcher {
       })
 
       .block("Add a 'new frame' button to the storyboard.", ({find, record}) => {
-        let storyboardElem = find("editor/block/storyboard");
-        let {editor} = storyboardElem;
+        let storyboard = find("editor/block/storyboard");
+        let {editor} = storyboard;
         let {active_block} = editor;
         return [
-          storyboardElem.add("children", [
+          storyboard.add("children", [
             record("editor/new-frame", "editor/block/frame", "ui/column", {editor, sort: Infinity})
           ])
         ];
@@ -250,12 +250,12 @@ class EditorWatcher extends Watcher {
         let {node} = active_frame;
         return [
           query_elem.add("children", [
-            record("ui/row", "editor/query/node", {editor, sort: node.sort, node}).add("children", [
-              record("shape/hexagon", {side: 21, thickness: 2, border: "#AAA", background: "white", sort: 0, frame: active_frame, node, class: "editor-query-hex"}).add("content", [
+            record("editor/query/node", "ui/row", {editor, sort: node.sort, node}).add("children", [
+              record("editor/query/hex", "shape/hexagon", {side: 21, thickness: 2, border: "#AAA", background: "white", sort: 0, frame: active_frame, node}).add("content", [
                 record("ui/text", {text: node.label, style: record({color: node.color})})
               ]),
               record("editor/query/pattern", "ui/column", {sort: 1, frame: active_frame, node}).add("children", [
-                record("ui/text", {sort: 0, text: node.queryTag, class: "editor-query-tag"}),
+                record("ui/text", {sort: 0, text: node.query_tag, class: "editor-query-tag"}),
               ])
             ])
           ])
@@ -267,7 +267,7 @@ class EditorWatcher extends Watcher {
         let {node} = query_pattern;
         return [
           query_pattern.add("children", [
-            record("ui/text", {sort: node.queryField, text: node.queryField, class: "editor-query-field"})
+            record("ui/text", {sort: node.query_field, text: node.query_field, class: "editor-query-field"})
           ])
         ];
       })
@@ -338,8 +338,8 @@ class EditorWatcher extends Watcher {
               sort: ix,
               label: string.uppercase(string.get(client_tag, 1)),
               color,//: "gray",
-              queryTag: client_tag,
-              // queryField: "name"
+              query_tag: client_tag,
+              // query_field: "name"
             })
           ])
         ];
@@ -444,8 +444,8 @@ class EditorWatcher extends Watcher {
             //   sort: 1,
             //   label: "P",
             //   color: "#6c86ff",
-            //   queryTag: "person",
-            //   queryField: ["name", "age", "boat"],
+            //   query_tag: "person",
+            //   query_field: ["name", "age", "boat"],
 
             //   join: [
             //     appendAsEAVs([], {
@@ -460,8 +460,8 @@ class EditorWatcher extends Watcher {
             //   sort: 1,
             //   label: "B",
             //   color: "#9926ea",
-            //   queryTag: "boat",
-            //   queryField: ["name", "type"]
+            //   query_tag: "boat",
+            //   query_field: ["name", "type"]
             // }, NODE_BOAT_ID)
           ]
         }, FRAME_PPL_W_BOATS_QUERY_ID)
