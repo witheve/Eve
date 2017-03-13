@@ -101,10 +101,25 @@ class EditorWatcher extends Watcher {
     let {editor, program} = this;
 
     this.program
-      .watch("Export all tags", ({find, record}) => {
+      .watch("Export all tags.", ({find, lib:{string}, not, record}) => {
         let rec = find();
+        let {tag} = rec;
+        not(() => string.index_of(tag, "editor/") == 0);
         return [
-          record("client_tag", {"client_tag": rec.tag})
+          record("client_tag", {"client_tag": tag})
+        ];
+      })
+      .asDiffs(forwardDiffs(editor))
+
+      .watch("Send the editor attributes on records matching the tag.", ({find, lookup, record}) => {
+        let attributes_from_tag = find("editor/attributes-from-tag");
+        let rec = find({tag: attributes_from_tag.query_tag});
+        let {attribute} = lookup(rec);
+        return [
+          attributes_from_tag
+            .add("tag", "editor/attributes-from-tag")
+            .add("query_tag", attributes_from_tag.query_tag)
+            .add("attribute", attribute)
         ];
       })
       .asDiffs(forwardDiffs(editor))
@@ -268,6 +283,35 @@ class EditorWatcher extends Watcher {
         return [
           query_pattern.add("children", [
             record("ui/text", {sort: node.query_field, text: node.query_field, class: "editor-query-field"})
+          ])
+        ];
+      })
+
+      .commit("Clicking a query hex opens the add attribute menu", ({find, record}) => {
+        let query_hex = find("editor/query/hex");
+        let click = find("html/event/click", {element: query_hex});
+        let {frame, node} = query_hex;
+        let query_node = find("editor/query/node", {node});
+        return [
+          query_node.add("new-attribute", "true")
+        ];
+      })
+      .watch("If a query node is adding an attribute, request attributes matching its tag from the client.", ({find, record}) => {
+        let query_node = find("editor/query/node", {"new-attribute": "true"});
+        let {node} = query_node;
+        return [record("editor/attributes-from-tag", {query_tag: node.query_tag})];
+      })
+      .asDiffs(forwardDiffs(this.program))
+
+      .block("When a query node is in the new attribute state, show all the attributes matching its tag", ({find, record}) => {
+        let query_node = find("editor/query/node", {"new-attribute": "true"});
+        let {node} = query_node;
+        let query_pattern = find("editor/query/pattern");
+        query_node.children == query_pattern;
+        let attribute = find("editor/attributes-from-tag", {query_tag: node.query_tag}).attribute;
+        return [
+          query_pattern.add("children", [
+            record("ui/text", {text: attribute})
           ])
         ];
       })
