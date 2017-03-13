@@ -1385,6 +1385,7 @@ class AggregateBuilder {
     for(let arg of args) {
       this.group.push(arg);
     }
+    return this;
   }
 
   checkBlock() {
@@ -1392,13 +1393,13 @@ class AggregateBuilder {
     if(active !== this.context) throw new Error("Cannot gather in one scope and aggregate in another");
   }
 
-  sum(value:Reference) {
+  sum(value:Reference):any {
     this.checkBlock();
     let agg = new Aggregate(this.context, Runtime.SumAggregate, this.projection, this.group, [value]);
     return agg.reference();
   }
 
-  count() {
+  count():any {
     this.checkBlock();
     let agg = new Aggregate(this.context, Runtime.SumAggregate, this.projection, this.group, [1]);
     return agg.reference();
