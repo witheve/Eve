@@ -259,8 +259,7 @@ makeFunction({
   args: {text: "string", substring: "string"},
   returns: {result: "number"},
   apply: function(text:string, substring:string) {
-    let ix = text.indexOf(substring);
-    console.log(text, substring, ix);
+    let ix = (""+text).indexOf(substring);
     if(ix == -1) return;
     return [ix];
   }
