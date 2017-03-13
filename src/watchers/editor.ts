@@ -282,7 +282,9 @@ class EditorWatcher extends Watcher {
         let {node} = query_pattern;
         return [
           query_pattern.add("children", [
-            record("ui/text", {sort: node.query_field, text: node.query_field, class: "editor-query-field"})
+            record("ui/column", {node,  sort: 2}).add("children", [
+              record("ui/text", {sort: node.query_field, text: node.query_field, class: "editor-query-field"})
+            ])
           ])
         ];
       })
@@ -290,7 +292,7 @@ class EditorWatcher extends Watcher {
       .commit("Clicking a query hex opens the add attribute menu", ({find, record}) => {
         let query_hex = find("editor/query/hex");
         let click = find("html/event/click", {element: query_hex});
-        let {frame, node} = query_hex;
+        let {node} = query_hex;
         let query_node = find("editor/query/node", {node});
         return [
           query_node.add("new-attribute", "true")
@@ -311,8 +313,19 @@ class EditorWatcher extends Watcher {
         let attribute = find("editor/attributes-from-tag", {query_tag: node.query_tag}).attribute;
         return [
           query_pattern.add("children", [
-            record("ui/text", {text: attribute})
+            record("editor/query/node/new-attribute", "ui/text", {text: attribute, sort: attribute, attribute, node})
           ])
+        ];
+      })
+
+      .commit("Clicking a new attribute in a query node adds it.", ({find, record}) => {
+        let new_attribute = find("editor/query/node/new-attribute");
+        let click = find("html/event/click", {element: new_attribute});
+        let {node, attribute} = new_attribute;
+        let query_node = find("editor/query/node", {node});
+        return [
+          node.add("query_field", attribute),
+          query_node.remove("new-attribute")
         ];
       })
 
