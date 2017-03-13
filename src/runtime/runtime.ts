@@ -1604,7 +1604,7 @@ export class JoinNode extends Node {
     // rounds might overwrite the proposal
     moveArray(bestProposal.forRegisters.array, forRegisters);
     let resolved:any[] = proposer.resolveProposal(context, prefix, bestProposal, transaction, round, proposedResults);
-    if(resolved[0].constructor === Array) {
+    if(resolved[0] && resolved[0].constructor === Array) {
       resultLoop: for(let result of resolved) {
         let ix = 0;
         for(let register of forRegisters) {
