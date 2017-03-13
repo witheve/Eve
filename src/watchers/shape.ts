@@ -117,8 +117,6 @@ class ShapeWatcher extends Watcher {
         hex_grid.add({tag: "html/element", tagname: "div", class: "shape-hex-grid"}),
         hex_grid.add("children", [
           cell.add({
-            tag: "shape/hexagon",
-            side,
             style: record({position: "absolute", left: x, top: y})
           })
         ])

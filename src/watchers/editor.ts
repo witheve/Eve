@@ -344,15 +344,18 @@ class EditorWatcher extends Watcher {
         let molecule_x = math.round(random.number(`${molecule} x`) * 8);
         let molecule_y = math.round(random.number(`${molecule} y`) * 5);
 
+        let side = 30;
+        let gap = 3;
+
         return [
           canvas_elem.add({
             tag: "shape/hex-grid",
-            side: 30,
-            gap: 3
+            side,
+            gap: gap
           }),
           canvas_elem.add("cell", [
-            record("editor/molecule/grid", "shape/hex-grid", {x: molecule_x, y: molecule_y, side: 30, gap: 3}).add("cell", [
-              record({atom, x, y, background: "white", thickness: 2, border: "#ccc"}).add("content", [
+            record("editor/molecule/grid", "shape/hex-grid", {x: molecule_x, y: molecule_y, side, gap: gap}).add("cell", [
+              record("shape/hexagon", {atom, side, x, y, background: "white", thickness: 2, border: "#ccc"}).add("content", [
                 record("ui/text", {text: atom.node.label, style: record({color: atom.node.color})})
               ])
             ])
