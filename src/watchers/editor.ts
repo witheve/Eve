@@ -2,7 +2,7 @@
 // Flappy
 //--------------------------------------------------------------------
 
-import {Watcher, Program, RawMap, RawValue, RawEAV} from "../watchers/watcher";
+import {Watcher, Program, RawMap, RawValue, RawEAV, forwardDiffs} from "../watchers/watcher";
 import {v4 as uuid} from "node-uuid";
 
 //--------------------------------------------------------------------
@@ -100,6 +100,15 @@ class EditorWatcher extends Watcher {
     this.editor = this.createEditor();
     let {editor, program} = this;
 
+    this.program
+      .watch("Export all tags", ({find, record}) => {
+        let rec = find();
+        return [
+          record("client_tag", {"client_tag": rec.tag})
+        ];
+      })
+      .asDiffs(forwardDiffs(editor))
+
     this.initEditor();
     this.fixtureClient();
     this.fixtureEditor();
@@ -110,8 +119,7 @@ class EditorWatcher extends Watcher {
     editor.attach("ui");
     editor.attach("shape");
 
-
-        //--------------------------------------------------------------------
+    //--------------------------------------------------------------------
     // Root UI
     //--------------------------------------------------------------------
 
@@ -250,6 +258,71 @@ class EditorWatcher extends Watcher {
             ])
           ])
         ];
+      })
+
+      .block("The query always has a new node button", ({find, record}) => {
+        let queryElem = find("editor/block/query");
+        let {editor} = queryElem;
+        let {active_frame} = editor;
+
+        return [
+          queryElem.add("children", [
+            record("ui/row", "editor/block/new-query-node", {sort: 9999, frame: active_frame}).add("children", [
+              record("shape/hexagon", {side: 21, thickness: 2, border: "#AAA", background: "white", class: ["editor-block-query-hex"]}).add("content", [
+                record("ui/text", {text: "+", style: record({color: "#AAA", "font-weight": 500})})
+              ]),
+            ])
+          ])
+        ];
+      })
+
+      .commit("Clicking on the new node button opens it.", ({find, not, record}) => {
+        let new_node_button = find("editor/block/new-query-node");
+        not(() => new_node_button.open == "true");
+        let click = find("html/event/click", {element: new_node_button});
+        return [
+          new_node_button.add("open", "true")
+        ];
+      })
+
+      .block("When the new node button is open, display a list of the clients tags.", ({find, record}) => {
+        let new_node_button = find("editor/block/new-query-node", {open: "true"});
+        let tag = find("client_tag").client_tag;
+        return [
+          new_node_button.add("children", [
+            record("ui/column", {sort: 1}).add("children", [
+              record("ui/text", "editor/new-node-tag", {text: tag, sort: tag, client_tag: tag, new_node_button})
+            ])
+          ])
+        ];
+      })
+
+      .commit("Clicking on a new node tag adds it as a node to the query.", ({find, gather, choose, record}) => {
+        let new_node_tag = find("editor/new-node-tag");
+        let {new_node_button} = new_node_tag;
+        let {frame} = new_node_button;
+        let click = find("html/event/click", {element: new_node_tag});
+
+        // @FIXME: aggregate in choose is busted.
+        // let [count] = choose(
+        //   () => gather(frame.node).count(),
+        //   () => 0
+        // );
+        let count:any = gather(frame.node).count();
+
+        return [
+          new_node_button.remove("open"),
+          frame.add("node", [
+            record("editor/query-node", "editor/root-node", {
+              type: "join",
+              sort: count + 1,
+              label: "?",
+              color: "gray",
+              queryTag: new_node_tag.client_tag,
+              queryField: "name"
+            })
+          ])
+        ];
       });
 
     //--------------------------------------------------------------------
@@ -265,8 +338,8 @@ class EditorWatcher extends Watcher {
         let {atom} = molecule;
         let {x, y} = find("spiral", {ix: atom.sort})
 
-        let molecule_x = math.round(random.number(`${molecule} x`) * 10);
-        let molecule_y = math.round(random.number(`${molecule} y`) * 6);
+        let molecule_x = math.round(random.number(`${molecule} x`) * 8);
+        let molecule_y = math.round(random.number(`${molecule} y`) * 5);
 
         return [
           canvas_elem.add({
