@@ -222,7 +222,6 @@ makeFunction({
   returns: {result: "string"},
   apply: function(text:string, replace:string, _with:string) {
     let result = text.split(replace).join(_with);
-    console.log(text, "->", result);
     return [result];
   }
 });
