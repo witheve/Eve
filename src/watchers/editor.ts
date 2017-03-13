@@ -307,11 +307,11 @@ class EditorWatcher extends Watcher {
         let click = find("html/event/click", {element: new_node_tag});
 
         // @FIXME: aggregate in choose is busted.
-        // let [count] = choose(
-        //   () => gather(frame.node).count(),
-        //   () => 0
-        // );
-        let count:any = gather(frame.node).count();
+        let [count] = choose(
+          () => gather(frame.node).count(),
+          () => 0
+        );
+        // let count:any = gather(frame.node).count();
 
         return [
           new_node_button.remove("open"),
@@ -412,31 +412,31 @@ class EditorWatcher extends Watcher {
           type: "query",
           sort: 1,
           node: [
-            appendAsEAVs([], {
-              tag: ["editor/query-node"],
-              type: "join",
-              sort: 1,
-              label: "P",
-              color: "#6c86ff",
-              queryTag: "person",
-              queryField: ["name", "age", "boat"],
+            // appendAsEAVs([], {
+            //   tag: ["editor/query-node"],
+            //   type: "join",
+            //   sort: 1,
+            //   label: "P",
+            //   color: "#6c86ff",
+            //   queryTag: "person",
+            //   queryField: ["name", "age", "boat"],
 
-              join: [
-                appendAsEAVs([], {
-                  attribute: "boat",
-                  other_node: NODE_BOAT_ID
-                })
-              ]
-            }, NODE_PERSON_ID),
-            appendAsEAVs([], {
-              tag: "editor/query-node",
-              type: "join",
-              sort: 1,
-              label: "B",
-              color: "#9926ea",
-              queryTag: "boat",
-              queryField: ["name", "type"]
-            }, NODE_BOAT_ID)
+            //   join: [
+            //     appendAsEAVs([], {
+            //       attribute: "boat",
+            //       other_node: NODE_BOAT_ID
+            //     })
+            //   ]
+            // }, NODE_PERSON_ID),
+            // appendAsEAVs([], {
+            //   tag: "editor/query-node",
+            //   type: "join",
+            //   sort: 1,
+            //   label: "B",
+            //   color: "#9926ea",
+            //   queryTag: "boat",
+            //   queryField: ["name", "type"]
+            // }, NODE_BOAT_ID)
           ]
         }, FRAME_PPL_W_BOATS_QUERY_ID)
       ]
