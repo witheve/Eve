@@ -254,6 +254,18 @@ makeFunction({
   }
 });
 
+makeFunction({
+  name: "string/index_of",
+  args: {text: "string", substring: "string"},
+  returns: {result: "number"},
+  apply: function(text:string, substring:string) {
+    let ix = text.indexOf(substring);
+    console.log(text, substring, ix);
+    if(ix == -1) return;
+    return [ix];
+  }
+});
+
 
 //--------------------------------------------------------------------
 // Random
