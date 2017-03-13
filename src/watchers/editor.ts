@@ -70,23 +70,23 @@ function appendAsEAVs(eavs:any[], record: Attrs, id = uuid()) {
 // Fixture constants
 //--------------------------------------------------------------------
 
-const EDITOR_ID = uuid();
-const STYLE_ID = uuid();
+const EDITOR_ID = `|${uuid()}`;
+const STYLE_ID = `|${uuid()}`;
 
-const TAG_MARINA_ID = uuid();
-const TAG_MARINARA_ID = uuid();
-const BLOCK_PPL_W_BOATS_ID = uuid();
-const NODE_PERSON_ID = uuid();
-const NODE_BOAT_ID = uuid();
-const BLOCK_BOAT_TYPES_ID = uuid();
-const FRAME_PPL_W_BOATS_QUERY_ID = uuid();
+const TAG_MARINA_ID = `|${uuid()}`;
+const TAG_MARINARA_ID = `|${uuid()}`;
+const BLOCK_PPL_W_BOATS_ID = `|${uuid()}`;
+const NODE_PERSON_ID = `|${uuid()}`;
+const NODE_BOAT_ID = `|${uuid()}`;
+const BLOCK_BOAT_TYPES_ID = `|${uuid()}`;
+const FRAME_PPL_W_BOATS_QUERY_ID = `|${uuid()}`;
 
-const PERSON_1_ID = uuid();
-const PERSON_2_ID = uuid();
-const PERSON_3_ID = uuid();
-const BOAT_1_ID = uuid();
-const BOAT_2_ID = uuid();
-const BOAT_3_ID = uuid();
+const PERSON_1_ID = `|${uuid()}`;
+const PERSON_2_ID = `|${uuid()}`;
+const PERSON_3_ID = `|${uuid()}`;
+const BOAT_1_ID = `|${uuid()}`;
+const BOAT_2_ID = `|${uuid()}`;
+const BOAT_3_ID = `|${uuid()}`;
 
 //--------------------------------------------------------------------
 // Watcher
@@ -113,16 +113,42 @@ class EditorWatcher extends Watcher {
 
       .watch("Send the editor attributes on records matching the tag.", ({find, lookup, record}) => {
         let attributes_from_tag = find("editor/attributes-from-tag");
-        let rec = find({tag: attributes_from_tag.query_tag});
+        let {query_tag} = attributes_from_tag;
+        let rec = find({tag: query_tag});
         let {attribute} = lookup(rec);
+
         return [
-          attributes_from_tag
-            .add("tag", "editor/attributes-from-tag")
-            .add("query_tag", attributes_from_tag.query_tag)
-            .add("attribute", attribute)
+          attributes_from_tag.add({tag: "editor/attributes-from-tag", query_tag, attribute})
         ];
       })
       .asDiffs(forwardDiffs(editor))
+
+      .watch("Send the editor attributes on records matching the parent's children.", ({find, lookup, record}) => {
+        let attributes_from_parent = find("editor/attributes-from-parent");
+        let {parent_tag, parent_attribute} = attributes_from_parent;
+        let parent = find({tag: parent_tag});
+        let {attribute:par_attr, value:rec} = lookup(parent);
+        parent_attribute == par_attr;
+        let {attribute} = lookup(rec);
+
+        return [
+          attributes_from_parent.add({tag: "editor/attributes-from-parent", parent_tag, parent_attribute, attribute})
+        ];
+      })
+      .asDiffs(forwardDiffs(editor))
+
+      // @FIXME: Quick hack to get things running.
+      .watch("Attributes with a | are ids.", ({find, lookup, lib:{string}, record}) => {
+        let attributes_from_tag = find("editor/attributes-from-tag");
+        let {query_tag} = attributes_from_tag;
+        let rec = find({tag: query_tag});
+        let {attribute, value} = lookup(rec);
+        string.index_of(value, "|");
+        return [
+          attributes_from_tag.add("record_attribute", attribute)
+        ];
+      })
+      .asDiffs(forwardDiffs(editor));
 
     this.initEditor();
     this.fixtureClient();
@@ -258,21 +284,46 @@ class EditorWatcher extends Watcher {
     //--------------------------------------------------------------------
 
     editor
-      .block("Populate the block query for the active block.", ({find, record}) => {
+      .block("Populate the block query for the active block.", ({find, union, record}) => {
         let query_elem = find("editor/block/query");
         let {editor} = query_elem;
         let {active_frame} = editor;
         let {node} = active_frame;
+
+        let [main_pattern] = union(
+          () => node.query_tag,
+          () => node.parent_attribute
+        );
+
         return [
-          query_elem.add("children", [
-            record("editor/query/node", "ui/row", {editor, sort: node.sort, node}).add("children", [
-              record("editor/query/hex", "shape/hexagon", {side: 21, thickness: 2, border: "#AAA", background: "white", sort: 0, frame: active_frame, node}).add("content", [
-                record("ui/text", {text: node.label, style: record({color: node.color})})
-              ]),
-              record("editor/query/pattern", "ui/column", {sort: 1, frame: active_frame, node}).add("children", [
-                record("ui/text", {sort: 0, text: node.query_tag, class: "editor-query-tag"}),
-              ])
+          record("editor/query/node", "ui/row", {editor, sort: node.sort, node, frame: active_frame}).add("children", [
+            record("editor/query/hex", "shape/hexagon", {side: 21, thickness: 2, border: "#AAA", background: "white", sort: 0, frame: active_frame, node}).add("content", [
+              record("ui/text", {text: node.label, style: record({color: node.color})})
+            ]),
+            record("editor/query/pattern", "ui/column", {sort: 1, frame: active_frame, node}).add("children", [
+              record("ui/text", {sort: 0, text: main_pattern, class: "editor-query-tag"}),
             ])
+          ])
+        ];
+      })
+
+      .block("Query root nodes are children of the query.", ({find, union, record}) => {
+        let query_elem = find("editor/block/query");
+        let root_node = find("editor/query/node", {editor: query_elem.editor, node: find("editor/root-node")});
+        return [
+          query_elem.add("children", root_node)
+        ];
+      })
+
+      .block("Non-root nodes are children of their parent node.", ({find, union, record}) => {
+        let query_elem = find("editor/block/query");
+        let subnode = find("editor/query/node", {editor: query_elem.editor});
+        let {node} = subnode;
+        let {parent_node} = node;
+        let parent_pattern = find("editor/query/pattern", {node: parent_node});
+        return [
+          parent_pattern.add("children", [
+            record("ui/column", {node, sort: 3, class: "editor-query-subnode"}).add("children", subnode)
           ])
         ];
       })
@@ -318,12 +369,30 @@ class EditorWatcher extends Watcher {
       })
       .asDiffs(forwardDiffs(this.program))
 
-      .block("When a query node is in the new attribute state, show all the attributes matching its tag", ({find, record}) => {
+      .watch("If a query node is adding an attribute, request attributes matching its position in the hierarchy.", ({find, record}) => {
+        let query_node = find("editor/query/node", {"new-attribute": "true"});
+        let {node} = query_node;
+        return [record("editor/attributes-from-parent", {parent_tag: node.parent_node.query_tag, parent_attribute: node.parent_attribute})];
+      })
+      .asDiffs(forwardDiffs(this.program))
+
+
+      .block("When a query node is in the new attribute state, show all the attributes matching its tag", ({find, choose, record}) => {
         let query_node = find("editor/query/node", {"new-attribute": "true"});
         let {node} = query_node;
         let query_pattern = find("editor/query/pattern");
         query_node.children == query_pattern;
-        let attribute = find("editor/attributes-from-tag", {query_tag: node.query_tag}).attribute;
+        let [attribute] = choose(
+          () => {
+            let {attribute} = find("editor/attributes-from-tag", {query_tag: node.query_tag});
+            return [attribute];
+          },
+          () => {
+            let {attribute} = find("editor/attributes-from-parent", {parent_tag: node.parent_node.query_tag, parent_attribute: node.parent_attribute});
+            return [attribute];
+          },
+        );
+
         return [
           query_pattern.add("children", [
             record("editor/query/node/new-attribute", "ui/text", {text: attribute, sort: attribute, attribute, node})
@@ -331,13 +400,45 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .commit("Clicking a new attribute in a query node adds it.", ({find, record}) => {
+      .commit("Clicking a new attribute in a query node adds it.", ({find, not, record}) => {
         let new_attribute = find("editor/query/node/new-attribute");
         let click = find("html/event/click", {element: new_attribute});
         let {node, attribute} = new_attribute;
         let query_node = find("editor/query/node", {node});
+        not(() => find("editor/attributes-from-tag", {query_tag: node.query_tag, record_attribute: attribute}))
         return [
           node.add("query_field", attribute),
+          query_node.remove("new-attribute")
+        ];
+      })
+
+      .commit("Clicking a new record attribute in a query node adds it as a sub-node.", ({find, gather, lib:{string}, choose, record}) => {
+        let new_attribute = find("editor/query/node/new-attribute");
+        let click = find("html/event/click", {element: new_attribute});
+        let {node, attribute} = new_attribute;
+        let query_node = find("editor/query/node", {node});
+
+        find("editor/attributes-from-tag", {query_tag: node.query_tag, record_attribute: attribute});
+
+        let [ix] = choose(() => {
+          let frame = query_node.frame;
+          return [gather(frame.node).count() + 1];
+        }, () => 1);
+        let color = choose(() => find("node-color", {ix}).color, () => "gray");
+
+        return [
+          node.add("query_subnode", attribute),
+          query_node.frame.add("node", [
+            record("editor/query-node", "editor/subnode", {
+              type: "join",
+              sort: ix,
+              label: string.uppercase(string.get(attribute, 1)),
+              color,//: "gray",
+              parent_attribute: attribute,
+              parent_node: node,
+              // query_field: "name"
+            })
+          ]),
           query_node.remove("new-attribute")
         ];
       })
