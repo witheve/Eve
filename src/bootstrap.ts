@@ -18,41 +18,42 @@ function verifyIO(assert:any, progName:string, inputString:string, expecteds:tes
 }
 
 let prog = new Program("test");
+prog.attach("editor");
 
-function doIt() {
-  let prog = new Program("test program");
-  prog.attach("tag browser");
-  console.log(prog);
-  prog.test(0, [
-    [1, "tag", "person"],
-    [1, "name", "jeff"],
 
-    [2, "tag", "person"],
-    [2, "name", "sandra"],
-    [2, "pet", 3],
+// function doIt() {
+//   let prog = new Program("test program");
+//   prog.attach("tag browser");
+//   console.log(prog);
+//   prog.test(0, [
+//     [1, "tag", "person"],
+//     [1, "name", "jeff"],
 
-    [3, "tag", "pet"],
-    [3, "tag", "dog"],
-    [3, "name", "bert"],
+//     [2, "tag", "person"],
+//     [2, "name", "sandra"],
+//     [2, "pet", 3],
 
-    [4, "tag", "person"],
-    [4, "name", "rachel"],
-    [4, "pet", 5],
-    [4, "pet", 6],
+//     [3, "tag", "pet"],
+//     [3, "tag", "dog"],
+//     [3, "name", "bert"],
 
-    [5, "tag", "pet"],
-    [5, "tag", "cat"],
-    [5, "name", "Felicia"],
+//     [4, "tag", "person"],
+//     [4, "name", "rachel"],
+//     [4, "pet", 5],
+//     [4, "pet", 6],
 
-    [6, "tag", "pet"],
-    [6, "tag", "cat"],
-    [6, "name", "Mr. Whiskers"]
-  ]);
-}
-(global as any).doIt = doIt;
+//     [5, "tag", "pet"],
+//     [5, "tag", "cat"],
+//     [5, "name", "Felicia"],
+
+//     [6, "tag", "pet"],
+//     [6, "tag", "cat"],
+//     [6, "name", "Mr. Whiskers"]
+//   ]);
+// }
+// (global as any).doIt = doIt;
 
 
 // doIt();
 // import "./programs/flappy";
 // import "./programs/hover";
-import "./programs/editor";

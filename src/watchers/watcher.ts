@@ -1,5 +1,5 @@
 export {RawValue, RawEAV, RawEAVC} from "../runtime/runtime";
-import {ID, RawValue, RawEAV, Change, createArray, ExportHandler} from "../runtime/runtime";
+import {ID, RawValue, RawEAV, RawEAVC, Change, createArray, ExportHandler} from "../runtime/runtime";
 export {Program} from "../runtime/dsl2";
 import {Program, LinearFlowFunction} from "../runtime/dsl2";
 import * as glob from "glob";
@@ -129,6 +129,26 @@ export class Exporter {
       }
     }
   }
+}
+
+//------------------------------------------------------------------------------
+// Convenience Diff Handlers
+//------------------------------------------------------------------------------
+
+
+export function forwardDiffs(destination:Program) {
+  return (diffs:EAVDiffs) => {
+    let eavs:RawEAVC[] = [];
+    for(let [e, a, v] of diffs.removes) {
+      eavs.push([e, a, v, -1]);
+    }
+    for(let [e, a, v] of diffs.adds) {
+      eavs.push([e, a, v, 1]);
+    }
+    if(eavs.length) {
+      destination.inputEavs(eavs);
+    }
+  };
 }
 
 //------------------------------------------------------------------------------
