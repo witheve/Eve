@@ -1,14 +1,19 @@
 import {Program} from "../runtime/dsl2";
+import * as compiler from "../watchers/compiler"
 
 let prog = new Program("compiler test");
 prog.attach("compiler");
 prog.attach("ui");
 
 
+compiler.registerWatcherFunction("foo", ({adds, removes}) => {
+  console.log("yo", adds, removes);
+})
+
 // v1 = [#eve/compiler/var]
 // v2 = [#eve/compiler/var]
 // vName = [#eve/compiler/var]
-// [#eve/compiler/block name:"some cool block" constraint:
+// [#eve/compiler/block name:"some cool block" type:"watch" watcher:"foo" constraint:
 //    [#eve/compiler/record record:v1 attribute:
 //      [attribute:"tag", value:"person"]
 //      [attribute:"tag", value:"employee"]
@@ -24,6 +29,8 @@ prog.inputEavs([
   ["vName", "tag", "eve/compiler/var"],
 
   [1, "tag", "eve/compiler/block"],
+  [1, "type", "watch"],
+  [1, "watcher", "foo"],
   [1, "name", "some cool block"],
   [1, "constraint", "v1Record"],
   [1, "constraint", "v2Record"],

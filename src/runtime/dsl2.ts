@@ -855,7 +855,7 @@ export class LinearFlow extends DSLBase {
 // WatchFlow
 //--------------------------------------------------------------------
 
-class WatchFlow extends LinearFlow {
+export class WatchFlow extends LinearFlow {
   collect(node:Node) {
     if(!(node instanceof Watch) && node instanceof Insert) {
       node = node.toWatch();
@@ -1648,13 +1648,18 @@ export class Program {
     return watcher;
   }
 
-  watch(name:string, func:LinearFlowFunction) {
-    let flow = new WatchFlow(this.injectConstants(func));
+  _watch(name:string, flow:WatchFlow) {
     let nodes = flow.compile();
     let block = new Runtime.Block(name, nodes, flow.context.maxRegisters);
     this.lastWatch = flow.ID;
     this.flows.push(flow);
     this.blocks.push(block);
+    return block;
+  }
+
+  watch(name:string, func:LinearFlowFunction) {
+    let flow = new WatchFlow(this.injectConstants(func));
+    this._watch(name, flow);
     return this;
   }
 

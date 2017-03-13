@@ -2,10 +2,16 @@
 // The Eve compiler as a watcher
 //--------------------------------------------------------------------
 
-import {Watcher, RawValue} from "./watcher";
+import {Watcher, RawValue, DiffConsumer} from "./watcher";
 import {ID, Block} from "../runtime/runtime";
-import {LinearFlow, ReferenceContext, Reference, Record, Value} from "../runtime/dsl2";
+import {LinearFlow, ReferenceContext, Reference, Record, Value, WatchFlow} from "../runtime/dsl2";
 import "setimmediate";
+
+var watcherFunctions:{[name:string]: DiffConsumer} = {};
+
+export function registerWatcherFunction(name:string, consumer:DiffConsumer) {
+  watcherFunctions[name] = consumer;
+}
 
 interface CompilationContext {
   variables: {[id:string]: Reference},
@@ -76,9 +82,17 @@ class CompilerWatcher extends Watcher {
 
   compileBlock(blockID:string) {
     let {inContext, items, compileValue} = this;
-    let {name, constraints} = items[blockID];
+    let item = items[blockID];
+    let {name, constraints, type} = item;
     let compile:CompilationContext = {variables: {}};
-    let flow = new LinearFlow(() => []);
+    let flow:LinearFlow;
+    if(type === "block") {
+      flow = new LinearFlow(() => []);
+    } else if(type === "watch") {
+      flow = new WatchFlow(() => []);
+    } else {
+      flow = new LinearFlow(() => []);
+    }
     let {context} = flow;
     for(let constraintID of constraints) {
       let constraint = items[constraintID];
@@ -110,7 +124,15 @@ class CompilerWatcher extends Watcher {
         })
       }
     }
-    let block = this.program._block(name, flow);
+    let block = (this.program as any)[`_${type}`](name, flow);
+    if(type === "watch" && item.watcher) {
+      let func = watcherFunctions[item.watcher];
+      if(!func) {
+        console.error("No such watcher function registered: " + item.watcher);
+      } else {
+        this.program.asDiffs(func);
+      }
+    }
     console.log("Compiled: ", block);
     return block;
   }
@@ -124,19 +146,19 @@ class CompilerWatcher extends Watcher {
 
     me.watch("get blocks", ({find, record}) => {
       let block = find("eve/compiler/block");
-      let {constraint, name} = block;
+      let {constraint, name, type} = block;
       return [
-        record({block, constraint, name})
+        record({block, constraint, name, type})
       ]
     })
 
-    me.asObjects<{block:string, name:string, constraint:string}>(({adds, removes}) => {
+    me.asObjects<{block:string, name:string, constraint:string, type:string}>(({adds, removes}) => {
       let {items} = this;
       for(let key in adds) {
-        let {block, name, constraint} = adds[key];
+        let {block, name, constraint, type} = adds[key];
         let found = items[block];
         if(!found) {
-          found = items[block] = {name, constraints: []};
+          found = items[block] = {type, name, constraints: []};
         }
         found.name = name;
         if(found.constraints.indexOf(constraint) === -1) {
@@ -157,6 +179,33 @@ class CompilerWatcher extends Watcher {
         if(found.constraints.length === 0) {
           delete items[block];
         }
+        this.queue(block);
+      }
+    })
+
+    me.watch("get watcher property", ({find, record}) => {
+      let block = find("eve/compiler/block");
+      let {watcher} = block;
+      return [
+        record({block, watcher})
+      ]
+    })
+
+    me.asObjects<{block:string, watcher:string}>(({adds, removes}) => {
+      let {items} = this;
+      for(let key in adds) {
+        let {block, watcher} = adds[key];
+        let found = items[block];
+        found.watcher = watcher;
+        this.queue(block);
+      }
+      for(let key in removes) {
+        let {block, watcher} = removes[key];
+        let found = items[block];
+        if(!found) {
+          continue;
+        }
+        found.watcher = undefined;
         this.queue(block);
       }
     })
