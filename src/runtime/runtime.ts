@@ -1474,7 +1474,9 @@ export class JoinNode extends Node {
       if(prefix[ix] !== undefined) countOfSolved++;
     }
     let remainingToSolve = this.registerLength - countOfSolved;
+    // context.tracer.tracker.blockTime("PresolveCheck");
     let valid = this.presolveCheck(context, input, prefix, transaction, round);
+    // context.tracer.tracker.blockTimeEnd("PresolveCheck");
     //debug("        Join combo valid:", valid, remainingToSolve, countOfSolved, this.registerLength);
     if(!valid) {
       // do nothing
@@ -1491,7 +1493,9 @@ export class JoinNode extends Node {
       // debug("              GJ:", remainingToSolve, this.constraints);
       // For each node, find the new results that match the prefix.
       let ol = results.length;
+      // context.tracer.tracker.blockTime("GenericJoin");
       this.genericJoin(context, prefix, transaction, round, results, remainingToSolve);
+      // context.tracer.tracker.blockTimeEnd("GenericJoin");
       return true;
     }
   }
@@ -1874,6 +1878,49 @@ export class CommitRemoveNode extends CommitInsertNode {
 
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transactionId:number, round:number, binds:Iterator<Change>, commits:Iterator<Change>):boolean {
     return this._exec(context, input, prefix, transactionId, round, binds, commits);
+  }
+}
+
+//------------------------------------------------------------------------------
+// LinearFlow
+//------------------------------------------------------------------------------
+
+export class LinearFlow extends Node {
+  traceType = TraceNode.LinearFlow;
+  results = new Iterator<Prefix>();
+  nextResults = new Iterator<Prefix>();
+
+  constructor(public nodes:Node[]) {
+    super();
+  }
+
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
+    this.results.clear();
+    this.results.push(prefix);
+    this.nextResults.clear();
+    // We populate the prefix with values from the input change so we only derive the
+    // results affected by it.
+    let curPrefix;
+    for(let node of this.nodes) {
+      while(curPrefix = this.results.next()) {
+        context.tracer.node(node, curPrefix);
+        let valid = node.exec(context, input, curPrefix, transaction, round, this.nextResults, changes);
+        context.tracer.pop(TraceFrameType.Node);
+        if(!valid) {
+          return false;
+        }
+      }
+      let tmp = this.results;
+      this.results = this.nextResults;
+      this.nextResults = tmp;
+      this.nextResults.clear();
+    }
+
+    while(curPrefix = this.results.next()) {
+      results.push(curPrefix);
+    }
+
+    return true;
   }
 }
 
@@ -2468,6 +2515,7 @@ export class MergeAggregateFlow extends BinaryJoinRight {
     while((result = leftResults.next()) !== undefined) {
       this.onLeft(context, result, transaction, round, results);
     }
+    rightResults.reset();
     while((result = rightResults.next()) !== undefined) {
       this.onRight(context, result, transaction, round, results);
     }
@@ -2646,7 +2694,6 @@ export class Block {
   protected nextResults = new Iterator<Prefix>();
 
   exec(context:EvaluationContext, input:Change, transaction:Transaction):boolean {
-    let blockState = ApplyInputState.none;
     this.results.clear();
     this.results.push(this.initial);
     for(let ix = 0; ix < this.totalRegisters + 2; ix++) {
@@ -2668,10 +2715,6 @@ export class Block {
       let tmp = this.results;
       this.results = this.nextResults;
       this.nextResults = tmp;
-      // if(this.results.length) {
-      //   console.log("  Triggered ", this.name);
-      // }
-      // @NOTE: We don't really want to shrink this array probably.
       this.nextResults.clear();
     }
 

@@ -1493,7 +1493,11 @@ class Union extends DSLBase {
     let ix = 0;
     for(let flow of this.branches) {
       let compiled = flow.compile();
-      nodes.push(compiled[0]);
+      if(compiled.length > 1) {
+        nodes.push(new Runtime.LinearFlow(compiled));
+      } else {
+        nodes.push(compiled[0]);
+      }
       // @NOTE: Not sure why TS isn't correctly pegging this as filtered to only Registers already.
       inputs.push(branchInputs[ix].map((v) => context.getValue(v)).filter(isRegister) as Register[]);
       ix++;

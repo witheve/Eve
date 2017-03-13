@@ -1,5 +1,5 @@
 //--------------------------------------------------------------------
-// Flappy
+// Editor
 //--------------------------------------------------------------------
 
 import {Watcher, Program, RawMap, RawValue, RawEAV, forwardDiffs} from "../watchers/watcher";
