@@ -41,7 +41,10 @@
 .editor-view .editor-query-pattern .editor-query-tag { margin-left: -1; font-weight: 500; }
 .editor-view .editor-query-pattern .editor-query-field {position: relative; border-left: 1px solid #ccc; padding-left: 10; }
 .editor-view .editor-query-pattern .editor-query-field:before { display: block; content: " "; position: absolute; top: 50%; left: 0; width: 8; border-top: 1px solid #ccc; }
-.editor-view .editor-query-pattern .editor-query-field:last-child:after { display: block; content: " "; position: absolute; top: 50%; bottom: 0; left: -1; width: 0; margin-top: 1px; border-left: 1px solid #f5f5f5; }
+.editor-view .editor-query-pattern .editor-query-field:last-of-type:after {display: block;content: " ";position: absolute;top: 50%;bottom: 0;left: -1;width: 0;margin-top: 1px;border-left: 2px solid white;}
+
+.editor-view .editor-query-pattern .editor-query-delete-field { opacity: 0; transition: opacity 0.2s ease-out; }
+.editor-view .editor-query-pattern:hover .editor-query-delete-field { opacity: 1; }
 
 /****************************************************************************\
  * Editor Block Canvas

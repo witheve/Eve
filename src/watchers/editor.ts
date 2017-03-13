@@ -280,12 +280,25 @@ class EditorWatcher extends Watcher {
       .block("Query nodes with attributes display them as a tree in the pattern.", ({find, record}) => {
         let query_pattern = find("editor/query/pattern");
         let {node} = query_pattern;
+        let {query_field} = node;
         return [
           query_pattern.add("children", [
             record("ui/column", {node,  sort: 2}).add("children", [
-              record("ui/text", {sort: node.query_field, text: node.query_field, class: "editor-query-field"})
+              record("ui/row", {node, query_field, sort: query_field, class: "editor-query-field"}).add("children", [
+                record("ui/text", {text: query_field}),
+                record("editor/query/delete-field", "ui/button", {node, query_field, icon: "close-round"})
+              ])
             ])
           ])
+        ];
+      })
+
+      .commit("Clicking a delete field button removes its attribute from the pattern", ({find, record}) => {
+        let delete_field = find("editor/query/delete-field");
+        let click = find("html/event/click", {element: delete_field});
+        let {node, query_field} = delete_field;
+        return [
+          node.remove("query_field", query_field)
         ];
       })
 
