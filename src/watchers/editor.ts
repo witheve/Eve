@@ -244,32 +244,41 @@ class EditorWatcher extends Watcher {
 
     editor
       .block("Populate the block query for the active block.", ({find, record}) => {
-        let queryElem = find("editor/block/query");
-        let {editor} = queryElem;
+        let query_elem = find("editor/block/query");
+        let {editor} = query_elem;
         let {active_frame} = editor;
         let {node} = active_frame;
         return [
-          queryElem.add("children", [
+          query_elem.add("children", [
             record("ui/row", "editor/query/node", {editor, sort: node.sort, node}).add("children", [
               record("shape/hexagon", {side: 21, thickness: 2, border: "#AAA", background: "white", sort: 0, frame: active_frame, node, class: "editor-query-hex"}).add("content", [
                 record("ui/text", {text: node.label, style: record({color: node.color})})
               ]),
-              record("ui/column", {sort: 1, frame: active_frame, node, class: "editor-query-pattern"}).add("children", [
+              record("editor/query/pattern", "ui/column", {sort: 1, frame: active_frame, node}).add("children", [
                 record("ui/text", {sort: 0, text: node.queryTag, class: "editor-query-tag"}),
-                record("ui/text", {sort: node.queryField, text: node.queryField, class: "editor-query-field"})
               ])
             ])
           ])
         ];
       })
 
+      .block("Query nodes with attributes display them as a tree in the pattern.", ({find, record}) => {
+        let query_pattern = find("editor/query/pattern");
+        let {node} = query_pattern;
+        return [
+          query_pattern.add("children", [
+            record("ui/text", {sort: node.queryField, text: node.queryField, class: "editor-query-field"})
+          ])
+        ];
+      })
+
       .block("The query always has a new node button", ({find, record}) => {
-        let queryElem = find("editor/block/query");
-        let {editor} = queryElem;
+        let query_elem = find("editor/block/query");
+        let {editor} = query_elem;
         let {active_frame} = editor;
 
         return [
-          queryElem.add("children", [
+          query_elem.add("children", [
             record("ui/row", "editor/query/new-node", {sort: 9999, frame: active_frame}).add("children", [
               record("shape/hexagon", {side: 21, thickness: 2, border: "#AAA", background: "white", class: "editor-query-hex"}).add("content", [
                 record("ui/text", {text: "+", style: record({color: "#AAA", "font-weight": 500})})
@@ -330,7 +339,7 @@ class EditorWatcher extends Watcher {
               label: string.uppercase(string.get(client_tag, 1)),
               color,//: "gray",
               queryTag: client_tag,
-              queryField: "name"
+              // queryField: "name"
             })
           ])
         ];
