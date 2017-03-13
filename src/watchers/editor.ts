@@ -300,28 +300,36 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .commit("Clicking on a new node tag adds it as a node to the query.", ({find, gather, choose, record}) => {
+      .commit("Clicking on a new node tag adds it as a node to the query.", ({find, gather, choose, lib:{string}, record}) => {
         let new_node_tag = find("editor/query/new-node/tag");
         let {new_node_button} = new_node_tag;
+        let {client_tag} = new_node_tag;
         let {frame} = new_node_button;
         let click = find("html/event/click", {element: new_node_tag});
 
-        // @FIXME: aggregate in choose is busted.
-        let [count] = choose(
-          () => gather(frame.node).count(),
-          () => 0
-        );
-        // let count:any = gather(frame.node).count();
+        // @FIXME: dependents of aggregates are busted due to stratification (?).
+        // If we try to use ix directly for scanning we get no result.
+        // If we try to use it after an expression for scanning we get no filtering at all.
+        // Luckily in this case we needed it in a choose, which seems to stratify correctly.
+
+        // @FIXME: Aggregates in chooses don't filter adequately without context.
+        // We work around it for now by providing enough context in the choose branch for the aggregate to use.
+
+        let [ix] = choose(() => {
+          let frame = new_node_button.frame;
+          return [gather(frame.node).count() + 1];
+        }, () => 1);
+        let color = choose(() => find("node-color", {ix}).color, () => "gray");
 
         return [
           new_node_button.remove("open"),
           frame.add("node", [
             record("editor/query-node", "editor/root-node", {
               type: "join",
-              sort: count + 1,
-              label: "?",
-              color: "gray",
-              queryTag: new_node_tag.client_tag,
+              sort: ix,
+              label: string.uppercase(string.get(client_tag, 1)),
+              color,//: "gray",
+              queryTag: client_tag,
               queryField: "name"
             })
           ])
@@ -386,6 +394,15 @@ class EditorWatcher extends Watcher {
     appendAsEAVs(input, {tag: "spiral", ix: 5, x: -1, y: 0});
     appendAsEAVs(input, {tag: "spiral", ix: 6, x: -1, y: -1});
     appendAsEAVs(input, {tag: "spiral", ix: 7, x: 0, y: -1});
+
+    appendAsEAVs(input, {tag: "node-color", ix: 0, color: "#red"});
+    appendAsEAVs(input, {tag: "node-color", ix: 1, color: "#9926ea"});
+    appendAsEAVs(input, {tag: "node-color", ix: 2, color: "#6c86ff"});
+    appendAsEAVs(input, {tag: "node-color", ix: 3, color: "purple"});
+    appendAsEAVs(input, {tag: "node-color", ix: 4, color: "orange"});
+    appendAsEAVs(input, {tag: "node-color", ix: 5, color: "green"});
+    appendAsEAVs(input, {tag: "node-color", ix: 6, color: "blue"});
+
 
     this.editor.inputEavs(input);
   }
