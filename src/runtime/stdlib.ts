@@ -226,6 +226,34 @@ makeFunction({
   }
 });
 
+makeFunction({
+  name: "string/get",
+  args: {text: "string", at: "number"},
+  returns: {result: "string"},
+  apply: function(text:string, at:number) {
+    if(at > text.length) return;
+    return [text[at - 1]];
+  }
+});
+
+makeFunction({
+  name: "string/uppercase",
+  args: {text: "string"},
+  returns: {result: "string"},
+  apply: function(text:string) {
+    return [text.toLocaleUpperCase()];
+  }
+});
+
+makeFunction({
+  name: "string/lowercase",
+  args: {text: "string"},
+  returns: {result: "string"},
+  apply: function(text:string) {
+    return [text.toLocaleLowerCase()];
+  }
+});
+
 
 //--------------------------------------------------------------------
 // Random
