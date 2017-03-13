@@ -282,13 +282,12 @@ export class HashIndex implements Index {
     let aIx = this.eavIndex[e!];
     if(aIx) {
       let vIx = aIx[a!];
-      if(vIx) {
+      if(vIx && vIx[v!]) {
         return vIx[v!];
       }
     }
     return createArray();
   }
-
 }
 
 //------------------------------------------------------------------------
