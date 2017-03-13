@@ -20,7 +20,6 @@ function verifyIO(assert:any, progName:string, inputString:string, expecteds:tes
 let prog = new Program("test");
 prog.attach("editor");
 
-
 // function doIt() {
 //   let prog = new Program("test program");
 //   prog.attach("tag browser");

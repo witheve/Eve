@@ -2,7 +2,7 @@ import {Program} from "../src/runtime/dsl2";
 import {verify} from "./util";
 import * as test from "tape";
 
-test("Count in choose", (assert) => {
+test("Aggregate: Count in choose", (assert) => {
 
   // -----------------------------------------------------
   // program
@@ -35,21 +35,21 @@ test("Count in choose", (assert) => {
   verify(assert, prog, [
     ["A", "pet", "B"],
   ], [
-    [1, "tag", "result", -1],
-    [1, "person", "A", -1],
-    [1, "count", 0, -1],
+    [1, "tag", "result", 1, -1],
+    [1, "person", "A", 1, -1],
+    [1, "count", 0, 1, -1],
 
-    [2, "tag", "result", 1],
-    [2, "person", "A", 1],
-    [2, "count", 1, 1],
+    [2, "tag", "result", 1, 1],
+    [2, "person", "A", 1, 1],
+    [2, "count", 1, 1, 1],
   ]);
 
   verify(assert, prog, [
     ["A", "pet", "C"],
   ], [
-    [2, "tag", "result", -1],
-    [2, "person", "A", -1],
-    [2, "count", 1, -1],
+    [2, "tag", "result", 1, -1],
+    [2, "person", "A", 1, -1],
+    [2, "count", 1, 1, -1],
 
     [3, "tag", "result", 1],
     [3, "person", "A", 1],

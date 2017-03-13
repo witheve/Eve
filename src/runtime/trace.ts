@@ -64,6 +64,7 @@ export enum TraceNode {
   Join,
   Choose,
   Union,
+  LinearFlow,
   BinaryJoin,
   AntiJoin,
   AntiJoinPresolvedRight,
