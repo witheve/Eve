@@ -1,6 +1,7 @@
 import {Change, Prefix, EvaluationContext, GlobalInterner, printPrefix} from "./runtime";
 import * as Runtime from "./runtime";
 import {Renderer} from "../microReact";
+import {PerformanceTracker} from "./performance"
 
 function isID(v: any) {
   return typeof v === "string" && (v.indexOf("|") > -1 || (v[8] === "-" && v.length === 36))
@@ -101,6 +102,7 @@ export class Tracer {
   outputsToInputs:any = {};
   eToChange:any = {};
   renderer:Renderer;
+  tracker = new PerformanceTracker();
 
   constructor(public context:EvaluationContext, shouldDraw = true) {
     if(typeof window !== "undefined" && shouldDraw) {
@@ -120,6 +122,7 @@ export class Tracer {
 
   transaction(id:number) {
     this.stack.push({type:TraceFrameType.Transaction, id, externalInputs: [], inputs: []})
+    this.tracker.time("transaction");
   }
 
   frame(commits:Change[]) {
@@ -140,6 +143,7 @@ export class Tracer {
 
   block(name:string) {
     this.stack.push({type:TraceFrameType.Block, name, nodes: []})
+    this.tracker.block(name);
   }
 
   node(node:Runtime.Node, inputPrefix:Prefix) {
@@ -234,8 +238,10 @@ export class Tracer {
       parent[field].push(cur);
     }
 
+    if(cur.type === TraceFrameType.Block) this.tracker.blockEnd(cur.name);
     if(cur.type === TraceFrameType.Input) this._currentInput = undefined;
     if(cur.type === TraceFrameType.Transaction) {
+      this.tracker.timeEnd("transaction");
       let error = this.distinctCheck();
       this.draw();
     }

@@ -5,6 +5,7 @@
 import {Program} from "../runtime/dsl2";
 import {RawMap, RawValue, RawEAV} from "../watchers/watcher";
 import {v4 as uuid} from "node-uuid";
+import {PerformanceReporter} from "./perfReport";
 
 //--------------------------------------------------------------------
 // Utils
@@ -429,7 +430,7 @@ let fixture:RawEAV[] = [
 // We can't do range yet.
 appendAsEAVs(fixture, {
   tag: "range",
-  ix: [1, 3, 4]
+  ix: [1, 2, 3, 4, 5, 6]
 });
 
 appendAsEAVs(fixture, {
@@ -497,6 +498,11 @@ appendAsEAVs(fixture, {tag: "spiral", ix: 5, x: -1, y: 0});
 appendAsEAVs(fixture, {tag: "spiral", ix: 6, x: -1, y: -1});
 appendAsEAVs(fixture, {tag: "spiral", ix: 7, x: 0, y: -1});
 
-prog.inputEavs(fixture);
-
+setImmediate(() => {
+  console.profile();
+  prog.inputEavs(fixture);
+  console.profileEnd();
+  // let reporter = new PerformanceReporter();
+  // reporter.report(prog.context.tracer.tracker);
+})
 console.log(prog);
