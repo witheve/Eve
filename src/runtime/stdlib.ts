@@ -197,6 +197,37 @@ makeFunction({
   }
 });
 
+// makeFunction({
+//   name: "math/range",
+//   args: {start: "number", stop: "number"},
+//   returns: {result: "string"},
+//   apply: (start:number, stop:number) => {
+//     if(start > stop) {
+//       [stop, start] = [start, stop];
+//     }
+
+//     for(let ix = start; ix < stop; ix += 1) {
+//     }
+//     return [a.toFixed(b)];
+//   }
+// });
+
+//--------------------------------------------------------------------
+// String
+//--------------------------------------------------------------------
+
+makeFunction({
+  name: "string/replace",
+  args: {text: "string", replace: "string", with: "string"},
+  returns: {result: "string"},
+  apply: function(text:string, replace:string, _with:string) {
+    let result = text.split(replace).join(_with);
+    console.log(text, "->", result);
+    return [result];
+  }
+});
+
+
 //--------------------------------------------------------------------
 // Random
 //--------------------------------------------------------------------

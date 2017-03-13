@@ -288,7 +288,6 @@ export class HashIndex implements Index {
     }
     return createArray();
   }
-
 }
 
 //------------------------------------------------------------------------

@@ -119,6 +119,16 @@ class EditorWatcher extends Watcher {
     editor.attach("ui");
     editor.attach("shape");
 
+    editor
+      .block("All html elements add their tags as classes", ({find, lib:{string}, record}) => {
+        let element = find("html/element");
+        element.tag != "html/element"
+        let klass = string.replace(element.tag, "/", "-");
+        return [
+          element.add("class", klass)
+        ];
+      });
+
     //--------------------------------------------------------------------
     // Root UI
     //--------------------------------------------------------------------
@@ -128,16 +138,16 @@ class EditorWatcher extends Watcher {
         let editor = find("editor/root");
 
         return [
-          record("editor/view", "ui/row", {editor, class: "editor-view"}).add("children", [
-            record("editor/nav", "ui/column", {editor, class: "editor-nav"}),
-            record("ui/column", {editor, class: "editor-main"}).add("children", [
+          record("editor/view", "ui/row", {editor}).add("children", [
+            record("editor/nav", "ui/column", {editor, sort: 0}),
+            record("editor/main", "ui/column", {editor, sort: 1}).add("children", [
               record("ui/row", {editor, sort: 0, class: "editor-block-header"}).add("children", [
-                record("editor/block/description", "ui/column", {editor, class: "editor-block-description"}),
-                record("editor/block/storyboard", "ui/row", {editor, class: "editor-block-storyboard"})
+                record("editor/block/description", "ui/column", {editor}),
+                record("editor/block/storyboard", "ui/row", {editor})
               ]),
               record("ui/row", {editor, sort: 1, class: "editor-block-content"}).add("children", [
-                record("editor/block/query", "ui/column", {editor, class: "editor-block-query"}),
-                record("editor/block/canvas", {editor, class: "editor-block-canvas"})
+                record("editor/block/query", "ui/column", {editor}),
+                record("editor/block/canvas", {editor})
               ])
             ])
           ])
@@ -154,7 +164,7 @@ class EditorWatcher extends Watcher {
         let tag = nav.editor.block.nav_tag;
         return [
           nav.add("children", [
-            record("editor/nav/tag", "ui/column", {editor: nav.editor, sort: tag.name, nav_tag: tag, class: "editor-nav-tag"}).add("children", [
+            record("editor/nav/tag", "ui/column", {editor: nav.editor, sort: tag.name, nav_tag: tag}).add("children", [
               record("ui/text", {sort: 0, text: tag.name})
             ])
           ])
@@ -173,7 +183,7 @@ class EditorWatcher extends Watcher {
 
         return [
           tagElem.add("children", [
-            record("editor/nav/block", "ui/text", {editor: tagElem.editor, nav_tag: tagElem.nav_tag, block, text: name, sort: name, class: "editor-nav-block"})
+            record("editor/nav/block", "ui/text", {editor: tagElem.editor, nav_tag: tagElem.nav_tag, block, text: name, sort: name})
           ])
         ];
       });
@@ -187,15 +197,8 @@ class EditorWatcher extends Watcher {
         let descriptionElem = find("editor/block/description");
         let active_block = descriptionElem.editor.active_block;
 
-        let [name] = choose(
-          () => active_block.name,
-          () => "Untitled Block"
-        );
-
-        let [description] = choose(
-          () => active_block.description,
-          () => ""
-        );
+        let [name] = choose(() => active_block.name, () => "Untitled Block");
+        let [description] = choose(() => active_block.description, () => "");
 
         return [
           descriptionElem.add("children", [
@@ -217,7 +220,7 @@ class EditorWatcher extends Watcher {
         let frame = active_block.storyboard;
         return [
           storyboardElem.add("children", [
-            record("editor/block/frame", "ui/column", {editor, sort: frame.sort, frame, class: "editor-block-frame"}).add("children", [
+            record("editor/block/frame", "ui/column", {editor, sort: frame.sort, frame}).add("children", [
               record("ui/text", {text: frame.type})
             ])
           ])
@@ -230,7 +233,7 @@ class EditorWatcher extends Watcher {
         let {active_block} = editor;
         return [
           storyboardElem.add("children", [
-            record("editor/new-frame", "ui/column", {editor, sort: Infinity, class: ["editor-block-frame", "editor-new-frame"]})
+            record("editor/new-frame", "editor/block/frame", "ui/column", {editor, sort: Infinity})
           ])
         ];
       });
@@ -247,11 +250,11 @@ class EditorWatcher extends Watcher {
         let {node} = active_frame;
         return [
           queryElem.add("children", [
-            record("ui/row", "editor/block/query-node", {editor, sort: node.sort, node, class: "editor-block-query-node"}).add("children", [
-              record("shape/hexagon", {side: 21, thickness: 2, border: "#AAA", background: "white", sort: 0, frame: active_frame, node, class: "editor-block-query-hex"}).add("content", [
+            record("ui/row", "editor/query/node", {editor, sort: node.sort, node}).add("children", [
+              record("shape/hexagon", {side: 21, thickness: 2, border: "#AAA", background: "white", sort: 0, frame: active_frame, node, class: "editor-query-hex"}).add("content", [
                 record("ui/text", {text: node.label, style: record({color: node.color})})
               ]),
-              record("ui/column", {sort: 1, frame: active_frame, node, class: "editor-block-query-pattern"}).add("children", [
+              record("ui/column", {sort: 1, frame: active_frame, node, class: "editor-query-pattern"}).add("children", [
                 record("ui/text", {sort: 0, text: node.queryTag, class: "editor-query-tag"}),
                 record("ui/text", {sort: node.queryField, text: node.queryField, class: "editor-query-field"})
               ])
@@ -267,8 +270,8 @@ class EditorWatcher extends Watcher {
 
         return [
           queryElem.add("children", [
-            record("ui/row", "editor/block/new-query-node", {sort: 9999, frame: active_frame}).add("children", [
-              record("shape/hexagon", {side: 21, thickness: 2, border: "#AAA", background: "white", class: ["editor-block-query-hex"]}).add("content", [
+            record("ui/row", "editor/query/new-node", {sort: 9999, frame: active_frame}).add("children", [
+              record("shape/hexagon", {side: 21, thickness: 2, border: "#AAA", background: "white", class: "editor-query-hex"}).add("content", [
                 record("ui/text", {text: "+", style: record({color: "#AAA", "font-weight": 500})})
               ]),
             ])
@@ -277,7 +280,7 @@ class EditorWatcher extends Watcher {
       })
 
       .commit("Clicking on the new node button opens it.", ({find, not, record}) => {
-        let new_node_button = find("editor/block/new-query-node");
+        let new_node_button = find("editor/query/new-node");
         not(() => new_node_button.open == "true");
         let click = find("html/event/click", {element: new_node_button});
         return [
@@ -286,19 +289,19 @@ class EditorWatcher extends Watcher {
       })
 
       .block("When the new node button is open, display a list of the clients tags.", ({find, record}) => {
-        let new_node_button = find("editor/block/new-query-node", {open: "true"});
+        let new_node_button = find("editor/query/new-node", {open: "true"});
         let tag = find("client_tag").client_tag;
         return [
           new_node_button.add("children", [
             record("ui/column", {sort: 1}).add("children", [
-              record("ui/text", "editor/new-node-tag", {text: tag, sort: tag, client_tag: tag, new_node_button})
+              record("ui/text", "editor/query/new-node/tag", {text: tag, sort: tag, client_tag: tag, new_node_button})
             ])
           ])
         ];
       })
 
       .commit("Clicking on a new node tag adds it as a node to the query.", ({find, gather, choose, record}) => {
-        let new_node_tag = find("editor/new-node-tag");
+        let new_node_tag = find("editor/query/new-node/tag");
         let {new_node_button} = new_node_tag;
         let {frame} = new_node_button;
         let click = find("html/event/click", {element: new_node_tag});
