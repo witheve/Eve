@@ -683,7 +683,7 @@ class EditorWatcher extends Watcher {
         ]),
         molecule_output.add("parent_node", node),
         molecule_output.add("attribute", [
-          record("eve/compiler/av", {attribute: "atom", value: atom_var}), // Change this attribute to "atomz" and they both show up.
+          record("eve/compiler/av", "eve/compiler/attribute/non-identity", {attribute: "atom", value: atom_var}), // Change this attribute to "atomz" and they both show up.
         ])
       ];
     });
