@@ -4,25 +4,21 @@
 
 import {Watcher, RawValue, DiffConsumer} from "./watcher";
 import {ID, Block} from "../runtime/runtime";
-import {LinearFlow, ReferenceContext, Reference, Record, Value, WatchFlow} from "../runtime/dsl2";
+import {Program, LinearFlow, ReferenceContext, Reference, Record, Value, WatchFlow} from "../runtime/dsl2";
 import "setimmediate";
-
-var watcherFunctions:{[name:string]: DiffConsumer} = {};
-
-export function registerWatcherFunction(name:string, consumer:DiffConsumer) {
-  watcherFunctions[name] = consumer;
-}
 
 interface CompilationContext {
   variables: {[id:string]: Reference},
 }
 
-class CompilerWatcher extends Watcher {
+export class CompilerWatcher extends Watcher {
 
   blocksToCompile:{[blockID:string]: boolean} = {};
   blocksToRemove:{[blockID:string]: boolean} = {};
   blocks:{[blockID:string]: Block} = {};
   items:{[id:string]: any} = {};
+  watcherFunctions:{[name:string]: DiffConsumer} = {};
+  programToInjectInto = this.program;
 
   //------------------------------------------------------------------
   // Compile queue
@@ -52,10 +48,26 @@ class CompilerWatcher extends Watcher {
       adds.push(neue);
       this.blocks[ID] = neue;
     }
-    this.program.blockChangeTransaction(adds, removes);
+    this.programToInjectInto.blockChangeTransaction(adds, removes);
     this.queued = false;
     this.blocksToCompile = {};
     this.blocksToRemove = {};
+  }
+
+  //------------------------------------------------------------------
+  // Program to inject into
+  //------------------------------------------------------------------
+
+  injectInto(prog:Program) {
+    this.programToInjectInto = prog;
+  }
+
+  //------------------------------------------------------------------
+  // Watch functions
+  //------------------------------------------------------------------
+
+  registerWatcherFunction(name:string, consumer:DiffConsumer) {
+    this.watcherFunctions[name] = consumer;
   }
 
   //------------------------------------------------------------------
@@ -124,13 +136,13 @@ class CompilerWatcher extends Watcher {
         })
       }
     }
-    let block = (this.program as any)[`_${type}`](name, flow);
+    let block = (this.programToInjectInto as any)[`_${type}`](name, flow);
     if(type === "watch" && item.watcher) {
-      let func = watcherFunctions[item.watcher];
+      let func = this.watcherFunctions[item.watcher];
       if(!func) {
         console.error("No such watcher function registered: " + item.watcher);
       } else {
-        this.program.asDiffs(func);
+        this.programToInjectInto.asDiffs(func);
       }
     }
     console.log("Compiled: ", block);
