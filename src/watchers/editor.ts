@@ -3,6 +3,7 @@
 //--------------------------------------------------------------------
 
 import {Watcher, Program, RawMap, RawValue, RawEAV, forwardDiffs} from "../watchers/watcher";
+import {CompilerWatcher} from "../watchers/compiler";
 import {v4 as uuid} from "node-uuid";
 
 //--------------------------------------------------------------------
@@ -159,6 +160,11 @@ class EditorWatcher extends Watcher {
     let editor = new Program("Editor");
     editor.attach("ui");
     editor.attach("shape");
+
+    let compiler = editor.attach("compiler") as CompilerWatcher;
+    compiler.injectInto(this.program);
+    compiler.registerWatcherFunction("send-to-editor", forwardDiffs(this.editor, "send-to-editor", true));
+
 
     editor
       .block("All html elements add their tags as classes", ({find, lib:{string}, record}) => {
@@ -553,6 +559,85 @@ class EditorWatcher extends Watcher {
         ];
       });
 
+    //--------------------------------------------------------------------
+    // Molecule generation
+    //--------------------------------------------------------------------
+    // zzz
+    editor.block("Create a set of molecules for the active frame's query.", ({find, record}) => {
+      //let editor = find("editor/root");
+      let node = find("editor/root-node");//, {editor});
+
+      return [
+        record("editor/molecule/watch", "eve/compiler/block", {name: "Create molecules", type: "watch", watcher: "send-to-editor"}).add("constraint", [
+          record("editor/atom/record", "eve/compiler/record", {node, record: record("editor/atom/entity", "eve/compiler/var", {node})}),
+        ]),
+
+        record("ui/text", {text: "AHHHH"})
+      ];
+    })
+
+    editor.block("Attach node query tags to their atom records.", ({find, record}) => {
+      let atom_record = find("editor/atom/record");
+      let {node} = atom_record;
+      let {query_tag} = node;
+
+      return [
+       atom_record.add("attribute", record({tag: "eve/compiler/av", attribute: "tag", value: query_tag})),
+        record("ui/text", {text: "HEYAAAA"})
+      ];
+    })
+
+    editor.block("Attach node fields to their atom records.", ({find, record}) => {
+      let atom_record = find("editor/atom/record");
+      let {node} = atom_record;
+      let {query_field} = node;
+
+      return [
+        atom_record.add("attribute", [
+          record({
+            tag: "eve/compiler/av",
+            attribute: query_field,
+            value: record("editor/atom/field", "eve/compiler/var", {node, query_field})
+          })
+        ])
+      ];
+    })
+
+    editor.block("Embed subnodes.", ({find, record}) => {
+      let editor = find("editor/root");
+      let node = find("editor/query/node", {editor});
+      let {parent_node, parent_attribute} = node;
+
+      let parent_record = find("editor/atom/record", {node: parent_node});
+      let parent_record_var = find("editor/atom/entity", {node: parent_node});
+      let parent_field_var = find("editor/atom/field", {node: parent_node, query_field: parent_attribute});
+
+      let molecule_watch = find("editor/molecule/watch");
+
+      let record_var;
+      return [
+        record_var = record("editor/atom/entity", "eve/compiler/var", {node}),
+        parent_record.add("attribute", record({tag: "eve/compiler/av", attribute: parent_attribute, value: record_var})),
+
+        molecule_watch.add("constraint", [
+          record("editor/atom/record", "eve/compiler/record", {node, record: record_var})
+        ])
+      ];
+    })
+
+    editor.block("Output IDs.", ({find, record}) => {
+      let molecule_watch = find("editor/molecule/watch");
+      let entity_var = find("editor/atom/entity");
+
+      let out_var;
+      return [
+        out_var = record("editor/debug-out", "eve/compiler/var"),
+        record("eve/compiler/output", {record: out_var}).add("attribute", [
+          record({tag: "eve/compiler/av", attribute: "tag", value: "FLOOG"}),
+          record({tag: "eve/compiler/av", attribute: entity_var.node, value: entity_var})
+        ])
+      ];
+    })
 
     return editor;
   }
