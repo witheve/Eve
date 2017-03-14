@@ -136,7 +136,7 @@ export class Exporter {
 //------------------------------------------------------------------------------
 
 
-export function forwardDiffs(destination:Program) {
+export function forwardDiffs(destination:Program, name:string = "Unnamed", debug = false) {
   return (diffs:EAVDiffs) => {
     let eavs:RawEAVC[] = [];
     for(let [e, a, v] of diffs.removes) {
@@ -146,6 +146,10 @@ export function forwardDiffs(destination:Program) {
       eavs.push([e, a, v, 1]);
     }
     if(eavs.length) {
+      if(debug) {
+        console.log("FWD", name, "=>", destination.name);
+        console.log(eavs);
+      }
       destination.inputEavs(eavs);
     }
   };
