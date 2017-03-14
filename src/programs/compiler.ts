@@ -28,8 +28,9 @@ prog.inputEavs([
   ["vName", "tag", "eve/compiler/var"],
 
   [1, "tag", "eve/compiler/block"],
-  [1, "type", "watch"],
-  [1, "watcher", "foo"],
+  [1, "type", "block"],
+  // [1, "type", "watch"],
+  // [1, "watcher", "foo"],
   [1, "name", "some cool block"],
   [1, "constraint", "v1Record"],
   [1, "constraint", "v2Record"],
@@ -57,17 +58,22 @@ prog.inputEavs([
     ["v2TagText", "attribute", "tag"],
     ["v2TagText", "value", "ui/text"],
 
+    ["v2Text", "tag", "eve/compiler/attribute/non-identity"],
     ["v2Text", "attribute", "text"],
     ["v2Text", "value", "vName"],
 
   ["JANE", "tag", "person"],
   ["JANE", "tag", "employee"],
   ["JANE", "name", "Jane"],
+
+  ["MEEP", "tag", "person"],
+  ["MEEP", "tag", "employee"],
+  ["MEEP", "name", "Meep"],
 ])
 
-setTimeout(() => {
-  prog.inputEavs([
-    ["v2Text", "value", "vName", -1],
-    ["v2Text", "value", "woah!"],
-  ])
-}, 1000)
+// setTimeout(() => {
+//   prog.inputEavs([
+//     ["v2Text", "value", "vName", -1],
+//     ["v2Text", "value", "woah!"],
+//   ])
+// }, 1000)

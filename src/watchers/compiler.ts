@@ -137,6 +137,9 @@ export class CompilerWatcher extends Watcher {
             found.push(safeValue);
           }
           let record = flow.record(attrs);
+          for(let [attribute, value] of constraint.nonIdentityAttribute) {
+            record.add(attribute, compileValue(compile, context, value));
+          }
           context.equality(record, compileValue(compile, context, constraint.record));
         })
       }
@@ -275,24 +278,34 @@ export class CompilerWatcher extends Watcher {
       }
     })
 
-    me.watch("get outputs", ({find, record}) => {
+    me.watch("get outputs", ({find, record, choose}) => {
       let compilerRecord = find("eve/compiler/output");
       let block = find("eve/compiler/block", {constraint: compilerRecord});
       let {record:id, attribute} = compilerRecord;
+      let [attributeType] = choose(() => {
+        attribute.tag == "eve/compiler/attribute/non-identity";
+        return "non-identity";
+      }, () => {
+        return "identity";
+      });
       return [
-        record({block, id:compilerRecord, record:id, attribute:attribute.attribute, value:attribute.value})
+        record({block, id:compilerRecord, record:id, attribute:attribute.attribute, value:attribute.value, attributeType})
       ]
     })
 
-    me.asObjects<{block:string, id:string, record:string, attribute:string, value:RawValue}>(({adds, removes}) => {
+    me.asObjects<{block:string, id:string, record:string, attribute:string, value:RawValue, attributeType:string}>(({adds, removes}) => {
       let {items} = this;
       for(let key in adds) {
-        let {block, id, record, attribute, value} = adds[key];
+        let {block, id, record, attribute, value, attributeType} = adds[key];
         let found = items[id];
         if(!found) {
-          found = items[id] = {type: "output", attributes: [], record: record};
+          found = items[id] = {type: "output", attributes: [], nonIdentityAttribute:[], record: record};
         }
-        found.attributes.push([attribute, value]);
+        if(attributeType === "identity") {
+          found.attributes.push([attribute, value]);
+        } else {
+          found.nonIdentityAttribute.push([attribute, value]);
+        }
         this.queue(block);
       }
       for(let key in removes) {
