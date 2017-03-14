@@ -129,7 +129,12 @@ export class CompilerWatcher extends Watcher {
         inContext(flow, () => {
           let attrs:any = {};
           for(let [attribute, value] of constraint.attributes) {
-            attrs[attribute] = compileValue(compile, context, value);
+            let safeValue = compileValue(compile, context, value);
+            let found = attrs[attribute];
+            if(!found) {
+              found = attrs[attribute] = [];
+            }
+            found.push(safeValue);
           }
           let record = flow.record(attrs);
           context.equality(record, compileValue(compile, context, constraint.record));
