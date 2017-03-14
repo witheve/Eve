@@ -52,17 +52,17 @@
 .editor-view .editor-query-pattern column:last-child .editor-query-field:last-child:after,
 .editor-view .editor-query-pattern column:last-child .editor-query-node-new-attribute:last-child:after {display: block;content: " ";position: absolute;top: 11;bottom: 0;left:-1;width: 0;margin-top: 1px;border-left: 2px solid white;}
 
-.editor-view .editor-query-pattern .editor-query-subnode:last-child .editor-query-node:after {display: block;content: " ";position: absolute;top: 31;bottom: -10;left:57;width: 0;margin-top: 1px;border-left: 1px solid white;}
+.editor-view .editor-query-pattern .editor-query-subnode:last-child .editor-query-node:after {display: block;content: " ";position: absolute;top: 31;bottom: -10;left:56;width: 0;margin-top: 1px;border-left: 1px solid white;}
 
 .editor-query-pattern .editor-query-delete-field { opacity: 0; transition: opacity 0.2s ease-out; }
 .editor-query-pattern .editor-query-field:hover .editor-query-delete-field { opacity: 1; }
 
+.editor-query-pattern .editor-query-subnode:nth-child(2) { margin-top: 10; }
 .editor-query-pattern .editor-query-subnode { margin-top: -12; z-index: 1; }
 
-.editor-query-pattern .editor-query-subnode .editor-query-node { position: relative; left: -57; }
+.editor-query-pattern .editor-query-subnode .editor-query-node { position: relative; left: -56; }
 
-.editor-query-pattern .editor-query-subnode .editor-query-node .editor-query-pattern { position: relative; left: 1; padding-left: 10; }
-.editor-query-pattern .editor-query-subnode .editor-query-pattern:before { display: block; content: " "; position: absolute; top: -22; height: 33; left: 0; width: 0; border-left: 1px solid #ccc; }
+.editor-query-pattern .editor-query-subnode .editor-query-node .editor-query-pattern { padding-left: 10; }
 .editor-query-pattern .editor-query-subnode .editor-query-pattern:after { display: block; content: " "; position: absolute; top: 11; left: 0; width: 8; border-top: 1px solid #ccc; }
 
 .editor-query-pattern .editor-query-subnode .editor-query-field {border-left: 1px solid #ccc; }
