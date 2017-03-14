@@ -11,6 +11,7 @@ import {Watcher, Exporter, DiffConsumer, ObjectConsumer, RawRecord} from "../wat
 import "./stdlib";
 import {v4 as uuid} from "node-uuid";
 import * as falafel from "falafel";
+import {SumAggregate} from "./aggregates";
 
 const UNASSIGNED = -1;
 const operators:any = {
@@ -1395,13 +1396,13 @@ class AggregateBuilder {
 
   sum(value:Reference):any {
     this.checkBlock();
-    let agg = new Aggregate(this.context, Runtime.SumAggregate, this.projection, this.group, [value]);
+    let agg = new Aggregate(this.context, SumAggregate, this.projection, this.group, [value]);
     return agg.reference();
   }
 
   count():any {
     this.checkBlock();
-    let agg = new Aggregate(this.context, Runtime.SumAggregate, this.projection, this.group, [1]);
+    let agg = new Aggregate(this.context, SumAggregate, this.projection, this.group, [1]);
     return agg.reference();
   }
 
