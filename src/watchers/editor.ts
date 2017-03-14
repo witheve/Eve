@@ -323,7 +323,7 @@ class EditorWatcher extends Watcher {
         let parent_pattern = find("editor/query/pattern", {node: parent_node});
         return [
           parent_pattern.add("children", [
-            record("ui/column", {node, sort: 3, class: "editor-query-subnode"}).add("children", subnode)
+            record("ui/column", {node, sort: 4, class: "editor-query-subnode"}).add("children", subnode)
           ])
         ];
       })
@@ -395,7 +395,9 @@ class EditorWatcher extends Watcher {
 
         return [
           query_pattern.add("children", [
-            record("editor/query/node/new-attribute", "ui/text", {text: attribute, sort: attribute, attribute, node})
+            record("ui/column", {node,  sort: 3}).add("children", [
+              record("editor/query/node/new-attribute", "ui/text", {text: attribute, sort: attribute, attribute, node})
+            ])
           ])
         ];
       })
