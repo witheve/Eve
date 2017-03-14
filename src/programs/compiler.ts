@@ -1,10 +1,9 @@
 import {Program} from "../runtime/dsl2";
-import * as compiler from "../watchers/compiler"
+import {CompilerWatcher} from "../watchers/compiler"
 
 let prog = new Program("compiler test");
-prog.attach("compiler");
+let compiler = prog.attach("compiler") as CompilerWatcher;
 prog.attach("ui");
-
 
 compiler.registerWatcherFunction("foo", ({adds, removes}) => {
   console.log("yo", adds, removes);
