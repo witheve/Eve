@@ -37,7 +37,7 @@ function isRawEAVArray(x:any): x is RawEAV[] {
 
 
 interface Attrs extends RawMap<RawValue|RawValue[]|RawEAV[]|RawEAV[][]> {}
-function appendAsEAVs(eavs:any[], record: Attrs, id = uuid()) {
+function appendAsEAVs(eavs:any[], record: Attrs, id = `|${uuid()}`) {
   for(let attr in record) {
     let value = record[attr];
     if(isRawValue(value)) {
@@ -163,7 +163,7 @@ class EditorWatcher extends Watcher {
 
     let compiler = editor.attach("compiler") as CompilerWatcher;
     compiler.injectInto(this.program);
-    compiler.registerWatcherFunction("send-to-editor", forwardDiffs(this.editor, "send-to-editor", true));
+    compiler.registerWatcherFunction("send-to-editor", forwardDiffs(editor, "send-to-editor", true));
 
 
     editor
@@ -562,17 +562,13 @@ class EditorWatcher extends Watcher {
     //--------------------------------------------------------------------
     // Molecule generation
     //--------------------------------------------------------------------
-    // zzz
     editor.block("Create a set of molecules for the active frame's query.", ({find, record}) => {
-      //let editor = find("editor/root");
-      let node = find("editor/root-node");//, {editor});
+      let node = find("editor/root-node");
 
       return [
         record("editor/molecule/watch", "eve/compiler/block", {name: "Create molecules", type: "watch", watcher: "send-to-editor"}).add("constraint", [
           record("editor/atom/record", "eve/compiler/record", {node, record: record("editor/atom/entity", "eve/compiler/var", {node})}),
-        ]),
-
-        record("ui/text", {text: "AHHHH"})
+        ])
       ];
     })
 
@@ -582,8 +578,7 @@ class EditorWatcher extends Watcher {
       let {query_tag} = node;
 
       return [
-       atom_record.add("attribute", record({tag: "eve/compiler/av", attribute: "tag", value: query_tag})),
-        record("ui/text", {text: "HEYAAAA"})
+       atom_record.add("attribute", record({tag: "eve/compiler/av", attribute: "tag", value: query_tag}))
       ];
     })
 
@@ -604,13 +599,12 @@ class EditorWatcher extends Watcher {
     })
 
     editor.block("Embed subnodes.", ({find, record}) => {
-      let editor = find("editor/root");
-      let node = find("editor/query/node", {editor});
+      let query_node = find("editor/query/node");
+      let {node} = query_node;
       let {parent_node, parent_attribute} = node;
 
       let parent_record = find("editor/atom/record", {node: parent_node});
       let parent_record_var = find("editor/atom/entity", {node: parent_node});
-      let parent_field_var = find("editor/atom/field", {node: parent_node, query_field: parent_attribute});
 
       let molecule_watch = find("editor/molecule/watch");
 
@@ -625,19 +619,74 @@ class EditorWatcher extends Watcher {
       ];
     })
 
-    editor.block("Output IDs.", ({find, record}) => {
+    editor.block("Output a molecule for each root node.", ({find, record}) => {
       let molecule_watch = find("editor/molecule/watch");
-      let entity_var = find("editor/atom/entity");
+      let editor = find("editor/root");
+      let node = find("editor/root-node");
 
-      let out_var;
+      let molecule_var;
       return [
-        out_var = record("editor/debug-out", "eve/compiler/var"),
-        record("eve/compiler/output", {record: out_var}).add("attribute", [
-          record({tag: "eve/compiler/av", attribute: "tag", value: "FLOOG"}),
-          record({tag: "eve/compiler/av", attribute: entity_var.node, value: entity_var})
+        molecule_var = record("editor/molecule/output_var", "eve/compiler/var", {node}),
+        molecule_watch.add("constraint", [
+          record("editor/molecule/output", "eve/compiler/output", {node, record: molecule_var}).add("attribute", [
+            record("eve/compiler/av", {attribute: "tag", value: "editor/molecule"}),
+            record("eve/compiler/av", {attribute: "editor", value: editor}),
+            record("eve/compiler/av", {attribute: "node", value: node})
+          ])
         ])
       ];
-    })
+    });
+
+    editor.block("Attach the root atom to molecules.", ({find, record}) => {
+      let molecule_watch = find("editor/molecule/watch");
+      let molecule_output = find("editor/molecule/output");
+      let {node} = molecule_output;
+      let entity_var = find("editor/atom/entity", {node});
+
+      let atom_var;
+      return [
+        atom_var = record("editor/atom/output_var", "eve/compiler/var", {node}),
+        molecule_watch.add("constraint", [
+          record("editor/atom/output", "eve/compiler/output", {record: atom_var}).add("attribute", [
+            record("eve/compiler/av", {attribute: "tag", value: "editor/atom"}),
+            record("eve/compiler/av", {attribute: "sort", value: node.sort}),
+            record("eve/compiler/av", {attribute: "node", value: node}),
+            record("eve/compiler/av", {attribute: "record", value: entity_var}),
+          ])
+        ]),
+        molecule_output.add("parent_node", node),
+        molecule_output.add("attribute", [
+          record("eve/compiler/av", {attribute: "atom", value: atom_var}),
+        ])
+      ];
+    });
+
+    editor.block("Attach subnode atoms to molecules.", ({find, record}) => {
+      let molecule_watch = find("editor/molecule/watch");
+      let molecule_output = find("editor/molecule/output");
+      let {parent_node} = molecule_output;
+      let {node} = find("editor/query/node");
+      node.parent_node == parent_node;
+
+      let entity_var = find("editor/atom/entity", {node});
+
+      let atom_var;
+      return [
+        atom_var = record("editor/atom/output_var", "eve/compiler/var", {node}),
+        molecule_watch.add("constraint", [
+          record("editor/atom/output", "eve/compiler/output", {record: atom_var}).add("attribute", [
+            record("eve/compiler/av", {attribute: "tag", value: "editor/atom"}),
+            record("eve/compiler/av", {attribute: "sort", value: node.sort}),
+            record("eve/compiler/av", {attribute: "node", value: node}),
+            record("eve/compiler/av", {attribute: "record", value: entity_var}),
+          ])
+        ]),
+        molecule_output.add("parent_node", node),
+        molecule_output.add("attribute", [
+          record("eve/compiler/av", {attribute: "atom", value: atom_var}), // Change this attribute to "atomz" and they both show up.
+        ])
+      ];
+    });
 
     return editor;
   }
