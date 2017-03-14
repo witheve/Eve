@@ -23,7 +23,7 @@ if(DEBUG) {
 export function printField(field:ScanField) {
   if(isRegister(field)) return "[" + field.offset + "]";
   if(field === undefined || field === null) return field;
-  return GlobalInterner.reverse(field);
+  return maybeReverse(field);
 }
 
 export function printPrefix(prefix:Prefix) {
@@ -45,6 +45,22 @@ export function printConstraint(constraint:Constraint) {
     return printFunction(constraint);
   }
 }
+(global as any).printConstraint = printConstraint;
+
+export function printWatchNode(node:WatchNode) {
+  return `Watch: ${printField(node.e)} ${printField(node.a)} ${printField(node.v)} ${printField(node.n)}`;
+}
+
+export function printNode(node:Node) {
+  if(node instanceof JoinNode) {
+    return "JoinNode([\n  " + node.constraints.map(printConstraint).join("\n  ") + "\n])";
+  } else if(node instanceof WatchNode) {
+    return printWatchNode(node);
+  } else {
+    return node;
+  }
+}
+(global as any).printNode = printNode;
 
 export function maybeReverse(value?:ID):ID|RawValue|undefined {
   if(value === undefined) return value;

@@ -83,7 +83,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
   setStyleAttribute(styleId:RawValue, attribute:RawValue, value:RawValue, count:-1|1) {
     let style = this.getStyle(styleId);
     if(count === -1) {
-      if(!style[attribute]) throw new Error(`Cannot remove non-existent attribute '${attribute}'`);
+      //if(!style[attribute]) throw new Error(`Cannot remove non-existent attribute '${attribute}'`);
       if(style[attribute] !== value) throw new Error(`Cannot remove mismatched AV ${attribute}: ${value} (current: ${style[attribute]})`);
       style[attribute] = undefined;
     } else {
