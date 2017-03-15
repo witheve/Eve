@@ -143,6 +143,14 @@ export class CompilerWatcher extends Watcher {
           context.equality(record, compileValue(compile, context, constraint.record));
         })
       }
+      if(constraint.type === "lookup") {
+        inContext(flow, () => {
+          let lookup = flow.lookup(compileValue(compile, context, constraint.record));
+          context.equality(lookup.attribute, compileValue(compile, context, constraint.attribute));
+          context.equality(lookup.value, compileValue(compile, context, constraint.value));
+          console.log("LOOKUP", lookup)
+        })
+      }
     }
     let block = (this.programToInjectInto as any)[`_${type}`](name, flow);
     if(type === "watch" && item.watcher) {
@@ -242,6 +250,29 @@ export class CompilerWatcher extends Watcher {
       for(let key in adds) {
         let {variable} = adds[key];
         items[variable] = {type: "variable"};
+      }
+    })
+
+    me.watch("get lookups", ({find, record}) => {
+      let lookup = find("eve/compiler/lookup");
+      let block = find("eve/compiler/block", {constraint: lookup});
+      let {record:rec, attribute, value} = lookup;
+      return [
+        record({block, id:lookup, record:rec, attribute, value})
+      ]
+    })
+
+    me.asObjects<{block:string, id:string, record:string, attribute:string, value:RawValue}>(({adds, removes}) => {
+      let {items} = this;
+      for(let key in adds) {
+        let {block, id, record, attribute, value} = adds[key];
+        items[id] = {type: "lookup", record: record, attribute, value};
+        this.queue(block);
+      }
+      for(let key in removes) {
+        let {block, id, record, attribute, value} = removes[key];
+        delete items[id];
+        this.queue(block);
       }
     })
 

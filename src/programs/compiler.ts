@@ -39,7 +39,7 @@ prog.inputEavs([
   ["v1Record", "record", "v1"],
   ["v1Record", "attribute", "v1TagPerson"],
   ["v1Record", "attribute", "v1TagEmployee"],
-  ["v1Record", "attribute", "v1Name"],
+  // ["v1Record", "attribute", "v1Name"],
 
     ["v1TagPerson", "attribute", "tag"],
     ["v1TagPerson", "value", "person"],
@@ -47,8 +47,14 @@ prog.inputEavs([
     ["v1TagEmployee", "attribute", "tag"],
     ["v1TagEmployee", "value", "employee"],
 
-    ["v1Name", "attribute", "name"],
-    ["v1Name", "value", "vName"],
+    // ["v1Name", "attribute", "name"],
+    // ["v1Name", "value", "vName"],
+
+  [1, "constraint", "lookup"],
+  ["lookup", "tag", "eve/compiler/lookup"],
+  ["lookup", "record", "v1"],
+  ["lookup", "attribute", "name"],
+  ["lookup", "value", "vName"],
 
   ["v2Record", "tag", "eve/compiler/output"],
   ["v2Record", "record", "v2"],
