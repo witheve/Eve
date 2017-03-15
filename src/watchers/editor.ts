@@ -536,8 +536,8 @@ class EditorWatcher extends Watcher {
 
         let {ix:x} = find("range");
         let {ix:y} = find("range");
-        y < 7;
-        x < 7;
+        y < 5;
+        x < 5;
 
         return [
           canvas.add({tag: "shape/hex-grid", side: 30, gap: 3}),
@@ -549,97 +549,81 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("Show the current elapsed and seed for potential molecule locations", ({find, record}) => {
-        //let location = find("editor/molecule/location");
-        //let {molecule} = location;
-        let molecule = find("editor/molecule");
-        // return [
-        //   record("ui/text", {potential, molecule, text: `seed: ${molecule.seed} elapsed: ${elapsed}`})
-        // ];
-        return [record("ui/row", "floog", {molecule}).add("children", record("ui/text", {sort: 0, text: molecule.seed}))];
-      })
-
-      .block("", ({find, record}) => {
-        let molecule = find("editor/molecule");
-        let {x, y} = molecule;
-        let floog = find("floog", {molecule});
-        return [floog.add("children", record("ui/text", {sort: 1, text: ` | ${x}, ${y}`}))];
-      });
-
-
 
     editor
       .block("Find a potential location for new molecules", ({find, lib:{random, math}, record}) => {
         let molecule = find("editor/molecule");
         let {seed, atom} = molecule;
 
-        let x = math.round(random.number(`${molecule} ${seed} x`) * 4) + 1;
-        let y = math.round(random.number(`${molecule} ${seed} y`) * 4) + 1;
-
-        let {x:atom_x, y:atom_y} = find("spiral", {row: math.mod(y, 2), ix: atom.sort});
-        let ax = x + atom_x;
-        let ay = y + atom_y;
-        let {ix} = find("range");
-        let offset = find("spiral", {row: math.mod(ay, 2), ix});
-
-        let xx = ax + offset.x;
-        let yy = ay + offset.y;
+        let x = math.round(random.number(`${molecule} ${seed} x`) * 4);
+        let y = math.round(random.number(`${molecule} ${seed} y`) * 4);
 
         return [
-          record("editor/molecule/location", {molecule, x, y}).add("footprint", [
-            record("editor/position", {x: xx, y: yy})
-          ])
+          molecule.add({x, y})
         ];
       })
-
-      .block("Determine the suitability of a potential molecule position by colliding it's footprint with other positioned molecules.", ({find, choose}) => {
+      .commit("Molecules start with a seed of 1", ({find, not}) => {
         let molecule = find("editor/molecule");
+        not(() => molecule.seed);
+        return [molecule.add("seed", 1)];
+      })
+      .commit("A molecule with positioned false and a low enough seed should try to reposition.", ({find}) => {
+        let molecule = find("editor/molecule", {positioned: "false"});
+        molecule.seed < 4;
+        return [molecule.remove("positioned").remove("seed").add("seed", molecule.seed + 1)];
+      })
 
-        let [seed] = choose(
+      .block("Determine the suitability of a potential molecule position by colliding it's footprint with existing cells.", ({find, choose, not}) => {
+        let molecule = find("editor/molecule");
+        molecule.seed < 4;
+        let delay = find("someone-is-maybe-positioned");
+        //not(() => molecule.positioned);
+        let [positioned] = choose(
           () => {
-            molecule.seed < 8;
-            let location = find("editor/molecule/location", {molecule});
-            let other_location = find("editor/molecule/location");
-            let {molecule:other} = other_location;
-            other.seed < 8;
-            location.molecule < other_location.molecule;
-            location.footprint == other_location.footprint;
-            return [molecule.seed + 1];
+            let {skirt} = molecule;
+            let other = find("editor/molecule");
+            other.seed < 4;
+            other > molecule;
+            let {atom:other_atom} = other;
+            other_atom.x == skirt.x;
+            other_atom.y == skirt.y;
+            return "false";
           },
-          () => molecule.seed,
-          () => 1
+          () => {
+            return "true";
+          }
         );
-
         return [
-          molecule.add("seed", seed)
+          molecule.add("positioned", positioned)
         ];
       })
 
-      // .block("New molecules start with a seed of 1", ({find, choose}) => {
-      //   let molecule = find("editor/molecule");
-      //   let [seed] = choose(() => molecule.seed, () => 1);
-      //   return [molecule.add("seed", seed)];
-      // })
+      .block("create a skirt around unpositioned molecules.", ({find, not, lib:{math}, record}) => {
+        let molecule = find("editor/molecule");
+        //not(() => molecule.positioned == "true");
+        let {atom} = molecule;
+        let {ix} = find("range");
+        let {x, y} = find("spiral", {row: math.mod(atom.y, 2), ix});
+        return [molecule.add("skirt", [
+          record("editor/molecule/skirt", {x: atom.x + x, y: atom.y + y})
+        ])];
 
-      .block("A molecule's position comes from its location.", ({find}) => {
-        let location = find("editor/molecule/location");
-        let {molecule, x, y} = location;
-        return [molecule.add({x, y})];
       })
 
       .block("Compute atom positions from their sort.", ({find, lib:{math}, record}) => {
         let molecule = find("editor/molecule");
-        let {atom} = molecule;
+        let {atom, x:mol_x, y:mol_y} = molecule;
         let {x, y} = find("spiral", {row: math.mod(molecule.y, 2), ix: atom.sort});
         return [
-          atom.add({x, y})
+          atom.add({x: mol_x + x, y: mol_y + y}),
+          record("someone-is-maybe-positioned")
         ];
       })
 
       .block("Draw molecules as hex grids of atoms.", ({find, record}) => {
         let canvas_elem = find("editor/block/canvas");
         let {editor} = canvas_elem;
-        let molecule = find("editor/molecule", {editor});
+        let molecule = find("editor/molecule", {editor, positioned: "true"});
         let {atom} = molecule;
 
         let side = 30;
@@ -648,11 +632,11 @@ class EditorWatcher extends Watcher {
         return [
           canvas_elem.add({tag: "shape/hex-grid", side, gap}),
           canvas_elem.add("cell", [
-            record("editor/molecule/grid", "shape/hex-grid", {x: molecule.x, y: molecule.y, side, gap}).add("cell", [
+            // record("editor/molecule/grid", "shape/hex-grid", {x: molecule.x, y: molecule.y, side, gap}).add("cell", [
               record("shape/hexagon", {atom, side, x: atom.x, y: atom.y, background: "white", thickness: 2, border: "#ccc"}).add("content", [
-                record("ui/text", {text: `${atom.node.label} ${molecule.x + atom.x}, ${molecule.y + atom.y}`, style: record({color: atom.node.color})})
+                record("ui/text", {text: `${atom.node.label} ${atom.x}, ${atom.y}`, style: record({color: atom.node.color})})
               ])
-            ])
+            // ])
           ])
         ];
       });
@@ -829,14 +813,19 @@ class EditorWatcher extends Watcher {
     appendAsEAVs(input, {tag: "range", ix: 9});
     appendAsEAVs(input, {tag: "range", ix: 10});
 
-    appendAsEAVs(input, {tag: "node-color", ix: 0, color: "#red"});
-    appendAsEAVs(input, {tag: "node-color", ix: 1, color: "#9926ea"});
-    appendAsEAVs(input, {tag: "node-color", ix: 2, color: "#6c86ff"});
-    appendAsEAVs(input, {tag: "node-color", ix: 3, color: "purple"});
-    appendAsEAVs(input, {tag: "node-color", ix: 4, color: "orange"});
-    appendAsEAVs(input, {tag: "node-color", ix: 5, color: "green"});
-    appendAsEAVs(input, {tag: "node-color", ix: 6, color: "blue"});
+    appendAsEAVs(input, {tag: "node-color", ix: 1, color: "red"});
+    appendAsEAVs(input, {tag: "node-color", ix: 2, color: "orange"});
+    appendAsEAVs(input, {tag: "node-color", ix: 3, color: "yellow"});
+    appendAsEAVs(input, {tag: "node-color", ix: 4, color: "green"});
+    appendAsEAVs(input, {tag: "node-color", ix: 5, color: "blue"});
+    appendAsEAVs(input, {tag: "node-color", ix: 6, color: "indigo"});
+    appendAsEAVs(input, {tag: "node-color", ix: 7, color: "violet"});
+    appendAsEAVs(input, {tag: "node-color", ix: 8, color: "light gray"});
+    appendAsEAVs(input, {tag: "node-color", ix: 9, color: "dark gray"});
 
+
+    //appendAsEAVs(input, {tag: "node-color", ix: 1, color: "#9926ea"});
+    //appendAsEAVs(input, {tag: "node-color", ix: 2, color: "#6c86ff"});
 
     this.editor.inputEavs(input);
   }
