@@ -2973,10 +2973,14 @@ export class BlockChangeTransaction extends Transaction {
   }
 
   exec(context:EvaluationContext) {
+    // To remove a block, we run a change with negative count through the system that
+    // is meant to compute all the results the block has generated and remove them.
     for(let remove of this.removed) {
       remove.exec(context, BLOCK_REMOVE, this);
     }
 
+    // To add a block, we do the same as remove, but with a positive change that causes
+    // the block to compute all results based on the state of the indexes
     for(let add of this.added) {
       add.exec(context, BLOCK_ADD, this);
     }

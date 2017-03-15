@@ -869,7 +869,7 @@ export class WatchFlow extends LinearFlow {
 // CommitFlow
 //--------------------------------------------------------------------
 
-class CommitFlow extends LinearFlow {
+export class CommitFlow extends LinearFlow {
   collect(node:Node) {
     if(!(node instanceof CommitInsert) && !(node instanceof CommitRemove) && node instanceof Insert) {
       node = node.toCommit();
