@@ -60,43 +60,6 @@ class HTMLWatcher extends DOMWatcher<Instance> {
 
       this._sendEvent(eavs);
     });
-
-    this.program
-      .watch("setup events", ({find, record, lookup}) => {
-        let instance = find("html/instance");
-        let {element} = instance;
-        let {attribute, value: event} = lookup(element);
-        attribute == "on";
-
-        return [
-          record({element, instance, event})
-        ]
-      })
-      .asObjects<{element:ID, instance:RawValue, event:string}>(({adds, removes}) => {
-        Object.keys(adds).forEach((id) => {
-          let {instance, event, element} = adds[id];
-
-          let domInstance = this.getInstance(instance)!;
-          domInstance.addEventListener(event, () => {
-            let changes:any[] = [];
-            let eventId = uuid();
-            changes.push(
-              [eventId, "tag", "html/event"],
-              [eventId, "event", event],
-              [eventId, "element", element],
-            );
-            this._sendEvent(changes);
-          });
-        })
-      });
-
-    this.program
-      .commit("Remove events", ({find}) => {
-        let event = find("html/event");
-        return [
-          event.remove("tag"),
-        ];
-      })
   }
 }
 
