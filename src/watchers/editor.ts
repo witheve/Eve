@@ -530,42 +530,42 @@ class EditorWatcher extends Watcher {
     // Block Canvas
     //--------------------------------------------------------------------
 
+    // editor
+    //   .block("DEBUG: draw a full hex grid", ({find, record}) => {
+    //     let canvas = find("editor/block/canvas");
+
+    //     let {ix:x} = find("range");
+    //     let {ix:y} = find("range");
+    //     y < 5;
+    //     x < 5;
+
+    //     return [
+    //       canvas.add({tag: "shape/hex-grid", side: 30, gap: 3}),
+    //       canvas.add("cell", [
+    //         record("shape/hexagon", "debug-cell", {side: 30, x, y, background: "#eee", style: record({"font-size": "0.5em"})}).add("content", [
+    //           record("ui/text", {text: `${x}, ${y}`})
+    //         ])
+    //       ])
+    //     ];
+    //   })
+
+
     editor
-      .block("DEBUG: draw a full hex grid", ({find, record}) => {
-        let canvas = find("editor/block/canvas");
-
-        let {ix:x} = find("range");
-        let {ix:y} = find("range");
-        y < 5;
-        x < 5;
-
-        return [
-          canvas.add({tag: "shape/hex-grid", side: 30, gap: 3}),
-          canvas.add("cell", [
-            record("shape/hexagon", "debug-cell", {side: 30, x, y, background: "#eee", style: record({"font-size": "0.5em"})}).add("content", [
-              record("ui/text", {text: `${x}, ${y}`})
-            ])
-          ])
-        ];
-      })
-
-
-    editor
-      .block("Find a potential location for new molecules", ({find, lib:{random, math}, record}) => {
-        let molecule = find("editor/molecule");
-        let {seed, atom} = molecule;
-
-        let x = math.round(random.number(`${molecule} ${seed} x`) * 4);
-        let y = math.round(random.number(`${molecule} ${seed} y`) * 4);
-
-        return [
-          molecule.add({x, y})
-        ];
-      })
       .commit("Molecules start with a seed of 1", ({find, not}) => {
         let molecule = find("editor/molecule");
         not(() => molecule.seed);
         return [molecule.add("seed", 1)];
+      })
+      .block("Find a potential location for new molecules", ({find, lib:{random, math}, record}) => {
+        let molecule = find("editor/molecule");
+        let {seed, atom} = molecule;
+
+        let x = math.round(random.number(`${molecule} ${seed} x`) * 10);
+        let y = math.round(random.number(`${molecule} ${seed} y`) * 5);
+
+        return [
+          molecule.add({x, y}) // , positioned: "true"
+        ];
       })
       .commit("A molecule with positioned false and a low enough seed should try to reposition.", ({find}) => {
         let molecule = find("editor/molecule", {positioned: "false"});
@@ -607,7 +607,24 @@ class EditorWatcher extends Watcher {
         return [molecule.add("skirt", [
           record("editor/molecule/skirt", {x: atom.x + x, y: atom.y + y})
         ])];
+      })
 
+      .block("Sort atoms by id.", ({find, gather, record}) => {
+        let molecule = find("editor/molecule");
+        let {atom} = molecule;
+        let ix = gather(atom).per(molecule).sort();
+        return [
+          atom.add("sort", ix),
+          record("ui/text", {atom, text: `${molecule.sort} ${atom.node.label} ${ix}`})
+        ];
+      })
+
+      .block("DEBUG: Sort molecules by id.", ({find, gather, record}) => {
+        let molecule = find("editor/molecule");
+        let ix = gather(molecule).sort();
+        return [
+          molecule.add("sort", ix)
+        ];
       })
 
       .block("Compute atom positions from their sort.", ({find, lib:{math}, record}) => {
@@ -633,8 +650,8 @@ class EditorWatcher extends Watcher {
           canvas_elem.add({tag: "shape/hex-grid", side, gap}),
           canvas_elem.add("cell", [
             // record("editor/molecule/grid", "shape/hex-grid", {x: molecule.x, y: molecule.y, side, gap}).add("cell", [
-              record("shape/hexagon", {atom, side, x: atom.x, y: atom.y, background: "white", thickness: 2, border: "#ccc"}).add("content", [
-                record("ui/text", {text: `${atom.node.label} ${atom.x}, ${atom.y}`, style: record({color: atom.node.color})})
+            record("shape/hexagon", {atom, molecule, side, x: atom.x, y: atom.y, background: "white", thickness: 2, border: "#ccc"}).add("content", [
+                record("ui/text", {atom, molecule, text: `${atom.node.label} ${molecule.sort}`, style: record({color: atom.node.color})})
               ])
             // ])
           ])
@@ -731,7 +748,7 @@ class EditorWatcher extends Watcher {
         molecule_watch.add("constraint", [
           record("editor/atom/output", "eve/compiler/output", {record: atom_var}).add("attribute", [
             record("eve/compiler/av", {attribute: "tag", value: "editor/atom"}),
-            record("eve/compiler/av", {attribute: "sort", value: 1}), // @FIXME: use sort to find this.
+            // record("eve/compiler/av", {attribute: "sort", value: 1}), // @FIXME: use sort to find this.
             record("eve/compiler/av", {attribute: "node", value: node}),
             record("eve/compiler/av", {attribute: "record", value: entity_var}),
           ])
@@ -758,8 +775,9 @@ class EditorWatcher extends Watcher {
         molecule_watch.add("constraint", [
           record("editor/atom/output", "eve/compiler/output", {record: atom_var}).add("attribute", [
             record("eve/compiler/av", {attribute: "tag", value: "editor/atom"}),
-            record("eve/compiler/av", {attribute: "sort", value: 1}), // @FIXME: use sort to find this.
+            // record("eve/compiler/av", {attribute: "sort", value: 1}), // @FIXME: use sort to find this.
             record("eve/compiler/av", {attribute: "node", value: node}),
+            record("eve/compiler/av", {attribute: "molecule", value: molecule_output.record}),
             record("eve/compiler/av", {attribute: "record", value: entity_var}),
           ])
         ]),
@@ -813,19 +831,23 @@ class EditorWatcher extends Watcher {
     appendAsEAVs(input, {tag: "range", ix: 9});
     appendAsEAVs(input, {tag: "range", ix: 10});
 
-    appendAsEAVs(input, {tag: "node-color", ix: 1, color: "red"});
-    appendAsEAVs(input, {tag: "node-color", ix: 2, color: "orange"});
-    appendAsEAVs(input, {tag: "node-color", ix: 3, color: "yellow"});
-    appendAsEAVs(input, {tag: "node-color", ix: 4, color: "green"});
-    appendAsEAVs(input, {tag: "node-color", ix: 5, color: "blue"});
+    // appendAsEAVs(input, {tag: "node-color", ix: 1, color: "red"});
+    // appendAsEAVs(input, {tag: "node-color", ix: 2, color: "orange"});
+    // appendAsEAVs(input, {tag: "node-color", ix: 3, color: "yellow"});
+    // appendAsEAVs(input, {tag: "node-color", ix: 4, color: "green"});
+    // appendAsEAVs(input, {tag: "node-color", ix: 5, color: "blue"});
+    // appendAsEAVs(input, {tag: "node-color", ix: 6, color: "indigo"});
+    // appendAsEAVs(input, {tag: "node-color", ix: 7, color: "violet"});
+    // appendAsEAVs(input, {tag: "node-color", ix: 8, color: "light gray"});
+    // appendAsEAVs(input, {tag: "node-color", ix: 9, color: "dark gray"});
+
+    appendAsEAVs(input, {tag: "node-color", ix: 1, color: "#9926ea"});
+    appendAsEAVs(input, {tag: "node-color", ix: 2, color: "#6c86ff"});
+    appendAsEAVs(input, {tag: "node-color", ix: 3, color: "red"});
+    appendAsEAVs(input, {tag: "node-color", ix: 4, color: "orange"});
+    appendAsEAVs(input, {tag: "node-color", ix: 5, color: "green"});
     appendAsEAVs(input, {tag: "node-color", ix: 6, color: "indigo"});
-    appendAsEAVs(input, {tag: "node-color", ix: 7, color: "violet"});
-    appendAsEAVs(input, {tag: "node-color", ix: 8, color: "light gray"});
-    appendAsEAVs(input, {tag: "node-color", ix: 9, color: "dark gray"});
 
-
-    //appendAsEAVs(input, {tag: "node-color", ix: 1, color: "#9926ea"});
-    //appendAsEAVs(input, {tag: "node-color", ix: 2, color: "#6c86ff"});
 
     this.editor.inputEavs(input);
   }
