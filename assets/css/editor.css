@@ -24,8 +24,13 @@
 .editor-view .editor-block-storyboard { flex: 1; align-self: flex-start; }
 
 .editor-view .editor-block-frame { width: 162; height: 100; margin: 10; justify-content: center; align-items: center; border: 2px solid #888; border-radius: 3px; }
-.editor-view .editor-new-frame { border-color: #ccc; color: #ccc; }
-.editor-view .editor-new-frame:after { display: flex; content: "+"; font-size: 4em; font-weight: 200;}
+.editor-view .editor-new-frame { border-color: #ccc; color: #ccc; justify-content: space-around; }
+.editor-view .editor-new-frame:empty:after { display: flex; content: "+"; font-size: 4em; font-weight: 200;}
+
+.editor-view .editor-new-frame:not([open="true"]):hover { background: #fcfcfc; }
+.editor-view .editor-new-frame:not([open="true"]):active { background: #f0f0f0; }
+
+.editor-view .editor-new-frame-type { align-self: stretch; color: #606060; }
 
 
 .editor-view .editor-block-content { flex: 1; }

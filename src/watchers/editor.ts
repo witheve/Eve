@@ -276,13 +276,52 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("Add a 'new frame' button to the storyboard.", ({find, record}) => {
+      .block("Add a new frame button to the storyboard.", ({find, record}) => {
         let storyboard = find("editor/block/storyboard");
         let {editor} = storyboard;
         let {active_block} = editor;
         return [
           storyboard.add("children", [
             record("editor/new-frame", "editor/block/frame", "ui/column", {editor, sort: Infinity})
+          ])
+        ];
+      })
+
+      .commit("Clicking the new frame button opens it", ({find}) => {
+        let new_frame = find("editor/new-frame");
+        find("html/event/click", "html/direct-target", {element: new_frame});
+        return [
+          new_frame.add("open", "true")
+        ];
+      })
+
+      .block("When the new frame is open, display a list of editor types to choose from.", ({find, record}) => {
+        let new_frame = find("editor/new-frame", {open: "true"});
+        let {editor} = new_frame;
+        return [
+          new_frame.add("children", [
+            record("editor/new-frame/type", "ui/button", {editor, text: "Query", type: "query", class: "flat"}),
+            record("editor/new-frame/type", "ui/button", {editor, text: "Data", type: "data", class: "flat"}),
+          ])
+        ];
+      })
+
+      .commit("Clicking a new frame type adds a frame of that type and closes the new frame button.", ({find, gather, choose, record}) => {
+        let new_frame_type = find("editor/new-frame/type");
+        find("html/event/click", "html/direct-target", {element: new_frame_type});
+        let {type, editor} = new_frame_type;
+        let new_frame = find("editor/new-frame", {editor});
+
+        let {active_block:block} = editor;
+        let [ix] = choose(
+          () => gather(block.storyboard).per(block).count() + 1,
+          () => 1
+        );
+
+        return [
+          new_frame.remove("open"),
+          block.add("storyboard", [
+            record("editor/frame", {block, type, sort: ix})
           ])
         ];
       });
@@ -583,7 +622,8 @@ class EditorWatcher extends Watcher {
             let {skirt} = molecule;
             let other = find("editor/molecule");
             other.seed < 4;
-            other > molecule;
+            molecule.generation >= other.generation;
+            molecule != other;
             let {atom:other_atom} = other;
             other_atom.x == skirt.x;
             other_atom.y == skirt.y;
@@ -619,9 +659,24 @@ class EditorWatcher extends Watcher {
         ];
       })
 
+      .commit("When we first see a molecule, mark its generation.", ({find, not, choose, gather}) => {
+        let molecule = find("editor/molecule");
+        not(() => molecule.generation);
+        let [generation] = choose(
+          () => {
+            let existing = find("editor/molecule");
+            existing.generation;
+            return gather(existing).count();
+          },
+          () => 1
+        );
+
+        return [molecule.add("generation", generation)];
+      })
+
       .block("DEBUG: Sort molecules by id.", ({find, gather, record}) => {
         let molecule = find("editor/molecule");
-        let ix = gather(molecule).sort();
+        let ix = gather(molecule.generation).sort();
         return [
           molecule.add("sort", ix)
         ];
