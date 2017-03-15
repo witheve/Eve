@@ -1611,26 +1611,19 @@ export class Program {
    //  console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
 
     // @FIXME: Remove debugging after diagnosing compiler issue
-    let g:any = global;
-    let compilerIds = g.compilerIds = g.compilerIds || [];
-    for(let change of trans.changes) {
-      if(change.a == GlobalInterner.get("tag") && (""+GlobalInterner.reverse(change.v)).indexOf("eve/compiler/") == 0) {
-        compilerIds.push(change.e);
-      }
-    }
+    // let g:any = global;
+    // let compilerIds = g.compilerIds = g.compilerIds || [];
+    // for(let change of trans.changes) {
+    //   if(change.a == GlobalInterner.get("tag") && (""+GlobalInterner.reverse(change.v)).indexOf("eve/compiler/") == 0) {
+    //     compilerIds.push(change.e);
+    //   }
+    // }
 
-    let filtered = trans.changes.filter((c) => compilerIds.indexOf(c.e) !== -1);
-    if(filtered.length) {
-      console.log("---------------COMPILER-----------")
-      console.log(filtered.map((change, ix) => `    <- ${change}`).join("\n"));
-    }
-
-    let floogIds:RawValue[] = [];
-    for(let change of trans.changes) {
-      if(change.a == GlobalInterner.get("tag") && change.v == GlobalInterner.get("FLOOG")) {
-        floogIds.push(change.e);
-      }
-    }
+    // let filtered = trans.changes.filter((c) => compilerIds.indexOf(c.e) !== -1);
+    // if(filtered.length) {
+    //   console.log("---------------COMPILER-----------")
+    //   console.log(filtered.map((change, ix) => `    <- ${change}`).join("\n"));
+    // }
 
     return trans;
   }
