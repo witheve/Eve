@@ -640,6 +640,7 @@ class EditorWatcher extends Watcher {
             let {skirt} = molecule;
             let other = find("editor/molecule");
             other.seed < 4;
+            molecule.frame == other.frame;
             molecule.generation >= other.generation;
             molecule != other;
             let {atom:other_atom} = other;
@@ -781,8 +782,7 @@ class EditorWatcher extends Watcher {
       let parent_record = find("editor/atom/record", {node: parent_node});
       let parent_record_var = find("editor/atom/entity", {node: parent_node});
 
-      let molecule_watch = find("editor/molecule/watch");
-      molecule_watch.frame.node == node;
+      let molecule_watch = find("editor/molecule/watch", {frame: query_node.frame});
 
       let record_var;
       return [
@@ -799,6 +799,7 @@ class EditorWatcher extends Watcher {
       let molecule_watch = find("editor/molecule/watch");
       let editor = find("editor/root");
       let node = find("editor/root-node");
+      molecule_watch.frame.node == node;
 
       let molecule_var;
       return [
@@ -807,6 +808,7 @@ class EditorWatcher extends Watcher {
           record("editor/molecule/output", "eve/compiler/output", {node, record: molecule_var}).add("attribute", [
             record("eve/compiler/av", {attribute: "tag", value: "editor/molecule"}),
             record("eve/compiler/av", {attribute: "editor", value: editor}),
+            record("eve/compiler/av", {attribute: "frame", value: molecule_watch.frame}),
             record("eve/compiler/av", {attribute: "node", value: node})
           ])
         ])
