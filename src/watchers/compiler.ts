@@ -4,7 +4,7 @@
 
 import {Watcher, RawValue, DiffConsumer} from "./watcher";
 import {ID, Block} from "../runtime/runtime";
-import {Program, LinearFlow, ReferenceContext, Reference, Record, Value, WatchFlow} from "../runtime/dsl2";
+import {Program, LinearFlow, ReferenceContext, Reference, Record, Value, WatchFlow, CommitFlow} from "../runtime/dsl2";
 import "setimmediate";
 
 interface CompilationContext {
@@ -98,8 +98,8 @@ export class CompilerWatcher extends Watcher {
     let {name, constraints, type} = item;
     let compile:CompilationContext = {variables: {}};
     let flow:LinearFlow;
-    if(type === "block") {
-      flow = new LinearFlow(() => []);
+    if(type === "commit") {
+      flow = new CommitFlow(() => []);
     } else if(type === "watch") {
       flow = new WatchFlow(() => []);
     } else {
@@ -270,7 +270,7 @@ export class CompilerWatcher extends Watcher {
         let found = items[id];
         if(!found) { continue; }
 
-        found.attributes.filter(([a, v]:RawValue[]) => a !== attribute || v !== value);
+        found.attributes = found.attributes.filter(([a, v]:RawValue[]) => a !== attribute || v !== value);
         if(found.attributes.length === 0) {
           delete items[id];
         }
@@ -313,7 +313,7 @@ export class CompilerWatcher extends Watcher {
         let found = items[id];
         if(!found) { continue; }
 
-        found.attributes.filter(([a, v]:RawValue[]) => a !== attribute || v !== value);
+        found.attributes = found.attributes.filter(([a, v]:RawValue[]) => a !== attribute || v !== value);
         if(found.attributes.length === 0) {
           delete items[id];
         }
