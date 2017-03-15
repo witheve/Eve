@@ -314,6 +314,7 @@ export class CompilerWatcher extends Watcher {
         if(!found) { continue; }
 
         found.attributes = found.attributes.filter(([a, v]:RawValue[]) => a !== attribute || v !== value);
+        found.nonIdentityAttribute = found.nonIdentityAttribute.filter(([a, v]:RawValue[]) => a !== attribute || v !== value);
         if(found.attributes.length === 0) {
           delete items[id];
         }
