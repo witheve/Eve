@@ -1,4 +1,4 @@
-import {makeFunction, RawValue} from "./runtime";
+import {makeFunction, RawValue, AggregateNode} from "./runtime";
 
 //--------------------------------------------------------------------
 // Comparisons
@@ -313,3 +313,25 @@ makeFunction({
     return [values.join("")];
   }
 });
+
+//------------------------------------------------------------------------
+// Aggregates
+//------------------------------------------------------------------------
+
+type SumAggregateState = {total:number};
+export class SumAggregate extends AggregateNode {
+  add(state:SumAggregateState, resolved:RawValue[]):any {
+    state.total += resolved[0] as number;
+    return state;
+  }
+  remove(state:SumAggregateState, resolved:RawValue[]):any {
+    state.total -= resolved[0] as number;
+    return state;
+  }
+  getResult(state:SumAggregateState):RawValue {
+    return state.total;
+  }
+  newResultState():SumAggregateState {
+    return {total: 0};
+  };
+}
