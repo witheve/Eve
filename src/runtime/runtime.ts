@@ -2981,7 +2981,7 @@ export class Transaction {
       }
       if(this.round !== 0 && change.round === 0) {
         frames++;
-        if(frames > 4) {
+        if(frames > 10) {
           console.error("Failed to terminate");
           break;
         }
