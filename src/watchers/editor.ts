@@ -276,6 +276,24 @@ class EditorWatcher extends Watcher {
         ];
       })
 
+      .block("Mark the active frame.", ({find}) => {
+        let editor = find("editor/root");
+        let {active_frame:frame} = editor;
+        let frame_elem = find("editor/block/frame", {frame});
+        return [
+          frame_elem.add("class", "active")
+        ];
+      })
+
+      .commit("Clicking a frame activates it", ({find}) => {
+        let frame_elem = find("editor/block/frame");
+        find("html/event/click", {element: frame_elem});
+        let {frame, editor} = frame_elem;
+        return [
+          editor.remove("active_frame").add("active_frame", frame)
+        ];
+      })
+
       .block("Add a new frame button to the storyboard.", ({find, record}) => {
         let storyboard = find("editor/block/storyboard");
         let {editor} = storyboard;
@@ -717,10 +735,13 @@ class EditorWatcher extends Watcher {
     // Molecule generation
     //--------------------------------------------------------------------
     editor.block("Create a set of molecules for the active frame's query.", ({find, record}) => {
+      let editor = find("editor/root");
+      let {active_frame:frame} = editor;
       let node = find("editor/root-node");
+      frame.node == node;
 
       return [
-        record("editor/molecule/watch", "eve/compiler/block", {name: "Create molecules", type: "watch", watcher: "send-to-editor"}).add("constraint", [
+        record("editor/molecule/watch", "eve/compiler/block", {frame, name: "Create molecules", type: "watch", watcher: "send-to-editor"}).add("constraint", [
           record("editor/atom/record", "eve/compiler/record", {node, record: record("editor/atom/entity", "eve/compiler/var", {node})}),
         ])
       ];
@@ -761,6 +782,7 @@ class EditorWatcher extends Watcher {
       let parent_record_var = find("editor/atom/entity", {node: parent_node});
 
       let molecule_watch = find("editor/molecule/watch");
+      molecule_watch.frame.node == node;
 
       let record_var;
       return [
