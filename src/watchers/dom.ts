@@ -1,4 +1,5 @@
 import {Watcher, RawValue, RawEAV, RawEAVC} from "./watcher";
+import {ID} from "../runtime/runtime";
 import {v4 as uuid} from "node-uuid";
 
 interface Map<V>{[key:string]: V}
@@ -270,6 +271,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
           if(a === "tagname") continue;
           else if(a === "children") continue;
           else if(a === "sort") continue; // I guess..?
+          else if(a === "on") continue;
 
           else if(a === "class") instance.classList.remove(""+v);
           else if(a === "text") instance.textContent = null;
@@ -281,8 +283,9 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
           let instance = this.instances[e];
           if(!instance) throw new Error(`Orphaned instance '${e}'`);
 
-          else if((a === "tagname")) continue;
+          else if(a === "tagname") continue;
           else if(a === "children") continue;
+          else if(a === "on") continue;
 
           else if(a === "class") instance.classList.add(""+v);
           else if(a === "sort") this.insertChild(instance.parentElement, instance, v);
@@ -290,6 +293,42 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
           else if(a === "style") this.addStyleInstance(v, e);
           else instance.setAttribute(""+a, ""+v);
         }
+      })
+      
+      .watch("setup events", ({find, record, lookup}) => {
+        let instance = find("{{tagPrefix}}/instance");
+        let {element} = instance;
+        let {attribute, value: event} = lookup(element);
+        attribute == "on";
+
+        return [
+          record({element, instance, event})
+        ]
+      })
+      .asObjects<{element:ID, instance:RawValue, event:string}>(({adds, removes}) => {
+        Object.keys(adds).forEach((id) => {
+          let {instance, event, element} = adds[id];
+
+          let domInstance = this.getInstance(instance)!;
+          domInstance.addEventListener(event, () => {
+            let changes:any[] = [];
+            let eventId = uuid();
+            changes.push(
+              [eventId, "tag", "dom/event"],
+              [eventId, "event", event],
+              [eventId, "element", element],
+            );
+            this._sendEvent(changes);
+          });
+        })
       });
+
+    this.program
+      .commit("Remove events", ({find}) => {
+        let event = find("html/event");
+        return [
+          event.remove("tag"),
+        ];
+      })
   }
 }
