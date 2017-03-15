@@ -2836,7 +2836,6 @@ export abstract class SortNode extends Node {
     item[outOffset] = GlobalInterner.intern(pos + 1);
     item[item.length - 2] = round;
     item[item.length - 1] = count;
-    console.log("sending", item);
     return item;
   }
 
@@ -2852,12 +2851,10 @@ export abstract class SortNode extends Node {
     }
     let outOffset = this.results[0].offset;
     state.sorted.splice(ix, 0, neue);
-    console.log("POST", ix, state.sorted.map(printPrefix));
     results.push(resultPrefix(neue, outOffset, ix, round, 1));
     ix++;
     for(; ix < state.sorted.length; ix++) {
       let cur = state.sorted[ix];
-      console.log("correcting", cur);
       results.push(resultPrefix(cur, outOffset, ix - 1, round, -1));
       results.push(resultPrefix(cur, outOffset, ix, round, 1));
     }
