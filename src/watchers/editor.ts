@@ -89,6 +89,8 @@ const BOAT_1_ID = `|${uuid()}`;
 const BOAT_2_ID = `|${uuid()}`;
 const BOAT_3_ID = `|${uuid()}`;
 
+const DOCK_1_ID = `|${uuid()}`;
+
 //--------------------------------------------------------------------
 // Watcher
 //--------------------------------------------------------------------
@@ -529,30 +531,126 @@ class EditorWatcher extends Watcher {
     //--------------------------------------------------------------------
 
     editor
-      .block("Draw molecules as hex grids of atoms.", ({find, record, lib:{random, math}}) => {
+      .block("DEBUG: draw a full hex grid", ({find, record}) => {
+        let canvas = find("editor/block/canvas");
+
+        let {ix:x} = find("range");
+        let {ix:y} = find("range");
+        y < 7;
+        x < 7;
+
+        return [
+          canvas.add({tag: "shape/hex-grid", side: 30, gap: 3}),
+          canvas.add("cell", [
+            record("shape/hexagon", "debug-cell", {side: 30, x, y, background: "#eee", style: record({"font-size": "0.5em"})}).add("content", [
+              record("ui/text", {text: `${x}, ${y}`})
+            ])
+          ])
+        ];
+      })
+
+      .block("Show the current elapsed and seed for potential molecule locations", ({find, record}) => {
+        //let location = find("editor/molecule/location");
+        //let {molecule} = location;
+        let molecule = find("editor/molecule");
+        // return [
+        //   record("ui/text", {potential, molecule, text: `seed: ${molecule.seed} elapsed: ${elapsed}`})
+        // ];
+        return [record("ui/row", "floog", {molecule}).add("children", record("ui/text", {sort: 0, text: molecule.seed}))];
+      })
+
+      .block("", ({find, record}) => {
+        let molecule = find("editor/molecule");
+        let {x, y} = molecule;
+        let floog = find("floog", {molecule});
+        return [floog.add("children", record("ui/text", {sort: 1, text: ` | ${x}, ${y}`}))];
+      });
+
+
+
+    editor
+      .block("Find a potential location for new molecules", ({find, lib:{random, math}, record}) => {
+        let molecule = find("editor/molecule");
+        let {seed, atom} = molecule;
+
+        let x = math.round(random.number(`${molecule} ${seed} x`) * 4) + 1;
+        let y = math.round(random.number(`${molecule} ${seed} y`) * 4) + 1;
+
+        let {x:atom_x, y:atom_y} = find("spiral", {row: math.mod(y, 2), ix: atom.sort});
+        let ax = x + atom_x;
+        let ay = y + atom_y;
+        let {ix} = find("range");
+        let offset = find("spiral", {row: math.mod(ay, 2), ix});
+
+        let xx = ax + offset.x;
+        let yy = ay + offset.y;
+
+        return [
+          record("editor/molecule/location", {molecule, x, y}).add("footprint", [
+            record("editor/position", {x: xx, y: yy})
+          ])
+        ];
+      })
+
+      .block("Determine the suitability of a potential molecule position by colliding it's footprint with other positioned molecules.", ({find, choose}) => {
+        let molecule = find("editor/molecule");
+
+        let [seed] = choose(
+          () => {
+            molecule.seed < 8;
+            let location = find("editor/molecule/location", {molecule});
+            let other_location = find("editor/molecule/location");
+            let {molecule:other} = other_location;
+            other.seed < 8;
+            location.molecule < other_location.molecule;
+            location.footprint == other_location.footprint;
+            return [molecule.seed + 1];
+          },
+          () => molecule.seed,
+          () => 1
+        );
+
+        return [
+          molecule.add("seed", seed)
+        ];
+      })
+
+      // .block("New molecules start with a seed of 1", ({find, choose}) => {
+      //   let molecule = find("editor/molecule");
+      //   let [seed] = choose(() => molecule.seed, () => 1);
+      //   return [molecule.add("seed", seed)];
+      // })
+
+      .block("A molecule's position comes from its location.", ({find}) => {
+        let location = find("editor/molecule/location");
+        let {molecule, x, y} = location;
+        return [molecule.add({x, y})];
+      })
+
+      .block("Compute atom positions from their sort.", ({find, lib:{math}, record}) => {
+        let molecule = find("editor/molecule");
+        let {atom} = molecule;
+        let {x, y} = find("spiral", {row: math.mod(molecule.y, 2), ix: atom.sort});
+        return [
+          atom.add({x, y})
+        ];
+      })
+
+      .block("Draw molecules as hex grids of atoms.", ({find, record}) => {
         let canvas_elem = find("editor/block/canvas");
         let {editor} = canvas_elem;
         let molecule = find("editor/molecule", {editor});
-
         let {atom} = molecule;
-        let {x, y} = find("spiral", {ix: atom.sort})
-
-        let molecule_x = math.round(random.number(`${molecule} x`) * 8);
-        let molecule_y = math.round(random.number(`${molecule} y`) * 5);
 
         let side = 30;
         let gap = 3;
 
         return [
-          canvas_elem.add({
-            tag: "shape/hex-grid",
-            side,
-            gap: gap
-          }),
+          canvas_elem.add({tag: "shape/hex-grid", side, gap}),
           canvas_elem.add("cell", [
-            record("editor/molecule/grid", "shape/hex-grid", {x: molecule_x, y: molecule_y, side, gap: gap}).add("cell", [
-              record("shape/hexagon", {atom, side, x, y, background: "white", thickness: 2, border: "#ccc"}).add("content", [
-                record("ui/text", {text: atom.node.label, style: record({color: atom.node.color})})
+            record("editor/molecule/grid", "shape/hex-grid", {x: molecule.x, y: molecule.y, side, gap}).add("cell", [
+              record("shape/hexagon", {atom, side, x: atom.x, y: atom.y, background: "white", thickness: 2, border: "#ccc"}).add("content", [
+                record("ui/text", {text: `${atom.node.label} ${molecule.x + atom.x}, ${molecule.y + atom.y}`, style: record({color: atom.node.color})})
               ])
             ])
           ])
@@ -649,7 +747,7 @@ class EditorWatcher extends Watcher {
         molecule_watch.add("constraint", [
           record("editor/atom/output", "eve/compiler/output", {record: atom_var}).add("attribute", [
             record("eve/compiler/av", {attribute: "tag", value: "editor/atom"}),
-            record("eve/compiler/av", {attribute: "sort", value: node.sort}),
+            record("eve/compiler/av", {attribute: "sort", value: 1}), // @FIXME: use sort to find this.
             record("eve/compiler/av", {attribute: "node", value: node}),
             record("eve/compiler/av", {attribute: "record", value: entity_var}),
           ])
@@ -676,7 +774,7 @@ class EditorWatcher extends Watcher {
         molecule_watch.add("constraint", [
           record("editor/atom/output", "eve/compiler/output", {record: atom_var}).add("attribute", [
             record("eve/compiler/av", {attribute: "tag", value: "editor/atom"}),
-            record("eve/compiler/av", {attribute: "sort", value: node.sort}),
+            record("eve/compiler/av", {attribute: "sort", value: 1}), // @FIXME: use sort to find this.
             record("eve/compiler/av", {attribute: "node", value: node}),
             record("eve/compiler/av", {attribute: "record", value: entity_var}),
           ])
@@ -703,13 +801,33 @@ class EditorWatcher extends Watcher {
       [STYLE_ID, "href", "assets/css/editor.css"],
     ];
 
-    appendAsEAVs(input, {tag: "spiral", ix: 1, x: 0, y: 0});
-    appendAsEAVs(input, {tag: "spiral", ix: 2, x: 1, y: 0});
-    appendAsEAVs(input, {tag: "spiral", ix: 3, x: 0, y: 1});
-    appendAsEAVs(input, {tag: "spiral", ix: 4, x: -1, y: 1});
-    appendAsEAVs(input, {tag: "spiral", ix: 5, x: -1, y: 0});
-    appendAsEAVs(input, {tag: "spiral", ix: 6, x: -1, y: -1});
-    appendAsEAVs(input, {tag: "spiral", ix: 7, x: 0, y: -1});
+    appendAsEAVs(input, {tag: "spiral", row: 1, ix: 1, x: 0, y: 0});
+    appendAsEAVs(input, {tag: "spiral", row: 1, ix: 2, x: 1, y: 0});
+    appendAsEAVs(input, {tag: "spiral", row: 1, ix: 3, x: 1, y: 1});
+    appendAsEAVs(input, {tag: "spiral", row: 1, ix: 4, x: 0, y: 1});
+    appendAsEAVs(input, {tag: "spiral", row: 1, ix: 5, x: -1, y: 0});
+    appendAsEAVs(input, {tag: "spiral", row: 1, ix: 6, x: 0, y: -1});
+    appendAsEAVs(input, {tag: "spiral", row: 1, ix: 7, x: 1, y: -1});
+
+    appendAsEAVs(input, {tag: "spiral", row: 0, ix: 1, x: 0, y: 0});
+    appendAsEAVs(input, {tag: "spiral", row: 0, ix: 2, x: 1, y: 0});
+    appendAsEAVs(input, {tag: "spiral", row: 0, ix: 3, x: 0, y: 1});
+    appendAsEAVs(input, {tag: "spiral", row: 0, ix: 4, x: -1, y: 1});
+    appendAsEAVs(input, {tag: "spiral", row: 0, ix: 5, x: -1, y: 0});
+    appendAsEAVs(input, {tag: "spiral", row: 0, ix: 6, x: -1, y: -1});
+    appendAsEAVs(input, {tag: "spiral", row: 0, ix: 7, x: 0, y: -1});
+
+    appendAsEAVs(input, {tag: "range", ix: 0});
+    appendAsEAVs(input, {tag: "range", ix: 1});
+    appendAsEAVs(input, {tag: "range", ix: 2});
+    appendAsEAVs(input, {tag: "range", ix: 3});
+    appendAsEAVs(input, {tag: "range", ix: 4});
+    appendAsEAVs(input, {tag: "range", ix: 5});
+    appendAsEAVs(input, {tag: "range", ix: 6});
+    appendAsEAVs(input, {tag: "range", ix: 7});
+    appendAsEAVs(input, {tag: "range", ix: 8});
+    appendAsEAVs(input, {tag: "range", ix: 9});
+    appendAsEAVs(input, {tag: "range", ix: 10});
 
     appendAsEAVs(input, {tag: "node-color", ix: 0, color: "#red"});
     appendAsEAVs(input, {tag: "node-color", ix: 1, color: "#9926ea"});
@@ -775,36 +893,16 @@ class EditorWatcher extends Watcher {
       ]
     }, BLOCK_PPL_W_BOATS_ID);
 
-    appendAsEAVs(fixture, {
-      tag: "editor/molecule",
-      editor: EDITOR_ID,
-      node: NODE_PERSON_ID,
-      atom: [
-        appendAsEAVs([], {tag: "editor/atom", sort: 1, node: NODE_PERSON_ID, record: PERSON_1_ID}),
-        appendAsEAVs([], {tag: "editor/atom", sort: 2, node: NODE_BOAT_ID, record: BOAT_1_ID}),
-        appendAsEAVs([], {tag: "editor/atom", sort: 3, node: NODE_BOAT_ID, record: BOAT_3_ID}),
-      ]
-    }),
-
-    appendAsEAVs(fixture, {
-      tag: "editor/molecule",
-      editor: EDITOR_ID,
-      node: NODE_PERSON_ID,
-      atom: [
-        appendAsEAVs([], {tag: "editor/atom", sort: 1, node: NODE_PERSON_ID, record: PERSON_2_ID}),
-        appendAsEAVs([], {tag: "editor/atom", sort: 2, node: NODE_BOAT_ID, record: BOAT_1_ID}),
-      ]
-    })
-
-    appendAsEAVs(fixture, {
-      tag: "editor/molecule",
-      editor: EDITOR_ID,
-      node: NODE_PERSON_ID,
-      atom: [
-        appendAsEAVs([], {tag: "editor/atom", sort: 1, node: NODE_PERSON_ID, record: PERSON_3_ID}),
-        appendAsEAVs([], {tag: "editor/atom", sort: 2, node: NODE_BOAT_ID, record: BOAT_2_ID}),
-      ]
-    })
+    // appendAsEAVs(fixture, {
+    //   tag: "editor/molecule",
+    //   editor: EDITOR_ID,
+    //   node: NODE_PERSON_ID,
+    //   atom: [
+    //     appendAsEAVs([], {tag: "editor/atom", sort: 1, node: NODE_PERSON_ID, record: PERSON_1_ID}),
+    //     appendAsEAVs([], {tag: "editor/atom", sort: 2, node: NODE_BOAT_ID, record: BOAT_1_ID}),
+    //     appendAsEAVs([], {tag: "editor/atom", sort: 3, node: NODE_BOAT_ID, record: BOAT_3_ID}),
+    //   ]
+    // }),
 
     appendAsEAVs(fixture, {
       tag: "editor/block",
@@ -819,13 +917,15 @@ class EditorWatcher extends Watcher {
   fixtureClient() {
 
     let fixture:RawEAV[] = [];
-    appendAsEAVs(fixture, {tag: "person", name: "josh", boat: [BOAT_1_ID, BOAT_3_ID], age: 23}, PERSON_1_ID);
-    appendAsEAVs(fixture, {tag: "person", name: "rafe", boat: BOAT_1_ID, age: 43}, PERSON_2_ID);
-    appendAsEAVs(fixture, {tag: "person", name: "lola", boat: BOAT_2_ID, age: 19}, PERSON_3_ID);
+    appendAsEAVs(fixture, {tag: "person", name: "Josh", boat: [BOAT_1_ID, BOAT_3_ID], age: 23}, PERSON_1_ID);
+    appendAsEAVs(fixture, {tag: "person", name: "Rafe", boat: BOAT_1_ID, age: 43}, PERSON_2_ID);
+    appendAsEAVs(fixture, {tag: "person", name: "Lola", boat: BOAT_2_ID, age: 19}, PERSON_3_ID);
 
-    appendAsEAVs(fixture, {tag: "boat", name: "boaty mcboatface", type: "yacht"}, BOAT_1_ID);
-    appendAsEAVs(fixture, {tag: "boat", name: "H.M. Surf", type: "dinghy"}, BOAT_2_ID);
-    appendAsEAVs(fixture, {tag: "boat", name: "No Life Raft", type: "dinghy"}, BOAT_3_ID);
+    appendAsEAVs(fixture, {tag: "boat", name: "Boaty Mcboatface", type: "yacht", dock: DOCK_1_ID}, BOAT_1_ID);
+    appendAsEAVs(fixture, {tag: "boat", name: "H.M. Surf", type: "dinghy", dock: DOCK_1_ID}, BOAT_2_ID);
+    appendAsEAVs(fixture, {tag: "boat", name: "No Life Raft", type: "dinghy", dock: DOCK_1_ID}, BOAT_3_ID);
+
+    appendAsEAVs(fixture, {tag: "dock", name: "Marinara Marina of Michigan", state: "MI"}, DOCK_1_ID);
     this.program.inputEavs(fixture);
   }
 }

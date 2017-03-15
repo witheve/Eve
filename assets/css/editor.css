@@ -99,3 +99,9 @@
 .hex-grid:hover > .shape-hexagon-body { background: #ccc !important; }
 .hex-grid:hover > .shape-hexagon-cap.first { border-bottom-color: #ccc !important; }
 .hex-grid:hover > .shape-hexagon-cap.last { border-top-color: #ccc !important; }
+
+text { flex: 0 0 auto; }
+column { flex: 0 0 auto; }
+row { flex: 0 0 auto; }
+
+.jigglez { border: 1px solid black; margin-bottom: 10; }
