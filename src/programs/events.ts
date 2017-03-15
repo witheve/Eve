@@ -18,7 +18,7 @@ prog
               height: calc(100% - 200px); overflow: scroll; width: 500px;
               border: 1px solid #aaa; margin: 25px;
             }
-            .input { width: 500px; margin: 25px; }
+            .input { width: 500px; margin: 0 25px 0 25px; }
           `),
         record("html/div", {sort: 0, class: "eventer", on: [
           "mouseenter",
