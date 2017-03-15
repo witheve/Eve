@@ -325,7 +325,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
 
     this.program
       .commit("Remove events", ({find}) => {
-        let event = find("html/event");
+        let event = find("dom/event");
         return [
           event.remove("tag"),
         ];
