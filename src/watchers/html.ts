@@ -62,47 +62,28 @@ class HTMLWatcher extends DOMWatcher<Instance> {
     });
 
     this.program
-      .watch("setup onmouseenter", ({find, record}) => {
-        let elemId = find("html/onmouseenter");
-        let instanceId = find("html/instance", {element: elemId});
+      .watch("setup events", ({find, record, lookup}) => {
+        let instance = find("html/instance");
+        let {element} = instance;
+        let {attribute, value: event} = lookup(element);
+        attribute == "on";
+
         return [
-          record({elemId, instanceId})
+          record({element, instance, event})
         ]
       })
-      .asObjects<{elemId:ID, instanceId:RawValue}>(({adds, removes}) => {
+      .asObjects<{element:ID, instance:RawValue, event:string}>(({adds, removes}) => {
         Object.keys(adds).forEach((id) => {
-          let {elemId, instanceId} = adds[id];
-          // instanceId couldn't be undefined because we've found it in .watch() above
-          let instance = this.getInstance(instanceId)!;
-          instance.addEventListener("mouseenter", () => {
+          let {instance, event, element} = adds[id];
+
+          let domInstance = this.getInstance(instance)!;
+          domInstance.addEventListener(event, () => {
             let changes:any[] = [];
             let eventId = uuid();
             changes.push(
-              [eventId, "tag", "html/event/mouseenter"],
-              [eventId, "element", elemId],
-            );
-            this._sendEvent(changes);
-          });
-        })
-      })
-      .watch("setup onmouseleave", ({find, record}) => {
-        let elemId = find("html/onmouseleave");
-        let instanceId = find("html/instance", {element: elemId});
-        return [
-          record({elemId, instanceId})
-        ]
-      })
-      .asObjects<{elemId:ID, instanceId:RawValue}>(({adds, removes}) => {
-        Object.keys(adds).forEach((id) => {
-          let {elemId, instanceId} = adds[id];
-          // instanceId couldn't be undefined because we've found it in .watch() above
-          let instance = this.getInstance(instanceId)!;
-          instance.addEventListener("mouseleave", () => {
-            let changes:any[] = [];
-            let eventId = uuid();
-            changes.push(
-              [eventId, "tag", "html/event/mouseleave"],
-              [eventId, "element", elemId],
+              [eventId, "tag", "html/event"],
+              [eventId, "event", event],
+              [eventId, "element", element],
             );
             this._sendEvent(changes);
           });
@@ -110,18 +91,12 @@ class HTMLWatcher extends DOMWatcher<Instance> {
       });
 
     this.program
-      .commit("Remove mouseenter events", ({find}) => {
-        let event = find("html/event/mouseenter");
+      .commit("Remove events", ({find}) => {
+        let event = find("html/event");
         return [
           event.remove("tag"),
         ];
       })
-      .commit("Remove mouseleave events", ({find}) => {
-        let event = find("html/event/mouseleave");
-        return [
-          event.remove("tag"),
-        ];
-      });
   }
 }
 
