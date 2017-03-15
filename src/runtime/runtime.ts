@@ -2686,24 +2686,207 @@ export abstract class AggregateNode extends Node {
 
 }
 
-type SumAggregateState = {total:number};
-export class SumAggregate extends AggregateNode {
-  add(state:SumAggregateState, resolved:RawValue[]):any {
-    state.total += resolved[0] as number;
-    return state;
-  }
-  remove(state:SumAggregateState, resolved:RawValue[]):any {
-    state.total -= resolved[0] as number;
-    return state;
-  }
-  getResult(state:SumAggregateState):RawValue {
-    return state.total;
-  }
-  newResultState():SumAggregateState {
-    return {total: 0};
-  };
-}
+//------------------------------------------------------------------------------
+// SortNode
+//------------------------------------------------------------------------------
 
+export abstract class SortNode extends Node {
+  traceType = TraceNode.Aggregate;
+  groupKey:Function;
+  projectKey:Function;
+  groups:{[group:string]: {result:any[], [projection:string]: Multiplicity[]}} = {};
+  resolved:ID[] = [];
+  resolvedDirections:RawValue[] = [];
+  sortRegisters:Register[];
+
+  // @TODO: allow for multiple returns
+  constructor(public groupRegisters:Register[], public projectRegisters:Register[], public directions:(ID|Register)[], public results:Register[]) {
+    super();
+    this.groupKey = IntermediateIndex.CreateKeyFunction(groupRegisters);
+    this.projectKey = IntermediateIndex.CreateKeyFunction(projectRegisters);
+    this.sortRegisters = groupRegisters.concat(projectRegisters).filter(isRegister);
+  }
+
+  groupPrefix(group:string, prefix:Prefix) {
+    let projection = this.projectKey(prefix);
+    let prefixRound = prefix[prefix.length - 2];
+    let prefixCount = prefix[prefix.length - 1];
+    let delta = 0;
+    let found = this.groups[group];
+    if(!found) {
+      found = this.groups[group] = {result: []};
+    }
+    let counts = found[projection] || [];
+    let totalCount = 0;
+
+    let countIx = 0;
+    for(let count of counts) {
+      // we need the total up to our current round
+      if(countIx > prefixRound) break;
+      if(!count) continue;
+      totalCount += count;
+      countIx++;
+    }
+    if(totalCount && totalCount + prefixCount <= 0) {
+      // subtract
+      delta = -1;
+    } else if(totalCount === 0 && totalCount + prefixCount > 0) {
+      // add
+      delta = 1;
+    } else if(totalCount + prefixCount < 0) {
+      // we have removed more values than exist?
+      throw new Error("Negative total count for an aggregate projection");
+    } else {
+      // otherwise this change doesn't impact the projected count, we've just added
+      // or removed a support.
+    }
+    counts[prefixRound] = (counts[prefixRound] || 0) + prefixCount;
+    found[projection] = counts;
+    return delta;
+  }
+
+  resolve(prefix:Prefix):ID[] {
+    let {resolved, resolvedDirections} = this;
+    if(resolved.length < prefix.length) resolved.length = prefix.length;
+    for(let field of this.sortRegisters) {
+      if(isRegister(field)) {
+        resolved[field.offset] = prefix[field.offset];
+      }
+    }
+    let ix = 0;
+    for(let field of this.directions) {
+      if(isRegister(field)) {
+        resolvedDirections[ix] = GlobalInterner.reverse(prefix[field.offset]);
+      } else {
+        resolvedDirections[ix] = GlobalInterner.reverse(field);
+      }
+      ix++;
+    }
+    return resolved;
+  }
+
+  isGreater(a:Prefix, b:Prefix):string|false {
+    let {resolvedDirections} = this;
+    let dirIx = 0;
+    let dir = resolvedDirections[dirIx] || "up";
+    for(let register of this.projectRegisters) {
+      let {offset} = register;
+      let aV = GlobalInterner.reverse(a[offset]);
+      let bV = GlobalInterner.reverse(b[offset]);
+      if((dir === "up" &&  aV > bV) ||
+         (dir === "down" && aV < bV)) {
+        return dir;
+      } else if(aV !== bV) {
+        return false;
+      }
+      dirIx++;
+      dir = resolvedDirections[dirIx] || dir;
+    }
+    return false;
+  }
+
+  prefixEqual(a:Prefix, b:Prefix) {
+    let ix = -1;
+    for(let field of a) {
+      ix++;
+      if(field !== b[ix]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
+    let group = this.groupKey(prefix);
+    let prefixRound = prefix[prefix.length - 2];
+    let delta = this.groupPrefix(group, prefix);
+    let op = this.add;
+    if(!delta) return false;
+    if(delta < 0) op = this.remove;
+
+    let groupStates = this.groups[group].result;
+    let currentState = groupStates[prefixRound];
+    if(!currentState) {
+      // otherwise we have to find the most recent result that we've seen
+      for(let ix = 0, len = Math.min(groupStates.length, prefixRound); ix < len; ix++) {
+        let current = groupStates[ix];
+        if(current === undefined) continue;
+        currentState = copyHash(current, "SortState");
+      }
+    }
+    let resolved = this.resolve(prefix);
+    let start = prefixRound;
+    groupStates[prefixRound] = currentState;
+    if(!currentState) {
+      currentState = groupStates[prefixRound] = op(this.newResultState(), resolved, prefixRound, results);
+      start = prefixRound + 1;
+    }
+    for(let ix = start, len = Math.max(groupStates.length, prefixRound + 1); ix < len; ix++) {
+      let current = groupStates[ix];
+      if(current === undefined) continue;
+
+      current = groupStates[prefixRound] = op(current, resolved, ix, results);
+    }
+    return true;
+  }
+
+  resultPrefix(prefix:Prefix, outOffset:number, pos:number, round:number, count:Multiplicity) {
+    let item = copyArray(prefix, "SortResult");
+    // add one here because we're one indexed
+    item[outOffset] = GlobalInterner.intern(pos + 1);
+    item[item.length - 2] = round;
+    item[item.length - 1] = count;
+    return item;
+  }
+
+  add = (state:any, resolved:ID[], round:number, results:Iterator<Prefix>):any => {
+    let {resultPrefix} = this;
+    let neue = copyArray(resolved, "SortIntermediate");
+    let ix = 0;
+    for(let item of state.sorted) {
+      if(this.isGreater(item, resolved)) {
+        break;
+      }
+      ix++;
+    }
+    let outOffset = this.results[0].offset;
+    state.sorted.splice(ix, 0, neue);
+    results.push(resultPrefix(neue, outOffset, ix, round, 1));
+    ix++;
+    for(; ix < state.sorted.length; ix++) {
+      let cur = state.sorted[ix];
+      results.push(resultPrefix(cur, outOffset, ix - 1, round, -1));
+      results.push(resultPrefix(cur, outOffset, ix, round, 1));
+    }
+    return state;
+  }
+
+  remove = (state:any, resolved:ID[], round:number, results:Iterator<Prefix>):any => {
+    let {resultPrefix} = this;
+    let ix = 0;
+    let found = false;
+    for(let item of state.sorted) {
+      if(this.prefixEqual(item, resolved)) {
+        break;
+      }
+      ix++;
+    }
+    state.sorted.splice(ix, 1);
+    let outOffset = this.results[0].offset;
+    results.push(resultPrefix(resolved, outOffset, ix, round, -1));
+    for(; ix < state.sorted.length; ix++) {
+      let cur = state.sorted[ix];
+      results.push(resultPrefix(cur, outOffset, ix + 1, round, -1));
+      results.push(resultPrefix(cur, outOffset, ix, round, 1));
+    }
+    return state;
+  }
+
+  newResultState():any {
+    return {sorted: [], sortLookup: {}};
+  }
+
+}
 
 //------------------------------------------------------------------------------
 // Block

@@ -9,6 +9,7 @@ import * as Runtime from "./runtime";
 import * as indexes from "./indexes";
 import {Watcher, Exporter, DiffConsumer, ObjectConsumer, RawRecord} from "../watchers/watcher";
 import "./stdlib";
+import {SumAggregate} from "./stdlib";
 import {v4 as uuid} from "node-uuid";
 import * as falafel from "falafel";
 
@@ -1343,9 +1344,11 @@ class Aggregate extends DSLBase {
   getInputRegisters():Register[] {
     let {context} = this;
     let items = concatArray([], this.args);
-    concatArray(items, this.projection);
+    if(this.aggregate === Runtime.SortNode) {
+      concatArray(items, this.projection);
+    }
     concatArray(items, this.group);
-    return this.args.map((v) => context.getValue(v)).filter(isRegister) as Register[];
+    return items.map((v) => context.getValue(v)).filter(isRegister) as Register[];
   }
 
   getOutputRegisters():Register[] {
@@ -1395,13 +1398,19 @@ class AggregateBuilder {
 
   sum(value:Reference):any {
     this.checkBlock();
-    let agg = new Aggregate(this.context, Runtime.SumAggregate, this.projection, this.group, [value]);
+    let agg = new Aggregate(this.context, SumAggregate, this.projection, this.group, [value]);
     return agg.reference();
   }
 
   count():any {
     this.checkBlock();
-    let agg = new Aggregate(this.context, Runtime.SumAggregate, this.projection, this.group, [1]);
+    let agg = new Aggregate(this.context, SumAggregate, this.projection, this.group, [1]);
+    return agg.reference();
+  }
+
+  sort(...directions:Value[]):any {
+    this.checkBlock();
+    let agg = new Aggregate(this.context, Runtime.SortNode, this.projection, this.group, directions);
     return agg.reference();
   }
 
