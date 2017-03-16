@@ -702,7 +702,10 @@ class EditorWatcher extends Watcher {
                 record("ui/text", {text: node.label, style: record({color: node.color})})
               ]),
               record("editor/query/pattern", "ui/column", {sort: 1, frame: active_frame, node}).add("children", [
-                record("ui/text", {sort: 0, text: main_pattern, class: "editor-query-tag"}),
+                record("editor/query/pattern/main", "ui/row", {sort: 0, node}).add("children", [
+                  record("ui/text", {sort: 1, text: main_pattern, class: "editor-query-tag"}),
+                  record("ui/spacer", {sort: 2})
+                ])
               ])
             ])
           ];
@@ -738,21 +741,39 @@ class EditorWatcher extends Watcher {
               record("ui/column", {node,  sort: 2}).add("children", [
                 record("editor/query/field", "ui/row", {node, query_field, sort: query_field}).add("children", [
                   record("ui/text", {sort: 1, text: query_field}),
-
+                  record("ui/spacer", {sort: 2})
                 ])
               ])
             ])
           ];
         })
 
+        .block("When a query node is open, display delete node button.", ({find, record}) => {
+          let query_node = find("editor/query/node", {open: "true"});
+          let {node} = query_node;
+          let main = find("editor/query/pattern/main", {node});
+          return [main.add("children", record("editor/query/delete-node", "ui/button", {sort: 9, node, icon: "close-round"}))];
+        })
+        .commit("Clicking a delete node button removes it from the block", ({find, record}) => {
+          let delete_node = find("editor/query/delete-node");
+          let click = find("html/event/click", {element: delete_node});
+          let {node} = delete_node;
+          let frame = find("editor/frame", {node});
+          return [
+            node.remove(),
+            frame.remove("node", node)
+          ];
+        })
+
+
+
         .block("When a query node is open, display delete field buttons.", ({find, record}) => {
           let query_node = find("editor/query/node", {open: "true"});
           let {node} = query_node;
           let field = find("editor/query/field", {node});
           let {query_field} = field;
-          return [field.add("children", record("editor/query/delete-field", "ui/button", {sort: 10, node, query_field, icon: "close-round"}))];
+          return [field.add("children", record("editor/query/delete-field", "ui/button", {sort: 9, node, query_field, icon: "close-round"}))];
         })
-
         .commit("Clicking a delete field button removes its attribute from the pattern", ({find, record}) => {
           let delete_field = find("editor/query/delete-field");
           let click = find("html/event/click", {element: delete_field});

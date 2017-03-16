@@ -43,7 +43,7 @@
 .editor-view .editor-query-node { margin-bottom: 10; }
 .editor-view .editor-query-hex { margin: 10; }
 .editor-view .editor-query-hex > text { display: flex; }
-.editor-view .editor-query-pattern { margin-top: 20; position: relative; align-self: flex-start; }
+.editor-view .editor-query-pattern { margin-top: 20; position: relative; align-self: flex-start; width: 120; }
 .editor-view .editor-query-pattern:before {display: block;content: " ";position: absolute;top: 22;bottom: 0;left: 0;width: 0;border-left: 1px solid #ccc;}
 
 .editor-view .editor-query-pattern .editor-query-tag { margin-left: -1; font-weight: 500; }
@@ -60,7 +60,10 @@
 
 .editor-view .editor-query-pattern .editor-query-subnode:last-child .editor-query-node:after {display: block;content: " ";position: absolute;top: 31;bottom: -10;left:56;width: 0;margin-top: 1px;border-left: 1px solid white;}
 
-.editor-query-pattern .editor-query-delete-field { opacity: 0; transition: opacity 0.2s ease-out; }
+.editor-query-pattern .editor-query-delete-node,
+.editor-query-pattern .editor-query-delete-field { color: #ff6666; }
+
+ .editor-query-pattern .editor-query-delete-field{ opacity: 0; transition: opacity 0.2s ease-out; }
 .editor-query-pattern .editor-query-field:hover .editor-query-delete-field { opacity: 1; }
 
 .editor-query-pattern .editor-query-subnode:nth-child(2) { margin-top: 10; }
