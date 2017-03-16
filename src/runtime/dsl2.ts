@@ -1164,7 +1164,7 @@ export class Insert extends Record {
 // Remove
 //--------------------------------------------------------------------
 
-class Remove extends Insert {
+export class Remove extends Insert {
   toCommit() {
     let commit = new CommitRemove(this.context, [], {}, this.record);
     commit.attributes = this.attributes;
@@ -1661,12 +1661,17 @@ export class Program {
     return this;
   }
 
-  commit(name:string, func:LinearFlowFunction) {
-    let flow = new CommitFlow(this.injectConstants(func));
+  _commit(name:string, flow:LinearFlow) {
     let nodes = flow.compile();
     let block = new Runtime.Block(name, nodes, flow.context.maxRegisters);
     this.flows.push(flow);
     this.blocks.push(block);
+    return block;
+  }
+
+  commit(name:string, func:LinearFlowFunction) {
+    let flow = new CommitFlow(this.injectConstants(func));
+    this._commit(name, flow);
     return this;
   }
 
