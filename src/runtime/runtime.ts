@@ -52,10 +52,10 @@ export function printConstraint(constraint:Constraint) {
 
 export function printOutputNode(node:OutputNode) {
   let type;
-  if(node instanceof InsertNode) type = "Insert";
-  else if(node instanceof RemoveNode) type = "Remove";
+  if(node instanceof CommitRemoveNode) type = "CommitRemove";
   else if(node instanceof CommitInsertNode) type = "Commit";
-  else if(node instanceof CommitRemoveNode) type = "CommitRemove";
+  else if(node instanceof RemoveNode) type = "Remove";
+  else if(node instanceof InsertNode) type = "Insert";
   else return node;
   return `${type}: ${printField(node.e)} ${printField(node.a)} ${printField(node.v)} ${printField(node.n)}`;
 }
