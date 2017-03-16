@@ -1183,7 +1183,9 @@ export class Remove extends Insert {
       let n = uuid();
       let internedV:any = context.maybeInterned(v); // @FIXME
       internedV = internedV !== undefined ? internedV : Runtime.IGNORE_REG;
-      nodes.push(new Runtime.RemoveNode(e, context.interned(a), internedV, context.interned(n)));
+      let internedA:any = context.maybeInterned(a); // @FIXME
+      internedA = internedA !== undefined ? internedA : Runtime.IGNORE_REG;
+      nodes.push(new Runtime.RemoveNode(e, internedA, internedV, context.interned(n)));
     }
     return nodes;
   }
@@ -1246,7 +1248,9 @@ class CommitRemove extends Remove {
       let n = uuid();
       let internedV:any = context.maybeInterned(v); // @FIXME
       internedV = internedV !== undefined ? internedV : Runtime.IGNORE_REG;
-      nodes.push(new Runtime.CommitRemoveNode(e, context.interned(a), internedV, context.interned(n)));
+      let internedA:any = context.maybeInterned(a); // @FIXME
+      internedA = internedA !== undefined ? internedA : Runtime.IGNORE_REG;
+      nodes.push(new Runtime.CommitRemoveNode(e, internedA, internedV, context.interned(n)));
     }
     return nodes;
   }
