@@ -1119,7 +1119,7 @@ class EditorWatcher extends Watcher {
         let target = find("editor/atom/field/value-set", "editor/data/adding");
         return [
           target.add("children", [
-            record("editor/atom/field/value", "editor/atom/field/new-value", "html/element", {tagname: "input", sort: "zzzz", placeholder: "ohai", value: "blarp"})
+            record("editor/atom/field/value", "editor/atom/field/new-value", "html/element", {tagname: "input", sort: "zzzz", placeholder: "value..."})
           ])
         ];
       })

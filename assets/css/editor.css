@@ -91,7 +91,7 @@
 .editor-block-data-canvas .editor-data-toolbar > .ui-button.editor-active:before {  color: #44f; }
 .editor-block-data-canvas .editor-data-toolbar > .editor-data-toolbar-select:before { transform: rotateZ(-30deg); }
 
-.editor-block-data-canvas .editor-molecule-infobox { margin-left: 70; top: 500; }
+.editor-block-data-canvas .editor-molecule-infobox {margin-left: 70;top: 300;}
 .editor-block-data-canvas .editor-node-infobox { padding: 10; }
 .editor-block-data-canvas .editor-node-infobox + .editor-node-infobox { border-top: 1px solid gray; }
 .editor-block-data-canvas .editor-atom-infobox + .editor-atom-infobox { margin-top: 20; }
@@ -115,7 +115,7 @@
 
 .shape-hexagon .shape-hexagon-inner {  }
 
-.shape-hex-grid { position: relative; }
+.shape-hex-grid {position: relative;left: 70;}
 
 
 

@@ -34,6 +34,8 @@ class HTMLWatcher extends DOMWatcher<Instance> {
     instance.removeAttribute(attribute as string);
   }
 
+  sentInputValues:{[element:string]: string[], [element:number]: string[]} = {};
+
   setup() {
     this.tagPrefix = "html"; // @FIXME: hacky, due to inheritance chain evaluation order.
     super.setup();
@@ -60,6 +62,36 @@ class HTMLWatcher extends DOMWatcher<Instance> {
 
       this._sendEvent(eavs);
     });
+
+    window.addEventListener("input", (event) => {
+      let target = event.target as (Instance & HTMLInputElement);
+      let elementId = target.__element;
+      if(elementId) {
+        let {sentInputValues} = this;
+        if(!sentInputValues[elementId]) {
+          sentInputValues[elementId] = [];
+        }
+        sentInputValues[elementId].push(target.value);
+        let eventId = uuid();
+        let eavs:RawEAV[] = [
+          [eventId, "tag", "html/event/change"],
+          [eventId, "element", elementId],
+          [eventId, "value", target.value]
+        ];
+        this._sendEvent(eavs);
+      }
+    });
+
+    this.program
+      .commit("Remove change events.", ({find}) => {
+        let event = find("html/event/change");
+        return [event.remove()];
+      })
+      .commit("Apply input value changes.", ({find}) => {
+        let {element, value} = find("html/event/change");
+        return [element.remove("value").add("value", value)];
+      });
+
 
     this.program
       .watch("setup onmouseenter", ({find, record}) => {
