@@ -50,6 +50,16 @@ export function printConstraint(constraint:Constraint) {
 }
 (global as any).printConstraint = printConstraint;
 
+export function printOutputNode(node:OutputNode) {
+  let type;
+  if(node instanceof InsertNode) type = "Insert";
+  else if(node instanceof RemoveNode) type = "Remove";
+  else if(node instanceof CommitInsertNode) type = "Commit";
+  else if(node instanceof CommitRemoveNode) type = "CommitRemove";
+  else return node;
+  return `${type}: ${printField(node.e)} ${printField(node.a)} ${printField(node.v)} ${printField(node.n)}`;
+}
+
 export function printWatchNode(node:WatchNode) {
   return `Watch: ${printField(node.e)} ${printField(node.a)} ${printField(node.v)} ${printField(node.n)}`;
 }
@@ -59,6 +69,8 @@ export function printNode(node:Node) {
     return "JoinNode([\n  " + node.constraints.map(printConstraint).join("\n  ") + "\n])";
   } else if(node instanceof WatchNode) {
     return printWatchNode(node);
+  } else if(node instanceof OutputWrapperNode) {
+    return "OutputWrapperNode([\n  " + node.nodes.map(printOutputNode).join("\n  ") + "\n])";
   } else {
     return node;
   }
