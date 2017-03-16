@@ -59,7 +59,7 @@ prog.inputEavs([
   ["v2Record", "tag", "eve/compiler/output"],
   ["v2Record", "tag", "eve/compiler/remove"],
   ["v2Record", "record", "v1"],
-  ["v2Record", "attribute", "v1TagEmployee"],
+  // ["v2Record", "attribute", "v1TagEmployee"],
 
     // ["v2TagText", "attribute", "tag"],
     // ["v2TagText", "value", "ui/text"],

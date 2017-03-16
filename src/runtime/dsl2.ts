@@ -129,11 +129,11 @@ export class Reference {
   }
 
   // @TODO: allow free A's and V's here
-  remove(attribute:Value, value:Value|Value[]):Reference {
+  remove(attribute?:Value, value?:Value|Value[]):Reference {
     if(this.__owner instanceof Record) {
       // we only allow you to call remove at the root context
       if(this.__context.parent) throw new Error("Add can't be called in a sub-block");
-      this.__owner.remove(this.__context, attribute, value);
+      this.__owner.remove(this.__context, attribute as any, value as any);
       return this;
     } else {
       throw new Error("Can't call add on a non-record");
@@ -1622,7 +1622,7 @@ export class Program {
     }
     trans.exec(this.context);
     // console.timeEnd("input");
-   //  console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
+    // console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
 
     // @FIXME: Remove debugging after diagnosing compiler issue
     // let g:any = global;
