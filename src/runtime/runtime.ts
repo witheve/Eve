@@ -23,7 +23,8 @@ if(DEBUG) {
 export function printField(field:ScanField) {
   if(isRegister(field)) return "[" + field.offset + "]";
   if(field === undefined || field === null) return field;
-  return maybeReverse(field);
+  let raw = maybeReverse(field);
+  return typeof raw === "string" ? `"${raw}"` : raw;
 }
 
 export function printPrefix(prefix:Prefix) {
@@ -35,7 +36,9 @@ export function printScan(constraint:Scan) {
 }
 
 export function printFunction(constraint:FunctionConstraint) {
-  return `Function ${constraint.name} ${constraint.fieldNames.map((v) => v + ": " + printField(constraint.fields[v]))}`;
+  let params = constraint.fieldNames.map((v) => v + ": " + printField(constraint.fields[v]));
+  let restParams = constraint.restFields.map(printField).join(", ");
+  return `Function ${constraint.name} ${params} ${restParams ? `(${restParams})` : ""}`;
 }
 
 export function printConstraint(constraint:Constraint) {
