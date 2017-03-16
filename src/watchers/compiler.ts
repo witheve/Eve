@@ -158,11 +158,21 @@ export class CompilerWatcher extends Watcher {
           }
         })
       }
+      if(constraint.type === "removeRecord") {
+        inContext(flow, () => {
+          let outputVar = compileValue(compile, context, constraint.record) as Reference;
+          let output;
+          if(!outputVar.__owner) {
+            throw new Error("Trying to fully remove a record that doesn't exist");
+          }
+          outputVar.remove();
+        })
+      }
       if(constraint.type === "lookup") {
         inContext(flow, () => {
-          let lookup = flow.lookup(compileValue(compile, context, constraint.record));
-          context.equality(lookup.attribute, compileValue(compile, context, constraint.attribute));
-          context.equality(lookup.value, compileValue(compile, context, constraint.value));
+          let lookup = flow.lookup(compileValue(compile, context, constraint.record) as Value);
+          context.equality(lookup.attribute, compileValue(compile, context, constraint.attribute) as Value);
+          context.equality(lookup.value, compileValue(compile, context, constraint.value) as Value);
           console.log("LOOKUP", lookup)
         })
       }
@@ -412,6 +422,34 @@ export class CompilerWatcher extends Watcher {
         if(found.attributes.length === 0) {
           delete items[id];
         }
+        this.queue(block);
+      }
+    })
+
+    me.watch("get full remove", ({find, record, choose, not}) => {
+      let compilerRecord = find("eve/compiler/remove");
+      let block = find("eve/compiler/block", {constraint: compilerRecord});
+      not(() => compilerRecord.attribute);
+      return [
+        record({block, id:compilerRecord, record:compilerRecord.record})
+      ]
+    })
+
+    me.asObjects<{block:string, id:string, record:string}>(({adds, removes}) => {
+      let {items} = this;
+      for(let key in adds) {
+        let {block, id, record} = adds[key];
+        let found = items[id];
+        if(!found) {
+          found = items[id] = {type: "removeRecord", record: record};
+        }
+        this.queue(block);
+      }
+      for(let key in removes) {
+        let {block, id} = removes[key];
+        let found = items[id];
+        if(!found) { continue; }
+        delete items[id];
         this.queue(block);
       }
     })

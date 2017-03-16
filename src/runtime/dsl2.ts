@@ -129,11 +129,11 @@ export class Reference {
   }
 
   // @TODO: allow free A's and V's here
-  remove(attribute:Value, value:Value|Value[]):Reference {
+  remove(attribute?:Value, value?:Value|Value[]):Reference {
     if(this.__owner instanceof Record) {
       // we only allow you to call remove at the root context
       if(this.__context.parent) throw new Error("Add can't be called in a sub-block");
-      this.__owner.remove(this.__context, attribute, value);
+      this.__owner.remove(this.__context, attribute as any, value as any);
       return this;
     } else {
       throw new Error("Can't call add on a non-record");
@@ -1183,7 +1183,9 @@ export class Remove extends Insert {
       let n = uuid();
       let internedV:any = context.maybeInterned(v); // @FIXME
       internedV = internedV !== undefined ? internedV : Runtime.IGNORE_REG;
-      nodes.push(new Runtime.RemoveNode(e, context.interned(a), internedV, context.interned(n)));
+      let internedA:any = context.maybeInterned(a); // @FIXME
+      internedA = internedA !== undefined ? internedA : Runtime.IGNORE_REG;
+      nodes.push(new Runtime.RemoveNode(e, internedA, internedV, context.interned(n)));
     }
     return nodes;
   }
@@ -1246,7 +1248,9 @@ class CommitRemove extends Remove {
       let n = uuid();
       let internedV:any = context.maybeInterned(v); // @FIXME
       internedV = internedV !== undefined ? internedV : Runtime.IGNORE_REG;
-      nodes.push(new Runtime.CommitRemoveNode(e, context.interned(a), internedV, context.interned(n)));
+      let internedA:any = context.maybeInterned(a); // @FIXME
+      internedA = internedA !== undefined ? internedA : Runtime.IGNORE_REG;
+      nodes.push(new Runtime.CommitRemoveNode(e, internedA, internedV, context.interned(n)));
     }
     return nodes;
   }
@@ -1618,7 +1622,7 @@ export class Program {
     }
     trans.exec(this.context);
     // console.timeEnd("input");
-   //  console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
+    // console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
 
     // @FIXME: Remove debugging after diagnosing compiler issue
     // let g:any = global;

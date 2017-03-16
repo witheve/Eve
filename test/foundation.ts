@@ -557,3 +557,36 @@ test("commit, remove, and recursion", (assert) => {
 
   assert.end();
 });
+
+
+test("Remove: free AV", (assert) => {
+
+  // -----------------------------------------------------
+  // program
+  // -----------------------------------------------------
+
+  let prog = new Program("test");
+
+  prog.commit("coolness", ({find, not, record, choose}) => {
+    let person = find("person");
+    return [
+      person.remove()
+    ]
+  })
+
+  // -----------------------------------------------------
+  // verification
+  // -----------------------------------------------------
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+    [1, "name", "chris"],
+    [1, "age", 30],
+  ], [
+    [1, "tag", "person", 0, -1],
+    [1, "name", "chris", 0, -1],
+    [1, "age", 30, 0, -1],
+  ])
+
+  assert.end();
+});

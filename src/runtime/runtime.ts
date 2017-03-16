@@ -501,8 +501,20 @@ class RemoveVsChange extends RemoveChange {
 
 class RemoveAVsChange extends RemoveVsChange {
   toRemoveChanges(context:EvaluationContext, changes:Change[]) {
-    throw new Error("Implement me!");
+    let {e,a,v,n} = this;
+    let {index, distinctIndex} = context;
+    let matches = index.get(e, IGNORE_REG, IGNORE_REG, IGNORE_REG, this.transaction, Infinity);
+    for(let {a, v} of matches) {
+      let rounds = index.getDiffs(e, a, v, IGNORE_REG);
+      for(let round of rounds) {
+        let count = this.count * (round > 0 ? 1 : -1);
+        let changeRound = Math.max(this.round, Math.abs(round) - 1);
+        let change = new RemoveChange(e!, a!, v!, n!, this.transaction, changeRound, count);
+        changes.push(change);
+      }
+    }
   }
+
   clone() {
     let {e, a, v, n, transaction, round, count} = this;
     return new RemoveAVsChange(e, a, v, n, transaction, round, count);
