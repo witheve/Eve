@@ -1191,6 +1191,7 @@ class EditorWatcher extends Watcher {
       .block("When the editor's current tool is save, create a block representing the changes.", ({find, record}) => {
         let editor = find("editor/root");
         let {active_block} = editor;
+        active_block.data_output;
 
         return [
           active_block.add("data_block", [
@@ -1200,13 +1201,19 @@ class EditorWatcher extends Watcher {
       })
 
     // @NOTE: This needs to be a clone, not a bind, or we need to do it separately. Otherwise we go byebye when the block changes.
-      .block("Copy all the records from the molecule watch.", ({find}) => {
+      .block("Copy all the records from the molecule watch.", ({find, record}) => {
         let editor = find("editor/root");
         let {block} = editor;
         let {data_block} = block;
         let atom_record = find("editor/atom/record");
+        let {node, attribute:attr} = atom_record;
+
+        let entity_var;
         return [
-          data_block.add("constraint", atom_record)
+          entity_var = record("editor/data/node/entity", "eve/compiler/var", {node}),
+          data_block.add("constraint", record("eve/compiler/record", {node, record: entity_var}).add("attribute", [
+            record({attribute: attr.attribute, value: attr.value})
+          ])),
         ];
       })
 
@@ -1217,7 +1224,7 @@ class EditorWatcher extends Watcher {
         let {data_output} = block;
         data_output.tag == "editor/data/add/value";
         let {node, attribute, value} = data_output;
-        let node_var = find("editor/atom/output_var", {node});
+        let node_var = find("editor/data/node/entity", {node});
         return [
 
           data_block.add("constraint", [
