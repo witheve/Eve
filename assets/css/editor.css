@@ -1,6 +1,6 @@
 //row, column { min-width: 100; min-height: 100; border: 1px solid black; }
 
-.editor-view {align-items: stretch; height: 100%; background: white; }
+.editor-view {align-items: stretch;height: 100%;background: white;}
 
 /****************************************************************************\
  * Editor Nav

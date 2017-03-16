@@ -365,6 +365,14 @@ class EditorWatcher extends Watcher {
     //--------------------------------------------------------------------
 
     editor
+      .block("Compute the label and color of query nodes.", ({find, choose, lib:{string}}) => {
+        let node = find("editor/query-node");
+        let {name, sort} = node;
+        let label = string.uppercase(string.get(name, 1));
+        let color = choose(() => find("node-color", {ix: sort}).color, () => "gray");
+        return [node.add({label, color})];
+      })
+
       .block("Populate the block query for the active block.", ({find, union, record}) => {
         let query_elem = find("editor/block/query-tree");
         let {editor} = query_elem;
@@ -497,7 +505,7 @@ class EditorWatcher extends Watcher {
       })
 
     // @FIXME: Getting multiple subnodes if we have existing attrs but not vice versa
-      .commit("Clicking a new record attribute in a query node adds it as a sub-node.", ({find, gather, lib:{string}, choose, record}) => {
+      .commit("Clicking a new record attribute in a query node adds it as a sub-node.", ({find, gather, choose, record}) => {
         let new_attribute = find("editor/query/node/new-attribute");
         let click = find("html/event/click", {element: new_attribute});
         let {node, attribute} = new_attribute;
@@ -509,7 +517,6 @@ class EditorWatcher extends Watcher {
         let [ix] = choose(() => {
           return [gather(frame.node).count() + 1];
         }, () => 1);
-        let color = choose(() => find("node-color", {ix}).color, () => "gray");
 
         return [
           node.add("query_subnode", attribute),
@@ -517,11 +524,9 @@ class EditorWatcher extends Watcher {
             record("editor/query-node", "editor/subnode", {
               type: "join",
               sort: ix,
-              label: string.uppercase(string.get(attribute, 1)),
-              color,//: "gray",
+              name: attribute,
               parent_attribute: attribute,
               parent_node: node,
-              // query_field: "name"
             })
           ]),
           query_node.remove("new-attribute")
@@ -565,7 +570,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .commit("Clicking on a new node tag adds it as a node to the query.", ({find, gather, choose, lib:{string}, record}) => {
+      .commit("Clicking on a new node tag adds it as a node to the query.", ({find, gather, choose, record}) => {
         let new_node_tag = find("editor/query/new-node/tag");
         let {new_node_button} = new_node_tag;
         let {client_tag} = new_node_tag;
@@ -583,7 +588,6 @@ class EditorWatcher extends Watcher {
         let [ix] = choose(() => {
           return [gather(frame.node).count() + 1];
         }, () => 1);
-        let color = choose(() => find("node-color", {ix}).color, () => "gray");
 
         return [
           new_node_button.remove("open"),
@@ -591,8 +595,7 @@ class EditorWatcher extends Watcher {
             record("editor/query-node", "editor/root-node", {
               type: "join",
               sort: ix,
-              label: string.uppercase(string.get(client_tag, 1)),
-              color,//: "gray",
+              name: client_tag,
               query_tag: client_tag,
               // query_field: "name"
             })
@@ -693,7 +696,7 @@ class EditorWatcher extends Watcher {
 
       .block("DEBUG: Sort molecules by id.", ({find, gather, record}) => {
         let molecule = find("editor/molecule");
-        let ix = gather(molecule.generation).sort();
+        let ix = gather(molecule.generation, molecule).sort();
         return [
           molecule.add("sort", ix)
         ];
@@ -811,68 +814,108 @@ class EditorWatcher extends Watcher {
       let {active_frame} = editor;
       active_frame.node == node;
 
+      let entity_var = find("editor/atom/entity", {node});
+
       let molecule_var;
       return [
         molecule_var = record("editor/molecule/output_var", "eve/compiler/var", {node}),
         molecule_watch.add("constraint", [
-          record("editor/molecule/output", "eve/compiler/output", {node, record: molecule_var}).add("attribute", [
+          record("editor/molecule/output", "eve/compiler/output", {molecule_watch, node, record: molecule_var}).add("attribute", [
             record("eve/compiler/av", {attribute: "tag", value: "editor/molecule"}),
             record("eve/compiler/av", {attribute: "editor", value: editor}),
             record("eve/compiler/av", {attribute: "frame", value: active_frame}),
-            record("eve/compiler/av", {attribute: "node", value: node})
+            record("eve/compiler/av", {attribute: "node", value: node}),
+            record("eve/compiler/av", {attribute: "root_atom_record", value: entity_var}),
           ])
         ]),
       ];
     });
 
     editor.block("Attach the root atom to molecules.", ({find, record}) => {
-      let molecule_watch = find("editor/molecule/watch");
       let molecule_output = find("editor/molecule/output");
+      let {molecule_watch} = molecule_output;
       let {node} = molecule_output;
-      let entity_var = find("editor/atom/entity", {node});
 
       let atom_var;
       return [
         atom_var = record("editor/atom/output_var", "eve/compiler/var", {node}),
         molecule_watch.add("constraint", [
-          record("editor/atom/output", "eve/compiler/output", {record: atom_var}).add("attribute", [
-            record("eve/compiler/av", {attribute: "tag", value: "editor/atom"}),
-            record("eve/compiler/av", {attribute: "node", value: node}),
-            record("eve/compiler/av", {attribute: "molecule", value: molecule_output.record}),
-            record("eve/compiler/av", {attribute: "record", value: entity_var}),
-          ])
+          record("editor/atom/output", "eve/compiler/output", {node, molecule_output, record: atom_var})
         ]),
         molecule_output.add("parent_node", node),
-        molecule_output.add("attribute", [
-          record("eve/compiler/av", {attribute: "root_atom_record", value: entity_var}),
-          record("eve/compiler/av", "eve/compiler/attribute/non-identity", {attribute: "atom", value: atom_var}),
-        ]),
+
       ];
     });
 
     editor.block("Attach subnode atoms to molecules.", ({find, record}) => {
-      let molecule_watch = find("editor/molecule/watch");
       let molecule_output = find("editor/molecule/output");
-      let {parent_node} = molecule_output;
+      let {molecule_watch, parent_node} = molecule_output;
       let {node} = find("editor/query/node");
       node.parent_node == parent_node;
-
-      let entity_var = find("editor/atom/entity", {node});
 
       let atom_var;
       return [
         atom_var = record("editor/atom/output_var", "eve/compiler/var", {node}),
         molecule_watch.add("constraint", [
-          record("editor/atom/output", "eve/compiler/output", {record: atom_var}).add("attribute", [
-            record("eve/compiler/av", {attribute: "tag", value: "editor/atom"}),
-            record("eve/compiler/av", {attribute: "node", value: node}),
-            record("eve/compiler/av", {attribute: "molecule", value: molecule_output.record}),
-            record("eve/compiler/av", {attribute: "record", value: entity_var}),
-          ])
+          record("editor/atom/output", "eve/compiler/output", {node, molecule_output, record: atom_var})
         ]),
         molecule_output.add("parent_node", node),
+      ];
+    });
+
+    editor.block("Fill vital atom output attributes and attach them to their molecule output.", ({find, record}) => {
+      let atom_output = find("editor/atom/output");
+      let {molecule_output, node} = atom_output;
+      let entity_var = find("editor/atom/entity", {node});
+      return [
+        atom_output.add("attribute", [
+          record("eve/compiler/av", {attribute: "tag", value: "editor/atom"}),
+          record("eve/compiler/av", {attribute: "node", value: node}),
+          record("eve/compiler/av", {attribute: "molecule", value: molecule_output.record}),
+          record("eve/compiler/av", {attribute: "record", value: entity_var}),
+        ]),
+
         molecule_output.add("attribute", [
-          record("eve/compiler/av", "eve/compiler/attribute/non-identity", {attribute: "atom", value: atom_var}),
+          record("eve/compiler/av", "eve/compiler/attribute/non-identity", {attribute: "atom", value: atom_output.record}),
+        ]),
+      ];
+    })
+
+    // @FIXME: What about root node identity?
+    editor.block("Attach node query fields to their atom outputs.", ({find, record}) => {
+      let atom_field_var = find("editor/atom/field");
+      let {node, query_field} = atom_field_var;
+      let atom_output = find("editor/atom/output", {node});
+      let {molecule_output} = atom_output;
+      let {molecule_watch} = molecule_output;
+
+      let field_var;
+      return [
+        field_var = record("editor/atom/field/output_var", "eve/compiler/var", {node, root_node: molecule_output.node}),
+        molecule_watch.add("constraint", [
+          record("editor/atom/field/output", "eve/compiler/output", {node, record: field_var}).add("attribute", [
+            record("eve/compiler/av", {attribute: query_field, value: atom_field_var})
+          ])
+        ]),
+        atom_output.add("attribute", [
+          record("eve/compiler/av", "eve/compiler/attribute/non-identity", {attribute: "field", value: field_var}),
+        ])
+      ];
+    })
+
+    editor.block("DEBUG: Show molecule atom fields.", ({find, lookup, record}) => {
+      let molecule = find("editor/molecule");
+      let {atom} = molecule;
+      let {field} = atom;
+      let {attribute, value} = lookup(field);
+      return [
+        record("ui/column", {sort: molecule.sort, molecule, style: record({border: "1px solid gray", padding: 10, margin: 10})}).add("children", [
+          record("ui/text", {text: `Molecule ${molecule.sort}`}),
+          record("ui/row", {sort: atom.sort, molecule, atom}).add("children", [
+            record("ui/text", {sort: 0, text: `${atom.node.name} {`}),
+            record("ui/text", {sort: atom.sort, text: ` ${attribute}: ${value} `}),
+            record("ui/text", {sort: Infinity, text: `}`}),
+          ])
         ])
       ];
     });
