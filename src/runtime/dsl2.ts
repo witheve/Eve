@@ -101,6 +101,7 @@ export class Reference {
   constructor(public __context:ReferenceContext, public __owner?:Owner) {
     let proxied = this.__proxy();
     __context.register(proxied);
+    this.__owner = __owner || null;
     return proxied;
   }
 
@@ -1083,7 +1084,7 @@ class Move extends DSLBase {
 // Insert
 //--------------------------------------------------------------------
 
-class Insert extends Record {
+export class Insert extends Record {
 
   constructor(public context:ReferenceContext, tags:string[] = [], attributes:RecordAttributes = {}, record?:Reference) {
     super(context, tags, attributes, record);

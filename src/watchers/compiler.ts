@@ -4,7 +4,7 @@
 
 import {Watcher, RawValue, DiffConsumer} from "./watcher";
 import {ID, Block} from "../runtime/runtime";
-import {Program, LinearFlow, ReferenceContext, Reference, Record, Value, WatchFlow, CommitFlow} from "../runtime/dsl2";
+import {Program, LinearFlow, ReferenceContext, Reference, Record, Insert, Value, WatchFlow, CommitFlow} from "../runtime/dsl2";
 import "setimmediate";
 
 interface CompilationContext {
@@ -121,8 +121,9 @@ export class CompilerWatcher extends Watcher {
             }
             found.push(safeValue);
           }
-          let record = flow.find(attrs);
-          context.equality(record, compileValue(compile, context, constraint.record));
+          let recordVar = compileValue(compile, context, constraint.record) as Reference;
+          let record = new Record(flow.context, [], attrs, recordVar);
+          recordVar.__owner = record;
         })
       }
       if(constraint.type === "output") {
@@ -136,11 +137,18 @@ export class CompilerWatcher extends Watcher {
             }
             found.push(safeValue);
           }
-          let record = flow.record(attrs);
+          let insertVar = compileValue(compile, context, constraint.record) as Reference;
+          let insert;
+          if(!insertVar.__owner) {
+            insert = new Insert(flow.context, [], attrs);
+            context.equality(insert.reference(), insertVar);
+          } else {
+            insert = new Insert(flow.context, [], attrs, insertVar);
+          }
+          let record = insert.reference();
           for(let [attribute, value] of constraint.nonIdentityAttribute) {
             record.add(attribute, compileValue(compile, context, value));
           }
-          context.equality(record, compileValue(compile, context, constraint.record));
         })
       }
     }

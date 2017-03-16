@@ -51,7 +51,7 @@ prog.inputEavs([
     ["v1Name", "value", "vName"],
 
   ["v2Record", "tag", "eve/compiler/output"],
-  ["v2Record", "record", "v2"],
+  ["v2Record", "record", "v1"],
   ["v2Record", "attribute", "v2TagText"],
   ["v2Record", "attribute", "v2Text"],
 
