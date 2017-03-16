@@ -83,6 +83,15 @@
 .editor-view .editor-atom-infobox { padding: 10; }
 .editor-view .editor-atom-infobox + .editor-atom-infobox { border-top: 1px solid gray; }
 
+/****************************************************************************\
+ * Data Editor
+\****************************************************************************/
+.editor-block-data-canvas .editor-atom-header { font-weight: 500; text-align: center; }
+.editor-block-data-canvas .editor-atom-field-row { min-width: 200; margin-bottom: -1; border: 1px solid #ccc; }
+.editor-block-data-canvas .editor-atom-field-attribute { min-width: 80; margin-right: 10; padding-right: 10; border-right: 1px solid #ccc;}
+
+.editor-block-data-canvas .editor-atom-new-field { border: 1px solid #ccc; text-align: center; }
+
 
 /****************************************************************************\
  * Shapes

@@ -1013,11 +1013,15 @@ class EditorWatcher extends Watcher {
         return [
           canvas_elem.add("children", [
             record("editor/molecule/infobox", "ui/column", {sort: molecule.sort, molecule}).add("children", [
-              record("ui/text", {text: `Molecule ${molecule.sort}`}),
+              // record("editor/molecule/header", "ui/text", {text: `Molecule ${molecule.sort}`}),
               record("editor/atom/infobox", "ui/column", {sort: atom.sort, molecule, atom}).add("children", [
-                record("ui/text", {sort: 0, text: `${atom.node.name} {`}),
-                record("ui/text", {sort: atom.sort, text: ` ${attribute}: ${value} `}),
-                record("ui/text", {sort: Infinity, text: `}`}),
+                record("editor/atom/header", "ui/text", {sort: 0, text: atom.node.name}),
+                record("editor/atom/field-row", "ui/row", {sort: attribute, atom, attribute}).add("children", [
+                  record("editor/atom/field/attribute", "ui/text", {sort: 1, text: attribute}),
+                  record("editor/atom/field/value", "ui/text", {sort: 2, text: value})
+                ]),
+                // Numbers always sort above strings :/
+                record("editor/atom/new-field", "ui/button", {sort: "zzzz", class: "flat", icon: "plus-round"}),
               ])
             ])
           ])
