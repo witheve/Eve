@@ -80,6 +80,8 @@
 
 
 .editor-view .editor-molecule-infobox { position: absolute; top: 400; padding: 10; margin: 10; z-index: 2; border: 1px solid gray; background: rgba(255, 255, 255, 0.5); }
+.editor-view .editor-atom-infobox { padding: 10; }
+.editor-view .editor-atom-infobox + .editor-atom-infobox { border-top: 1px solid gray; }
 
 
 /****************************************************************************\
@@ -112,5 +114,3 @@
 text { flex: 0 0 auto; }
 column { flex: 0 0 auto; }
 row { flex: 0 0 auto; }
-
-.jigglez { border: 1px solid black; margin-bottom: 10; }

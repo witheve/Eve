@@ -341,13 +341,323 @@ class EditorWatcher extends Watcher {
         ];
       });
 
-    this.attachQueryEditor(editor);
     this.attachMoleculeGenerator(editor);
+    this.attachQueryEditor(editor);
+    this.attachDataEditor(editor);
 
     return editor;
   }
 
-  attachQueryEditor(editor:Program) {
+
+  attachMoleculeGenerator(editor:Program) {
+    //--------------------------------------------------------------------
+    // Molecule generation
+    //--------------------------------------------------------------------
+
+    editor.block("Create a set of molecules for the active block's queries.", ({find, record}) => {
+      let editor = find("editor/root");
+      let {active_block} = editor;
+      let {storyboard:frame} = active_block;
+      frame.type == "query";
+      let {node} = frame;
+      node.tag == "editor/root-node";
+
+      return [
+        active_block.add("molecule-watch", [
+          record("editor/molecule/watch", "eve/compiler/block", {editor, frame, name: "Create molecules", type: "watch", watcher: "send-to-editor"}).add("constraint", [
+            record("editor/atom/record", "eve/compiler/record", {node, record: record("editor/atom/entity", "eve/compiler/var", {node})}),
+          ])
+        ])
+      ];
+    })
+
+    editor.block("Embed subnodes.", ({find, record}) => {
+      let molecule_watch = find("editor/molecule/watch");
+      let {editor, frame} = molecule_watch;
+      let {node} = frame;
+      let {parent_node, parent_attribute} = node;
+
+      let parent_record = find("editor/atom/record", {node: parent_node});
+
+      let record_var;
+      return [
+        record_var = record("editor/atom/entity", "eve/compiler/var", {node}),
+        parent_record.add("attribute", record({tag: "eve/compiler/av", attribute: parent_attribute, value: record_var})),
+
+        molecule_watch.add("constraint", [
+          record("editor/atom/record", "eve/compiler/record", {node, record: record_var})
+        ])
+      ];
+    })
+
+
+    editor.block("Attach node query tags to their atom records.", ({find, record}) => {
+      let atom_record = find("editor/atom/record");
+      let {node} = atom_record;
+      let {query_tag} = node;
+
+      return [
+        atom_record.add("attribute", record({tag: "eve/compiler/av", attribute: "tag", value: query_tag})),
+      ];
+    })
+
+    editor.block("Attach node fields to their atom records.", ({find, record}) => {
+      let atom_record = find("editor/atom/record");
+      let {node} = atom_record;
+      let {query_field} = node;
+
+      return [
+        atom_record.add("attribute", [
+          record({
+            tag: "eve/compiler/av",
+            attribute: query_field,
+            value: record("editor/atom/field", "eve/compiler/var", {node, query_field})
+          })
+        ])
+      ];
+    })
+
+    editor.block("Output a molecule for each root node.", ({find, record}) => {
+      let molecule_watch = find("editor/molecule/watch");
+      let {editor, frame} = molecule_watch;
+      let node = find("editor/root-node");
+      frame.node == node;
+
+      let entity_var = find("editor/atom/entity", {node});
+
+      let molecule_var;
+      return [
+        molecule_var = record("editor/molecule/output_var", "eve/compiler/var", {frame, node}),
+        molecule_watch.add("constraint", [
+          record("editor/molecule/output", "eve/compiler/output", {molecule_watch, node, record: molecule_var}).add("attribute", [
+            record("eve/compiler/av", {attribute: "tag", value: "editor/molecule"}),
+            record("eve/compiler/av", {attribute: "editor", value: editor}),
+            record("eve/compiler/av", {attribute: "frame", value: frame}),
+            record("eve/compiler/av", {attribute: "node", value: node}),
+            record("eve/compiler/av", {attribute: "root_atom_record", value: entity_var}),
+          ])
+        ]),
+      ];
+    });
+
+    editor.block("Attach the root atom to molecules.", ({find, record}) => {
+      let molecule_output = find("editor/molecule/output");
+      let {molecule_watch} = molecule_output;
+      let {node} = molecule_output;
+
+      let atom_var;
+      return [
+        atom_var = record("editor/atom/output_var", "eve/compiler/var", {node}),
+        molecule_watch.add("constraint", [
+          record("editor/atom/output", "eve/compiler/output", {node, molecule_output, record: atom_var})
+        ]),
+        molecule_output.add("parent_node", node),
+
+      ];
+    });
+
+    editor.block("Attach subnode atoms to molecules.", ({find, record}) => {
+      let molecule_output = find("editor/molecule/output");
+      let {molecule_watch, parent_node} = molecule_output;
+      let node = find("editor/query-node");
+      node.parent_node == parent_node;
+
+      let atom_var;
+      return [
+        atom_var = record("editor/atom/output_var", "eve/compiler/var", {node}),
+        molecule_watch.add("constraint", [
+          record("editor/atom/output", "eve/compiler/output", {node, molecule_output, record: atom_var})
+        ]),
+        molecule_output.add("parent_node", node),
+      ];
+    });
+
+    editor.block("Fill vital atom output attributes and attach them to their molecule output.", ({find, record}) => {
+      let atom_output = find("editor/atom/output");
+      let {molecule_output, node} = atom_output;
+      let entity_var = find("editor/atom/entity", {node});
+      return [
+        atom_output.add("attribute", [
+          record("eve/compiler/av", {attribute: "tag", value: "editor/atom"}),
+          record("eve/compiler/av", {attribute: "node", value: node}),
+          record("eve/compiler/av", {attribute: "molecule", value: molecule_output.record}),
+          record("eve/compiler/av", {attribute: "record", value: entity_var}),
+        ]),
+
+        molecule_output.add("attribute", [
+          record("eve/compiler/av", "eve/compiler/attribute/non-identity", {attribute: "atom", value: atom_output.record}),
+        ]),
+      ];
+    })
+
+    // @FIXME: What about root node identity?
+    editor.block("Attach node query fields to their atom outputs.", ({find, record}) => {
+      let atom_field_var = find("editor/atom/field");
+      let {node, query_field} = atom_field_var;
+      let atom_output = find("editor/atom/output", {node});
+      let {molecule_output} = atom_output;
+      let {molecule_watch} = molecule_output;
+
+      let field_var;
+      return [
+        field_var = record("editor/atom/field/output_var", "eve/compiler/var", {node, root_node: molecule_output.node}),
+        molecule_watch.add("constraint", [
+          record("editor/atom/field/output", "eve/compiler/output", {node, record: field_var}).add("attribute", [
+            record("eve/compiler/av", {attribute: query_field, value: atom_field_var})
+          ])
+        ]),
+        atom_output.add("attribute", [
+          record("eve/compiler/av", "eve/compiler/attribute/non-identity", {attribute: "field", value: field_var}),
+        ])
+      ];
+    })
+
+    //--------------------------------------------------------------------
+    // Molecule placement
+    //--------------------------------------------------------------------
+
+    editor
+      .commit("Molecules start with a seed of 1", ({find, not}) => {
+        let molecule = find("editor/molecule");
+        not(() => molecule.seed);
+        return [molecule.add("seed", 1)];
+      })
+      .block("Find a potential location for new molecules", ({find, lib:{random, math}, record}) => {
+        let molecule = find("editor/molecule");
+        let {seed, atom} = molecule;
+
+        let x = math.round(random.number(`${molecule} ${seed} x`) * 10);
+        let y = math.round(random.number(`${molecule} ${seed} y`) * 5);
+
+        return [
+          molecule.add({x, y}) // , positioned: "true"
+        ];
+      })
+      .commit("A molecule with positioned false and a low enough seed should try to reposition.", ({find, record}) => {
+        let molecule = find("editor/molecule", {positioned: "false"});
+        molecule.seed < 4;
+        return [
+          molecule.remove("positioned").remove("seed").add("seed", molecule.seed + 1),
+        ];
+      })
+
+      .block("Determine the suitability of a potential molecule position by colliding it's footprint with existing cells.", ({find, choose, not}) => {
+        let molecule = find("editor/molecule");
+        molecule.seed < 4;
+        let delay = find("someone-is-maybe-positioned");
+        //not(() => molecule.positioned);
+        let [positioned] = choose(
+          () => {
+            let {skirt} = molecule;
+            let other = find("editor/molecule");
+            other.seed < 4;
+            molecule.frame == other.frame;
+            molecule.generation >= other.generation;
+            molecule != other;
+            let {atom:other_atom} = other;
+            other_atom.x == skirt.x;
+            other_atom.y == skirt.y;
+            return "false";
+          },
+          () => {
+            return "true";
+          }
+        );
+        return [
+          molecule.add("positioned", positioned)
+        ];
+      })
+
+      .block("create a skirt around unpositioned molecules.", ({find, not, lib:{math}, record}) => {
+        let molecule = find("editor/molecule");
+        //not(() => molecule.positioned == "true");
+        let {atom} = molecule;
+        let {ix} = find("range");
+        let {x, y} = find("spiral", {row: math.mod(atom.y, 2), ix});
+        return [molecule.add("skirt", [
+          record("editor/molecule/skirt", {x: atom.x + x, y: atom.y + y})
+        ])];
+      })
+
+      .block("Sort atoms by id.", ({find, gather, record}) => {
+        let molecule = find("editor/molecule");
+        let {atom} = molecule;
+        let ix = gather(atom).per(molecule).sort();
+        return [
+          atom.add("sort", ix)
+        ];
+      })
+
+      .commit("When we first see a molecule, mark its generation.", ({find, not, choose, gather}) => {
+        let molecule = find("editor/molecule");
+        not(() => molecule.generation);
+        let [generation] = choose(
+          () => {
+            let existing = find("editor/molecule");
+            existing.generation;
+            return gather(existing).count();
+          },
+          () => 1
+        );
+
+        return [molecule.add("generation", generation)];
+      })
+
+      .block("DEBUG: Sort molecules by id.", ({find, gather, record}) => {
+        let molecule = find("editor/molecule");
+        let ix = gather(molecule.frame, molecule.generation, molecule).sort();
+        return [
+          molecule.add("sort", ix)
+        ];
+      })
+
+      // .block("DEBUG: Show the molecules.", ({find, record}) => {
+      //   let molecule = find("editor/molecule");
+      //   let {atom} = molecule;
+      //   return [
+      //     record("ui/text", {sort: `${molecule.sort}${atom.sort}`, text: `${molecule.sort} | ${atom.node.label} ${atom.sort}`})
+      //   ];
+      // })
+
+      .block("Compute atom positions from their sort.", ({find, lib:{math}, record}) => {
+        let molecule = find("editor/molecule");
+        let {atom, x:mol_x, y:mol_y} = molecule;
+        let {x, y} = find("spiral", {row: math.mod(molecule.y, 2), ix: atom.sort});
+        return [
+          atom.add({x: mol_x + x, y: mol_y + y}),
+          record("someone-is-maybe-positioned")
+        ];
+      })
+
+    //--------------------------------------------------------------------
+    // Molecule Interaction
+    //--------------------------------------------------------------------
+
+    editor
+      .commit("Clicking on an atom cell opens it's molecule.", ({find, not}) => {
+        let atom_cell = find("editor/atom/cell");
+        find("html/event/click", {element: atom_cell});
+        let {molecule} = atom_cell;
+        not(() => molecule.open == "true");
+        return [
+          molecule.add("open", "true")
+        ];
+      })
+
+      .commit("Clicking on an atom cell closes any currently open molecules.", ({find, not}) => {
+        let atom_cell = find("editor/atom/cell");
+        find("html/event/click", {element: atom_cell});
+        let {molecule} = atom_cell;
+        let {editor} = molecule;
+        let other_molecule = find("editor/molecule", {editor, open: "true"});
+
+        return [
+          other_molecule.remove("open")
+        ];
+      })
+  }
+
+    attachQueryEditor(editor:Program) {
     editor.block("When the active frame is a query, inject the query editor UI.", ({find, union, record}) => {
       let content = find("editor/block/content");
       let {editor} = content;
@@ -598,7 +908,6 @@ class EditorWatcher extends Watcher {
               sort: ix,
               name: client_tag,
               query_tag: client_tag,
-              // query_field: "name"
             })
           ])
         ];
@@ -609,118 +918,6 @@ class EditorWatcher extends Watcher {
     //--------------------------------------------------------------------
 
     editor
-      .commit("Molecules start with a seed of 1", ({find, not}) => {
-        let molecule = find("editor/molecule");
-        not(() => molecule.seed);
-        return [molecule.add("seed", 1)];
-      })
-      .block("Find a potential location for new molecules", ({find, lib:{random, math}, record}) => {
-        let molecule = find("editor/molecule");
-        let {seed, atom} = molecule;
-
-        let x = math.round(random.number(`${molecule} ${seed} x`) * 10);
-        let y = math.round(random.number(`${molecule} ${seed} y`) * 5);
-
-        return [
-          molecule.add({x, y}) // , positioned: "true"
-        ];
-      })
-      .commit("A molecule with positioned false and a low enough seed should try to reposition.", ({find, record}) => {
-        let molecule = find("editor/molecule", {positioned: "false"});
-        molecule.seed < 4;
-        return [
-          molecule.remove("positioned").remove("seed").add("seed", molecule.seed + 1),
-        ];
-      })
-
-      .block("Determine the suitability of a potential molecule position by colliding it's footprint with existing cells.", ({find, choose, not}) => {
-        let molecule = find("editor/molecule");
-        molecule.seed < 4;
-        let delay = find("someone-is-maybe-positioned");
-        //not(() => molecule.positioned);
-        let [positioned] = choose(
-          () => {
-            let {skirt} = molecule;
-            let other = find("editor/molecule");
-            other.seed < 4;
-            molecule.frame == other.frame;
-            molecule.generation >= other.generation;
-            molecule != other;
-            let {atom:other_atom} = other;
-            other_atom.x == skirt.x;
-            other_atom.y == skirt.y;
-            return "false";
-          },
-          () => {
-            return "true";
-          }
-        );
-        return [
-          molecule.add("positioned", positioned)
-        ];
-      })
-
-      .block("create a skirt around unpositioned molecules.", ({find, not, lib:{math}, record}) => {
-        let molecule = find("editor/molecule");
-        //not(() => molecule.positioned == "true");
-        let {atom} = molecule;
-        let {ix} = find("range");
-        let {x, y} = find("spiral", {row: math.mod(atom.y, 2), ix});
-        return [molecule.add("skirt", [
-          record("editor/molecule/skirt", {x: atom.x + x, y: atom.y + y})
-        ])];
-      })
-
-      .block("Sort atoms by id.", ({find, gather, record}) => {
-        let molecule = find("editor/molecule");
-        let {atom} = molecule;
-        let ix = gather(atom).per(molecule).sort();
-        return [
-          atom.add("sort", ix)
-        ];
-      })
-
-      .commit("When we first see a molecule, mark its generation.", ({find, not, choose, gather}) => {
-        let molecule = find("editor/molecule");
-        not(() => molecule.generation);
-        let [generation] = choose(
-          () => {
-            let existing = find("editor/molecule");
-            existing.generation;
-            return gather(existing).count();
-          },
-          () => 1
-        );
-
-        return [molecule.add("generation", generation)];
-      })
-
-      .block("DEBUG: Sort molecules by id.", ({find, gather, record}) => {
-        let molecule = find("editor/molecule");
-        let ix = gather(molecule.generation, molecule).sort();
-        return [
-          molecule.add("sort", ix)
-        ];
-      })
-
-      // .block("DEBUG: Show the molecules.", ({find, record}) => {
-      //   let molecule = find("editor/molecule");
-      //   let {atom} = molecule;
-      //   return [
-      //     record("ui/text", {sort: `${molecule.sort}${atom.sort}`, text: `${molecule.sort} | ${atom.node.label} ${atom.sort}`})
-      //   ];
-      // })
-
-      .block("Compute atom positions from their sort.", ({find, lib:{math}, record}) => {
-        let molecule = find("editor/molecule");
-        let {atom, x:mol_x, y:mol_y} = molecule;
-        let {x, y} = find("spiral", {row: math.mod(molecule.y, 2), ix: atom.sort});
-        return [
-          atom.add({x: mol_x + x, y: mol_y + y}),
-          record("someone-is-maybe-positioned")
-        ];
-      })
-
       .block("Draw molecules as hex grids of atoms.", ({find, record}) => {
         let canvas_elem = find("editor/block/query-canvas");
         let {editor} = canvas_elem;
@@ -744,29 +941,6 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .commit("Clicking on an atom cell opens it's molecule.", ({find, not}) => {
-        let atom_cell = find("editor/atom/cell");
-        find("html/event/click", {element: atom_cell});
-        let {molecule} = atom_cell;
-        not(() => molecule.open == "true");
-        return [
-          molecule.add("open", "true")
-        ];
-      })
-
-      .commit("Clicking on an atom cell closes any currently open molecules.", ({find, not}) => {
-        let atom_cell = find("editor/atom/cell");
-        find("html/event/click", {element: atom_cell});
-        let {molecule} = atom_cell;
-        let {editor} = molecule;
-        let other_molecule = find("editor/molecule", {editor, open: "true"});
-
-        return [
-          other_molecule.remove("open")
-        ];
-      })
-
-
       .block("Show molecule infobox when open.", ({find, lookup, record}) => {
         let molecule = find("editor/molecule", {open: "true"});
         let {atom, editor} = molecule;
@@ -789,168 +963,66 @@ class EditorWatcher extends Watcher {
       });
   }
 
-  attachMoleculeGenerator(editor:Program) {
-        //--------------------------------------------------------------------
-    // Molecule generation
+  attachDataEditor(editor:Program) {
+    editor.block("When the active frame is a data editor, inject the data editor UI.", ({find, union, record}) => {
+      let content = find("editor/block/content");
+      let {editor} = content;
+      editor.active_frame.type == "data";
+
+      return [
+        content.add("children", [
+          // record("editor/block/data-tree", "ui/column", {editor}),
+          record("editor/block/data-canvas", "ui/column", {editor})
+        ])
+      ];
+    });
+
     //--------------------------------------------------------------------
+    // Data canvas
+    //--------------------------------------------------------------------
+    editor
+      .block("Draw molecules as hex grids of atoms.", ({find, record}) => {
+        let canvas_elem = find("editor/block/data-canvas");
+        let {editor} = canvas_elem;
+        let {active_block} = editor;
+        let {storyboard:frame} = active_block;
+        frame.type == "query";
+        let molecule = find("editor/molecule", {editor, frame, positioned: "true"});
+        let {atom} = molecule;
 
-    editor.block("Create a set of molecules for the active block's queries.", ({find, record}) => {
-      let editor = find("editor/root");
-      let {active_block} = editor;
-      let {storyboard:frame} = active_block;
-      frame.type == "query";
-      let {node} = frame;
-      node.tag == "editor/root-node";
+        let side = 30;
+        let gap = 3;
 
-      return [
-        active_block.add("molecule-watch", [
-          record("editor/molecule/watch", "eve/compiler/block", {editor, frame, name: "Create molecules", type: "watch", watcher: "send-to-editor"}).add("constraint", [
-            record("editor/atom/record", "eve/compiler/record", {node, record: record("editor/atom/entity", "eve/compiler/var", {node})}),
+        return [
+          canvas_elem.add("children", [
+            record("shape/hex-grid", {frame, side, gap}).add("cell", [
+              record("shape/hexagon", "editor/atom/cell", {atom, molecule, side, x: atom.x, y: atom.y, background: "white", thickness: 2, border: "#ccc"}).add("content", [
+                record("ui/text", {atom, molecule, text: `${atom.node.label} ${molecule.sort}`, style: record({color: atom.node.color})})
+              ])
+            ])
           ])
-        ])
-      ];
-    })
+        ];
+      })
 
-    editor.block("Embed subnodes.", ({find, record}) => {
-      let molecule_watch = find("editor/molecule/watch");
-      let {editor, frame} = molecule_watch;
-      let {node} = frame;
-      let {parent_node, parent_attribute} = node;
-
-      let parent_record = find("editor/atom/record", {node: parent_node});
-
-      let record_var;
-      return [
-        record_var = record("editor/atom/entity", "eve/compiler/var", {node}),
-        parent_record.add("attribute", record({tag: "eve/compiler/av", attribute: parent_attribute, value: record_var})),
-
-        molecule_watch.add("constraint", [
-          record("editor/atom/record", "eve/compiler/record", {node, record: record_var})
-        ])
-      ];
-    })
-
-
-    editor.block("Attach node query tags to their atom records.", ({find, record}) => {
-      let atom_record = find("editor/atom/record");
-      let {node} = atom_record;
-      let {query_tag} = node;
-
-      return [
-        atom_record.add("attribute", record({tag: "eve/compiler/av", attribute: "tag", value: query_tag})),
-      ];
-    })
-
-    editor.block("Attach node fields to their atom records.", ({find, record}) => {
-      let atom_record = find("editor/atom/record");
-      let {node} = atom_record;
-      let {query_field} = node;
-
-      return [
-        atom_record.add("attribute", [
-          record({
-            tag: "eve/compiler/av",
-            attribute: query_field,
-            value: record("editor/atom/field", "eve/compiler/var", {node, query_field})
-          })
-        ])
-      ];
-    })
-
-    editor.block("Output a molecule for each root node.", ({find, record}) => {
-      let molecule_watch = find("editor/molecule/watch");
-      let {editor, frame} = molecule_watch;
-      let node = find("editor/root-node");
-      frame.node == node;
-
-      let entity_var = find("editor/atom/entity", {node});
-
-      let molecule_var;
-      return [
-        molecule_var = record("editor/molecule/output_var", "eve/compiler/var", {frame, node}),
-        molecule_watch.add("constraint", [
-          record("editor/molecule/output", "eve/compiler/output", {molecule_watch, node, record: molecule_var}).add("attribute", [
-            record("eve/compiler/av", {attribute: "tag", value: "editor/molecule"}),
-            record("eve/compiler/av", {attribute: "editor", value: editor}),
-            record("eve/compiler/av", {attribute: "frame", value: frame}),
-            record("eve/compiler/av", {attribute: "node", value: node}),
-            record("eve/compiler/av", {attribute: "root_atom_record", value: entity_var}),
+      .block("Show molecule infobox when open.", ({find, lookup, record}) => {
+        let molecule = find("editor/molecule", {open: "true"});
+        let {atom, editor} = molecule;
+        let canvas_elem = find("editor/block/data-canvas", {editor});
+        let {field} = atom;
+        let {attribute, value} = lookup(field);
+        return [
+          canvas_elem.add("children", [
+            record("editor/molecule/infobox", "ui/column", {sort: molecule.sort, molecule}).add("children", [
+              record("ui/text", {text: `Molecule ${molecule.sort}`}),
+              record("editor/atom/infobox", "ui/column", {sort: atom.sort, molecule, atom}).add("children", [
+                record("ui/text", {sort: 0, text: `${atom.node.name} {`}),
+                record("ui/text", {sort: atom.sort, text: ` ${attribute}: ${value} `}),
+                record("ui/text", {sort: Infinity, text: `}`}),
+              ])
+            ])
           ])
-        ]),
-      ];
-    });
-
-    editor.block("Attach the root atom to molecules.", ({find, record}) => {
-      let molecule_output = find("editor/molecule/output");
-      let {molecule_watch} = molecule_output;
-      let {node} = molecule_output;
-
-      let atom_var;
-      return [
-        atom_var = record("editor/atom/output_var", "eve/compiler/var", {node}),
-        molecule_watch.add("constraint", [
-          record("editor/atom/output", "eve/compiler/output", {node, molecule_output, record: atom_var})
-        ]),
-        molecule_output.add("parent_node", node),
-
-      ];
-    });
-
-    editor.block("Attach subnode atoms to molecules.", ({find, record}) => {
-      let molecule_output = find("editor/molecule/output");
-      let {molecule_watch, parent_node} = molecule_output;
-      let {node} = find("editor/query/node");
-      node.parent_node == parent_node;
-
-      let atom_var;
-      return [
-        atom_var = record("editor/atom/output_var", "eve/compiler/var", {node}),
-        molecule_watch.add("constraint", [
-          record("editor/atom/output", "eve/compiler/output", {node, molecule_output, record: atom_var})
-        ]),
-        molecule_output.add("parent_node", node),
-      ];
-    });
-
-    editor.block("Fill vital atom output attributes and attach them to their molecule output.", ({find, record}) => {
-      let atom_output = find("editor/atom/output");
-      let {molecule_output, node} = atom_output;
-      let entity_var = find("editor/atom/entity", {node});
-      return [
-        atom_output.add("attribute", [
-          record("eve/compiler/av", {attribute: "tag", value: "editor/atom"}),
-          record("eve/compiler/av", {attribute: "node", value: node}),
-          record("eve/compiler/av", {attribute: "molecule", value: molecule_output.record}),
-          record("eve/compiler/av", {attribute: "record", value: entity_var}),
-        ]),
-
-        molecule_output.add("attribute", [
-          record("eve/compiler/av", "eve/compiler/attribute/non-identity", {attribute: "atom", value: atom_output.record}),
-        ]),
-      ];
-    })
-
-    // @FIXME: What about root node identity?
-    editor.block("Attach node query fields to their atom outputs.", ({find, record}) => {
-      let atom_field_var = find("editor/atom/field");
-      let {node, query_field} = atom_field_var;
-      let atom_output = find("editor/atom/output", {node});
-      let {molecule_output} = atom_output;
-      let {molecule_watch} = molecule_output;
-
-      let field_var;
-      return [
-        field_var = record("editor/atom/field/output_var", "eve/compiler/var", {node, root_node: molecule_output.node}),
-        molecule_watch.add("constraint", [
-          record("editor/atom/field/output", "eve/compiler/output", {node, record: field_var}).add("attribute", [
-            record("eve/compiler/av", {attribute: query_field, value: atom_field_var})
-          ])
-        ]),
-        atom_output.add("attribute", [
-          record("eve/compiler/av", "eve/compiler/attribute/non-identity", {attribute: "field", value: field_var}),
-        ])
-      ];
-    })
+        ];
+      });
 
   }
 
