@@ -734,10 +734,53 @@ class EditorWatcher extends Watcher {
           canvas_elem.add({tag: "shape/hex-grid", side, gap}),
           canvas_elem.add("cell", [
             // record("editor/molecule/grid", "shape/hex-grid", {x: molecule.x, y: molecule.y, side, gap}).add("cell", [
-            record("shape/hexagon", {atom, molecule, side, x: atom.x, y: atom.y, background: "white", thickness: 2, border: "#ccc"}).add("content", [
+            record("shape/hexagon", "editor/atom/cell", {atom, molecule, side, x: atom.x, y: atom.y, background: "white", thickness: 2, border: "#ccc"}).add("content", [
                 record("ui/text", {atom, molecule, text: `${atom.node.label} ${molecule.sort}`, style: record({color: atom.node.color})})
               ])
             // ])
+          ])
+        ];
+      })
+
+      .commit("Clicking on an atom cell opens it's molecule.", ({find, not}) => {
+        let atom_cell = find("editor/atom/cell");
+        find("html/event/click", {element: atom_cell});
+        let {molecule} = atom_cell;
+        not(() => molecule.open == "true");
+        return [
+          molecule.add("open", "true")
+        ];
+      })
+
+      .commit("Clicking on an atom cell closes any currently open molecules.", ({find, not}) => {
+        let atom_cell = find("editor/atom/cell");
+        find("html/event/click", {element: atom_cell});
+        let {molecule} = atom_cell;
+        let {editor} = molecule;
+        let other_molecule = find("editor/molecule", {editor, open: "true"});
+
+        return [
+          other_molecule.remove("open")
+        ];
+      })
+
+
+      .block("Show molecule infobox when open.", ({find, lookup, record}) => {
+        let molecule = find("editor/molecule", {open: "true"});
+        let {atom, editor} = molecule;
+        let canvas_elem = find("editor/block/query-canvas", {editor});
+        let {field} = atom;
+        let {attribute, value} = lookup(field);
+        return [
+          canvas_elem.add("children", [
+            record("ui/column", "editor/molecule/infobox", {sort: molecule.sort, molecule}).add("children", [
+              record("ui/text", {text: `Molecule ${molecule.sort}`}),
+              record("ui/row", {sort: atom.sort, molecule, atom}).add("children", [
+                record("ui/text", {sort: 0, text: `${atom.node.name} {`}),
+                record("ui/text", {sort: atom.sort, text: ` ${attribute}: ${value} `}),
+                record("ui/text", {sort: Infinity, text: `}`}),
+              ])
+            ])
           ])
         ];
       });
@@ -902,23 +945,6 @@ class EditorWatcher extends Watcher {
         ])
       ];
     })
-
-    editor.block("DEBUG: Show molecule atom fields.", ({find, lookup, record}) => {
-      let molecule = find("editor/molecule");
-      let {atom} = molecule;
-      let {field} = atom;
-      let {attribute, value} = lookup(field);
-      return [
-        record("ui/column", {sort: molecule.sort, molecule, style: record({border: "1px solid gray", padding: 10, margin: 10})}).add("children", [
-          record("ui/text", {text: `Molecule ${molecule.sort}`}),
-          record("ui/row", {sort: atom.sort, molecule, atom}).add("children", [
-            record("ui/text", {sort: 0, text: `${atom.node.name} {`}),
-            record("ui/text", {sort: atom.sort, text: ` ${attribute}: ${value} `}),
-            record("ui/text", {sort: Infinity, text: `}`}),
-          ])
-        ])
-      ];
-    });
   }
 
   initEditor() {

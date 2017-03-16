@@ -79,6 +79,9 @@
 .editor-view .editor-block-query-canvas { position: relative; flex: 1; }
 
 
+.editor-view .editor-molecule-infobox { position: absolute; top: 400; padding: 10; margin: 10; z-index: 2; border: 1px solid gray; background: rgba(255, 255, 255, 0.5); }
+
+
 /****************************************************************************\
  * Shapes
 \****************************************************************************/
