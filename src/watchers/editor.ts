@@ -165,7 +165,7 @@ class EditorWatcher extends Watcher {
 
     let compiler = editor.attach("compiler") as CompilerWatcher;
     compiler.injectInto(this.program);
-    compiler.registerWatcherFunction("send-to-editor", forwardDiffs(editor, "send-to-editor", true));
+    compiler.registerWatcherFunction("send-to-editor", forwardDiffs(editor, "send-to-editor"));
 
 
     editor
@@ -978,6 +978,48 @@ class EditorWatcher extends Watcher {
     });
 
     //--------------------------------------------------------------------
+    // Data toolbar
+    //--------------------------------------------------------------------
+    editor
+      .block("Draw the data editor toolbar.", ({find, record}) => {
+        let canvas = find("editor/block/data-canvas");
+        let {editor} = canvas;
+        return [
+          canvas.add("children", [
+            record("editor/data/toolbar", "ui/column", {sort: 0}).add("children", [
+              record("editor/data/toolbar/select", "editor/tool", "ui/button", {editor, icon: "arrow-up-c", text: "select", tool: "select", class: "flat"}),
+              record("editor/data/toolbar/add", "editor/tool", "ui/button", {editor, icon: "plus", text: "add", tool: "add", class: "flat"}),
+              record("editor/data/toolbar/remove", "editor/tool", "ui/button", {editor, icon: "minus", text: "erase", tool: "erase", class: "flat"}),
+              record("editor/data/toolbar/save", "editor/tool", "ui/button", {editor, icon: "play", text: "save", tool: "save", class: "flat"}),
+            ])
+          ])
+        ];
+      })
+
+      .commit("Clicking a tool activates it.", ({find}) => {
+        let tool = find("editor/tool");
+        find("html/event/click", {element: tool});
+        return [
+          tool.add("tag", "editor/active")
+        ];
+      })
+
+      .commit("Clicking a tool deactivates other tools.", ({find}) => {
+        let tool = find("editor/tool");
+        find("html/event/click", {element: tool});
+        let other = find("editor/tool");
+        other != tool;
+        return [
+          other.remove("tag", "editor/active")
+        ];
+      })
+
+      .block("The editor tool is the tool currently marked active.", ({find}) => {
+        let {tool, editor} = find("editor/tool", "editor/active");
+        return [editor.add("tool", tool)];
+      })
+
+    //--------------------------------------------------------------------
     // Data canvas
     //--------------------------------------------------------------------
     editor
@@ -1008,26 +1050,183 @@ class EditorWatcher extends Watcher {
         let molecule = find("editor/molecule", {open: "true"});
         let {atom, editor} = molecule;
         let canvas_elem = find("editor/block/data-canvas", {editor});
-        let {field} = atom;
+        let {node, field} = atom;
         let {attribute, value} = lookup(field);
         return [
           canvas_elem.add("children", [
             record("editor/molecule/infobox", "ui/column", {sort: molecule.sort, molecule}).add("children", [
               // record("editor/molecule/header", "ui/text", {text: `Molecule ${molecule.sort}`}),
-              record("editor/atom/infobox", "ui/column", {sort: atom.sort, molecule, atom}).add("children", [
-                record("editor/atom/header", "ui/text", {sort: 0, text: atom.node.name}),
-                record("editor/atom/field-row", "ui/row", {sort: attribute, atom, attribute}).add("children", [
-                  record("editor/atom/field/attribute", "ui/text", {sort: 1, text: attribute}),
-                  record("editor/atom/field/value", "ui/text", {sort: 2, text: value})
+              record("editor/node/infobox", "ui/column", {sort: node.sort, molecule, node}).add("children", [
+                record("editor/node/header", "ui/text", {sort: 0, text: node.name}),
+
+                record("editor/atom/infobox", "ui/column", {sort: atom.sort, molecule, node, atom}).add("children", [
+                  record("editor/atom/field-row", "ui/row", {sort: attribute, atom, attribute}).add("children", [
+                    record("editor/atom/field/attribute", "ui/text", {sort: 1, editor, node, attribute, text: attribute}),
+                    record("editor/atom/field/value-set", "ui/column", {sort: 2, editor, node, attribute}).add("children", [
+                      record("editor/atom/field/value", "ui/text", {sort: value, editor, node, attribute, value, text: value})
+                    ])
+                  ]),
                 ]),
-                // Numbers always sort above strings :/
-                record("editor/atom/new-field", "ui/button", {sort: "zzzz", class: "flat", icon: "plus-round"}),
-              ])
+
+                // record("editor/atom/new-field", "ui/button", {sort: Infinity, class: "flat", icon: "plus-round"}),
+              ]),
             ])
           ])
         ];
-      });
+      })
 
+      .commit("Clicking an infobox target with the erase tool marks it for deletion.", ({find, not, choose, record}) => {
+        // let target = find("editor/atom/field/attribute");
+        // find("html/event/click", {element: target});
+
+        let {element:target} = find("html/event/click");
+        choose(
+          () => target == find("editor/atom/field/attribute"),
+          () => target == find("editor/atom/field/value")
+        );
+
+        not(() => target.tag == "editor/data/erasing");
+        let {editor} = target;
+        editor.tool == "erase";
+        return [
+          target.add("tag", "editor/data/erasing")
+        ];
+      })
+
+      .commit("Clicking any erased field reverts the removal.", ({find}) => {
+        let removed = find("editor/data/erasing");
+        find("html/event/click", {element: removed});
+        return [
+          removed.remove("tag", "editor/data/erasing")
+        ];
+      })
+
+      .commit("Clicking an infobox value with the add tool adds a new value row to it.", ({find, not, choose, record}) => {
+        // let target = find("editor/atom/field/attribute");
+        // find("html/event/click", {element: target});
+
+        let target = find("editor/atom/field/value-set");
+        find("html/event/click", {element: target});
+
+        let {editor} = target;
+        editor.tool == "add";
+        return [
+          target.add("tag", "editor/data/adding")
+        ];
+      })
+
+      .block("A value-set that's adding has an empty value at the bottom.", ({find, record}) => {
+        let target = find("editor/atom/field/value-set", "editor/data/adding");
+        return [
+          target.add("children", [
+            record("editor/atom/field/value", "editor/atom/field/new-value", "html/element", {tagname: "input", sort: "zzzz", placeholder: "ohai", value: "blarp"})
+          ])
+        ];
+      })
+
+
+    //--------------------------------------------------------------------
+    // Data save changes
+    //--------------------------------------------------------------------
+    editor
+      .commit("When the editor's current tool is save, unset it (it's momentary)", ({find}) => {
+        let editor = find("editor/root", {tool: "save"});
+        let save_tool = find("editor/tool");
+        return [save_tool.remove("tag", "editor/active")];
+      })
+      .commit("When the editor's current tool is save, commit all pending value erases.", ({find, record}) => {
+        let editor = find("editor/root", {tool: "save"});
+        let erasing = find("editor/data/erasing", "editor/atom/field/value", {editor});
+        let {active_block} = editor;
+        let {node, attribute, value} = erasing;
+        return [
+          active_block.add("data_output", record("editor/data/erase/value", {node, attribute, value})),
+          erasing.remove("tag", "editor/data/erasing")
+        ];
+      })
+      .commit("When the editor's current tool is save, commit all pending attribute erases.", ({find, record}) => {
+        let editor = find("editor/root", {tool: "save"});
+        let erasing = find("editor/data/erasing", "editor/atom/field/attribute", {editor});
+        let {active_block} = editor;
+        let {node, attribute} = erasing;
+        return [
+          active_block.add("data_output", record("editor/data/erase/attribute", {node, attribute})),
+          erasing.remove("tag", "editor/data/erasing")
+        ];
+      })
+      .commit("When the editor's current tool is save, commit all pending value adds.", ({find, record}) => {
+        let editor = find("editor/root", {tool: "save"});
+        let adding = find("editor/data/adding", "editor/atom/field/value-set", {editor});
+        let {active_block} = editor;
+        let {node, attribute, children:new_value} = adding;
+        new_value.tag == "editor/atom/field/new-value";
+        let {value} = new_value;
+        return [
+          active_block.add("data_output", record("editor/data/add/value", {node, attribute, value})),
+          adding.remove("tag", "editor/data/adding")
+        ];
+      })
+
+      .block("What are the data outputs?", ({find, lookup, record}) => {
+        let editor = find("editor/root");
+        let {active_block} = editor;
+        let {data_output} = active_block;
+        let {attribute, value} = lookup(data_output);
+
+        return [
+          record("ui/column", "debuggeroo", {active_block}).add("children", [
+            record("ui/text", {sort: 0, text: active_block.name}),
+            record("ui/row", {sort: data_output}).add("children", [
+              record("ui/text", {sort: attribute, data_output, text: ` ${attribute}: ${value} `})
+            ])
+          ])
+        ];
+      })
+
+    //--------------------------------------------------------------------
+    // Data block generation
+    //--------------------------------------------------------------------
+
+    editor
+      .block("When the editor's current tool is save, create a block representing the changes.", ({find, record}) => {
+        let editor = find("editor/root");
+        let {active_block} = editor;
+
+        return [
+          active_block.add("data_block", [
+            record("editor/data/block", "eve/compiler/block", {editor, block: active_block, name: "Data block", type: "block"})
+          ])
+        ];
+      })
+
+    // @NOTE: This needs to be a clone, not a bind, or we need to do it separately. Otherwise we go byebye when the block changes.
+      .block("Copy all the records from the molecule watch.", ({find}) => {
+        let editor = find("editor/root");
+        let {block} = editor;
+        let {data_block} = block;
+        let atom_record = find("editor/atom/record");
+        return [
+          data_block.add("constraint", atom_record)
+        ];
+      })
+
+      .block("Add value outputs.", ({find, record}) => {
+        let editor = find("editor/root");
+        let {block} = editor;
+        let {data_block} = block;
+        let {data_output} = block;
+        data_output.tag == "editor/data/add/value";
+        let {node, attribute, value} = data_output;
+        let node_var = find("editor/atom/output_var", {node});
+        return [
+
+          data_block.add("constraint", [
+            record("eve/compiler/output", {node, record: node_var}).add("attribute", [
+              record({attribute, value})
+            ])
+          ])
+        ];
+      })
   }
 
   initEditor() {
