@@ -1062,7 +1062,7 @@ class EditorWatcher extends Watcher {
                 record("editor/atom/infobox", "ui/column", {sort: atom.sort, molecule, node, atom}).add("children", [
                   record("editor/atom/field-row", "ui/row", {sort: attribute, atom, attribute}).add("children", [
                     record("editor/atom/field/attribute", "ui/text", {sort: 1, editor, node, attribute, text: attribute}),
-                    record("editor/atom/field/value-set", "ui/column", {sort: 2, editor, node, attribute}).add("children", [
+                    record("editor/atom/field/value-set", "ui/column", {sort: 2, editor, node, atom, attribute}).add("children", [
                       record("editor/atom/field/value", "ui/text", {sort: value, editor, node, attribute, value, text: value})
                     ])
                   ]),
@@ -1229,6 +1229,24 @@ class EditorWatcher extends Watcher {
 
           data_block.add("constraint", [
             record("eve/compiler/output", {node, record: node_var}).add("attribute", [
+              record({attribute, value})
+            ])
+          ])
+        ];
+      })
+
+      .block("Erase value outputs.", ({find, record}) => {
+        let editor = find("editor/root");
+        let {block} = editor;
+        let {data_block} = block;
+        let {data_output} = block;
+        data_output.tag == "editor/data/erase/value";
+        let {node, attribute, value} = data_output;
+        let node_var = find("editor/data/node/entity", {node});
+        return [
+
+          data_block.add("constraint", [
+            record("eve/compiler/remove", "eve/compiler/output", {node, record: node_var}).add("attribute", [
               record({attribute, value})
             ])
           ])
