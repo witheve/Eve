@@ -28,7 +28,7 @@ prog.inputEavs([
   ["vName", "tag", "eve/compiler/var"],
 
   [1, "tag", "eve/compiler/block"],
-  [1, "type", "block"],
+  [1, "type", "commit"],
   // [1, "type", "watch"],
   // [1, "watcher", "foo"],
   [1, "name", "some cool block"],
@@ -57,16 +57,29 @@ prog.inputEavs([
   ["lookup", "value", "vName"],
 
   ["v2Record", "tag", "eve/compiler/output"],
-  ["v2Record", "record", "v2"],
-  ["v2Record", "attribute", "v2TagText"],
-  ["v2Record", "attribute", "v2Text"],
+  ["v2Record", "tag", "eve/compiler/remove"],
+  ["v2Record", "record", "v1"],
+  ["v2Record", "attribute", "v1TagEmployee"],
 
-    ["v2TagText", "attribute", "tag"],
-    ["v2TagText", "value", "ui/text"],
+    // ["v2TagText", "attribute", "tag"],
+    // ["v2TagText", "value", "ui/text"],
 
-    ["v2Text", "tag", "eve/compiler/attribute/non-identity"],
-    ["v2Text", "attribute", "text"],
-    ["v2Text", "value", "vName"],
+    // ["v2Text", "tag", "eve/compiler/attribute/non-identity"],
+    // ["v2Text", "attribute", "text"],
+    // ["v2Text", "value", "vName"],
+
+
+  // ["v2Record", "tag", "eve/compiler/output"],
+  // ["v2Record", "record", "v1"],
+  // ["v2Record", "attribute", "v2TagText"],
+  // ["v2Record", "attribute", "v2Text"],
+
+  //   ["v2TagText", "attribute", "tag"],
+  //   ["v2TagText", "value", "ui/text"],
+
+  //   ["v2Text", "tag", "eve/compiler/attribute/non-identity"],
+  //   ["v2Text", "attribute", "text"],
+  //   ["v2Text", "value", "vName"],
 
   ["JANE", "tag", "person"],
   ["JANE", "tag", "employee"],

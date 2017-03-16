@@ -4,7 +4,7 @@
 
 import {Watcher, RawValue, DiffConsumer} from "./watcher";
 import {ID, Block} from "../runtime/runtime";
-import {Program, LinearFlow, ReferenceContext, Reference, Record, Value, WatchFlow, CommitFlow} from "../runtime/dsl2";
+import {Program, LinearFlow, ReferenceContext, Reference, Record, Insert, Remove, Value, WatchFlow, CommitFlow} from "../runtime/dsl2";
 import "setimmediate";
 
 interface CompilationContext {
@@ -80,7 +80,8 @@ export class CompilerWatcher extends Watcher {
     ReferenceContext.pop();
   }
 
-  compileValue = (compile:CompilationContext, context:ReferenceContext, value:RawValue):Value => {
+  compileValue = (compile:CompilationContext, context:ReferenceContext, value:RawValue|undefined):Value|undefined => {
+    if(value === undefined) return undefined;
     let {items} = this;
     if(items[value] && items[value].type === "variable") {
       let found = compile.variables[value];
@@ -121,8 +122,9 @@ export class CompilerWatcher extends Watcher {
             }
             found.push(safeValue);
           }
-          let record = flow.find(attrs);
-          context.equality(record, compileValue(compile, context, constraint.record));
+          let recordVar = compileValue(compile, context, constraint.record) as Reference;
+          let record = new Record(flow.context, [], attrs, recordVar);
+          recordVar.__owner = record;
         })
       }
       if(constraint.type === "output") {
@@ -136,11 +138,24 @@ export class CompilerWatcher extends Watcher {
             }
             found.push(safeValue);
           }
-          let record = flow.record(attrs);
-          for(let [attribute, value] of constraint.nonIdentityAttribute) {
-            record.add(attribute, compileValue(compile, context, value));
+          let outputType = Insert;
+          let outputOp = "add";
+          if(constraint.outputType === "remove") {
+            outputType = Remove;
+            outputOp = "remove";
           }
-          context.equality(record, compileValue(compile, context, constraint.record));
+          let outputVar = compileValue(compile, context, constraint.record) as Reference;
+          let output;
+          if(!outputVar.__owner) {
+            output = new outputType(flow.context, [], attrs);
+            context.equality(output.reference(), outputVar);
+          } else {
+            output = new outputType(flow.context, [], attrs, outputVar);
+          }
+          let record = output.reference() as any;
+          for(let [attribute, value] of constraint.nonIdentityAttribute) {
+            record[outputOp](attribute, compileValue(compile, context, value));
+          }
         })
       }
       if(constraint.type === "lookup") {
@@ -319,18 +334,24 @@ export class CompilerWatcher extends Watcher {
       }, () => {
         return "identity";
       });
+      let [outputType] = choose(() => {
+        compilerRecord.tag == "eve/compiler/remove";
+        return "remove";
+      }, () => {
+        return "add";
+      });
       return [
-        record({block, id:compilerRecord, record:id, attribute:attribute.attribute, value:attribute.value, attributeType})
+        record({block, id:compilerRecord, record:id, attribute:attribute.attribute, value:attribute.value, attributeType, outputType})
       ]
     })
 
-    me.asObjects<{block:string, id:string, record:string, attribute:string, value:RawValue, attributeType:string}>(({adds, removes}) => {
+    me.asObjects<{block:string, id:string, record:string, attribute:string, value:RawValue, attributeType:string, outputType:string}>(({adds, removes}) => {
       let {items} = this;
       for(let key in adds) {
-        let {block, id, record, attribute, value, attributeType} = adds[key];
+        let {block, id, record, attribute, value, attributeType, outputType} = adds[key];
         let found = items[id];
         if(!found) {
-          found = items[id] = {type: "output", attributes: [], nonIdentityAttribute:[], record: record};
+          found = items[id] = {type: "output", attributes: [], nonIdentityAttribute:[], record: record, outputType};
         }
         if(attributeType === "identity") {
           found.attributes.push([attribute, value]);
@@ -352,6 +373,49 @@ export class CompilerWatcher extends Watcher {
         this.queue(block);
       }
     })
+
+    me.watch("get valueless outputs", ({find, record, choose, not}) => {
+      let compilerRecord = find("eve/compiler/output");
+      let block = find("eve/compiler/block", {constraint: compilerRecord});
+      let {attribute} = compilerRecord;
+      not(() => attribute.value)
+      let [attributeType] = choose(() => {
+        attribute.tag == "eve/compiler/attribute/non-identity";
+        return "non-identity";
+      }, () => {
+        return "identity";
+      });
+      return [
+        record({block, id:compilerRecord, attribute:attribute.attribute, attributeType})
+      ]
+    })
+
+    me.asObjects<{block:string, id:string, attribute:string, attributeType:string}>(({adds, removes}) => {
+      let {items} = this;
+      for(let key in adds) {
+        let {block, id, attribute, attributeType} = adds[key];
+        let found = items[id];
+        if(attributeType === "identity") {
+          found.attributes.push([attribute, undefined]);
+        } else {
+          found.nonIdentityAttribute.push([attribute, undefined]);
+        }
+        this.queue(block);
+      }
+      for(let key in removes) {
+        let {block, id, attribute} = removes[key];
+        let found = items[id];
+        if(!found) { continue; }
+
+        found.attributes = found.attributes.filter(([a, v]:RawValue[]) => a !== attribute || v !== undefined);
+        found.nonIdentityAttribute = found.nonIdentityAttribute.filter(([a, v]:RawValue[]) => a !== attribute || v !== undefined);
+        if(found.attributes.length === 0) {
+          delete items[id];
+        }
+        this.queue(block);
+      }
+    })
+
 
   }
 }
