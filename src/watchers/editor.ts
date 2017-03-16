@@ -1316,6 +1316,63 @@ class EditorWatcher extends Watcher {
   }
 
   fixtureEditor() {
+    /*
+     * [#editor/root
+     *  active_block // Block being edited
+     *  active_frame // Current frame of the active_block
+     *  block        // All blocks in program
+     * ]
+     *
+     * [#editor/block
+     *  name
+     *  description
+     *  nav_tag          // Navigation tags that relate to this block
+     *  storyboard       // All frames of the block
+     *  molecule_watch C // Watch block(s) producing molecules for the given block
+     *  data_output      // All operations being applied to the current data
+     *  data_block     C // Compiled blocks that run the data_output operations
+     * ]
+     *
+     * [#editor/frame
+     *  type // Editor type associated with this frame ("query", "data", etc.)
+     *  sort // Order of this frame in the parent block's storyboard
+     * ]
+     * [#editor/frame type: "query"
+     *  node // All nodes contributing to this query
+     * ]
+     *
+     * [#editor/query-node
+     *  type               // Join, expression, etc.
+     *  sort               // Order of this node in the parent frame's node list
+     *  name               // Human readable node name
+     *  query_tag        ? // Matches records IFF they have the given tag
+     *  query_field      ? // Matches records IFF they have the given attributes
+     *  parent_node      ?
+     *  parent_attribute ? // Matches records IFF they are in the value set of parent_attribute on a record matching parent_node
+     *  label            C // Short label for the node
+     *  color            C
+     * ]
+     *
+     * [#editor/molecule // Macro compiled
+     *  editor
+     *  frame
+     *  node             // The root node that defines the identity of the molecule
+     *  root_atom_record // The entity ID of the record defining the identity of th molecule
+     *  atom             // The set of atoms composing the molecule
+     * ]
+     *
+     * [#editor/atom // Macro compiled
+     *  node
+     *  molecule
+     *  record
+     *  field: [ // AVs matching the query_field attributes for this atom's node
+     *   <query_field>: value
+     *  ]
+     * ]
+     *
+     */
+
+
     let fixture:RawEAV[] = [
       [EDITOR_ID, "block", BLOCK_PPL_W_BOATS_ID],
       [EDITOR_ID, "block", BLOCK_BOAT_TYPES_ID],
@@ -1337,46 +1394,16 @@ class EditorWatcher extends Watcher {
           type: "query",
           sort: 1,
           node: [
-            // appendAsEAVs([], {
-            //   tag: ["editor/query-node"],
-            //   type: "join",
-            //   sort: 1,
-            //   label: "P",
-            //   color: "#6c86ff",
-            //   query_tag: "person",
-            //   query_field: ["name", "age", "boat"],
-
-            //   join: [
-            //     appendAsEAVs([], {
-            //       attribute: "boat",
-            //       other_node: NODE_BOAT_ID
-            //     })
-            //   ]
-            // }, NODE_PERSON_ID),
-            // appendAsEAVs([], {
-            //   tag: "editor/query-node",
-            //   type: "join",
-            //   sort: 1,
-            //   label: "B",
-            //   color: "#9926ea",
-            //   query_tag: "boat",
-            //   query_field: ["name", "type"]
-            // }, NODE_BOAT_ID)
+            appendAsEAVs([], {tag: ["editor/query-node", "editor/root-node"], type: "join", sort: 1, name: "person", query_tag: "person", query_field: ["name", "age"]}),
           ]
-        }, FRAME_PPL_W_BOATS_QUERY_ID)
-      ]
+        }, FRAME_PPL_W_BOATS_QUERY_ID),
+        appendAsEAVs([], {
+          tag: "editor/frame",
+          type: "data",
+          sort: 2,
+        })
+      ],
     }, BLOCK_PPL_W_BOATS_ID);
-
-    // appendAsEAVs(fixture, {
-    //   tag: "editor/molecule",
-    //   editor: EDITOR_ID,
-    //   node: NODE_PERSON_ID,
-    //   atom: [
-    //     appendAsEAVs([], {tag: "editor/atom", sort: 1, node: NODE_PERSON_ID, record: PERSON_1_ID}),
-    //     appendAsEAVs([], {tag: "editor/atom", sort: 2, node: NODE_BOAT_ID, record: BOAT_1_ID}),
-    //     appendAsEAVs([], {tag: "editor/atom", sort: 3, node: NODE_BOAT_ID, record: BOAT_3_ID}),
-    //   ]
-    // }),
 
     appendAsEAVs(fixture, {
       tag: "editor/block",
@@ -1394,6 +1421,11 @@ class EditorWatcher extends Watcher {
     appendAsEAVs(fixture, {tag: "person", name: "Josh", boat: [BOAT_1_ID, BOAT_3_ID], age: 23}, PERSON_1_ID);
     appendAsEAVs(fixture, {tag: "person", name: "Rafe", boat: BOAT_1_ID, age: 43}, PERSON_2_ID);
     appendAsEAVs(fixture, {tag: "person", name: "Lola", boat: BOAT_2_ID, age: 19}, PERSON_3_ID);
+    appendAsEAVs(fixture, {
+      tag: "person", name: "Genevieve", age: 19,
+      cat: appendAsEAVs([], {tag: "cat", name: "Senor Fluf", age: 19})
+    });
+
 
     appendAsEAVs(fixture, {tag: "boat", name: "Boaty Mcboatface", type: "yacht", dock: DOCK_1_ID}, BOAT_1_ID);
     appendAsEAVs(fixture, {tag: "boat", name: "H.M. Surf", type: "dinghy", dock: DOCK_1_ID}, BOAT_2_ID);
