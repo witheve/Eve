@@ -342,6 +342,7 @@ class EditorWatcher extends Watcher {
       });
 
     this.attachQueryEditor(editor);
+    this.attachMoleculeGenerator(editor);
 
     return editor;
   }
@@ -786,8 +787,10 @@ class EditorWatcher extends Watcher {
           ])
         ];
       });
+  }
 
-    //--------------------------------------------------------------------
+  attachMoleculeGenerator(editor:Program) {
+        //--------------------------------------------------------------------
     // Molecule generation
     //--------------------------------------------------------------------
 
@@ -948,6 +951,7 @@ class EditorWatcher extends Watcher {
         ])
       ];
     })
+
   }
 
   initEditor() {
