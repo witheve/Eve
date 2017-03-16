@@ -658,310 +658,330 @@ class EditorWatcher extends Watcher {
   }
 
     attachQueryEditor(editor:Program) {
-    editor.block("When the active frame is a query, inject the query editor UI.", ({find, union, record}) => {
-      let content = find("editor/block/content");
-      let {editor} = content;
-      editor.active_frame.type == "query";
-
-      return [
-        content.add("children", [
-          record("editor/block/query-tree", "ui/column", {editor}),
-          record("editor/block/query-canvas", {editor})
-        ])
-      ];
-    });
-
-    //--------------------------------------------------------------------
-    // Block Query Tree
-    //--------------------------------------------------------------------
-
-    editor
-      .block("Compute the label and color of query nodes.", ({find, choose, lib:{string}}) => {
-        let node = find("editor/query-node");
-        let {name, sort} = node;
-        let label = string.uppercase(string.get(name, 1));
-        let color = choose(() => find("node-color", {ix: sort}).color, () => "gray");
-        return [node.add({label, color})];
-      })
-
-      .block("Populate the block query for the active block.", ({find, union, record}) => {
-        let query_elem = find("editor/block/query-tree");
-        let {editor} = query_elem;
-        let {active_frame} = editor;
-        active_frame.type == "query";
-        let {node} = active_frame;
-
-        let [main_pattern] = union(
-          () => node.query_tag,
-          () => node.parent_attribute
-        );
+      editor.block("When the active frame is a query, inject the query editor UI.", ({find, union, record}) => {
+        let content = find("editor/block/content");
+        let {editor} = content;
+        editor.active_frame.type == "query";
 
         return [
-          record("editor/query/node", "ui/row", {editor, sort: node.sort, node, frame: active_frame}).add("children", [
-            record("editor/query/hex", "shape/hexagon", {side: 21, thickness: 2, border: "#AAA", background: "white", sort: 0, frame: active_frame, node}).add("content", [
-              record("ui/text", {text: node.label, style: record({color: node.color})})
-            ]),
-            record("editor/query/pattern", "ui/column", {sort: 1, frame: active_frame, node}).add("children", [
-              record("ui/text", {sort: 0, text: main_pattern, class: "editor-query-tag"}),
-            ])
-          ])
-        ];
-      })
-
-      .block("Query root nodes are children of the query.", ({find, union, record}) => {
-        let query_elem = find("editor/block/query-tree");
-        let root_node = find("editor/query/node", {editor: query_elem.editor, node: find("editor/root-node")});
-        return [
-          query_elem.add("children", root_node)
-        ];
-      })
-
-      .block("Non-root nodes are children of their parent node.", ({find, union, record}) => {
-        let query_elem = find("editor/block/query-tree");
-        let subnode = find("editor/query/node", {editor: query_elem.editor});
-        let {node} = subnode;
-        let {parent_node} = node;
-        let parent_pattern = find("editor/query/pattern", {node: parent_node});
-        return [
-          parent_pattern.add("children", [
-            record("ui/column", {node, sort: 4, class: "editor-query-subnode"}).add("children", subnode)
-          ])
-        ];
-      })
-
-      .block("Query nodes with attributes display them as a tree in the pattern.", ({find, record}) => {
-        let query_pattern = find("editor/query/pattern");
-        let {node} = query_pattern;
-        let {query_field} = node;
-        return [
-          query_pattern.add("children", [
-            record("ui/column", {node,  sort: 2}).add("children", [
-              record("ui/row", {node, query_field, sort: query_field, class: "editor-query-field"}).add("children", [
-                record("ui/text", {text: query_field}),
-                record("editor/query/delete-field", "ui/button", {node, query_field, icon: "close-round"})
-              ])
-            ])
-          ])
-        ];
-      })
-
-      .commit("Clicking a delete field button removes its attribute from the pattern", ({find, record}) => {
-        let delete_field = find("editor/query/delete-field");
-        let click = find("html/event/click", {element: delete_field});
-        let {node, query_field} = delete_field;
-        return [
-          node.remove("query_field", query_field)
-        ];
-      })
-
-      .commit("Clicking a query hex opens the add attribute menu", ({find, record}) => {
-        let query_hex = find("editor/query/hex");
-        let click = find("html/event/click", {element: query_hex});
-        let {node} = query_hex;
-        let query_node = find("editor/query/node", {node});
-        return [
-          query_node.add("new-attribute", "true")
-        ];
-      })
-      .watch("If a query node is adding an attribute, request attributes matching its tag from the client.", ({find, record}) => {
-        let query_node = find("editor/query/node", {"new-attribute": "true"});
-        let {node} = query_node;
-        return [record("editor/attributes-from-tag", {query_tag: node.query_tag})];
-      })
-      .asDiffs(forwardDiffs(this.program))
-
-      .watch("If a query node is adding an attribute, request attributes matching its position in the hierarchy.", ({find, record}) => {
-        let query_node = find("editor/query/node", {"new-attribute": "true"});
-        let {node} = query_node;
-        return [record("editor/attributes-from-parent", {parent_tag: node.parent_node.query_tag, parent_attribute: node.parent_attribute})];
-      })
-      .asDiffs(forwardDiffs(this.program))
-
-
-      .block("When a query node is in the new attribute state, show all the attributes matching its tag", ({find, choose, record}) => {
-        let query_node = find("editor/query/node", {"new-attribute": "true"});
-        let {node} = query_node;
-        let query_pattern = find("editor/query/pattern");
-        query_node.children == query_pattern;
-        let [attribute] = choose(
-          () => {
-            let {attribute} = find("editor/attributes-from-tag", {query_tag: node.query_tag});
-            return [attribute];
-          },
-          () => {
-            let {attribute} = find("editor/attributes-from-parent", {parent_tag: node.parent_node.query_tag, parent_attribute: node.parent_attribute});
-            return [attribute];
-          },
-        );
-
-        return [
-          query_pattern.add("children", [
-            record("ui/column", {node,  sort: 3}).add("children", [
-              record("editor/query/node/new-attribute", "ui/text", {text: attribute, sort: attribute, attribute, node})
-            ])
-          ])
-        ];
-      })
-
-      .commit("Clicking a new attribute in a query node adds it.", ({find, not, record}) => {
-        let new_attribute = find("editor/query/node/new-attribute");
-        let click = find("html/event/click", {element: new_attribute});
-        let {node, attribute} = new_attribute;
-        let query_node = find("editor/query/node", {node});
-        not(() => find("editor/attributes-from-tag", {query_tag: node.query_tag, record_attribute: attribute}))
-        return [
-          node.add("query_field", attribute),
-          query_node.remove("new-attribute")
-        ];
-      })
-
-    // @FIXME: Getting multiple subnodes if we have existing attrs but not vice versa
-      .commit("Clicking a new record attribute in a query node adds it as a sub-node.", ({find, gather, choose, record}) => {
-        let new_attribute = find("editor/query/node/new-attribute");
-        let click = find("html/event/click", {element: new_attribute});
-        let {node, attribute} = new_attribute;
-        let query_node = find("editor/query/node", {node});
-
-        find("editor/attributes-from-tag", {query_tag: node.query_tag, record_attribute: attribute});
-
-        let frame = query_node.frame;
-        let [ix] = choose(() => {
-          return [gather(frame.node).count() + 1];
-        }, () => 1);
-
-        return [
-          node.add("query_subnode", attribute),
-          query_node.frame.add("node", [
-            record("editor/query-node", "editor/subnode", {
-              type: "join",
-              sort: ix,
-              name: attribute,
-              parent_attribute: attribute,
-              parent_node: node,
-            })
-          ]),
-          query_node.remove("new-attribute")
-        ];
-      })
-
-      .block("The query always has a new node button", ({find, record}) => {
-        let query_elem = find("editor/block/query-tree");
-        let {editor} = query_elem;
-        let {active_frame} = editor;
-
-        return [
-          query_elem.add("children", [
-            record("ui/row", "editor/query/new-node", {sort: 9999, frame: active_frame}).add("children", [
-              record("shape/hexagon", {side: 21, thickness: 2, border: "#AAA", background: "white", class: "editor-query-hex"}).add("content", [
-                record("ui/text", {text: "+", style: record({color: "#AAA", "font-weight": 500})})
-              ]),
-            ])
-          ])
-        ];
-      })
-
-      .commit("Clicking on the new node button opens it.", ({find, not, record}) => {
-        let new_node_button = find("editor/query/new-node");
-        not(() => new_node_button.open == "true");
-        let click = find("html/event/click", {element: new_node_button});
-        return [
-          new_node_button.add("open", "true")
-        ];
-      })
-
-      .block("When the new node button is open, display a list of the clients tags.", ({find, record}) => {
-        let new_node_button = find("editor/query/new-node", {open: "true"});
-        let tag = find("client_tag").client_tag;
-        return [
-          new_node_button.add("children", [
-            record("ui/column", {sort: 1}).add("children", [
-              record("ui/text", "editor/query/new-node/tag", {text: tag, sort: tag, client_tag: tag, new_node_button})
-            ])
-          ])
-        ];
-      })
-
-      .commit("Clicking on a new node tag adds it as a node to the query.", ({find, gather, choose, record}) => {
-        let new_node_tag = find("editor/query/new-node/tag");
-        let {new_node_button} = new_node_tag;
-        let {client_tag} = new_node_tag;
-        let {frame} = new_node_button;
-        let click = find("html/event/click", {element: new_node_tag});
-
-        // @FIXME: dependents of aggregates are busted due to stratification (?).
-        // If we try to use ix directly for scanning we get no result.
-        // If we try to use it after an expression for scanning we get no filtering at all.
-        // Luckily in this case we needed it in a choose, which seems to stratify correctly.
-
-        // @FIXME: Aggregates in chooses don't filter adequately without context.
-        // We work around it for now by providing enough context in the choose branch for the aggregate to use.
-
-        let [ix] = choose(() => {
-          return [gather(frame.node).count() + 1];
-        }, () => 1);
-
-        return [
-          new_node_button.remove("open"),
-          frame.add("node", [
-            record("editor/query-node", "editor/root-node", {
-              type: "join",
-              sort: ix,
-              name: client_tag,
-              query_tag: client_tag,
-            })
+          content.add("children", [
+            record("editor/block/query-tree", "ui/column", {editor}),
+            record("editor/block/query-canvas", {editor})
           ])
         ];
       });
 
-    //--------------------------------------------------------------------
-    // Block Query Canvas
-    //--------------------------------------------------------------------
+      //--------------------------------------------------------------------
+      // Block Query Tree
+      //--------------------------------------------------------------------
 
-    editor
-      .block("Draw molecules as hex grids of atoms.", ({find, record}) => {
-        let canvas_elem = find("editor/block/query-canvas");
-        let {editor} = canvas_elem;
-        let {active_frame} = editor;
-        active_frame.type == "query";
-        let molecule = find("editor/molecule", {editor, frame: active_frame, positioned: "true"});
-        let {atom} = molecule;
+      editor
+        .block("Compute the label and color of query nodes.", ({find, choose, lib:{string}}) => {
+          let node = find("editor/query-node");
+          let {name, sort} = node;
+          let label = string.uppercase(string.get(name, 1));
+          let color = choose(() => find("node-color", {ix: sort}).color, () => "gray");
+          return [node.add({label, color})];
+        })
 
-        let side = 30;
-        let gap = 3;
+        .block("Populate the block query for the active block.", ({find, union, record}) => {
+          let query_elem = find("editor/block/query-tree");
+          let {editor} = query_elem;
+          let {active_frame} = editor;
+          active_frame.type == "query";
+          let {node} = active_frame;
 
-        return [
-          canvas_elem.add({tag: "shape/hex-grid", side, gap}),
-          canvas_elem.add("cell", [
-            // record("editor/molecule/grid", "shape/hex-grid", {x: molecule.x, y: molecule.y, side, gap}).add("cell", [
-            record("shape/hexagon", "editor/atom/cell", {atom, molecule, side, x: atom.x, y: atom.y, background: "white", thickness: 2, border: "#ccc"}).add("content", [
+          let [main_pattern] = union(
+            () => node.query_tag,
+            () => node.parent_attribute
+          );
+
+          return [
+            record("editor/query/node", "ui/row", {editor, sort: node.sort, node, frame: active_frame}).add("children", [
+              record("editor/query/hex", "shape/hexagon", {side: 21, thickness: 2, border: "#AAA", background: "white", sort: 0, frame: active_frame, node}).add("content", [
+                record("ui/text", {text: node.label, style: record({color: node.color})})
+              ]),
+              record("editor/query/pattern", "ui/column", {sort: 1, frame: active_frame, node}).add("children", [
+                record("ui/text", {sort: 0, text: main_pattern, class: "editor-query-tag"}),
+              ])
+            ])
+          ];
+        })
+
+        .block("Query root nodes are children of the query.", ({find, union, record}) => {
+          let query_elem = find("editor/block/query-tree");
+          let root_node = find("editor/query/node", {editor: query_elem.editor, node: find("editor/root-node")});
+          return [
+            query_elem.add("children", root_node)
+          ];
+        })
+
+        .block("Non-root nodes are children of their parent node.", ({find, union, record}) => {
+          let query_elem = find("editor/block/query-tree");
+          let subnode = find("editor/query/node", {editor: query_elem.editor});
+          let {node} = subnode;
+          let {parent_node} = node;
+          let parent_pattern = find("editor/query/pattern", {node: parent_node});
+          return [
+            parent_pattern.add("children", [
+              record("ui/column", {node, sort: 4, class: "editor-query-subnode"}).add("children", subnode)
+            ])
+          ];
+        })
+
+        .block("Query nodes with attributes display them as a tree in the pattern.", ({find, record}) => {
+          let query_pattern = find("editor/query/pattern");
+          let {node} = query_pattern;
+          let {query_field} = node;
+          return [
+            query_pattern.add("children", [
+              record("ui/column", {node,  sort: 2}).add("children", [
+                record("editor/query/field", "ui/row", {node, query_field, sort: query_field}).add("children", [
+                  record("ui/text", {sort: 1, text: query_field}),
+
+                ])
+              ])
+            ])
+          ];
+        })
+
+        .block("When a query node is open, display delete field buttons.", ({find, record}) => {
+          let query_node = find("editor/query/node", {open: "true"});
+          let {node} = query_node;
+          let field = find("editor/query/field", {node});
+          let {query_field} = field;
+          return [field.add("children", record("editor/query/delete-field", "ui/button", {sort: 10, node, query_field, icon: "close-round"}))];
+        })
+
+        .commit("Clicking a delete field button removes its attribute from the pattern", ({find, record}) => {
+          let delete_field = find("editor/query/delete-field");
+          let click = find("html/event/click", {element: delete_field});
+          let {node, query_field} = delete_field;
+          return [
+            node.remove("query_field", query_field)
+          ];
+        })
+
+        .commit("Clicking a query hex opens the add attribute menu", ({find, not}) => {
+          let query_hex = find("editor/query/hex");
+          let click = find("html/event/click", {element: query_hex});
+          let {node} = query_hex;
+          let query_node = find("editor/query/node", {node});
+          not(() => query_node.open);
+          return [
+            query_node.add("open", "true")
+          ];
+        })
+        .commit("Clicking an open query hex closes it", ({find}) => {
+          let query_hex = find("editor/query/hex");
+          let click = find("html/event/click", {element: query_hex});
+          let {node} = query_hex;
+          let query_node = find("editor/query/node", {node, open: "true"});
+          return [
+            query_node.remove("open")
+          ];
+        })
+
+
+        .watch("If a query node is adding an attribute, request attributes matching its tag from the client.", ({find, record}) => {
+          let query_node = find("editor/query/node", {open: "true"});
+          let {node} = query_node;
+          return [record("editor/attributes-from-tag", {query_tag: node.query_tag})];
+        })
+        .asDiffs(forwardDiffs(this.program))
+
+        .watch("If a query node is adding an attribute, request attributes matching its position in the hierarchy.", ({find, record}) => {
+          let query_node = find("editor/query/node", {open: "true"});
+          let {node} = query_node;
+          return [record("editor/attributes-from-parent", {parent_tag: node.parent_node.query_tag, parent_attribute: node.parent_attribute})];
+        })
+        .asDiffs(forwardDiffs(this.program))
+
+
+        .block("When a query node is in the new attribute state, show all the attributes matching its tag", ({find, choose, record}) => {
+          let query_node = find("editor/query/node", {open: "true"});
+          let {node} = query_node;
+          let query_pattern = find("editor/query/pattern");
+          query_node.children == query_pattern;
+          let [attribute] = choose(
+            () => {
+              let {attribute} = find("editor/attributes-from-tag", {query_tag: node.query_tag});
+              return [attribute];
+            },
+            () => {
+              let {attribute} = find("editor/attributes-from-parent", {parent_tag: node.parent_node.query_tag, parent_attribute: node.parent_attribute});
+              return [attribute];
+            },
+          );
+
+          return [
+            query_pattern.add("children", [
+              record("ui/column", {node,  sort: 3}).add("children", [
+                record("editor/query/node/new-attribute", "ui/text", {text: attribute, sort: attribute, attribute, node})
+              ])
+            ])
+          ];
+        })
+
+        .commit("Clicking a new attribute in a query node adds it.", ({find, not, record}) => {
+          let new_attribute = find("editor/query/node/new-attribute");
+          let click = find("html/event/click", {element: new_attribute});
+          let {node, attribute} = new_attribute;
+          let query_node = find("editor/query/node", {node});
+          not(() => find("editor/attributes-from-tag", {query_tag: node.query_tag, record_attribute: attribute}))
+          return [
+            node.add("query_field", attribute),
+            query_node.remove("open")
+          ];
+        })
+
+      // @FIXME: Getting multiple subnodes if we have existing attrs but not vice versa
+        .commit("Clicking a new record attribute in a query node adds it as a sub-node.", ({find, gather, choose, record}) => {
+          let new_attribute = find("editor/query/node/new-attribute");
+          let click = find("html/event/click", {element: new_attribute});
+          let {node, attribute} = new_attribute;
+          let query_node = find("editor/query/node", {node});
+
+          find("editor/attributes-from-tag", {query_tag: node.query_tag, record_attribute: attribute});
+
+          let frame = query_node.frame;
+          let [ix] = choose(() => {
+            return [gather(frame.node).count() + 1];
+          }, () => 1);
+
+          return [
+            node.add("query_subnode", attribute),
+            query_node.frame.add("node", [
+              record("editor/query-node", "editor/subnode", {
+                type: "join",
+                sort: ix,
+                name: attribute,
+                parent_attribute: attribute,
+                parent_node: node,
+              })
+            ]),
+            query_node.remove("open")
+          ];
+        })
+
+        .block("The query always has a new node button", ({find, record}) => {
+          let query_elem = find("editor/block/query-tree");
+          let {editor} = query_elem;
+          let {active_frame} = editor;
+
+          return [
+            query_elem.add("children", [
+              record("ui/row", "editor/query/new-node", {sort: 9999, frame: active_frame}).add("children", [
+                record("shape/hexagon", {side: 21, thickness: 2, border: "#AAA", background: "white", class: "editor-query-hex"}).add("content", [
+                  record("ui/text", {text: "+", style: record({color: "#AAA", "font-weight": 500})})
+                ]),
+              ])
+            ])
+          ];
+        })
+
+        .commit("Clicking on the new node button opens it.", ({find, not, record}) => {
+          let new_node_button = find("editor/query/new-node");
+          not(() => new_node_button.open == "true");
+          let click = find("html/event/click", {element: new_node_button});
+          return [
+            new_node_button.add("open", "true")
+          ];
+        })
+
+        .block("When the new node button is open, display a list of the clients tags.", ({find, record}) => {
+          let new_node_button = find("editor/query/new-node", {open: "true"});
+          let tag = find("client_tag").client_tag;
+          return [
+            new_node_button.add("children", [
+              record("ui/column", {sort: 1}).add("children", [
+                record("ui/text", "editor/query/new-node/tag", {text: tag, sort: tag, client_tag: tag, new_node_button})
+              ])
+            ])
+          ];
+        })
+
+        .commit("Clicking on a new node tag adds it as a node to the query.", ({find, gather, choose, record}) => {
+          let new_node_tag = find("editor/query/new-node/tag");
+          let {new_node_button} = new_node_tag;
+          let {client_tag} = new_node_tag;
+          let {frame} = new_node_button;
+          let click = find("html/event/click", {element: new_node_tag});
+
+          // @FIXME: dependents of aggregates are busted due to stratification (?).
+          // If we try to use ix directly for scanning we get no result.
+          // If we try to use it after an expression for scanning we get no filtering at all.
+          // Luckily in this case we needed it in a choose, which seems to stratify correctly.
+
+          // @FIXME: Aggregates in chooses don't filter adequately without context.
+          // We work around it for now by providing enough context in the choose branch for the aggregate to use.
+
+          let [ix] = choose(() => {
+            return [gather(frame.node).count() + 1];
+          }, () => 1);
+
+          return [
+            new_node_button.remove("open"),
+            frame.add("node", [
+              record("editor/query-node", "editor/root-node", {
+                type: "join",
+                sort: ix,
+                name: client_tag,
+                query_tag: client_tag,
+              })
+            ])
+          ];
+        });
+
+      //--------------------------------------------------------------------
+      // Block Query Canvas
+      //--------------------------------------------------------------------
+
+      editor
+        .block("Draw molecules as hex grids of atoms.", ({find, record}) => {
+          let canvas_elem = find("editor/block/query-canvas");
+          let {editor} = canvas_elem;
+          let {active_frame} = editor;
+          active_frame.type == "query";
+          let molecule = find("editor/molecule", {editor, frame: active_frame, positioned: "true"});
+          let {atom} = molecule;
+
+          let side = 30;
+          let gap = 3;
+
+          return [
+            canvas_elem.add({tag: "shape/hex-grid", side, gap}),
+            canvas_elem.add("cell", [
+              // record("editor/molecule/grid", "shape/hex-grid", {x: molecule.x, y: molecule.y, side, gap}).add("cell", [
+              record("shape/hexagon", "editor/atom/cell", {atom, molecule, side, x: atom.x, y: atom.y, background: "white", thickness: 2, border: "#ccc"}).add("content", [
                 record("ui/text", {atom, molecule, text: `${atom.node.label} ${molecule.sort}`, style: record({color: atom.node.color})})
               ])
-            // ])
-          ])
-        ];
-      })
+              // ])
+            ])
+          ];
+        })
 
-      .block("Show molecule infobox when open.", ({find, lookup, record}) => {
-        let molecule = find("editor/molecule", {open: "true"});
-        let {atom, editor} = molecule;
-        molecule.frame == editor.active_frame;
-        let canvas_elem = find("editor/block/query-canvas", {editor});
-        let {field} = atom;
-        let {attribute, value} = lookup(field);
-        return [
-          canvas_elem.add("children", [
-            record("ui/column", "editor/molecule/infobox", {sort: molecule.sort, molecule}).add("children", [
-              record("ui/text", {text: `Molecule ${molecule.sort}`}),
-              record("ui/row", {sort: atom.sort, molecule, atom}).add("children", [
-                record("ui/text", {sort: 0, text: `${atom.node.name} {`}),
-                record("ui/text", {sort: atom.sort, text: ` ${attribute}: ${value} `}),
-                record("ui/text", {sort: Infinity, text: `}`}),
+        .block("Show molecule infobox when open.", ({find, lookup, record}) => {
+          let molecule = find("editor/molecule", {open: "true"});
+          let {atom, editor} = molecule;
+          molecule.frame == editor.active_frame;
+          let canvas_elem = find("editor/block/query-canvas", {editor});
+          let {field} = atom;
+          let {attribute, value} = lookup(field);
+          return [
+            canvas_elem.add("children", [
+              record("ui/column", "editor/molecule/infobox", {sort: molecule.sort, molecule}).add("children", [
+                record("ui/text", {text: `Molecule ${molecule.sort}`}),
+                record("ui/row", {sort: atom.sort, molecule, atom}).add("children", [
+                  record("ui/text", {sort: 0, text: `${atom.node.name} {`}),
+                  record("ui/text", {sort: atom.sort, text: ` ${attribute}: ${value} `}),
+                  record("ui/text", {sort: Infinity, text: `}`}),
+                ])
               ])
             ])
-          ])
-        ];
-      });
-  }
+          ];
+        });
+    }
 
   attachDataEditor(editor:Program) {
     editor.block("When the active frame is a data editor, inject the data editor UI.", ({find, union, record}) => {
