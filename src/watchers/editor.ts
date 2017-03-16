@@ -194,10 +194,7 @@ class EditorWatcher extends Watcher {
                 record("editor/block/description", "ui/column", {editor}),
                 record("editor/block/storyboard", "ui/row", {editor})
               ]),
-              record("ui/row", {editor, sort: 1, class: "editor-block-content"}).add("children", [
-                record("editor/block/query", "ui/column", {editor}),
-                record("editor/block/canvas", {editor})
-              ])
+              record("ui/row", "editor/block/content", {editor, sort: 1})
             ])
           ])
         ];
@@ -344,15 +341,35 @@ class EditorWatcher extends Watcher {
         ];
       });
 
+    this.attachQueryEditor(editor);
+
+    return editor;
+  }
+
+  attachQueryEditor(editor:Program) {
+    editor.block("When the active frame is a query, inject the query editor UI.", ({find, union, record}) => {
+      let content = find("editor/block/content");
+      let {editor} = content;
+      editor.active_frame.type == "query";
+
+      return [
+        content.add("children", [
+          record("editor/block/query-tree", "ui/column", {editor}),
+          record("editor/block/query-canvas", {editor})
+        ])
+      ];
+    });
+
     //--------------------------------------------------------------------
-    // Block Query
+    // Block Query Tree
     //--------------------------------------------------------------------
 
     editor
       .block("Populate the block query for the active block.", ({find, union, record}) => {
-        let query_elem = find("editor/block/query");
+        let query_elem = find("editor/block/query-tree");
         let {editor} = query_elem;
         let {active_frame} = editor;
+        active_frame.type == "query";
         let {node} = active_frame;
 
         let [main_pattern] = union(
@@ -373,7 +390,7 @@ class EditorWatcher extends Watcher {
       })
 
       .block("Query root nodes are children of the query.", ({find, union, record}) => {
-        let query_elem = find("editor/block/query");
+        let query_elem = find("editor/block/query-tree");
         let root_node = find("editor/query/node", {editor: query_elem.editor, node: find("editor/root-node")});
         return [
           query_elem.add("children", root_node)
@@ -381,7 +398,7 @@ class EditorWatcher extends Watcher {
       })
 
       .block("Non-root nodes are children of their parent node.", ({find, union, record}) => {
-        let query_elem = find("editor/block/query");
+        let query_elem = find("editor/block/query-tree");
         let subnode = find("editor/query/node", {editor: query_elem.editor});
         let {node} = subnode;
         let {parent_node} = node;
@@ -479,6 +496,7 @@ class EditorWatcher extends Watcher {
         ];
       })
 
+    // @FIXME: Getting multiple subnodes if we have existing attrs but not vice versa
       .commit("Clicking a new record attribute in a query node adds it as a sub-node.", ({find, gather, lib:{string}, choose, record}) => {
         let new_attribute = find("editor/query/node/new-attribute");
         let click = find("html/event/click", {element: new_attribute});
@@ -487,8 +505,8 @@ class EditorWatcher extends Watcher {
 
         find("editor/attributes-from-tag", {query_tag: node.query_tag, record_attribute: attribute});
 
+        let frame = query_node.frame;
         let [ix] = choose(() => {
-          let frame = query_node.frame;
           return [gather(frame.node).count() + 1];
         }, () => 1);
         let color = choose(() => find("node-color", {ix}).color, () => "gray");
@@ -511,7 +529,7 @@ class EditorWatcher extends Watcher {
       })
 
       .block("The query always has a new node button", ({find, record}) => {
-        let query_elem = find("editor/block/query");
+        let query_elem = find("editor/block/query-tree");
         let {editor} = query_elem;
         let {active_frame} = editor;
 
@@ -563,7 +581,6 @@ class EditorWatcher extends Watcher {
         // We work around it for now by providing enough context in the choose branch for the aggregate to use.
 
         let [ix] = choose(() => {
-          let frame = new_node_button.frame;
           return [gather(frame.node).count() + 1];
         }, () => 1);
         let color = choose(() => find("node-color", {ix}).color, () => "gray");
@@ -584,28 +601,8 @@ class EditorWatcher extends Watcher {
       });
 
     //--------------------------------------------------------------------
-    // Block Canvas
+    // Block Query Canvas
     //--------------------------------------------------------------------
-
-    // editor
-    //   .block("DEBUG: draw a full hex grid", ({find, record}) => {
-    //     let canvas = find("editor/block/canvas");
-
-    //     let {ix:x} = find("range");
-    //     let {ix:y} = find("range");
-    //     y < 5;
-    //     x < 5;
-
-    //     return [
-    //       canvas.add({tag: "shape/hex-grid", side: 30, gap: 3}),
-    //       canvas.add("cell", [
-    //         record("shape/hexagon", "debug-cell", {side: 30, x, y, background: "#eee", style: record({"font-size": "0.5em"})}).add("content", [
-    //           record("ui/text", {text: `${x}, ${y}`})
-    //         ])
-    //       ])
-    //     ];
-    //   })
-
 
     editor
       .commit("Molecules start with a seed of 1", ({find, not}) => {
@@ -624,10 +621,12 @@ class EditorWatcher extends Watcher {
           molecule.add({x, y}) // , positioned: "true"
         ];
       })
-      .commit("A molecule with positioned false and a low enough seed should try to reposition.", ({find}) => {
+      .commit("A molecule with positioned false and a low enough seed should try to reposition.", ({find, record}) => {
         let molecule = find("editor/molecule", {positioned: "false"});
         molecule.seed < 4;
-        return [molecule.remove("positioned").remove("seed").add("seed", molecule.seed + 1)];
+        return [
+          molecule.remove("positioned").remove("seed").add("seed", molecule.seed + 1),
+        ];
       })
 
       .block("Determine the suitability of a potential molecule position by colliding it's footprint with existing cells.", ({find, choose, not}) => {
@@ -673,8 +672,7 @@ class EditorWatcher extends Watcher {
         let {atom} = molecule;
         let ix = gather(atom).per(molecule).sort();
         return [
-          atom.add("sort", ix),
-          record("ui/text", {atom, text: `${molecule.sort} ${atom.node.label} ${ix}`})
+          atom.add("sort", ix)
         ];
       })
 
@@ -701,6 +699,14 @@ class EditorWatcher extends Watcher {
         ];
       })
 
+      // .block("DEBUG: Show the molecules.", ({find, record}) => {
+      //   let molecule = find("editor/molecule");
+      //   let {atom} = molecule;
+      //   return [
+      //     record("ui/text", {sort: `${molecule.sort}${atom.sort}`, text: `${molecule.sort} | ${atom.node.label} ${atom.sort}`})
+      //   ];
+      // })
+
       .block("Compute atom positions from their sort.", ({find, lib:{math}, record}) => {
         let molecule = find("editor/molecule");
         let {atom, x:mol_x, y:mol_y} = molecule;
@@ -712,8 +718,9 @@ class EditorWatcher extends Watcher {
       })
 
       .block("Draw molecules as hex grids of atoms.", ({find, record}) => {
-        let canvas_elem = find("editor/block/canvas");
+        let canvas_elem = find("editor/block/query-canvas");
         let {editor} = canvas_elem;
+        editor.active_frame.type == "query";
         let molecule = find("editor/molecule", {editor, positioned: "true"});
         let {atom} = molecule;
 
@@ -735,18 +742,41 @@ class EditorWatcher extends Watcher {
     //--------------------------------------------------------------------
     // Molecule generation
     //--------------------------------------------------------------------
+
     editor.block("Create a set of molecules for the active frame's query.", ({find, record}) => {
       let editor = find("editor/root");
-      let {active_frame:frame} = editor;
-      let node = find("editor/root-node");
-      frame.node == node;
+      let {active_frame} = editor;
+      active_frame.type == "query";
+      let {node} = active_frame;
+      node.tag == "editor/root-node";
 
       return [
-        record("editor/molecule/watch", "eve/compiler/block", {frame, name: "Create molecules", type: "watch", watcher: "send-to-editor"}).add("constraint", [
+        record("editor/molecule/watch", "eve/compiler/block", {editor, name: "Create molecules", type: "watch", watcher: "send-to-editor"}).add("constraint", [
           record("editor/atom/record", "eve/compiler/record", {node, record: record("editor/atom/entity", "eve/compiler/var", {node})}),
+        ]),
+      ];
+    })
+
+    editor.block("Embed subnodes.", ({find, record}) => {
+      let molecule_watch = find("editor/molecule/watch");
+      let {editor} = molecule_watch;
+      let {active_frame} = editor;
+      let {node} = active_frame;
+      let {parent_node, parent_attribute} = node;
+
+      let parent_record = find("editor/atom/record", {node: parent_node});
+
+      let record_var;
+      return [
+        record_var = record("editor/atom/entity", "eve/compiler/var", {node}),
+        parent_record.add("attribute", record({tag: "eve/compiler/av", attribute: parent_attribute, value: record_var})),
+
+        molecule_watch.add("constraint", [
+          record("editor/atom/record", "eve/compiler/record", {node, record: record_var})
         ])
       ];
     })
+
 
     editor.block("Attach node query tags to their atom records.", ({find, record}) => {
       let atom_record = find("editor/atom/record");
@@ -754,7 +784,7 @@ class EditorWatcher extends Watcher {
       let {query_tag} = node;
 
       return [
-       atom_record.add("attribute", record({tag: "eve/compiler/av", attribute: "tag", value: query_tag}))
+        atom_record.add("attribute", record({tag: "eve/compiler/av", attribute: "tag", value: query_tag})),
       ];
     })
 
@@ -774,32 +804,12 @@ class EditorWatcher extends Watcher {
       ];
     })
 
-    editor.block("Embed subnodes.", ({find, record}) => {
-      let query_node = find("editor/query/node");
-      let {node} = query_node;
-      let {parent_node, parent_attribute} = node;
-
-      let parent_record = find("editor/atom/record", {node: parent_node});
-      let parent_record_var = find("editor/atom/entity", {node: parent_node});
-
-      let molecule_watch = find("editor/molecule/watch", {frame: query_node.frame});
-
-      let record_var;
-      return [
-        record_var = record("editor/atom/entity", "eve/compiler/var", {node}),
-        parent_record.add("attribute", record({tag: "eve/compiler/av", attribute: parent_attribute, value: record_var})),
-
-        molecule_watch.add("constraint", [
-          record("editor/atom/record", "eve/compiler/record", {node, record: record_var})
-        ])
-      ];
-    })
-
     editor.block("Output a molecule for each root node.", ({find, record}) => {
       let molecule_watch = find("editor/molecule/watch");
-      let editor = find("editor/root");
+      let {editor} = molecule_watch;
       let node = find("editor/root-node");
-      molecule_watch.frame.node == node;
+      let {active_frame} = editor;
+      active_frame.node == node;
 
       let molecule_var;
       return [
@@ -808,10 +818,10 @@ class EditorWatcher extends Watcher {
           record("editor/molecule/output", "eve/compiler/output", {node, record: molecule_var}).add("attribute", [
             record("eve/compiler/av", {attribute: "tag", value: "editor/molecule"}),
             record("eve/compiler/av", {attribute: "editor", value: editor}),
-            record("eve/compiler/av", {attribute: "frame", value: molecule_watch.frame}),
+            record("eve/compiler/av", {attribute: "frame", value: active_frame}),
             record("eve/compiler/av", {attribute: "node", value: node})
           ])
-        ])
+        ]),
       ];
     });
 
@@ -827,15 +837,16 @@ class EditorWatcher extends Watcher {
         molecule_watch.add("constraint", [
           record("editor/atom/output", "eve/compiler/output", {record: atom_var}).add("attribute", [
             record("eve/compiler/av", {attribute: "tag", value: "editor/atom"}),
-            // record("eve/compiler/av", {attribute: "sort", value: 1}), // @FIXME: use sort to find this.
             record("eve/compiler/av", {attribute: "node", value: node}),
+            record("eve/compiler/av", {attribute: "molecule", value: molecule_output.record}),
             record("eve/compiler/av", {attribute: "record", value: entity_var}),
           ])
         ]),
         molecule_output.add("parent_node", node),
         molecule_output.add("attribute", [
-          record("eve/compiler/av", {attribute: "atom", value: atom_var}),
-        ])
+          record("eve/compiler/av", {attribute: "root_atom_record", value: entity_var}),
+          record("eve/compiler/av", "eve/compiler/attribute/non-identity", {attribute: "atom", value: atom_var}),
+        ]),
       ];
     });
 
@@ -854,7 +865,6 @@ class EditorWatcher extends Watcher {
         molecule_watch.add("constraint", [
           record("editor/atom/output", "eve/compiler/output", {record: atom_var}).add("attribute", [
             record("eve/compiler/av", {attribute: "tag", value: "editor/atom"}),
-            // record("eve/compiler/av", {attribute: "sort", value: 1}), // @FIXME: use sort to find this.
             record("eve/compiler/av", {attribute: "node", value: node}),
             record("eve/compiler/av", {attribute: "molecule", value: molecule_output.record}),
             record("eve/compiler/av", {attribute: "record", value: entity_var}),
@@ -862,12 +872,10 @@ class EditorWatcher extends Watcher {
         ]),
         molecule_output.add("parent_node", node),
         molecule_output.add("attribute", [
-          record("eve/compiler/av", "eve/compiler/attribute/non-identity", {attribute: "atom", value: atom_var}), // Change this attribute to "atomz" and they both show up.
+          record("eve/compiler/av", "eve/compiler/attribute/non-identity", {attribute: "atom", value: atom_var}),
         ])
       ];
     });
-
-    return editor;
   }
 
   initEditor() {

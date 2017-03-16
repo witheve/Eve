@@ -36,7 +36,6 @@
 
 
 .editor-view .editor-block-content { flex: 1; }
-.editor-view .editor-block-canvas { flex: 1; }
 
 /****************************************************************************\
  * Editor Block Query
@@ -77,7 +76,7 @@
 /****************************************************************************\
  * Editor Block Canvas
 \****************************************************************************/
-.editor-view .editor-block-canvas { position: relative;  }
+.editor-view .editor-block-query-canvas { position: relative; flex: 1; }
 
 
 /****************************************************************************\
