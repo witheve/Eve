@@ -2433,11 +2433,11 @@ export class UnionFlow extends Node {
   leftResults = new Iterator<Prefix>();
   branches:BinaryJoinRight[] = [];
 
-  constructor(public left:Node, branches:Node[], public keyRegisters:Register[][], public registersToMerge:Register[]) {
+  constructor(public left:Node, branches:Node[], public keyRegisters:Register[][], public registersToMerge:Register[], public extraOuterJoins:Register[]) {
     super();
     let ix = 0;
     for(let branch of branches) {
-      this.branches.push(new BinaryJoinRight(left, branch, keyRegisters[ix], registersToMerge));
+      this.branches.push(new BinaryJoinRight(left, branch, keyRegisters[ix].concat(extraOuterJoins), registersToMerge));
       ix++;
     }
   }
@@ -2483,7 +2483,7 @@ export class ChooseFlow extends Node {
   branches:(BinaryJoinRight|AntiJoinPresolvedRight)[] = [];
   branchResults:Iterator<Prefix>[] = [];
 
-  constructor(public left:Node, initialBranches:Node[], public keyRegisters:Register[][], public registersToMerge:Register[]) {
+  constructor(public left:Node, initialBranches:Node[], public keyRegisters:Register[][], public registersToMerge:Register[], public extraOuterJoins:Register[]) {
     super();
     let allKeys:Register[] = []
     for(let keySet of keyRegisters) {
@@ -2501,11 +2501,11 @@ export class ChooseFlow extends Node {
       if(prev) {
         let myKeys = keyRegisters[ix];
 
-        join = new BinaryJoinRight(left, branch, myKeys, registersToMerge);
+        join = new BinaryJoinRight(left, branch, myKeys.concat(extraOuterJoins), registersToMerge);
         let antijoin = new AntiJoinPresolvedRight(join, prev, allKeys);
         branches.push(antijoin);
       } else {
-        join = new BinaryJoinRight(left, branch, keyRegisters[ix], registersToMerge);
+        join = new BinaryJoinRight(left, branch, keyRegisters[ix].concat(extraOuterJoins), registersToMerge);
         branches.push(join);
       }
       branchResults.push(new Iterator<Prefix>());

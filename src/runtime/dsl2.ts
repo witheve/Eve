@@ -1504,8 +1504,8 @@ class Union extends DSLBase {
     return 0;
   }
 
-  build(left: Runtime.Node, nodes:Runtime.Node[], inputs:Register[][], outputs:Register[]):Runtime.Node {
-    return new Runtime.UnionFlow(left, nodes, inputs, outputs);
+  build(left: Runtime.Node, nodes:Runtime.Node[], inputs:Register[][], outputs:Register[], extraOuterJoins:Register[]):Runtime.Node {
+    return new Runtime.UnionFlow(left, nodes, inputs, outputs, extraOuterJoins);
   }
 
   compile(join:Runtime.Node) {
@@ -1525,7 +1525,17 @@ class Union extends DSLBase {
       inputs.push(branchInputs[ix].map((v) => context.getValue(v)).filter(isRegister) as Register[]);
       ix++;
     }
-    return this.build(join, nodes, inputs, this.getOutputRegisters());
+    let extraJoins:Register[] = [];
+    for(let result of this.results) {
+      if(result.__owner && result.__owner instanceof Record && result.__owner.attributes.length) {
+        let maybeReg = context.getValue(result);
+        if(isRegister(maybeReg)) {
+          extraJoins.push(maybeReg);
+        }
+      }
+    }
+    console.log(extraJoins);
+    return this.build(join, nodes, inputs, this.getOutputRegisters(), extraJoins);
   }
 }
 
@@ -1534,8 +1544,8 @@ class Union extends DSLBase {
 //--------------------------------------------------------------------
 
 class Choose extends Union {
-  build(left: Runtime.Node, nodes:Runtime.Node[], inputs:Register[][], outputs:Register[]):Runtime.Node {
-    return new Runtime.ChooseFlow(left, nodes, inputs, outputs);
+  build(left: Runtime.Node, nodes:Runtime.Node[], inputs:Register[][], outputs:Register[], extraOuterJoins:Register[]):Runtime.Node {
+    return new Runtime.ChooseFlow(left, nodes, inputs, outputs, extraOuterJoins);
   }
 }
 
