@@ -1534,7 +1534,6 @@ class Union extends DSLBase {
         }
       }
     }
-    console.log(extraJoins);
     return this.build(join, nodes, inputs, this.getOutputRegisters(), extraJoins);
   }
 }
