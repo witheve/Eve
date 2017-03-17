@@ -108,6 +108,10 @@ export class Reference {
   add(attrMap:{[attr:string]:Value|Value[]}):Reference;
   add(attribute:Value, value:Value|Value[]):Reference;
   add(attrMapOrAttr:Value|{[attr:string]:Value|Value[]}, value?:Value|Value[]):Reference {
+    if(!this.__owner) {
+      this.__owner = new Record(this.__context, [], {}, this);
+    }
+
     if(this.__owner instanceof Record) {
       // we only allow you to call add at the root context
       if(this.__context.parent) throw new Error("Add can't be called in a sub-block");
@@ -130,6 +134,10 @@ export class Reference {
 
   // @TODO: allow free A's and V's here
   remove(attribute?:Value, value?:Value|Value[]):Reference {
+    if(!this.__owner) {
+      this.__owner = new Record(this.__context, [], {}, this);
+    }
+
     if(this.__owner instanceof Record) {
       // we only allow you to call remove at the root context
       if(this.__context.parent) throw new Error("Add can't be called in a sub-block");
@@ -154,7 +162,7 @@ export class Reference {
         }
 
         if(!this.__owner) {
-          throw new Error("Cannot access a property of a static value");
+          this.__owner = new Record(active, [], {}, this);
         }
 
         return this.__owner.access(this.__context, active, prop);
