@@ -231,6 +231,26 @@ test("Choose: moves only", (assert) => {
   assert.end();
 });
 
+test("Choose: post-filtering outer", (assert) => {
+  let prog = new Program("test");
+  prog.block("froofy", ({find, choose, record}) => {
+    let person = find("person");
+    let [display] = choose(() => person.display);
+    display.name == "Ferdinand";
+    return [record("result", {name: display.name})];
+  });
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+    [1, "display", 2],
+    [2, "name", "Jess"],
+    [3, "tag", "cat"],
+    [3, "display", 4],
+    [4, "name", "Ferdinand"],
+  ], []);
+  assert.end();
+});
+
 let programs = {
   "1 static": () => {
     let prog = new Program("1 static branch");
