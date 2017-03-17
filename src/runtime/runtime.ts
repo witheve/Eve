@@ -20,6 +20,11 @@ if(DEBUG) {
   }
 }
 
+function indent(text:string, level:number) {
+  let padding = new Array(level + 1).join(" ");
+  return text.split("\n").join("\n" + padding);
+}
+
 export function printField(field:ScanField) {
   if(isRegister(field)) return "[" + field.offset + "]";
   if(field === undefined || field === null) return field;
@@ -32,13 +37,13 @@ export function printPrefix(prefix:Prefix) {
 }
 
 export function printScan(constraint:Scan) {
-  return `Scan: ${printField(constraint.e)} ${printField(constraint.a)} ${printField(constraint.v)} ${printField(constraint.n)}`;
+  return `Scan(${printField(constraint.e)} ${printField(constraint.a)} ${printField(constraint.v)} ${printField(constraint.n)})`;
 }
 
 export function printFunction(constraint:FunctionConstraint) {
   let params = constraint.fieldNames.map((v) => v + ": " + printField(constraint.fields[v]));
   let restParams = constraint.restFields.map(printField).join(", ");
-  return `Function ${constraint.name} ${params} ${restParams ? `(${restParams})` : ""}`;
+  return `FunctionConstraint("${constraint.name}", ${params} ${restParams ? `, [${restParams}]` : ""})`;
 }
 
 export function printConstraint(constraint:Constraint) {
@@ -46,9 +51,17 @@ export function printConstraint(constraint:Constraint) {
     return printScan(constraint);
   } else if(constraint instanceof FunctionConstraint) {
     return printFunction(constraint);
+  } else if(constraint instanceof MoveConstraint) {
+    return `Move(${printField(constraint.from)}, ${printField(constraint.to)})`;
+  } else {
+    return "Unknown constraint type";
   }
 }
 (global as any).printConstraint = printConstraint;
+
+function printJoinNode(node:JoinNode) {
+  return "JoinNode([\n  " + node.constraints.map(printConstraint).join("\n  ") + "\n])";
+}
 
 export function printOutputNode(node:OutputNode) {
   let type;
@@ -64,15 +77,31 @@ export function printWatchNode(node:WatchNode) {
   return `Watch: ${printField(node.e)} ${printField(node.a)} ${printField(node.v)} ${printField(node.n)}`;
 }
 
+export function printChooseFlow(choose:ChooseFlow|UnionFlow):string {
+  let branchText = (choose.branches as Node[]).map((branch) => indent(printNode(branch), 4)).join(",\n    ");
+  return `ChooseFlow({
+  left: ${indent(printNode(choose.left), 2)},
+  branches: [\n    ${branchText}\n)}]
+})`;
+}
+
 export function printNode(node:Node) {
   if(node instanceof JoinNode) {
-    return "JoinNode([\n  " + node.constraints.map(printConstraint).join("\n  ") + "\n])";
+    return printJoinNode(node);
   } else if(node instanceof WatchNode) {
     return printWatchNode(node);
   } else if(node instanceof OutputWrapperNode) {
     return "OutputWrapperNode([\n  " + node.nodes.map(printOutputNode).join("\n  ") + "\n])";
+  } else if(node instanceof ChooseFlow) {
+    return printChooseFlow(node);
+  } else if(node instanceof UnionFlow) {
+    return printChooseFlow(node);
+  } else if(node instanceof BinaryJoinRight) {
+    return `BinaryJoinRight(${printNode(node.right)})`;
+  } else if(node instanceof AntiJoinPresolvedRight) {
+    return `AntiJoinPresolvedRight(${printNode(node.right)})`;
   } else {
-    return node;
+    return "Unknown node type";
   }
 }
 (global as any).printNode = printNode;
