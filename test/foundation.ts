@@ -561,22 +561,13 @@ test("commit, remove, and recursion", (assert) => {
 
 test("Remove: free AV", (assert) => {
 
-  // -----------------------------------------------------
-  // program
-  // -----------------------------------------------------
-
   let prog = new Program("test");
-
   prog.commit("coolness", ({find, not, record, choose}) => {
     let person = find("person");
     return [
       person.remove()
     ]
   })
-
-  // -----------------------------------------------------
-  // verification
-  // -----------------------------------------------------
 
   verify(assert, prog, [
     [1, "tag", "person"],
@@ -586,6 +577,42 @@ test("Remove: free AV", (assert) => {
     [1, "tag", "person", 0, -1],
     [1, "name", "chris", 0, -1],
     [1, "age", 30, 0, -1],
+  ])
+
+  assert.end();
+});
+
+
+test("Reference: arbitrary refs act like records", (assert) => {
+
+  let prog = new Program("test");
+
+  prog.commit("coolness", ({find, not, record, union}) => {
+    let person = find("person");
+    let [thing] = union(() => {
+      return find("person");
+    }, () => {
+      return "foo";
+    })
+    return [
+      thing.remove()
+    ]
+  })
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+    [1, "name", "chris"],
+    [1, "age", 30],
+    ["foo", "tag", "person"],
+    ["foo", "name", "chris"],
+    ["foo", "age", 30],
+  ], [
+    [1, "tag", "person", 0, -1],
+    [1, "name", "chris", 0, -1],
+    [1, "age", 30, 0, -1],
+    ["foo", "tag", "person", 0, -1],
+    ["foo", "name", "chris", 0, -1],
+    ["foo", "age", 30, 0, -1],
   ])
 
   assert.end();
