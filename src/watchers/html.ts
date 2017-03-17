@@ -1,4 +1,4 @@
-import {Watcher, RawValue, RawEAV, RawEAVC} from "./watcher";
+import {Watcher, RawValue, RawEAV, RawEAVC, maybeIntern} from "./watcher";
 import {DOMWatcher, ElemInstance} from "./dom";
 import {ID} from "../runtime/runtime";
 import {v4 as uuid} from "node-uuid";
@@ -10,8 +10,8 @@ class HTMLWatcher extends DOMWatcher<Instance> {
 
   createInstance(id:RawValue, element:RawValue, tagname:RawValue):Instance {
     let elem:Instance = document.createElement(tagname as string);
-    elem.setAttribute("instance", (global as any).GlobalInterner.get(id));
-    elem.setAttribute("element", (global as any).GlobalInterner.get(element));
+    elem.setAttribute("instance", ""+maybeIntern(id));
+    elem.setAttribute("element", ""+maybeIntern(element));
     elem.__element = element;
     elem.__styles = [];
     return elem;
@@ -26,7 +26,7 @@ class HTMLWatcher extends DOMWatcher<Instance> {
 
   addAttribute(instance:Instance, attribute:RawValue, value:RawValue):void {
     // @TODO: Error checking to ensure we don't double-set attributes.
-    instance.setAttribute(attribute as string, value as string);
+    instance.setAttribute(attribute as string, ""+maybeIntern(value));
   }
 
   removeAttribute(instance:Instance, attribute:RawValue, value:RawValue):void {

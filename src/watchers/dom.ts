@@ -276,7 +276,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
           else if(a === "class") instance.classList.remove(""+v);
           else if(a === "text") instance.textContent = null;
           else if(a === "style") this.removeStyleInstance(v, e);
-          else instance.removeAttribute(""+a);
+          else this.removeAttribute(instance, a, v);
         }
 
         for(let [e, a, v] of diff.adds) {
@@ -290,7 +290,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
           else if(a === "sort") this.insertChild(instance.parentElement, instance, v);
           else if(a === "text") instance.textContent = ""+v;
           else if(a === "style") this.addStyleInstance(v, e);
-          else instance.setAttribute(""+a, ""+v);
+          else this.addAttribute(instance, a, v);
         }
       });
   }
