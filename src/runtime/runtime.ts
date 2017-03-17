@@ -77,15 +77,18 @@ export function printWatchNode(node:WatchNode) {
   return `Watch: ${printField(node.e)} ${printField(node.a)} ${printField(node.v)} ${printField(node.n)}`;
 }
 
-export function printChooseFlow(choose:ChooseFlow|UnionFlow):string {
-  let branchText = (choose.branches as Node[]).map((branch) => indent(printNode(branch), 4)).join(",\n    ");
-  return `ChooseFlow({
-  left: ${indent(printNode(choose.left), 2)},
+export function printFlow(flow:ChooseFlow|UnionFlow):string {
+  let name;
+  if(flow instanceof ChooseFlow) name = "ChooseFlow";
+  if(flow instanceof UnionFlow) name = "UnionFlow";
+  let branchText = (flow.branches as Node[]).map((branch) => indent(printNode(branch), 4)).join(",\n    ");
+  return `${name}({
+  left: ${indent(printNode(flow.left), 2)},
   branches: [\n    ${branchText}\n)}]
 })`;
 }
 
-export function printNode(node:Node) {
+export function printNode(node:Node):string {
   if(node instanceof JoinNode) {
     return printJoinNode(node);
   } else if(node instanceof WatchNode) {
@@ -93,13 +96,13 @@ export function printNode(node:Node) {
   } else if(node instanceof OutputWrapperNode) {
     return "OutputWrapperNode([\n  " + node.nodes.map(printOutputNode).join("\n  ") + "\n])";
   } else if(node instanceof ChooseFlow) {
-    return printChooseFlow(node);
+    return printFlow(node);
   } else if(node instanceof UnionFlow) {
-    return printChooseFlow(node);
+    return printFlow(node);
   } else if(node instanceof BinaryJoinRight) {
     return `BinaryJoinRight(${printNode(node.right)})`;
   } else if(node instanceof AntiJoinPresolvedRight) {
-    return `AntiJoinPresolvedRight(${printNode(node.right)})`;
+    return `AntiJoinPresolvedRight(${printNode(node.left)})`;
   } else {
     return "Unknown node type";
   }
