@@ -843,14 +843,14 @@ export class LinearFlow extends DSLBase {
   }
 
   transformCode = (code:string, functionArgs:string[]):string => {
-    var output = falafel(`function f() { ${code} }`, function (node:any) {
+    var output = falafel(`function f() { var $___eve_block$ = ${functionArgs[0]}; ${code} }`, function (node:any) {
       if (node.type === 'BinaryExpression') {
         let func = operators[node.operator] as string;
         if(node.operator === "+" && (isASTString(node.left) || isASTString(node.right))) {
           func = operators["concat"];
         }
         if(func) {
-          node.update(`${functionArgs[0]}.lib.${func}(${node.left.source()}, ${node.right.source()})`)
+          node.update(`$___eve_block$.lib.${func}(${node.left.source()}, ${node.right.source()})`)
         }
       }
     });
