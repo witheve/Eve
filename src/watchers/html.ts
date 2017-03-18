@@ -5,7 +5,7 @@ import {v4 as uuid} from "node-uuid";
 
 interface Instance extends HTMLElement {__element?: RawValue, __styles?: RawValue[], __sort?: RawValue}
 
-class HTMLWatcher extends DOMWatcher<Instance> {
+export class HTMLWatcher extends DOMWatcher<Instance> {
   tagPrefix = "html";
 
   createInstance(id:RawValue, element:RawValue, tagname:RawValue):Instance {
