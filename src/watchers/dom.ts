@@ -1,6 +1,8 @@
 import {Watcher, RawValue, RawEAV, RawEAVC} from "./watcher";
 import {v4 as uuid} from "node-uuid";
 
+import naturalSort = require("javascript-natural-sort");
+
 interface Map<V>{[key:string]: V}
 
 export interface Style extends Map<RawValue|undefined> {__size: number}
@@ -57,14 +59,14 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
   insertChild(parent:Element|null, child:Instance, at = child.__sort) {
     at = at !== undefined ? ""+at: at;
     child.__sort = at
-    child.setAttribute("sort", ""+at);
+    if(at !== undefined) child.setAttribute("sort", ""+at);
     if(!parent) return;
 
     let current;
     for(let curIx = 0; curIx < parent.childNodes.length; curIx++) {
       let cur = parent.childNodes[curIx] as Instance;
       if(cur === child) continue;
-      if(cur.__sort !== undefined && at !== undefined && cur.__sort > at) {
+      if(cur.__sort !== undefined && at !== undefined && naturalSort(cur.__sort, at) > 0) {
         current = cur;
         break;
       }
@@ -276,7 +278,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
           else if(a === "class") instance.classList.remove(""+v);
           else if(a === "text") instance.textContent = null;
           else if(a === "style") this.removeStyleInstance(v, e);
-          else instance.removeAttribute(""+a);
+          else this.removeAttribute(instance, a, v);
         }
 
         for(let [e, a, v] of diff.adds) {
@@ -290,7 +292,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
           else if(a === "sort") this.insertChild(instance.parentElement, instance, v);
           else if(a === "text") instance.textContent = ""+v;
           else if(a === "style") this.addStyleInstance(v, e);
-          else instance.setAttribute(""+a, ""+v);
+          else this.addAttribute(instance, a, v);
         }
       });
   }

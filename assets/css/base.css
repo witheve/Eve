@@ -1,4 +1,4 @@
-* { box-sizing: border-box; }
+* {box-sizing: border-box;}
 html, body, __root { height: 100%; }
 body { background: #f5f5f5; color: #555; font-family: Avenir, "Helvetica neue", sans-serif; display: flex; flex-direction: column; margin:0; width: 100%; }
 
@@ -7,7 +7,8 @@ body { background: #f5f5f5; color: #555; font-family: Avenir, "Helvetica neue", 
 \******************************************************************************/
 
 row { display: flex; flex-direction: row; }
-column { display: flex; flex-direction: column; }
+column {display: flex;flex-direction: column;align-items: stretch;}
+
 spacer { display: flex; flex: 1; }
 
 text { display: inline-block; white-space: pre-wrap; }
@@ -23,3 +24,14 @@ text { display: inline-block; white-space: pre-wrap; }
 
 .dark .button.flat:not(.disabled):hover { background: rgba(255, 255, 255, 0.1); }
 .dark .button.flat:not(.disabled):active { background: rgba(255, 255, 255, 0.2); }
+
+.ui-field-table {border-collapse: collapse;}
+.ui-field-table td {padding: 0;margin: 0;vertical-align: top; border: 1px solid #ccc;}
+.ui-field-table .ui-field-table-attribute {}
+.ui-field-table .ui-field-table-value-set {display: flex;flex-direction: column;}
+.ui-field-table .ui-field-table-cell { padding: 0 10; margin: 0; }
+.ui-field-table .ui-field-table-cell + .ui-field-table-cell { border-top: 1px solid #ccc; }
+
+.ui-field-table input.ui-field-table-cell {min-width:100%;font-size: 1em;font-weight: inherit;font-family: inherit;background: transparent;border: none;color: inherit;}
+.ui-field-table input::-webkit-input-placeholder { font-weight: 300; }
+.ui-field-table input.ui-field-table-attribute {padding-right: 0;}
