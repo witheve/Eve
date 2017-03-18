@@ -27,6 +27,9 @@ class HTMLWatcher extends DOMWatcher<Instance> {
   addAttribute(instance:Instance, attribute:RawValue, value:RawValue):void {
     // @TODO: Error checking to ensure we don't double-set attributes.
     instance.setAttribute(attribute as string, ""+maybeIntern(value));
+    if(attribute == "value" && instance.classList.contains("html-autosize-input") && instance instanceof HTMLInputElement) {
+      instance.size = (instance.value || "").length || 1;
+    }
   }
 
   removeAttribute(instance:Instance, attribute:RawValue, value:RawValue):void {
@@ -39,6 +42,16 @@ class HTMLWatcher extends DOMWatcher<Instance> {
   setup() {
     this.tagPrefix = "html"; // @FIXME: hacky, due to inheritance chain evaluation order.
     super.setup();
+
+    this.program
+      .block("All html elements add their tags as classes", ({find, lib:{string}, record}) => {
+        let element = find("html/element");
+        element.tag != "html/element"
+        let klass = string.replace(element.tag, "/", "-");
+        return [
+          element.add("class", klass)
+        ];
+      });
 
     window.addEventListener("click", (event) => {
       let {target} = event;
@@ -67,6 +80,9 @@ class HTMLWatcher extends DOMWatcher<Instance> {
       let target = event.target as (Instance & HTMLInputElement);
       let elementId = target.__element;
       if(elementId) {
+        if(target.classList.contains("html-autosize-input")) {
+          target.size = target.value.length || 1;
+        }
         let {sentInputValues} = this;
         if(!sentInputValues[elementId]) {
           sentInputValues[elementId] = [];
@@ -86,6 +102,11 @@ class HTMLWatcher extends DOMWatcher<Instance> {
       .commit("Remove change events.", ({find}) => {
         let event = find("html/event/change");
         return [event.remove()];
+      })
+      .block("Inputs with an initial but no value use the initial.", ({find, choose}) => {
+        let input = find("html/element", {tagname: "input"});
+        let [value] = choose(() => input.value, () => input.initial);
+        return [input.add("value", value)]
       })
       .commit("Apply input value changes.", ({find}) => {
         let {element, value} = find("html/event/change");
