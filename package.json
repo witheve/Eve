@@ -51,6 +51,7 @@
     "express": "^4.14.0",
     "falafel": "^2.0.0",
     "glob": "^7.1.1",
+    "javascript-natural-sort": "^0.7.1",
     "minimist": "^1.2.0",
     "mkdirp": "^0.5.1",
     "node-uuid": "^1.4.7",
