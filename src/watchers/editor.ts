@@ -77,19 +77,8 @@ const STYLE_ID = `|${uuid()}`;
 const TAG_MARINA_ID = `|${uuid()}`;
 const TAG_MARINARA_ID = `|${uuid()}`;
 const BLOCK_PPL_W_BOATS_ID = `|${uuid()}`;
-const NODE_PERSON_ID = `|${uuid()}`;
-const NODE_BOAT_ID = `|${uuid()}`;
 const BLOCK_BOAT_TYPES_ID = `|${uuid()}`;
 const FRAME_PPL_W_BOATS_QUERY_ID = `|${uuid()}`;
-
-const PERSON_1_ID = `|${uuid()}`;
-const PERSON_2_ID = `|${uuid()}`;
-const PERSON_3_ID = `|${uuid()}`;
-const BOAT_1_ID = `|${uuid()}`;
-const BOAT_2_ID = `|${uuid()}`;
-const BOAT_3_ID = `|${uuid()}`;
-
-const DOCK_1_ID = `|${uuid()}`;
 
 //--------------------------------------------------------------------
 // Watcher
@@ -154,7 +143,6 @@ class EditorWatcher extends Watcher {
       .asDiffs(forwardDiffs(editor));
 
     this.initEditor();
-    this.fixtureClient();
     this.fixtureEditor();
   }
 
@@ -1583,26 +1571,6 @@ class EditorWatcher extends Watcher {
     }, BLOCK_BOAT_TYPES_ID);
 
     this.editor.inputEavs(fixture);
-  }
-
-  fixtureClient() {
-
-    let fixture:RawEAV[] = [];
-    appendAsEAVs(fixture, {tag: "person", name: "Josh", boat: [BOAT_1_ID, BOAT_3_ID], age: 23}, PERSON_1_ID);
-    appendAsEAVs(fixture, {tag: "person", name: "Rafe", boat: BOAT_1_ID, age: 43}, PERSON_2_ID);
-    appendAsEAVs(fixture, {tag: "person", name: "Lola", boat: BOAT_2_ID, age: 19}, PERSON_3_ID);
-    appendAsEAVs(fixture, {
-      tag: "person", name: "Genevieve", age: 19,
-      cat: appendAsEAVs([], {tag: "cat", name: "Senor Fluf", age: 19})
-    });
-
-
-    appendAsEAVs(fixture, {tag: "boat", name: "Boaty Mcboatface", type: "yacht", dock: DOCK_1_ID}, BOAT_1_ID);
-    appendAsEAVs(fixture, {tag: "boat", name: "H.M. Surf", type: "dinghy", dock: DOCK_1_ID}, BOAT_2_ID);
-    appendAsEAVs(fixture, {tag: "boat", name: "No Life Raft", type: "dinghy", dock: DOCK_1_ID}, BOAT_3_ID);
-
-    appendAsEAVs(fixture, {tag: "dock", name: "Marinara Marina of Michigan", state: "MI"}, DOCK_1_ID);
-    this.program.inputEavs(fixture);
   }
 }
 
