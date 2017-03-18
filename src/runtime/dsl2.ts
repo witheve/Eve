@@ -843,6 +843,7 @@ export class LinearFlow extends DSLBase {
   }
 
   transformCode = (code:string, functionArgs:string[]):string => {
+    if(!functionArgs[0]) throw new Error(`Trying to create a block that has no args with code:\n\n\`\`\`\n${code}\n\`\`\``);
     var output = falafel(`function f() { var $___eve_block$ = ${functionArgs[0]}; ${code} }`, function (node:any) {
       if (node.type === 'BinaryExpression') {
         let func = operators[node.operator] as string;
