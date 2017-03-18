@@ -100,11 +100,11 @@ export class CompilerWatcher extends Watcher {
     let compile:CompilationContext = {variables: {}};
     let flow:LinearFlow;
     if(type === "commit") {
-      flow = new CommitFlow(() => []);
+      flow = new CommitFlow((a) => []);
     } else if(type === "watch") {
-      flow = new WatchFlow(() => []);
+      flow = new WatchFlow((a) => []);
     } else {
-      flow = new LinearFlow(() => []);
+      flow = new LinearFlow((a) => []);
     }
     let {context} = flow;
     for(let constraintID of constraints) {
