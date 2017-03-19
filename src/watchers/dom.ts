@@ -35,6 +35,13 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
     return instance && !!instance["__element"];
   }
 
+  addInstance(id:RawValue, element:RawValue, tagname:RawValue):Instance|undefined {
+    let instance = this.instances[id] = this.createInstance(id, element, tagname);
+    if(!this.elementToInstances[element]) this.elementToInstances[element] = [];
+    this.elementToInstances[element]!.push(id);
+    return instance;
+  }
+
   getInstance(id:RawValue, tagname:RawValue = "div"):Instance|undefined {
     if(this.roots[id]) return this.roots[id]!;
     return this.instances[id];
@@ -46,6 +53,9 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
       instance.parentElement.removeChild(instance);
     }
     this.instances[id] = undefined;
+
+    let instances = instance && this.elementToInstances[instance.__element!];
+    if(instances) instances.splice(instances.indexOf(id), 1);
   }
 
   getRoot(id:RawValue, tagname:RawValue = "div"):Instance|undefined {
@@ -179,18 +189,13 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
       .asObjects<{tagname:string, element:string, instance:string}>((diff) => {
         for(let e of Object.keys(diff.removes)) {
           let {instance:instanceId} = diff.removes[e];
-          let instance = this.instances[instanceId];
-          let instances = instance && this.elementToInstances[instance.__element!];
-          if(instances) instances.splice(instances.indexOf(instanceId), 1);
           this.clearInstance(instanceId);
 
         }
 
         for(let e of Object.keys(diff.adds)) {
           let {instance:instanceId, tagname, element} = diff.adds[e];
-          this.instances[instanceId] = this.createInstance(instanceId, element, tagname);
-          if(!this.elementToInstances[element]) this.elementToInstances[element] = [];
-          this.elementToInstances[element]!.push(instanceId);
+          this.addInstance(instanceId, element, tagname);
         }
       })
 
