@@ -52,12 +52,11 @@ class CanvasWatcher extends Watcher {
 
   addCanvas(id:RawValue) {
     if(this.canvases[id]) throw new Error(`Recreating canvas instance ${maybeIntern(id)}`);
-    // @FIXME: Hacky as frig.
-    // html.getInstancesByElement(id)
-    let elements = document.querySelectorAll(`canvas[element="${maybeIntern(id)}"]`);
+    let elements = this.html.elementToInstances[id];
+    // if(!elements || !elements.length) throw new Error(`No matching canvas instance found for ${id}.`);
+    if(!elements || !elements.length) return; // @FIXME: Really seems like this is an error case...
     if(elements.length > 1) throw new Error(`Multiple canvas instances found for ${id}.`);
-    if(!elements.length) throw new Error(`No matching canvas instance found for ${id}.`);
-    return this.canvases[id] = elements[0] as HTMLCanvasElement;
+    return this.canvases[id] = this.html.getInstance(elements[0]) as HTMLCanvasElement;
   }
   clearCanvas(id:RawValue) {
     if(!this.canvases[id]) throw new Error(`Missing canvas instance ${maybeIntern(id)}`);
