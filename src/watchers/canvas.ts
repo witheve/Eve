@@ -24,7 +24,8 @@ let operationFields:{[type:string]: string[]} = {
   arc: ["x", "y", "radius", "startAngle", "endAngle", "anticlockwise"],
   arcTo: ["x1", "y1", "x2", "y2", "radius"],
   ellipse: ["x", "y", "radiusX", "radiusY", "rotation", "startAngle", "endAngle", "anticlockwise"],
-  rect: ["x", "y", "width", "height"]
+  rect: ["x", "y", "width", "height"],
+  closePath: []
 };
 
 function isOperationType(val:RawValue): val is OperationType {
