@@ -28,6 +28,17 @@ prog.block("Hexagon path", ({find, lib:{math}, choose, record}) => {
   ];
 })
 
+prog.block("simple hexagon container", ({find, record}) => {
+  let turtle = find("turtle");
+  return [
+    record("html/element", {tagname: "div"}).add("children", [
+      record("shape/hexagon", {side: 50, strokeStyle: "red", fillStyle: "rgba(255, 0, 0, 0.5)", style: record({position: "absolute", left: 50, top: 100})}).add("content", [
+        record("html/element", {tagname: "div", text: "sup dawg", style: record({display: "flex", "align-self": "center"})})
+      ])
+    ])
+  ];
+})
+
 let changes:any[] = [
   ["dummy", "tag", "turtle"]
 ];

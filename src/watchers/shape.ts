@@ -4,8 +4,8 @@ class ShapeWatcher extends Watcher {
   setup() {
     this.program.attach("html");
     this.program.attach("canvas");
-    this.hexagonBlocks();
-    this.hexGridBlocks();
+    this.hexagon();
+    this.hexGrid();
 
     this.squarePath();
     this.hexagonPath();
@@ -14,7 +14,7 @@ class ShapeWatcher extends Watcher {
   //--------------------------------------------------------------------
   // #shape/hexagon
   //--------------------------------------------------------------------
-  hexagonBlocks() {
+  hexagonHTML() {
     this.program
       .block("Draw a hexagon", ({find, choose, record, lib: {math}}) => {
         let hex = find("shape/hexagon");
@@ -96,7 +96,7 @@ class ShapeWatcher extends Watcher {
   //--------------------------------------------------------------------
   // #shape/hex-grid
   //--------------------------------------------------------------------
-  hexGridBlocks() {
+  hexGrid() {
     // [#hex-grid cells side gap]
     this.program.block("Decorate all the hex-grid cells as hexagons.", ({find, lib:{math}, record}) => {
       let hex_grid = find("shape/hex-grid");
@@ -126,6 +126,46 @@ class ShapeWatcher extends Watcher {
         ])
       ];
     });
+  }
+
+  hexagon() {
+    this.program
+      .block("Decorate a shape/hexagon as a canvas.", ({find, choose, record}) => {
+        let hex = find("shape/hexagon");
+        let {side} = hex;
+        let tri_height = side * 0.5;
+        let tri_width = side * 0.86603;
+        let [pad] = choose(() => hex.lineWidth, () => 0);
+        let dpad = 2 * pad;
+        let width = 2 * tri_width + dpad;
+        let height = 2 * side + dpad;
+
+
+        return [
+          hex.add({tag: "html/element", tagname: "div", style: record({width, height})}).add("children", [
+            record("canvas/root", {sort: 1, hex, width, height, style: record({top: pad, left: pad})}).add("children", [
+              record("shape/hexagon-path", {sort: 1, hex, x: pad, y: pad, side})
+            ]),
+            record("shape/hexagon/content", "html/element", {sort: 2, hex, tagname: "div", style: record({top: tri_height + dpad, bottom: tri_height, left: dpad, right: 0})})
+          ])
+        ];
+      })
+      .block("Copy hexagon content into it's appropriate container.", ({find, record}) => {
+        let hex = find("shape/hexagon");
+        let container = find("shape/hexagon/content", {hex});
+        return [container.add("children", hex.content)];
+      })
+      .block("Copy style properties onto hexagon path.", ({find, lookup}) => {
+        let hex = find("shape/hexagon");
+        let path = find("shape/hexagon-path", {hex});
+        let {attribute, value} = lookup(hex);
+        attribute != "tag";
+        attribute != "class";
+        attribute != "tagname";
+        attribute != "style";
+        attribute != "children";
+        return [path.add(attribute, value)];
+      })
   }
 
   squarePath() {
