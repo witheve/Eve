@@ -227,7 +227,10 @@ class CanvasWatcher extends Watcher {
       .watch("Export paths of canvas.", ({find, gather, record}) => {
         let canvas = find("canvas/root");
         let child = canvas.children;
-        let ix = gather(child.sort).per(canvas).sort();
+        // @FIXME: non-deterministic sort bug :(
+        //let ix = gather(child.sort).per(canvas).sort();
+        let ix = child.sort;
+
         return [record({canvas, child, ix})]
       })
       .asObjects<{canvas:RawValue, child:RawValue, ix:number}>((diffs) => {
@@ -268,7 +271,9 @@ class CanvasWatcher extends Watcher {
       .watch("Export operations of paths.", ({find, gather, record}) => {
         let path = find("canvas/path");
         let child = path.children;
-        let ix = gather(child.sort).per(path).sort();
+        // @FIXME: non-deterministic sort bug :(
+        //let ix = gather(child.sort).per(path).sort();
+        let ix = child.sort;
         return [record({path, child, ix})]
       })
       .asObjects<{path:RawValue, child:RawValue, ix:number}>((diffs) => {
@@ -342,12 +347,14 @@ class CanvasWatcher extends Watcher {
         for(let [pathId, attribute, value] of diffs.adds) {
           let pathStyle = this.pathStyles[pathId];
           if(!pathStyle) throw new Error(`Missing path style for ${pathId}.`);
-          if(pathStyle[attribute]) throw new Error(`Attempting to overwrite existing attribute ${attribute} of ${pathId}: ${pathStyle[attribute]} => ${value}`);
+          // if(pathStyle[attribute]) throw new Error(`Attempting to overwrite existing attribute ${attribute} of ${pathId}: ${pathStyle[attribute]} => ${value}`);
           pathStyle[attribute] = value;
           this.dirty[pathId] = true;
         }
         setImmediate(this.changed);
-      })
+      });
+
+    console.log(this);
   }
 }
 
