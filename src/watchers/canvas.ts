@@ -116,7 +116,8 @@ class CanvasWatcher extends Watcher {
   updateCache(dirtyPaths:RawValue[]) {
     for(let id of dirtyPaths) {
       if(!this.dirty[id]) continue;
-      let path = this.getPath(id);
+      let path = this.paths[id];
+      if(!path) continue;
       let path2d = this.pathCache[id] = new window.Path2D();
       for(let opId of path) {
         let operation = this.getOperation(opId);
@@ -153,7 +154,7 @@ class CanvasWatcher extends Watcher {
       if(!pathIds) continue;
       for(let id of pathIds) {
         let cached = this.pathCache[id];
-        if(!cached) throw new Error(`Missing cached path ${id}`);
+        if(!cached) continue // This thing isn't a path (yet?)
 
         let style = this.pathStyles[id] || EMPTY as PathStyle;
         let {fillStyle = "#000000", strokeStyle = "#000000", lineWidth = 1, lineCap = "butt", lineJoin = "miter"} = style;
