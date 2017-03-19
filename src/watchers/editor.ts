@@ -2,70 +2,9 @@
 // Editor
 //--------------------------------------------------------------------
 
-import {Watcher, Program, RawMap, RawValue, RawEAV, forwardDiffs} from "../watchers/watcher";
+import {Watcher, Program, RawMap, RawValue, RawEAV, forwardDiffs, appendAsEAVs} from "../watchers/watcher";
 import {CompilerWatcher} from "../watchers/compiler";
 import {v4 as uuid} from "node-uuid";
-
-//--------------------------------------------------------------------
-// Utils
-//--------------------------------------------------------------------
-
-function isRawValue(x:any): x is RawValue {
-  return x !== undefined && (typeof x === "string" || typeof x === "number");
-}
-
-function isRawValueArray(x:any): x is RawValue[] {
-  if(x && x.constructor === Array) {
-    for(let value of x) {
-      if(!isRawValue(value)) return false;
-    }
-    return true;
-  }
-  return false;
-}
-
-function isRawEAVArray(x:any): x is RawEAV[] {
-  if(x && x.constructor === Array) {
-    for(let value of x) {
-      if(!isRawValueArray(value)) return false;
-      if(value.length !== 3) return false;
-    }
-    return true;
-  }
-  return false;
-}
-
-
-interface Attrs extends RawMap<RawValue|RawValue[]|RawEAV[]|RawEAV[][]> {}
-function appendAsEAVs(eavs:any[], record: Attrs, id = `|${uuid()}`) {
-  for(let attr in record) {
-    let value = record[attr];
-    if(isRawValue(value)) {
-      eavs.push([id, attr, value]);
-
-    } else if(isRawValueArray(value)) {
-      // We have a set of scalars
-      for(let val of value) eavs.push([id, attr, val]);
-
-    } else if(isRawEAVArray(value)) {
-      // We have a single nested sub-object (i.e. a set of EAVs).
-      let childEavs = value;
-      let [childId] = childEavs[0];
-      eavs.push([id, attr, childId]);
-      for(let childEav of childEavs) eavs.push(childEav);
-
-    } else {
-      // We have a set of nested sub-objects.
-      for(let childEavs of value) {
-        let [childId] = childEavs[0];
-        eavs.push([id, attr, childId]);
-        for(let childEav of childEavs) eavs.push(childEav);
-      }
-    }
-  }
-
-  return eavs;
-}
 
 //--------------------------------------------------------------------
 // Fixture constants
