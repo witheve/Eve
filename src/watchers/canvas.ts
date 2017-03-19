@@ -31,14 +31,19 @@ function isOperationType(val:RawValue): val is OperationType {
   return !!operationFields[val];
 }
 
+const EMPTY = {};
+
 export interface Canvas extends HTMLCanvasElement { __element?: RawValue, __paths?: RawValue[] }
 type OperationType = keyof Path2D;
 export interface Operation {type: OperationType, args:any, paths:RawValue[]};
+// {fillStyle: "#000000", strokeStyle: "#000000", lineWidth: 1, lineCap: "butt", lineJoin: "miter"}
+export interface PathStyle {[key:string]: RawValue|undefined, fillStyle?:string, strokeStyle?:string, lineWidth?:number, lineCap?:string, lineJoin?: string };
 
 class CanvasWatcher extends Watcher {
   html:HTMLWatcher;
   canvases:RawMap<Canvas|undefined> = {};
   paths:RawMap<RawValue[]|undefined> = {};
+  pathStyles:RawMap<PathStyle|undefined> = {};
   operations:RawMap<Operation|undefined> = {};
   pathCache:RawMap<Path2D|undefined> = {};
   dirty:RawMap<boolean|undefined> = {};
@@ -65,10 +70,12 @@ class CanvasWatcher extends Watcher {
 
   addPath(id:RawValue) {
     if(this.paths[id]) throw new Error(`Recreating path instance ${maybeIntern(id)}`);
+    this.pathStyles[id] = {};
     return this.paths[id] = [];
   }
   clearPath(id:RawValue) {
     if(!this.paths[id]) throw new Error(`Missing path instance ${maybeIntern(id)}`);
+    this.pathStyles[id] = undefined;
     this.paths[id] = undefined;
   }
   getPath(id:RawValue) {
@@ -146,9 +153,17 @@ class CanvasWatcher extends Watcher {
       for(let id of pathIds) {
         let cached = this.pathCache[id];
         if(!cached) throw new Error(`Missing cached path ${id}`);
-        // @FIXME: have metadata about the shapes tell us what to do with them.
-        //ctx.fillStyle("red");
-        ctx.fill(cached);
+
+        let style = this.pathStyles[id] || EMPTY as PathStyle;
+        let {fillStyle = "#000000", strokeStyle = "#000000", lineWidth = 1, lineCap = "butt", lineJoin = "miter"} = style;
+        ctx.fillStyle = fillStyle;
+        ctx.strokeStyle = strokeStyle;
+        ctx.lineWidth = lineWidth;
+        ctx.lineCap = lineCap;
+        ctx.lineJoin = lineJoin;
+        if(style.fillStyle || !style.strokeStyle) ctx.fill(cached);
+        if(style.strokeStyle) ctx.stroke(cached);
+
       }
     }
   }
@@ -298,6 +313,31 @@ class CanvasWatcher extends Watcher {
           if(operation.args[attribute]) throw new Error(`Attempting to overwrite existing attribute ${attribute} of ${opId}: ${operation.args[attribute]} => ${value}`);
           operation.args[attribute] = value;
           for(let pathId of operation.paths) this.dirty[pathId] = true;
+        }
+        setImmediate(this.changed);
+      })
+
+      .watch("Export path styles.", ({find, lookup, record}) => {
+        let path = find("canvas/path");
+        let {attribute, value} = lookup(path);
+        attribute != "children";
+        attribute != "tag";
+        attribute != "sort";
+        return [path.add(attribute, value)];
+      })
+      .asDiffs((diffs) => {
+        for(let [pathId, attribute, value] of diffs.removes) {
+          let pathStyle = this.pathStyles[pathId];
+          if(!pathStyle) continue;
+          pathStyle[attribute] = undefined;
+          this.dirty[pathId] = true;
+        }
+        for(let [pathId, attribute, value] of diffs.adds) {
+          let pathStyle = this.pathStyles[pathId];
+          if(!pathStyle) throw new Error(`Missing path style for ${pathId}.`);
+          if(pathStyle[attribute]) throw new Error(`Attempting to overwrite existing attribute ${attribute} of ${pathId}: ${pathStyle[attribute]} => ${value}`);
+          pathStyle[attribute] = value;
+          this.dirty[pathId] = true;
         }
         setImmediate(this.changed);
       })
