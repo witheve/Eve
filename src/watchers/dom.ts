@@ -12,6 +12,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
   styles:Map<Style|undefined> = Object.create(null);
   roots:Map<Instance|undefined> = Object.create(null);
   instances:Map<Instance|undefined> = Object.create(null);
+  elementToInstances:Map<RawValue[]|undefined> = Object.create(null);
   styleToInstances:Map<RawValue[]|undefined> = Object.create(null);
 
   abstract tagPrefix:string;
@@ -178,12 +179,18 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
       .asObjects<{tagname:string, element:string, instance:string}>((diff) => {
         for(let e of Object.keys(diff.removes)) {
           let {instance:instanceId} = diff.removes[e];
+          let instance = this.instances[instanceId];
+          let instances = instance && this.elementToInstances[instance.__element!];
+          if(instances) instances.splice(instances.indexOf(instanceId), 1);
           this.clearInstance(instanceId);
+
         }
 
         for(let e of Object.keys(diff.adds)) {
           let {instance:instanceId, tagname, element} = diff.adds[e];
           this.instances[instanceId] = this.createInstance(instanceId, element, tagname);
+          if(!this.elementToInstances[element]) this.elementToInstances[element] = [];
+          this.elementToInstances[element]!.push(instanceId);
         }
       })
 

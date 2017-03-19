@@ -163,8 +163,8 @@ class CanvasWatcher extends Watcher {
         ctx.lineWidth = lineWidth;
         ctx.lineCap = lineCap;
         ctx.lineJoin = lineJoin;
-        if(style.fillStyle || !style.strokeStyle) ctx.fill(cached);
         if(style.strokeStyle) ctx.stroke(cached);
+        if(style.fillStyle || !style.strokeStyle) ctx.fill(cached);
 
       }
     }

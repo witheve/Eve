@@ -130,23 +130,23 @@ class ShapeWatcher extends Watcher {
 
   hexagon() {
     this.program
-      .block("Decorate a shape/hexagon as a canvas.", ({find, choose, record}) => {
+      .block("Decorate a shape/hexagon as a canvas.", ({find, choose, lib:{math}, record}) => {
         let hex = find("shape/hexagon");
         let {side} = hex;
         let tri_height = side * 0.5;
         let tri_width = side * 0.86603;
         let [pad] = choose(() => hex.lineWidth, () => 0);
         let dpad = 2 * pad;
-        let width = 2 * tri_width + dpad;
-        let height = 2 * side + dpad;
+        let width = math.ceil(2 * tri_width + dpad);
+        let height = math.ceil(2 * side + dpad);
 
 
         return [
           hex.add({tag: "html/element", tagname: "div", style: record({width, height})}).add("children", [
-            record("canvas/root", {sort: 1, hex, width, height, style: record({top: pad, left: pad})}).add("children", [
+            record("canvas/root", {sort: 1, hex, width, height}).add("children", [
               record("shape/hexagon-path", {sort: 1, hex, x: pad, y: pad, side})
             ]),
-            record("shape/hexagon/content", "html/element", {sort: 2, hex, tagname: "div", style: record({top: tri_height + dpad, bottom: tri_height, left: dpad, right: 0})})
+            record("shape/hexagon/content", "html/element", {sort: 2, hex, tagname: "div", style: record({top: tri_height, bottom: tri_height, left: pad / 2, right: pad})})
           ])
         ];
       })
@@ -164,6 +164,8 @@ class ShapeWatcher extends Watcher {
         attribute != "tagname";
         attribute != "style";
         attribute != "children";
+        attribute != "x";
+        attribute != "y";
         return [path.add(attribute, value)];
       })
   }
@@ -189,16 +191,17 @@ class ShapeWatcher extends Watcher {
       let tri_width = side * 0.86603;
       let width = 2 * tri_width;
 
-      let xl = x + width;
-      let xm = x + tri_width;
-      let y14 = y + tri_height;
-      let y34 = y + 3 * tri_height;
+      let xl = math.round(x + width);
+      let xm = math.round(x + tri_width);
+      let y14 = math.round(y + tri_height);
+      let y34 = math.round(y + 3 * tri_height);
+      let yb = math.round(y + 2 * side);
       return [
         hex.add({tag: "canvas/path"}).add("children", [
           record({sort: 1, type: "moveTo", x: xm, y}),
           record({sort: 2, type: "lineTo", x: xl, y: y14}),
           record({sort: 3, type: "lineTo", x: xl, y: y34}),
-          record({sort: 4, type: "lineTo", x: xm, y: y + 2 * side}),
+          record({sort: 4, type: "lineTo", x: xm, y: yb}),
           record({sort: 5, type: "lineTo", x, y: y34}),
           record({sort: 6, type: "lineTo", x, y: y14}),
           record({sort: 7, type: "closePath"}),
