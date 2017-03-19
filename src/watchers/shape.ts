@@ -3,8 +3,12 @@ import {Watcher, RawValue, RawEAV, RawEAVC} from "./watcher";
 class ShapeWatcher extends Watcher {
   setup() {
     this.program.attach("html");
+    this.program.attach("canvas");
     this.hexagonBlocks();
     this.hexGridBlocks();
+
+    this.squarePath();
+    this.hexagonPath();
   }
 
   //--------------------------------------------------------------------
@@ -122,6 +126,45 @@ class ShapeWatcher extends Watcher {
         ])
       ];
     });
+  }
+
+  squarePath() {
+    this.program.block("Decorate a shape/square-path as a canvas/path", ({find, record}) => {
+      let square = find("shape/square-path");
+      let {x, y, side} = square;
+      return [
+        square.add({tag: "canvas/path"}).add("children", [
+          record({sort: 1, type: "rect", x, y, width: side, height: side}),
+        ])
+      ];
+    });
+  }
+
+  hexagonPath() {
+    this.program.block("Decorate shape/hexagon-path as a canvas/path", ({find, lib:{math}, record}) => {
+      let hex = find("shape/hexagon-path");
+      let {x, y, side} = hex;
+
+      let tri_height = math.round(side * 0.5);
+      let tri_width = math.round(side * 0.86603);
+      let width = 2 * tri_width;
+
+      let xl = x + width;
+      let xm = x + tri_width;
+      let y14 = y + tri_height;
+      let y34 = y + 3 * tri_height;
+      return [
+        hex.add({tag: "canvas/path"}).add("children", [
+          record({sort: 1, type: "moveTo", x: xm, y}),
+          record({sort: 2, type: "lineTo", x: xl, y: y14}),
+          record({sort: 3, type: "lineTo", x: xl, y: y34}),
+          record({sort: 4, type: "lineTo", x: xm, y: y + 2 * side}),
+          record({sort: 5, type: "lineTo", x, y: y34}),
+          record({sort: 6, type: "lineTo", x, y: y14}),
+          record({sort: 7, type: "closePath"}),
+        ])
+      ];
+    })
   }
 }
 

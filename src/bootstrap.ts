@@ -22,5 +22,6 @@ import * as testUtil from "../test/util";
 // import "./programs/flappy";
 // import "./programs/compiler";
 // import "./programs/hover";
-import "./programs/canvas-demo";
+// import "./programs/canvas-demo";
+import "./programs/shape-demo";
 //import "./programs/editor-demo";
