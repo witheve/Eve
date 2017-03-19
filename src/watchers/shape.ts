@@ -145,8 +145,8 @@ class ShapeWatcher extends Watcher {
       let hex = find("shape/hexagon-path");
       let {x, y, side} = hex;
 
-      let tri_height = math.round(side * 0.5);
-      let tri_width = math.round(side * 0.86603);
+      let tri_height = side * 0.5;
+      let tri_width = side * 0.86603;
       let width = 2 * tri_width;
 
       let xl = x + width;

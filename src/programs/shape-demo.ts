@@ -1,22 +1,35 @@
-import {Program} from "../watchers/watcher";
+import {Program, appendAsEAVs} from "../watchers/watcher";
 
 let prog = new Program("test");
+prog.attach("system");
 prog.attach("shape");
 
-prog.block("Hexagon path", ({find, record}) => {
+// prog.commit("Commit the most recent seconds", ({find}) => {
+//   let turtle = find("turtle");
+//   let {seconds} = find("my-timer");
+//   return [turtle.remove("seconds").add("seconds", seconds)];
+// })
+
+prog.block("Hexagon path", ({find, lib:{math}, choose, record}) => {
   let turtle = find("turtle");
+  let {frame} = find("my-timer");
+  let adjust = math.mod(frame, 400) / 20;
+
   return [
     record("html/element", {tagname: "div"}).add("children", [
       record("canvas/root", {width: 400, height: 400}).add("children", [
+        record("shape/square-path", {sort: 1, x: 20, y: 20, side: 40 + 100, fillStyle: "#404040"}),
         record("shape/hexagon-path", {
-          sort: 1, x: 20, y: 20, side: 40,
+          sort: 2, x: 20, y: 20, side: 40 + adjust,
           strokeStyle: "#4466FF", lineWidth: 6, lineJoin: "round"
-        }),
+        })
       ])
     ])
   ];
 })
 
-prog.test(0, [
+let changes:any[] = [
   ["dummy", "tag", "turtle"]
-]);
+];
+appendAsEAVs(changes, {tag:["my-timer", "system/timer"], resolution:16.666})
+prog.inputEavs(changes);

@@ -201,8 +201,14 @@ class CanvasWatcher extends Watcher {
         return [path.add("tag", "canvas/path")]
       })
       .asDiffs((diffs) => {
-        for(let [e] of diffs.adds) this.addPath(e);
-        for(let [e] of diffs.removes) this.clearPath(e);
+        for(let [e] of diffs.adds) {
+          this.addPath(e);
+          this.dirty[e] = true;
+        }
+        for(let [e] of diffs.removes) {
+          this.clearPath(e);
+          this.dirty[e] = true;
+        }
         setImmediate(this.changed);
       })
 
@@ -231,7 +237,7 @@ class CanvasWatcher extends Watcher {
           let {canvas:canvasId, child:childId, ix} = diffs.removes[removeId];
           let canvas = this.canvases[canvasId];
           let paths = canvas && canvas.__paths;
-          if(paths) paths.splice(ix, 1);
+          if(paths) paths.splice(ix - 1, 1);
           let canvases = this.pathToCanvases[childId] = this.pathToCanvases[childId];
           if(canvases) {
             let ix = canvases.indexOf(canvasId);
@@ -242,14 +248,13 @@ class CanvasWatcher extends Watcher {
           // This hack just marks the path dirty, which will rerender any other canvases containing it o_o
           this.dirty[childId] = true;
         }
-
         let addIds = Object.keys(diffs.adds);
         addIds.sort(ixComparator(diffs.adds));
         for(let addId of addIds) {
           let {canvas:canvasId, child:childId, ix} = diffs.adds[addId];
           let canvas = this.getCanvas(canvasId);
           let paths = canvas.__paths = canvas.__paths || [];
-          paths.splice(ix, 0, childId)
+          paths.splice(ix - 1, 0, childId)
           let canvases = this.pathToCanvases[childId] = this.pathToCanvases[childId] || [];
           canvases.push(canvasId);
 
@@ -272,7 +277,7 @@ class CanvasWatcher extends Watcher {
         for(let removeId of removeIds) {
           let {path:pathId, child:childId, ix} = diffs.removes[removeId];
           let path = this.paths[pathId];
-          if(path) path.splice(ix, 1);
+          if(path) path.splice(ix - 1, 1);
           let operation = this.operations[childId];
           if(operation) {
             let ix = operation.paths.indexOf(pathId);
@@ -287,7 +292,7 @@ class CanvasWatcher extends Watcher {
         for(let addId of addIds) {
           let {path:pathId, child:childId, ix} = diffs.adds[addId];
           let path = this.getPath(pathId);
-          path.splice(ix, 0, childId)
+          path.splice(ix - 1, 0, childId)
           let operation = this.getOperation(childId);
           operation.paths.push(pathId);
 
