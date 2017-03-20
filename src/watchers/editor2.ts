@@ -123,6 +123,44 @@ class EditorWatcher extends Watcher {
           init.remove()
         ];
       })
+
+      .commit("DEBUG: add some fake tag completions.", ({find, record}) => {
+        find("editor/root");
+        return [
+          record("editor/existing-tag", {text: "person"}),
+          record("editor/existing-tag", {text: "pet"}),
+          record("editor/existing-tag", {text: "boat"}),
+          record("editor/existing-tag", {text: "dock"}),
+          record("editor/existing-tag", {text: "cat"}),
+        ];
+      })
+      .block("DEBUG: add some fake node attribute completions.", ({find, record}) => {
+        let tree_node = find("editor/node-tree/node");
+        let {node} = tree_node;
+        let completion = find("editor/existing-node-attribute");
+        completion.name == tree_node.name
+
+        return [completion.add("node", node)];
+      })
+      .commit("DEBUG: add some fake node attribute completions.", ({find, record}) => {
+        let tree_node = find("editor/node-tree/node");
+        let {node} = tree_node;
+
+        return [
+          record("editor/existing-node-attribute", {name: "person", text: "name"}),
+          record("editor/existing-node-attribute", {name: "person", text: "age"}),
+          record("editor/existing-node-attribute", {name: "person", text: "boat"}),
+          record("editor/existing-node-attribute", {name: "person", text: "tag"}),
+          record("editor/existing-node-attribute", {name: "boat", text: "name"}),
+          record("editor/existing-node-attribute", {name: "boat", text: "type"}),
+          record("editor/existing-node-attribute", {name: "boat", text: "dock"}),
+          record("editor/existing-node-attribute", {name: "boat", text: "tag"}),
+          record("editor/existing-node-attribute", {name: "dock", text: "name"}),
+          record("editor/existing-node-attribute", {name: "dock", text: "state"}),
+          record("editor/existing-node-attribute", {name: "pet", text: "length"}),
+        ];
+      });
+
   }
 
   createEditor() {
@@ -478,45 +516,6 @@ class EditorWatcher extends Watcher {
         let completion = find("editor/existing-node-attribute", {node: tree_node.node});
         return [new_attribute.add("completion", completion)];
       })
-
-      .commit("DEBUG: add some fake tag completions.", ({find, record}) => {
-        find("editor/root");
-        return [
-          record("editor/existing-tag", {text: "person"}),
-          record("editor/existing-tag", {text: "pet"}),
-          record("editor/existing-tag", {text: "boat"}),
-          record("editor/existing-tag", {text: "dock"}),
-          record("editor/existing-tag", {text: "cat"}),
-        ];
-      })
-      .block("DEBUG: add some fake node attribute completions.", ({find, record}) => {
-        let tree_node = find("editor/node-tree/node");
-        let {node} = tree_node;
-        let completion = find("editor/existing-node-attribute");
-        completion.name == tree_node.name
-
-        return [completion.add("node", node)];
-      })
-      .commit("DEBUG: add some fake node attribute completions.", ({find, record}) => {
-        let tree_node = find("editor/node-tree/node");
-        let {node} = tree_node;
-
-        return [
-          record("editor/existing-node-attribute", {name: "person", text: "name"}),
-          record("editor/existing-node-attribute", {name: "person", text: "age"}),
-          record("editor/existing-node-attribute", {name: "person", text: "boat"}),
-          record("editor/existing-node-attribute", {name: "person", text: "tag"}),
-          record("editor/existing-node-attribute", {name: "boat", text: "name"}),
-          record("editor/existing-node-attribute", {name: "boat", text: "type"}),
-          record("editor/existing-node-attribute", {name: "boat", text: "dock"}),
-          record("editor/existing-node-attribute", {name: "boat", text: "tag"}),
-          record("editor/existing-node-attribute", {name: "dock", text: "name"}),
-          record("editor/existing-node-attribute", {name: "dock", text: "state"}),
-          record("editor/existing-node-attribute", {name: "pet", text: "length"}),
-        ];
-      });
-
-
 
     //--------------------------------------------------------------------
     // Node Tree Interaction
