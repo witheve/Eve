@@ -260,6 +260,7 @@ class EditorWatcher extends Watcher {
           record("editor/existing-node-attribute", {name: "dock", text: "name"}),
           record("editor/existing-node-attribute", {name: "dock", text: "state"}),
           record("editor/existing-node-attribute", {name: "pet", text: "length"}),
+          record("editor/existing-node-attribute", {name: "pet", text: "name"}),
         ];
       })
 
@@ -1076,6 +1077,46 @@ class EditorWatcher extends Watcher {
         return [
           atom_cell.add({x, y}),
           // record("ui/text", {text: `x ${spiral.x} y ${spiral.y} | ix ${ix} | mag ${mag}`})
+        ];
+      })
+
+      .block("When a molecule is hovered, display it's infobox.", ({find, record}) => {
+        let molecule_grid = find("editor/molecule-list/molecule", "html/hovered");
+        return [molecule_grid.add("children", [
+          record("editor/molecule-list/molecule/infobox", {molecule_grid})
+        ])];
+      })
+
+      .block("A molecule infobox is a column of field tables.", ({find, record}) => {
+        let infobox = find("editor/molecule-list/molecule/infobox");
+        return [infobox.add("tag", "ui/column")];
+      })
+
+      .block("A molecule infobox has a table per atom.", ({find, record}) => {
+        let infobox = find("editor/molecule-list/molecule/infobox");
+        let {molecule_grid} = infobox;
+        let {molecule} = molecule_grid;
+        let {atom} = molecule;
+        let {node} = atom;
+        return [infobox.add("children", [
+          record("editor/molecule-list/molecule/infobox/node", {sort: node.sort, infobox, node}).add("atom", atom)
+        ])];
+      })
+
+      .block("A molecule infobox atom's fields are derived from its record AVs.", ({find, lookup, not, record}) => {
+        let node_infobox = find("editor/molecule-list/molecule/infobox/node");
+        let {node, atom} = node_infobox;
+        let {attribute, value} = lookup(atom.record);
+        attribute != "tag";
+        not(() => value.tag);
+
+        return [
+          node_infobox.add("tag", "ui/column").add("children", [
+            record("editor/molecule-list/molecule/infobox/node/name", "ui/text", {sort: 1, node_infobox, text: node.name}),
+            record("ui/field-table", {sort: 2, node_infobox, atom, record: atom.record}).add("field", [
+              record({node_infobox, record: atom.record, attribute}).add("value", value)
+            ])
+          ])
         ];
       })
 

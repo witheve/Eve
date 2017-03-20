@@ -106,6 +106,8 @@
 .editor-molecule-list-molecule { position: relative; display: flex; flex: 0 0 auto; }
 .editor-molecule-list-molecule-cell { cursor: default; -webkit-user-select: none; }
 
+.editor-molecule-list-molecule-infobox { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); width: 250; padding: 10; z-index: 3; background: rgba(255, 255, 255, 0.8); border: 1px solid #aaaaff; border-radius: 3px; }
+
 
 /****************************************************************************\
  * Editor Block Canvas
