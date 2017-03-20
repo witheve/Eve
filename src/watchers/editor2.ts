@@ -84,12 +84,20 @@ class EditorWatcher extends Watcher {
         ];
       })
 
+      .commit("A node with an empty value has no value at all.", ({find}) => {
+        let node = find("node");
+        let {attribute} = node;
+        attribute.value == "";
+        return [attribute.remove("value", "")];
+      })
+
     this.navigation();
     this.header();
 
     this.nodeTree();
     this.queryEditor();
 
+    this.moleculeGenerator();
 
     this.fixtures();
     this.initEditor();
@@ -206,7 +214,7 @@ class EditorWatcher extends Watcher {
 
     let compiler = editor.attach("compiler") as CompilerWatcher;
     compiler.injectInto(this.program);
-    compiler.registerWatcherFunction("send-to-editor", forwardDiffs(editor, "send-to-editor"));
+    compiler.registerWatcherFunction("send-to-editor", forwardDiffs(editor, "send-to-editor", true));
 
     return editor;
   }
@@ -738,7 +746,7 @@ class EditorWatcher extends Watcher {
   }
 
   //--------------------------------------------------------------------
-  // Header
+  // Query Editor
   //--------------------------------------------------------------------
 
   queryEditor() {
@@ -757,6 +765,84 @@ class EditorWatcher extends Watcher {
         let {editor} = node_tree;
         let {active_block} = editor;
         return [node_tree.add("node", editor.active_block.node)];
+      })
+  }
+
+  //--------------------------------------------------------------------
+  // Molecule Generator
+  //--------------------------------------------------------------------
+  moleculeGenerator() {
+    this.editor
+      .block("Create a molecule generator for the active block if it has any nodes.", ({find, record}) => {
+        let editor = find("editor/root");
+        let {active_block:block} = editor;
+        block.node;
+        return [
+          block.add("molecule_generator", [
+            record("editor/molecule/generator", "eve/compiler/block", {block, name: "Generate molecules.", type: "watch", watcher: "send-to-editor"})
+          ])
+        ];
+      })
+      .block("Create an atom record and output for each node of the block with attributes.", ({find, record}) => {
+        let generator = find("editor/molecule/generator");
+        let {block} = generator;
+        let {node} = block;
+        node.attribute;
+        return [
+          node.entity.add("tag", "eve/compiler/var"),
+          generator.add("constraint", [
+            record("editor/atom/record", "eve/compiler/record", {generator, node, record: node.entity}),
+            record("editor/atom/output", "eve/compiler/output", {generator, node, record: node.entity})
+          ])
+        ];
+      })
+      .block("Attributes with no value are free fields.", ({find, not, record}) => {
+        let generator = find("editor/molecule/generator");
+        let {block} = generator;
+        let {node} = block;
+        let {attribute} = node;
+        not(() => attribute.value);
+        return [record("editor/molecule/free-field", "eve/compiler/var", {node, attribute})];
+      })
+      .block("Attach attributes to atom records and outputs.", ({find, choose, record}) => {
+        let atom_record = find("editor/atom/record");
+        let {generator, node} = atom_record;
+        let atom_output = find("editor/atom/output", {node});
+        let {attribute} = node;
+        let [value] = choose(
+          () => attribute.value,
+          () => find("editor/molecule/free-field", {node, attribute})
+        );
+        let [identifying] = choose(
+          () => { attribute.value == find("node").entity; return "eve/compiler/attribute/non-identity"; },
+          () => "eve/compiler/attribute/identity"
+        );
+
+        return [
+          atom_record.add("attribute", record({attribute: attribute.attribute, value})),
+          atom_output.add("attribute", [
+            record({tag: identifying, attribute: attribute.attribute, value}),
+            record({attribute: "tag", value: "editor/atom"}),
+            record({attribute: "node", value: node})
+          ])
+        ];
+      })
+      .block("Create a molecule output for each root node.", ({find, record}) => {
+        let generator = find("editor/molecule/generator");
+        let {block} = generator;
+        let {node} = block;
+        node.tag == "root-node";
+        let molecule_entity;
+        return [
+          molecule_entity = record("editor/molecule/entity", "eve/compiler/var", {node}),
+          generator.add("constraint", [
+            record("editor/molecule/output", "eve/compiler/output", {generator, node, record: molecule_entity}).add("attribute", [
+              record({attribute: "atom", value: node.entity}),
+              record({attribute: "tag", value: "editor/molecule"}),
+              record({attribute: "node", value: node})
+            ])
+          ])
+        ];
       })
   }
 }

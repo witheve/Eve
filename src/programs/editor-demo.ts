@@ -10,7 +10,7 @@ prog.commit("Add some data to play with.", ({find, record}) => {
   return [
     dock1 = record("dock", {name: "Marinara Marina", state: "MI"}),
     boat1 = record("boat", {name: "Boaty Mcboatface", type: "vessel", dock: dock1}),
-    boat2 = record("boat", {name: "H.M. Surf", type: "dinghy", dock: dock1}),
+    boat2 = record("boat", {name: "H.M. Surf", type: "yacht", dock: dock1}),
     boat3 = record("boat", {name: "No Life Raft", type: "dingy", dock: dock1}),
     record("person", {name: "Josh", age: 23, boat: [boat1, boat3]}),
     record("person", {name: "Rafe", age: 43, boat: boat2}),
