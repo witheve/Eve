@@ -163,6 +163,7 @@ class EditorWatcher extends Watcher {
     appendAsEAVs(fixture, {tag: "spiral", row: 1, sort: 5, x: -1, y: 0});
     appendAsEAVs(fixture, {tag: "spiral", row: 1, sort: 6, x: 0, y: -1});
     appendAsEAVs(fixture, {tag: "spiral", row: 1, sort: 7, x: 1, y: -1});
+    appendAsEAVs(fixture, {tag: "spiral", row: 8, sort: 8, x: 2, y: -1});
 
     appendAsEAVs(fixture, {tag: "spiral", row: 0, sort: 1, x: 0, y: 0});
     appendAsEAVs(fixture, {tag: "spiral", row: 0, sort: 2, x: 1, y: 0});
@@ -171,6 +172,7 @@ class EditorWatcher extends Watcher {
     appendAsEAVs(fixture, {tag: "spiral", row: 0, sort: 5, x: -1, y: 0});
     appendAsEAVs(fixture, {tag: "spiral", row: 0, sort: 6, x: -1, y: -1});
     appendAsEAVs(fixture, {tag: "spiral", row: 0, sort: 7, x: 0, y: -1});
+    appendAsEAVs(fixture, {tag: "spiral", row: 0, sort: 8, x: 1, y: -1});
 
     appendAsEAVs(fixture, {tag: "node-color", sort: 1, color: "#9926ea"});
     appendAsEAVs(fixture, {tag: "node-color", sort: 2, color: "#6c86ff"});
@@ -259,8 +261,78 @@ class EditorWatcher extends Watcher {
           record("editor/existing-node-attribute", {name: "dock", text: "state"}),
           record("editor/existing-node-attribute", {name: "pet", text: "length"}),
         ];
-      });
+      })
 
+      .commit("DEBUG: Add a spiral range to iterate over when expanding the spiral.", ({find, record}) => {
+        find("editor/root");
+        return [
+          record("spiral-range", {ix: 9}),
+          record("spiral-range", {ix: 10}),
+          record("spiral-range", {ix: 11}),
+          record("spiral-range", {ix: 12}),
+          record("spiral-range", {ix: 13}),
+          record("spiral-range", {ix: 14}),
+          record("spiral-range", {ix: 15}),
+          record("spiral-range", {ix: 16}),
+
+          record("range", {ix: 1}),
+          record("range", {ix: 2}),
+          record("range", {ix: 3}),
+          record("range", {ix: 4}),
+          record("range", {ix: 5}),
+          record("range", {ix: 6}),
+          record("range", {ix: 7}),
+          record("range", {ix: 8}),
+          record("range", {ix: 8}),
+          record("range", {ix: 9}),
+          record("range", {ix: 10}),
+          record("range", {ix: 11}),
+          record("range", {ix: 12}),
+          record("range", {ix: 13}),
+          record("range", {ix: 14}),
+          record("range", {ix: 15}),
+          record("range", {ix: 16}),
+        ];
+      })
+
+      // .commit("DEBUG: Expand the spiral neighbors out statically (rather than on-demand)", ({find,  lib:{math}, choose, record}) => {
+      //   let {ix} = find("spiral-range");
+      //   let neighbor = math.mod(ix - 1, 6) + 1;
+      //   let spiral = find("spiral", {row: 0, sort: neighbor});
+      //   math.mod(ix - 1, 6) != 0;
+      //   let mag = math.floor((ix - 2) / 6) + 1;
+      //   return [record("spiral", {row: 0, sort: ix, x: spiral.x * mag, y: spiral.y * mag, mag})];
+      // })
+
+      // .commit("DEBUG: The last leg of a hex spiral is extra long.", ({find,  lib:{math}, choose, record}) => {
+      //   let {ix} = find("spiral-range");
+      //   let neighbor = math.mod(ix - 2, 6) + 2;
+      //   let spiral = find("spiral", {row: 0, sort: neighbor});
+      //   math.mod(ix - 1, 6) < 1;
+      //   let mag = math.floor((ix - 2) / 6) + 2;
+      //   return [record("spiral", {row: 0, sort: ix, x: spiral.x * mag, y: spiral.y * mag, mag, s_ix: ix})];
+      // })
+
+      // .block("DEBUG: Show spirals.", ({find, record}) => {
+      //   let spiral = find("spiral");
+      //   return [record("ui/text", {text: `spiral(${spiral.x}, ${spiral.y}), ${spiral.mag}`})];
+      // })
+
+      // .block("DEBUG: Show spiral grid.", ({find, lib:{math}, choose, record}) => {
+      //   let {ix} = find("range");
+      //   let spiral = find("spiral", {row: 0, sort: ix});
+      //   let {x, y} = spiral;
+      //   let [s_ix] = choose(() => math.mod(spiral.s_ix - 1, 5) + 1, () => math.mod(spiral.sort - 1, 5) + 1);
+      //   let fillStyle = find("node-color", {sort: s_ix}).color;
+
+      //   return [
+      //     record("shape/hex-grid", {side: 20, gap: 5, style: record({position:"absolute", left: 300, top: 300})}).add("cell", [
+      //       record("shape/hexagon", {side: 20, x, y, sort: ix, fillStyle}).add("content", [
+      //         record("ui/text", {text: ix})
+      //       ])
+      //     ])
+      //   ];
+      // })
   }
 
   createEditor() {
@@ -987,24 +1059,12 @@ class EditorWatcher extends Watcher {
       .block("Sort atom cells by id.", ({find, gather, record}) => {
         let atom_cell = find("editor/molecule-list/molecule/cell");
         let {molecule, atom} = atom_cell;
-        let ix = gather(atom_cell).per(molecule).sort();
+        let ix = gather(atom_cell.atom.node.sort, atom_cell).per(molecule).sort();
         return [atom_cell.add("sort", ix)];
       })
       .block("Position atom cells in a spiral.", ({find, choose, lib:{math}, record}) => {
         let atom_cell = find("editor/molecule-list/molecule/cell");
         let {molecule, atom} = atom_cell;
-        // @FIXME: This logic for the spiral isn't quite working at all.
-        // let [ix] = choose(
-        //   () => { atom_cell.sort == 1; return atom_cell.sort },
-        //   () => {
-        //     return math.mod(atom_cell.sort - 2, 6) + 2;
-        //   }
-        // );
-        // let spiral = find("spiral", {row: 0, ix});
-        // let [mag] = choose(
-        //   () => { math.mod(ix - 1, 6) == 0; return math.floor((atom_cell.sort - 2) / 6) + 3; },
-        //   () => math.floor((atom_cell.sort - 2) / 6) + 2
-        // )
         let {x, y} = find("spiral", {row: 0, sort: atom_cell.sort});
         return [
           atom_cell.add({x, y}),

@@ -55,7 +55,7 @@
 .editor-node-tree-node-pattern .editor-node-tree-node-pattern-name { margin-left: -15; margin-bottom: 8;}
 .editor-node-tree-node-pattern-field {position: relative; min-height: 22; z-index: 1; }
 .editor-node-tree-node-pattern-field > text:not(:last-child):after {content: ":"}
-.editor-node-tree-node-pattern-value {padding:0;padding-left: 5;}
+.editor-node-tree-node-pattern-value {padding:0;padding-left: 5; max-width: 100;}
 
 .editor-node-tree-node-pattern div.button {position: relative;width: 40; line-height: 1.3em; margin-top: -4;margin-left: -34;margin-bottom:-4;font-size: 0.9em; color: #999; }
 .editor-node-tree-node-pattern div.button:before { width: 1.3em; line-height: 1.3em; text-align: center; border: 1px solid #ddd; border-radius: 100px; background: white; font-weight: 100; }
