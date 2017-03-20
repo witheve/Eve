@@ -107,12 +107,12 @@ class ShapeWatcher extends Watcher {
 
       let top_gap = gap * 0.86603; // sin(60deg)
 
-      let tri_height = math.round(side * 0.5);
-      let tri_width = math.round(side * 0.86603);
+      let tri_height = side * 0.5;
+      let tri_width = side * 0.86603;
 
-      let width = 2 * tri_width + gap;
-      let x_offset = math.mod(math.abs(y_ix), 2) * width / 2;
-      let height = side + tri_height + top_gap;
+      let width = math.round(2 * tri_width + gap);
+      let x_offset = math.round(math.mod(math.abs(y_ix), 2) * width / 2);
+      let height = math.round(side + tri_height + top_gap);
 
       let x = math.round(width * x_ix + x_offset);
       let y = math.round(height * y_ix);
@@ -191,11 +191,11 @@ class ShapeWatcher extends Watcher {
       let tri_width = side * 0.86603;
       let width = 2 * tri_width;
 
-      let xl = math.round(x + width);
-      let xm = math.round(x + tri_width);
-      let y14 = math.round(y + tri_height);
-      let y34 = math.round(y + 3 * tri_height);
-      let yb = math.round(y + 2 * side);
+      let xl = x + width;
+      let xm = x + tri_width;
+      let y14 = y + tri_height;
+      let y34 = y + 3 * tri_height;
+      let yb = y + 2 * side;
       return [
         hex.add({tag: "canvas/path"}).add("children", [
           record({sort: 1, type: "moveTo", x: xm, y}),
