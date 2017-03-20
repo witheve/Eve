@@ -291,21 +291,8 @@ class EditorWatcher extends Watcher {
         let new_node = find("editor/node-tree/node/new", {open: "true"});
         return [
           new_node.add("children", [
-            record("editor/node-tree/node/new/tag", "ui/autocomplete", "html/trigger-focus", "html/autosize-input", {sort: 2, new_node, placeholder: "tag..."}),
+            record("editor/node-tree/node/new/tag", "ui/autocomplete", "html/trigger-focus", {sort: 2, new_node, placeholder: "tag..."}),
             record("editor/node-tree/node/new/save", "ui/button", {sort: 3, new_node, icon: "android-add"})
-          ])
-        ];
-      })
-
-      .block("Fill tag completions.", ({find, record}) => {
-        let new_tag = find("editor/node-tree/node/new/tag");
-        return [
-          new_tag.add("completion", [
-            record({text: "person"}),
-            record({text: "pet"}),
-            record({text: "boat"}),
-            record({text: "dock"}),
-            record({text: "cat"}),
           ])
         ];
       })
@@ -455,7 +442,7 @@ class EditorWatcher extends Watcher {
             record("ui/column", {sort: 2, node_pattern, class: "editor-node-tree-new-field"}).add("children", [
               record("editor/node-tree/node/pattern/new-field", "ui/row", {tree_node}).add("children", [
                 record("editor/node-tree/node/field/new", "ui/button", {sort: 1, tree_node, icon: "android-add"}),
-                record("editor/node-tree/node/field/new/attribute", "ui/input", "html/autosize-input", {sort: 2, tree_node, placeholder: "attribute..."}),
+                record("editor/node-tree/node/field/new/attribute", "ui/autocomplete", {sort: 2, tree_node, placeholder: "attribute..."}),
               ])
             ])
           ])
@@ -477,7 +464,59 @@ class EditorWatcher extends Watcher {
             ])
           ])
         ];
+      })
+
+      .block("Fill tag completions.", ({find, record}) => {
+        let new_tag = find("editor/node-tree/node/new/tag");
+        let completion = find("editor/existing-tag");
+        return [new_tag.add("completion", completion)];
+      })
+
+      .block("Fill attribute completions.", ({find, record}) => {
+        let new_attribute = find("editor/node-tree/node/field/new/attribute");
+        let {tree_node} = new_attribute;
+        let completion = find("editor/existing-node-attribute", {node: tree_node.node});
+        return [new_attribute.add("completion", completion)];
+      })
+
+      .commit("DEBUG: add some fake tag completions.", ({find, record}) => {
+        find("editor/root");
+        return [
+          record("editor/existing-tag", {text: "person"}),
+          record("editor/existing-tag", {text: "pet"}),
+          record("editor/existing-tag", {text: "boat"}),
+          record("editor/existing-tag", {text: "dock"}),
+          record("editor/existing-tag", {text: "cat"}),
+        ];
+      })
+      .block("DEBUG: add some fake node attribute completions.", ({find, record}) => {
+        let tree_node = find("editor/node-tree/node");
+        let {node} = tree_node;
+        let completion = find("editor/existing-node-attribute");
+        completion.name == tree_node.name
+
+        return [completion.add("node", node)];
+      })
+      .commit("DEBUG: add some fake node attribute completions.", ({find, record}) => {
+        let tree_node = find("editor/node-tree/node");
+        let {node} = tree_node;
+
+        return [
+          record("editor/existing-node-attribute", {name: "person", text: "name"}),
+          record("editor/existing-node-attribute", {name: "person", text: "age"}),
+          record("editor/existing-node-attribute", {name: "person", text: "boat"}),
+          record("editor/existing-node-attribute", {name: "person", text: "tag"}),
+          record("editor/existing-node-attribute", {name: "boat", text: "name"}),
+          record("editor/existing-node-attribute", {name: "boat", text: "type"}),
+          record("editor/existing-node-attribute", {name: "boat", text: "dock"}),
+          record("editor/existing-node-attribute", {name: "boat", text: "tag"}),
+          record("editor/existing-node-attribute", {name: "dock", text: "name"}),
+          record("editor/existing-node-attribute", {name: "dock", text: "state"}),
+          record("editor/existing-node-attribute", {name: "pet", text: "length"}),
+        ];
       });
+
+
 
     //--------------------------------------------------------------------
     // Node Tree Interaction
@@ -574,8 +613,9 @@ class EditorWatcher extends Watcher {
         let event = find("html/event/click", {element: add_field})
         let {tree_node} = add_field;
         let {node} = tree_node;
-        let field_attribute = find("editor/node-tree/node/field/new/attribute", {tree_node});
-        let {value} = field_attribute;
+        let field_autocomplete = find("editor/node-tree/node/field/new/attribute", {tree_node});
+        let field_input = find("ui/autocomplete/input", {autocomplete: field_autocomplete});
+        let {value} = field_autocomplete;
         value != "";
 
         // @FIXME: busted as frig...
@@ -586,7 +626,7 @@ class EditorWatcher extends Watcher {
         // }, () => 1);
         return [
           node.add("attribute", record("node/attribute", {sort: event, attribute: value})),
-          field_attribute.remove("value")
+          field_input.remove("value")
         ];
       })
       .commit("Clicking the delete field button removes its attribute from the node.", ({find, choose, gather, record}) => {
