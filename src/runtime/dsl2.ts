@@ -1642,9 +1642,8 @@ export class Program {
     // console.timeEnd("input");
     // console.info(trans.changes.map((change, ix) => `    <- ${change}`).join("\n"));
 
-    // @FIXME: Remove debugging after diagnosing compiler issue
     // let g:any = global;
-    // let filterPrefix = "node";
+    // let filterPrefix = "eve/compiler/";
     // let filteredIds = g.filteredIds = g.filteredIds || [];
     // for(let change of trans.changes) {
     //   if(change.a == GlobalInterner.get("tag") && (""+GlobalInterner.reverse(change.v)).indexOf(filterPrefix) == 0) {

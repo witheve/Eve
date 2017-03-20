@@ -65,6 +65,12 @@ class EditorWatcher extends Watcher {
         return [node.add("tag", "root-node")];
       })
 
+      .commit("A node with no entity creates one.", ({find, not, record}) => {
+        let node = find("node");
+        not(() => node.entity);
+        return [node.add("entity", record("entity", {node, sort: node.sort}))];
+      })
+
       .commit("If a node's attribute is a record and it's not already a subnode, fix that.", ({find, not, record}) => {
         let editor = find("editor/root");
         let {active_block} = editor;
@@ -110,9 +116,10 @@ class EditorWatcher extends Watcher {
         let label = string.uppercase(string.get(name, 1));
         return [node.add("label", label)];
       })
-      .block("FIXME: A node's color is gray.", ({find, lib:{string}}) => {
+      .block("A node's color is derived from it's sort.", ({find, lib:{math}}) => {
         let node = find("node");
-        return [node.add("color", "gray")];
+        let {color} = find("node-color", {sort: math.mod(node.sort - 1, 5) + 1})
+        return [node.add("color", color)];
       })
 
     this.navigation();
@@ -165,6 +172,12 @@ class EditorWatcher extends Watcher {
     appendAsEAVs(fixture, {tag: "spiral", row: 0, sort: 6, x: -1, y: -1});
     appendAsEAVs(fixture, {tag: "spiral", row: 0, sort: 7, x: 0, y: -1});
 
+    appendAsEAVs(fixture, {tag: "node-color", sort: 1, color: "#9926ea"});
+    appendAsEAVs(fixture, {tag: "node-color", sort: 2, color: "#6c86ff"});
+    appendAsEAVs(fixture, {tag: "node-color", sort: 3, color: "red"});
+    appendAsEAVs(fixture, {tag: "node-color", sort: 4, color: "orange"});
+    appendAsEAVs(fixture, {tag: "node-color", sort: 5, color: "green"});
+    appendAsEAVs(fixture, {tag: "node-color", sort: 6, color: "indigo"});
 
     this.editor.inputEavs(fixture);
   }
@@ -188,23 +201,24 @@ class EditorWatcher extends Watcher {
               ],
 
               node: [
-                dock_node = record("node", {sort: 3, entity: record("entity", {z: 1})}).add("attribute", [
-                  record({attribute: "state", z: 11})
-                ]),
-                boat_node = record("node", {sort: 2, entity: record("entity", {z: 2})}).add("attribute", [
-                  record({attribute: "type", value: "yacht", z:21}),
-                  record({attribute: "name", z:22}),
-                  record({attribute: "dock", value: dock_node.entity, z:23})
-                ]),
-                person_node = record("node", {sort: 1, entity: record("entity", {z: 3})}).add("attribute", [
-                  record({attribute: "tag", value: "person", z:31}),
-                  // record({attribute: "tag"}),
-                  record({attribute: "age", z:32}),
-                  record({attribute: "boat", value: boat_node.entity, z:33})
-                ]),
+                // dock_node = record("node", {sort: 3, entity: record("entity", {z: 1})}).add("attribute", [
+                //   record({attribute: "state", z: 11})
+                // ]),
+                // boat_node = record("node", {sort: 2, entity: record("entity", {z: 2})}).add("attribute", [
+                //   record({attribute: "type", value: "yacht", z:21}),
+                //   record({attribute: "name", z:22}),
+                //   record({attribute: "dock", value: dock_node.entity, z:23})
+                // ]),
+                // person_node = record("node", {sort: 1, entity: record("entity", {z: 3})}).add("attribute", [
+                //   record({attribute: "tag", value: "person", z:31}),
+                //   // record({attribute: "tag"}),
+                //   record({attribute: "age", z:32}),
+                //   record({attribute: "boat", value: boat_node.entity, z:33})
+                // ]),
               ]
             })
           ]),
+          record("node", {sort: 0}), // Magic node. Do not remove. (Workaround sort bug)
           editor.add({active_block: block1, active_frame: frame1}),
           init.remove()
         ];
@@ -236,7 +250,7 @@ class EditorWatcher extends Watcher {
           record("editor/existing-node-attribute", {name: "person", text: "name"}),
           record("editor/existing-node-attribute", {name: "person", text: "age"}),
           record("editor/existing-node-attribute", {name: "person", text: "boat", is_record: "true"}),
-          //record("editor/existing-node-attribute", {name: "person", text: "tag"}),
+          record("editor/existing-node-attribute", {name: "person", text: "pet", is_record: "true"}),
           record("editor/existing-node-attribute", {name: "boat", text: "name"}),
           record("editor/existing-node-attribute", {name: "boat", text: "type"}),
           record("editor/existing-node-attribute", {name: "boat", text: "dock", is_record: "true"}),
@@ -455,7 +469,7 @@ class EditorWatcher extends Watcher {
         return [
           node_pattern.add({tag: "ui/column"}).add("children", [
             record("ui/row", {sort: 0, node_pattern}).add("children", [
-              record("editor/node-tree/node/pattern/name", "ui/text", {text: name})
+              record("editor/node-tree/node/pattern/name", "ui/text", {tree_node, text: name})
             ])
           ])
         ];
@@ -592,6 +606,13 @@ class EditorWatcher extends Watcher {
         not(() => tree_node.open);
         return [tree_node.add("open", "true")];
       })
+      .commit("Clicking a node's name opens it.", ({find, not}) => {
+        let name_elem = find("editor/node-tree/node/pattern/name");
+        find("html/event/click", {element: name_elem});
+        let {tree_node} = name_elem;
+        not(() => tree_node.open);
+        return [tree_node.add("open", "true")];
+      })
       .commit("Clicking an open node's hex closes it.", ({find}) => {
         let hex = find("editor/node-tree/node/hex");
         find("html/event/click", {element: hex});
@@ -679,9 +700,7 @@ class EditorWatcher extends Watcher {
 
         return [
           active_block.add("node", [
-            record("node", {sort, attribute: [
-              record({sort, attribute: "tag", value}) // @FIXME: need a key on these or multiple nodes AVs will collapse.
-            ]})
+            record("node", {sort, attribute: record({sort, attribute: "tag", value})})
           ]),
           new_node.remove("open"),
           tag_input.remove("value")
@@ -805,7 +824,7 @@ class EditorWatcher extends Watcher {
       .block("Create a molecule generator for the active block if it has any nodes.", ({find, record}) => {
         let editor = find("editor/root");
         let {active_block:block} = editor;
-        block.node;
+        block.node.attribute;
         return [
           block.add("molecule_generator", [
             record("editor/molecule/generator", "eve/compiler/block", {block, name: "Generate molecules.", type: "watch", watcher: "send-to-editor"})
@@ -816,12 +835,17 @@ class EditorWatcher extends Watcher {
         let generator = find("editor/molecule/generator");
         let {block} = generator;
         let {node} = block;
-        node.attribute;
         return [
           node.entity.add("tag", "eve/compiler/var"),
           generator.add("constraint", [
-            record("editor/atom/record", "eve/compiler/record", {generator, node, record: node.entity}),
-            record("editor/atom/output", "eve/compiler/output", {generator, node, record: node.entity})
+            record("editor/atom/record", "eve/compiler/record", {generator, node, record: node.entity}).add("attribute", [
+              //@FIXME: Bogus scan to hint to the compiler watcher that it shouldn't try to gen an id.
+              record({attribute: "tag", value: record("editor/bogus-var", "eve/compiler/var", {node})})
+            ]),
+            record("editor/atom/output", "eve/compiler/output", {generator, node, record: node.entity}).add("attribute", [
+              record({attribute: "tag", value: "editor/atom"}),
+              record({attribute: "node", value: node})
+            ])
           ])
         ];
       })
@@ -851,8 +875,6 @@ class EditorWatcher extends Watcher {
           atom_record.add("attribute", record({attribute: attribute.attribute, value})),
           atom_output.add("attribute", [
             record({tag: identifying, attribute: attribute.attribute, value}),
-            record({attribute: "tag", value: "editor/atom"}),
-            record({attribute: "node", value: node})
           ])
         ];
       })
@@ -871,7 +893,7 @@ class EditorWatcher extends Watcher {
                 record({attribute: "atom", value: node.entity}),
                 record({attribute: "tag", value: "editor/molecule"}),
                 record({attribute: "block", value: block}),
-                record({attribute: "node", value: node})
+                record({attribute: "node", value: node}),
               ])
           ])
         ];
@@ -932,8 +954,13 @@ class EditorWatcher extends Watcher {
         let list_molecule = find("editor/molecule-list/molecule");
         let {size} = list_molecule;
         let length = 1 + math.ceil(math.mod(size - 1, 6) / 3);
+        let width = length * (28 + 5) + 14;
+        let height = length * (32 + 5);
+        let padTop = height / 2;
+        let padLeft = width / 2;
+
         return [
-          list_molecule.add("style", record({width: length * (28 + 5) + 14, height: length * (32 + 5)}))
+          list_molecule.add("style", record({width, height, "margin-top": padTop, "margin-left": padLeft}))
         ];
       })
 
@@ -944,7 +971,7 @@ class EditorWatcher extends Watcher {
         let lineWidth = 1, strokeStyle = "#AAA";
         return [
           atom_cell.add({tag: "shape/hexagon", side, lineWidth, strokeStyle, x, y}).add("content", [
-            record("ui/text", {text: node.label, style: record({color: node.color})})
+            record("ui/text", {atom_cell, text: node.label, style: record({color: node.color})})
           ])
         ];
       })
@@ -958,16 +985,9 @@ class EditorWatcher extends Watcher {
       .block("Position atom cells in a spiral.", ({find, gather, record}) => {
         let atom_cell = find("editor/molecule-list/molecule/cell");
         let {molecule, atom, sort} = atom_cell;
-        let {x, y} = find("spiral", {row: 1, sort});
+        let {x, y} = find("spiral", {row: 0, sort});
         return [atom_cell.add({x, y})];
       })
-
-      .block("DEBUG: Let's see those tootsies.", ({find, record}) => {
-        let list_molecule = find("editor/molecule-list/molecule");
-        let {size} = list_molecule;
-        return [record("ui/text", {text: size, list_molecule})];
-      })
-
   }
 }
 
