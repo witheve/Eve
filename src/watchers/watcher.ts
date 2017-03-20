@@ -164,6 +164,10 @@ export function forwardDiffs(destination:Program, name:string = "Unnamed", debug
 // Watcher / Program Utils
 //--------------------------------------------------------------------
 
+export function createId() {
+  return "|" + uuid();
+}
+
 export function isRawValue(x:any): x is RawValue {
   return x !== undefined && (typeof x === "string" || typeof x === "number");
 }
@@ -191,7 +195,7 @@ export function isRawEAVArray(x:any): x is RawEAV[] {
 
 
 interface Attrs extends RawMap<RawValue|RawValue[]|RawEAV[]|RawEAV[][]> {}
-export function appendAsEAVs(eavs:any[], record: Attrs, id = `|${uuid()}`) {
+export function appendAsEAVs(eavs:any[], record: Attrs, id = createId()) {
   for(let attr in record) {
     let value = record[attr];
     if(isRawValue(value)) {
