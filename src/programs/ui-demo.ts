@@ -43,6 +43,26 @@ prog.block("Decorate the changes with whatever extra info was on the field.", ({
     ])
   ];
 });
+
+prog.block("Demo autocomplete.", ({find, record}) => {
+  let person = find("person");
+  return [
+    record("ui/autocomplete", {placeholder: "person..."}).add("completion", [
+      record({text: person.name})
+    ])
+  ];
+})
+
+prog.commit("Test autocomplete data", ({find, record}) => {
+  find("turtle");
+  return [
+    record("person", {name: "Jeff Smith"}),
+    record("person", {name: "George Washington"}),
+    record("person", {name: "Svenka Peterson"}),
+    record("person", {name: "Jeff Bloom"}),
+    record("person", {name: "Jean Gray"})
+  ];
+})
 prog.inputEavs([
   [1, "tag", "turtle"]
 ]);

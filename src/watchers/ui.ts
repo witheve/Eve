@@ -126,7 +126,10 @@ export class UIWatcher extends Watcher {
         return [elem.add("class", "iconic").add("class", `ion-${elem.icon}`)];
       });
 
+    //--------------------------------------------------------------------
     // Field Table
+    //--------------------------------------------------------------------
+
     this.program
       .block("Decorate field tables as html.", ({find, record}) => {
         let elem = find("ui/field-table");
@@ -290,6 +293,90 @@ export class UIWatcher extends Watcher {
         ])];
       })
 
+
+    //--------------------------------------------------------------------
+    // Autocomplete
+    //--------------------------------------------------------------------
+    this.program
+      .block("Decorate autocompletes.", ({find, record}) => {
+        let autocomplete = find("ui/autocomplete");
+        return [
+          autocomplete.add({tag: "ui/column"}).add("children", [
+            record("ui/autocomplete/input", "ui/input", {autocomplete})
+          ])
+        ];
+      })
+      .block("Copy input placeholder.", ({find}) => {
+        let input = find("ui/autocomplete/input");
+        return [input.add({placeholder: input.autocomplete.placeholder})];
+      })
+      .block("Copy input initial.", ({find}) => {
+        let input = find("ui/autocomplete/input");
+        return [input.add({initial: input.autocomplete.initial})];
+      })
+      .block("An autocompletes value is it's inputs.", ({find}) => {
+        let input = find("ui/autocomplete/input");
+        return [input.autocomplete.add("value", input.value)];
+      })
+      .commit("If an autocomplete's value disagrees with it's selected, clear the selected.", ({find}) => {
+        let autocomplete = find("ui/autocomplete");
+        let {selected, value} = autocomplete;
+        selected.text != value;
+        return [autocomplete.remove("selected")];
+      })
+
+      .block("Completions that match the current input value are matches.", ({find, lib:{string}}) => {
+        let autocomplete = find("ui/autocomplete");
+        let {value, completion} = autocomplete;
+        let ix = string.index_of(string.lowercase(completion.text), string.lowercase(value));
+        return [autocomplete.add("match", completion)];
+      })
+
+      .block("Show the matches in a popout beneath the input.", ({find, lookup, record}) => {
+        let autocomplete = find("ui/autocomplete");
+        let {match} = autocomplete;
+        let {attribute, value} = lookup(match);
+        attribute != "tag";
+        return [
+          autocomplete.add("children", [
+            record("ui/autocomplete/matches", "ui/column", {autocomplete}).add("children", [
+              record("ui/autocomplete/match", "ui/text", {autocomplete, match}).add(attribute, value)
+            ])
+          ])
+        ];
+      })
+
+      .commit("Clicking a match updates the selected and value of the autocomplete.", ({find}) => {
+        let ui_match = find("ui/autocomplete/match");
+        find("html/event/click", {element: ui_match});
+        let {autocomplete, match} = ui_match;
+        let input = find("ui/autocomplete/input", {autocomplete});
+        return [
+          autocomplete.remove("open").remove("selected").add({selected: match}),
+          input.remove("value").add("value", match.text)
+        ];
+      })
+
+      .commit("Focusing an autocomplete input opens the autocomplete.", ({find}) => {
+        let input = find("ui/autocomplete/input");
+        find("html/event/focus", {element: input});
+        return [input.autocomplete.add("open", "true")];
+      })
+      .commit("If the value matches perfectly on blur, select that match.", ({find, lib:{string}}) => {
+        let input = find("ui/autocomplete/input");
+        let {value} = find("html/event/blur", {element: input});
+        let {autocomplete} = input;
+        let {match} = autocomplete;
+        string.lowercase(match.text) == string.lowercase(value);
+        return [autocomplete.remove("open").remove("selected").add("selected", match)];
+      })
+
+      .commit("Clicking outside an open autocomplete closes it.", ({find, not, record}) => {
+        let autocomplete = find("ui/autocomplete");
+        find("html/event/click");
+        not(() => find("html/event/click", {element: autocomplete}));
+        return [autocomplete.remove("open")];
+      })
   }
 }
 
