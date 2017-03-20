@@ -990,11 +990,26 @@ class EditorWatcher extends Watcher {
         let ix = gather(atom_cell).per(molecule).sort();
         return [atom_cell.add("sort", ix)];
       })
-      .block("Position atom cells in a spiral.", ({find, gather, record}) => {
+      .block("Position atom cells in a spiral.", ({find, choose, lib:{math}, record}) => {
         let atom_cell = find("editor/molecule-list/molecule/cell");
-        let {molecule, atom, sort} = atom_cell;
-        let {x, y} = find("spiral", {row: 0, sort});
-        return [atom_cell.add({x, y})];
+        let {molecule, atom} = atom_cell;
+        // @FIXME: This logic for the spiral isn't quite working at all.
+        // let [ix] = choose(
+        //   () => { atom_cell.sort == 1; return atom_cell.sort },
+        //   () => {
+        //     return math.mod(atom_cell.sort - 2, 6) + 2;
+        //   }
+        // );
+        // let spiral = find("spiral", {row: 0, ix});
+        // let [mag] = choose(
+        //   () => { math.mod(ix - 1, 6) == 0; return math.floor((atom_cell.sort - 2) / 6) + 3; },
+        //   () => math.floor((atom_cell.sort - 2) / 6) + 2
+        // )
+        let {x, y} = find("spiral", {row: 0, sort: atom_cell.sort});
+        return [
+          atom_cell.add({x, y}),
+          // record("ui/text", {text: `x ${spiral.x} y ${spiral.y} | ix ${ix} | mag ${mag}`})
+        ];
       })
   }
 }
