@@ -26,15 +26,31 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
 
   addAttribute(instance:Instance, attribute:RawValue, value:RawValue):void {
     // @TODO: Error checking to ensure we don't double-set attributes.
-    instance.setAttribute(attribute as string, ""+maybeIntern(value));
-    if(attribute == "value" && instance.classList.contains("html-autosize-input") && instance instanceof HTMLInputElement) {
-      instance.size = (instance.value || "").length || 1;
+    if(attribute == "value") {
+      if(instance.classList.contains("html-autosize-input") && instance instanceof HTMLInputElement) {
+        instance.size = (instance.value || "").length || 1;
+      }
+      (instance as HTMLInputElement).value = ""+maybeIntern(value);
+    } else if(attribute == "tag") {
+      if(value === "html/autosize-input" && instance instanceof HTMLInputElement) {
+        setImmediate(() => instance.size = (instance.value || "").length || 1);
+      } else if(value === "html/trigger-focus" && instance instanceof HTMLInputElement) {
+        setImmediate(() => instance.focus());
+      } else {
+        instance.setAttribute(attribute, ""+maybeIntern(value));
+      }
+    } else {
+      instance.setAttribute(attribute as string, ""+maybeIntern(value));
     }
   }
 
   removeAttribute(instance:Instance, attribute:RawValue, value:RawValue):void {
     // @TODO: Error checking to ensure we don't double-remove attributes or remove the wrong value.
     instance.removeAttribute(attribute as string);
+    if(attribute === "value") {
+      let input = instance as HTMLInputElement;
+      if(input.value === value) input.value = "";
+    }
   }
 
   sentInputValues:{[element:string]: string[], [element:number]: string[]} = {};
@@ -98,9 +114,42 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
       }
     });
 
+    window.addEventListener("focus", (event) => {
+      let target = event.target as (Instance & HTMLInputElement);
+      let elementId = target.__element;
+      if(elementId) {
+        let eventId = uuid();
+        let eavs:RawEAV[] = [
+          [eventId, "tag", "html/event/focus"],
+          [eventId, "element", elementId]
+        ];
+        if(target.value !== undefined) eavs.push([eventId, "value", target.value]);
+        this._sendEvent(eavs);
+      }
+    }, true);
+
+    window.addEventListener("blur", (event) => {
+      let target = event.target as (Instance & HTMLInputElement);
+      let elementId = target.__element;
+      if(elementId) {
+        let eventId = uuid();
+        let eavs:RawEAV[] = [
+          [eventId, "tag", "html/event/blur"],
+          [eventId, "element", elementId]
+        ];
+        if(target.value !== undefined) eavs.push([eventId, "value", target.value]);
+        this._sendEvent(eavs);
+      }
+    }, true);
+
     this.program
-      .commit("Remove change events.", ({find}) => {
-        let event = find("html/event/change");
+      .commit("Remove input-related events.", ({find, choose}) => {
+        let [event] = choose(
+          () => find("html/event/change"),
+          () => find("html/event/focus"),
+          () => find("html/event/blur")
+        );
+        event.tag;
         return [event.remove()];
       })
       .block("Inputs with an initial but no value use the initial.", ({find, choose}) => {

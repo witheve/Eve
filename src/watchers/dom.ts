@@ -157,9 +157,7 @@ export abstract class DOMWatcher<Instance extends ElemInstance> extends Watcher 
       .constants({tagPrefix: this.tagPrefix})
       .commit("Remove click events!", ({find}) => {
         let click = find("{{tagPrefix}}/event/click");
-        return [
-          click.remove("tag"),
-        ];
+        return [click.remove()];
       })
       .block("Elements with no parents are roots.", ({find, record, lib, not}) => {
         let elem = find("{{tagPrefix}}/element");
