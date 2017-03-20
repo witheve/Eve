@@ -215,13 +215,13 @@ export class HTMLWatcher extends DOMWatcher<Instance> {
       .commit("Remove mouseenter events", ({find}) => {
         let event = find("html/event/mouseenter");
         return [
-          event.remove("tag"),
+          event.remove(),
         ];
       })
       .commit("Remove mouseleave events", ({find}) => {
         let event = find("html/event/mouseleave");
         return [
-          event.remove("tag"),
+          event.remove(),
         ];
       });
   }

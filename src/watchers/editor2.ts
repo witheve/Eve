@@ -1010,10 +1010,12 @@ class EditorWatcher extends Watcher {
         let {molecule} = molecule_list;
         let {atom} = molecule;
         let side = 15;
+        let molecule_grid;
         return [
           molecule_list.add("children", [
-            record("editor/molecule-list/molecule", "shape/hex-grid", {molecule, side, gap: 5}).add("cell", [
-              record("editor/molecule-list/molecule/cell", {molecule, atom, side})
+            molecule_grid = record("editor/molecule-list/molecule", "shape/hex-grid", "html/onmouseenter", "html/onmouseleave", {molecule, side, gap: 5}),
+            molecule_grid.add("cell", [
+              record("editor/molecule-list/molecule/cell", {molecule_grid, molecule, atom, side})
             ])
           ])
         ];
@@ -1044,13 +1046,18 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("Populate atom cells from their atoms.", ({find, record}) => {
+      .block("Populate atom cells from their atoms.", ({find, choose, record}) => {
         let atom_cell = find("editor/molecule-list/molecule/cell");
-        let {molecule, atom, side, x, y} = atom_cell;
+        let {molecule_grid, molecule, atom, side, x, y} = atom_cell;
         let {node} = atom;
-        let lineWidth = 1, strokeStyle = "#AAA";
+        let lineWidth = 1; //, strokeStyle = "#AAA";
+        let [strokeStyle] = choose(
+          () => {atom_cell.tag == "html/hovered"; return "#4444ff"},
+          () => {molecule_grid.tag == "html/hovered"; return "#aaaaff"},
+          () => "#aaa"
+        );
         return [
-          atom_cell.add({tag: "shape/hexagon", side, lineWidth, strokeStyle, x, y}).add("content", [
+          atom_cell.add({tag: ["shape/hexagon", "html/onmouseenter", "html/onmouseleave"],  side, lineWidth, strokeStyle, x, y}).add("content", [
             record("ui/text", {atom_cell, text: node.label, style: record({color: node.color})})
           ])
         ];
@@ -1071,6 +1078,21 @@ class EditorWatcher extends Watcher {
           // record("ui/text", {text: `x ${spiral.x} y ${spiral.y} | ix ${ix} | mag ${mag}`})
         ];
       })
+
+    //--------------------------------------------------------------------
+    // Molecule Interactions
+    //--------------------------------------------------------------------
+
+    this.editor
+      .commit("When an element is entered, mark it hovered.", ({find, record}) => {
+        let {element} = find("html/event/mouseenter");
+        return [element.add("tag", "html/hovered")];
+      })
+      .commit("When an element is left, clear it's hovered.", ({find, record}) => {
+        let {element} = find("html/event/mouseleave");
+        return [element.remove("tag", "html/hovered")];
+      })
+
   }
 }
 

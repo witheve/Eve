@@ -72,7 +72,7 @@
 
 /* Crazy tree positioning magic */
 
-.editor-node-tree-node-hex { position: absolute; left: -44; }
+.editor-node-tree-node-hex { position: absolute; left: -44; cursor: default; -webkit-user-select: none; }
 .editor-node-tree-node-pattern .editor-node-tree-node-hex { position: absolute; left: -59; }
 .editor-node-tree-node-pattern .editor-node-tree-node-pattern .editor-node-tree-node-hex { position: absolute; left: -74; }
 .editor-node-tree-node-pattern .editor-node-tree-node-pattern .editor-node-tree-node-pattern .editor-node-tree-node-hex { position: absolute; left: -89; }
@@ -104,6 +104,7 @@
 \****************************************************************************/
 .editor-molecule-list { position: relative; flex: 1; }
 .editor-molecule-list-molecule { position: relative; display: flex; flex: 0 0 auto; }
+.editor-molecule-list-molecule-cell { cursor: default; -webkit-user-select: none; }
 
 
 /****************************************************************************\
