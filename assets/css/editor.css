@@ -18,12 +18,14 @@
 
 .editor-view .editor-main { flex: 1; }
 
-.editor-view .editor-block-description {max-width: 480; padding: 10; margin-right: 20; flex: 1;}
-.editor-view .editor-block-title {font-size: 1.25em; margin-bottom: 0.25em; font-weight: 500; }
+.editor-view .editor-block-description {max-width: 480;padding: 10 0;margin-right: 20;flex: 1;font-size:  0.75em;}
+.editor-view .editor-block-title {font-size: 1rem;margin-bottom: 0.25em;font-weight: 500;}
 
 .editor-view .editor-block-storyboard { flex: 1; align-self: flex-start; }
 
 .editor-view .editor-block-frame { width: 162; height: 100; margin: 10; justify-content: center; align-items: center; border: 2px solid #888; border-radius: 3px; }
+.editor-view .editor-block-frame.active,
+.editor-view .editor-block-frame:not([open="true"]).active:hover{ background: #f0f0f0; }
 
 .editor-view .editor-block-frame:not([open="true"]):hover { background: #fcfcfc; }
 .editor-view .editor-block-frame:not([open="true"]):active { background: #f0f0f0; }
@@ -40,41 +42,62 @@
 /****************************************************************************\
  * Editor Block Query
 \****************************************************************************/
-.editor-view .editor-query-node { margin-bottom: 10; }
-.editor-view .editor-query-hex { margin: 10; }
-.editor-view .editor-query-hex > text { display: flex; }
-.editor-view .editor-query-pattern { margin-top: 20; position: relative; align-self: flex-start; width: 120; }
-.editor-view .editor-query-pattern:before {display: block;content: " ";position: absolute;top: 22;bottom: 0;left: 0;width: 0;border-left: 1px solid #ccc;}
 
-.editor-view .editor-query-pattern .editor-query-tag { margin-left: -1; font-weight: 500; }
-.editor-view .editor-query-pattern .editor-query-field {position: relative; padding-left: 10; }
-.editor-view .editor-query-pattern .editor-query-field:before { display: block; content: " "; position: absolute; top: 11; left: 0; width: 8; border-top: 1px solid #ccc; }
+.editor-node-tree { align-self: flex-start; padding-left: 44; }
+.editor-node-tree input {font-size: 1em; font-weight: inherit;font-family: inherit; border: none; color: inherit;}
+.editor-node-tree-node { position: relative; padding: 5 0; }
 
+.editor-node-tree-node-new > input {margin-top: 8; min-width: 40}
+.editor-node-tree-node-new > .button {margin-top: 8;}
+.editor-node-tree-node-new > .button:before {width: 1.3em; line-height: 1.3em;text-align: center; font-size: 0.9em; border: 1px solid #ccc; border-radius: 100px;}
 
+.editor-node-tree-node-pattern { margin-top: 11; margin-left: 15; }
+.editor-node-tree-node-pattern .editor-node-tree-node-pattern-name { margin-left: -15; margin-bottom: 8;}
+.editor-node-tree-node-pattern-field {position: relative; min-height: 22; z-index: 1; }
+.editor-node-tree-node-pattern-field > text:not(:last-child):after {content: ":"}
+.editor-node-tree-node-pattern-value {padding:0;padding-left: 5;}
 
-.editor-view .editor-query-pattern .editor-query-node-new-attribute { position: relative; padding-left: 10; }
-.editor-view .editor-query-pattern .editor-query-node-new-attribute:before { content: "+ "; font-weight: 100; color: #ccc; }
+.editor-node-tree-node-pattern div.button {position: relative;width: 40; line-height: 1.3em; margin-top: -4;margin-left: -34;margin-bottom:-4;font-size: 0.9em; color: #999; }
+.editor-node-tree-node-pattern div.button:before { width: 1.3em; line-height: 1.3em; text-align: center; border: 1px solid #ddd; border-radius: 100px; background: white; font-weight: 100; }
+.editor-node-tree-node-pattern div.button:after {content: " "; display: block; position: absolute; left: 50%; right: 5; top: 50%; margin-top: 0; z-index: -1; border-top: 1px solid #ccc; }
 
-.editor-view .editor-query-pattern column:last-child .editor-query-field:last-child:after,
-.editor-view .editor-query-pattern column:last-child .editor-query-node-new-attribute:last-child:after {display: block;content: " ";position: absolute;top: 11;bottom: 0;left:-1;width: 0;margin-top: 1px;border-left: 2px solid white;}
+.editor-node-tree-node-controls { position: absolute; top: 38; left: -21; padding: 4px 0;}
+.editor-node-tree-node-controls > div.button {position:relative; margin:0; margin-right: -4; ;z-index: 1;font-size:0.9em;}
 
-.editor-view .editor-query-pattern .editor-query-subnode:last-child .editor-query-node:after {display: block;content: " ";position: absolute;top: 31;bottom: -10;left:56;width: 0;margin-top: 1px;border-left: 1px solid white;}
+.editor-node-tree-node-controls:before {content: " ";display: block;position: absolute;top: 4;bottom: 18;right: -4;border-left: 1px solid #ccc;}
+.editor-node-tree-node-controls > div.button:before {width: 1.3em;margin-top: -5;text-align: center;line-height: 1.3em;border: 1px solid #ccc;border-radius: 100px;background: white;font-weight: 100;}
+.editor-node-tree-node-controls > div.button:after {content: " "; display: block; position: absolute; left: 50%; right: 0; top: 50%; margin-top: -3; z-index: -1; border-top: 1px solid #ccc; }
 
-.editor-query-pattern .editor-query-delete-node,
-.editor-query-pattern .editor-query-delete-field { color: #ff6666; }
+.editor-node-tree-node-field-new-attribute {min-width: 80; }
 
- .editor-query-pattern .editor-query-delete-field{ opacity: 0; transition: opacity 0.2s ease-out; }
-.editor-query-pattern .editor-query-field:hover .editor-query-delete-field { opacity: 1; }
+/* Crazy tree positioning magic */
 
-.editor-query-pattern .editor-query-subnode:nth-child(2) { margin-top: 10; }
-.editor-query-pattern .editor-query-subnode { margin-top: -12; z-index: 1; }
+.editor-node-tree-node-hex { position: absolute; left: -44; }
+.editor-node-tree-node-pattern .editor-node-tree-node-hex { position: absolute; left: -59; }
+.editor-node-tree-node-pattern .editor-node-tree-node-pattern .editor-node-tree-node-hex { position: absolute; left: -74; }
+.editor-node-tree-node-pattern .editor-node-tree-node-pattern .editor-node-tree-node-pattern .editor-node-tree-node-hex { position: absolute; left: -89; }
+.editor-node-tree-node-pattern .editor-node-tree-node-pattern .editor-node-tree-node-pattern .editor-node-tree-node-pattern .editor-node-tree-node-hex { position: absolute; left: -104; }
+/* okay, you win. */
 
-.editor-query-pattern .editor-query-subnode .editor-query-node { position: relative; left: -56; }
+.editor-node-tree-node-pattern-field:before {display: block;content: " ";position: absolute;top: 11;left: -13;width: 9;height: 1;border-top: 1px solid #ccc;}
 
-.editor-query-pattern .editor-query-subnode .editor-query-node .editor-query-pattern { padding-left: 10; }
-.editor-query-pattern .editor-query-subnode .editor-query-pattern:after { display: block; content: " "; position: absolute; top: 11; left: 0; width: 8; border-top: 1px solid #ccc; }
+.editor-node-tree-node-pattern-name:before {display: block;content: " ";position: absolute;top: 26;left: -13;width: 9;height: 1;border-top: 1px solid #ccc;}
+.editor-node-tree > .editor-node-tree-node > .editor-node-tree-node-pattern > row > .editor-node-tree-node-pattern-name:before {display: none; }
 
-.editor-query-pattern .editor-query-subnode .editor-query-field {border-left: 1px solid #ccc; }
+.editor-node-tree-node-pattern:before {display: block;content: " ";position: absolute; left: 1; top: 38; bottom: 6;width: 0;border-left: 1px solid #ccc;}
+
+.editor-node-tree-fields:last-child > .editor-node-tree-node-pattern-field:last-child:after {display: block;content: " ";position: absolute;top: 11;bottom: -10;left:-14;width: 0;margin-top: 1px;border-left: 2px solid white;}
+
+.editor-node-tree-subnodes:last-child .editor-node-tree-node:after {display: block;content: " ";position: absolute;top: 26;bottom: -10;left: -14;width: 0;margin-top: 1px;border-left: 1px solid white;}
+
+.editor-node-tree-node-pattern row:first-child:last-child > .editor-node-tree-node-pattern-name:after {display: block;content: " ";position: absolute;top: 38;bottom: 5;left:0;width: 0;border-left: 2px solid white;}
+
+.editor-node-tree-subnodes:nth-child(2) { margin-top: 20;}
+.editor-node-tree-subnodes:nth-child(3) { margin-top: 5;}
+
+/* Animations */
+.editor-node-tree-node-hex > canvas { transition: transform 0.2s ease-out; }
+.editor-node-tree-node[open="true"] > .editor-node-tree-node-hex > canvas { transform: rotateZ(60deg); }
 
 /****************************************************************************\
  * Editor Block Canvas
@@ -120,13 +143,13 @@
  * Shapes
 \****************************************************************************/
 
-.shape-hexagon { position: relative; }
-.shape-hexagon .shape-hexagon-body { justify-content: center; align-items: center; }
-.shape-hexagon .shape-hexagon-cap { }
+/* .shape-hexagon { position: relative; } */
+/* .shape-hexagon .shape-hexagon-body { justify-content: center; align-items: center; } */
+/* .shape-hexagon .shape-hexagon-cap { } */
 
-.shape-hexagon .shape-hexagon-inner {  }
+/* .shape-hexagon .shape-hexagon-inner {  } */
 
-.shape-hex-grid {position: relative;left: 70;}
+/* .shape-hex-grid {position: relative;left: 70;} */
 
 
 

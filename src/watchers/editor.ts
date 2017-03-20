@@ -606,7 +606,7 @@ class EditorWatcher extends Watcher {
 
           return [
             record("editor/query/node", "ui/row", {editor, sort: node.sort, node, frame: active_frame}).add("children", [
-              record("editor/query/hex", "shape/hexagon", {side: 21, thickness: 2, border: "#AAA", background: "white", sort: 0, frame: active_frame, node}).add("content", [
+              record("editor/query/hex", "shape/hexagon", {side: 21, lineWidth: 2, strokeStyle: "#AAA", fillStyle: "white", sort: 0, frame: active_frame, node}).add("content", [
                 record("ui/text", {text: node.label, style: record({color: node.color})})
               ]),
               record("editor/query/pattern", "ui/column", {sort: 1, frame: active_frame, node}).add("children", [
@@ -801,7 +801,7 @@ class EditorWatcher extends Watcher {
           return [
             query_elem.add("children", [
               record("ui/row", "editor/query/new-node", {sort: 9999, frame: active_frame}).add("children", [
-                record("shape/hexagon", {side: 21, thickness: 2, border: "#AAA", background: "white", class: "editor-query-hex"}).add("content", [
+                record("shape/hexagon", {side: 21, lineWidth: 2, strokeStyle: "#AAA", fillStyle: "white", class: "editor-query-hex"}).add("content", [
                   record("ui/text", {text: "+", style: record({color: "#AAA", "font-weight": 500})})
                 ]),
               ])
@@ -881,7 +881,7 @@ class EditorWatcher extends Watcher {
           return [
             canvas_elem.add({tag: "shape/hex-grid", side, gap}),
             canvas_elem.add("cell", [
-              record("shape/hexagon", "editor/atom/cell", {atom, molecule, side, x: atom.x, y: atom.y, background: "white", thickness: 2, border: "#ccc"}).add("content", [
+              record("shape/hexagon", "editor/atom/cell", {atom, molecule, side, x: atom.x, y: atom.y, fillStyle: "white", lineWidth: 2, strokeStyle: "#ccc"}).add("content", [
                 record("ui/text", {atom, molecule, text: `${atom.node.label} ${molecule.sort}`, style: record({color: atom.node.color})})
               ])
             ])
@@ -986,12 +986,12 @@ class EditorWatcher extends Watcher {
         let {atom} = molecule;
 
         let side = 30;
-        let gap = 3;
+        let gap = 5;
 
         return [
           canvas_elem.add("children", [
             record("shape/hex-grid", {frame, side, gap}).add("cell", [
-              record("shape/hexagon", "editor/atom/cell", {atom, molecule, side, x: atom.x, y: atom.y, background: "white", thickness: 2, border: "#ccc"}).add("content", [
+              record("shape/hexagon", "editor/atom/cell", {atom, molecule, side, x: atom.x, y: atom.y, fillStyle: "white", lineWidth: 2, strokeStyle: "#ccc"}).add("content", [
                 record("ui/text", {atom, molecule, text: `${atom.node.label} ${molecule.sort}`, style: record({color: atom.node.color})})
               ])
             ])
@@ -1491,7 +1491,7 @@ class EditorWatcher extends Watcher {
           type: "query",
           sort: 1,
           node: [
-            appendAsEAVs([], {tag: ["editor/query-node", "editor/root-node"], type: "join", sort: 1, name: "person", query_tag: "person", query_field: ["name", "age"]}),
+            //appendAsEAVs([], {tag: ["editor/query-node", "editor/root-node"], type: "join", sort: 1, name: "person", query_tag: "person", query_field: ["name", "age"]}),
           ]
         }, FRAME_PPL_W_BOATS_QUERY_ID),
         appendAsEAVs([], {

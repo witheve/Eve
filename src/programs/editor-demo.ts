@@ -1,7 +1,7 @@
 import {Program} from "../watchers/watcher";
 
 let prog = new Program("test");
-prog.attach("editor");
+prog.attach("editor2");
 
 prog.commit("Add some data to play with.", ({find, record}) => {
   find("turtle");

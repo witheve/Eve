@@ -23,5 +23,6 @@ import * as testUtil from "../test/util";
 // import "./programs/compiler";
 // import "./programs/hover";
 // import "./programs/canvas-demo";
-import "./programs/shape-demo";
-//import "./programs/editor-demo";
+// import "./programs/shape-demo";
+// import "./programs/ui-demo";
+import "./programs/editor-demo";
