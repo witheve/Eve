@@ -842,9 +842,15 @@ class EditorWatcher extends Watcher {
               //@FIXME: Bogus scan to hint to the compiler watcher that it shouldn't try to gen an id.
               record({attribute: "tag", value: record("editor/bogus-var", "eve/compiler/var", {node})})
             ]),
-            record("editor/atom/output", "eve/compiler/output", {generator, node, record: node.entity}).add("attribute", [
+            record("editor/atom/output", "eve/compiler/output", {
+              generator, node, record: record("editor/atom/output/entity", "eve/compiler/var", {node})
+            }).add("attribute", [
               record({attribute: "tag", value: "editor/atom"}),
+              record({attribute: "record", value: node.entity}),
               record({attribute: "node", value: node})
+            ]),
+            record("editor/record/output", "eve/compiler/output", {generator, node, record: node.entity}).add("attribute", [
+              record({attribute: "tag", value: "editor/record"})
             ])
           ])
         ];
@@ -860,7 +866,7 @@ class EditorWatcher extends Watcher {
       .block("Attach attributes to atom records and outputs.", ({find, choose, record}) => {
         let atom_record = find("editor/atom/record");
         let {generator, node} = atom_record;
-        let atom_output = find("editor/atom/output", {node});
+        let record_output = find("editor/record/output", {node});
         let {attribute} = node;
         let [value] = choose(
           () => attribute.value,
@@ -873,7 +879,7 @@ class EditorWatcher extends Watcher {
 
         return [
           atom_record.add("attribute", record({attribute: attribute.attribute, value})),
-          atom_output.add("attribute", [
+          record_output.add("attribute", [
             record({tag: identifying, attribute: attribute.attribute, value}),
           ])
         ];
@@ -883,6 +889,7 @@ class EditorWatcher extends Watcher {
         let {block} = generator;
         let {node} = block;
         node.tag == "root-node";
+        let atom_output_entity = find("editor/atom/output/entity", {node});
         let molecule_entity;
         return [
           molecule_entity = record("editor/molecule/entity", "eve/compiler/var", {node}),
@@ -890,10 +897,10 @@ class EditorWatcher extends Watcher {
             record("editor/molecule/output", "eve/compiler/output", {generator, node, record: molecule_entity})
               .add("parent", node)
               .add("attribute", [
-                record({attribute: "atom", value: node.entity}),
+                record({attribute: "atom", value: atom_output_entity}),
                 record({attribute: "tag", value: "editor/molecule"}),
                 record({attribute: "block", value: block}),
-                record({attribute: "node", value: node}),
+                record("editor/mol-av", {attribute: "node", value: node}),
               ])
           ])
         ];
@@ -905,10 +912,11 @@ class EditorWatcher extends Watcher {
         let {block} = generator;
         let {node} = block;
         node.parent == molecule.parent;
+        let atom_output_entity = find("editor/atom/output/entity", {node});
         return [
           molecule.add({
             parent: node,
-            attribute: record("eve/compiler/attribute/non-identity", {attribute: "atom", value: node.entity})
+            attribute: record("eve/compiler/attribute/non-identity", {attribute: "atom", value: atom_output_entity})
           })
         ];
       })
