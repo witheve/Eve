@@ -574,10 +574,19 @@ class EditorWatcher extends Watcher {
         not(() =>  find("html/event/click", {element: new_node}));
         return [new_node.remove("open")];
       })
-      .commit("Clicking the new node save button commits and closes it.", ({find, not, record}) => {
+      .block("Clicking the new node save button saves it.", ({find, not, record}) => {
         let save_new = find("editor/node-tree/node/new/save");
         find("html/event/click", {element: save_new});
         let {new_node} = save_new;
+        return [record("editor/event/save-node", {new_node})];
+      })
+      .block("selecting a tag in the new node autocomplete saves it.", ({find, not, record}) => {
+        let tag_autocomplete = find("editor/node-tree/node/new/tag");
+        let {new_node, selected} = tag_autocomplete;
+        return [record("editor/event/save-node", {new_node})];
+      })
+      .commit("Saving a new node commits, resets, and closes it.", ({find, not, record}) => {
+        let {new_node} = find("editor/event/save-node");
         let tag_autocomplete = find("editor/node-tree/node/new/tag");
         let {value} = tag_autocomplete;
         let tag_input = find("ui/autocomplete/input", {autocomplete: tag_autocomplete});
@@ -608,10 +617,32 @@ class EditorWatcher extends Watcher {
         return [field.remove("open")];
       })
 
-      .commit("Clicking the new field button adds a new attribute to the node.", ({find, choose, gather, record}) => {
+      .block("Clicking the new field save button saves it.", ({find, record}) => {
         let add_field = find("editor/node-tree/node/field/new");
         let event = find("html/event/click", {element: add_field})
         let {tree_node} = add_field;
+        return [record("editor/event/save-field", {tree_node})];
+      })
+      .commit("Clicking the new field save button focuses it's autocomplete.", ({find}) => {
+        let add_field = find("editor/node-tree/node/field/new");
+        let {tree_node} = add_field;
+        let event = find("html/event/click", {element: add_field})
+        let field_autocomplete = find("editor/node-tree/node/field/new/attribute", {tree_node});
+        return [field_autocomplete.add("tag", "html/trigger-focus")];
+      })
+      .commit("Blurring an autocomplete removes it's trigger-focus.", ({find, record}) => {
+        let field_autocomplete = find("editor/node-tree/node/field/new/attribute", "html/trigger-focus");
+        let input = find("ui/autocomplete/input", {autocomplete: field_autocomplete});
+        let event = find("html/event/blur", {element: input});
+        return [field_autocomplete.remove("tag", "html/trigger-focus")];
+      })
+      .block("Selecting a completion in the new field autocomplete saves it.", ({find, not, record}) => {
+        let field_autocomplete = find("editor/node-tree/node/field/new/attribute");
+        let {tree_node, selected} = field_autocomplete;
+        return [record("editor/event/save-field", {tree_node})];
+      })
+      .commit("Saving a new field adds a new attribute to the node.", ({find, choose, gather, record}) => {
+        let {tree_node} = find("editor/event/save-field");
         let {node} = tree_node;
         let field_autocomplete = find("editor/node-tree/node/field/new/attribute", {tree_node});
         let field_input = find("ui/autocomplete/input", {autocomplete: field_autocomplete});
@@ -625,7 +656,7 @@ class EditorWatcher extends Watcher {
         //   return attribute.sort + 1;
         // }, () => 1);
         return [
-          node.add("attribute", record("node/attribute", {sort: event, attribute: value})),
+          node.add("attribute", record("node/attribute", {sort: "@FIXME", attribute: value})),
           field_input.remove("value")
         ];
       })
