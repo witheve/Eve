@@ -34,7 +34,7 @@ function isOperationType(val:RawValue): val is OperationType {
 
 const EMPTY = {};
 
-export interface Canvas extends HTMLCanvasElement { __element?: RawValue, __paths?: RawValue[] }
+export interface Canvas extends HTMLCanvasElement { __element?: RawValue }
 type OperationType = keyof Path2D;
 export interface Operation {type: OperationType, args:any, paths:RawValue[]};
 // {fillStyle: "#000000", strokeStyle: "#000000", lineWidth: 1, lineCap: "butt", lineJoin: "miter"}
@@ -42,30 +42,53 @@ export interface PathStyle {[key:string]: RawValue|undefined, fillStyle?:string,
 
 class CanvasWatcher extends Watcher {
   html:HTMLWatcher;
-  canvases:RawMap<Canvas|undefined> = {};
+  canvases:RawMap<RawValue[]|undefined> = {};
   paths:RawMap<RawValue[]|undefined> = {};
-  pathStyles:RawMap<PathStyle|undefined> = {};
   operations:RawMap<Operation|undefined> = {};
+  canvasPaths:RawMap<RawValue[]|undefined> = {};
+  pathToCanvases:RawMap<RawValue[]|undefined> = {};
+  pathStyles:RawMap<PathStyle|undefined> = {};
   pathCache:RawMap<Path2D|undefined> = {};
   dirty:RawMap<boolean|undefined> = {};
-  pathToCanvases:RawMap<RawValue[]|undefined> = {};
 
-  addCanvas(id:RawValue) {
-    if(this.canvases[id]) throw new Error(`Recreating canvas instance ${maybeIntern(id)}`);
-    let elements = this.html.elementToInstances[id];
-    // if(!elements || !elements.length) throw new Error(`No matching canvas instance found for ${id}.`);
-    if(!elements || !elements.length) return; // @FIXME: Really seems like this is an error case...
-    if(elements.length > 1) throw new Error(`Multiple canvas instances found for ${id}.`);
-    return this.canvases[id] = this.html.getInstance(elements[0]) as HTMLCanvasElement;
+  // addCanvas(canvasId:RawValue, instanceId:RawValue) {
+  //   if(this.canvases[id]) throw new Error(`Recreating canvas instance ${maybeIntern(id)}`);
+  //   let elements = this.html.elementToInstances[id];
+  //   // if(!elements || !elements.length) throw new Error(`No matching canvas instance found for ${id}.`);
+  //   if(!elements || !elements.length) return; // @FIXME: Really seems like this is an error case...
+  //   if(elements.length > 1) throw new Error(`Multiple canvas instances found for ${id}.`);
+  //   return this.canvases[id] = this.html.getInstance(elements[0]) as HTMLCanvasElement;
+  // }
+  // clearCanvas(id:RawValue) {
+  //   if(!this.canvases[id]) throw new Error(`Missing canvas instance ${maybeIntern(id)}`);
+  //   this.canvases[id] = undefined;
+  // }
+  // getCanvas(id:RawValue) {
+  //   let canvas = this.canvases[id];
+  //   if(!canvas) throw new Error(`Missing canvas instance ${maybeIntern(id)}`);
+  //   return canvas;
+  // }
+
+  addCanvasInstance(canvasId:RawValue, instanceId:RawValue) {
+    let instances = this.canvases[canvasId] = this.canvases[canvasId] || [];
+    instances.push(instanceId);
   }
-  clearCanvas(id:RawValue) {
-    if(!this.canvases[id]) throw new Error(`Missing canvas instance ${maybeIntern(id)}`);
-    this.canvases[id] = undefined;
+  clearCanvasInstance(canvasId:RawValue, instanceId:RawValue) {
+    let instances = this.canvases[canvasId];
+    if(!instances) return; // @FIXME: Seems like an error though
+    let ix = instances.indexOf(instanceId);
+    if(ix !== -1) {
+      instances.splice(ix, 1);
+      if(!instances.length) this.canvases[canvasId] = undefined;
+    }
   }
-  getCanvas(id:RawValue) {
-    let canvas = this.canvases[id];
-    if(!canvas) throw new Error(`Missing canvas instance ${maybeIntern(id)}`);
-    return canvas;
+  getCanvasInstances(canvasId:RawValue) {
+    let instances = this.canvases[canvasId];
+    if(!instances) throw new Error(`Missing canvas instance(s) for ${maybeIntern(canvasId)}`);
+    return instances;
+  }
+  getCanvasPaths(canvasId:RawValue) {
+    return this.canvasPaths[canvasId];
   }
 
   addPath(id:RawValue) {
@@ -145,26 +168,28 @@ class CanvasWatcher extends Watcher {
     }
 
     for(let canvasId of Object.keys(dirtyCanvases)) {
-      let canvas = this.getCanvas(canvasId);
-      let ctx = canvas.getContext("2d")!;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      let pathIds = this.canvasPaths[canvasId];
+      for(let instanceId of this.getCanvasInstances(canvasId)) {
+        let canvas = this.html.getInstance(instanceId) as Canvas;
+        let ctx = canvas.getContext("2d")!;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if(!pathIds) continue;
 
-      let pathIds = canvas.__paths;
-      if(!pathIds) continue;
-      for(let id of pathIds) {
-        let cached = this.pathCache[id];
-        if(!cached) continue // This thing isn't a path (yet?)
+        for(let id of pathIds) {
+          let cached = this.pathCache[id];
+          if(!cached) continue // This thing isn't a path (yet?)
 
-        let style = this.pathStyles[id] || EMPTY as PathStyle;
-        let {fillStyle = "#000000", strokeStyle = "#000000", lineWidth = 1, lineCap = "butt", lineJoin = "miter"} = style;
-        ctx.fillStyle = fillStyle;
-        ctx.strokeStyle = strokeStyle;
-        ctx.lineWidth = lineWidth;
-        ctx.lineCap = lineCap;
-        ctx.lineJoin = lineJoin;
-        if(style.strokeStyle) ctx.stroke(cached);
-        if(style.fillStyle || !style.strokeStyle) ctx.fill(cached);
+          let style = this.pathStyles[id] || EMPTY as PathStyle;
+          let {fillStyle = "#000000", strokeStyle = "#000000", lineWidth = 1, lineCap = "butt", lineJoin = "miter"} = style;
+          ctx.fillStyle = fillStyle;
+          ctx.strokeStyle = strokeStyle;
+          ctx.lineWidth = lineWidth;
+          ctx.lineCap = lineCap;
+          ctx.lineJoin = lineJoin;
+          if(style.strokeStyle) ctx.stroke(cached);
+          if(style.fillStyle || !style.strokeStyle) ctx.fill(cached);
 
+        }
       }
     }
   }
@@ -185,13 +210,24 @@ class CanvasWatcher extends Watcher {
         return [canvas.add({tag: "html/element", tagname: "canvas"})]
       })
 
-      .watch("Export canvas roots.", ({find}) => {
+      // .watch("Export canvas roots.", ({find}) => {
+      //   let canvas = find("canvas/root");
+      //   return [canvas.add("tag", "canvas/root")]
+      // })
+      // .asDiffs((diffs) => {
+      //   for(let [e] of diffs.adds) this.addCanvas(e);
+      //   for(let [e] of diffs.removes) this.clearCanvas(e);
+      //   setImmediate(this.changed);
+      // })
+
+      .watch("Export canvas instances.", ({find}) => {
         let canvas = find("canvas/root");
-        return [canvas.add("tag", "canvas/root")]
+        let instance = find("html/instance", {element: canvas});
+        return [canvas.add("instance", instance)]
       })
       .asDiffs((diffs) => {
-        for(let [e] of diffs.adds) this.addCanvas(e);
-        for(let [e] of diffs.removes) this.clearCanvas(e);
+        for(let [canvas, _, instance] of diffs.adds) this.addCanvasInstance(canvas, instance);
+        for(let [canvas, _, instance] of diffs.removes) this.clearCanvasInstance(canvas, instance);
         setImmediate(this.changed);
       })
 
@@ -237,8 +273,9 @@ class CanvasWatcher extends Watcher {
         removeIds.sort(ixComparator(diffs.removes)).reverse();
         for(let removeId of removeIds) {
           let {canvas:canvasId, child:childId, ix} = diffs.removes[removeId];
-          let canvas = this.canvases[canvasId];
-          let paths = canvas && canvas.__paths;
+          let instances = this.canvases[canvasId];
+
+          let paths = this.canvasPaths[canvasId];
           if(paths) paths.splice(ix - 1, 1);
           let canvases = this.pathToCanvases[childId] = this.pathToCanvases[childId];
           if(canvases) {
@@ -254,8 +291,7 @@ class CanvasWatcher extends Watcher {
         addIds.sort(ixComparator(diffs.adds));
         for(let addId of addIds) {
           let {canvas:canvasId, child:childId, ix} = diffs.adds[addId];
-          let canvas = this.getCanvas(canvasId);
-          let paths = canvas.__paths = canvas.__paths || [];
+          let paths = this.canvasPaths[canvasId] = this.canvasPaths[canvasId] || [];
           paths.splice(ix - 1, 0, childId)
           let canvases = this.pathToCanvases[childId] = this.pathToCanvases[childId] || [];
           canvases.push(canvasId);
