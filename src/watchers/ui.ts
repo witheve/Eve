@@ -314,9 +314,20 @@ export class UIWatcher extends Watcher {
         let input = find("ui/autocomplete/input");
         return [input.add({initial: input.autocomplete.initial})];
       })
-      .block("An autocompletes value is it's inputs.", ({find}) => {
+      .block("Copy trigger focus.", ({find}) => {
+        let autocomplete = find("ui/autocomplete", "html/trigger-focus");
+        let input = find("ui/autocomplete/input", {autocomplete});
+        return [input.add({tag: "html/trigger-focus"})];
+      })
+      .block("Copy autosize input.", ({find}) => {
+        let autocomplete = find("ui/autocomplete", "html/autosize-input");
+        let input = find("ui/autocomplete/input", {autocomplete});
+        return [input.add({tag: "html/autosize-input"})];
+      })
+      .block("An autocompletes value is it's input's.", ({find, choose}) => {
         let input = find("ui/autocomplete/input");
-        return [input.autocomplete.add("value", input.value)];
+        let [value] = choose(() => input.value, () => "");
+        return [input.autocomplete.add("value", value)];
       })
       .commit("If an autocomplete's value disagrees with it's selected, clear the selected.", ({find}) => {
         let autocomplete = find("ui/autocomplete");
