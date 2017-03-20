@@ -291,8 +291,21 @@ class EditorWatcher extends Watcher {
         let new_node = find("editor/node-tree/node/new", {open: "true"});
         return [
           new_node.add("children", [
-            record("editor/node-tree/node/new/tag", "ui/input", "html/trigger-focus", "html/autosize-input", {sort: 2, new_node, placeholder: "tag..."}),
+            record("editor/node-tree/node/new/tag", "ui/autocomplete", "html/trigger-focus", "html/autosize-input", {sort: 2, new_node, placeholder: "tag..."}),
             record("editor/node-tree/node/new/save", "ui/button", {sort: 3, new_node, icon: "android-add"})
+          ])
+        ];
+      })
+
+      .block("Fill tag completions.", ({find, record}) => {
+        let new_tag = find("editor/node-tree/node/new/tag");
+        return [
+          new_tag.add("completion", [
+            record({text: "person"}),
+            record({text: "pet"}),
+            record({text: "boat"}),
+            record({text: "dock"}),
+            record({text: "cat"}),
           ])
         ];
       })
@@ -526,8 +539,9 @@ class EditorWatcher extends Watcher {
         let save_new = find("editor/node-tree/node/new/save");
         find("html/event/click", {element: save_new});
         let {new_node} = save_new;
-        let tag_input = find("editor/node-tree/node/new/tag");
-        let {value} = tag_input;
+        let tag_autocomplete = find("editor/node-tree/node/new/tag");
+        let {value} = tag_autocomplete;
+        let tag_input = find("ui/autocomplete/input", {autocomplete: tag_autocomplete});
         value != "";
         let {tree} = new_node;
         let {active_block} = tree.editor;

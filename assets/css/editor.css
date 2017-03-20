@@ -47,8 +47,8 @@
 .editor-node-tree input {font-size: 1em; font-weight: inherit;font-family: inherit; border: none; color: inherit;}
 .editor-node-tree-node { position: relative; padding: 5 0; }
 
-.editor-node-tree-node-new > input {margin-top: 8; min-width: 40}
-.editor-node-tree-node-new > .button {margin-top: 8;}
+.editor-node-tree-node-new > .ui-autocomplete {margin-top: 10; width: 140}
+.editor-node-tree-node-new > .button {margin-top: 7;}
 .editor-node-tree-node-new > .button:before {width: 1.3em; line-height: 1.3em;text-align: center; font-size: 0.9em; border: 1px solid #ccc; border-radius: 100px;}
 
 .editor-node-tree-node-pattern { margin-top: 11; margin-left: 15; }
