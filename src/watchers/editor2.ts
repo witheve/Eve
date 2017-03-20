@@ -443,7 +443,7 @@ class EditorWatcher extends Watcher {
         let [value] = choose(() => attribute.value, () => "");
         return [
           field.add("children", [
-            record("editor/node-tree/node/pattern/value", "ui/input", "html/trigger-focus", "html/autosize-input", {sort: 2, tree_node, initial: value})
+            record("editor/node-tree/node/pattern/value", "ui/input", "html/trigger-focus", "html/autosize-input", {sort: 2, tree_node, attribute, initial: value})
           ])
         ];
       })
@@ -668,6 +668,17 @@ class EditorWatcher extends Watcher {
           node.remove("attribute", attribute),
           attribute.remove()
         ];
+      })
+
+      .block("Blurring a field's value input saves it.", ({find, record}) => {
+        let field_value = find("editor/node-tree/node/pattern/value");
+        let {value} = find("html/event/blur", {element: field_value});
+        let {tree_node, attribute} = field_value;
+        return [record("editor/event/save-value", {tree_node, attribute, value})];
+      })
+      .commit("Saving a field value commits it to the attribute.", ({find, record}) => {
+        let {attribute, value} = find("editor/event/save-value");
+        return [attribute.remove("value").add("value", value)];
       })
   }
 
