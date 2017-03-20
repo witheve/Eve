@@ -405,6 +405,10 @@ export class CompilerWatcher extends Watcher {
       for(let key in adds) {
         let {block, id, attribute, attributeType} = adds[key];
         let found = items[id];
+        if(!found) {
+          console.warn("This seems pretty bad.");
+          continue;
+        }
         if(attributeType === "identity") {
           found.attributes.push([attribute, undefined]);
         } else {
