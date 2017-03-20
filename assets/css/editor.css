@@ -38,7 +38,7 @@
 .editor-view .editor-block-content { flex: 1; }
 
 /****************************************************************************\
- * Editor Block Query
+ * Editor Node Tree
 \****************************************************************************/
 
 .editor-node-tree { align-self: flex-start; padding-left: 44; padding-top: 16; }
@@ -100,12 +100,17 @@
 .editor-node-tree-node[open="true"] > .editor-node-tree-node-hex > canvas { transform: rotateZ(60deg); }
 
 /****************************************************************************\
+ * Editor Molecule List
+\****************************************************************************/
+.editor-molecule-list { position: relative; flex: 1; }
+.editor-molecule-list-molecule { position: relative; display: flex; flex: 0 0 auto; }
+
+
+/****************************************************************************\
  * Editor Block Canvas
 \****************************************************************************/
-.editor-view .editor-block-query-canvas { position: relative; flex: 1; }
+.editor-view .editor-query-tree { width: 180; margin-right: 10; }
 
-
-.editor-view .editor-molecule-infobox { position: absolute; top: 400; padding: 10; margin: 10; z-index: 2; border: 1px solid gray; background: rgba(255, 255, 255, 0.5); }
 
 /****************************************************************************\
  * Data Editor

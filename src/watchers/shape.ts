@@ -102,7 +102,7 @@ class ShapeWatcher extends Watcher {
       let hex_grid = find("shape/hex-grid");
 
       let {side, gap} = hex_grid;
-      let cell = hex_grid.cell;
+      let {cell} = hex_grid;
       let {x:x_ix, y:y_ix} = cell;
 
       let top_gap = gap * 0.86603; // sin(60deg)

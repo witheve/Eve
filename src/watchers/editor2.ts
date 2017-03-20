@@ -91,6 +91,30 @@ class EditorWatcher extends Watcher {
         return [attribute.remove("value", "")];
       })
 
+      .block("A node's name is it's parent_field if it has one, or it's tag attribute.", ({find, choose}) => {
+        let node = find("node");
+        let [name] = choose(
+          () => node.parent_field,
+          () => {
+            let {attribute} = node;
+            attribute.attribute == "tag";
+            return attribute.value;
+          },
+          () => "???"
+        );
+        return [node.add("name", name)]
+      })
+      .block("A node's label is the uppercased first character of it's name.", ({find, lib:{string}}) => {
+        let node = find("node");
+        let {name} = node;
+        let label = string.uppercase(string.get(name, 1));
+        return [node.add("label", label)];
+      })
+      .block("FIXME: A node's color is gray.", ({find, lib:{string}}) => {
+        let node = find("node");
+        return [node.add("color", "gray")];
+      })
+
     this.navigation();
     this.header();
 
@@ -98,6 +122,7 @@ class EditorWatcher extends Watcher {
     this.queryEditor();
 
     this.moleculeGenerator();
+    this.moleculeLayout();
 
     this.fixtures();
     this.initEditor();
@@ -121,6 +146,25 @@ class EditorWatcher extends Watcher {
       [STYLE_ID, "href", "assets/css/editor.css"],
       ["|init", "tag", "editor/init"]
     ];
+
+    // @NOTE: To get successive layers, multiply offsets by magnitude = ceil(mod(ix - 2, 6) + 2)
+    // @NOTE: Take special care about the 0,0, in ix: 1.
+    appendAsEAVs(fixture, {tag: "spiral", row: 1, sort: 1, x: 0, y: 0});
+    appendAsEAVs(fixture, {tag: "spiral", row: 1, sort: 2, x: 1, y: 0});
+    appendAsEAVs(fixture, {tag: "spiral", row: 1, sort: 3, x: 1, y: 1});
+    appendAsEAVs(fixture, {tag: "spiral", row: 1, sort: 4, x: 0, y: 1});
+    appendAsEAVs(fixture, {tag: "spiral", row: 1, sort: 5, x: -1, y: 0});
+    appendAsEAVs(fixture, {tag: "spiral", row: 1, sort: 6, x: 0, y: -1});
+    appendAsEAVs(fixture, {tag: "spiral", row: 1, sort: 7, x: 1, y: -1});
+
+    appendAsEAVs(fixture, {tag: "spiral", row: 0, sort: 1, x: 0, y: 0});
+    appendAsEAVs(fixture, {tag: "spiral", row: 0, sort: 2, x: 1, y: 0});
+    appendAsEAVs(fixture, {tag: "spiral", row: 0, sort: 3, x: 0, y: 1});
+    appendAsEAVs(fixture, {tag: "spiral", row: 0, sort: 4, x: -1, y: 1});
+    appendAsEAVs(fixture, {tag: "spiral", row: 0, sort: 5, x: -1, y: 0});
+    appendAsEAVs(fixture, {tag: "spiral", row: 0, sort: 6, x: -1, y: -1});
+    appendAsEAVs(fixture, {tag: "spiral", row: 0, sort: 7, x: 0, y: -1});
+
 
     this.editor.inputEavs(fixture);
   }
@@ -180,7 +224,7 @@ class EditorWatcher extends Watcher {
         let tree_node = find("editor/node-tree/node");
         let {node} = tree_node;
         let completion = find("editor/existing-node-attribute");
-        completion.name == tree_node.name
+        completion.name == node.name
 
         return [completion.add("node", node)];
       })
@@ -192,11 +236,11 @@ class EditorWatcher extends Watcher {
           record("editor/existing-node-attribute", {name: "person", text: "name"}),
           record("editor/existing-node-attribute", {name: "person", text: "age"}),
           record("editor/existing-node-attribute", {name: "person", text: "boat", is_record: "true"}),
-          record("editor/existing-node-attribute", {name: "person", text: "tag"}),
+          //record("editor/existing-node-attribute", {name: "person", text: "tag"}),
           record("editor/existing-node-attribute", {name: "boat", text: "name"}),
           record("editor/existing-node-attribute", {name: "boat", text: "type"}),
           record("editor/existing-node-attribute", {name: "boat", text: "dock", is_record: "true"}),
-          record("editor/existing-node-attribute", {name: "boat", text: "tag"}),
+          //record("editor/existing-node-attribute", {name: "boat", text: "tag"}),
           record("editor/existing-node-attribute", {name: "dock", text: "name"}),
           record("editor/existing-node-attribute", {name: "dock", text: "state"}),
           record("editor/existing-node-attribute", {name: "pet", text: "length"}),
@@ -387,39 +431,16 @@ class EditorWatcher extends Watcher {
           ])
         ];
       })
-      .block("A node's name is it's parent_field if it has one, or it's tag attribute.", ({find, choose}) => {
-        let tree_node = find("editor/node-tree/node");
-        let {node} = tree_node;
-        let [name] = choose(
-          () => node.parent_field,
-          () => {
-            let {attribute} = node;
-            attribute.attribute == "tag";
-            return attribute.value;
-          },
-          () => "???"
-        );
-        return [tree_node.add("name", name)]
-      })
-      .block("A node's label is the uppercased first character of it's name.", ({find, lib:{string}}) => {
-        let tree_node = find("editor/node-tree/node");
-        let {name} = tree_node;
-        let label = string.uppercase(string.get(name, 1));
-        return [tree_node.add("label", label)];
-      })
-      .block("FIXME: A node's color is gray.", ({find, lib:{string}}) => {
-        let tree_node = find("editor/node-tree/node");
-        return [tree_node.add("color", "gray")];
-      })
 
       .block("A node consists of a hex, and a pattern.", ({find, record}) => {
         let tree_node = find("editor/node-tree/node");
-        let {tree, color} = tree_node;
+        let {tree, node} = tree_node;
+        let {color, label} = node;
         let side = 21, lineWidth = 1, strokeStyle = "#AAA";
         return [
           tree_node.add({tag: "ui/row"}).add("children", [
             record("editor/node-tree/node/hex", "shape/hexagon", {sort: 0, tree_node, side, lineWidth, strokeStyle}).add("content", [
-              record("ui/text", {text: tree_node.label, style: record({color})})
+              record("ui/text", {text: label, style: record({color})})
             ]),
             record("editor/node-tree/node/pattern", {sort: 1, tree_node})
           ])
@@ -429,7 +450,7 @@ class EditorWatcher extends Watcher {
       .block("A node pattern is a column of fields on the node.", ({find, record}) => {
         let node_pattern = find("editor/node-tree/node/pattern");
         let {tree_node} = node_pattern;
-        let {name} = tree_node;
+        let {name} = tree_node.node;
 
         return [
           node_pattern.add({tag: "ui/column"}).add("children", [
@@ -445,7 +466,7 @@ class EditorWatcher extends Watcher {
         let {tree_node} = node_pattern;
         let {node} = tree_node;
         let {attribute} = node;
-        not(() => {attribute.attribute == "tag"; attribute.value == tree_node.name});
+        not(() => {attribute.attribute == "tag"; attribute.value == node.name});
         not(() => attribute.value == find("entity"));
         let [sort] = choose(() => `z${attribute.sort}`, () => attribute.attribute, () => 999);
         return [
@@ -470,8 +491,9 @@ class EditorWatcher extends Watcher {
       .block("If a node's attribute has a value, display them in it's field.", ({find, not, record}) => {
         let field = find("editor/node-tree/node/pattern/field");
         let {tree_node, attribute} = field;
+        let {node} = tree_node;
         not(() => field.open);
-        not(() => {attribute.attribute == "tag"; attribute.value == tree_node.name});
+        not(() => {attribute.attribute == "tag"; attribute.value == node.name});
         return [
           field.add("children", [
             record("editor/node-tree/node/pattern/value", "ui/text", {sort: 2, tree_node, text: attribute.value})
@@ -756,21 +778,28 @@ class EditorWatcher extends Watcher {
         let {editor} = content;
         return [
           content.add("children", [
-            record("editor/node-tree", "editor/query-tree", {editor})
+            record("editor/node-tree", "editor/query-tree", {sort: 1, editor}),
+            record("editor/molecule-list", "editor/query-molecules", {sort: 2, editor})
           ])
         ]
       })
-      .block("Fill the tree with the active block's nodes..", ({find, record}) => {
+      .block("Fill the tree with the active block's nodes.", ({find, record}) => {
         let node_tree = find("editor/query-tree");
         let {editor} = node_tree;
-        let {active_block} = editor;
         return [node_tree.add("node", editor.active_block.node)];
+      })
+      .block("Fill the list with the active block's molecules.", ({find, record}) => {
+        let molecule_list = find("editor/query-molecules");
+        let {editor} = molecule_list;
+        let molecule = find("editor/molecule", {block: editor.active_block})
+        return [molecule_list.add("molecule", molecule)];
       })
   }
 
   //--------------------------------------------------------------------
   // Molecule Generator
   //--------------------------------------------------------------------
+
   moleculeGenerator() {
     this.editor
       .block("Create a molecule generator for the active block if it has any nodes.", ({find, record}) => {
@@ -836,14 +865,109 @@ class EditorWatcher extends Watcher {
         return [
           molecule_entity = record("editor/molecule/entity", "eve/compiler/var", {node}),
           generator.add("constraint", [
-            record("editor/molecule/output", "eve/compiler/output", {generator, node, record: molecule_entity}).add("attribute", [
-              record({attribute: "atom", value: node.entity}),
-              record({attribute: "tag", value: "editor/molecule"}),
-              record({attribute: "node", value: node})
+            record("editor/molecule/output", "eve/compiler/output", {generator, node, record: molecule_entity})
+              .add("parent", node)
+              .add("attribute", [
+                record({attribute: "atom", value: node.entity}),
+                record({attribute: "tag", value: "editor/molecule"}),
+                record({attribute: "block", value: block}),
+                record({attribute: "node", value: node})
+              ])
+          ])
+        ];
+      })
+
+      .block("Attach subnode atoms to their parent's molecules.", ({find, record}) => {
+        let molecule = find("editor/molecule/output");
+        let {generator} = molecule;
+        let {block} = generator;
+        let {node} = block;
+        node.parent == molecule.parent;
+        return [
+          molecule.add({
+            parent: node,
+            attribute: record("eve/compiler/attribute/non-identity", {attribute: "atom", value: node.entity})
+          })
+        ];
+      })
+  }
+
+  //--------------------------------------------------------------------
+  // Molecule Layout
+  //--------------------------------------------------------------------
+
+  moleculeLayout() {
+    this.editor
+      .block("Decorate a molecule list.", ({find}) => {
+        let molecule_list = find("editor/molecule-list");
+        return [molecule_list.add({tag: "ui/row"})];
+      })
+
+      .block("Draw some molecules.", ({find, record}) => {
+        let molecule_list = find("editor/molecule-list");
+        let {molecule} = molecule_list;
+        let {atom} = molecule;
+        let side = 15;
+        return [
+          molecule_list.add("children", [
+            record("editor/molecule-list/molecule", "shape/hex-grid", {molecule, side, gap: 5}).add("cell", [
+              record("editor/molecule-list/molecule/cell", {molecule, atom, side})
             ])
           ])
         ];
       })
+
+      .block("A molecule's size is it's largest atom sort.", ({find, not, record}) => {
+        let list_molecule = find("editor/molecule-list/molecule");
+        let {cell} = list_molecule;
+        not(() => {
+          let list_molecule_alias = find("editor/molecule-list/molecule");
+          list_molecule == list_molecule_alias;
+          list_molecule_alias.cell.sort > cell.sort
+        });
+        return [list_molecule.add("size", cell.sort)];
+      })
+
+      .block("A molecule's width and height are derived from it's size.", ({find, lib:{math}, record}) => {
+        let list_molecule = find("editor/molecule-list/molecule");
+        let {size} = list_molecule;
+        let length = 1 + math.ceil(math.mod(size - 1, 6) / 3);
+        return [
+          list_molecule.add("style", record({width: length * (28 + 5) + 14, height: length * (32 + 5)}))
+        ];
+      })
+
+      .block("Populate atom cells from their atoms.", ({find, record}) => {
+        let atom_cell = find("editor/molecule-list/molecule/cell");
+        let {molecule, atom, side, x, y} = atom_cell;
+        let {node} = atom;
+        let lineWidth = 1, strokeStyle = "#AAA";
+        return [
+          atom_cell.add({tag: "shape/hexagon", side, lineWidth, strokeStyle, x, y}).add("content", [
+            record("ui/text", {text: node.label, style: record({color: node.color})})
+          ])
+        ];
+      })
+
+      .block("Sort atom cells by id.", ({find, gather, record}) => {
+        let atom_cell = find("editor/molecule-list/molecule/cell");
+        let {molecule, atom} = atom_cell;
+        let ix = gather(atom_cell).per(molecule).sort();
+        return [atom_cell.add("sort", ix)];
+      })
+      .block("Position atom cells in a spiral.", ({find, gather, record}) => {
+        let atom_cell = find("editor/molecule-list/molecule/cell");
+        let {molecule, atom, sort} = atom_cell;
+        let {x, y} = find("spiral", {row: 1, sort});
+        return [atom_cell.add({x, y})];
+      })
+
+      .block("DEBUG: Let's see those tootsies.", ({find, record}) => {
+        let list_molecule = find("editor/molecule-list/molecule");
+        let {size} = list_molecule;
+        return [record("ui/text", {text: size, list_molecule})];
+      })
+
   }
 }
 
