@@ -35,6 +35,21 @@ class EditorWatcher extends Watcher {
         return [content.add("type", active_frame.type)];
       })
 
+      .block("A block's next node sort is it's max node sort + 1 (or 1).", ({find, not}) => {
+        // @FIXME: Hackaround busted sort.
+        let block = find("block");
+        let sibling = find("node");
+        not(() => find("node").sort > sibling.sort);
+        let sort = sibling.sort + 1;
+        return [block.add("next_node_sort", sort)];
+      })
+      .block("With no nodes, a block's next sort is 1.", ({find, not}) => {
+        // @FIXME: Hackaround busted sort.
+        let block = find("block");
+        not(() => block.next_node_sort != 1);
+        return [block.add("next_node_sort", 1)];
+      })
+
       .block("A node is another node's parent if it has an AV who's V is the other node's entity", ({find}) => {
         let parent = find("node");
         let node = find("node");
@@ -48,6 +63,25 @@ class EditorWatcher extends Watcher {
         let node = find("node");
         not(() => node.parent);
         return [node.add("tag", "root-node")];
+      })
+
+      .commit("If a node's attribute is a record and it's not already a subnode, fix that.", ({find, not, record}) => {
+        let editor = find("editor/root");
+        let {active_block} = editor;
+        let {node} = active_block;
+        let {attribute} = node;
+        find("editor/existing-node-attribute", {node, text: attribute.attribute, is_record: "true"});
+        not(() => attribute.value == find("node").entity);
+
+        let sort = active_block.next_node_sort;
+
+        let subnode;
+        return [
+          active_block.add("node", [
+            subnode = record("node", {sort, entity: record("entity", {sort, _node: node, _attr: attribute.attribute})})
+          ]),
+          attribute.remove("value").add("value", subnode.entity)
+        ];
       })
 
     this.navigation();
@@ -103,18 +137,18 @@ class EditorWatcher extends Watcher {
 
               node: [
                 dock_node = record("node", {sort: 3, entity: record("entity", {z: 1})}).add("attribute", [
-                  record({attribute: "state"})
+                  record({attribute: "state", z: 11})
                 ]),
                 boat_node = record("node", {sort: 2, entity: record("entity", {z: 2})}).add("attribute", [
-                  record({attribute: "type", value: "yacht"}),
-                  record({attribute: "name"}),
-                  record({attribute: "dock", value: dock_node.entity})
+                  record({attribute: "type", value: "yacht", z:21}),
+                  record({attribute: "name", z:22}),
+                  record({attribute: "dock", value: dock_node.entity, z:23})
                 ]),
                 person_node = record("node", {sort: 1, entity: record("entity", {z: 3})}).add("attribute", [
-                  record({attribute: "tag", value: "person"}),
+                  record({attribute: "tag", value: "person", z:31}),
                   // record({attribute: "tag"}),
-                  record({attribute: "age"}),
-                  record({attribute: "boat", value: boat_node.entity})
+                  record({attribute: "age", z:32}),
+                  record({attribute: "boat", value: boat_node.entity, z:33})
                 ]),
               ]
             })
@@ -149,11 +183,11 @@ class EditorWatcher extends Watcher {
         return [
           record("editor/existing-node-attribute", {name: "person", text: "name"}),
           record("editor/existing-node-attribute", {name: "person", text: "age"}),
-          record("editor/existing-node-attribute", {name: "person", text: "boat"}),
+          record("editor/existing-node-attribute", {name: "person", text: "boat", is_record: "true"}),
           record("editor/existing-node-attribute", {name: "person", text: "tag"}),
           record("editor/existing-node-attribute", {name: "boat", text: "name"}),
           record("editor/existing-node-attribute", {name: "boat", text: "type"}),
-          record("editor/existing-node-attribute", {name: "boat", text: "dock"}),
+          record("editor/existing-node-attribute", {name: "boat", text: "dock", is_record: "true"}),
           record("editor/existing-node-attribute", {name: "boat", text: "tag"}),
           record("editor/existing-node-attribute", {name: "dock", text: "name"}),
           record("editor/existing-node-attribute", {name: "dock", text: "state"}),
@@ -549,15 +583,34 @@ class EditorWatcher extends Watcher {
         return [tree_node.remove("open")];
       })
 
-      .commit("Clicking the delete node button removes its node from the block.", ({find, choose, gather, record}) => {
+      .block("Clicking the delete node button removes its node from the block.", ({find, record}) => {
         let delete_node = find("editor/node-tree/node/delete");
         find("html/event/click", {element: delete_node})
         let {tree_node} = delete_node;
         let {node} = tree_node;
-        let {active_block} = tree_node.tree.editor;
+        return [record("editor/event/delete-node", {node})];
+      })
+      .block("Deleting a node deletes its children.", ({find, choose, gather, record}) => {
+        let {node:parent} = find("editor/event/delete-node");
+        let node = find("node", {parent});
+        return [record("editor/event/delete-node", {node})];
+      })
+      .commit("Deleting a node nukes it and removes it from it's blocks.", ({find, choose, gather, record}) => {
+        let {node} = find("editor/event/delete-node");
+        let {block} = find("editor/root");
         return [
-          active_block.remove("node", node),
+          block.remove("node", node),
           node.remove()
+        ];
+      })
+      .commit("Deleting a node removes it from its parent.", ({find, choose, gather, record}) => {
+        let {node:child} = find("editor/event/delete-node");
+        let node = find("node");
+        let {attribute} = node;
+        attribute.value == child.entity;
+        return [
+          node.remove("attribute", attribute),
+          //attribute.remove()
         ];
       })
 
@@ -592,10 +645,12 @@ class EditorWatcher extends Watcher {
         value != "";
         let {tree} = new_node;
         let {active_block} = tree.editor;
+        let sort = active_block.next_node_sort;
+
         return [
           active_block.add("node", [
-            record("node", {sort: 10, attribute: [
-              record({attribute: "tag", value}) // @FIXME: need a key on these or multiple nodes AVs will collapse.
+            record("node", {sort, attribute: [
+              record({sort, attribute: "tag", value}) // @FIXME: need a key on these or multiple nodes AVs will collapse.
             ]})
           ]),
           new_node.remove("open"),
@@ -693,11 +748,15 @@ class EditorWatcher extends Watcher {
         let {editor} = content;
         return [
           content.add("children", [
-            record("editor/node-tree", {editor}).add("node", [
-              editor.active_block.node
-            ])
+            record("editor/node-tree", "editor/query-tree", {editor})
           ])
         ]
+      })
+      .block("Fill the tree with the active block's nodes..", ({find, record}) => {
+        let node_tree = find("editor/query-tree");
+        let {editor} = node_tree;
+        let {active_block} = editor;
+        return [node_tree.add("node", editor.active_block.node)];
       })
   }
 }

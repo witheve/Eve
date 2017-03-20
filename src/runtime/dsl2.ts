@@ -1644,16 +1644,17 @@ export class Program {
 
     // @FIXME: Remove debugging after diagnosing compiler issue
     // let g:any = global;
-    // let compilerIds = g.compilerIds = g.compilerIds || [];
+    // let filterPrefix = "node";
+    // let filteredIds = g.filteredIds = g.filteredIds || [];
     // for(let change of trans.changes) {
-    //   if(change.a == GlobalInterner.get("tag") && (""+GlobalInterner.reverse(change.v)).indexOf("eve/compiler/") == 0) {
-    //     compilerIds.push(change.e);
+    //   if(change.a == GlobalInterner.get("tag") && (""+GlobalInterner.reverse(change.v)).indexOf(filterPrefix) == 0) {
+    //     filteredIds.push(change.e);
     //   }
     // }
 
-    // let filtered = trans.changes.filter((c) => compilerIds.indexOf(c.e) !== -1);
+    // let filtered = trans.changes.filter((c) => filteredIds.indexOf(c.e) !== -1);
     // if(filtered.length) {
-    //   console.log("---------------COMPILER-----------")
+    //   console.log("---------------INPUT-----------")
     //   console.log(filtered.map((change, ix) => `    <- ${change}`).join("\n"));
     // }
 
