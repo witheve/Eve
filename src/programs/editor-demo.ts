@@ -15,6 +15,18 @@ prog.commit("Add some data to play with.", ({find, record}) => {
     record("person", {name: "Josh", age: 23, boat: [boat1, boat3]}),
     record("person", {name: "Rafe", age: 43, boat: boat2}),
     record("person", {name: "Lola", age: 19, boat: boat1}),
+    record("person", {name: "Jenny", bio: "The crazy cat lady.", age: 50}).add("pet", [
+      record("pet", "cat", {name: "Mr. Whiskers", length: 7}),
+      record("pet", "cat", {name: "Fifi", length: 12}),
+      record("pet", "cat", {name: "Beth", length: 8}),
+      record("pet", "cat", {name: "Steph", length: 9}),
+      record("pet", "cat", {name: "Megadeth", length: 9}),
+      record("pet", "cat", {name: "Rab", length: 10}),
+      record("pet", "cat", {name: "Steve", length: 6}),
+    ]),
+    record("person", {name: "Donny"}).add("pet", [
+      record("pet", "dog", {name: "Bandit", length: 15})
+    ])
   ];
 });
 
