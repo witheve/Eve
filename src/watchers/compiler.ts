@@ -238,7 +238,7 @@ export class CompilerWatcher extends Watcher {
 
     me.watch("get watcher property", ({find, record}) => {
       let block = find("eve/compiler/block");
-      let {watcher} = block;
+      let {constraint, name, type, watcher} = block;
       return [
         record({block, watcher})
       ]
