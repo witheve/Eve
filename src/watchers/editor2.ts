@@ -84,9 +84,20 @@ class EditorWatcher extends Watcher {
         let subnode;
         return [
           active_block.add("node", [
-            subnode = record("node", {sort, entity: record("entity", {sort, _node: node, _attr: attribute.attribute})})
+            subnode = record("node", "derived-subnode", {sort, entity: record("entity", {sort, _node: node, _attr: attribute.attribute})})
           ]),
           attribute.remove("value").add("value", subnode.entity)
+        ];
+      })
+
+      .commit("Deriving a subnode closes it's parent and opens it.", ({find, record}) => {
+        let node = find("node", "derived-subnode");
+        let tree_node = find("editor/node-tree/node", {node});
+        let parent_tree_node = find("editor/node-tree/node", {node: node.parent});
+        return [
+          node.remove("tag", "derived-subnode"),
+          tree_node.add("open", "true"),
+          parent_tree_node.remove("open")
         ];
       })
 
