@@ -1212,7 +1212,7 @@ class EditorWatcher extends Watcher {
         let {atom} = molecule;
         let {node} = atom;
         return [infobox.add("children", [
-          record("editor/molecule-list/molecule/infobox/node", {sort: node.sort, infobox, node}).add("atom", atom)
+          record("editor/molecule-list/molecule/infobox/node", {sort: node.sort, molecule_cell, infobox, node}).add("atom", atom)
         ])];
       })
 
@@ -1259,15 +1259,34 @@ class EditorWatcher extends Watcher {
         return [node_infobox.add("count", count)];
       })
 
-      .block("A molecule infobox atom's fields are derived from its record AVs.", ({find, lookup, not, record}) => {
+      .block("A molecule infobox atom's fields are derived from its record AVs. Show the greatest if there are multiple and none are open.", ({find, lookup, not, record}) => {
         let node_infobox = find("editor/molecule-list/molecule/infobox/node");
         let {node, atom} = node_infobox;
         let {attribute, value} = lookup(atom.record);
+        not(() => find("editor/molecule-list/molecule/cell", {open: "true"}).atom.node == node);
         not(() => {
           let other_atom = find("editor/atom", {node});
           node_infobox.atom == other_atom;
           other_atom.sort > atom.sort;
         })
+        attribute != "tag";
+        not(() => value.tag);
+
+        return [
+          node_infobox.add("children", [
+            record("editor/molecule-list/molecule/infobox/atom", "ui/field-table", {sort: 2, node_infobox, atom, record: atom.record}).add("field", [
+              record({node_infobox, record: atom.record, attribute}).add("value", value)
+            ])
+          ])
+        ];
+      })
+
+      .block("A molecule infobox atom's fields are derived from its record AVs. Show the open atom if it exists.", ({find, lookup, not, record}) => {
+        let node_infobox = find("editor/molecule-list/molecule/infobox/node");
+        let {node, atom, molecule_cell} = node_infobox;
+        let atom_cell = find("editor/molecule-list/molecule/cell", {molecule_cell, open: "true"});
+        atom_cell.atom == atom;
+        let {attribute, value} = lookup(atom.record);
         attribute != "tag";
         not(() => value.tag);
 
