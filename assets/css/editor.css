@@ -119,6 +119,7 @@
 
 .editor-molecule-list-molecule-infobox-atom { width: 100%; }
 .editor-molecule-list-molecule-infobox .ui-field-table td { border: none; }
+.editor-molecule-list-molecule-infobox .ui-field-table td:first-child { width: 75; }
 
 .editor-molecule-list-paginator { padding-left: 0.5em; color: #606060; }
 .editor-molecule-list-paginator > div { margin-top: -2; }

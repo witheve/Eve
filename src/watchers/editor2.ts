@@ -90,12 +90,17 @@ class EditorWatcher extends Watcher {
         ];
       })
 
+      .commit("A node is only derived once.", ({find, record}) => {
+        let node = find("node", "derived-subnode");
+        return [node.remove("tag", "derived-subnode")];
+      })
+
       .commit("Deriving a subnode closes it's parent and opens it.", ({find, record}) => {
         let node = find("node", "derived-subnode");
         let tree_node = find("editor/node-tree/node", {node});
         let parent_tree_node = find("editor/node-tree/node", {node: node.parent});
+        parent_tree_node.open;
         return [
-          node.remove("tag", "derived-subnode"),
           tree_node.add("open", "true"),
           parent_tree_node.remove("open")
         ];
