@@ -37,7 +37,8 @@ text { display: inline-block; white-space: pre-wrap; }
 .ui-field-table input.ui-field-table-attribute {padding-right: 0;}
 
 .ui-autocomplete { position: relative; flex: 0 0 auto; width: 200;}
-.ui-autocomplete-matches { position: absolute; top: 100%; width: 100%; flex: 0 0 auto; z-index: 5; background: white; border-radius: 4px; box-shadow: 0 2px 3px rgba(0, 0, 0, 0.2); }
+.ui-autocomplete-matches { position: absolute; top: 100%; width: 100%; flex: 0 0 auto; z-index: 5; background: white; border-top: 0px solid #f0f0f0; border-radius: 4px; box-shadow: 0 2px 3px rgba(0, 0, 0, 0.2); }
+.ui-autocomplete[open="true"] .ui-autocomplete-matches { border-top-width: 1px; }
 
 .ui-autocomplete-match { padding: 0 10; height: 0; overflow: hidden; }
 .ui-autocomplete[open="true"] .ui-autocomplete-match { padding: 0 10; height: 100%; overflow: hidden; }
