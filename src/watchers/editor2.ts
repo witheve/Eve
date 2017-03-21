@@ -145,7 +145,7 @@ class EditorWatcher extends Watcher {
         return [autocomplete.remove("tag", "html/trigger-focus")];
       })
 
-    this.navigation();
+    // this.navigation();
     this.header();
 
     this.nodeTree();
@@ -222,7 +222,7 @@ class EditorWatcher extends Watcher {
               description: "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged.",
               storyboard: [
                 frame1 = record("frame", {type: "query", sort: 1}),
-                record("frame", {type: "data", sort: 2}),
+                record("frame", {type: "output", sort: 2}),
               ],
 
               node: [
@@ -480,7 +480,7 @@ class EditorWatcher extends Watcher {
         return [
           new_frame.add("children", [
             record("editor/new-frame/type", "ui/button", {editor, text: "Query", type: "query", class: "flat"}),
-            record("editor/new-frame/type", "ui/button", {editor, text: "Data", type: "data", class: "flat"}),
+            record("editor/new-frame/type", "ui/button", {editor, text: "Output", type: "output", class: "flat"}),
           ])
         ];
       })
@@ -1030,7 +1030,7 @@ class EditorWatcher extends Watcher {
         let molecule_list = find("editor/molecule-list");
         let {molecule} = molecule_list;
         let {atom} = molecule;
-        let side = 15;
+        let side = 21;
         let molecule_cell;
         return [
           molecule_list.add("children", [
@@ -1047,7 +1047,7 @@ class EditorWatcher extends Watcher {
         let {molecule_cell} = molecule_grid;
         let {molecule} = molecule_cell;
         let {atom} = molecule;
-        let side = 15;
+        let side = 21;
         return [
           molecule_grid.add("cell", [
             record("editor/molecule-list/molecule/cell", {molecule_cell, molecule, atom, side})
@@ -1140,8 +1140,8 @@ class EditorWatcher extends Watcher {
       .block("A molecule's width and height are derived from it's size.", ({find, lib:{math}, choose, record}) => {
         let molecule_cell = find("editor/molecule-list/molecule");
         let {offset, mag} = molecule_cell;
-        let cell_width = 28 + 5;
-        let cell_height = 32 + 5;
+        let cell_width = 39 + 5;
+        let cell_height = 44 + 5;
         let width = cell_width * 3 * mag;
         let height = cell_height * 3 * mag;
         let padLeft = width / 2 - cell_width / 2;
@@ -1157,6 +1157,7 @@ class EditorWatcher extends Watcher {
         let {node} = atom;
         let lineWidth = 1; //, strokeStyle = "#AAA";
         let [strokeStyle] = choose(
+          () => {atom_cell.open; return "#4444ff"},
           () => {atom_cell.tag == "html/hovered"; return "#4444ff"},
           () => {molecule_cell.tag == "html/hovered"; return "#aaaaff"},
           () => "#aaa"
@@ -1193,7 +1194,7 @@ class EditorWatcher extends Watcher {
       })
 
       .block("When a molecule is hovered, display it's infobox.", ({find, record}) => {
-        let molecule_cell = find("editor/molecule-list/molecule", "html/hovered");
+        let molecule_cell = find("editor/molecule-list/molecule", {open: "true"});
         return [molecule_cell.add("children", [
           record("editor/molecule-list/molecule/infobox", {molecule_cell})
         ])];
@@ -1299,6 +1300,37 @@ class EditorWatcher extends Watcher {
       .commit("When an element is left, clear it's hovered.", ({find, record}) => {
         let {element} = find("html/event/mouseleave");
         return [element.remove("tag", "html/hovered")];
+      })
+
+      .commit("Clicking a molecule opens it.", ({find}) => {
+        let molecule_cell = find("editor/molecule-list/molecule");
+        find("html/event/click", {element: molecule_cell});
+        return [molecule_cell.add("open", "true")];
+      })
+      .commit("Clicking outside an open molecule closes it.", ({find, not}) => {
+        let molecule_cell = find("editor/molecule-list/molecule", {open: "true"});
+        find("html/event/click");
+        not(() => find("html/event/click", {element: molecule_cell}));
+        return [molecule_cell.remove("open")];
+      })
+
+      .commit("Clicking an atom opens it.", ({find}) => {
+        let atom_cell = find("editor/molecule-list/molecule/cell");
+        find("html/event/click", {element: atom_cell});
+        return [atom_cell.add("open", "true")];
+      })
+      .commit("Clicking an atom closes any other open atoms.", ({find}) => {
+        let atom_cell = find("editor/molecule-list/molecule/cell");
+        find("html/event/click", {element: atom_cell});
+        let other = find("editor/molecule-list/molecule/cell", {open: "true"});
+        other != atom_cell;
+        return [other.remove("open")];
+      })
+
+      .commit("Close any open atoms of closed molecules.", ({find, not}) => {
+        let atom_cell = find("editor/molecule-list/molecule/cell", {open: "true"});
+        not(() => atom_cell.molecule_cell.open);
+        return [atom_cell.remove("open")];
       })
 
       .commit("Clicking the infobox new field button focuses it's autocomplete.", ({find}) => {

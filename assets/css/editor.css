@@ -15,13 +15,13 @@
 \****************************************************************************/
 
 .editor-view .editor-main { flex: 1; }
-
-.editor-view .editor-block-description {max-width: 480;padding: 10 0;margin-right: 20;flex: 1;font-size:  0.75em;}
-.editor-view .editor-block-title {font-size: 1rem;margin-bottom: 0.25em;font-weight: 500;}
+.editor-view .editor-block-header { margin-bottom: 30; }
+.editor-view .editor-block-description {max-width: 480;font-weight: 300; padding: 10 0;margin-right: 20;flex: 1;font-size:  1em;}
+.editor-view .editor-block-title {font-size: 1.25em; margin-bottom: 0.25em;font-weight: 500;}
 
 .editor-view .editor-block-storyboard { flex: 1; align-self: flex-start; }
 
-.editor-view .editor-block-frame { width: 162; height: 100; margin: 10; justify-content: center; align-items: center; border: 2px solid #888; border-radius: 3px; }
+.editor-view .editor-block-frame { width: 130; height: 80; margin: 10; margin-top: 2.5em;justify-content: center; align-items: center; border: 2px solid #888; border-radius: 3px; }
 .editor-view .editor-block-frame.active,
 .editor-view .editor-block-frame:not([open="true"]).active:hover{ background: #f0f0f0; }
 
@@ -107,13 +107,15 @@
 .editor-molecule-list-molecule-grid { position: relative;}
 .editor-molecule-list-molecule-cell { cursor: default; -webkit-user-select: none; }
 
-.editor-molecule-list-molecule-infobox { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); width: 250; padding: 10; z-index: 3; background: rgba(255, 255, 255, 0.8); border: 1px solid #aaaaff; border-radius: 3px; }
+.editor-molecule-list-molecule-infobox { position: absolute; top: 100%; left: 0; /*left: 75%; transform: translateX(-50%);*/ width: 250; padding: 10; z-index: 3; background: white; border: 1px solid #aaaaff; border-radius: 3px; }
 
 .editor-molecule-list-molecule-field-new  {position: relative;width: 40; line-height: 1.3em; margin-top: -2;margin-left: -32;margin-bottom:-4;font-size: 0.9em; color: #999; }
 .editor-molecule-list-molecule-field-new:before { width: 1.3em; line-height: 1.3em; text-align: center; border: 1px solid #ddd; border-radius: 100px; background: white; font-weight: 100; }
 
 .editor-molecule-list-molecule-field-attribute { margin-left: -8; width: 100%; }
 .editor-molecule-list-molecule-field-attribute input { font-size: 1em; line-height: 1.3em; padding: 5 10; font-weight: inherit;font-family: inherit; border: none; color: inherit;}
+
+.editor-molecule-list-molecule-infobox-node { margin-bottom: 20; }
 
 .editor-molecule-list-molecule-infobox-atom { width: 100%; }
 .editor-molecule-list-molecule-infobox .ui-field-table td { border: none; }
