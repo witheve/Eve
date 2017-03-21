@@ -103,10 +103,18 @@
  * Editor Molecule List
 \****************************************************************************/
 .editor-molecule-list { position: relative; flex: 1; }
-.editor-molecule-list-molecule { position: relative; display: flex; flex: 0 0 auto; }
+.editor-molecule-list-molecule { position: relative; display: flex; flex: 0 0 auto; padding-bottom: 10;}
+.editor-molecule-list-molecule-grid { position: relative;}
 .editor-molecule-list-molecule-cell { cursor: default; -webkit-user-select: none; }
 
 .editor-molecule-list-molecule-infobox { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); width: 250; padding: 10; z-index: 3; background: rgba(255, 255, 255, 0.8); border: 1px solid #aaaaff; border-radius: 3px; }
+
+.editor-molecule-list-molecule-field-new  {position: relative;width: 40; line-height: 1.3em; margin-top: -4;margin-left: -32;margin-bottom:-4;font-size: 0.9em; color: #999; }
+.editor-molecule-list-molecule-field-new:before { width: 1.3em; line-height: 1.3em; text-align: center; border: 1px solid #ddd; border-radius: 100px; background: white; font-weight: 100; }
+
+.editor-molecule-list-molecule-field-attribute { margin-left: -8; width: 100%; }
+
+.editor-molecule-list-molecule-infobox-atom { width: 100%; }
 
 
 /****************************************************************************\

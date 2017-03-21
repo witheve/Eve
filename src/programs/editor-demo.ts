@@ -22,7 +22,7 @@ prog.commit("Add some data to play with.", ({find, record}) => {
       record("pet", "cat", {name: "Steph", length: 9}),
       record("pet", "cat", {name: "Megadeth", length: 9}),
       record("pet", "cat", {name: "Rab", length: 10}),
-      record("pet", "cat", {name: "Steve", length: 6}),
+      // record("pet", "cat", {name: "Steve", length: 6}),
     ]),
     record("person", {name: "Donny"}).add("pet", [
       record("pet", "dog", {name: "Bandit", length: 15})

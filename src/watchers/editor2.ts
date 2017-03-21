@@ -122,6 +122,18 @@ class EditorWatcher extends Watcher {
         return [node.add("color", color)];
       })
 
+      .commit("Clear the specified autocomplete.", ({find}) => {
+        let {autocomplete} = find("editor/event/clear-autocomplete");
+        let input = find("ui/autocomplete/input", {autocomplete});
+        return [input.remove("value")];
+      })
+      .commit("Blurring an autocomplete removes it's trigger-focus.", ({find, record}) => {
+        let autocomplete = find("ui/autocomplete", "html/trigger-focus");
+        let input = find("ui/autocomplete/input", {autocomplete});
+        let event = find("html/event/blur", {element: input});
+        return [autocomplete.remove("tag", "html/trigger-focus")];
+      })
+
     this.navigation();
     this.header();
 
@@ -503,7 +515,7 @@ class EditorWatcher extends Watcher {
         return [
           new_node.add("children", [
             record("editor/node-tree/node/new/tag", "ui/autocomplete", "html/trigger-focus", {sort: 2, new_node, placeholder: "tag..."}),
-            record("editor/node-tree/node/new/save", "ui/button", {sort: 3, new_node, icon: "android-add"})
+            // record("editor/node-tree/node/new/save", "ui/button", {sort: 3, new_node, icon: "android-add"})
           ])
         ];
       })
@@ -631,7 +643,7 @@ class EditorWatcher extends Watcher {
             record("ui/column", {sort: 2, node_pattern, class: "editor-node-tree-new-field"}).add("children", [
               record("editor/node-tree/node/pattern/new-field", "ui/row", {tree_node}).add("children", [
                 record("editor/node-tree/node/field/new", "ui/button", {sort: 1, tree_node, icon: "android-add"}),
-                record("editor/node-tree/node/field/new/attribute", "ui/autocomplete", {sort: 2, tree_node, placeholder: "attribute..."}),
+                record("editor/node-tree/node/field/new/attribute", "ui/autocomplete", {sort: 2, tree_node, placeholder: "field..."}),
               ])
             ])
           ])
@@ -793,12 +805,6 @@ class EditorWatcher extends Watcher {
         return [field.remove("open")];
       })
 
-      .block("Clicking the new field save button saves it.", ({find, record}) => {
-        let add_field = find("editor/node-tree/node/field/new");
-        let event = find("html/event/click", {element: add_field})
-        let {tree_node} = add_field;
-        return [record("editor/event/save-field", {tree_node})];
-      })
       .commit("Clicking the new field save button focuses it's autocomplete.", ({find}) => {
         let add_field = find("editor/node-tree/node/field/new");
         let {tree_node} = add_field;
@@ -806,24 +812,30 @@ class EditorWatcher extends Watcher {
         let field_autocomplete = find("editor/node-tree/node/field/new/attribute", {tree_node});
         return [field_autocomplete.add("tag", "html/trigger-focus")];
       })
-      .commit("Blurring an autocomplete removes it's trigger-focus.", ({find, record}) => {
-        let field_autocomplete = find("editor/node-tree/node/field/new/attribute", "html/trigger-focus");
-        let input = find("ui/autocomplete/input", {autocomplete: field_autocomplete});
-        let event = find("html/event/blur", {element: input});
-        return [field_autocomplete.remove("tag", "html/trigger-focus")];
+
+      .block("Clicking the new field save button saves it.", ({find, record}) => {
+        let add_field = find("editor/node-tree/node/field/new");
+        let event = find("html/event/click", {element: add_field})
+        let {tree_node} = add_field;
+        let field_autocomplete = find("editor/node-tree/node/field/new/attribute", {tree_node});
+        field_autocomplete.value != "";
+        return [
+          record("editor/event/save-field", {node: tree_node.node, attribute: field_autocomplete.value}),
+          record("editor/event/clear-autocomplete", {autocomplete: field_autocomplete})
+        ];
       })
       .block("Selecting a completion in the new field autocomplete saves it.", ({find, not, record}) => {
         let field_autocomplete = find("editor/node-tree/node/field/new/attribute");
         let {tree_node, selected} = field_autocomplete;
-        return [record("editor/event/save-field", {tree_node})];
+        return [
+          record("editor/event/save-field", {node: tree_node.node, attribute: selected.text}),
+          record("editor/event/clear-autocomplete", {autocomplete: field_autocomplete})
+        ];
       })
+
       .commit("Saving a new field adds a new attribute to the node.", ({find, choose, gather, record}) => {
-        let {tree_node} = find("editor/event/save-field");
-        let {node} = tree_node;
-        let field_autocomplete = find("editor/node-tree/node/field/new/attribute", {tree_node});
-        let field_input = find("ui/autocomplete/input", {autocomplete: field_autocomplete});
-        let {value} = field_autocomplete;
-        value != "";
+        let {node, attribute} = find("editor/event/save-field");
+        attribute != "";
 
         // @FIXME: busted as frig...
         // let [count] = choose(() => {
@@ -831,10 +843,7 @@ class EditorWatcher extends Watcher {
         //   1 == gather(attribute.sort).per(node).sort("down");
         //   return attribute.sort + 1;
         // }, () => 1);
-        return [
-          node.add("attribute", record("node/attribute", {sort: "@FIXME", attribute: value})),
-          field_input.remove("value")
-        ];
+        return [node.add("attribute", record("node/attribute", {sort: "@FIXME", attribute}))];
       })
       .commit("Clicking the delete field button removes its attribute from the node.", ({find, choose, gather, record}) => {
         let delete_field = find("editor/node-tree/node/field/delete");
@@ -1011,50 +1020,134 @@ class EditorWatcher extends Watcher {
         let {molecule} = molecule_list;
         let {atom} = molecule;
         let side = 15;
-        let molecule_grid;
+        let molecule_cell;
         return [
           molecule_list.add("children", [
-            molecule_grid = record("editor/molecule-list/molecule", "shape/hex-grid", "html/onmouseenter", "html/onmouseleave", {molecule, side, gap: 5}),
-            molecule_grid.add("cell", [
-              record("editor/molecule-list/molecule/cell", {molecule_grid, molecule, atom, side})
-            ])
+            molecule_cell = record("editor/molecule-list/molecule", "html/element", "html/onmouseenter", "html/onmouseleave", {tagname: "div", molecule_list, molecule}),
+            molecule_cell.add("children", [
+              record("editor/molecule-list/molecule/grid", "shape/hex-grid", {molecule_cell, molecule, side, gap: 5})
+            ]),
+          ])
+        ];
+      })
+
+      .block("Add cells to molecules.", ({find, record}) => {
+        let molecule_grid = find("editor/molecule-list/molecule/grid");
+        let {molecule_cell} = molecule_grid;
+        let {molecule} = molecule_cell;
+        let {atom} = molecule;
+        let side = 15;
+        return [
+          molecule_grid.add("cell", [
+            record("editor/molecule-list/molecule/cell", {molecule_cell, molecule, atom, side})
           ])
         ];
       })
 
       .block("A molecule's size is it's largest atom sort.", ({find, not, record}) => {
-        let list_molecule = find("editor/molecule-list/molecule");
-        let {cell} = list_molecule;
+        let cell = find("editor/molecule-list/molecule/cell");
+        let {molecule_cell} = cell;
         not(() => {
-          let list_molecule_alias = find("editor/molecule-list/molecule");
-          list_molecule == list_molecule_alias;
-          list_molecule_alias.cell.sort > cell.sort
+          let other_cell = find("editor/molecule-list/molecule/cell", {molecule_cell});
+          other_cell.sort > cell.sort
         });
-        return [list_molecule.add("size", cell.sort)];
+        return [
+          molecule_cell.add("size", cell.sort),
+        ];
       })
 
-      .block("A molecule's width and height are derived from it's size.", ({find, lib:{math}, record}) => {
-        let list_molecule = find("editor/molecule-list/molecule");
-        let {size} = list_molecule;
-        let length = 1 + math.ceil(math.mod(size - 1, 6) / 3);
-        let width = length * (28 + 5) + 14;
-        let height = length * (32 + 5);
-        let padTop = height / 2;
-        let padLeft = width / 2;
-
+      .block("HACK: workaround double choose bug offset + mag.", ({find, lib:{math}, choose, record}) => {
+        let molecule_cell = find("editor/molecule-list/molecule");
+        let {size} = molecule_cell;
+        // @FIXME: This isn't quite right due to 0,0 offset
+        let offset = math.mod(size - 1, 6);
+        // @FIXME: this measure doesn't take into account the fact that shell size increases...
+        let mag = math.floor((size - 1) / 7) + 1;
         return [
-          list_molecule.add("style", record({width, height, "margin-top": padTop, "margin-left": padLeft}))
+          molecule_cell.add({offset, mag}),
+        ];
+      })
+
+      // .block("HACK: workaround double choose bug width offset == 0.", ({find, choose, record}) => {
+      //   let molecule_cell = find("editor/molecule-list/molecule");
+      //   let {offset, mag} = molecule_cell;
+      //   offset == 0;
+      //   let cell_width = 28 + 5;
+      //   let w = cell_width;
+      //   return [molecule_cell.add("width", w * mag)];
+      // })
+      // .block("HACK: workaround double choose bug width offset < 3.", ({find, choose, record}) => {
+      //   let molecule_cell = find("editor/molecule-list/molecule");
+      //   let {offset, mag} = molecule_cell;
+      //   0 < offset; offset < 3;
+      //   let cell_width = 28 + 5;
+      //   let w = cell_width * 2;
+      //   return [molecule_cell.add("width", w * mag)];
+      // })
+      // .block("HACK: workaround double choose bug width offset == 3.", ({find, choose, record}) => {
+      //   let molecule_cell = find("editor/molecule-list/molecule");
+      //   let {offset, mag} = molecule_cell;
+      //   offset == 3;
+      //   let cell_width = 28 + 5;
+      //   let w = cell_width * 2.5;
+      //   return [molecule_cell.add("width", w * mag)];
+      // })
+      // .block("HACK: workaround double choose bug width offset > 3.", ({find, choose, record}) => {
+      //   let molecule_cell = find("editor/molecule-list/molecule");
+      //   let {offset, mag} = molecule_cell;
+      //   3 < offset;
+      //   let cell_width = 28 + 5;
+      //   let w = cell_width * 3;
+      //   return [molecule_cell.add("width", w * mag)];
+      // })
+
+      // .block("HACK: workaround double choose bug height offset < 2.", ({find, choose, record}) => {
+      //   let molecule_cell = find("editor/molecule-list/molecule");
+      //   let {offset, mag} = molecule_cell;
+      //   offset < 2;
+      //   let cell_height = 32 + 5;
+      //   let h = cell_height;
+      //   return [molecule_cell.add("height", h * mag)];
+      // })
+      // .block("HACK: workaround double choose bug height offset < 5.", ({find, choose, record}) => {
+      //   let molecule_cell = find("editor/molecule-list/molecule");
+      //   let {offset, mag} = molecule_cell;
+      //   2 <= offset; offset < 5;
+      //   let cell_height = 32 + 5;
+      //   let h = cell_height * 2;
+      //   return [molecule_cell.add("height", h * mag)];
+      // })
+      // .block("HACK: workaround double choose bug height offset >= 5.", ({find, choose, record}) => {
+      //   let molecule_cell = find("editor/molecule-list/molecule");
+      //   let {offset, mag} = molecule_cell;
+      //   5 <= offset;
+      //   let cell_height = 32 + 5;
+      //   let h = cell_height * 3;
+      //   return [molecule_cell.add("height", h * mag)];
+      // })
+
+      .block("A molecule's width and height are derived from it's size.", ({find, lib:{math}, choose, record}) => {
+        let molecule_cell = find("editor/molecule-list/molecule");
+        let {offset, mag} = molecule_cell;
+        let cell_width = 28 + 5;
+        let cell_height = 32 + 5;
+        let width = cell_width * 3 * mag;
+        let height = cell_height * 3 * mag;
+        let padLeft = width / 2 - cell_width / 2;
+        let padTop = height / 2 - cell_height / 2;
+        return [
+          molecule_cell.add("style", record({width: width, height: height, "padding-left": padLeft, "padding-top": padTop}))
         ];
       })
 
       .block("Populate atom cells from their atoms.", ({find, choose, record}) => {
         let atom_cell = find("editor/molecule-list/molecule/cell");
-        let {molecule_grid, molecule, atom, side, x, y} = atom_cell;
+        let {molecule_cell, molecule, atom, side, x, y} = atom_cell;
         let {node} = atom;
         let lineWidth = 1; //, strokeStyle = "#AAA";
         let [strokeStyle] = choose(
           () => {atom_cell.tag == "html/hovered"; return "#4444ff"},
-          () => {molecule_grid.tag == "html/hovered"; return "#aaaaff"},
+          () => {molecule_cell.tag == "html/hovered"; return "#aaaaff"},
           () => "#aaa"
         );
         return [
@@ -1081,9 +1174,9 @@ class EditorWatcher extends Watcher {
       })
 
       .block("When a molecule is hovered, display it's infobox.", ({find, record}) => {
-        let molecule_grid = find("editor/molecule-list/molecule", "html/hovered");
-        return [molecule_grid.add("children", [
-          record("editor/molecule-list/molecule/infobox", {molecule_grid})
+        let molecule_cell = find("editor/molecule-list/molecule", "html/hovered");
+        return [molecule_cell.add("children", [
+          record("editor/molecule-list/molecule/infobox", {molecule_cell})
         ])];
       })
 
@@ -1094,13 +1187,27 @@ class EditorWatcher extends Watcher {
 
       .block("A molecule infobox has a table per atom.", ({find, record}) => {
         let infobox = find("editor/molecule-list/molecule/infobox");
-        let {molecule_grid} = infobox;
-        let {molecule} = molecule_grid;
+        let {molecule_cell} = infobox;
+        let {molecule} = molecule_cell;
         let {atom} = molecule;
         let {node} = atom;
         return [infobox.add("children", [
           record("editor/molecule-list/molecule/infobox/node", {sort: node.sort, infobox, node}).add("atom", atom)
         ])];
+      })
+
+      .block("A node infobox has the node name, a plus field button.", ({find, record}) => {
+        let node_infobox = find("editor/molecule-list/molecule/infobox/node");
+        let {node} = node_infobox;
+        return [
+          node_infobox.add("tag", "ui/column").add("children", [
+            record("editor/molecule-list/molecule/infobox/node/name", "ui/text", {sort: 1, node_infobox, text: node.name}),
+            record("ui/row", {sort: 3, node_infobox}).add("children", [
+              record("editor/molecule-list/molecule/field/new", "ui/button", {sort: 1, node_infobox, icon: "android-add"}),
+              record("editor/molecule-list/molecule/field/attribute", "ui/autocomplete", {sort: 2, node_infobox, placeholder: "field..."})
+            ])
+          ])
+        ];
       })
 
       .block("A molecule infobox atom's fields are derived from its record AVs.", ({find, lookup, not, record}) => {
@@ -1111,14 +1218,21 @@ class EditorWatcher extends Watcher {
         not(() => value.tag);
 
         return [
-          node_infobox.add("tag", "ui/column").add("children", [
-            record("editor/molecule-list/molecule/infobox/node/name", "ui/text", {sort: 1, node_infobox, text: node.name}),
-            record("ui/field-table", {sort: 2, node_infobox, atom, record: atom.record}).add("field", [
+          node_infobox.add("children", [
+            record("editor/molecule-list/molecule/infobox/atom", "ui/field-table", {sort: 2, node_infobox, atom, record: atom.record}).add("field", [
               record({node_infobox, record: atom.record, attribute}).add("value", value)
             ])
           ])
         ];
       })
+
+      .block("Fill infobox attribute completions.", ({find, record}) => {
+        let new_attribute = find("editor/molecule-list/molecule/field/attribute");
+        let {node_infobox} = new_attribute;
+        let completion = find("editor/existing-node-attribute", {node: node_infobox.node});
+        return [new_attribute.add("completion", completion)];
+      })
+
 
     //--------------------------------------------------------------------
     // Molecule Interactions
@@ -1132,6 +1246,34 @@ class EditorWatcher extends Watcher {
       .commit("When an element is left, clear it's hovered.", ({find, record}) => {
         let {element} = find("html/event/mouseleave");
         return [element.remove("tag", "html/hovered")];
+      })
+
+      .commit("Clicking the infobox new field button focuses it's autocomplete.", ({find}) => {
+        let add_field = find("editor/molecule-list/molecule/field/new");
+        let {node_infobox} = add_field;
+        let event = find("html/event/click", {element: add_field})
+        let field_autocomplete = find("editor/node-tree/node/field/new", {node_infobox});
+        return [field_autocomplete.add("tag", "html/trigger-focus")];
+      })
+
+      // .block("Clicking the infobox new field button saves it.", ({find, record}) => {
+      //   let add_field = find("editor/molecule-list/molecule/field/new");
+      //   let event = find("html/event/click", {element: add_field})
+      //   let {node_infobox} = add_field;
+      //   let field_autocomplete = find("editor/molecule-list/molecule/field/attribute", {node_infobox});
+      //   field_autocomplete.value != "";
+      //   return [
+      //     record("editor/event/save-field", {node: node_infobox.node, attribute: field_autocomplete.value}),
+      //     record("editor/event/clear-autocomplete", {autocomplete: field_autocomplete})
+      //   ];
+      // })
+      .block("Selecting a completion in the new field autocomplete saves it.", ({find, not, record}) => {
+        let field_autocomplete = find("editor/molecule-list/molecule/field/attribute");
+        let {node_infobox, selected} = field_autocomplete;
+        return [
+          record("editor/event/save-field", {node: node_infobox.node, attribute: selected.text}),
+          record("editor/event/clear-autocomplete", {autocomplete: field_autocomplete})
+        ];
       })
 
   }
