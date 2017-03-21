@@ -1168,6 +1168,14 @@ class EditorWatcher extends Watcher {
         ];
       })
 
+      .block("Sort atoms by id.", ({find, gather, record}) => {
+        let atom = find("editor/atom");
+        let molecule = find("editor/molecule", {atom});
+        let {node} = atom;
+        let ix = gather(node.sort, atom).per(molecule).sort();
+        return [atom.add("sort", ix)];
+      })
+
       .block("Sort atom cells by id.", ({find, gather, record}) => {
         let atom_cell = find("editor/molecule-list/molecule/cell");
         let {molecule, atom} = atom_cell;
@@ -1212,7 +1220,9 @@ class EditorWatcher extends Watcher {
         let {node} = node_infobox;
         return [
           node_infobox.add("tag", "ui/column").add("children", [
-            record("editor/molecule-list/molecule/infobox/node/name", "ui/text", {sort: 1, node_infobox, text: node.name}),
+            record("editor/molecule-list/molecule/infobox/node/header", "ui/row", {sort: 1, node_infobox}).add("children", [
+              record("editor/molecule-list/molecule/infobox/node/name", "ui/text", {sort: 1, node_infobox, text: node.name}),
+            ]),
             record("ui/row", {sort: 3, node_infobox}).add("children", [
               record("editor/molecule-list/molecule/field/new", "ui/button", {sort: 1, node_infobox, icon: "android-add"}),
               record("editor/molecule-list/molecule/field/attribute", "ui/autocomplete", {sort: 2, node_infobox, placeholder: "field..."})
@@ -1221,10 +1231,42 @@ class EditorWatcher extends Watcher {
         ];
       })
 
+      .block("A node infobox with multiple atoms shows a paginator in it's name row.", ({find, gather, record}) => {
+        let node_infobox = find("editor/molecule-list/molecule/infobox/node");
+        let infobox_header = find("editor/molecule-list/molecule/infobox/node/header", {node_infobox});
+        let {node, count} = node_infobox;
+        count > 1;
+        return [
+          infobox_header.add("children", [
+            record("ui/row", {sort: 2, node_infobox, class: "editor-molecule-list-paginator"}).add("children", [
+              record("ui/button", {sort: 1, node_infobox, icon: "arrow-left-b"}),
+              record("ui/text", {sort: 2, text: `(1/${count})`}),
+              record("ui/button", {sort: 3, node_infobox, icon: "arrow-right-b"}),
+            ])
+          ])
+        ];
+      })
+
+      .block("A node infobox's count is the number of atoms it has that match.", ({find, gather, record}) => {
+        let node_infobox = find("editor/molecule-list/molecule/infobox/node");
+        let {node, infobox} = node_infobox;
+        let {molecule_cell} = infobox;
+        let {molecule} = molecule_cell;
+        let {atom} = molecule;
+        atom.node == node;
+        let count = gather(atom).per(node).count();
+        return [node_infobox.add("count", count)];
+      })
+
       .block("A molecule infobox atom's fields are derived from its record AVs.", ({find, lookup, not, record}) => {
         let node_infobox = find("editor/molecule-list/molecule/infobox/node");
         let {node, atom} = node_infobox;
         let {attribute, value} = lookup(atom.record);
+        not(() => {
+          let other_atom = find("editor/atom", {node});
+          node_infobox.atom == other_atom;
+          other_atom.sort > atom.sort;
+        })
         attribute != "tag";
         not(() => value.tag);
 
