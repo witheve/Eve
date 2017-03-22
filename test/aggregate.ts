@@ -257,3 +257,47 @@ test("Aggregate: group sort", (assert) => {
 
   assert.end();
 });
+
+
+test("Aggregate: committed sort in choose", (assert) => {
+  let prog = new Program("test")
+  .commit("Clear events when they come in.", ({find}) => {
+    let event = find("event/create-widget");
+    return [event.remove()];
+  })
+  .commit("Create a new widget of the given model.", ({find, choose, gather, record}) => {
+    let {model} = find("event/create-widget");
+
+    // The serial number of our next widget is the highest serial we've issued for this model so far + 1.
+    let [serial] = choose(() => {
+      let {widget:other} = model;
+      // 1 == gather(other.serial).per(model).sort("down"); // @NOTE: This breaks differently due to equality bug.
+      2 > gather(other.serial).per(model).sort("down");
+      return other.serial + 1;
+    }, () => 1);
+    return [model.add("widget", record("widget", {serial}))];
+  });
+
+
+  verify(assert, prog, [
+    [1, "tag", "model"],
+    [1, "widget", 2],
+    [1, "widget", 3],
+    [2, "tag", "widget"],
+    [2, "serial", 3],
+    [3, "tag", "widget"],
+    [3, "serial", 5],
+
+    [4, "tag", "event/create-widget"],
+    [4, "model", 1],
+  ], [
+    [4, "tag", "event/create-widget", 0, -1],
+    [4, "tag", "event/create-widget", 0, -1],
+
+    [1, "widget", "A"],
+    ["A", "tag", "widget"],
+    ["A", "serial", 6],
+  ]);
+
+  assert.end();
+});
