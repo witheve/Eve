@@ -1059,6 +1059,9 @@ class Move extends DSLBase {
   public to:Reference;
   constructor(public context:ReferenceContext, public from:Value, to?:Reference) {
     super();
+    if(isReference(from)) {
+      context.register(from);
+    }
     if(!to) {
       if(!isReference(from)) throw new Error("Move where the to is not a reference");
       this.to = from;
@@ -1280,6 +1283,11 @@ class Fn extends DSLBase {
       this.output = args[args.length - 1];
     } else {
       this.output = Reference.create(context, this);
+    }
+    for(let arg of args) {
+      if(isReference(arg)) {
+        context.register(arg);
+      }
     }
     context.flow.collect(this);
   }

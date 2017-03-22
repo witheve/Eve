@@ -1376,12 +1376,12 @@ export class FunctionConstraint implements Constraint {
     // @NOTE: If we just use solvingFor then we don't know the offsets into the outputs array,
     // so we check everything...
     let ix = 0;
+    let valid = true;
     for(let returnName of this.returnNames) {
       let field = this.fields[returnName];
-      if(isRegister(field) && prefix[field.offset]) {
-        if(prefix[field.offset] !== outputs[ix]) {
-          return false;
-        }
+      let value = isRegister(field) ? prefix[field.offset] : field;
+      if(value !== outputs[ix]) {
+        return false;
       }
       ix++;
     }

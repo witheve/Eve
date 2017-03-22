@@ -152,7 +152,7 @@ test("static equality filters expressions", (assert) => {
   let prog = new Program("Automatic Teacher's Assistant");
   prog.block("Auto TA addition", ({find, record, lib}) => {
     let addition = find("addition");
-    addition.a == addition.a + addition.b;
+    1 == addition.a + addition.b;
     return [record("success", {addition})];
   });
 
@@ -165,14 +165,14 @@ test("static equality filters expressions", (assert) => {
     [2, "a", 3],
     [2, "b", -2],
   ], [
-    ["A", "tag", "success"],
-    ["A", "addition", 2]
+    ["A", "tag", "success", 1],
+    ["A", "addition", 2, 1]
   ])
 
   assert.end();
 });
 
-test.only("dynamic equality filters expressions", (assert) => {
+test("dynamic equality filters expressions", (assert) => {
   let prog = new Program("Automatic Teacher's Assistant");
   prog.block("Auto TA addition", ({find, record, lib}) => {
     let addition = find("addition");
@@ -191,8 +191,8 @@ test.only("dynamic equality filters expressions", (assert) => {
     [2, "b", -2],
     [2, "c", 1],
   ], [
-    ["Z", "tag", "success"],
-    ["Z", "addition", 2]
+    ["Z", "tag", "success", 1],
+    ["Z", "addition", 2, 1]
   ])
 
   assert.end();
