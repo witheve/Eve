@@ -148,6 +148,57 @@ test("simple division", (assert) => {
   assert.end();
 });
 
+test("static equality filters expressions", (assert) => {
+  let prog = new Program("Automatic Teacher's Assistant");
+  prog.block("Auto TA addition", ({find, record, lib}) => {
+    let addition = find("addition");
+    addition.a == addition.a + addition.b;
+    return [record("success", {addition})];
+  });
+
+  verify(assert, prog, [
+    [1, "tag", "addition"],
+    [1, "a", 7],
+    [1, "b", 13],
+
+    [2, "tag", "addition"],
+    [2, "a", 3],
+    [2, "b", -2],
+  ], [
+    ["A", "tag", "success"],
+    ["A", "addition", 2]
+  ])
+
+  assert.end();
+});
+
+test.only("dynamic equality filters expressions", (assert) => {
+  let prog = new Program("Automatic Teacher's Assistant");
+  prog.block("Auto TA addition", ({find, record, lib}) => {
+    let addition = find("addition");
+    addition.c == addition.a + addition.b;
+    return [record("success", {addition})];
+  });
+
+  verify(assert, prog, [
+    [1, "tag", "addition"],
+    [1, "a", 7],
+    [1, "b", 13],
+    [1, "c", 1],
+
+    [2, "tag", "addition"],
+    [2, "a", 3],
+    [2, "b", -2],
+    [2, "c", 1],
+  ], [
+    ["Z", "tag", "success"],
+    ["Z", "addition", 2]
+  ])
+
+  assert.end();
+});
+
+
 
 test("simple recursion", (assert) => {
   // -----------------------------------------------------
