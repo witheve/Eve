@@ -251,6 +251,60 @@ test("Choose: post-filtering outer", (assert) => {
   assert.end();
 });
 
+test("Choose: expression-only dynamic branch", (assert) => {
+  let prog = new Program("test");
+  prog.block("Choose non-static expression only.", ({find, choose, record}) => {
+    let guy = find("guy");
+    let {radness} = guy;
+    let [radometer] = choose(() => radness * 3); // This does not.
+    // let radometer = radness * 3; // This works
+    return [guy.add("radometer", radometer)];
+  });
+
+  verify(assert, prog, [
+    [1, "tag", "guy"],
+    [1, "radness", 1],
+  ], [
+    [1, "radometer", 3]
+  ]);
+  assert.end();
+});
+
+test("Choose: filter and expression-only dynamic branches", (assert) => {
+  let prog = new Program("test");
+  prog.block("Choose non-static expression only.", ({find, choose, record}) => {
+    let guy = find("guy");
+    let {radness} = guy;
+    // We need to adjust the scale since radness is roughly logarithmic.
+    let [radometer] = choose(
+      () => { radness < 2; return radness; },
+      () => { radness < 4; return radness * 2; },
+      () => radness * 3
+    );
+    // let radometer = radness * 3;
+    return [guy.add("radometer", radometer)];
+  });
+
+  verify(assert, prog, [
+    [1, "tag", "guy"],
+    [1, "radness", 0],
+    [2, "tag", "guy"],
+    [2, "radness", 1],
+    [3, "tag", "guy"],
+    [3, "radness", 2],
+    [4, "tag", "guy"],
+    [4, "radness", 4],
+  ], [
+    [1, "radometer", 0],
+    [2, "radometer", 1],
+    [3, "radometer", 4],
+    [4, "radometer", 12]
+  ]);
+  assert.end();
+});
+
+
+
 let programs = {
   "1 static": () => {
     let prog = new Program("1 static branch");
