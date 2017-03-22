@@ -60,68 +60,6 @@ class HTMLWatcher extends DOMWatcher<Instance> {
 
       this._sendEvent(eavs);
     });
-
-    this.program
-      .watch("setup onmouseenter", ({find, record}) => {
-        let elemId = find("html/onmouseenter");
-        let instanceId = find("html/instance", {element: elemId});
-        return [
-          record({elemId, instanceId})
-        ]
-      })
-      .asObjects<{elemId:ID, instanceId:RawValue}>(({adds, removes}) => {
-        Object.keys(adds).forEach((id) => {
-          let {elemId, instanceId} = adds[id];
-          // instanceId couldn't be undefined because we've found it in .watch() above
-          let instance = this.getInstance(instanceId)!;
-          instance.addEventListener("mouseenter", () => {
-            let changes:any[] = [];
-            let eventId = uuid();
-            changes.push(
-              [eventId, "tag", "html/event/mouseenter"],
-              [eventId, "element", elemId],
-            );
-            this._sendEvent(changes);
-          });
-        })
-      })
-      .watch("setup onmouseleave", ({find, record}) => {
-        let elemId = find("html/onmouseleave");
-        let instanceId = find("html/instance", {element: elemId});
-        return [
-          record({elemId, instanceId})
-        ]
-      })
-      .asObjects<{elemId:ID, instanceId:RawValue}>(({adds, removes}) => {
-        Object.keys(adds).forEach((id) => {
-          let {elemId, instanceId} = adds[id];
-          // instanceId couldn't be undefined because we've found it in .watch() above
-          let instance = this.getInstance(instanceId)!;
-          instance.addEventListener("mouseleave", () => {
-            let changes:any[] = [];
-            let eventId = uuid();
-            changes.push(
-              [eventId, "tag", "html/event/mouseleave"],
-              [eventId, "element", elemId],
-            );
-            this._sendEvent(changes);
-          });
-        })
-      });
-
-    this.program
-      .commit("Remove mouseenter events", ({find}) => {
-        let event = find("html/event/mouseenter");
-        return [
-          event.remove("tag"),
-        ];
-      })
-      .commit("Remove mouseleave events", ({find}) => {
-        let event = find("html/event/mouseleave");
-        return [
-          event.remove("tag"),
-        ];
-      });
   }
 }
 

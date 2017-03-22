@@ -20,8 +20,8 @@ prog
           `),
         record("html/div", {sort: 0})
           .add("class", "cause")
-          .add("tag", "html/onmouseenter")
-          .add("tag", "html/onmouseleave"),
+          .add("on", "mouseenter")
+          .add("on", "mouseleave"),
         record("html/div", {sort: 1})
           .add("class", "effect")
           .add("tag", "effect")
@@ -32,7 +32,7 @@ prog
 prog
   .commit("mouseenter", ({find, record}) => {
     let elem = find("effect");
-    let event = find("html/event/mouseenter");
+    let event = find("dom/event", {event: "mouseenter"});
     return [
       elem.add("class", "visible")
     ];
@@ -41,7 +41,7 @@ prog
 prog
   .commit("mouseleave", ({find, record}) => {
     let elem = find("effect");
-    let event = find("html/event/mouseleave");
+    let event = find("dom/event", {event: "mouseleave"});
     return [
       elem.remove("class", "visible")
     ];
