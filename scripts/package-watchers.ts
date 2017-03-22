@@ -7,6 +7,7 @@ export function packageWorkspaces(callback:() => void) {
   let content = "let _watchers = [\n";
   for(let filepath of watchers) {
     content += "  \"/build/" + path.relative(__dirname + "/..", filepath) + "\", \n";
+    content = content.replace(/\\/g, "/");
   }
   content += "];\n";
   fs.writeFileSync("build/watchers.js", content);
