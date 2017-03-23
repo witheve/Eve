@@ -341,7 +341,7 @@ test("Aggregate: committed sort in choose", (assert) => {
   assert.end();
 });
 
-test("Aggregate: committed sort in choose", (assert) => {
+test("Aggregate: committed sort in choose with post filtering greater than", (assert) => {
   let prog = new Program("test")
   .commit("Clear events when they come in.", ({find}) => {
     let event = find("event/create-widget");
@@ -383,6 +383,57 @@ test("Aggregate: committed sort in choose", (assert) => {
   assert.end();
 });
 
+
+test("Aggregate: committed sort with multiple groups", (assert) => {
+  let prog = new Program("test")
+  .commit("Clear events when they come in.", ({find}) => {
+    let event = find("event/create-widget");
+    return [event.remove()];
+  })
+  .commit("Create a new widget of the given model.", ({find, choose, gather, record}) => {
+    let {model} = find("event/create-widget");
+
+    // The serial number of our next widget is the highest serial we've issued for this model so far + 1.
+    let [serial] = choose(() => {
+      let {widget:other} = model;
+      2 > gather(other.serial).per(model).sort("down");
+      return other.serial + 1;
+    }, () => 1);
+    return [model.add("widget", record("widget", {serial}))];
+  });
+
+
+  verify(assert, prog, [
+    [1, "tag", "model"],
+    [1, "widget", 2],
+    [1, "widget", 3],
+    [2, "tag", "widget"],
+    [2, "serial", 3],
+    [3, "tag", "widget"],
+    [3, "serial", 5],
+
+    [5, "tag", "model"],
+    [5, "widget", 6],
+    [6, "tag", "widget"],
+    [6, "serial", 28],
+    [5, "widget", 7],
+    [7, "tag", "widget"],
+    [7, "serial", 30],
+
+    [4, "tag", "event/create-widget"],
+    [4, "model", 1],
+  ], [
+    [4, "tag", "event/create-widget", 0, -1],
+    [4, "model", 1, 0, -1],
+
+    [1, "widget", "widget|6", 0],
+    ["widget|6", "tag", "widget", 0],
+    ["widget|6", "serial", 6, 0],
+  ]);
+
+  assert.end();
+});
+
 test("Sort: incremental updates", (assert) => {
   let prog = new Program("test");
   prog.block("the block's next is the highest node sort + 1.", ({find, gather, record}) => {
@@ -404,12 +455,39 @@ test("Sort: incremental updates", (assert) => {
     [1, "node", 3],
     [3, "sort", 2],
   ], [
-    [1, "next", 3, 1]
+    [1, "next", 3, 1],
+    [1, "next", 2, 1, -1],
   ]);
   verify(assert, prog, [
     [1, "node", 4],
     [4, "sort", 5],
   ], [
-    [1, "next", 6, 1]
+    [1, "next", 6, 1],
+    [1, "next", 3, 1, -1],
   ]);
+
+  assert.end();
+});
+
+
+test.only("Aggregate: inside choose without outer in key", (assert) => {
+  let prog = new Program("test");
+  prog.block("count the names of people", ({find, gather, record, choose}) => {
+    let person = find("person");
+    let [sort] = choose(() => {
+      return gather(person.name).count();
+    }, () => "yo yo yo");
+    return [person.add("next", sort)];
+  });
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+    [1, "name", "chris"],
+    [1, "name", "christopher"],
+    [2, "name", "joe"],
+  ], [
+    [1, "next", 2, 1],
+  ]);
+
+  assert.end();
 });
