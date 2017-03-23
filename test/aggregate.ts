@@ -301,3 +301,34 @@ test("Aggregate: committed sort in choose", (assert) => {
 
   assert.end();
 });
+
+test("Sort: incremental updates", (assert) => {
+  let prog = new Program("test");
+  prog.block("the block's next is the highest node sort + 1.", ({find, gather, record}) => {
+    let block = find("block");
+    let {node} = block;
+    2 > gather(node.sort).per(block).sort("down");
+    let sort = node.sort + 1;
+    return [block.add("next", sort)];
+  });
+
+  verify(assert, prog, [
+    [1, "tag", "block"],
+    [1, "node", 2],
+    [2, "sort", 1],
+  ], [
+    [1, "next", 2, 1]
+  ]);
+  verify(assert, prog, [
+    [1, "node", 3],
+    [3, "sort", 2],
+  ], [
+    [1, "next", 3, 1]
+  ]);
+  verify(assert, prog, [
+    [1, "node", 4],
+    [4, "sort", 5],
+  ], [
+    [1, "next", 6, 1]
+  ]);
+});
