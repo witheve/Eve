@@ -97,6 +97,7 @@ export class Reference {
   }
 
   __ID = Reference.ReferenceID++;
+  __forceRegister = false;
 
   constructor(public __context:ReferenceContext, public __owner?:Owner) {
     let proxied = this.__proxy();
@@ -195,6 +196,7 @@ export class ReferenceContext {
   flow: LinearFlow;
   references:Reference[] = [];
   equalities:Value[][] = [];
+  forcedMoves:Value[][] = [];
   referenceValues: (Register|RawValue)[] = [];
   totalRegisters = 0;
   maxRegisters = 0;
@@ -282,6 +284,7 @@ export class ReferenceContext {
   unify() {
     let {equalities} = this;
     let values:(Register | RawValue)[] = this.referenceValues;
+    let forcedMoves = [];
     let changed = equalities.length > 0;
 
     let round = 0;
@@ -299,7 +302,9 @@ export class ReferenceContext {
         let neueA = aValue;
         let neueB = bValue;
 
-        if(isReference(a) && isReference(b)) {
+        if((a as Reference).__forceRegister || (b as Reference).__forceRegister) {
+          forcedMoves.push([a,b]);
+        } else if(isReference(a) && isReference(b)) {
           if(this.selectReference(a, b) === b) {
             neueA = bValue;
           } else {
@@ -327,10 +332,16 @@ export class ReferenceContext {
       throw new Error("Unable to unify variables. This is almost certainly an implementation error.");
     }
     this.assignRegisters()
+    this.forcedMoves = forcedMoves;
   }
 
   getMoves() {
     let moves = [];
+    for(let [a,b] of this.forcedMoves) {
+      let to = isReference(a) ? a : b;
+      let from = to === a ? b : a;
+      moves.push(new Move(this, from, to as Reference));
+    }
     for(let ref of this.references) {
       if(ref === undefined || this.owns(ref)) continue;
       let local = this.getValue(ref);
@@ -1353,6 +1364,7 @@ class Aggregate extends DSLBase {
     } else {
       this.output = Reference.create(context, this);
     }
+    this.output.__forceRegister = true;
 
     // add all of our args to our projection
     for(let arg of args) {
@@ -1470,7 +1482,9 @@ class Union extends DSLBase {
       if(resultCount === undefined) {
         resultCount = branchResultCount;
         for(let resultIx = 0; resultIx < resultCount; resultIx++) {
-          results.push(Reference.create(context));
+          let ref = Reference.create(context);
+          ref.__forceRegister = true;
+          results.push(ref);
         }
       } else if(resultCount !== branchResultCount) {
         throw new Error(`Choose branch ${ix} doesn't have the right number of returns. I expected ${resultCount}, but got ${branchResultCount}`);

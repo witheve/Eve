@@ -1745,6 +1745,7 @@ export class JoinNode extends Node {
     if(this.isStatic && didSomething) {
       this.dormant = true;
     }
+    console.log("DID SOMETHING?", didSomething);
     return didSomething;
   }
 
@@ -1866,6 +1867,7 @@ export class OutputWrapperNode extends Node {
   commits = new Iterator<Change>();
 
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transactionId:number, round:number, results:Iterator<Prefix>, transaction:Transaction):boolean {
+    console.log("OUTPUT YO", printPrefix(prefix));
     let {tracer} = context;
     let {binds, commits} = this;
     binds.clear();
@@ -2304,8 +2306,15 @@ export class BinaryJoinRight extends BinaryFlow {
 
   merge(left:Prefix, right:Prefix) {
     for(let register of this.registersToMerge) {
-      left[register.offset] = right[register.offset];
+      let leftValue = left[register.offset];
+      let rightValue = right[register.offset];
+      if(leftValue === undefined || leftValue === rightValue) {
+        left[register.offset] = rightValue
+      } else {
+        return false;
+      }
     }
+    return true;
   }
 
   onLeft(context:EvaluationContext, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):void {
@@ -2319,12 +2328,13 @@ export class BinaryJoinRight extends BinaryFlow {
     let rightPrefix;
     while(rightPrefix = diffs.next()) {
       let result = copyArray(prefix, "BinaryJoinResult");
-      this.merge(result, rightPrefix)
-      result[result.length - 2] = Math.max(prefixRound, diffs.round);
-      result[result.length - 1] = count * diffs.count;
-      context.tracer.capturePrefix(result);
-      results.push(result);
-      // debug("               join left -> ", printPrefix(result), diffs.round, count, diffs.count);
+      if(this.merge(result, rightPrefix)) {
+        result[result.length - 2] = Math.max(prefixRound, diffs.round);
+        result[result.length - 1] = count * diffs.count;
+        context.tracer.capturePrefix(result);
+        results.push(result);
+        // debug("               join left -> ", printPrefix(result), diffs.round, count, diffs.count);
+      }
     }
   }
 
@@ -2334,17 +2344,18 @@ export class BinaryJoinRight extends BinaryFlow {
     let count = prefix[prefix.length - 1];
     this.rightIndex.insert(key, prefix);
     let diffs = this.leftIndex.iter(key, round)
-    // debug("       join right", key, this.rightIndex.index[key]);
+    console.log("       join right", key, this.rightIndex.index[key]);
     if(!diffs) return;
     let leftPrefix;
     while(leftPrefix = diffs.next()) {
       let result = copyArray(leftPrefix, "BinaryJoinResult");
-      this.merge(result, prefix)
-      result[result.length - 2] = Math.max(prefixRound, diffs.round);
-      result[result.length - 1] = count * diffs.count;
-      context.tracer.capturePrefix(result);
-      results.push(result);
-      // debug("              join right -> ", printPrefix(result.slice()), diffs.round, count, diffs.count);
+      if(this.merge(result, prefix)) {
+        result[result.length - 2] = Math.max(prefixRound, diffs.round);
+        result[result.length - 1] = count * diffs.count;
+        context.tracer.capturePrefix(result);
+        results.push(result);
+        console.log("              join right -> ", printPrefix(result.slice()), diffs.round, count, diffs.count);
+      }
     }
   }
 }
@@ -2620,6 +2631,7 @@ export class MergeAggregateFlow extends BinaryJoinRight {
     }
     rightResults.reset();
     while((result = rightResults.next()) !== undefined) {
+      console.log("YO", result.slice())
       this.onRight(context, result, transaction, round, results);
     }
     return true;
@@ -2915,6 +2927,7 @@ export abstract class SortNode extends Node {
     item[outOffset] = GlobalInterner.intern(pos + 1);
     item[item.length - 2] = round;
     item[item.length - 1] = count;
+    console.log("SORT RESULT", printPrefix(item));
     return item;
   }
 
@@ -2990,13 +3003,11 @@ export class Block {
     // We populate the prefix with values from the input change so we only derive the
     // results affected by it.
     for(let node of this.nodes) {
+      if(this.results.length === 0) return false;
       while((prefix = this.results.next()) !== undefined) {
         context.tracer.node(node, prefix);
         let valid = node.exec(context, input, prefix, transaction.transaction, transaction.round, this.nextResults, transaction);
         context.tracer.pop(TraceFrameType.Node);
-        if(!valid) {
-          return false;
-        }
       }
       let tmp = this.results;
       this.results = this.nextResults;
@@ -3114,6 +3125,8 @@ export class Transaction {
       for(let commit of framePartialCommits) {
         commit.toRemoveChanges(context, frameCommits);
       }
+
+      console.log("COMMITS", frameCommits.slice());
 
       let collapsedCommits:Change[] = [];
       this.collapseCommits(this.frameCommits, collapsedCommits);
