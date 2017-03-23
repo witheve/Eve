@@ -107,25 +107,25 @@
 .editor-molecule-list-molecule-grid { position: relative;}
 .editor-molecule-list-molecule-cell { cursor: default; -webkit-user-select: none; }
 
-.editor-molecule-list-molecule-infobox { position: absolute; top: 100%; left: 0; /*left: 75%; transform: translateX(-50%);*/ width: 250; padding: 10; z-index: 3; background: white; border-radius: 3px; border: 1px solid #bbb; }
+.editor-infobox { position: absolute; top: 100%; left: 0; /*left: 75%; transform: translateX(-50%);*/ width: 250; padding: 10; z-index: 3; background: white; border-radius: 3px; border: 1px solid #bbb; }
 
-.editor-molecule-list-molecule-field-new  {position: relative;width: 40; line-height: 1.3em; margin-top: 0;margin-left: -4;margin-bottom:-4;font-size: 0.9em; color: #999; }
-.editor-molecule-list-molecule-field-new:before { width: 1.3em; line-height: 1.3em; text-align: center; background: white; font-weight: 100; }
+.editor-infobox-field-new  {position: relative;width: 40; line-height: 1.3em; margin-top: 0;margin-left: -4;margin-bottom:-4;font-size: 0.9em; color: #999; }
+.editor-infrobox-field-new:before { width: 1.3em; line-height: 1.3em; text-align: center; background: white; font-weight: 100; }
 
-.editor-molecule-list-molecule-field-attribute { margin-left: -8; width: auto; }
-.editor-molecule-list-molecule-field-attribute input { font-size: 1em; line-height: 1.3em; padding: 5 10; font-weight: inherit;font-family: inherit; border: none; color: inherit;}
+.editor-infobox-field-attribute { margin-left: -8; width: auto; }
+.editor-infobox-field-attribute input { font-size: 1em; line-height: 1.3em; padding: 5 10; font-weight: inherit;font-family: inherit; border: none; color: inherit;}
 
-.editor-molecule-list-molecule-infobox-node { margin-bottom: 10; }
+.editor-infobox-node { margin-bottom: 10; }
 
-.editor-molecule-list-molecule-infobox-node-header { margin: 0 9; margin-bottom: 0.25rem; }
-.editor-molecule-list-molecule-infobox-node-name { font-size: 1.25em; font-weight: 500; color: #606060; }
+.editor-infobox-node-header { margin: 0 9; margin-bottom: 0.25rem; }
+.editor-infobox-node-name { font-size: 1.25em; font-weight: 500; color: #606060; }
 
-.editor-molecule-list-molecule-infobox-atom { width: 100%; }
-.editor-molecule-list-molecule-infobox .ui-field-table td { border: none; }
-.editor-molecule-list-molecule-infobox .ui-field-table td:first-child { width: 75; }
+.editor-infobox-atom { width: 100%; }
+.editor-infobox .ui-field-table td { border: none; }
+.editor-infobox .ui-field-table td:first-child { width: 75; }
 
-.editor-molecule-list-paginator { padding-left: 0.5em; color: #909090; margin-top: 4; }
-.editor-molecule-list-paginator > div { margin-top: -2; }
+.editor-infobox .editor-paginator { padding-left: 0.5em; color: #909090; margin-top: 4; }
+.editor-infobox .editor-paginator > div { margin-top: -2; }
 
 /****************************************************************************\
  * Editor Block Canvas
