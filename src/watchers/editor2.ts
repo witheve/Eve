@@ -35,24 +35,16 @@ class EditorWatcher extends Watcher {
         return [content.add("type", active_frame.type)];
       })
 
-      .block("A block's next node sort is it's max node sort + 1 (or 1).", ({find, gather}) => {
+
+      .block("A block's next node sort is it's max node sort + 1 (or 1).", ({find, choose, gather}) => {
         let block = find("block");
-        let {node} = block;
-        1 == gather(node.sort, node).per(block).sort("down");
-        let sort = node.sort + 1;
-
-        // @FIXME: Hackaround busted sort.
-        // let sibling = find("node");
-        // not(() => find("node").sort > sibling.sort);
-        // let sort = sibling.sort + 1;
-
+        // @NOTE: We can only reliably use an aggregate in a choose if the choose inputs are *only* used in the aggregate grouping.
+        let [sort] = choose(() => {
+          let {node} = block;
+          1 == gather(node.sort, node).per(block).sort("down");
+          return node.sort + 1;
+        }, () => 1);
         return [block.add("next_node_sort", sort)];
-      })
-      .block("With no nodes, a block's next sort is 1.", ({find, not}) => {
-        // @FIXME: Hackaround busted sort.
-        let block = find("block");
-        not(() => block.next_node_sort != 1);
-        return [block.add("next_node_sort", 1)];
       })
 
       .block("A node is another node's parent if it has an AV who's V is the other node's entity", ({find}) => {
@@ -83,7 +75,6 @@ class EditorWatcher extends Watcher {
         let {attribute} = node;
         find("editor/existing-node-attribute", {node, text: attribute.attribute, is_record: "true"});
         not(() => attribute.value == find("node").entity);
-
         let sort = active_block.next_node_sort;
 
         let subnode;
@@ -177,7 +168,7 @@ class EditorWatcher extends Watcher {
       ["|init", "tag", "editor/init"]
     ];
 
-    // @NOTE: To get successive layers, multiply offsets by magnitude = ceil(mod(ix - 2, 6) + 2)
+    // @NOTE: To get successive layers, multiply offsets by magnitude = ceil(mod(ix - 2, 6) + 2) and connect the dots
     // @NOTE: Take special care about the 0,0, in ix: 1.
     appendAsEAVs(fixture, {tag: "spiral", row: 1, sort: 1, x: 0, y: 0});
     appendAsEAVs(fixture, {tag: "spiral", row: 1, sort: 2, x: 1, y: 0});
@@ -318,45 +309,6 @@ class EditorWatcher extends Watcher {
           record("range", {ix: 16}),
         ];
       })
-
-      // .commit("DEBUG: Expand the spiral neighbors out statically (rather than on-demand)", ({find,  lib:{math}, choose, record}) => {
-      //   let {ix} = find("spiral-range");
-      //   let neighbor = math.mod(ix - 1, 6) + 1;
-      //   let spiral = find("spiral", {row: 0, sort: neighbor});
-      //   math.mod(ix - 1, 6) != 0;
-      //   let mag = math.floor((ix - 2) / 6) + 1;
-      //   return [record("spiral", {row: 0, sort: ix, x: spiral.x * mag, y: spiral.y * mag, mag})];
-      // })
-
-      // .commit("DEBUG: The last leg of a hex spiral is extra long.", ({find,  lib:{math}, choose, record}) => {
-      //   let {ix} = find("spiral-range");
-      //   let neighbor = math.mod(ix - 2, 6) + 2;
-      //   let spiral = find("spiral", {row: 0, sort: neighbor});
-      //   math.mod(ix - 1, 6) < 1;
-      //   let mag = math.floor((ix - 2) / 6) + 2;
-      //   return [record("spiral", {row: 0, sort: ix, x: spiral.x * mag, y: spiral.y * mag, mag, s_ix: ix})];
-      // })
-
-      // .block("DEBUG: Show spirals.", ({find, record}) => {
-      //   let spiral = find("spiral");
-      //   return [record("ui/text", {text: `spiral(${spiral.x}, ${spiral.y}), ${spiral.mag}`})];
-      // })
-
-      // .block("DEBUG: Show spiral grid.", ({find, lib:{math}, choose, record}) => {
-      //   let {ix} = find("range");
-      //   let spiral = find("spiral", {row: 0, sort: ix});
-      //   let {x, y} = spiral;
-      //   let [s_ix] = choose(() => math.mod(spiral.s_ix - 1, 5) + 1, () => math.mod(spiral.sort - 1, 5) + 1);
-      //   let fillStyle = find("node-color", {sort: s_ix}).color;
-
-      //   return [
-      //     record("shape/hex-grid", {side: 20, gap: 5, style: record({position:"absolute", left: 300, top: 300})}).add("cell", [
-      //       record("shape/hexagon", {side: 20, x, y, sort: ix, fillStyle}).add("content", [
-      //         record("ui/text", {text: ix})
-      //       ])
-      //     ])
-      //   ];
-      // })
   }
 
   createEditor() {
@@ -455,7 +407,7 @@ class EditorWatcher extends Watcher {
         return [editor.remove("active_frame").add("active_frame", frame)];
       })
 
-      .block("Addnew frame button to the storyboard.", ({find, record}) => {
+      .block("Add new frame button to the storyboard.", ({find, record}) => {
         let storyboard = find("editor/block/storyboard");
         let {editor} = storyboard;
         let {active_block} = editor;
@@ -525,8 +477,7 @@ class EditorWatcher extends Watcher {
         let new_node = find("editor/node-tree/node/new", {open: "true"});
         return [
           new_node.add("children", [
-            record("editor/node-tree/node/new/tag", "ui/autocomplete", "html/trigger-focus", {sort: 2, new_node, placeholder: "tag..."}),
-            // record("editor/node-tree/node/new/save", "ui/button", {sort: 3, new_node, icon: "android-add"})
+            record("editor/node-tree/node/new/tag", "ui/autocomplete", "html/trigger-focus", {sort: 2, new_node, placeholder: "tag..."})
           ])
         ];
       })
@@ -1079,64 +1030,6 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      // .block("HACK: workaround double choose bug width offset == 0.", ({find, choose, record}) => {
-      //   let molecule_cell = find("editor/molecule-list/molecule");
-      //   let {offset, mag} = molecule_cell;
-      //   offset == 0;
-      //   let cell_width = 28 + 5;
-      //   let w = cell_width;
-      //   return [molecule_cell.add("width", w * mag)];
-      // })
-      // .block("HACK: workaround double choose bug width offset < 3.", ({find, choose, record}) => {
-      //   let molecule_cell = find("editor/molecule-list/molecule");
-      //   let {offset, mag} = molecule_cell;
-      //   0 < offset; offset < 3;
-      //   let cell_width = 28 + 5;
-      //   let w = cell_width * 2;
-      //   return [molecule_cell.add("width", w * mag)];
-      // })
-      // .block("HACK: workaround double choose bug width offset == 3.", ({find, choose, record}) => {
-      //   let molecule_cell = find("editor/molecule-list/molecule");
-      //   let {offset, mag} = molecule_cell;
-      //   offset == 3;
-      //   let cell_width = 28 + 5;
-      //   let w = cell_width * 2.5;
-      //   return [molecule_cell.add("width", w * mag)];
-      // })
-      // .block("HACK: workaround double choose bug width offset > 3.", ({find, choose, record}) => {
-      //   let molecule_cell = find("editor/molecule-list/molecule");
-      //   let {offset, mag} = molecule_cell;
-      //   3 < offset;
-      //   let cell_width = 28 + 5;
-      //   let w = cell_width * 3;
-      //   return [molecule_cell.add("width", w * mag)];
-      // })
-
-      // .block("HACK: workaround double choose bug height offset < 2.", ({find, choose, record}) => {
-      //   let molecule_cell = find("editor/molecule-list/molecule");
-      //   let {offset, mag} = molecule_cell;
-      //   offset < 2;
-      //   let cell_height = 32 + 5;
-      //   let h = cell_height;
-      //   return [molecule_cell.add("height", h * mag)];
-      // })
-      // .block("HACK: workaround double choose bug height offset < 5.", ({find, choose, record}) => {
-      //   let molecule_cell = find("editor/molecule-list/molecule");
-      //   let {offset, mag} = molecule_cell;
-      //   2 <= offset; offset < 5;
-      //   let cell_height = 32 + 5;
-      //   let h = cell_height * 2;
-      //   return [molecule_cell.add("height", h * mag)];
-      // })
-      // .block("HACK: workaround double choose bug height offset >= 5.", ({find, choose, record}) => {
-      //   let molecule_cell = find("editor/molecule-list/molecule");
-      //   let {offset, mag} = molecule_cell;
-      //   5 <= offset;
-      //   let cell_height = 32 + 5;
-      //   let h = cell_height * 3;
-      //   return [molecule_cell.add("height", h * mag)];
-      // })
-
       .block("A molecule's width and height are derived from it's size.", ({find, lib:{math}, choose, record}) => {
         let molecule_cell = find("editor/molecule-list/molecule");
         let {offset, mag} = molecule_cell;
@@ -1187,10 +1080,7 @@ class EditorWatcher extends Watcher {
         let atom_cell = find("editor/molecule-list/molecule/cell");
         let {molecule, atom} = atom_cell;
         let {x, y} = find("spiral", {row: 0, sort: atom_cell.sort});
-        return [
-          atom_cell.add({x, y}),
-          // record("ui/text", {text: `x ${spiral.x} y ${spiral.y} | ix ${ix} | mag ${mag}`})
-        ];
+        return [atom_cell.add({x, y})];
       })
 
       .block("When a molecule is open, display it's infobox.", ({find, record}) => {
@@ -1379,17 +1269,6 @@ class EditorWatcher extends Watcher {
         return [field_autocomplete.add("tag", "html/trigger-focus")];
       })
 
-      // .block("Clicking the infobox new field button saves it.", ({find, record}) => {
-      //   let add_field = find("editor/molecule-list/molecule/field/new");
-      //   let event = find("html/event/click", {element: add_field})
-      //   let {node_infobox} = add_field;
-      //   let field_autocomplete = find("editor/molecule-list/molecule/field/attribute", {node_infobox});
-      //   field_autocomplete.value != "";
-      //   return [
-      //     record("editor/event/save-field", {node: node_infobox.node, attribute: field_autocomplete.value}),
-      //     record("ui/event/clear", {autocomplete: field_autocomplete})
-      //   ];
-      // })
       .block("Selecting a completion in the new field autocomplete saves it.", ({find, not, record}) => {
         let field_autocomplete = find("editor/infobox/field/attribute");
         let {node_infobox, selected} = field_autocomplete;
