@@ -456,6 +456,8 @@ class BitMatrixTree {
   bins: number;
   levels: number;
   cardinality: number;
+  store: any = {};
+  storeIx: number = 0;
 
   constructor(bins = 8, levels = 5) {
     this.root = [];
@@ -468,26 +470,54 @@ class BitMatrixTree {
     return Math.pow(this.bins, this.levels);
   }
 
+  storeAdd(at:number) {
+    let result = this.store[at] = this.storeIx;
+    // for(let ix = 0; ix < 64; ix++) {
+    //   this.store[this.storeIx + ix] = 0;
+    // }
+    // this.storeIx += 64;
+    return result;
+  }
+
+  storeFetch(pos:number, offset:number) {
+    let actual = pos + offset;
+    let cur = this.store[actual];
+    if(!cur) {
+      return this.storeAdd(actual);
+    }
+    return cur;
+  }
+
+  storeGet(pos:number, offset:number) {
+    return this.store[pos + offset] || 0;
+  }
+
+  storeFlip(pos:number, offset:number) {
+    if(!this.store[pos + offset]) {
+      this.store[pos + offset] = 1;
+      return true;
+    }
+    return false;
+  }
+
   insert(row:number, col:number, n:ID, transaction:number, round:number, count:number) {
     let {bins} = this;
     // let path = [];
     let size = this.size();
     let rowStart = 0;
     let colStart = 0;
-    let current = this.root;
+    let current = 0;
     for(let i = 0; i < this.levels - 1; i++) {
-      let rowEdge = (rowStart + size/bins);
-      let colEdge = (colStart + size/bins);
-      let rowIx = Math.floor(row / rowEdge)
-      let colIx = Math.floor(col / colEdge)
+      let rowEdge = size/bins;
+      let colEdge = size/bins;
+      let rowIx = Math.floor((row - rowStart) / rowEdge)
+      let colIx = Math.floor((col - colStart) / colEdge)
       let pos = rowIx * this.bins + colIx;
       // path.push(pos);
-      let next = current[pos];
-      if(!next) next = current[pos] = [];
+      current = this.storeFetch(current, pos);
       size = size / bins
-      if(rowIx) rowStart = rowEdge;
-      if(colIx) colStart = colEdge;
-      current = next;
+      if(rowIx) rowStart = rowStart + rowEdge * rowIx;
+      if(colIx) colStart = colStart + colEdge * colIx;
     }
     let rowIx = row - rowStart;
     let colIx = (col - colStart) % bins;
@@ -495,13 +525,14 @@ class BitMatrixTree {
     // console.log("LAST", {size, rowIx, colIx, pos, row, rowStart});
     // path.push(pos);
     // console.log("CURRENT POS", path);
-    if(!current[pos]) {
-      current[pos] = [n,transaction,round,count];
-      this.cardinality++;
+    if(this.storeFlip(current, pos)) {
+      // current[pos] = [n,transaction,round,count];
+      // current[pos] = 1;
+      // this.cardinality++;
       return true;
     } else {
-      current[pos].push(n,transaction,round,count);
-      this.cardinality++;
+      // current[pos].push(n,transaction,round,count);
+      // this.cardinality++;
     }
     return false;
   }
@@ -782,5 +813,20 @@ export class BitIndex implements Index {
   // }
 
 
+}
+
+
+for(let i = 0; i < 10; i++) {
+  let index = new BitMatrixTree();
+  console.time("iter");
+  for(let j = 0; j < 100000; j++) {
+    let e = (Math.random() * 10000)|0;
+    let v = (Math.random() * 10000)|0;
+    // let e = j % 10000;
+    // let v = j % 10000;
+    index.insert(e, v, 0, 0, 0, 0)
+  }
+  // console.log(index);
+  console.timeEnd("iter");
 }
 
