@@ -1376,12 +1376,12 @@ export class FunctionConstraint implements Constraint {
     // @NOTE: If we just use solvingFor then we don't know the offsets into the outputs array,
     // so we check everything...
     let ix = 0;
+    let valid = true;
     for(let returnName of this.returnNames) {
       let field = this.fields[returnName];
-      if(isRegister(field) && prefix[field.offset]) {
-        if(prefix[field.offset] !== outputs[ix]) {
-          return false;
-        }
+      let value = isRegister(field) ? prefix[field.offset] : field;
+      if(value !== outputs[ix]) {
+        return false;
       }
       ix++;
     }
@@ -1498,11 +1498,15 @@ export class JoinNode extends Node {
     let registers = createArray() as Register[][];
     let proposedResultsArrays = createArray() as ID[][];
     let hasOnlyMoves = true;
+    let hasNoScans = true;
     let onlyStatic = true;
     for(let constraint of constraints) {
       constraint.setup();
       if(!(constraint instanceof MoveConstraint)) hasOnlyMoves = false;
       else if(!constraint.isStatic) onlyStatic = false;
+
+      if(constraint instanceof Scan) hasNoScans = false;
+
       for(let register of constraint.getRegisters()) {
         if(!registerLookup[register.offset]) {
           registers.push(createArray() as Register[]);
@@ -1518,6 +1522,10 @@ export class JoinNode extends Node {
         constraint.shouldApplyInput = true;
       }
       this.isStatic = onlyStatic;
+    }
+
+    if(hasNoScans) {
+      this.exec = JoinNode.prototype.downStreamExec;
     }
 
     this.registerLookup = registerLookup;
@@ -1554,7 +1562,7 @@ export class JoinNode extends Node {
     // context.tracer.tracker.blockTime("PresolveCheck");
     let valid = this.presolveCheck(context, input, prefix, transaction, round);
     // context.tracer.tracker.blockTimeEnd("PresolveCheck");
-    //debug("        Join combo valid:", valid, remainingToSolve, countOfSolved, this.registerLength);
+    // debug("        Join combo valid:", valid, remainingToSolve, countOfSolved, this.registerLength);
     if(!valid) {
       // do nothing
       return false;
@@ -1727,6 +1735,19 @@ export class JoinNode extends Node {
     return results;
   }
 
+  downStreamExec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>) {
+    if(this.isStatic && this.dormant) return false;
+
+    this.inputCount = prefix[prefix.length - 1] !== undefined ? prefix[prefix.length - 1] : input.count;
+    let inputRound = prefix[prefix.length - 2] !== undefined ? prefix[prefix.length - 2] : input.round;
+    let didSomething = this.applyCombination(context, input, prefix, transaction, inputRound, results);
+
+    if(this.isStatic && didSomething) {
+      this.dormant = true;
+    }
+    return didSomething;
+  }
+
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):boolean {
     let didSomething = false;
     this.inputCount = input.count;
@@ -1741,7 +1762,6 @@ export class JoinNode extends Node {
     } else if(input === BLOCK_ADD) {
       didSomething = this.applyCombination(context, input, prefix, transaction, round, results);
     } else {
-      if(this.isStatic && this.dormant) return false;
       this.inputCount = input.count;
       let affectedConstraints = this.findAffectedConstraints(input, prefix);
 
@@ -1798,10 +1818,7 @@ export class JoinNode extends Node {
 
 export class DownstreamJoinNode extends JoinNode {
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>):boolean {
-    this.inputCount = prefix[prefix.length - 1];
-    let inputRound = prefix[prefix.length - 2];
-    let didSomething = this.applyCombination(context, input, prefix, transaction, inputRound, results);
-    return didSomething;
+    return this.downStreamExec(context, input, prefix, transaction, round, results);
   }
 }
 

@@ -265,7 +265,7 @@ test("Choose: expression-only dynamic branch", (assert) => {
     [1, "tag", "guy"],
     [1, "radness", 1],
   ], [
-    [1, "radometer", 3]
+    [1, "radometer", 3, 1]
   ]);
   assert.end();
 });
@@ -295,10 +295,10 @@ test("Choose: filter and expression-only dynamic branches", (assert) => {
     [4, "tag", "guy"],
     [4, "radness", 4],
   ], [
-    [1, "radometer", 0],
-    [2, "radometer", 1],
-    [3, "radometer", 4],
-    [4, "radometer", 12]
+    [1, "radometer", 0, 1],
+    [2, "radometer", 1, 1],
+    [3, "radometer", 4, 1],
+    [4, "radometer", 12, 1]
   ]);
   assert.end();
 });
