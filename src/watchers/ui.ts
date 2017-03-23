@@ -293,10 +293,14 @@ export class UIWatcher extends Watcher {
         ])];
       })
 
+    this.autocomplete();
+  }
 
-    //--------------------------------------------------------------------
-    // Autocomplete
-    //--------------------------------------------------------------------
+  //--------------------------------------------------------------------
+  // Autocomplete
+  //--------------------------------------------------------------------
+
+  autocomplete() {
     this.program
       .block("Decorate autocompletes.", ({find, record}) => {
         let autocomplete = find("ui/autocomplete");
@@ -355,8 +359,13 @@ export class UIWatcher extends Watcher {
             ])
           ])
         ];
-      })
+      });
 
+    //--------------------------------------------------------------------
+    // Autocomplete Interaction
+    //--------------------------------------------------------------------
+
+    this.program
       .commit("Clicking a match updates the selected and value of the autocomplete.", ({find}) => {
         let ui_match = find("ui/autocomplete/match");
         find("html/event/click", {element: ui_match});
@@ -388,7 +397,31 @@ export class UIWatcher extends Watcher {
         not(() => find("html/event/click", {element: autocomplete}));
         return [autocomplete.remove("open")];
       })
+
+      .commit("Blurring an autocomplete removes it's trigger-focus.", ({find, record}) => {
+        let autocomplete = find("ui/autocomplete", "html/trigger-focus");
+        let input = find("ui/autocomplete/input", {autocomplete});
+        let event = find("html/event/blur", {element: input});
+        return [autocomplete.remove("tag", "html/trigger-focus")];
+      })
+
+    //--------------------------------------------------------------------
+    // Autocomplete Events
+    //--------------------------------------------------------------------
+
+    this.program
+      .commit("Clear the specified autocomplete.", ({find}) => {
+        let event = find("ui/event/clear");
+        let {autocomplete} = event;
+        let input = find("ui/autocomplete/input", {autocomplete});
+        return [
+          input.remove("value"),
+          event.remove()
+        ];
+      })
+
   }
+
 }
 
 Watcher.register("ui", UIWatcher);

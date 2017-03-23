@@ -143,18 +143,6 @@ class EditorWatcher extends Watcher {
         return [node.add("color", color)];
       })
 
-      .commit("Clear the specified autocomplete.", ({find}) => {
-        let {autocomplete} = find("editor/event/clear-autocomplete");
-        let input = find("ui/autocomplete/input", {autocomplete});
-        return [input.remove("value")];
-      })
-      .commit("Blurring an autocomplete removes it's trigger-focus.", ({find, record}) => {
-        let autocomplete = find("ui/autocomplete", "html/trigger-focus");
-        let input = find("ui/autocomplete/input", {autocomplete});
-        let event = find("html/event/blur", {element: input});
-        return [autocomplete.remove("tag", "html/trigger-focus")];
-      })
-
     // this.navigation();
     this.header();
 
@@ -844,7 +832,7 @@ class EditorWatcher extends Watcher {
         field_autocomplete.value != "";
         return [
           record("editor/event/save-field", {node: tree_node.node, attribute: field_autocomplete.value}),
-          record("editor/event/clear-autocomplete", {autocomplete: field_autocomplete})
+          record("ui/event/clear", {autocomplete: field_autocomplete})
         ];
       })
       .block("Selecting a completion in the new field autocomplete saves it.", ({find, not, record}) => {
@@ -852,7 +840,7 @@ class EditorWatcher extends Watcher {
         let {tree_node, selected} = field_autocomplete;
         return [
           record("editor/event/save-field", {node: tree_node.node, attribute: selected.text}),
-          record("editor/event/clear-autocomplete", {autocomplete: field_autocomplete})
+          record("ui/event/clear", {autocomplete: field_autocomplete})
         ];
       })
 
@@ -1399,7 +1387,7 @@ class EditorWatcher extends Watcher {
       //   field_autocomplete.value != "";
       //   return [
       //     record("editor/event/save-field", {node: node_infobox.node, attribute: field_autocomplete.value}),
-      //     record("editor/event/clear-autocomplete", {autocomplete: field_autocomplete})
+      //     record("ui/event/clear", {autocomplete: field_autocomplete})
       //   ];
       // })
       .block("Selecting a completion in the new field autocomplete saves it.", ({find, not, record}) => {
@@ -1407,7 +1395,7 @@ class EditorWatcher extends Watcher {
         let {node_infobox, selected} = field_autocomplete;
         return [
           record("editor/event/save-field", {node: node_infobox.node, attribute: selected.text}),
-          record("editor/event/clear-autocomplete", {autocomplete: field_autocomplete})
+          record("ui/event/clear", {autocomplete: field_autocomplete})
         ];
       })
 
