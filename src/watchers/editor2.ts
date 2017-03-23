@@ -36,11 +36,16 @@ class EditorWatcher extends Watcher {
       })
 
       .block("A block's next node sort is it's max node sort + 1 (or 1).", ({find, not}) => {
-        // @FIXME: Hackaround busted sort.
         let block = find("block");
+        // let {node} = block;
+        // 2 > gather(node.sort, node).per(block).sort("down"); // @FIXME: 2 > workaround aggregate static filtering bug.
+        // let sort = node.sort + 1;
+
+        // @FIXME: Hackaround busted sort.
         let sibling = find("node");
         not(() => find("node").sort > sibling.sort);
         let sort = sibling.sort + 1;
+
         return [block.add("next_node_sort", sort)];
       })
       .block("With no nodes, a block's next sort is 1.", ({find, not}) => {
@@ -224,7 +229,7 @@ class EditorWatcher extends Watcher {
             block1 = record("block", {sort: 1}).add({
               nav_tag: record("nav/tag", {name: "Marina"}),
               name: "People with boats",
-              description: "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged.",
+              description: "Add a description...",
               storyboard: [
                 frame1 = record("frame", {type: "query", sort: 1}),
                 record("frame", {type: "output", sort: 2}),
@@ -1178,7 +1183,7 @@ class EditorWatcher extends Watcher {
         let atom = find("editor/atom");
         let molecule = find("editor/molecule", {atom});
         let {node} = atom;
-        let ix = gather(node.sort, atom).per(molecule).sort();
+        let ix = gather(atom).per(molecule, node).sort();
         return [atom.add("sort", ix)];
       })
 
@@ -1231,7 +1236,7 @@ class EditorWatcher extends Watcher {
             ]),
             record("ui/row", {sort: 3, node_infobox}).add("children", [
               record("editor/molecule-list/molecule/field/new", "ui/button", {sort: 1, node_infobox, icon: "android-add"}),
-              record("editor/molecule-list/molecule/field/attribute", "ui/autocomplete", {sort: 2, node_infobox, placeholder: "field..."})
+              record("editor/molecule-list/molecule/field/attribute", "ui/autocomplete", {sort: 2, node_infobox}) // , placeholder: "field..."
             ])
           ])
         ];
@@ -1245,9 +1250,9 @@ class EditorWatcher extends Watcher {
         return [
           infobox_header.add("children", [
             record("ui/row", {sort: 2, node_infobox, class: "editor-molecule-list-paginator"}).add("children", [
-              record("ui/button", {sort: 1, node_infobox, icon: "arrow-left-b"}),
+              // record("ui/button", {sort: 1, node_infobox, icon: "arrow-left-b"}),
               record("ui/text", {sort: 2, text: `(1/${count})`}),
-              record("ui/button", {sort: 3, node_infobox, icon: "arrow-right-b"}),
+              // record("ui/button", {sort: 3, node_infobox, icon: "arrow-right-b"}),
             ])
           ])
         ];
@@ -1264,16 +1269,22 @@ class EditorWatcher extends Watcher {
         return [node_infobox.add("count", count)];
       })
 
-      .block("A molecule infobox atom's fields are derived from its record AVs. Show the greatest if there are multiple and none are open.", ({find, lookup, not, record}) => {
+      .block("A molecule infobox atom's fields are derived from its record AVs. Show the greatest if there are multiple and none are open.", ({find, lookup, gather, not, record}) => {
         let node_infobox = find("editor/molecule-list/molecule/infobox/node");
         let {node, atom} = node_infobox;
         let {attribute, value} = lookup(atom.record);
         not(() => find("editor/molecule-list/molecule/cell", {open: "true"}).atom.node == node);
-        not(() => {
-          let other_atom = find("editor/atom", {node});
-          node_infobox.atom == other_atom;
-          other_atom.sort > atom.sort;
-        })
+        // @FIXME: This bug isn't not related, it's due to atom sharing.
+        // not(() => {
+        //   let other_atom = find("editor/atom", {node});
+        //   node_infobox.atom == other_atom;
+        //   other_atom.sort > atom.sort;
+        // })
+        // 2 < gather(atom).per(node).sort();
+
+        // @FIXME: This will be sad with reused atoms.
+        atom.sort < 2;
+
         attribute != "tag";
         not(() => value.tag);
 
