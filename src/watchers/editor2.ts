@@ -35,16 +35,16 @@ class EditorWatcher extends Watcher {
         return [content.add("type", active_frame.type)];
       })
 
-      .block("A block's next node sort is it's max node sort + 1 (or 1).", ({find, not}) => {
+      .block("A block's next node sort is it's max node sort + 1 (or 1).", ({find, gather}) => {
         let block = find("block");
-        // let {node} = block;
-        // 2 > gather(node.sort, node).per(block).sort("down"); // @FIXME: 2 > workaround aggregate static filtering bug.
-        // let sort = node.sort + 1;
+        let {node} = block;
+        1 == gather(node.sort, node).per(block).sort("down");
+        let sort = node.sort + 1;
 
         // @FIXME: Hackaround busted sort.
-        let sibling = find("node");
-        not(() => find("node").sort > sibling.sort);
-        let sort = sibling.sort + 1;
+        // let sibling = find("node");
+        // not(() => find("node").sort > sibling.sort);
+        // let sort = sibling.sort + 1;
 
         return [block.add("next_node_sort", sort)];
       })
@@ -163,6 +163,8 @@ class EditorWatcher extends Watcher {
 
     this.moleculeGenerator();
     this.moleculeLayout();
+
+    this.infobox();
 
     this.fixtures();
     this.initEditor();
@@ -378,7 +380,7 @@ class EditorWatcher extends Watcher {
 
     let compiler = editor.attach("compiler") as CompilerWatcher;
     compiler.injectInto(this.program);
-    compiler.registerWatcherFunction("send-to-editor", forwardDiffs(editor, "send-to-editor", true));
+    compiler.registerWatcherFunction("send-to-editor", forwardDiffs(editor, "send-to-editor"));
 
     return editor;
   }
@@ -1203,125 +1205,13 @@ class EditorWatcher extends Watcher {
         ];
       })
 
-      .block("When a molecule is hovered, display it's infobox.", ({find, record}) => {
+      .block("When a molecule is open, display it's infobox.", ({find, record}) => {
         let molecule_cell = find("editor/molecule-list/molecule", {open: "true"});
+        let {molecule} = molecule_cell;
         return [molecule_cell.add("children", [
-          record("editor/molecule-list/molecule/infobox", {molecule_cell})
+          record("editor/infobox", {molecule, molecule_cell})
         ])];
       })
-
-      .block("A molecule infobox is a column of field tables.", ({find, record}) => {
-        let infobox = find("editor/molecule-list/molecule/infobox");
-        return [infobox.add("tag", "ui/column")];
-      })
-
-      .block("A molecule infobox has a table per atom.", ({find, record}) => {
-        let infobox = find("editor/molecule-list/molecule/infobox");
-        let {molecule_cell} = infobox;
-        let {molecule} = molecule_cell;
-        let {atom} = molecule;
-        let {node} = atom;
-        return [infobox.add("children", [
-          record("editor/molecule-list/molecule/infobox/node", {sort: node.sort, molecule_cell, infobox, node}).add("atom", atom)
-        ])];
-      })
-
-      .block("A node infobox has the node name, a plus field button.", ({find, record}) => {
-        let node_infobox = find("editor/molecule-list/molecule/infobox/node");
-        let {node} = node_infobox;
-        return [
-          node_infobox.add("tag", "ui/column").add("children", [
-            record("editor/molecule-list/molecule/infobox/node/header", "ui/row", {sort: 1, node_infobox}).add("children", [
-              record("editor/molecule-list/molecule/infobox/node/name", "ui/text", {sort: 1, node_infobox, text: node.name}),
-            ]),
-            record("ui/row", {sort: 3, node_infobox}).add("children", [
-              record("editor/molecule-list/molecule/field/new", "ui/button", {sort: 1, node_infobox, icon: "android-add"}),
-              record("editor/molecule-list/molecule/field/attribute", "ui/autocomplete", {sort: 2, node_infobox}) // , placeholder: "field..."
-            ])
-          ])
-        ];
-      })
-
-      .block("A node infobox with multiple atoms shows a paginator in it's name row.", ({find, gather, record}) => {
-        let node_infobox = find("editor/molecule-list/molecule/infobox/node");
-        let infobox_header = find("editor/molecule-list/molecule/infobox/node/header", {node_infobox});
-        let {node, count} = node_infobox;
-        count > 1;
-        return [
-          infobox_header.add("children", [
-            record("ui/row", {sort: 2, node_infobox, class: "editor-molecule-list-paginator"}).add("children", [
-              // record("ui/button", {sort: 1, node_infobox, icon: "arrow-left-b"}),
-              record("ui/text", {sort: 2, text: `(1/${count})`}),
-              // record("ui/button", {sort: 3, node_infobox, icon: "arrow-right-b"}),
-            ])
-          ])
-        ];
-      })
-
-      .block("A node infobox's count is the number of atoms it has that match.", ({find, gather, record}) => {
-        let node_infobox = find("editor/molecule-list/molecule/infobox/node");
-        let {node, infobox} = node_infobox;
-        let {molecule_cell} = infobox;
-        let {molecule} = molecule_cell;
-        let {atom} = molecule;
-        atom.node == node;
-        let count = gather(atom).per(node).count();
-        return [node_infobox.add("count", count)];
-      })
-
-      .block("A molecule infobox atom's fields are derived from its record AVs. Show the greatest if there are multiple and none are open.", ({find, lookup, gather, not, record}) => {
-        let node_infobox = find("editor/molecule-list/molecule/infobox/node");
-        let {node, atom} = node_infobox;
-        let {attribute, value} = lookup(atom.record);
-        not(() => find("editor/molecule-list/molecule/cell", {open: "true"}).atom.node == node);
-        // @FIXME: This bug isn't not related, it's due to atom sharing.
-        // not(() => {
-        //   let other_atom = find("editor/atom", {node});
-        //   node_infobox.atom == other_atom;
-        //   other_atom.sort > atom.sort;
-        // })
-        // 2 < gather(atom).per(node).sort();
-
-        // @FIXME: This will be sad with reused atoms.
-        atom.sort < 2;
-
-        attribute != "tag";
-        not(() => value.tag);
-
-        return [
-          node_infobox.add("children", [
-            record("editor/molecule-list/molecule/infobox/atom", "ui/field-table", {sort: 2, node_infobox, atom, record: atom.record}).add("field", [
-              record({node_infobox, record: atom.record, attribute}).add("value", value)
-            ])
-          ])
-        ];
-      })
-
-      .block("A molecule infobox atom's fields are derived from its record AVs. Show the open atom if it exists.", ({find, lookup, not, record}) => {
-        let node_infobox = find("editor/molecule-list/molecule/infobox/node");
-        let {node, atom, molecule_cell} = node_infobox;
-        let atom_cell = find("editor/molecule-list/molecule/cell", {molecule_cell, open: "true"});
-        atom_cell.atom == atom;
-        let {attribute, value} = lookup(atom.record);
-        attribute != "tag";
-        not(() => value.tag);
-
-        return [
-          node_infobox.add("children", [
-            record("editor/molecule-list/molecule/infobox/atom", "ui/field-table", {sort: 2, node_infobox, atom, record: atom.record}).add("field", [
-              record({node_infobox, record: atom.record, attribute}).add("value", value)
-            ])
-          ])
-        ];
-      })
-
-      .block("Fill infobox attribute completions.", ({find, record}) => {
-        let new_attribute = find("editor/molecule-list/molecule/field/attribute");
-        let {node_infobox} = new_attribute;
-        let completion = find("editor/existing-node-attribute", {node: node_infobox.node});
-        return [new_attribute.add("completion", completion)];
-      })
-
 
     //--------------------------------------------------------------------
     // Molecule Interactions
@@ -1368,11 +1258,136 @@ class EditorWatcher extends Watcher {
         return [atom_cell.remove("open")];
       })
 
+  }
+
+  //--------------------------------------------------------------------
+  // Infobox
+  //--------------------------------------------------------------------
+
+  infobox() {
+    this.editor
+      .block("A molecule infobox is a column of node infoboxes.", ({find, record}) => {
+        let infobox = find("editor/infobox");
+        return [infobox.add("tag", "ui/column")];
+      })
+
+      .block("A molecule infobox has a node infobox for each unique node.", ({find, record}) => {
+        let infobox = find("editor/infobox");
+        let {molecule} = infobox;
+        let {atom} = molecule;
+        let {node} = atom;
+        return [infobox.add("children", [
+          record("editor/infobox/node", {sort: node.sort, infobox, node}).add("atom", atom)
+        ])];
+      })
+
+      .block("A node infobox has the node name, a plus field button.", ({find, record}) => {
+        let node_infobox = find("editor/infobox/node");
+        let {node} = node_infobox;
+        return [
+          node_infobox.add("tag", "ui/column").add("children", [
+            record("editor/infobox/node/header", "ui/row", {sort: 1, node_infobox}).add("children", [
+              record("editor/infobox/node/name", "ui/text", {sort: 1, node_infobox, text: node.name}),
+            ]),
+            record("ui/row", {sort: 3, node_infobox}).add("children", [
+              record("editor/infobox/field/new", "ui/button", {sort: 1, node_infobox, icon: "android-add"}),
+              record("editor/infobox/field/attribute", "ui/autocomplete", {sort: 2, node_infobox}) // , placeholder: "field..."
+            ])
+          ])
+        ];
+      })
+
+      .block("A node infobox with multiple atoms shows a paginator in it's name row.", ({find, gather, record}) => {
+        let node_infobox = find("editor/infobox/node");
+        let infobox_header = find("editor/infobox/node/header", {node_infobox});
+        let {node, count} = node_infobox;
+        count > 1;
+        return [
+          infobox_header.add("children", [
+            record("ui/row", {sort: 2, node_infobox, class: "editor-paginator"}).add("children", [
+              // record("ui/button", {sort: 1, node_infobox, icon: "arrow-left-b"}),
+              record("ui/text", {sort: 2, text: `(1/${count})`}),
+              // record("ui/button", {sort: 3, node_infobox, icon: "arrow-right-b"}),
+            ])
+          ])
+        ];
+      })
+
+      .block("A node infobox's count is the number of atoms it has that match.", ({find, gather, record}) => {
+        let node_infobox = find("editor/infobox/node");
+        let {node, infobox} = node_infobox;
+        let {molecule} = infobox;
+        let {atom} = molecule;
+        atom.node == node;
+        let count = gather(atom).per(node).count();
+        return [node_infobox.add("count", count)];
+      })
+
+      .block("A molecule infobox atom's fields are derived from its record AVs. Show the greatest if there are multiple and none are open.", ({find, lookup, gather, not, record}) => {
+        let node_infobox = find("editor/infobox/node");
+        let {node, atom} = node_infobox;
+        let {attribute, value} = lookup(atom.record);
+        // @FIXME: Strongly coupled to molecule list here. Instead, pass in an `active` attribute on the infobox.
+        not(() => find("editor/molecule-list/molecule/cell", {open: "true"}).atom.node == node);
+        // @FIXME: This bug isn't not related, it's due to atom sharing.
+        // not(() => {
+        //   let other_atom = find("editor/atom", {node});
+        //   node_infobox.atom == other_atom;
+        //   other_atom.sort > atom.sort;
+        // })
+        // 2 < gather(atom).per(node).sort();
+
+        // @FIXME: This will be sad with reused atoms.
+        atom.sort < 2;
+
+        attribute != "tag";
+        not(() => value.tag);
+
+        return [
+          node_infobox.add("children", [
+            record("editor/infobox/atom", "ui/field-table", {sort: 2, node_infobox, atom, record: atom.record}).add("field", [
+              record({node_infobox, record: atom.record, attribute}).add("value", value)
+            ])
+          ])
+        ];
+      })
+
+      .block("A molecule infobox atom's fields are derived from its record AVs. Show the open atom if it exists.", ({find, lookup, not, record}) => {
+        let node_infobox = find("editor/infobox/node");
+        let {node, atom, infobox} = node_infobox;
+        // @FIXME: Strongly coupled to molecule list here.
+        let atom_cell = find("editor/molecule-list/molecule/cell", {molecule_cell: infobox.molecule_cell, open: "true"});
+        atom_cell.atom == atom;
+        let {attribute, value} = lookup(atom.record);
+        attribute != "tag";
+        not(() => value.tag);
+
+        return [
+          node_infobox.add("children", [
+            record("editor/infobox/atom", "ui/field-table", {sort: 2, node_infobox, atom, record: atom.record}).add("field", [
+              record({node_infobox, record: atom.record, attribute}).add("value", value)
+            ])
+          ])
+        ];
+      })
+
+      .block("Fill infobox attribute completions.", ({find, record}) => {
+        let new_attribute = find("editor/infobox/field/attribute");
+        let {node_infobox} = new_attribute;
+        let completion = find("editor/existing-node-attribute", {node: node_infobox.node});
+        return [new_attribute.add("completion", completion)];
+      });
+
+    //--------------------------------------------------------------------
+    // Infobox Interactions
+    //--------------------------------------------------------------------
+
+    this.editor
       .commit("Clicking the infobox new field button focuses it's autocomplete.", ({find}) => {
-        let add_field = find("editor/molecule-list/molecule/field/new");
+        let add_field = find("editor/infobox/field/new");
         let {node_infobox} = add_field;
         let event = find("html/event/click", {element: add_field})
-        let field_autocomplete = find("editor/node-tree/node/field/new", {node_infobox});
+        let field_autocomplete = find("editor/infobox/field/new", {node_infobox});
         return [field_autocomplete.add("tag", "html/trigger-focus")];
       })
 
@@ -1388,13 +1403,14 @@ class EditorWatcher extends Watcher {
       //   ];
       // })
       .block("Selecting a completion in the new field autocomplete saves it.", ({find, not, record}) => {
-        let field_autocomplete = find("editor/molecule-list/molecule/field/attribute");
+        let field_autocomplete = find("editor/infobox/field/attribute");
         let {node_infobox, selected} = field_autocomplete;
         return [
           record("editor/event/save-field", {node: node_infobox.node, attribute: selected.text}),
           record("editor/event/clear-autocomplete", {autocomplete: field_autocomplete})
         ];
       })
+
 
   }
 }
