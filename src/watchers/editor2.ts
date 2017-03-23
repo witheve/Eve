@@ -1387,7 +1387,7 @@ class EditorWatcher extends Watcher {
         let add_field = find("editor/infobox/field/new");
         let {node_infobox} = add_field;
         let event = find("html/event/click", {element: add_field})
-        let field_autocomplete = find("editor/infobox/field/new", {node_infobox});
+        let field_autocomplete = find("editor/infobox/field/attribute", {node_infobox});
         return [field_autocomplete.add("tag", "html/trigger-focus")];
       })
 
