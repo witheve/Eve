@@ -36,11 +36,16 @@ class EditorWatcher extends Watcher {
       })
 
       .block("A block's next node sort is it's max node sort + 1 (or 1).", ({find, not}) => {
-        // @FIXME: Hackaround busted sort.
         let block = find("block");
+        // let {node} = block;
+        // 2 > gather(node.sort, node).per(block).sort("down"); // @FIXME: 2 > workaround aggregate static filtering bug.
+        // let sort = node.sort + 1;
+
+        // @FIXME: Hackaround busted sort.
         let sibling = find("node");
         not(() => find("node").sort > sibling.sort);
         let sort = sibling.sort + 1;
+
         return [block.add("next_node_sort", sort)];
       })
       .block("With no nodes, a block's next sort is 1.", ({find, not}) => {
