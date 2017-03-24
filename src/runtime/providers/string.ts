@@ -123,6 +123,40 @@ class Substring extends Constraint {
     return proposal;
   }
 }
+class Replace extends Constraint {
+  static AttributeMapping = {
+    "text": 0,
+    "subtext": 1,
+    "case-sensitive": 2,
+    "only-first": 3,
+    "replacement": 4
+  }
+  static ReturnMapping = {
+    "new-text": 0
+  }
+
+  resolveProposal(proposal, prefix) {
+    let {returns} = this.resolve(prefix);
+    return proposal.text;
+  }
+
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    let flags = "";
+    if (args[2] == true) flags += "i";
+    if (args[3] == false) flags += "g";
+    return args[0].replace(new RegExp(args[1], flags), args[4])
+  }
+
+  getProposal(tripleIndex, proposed, prefix) {
+    let {args} = this.resolve(prefix);
+    let proposal = this.proposalObject;
+    proposal.providing = args[0].replace(new RegExp(args[1], flags), args[4]);
+    proposal.cardinality = 1;
+
+    return proposal;
+  }
+}
 
 class Find extends Constraint {
   static AttributeMapping = {
@@ -388,8 +422,49 @@ class Length extends Constraint {
   }
 }
 
+class CharAt extends Constraint {
+  static AttributeMapping = {
+    "text": 0,
+    "index": 1
+  }
+
+  getCharAt(text, idx) {
+    return text.substring(idx-1, idx); // JS strings are 0-index, instead of 1-indexed like Eve's.
+  }
+
+  resolveProposal(proposal, prefix) {
+    let {args} = this.resolve(prefix);
+    let [text, idx] = args;
+    return this.getCharAt(text, idx);
+  }
+
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    let [text, idx] = args;
+    if (idx <= 0 || idx > text.length) return false;
+    if (typeof text !== "string") return false;
+    return this.getCharAt(text, idx) === returns[0];
+  }
+
+  getProposal(tripleIndex, proposed, prefix) {
+    let proposal = this.proposalObject;
+    let {args} = this.resolve(prefix);
+    let [text, idx] = args;
+    if (typeof text !== "string") {
+      proposal.cardinality = 0;
+    } else if (idx < 0 || idx > text.length) {
+      proposal.cardinality = 0;
+    } else {
+      proposal.providing = proposed;
+      proposal.cardinality = 1;
+    }
+
+    return proposal;
+  }
+}
+
 //---------------------------------------------------------------------
-// Internal providers
+// internal providers
 //---------------------------------------------------------------------
 
 // InternalConcat is used for the implementation of string embedding, e.g.
@@ -428,5 +503,7 @@ providers.provide("convert", Convert);
 providers.provide("urlencode", Urlencode);
 providers.provide("length", Length);
 providers.provide("find", Find);
+providers.provide("replace", Replace);
+providers.provide("char-at", CharAt);
 
 providers.provide("eve-internal/concat", InternalConcat);
