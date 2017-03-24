@@ -2007,13 +2007,11 @@ export class LinearFlow extends Node {
     // results affected by it.
     let curPrefix;
     for(let node of this.nodes) {
+      if(this.results.length === 0) return false;
       while(curPrefix = this.results.next()) {
         context.tracer.node(node, curPrefix);
         let valid = node.exec(context, input, curPrefix, transaction, round, this.nextResults, changes);
         context.tracer.pop(TraceFrameType.Node);
-        if(!valid) {
-          return false;
-        }
       }
       let tmp = this.results;
       this.results = this.nextResults;
