@@ -1,8 +1,0 @@
-# Untitled
-```
-search
-  foo = suffix-of[text: "foo bar baz", suffix: "baz"]
-
-bind @view
-  [#value value: foo]
-```
