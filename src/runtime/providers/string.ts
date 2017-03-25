@@ -126,33 +126,48 @@ class Substring extends Constraint {
 class Replace extends Constraint {
   static AttributeMapping = {
     "text": 0,
-    "subtext": 1,
-    "case-sensitive": 2,
-    "only-first": 3,
-    "replacement": 4
+    "target": 1,
+    "replacement": 2,
+    "case-sensitive": 3,
+    "only-first": 4,
   }
   static ReturnMapping = {
     "new-text": 0
   }
 
   resolveProposal(proposal, prefix) {
-    let {returns} = this.resolve(prefix);
-    return proposal.text;
+    let {args, returns} = this.resolve(prefix);
+    return [this.replaceInString(args)];
+  }
+
+  replaceInString(args) {
+    let [text, target, replacement, caseSensative=false, onlyFirst=true] = args;
+    let flags = "";
+    if (caseSensative === false) flags += "i";
+    if (onlyFirst === false) flags += "g";
+    return text.replace(new RegExp(target, flags), replacement);
+  }
+
+  argsValid(args) {
+    let [text, target, replacement, caseSensative, onlyFirst] = args;
+    return typeof text === "string" && typeof target === "string" && typeof replacement == "string";
   }
 
   test(prefix) {
     let {args, returns} = this.resolve(prefix);
-    let flags = "";
-    if (args[2] == true) flags += "i";
-    if (args[3] == false) flags += "g";
-    return args[0].replace(new RegExp(args[1], flags), args[4])
+    return this.argsValid(args) && this.replaceInString(args) === returns[0];
   }
 
   getProposal(tripleIndex, proposed, prefix) {
     let {args} = this.resolve(prefix);
     let proposal = this.proposalObject;
-    proposal.providing = args[0].replace(new RegExp(args[1], flags), args[4]);
-    proposal.cardinality = 1;
+
+    if (this.argsValid(args)) {
+      proposal.providing = proposed;
+      proposal.cardinality = 1;
+    } else {
+      proposal.cardinality = 0;
+    }
 
     return proposal;
   }
@@ -240,6 +255,87 @@ class Find extends Constraint {
   }
 }
 
+class SuffixOf extends Constraint {
+  static AttributeMapping = {
+    "text": 0,
+    "suffix": 1,
+  }
+
+  validArguments(args) {
+    return typeof args[0] === "string" && typeof args[1] === "string" &&
+      args[1].length <= args[0].length &&
+      args[0] !== "" && args[1] !== "";
+  }
+
+  isSuffixOf(args) {
+    return [args[0].endsWith(args[1])];
+  }
+
+  resolveProposal(proposal, prefix) {
+    let {args} = this.resolve(prefix);
+    return this.isSuffixOf(args);
+  }
+
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    if (!this.validArguments(args)) return false;
+    return this.isSuffixOf(args) === returns[0];
+  }
+
+  getProposal(tripleIndex, proposed, prefix) {
+    let proposal = this.proposalObject;
+    let {args} = this.resolve(prefix);
+    if (!this.validArguments(args)) {
+      proposal.cardinality = 0;
+    } else {
+      proposal.cardinality = 1;
+      proposal.providing = proposed;
+    }
+
+    return proposal;
+  }
+}
+
+class PrefixOf extends Constraint {
+  static AttributeMapping = {
+    "text": 0,
+    "prefix": 1,
+  }
+
+  validArguments(args) {
+    return typeof args[0] === "string" && typeof args[1] === "string" &&
+      args[1].length <= args[0].length &&
+      args[0] !== "" && args[1] !== "";
+  }
+
+  isPrefixOf(args) {
+    return [args[0].startsWith(args[1])];
+  }
+
+  resolveProposal(proposal, prefix) {
+    let {args} = this.resolve(prefix);
+    return this.isPrefixOf(args);
+  }
+
+  test(prefix) {
+    let {args, returns} = this.resolve(prefix);
+    if (!this.validArguments(args)) return false;
+    return this.isPrefixOf(args) === returns[0];
+  }
+
+  getProposal(tripleIndex, proposed, prefix) {
+    let proposal = this.proposalObject;
+    let {args} = this.resolve(prefix);
+    if (!this.validArguments(args)) {
+      proposal.cardinality = 0;
+    } else {
+      proposal.cardinality = 1;
+      proposal.providing = proposed;
+    }
+
+    return proposal;
+  }
+}
 
 class Convert extends Constraint {
   static AttributeMapping = {
@@ -505,5 +601,7 @@ providers.provide("length", Length);
 providers.provide("find", Find);
 providers.provide("replace", Replace);
 providers.provide("char-at", CharAt);
+providers.provide("suffix-of", SuffixOf);
+providers.provide("prefix-of", PrefixOf);
 
 providers.provide("eve-internal/concat", InternalConcat);
