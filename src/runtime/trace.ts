@@ -69,6 +69,7 @@ export enum TraceNode {
   AntiJoin,
   AntiJoinPresolvedRight,
   Aggregate,
+  AggregateOuterLookup,
   Output,
   Watch,
 }
