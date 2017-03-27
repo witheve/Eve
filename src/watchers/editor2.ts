@@ -145,6 +145,8 @@ class EditorWatcher extends Watcher {
 
     this.infobox();
 
+    this.completionGenerator();
+
     this.fixtures();
     this.initEditor();
   }
@@ -237,44 +239,6 @@ class EditorWatcher extends Watcher {
           record("node", {sort: 0}), // Magic node. Do not remove. (Workaround sort bug)
           editor.add({active_block: block1, active_frame: frame1}),
           init.remove()
-        ];
-      })
-
-      .commit("DEBUG: add some fake tag completions.", ({find, record}) => {
-        find("editor/root");
-        return [
-          record("editor/existing-tag", {text: "person"}),
-          record("editor/existing-tag", {text: "pet"}),
-          record("editor/existing-tag", {text: "boat"}),
-          record("editor/existing-tag", {text: "dock"}),
-          record("editor/existing-tag", {text: "cat"}),
-        ];
-      })
-      .block("DEBUG: add some fake node attribute completions.", ({find, record}) => {
-        let tree_node = find("editor/node-tree/node");
-        let {node} = tree_node;
-        let completion = find("editor/existing-node-attribute");
-        completion.name == node.name
-
-        return [completion.add("node", node)];
-      })
-      .commit("DEBUG: add some fake node attribute completions.", ({find, record}) => {
-        let tree_node = find("editor/node-tree/node");
-        let {node} = tree_node;
-
-        return [
-          record("editor/existing-node-attribute", {name: "person", text: "name"}),
-          record("editor/existing-node-attribute", {name: "person", text: "age"}),
-          record("editor/existing-node-attribute", {name: "person", text: "boat", is_record: "true"}),
-          record("editor/existing-node-attribute", {name: "person", text: "pet", is_record: "true"}),
-          record("editor/existing-node-attribute", {name: "boat", text: "name"}),
-          record("editor/existing-node-attribute", {name: "boat", text: "type"}),
-          record("editor/existing-node-attribute", {name: "boat", text: "dock", is_record: "true"}),
-          //record("editor/existing-node-attribute", {name: "boat", text: "tag"}),
-          record("editor/existing-node-attribute", {name: "dock", text: "name"}),
-          record("editor/existing-node-attribute", {name: "dock", text: "state"}),
-          record("editor/existing-node-attribute", {name: "pet", text: "length"}),
-          record("editor/existing-node-attribute", {name: "pet", text: "name"}),
         ];
       })
 
@@ -1278,6 +1242,57 @@ class EditorWatcher extends Watcher {
         ];
       })
 
+  }
+
+  //--------------------------------------------------------------------
+  // Completion Generator
+  //--------------------------------------------------------------------
+
+  completionGenerator() {
+    //--------------------------------------------------------------------
+    // Tag completions
+    //--------------------------------------------------------------------
+
+    this.program
+      .watch("Make existing tags in the program available to the editor.", ({find, record}) => {
+        let rec = find();
+        return [record("editor/existing-tag", {text: rec.tag})];
+      })
+      .asDiffs(forwardDiffs(this.editor, "Send tags to editor.", false));
+
+
+    //--------------------------------------------------------------------
+    // Node -> Attribute completions
+    //--------------------------------------------------------------------
+
+    this.editor
+      .block("DEBUG: add some fake node attribute completions.", ({find, record}) => {
+        let tree_node = find("editor/node-tree/node");
+        let {node} = tree_node;
+        let completion = find("editor/existing-node-attribute");
+        completion.name == node.name
+
+        return [completion.add("node", node)];
+      })
+      .commit("DEBUG: add some fake node attribute completions.", ({find, record}) => {
+        let tree_node = find("editor/node-tree/node");
+        let {node} = tree_node;
+
+        return [
+          record("editor/existing-node-attribute", {name: "person", text: "name"}),
+          record("editor/existing-node-attribute", {name: "person", text: "age"}),
+          record("editor/existing-node-attribute", {name: "person", text: "boat", is_record: "true"}),
+          record("editor/existing-node-attribute", {name: "person", text: "pet", is_record: "true"}),
+          record("editor/existing-node-attribute", {name: "boat", text: "name"}),
+          record("editor/existing-node-attribute", {name: "boat", text: "type"}),
+          record("editor/existing-node-attribute", {name: "boat", text: "dock", is_record: "true"}),
+          //record("editor/existing-node-attribute", {name: "boat", text: "tag"}),
+          record("editor/existing-node-attribute", {name: "dock", text: "name"}),
+          record("editor/existing-node-attribute", {name: "dock", text: "state"}),
+          record("editor/existing-node-attribute", {name: "pet", text: "length"}),
+          record("editor/existing-node-attribute", {name: "pet", text: "name"}),
+        ];
+      })
 
   }
 }
