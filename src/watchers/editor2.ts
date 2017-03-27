@@ -606,6 +606,13 @@ class EditorWatcher extends Watcher {
         return [new_attribute.add("completion", completion)];
       })
 
+      .block("An open tree node require completions.", ({find}) => {
+        let tree_node = find("editor/node-tree/node", {open: "true"});
+        let {node} = tree_node;
+        return [node.add("completing", "true")];
+      })
+
+
     //--------------------------------------------------------------------
     // Node Tree Interaction
     //--------------------------------------------------------------------
@@ -1218,7 +1225,14 @@ class EditorWatcher extends Watcher {
         let {node_infobox} = new_attribute;
         let completion = find("editor/existing-node-attribute", {node: node_infobox.node});
         return [new_attribute.add("completion", completion)];
-      });
+      })
+
+      .block("An infobox require completions.", ({find}) => {
+        let node_infobox = find("editor/infobox/node");
+        let {node} = node_infobox;
+        return [node.add("completing", "true")];
+      })
+;
 
     //--------------------------------------------------------------------
     // Infobox Interactions
@@ -1266,34 +1280,83 @@ class EditorWatcher extends Watcher {
     //--------------------------------------------------------------------
 
     this.editor
-      .block("DEBUG: add some fake node attribute completions.", ({find, record}) => {
-        let tree_node = find("editor/node-tree/node");
-        let {node} = tree_node;
-        let completion = find("editor/existing-node-attribute");
-        completion.name == node.name
-
-        return [completion.add("node", node)];
-      })
-      .commit("DEBUG: add some fake node attribute completions.", ({find, record}) => {
-        let tree_node = find("editor/node-tree/node");
-        let {node} = tree_node;
-
+      .block("Create a completion generator for node -> attribute.", ({find, record}) => {
+        let node = find("node", {completing: "true"});
         return [
-          record("editor/existing-node-attribute", {name: "person", text: "name"}),
-          record("editor/existing-node-attribute", {name: "person", text: "age"}),
-          record("editor/existing-node-attribute", {name: "person", text: "boat", is_record: "true"}),
-          record("editor/existing-node-attribute", {name: "person", text: "pet", is_record: "true"}),
-          record("editor/existing-node-attribute", {name: "boat", text: "name"}),
-          record("editor/existing-node-attribute", {name: "boat", text: "type"}),
-          record("editor/existing-node-attribute", {name: "boat", text: "dock", is_record: "true"}),
-          //record("editor/existing-node-attribute", {name: "boat", text: "tag"}),
-          record("editor/existing-node-attribute", {name: "dock", text: "name"}),
-          record("editor/existing-node-attribute", {name: "dock", text: "state"}),
-          record("editor/existing-node-attribute", {name: "pet", text: "length"}),
-          record("editor/existing-node-attribute", {name: "pet", text: "name"}),
+          record("editor/node/attribute/completer", "eve/compiler/block", {node, name: "Node attribute completer.", type: "watch", watcher: "send-to-editor"})
+            .add("joined_node", node)
+        ];
+      })
+      .block("Create a record for each node.", ({find, record}) => {
+        // @NOTE: This is intentionally local. Do we want it to be block-level filtering vs node-level?
+        let completer = find("editor/node/attribute/completer");
+        let {joined_node:node} = completer;
+        return [
+          node.entity.add("tag", "eve/compiler/var"),
+          completer.add("constraint", [
+            record("editor/node/record", "eve/compiler/record", {completer, node, record: node.entity}).add("attribute", [
+              //@FIXME: Bogus scan to hint to the compiler watcher that it shouldn't try to gen an id.
+              record({attribute: "tag", value: record("editor/bogus-var", "eve/compiler/var", {node})})
+            ])
+          ])
+        ];
+      })
+      .block("Attributes with no value are free fields.", ({find, not, record}) => {
+        let completer = find("editor/node/attribute/completer");
+        let {joined_node:node} = completer;
+        let {attribute} = node;
+        not(() => attribute.value);
+        return [record("editor/molecule/free-field", "eve/compiler/var", {node, attribute})]; // @FIXME: Rename this tag something more generic.
+      })
+      .block("Attach attributes to node record.", ({find, choose, record}) => {
+        let node_record = find("editor/node/record");
+        let {completer, node} = node_record;
+        let {attribute} = node;
+        let [value] = choose(
+          () => attribute.value,
+          () => find("editor/molecule/free-field", {node, attribute})
+        );
+        let [identifying] = choose(
+          () => { attribute.value == find("node").entity; return "eve/compiler/attribute/non-identity"; },
+          () => "eve/compiler/attribute/identity"
+        );
+
+        return [node_record.add("attribute", record({attribute: attribute.attribute, value}))];
+      })
+      .block("Parent nodes are joined nodes.", ({find, choose, record}) => {
+        let completer = find("editor/node/attribute/completer");
+        let {joined_node:node} = completer;
+        return [completer.add("joined_node", node.parent)];
+      })
+      .block("The completions are the attributes of any records that still match.", ({find, record}) => {
+        let completer = find("editor/node/attribute/completer");
+        let {node} = completer;
+        let output_var;
+        let attr_match;
+        let val_match;
+        return [
+          output_var = record("eve/compiler/var", "editor/node/attribute/completer/output", {node}),
+          attr_match = record("eve/compiler/var", "editor/node/attribute/completer/attribute", {node}),
+          val_match = record("eve/compiler/var", "editor/node/attribute/completer/value", {node}),
+
+          completer.add("constraint", [
+            record("eve/compiler/output", {node, record: output_var}).add("attribute", [
+              record({attribute: "tag", value: "editor/existing-node-attribute"}),
+              record({attribute: "node", value: node}),
+              record({attribute: "text", value: attr_match}),
+              // @FIXME: We can't gen a choose so we have to send it over and figure out is_record editor-side.
+              record("eve/compiler/attribute/non-identity", {attribute: "value", value: val_match}),
+            ]),
+            record("eve/compiler/lookup", {record: node.entity, attribute: attr_match, value: val_match}),
+          ])
         ];
       })
 
+      .block("Compute is_record based on the values of existing node attributes.", ({find, lib:{string}}) => {
+        let existing = find("editor/existing-node-attribute");
+        string.index_of(existing.value, "|"); // @FIXME: hacky gen id detection.
+        return [existing.add("is_record", "true")];
+      })
   }
 }
 
