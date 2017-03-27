@@ -2517,6 +2517,7 @@ export class UnionFlow extends Node {
 export class ChooseFlow extends Node {
   traceType = TraceNode.Choose;
   leftResults = new Iterator<Prefix>();
+  emptyResults = new Iterator<Prefix>();
   branches:(BinaryJoinRight|AntiJoinPresolvedRight)[] = [];
 
   constructor(public left:Node, initialBranches:Node[], public keyRegisters:Register[][], public registersToMerge:Register[], public extraOuterJoins:Register[]) {
@@ -2554,7 +2555,6 @@ export class ChooseFlow extends Node {
     let {branches, left} = this;
     let prev:Iterator<Prefix>|undefined;
     let ix = 0;
-    let resultLength = results.length;
 
     left.results.clear();
     tracer.node(left, prefix);
@@ -2571,26 +2571,25 @@ export class ChooseFlow extends Node {
       tracer.pop(TraceFrameType.Node);
 
       // Because we've already run this node once, we don't want it to potentially see our
-      // results multiple times. As such, we temporarily set our result length to 0 here
+      // results multiple times. As such, we temporarily set our results to an empty iterator
       // so that downstream nodes see nothing and we set it back once we've gone through
       // all the left prefixes. This ensures that AntiJoinPresolvedRight only sees the previous
-      // branchs' results once.
-      results.length = 0;
+      // branches' results once.
+      this.results = this.emptyResults;
       leftResults.reset();
       while((leftPrefix = leftResults.next()) !== undefined) {
         tracer.node(node, leftPrefix);
         node.exec(context, input, copyArray(leftPrefix, "ChooseLeftPrefixCopy"), transaction, round, node.results, changes);
         tracer.pop(TraceFrameType.Node);
       }
-      // per above, make sure we set our result length back to the real value
-      results.length = resultLength;
+      // per above, make sure we set our results back to the real iterator
+      this.results = results;
       let branchResult = node.results.iter();
       let result;
       while((result = branchResult.next()) !== undefined) {
         tracer.capturePrefix(result);
         results.push(result);
       }
-      resultLength = results.length;
     }
     return true;
   }
