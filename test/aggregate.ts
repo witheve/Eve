@@ -470,7 +470,7 @@ test("Sort: incremental updates", (assert) => {
 });
 
 
-test.only("Aggregate: inside choose without outer in key", (assert) => {
+test("Aggregate: inside choose without outer in key", (assert) => {
   let prog = new Program("test");
   prog.block("count the names of people", ({find, gather, record, choose}) => {
     let person = find("person");
@@ -487,6 +487,48 @@ test.only("Aggregate: inside choose without outer in key", (assert) => {
     [2, "name", "joe"],
   ], [
     [1, "next", 2, 1],
+  ]);
+
+  assert.end();
+});
+
+test("Aggregate: no outer in key variations", (assert) => {
+  let prog = new Program("test");
+  prog.block("count the names of people", ({find, gather, record, choose}) => {
+    let person = find("person");
+    let [sort] = choose(() => {
+      return gather(person.name).count();
+    }, () => "yo yo yo");
+    return [person.add("next", sort)];
+  });
+
+  verify(assert, prog, [
+    [1, "tag", "person"],
+    [1, "name", "chris"],
+    [1, "name", "christopher"],
+    [2, "name", "joe"],
+  ], [
+    [1, "next", 2, 1],
+  ]);
+
+  verify(assert, prog, [
+    [1, "tag", "person", 0, -1],
+  ], [
+    [1, "next", 2, 1, -1],
+  ]);
+
+  verify(assert, prog, [
+    [1, "name", "chris", 0, -1],
+    [1, "tag", "person"],
+  ], [
+    [1, "next", 1, 1],
+  ]);
+
+  verify(assert, prog, [
+    [1, "name", "chris"],
+    [1, "tag", "person", 0, -1],
+  ], [
+    [1, "next", 1, 1, -1],
   ]);
 
   assert.end();
