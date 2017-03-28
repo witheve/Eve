@@ -94,7 +94,7 @@ test("Choose: 3 branches", (assert) => {
   assert.end();
 });
 
-test.only("Choose: 4 branches", (assert) => {
+test("Choose: 4 branches", (assert) => {
 
   let prog = new Program("test");
   prog.block("simple block", ({find, record, lib, choose}) => {

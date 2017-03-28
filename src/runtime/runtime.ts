@@ -2476,6 +2476,7 @@ export class AntiJoinPresolvedRight extends AntiJoin {
 export class UnionFlow extends Node {
   traceType = TraceNode.Union;
   branches:BinaryJoinRight[] = [];
+  emptyResults = new Iterator<Prefix>();
 
   constructor(public left:Node, branches:Node[], public keyRegisters:Register[][], public registersToMerge:Register[], public extraOuterJoins:Register[]) {
     super();
@@ -2489,6 +2490,7 @@ export class UnionFlow extends Node {
   exec(context:EvaluationContext, input:Change, prefix:Prefix, transaction:number, round:number, results:Iterator<Prefix>, changes:Transaction):boolean {
     let {left} = this;
     let {tracer} = context;
+    let tempLeftResults = left.results;
 
     left.results.clear();
     tracer.node(left, prefix);
@@ -2498,15 +2500,30 @@ export class UnionFlow extends Node {
     let leftPrefix;
     let leftResults = left.results.iter();
     for(let node of this.branches) {
+      node.results.clear();
+
       tracer.node(node, prefix);
-      node.exec(context, input, prefix, transaction, round, results, changes);
+      node.exec(context, input, prefix, transaction, round, node.results, changes);
       tracer.pop(TraceFrameType.Node);
 
+      // Because we've already run this node once, we don't want it to potentially see the left's
+      // results multiple times. As such, we temporarily set the results to an empty iterator
+      // so that downstream nodes see nothing and we set it back once we've gone through
+      // all the left prefixes.
+      left.results = this.emptyResults;
       leftResults.reset();
       while((leftPrefix = leftResults.next()) !== undefined) {
         tracer.node(node, leftPrefix);
-        node.exec(context, input, copyArray(leftPrefix, "UnionLeftPrefixCopy"), transaction, round, results, changes);
+        node.exec(context, input, copyArray(leftPrefix, "UnionLeftPrefixCopy"), transaction, round, node.results, changes);
         tracer.pop(TraceFrameType.Node);
+      }
+      // set the left results back to the real results
+      left.results = tempLeftResults;
+
+      let branchResults = node.results.iter();
+      let result;
+      while((result = branchResults.next())) {
+        results.push(result);
       }
 
     }
@@ -2555,6 +2572,8 @@ export class ChooseFlow extends Node {
     let {branches, left} = this;
     let prev:Iterator<Prefix>|undefined;
     let ix = 0;
+    let tempResults = this.results;
+    let tempLeftResults = left.results;
 
     left.results.clear();
     tracer.node(left, prefix);
@@ -2565,6 +2584,7 @@ export class ChooseFlow extends Node {
     let leftPrefix;
 
     for(let node of branches) {
+
       node.results.clear();
       tracer.node(node, prefix);
       node.exec(context, input, prefix, transaction, round, node.results, changes);
@@ -2574,8 +2594,10 @@ export class ChooseFlow extends Node {
       // results multiple times. As such, we temporarily set our results to an empty iterator
       // so that downstream nodes see nothing and we set it back once we've gone through
       // all the left prefixes. This ensures that AntiJoinPresolvedRight only sees the previous
-      // branches' results once.
+      // branches' results once. We also need to do this for our left's results, since we'll have
+      // seen those as well and would otherwise double count them.
       this.results = this.emptyResults;
+      left.results = this.emptyResults;
       leftResults.reset();
       while((leftPrefix = leftResults.next()) !== undefined) {
         tracer.node(node, leftPrefix);
@@ -2583,7 +2605,8 @@ export class ChooseFlow extends Node {
         tracer.pop(TraceFrameType.Node);
       }
       // per above, make sure we set our results back to the real iterator
-      this.results = results;
+      this.results = tempResults;
+      left.results = tempLeftResults;
       let branchResult = node.results.iter();
       let result;
       while((result = branchResult.next()) !== undefined) {
