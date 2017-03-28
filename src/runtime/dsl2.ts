@@ -1538,14 +1538,25 @@ class Union extends DSLBase {
     let outputs = this.getOutputRegisters();
     let ix = 0;
     for(let flow of this.branches) {
+      if(flow.collector.chooses.length > 0 || flow.collector.unions.length > 0) {
+        throw new Error("Nested chooses and unions are not currently supported");
+      }
       let compiled = flow.compile();
+      // @NOTE: Not sure why TS isn't correctly pegging this as filtered to only Registers already.
+      let flowInputs = branchInputs[ix].map((v) => context.getValue(v)).filter(isRegister) as Register[];
       if(compiled.length > 1) {
+        // if this branch has an aggregate in it, we need to do some surgery to make sure that
+        // the JoinNode gets wrapped in an AggregateOuterLookup. For the motivation see the
+        // comment about the definition for AggregateOuterLookup.
+        if(flow.collector.aggregates.length > 0) {
+          let aggMerge = compiled[0] as Runtime.MergeAggregateFlow;
+          aggMerge.left = new Runtime.AggregateOuterLookup(join, aggMerge.left, flowInputs)
+        }
         nodes.push(new Runtime.LinearFlow(compiled));
       } else {
         nodes.push(compiled[0]);
       }
-      // @NOTE: Not sure why TS isn't correctly pegging this as filtered to only Registers already.
-      inputs.push(branchInputs[ix].map((v) => context.getValue(v)).filter(isRegister) as Register[]);
+      inputs.push(flowInputs);
       ix++;
     }
     let extraJoins:Register[] = [];
