@@ -104,6 +104,7 @@ export class Tracer {
   outputsToInputs:any = {};
   eToChange:any = {};
   renderer:Renderer;
+  activeBlock = "";
   tracker = new PerformanceTracker();
 
   constructor(public context:EvaluationContext, shouldDraw = true) {
@@ -144,6 +145,7 @@ export class Tracer {
   }
 
   block(name:string) {
+    this.activeBlock = name;
     this.stack.push({type:TraceFrameType.Block, name, nodes: []})
     this.tracker.block(name);
   }
@@ -464,6 +466,8 @@ export class Tracer {
 
 export class NoopTracer extends Tracer {
 
+  activeBlock = "";
+
   constructor(public context:EvaluationContext) {
     super(context, false);
   }
@@ -471,7 +475,7 @@ export class NoopTracer extends Tracer {
   transaction(id:number) { }
   frame(commits:Change[]) { }
   input(input:Change) { }
-  block(name:string) { }
+  block(name:string) { this.activeBlock = name; }
   node(node:Runtime.Node, inputPrefix:Prefix) { }
   capturePrefix(prefix:Prefix) { }
   maybeOutput(change:Change) { }
