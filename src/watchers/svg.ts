@@ -22,13 +22,13 @@ class SVGWatcher extends DOMWatcher<Instance> {
   }
 
   addAttribute(instance:Instance, attribute:RawValue, value:RawValue):void {
-    // @TODO: Error checking to ensure we don't double-set attributes.
-    instance.setAttributeNS("http://www.w3.org/2000/svg", attribute as string, value as string);
+    // @TODO: Namespace attributes as appropriate.
+    instance.setAttribute(attribute as string, value as string);
   }
 
   removeAttribute(instance:Instance, attribute:RawValue, value:RawValue):void {
-    // @TODO: Error checking to ensure we don't double-remove attributes or remove the wrong value.
-    instance.removeAttributeNS("http://www.w3.org/2000/svg", attribute as string);
+    // @TODO: Namespace attributes as appropriate.
+    instance.removeAttribute(attribute as string);
   }
 
   setup() {
