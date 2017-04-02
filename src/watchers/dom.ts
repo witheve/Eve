@@ -3,7 +3,7 @@ import {v4 as uuid} from "node-uuid";
 
 import naturalSort = require("javascript-natural-sort");
 
-interface Map<V>{[key:string]: V}
+export interface Map<V>{[key:string]: V}
 
 export interface Style extends Map<RawValue|undefined> {__size: number}
 export interface ElemInstance extends Element {__element?: RawValue, __styles?: RawValue[], __sort?: RawValue, style?: any}

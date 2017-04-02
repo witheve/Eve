@@ -35,7 +35,7 @@ function isOperationType(val:RawValue): val is OperationType {
 const EMPTY = {};
 
 export interface Canvas extends HTMLCanvasElement { __element?: RawValue }
-type OperationType = keyof Path2D;
+export type OperationType = keyof Path2D;
 export interface Operation {type: OperationType, args:any, paths:RawValue[]};
 // {fillStyle: "#000000", strokeStyle: "#000000", lineWidth: 1, lineCap: "butt", lineJoin: "miter"}
 export interface PathStyle {[key:string]: RawValue|undefined, fillStyle?:string, strokeStyle?:string, lineWidth?:number, lineCap?:string, lineJoin?: string };

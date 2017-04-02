@@ -7,7 +7,7 @@ import {ID, Block} from "../runtime/runtime";
 import {Program, LinearFlow, ReferenceContext, Reference, Record, Insert, Remove, Value, WatchFlow, CommitFlow} from "../runtime/dsl2";
 import "setimmediate";
 
-interface CompilationContext {
+export interface CompilationContext {
   variables: {[id:string]: Reference},
 }
 

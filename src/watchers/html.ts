@@ -3,7 +3,7 @@ import {DOMWatcher, ElemInstance} from "./dom";
 import {ID} from "../runtime/runtime";
 import {v4 as uuid} from "node-uuid";
 
-interface Instance extends HTMLElement {__element?: RawValue, __styles?: RawValue[], __sort?: RawValue}
+export interface Instance extends HTMLElement {__element?: RawValue, __styles?: RawValue[], __sort?: RawValue}
 
 export class HTMLWatcher extends DOMWatcher<Instance> {
   tagPrefix = "html";

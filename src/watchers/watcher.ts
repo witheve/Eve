@@ -43,13 +43,13 @@ export class Watcher {
 // Exporter
 //------------------------------------------------------------------------------
 
-interface Map<V> {[key:number]: V};
+export interface Map<V> {[key:number]: V};
 export interface RawMap<V> {[key:string]: V, [key:number]: V};
 export interface RawRecord extends RawMap<RawValue> {}
 
-interface Diffs<V> {adds: V, removes: V};
-interface EAVDiffs extends Diffs<RawEAV[]> {}
-interface ObjectDiffs<T extends RawRecord> extends Diffs<RawMap<T>> {}
+export interface Diffs<V> {adds: V, removes: V};
+export interface EAVDiffs extends Diffs<RawEAV[]> {}
+export interface ObjectDiffs<T extends RawRecord> extends Diffs<RawMap<T>> {}
 
 export type DiffConsumer = (diffs:EAVDiffs) => void;
 export type ObjectConsumer<T extends RawRecord> = (diffs:ObjectDiffs<T>) => void;
@@ -194,7 +194,7 @@ export function isRawEAVArray(x:any): x is RawEAV[] {
 }
 
 
-interface Attrs extends RawMap<RawValue|RawValue[]|RawEAV[]|RawEAV[][]> {}
+export interface Attrs extends RawMap<RawValue|RawValue[]|RawEAV[]|RawEAV[][]> {}
 export function appendAsEAVs(eavs:any[], record: Attrs, id = createId()) {
   for(let attr in record) {
     let value = record[attr];

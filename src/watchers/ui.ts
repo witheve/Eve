@@ -1,7 +1,7 @@
 import {Watcher, RawMap, RawValue, RawEAV} from "./watcher";
 import {v4 as uuid} from "node-uuid";
 
-interface Attrs extends RawMap<RawValue|RawValue[]|RawEAV[]> {}
+export interface Attrs extends RawMap<RawValue|RawValue[]|RawEAV[]> {}
 
 export class UIWatcher extends Watcher {
   protected static _addAttrs(id:string, attrs?: Attrs, eavs:RawEAV[] = []) {
