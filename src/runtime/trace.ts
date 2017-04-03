@@ -93,9 +93,9 @@ let typeToParentField = {
   [TraceFrameType.MaybeExternalInput]: "externalInputs",
 }
 
-interface Frame {type:TraceFrameType};
-interface ProgramFrame extends Frame {transactions: TransactionFrame[]}
-interface TransactionFrame extends Frame {id:number, externalInputs:any[], inputs:any[]}
+export interface Frame {type:TraceFrameType};
+export interface ProgramFrame extends Frame {transactions: TransactionFrame[]}
+export interface TransactionFrame extends Frame {id:number, externalInputs:any[], inputs:any[]}
 
 export class Tracer {
   stack:any[] = [{type:TraceFrameType.Program, transactions: []}];

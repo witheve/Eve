@@ -1,3 +1,4 @@
+import * as path from "path";
 export {RawValue, RawEAV, RawEAVC} from "../runtime/runtime";
 import {ID, GlobalInterner, RawValue, RawEAV, RawEAVC, Change, createArray, ExportHandler} from "../runtime/runtime";
 export {Program} from "../runtime/dsl2";
@@ -231,17 +232,18 @@ export function appendAsEAVs(eavs:any[], record: Attrs, id = createId()) {
 //------------------------------------------------------------------------------
 
 const WATCHER_PATHS = [
-  __dirname + "/**/*.js"
+  __dirname
   // @TODO: Import watchers from node_modules with the appropriate flag in their package.jsons
   // @TODO: Import watchers from the binary-local `watchers` directory.
   // @NOTE: We normalize backslash to forwardslash to make glob happy.
 ].map((path) => path.replace(new RegExp("\\\\", "g"), "/"));
 
-export function findWatchers() {
+export function findWatchers(watcherPaths:string[] = WATCHER_PATHS, relative = false) {
   let watcherFiles:string[] = [];
-  for(let watcherPath of WATCHER_PATHS) {
-    for(let filepath of glob.sync(watcherPath)) {
+  for(let watcherPath of watcherPaths) {
+    for(let filepath of glob.sync(watcherPath + "/**/*.js")) {
       if(filepath === __filename) continue;
+      if(relative) filepath = path.relative(watcherPath, filepath);
       watcherFiles.push(filepath);
     }
   }

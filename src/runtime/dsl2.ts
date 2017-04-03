@@ -73,7 +73,7 @@ function macro<FuncType extends Function>(func:FuncType, transform:(code:string,
 //--------------------------------------------------------------------
 
 export type Value = Reference|RawValue;
-type ProxyReference = any;
+export type ProxyReference = any;
 
 function isRawValue(v:any): v is RawValue {
   return (typeof v === "string" || typeof v === "number");
@@ -83,7 +83,7 @@ function isReference(v:any): v is Reference {
   return (v instanceof Reference);
 }
 
-type Owner = any;
+export type Owner = any;
 
 export class Reference {
   static ReferenceID = 0;
@@ -395,12 +395,12 @@ export class ReferenceContext {
 // Linear Flow
 //--------------------------------------------------------------------
 
-type Node = Record | Insert | Fn | Not | Choose | Union | Aggregate | Lookup | Move;
+export type Node = Record | Insert | Fn | Not | Choose | Union | Aggregate | Lookup | Move;
 export type LinearFlowFunction = (self:LinearFlow) => (Value|Value[])
-type RecordAttributes = {[key:string]:Value|Value[]}
-type FlowRecordArg = string | RecordAttributes
+export type RecordAttributes = {[key:string]:Value|Value[]}
+export type FlowRecordArg = string | RecordAttributes
 
-class FlowLevel {
+export class FlowLevel {
   records:Record[] = [];
   lookups:Lookup[] = [];
   functions:Fn[] = [];
@@ -658,7 +658,7 @@ class FlowLevel {
   }
 }
 
-class DSLBase {
+export class DSLBase {
   static CurrentID = 1;
   ID = DSLBase.CurrentID++;
 }
@@ -1033,7 +1033,7 @@ export class Record extends DSLBase {
 // Lookup
 //--------------------------------------------------------------------
 
-class Lookup extends DSLBase {
+export class Lookup extends DSLBase {
   attribute:Reference;
   value:Reference;
 
@@ -1066,7 +1066,7 @@ class Lookup extends DSLBase {
 // Move
 //--------------------------------------------------------------------
 
-class Move extends DSLBase {
+export class Move extends DSLBase {
   public to:Reference;
   constructor(public context:ReferenceContext, public from:Value, to?:Reference) {
     super();
@@ -1219,7 +1219,7 @@ export class Remove extends Insert {
 // Watch
 //--------------------------------------------------------------------
 
-class Watch extends Insert {
+export class Watch extends Insert {
   compile():(Runtime.Node|Runtime.Scan)[] {
     let {attributes, context} = this;
     let nodes = [];
@@ -1239,7 +1239,7 @@ class Watch extends Insert {
 // CommitInsert
 //--------------------------------------------------------------------
 
-class CommitInsert extends Insert {
+export class CommitInsert extends Insert {
   compile():any[] {
     let {attributes, context} = this;
     let nodes = [];
@@ -1259,7 +1259,7 @@ class CommitInsert extends Insert {
 // CommitRemove
 //--------------------------------------------------------------------
 
-class CommitRemove extends Remove {
+export class CommitRemove extends Remove {
   compile():any[] {
     let {attributes, context} = this;
     let nodes = [];
@@ -1283,7 +1283,7 @@ class CommitRemove extends Remove {
 // Fn
 //--------------------------------------------------------------------
 
-class Fn extends DSLBase {
+export class Fn extends DSLBase {
   output:Value;
   constructor(public context:ReferenceContext, public name:string, public args:Value[], output?:Reference) {
     super();
@@ -1354,7 +1354,7 @@ class Fn extends DSLBase {
 // Aggregate
 //--------------------------------------------------------------------
 
-class Aggregate extends DSLBase {
+export class Aggregate extends DSLBase {
   output: Reference;
 
   constructor(public context:ReferenceContext, public aggregate:any, public projection:Reference[], public group:Reference[], public args:Value[], output?:Reference) {
@@ -1411,7 +1411,7 @@ class Aggregate extends DSLBase {
   }
 }
 
-class AggregateBuilder {
+export class AggregateBuilder {
 
   group:Reference[] = [];
 
@@ -1454,7 +1454,7 @@ class AggregateBuilder {
 // Not
 //--------------------------------------------------------------------
 
-class Not extends LinearFlow {
+export class Not extends LinearFlow {
   constructor(func:LinearFlowFunction, parent:LinearFlow) {
     super(func, parent);
     parent.collect(this);
@@ -1465,7 +1465,7 @@ class Not extends LinearFlow {
 // Union
 //--------------------------------------------------------------------
 
-class Union extends DSLBase {
+export class Union extends DSLBase {
   branches:LinearFlow[] = [];
   results:Reference[] = [];
   inputs:Reference[] = [];
@@ -1576,7 +1576,7 @@ class Union extends DSLBase {
 // Choose
 //--------------------------------------------------------------------
 
-class Choose extends Union {
+export class Choose extends Union {
   build(left: Runtime.Node, nodes:Runtime.Node[], inputs:Register[][], outputs:Register[], extraOuterJoins:Register[]):Runtime.Node {
     return new Runtime.ChooseFlow(left, nodes, inputs, outputs, extraOuterJoins);
   }

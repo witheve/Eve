@@ -318,7 +318,7 @@ makeFunction({
 // Aggregates
 //------------------------------------------------------------------------
 
-type SumAggregateState = {total:number};
+export type SumAggregateState = {total:number};
 export class SumAggregate extends AggregateNode {
   add(state:SumAggregateState, resolved:RawValue[]):any {
     state.total += resolved[0] as number;

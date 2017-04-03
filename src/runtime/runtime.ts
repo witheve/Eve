@@ -450,7 +450,7 @@ export var GlobalInterner = new Interner();
 // the system.
 
 // We track counts as Multiplicities, which are just signed integers.
-type Multiplicity = number;
+export type Multiplicity = number;
 
 // It's often useful to know just the sign of a multiplicity
 function sign (x:number) {
@@ -514,7 +514,7 @@ export class Change {
 const BLOCK_REMOVE = new Change(0,0,0,0,0,0,-1);
 const BLOCK_ADD = new Change(0,0,0,0,0,0,1);
 
-class RemoveChange extends Change {
+export class RemoveChange extends Change {
   toString() {
     // let e = GlobalInterner.reverse(this.e);
     let e = this.e;
@@ -526,7 +526,7 @@ class RemoveChange extends Change {
   }
 }
 
-class RemoveVsChange extends RemoveChange {
+export class RemoveVsChange extends RemoveChange {
   toRemoveChanges(context:EvaluationContext, changes:Change[]) {
     let {e,a,v,n} = this;
     let {index, distinctIndex} = context;
@@ -547,7 +547,7 @@ class RemoveVsChange extends RemoveChange {
   }
 }
 
-class RemoveAVsChange extends RemoveVsChange {
+export class RemoveAVsChange extends RemoveVsChange {
   toRemoveChanges(context:EvaluationContext, changes:Change[]) {
     let {e,a,v,n} = this;
     let {index, distinctIndex} = context;
@@ -674,7 +674,7 @@ export function isRegister(x: any): x is Register {
 // IGNORE_REG is a sentinel value that tells us we don't care what the value of
 // something is when we're solving.
 export var IGNORE_REG = null;
-type IgnoreRegister = typeof IGNORE_REG;
+export type IgnoreRegister = typeof IGNORE_REG;
 
 //------------------------------------------------------------------------
 // Proposal
@@ -695,7 +695,7 @@ export interface Proposal {
 
 export type RoundArray = number[];
 
-enum ApplyInputState {
+export enum ApplyInputState {
   pass,
   fail,
   none,
@@ -719,17 +719,17 @@ export interface Constraint {
 //------------------------------------------------------------------------
 
 /** A scan field may contain a register, a static interned value, or the IGNORE_REG sentinel value. */
-type ScanField = Register|ID|IgnoreRegister;
+export type ScanField = Register|ID|IgnoreRegister;
 /** A resolved value is a scan field that, if it contained a register, now contains the register's resolved value. */
 export type ResolvedValue = ID|undefined|IgnoreRegister;
 
-type ResolvedEAVN = {e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue};
+export type ResolvedEAVN = {e:ResolvedValue, a:ResolvedValue, v:ResolvedValue, n:ResolvedValue};
 
 export class EAVN {
   constructor(public e:ID, public a:ID, public v:ID, public n:ID) {}
 };
 
-type EAV = [ID, ID, ID];
+export type EAV = [ID, ID, ID];
 export type RawEAV = [RawValue, RawValue, RawValue];
 export type RawEAVC = [RawValue, RawValue, RawValue, number];
 
@@ -1072,8 +1072,8 @@ export class Scan implements Constraint {
 // Function constraint
 //------------------------------------------------------------------------
 
-type ConstraintFieldMap = {[name:string]: ScanField};
-type ResolvedFields = {[fieldName:string]: ResolvedValue};
+export type ConstraintFieldMap = {[name:string]: ScanField};
+export type ResolvedFields = {[fieldName:string]: ResolvedValue};
 
 export class FunctionConstraint implements Constraint {
   static registered: {[name:string]: typeof FunctionConstraint} = {};
@@ -1414,7 +1414,7 @@ export class FunctionConstraint implements Constraint {
   }
 }
 
-interface FunctionSetup {
+export interface FunctionSetup {
   name:string,
   variadic?: boolean,
   args:{[argName:string]: string},
@@ -2044,9 +2044,9 @@ export class LinearFlow extends Node {
 // BinaryFlow
 //------------------------------------------------------------------------------
 
-type KeyFunction = (prefix:Prefix) => string;
+export type KeyFunction = (prefix:Prefix) => string;
 
-class IntermediateIndexIterator {
+export class IntermediateIndexIterator {
   values:{[value:string]: any[]};
   valueKeys:string[];
   currentCounts: any[];
@@ -2108,7 +2108,7 @@ class IntermediateIndexIterator {
   }
 }
 
-class IntermediateIndex {
+export class IntermediateIndex {
   static CreateKeyFunction(registers:Register[]):KeyFunction {
     let items = registers.map((reg) => {
       return `prefix[${reg.offset}]`;
@@ -2165,7 +2165,7 @@ class IntermediateIndex {
   }
 }
 
-class ZeroingIterator {
+export class ZeroingIterator {
   counts:Multiplicity[];
   roundIx = -1;
   countSum = 0;
@@ -2222,7 +2222,7 @@ class ZeroingIterator {
   }
 }
 
-class KeyOnlyIntermediateIndex {
+export class KeyOnlyIntermediateIndex {
   index:{[key:string]: Multiplicity[]} = {};
   iterator = new ZeroingIterator();
 
@@ -2257,7 +2257,7 @@ class KeyOnlyIntermediateIndex {
   }
 }
 
-abstract class BinaryFlow extends Node {
+export abstract class BinaryFlow extends Node {
   traceType = TraceNode.BinaryJoin;
 
   constructor(public left:Node, public right:Node) {

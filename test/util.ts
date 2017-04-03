@@ -20,7 +20,7 @@ export function pprint(obj:any):string {
   return ""+obj;
 }
 
-class EntityId {
+export class EntityId {
   constructor(public id:Runtime.ID) {}
   toString() {
     return "$" + this.id;
